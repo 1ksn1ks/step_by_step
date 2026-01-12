@@ -25,7 +25,7 @@ export async function loadUfoModel(modelUrl) {
         // // Remove the previous model if it exists
         if (currentUfoModel !== null) {
             scene.remove(currentUfoModel);
-            currentUfoModel = null; // Clear the reference to the removed model
+            setCurrentUfoModel (null); // Clear the reference to the removed model
         }
 
         const gltf = await new Promise((resolve, reject) => {
