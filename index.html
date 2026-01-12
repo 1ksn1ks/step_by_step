@@ -1,0 +1,1648 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meritocracy</title>
+    
+
+  </head>
+  <body>
+
+      <div id="map"></div>
+      
+      <div id="three-container"></div>
+      
+      <input id="coordinates-display" value="Coordinates:"/>
+      
+      <button id="copy-coordinates" class="copy-coordinates"></button>
+      
+      <div id="crosshair" style="display: none;"></div>
+      
+      <div style="display: flex; position: fixed; top: 6.5vh; left: 0; z-index: 1006;">
+        <button id="main-toggle-btn" class="options-and-topic" style="margin-left: 0.3vh;">OPTIONS
+        </button>
+        <button id="toggle-toolbar-btn-btn" class="options-and-topic" style="margin-left: 0.3vh; display: none;">TOOLBAR
+        </button>
+        <button id="toggle-your-fov-btn-btn" class="options-and-topic" style="margin-left: 0.3vh; display: none;">SETTINGS
+        </button>
+        <button id="topic-chat-btn" class="options-and-topic" style="margin-left: 1vw;">TOPIC CHAT
+        </button>
+        <button id="toggle-encrypted-chat-btn" class="options-and-topic" style="margin-left: 1vw;">E2EE CHAT
+        </button>
+      </div>
+      
+      
+      <button id="toggle-controls-btn" class="menu_buttons" style="top: 6.5vh;">CONTROLS
+      </button>
+      
+      <button id="toggle-your-fov-btn" class="menu_buttons" style="top: 11vh;">SETTINGS
+      </button>
+      
+      <button id="toggle-visibility-controls-btn" class="menu_buttons" style="top: 15.5vh;">VISIBILITY
+      </button>
+      
+      <button id="toggle-toolbar-btn" class="menu_buttons" style="top: 20vh;">TOOLBAR
+      </button>
+      
+      
+      <div id="toolbar" class="toolbar" style="display: none; flex-direction: column;">
+        <div class="toolbar-column" id="Edit_Profile">Edit
+        </div>
+        <div class="toolbar-column" id="Load_Everything">Load
+        </div>
+        <div class="toolbar-column" id="Upload_To_IPFS">Upload
+        </div>
+        <div class="toolbar-column" id="Create_New_Topic">Create
+        </div>
+        <div class="toolbar-column" id="Create_Marker">Marker
+        </div>
+        <div class="toolbar-column" id="Create_Polygon">Polygon
+        </div>
+        <div class="toolbar-column" id="Set_Rules">Set Rules
+        </div>
+        <div class="toolbar-column" id="NFT-utility">NFT Utility
+        </div>
+        <div class="toolbar-column" id="Change_Memo">Update Topic
+        </div>
+        <div class="toolbar-column" id="Stack_topic_IDs">Stack topic IDs
+        </div>
+      </div>
+      
+      <div id="Edit_Profile-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <div id="Edit_Profile-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
+      
+      
+          
+          <div style="display: flex;">
+            <button id="show-profile-picture-from-edit-profile" class="toolbar-column-first-settings-btns">Profile picture
+            </button>
+            <button id="hide-profile-picture-from-edit-profile" style="display: none;" class="toolbar-column-first-settings-btns">Profile picture
+            </button>
+            <button id="show-username-from-edit-profile" class="toolbar-column-settings-btns">Username
+            </button>
+            <button id="hide-username-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Username
+            </button>
+            <button id="show-topic-id-name-from-edit-profile" class="toolbar-column-settings-btns" >Topic ID name
+            </button>
+            <button id="hide-topic-id-name-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Topic ID name
+            </button>
+          </div>
+      
+          
+          <div style="display: flex;">
+            <button id="show-topic-id-to-pfp-from-edit-profile" class="toolbar-column-first-settings-btns">Topic ID to PFP
+            </button>
+            <button id="hide-topic-id-to-pfp-from-edit-profile" style="display: none;" class="toolbar-column-first-settings-btns">Topic ID to PFP
+            </button>
+            <button id="show-click2link-from-edit-profile" class="toolbar-column-settings-btns">CLICK2LINK
+            </button>
+            <button id="hide-click2link-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">CLICK2LINK
+            </button>
+            <button id="show-check-domain-availability-from-edit-profile" class="toolbar-column-settings-btns">Domain
+            </button>
+            <button id="hide-check-domain-availability-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Domain
+            </button>
+          </div>
+      
+      
+      
+      
+      
+          <div id="edit-profile-topic-id" style="display: none;">
+            <textarea type="text" id="Edit_Profile-topic-id" placeholder="Topic ID"
+            class="toolbar-column" onclick="event.stopPropagation();"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+          </div>
+      
+          <div id="edit-profile-url-name-domain" style="display: none;">
+            <textarea type="text" id="toolbar-input" placeholder="URL/Name/Domain"
+            class="toolbar-column" onclick="event.stopPropagation();"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+          </div>
+      
+          <div id="edit-profile-picture" style="display: none;">
+            <button class="toolbar-column-btns" id="button1" style="display: block;">Change PFP
+            </button>
+          </div>
+      
+          <div id="edit-profile-username" style="display: none;">
+            <button class="toolbar-column-btns" id="button2" style="display: block;">Change Username
+            </button>
+          </div>
+      
+          <div id="edit-profile-click2link" style="display: none;">
+            <button class="toolbar-column-btns" id="button_for_click_url" style="display: block;">Tag URL to username
+            </button>
+          </div>
+      
+          <div id="edit-profile-topic-id-name" style="display: none;">
+            <button class="toolbar-column-btns" id="button3">TopicID name
+            </button>
+          </div>
+      
+          <div id="edit-profile-topic-id-name-topic2pic" style="display: none;">
+            <button class="toolbar-column-btns" id="button_for_topic2pic">TOPIC2PIC
+            </button>
+          </div>
+      
+          <div id="edit-profile-domain-time-left" style="display: none;">
+            <textarea type="text" id="domain-time-left" placeholder="Domain Time Left"
+            class="toolbar-column" onclick="event.stopPropagation();" readonly>
+            </textarea>
+      
+            <button class="toolbar-column-btns" id="button4">Check Domain Availability
+            </button>
+      
+            <label for="domain-time-left" style="font-size: 2vh;">1 USDC
+            (<span style="cursor: pointer; color: rgb(255, 255, 255); text-decoration: underline;"
+            onclick="navigator.clipboard.writeText('0.0.456858')
+            .then(() => alert('Copied to clipboard: 0.0.456858'))
+            .catch(err => console.error('Failed to copy: ', err));">0.0.456858</span>):
+            </label>
+            <button class="toolbar-column-btns" id="button5" style="margin-top: 0.5vh;">Add 28 days to domain
+            </button>
+          </div>
+      
+        </div>
+      </div>
+      
+      <div id="load-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <div id="load-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
+      
+          <textarea class="toolbar-column" type="text" id="input-field" placeholder="Domain/Topic ID" onclick="event.stopPropagation();"
+          oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+      
+          <button id="toolbar-load" class="toolbar-column-btns">Load Data
+          </button>
+      
+          <label for="loaded-topics" style=" font-size: 2vh;padding: 0px;">TopicID-TopicID name:
+          </label>
+      
+          <div class="toolbar-column" style="user-select: text;" id="loaded-topics" placeholder="Loaded Topics" onclick="event.stopPropagation();"
+          ></div>
+      
+      
+          <div style="display: flex;">
+            <button id="show-block-from-users" class="toolbar-column-first-settings-btns">Block
+            </button>
+            <button id="hide-block-from-users" style="display: none;" class="toolbar-column-first-settings-btns">Block
+            </button>
+            <button id="show-time-from-users-load-column" class="toolbar-column-settings-btns">Time
+            </button>
+            <button id="hide-time-from-users-load-column" style="display: none;" class="toolbar-column-settings-btns">Time
+            </button>
+            <button id="show-load-from-users" class="toolbar-column-settings-btns">From
+            </button>
+            <button id="hide-load-from-users" style="display: none;" class="toolbar-column-settings-btns">From
+            </button>
+          </div>
+      
+      
+          <div id="time-from-users-load-column" style="display: none;">
+            <label style="font-size: 2vh; padding-bottom: 0.5vh;">Month Day Year:
+              <div style="display: flex; align-items: center;">
+                <input type="number" id="from-mmddyyyy-users-load-column" class="toolbar-column" step="1" placeholder="MMDDYYYY" oninput="restrictLength(this, 8)" />
+                <input type="number" id="to-mmddyyyy-users-load-column" class="toolbar-column" step="1" placeholder="MMDDYYYY" style="margin-left: 1vw;" oninput="restrictLength(this, 8)" />
+              </div>
+          </label>
+        
+          <label style="font-size: 2vh; padding-bottom: 0.5vh;">Hour Minute Second:
+            <div style="display: flex; align-items: center;">
+              <input type="number" id="from-hhmmss-users-load-column" class="toolbar-column" step="1" placeholder="HHMMSS" oninput="restrictLength(this, 6)" />
+              <input type="number" id="to-hhmmss-users-load-column" class="toolbar-column" step="1" placeholder="HHMMSS" style="margin-left: 1vw;" oninput="restrictLength(this, 6)" />
+            </div>
+          </label>
+        </div>
+      
+        <div id="time-from-users-load-column-filter" style="display: none;">
+          <button id="load-time-from-users-load-column" class="toolbar-column-first-settings-btns">Load Filters
+          </button>
+          <button id="users-load-column-filter" class="toolbar-column-settings-btns">Apply Filter
+          </button>
+          <button id="save-time-from-users-load-column" class="toolbar-column-settings-btns">Save Filters
+          </button>
+        </div>
+        
+      
+          <div id="load-load-from-users-label" style="display: none;">
+            <label style="font-size: 2vh; padding: 0px;">Load From Users:
+            </label>
+          </div>
+      
+          <div id="load-block-from-users-label" style="display: none;">
+            <label style="font-size: 2vh; padding: 0px;">Block Users:
+            </label>
+          </div>
+      
+          <div id="load-msgs-from-ids-load-column" style="display: none;">
+            <textarea class="toolbar-column" type="text" id="load-msgs-from-ids" placeholder="user ID or IDs separated by comma"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+          </div>
+      
+          <div id="load-blocks-from-ids-load-column" style="display: none;">
+            <textarea class="toolbar-column" type="text" id="load-blocks-from-ids" placeholder="user ID or IDs separated by comma"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+          </div>
+      
+      
+          <div id="load-load-from-users" style="display: none; flex-direction: row;"> 
+            <button id="load-filters-from-users" class="toolbar-column-first-settings-btns">Load Filters
+            </button>
+            <button id="load-msgs-from-ids-button" class="toolbar-column-settings-btns">Apply Filter
+            </button>
+            <button id="save-filters-from-users" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Save Filters
+            </button>
+          </div>
+      
+      
+      
+          <div id="load-block-from-users" style="display: none;">
+            <button id="load-blocks-from-users" class="toolbar-column-first-settings-btns">Load Filters
+            </button>
+            <button id="load-block-from-users-button" class="toolbar-column-settings-btns">Apply Filter
+            </button>
+            <button id="save-blocks-from-users" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Save Filters
+            </button>
+          </div>
+      
+      
+        </div>
+      </div>
+      
+      <div id="upload-to-ipfs-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <div id="upload-to-ipfs-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
+      
+          <label for="fileInput" style="font-size: 2vh; padding: 0px;">Currentlly work in progress, once finished u will be able to upload imgs/videos/files
+          </label>
+      
+          <input type="file" class="toolbar-column" id="fileInput" />
+          <button id="upload-to-ipfs-button" class="toolbar-column-btns">Upload to IPFS</button>
+          <textarea class="toolbar-column" id="cid-output" placeholder="CID" readonly></textarea>
+      
+          <textarea class="toolbar-column" id="cid-input" type="text" placeholder="Enter CID"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+          
+          <!-- ADD THIS: Content type selector for fetch -->
+          <select class="toolbar-column" id="content-type">
+            <option value="image">Image/GIF</option>
+            <option value="video">Video</option>
+          </select>
+          
+          <button class="toolbar-column-btns" id="fetch-from-ipfs-button">Fetch from IPFS</button>
+          <div id="cid-output"></div> <!-- Note: You have two #cid-output elements; consider consolidating to one -->
+          <div id="image-container"></div>
+      
+          <button class="toolbar-column-btns" id="copy-share-link" style="display: none;">Copy Share Link</button>
+      
+        </div>
+      </div> <!-- Close the div properly -->
+      
+      <div id="create-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <div id="create-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
+      
+      
+          <div style="display: flex;">
+            <button id="show-new-topic-from-create" class="toolbar-column-first-settings-btns">New Topic
+            </button>
+            <button id="hide-new-topic-from-create" style="display: none;" class="toolbar-column-first-settings-btns">New Topic
+            </button>
+            <button id="show-new-keys-from-create" class="toolbar-column-settings-btns" style="margin-left: 1vw;">New Keys
+            </button>
+            <button id="hide-new-keys-from-create" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">New Keys
+            </button>
+          </div>
+      
+          <div id="new-topic-from-create" style="display: none;">
+          <div class="toolbar-group">
+            <textarea class="toolbar-column" type="text" id="input-field-5-1" placeholder="Admins 0.0.1,0.0.2.."
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+      
+            <textarea class="toolbar-column" type="text" id="input-field-5-2" placeholder="Use Private Key here"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+      
+            <label for="public-key-label"style="font-size: 2vh; padding: 0px; user-select: text;">Created TopicID:
+            </label>
+      
+            <input class="toolbar-column" type="text" id="input-field-5" placeholder="Generated Topic ID"
+            onclick="event.stopPropagation();"readonly/>
+      
+            <!-- <label for="public-key-label"style="font-size: 2vh; padding: 0px;">Set fee for each message:</label>
+            <textarea
+            class="toolbar-column"
+            type="text"
+            id="input-field-5-3"
+            placeholder="Set amount of fee"
+            style="
+              background-color: transparent;
+              overflow: hidden; /* Hide scrollbars */
+              resize: none; /* Prevent manual resizing */
+            "
+            onclick="event.stopPropagation();"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <textarea
+            class="toolbar-column"
+            type="text"
+            id="input-field-5-4"
+            placeholder="Set token id of fee"
+            style="
+              background-color: transparent;
+              overflow: hidden; /* Hide scrollbars */
+              resize: none; /* Prevent manual resizing */
+            "
+            onclick="event.stopPropagation();"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <textarea
+            class="toolbar-column"
+            type="text"
+            id="input-field-5-5"
+            placeholder="Set royalty account"
+            style="
+              background-color: transparent;
+              overflow: hidden; /* Hide scrollbars */
+              resize: none; /* Prevent manual resizing */
+            "
+            onclick="event.stopPropagation();"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea> -->
+      
+            <button id="submit-button-Create_New_Topic" class="toolbar-column-btns" style="display: block;">Create
+            </button>
+          </div>
+        </div>
+      
+        <div id="new-keys-from-create" style="display: none;">
+            <label for="public-key-label"style="font-size: 2vh; padding: 0px;">Public Key:
+            </label>
+            <textarea
+            class="toolbar-column"
+            id="generated-public-key"
+            placeholder="Generated Public Key"
+            readonly
+            onclick="event.stopPropagation();"
+          ></textarea>
+      
+          <label for="private-key-label"style="font-size: 2vh; padding: 0px;">Private Key:
+          </label>
+      
+          <textarea class="toolbar-column" id="generated-private-key" placeholder="Generated Private Key"
+          onclick="event.stopPropagation();" readonly
+          ></textarea>
+      
+          <button id="generate-private-and-public-key" class="toolbar-column-btns" style="display: block;">Generate
+          </button>
+        </div>
+      
+        </div>
+      </div>
+      
+      
+      <div id="marker-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <div id="marker-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
+          <div class="toolbar-group">
+            <textarea class="toolbar-column" type="text" id="input-field-2-0" placeholder="Domain/Topic ID"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <textarea class="toolbar-column" type="text" id="input-field-number-of-marker" placeholder="Number of marker"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <textarea class="toolbar-column" type="text" id="input-field-2-3" placeholder="Coordinates long,lat"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';" onclick="event.stopPropagation();"
+            ></textarea>
+          </div>
+      
+      
+          <div style="display: flex;">
+            <button id="show-topic-rules-from-marker" class="toolbar-column-first-settings-btns">Rules
+            </button>
+            <button id="hide-topic-rules-from-marker" style="display: none;" class="toolbar-column-first-settings-btns">Rules
+            </button>
+            <button id="show-optional-settings-marker" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional settings
+            </button>
+            <button id="hide-optional-settings-from-marker" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional settings
+            </button>
+            <button id="show-delete-marker-from-marker" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Delete marker
+            </button>
+            <button id="hide-delete-marker-from-marker" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Delete marker
+            </button>
+          </div>
+      
+          <div id="optional-settings-from-marker" style="display: none;">
+          <textarea class="toolbar-column" type="text" id="input-field-coverimage-marker" placeholder="Cover Image URL"
+          oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';" onclick="event.stopPropagation();"
+          ></textarea>
+          <textarea class="toolbar-column" type="text" id="input-field-2-1" placeholder="Title"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+          <textarea class="toolbar-column" type="text" id="input-field-image-marker" placeholder="Image URL"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+          </div>
+      
+          <div style="position: relative;">
+            <textarea class="toolbar-column" type="text" id="input-field-2-2" placeholder="Message" maxlength="256"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';
+            document.getElementById('char-counter-marker').textContent = this.value.length + '/256';"
+            ></textarea>
+            <div id="char-counter-marker" style="position: absolute; bottom: 5px; right: 10px; font-size: 2vh; color: #666;">0/256
+            </div>
+          </div>
+      
+          <button id="submit-button-Create_Marker" class="toolbar-column-btns">
+          Submit
+          </button>
+      
+          <div id="loaded-topic-rules-from-marker" style="display: none;">
+          <label for="loaded-topics" style=" font-size: 2vh;padding: 0px;">Loaded Topic Rules:</label>
+          
+          <div class="toolbar-column-loaded-rules" type="text" style="user-select: text;" id="loaded-topic-rules-for-marker" placeholder="Loaded Topic Rules"
+          onclick="event.stopPropagation();"
+          ></div>
+          <button id="load-topic-rules-for-marker" class="toolbar-column-btns">
+          Load Topic Rules
+          </button>
+          </div>
+      
+          <div id="delete-marker-from-marker" style="display: none;">
+          <div style="display: flex; flex-direction: row; width: 100%;">
+            <textarea class="toolbar-column" type="text" id="input-field-delete-marker-number" placeholder="Number of marker"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <button id="delete-marker-number" class="toolbar-column-btns">
+            Delete marker number
+            </button>
+          </div>
+          </div>
+      
+      
+        </div>
+      </div>
+      
+      <div id="polygon-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <div id="polygon-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
+          
+          <div class="toolbar-group">
+            <textarea class="toolbar-column" type="text" id="input-field-3-0" placeholder="Domain/Topic ID"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <textarea class="toolbar-column" type="text" id="input-field-number-of-polygon" placeholder="Number of polygon"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <textarea class="toolbar-column" type="text" id="input-field-3-3" placeholder="TOP LEFT long,lat"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <textarea class="toolbar-column" type="text" id="input-field-3-5" placeholder="BOTTOM RIGHT long,lat"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+          </div>
+      
+      
+          <div style="display: flex;">
+            <button id="show-topic-rules-from-polygon" class="toolbar-column-first-settings-btns">Rules
+            </button>
+            <button id="hide-topic-rules-from-polygon" style="display: none;" class="toolbar-column-first-settings-btns">Rules
+            </button>
+            <button id="show-optional-settings-polygon" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional settings
+            </button>
+            <button id="hide-optional-settings-from-polygon" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional settings
+            </button>
+            <button id="show-delete-polygon-from-polygon" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Delete polygon
+            </button>
+            <button id="hide-delete-polygon-from-polygon" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Delete polygon
+            </button>
+          </div>
+          
+          <div id="optional-settings-from-polygon" style="display: none;">
+          <textarea class="toolbar-column" type="text" id="input-field-coverimage-polygon" placeholder="Cover Image URL"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+          <textarea class="toolbar-column" type="text" id="input-field-3-1" placeholder="Title" 
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+          <textarea class="toolbar-column" type="text" id="input-field-image-polygon" placeholder="Inside image URL"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+          </div>
+      
+          <div style="position: relative;">
+            <textarea class="toolbar-column" id="input-field-3-2" placeholder="Message" maxlength="256"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';
+            document.getElementById('char-counter-polygon').textContent = this.value.length + '/256';"
+            ></textarea>
+            <div id="char-counter-polygon" style="position: absolute; bottom: 5px; right: 10px; font-size: 2vh; color: #666;">0/256
+            </div>
+          </div>
+      
+      
+          <button id="submit-button-Create_Polygon" class="toolbar-column-btns" style="display: block;">Submit
+          </button>
+      
+        <div id="loaded-topic-rules-from-polygon" style="display: none;">
+          <label for="loaded-topics" style=" font-size: 2vh;padding: 0px;">Loaded Topic Rules:</label>
+          <div class="toolbar-column-loaded-rules" type="text" style="user-select: text;" id="loaded-topic-rules-for-polygon" placeholder="Loaded Topic Rules"
+          onclick="event.stopPropagation();"
+          ></div>
+          <button id="load-topic-rules-for-polygon" class="toolbar-column-btns">Load Topic Rules
+          </button>
+        </div>
+      
+        <div id="delete-polygon-from-polygon" style="display: none;">
+          <div style="display: flex; flex-direction: row; width: 100%;">
+            <textarea class="toolbar-column" type="text" id="input-field-delete-polygon-number" placeholder="Number of polygon"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <button id="delete-polygon-number" class="toolbar-column-btns">
+            Delete polygon number
+            </button>
+          </div>
+        </div>
+            
+        </div>
+      </div>
+      
+      <div id="rules-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <div id="rules-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
+      
+          <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-rules" placeholder="Domain/Topic ID"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+          <label for="input-field-rules-for-polygons"style="font-size: 2vh; padding: 0px;">These come in pair and they overwrite last set:
+          </label>
+      
+          <div class="toolbar-group">
+            <div style="margin-bottom: 0px;">
+              <label for="input-field-rules-for-polygons"style="font-size: 2vh; padding: 0px;">For polygons:
+              </label>
+              <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-polygons" placeholder="NFT ID (set to zero to allow all)"
+              onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+              ></textarea>
+            </div>
+      
+            <textarea class="toolbar-column" type="text" id="input-field-messages-per-nft-for-polygons" placeholder="how many polygons per NFT"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+      
+            <textarea class="toolbar-column" type="text" id="input-field-messages-size-for-polygons" placeholder="max size = (360,180) / (number)"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+      
+            <div style="margin-bottom: 10px;">
+              <label for="input-field-add-rules" style=" font-size: 2vh;padding: 0px;">For markers:
+              </label>
+              <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-markers" placeholder="NFT ID (set to zero to allow all)"
+              onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+              ></textarea>
+            </div>
+      
+            <textarea class="toolbar-column" type="text" id="input-field-messages-per-nft-for-markers" placeholder="how many markers per NFT"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <button id="submit-button-Set_Rules" class="toolbar-column-btns" style="display: block;">Submit
+            </button>
+            <div style="margin-bottom: 10px;"></div>
+          </div>
+      
+          <label for="loaded-topics" style=" font-size: 2vh;padding: 0px;">Loaded Topic Rules:
+          </label>
+          <div class="toolbar-column-loaded-rules" style="user-select: text;" id="loaded-topic-rules-for-topic" placeholder="Loaded Topic Rules"
+          onclick="event.stopPropagation();"></div>
+          <button id="load-topic-rules-for-topic" class="toolbar-column-btns">Load Topic Rules
+          </button>
+      
+        </div>
+      </div>
+      
+      <div id="utility-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <div id="utility-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
+          
+          <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-utility" placeholder="Domain/Topic ID"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+      
+      
+      
+      
+      
+            <div style="display: flex;">
+              <button id="show-topic-rules-from-nft-utility" class="toolbar-column-first-settings-btns">Topic Rules
+              </button>
+              <button id="hide-topic-rules-from-nft-utility" style="display: none;" class="toolbar-column-first-settings-btns">Topic Rules
+              </button>
+              <button id="show-model-sharing-from-nft-utility" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Model sharing
+              </button>
+              <button id="hide-model-sharing-from-nft-utility" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Model sharing
+              </button>
+              <button id="show-model-size-scale-factor-from-nft-utility" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Model size
+              </button>
+              <button id="hide-model-size-scale-factor-from-nft-utility" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Model size
+              </button>
+              <button id="show-topic-chat-from-nft-utility" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Topic Chat
+              </button>
+              <button id="hide-topic-chat-from-nft-utility" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Topic Chat
+              </button>
+            </div>
+      
+      
+      
+      
+      
+      
+      
+          <div id="topic-rules-from-nft-utility" style="display: none;">
+            <label for="loaded-topics" style=" font-size: 2vh;padding: 0px;">Loaded Topic Logic:
+            </label>
+            <div class="toolbar-column-loaded-rules" style="user-select: text;" id="loaded-topic-rules-for-utility" placeholder="Loaded Topic Rules"
+            onclick="event.stopPropagation();"></div>
+            <button id="load-topic-rules-for-utility" class="toolbar-column-btns">Load Topic Rules
+            </button>
+          </div>
+      
+          <div id="model-sharing-from-nft-utility-label" style="display: none;">
+          <label for="input-field-add-remove-NFT-for-model" style=" font-size: 2vh;padding: 0px;"> Model sharing:
+          </label>
+        </div>
+      
+        <div id="model-sharing-from-nft-utility" style="display: none;">
+          <textarea class="toolbar-column" type="text" id="input-field-add-remove-NFT-for-model" placeholder="NFT ID (or IDs seperated by commas)"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';" 
+          ></textarea>
+        </div>
+      
+      
+        <div id="model-sharing-from-nft-utility-button-group" style="display: none;">
+          <div class="button-group" style="display: flex; flex-direction: row; align-items: center;">
+            <button id="submit-button-add-NFT-for-model" class="toolbar-column-btns">Add
+            </button>
+            <button id="submit-button-remove-NFT-for-model" class="toolbar-column-btns" style="margin-left: 8vw;">Remove
+            </button>
+          </div>
+        </div>
+      
+        <div id="model-size-scale-factor-from-nft-utility" style="display: none;"> 
+          <label for="input-field-add-remove-scale-for-model" style=" font-size: 2vh;padding: 0px;">Model size scale factor:
+          </label>
+          <textarea class="toolbar-column" type="text" id="input-field-add-remove-scale-for-model" placeholder="Size factor (must include only one NFT ID at a time)"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+      
+          <div class="button-group" style="display: flex; flex-direction: row; align-items: center;">
+            <button id="submit-button-add-scale-for-model" class="toolbar-column-btns">Add
+            </button>
+            <button id="submit-button-remove-scale-for-model" class="toolbar-column-btns" style="margin-left: 8vw;">Remove
+            </button>
+          </div>
+        </div>
+      
+        <div id="topic-chat-from-nft-utility" style="display: none;">
+          <label for="input-field-add-remove-topic-chat" style=" font-size: 2vh;padding: 0px;">Topic Chat:
+          </label>
+          <textarea class="toolbar-column" type="text" id="input-field-add-remove-topic-chat" placeholder="NFT ID (or IDs seperated by commas)"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+      
+          <div class="button-group" style="display: flex; flex-direction: row; align-items: center;">
+            <button id="submit-button-add-topic-chat" class="toolbar-column-btns">Add
+            </button>
+            <button id="submit-button-remove-topic-chat" class="toolbar-column-btns" style="margin-left: 8vw;">Remove
+            </button>
+          </div>
+        </div>
+      
+        </div>
+      </div>
+      
+      <div id="memo-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <div id="memo-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
+      
+          <div class="toolbar-group">
+            <textarea class="toolbar-column" type="text" id="input-field-topic-id" placeholder="Domain/Topic ID"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <textarea class="toolbar-column" type="text" id="input-field-admin-key" placeholder="public key"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <textarea class="toolbar-column" type="text" id="input-field-memo" placeholder="Admins 0.0.1,0.0.2.."
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+          </div>
+      
+          <label for="public-key-label"style="font-size: 2vh; padding: 0px;">OPTIONAL fee for each message:
+          </label>
+      
+          <div class="toolbar-group">
+            <textarea class="toolbar-column" type="text" id="input-field-fee" placeholder="Set amount of fee"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <textarea class="toolbar-column" type="text" id="input-field-fee-token" placeholder="Set token id of fee"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <textarea class="toolbar-column" type="text" id="input-field-royal-acc" placeholder="Set royalty account"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+          </div>
+      
+          <button id="submit-button-Change_Memo" class="toolbar-column-btns" style="display: block;">Submit
+          </button>
+      
+        </div>
+      </div>
+      
+      <div id="stack-topic-ids" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <div id="stack-topic-ids-container" class="toolbar-containers" onclick="event.stopPropagation();">
+      
+          <label for="stack-topic-ids-topic" style="font-size: 2vh; padding: 0px;">Main Domain/Topic ID:
+          <textarea class="toolbar-column" type="text" id="stack-topic-ids-topic" placeholder="Domain/Topic ID"
+          click="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+          <textarea class="toolbar-column" type="text" id="stack-topic-add-remove-topic" placeholder="0.0.1,0.0.2.."
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+          <div style="display: flex;">
+              <button id="add-topic-id" class="toolbar-column-btns" style="display: block; margin-right: 0.5vh;">Stack
+              </button>
+              <button id="remove-topic-id" class="toolbar-column-btns" style="display: block; margin-left: 0.5vh;">Remove
+              </button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="flex-container">
+        <div id="wallet-section">
+          <div style="display: flex;" id="wallet-buttons-container">
+          <button id="wallet-wallet-btn" class="connect-wallet-buttons" style="display: block;">Wallet
+          </button>
+          <button id="connect-wallet-btn" class="connect-wallet-buttons" style="display: none;" >Connect
+          </button>
+          <button id="connect-new-wallet-btn" class="connect-wallet-buttons" style="display: none;">Create
+          </button>
+          <button id="disconnect-wallet-btn" class="connect-wallet-buttons" style="display: none;">Disconnect
+          </button>
+          </div>
+          <div class="account-info">
+          <div id="account-id" style="margin-left: 0.5vh;"></div>
+          </div>
+        </div>
+      </div>
+      
+      <div id="left-dpad" class="button-container">
+        <button class="touch-button"></button>
+        <button id="left-up" class="touch-button"></button>
+        <button class="touch-button"></button>
+        <button id="left-left" class="touch-button"></button>
+        <button class="touch-button"></button>
+        <button id="left-right" class="touch-button"></button>
+        <button class="touch-button"></button>
+        <button id="left-down" class="touch-button"></button>
+        <button class="touch-button"></button>
+      </div>
+      
+      <div id="right-dpad" class="button-container">
+        <button class="touch-button"></button>
+        <button id="right-up" class="touch-button"></button>
+        <button class="touch-button"></button>
+        <button id="right-left" class="touch-button"></button>
+        <button class="touch-button"></button>
+        <button id="right-right" class="touch-button"></button>
+        <button class="touch-button"></button>
+        <button id="right-down" class="touch-button"></button>
+        <button class="touch-button"></button>
+      </div>
+      
+      <div id="zoom-controls">
+        <button id="zoom-in" class="zoom-button">+</button>
+        <button id="zoom-out" class="zoom-button">-</button>
+      </div>
+      
+      <input type="range" id="speed-slider" min="0.1" max="5" step="0.01" value="1" style="display: none;" />
+      
+      
+      <div id="topic-chat-container" class="topic-chat-container" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+        <div class="chat-topic-chat-container"  onclick="event.stopPropagation();">
+      
+          <div style="display: flex; align-items: center;">
+      
+            <textarea class="toolbar-column" type="text" id="topic-chat-topic-id" placeholder="Domain/Topic ID"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+      
+            <div style="display: flex; align-items: center;">
+              <button id="load-msgs-from" class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Load
+              </button>
+              <button id="show-options-from-topic-chat" class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Options
+              </button>
+              <button id="show-options-from-topic-chat-btn" display: none; class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Hide
+              </button>
+            </div>
+          </div>
+      
+        <div id="options-from-topic-chat" style="display: none;">
+      
+          <div style="display: flex;">
+            <button id="show-block-from-topic-chat" class="toolbar-column-first-settings-btns">Block
+            </button>
+            <button id="hide-block-from-topic-chat" style="display: none;" class="toolbar-column-first-settings-btns">Block
+            </button>
+            <button id="show-time-from-topic-chat" class="toolbar-column-settings-btns">Time
+            </button>
+            <button id="hide-time-from-topic-chat" style="display: none;" class="toolbar-column-settings-btns">Time
+            </button>
+            <button id="show-from-from-topic-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">From
+            </button>
+            <button id="hide-from-from-topic-chat" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">From
+            </button>
+          </div>
+      
+        </div>
+      
+        
+        <div id="time-from-topic-chat" style="display: none;">
+          <label style="font-size: 2vh; padding-bottom: 0.5vh;">Month Day Year:
+            <div style="display: flex; align-items: center;">
+              <input type="number" id="from-mmddyyyy" class="toolbar-column" step="1" placeholder="MMDDYYYY" oninput="restrictLength(this, 8)" />
+              <input type="number" id="to-mmddyyyy" class="toolbar-column" step="1" placeholder="MMDDYYYY" style="margin-left: 1vw;" oninput="restrictLength(this, 8)" />
+            </div>
+        </label>
+      
+        <label style="font-size: 2vh; padding-bottom: 0.5vh;">Hour Minute Second:
+          <div style="display: flex; align-items: center;">
+            <input type="number" id="from-hhmmss" class="toolbar-column" step="1" placeholder="HHMMSS" oninput="restrictLength(this, 6)" />
+            <input type="number" id="to-hhmmss" class="toolbar-column" step="1" placeholder="HHMMSS" style="margin-left: 1vw;" oninput="restrictLength(this, 6)" />
+          </div>
+        </label>
+      </div>
+      
+      <div id="time-from-topic-chat-filter" style="display: none;">
+        <button id="load-time-from-topic-chat" class="toolbar-column-first-settings-btns">Load Filters
+        </button>
+        <button id="topic-msgs-filter" class="toolbar-column-settings-btns">Apply Filter
+        </button>
+        <button id="save-time-from-topic-chat" class="toolbar-column-settings-btns">Save Filters
+        </button>
+      </div>
+      
+      <div id="load-load-from-users-label-from-topic-chat" style="display: none;">
+        <label style="font-size: 2vh; padding: 0px;">Load From Users:
+        </label>
+      </div>
+      
+      <div id="load-block-from-users-label-from-topic-chat" style="display: none;">
+        <label style="font-size: 2vh; padding: 0px;">Block Users:
+        </label>
+      </div>
+      
+      <div id="load-msgs-from-ids-from-topic-chat" style="display: none;">
+        <textarea class="toolbar-column" type="text" id="load-msgs-from-ids-topic-chat" placeholder="user ID or IDs separated by comma"
+        onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+        ></textarea>
+      </div>
+      
+      <div id="load-blocks-from-ids-from-topic-chat" style="display: none;">
+        <textarea class="toolbar-column" type="text" id="load-blocks-from-ids-topic-chat" placeholder="user ID or IDs separated by comma"
+        onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+        ></textarea>
+      </div>
+      
+      
+      <div id="load-load-from-users-from-topic-chat" style="display: none;"> 
+        <button id="load-filters-from-topic-chat" class="toolbar-column-first-settings-btns">Load Filters
+        </button>
+        <button id="load-msgs-from-ids-button-topic-chat" class="toolbar-column-settings-btns">Apply Filter
+        </button>
+        <button id="save-filters-from-topic-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Save Filters
+        </button>
+      </div>
+      
+      
+      
+      <div id="load-block-from-users-from-topic-chat" style="display: none;">
+        <button id="load-blocks-from-topic-chat" class="toolbar-column-first-settings-btns">Load Filters
+        </button>
+        <button id="load-block-from-users-button-topic-chat" class="toolbar-column-settings-btns">Apply Filter
+        </button>
+        <button id="save-blocks-from-topic-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Save Filters
+        </button>
+      </div>
+      
+          <div class="chat-container" id="messages-from-topic-chat" onclick="event.stopPropagation();">
+          </div>
+      
+          <div style="position: relative;">
+            <textarea
+            class="toolbar-column"
+            type="text"
+            id="user-write-message"
+            placeholder="Write a message (max 256 characters)"
+            style="
+            max-height: 50vh;
+            overflow: auto;
+            "
+            onclick="event.stopPropagation();"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'; document.getElementById('char-counter').textContent = this.value.length + '/256';"
+            maxlength="256"
+            ></textarea>
+            <div id="char-counter" style="position: absolute; bottom: 5px; right: 10px; font-size: 2vh; color: #666;">0/256
+            </div>
+          </div>
+      
+          <div style="display: flex; align-items: center;">
+            <button id="go-to-top-msgs" class="toolbar-column-btns">Go to the top
+            </button>
+            <button id="post-msg" class="toolbar-column-btns" style="margin-left: 1vw ">Submit Message
+            </button>
+          </div>
+      
+        </div>
+      </div>
+      
+      
+      <div id="encrypted-chat-container" class="topic-chat-container" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+        <div class="chat-topic-chat-container"  onclick="event.stopPropagation();">
+      
+      
+      <label style="font-size: 2vh; padding-bottom: 0.5vh;">Install BitWarden to save details for future use:
+        </label>
+      
+        <div id="encrypted-chat-private-key-container">
+        <textarea class="toolbar-column" type="text" id="encrypted-chat-private-key" placeholder="Private Key"
+        onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+        ></textarea>
+      </div>
+      
+          <div style="display: flex; align-items: center;">
+      
+            <textarea class="toolbar-column" type="text" id="encrypted-chat-topic-id" placeholder="Domain/Topic ID"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+      
+            <div style="display: flex; align-items: center;">
+              <button id="load-msgs-from-encrypted-chat" class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Load
+              </button>
+              <button id="show-options-from-encrypted-chat" class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Options
+              </button>
+              <button id="show-options-from-encrypted-chat-btn" display: none; class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Hide
+              </button>
+           </div> 
+          </div>
+      
+          <div id="options-from-encrypted-chat" style="display: none;">
+      
+            <div style="display: flex;">
+              <button id="show-block-from-encrypted-chat" class="toolbar-column-first-settings-btns">Block
+              </button>
+              <button id="hide-block-from-encrypted-chat" style="display: none;" class="toolbar-column-first-settings-btns">Block
+              </button>
+              <button id="show-time-from-encrypted-chat" class="toolbar-column-settings-btns">Time
+              </button>
+              <button id="hide-time-from-encrypted-chat" style="display: none;" class="toolbar-column-settings-btns">Time
+              </button>
+              <button id="show-from-from-encrypted-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">From
+              </button>
+              <button id="hide-from-from-encrypted-chat" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">From
+              </button>
+              <button id="show-pin-public-key-from-encrypted-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Pin
+              </button>
+              <button id="hide-pin-public-key-from-encrypted-chat" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Pin
+              </button>
+            </div>
+      
+        </div>
+      
+        <div id="time-from-encrypted-chat" style="display: none;"> 
+          <label for="from-mmddyyyy-encrypted-chat" style="font-size: 2vh; padding-bottom: 0.5vh;">Month Day Year:
+            <div style="display: flex; align-items: center;">
+              <input type="number" id="from-mmddyyyy-encrypted-chat" class="toolbar-column" step="1" placeholder="MMDDYYYY" oninput="restrictLength(this, 8)" />
+              <input type="number" id="to-mmddyyyy-encrypted-chat" class="toolbar-column" step="1" placeholder="MMDDYYYY" style="margin-left: 1vw;" oninput="restrictLength(this, 8)" />
+            </div>
+          </label>
+      
+          <label for="from-hhmmss-encrypted-chat" style="font-size: 2vh; padding-bottom: 0.5vh;">Hour Minute Second:
+            <div style="display: flex; align-items: center;">
+              <input type="number" id="from-hhmmss-encrypted-chat" class="toolbar-column" step="1" placeholder="HHMMSS"  oninput="restrictLength(this, 6)" />
+              <input type="number" id="to-hhmmss-encrypted-chat" class="toolbar-column" step="1" placeholder="HHMMSS" style="margin-left: 1vw;" oninput="restrictLength(this, 6)" />
+            </div>
+          </label>
+      </div>
+      
+      <div id="time-from-encrypted-chat-filter" style="display: none;">
+        <button id="load-time-from-encrypted-chat" class="toolbar-column-first-settings-btns">Load Filters
+        </button>
+        <button id="topic-msgs-filter-encrypted-chat" class="toolbar-column-settings-btns">Apply Filter
+        </button>
+        <button id="save-time-from-encrypted-chat" class="toolbar-column-settings-btns">Save Filters
+        </button>
+      </div>
+      
+      
+      <div id="load-load-from-users-label-from-encrypted-chat" style="display: none;">
+        <label style="font-size: 2vh; padding: 0px;">Load From Users:
+        </label>
+      </div>
+      
+      <div id="load-block-from-users-label-from-encrypted-chat" style="display: none;">
+        <label style="font-size: 2vh; padding: 0px;">Block Users:
+        </label>
+      </div>
+      
+      <div id="load-msgs-from-ids-from-encrypted-chat" style="display: none;">
+        <textarea class="toolbar-column" type="text" id="load-msgs-from-ids-encrypted-chat" placeholder="user ID or IDs separated by comma"
+        onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+        ></textarea>
+      </div>
+      
+      <div id="load-blocks-from-ids-from-encrypted-chat" style="display: none;">
+        <textarea class="toolbar-column" type="text" id="load-blocks-from-ids-encrypted-chat" placeholder="user ID or IDs separated by comma"
+        onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+        ></textarea>
+      </div>
+      
+      
+      <div id="load-load-from-users-from-encrypted-chat" style="display: none;"> 
+        <button id="load-load-filters-from-users-encrypted-chat" class="toolbar-column-first-settings-btns">Load Filters
+        </button>
+        <button id="load-msgs-from-ids-button-encrypted-chat" class="toolbar-column-settings-btns">Apply Filter
+        </button>
+        <button id="load-save-filters-from-users-encrypted-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Save Filters
+        </button>
+      </div>
+      
+      
+      
+      <div id="load-block-from-users-from-encrypted-chat" style="display: none;">
+        <button id="load-load-blocks-from-users-encrypted-chat" class="toolbar-column-first-settings-btns">Load Filters
+        </button>
+        <button id="load-block-from-users-button-encrypted-chat" class="toolbar-column-settings-btns">Apply Filter
+        </button>
+        <button id="load-save-blocks-from-users-encrypted-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Save Filters
+        </button>
+      </div>
+      
+      
+      
+          <div class="chat-container" id="messages-from-encrypted-chat" onclick="event.stopPropagation();">
+          </div>
+      
+          <textarea class="toolbar-column" type="text" id="encrypted-chat-public-key" placeholder="Public Key"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+      
+          <div id="encrypted-chat-chat-container">
+      
+          <div style="position: relative;">
+            <textarea
+            class="toolbar-column"
+            type="text"
+            id="user-write-message-encrypted-chat"
+            placeholder="Write a message (max 256 characters)"
+            style="
+            max-height: 50vh;
+            overflow: auto;
+            "
+            onclick="event.stopPropagation();"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'; document.getElementById('char-counter-encrypted-chat').textContent = this.value.length + '/256';"
+            maxlength="256"
+            ></textarea>
+            <div id="char-counter-encrypted-chat" style="position: absolute; bottom: 5px; right: 10px; font-size: 2vh; color: #666;">0/256
+            </div>
+          </div>
+        </div>
+      
+        <div id="go-to-submit-message-encrypted-chat">
+          <div style="display: flex; align-items: center;">
+            <button id="go-to-top-msgs-encrypted-chat" class="toolbar-column-btns">Go to the top
+            </button>
+            <button id="post-msg-encrypted-chat" class="toolbar-column-btns" style="margin-left: 1vw ">Submit Message
+            </button>
+          </div>
+        </div>
+      
+        <div id="pin-public-key-from-encrypted-chat" style="display: none;">
+          <button id="stack-encrypted-chat-public-key-button" class="pin-public-key-from-encrypted-chat">Pin Public Key
+          </button>
+      </div>
+      
+      
+        </div>
+      </div>
+      
+      
+      
+      
+      <div id="rotation-controls" class='rotation-controls' onclick="event.stopPropagation();">
+        <div class="toolbar-column" id="change-model-settings">Model Settings
+        </div>
+        <div class="toolbar-column" id="change-crosshair-settings">Crosshair Settings
+        </div>
+        <div class="toolbar-column" id="change-marker-options">Marker Options
+        </div>
+        <div class="toolbar-column" id="change-color-of-main-buttons">Main Buttons
+        </div>
+        <div class="toolbar-column" id="change-button-input-settings">Button/Input/Containers
+        </div>
+        <div class="toolbar-column" id="change-topic-chat-options">Chat settings
+        </div>
+      </div>
+      
+      
+      
+      
+      <div id="visibility-controls" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
+        <div class="chat-topic-chat-container" onclick="event.stopPropagation();">
+      
+          <div style="display: flex; align-items: center; margin-bottom: 1vh;">
+            <label for="time-input" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Enter a time of update in milliseconds:
+            </label>
+          </div>
+      
+          <div style="display: flex; align-items: center; margin-bottom: 1vh;">
+            <input type="number" id="time-input" class="toolbar-column-btns" value="60000"/>
+            <button id="update-loop" class="toolbar-column-btns" style="width: 50vw;  margin-left: 1vw; color: white; text-shadow: 0 0 0.5vh black;">Update time
+            </button>
+          </div>
+      
+          <div style="display: flex; align-items: center; padding-left: 1vh; padding-bottom: 1vh;">
+            <label for="raster-opacity-slider" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Polygon transparency:
+            </label>
+            <input type="range" id="raster-opacity-slider" class="model_sliders" min="0" max="1" step="0.01" value="1">
+          </div>
+      
+          <div style="display: flex; align-items: center; margin-bottom: 1vh;">
+            <span id="polygon-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+            </span>
+            <button id="toggle-polygon-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show polygons:
+            </button>
+            <span id="polygon-visibility-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+            </span>
+          </div>
+      
+          <div style="display: flex; align-items: center; margin-bottom: 1vh;">
+            <span id="marker-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+            </span>
+            <button id="toggle-marker-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show markers
+            </button>
+            <span id="marker-visibility-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+            </span>
+          </div>
+      
+          <div style="display: flex; align-items: center; margin-bottom: 1vh;">
+            <span id="3d-model-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+            </span>
+            <button id="toggle-3d-model-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show 3D models
+            </button>
+            <span id="3d-model-visibility-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+            </span>
+          </div>
+      
+          <div style="display: flex; align-items: center; margin-bottom: 1vh;">
+            <span id="updates-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+            </span>
+            <button id="toggle-updates" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">model updates
+            </button>
+            <span id="updates-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+            </span>
+          </div>
+      
+          <div style="display: flex; align-items: center; margin-bottom: 1vh;">
+            <button id="update-map-layer-btn" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Update Map
+            </button>
+          </div>
+      
+        </div>
+      </div>
+      
+      <div id="model-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
+        <div id="model-column-container" class="yourfovcontainer" onclick="event.stopPropagation();" >
+      
+      
+          <div style="display: flex;">
+            <button id="show-model-column-model-url" class="toolbar-column-first-settings-btns">URL
+            </button>
+            <button id="hide-model-column-model-url" style="display: none;" class="toolbar-column-first-settings-btns">URL
+            </button>
+            <button id="show-model-column-model-rotation" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Rotation
+            </button>
+            <button id="hide-model-column-model-rotation" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Rotation
+            </button>
+            <button id="show-model-column-model-position" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Position
+            </button>
+            <button id="hide-model-column-model-position" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Position
+            </button>
+            <button id="show-model-column-model-scale-factor" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Scale Factor
+            </button>
+            <button id="hide-model-column-model-scale-factor" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Scale Factor
+            </button>
+          </div>
+      
+      
+          <div id="model-column-model-url" style="display: none;">
+          <input type="text" class="toolbar-column" id="object-input" placeholder="Enter URL" style="text-align: center;" onclick="event.stopPropagation();" />
+          <button id="buttonforobject" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; margin-top: 1vh;">Change object
+          </button>
+        </div>
+      
+        <div id="model-column-model-rotation" style="display: none;">
+          <div style="display: flex; align-items: center;">
+            <label for="rotation-x"class="toolbar-column">Rotation X:
+            </label>
+            <input type="range" class="model_sliders" id="rotation-x" min="0" max="360" value="0"/>
+            <input type="number" class="toolbar-column" style="text-align: center;" id="rotation-x-value" value="0"
+            onchange="document.getElementById('rotation-x').value = this.value;" />
+          </div>
+      
+          <div style="display: flex; align-items: center;">
+            <label for="rotation-y" class="toolbar-column">Rotation Y:
+            </label>
+            <input type="range" class="model_sliders" id="rotation-y" min="0" max="360" value="0"/>
+            <input type="number" class="toolbar-column" style="text-align: center;" id="rotation-y-value" value="0"
+            onchange="document.getElementById('rotation-y').value = this.value;" />
+          </div>
+      
+          <div style="display: flex; align-items: center;">
+            <label for="rotation-z" class="toolbar-column">Rotation Z:
+            </label>
+            <input type="range" class="model_sliders" id="rotation-z" min="0" max="360" value="0"/>
+            <input type="number" class="toolbar-column" style="text-align: center;" id="rotation-z-value" value="0"
+            onchange="document.getElementById('rotation-z').value = this.value;" />
+          </div>
+        </div>
+      
+        <div id="model-column-model-position" style="display: none;">
+          <div style="display: flex; align-items: center;">
+            <label for="position-x" class="toolbar-column">Position X:
+            </label>
+            <input type="range" class="model_sliders" id="position-x" min="-100" max="100" step="0.1" value="0"/>
+            <input type="number" class="toolbar-column" style="text-align: center;" id="position-x-value" value="0"
+            onchange="document.getElementById('position-x').value = this.value;" />
+          </div>
+      
+          <div style="display: flex; align-items: center;">
+            <label for="position-y"    class="toolbar-column">Position Y:
+            </label>
+            <input type="range" class="model_sliders" id="position-y" min="-100" max="100" step="0.1" value="0"/>
+            <input type="number" class="toolbar-column" style="text-align: center;" id="position-y-value" value="0"
+            onchange="document.getElementById('position-y').value = this.value;" />
+          </div>
+      
+          <div style="display: flex; align-items: center;">
+            <label for="position-z"   class="toolbar-column">Position Z:
+            </label>
+            <input type="range" class="model_sliders" id="position-z" min="-100" max="100" step="0.1" value="0"/>
+            <input type="number" class="toolbar-column" style="text-align: center;" id="position-z-value" value="0"
+            onchange="document.getElementById('position-z').value = this.value;" />
+          </div>
+          </div>
+      
+          <div id="model-column-model-scale-factor" style="display: none;">
+          <div style="display: flex; align-items: center;">
+            <label for="scale-factor" class="toolbar-column">Scale Factor:
+            </label>
+            <input type="range" class="model_sliders" id="scale-factor" step="0.000001" value="1"/>
+            <input type="number" class="toolbar-column" style="text-align: center;" id="scale-factor-value" value="1"
+            onchange="document.getElementById('scale-factor').value = this.value;" />
+          </div>
+        </div>
+          
+        </div>
+      </div>
+      
+      <div id="model-column-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
+        <div id="model-column-container-save" class="yourfovcontainer" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
+      
+          <div id="savesettings" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save settings
+          </div>
+      
+        </div>
+      </div>
+      
+      
+      <div id="crosshair-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
+        <div id="crosshair-column-container" class="yourfovcontainer" onclick="event.stopPropagation();">
+      
+          <div>
+            <label style="font-size: 1.5vh;">Crosshair Color:</label>
+            <input type="color" id="crosshair-color" class="yourfov" value="#000000">
+          </div>
+      
+          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
+            <label for="crosshair-before-after" class="yourfov">Length:
+            </label>
+            <input type="range" class="model_sliders" id="crosshair-before-after" min="0" max="100" value="20"/>
+            <input type="number" id="crosshair-before-after-value" class="yourfov" value="20"
+            onchange="document.getElementById('crosshair-before-after').value = this.value;" />
+          </div>
+      
+          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
+            <label for="crosshair-after-before" class="yourfov">Thickness:
+            </label>
+            <input type="range" class="model_sliders" id="crosshair-after-before" min="0" max="10" value="2"/>
+            <input type="number" id="crosshair-after-before-value" class="yourfov" value="2"
+            onchange="document.getElementById('crosshair-after-before').value = this.value;" />
+          </div>
+      
+        </div>
+      </div>
+      
+      <div id="crosshair-column-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
+        <div id="crosshair-column-container-save" class="yourfovcontainer" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
+      
+          <div id="savecrosshair" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save settings
+          </div>
+      
+        </div>
+      </div>
+      
+      
+      <div id="popup-column-2" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
+        <div id="popup-column-container-2" class="yourfovcontainer" onclick="event.stopPropagation();">
+      
+          <div style="top:10vh">
+          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
+          <div id="popup-column-2-border" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Border
+          </div>
+          <div id="popup-column-2-number" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">Number
+          </div>
+          <div id="popup-column-2-close" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">Close
+          </div>
+          <div id="popup-column-2-accid" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">AccID
+          </div>
+          </div>
+          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
+          <div id="popup-column-2-username" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Username
+          </div>
+          <div id="popup-column-2-titles" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">Title
+          </div>
+          <div id="popup-column-2-text" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">Text
+          </div>
+          <div id="popup-column-2-font" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">Font
+          </div>
+          </div>
+          </div>
+      
+        </div>
+      </div>
+      
+      <div id="popup-column-3" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
+        <div id="popup-column-container-3" class="yourfovcontainer" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
+      
+          <div id="popup-column-3-border" style="display: none; align-items: center;">
+            <label style="font-size: 1.5vh;">Border:</label>
+            <input type="color" id="color-picker-popup-border" class="yourfov" value="#ffffff">
+          </div>
+      
+          <div id="popup-column-3-number" style="display: none; align-items: center;">
+            <label style="font-size: 1.5vh;">Number:</label>
+            <input type="color" id="color-picker-popup-number" class="yourfov" value="#ffffff">
+          </div>
+      
+          <div id="popup-column-3-close" style="display: none; align-items: center;">
+            <label style="font-size: 1.5vh;">Close:</label>
+            <input type="color" id="color-picker-popup-close" class="yourfov" value="#ffffff">
+          </div>
+      
+          <div id="popup-column-3-accid" style="display: none; align-items: center;">
+            <label style="font-size: 1.5vh;">AccID:</label>
+            <input type="color" id="color-picker-popup-accid" class="yourfov" value="#800080">
+          </div>
+      
+          <div id="popup-column-3-username" style="display: none; align-items: center;">
+            <label style="font-size: 1.5vh;">Username:</label>
+            <input type="color" id="color-picker-popup-username" class="yourfov" value="#ff9933">
+          </div>
+      
+          <div id="popup-column-3-titles" style="display: none; align-items: center;">
+            <label style="font-size: 1.5vh;">Title:</label>
+            <input type="color" id="color-picker-popup-titles" class="yourfov" value="#ffffff">
+          </div>
+      
+          <div id="popup-column-3-text" style="display: none; align-items: center;">
+            <label style="font-size: 1.5vh;">Text:</label>
+            <input type="color" id="color-picker-popup-text" class="yourfov" value="#ffffff">
+          </div>
+      
+          <div id="popup-column-3-font" style="display: none; align-items: center;" >
+            <label style="font-size: 1.5vh;">Font:</label>
+            <div style="display: flex; align-items: center;">
+            <input type="number" id="popup-font-size" class="yourfov" style="margin-left: 1vw;" value='2' max="255"/>
+            </div>
+          </div>
+      
+          <div></div>
+          <div id="savepopup3" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save popup
+          </div>
+      
+        </div>
+      </div>
+      
+      <div id="main-button-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
+        <div id="main-button-column-container" class="yourfovcontainer" onclick="event.stopPropagation();">
+      
+          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
+            <label for="color-green" class="yourfov">Height:
+            </label>
+            <input type="number" id="Main-Button-Height" class="yourfov" style="margin-left: 1vw;" max="100" value="3"/>
+          </div>
+      
+          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
+            <label for="color-green" class="yourfov">Width:
+            </label>
+            <input type="number" id="Main-Button-Width" class="yourfov" style="margin-left: 1vw;" max="100" value="20"/>
+          </div>
+      
+          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
+            <label for="color-green" class="yourfov">Font Size:
+            </label>
+            <input type="number" id="Main-Button-Font-Size" class="yourfov" style="margin-left: 1vw;" max="10" value="1.5"/>
+          </div>
+      
+          <div>
+            <label style="font-size: 1.5vh;">Connect/Disconnect Button Color:</label>
+            <input type="color" id="disconnect-button-color" class="yourfov" value="#ffc107">
+          </div>
+      
+          <div>
+            <label style="font-size: 1.5vh;">Main Buttons Color:</label>
+            <input type="color" id="main-button-color" class="yourfov" value="#007bff">
+          </div>
+      
+        </div>
+      </div>
+      
+      <div id="main-button-column-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
+        <div id="main-button-column-container-save" class="yourfovcontainer" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
+      
+          <div id="save-main-button" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save Settings
+          </div>
+      
+        </div>
+      </div>
+      
+      <div id="marker-options-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
+        <div id="marker-options-column-container" class="yourfovcontainer" onclick="event.stopPropagation();">
+      
+          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
+            <label for="color-green" class="yourfov">Size:
+            </label>
+            <input type="number" id="Marker-Size" class="yourfov" style="margin-left: 1vw;" max="255" value="5"/>
+          </div>
+      
+        </div>
+      </div>
+      
+      <div id="marker-column-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
+        <div id="marker-column-container-save" class="yourfovcontainer" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
+      
+          <div id="save-marker-settings" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save Settings
+          </div>
+      
+        </div>
+      </div>
+      
+      <div id="button-input-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
+        <div id="button-input-column-container" class="yourfovcontainer" onclick="event.stopPropagation();">
+      
+          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
+            <label for="color-green" class="yourfov">Font Size:
+            </label>
+            <input type="number" id="font-for-button-input" class="yourfov" style="margin-left: 1vw;" max="10" placeholder="Size" value="2" step="0.01"/>
+          </div>
+      
+          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
+            <label for="color-green" class="yourfov">Transparency:
+            </label>
+            <input type="number" id="transparency-button-input" class="yourfov" style="margin-left: 1vw;" min='0.5' step="0.01" max="1" placeholder="Opacity" value="1"/>
+          </div>
+      
+          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
+            <label for="color-green" class="yourfov">Height:
+            </label>
+            <input type="number" id="Button-Input-Height" class="yourfov" style="margin-left: 1vw;" min="5" max="100" value="5"/>
+          </div>
+      
+          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
+            <label for="color-green" class="yourfov">Width:
+            </label>
+            <input type="number" id="Button-Input-Width" class="yourfov" style="margin-left: 1vw;" max="100" value="100"/>
+          </div>
+      
+          <div>
+            <label style="font-size: 1.5vh;">Input Border Color:</label>
+            <input type="color" id="input-border-color" class="yourfov" value="#007bff">
+          </div>
+      
+          <div>
+            <label style="font-size: 1.5vh;">Input Font Color:</label>
+            <input type="color" id="input-font-color" class="yourfov" value="#ffffff">
+          </div>
+      
+          <div>
+            <label style="font-size: 1.5vh;">Button Border Color:</label>
+            <input type="color" id="button-border-color" class="yourfov" value="#007bff">
+          </div>
+      
+          <div>
+            <label style="font-size: 1.5vh;">Button Font Color:</label>
+            <input type="color" id="button-font-color" class="yourfov" value="#ffffff">
+          </div>
+      
+          <div>
+            <label style="font-size: 1.5vh;">OnHover Button Color:</label>
+            <input type="color" id="onhover-button-color" class="yourfov" value="#007bff">
+          </div>
+      
+          <div>
+            <label style="font-size: 1.5vh;">Rules Container Color:</label>
+            <input type="color" id="rules-container-color" class="yourfov" value="#007bff">
+          </div>
+          
+        </div>
+      </div>
+      
+      <div id="button-input-column-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
+        <div id="button-input-column-container-save" class="yourfovcontainer" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
+      
+          <div id="save-button-button-input" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save Settings
+          </div>
+      
+        </div>
+      </div>
+      
+      
+      <div id="topic-chat-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
+        <div id="topic-chat-column-container" class="yourfovcontainer" onclick="event.stopPropagation();">
+      
+          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
+            <label for="color-green" class="yourfov">Text Font Size:
+            </label>
+            <input type="number" id="text-font-size-topic-chat" class="yourfov" style="margin-left: 1vw;" max="10" value="2"/>
+          </div>
+      
+          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
+            <label for="color-green" class="yourfov">Timestamp Font Size:
+            </label>
+            <input type="number" id="timestamp-font-size-topic-chat" class="yourfov" style="margin-left: 1vw;" max="10" value="1.25"/>
+          </div>
+      
+          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
+            <label for="color-green" class="yourfov">Header Font Size:
+            </label>
+            <input type="number" id="header-font-size-topic-chat" class="yourfov" style="margin-left: 1vw;" max="10" value="2"/>
+          </div>
+      
+          <div>
+            <label style="font-size: 1.5vh;">AccID Color:</label>
+            <input type="color" id="accid-topic-chat-color" class="yourfov" value="#800080">
+          </div>
+      
+          <div>
+            <label style="font-size: 1.5vh;">Username Color:</label>
+            <input type="color" id="username-topic-chat-color" class="yourfov" value="#ff9933">
+          </div>
+      
+          <div>
+            <label style="font-size: 1.5vh;">Text Color:</label>
+            <input type="color" id="text-topic-chat-color" class="yourfov" value="#ffffff">
+          </div>
+      
+          <div>
+            <label style="font-size: 1.5vh;">Outer Container Color:</label>
+            <input type="color" id="text-container-topic-chat-color" class="yourfov" value="#007bff">
+          </div>
+      
+          <div>
+            <label style="font-size: 1.5vh;">Inner Container Color:</label>
+            <input type="color" id="inner-container-topic-chat-color" class="yourfov" value="#ffc107">
+          </div>
+      
+          <div>
+            <label style="font-size: 1.5vh;">Header Color:</label>
+            <input type="color" id="topic-chat-header-color" class="yourfov" value="#ffffff">
+          </div>
+      
+        </div>
+      </div>
+      
+      <div id="topic-chat-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
+        <div id="topic-chat-container-save" class="yourfovcontainer" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
+      
+          <div id="save-topic-chat-settings" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save Settings
+          </div>
+      
+        </div>
+      </div>
+
+  </body>
+
+  <script type="module" src="/main.js"></script>
+
+  <link rel="stylesheet" href="style.css">
+
+</html>

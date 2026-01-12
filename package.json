@@ -1,0 +1,23 @@
+{
+  "name": "my-hedera-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^7.2.4"
+  },
+  "dependencies": {
+    "@hashgraph/hedera-wallet-connect": "^2.0.4",
+    "@hashgraph/sdk": "latest",
+    "@walletconnect/modal": "^2.7.0",
+    "libsodium-wrappers": "^0.8.0",
+    "maplibre-gl": "^5.15.0",
+    "supercluster": "^8.0.1",
+    "three": "^0.182.0"
+  }
+}
