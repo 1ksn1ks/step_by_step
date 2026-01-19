@@ -13,10 +13,15 @@
   },
   "dependencies": {
     "@hashgraph/hedera-wallet-connect": "^2.0.4",
+    "@hashgraph/proto": "^2.25.0",
     "@hashgraph/sdk": "latest",
+    "@helia/http": "^3.0.16",
+    "@helia/unixfs": "^7.0.1",
     "@walletconnect/modal": "^2.7.0",
+    "helia": "^6.0.16",
     "libsodium-wrappers": "^0.8.0",
     "maplibre-gl": "^5.15.0",
+    "multiformats": "^13.4.2",
     "supercluster": "^8.0.1",
     "three": "^0.182.0"
   }
