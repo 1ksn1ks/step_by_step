@@ -4,7 +4,8 @@ import {
   PrivateKey,
   TopicCreateTransaction,
   TopicUpdateTransaction,
-  AccountId} from '@hashgraph/sdk';
+  AccountId, 
+  CustomFixedFee} from '@hashgraph/sdk';
 import { signer, dAppConnector } from './web3';
 
 export async function sendMessage(topicId, message) {
@@ -25,177 +26,172 @@ export async function sendMessage(topicId, message) {
     }
   }
 
-export async function updateTopic(topicId , memo, adminKey, customFees) {
+export async function updateTopic({topicId:topicId , memo:memo, adminKey:adminKey, customFees:customFees}) {
 
-
-    if (!topicId) {
-      throw new Error('Topic ID is required');
-    }
-    if (!adminKey) {
-      throw new Error('Admin key is required for topic update');
-    }
-  
-    if (!signer) {
-      throw new Error('No signer found for the connected account');
-    }
-  
     let transaction = new TopicUpdateTransaction()
-      .setTopicId(TopicId.fromString(topicId))
+      .setTopicId(topicId)
       .setTopicMemo(memo || '');
-  
-  
-    let adminPrivateKey = PrivateKey || null;
-    try {
-      adminPrivateKey = PrivateKey.fromStringED25519(adminKey);
-      transaction.setAdminKey(adminPrivateKey.publicKey);
-    } catch (e) {
-      throw new Error('Invalid admin key format: Admin key must be a valid private key for topic update');
-    }
 
-        if (customFees && customFees.length > 0) {
+      const nodeAddresses = await dAppConnector.getNodeAddresses();
+
+  
+  
+      if (adminKey) {
+        const adminPrivateKey = PrivateKey.fromStringED25519(adminKey);
+        const adminPublicKey = adminPrivateKey.publicKey;
+
+        transaction
+        .setAdminKey(adminPublicKey)
+        .setFeeScheduleKey(adminPublicKey);
+
+
+    
+        if (customFees) {
           const hederaCustomFees = customFees.map(fee => {
-              if (!fee.denominatingTokenId || !fee.amount || !fee.collectorAccountId) {
-                  throw new Error('Invalid custom fee: denominatingTokenId, amount, and collectorAccountId are required');
-              }
-              const feeAmount = parseFloat(fee.amount);
-              if (isNaN(feeAmount) || feeAmount <= 0) {
-                  throw new Error('Invalid amount: must be a positive number');
-              }
               const customFee = new CustomFixedFee()
-                  .setAmount(feeAmount)
+                  .setAmount(fee.amount)
                   .setFeeCollectorAccountId(fee.collectorAccountId)
                   .setDenominatingTokenId(fee.denominatingTokenId);
               return customFee;
           });
           transaction.setCustomFees(hederaCustomFees);
-          this.logger.debug('Custom fixed fees set:', hederaCustomFees);
       }
-  
-    transaction = await transaction.freezeWithSigner(signer);
-  
-    if (adminPrivateKey) {
-      transaction = await transaction.sign(adminPrivateKey);
-      this.logger.debug('Transaction signed with admin private key');
+
+    let node;
+
+    if (nodeAddresses && nodeAddresses.length > 0) {
+      node = nodeAddresses[Math.floor(Math.random() * nodeAddresses.length)];
+    } else {
+      node = '0.0.3';
     }
-  
-    await transaction.executeWithSigner(signer);
-  
-    return result.topicId.toString();
+
+    transaction.setNodeAccountIds([AccountId.fromString(node)]);
+    transaction = await transaction.freezeWithSigner(signer);
+
+    await transaction.sign(adminPrivateKey);
   }
+      
+  await transaction.executeWithSigner(signer);
+}
+  
 
 export async function createTopic({memo:memo, adminkey:adminKey}) {
-  console.log(memo)
-  console.log(adminKey)
-  console.log(signer)
-
   let transaction = new TopicCreateTransaction().setTopicMemo(memo);
-
-  console.log(transaction)
-
-  let adminPrivateKey
+  const nodeAddresses = await dAppConnector.getNodeAddresses();
 
   if (adminKey) {
-    adminPrivateKey = PrivateKey.fromString(adminKey);
-    transaction.setAdminKey(adminPrivateKey.publicKey);
-    transaction.setFeeScheduleKey(adminPrivateKey.publicKey);
-  }
+    const adminPrivateKey = PrivateKey.fromStringED25519(adminKey);
+    const adminPublicKey = adminPrivateKey.publicKey;
 
-  transaction = await transaction.freezeWithSigner(signer);
+    transaction
+      .setAdminKey(adminPublicKey)
+      .setFeeScheduleKey(adminPublicKey);
 
+      let node;
 
-  if (adminKey) {
-    transaction = await transaction.sign(adminPrivateKey);
+      if (nodeAddresses && nodeAddresses.length > 0) {
+        node = nodeAddresses[Math.floor(Math.random() * nodeAddresses.length)];
+      } else {
+        node = '0.0.3';
+      }
+
+      
+    transaction.setNodeAccountIds([AccountId.fromString(node)]);
+    transaction = await transaction.freezeWithSigner(signer);
+
+    await transaction.sign(adminPrivateKey);
   }
 
   const txResponse = await transaction.executeWithSigner(signer);
   const receipt = await txResponse.getReceiptWithSigner(signer);
+
   return receipt.topicId.toString();
 }
 
 
-  async function fetchWithRetry(url, retries = 3, delay = 1000) {
-    for (let i = 0; i <= retries; i++) {
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-        return response;
-      } catch (err) {
-        if (i === retries) throw err;
-        console.warn(`Retry ${i + 1}/${retries} for ${url} failed: ${err.message}`);
-        await new Promise(res => setTimeout(res, delay * Math.pow(2, i))); // exponential backoff
-      }
-    }
-  }
-  
-  export async function getMessages(
-    topicId,
-  ) {
-
-    const baseUrl = `https://mainnet.mirrornode.hedera.com`;
-    
-    let timestampQuery = '';
-  
-    let url = `${baseUrl}/api/v1/topics/${topicId}/messages?limit=100${timestampQuery}`;
-    
-    const allMessages = [];
-  
+async function fetchWithRetry(url, retries = 3, delay = 1000) {
+  for (let i = 0; i <= retries; i++) {
     try {
-      while (url) {
-        const response = await fetchWithRetry(url);
-        const data = await response.json();
-  
-        const messages = data.messages || [];
-        let nextLink = data.links?.next || null;
-  
-        for (const msg of messages) {
-          try {
-            const decoded = Buffer.from(msg.message, 'base64').toString('utf-8');
-            const parsedMessage = JSON.parse(decoded);
-  
-            allMessages.push({
-              ...parsedMessage,
-              payer: msg.payer_account_id,
-              created: new Date(Number(msg.consensus_timestamp) * 1000),
-              consensus_timestamp: msg.consensus_timestamp,
-              sequence_number: msg.sequence_number,
-            });
-          } catch (parseError) {
-            console.warn(`Skipping invalid message (sequence: ${msg.sequence_number}): ${parseError.message}`);
-          }
-        }
-  
-        if (nextLink) {
-          url = `${baseUrl}${nextLink}`;
-        } else {
-          url = null;
-        }
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
       }
-  
-      allMessages.sort((a, b) => a.sequence_number - b.sequence_number);
-  
-      return {
-        messages: allMessages,
-        error: '',
-      };
-    } catch (error) {
-      console.error('Error fetching topic messages:', error);
-      return {
-        messages: [],
-        error: error.message || error.toString(),
-      };
+      return response;
+    } catch (err) {
+      if (i === retries) throw err;
+      console.warn(`Retry ${i + 1}/${retries} for ${url} failed: ${err.message}`);
+      await new Promise(res => setTimeout(res, delay * Math.pow(2, i))); // exponential backoff
     }
   }
+}
 
-  export async function generatePrivateAndPublicKey() {
-    const privateKey = await PrivateKey.generateED25519Async();
-    const publicKey = privateKey.publicKey;
+export async function getMessages(
+  topicId,
+) {
+
+  const baseUrl = `https://mainnet.mirrornode.hedera.com`;
+  
+  let timestampQuery = '';
+
+  let url = `${baseUrl}/api/v1/topics/${topicId}/messages?limit=100${timestampQuery}`;
+  
+  const allMessages = [];
+
+  try {
+    while (url) {
+      const response = await fetchWithRetry(url);
+      const data = await response.json();
+
+      const messages = data.messages || [];
+      let nextLink = data.links?.next || null;
+
+      for (const msg of messages) {
+        try {
+          const decoded = Buffer.from(msg.message, 'base64').toString('utf-8');
+          const parsedMessage = JSON.parse(decoded);
+
+          allMessages.push({
+            ...parsedMessage,
+            payer: msg.payer_account_id,
+            created: new Date(Number(msg.consensus_timestamp) * 1000),
+            consensus_timestamp: msg.consensus_timestamp,
+            sequence_number: msg.sequence_number,
+          });
+        } catch (parseError) {
+          console.warn(`Skipping invalid message (sequence: ${msg.sequence_number}): ${parseError.message}`);
+        }
+      }
+
+      if (nextLink) {
+        url = `${baseUrl}${nextLink}`;
+      } else {
+        url = null;
+      }
+    }
+
+    allMessages.sort((a, b) => a.sequence_number - b.sequence_number);
+
     return {
-      privateKey: privateKey.toString(),
-      publicKey: publicKey.toString()
+      messages: allMessages,
+      error: '',
+    };
+  } catch (error) {
+    console.error('Error fetching topic messages:', error);
+    return {
+      messages: [],
+      error: error.message || error.toString(),
     };
   }
+}
+
+export async function generatePrivateAndPublicKey() {
+  const privateKey = await PrivateKey.generateED25519Async();
+  const publicKey = privateKey.publicKey;
+  return {
+    privateKey: privateKey.toString(),
+    publicKey: publicKey.toString()
+  };
+}
 
 export async function getTopicInfo(topicId)
  {

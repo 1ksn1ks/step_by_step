@@ -18,6 +18,7 @@ import { loadButtonInputSettings } from './loadbuttoninput';
 import { loadMainButtonSettings } from './loadmainbutton';
 import { loadMarkerSettings } from './loadmarkersett';
 import { confirmNFTFunction } from './confirmnft';
+import { handleAllMessages } from './handleallmessages';
 import {debounce} from './debounce'
 
 
@@ -69,6 +70,12 @@ async function init() {
       newToolbarLoad.addEventListener("click", debounce(async () => {
         await confirmNFTFunction(accountId);
     }, 500));
+    } else {
+      const newToolbarLoad = document.getElementById("toolbar-load");
+      newToolbarLoad.addEventListener("click", debounce(async () => {
+        await handleAllMessages();
+      }, 500));
+      handleAllMessages()
     }
 
     updateUI();
@@ -91,7 +98,7 @@ function updateUI() {
     walletBtn.style.display = "none";
     disconnectBtn.textContent = 'Disconnect';
   } else {
-    accountSpan.textContent = 'None';
+    accountSpan.textContent = 'Not connected';
     connectBtn.textContent = 'Connect Wallet';
     connectBtn.disabled = false;
     disconnectBtn.style.display = "none";
