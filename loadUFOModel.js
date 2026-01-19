@@ -6,7 +6,7 @@ import { scene } from "./threejs";
 import * as THREE from 'three';
 
 const dracoLoader = new DRACOLoader();
-dracoLoader.setDecoderPath('node_modules/three/examples/jsm/libs/draco/');  // Adjust this path based on where you place the decoder files
+dracoLoader.setDecoderPath('/draco/');  // Adjust this path based on where you place the decoder files
 
 const ufoLoader = new GLTFLoader();
 ufoLoader.setDRACOLoader(dracoLoader);
