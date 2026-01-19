@@ -69,11 +69,14 @@ async function init() {
       const newToolbarLoad = document.getElementById("toolbar-load");
       newToolbarLoad.addEventListener("click", debounce(async () => {
         await confirmNFTFunction(accountId);
+        console.log('aaaaaa')
+
     }, 500));
     } else {
       const newToolbarLoad = document.getElementById("toolbar-load");
       newToolbarLoad.addEventListener("click", debounce(async () => {
         await handleAllMessages();
+        console.log('bbbbbb')
       }, 500));
       handleAllMessages()
     }

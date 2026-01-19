@@ -2,7 +2,7 @@ import { applyAllStyles } from './loadprofilepopup';
 import { scene } from "./threejs";
 import maplibregl from 'maplibre-gl';
 import { animateMapTo } from './animatemapto';
-import { currentUfoModel } from './letall';
+import { currentUfoModel, polygons } from './letall';
 import { map } from './map'
 import { activeMarkerPopups } from './marker';
 import { CloseALL, changePopupState } from './cssLogic';
@@ -215,3 +215,30 @@ export async function addPolygonWithImageFill(map, polygon) {
     }
   }
   
+
+
+  let polygonsVisible = true;
+
+
+
+  // Function to toggle polygons visibility
+  function togglePolygons() {
+      polygonsVisible = !polygonsVisible; // Toggle state
+
+      polygons.forEach(polygon => {
+          const layerId = `${polygon.id}-image-layer`;
+          const maskLayerId = `${polygon.id}-mask-layer`; // Define the mask layer ID
+
+          if (map.getLayer(layerId)) {
+              const visibility = polygonsVisible ? 'visible' : 'none'; // Set visibility based on the current state
+              map.setLayoutProperty(layerId, 'visibility', visibility);
+              map.setLayoutProperty(maskLayerId, 'visibility', visibility); // Also toggle the mask layer visibility
+          }
+      });
+
+      document.getElementById("polygon-visibility-value").textContent = polygonsVisible ? "On" : "Off"; // Update button state
+      document.getElementById("polygon-visibility-value2").textContent = polygonsVisible ? "On" : "Off"; // Update button state
+  }
+
+  document.getElementById("toggle-polygon-visibility").addEventListener("click", togglePolygons);
+

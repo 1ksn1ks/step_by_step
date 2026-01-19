@@ -31,6 +31,7 @@ export function setcurrentMarkerSize(a) {
 }
 
 export function updateClusters() {
+  if (markersVisible){
     if (geojson.features.length === 0) {
       console.log("No features to update clusters.");
       return;
@@ -138,11 +139,45 @@ export function updateClusters() {
       };
       img.onerror = reject;
       img.src = imageUrl;
-    });
+    });}
   }
   
   
  export const debouncedUpdateClusters = debounce(() => {
     updateClusters();
   }, 1000);
-  map.on("moveend", debouncedUpdateClusters);
+
+  let markersVisible = false;
+
+  document.getElementById("toggle-marker-visibility").addEventListener("click", () => {
+    toggleMarkers();
+});
+
+
+
+    function toggleMarkers() {
+      markersVisible = !markersVisible;
+
+      existingMarkers.forEach(marker => {
+          if (marker.getElement()) {
+              if (markersVisible) {
+                  marker.getElement().style.display = 'block';
+                  marker.addTo(map);
+              } else {
+                  marker.getElement().style.display = 'none';
+                  marker.remove();
+              }
+          }
+      });
+
+      document.getElementById("marker-visibility-value").textContent = markersVisible ? "On" : "Off";
+      document.getElementById("marker-visibility-value2").textContent = markersVisible ? "On" : "Off";
+
+      if (!markersVisible) {
+          map.off("moveend", debouncedUpdateClusters);
+      } else {
+          map.on("moveend", debouncedUpdateClusters);
+      }
+  }
+
+  toggleMarkers()
