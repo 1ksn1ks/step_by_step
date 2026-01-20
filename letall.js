@@ -63,7 +63,7 @@ export function newStoredMarkers(a) {
 export let storedMarkersFiltered = [];
 export let storedPolygons = [];
 export function newStoredPolygons(a) {
-  storedMarkers = a;
+  storedPolygons = a;
 }
 export let storedPolygonsFiltered = [];
 

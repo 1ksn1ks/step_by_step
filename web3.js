@@ -63,20 +63,15 @@ async function init() {
 
       const senderId = AccountId.fromString(connectedAccount);
       signer = dAppConnector.getSigner(senderId);
-      console.log('Signer obtained:', signer);
-      console.log('Signer account:', signer.getAccountId()?.toString());
 
       const newToolbarLoad = document.getElementById("toolbar-load");
       newToolbarLoad.addEventListener("click", debounce(async () => {
         await confirmNFTFunction(accountId);
-        console.log('aaaaaa')
-
     }, 500));
     } else {
       const newToolbarLoad = document.getElementById("toolbar-load");
       newToolbarLoad.addEventListener("click", debounce(async () => {
         await handleAllMessages();
-        console.log('bbbbbb')
       }, 500));
       handleAllMessages()
     }

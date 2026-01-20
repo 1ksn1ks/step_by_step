@@ -948,7 +948,7 @@ window.likeMarker = async function(timestamp, topicId) {
   };
 
   const meesage = JSON.stringify(meesageobject);
-  const reciept = await sendMessage(topicId, meesage);
+  await sendMessage(topicId, meesage);
     
 };
 
@@ -961,7 +961,7 @@ window.likePolygon = async function(timestamp, topicId) {
   };
 
   const meesage = JSON.stringify(meesageobject);
-  const reciept = await sendMessage(topicId, meesage);
+  await sendMessage(topicId, meesage);
 };
 
 window.dislikeMarker = async function(timestamp, topicId) {
@@ -973,7 +973,7 @@ window.dislikeMarker = async function(timestamp, topicId) {
   };
 
   const meesage = JSON.stringify(meesageobject);
-  const reciept = await sendMessage(topicId, meesage);
+  await sendMessage(topicId, meesage);
 };
 
 window.dislikePolygon = async function(timestamp, topicId) {
@@ -985,7 +985,7 @@ window.dislikePolygon = async function(timestamp, topicId) {
   };
 
   const meesage = JSON.stringify(meesageobject);
-  const reciept = await sendMessage(topicId, meesage);
+  await sendMessage(topicId, meesage);
 };
 
   
