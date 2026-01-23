@@ -27,7 +27,6 @@ export async function handleAllMessages() {
     try {
       newStoredMarkers([]);
       newStoredPolygons([]);
-      console.log(polygons)
       let userInput = document.getElementById("input-field").value.toLowerCase();
       let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
       let topicId;
