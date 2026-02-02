@@ -102,12 +102,12 @@ export function updateClusters() {
   
         el.addEventListener("click", (e) => {
           e.stopPropagation();
+          popup.setLngLat(cluster.geometry.coordinates).addTo(map).setDOMContent(cluster.properties.message);
           activePolygonPopups.forEach((popup) => popup.remove());
           activeMarkerPopups.forEach((popup) => popup.remove());
           activeMarkerPopups.push(popup);
           CloseALL();
           animateMapTo(map, cluster.geometry.coordinates, null);
-          popup.setLngLat(cluster.geometry.coordinates).addTo(map).setDOMContent(cluster.properties.message);
           applyAllStyles();
           changePopupState(true);
           if (currentUfoModel) {
