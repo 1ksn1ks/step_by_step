@@ -25,20 +25,23 @@ export function parsePrivateKey(derHex) {
 }
 
 export async function encryptMessage(message, recipientPublicKey) {
+  await sodium.ready;
   const recipientX25519Public = sodium.crypto_sign_ed25519_pk_to_curve25519(recipientPublicKey);
   const ciphertext = sodium.crypto_box_seal(message, recipientX25519Public);
 
   return {
-    ciphertext: sodium.to_base64(ciphertext, sodium.base64_variants.URLSAFE_NO_PADDING)
+    ciphertext: sodium.to_base64(ciphertext)
   };
 }
 
 export async function decryptMessage(encryptedData, recipientPrivateKey) {
-  const recipientPublicKey = recipientPrivateKey.slice(32); // ed25519 pk
+  await sodium.ready;
+  const recipientPublicKey = recipientPrivateKey.slice(32);
   const recipientX25519Private = sodium.crypto_sign_ed25519_sk_to_curve25519(recipientPrivateKey);
+  const recipientX25519Public = sodium.crypto_sign_ed25519_pk_to_curve25519(recipientPublicKey);
 
-  const ciphertext = sodium.from_base64(encryptedData.ciphertext, sodium.base64_variants.URLSAFE_NO_PADDING);
-  const decrypted = sodium.crypto_box_seal_open(ciphertext, recipientX25519Public || sodium.crypto_sign_ed25519_pk_to_curve25519(recipientPublicKey), recipientX25519Private);
+  const ciphertext = sodium.from_base64(encryptedData.ciphertext);
+  const decrypted = sodium.crypto_box_seal_open(ciphertext, recipientX25519Public, recipientX25519Private);
 
   return sodium.to_string(decrypted);
 }

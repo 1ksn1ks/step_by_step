@@ -90,7 +90,7 @@ export function updateClusters() {
         .addTo(map);
   
       if (!cluster.properties.cluster) {
-        const popup = new maplibregl.Popup().setHTML(cluster.properties.message);
+        const popup = new maplibregl.Popup();
   
         popup.on("close", () => {
           changePopupState(false);
@@ -107,7 +107,7 @@ export function updateClusters() {
           activeMarkerPopups.push(popup);
           CloseALL();
           animateMapTo(map, cluster.geometry.coordinates, null);
-          popup.setLngLat(cluster.geometry.coordinates).addTo(map);
+          popup.setLngLat(cluster.geometry.coordinates).addTo(map).setDOMContent(cluster.properties.message);
           applyAllStyles();
           changePopupState(true);
           if (currentUfoModel) {

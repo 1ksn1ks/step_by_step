@@ -169,7 +169,7 @@ export async function addPolygonWithImageFill(map, polygon) {
             const targetLngLat = e.lngLat.toArray()
             popup
               .setLngLat(e.lngLat)
-              .setHTML(polygon.description)
+              .setDOMContent(polygon.description)
               .addTo(map);
             animateMapTo(map, targetLngLat, null);
             activePolygonPopups.forEach((p) => p.remove());

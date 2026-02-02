@@ -18,7 +18,7 @@ export async function sendMessage(topicId, message) {
       const txResponse = await transaction.executeWithSigner(signer);
       const receipt = await txResponse.getReceiptWithSigner(signer);
   
-      const txId = receipt.transactionId.toString();
+      const txId = receipt;
   
       console.log (txId)
     } catch (err) {

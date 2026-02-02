@@ -10,11 +10,8 @@ import {
   usernameTopicChatColor,
   textFontSizeTopicChat,
   textTopicChatColor,
-  timestampFontSizeTopicChat,
-  
-
+  timestampFontSizeTopicChat
  } from './letall';
-
 
 
 export let allLoadedMessagesTopicChat = [];
@@ -24,6 +21,19 @@ document.getElementById('go-to-top-msgs').addEventListener('click', function() {
     const container = document.getElementById('messages-from-topic-chat');
     container.scrollTop = 0;
   });
+
+  function isValidUrl(string) {
+    try {
+      new URL(string);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+const purifyConfig = {
+  ALLOWED_URI_REGEXP: /^https:\/\/explore\.hashpack\.app\//i
+};
   
   document.getElementById("load-msgs-from").addEventListener("click", async () => {
     try {
@@ -37,250 +47,256 @@ document.getElementById('go-to-top-msgs').addEventListener('click', function() {
         topicId = userInput;
       }
   
-      
       const messagesContainer = document.getElementById("messages-from-topic-chat");
+      
+  
       const topicSpinnerChat = `
-      <div style="display: flex; justify-content: left; align-items: left; height: 100%; ">
-        <div id="topicspinnerchat"></div>
-         <span style="margin-left: 1vw;">Loading messages from ${topicId}</span>
+        <div style="display: flex; justify-content: left; align-items: left; height: 100%; ">
+          <div id="topicspinnerchat"></div>
+          <span style="margin-left: 1vw;">Loading messages from ${topicId}</span>
         </div>`;
       messagesContainer.innerHTML = topicSpinnerChat;
       adjustTextareaHeight(messagesContainer);
   
-  
       const topicAdmin = [];
   
-      try{
-      const topicInfo = await getTopicInfo(topicId);
-            const memo = topicInfo.memo;
+      try {
+        const topicInfo = await getTopicInfo(topicId);
+        const memo = topicInfo.memo || "";
   
-            // Split the memo by commas
-            const parts = memo.split(',');
-  
-            // Iterate over each part
-            parts.forEach(part => {
-              // Check if the part starts with "0.0."
-              if (part.startsWith("0.0.")) {
-                // Add it to the topicAdmin array
-                topicAdmin.push(part);
-              }
-            });
-          } catch (error){
-                const messagesContainer = document.getElementById('messages-from-topic-chat');
-                messagesContainer.innerHTML = 
-                `<div style="display: flex; justify-content: left; align-items: left; height: 100%; ">
-                  <span style="margin-left: 1vw;">Invalid Topic ID</span>
-                  </div>`;
-                adjustTextareaHeight(messagesContainer);
-                return;
+        const parts = memo.split(',');
+        parts.forEach(part => {
+          if (part.trim().startsWith("0.0.")) {
+            topicAdmin.push(part.trim());
           }
+        });
+      } catch (error) {
+        messagesContainer.innerHTML = `
+          <div style="display: flex; justify-content: left; align-items: left; height: 100%; ">
+            <span style="margin-left: 1vw;">Invalid Topic ID</span>
+          </div>`;
+        adjustTextareaHeight(messagesContainer);
+        return;
+      }
   
-          const rawResult = await getMessages(topicId);
+      const rawResult = await getMessages(topicId);
+  
+      // Deduplicate
+      const seen = new Map();
+      const uniqueMessages = { messages: [] };
+      for (const msg of rawResult.messages || []) {
+        const seq = msg.sequence_number;
+        if (!seen.has(seq)) {
+          seen.set(seq, true);
+          uniqueMessages.messages.push(msg);
+        }
+      }
+  
+      allLoadedMessagesTopicChat = [uniqueMessages];
+  
+      if (!rawResult || !Array.isArray(rawResult.messages)) {
+        messagesContainer.innerHTML = `
+          <div style="display: flex; justify-content: left; align-items: left; height: 100%;">
+            <span style="margin-left: 1vw;">No messages found</span>
+          </div>`;
+        adjustTextareaHeight(messagesContainer);
+        return;
+      }
+  
+      // Collect NFTs
+      const loadedNFTsForTopicChat = [];
+      for (const msg of rawResult.messages) {
+        try {
+          let parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
+          const payer = parsed.payer || '';
+          if (topicAdmin.length === 0 || topicAdmin.includes(payer)) {
+            if (parsed.addTopicChatNFT) {
+              parsed.addTopicChatNFT.split(',').map(n => n.trim()).forEach(nft => {
+                if (nft.startsWith("0.0.") && !loadedNFTsForTopicChat.includes(nft)) {
+                  loadedNFTsForTopicChat.push(nft);
+                }
+              });
+            }
+            if (parsed.removeTopicChatNFT) {
+              const nft = parsed.removeTopicChatNFT.trim();
+              if (nft.startsWith("0.0.")) {
+                const idx = loadedNFTsForTopicChat.indexOf(nft);
+                if (idx !== -1) loadedNFTsForTopicChat.splice(idx, 1);
+              }
+            }
+          }
+        } catch {}
+      }
 
   
-          const seen = new Map();
-          const uniqueMessages = {messages:[]};
-  
-          for (let index = 0; index < rawResult.messages.length; index++) {
-            const message = rawResult.messages[index];
-            const seqNum = message.sequence_number;
-  
-            if (!seen.has(seqNum)) {
-              seen.set(seqNum, true);
-              uniqueMessages.messages.push(message);
-            }
-          }
-  
-  
-          allLoadedMessagesTopicChat = [];
-          allLoadedMessagesTopicChat.push(uniqueMessages);
-  
-          if (!rawResult || !Array.isArray(rawResult.messages)) {
-            console.log("No messages found or rawResult is not an array.");
-            return [];
-          }
-  
-  
-  
-    
-      const loadedNFTsForTopicChat = [];
-  
-  
-  
-      for (let index = 0; index < rawResult.messages.length; index++) {
-        const message = rawResult.messages[index];
-        try {
-          let parsedMessage = message;
-          if (typeof message === 'string') {
-            parsedMessage = JSON.parse(message);
-          }
-          const timestamp = message.timestamp || Date.now(); // Use message timestamp or current time
-  
-          if (parsedMessage.addTopicChatNFT && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-          const nfts = parsedMessage.addTopicChatNFT.split(',').map(nft => nft.trim());
-          nfts.forEach(nft => {
-            if (nft.startsWith("0.0.") && !loadedNFTsForTopicChat.includes(nft)) { // Check if NFT starts with "0.0."
-              loadedNFTsForTopicChat.push(nft);
-            }
-          });
-        }
-  
-        if (parsedMessage.removeTopicChatNFT && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-          const nft = parsedMessage.removeTopicChatNFT.trim();
-          if (nft.startsWith("0.0.")) { // Check if NFT starts with "0.0."
-            const index = loadedNFTsForTopicChat.indexOf(nft);
-            if (index !== -1) {
-              loadedNFTsForTopicChat.splice(index, 1);
-            }
-          }
-        }
-        } catch (messageError) {
-          console.error(`Error processing message ${index}:`, messageError);
+// Clear container using DOM
+while (messagesContainer.firstChild) {
+  messagesContainer.removeChild(messagesContainer.firstChild);
+}
+
+let previousPayer = null;
+storedMessages = [];
+let groupContainer = null;
+let messagesGroupDiv = null;
+
+for (const message of rawResult.messages) {
+  try {
+    let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
+    const payer = parsedMessage.payer || 'Unknown';
+
+    // NFT check
+    let payerHasNFT = loadedNFTsForTopicChat.length === 0;
+    if (!payerHasNFT) {
+      for (const item of loadedNFTsForTopicChat) {
+        const has = await getAccountNFTs(payer, item);
+        if (has.length > 0) {
+          payerHasNFT = true;
+          break;
         }
       }
-  
-  
-  let allMessages = '';
-  let previousPayer = null;
-  storedMessages = [];
-  let groupHTML = '';
-  let groupOpen = false;
-  
-  for (let index = 0; index < rawResult.messages.length; index++) {
-    const message = rawResult.messages[index];
-    try {
-      let parsedMessage = message;
-      if (typeof message === 'string') {
-        parsedMessage = JSON.parse(message);
-      }
-  
-      const payer = parsedMessage.payer || 'Unknown';
-  
-      // ----- NFT check (unchanged) -----
-      let payerHasNFT = false;
-      if (loadedNFTsForTopicChat.length > 0) {
-        for (const item of loadedNFTsForTopicChat) {
-          const checkIfUserHasNFT = await getAccountNFTs(payer, item);
-          if (checkIfUserHasNFT.length > 0) {
-            payerHasNFT = true;
-            break;
-          }
-        }
-      } else {
-        payerHasNFT = true;
-      }
-  
-  
-      if (payerHasNFT && parsedMessage.userMessage) {
-        const userMessage = parsedMessage.userMessage;
-        storedMessages.push(parsedMessage);
-  
-        const payerImage = profilePictures[payer]?.url || 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
-  
-        // ----- URL validation (unchanged) -----
-        function isValidUrl(string) {
-          try { new URL(string); return true; } catch (_) { return false; }
-        }
-        const validPayerImage = isValidUrl(payerImage) ? payerImage : 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
-  
-        const timestamp = new Date(parsedMessage.created)
-          .toLocaleString('en-US', {
-            hour12: false,
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-          });
-  
-        const payerInfo = message.payer ? `${message.payer}` : 'Anonymous';
-        const username = message.payer && usernames[message.payer] ?
-          ` ${usernames[message.payer].username}` : '';
-        const click2link = message.payer && click2url[message.payer] ?
-          ` ${click2url[message.payer].click2url}` : '';
-  
-        const displayHeader = 
-          `<div class="toolbar-group-messages-header" style="display: flex; align-items: center; border-color: ${topicChatHeaderColor}; font-size: ${headerFontSizeTopicChat}vh;"> 
-          <a href="https://explore.hashpack.app/${payerInfo}" target="_blank" style="color: ${accidTopicChatColor}; text-decoration: none; font-size: ${headerFontSizeTopicChat}vh;">${payerInfo}</a>&nbsp;` +
-          (click2link ?
-            `<a href="${click2link}" target="_blank" style="color: ${usernameTopicChatColor}; text-decoration: none; font-size: ${headerFontSizeTopicChat}vh;">${username}</a>` :
-            `<span style="color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;">${username}</span>`);
-  
-        // ---------------------------------------------------------
-        // GROUPING LOGIC
-        // ---------------------------------------------------------
-        if (payer !== previousPayer) {
-          // 1. Close previous group (if any)
-          if (groupOpen) {
-            groupHTML += '</div></div></div><br></div>'; // close inner divs + toolbar-group
-            allMessages += groupHTML;
-            groupHTML = '';
-            groupOpen = false;
-          }
-  
-  // Open NEW toolbar-group with GRID layout
-  groupHTML = `<div class="toolbar-group-messages" style="position: relative; padding-left: 2.5em; min-height: 2.5em; border-color: ${innerContainerTopicChatColor};">
-                <img src="${validPayerImage}" alt="Profile photo"
-                    style="position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer;"
-                    onclick="loadTOPIC4PIC('${message.payer}');">
-                  <div style="display: flex; flex-direction: column;">
-                  <div style="display: flex; align-items: center;">
-                    ${displayHeader}
-                  </div></div>`;
-  
-    groupOpen = true;
-  }
-  
-        // 3. Append the message (first or continuation)
-        if (payer !== previousPayer) {
-          // First message of the group – already inside the header block
-          groupHTML += `<div style="color: ${textTopicChatColor}; margin-top: 0.5em; font-size: ${textFontSizeTopicChat}vh;">${userMessage}</div>
-                        <span style="font-size: ${timestampFontSizeTopicChat}vh; color: gray;">${timestamp}</span>`;
-        } else {
-          // Continuation – indented block
-          groupHTML += `
-            <div style="display: flex; flex-direction: column; justify-content: center; margin-top: 0.5em;">
-              <div style="color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;">${userMessage}</div>
-              <span style="font-size: ${timestampFontSizeTopicChat}vh; color: gray;">${timestamp}</span>
-            </div>`;
-        }
-  
-        previousPayer = payer;
-      } else {
-        console.warn(`Message ${index} is missing payer or data.`);
-      }
-    } catch (messageError) {
-      console.error(`Error processing message ${index}:`, messageError);
     }
-  }
-  
-  // ----- Flush the very last group -----
-  if (groupOpen) {
-    groupHTML += '</div></div></div><br></div>';
-    allMessages += groupHTML;
-  }
-  
-    messagesContainer.innerHTML = allMessages;
-  
-    if (allMessages.length === 0) {
-      const messagesContainer = document.getElementById('messages-from-topic-chat');
-  
-      messagesContainer.innerHTML = 
-       `<div style="display: flex; justify-content: left; align-items: left; height: 100%; ">
-         <span style="margin-left: 1vw;">No messages found</span>
-        </div>`; 
-      return;
+
+    if (payerHasNFT && parsedMessage.userMessage) {
+      const userMessage = parsedMessage.userMessage;
+      storedMessages.push(parsedMessage);
+
+      const payerImage = profilePictures[payer]?.url || 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+      const validPayerImage = isValidUrl(payerImage) ? payerImage : 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+
+      const timestamp = new Date(parsedMessage.created)
+        .toLocaleString('en-US', {
+          hour12: false,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+
+      const payerInfo = message.payer ? message.payer : 'Anonymous';
+      const username = message.payer && usernames[message.payer]?.username
+        ? ` ${usernames[message.payer].username}` : '';
+      const click2link = message.payer && click2url[message.payer]?.click2url
+        ? ` ${click2url[message.payer].click2url}` : '';
+
+      // Grouping - start new group if payer changed
+      if (payer !== previousPayer) {
+        if (groupContainer) {
+          messagesContainer.appendChild(groupContainer);
+          const br = document.createElement('br');
+          messagesContainer.appendChild(br);
+        }
+
+        // Create new group container
+        groupContainer = document.createElement('div');
+        groupContainer.className = 'toolbar-group-messages';
+        groupContainer.style.cssText = `position: relative; padding-left: 2.5em; min-height: 2.5em; border-color: ${innerContainerTopicChatColor};`;
+
+        // Profile image
+        const img = document.createElement('img');
+        img.src = validPayerImage;
+        img.alt = 'Profile photo';
+        img.style.cssText = 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer;';
+        img.dataset.payer = payer;
+        img.className = 'profile-img-click';
+        img.addEventListener('click', () => loadTOPIC4PIC(payer));
+        groupContainer.appendChild(img);
+
+        // Content wrapper
+        const contentWrapper = document.createElement('div');
+        contentWrapper.style.cssText = 'display: flex; flex-direction: column;';
+        
+        // Header container
+        const headerContainer = document.createElement('div');
+        headerContainer.style.cssText = 'display: flex; align-items: center;';
+
+        // Header
+        const header = document.createElement('div');
+        header.className = 'toolbar-group-messages-header';
+        header.style.cssText = `display: flex; align-items: center; border-color: ${topicChatHeaderColor}; font-size: ${headerFontSizeTopicChat}vh;`;
+
+        // Payer link
+        const payerLink = document.createElement('a');
+        payerLink.href = `https://explore.hashpack.app/${payerInfo}`;
+        payerLink.target = '_blank';
+        payerLink.style.cssText = `color: ${accidTopicChatColor}; text-decoration: none; font-size: ${headerFontSizeTopicChat}vh;`;
+        payerLink.textContent = payerInfo;
+        header.appendChild(payerLink);
+
+        // Space
+        header.appendChild(document.createTextNode('\u00A0'));
+
+        // Username (link or span)
+        if (click2link.trim()) {
+          const usernameLink = document.createElement('a');
+          usernameLink.href = click2link.trim();
+          usernameLink.target = '_blank';
+          usernameLink.style.cssText = `color: ${usernameTopicChatColor}; text-decoration: none; font-size: ${headerFontSizeTopicChat}vh;`;
+          usernameLink.textContent = username.trim();
+          header.appendChild(usernameLink);
+        } else if (username.trim()) {
+          const usernameSpan = document.createElement('span');
+          usernameSpan.style.cssText = `color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;`;
+          usernameSpan.textContent = username.trim();
+          header.appendChild(usernameSpan);
+        }
+
+        headerContainer.appendChild(header);
+        contentWrapper.appendChild(headerContainer);
+        groupContainer.appendChild(contentWrapper);
+
+        // Messages group div
+        messagesGroupDiv = document.createElement('div');
+        contentWrapper.appendChild(messagesGroupDiv);
       }
-    
-    adjustTextareaHeight(messagesContainer);
+
+      // Create message content
+      const messageWrapper = document.createElement('div');
+      messageWrapper.style.cssText = `display: flex; flex-direction: column; justify-content: center; margin-top: 0.5em;`;
+
+      const messageText = document.createElement('div');
+      messageText.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
+      messageText.textContent = userMessage; // Safe - uses textContent
+      messageWrapper.appendChild(messageText);
+
+      const timestampSpan = document.createElement('span');
+      timestampSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
+      timestampSpan.textContent = timestamp;
+      messageWrapper.appendChild(timestampSpan);
+
+      messagesGroupDiv.appendChild(messageWrapper);
+
+      previousPayer = payer;
+    }
+  } catch (err) {
+    console.error(`Error processing message:`, err);
+  }
+}
+
+// Append last group if exists
+if (groupContainer) {
+  messagesContainer.appendChild(groupContainer);
+}
+
+// Show "no messages" if empty
+if (!messagesContainer.firstChild) {
+  const noMessagesDiv = document.createElement('div');
+  noMessagesDiv.style.cssText = 'display: flex; justify-content: left; align-items: left; height: 100%;';
   
-    // Scroll to the bottom of the message container
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  const noMessagesSpan = document.createElement('span');
+  noMessagesSpan.style.marginLeft = '1vw';
+  noMessagesSpan.textContent = 'No messages found';
+  
+  noMessagesDiv.appendChild(noMessagesSpan);
+  messagesContainer.appendChild(noMessagesDiv);
+} else {
+  adjustTextareaHeight(messagesContainer);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
   
     } catch (error) {
-  
-      console.error("Error setting rules:", error);
+      console.error("Error loading messages:", error);
     }
   });
   
@@ -291,84 +307,81 @@ document.getElementById('go-to-top-msgs').addEventListener('click', function() {
     let fromDate;
     let toDate;
   
-    // Handle date and time parsing
+    // Handle date and time parsing (unchanged)
     if (fromTimeValue && toTimeValue && fromDateValue && toDateValue) {
       fromDate = new Date(
         fromDateValue.slice(4, 8),
         fromDateValue.slice(0, 2) - 1,
         fromDateValue.slice(2, 4),
-        fromTimeValue.slice(0, 2), // Hours
-        fromTimeValue.slice(2, 4), // Minutes
-        fromTimeValue.slice(4, 6)  // Seconds
+        fromTimeValue.slice(0, 2),
+        fromTimeValue.slice(2, 4),
+        fromTimeValue.slice(4, 6)
       );
       toDate = new Date(
         toDateValue.slice(4, 8),
         toDateValue.slice(0, 2) - 1,
         toDateValue.slice(2, 4),
-        toTimeValue.slice(0, 2), // Hours
-        toTimeValue.slice(2, 4), // Minutes
-        toTimeValue.slice(4, 6)  // Seconds
+        toTimeValue.slice(0, 2),
+        toTimeValue.slice(2, 4),
+        toTimeValue.slice(4, 6)
       );
     } else if (fromDateValue && toDateValue) {
       fromDate = new Date(fromDateValue.slice(4, 8), fromDateValue.slice(0, 2) - 1, fromDateValue.slice(2, 4));
       toDate = new Date(toDateValue.slice(4, 8), toDateValue.slice(0, 2) - 1, toDateValue.slice(2, 4));
     } else {
-      // Default to a wide date range if no dates are provided
-      fromDate = new Date(0); // Unix epoch start
-      toDate = new Date(); // Current time
+      fromDate = new Date(0);
+      toDate = new Date();
     }
   
+    // Filter messages (unchanged logic)
     const filteredMessages = storedMessages.filter(parsedMessage => {
-    const messageDate = new Date(parsedMessage.created);
+      const messageDate = new Date(parsedMessage.created);
   
-    // Initialize an array to hold active filter conditions
-    const conditions = [];
+      const conditions = [];
   
-    // Date range filter (apply only if both fromDate and toDate are defined)
-    if (fromDate && toDate) {
-      conditions.push(messageDate >= fromDate && messageDate <= toDate);
+      if (fromDate && toDate) {
+        conditions.push(messageDate >= fromDate && messageDate <= toDate);
+      }
+  
+      if (loadedUsersTopicChat.length > 0) {
+        conditions.push(loadedUsersTopicChat.includes(parsedMessage.payer));
+      }
+  
+      if (blockUsersTopicChat.length > 0) {
+        conditions.push(!blockUsersTopicChat.includes(parsedMessage.payer));
+      }
+  
+      if (conditions.length === 0) return true;
+  
+      return conditions.every(condition => condition);
+    });
+  
+    // ────────────────────────────────────────────────────────────────
+    // SAFE RENDERING (Full DOM version matching first function structure)
+    // ────────────────────────────────────────────────────────────────
+  
+    const messagesContainer = document.getElementById('messages-from-topic-chat');
+    if (!messagesContainer) return;
+  
+    // Clear container using DOM
+    while (messagesContainer.firstChild) {
+      messagesContainer.removeChild(messagesContainer.firstChild);
     }
   
-    // Load users filter (apply only if loadedUsers has values)
-    if (loadedUsersTopicChat.length > 0) {
-      conditions.push(loadedUsersTopicChat.includes(parsedMessage.payer));
-    }
+    const fragment = document.createDocumentFragment();
   
-    // Block users filter (apply only if blockUsers has values)
-    if (blockUsersTopicChat.length > 0) {
-      conditions.push(!blockUsersTopicChat.includes(parsedMessage.payer));
-    }
-  
-    // If no conditions are defined, include all messages
-    if (conditions.length === 0) {
-      return true;
-    }
-  
-    // Return true only if all defined conditions are true
-    return conditions.every(condition => condition);
-  });
-  
-    // Rest of the function (HTML generation, grouping, etc.) remains unchanged
-    let filteredMessagesHtml = '';
     let previousPayer = null;
-    let groupHTML = '';
-    let groupOpen = false;
+    let currentGroupDiv = null;
+    let currentMessagesGroupDiv = null;
+    let isFirstGroup = true;
   
     filteredMessages.forEach(parsedMessage => {
       const userMessage = parsedMessage.userMessage;
       const payer = parsedMessage.payer || 'Unknown';
+  
       const payerImage = profilePictures[payer]?.url || 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
-  
-      function isValidUrl(string) {
-        try {
-          new URL(string);
-          return true;
-        } catch (_) {
-          return false;
-        }
-      }
-  
       const validPayerImage = isValidUrl(payerImage) ? payerImage : 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+  
       const timestamp = new Date(parsedMessage.created).toLocaleString('en-US', {
         hour12: false,
         year: 'numeric',
@@ -379,71 +392,163 @@ document.getElementById('go-to-top-msgs').addEventListener('click', function() {
         second: '2-digit'
       });
   
-      const payerInfo = parsedMessage.payer ? `${parsedMessage.payer}` : 'Anonymous';
-      const username = parsedMessage.payer && usernames[parsedMessage.payer] ?
-        ` ${usernames[parsedMessage.payer].username}` : '';
-      const click2link = parsedMessage.payer && click2url[parsedMessage.payer] ?
-        ` ${click2url[parsedMessage.payer].click2url}` : '';
+      const payerInfo = parsedMessage.payer ? parsedMessage.payer : 'Anonymous';
+      const username = parsedMessage.payer && usernames[parsedMessage.payer]?.username
+        ? ` ${usernames[parsedMessage.payer].username}` : '';
+      const click2link = parsedMessage.payer && click2url[parsedMessage.payer]?.click2url
+        ? ` ${click2url[parsedMessage.payer].click2url}` : '';
   
-      const displayHeader = 
-        `<div class="toolbar-group-messages-header" style="display: flex; align-items: center; border-color: ${topicChatHeaderColor}; font-size: ${headerFontSizeTopicChat}vh;"> 
-        <a href="https://explore.hashpack.app/${payerInfo}" target="_blank" style="color: ${accidTopicChatColor}; text-decoration: none; font-size: ${headerFontSizeTopicChat}vh;">${payerInfo}</a>&nbsp;` +
-        (click2link ?
-          `<a href="${click2link}" target="_blank" style="color: ${usernameTopicChatColor}; text-decoration: none; font-size: ${headerFontSizeTopicChat}vh;">${username}</a>` :
-          `<span style="color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;">${username}</span>`);
-  
+      // New payer → new group
       if (payer !== previousPayer) {
-        if (groupOpen) {
-          groupHTML += '</div></div></div><br></div>';
-          filteredMessagesHtml += groupHTML;
-          groupHTML = '';
-          groupOpen = false;
+        // Add <br> before new group (except first group)
+        if (!isFirstGroup) {
+          const br = document.createElement('br');
+          fragment.appendChild(br);
+        }
+        isFirstGroup = false;
+  
+        currentGroupDiv = document.createElement('div');
+        currentGroupDiv.className = 'toolbar-group-messages';
+        currentGroupDiv.style.cssText = `
+          position: relative;
+          padding-left: 2.5em;
+          min-height: 2.5em;
+          border-color: ${innerContainerTopicChatColor};
+        `;
+  
+        // Profile image
+        const img = document.createElement('img');
+        img.src = validPayerImage;
+        img.alt = 'Profile photo';
+        img.style.cssText = `
+          position: absolute;
+          left: 0.25em;
+          top: 0.5em;
+          width: 2em;
+          height: 2em;
+          border-radius: 1em;
+          cursor: pointer;
+        `;
+        img.addEventListener('click', () => loadTOPIC4PIC(payer));
+        currentGroupDiv.appendChild(img);
+  
+        // Content wrapper (matches first function structure)
+        const contentWrapper = document.createElement('div');
+        contentWrapper.style.cssText = 'display: flex; flex-direction: column;';
+  
+        // Header container (matches first function structure)
+        const headerContainer = document.createElement('div');
+        headerContainer.style.cssText = 'display: flex; align-items: center;';
+  
+        // Header
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'toolbar-group-messages-header';
+        headerDiv.style.cssText = `
+          display: flex;
+          align-items: center;
+          border-color: ${topicChatHeaderColor};
+          font-size: ${headerFontSizeTopicChat}vh;
+        `;
+  
+        const accLink = document.createElement('a');
+        accLink.href = `https://explore.hashpack.app/${encodeURIComponent(payerInfo)}`;
+        accLink.target = '_blank';
+        accLink.rel = 'noopener noreferrer';
+        accLink.style.cssText = `
+          color: ${accidTopicChatColor};
+          text-decoration: none;
+          font-size: ${headerFontSizeTopicChat}vh;
+        `;
+        accLink.textContent = payerInfo;
+        headerDiv.appendChild(accLink);
+  
+        // Add space
+        headerDiv.appendChild(document.createTextNode('\u00A0'));
+  
+        // Username link or span
+        const trimmedUsername = username.trim();
+        const trimmedClick2link = click2link.trim();
+  
+        if (trimmedClick2link) {
+          const linkA = document.createElement('a');
+          try {
+            new URL(trimmedClick2link);
+            linkA.href = trimmedClick2link;
+          } catch (e) {
+            console.warn('Invalid click2link URL:', trimmedClick2link);
+          }
+          linkA.target = '_blank';
+          linkA.rel = 'noopener noreferrer';
+          linkA.style.cssText = `
+            color: ${usernameTopicChatColor};
+            text-decoration: none;
+            font-size: ${headerFontSizeTopicChat}vh;
+          `;
+          linkA.textContent = trimmedUsername;
+          headerDiv.appendChild(linkA);
+        } else if (trimmedUsername) {
+          const span = document.createElement('span');
+          span.style.cssText = `
+            color: ${usernameTopicChatColor};
+            font-size: ${headerFontSizeTopicChat}vh;
+          `;
+          span.textContent = trimmedUsername;
+          headerDiv.appendChild(span);
         }
   
-        groupHTML = `<div class="toolbar-group-messages" style="position: relative; padding-left: 2.5em; min-height: 2.5em; border-color: ${innerContainerTopicChatColor};">
-                      <img src="${validPayerImage}" alt="Profile photo"
-                          style="position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer;"
-                          onclick="loadTOPIC4PIC('${parsedMessage.payer}');">
-                        <div style="display: flex; flex-direction: column;">
-                        <div style="display: flex; align-items: center;">
-                          ${displayHeader}
-                        </div></div>`;
-        groupOpen = true;
+        headerContainer.appendChild(headerDiv);
+        contentWrapper.appendChild(headerContainer);
+  
+        // Messages group div (where messages will be appended)
+        currentMessagesGroupDiv = document.createElement('div');
+        contentWrapper.appendChild(currentMessagesGroupDiv);
+  
+        currentGroupDiv.appendChild(contentWrapper);
+        fragment.appendChild(currentGroupDiv);
       }
   
-      if (payer !== previousPayer) {
-        groupHTML += `<div style="color: ${textTopicChatColor}; margin-top: 0.5em; font-size: ${textFontSizeTopicChat}vh;">${userMessage}</div>
-                      <span style="font-size: ${timestampFontSizeTopicChat}vh; color: gray;">${timestamp}</span>`;
-      } else {
-        groupHTML += `
-          <div style="display: flex; flex-direction: column; justify-content: center; margin-top: 0.5em;">
-            <div style="color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;">${userMessage}</div>
-            <span style="font-size: ${timestampFontSizeTopicChat}vh; color: gray;">${timestamp}</span>
-          </div>`;
-      }
+      // Message content
+      const msgWrapper = document.createElement('div');
+      msgWrapper.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        margin-top: 0.5em;
+      `;
+  
+      const contentDiv = document.createElement('div');
+      contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
+      contentDiv.textContent = userMessage;
+  
+      const timeSpan = document.createElement('span');
+      timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
+      timeSpan.textContent = timestamp;
+  
+      msgWrapper.appendChild(contentDiv);
+      msgWrapper.appendChild(timeSpan);
+      currentMessagesGroupDiv.appendChild(msgWrapper);
   
       previousPayer = payer;
     });
   
-    if (groupOpen) {
-      groupHTML += '</div></div></div><br></div>';
-      filteredMessagesHtml += groupHTML;
+    messagesContainer.appendChild(fragment);
+  
+    // Handle empty state with DOM
+    if (messagesContainer.children.length === 0) {
+      const noMessagesDiv = document.createElement('div');
+      noMessagesDiv.style.cssText = 'display: flex; justify-content: left; align-items: left; height: 100%;';
+  
+      const noMessagesSpan = document.createElement('span');
+      noMessagesSpan.style.marginLeft = '1vw';
+      noMessagesSpan.textContent = 'No messages found';
+  
+      noMessagesDiv.appendChild(noMessagesSpan);
+      messagesContainer.appendChild(noMessagesDiv);
+    } else {
+      adjustTextareaHeight(messagesContainer);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
-  
-    const messagesContainer = document.getElementById('messages-from-topic-chat');
-    messagesContainer.innerHTML = filteredMessagesHtml;
-  
-    if (filteredMessagesHtml.length === 0) {
-      messagesContainer.innerHTML = 
-        `<div style="display: flex; justify-content: left; align-items: left; height: 100%;">
-          <span style="margin-left: 1vw;">No messages found</span>
-        </div>`;
-      return;
-    }
-  
-    adjustTextareaHeight(messagesContainer);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-  };
+  }
   
   async function handleFilterMessages() {
     console.log("handleFilterMessages");

@@ -25,7 +25,7 @@ async function initHelia() {
     ];
 
     const delegatedRouter = delegatedPeerRouting({
-      url: 'https://my-delegated-routing.fly.dev/'
+      url: 'https://delegated-ipfs.dev/routing/v1/providers'
     });
 
     const libp2p = await createLibp2p({

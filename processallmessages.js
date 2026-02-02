@@ -11,10 +11,6 @@ import { map } from './map';
 import { applyAllStyles } from './loadprofilepopup';
 import { scene } from './threejs'
 
-
-
-
-  
 window.openPopupSettings = function() {
   requestAnimationFrame(() => {
     if (document.getElementById("popup-column-2").style.display === "block" && document.getElementById("popup-column-3").style.display === "block") {
@@ -39,6 +35,352 @@ function isValidUrl(url) {
   } catch {
       return false;
   }
+}
+
+// Helper function to create marker popup HTML using DOM
+function createMarkerPopupHTML(data) {
+  const {
+    markernumber,
+    topicId,
+    loadedTopicName,
+    profileUrl,
+    payer,
+    payerInfo,
+    username,
+    click2link,
+    title,
+    image,
+    msg,
+    timestamp,
+    likeCountMarker,
+    dislikeCountMarker
+  } = data;
+
+  const container = document.createElement('div');
+
+  // Top header with number and topic info
+  const topHeader = document.createElement('div');
+  topHeader.style.cssText = 'position: flex;';
+
+  const numberDiv = document.createElement('div');
+  numberDiv.className = 'number';
+  numberDiv.style.cssText = 'position: absolute; top: -0.1em; left: 0.1em; font-weight: bold;';
+  numberDiv.textContent = markernumber;
+  topHeader.appendChild(numberDiv);
+
+  const topicSpan = document.createElement('span');
+  topicSpan.style.cssText = 'position: absolute; top: -0.1em; left: 50%; transform: translateX(-50%); font-size: 1.5vh; color: gray; white-space: nowrap;';
+  topicSpan.textContent = `${topicId} ${loadedTopicName}`;
+  topHeader.appendChild(topicSpan);
+
+  container.appendChild(topHeader);
+
+  // Profile section
+  const profileSection = document.createElement('div');
+  profileSection.style.cssText = 'display: flex; align-items: center;';
+
+  const profileImg = document.createElement('img');
+  profileImg.src = profileUrl;
+  profileImg.alt = 'Profile photo';
+  profileImg.style.cssText = 'width: 7vh; height: 7vh; margin-right: 1em; border-radius: 50%; cursor: pointer;';
+  profileImg.onclick = () => window.loadTOPIC4PIC(payer);
+  profileSection.appendChild(profileImg);
+
+  const headerDiv = document.createElement('div');
+  const h2 = document.createElement('h2');
+
+  const payerLink = document.createElement('a');
+  payerLink.href = `https://explore.hashpack.app/${encodeURIComponent(payerInfo)}`;
+  payerLink.target = '_blank';
+  payerLink.rel = 'noopener noreferrer';
+  payerLink.className = 'payer-info';
+  payerLink.style.textDecoration = 'none';
+  payerLink.textContent = payerInfo;
+  h2.appendChild(payerLink);
+
+  h2.appendChild(document.createElement('br'));
+
+  const trimmedUsername = username.trim();
+  const trimmedClick2link = click2link.trim();
+
+  if (trimmedClick2link) {
+    const usernameLink = document.createElement('a');
+    try {
+      new URL(trimmedClick2link);
+      usernameLink.href = trimmedClick2link;
+    } catch (e) {
+      console.warn('Invalid click2link URL:', trimmedClick2link);
+    }
+    usernameLink.target = '_blank';
+    usernameLink.rel = 'noopener noreferrer';
+    usernameLink.className = 'username';
+    usernameLink.style.textDecoration = 'none';
+    usernameLink.textContent = trimmedUsername;
+    h2.appendChild(usernameLink);
+  } else if (trimmedUsername) {
+    const usernameText = document.createTextNode(trimmedUsername);
+    h2.appendChild(usernameText);
+  }
+
+  headerDiv.appendChild(h2);
+  profileSection.appendChild(headerDiv);
+  container.appendChild(profileSection);
+
+  // Content section
+  const contentSection = document.createElement('div');
+  contentSection.style.textAlign = 'center';
+
+  // Navigation and title
+  const navSection = document.createElement('div');
+  navSection.style.cssText = 'display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: 1vh;';
+
+  const prevSpan = document.createElement('span');
+  prevSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  prevSpan.textContent = '◀️';
+  prevSpan.onclick = () => window.prevMsgFromPayerMarker(payer, markernumber, topicId);
+  navSection.appendChild(prevSpan);
+
+  const titleDiv = document.createElement('div');
+  titleDiv.style.cssText = 'text-align: center; flex-grow: 1;';
+  const titleStrong = document.createElement('strong');
+  titleStrong.className = 'title_color';
+  titleStrong.textContent = title;
+  titleDiv.appendChild(titleStrong);
+  navSection.appendChild(titleDiv);
+
+  const nextSpan = document.createElement('span');
+  nextSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  nextSpan.textContent = '▶️';
+  nextSpan.onclick = () => window.nextMsgFromPayerMarker(payer, markernumber, topicId);
+  navSection.appendChild(nextSpan);
+
+  contentSection.appendChild(navSection);
+
+  // Image
+  if (isValidUrl(image)) {
+    const imageDiv = document.createElement('div');
+    const img = document.createElement('img');
+    img.src = image;
+    img.style.cssText = 'width: 20vh; height: 20vh; display: block; margin: 0 auto;';
+    imageDiv.appendChild(img);
+    contentSection.appendChild(imageDiv);
+  }
+
+  // Message text
+  const msgDiv = document.createElement('div');
+  const msgP = document.createElement('p');
+  msgP.className = 'text_color';
+  msgP.textContent = msg;
+  msgDiv.appendChild(msgP);
+  contentSection.appendChild(msgDiv);
+
+  container.appendChild(contentSection);
+
+  // Timestamp (bottom right)
+  const timestampDiv = document.createElement('div');
+  timestampDiv.style.cssText = 'position: absolute; bottom: 0em; right: 1vh; font-size: 1vh; color: gray;';
+  timestampDiv.textContent = timestamp;
+  container.appendChild(timestampDiv);
+
+  // Like/Dislike (bottom center)
+  const likeDislikeDiv = document.createElement('div');
+  likeDislikeDiv.style.cssText = 'position: absolute; bottom: 0em; left: 50%; transform: translateX(-50%); display: flex; gap: 1vh;';
+
+  const likeSpan = document.createElement('span');
+  likeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  likeSpan.textContent = `${likeCountMarker || 0}👍`;
+  likeSpan.onclick = () => window.likeMarker(timestamp, topicId);
+  likeDislikeDiv.appendChild(likeSpan);
+
+  const dislikeSpan = document.createElement('span');
+  dislikeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  dislikeSpan.textContent = `${dislikeCountMarker || 0}👎`;
+  dislikeSpan.onclick = () => window.dislikeMarker(timestamp, topicId);
+  likeDislikeDiv.appendChild(dislikeSpan);
+
+  container.appendChild(likeDislikeDiv);
+
+  // Settings (bottom left)
+  const settingsSpan = document.createElement('span');
+  settingsSpan.style.cssText = 'position: absolute; bottom: 0em; left: 1vh; font-size: 1.5vh; color: gray; cursor: pointer;';
+  settingsSpan.textContent = '⚙️';
+  settingsSpan.onclick = () => window.openPopupSettings();
+  container.appendChild(settingsSpan);
+
+  return container;
+}
+
+// Helper function to create polygon popup HTML using DOM
+function createPolygonPopupHTML(data) {
+  const {
+    polygonnumber,
+    topicId,
+    loadedTopicName,
+    profileUrl,
+    payer,
+    payerInfo,
+    username,
+    click2link,
+    title,
+    image,
+    msg,
+    timestamp,
+    likeCountPolygon,
+    dislikeCountPolygon
+  } = data;
+
+  const container = document.createElement('div');
+
+  // Top header with number and topic info
+  const topHeader = document.createElement('div');
+  topHeader.style.cssText = 'position: flex;';
+
+  const numberDiv = document.createElement('div');
+  numberDiv.className = 'number';
+  numberDiv.style.cssText = 'position: absolute; top: -0.1em; left: 0.1em; font-weight: bold;';
+  numberDiv.textContent = polygonnumber;
+  topHeader.appendChild(numberDiv);
+
+  const topicSpan = document.createElement('span');
+  topicSpan.style.cssText = 'position: absolute; top: -0.1em; left: 50%; transform: translateX(-50%); font-size: 1.5vh; color: gray; white-space: nowrap;';
+  topicSpan.textContent = `${topicId} ${loadedTopicName}`;
+  topHeader.appendChild(topicSpan);
+
+  container.appendChild(topHeader);
+
+  // Profile section
+  const profileSection = document.createElement('div');
+  profileSection.style.cssText = 'display: flex; align-items: center;';
+
+  const profileImg = document.createElement('img');
+  profileImg.src = profileUrl;
+  profileImg.alt = 'Profile photo';
+  profileImg.style.cssText = 'width: 7vh; height: 7vh; margin-right: 1em; border-radius: 50%; cursor: pointer;';
+  profileImg.onclick = () => window.loadTOPIC4PIC(payer);
+  profileSection.appendChild(profileImg);
+
+  const headerDiv = document.createElement('div');
+  const h2 = document.createElement('h2');
+
+  const payerLink = document.createElement('a');
+  payerLink.href = `https://explore.hashpack.app/${encodeURIComponent(payerInfo)}`;
+  payerLink.target = '_blank';
+  payerLink.rel = 'noopener noreferrer';
+  payerLink.className = 'payer-info';
+  payerLink.style.textDecoration = 'none';
+  payerLink.textContent = payerInfo;
+  h2.appendChild(payerLink);
+
+  h2.appendChild(document.createElement('br'));
+
+  const trimmedUsername = username.trim();
+  const trimmedClick2link = click2link.trim();
+
+  if (trimmedClick2link) {
+    const usernameLink = document.createElement('a');
+    try {
+      new URL(trimmedClick2link);
+      usernameLink.href = trimmedClick2link;
+    } catch (e) {
+      console.warn('Invalid click2link URL:', trimmedClick2link);
+    }
+    usernameLink.target = '_blank';
+    usernameLink.rel = 'noopener noreferrer';
+    usernameLink.className = 'username';
+    usernameLink.style.textDecoration = 'none';
+    usernameLink.textContent = trimmedUsername;
+    h2.appendChild(usernameLink);
+  } else if (trimmedUsername) {
+    const usernameText = document.createTextNode(trimmedUsername);
+    h2.appendChild(usernameText);
+  }
+
+  headerDiv.appendChild(h2);
+  profileSection.appendChild(headerDiv);
+  container.appendChild(profileSection);
+
+  // Content section
+  const contentSection = document.createElement('div');
+  contentSection.style.textAlign = 'center';
+
+  // Navigation and title
+  const navSection = document.createElement('div');
+  navSection.style.cssText = 'display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: 1vh;';
+
+  const prevSpan = document.createElement('span');
+  prevSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  prevSpan.textContent = '◀️';
+  prevSpan.onclick = () => window.prevMsgFromPayerPolygon(payer, polygonnumber, topicId);
+  navSection.appendChild(prevSpan);
+
+  const titleDiv = document.createElement('div');
+  titleDiv.style.cssText = 'text-align: center; flex-grow: 1;';
+  const titleStrong = document.createElement('strong');
+  titleStrong.className = 'title_color';
+  titleStrong.textContent = title;
+  titleDiv.appendChild(titleStrong);
+  navSection.appendChild(titleDiv);
+
+  const nextSpan = document.createElement('span');
+  nextSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  nextSpan.textContent = '▶️';
+  nextSpan.onclick = () => window.nextMsgFromPayerPolygon(payer, polygonnumber, topicId);
+  navSection.appendChild(nextSpan);
+
+  contentSection.appendChild(navSection);
+
+  // Image
+  if (isValidUrl(image)) {
+    const imageDiv = document.createElement('div');
+    const img = document.createElement('img');
+    img.src = image;
+    img.style.cssText = 'width: 20vh; height: 20vh; display: block; margin: 0 auto;';
+    imageDiv.appendChild(img);
+    contentSection.appendChild(imageDiv);
+  }
+
+  // Message text
+  const msgDiv = document.createElement('div');
+  const msgP = document.createElement('p');
+  msgP.className = 'text_color';
+  msgP.textContent = msg;
+  msgDiv.appendChild(msgP);
+  contentSection.appendChild(msgDiv);
+
+  container.appendChild(contentSection);
+
+  // Timestamp (bottom right)
+  const timestampDiv = document.createElement('div');
+  timestampDiv.style.cssText = 'position: absolute; bottom: 0em; right: 1vh; font-size: 1vh; color: gray;';
+  timestampDiv.textContent = timestamp;
+  container.appendChild(timestampDiv);
+
+  // Like/Dislike (bottom center)
+  const likeDislikeDiv = document.createElement('div');
+  likeDislikeDiv.style.cssText = 'position: absolute; bottom: 0em; left: 50%; transform: translateX(-50%); display: flex; gap: 1vh;';
+
+  const likeSpan = document.createElement('span');
+  likeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  likeSpan.textContent = `${likeCountPolygon || 0}👍`;
+  likeSpan.onclick = () => window.likePolygon(timestamp, topicId);
+  likeDislikeDiv.appendChild(likeSpan);
+
+  const dislikeSpan = document.createElement('span');
+  dislikeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  dislikeSpan.textContent = `${dislikeCountPolygon || 0}👎`;
+  dislikeSpan.onclick = () => window.dislikePolygon(timestamp, topicId);
+  likeDislikeDiv.appendChild(dislikeSpan);
+
+  container.appendChild(likeDislikeDiv);
+
+  // Settings (bottom left)
+  const settingsSpan = document.createElement('span');
+  settingsSpan.style.cssText = 'position: absolute; bottom: 0em; left: 1vh; font-size: 1.5vh; color: gray; cursor: pointer;';
+  settingsSpan.textContent = '⚙️';
+  settingsSpan.onclick = () => window.openPopupSettings();
+  container.appendChild(settingsSpan);
+
+  return container;
 }
 
 export async function processTopicMessages(topicId) {
@@ -372,16 +714,9 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
               const username = message.payer && usernames[message.payer] ?
                 ` ${usernames[message.payer].username}` :
                 '';
-                const click2link= message.payer && click2url[message.payer] ?
+              const click2link = message.payer && click2url[message.payer] ?
                 ` ${click2url[message.payer].click2url}` :
                 '';
-
-              const displayHeader = `
-              <h2>
-                <a href="https://explore.hashpack.app/${payerInfo}" target="_blank" class="payer-info" style="text-decoration: none;">${payerInfo}</a>
-                <br>
-                ${click2link ? `<a href="${click2link}" target="_blank" class="username" style="text-decoration: none;">${username}</a>` : `${username}`}
-              </h2>`;
 
               if (parsedMessage.marker && parsedMessage.marker.data) {
                 const markernumber = parsedMessage.marker.data.numberOfMarker;
@@ -422,8 +757,26 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                     }
 
                     // Use the final like and dislike counts from the maps
-            const likeCountMarker = likeCountMapMarker.get(timestamp) || 0;
-            const dislikeCountMarker = dislikeCountMapMarker.get(timestamp) || 0;
+                    const likeCountMarker = likeCountMapMarker.get(timestamp) || 0;
+                    const dislikeCountMarker = dislikeCountMapMarker.get(timestamp) || 0;
+
+                    // Create marker popup HTML using DOM helper
+                    const markerPopupHTML = createMarkerPopupHTML({
+                      markernumber,
+                      topicId,
+                      loadedTopicName,
+                      profileUrl,
+                      payer: message.payer,
+                      payerInfo,
+                      username,
+                      click2link,
+                      title: parsedMessage.marker.data.title,
+                      image: parsedMessage.marker.data.image,
+                      msg: parsedMessage.marker.data.msg,
+                      timestamp,
+                      likeCountMarker,
+                      dislikeCountMarker
+                    });
 
                     topicGeojsonFeatures.push({
                       topicId: topicId,
@@ -432,45 +785,9 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       type: "Feature",
                       payer: message.payer,
                       properties: {
-                        message:
-    `
-    <div style="position: flex;">
-<div style="position: absolute; top: -0.1em; left: 0.1em; font-weight: bold;" class="number">${markernumber}</div>
-<span style="position: absolute; top: -0.1em; left: 50%; transform: translateX(-50%); font-size: 1.5vh; color: gray;
- white-space: nowrap;">${topicId} ${loadedTopicName}</span>
- </div>
-<div style="display: flex; align-items: center;">
-  <img src="${profileUrl}" alt="Profile photo"
-    style="width: 7vh; height: 7vh; margin-right: 1em; border-radius: 50%; cursor: pointer;"
-    onclick="loadTOPIC4PIC('${message.payer}');">
-  <div>${displayHeader}</div>
-</div>
-<div style="text-align: center;">
-  <div style="display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: 1vh;">
-    <span style="font-size: 1.5vh; color: gray; cursor: pointer;" onclick="prevMsgFromPayerMarker('${message.payer}', '${markernumber}', '${topicId}');">◀️</span>
-    <div style="text-align: center; flex-grow: 1;">
-      <strong class="title_color">${parsedMessage.marker.data.title}</strong>
-    </div>
-    <span style="font-size: 1.5vh; color: gray; cursor: pointer;" onclick="nextMsgFromPayerMarker('${message.payer}', '${markernumber}', '${topicId}');">▶️</span>
-  </div>
-  <div>
-    ${isValidUrl(parsedMessage.marker.data.image) ? `<img src="${parsedMessage.marker.data.image}" style="width: 20vh; height: 20vh; display: block; margin: 0 auto;" />` : ''} 
-  </div>
-  <div>
-    <p class="text_color">${parsedMessage.marker.data.msg}</p>
-  </div>
-</div>
-<div style="position: absolute; bottom: 0em; right: 1vh; font-size: 1vh; color: gray;">${timestamp}</div>
-<div style="position: absolute; bottom: 0em; left: 50%; transform: translateX(-50%); display: flex; gap: 1vh;">
-  <span style="font-size: 1.5vh; color: gray; cursor: pointer;" onclick="likeMarker('${timestamp}', '${topicId}');">${likeCountMarker || 0}👍</span>
-  <span style="font-size: 1.5vh; color: gray; cursor: pointer;" onclick="dislikeMarker('${timestamp}', '${topicId}');">${dislikeCountMarker || 0}👎</span>
-</div>
-<span style="position: absolute; bottom: 0em; left: 1vh; font-size: 1.5vh; color: gray; cursor: pointer;"
-  onclick="openPopupSettings();">⚙️</span>
-
-    `,
-    imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl
-  },
+                        message: markerPopupHTML,
+                        imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl
+                      },
                       geometry: {
                         type: "Point",
                         coordinates: coords
@@ -521,58 +838,37 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                     if (Array.isArray(coordinates) && coordinates.length > 2) {
                       const polygonSize = hasRulesForPolygon ? loadedTopicRulesForPolygon[0].polygonSize : 1;
 
-                    const likeCountPolygon = likeCountMapPolygon.get(timestamp) || 0;
-                    const dislikeCountPolygon = dislikeCountMapPolygon.get(timestamp) || 0;
+                      const likeCountPolygon = likeCountMapPolygon.get(timestamp) || 0;
+                      const dislikeCountPolygon = dislikeCountMapPolygon.get(timestamp) || 0;
 
+                      // Create polygon popup HTML using DOM helper
+                      const polygonPopupHTML = createPolygonPopupHTML({
+                        polygonnumber,
+                        topicId,
+                        loadedTopicName,
+                        profileUrl,
+                        payer: message.payer,
+                        payerInfo,
+                        username,
+                        click2link,
+                        title: parsedMessage.polygon.data.title,
+                        image: parsedMessage.polygon.data.image,
+                        msg: parsedMessage.polygon.data.msg,
+                        timestamp,
+                        likeCountPolygon,
+                        dislikeCountPolygon
+                      });
 
-                        topicPolygons.push({
-                          topicId: topicId,
-                          created: parsedMessage.created,
-                          msgNumber: parsedMessage.polygon.data.numberOfPolygon,
-                          id: `
-                          polygon-${index}`,
-                          payer: message.payer,
-                          coordinates: [coordinates],
-                          description: `
-    <div style="position: flex;">
-<div style="position: absolute; top: -0.1em; left: 0.1em; font-weight: bold;" class="number">${polygonnumber}</div>
-<span style="position: absolute; top: -0.1em; left: 50%; transform: translateX(-50%); font-size: 1.5vh; color: gray;
- white-space: nowrap;">${topicId} ${loadedTopicName}</span>
- </div>
- <div style="display: flex; align-items: center;">
-  <img src="${profileUrl}" alt="Profile photo"
-    style="width: 7vh; height: 7vh; margin-right: 1em; border-radius: 50%; cursor: pointer;"
-    onclick="loadTOPIC4PIC('${message.payer}');">
-  <div>${displayHeader}</div>
-</div>
-<div style="text-align: center;">
-  <div style="display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: 1vh;">
-    <span style="font-size: 1.5vh; color: gray; cursor: pointer;" onclick="prevMsgFromPayerPolygon('${message.payer}', '${polygonnumber}', '${topicId}');">◀️</span>
-    <div style="text-align: center; flex-grow: 1;">
-      <strong class="title_color">${parsedMessage.polygon.data.title}</strong>
-    </div>
-    <span style="font-size: 1.5vh; color: gray; cursor: pointer;" onclick="nextMsgFromPayerPolygon('${message.payer}', '${polygonnumber}', '${topicId}');">▶️</span>
-  </div>
-  <div>
-    ${isValidUrl(parsedMessage.polygon.data.image) ? `<img src="${parsedMessage.polygon.data.image}" style="width: 20vh; height: 20vh; display: block; margin: 0 auto;" />` : ''} 
-  </div>
-  <div>
-    <p class="text_color">${parsedMessage.polygon.data.msg}</p>
-  </div>
-</div>
-<div style="position: absolute; bottom: 0em; right: 1vh; font-size: 1vh; color: gray;">${timestamp}</div>
-<div style="position: absolute; bottom: 0em; left: 50%; transform: translateX(-50%); display: flex; gap: 1vh;">
-  <span style="font-size: 1.5vh; color: gray; cursor: pointer;" onclick="likePolygon('${timestamp}', '${topicId}');">${likeCountPolygon || 0}👍</span>
-  <span style="font-size: 1.5vh; color: gray; cursor: pointer;" onclick="dislikePolygon('${timestamp}', '${topicId}');">${dislikeCountPolygon || 0}👎</span>
-</div>
-<span style="position: absolute; bottom: 0em; left: 1vh; font-size: 1.5vh; color: gray; cursor: pointer;"
-  onclick="openPopupSettings();">⚙️</span>
-
-                          `,
-                          imageUrl: isValidUrl(parsedMessage.polygon.data.coverimage) ? parsedMessage.polygon.data.coverimage : profileUrl
-                        });
-
-
+                      topicPolygons.push({
+                        topicId: topicId,
+                        created: parsedMessage.created,
+                        msgNumber: parsedMessage.polygon.data.numberOfPolygon,
+                        id: `polygon-${index}`,
+                        payer: message.payer,
+                        coordinates: [coordinates],
+                        description: polygonPopupHTML,
+                        imageUrl: isValidUrl(parsedMessage.polygon.data.coverimage) ? parsedMessage.polygon.data.coverimage : profileUrl
+                      });
                     }
                   } catch (polygonError) {
                     console.error("Error parsing polygon data:", polygonError);
@@ -674,7 +970,7 @@ function showMarker(m) {
     newActiveMarkerPopups([]);
     const popup = new maplibregl.Popup()
         .setLngLat(m.geometry.coordinates)
-        .setHTML(m.properties.message)
+        .setDOMContent(m.properties.message)
         .addTo(map);
 
     activeMarkerPopups.push(popup);
@@ -784,7 +1080,7 @@ function showPolygon(p) {
 
     const popup = new maplibregl.Popup()
         .setLngLat(targetLngLat)
-        .setHTML(p.description)
+        .setDOMContent(p.description)
         .addTo(map);
 
     activePolygonPopups.push(popup);
@@ -987,5 +1283,3 @@ window.dislikePolygon = async function(timestamp, topicId) {
   const meesage = JSON.stringify(meesageobject);
   await sendMessage(topicId, meesage);
 };
-
-  
