@@ -101,8 +101,8 @@ export function updateClusters() {
         });
   
         el.addEventListener("click", (e) => {
-          popup.setLngLat(cluster.geometry.coordinates).addTo(map).setDOMContent(cluster.properties.message);
           e.stopPropagation();
+          popup.setLngLat(cluster.geometry.coordinates).addTo(map).setDOMContent(cluster.properties.message);
           activePolygonPopups.forEach((popup) => popup.remove());
           activeMarkerPopups.forEach((popup) => popup.remove());
           activeMarkerPopups.push(popup);

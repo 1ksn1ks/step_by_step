@@ -30,21 +30,14 @@ window.restrictLength = function(input, maxLength) {
   function loadMapScript() {
     const script = document.createElement('script');
     script.src = './map.js';
-    script.async = false;           // keep execution order if needed later
+    script.async = false;
   
     script.onload = () => {
-      console.log('map.js has loaded → hiding loader');
       overlay.style.display = 'none';
     };
-  
-    script.onerror = () => {
-      console.error('Failed to load map.js');
-      overlay.innerHTML = '<h3 style="color: #ff6b6b;">Error loading core map</h3>';
-      // You can also add a retry button here if you want
-    };
+
   
     document.head.appendChild(script);
   }
   
-  // Start immediately
   loadMapScript();
