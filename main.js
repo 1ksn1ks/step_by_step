@@ -25,70 +25,26 @@ window.restrictLength = function(input, maxLength) {
     }
   };
 
-  const scripts = [
-    './map.js',
-    './cssLogic.js',
-    './marker.js',
-    './joystick.js',
-    './threejs.js',
-    './makescrollable.js',
-    './web3.js',
-    './coorddisplay.js',
-    './P2PModel.js',
-    './visibility.js',
-    './loadP2PModels.js',
-    './loadUFOModel.js',
-    './extracttopic.js',
-    './rest.js',
-    './loadTOPIC4PIC.js',
-    './topicchat.js',
-    './encryptedtopicchat.js',
-    './helia.js',
-    './upload.js',
-    './fetch.js'
-  ];
-  
-  const total = scripts.length;
-  let loaded = 0;
-  
-  const progressBar = document.getElementById('progress-bar');
-  const progressText = document.getElementById('progress-text');
   const overlay = document.getElementById('loader-overlay');
+
+  function loadMapScript() {
+    const script = document.createElement('script');
+    script.src = './map.js';
+    script.async = false;           // keep execution order if needed later
   
-  function updateProgress() {
-    loaded++;
-    const percent = Math.round((loaded / total) * 100);
-    progressBar.style.width = percent + '%';
-    progressText.textContent = percent + '%';
+    script.onload = () => {
+      console.log('map.js has loaded → hiding loader');
+      overlay.style.display = 'none';
+    };
+  
+    script.onerror = () => {
+      console.error('Failed to load map.js');
+      overlay.innerHTML = '<h3 style="color: #ff6b6b;">Error loading core map</h3>';
+      // You can also add a retry button here if you want
+    };
+  
+    document.head.appendChild(script);
   }
   
-  function loadScript(src) {
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = src;
-      script.async = false; // important: preserve order
-      script.onload = () => {
-        updateProgress();
-        resolve();
-      };
-      script.onerror = () => reject(new Error(`Failed to load ${src}`));
-      document.head.appendChild(script);
-    });
-  }
-  
-  async function loadAllScripts() {
-    for (const src of scripts) {
-      try {
-        await loadScript(src);
-      } catch (err) {
-        console.error(err);
-        progressText.textContent = 'Error loading scripts';
-        break;
-      }
-    }
-    // All done → hide loader
-    overlay.style.display = 'none';
-  }
-  
-  // Start loading
-  loadAllScripts();
+  // Start immediately
+  loadMapScript();
