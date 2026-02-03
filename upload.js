@@ -1,77 +1,52 @@
-// upload.js
-import { helia, fs } from './helia.js'   // adjust path if in different folder, e.g. '../helia-init.js'
+import { helia, fs } from './helia.js'
 import { adjustTextareaHeight } from './adjusttextarea.js'
 
 async function upload() {
   const fileInput = document.getElementById('fileInput')
   const file = fileInput.files[0]
+  const output = document.getElementById('cid-output')
 
   if (!file) {
-    alert('No file selected')
+    alert('Please select a file!')
     return
   }
 
   if (!fs || !helia) {
-    document.getElementById('cid-output').textContent = 'Helia not initialized yet.'
+    output.textContent = 'Helia client is not ready yet.'
     return
   }
 
   try {
-    const fileArrayBuffer = await file.arrayBuffer()
-    const fileBytes = new Uint8Array(fileArrayBuffer)
-    console.log('File size:', fileBytes.length)
-
+    const fileBytes = new Uint8Array(await file.arrayBuffer())
+    
+    // 1. Adding the file to local Helia storage
+    output.textContent = 'Adding file locally...'
     const cid = await fs.addBytes(fileBytes)
-    console.log('Added locally, CID:', cid.toString())
-
-    document.getElementById('cid-output').textContent =
-      'Waiting for network propagation (usually a few minutes). Retry after 5 min if no update.'
-    adjustTextareaHeight(document.getElementById('cid-output'))
-
+    
+    // 2. Pinning (saving so it doesn't get garbage collected)
     await helia.pins.add(cid)
+    
+    console.log('Local CID:', cid.toString())
+    output.textContent = `File added! CID: ${cid.toString()}\nSending notification to server...`
+    adjustTextareaHeight(output)
 
-    let announced = false
-    const maxRetries = 10
-    let retryCount = 0
-    const baseTimeout = 150_000 // 2.5 minutes
-
-    while (!announced && retryCount < maxRetries) {
-      try {
-        console.log(`DHT provide attempt ${retryCount + 1}/${maxRetries}`)
-        const announcePromise = helia.libp2p.services.dht.provide(cid)
-
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`DHT provide timeout after ${baseTimeout / 1000}s`)), baseTimeout)
-        )
-
-        await Promise.race([announcePromise, timeoutPromise])
-        console.log('DHT announcement successful')
-        announced = true
-      } catch (err) {
-        console.error(`Attempt ${retryCount + 1} failed:`, err)
-        retryCount++
-        if (retryCount < maxRetries) {
-          const backoff = Math.pow(2, retryCount) * 5000
-          console.log(`Retry in ${backoff / 1000}s...`)
-          await new Promise(r => setTimeout(r, backoff))
-        }
-      }
+    // 3. Announcing to your Someguy server on Fly.io
+    // This replaces all those heavy DHT loops that took 2.5 minutes
+    try {
+      // This uses the Delegated Routing V1 HTTP API
+      await helia.routing.provide(cid)
+      console.log('Server received the file location.')
+      output.textContent = `Upload successful!\n\nCID: ${cid.toString()}\n\nOther clients can now find this file via your routing server.`
+    } catch (routeErr) {
+      console.error('Routing error:', routeErr)
+      output.textContent = `File is ready locally, but notifying the server failed: ${routeErr.message}`
     }
 
-    if (announced) {
-      const multiaddrs = helia.libp2p.getMultiaddrs()
-      console.log('Announced from multiaddrs:', multiaddrs.map(m => m.toString()))
-      document.getElementById('cid-output').textContent = `Upload successful!\nCID: ${cid.toString()}`
-    } else {
-      document.getElementById('cid-output').textContent =
-        'Network announcement failed after retries.\nFile is pinned locally – try again later or check peers.'
-    }
-
-    adjustTextareaHeight(document.getElementById('cid-output'))
+    adjustTextareaHeight(output)
   } catch (err) {
     console.error('Upload error:', err)
-    document.getElementById('cid-output').textContent = `Failed: ${err.message || err}`
-    adjustTextareaHeight(document.getElementById('cid-output'))
+    output.textContent = `Error: ${err.message || err}`
+    adjustTextareaHeight(output)
   }
 }
 
