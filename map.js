@@ -50,3 +50,9 @@ export const map = new maplibregl.Map({
       console.error("Failed to copy coordinates:", err);
     });
   });
+
+
+
+  const overlay = document.getElementById('loader-overlay');
+  overlay.style.display = 'none';
+

@@ -24,20 +24,3 @@ window.restrictLength = function(input, maxLength) {
       input.value = input.value.slice(0, maxLength);
     }
   };
-
-  const overlay = document.getElementById('loader-overlay');
-
-  function loadMapScript() {
-    const script = document.createElement('script');
-    script.src = './map.js';
-    script.async = false;
-  
-    script.onload = () => {
-      overlay.style.display = 'none';
-    };
-
-  
-    document.head.appendChild(script);
-  }
-  
-  loadMapScript();
