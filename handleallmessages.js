@@ -155,31 +155,35 @@ export async function handleAllMessages() {
   
         const loadedTopicIdsWithNames = [];
   
+        const totalTopics = loadedTopicsIds.length;
+        let processedCount = 0;
   
       // Load and process messages from each topic in loadedTopicsIds
       for (const topicId of loadedTopicsIds) {
-        const { topicGeojsonFeatures, topicPolygons, loadedTopicName } = await processTopicMessages(topicId); // Ensure this is awaited if it's async
-  
-  
-  
+        const { topicGeojsonFeatures, topicPolygons, loadedTopicName } = await processTopicMessages(topicId);
   
         storedMarkers.push(topicGeojsonFeatures);
         storedPolygons.push(topicPolygons);
+
+        if (loadedTopicName !== undefined) { // Only skip if loadedTopicName is undefined
+          const topicNamePart = loadedTopicName ? `-${loadedTopicName}` : '';
+          loadedTopicIdsWithNames.push(`${topicId}${topicNamePart}`);
+        }
+
+       processedCount++;
+      }
+
+      if ( totalTopics === processedCount){
+
+        polygons.forEach(polygon => {
+          addPolygonWithImageFill(map, polygon);
+        });
 
         if (geojson.features.length > 0) {
           index.load(geojson.features);
           updateClusters();
         }
-        // Add new polygons
-        polygons.forEach(polygon => {
-          addPolygonWithImageFill(map, polygon);
-        });
-  
-  
-      if (loadedTopicName !== undefined) { // Only skip if loadedTopicName is undefined
-        const topicNamePart = loadedTopicName ? `-${loadedTopicName}` : '';
-        loadedTopicIdsWithNames.push(`${topicId}${topicNamePart}`);
-       }
+
       }
   
       newGlobalLoadedTopicIdsWithNames(loadedTopicIdsWithNames);

@@ -863,7 +863,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         topicId: topicId,
                         created: parsedMessage.created,
                         msgNumber: parsedMessage.polygon.data.numberOfPolygon,
-                        id: `polygon-${index}`,
+                        id: `polygon-${message.payer}-${topicId}-${parsedMessage.polygon.data.numberOfPolygon}`,
                         payer: message.payer,
                         coordinates: [coordinates],
                         description: polygonPopupHTML,

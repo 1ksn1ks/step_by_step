@@ -19,45 +19,58 @@ export function newActivePolygonPopups(a) {
 
 
 
-async function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = "Anonymous";
-  
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-  
-        // Calculate new dimensions while maintaining aspect ratio
-        if (width > height) {
+async function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackUrl = null) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      // Maintain aspect ratio
+      if (width > maxWidth || height > maxHeight) {
+        if (width / height > maxWidth / maxHeight) {
+          // wider than target ratio → constrain by width
           if (width > maxWidth) {
             height = Math.round(height * (maxWidth / width));
             width = maxWidth;
           }
         } else {
+          // taller or same → constrain by height
           if (height > maxHeight) {
             width = Math.round(width * (maxHeight / height));
             height = maxHeight;
           }
         }
-  
-        canvas.width = width;
-        canvas.height = height;
-  
-        const ctx = canvas.getContext('2d');
-        // Use better image smoothing
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-  
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 1)); // Adjust quality here (0-1)
-      };
-  
-      img.onerror = reject;
-      img.src = imageUrl;
-    });
-  }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // You can also do: 'image/webp', 0.85 for smaller size & good quality
+      resolve(canvas.toDataURL('image/jpeg', 0.92));
+    };
+
+    img.onerror = () => {
+      if (fallbackUrl && img.src !== fallbackUrl) {
+        // Try fallback once
+        img.src = fallbackUrl;
+      } else {
+        reject(new Error(`Failed to load image: ${img.src}`));
+      }
+    };
+
+    img.src = imageUrl;
+  });
+}
   
 export async function addPolygonWithImageFill(map, polygon) {
     const sourceId = `${polygon.id}-source`;
@@ -93,8 +106,7 @@ export async function addPolygonWithImageFill(map, polygon) {
         maxLat: -Infinity
       });
   
-      // Create and add the resized image (now awaited)
-      const resizedImageUrl = await createResizedImage(polygon.imageUrl, 512, 512);
+      const resizedImageUrl = await createResizedImage(polygon.imageUrl, 512, 512,"https://kiloscribe.com/api/inscription-cdn/0.0.4819119");
   
       // Now safe to add source and layers since style is loaded
       map.addSource(sourceId, {
