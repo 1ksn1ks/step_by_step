@@ -1251,7 +1251,7 @@
       
       
           <div id="model-column-model-url" style="display: none;">
-          <input type="text" class="toolbar-column" id="object-input" placeholder="Enter URL" style="text-align: center;" onclick="event.stopPropagation();" />
+          <input type="text" class="toolbar-column" id="object-input" placeholder="Enter URL" style="text-align: left;" onclick="event.stopPropagation();" />
           <button id="buttonforobject" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; margin-top: 1vh;">Change object
           </button>
         </div>
@@ -1260,7 +1260,7 @@
           <div style="display: flex; align-items: center;">
             <label for="rotation-x" class="toolbar-column">Rotation X:
             </label>
-            <input type="range" class="model_sliders" id="rotation-x" min="0" max="360" value="0"/>
+            <input type="range" class="model_sliders" id="rotation-x" min="-180" max="180" value="0"/>
             <input type="number" class="toolbar-column" style="text-align: center;" id="rotation-x-value" value="0"
             onchange="document.getElementById('rotation-x').value = this.value;" />
           </div>
@@ -1268,7 +1268,7 @@
           <div style="display: flex; align-items: center;">
             <label for="rotation-y" class="toolbar-column">Rotation Y:
             </label>
-            <input type="range" class="model_sliders" id="rotation-y" min="0" max="360" value="0"/>
+            <input type="range" class="model_sliders" id="rotation-y" min="-180" max="180" value="0"/>
             <input type="number" class="toolbar-column" style="text-align: center;" id="rotation-y-value" value="0"
             onchange="document.getElementById('rotation-y').value = this.value;" />
           </div>
@@ -1276,7 +1276,7 @@
           <div style="display: flex; align-items: center;">
             <label for="rotation-z" class="toolbar-column">Rotation Z:
             </label>
-            <input type="range" class="model_sliders" id="rotation-z" min="0" max="360" value="0"/>
+            <input type="range" class="model_sliders" id="rotation-z" min="-180" max="180" value="0"/>
             <input type="number" class="toolbar-column" style="text-align: center;" id="rotation-z-value" value="0"
             onchange="document.getElementById('rotation-z').value = this.value;" />
           </div>

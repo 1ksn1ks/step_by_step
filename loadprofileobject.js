@@ -1,4 +1,5 @@
 import { getMessages, sendMessage } from "./hedera";
+import { setCurrentUfoModel} from './letall' 
 
 document.getElementById("buttonforobject").addEventListener("click", async (event) => {
     event.stopPropagation();
@@ -33,14 +34,14 @@ document.getElementById("buttonforobject").addEventListener("click", async (even
 export async function loadProfileObject(a) {
 
 const topicId = "0.0.9609898";
-const accountObjectUrl = []; // Initialize an empty array to store account URLs
 try {
     const result = await getMessages(topicId);
+    let model = 'https://kiloscribe.com/api/inscription-cdn/0.0.9742046';
 
     // Check if result exists and has messages
     if (!result || !Array.isArray(result.messages) || result.messages.length === 0) {
         console.log("No profile object found, using defaults");
-        return accountObjectUrl; // Return empty array if no messages
+        return;
     }
 
     // Filter messages to find those from the current user
@@ -51,11 +52,11 @@ try {
 
     // Check if the last message has valid data
     if (lastMessage && lastMessage.data && lastMessage.data.urls && lastMessage.data.urls.length > 0) {
-        // Store the URL for this account
-        accountObjectUrl.push(lastMessage.data.urls[0]); // Accessing the first URL
+      setCurrentUfoModel(lastMessage.data.urls[0])
+      model = lastMessage.data.urls[0]
     }
 
-    return accountObjectUrl; // Return the populated array
+    return model
 
 } catch (error) {
     console.log("Error in loadProfileObject:", error);

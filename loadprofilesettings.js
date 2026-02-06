@@ -1,6 +1,5 @@
 import { getMessages, sendMessage } from "./hedera";
-import { defaultModelUrl } from "./letall";
-import { loadProfileObject } from './loadprofileobject'
+import { defaultModelUrl, currentUfoModel} from "./letall";
 
 
 document.getElementById("savesettings").addEventListener("click", async (event) => {
@@ -8,8 +7,7 @@ document.getElementById("savesettings").addEventListener("click", async (event) 
   
   try {
     const topicId = "0.0.9609898";
-    const profileObjectUrl = await loadProfileObject();
-    const cleanUrl = (profileObjectUrl.length > 0 ? profileObjectUrl[0].replace(/\?network=mainnet$/, "") : defaultModelUrl);
+    const cleanUrl = currentUfoModel;
 
     const rotationX = document.getElementById("rotation-x").value;
     const rotationY = document.getElementById("rotation-y").value;
@@ -75,22 +73,16 @@ export async function loadProfileSettings(a) {
   
       // Get the last message from the filtered user messages
       const lastMessage = userMessages[userMessages.length - 1];
+
   
       // Check if the last message has valid data
       if (lastMessage && lastMessage.data) {
-  
-        // Check if settings are empty
-        if (Array.isArray(lastMessage.data.settings) && lastMessage.data.settings.length === 0) {
-          const urls = lastMessage.data.urls; // This will give you the entire array
-          // Store the settings in accountObjectSettings
-          accountObjectSettings.push({ urls });
-        } else {
-          // Extract relevant data
+
+         // Extract relevant data
           const { rotation, position, scale } = lastMessage.data.settings;
-          const urls = lastMessage.data.urls; // This will give you the entire array
   
           // Store the settings in accountObjectSettings
-          accountObjectSettings.push({ rotation, position, scale, urls });
+          accountObjectSettings.push({ rotation, position, scale});
   
           // Update input fields with the extracted data
           document.getElementById("rotation-x").value = rotation.x; // Set rotation X
@@ -111,15 +103,12 @@ export async function loadProfileSettings(a) {
           document.getElementById("scale-factor").value = scale.scaleFactor; // Update scale factor input
           document.getElementById("scale-factor-value").value = scale.scaleFactor; // Update scale factor value
   
-        }
+        
       } else {
         console.log("Last message does not have valid data."); // Log invalid data
       }
-  
-                // Check if accountObjectSettings is empty and set default model URL
-                if (accountObjectSettings.length === 0) {
-          await loadUfoModel(defaultModelUrl); // Load the default model
-      }
+
+
   
       return accountObjectSettings; // Return the populated array
   } catch (error) {

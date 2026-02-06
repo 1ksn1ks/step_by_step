@@ -1,4 +1,3 @@
-
 export let models = [];
 
 export let existingMarkers = [];
@@ -17,6 +16,13 @@ export let polygons = [
 export let currentUfoModel = null;
 export function setCurrentUfoModel(newModel) {
   currentUfoModel = newModel;
+  console.log(currentUfoModel)
+}
+
+export let currentUfoModelInGLTF = null;
+export function setCurrentUfoModellInGLTF(newModel) {
+  currentUfoModelInGLTF = newModel;
+  console.log(currentUfoModelInGLTF)
 }
 
 export let defaultModelUrl = 'https://kiloscribe.com/api/inscription-cdn/0.0.9742046'; // Replace with your actual default model URL
@@ -72,4 +78,3 @@ export let globalLoadedTopicIdsWithNames = [];
 export function newGlobalLoadedTopicIdsWithNames(a) {
   globalLoadedTopicIdsWithNames = a;
 }
-

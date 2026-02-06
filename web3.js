@@ -10,7 +10,6 @@ import {
 import { LedgerId, AccountId } from '@hashgraph/sdk';
 
 import { loadProfileCrosshair } from './loadcrosshair';
-import { loadProfileSettings } from './loadprofilesettings';
 import { loadTopicChatSettings } from './loadtopicchatset';
 import { loadProfilePopup } from './loadprofilepopup';
 import { loadProfileObject } from './loadprofileobject';
@@ -20,6 +19,8 @@ import { loadMarkerSettings } from './loadmarkersett';
 import { confirmNFTFunction } from './confirmnft';
 import { handleAllMessages } from './handleallmessages';
 import {debounce} from './debounce'
+import { loadUfoModel } from './loadUFOModel';
+import { currentUfoModel } from './letall';
 
 
 const PROJECT_ID = "fdd65bec25e85908fecf7561fe42b41f";
@@ -52,24 +53,24 @@ async function init() {
       const accountId = signers[0].getAccountId().toString();
       connectedAccount = accountId;
       loadProfileCrosshair(accountId)
-      loadProfileSettings(accountId)
       loadTopicChatSettings(accountId)
       loadProfilePopup(accountId)
-      loadProfileObject(accountId)
       loadButtonInputSettings(accountId)
       loadMainButtonSettings(accountId)
       loadMarkerSettings(accountId)
       confirmNFTFunction(accountId)
+      let thisUfomodel = await loadProfileObject(accountId)
+      loadUfoModel(thisUfomodel)
 
       const senderId = AccountId.fromString(connectedAccount);
       signer = dAppConnector.getSigner(senderId);
 
       const newToolbarLoad = document.getElementById("toolbar-load");
+
       newToolbarLoad.addEventListener("click", debounce(async () => {
         await confirmNFTFunction(accountId);
     }, 500));
     } else {
-      const newToolbarLoad = document.getElementById("toolbar-load");
       newToolbarLoad.addEventListener("click", debounce(async () => {
         await handleAllMessages();
       }, 500));
@@ -115,11 +116,10 @@ async function connectWallet() {
     if (signers && signers.length > 0) {
       const accountId = signers[0].getAccountId().toString();
       connectedAccount = accountId;
+      loadProfileObject(accountId)
       loadProfileCrosshair(accountId)
-      loadProfileSettings(accountId)
       loadTopicChatSettings(accountId)
       loadProfilePopup(accountId)
-      loadProfileObject(accountId)
       loadButtonInputSettings(accountId)
       loadMainButtonSettings(accountId)
       loadMarkerSettings(accountId)
