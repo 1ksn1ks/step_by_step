@@ -7,7 +7,7 @@ document.getElementById("savesettings").addEventListener("click", async (event) 
   
   try {
     const topicId = "0.0.9609898";
-    const cleanUrl = currentUfoModel;
+    const cleanUrl = currentUfoModel||defaultModelUrl;
 
     const rotationX = document.getElementById("rotation-x").value;
     const rotationY = document.getElementById("rotation-y").value;

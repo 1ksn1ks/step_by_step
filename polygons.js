@@ -2,7 +2,7 @@ import { applyAllStyles } from './loadprofilepopup';
 import { scene } from "./threejs";
 import maplibregl from 'maplibre-gl';
 import { animateMapTo } from './animatemapto';
-import { currentUfoModel, polygons } from './letall';
+import { currentUfoModelInGLTF, polygons } from './letall';
 import { map } from './map'
 import { activeMarkerPopups } from './marker';
 import { CloseALL, changePopupState } from './cssLogic';
@@ -191,8 +191,8 @@ export async function addPolygonWithImageFill(map, polygon) {
             applyAllStyles();
           }
           changePopupState(true);
-          if (currentUfoModel) {
-            scene.remove(currentUfoModel);
+          if (currentUfoModelInGLTF) {
+            scene.remove(currentUfoModelInGLTF);
             crosshair.style.display = "none";
           }
         });
@@ -200,8 +200,8 @@ export async function addPolygonWithImageFill(map, polygon) {
         // Add a listener for the popup's close event
         popup.on('close', () => {
           changePopupState(false);
-          if (currentUfoModel) {
-            scene.add(currentUfoModel);
+          if (currentUfoModelInGLTF) {
+            scene.add(currentUfoModelInGLTF);
             crosshair.style.display = "block";
             // Remove popup from tracking array when closed
             const index = activePolygonPopups.indexOf(popup);

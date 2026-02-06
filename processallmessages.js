@@ -2,7 +2,7 @@ import {getMessages, getTopicInfo, sendMessage, getAccountNFTs} from './hedera'
 import { activePolygonPopups, newActivePolygonPopups} from './polygons';
 import { activeMarkerPopups, newActiveMarkerPopups } from './marker';
 import { removeUfoModel, changePopupState} from './cssLogic'
-import { polygons, geojson, storedMarkers, storedPolygons, currentUfoModel } from './letall';
+import { polygons, geojson, storedMarkers, storedPolygons, currentUfoModelInGLTF } from './letall';
 import {updateRulesForModelNFTState} from './confirmnft'
 import { animateMapTo } from './animatemapto';
 import { profilePictures, usernames, click2url} from './loadalladata'
@@ -980,16 +980,16 @@ function showMarker(m) {
 
     popup.on("close", () => {
       changePopupState(false);
-        if (currentUfoModel) {
-            scene.add(currentUfoModel);
+        if (currentUfoModelInGLTF) {
+            scene.add(currentUfoModelInGLTF);
             crosshair.style.display = "block";
         }
     });
 
     applyAllStyles();
 
-    if (currentUfoModel) {
-        scene.remove(currentUfoModel);
+    if (currentUfoModelInGLTF) {
+        scene.remove(currentUfoModelInGLTF);
         crosshair.style.display = "none";
     }
 
@@ -1090,15 +1090,15 @@ function showPolygon(p) {
 
     popup.on("close", () => {
       changePopupState(false);
-        if (currentUfoModel) {
-            scene.add(currentUfoModel);
+        if (currentUfoModelInGLTF) {
+            scene.add(currentUfoModelInGLTF);
             crosshair.style.display = "block";
         }
     });
 
     applyAllStyles();
-    if (currentUfoModel) {
-        scene.remove(currentUfoModel);
+    if (currentUfoModelInGLTF) {
+        scene.remove(currentUfoModelInGLTF);
         crosshair.style.display = "none";
     }
 

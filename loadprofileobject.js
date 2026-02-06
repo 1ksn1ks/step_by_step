@@ -54,7 +54,10 @@ try {
     if (lastMessage && lastMessage.data && lastMessage.data.urls && lastMessage.data.urls.length > 0) {
       setCurrentUfoModel(lastMessage.data.urls[0])
       model = lastMessage.data.urls[0]
+      console.log(model)
     }
+    console.log(model)
+
 
     return model
 

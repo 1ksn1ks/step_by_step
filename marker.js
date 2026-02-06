@@ -2,7 +2,7 @@ import maplibregl from 'maplibre-gl';
 import Supercluster from 'supercluster';
 import { debounce } from '/debounce'
 import { animateMapTo } from './animatemapto';
-import { geojson, existingMarkers, newExistingMarkers, currentUfoModel } from './letall';
+import { geojson, existingMarkers, newExistingMarkers, currentUfoModelInGLTF } from './letall';
 import { map } from './map'
 import { activePolygonPopups } from './polygons';
 import { CloseALL, changePopupState } from './cssLogic';
@@ -94,8 +94,8 @@ export function updateClusters() {
   
         popup.on("close", () => {
           changePopupState(false);
-          if (currentUfoModel) {
-            scene.add(currentUfoModel);
+          if (currentUfoModelInGLTF) {
+            scene.add(currentUfoModelInGLTF);
             crosshair.style.display = "block";
           }
         });
@@ -110,8 +110,8 @@ export function updateClusters() {
           animateMapTo(map, cluster.geometry.coordinates, null);
           applyAllStyles();
           changePopupState(true);
-          if (currentUfoModel) {
-            scene.remove(currentUfoModel);
+          if (currentUfoModelInGLTF) {
+            scene.remove(currentUfoModelInGLTF);
             crosshair.style.display = "none";
           }
         });

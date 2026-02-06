@@ -6,7 +6,7 @@ import {
   everythinginsidetoolbar
 } from './ui.js'
 import { adjustTextareaHeight } from './adjusttextarea.js';
-import { currentUfoModel, globalLoadedTopicIdsWithNames} from './letall.js';
+import { currentUfoModelInGLTF, globalLoadedTopicIdsWithNames} from './letall.js';
 import { activePolygonPopups } from './polygons.js';
 import { activeMarkerPopups } from './marker.js';
 import { scene } from './threejs.js'
@@ -64,8 +64,8 @@ export function CloseALL() {
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
     document.getElementById("go-to-submit-message-encrypted-chat").style.display = "block";
     if (popIsOpen === false) {
-      if (currentUfoModel) {
-              scene.add(currentUfoModel);
+      if (currentUfoModelInGLTF) {
+              scene.add(currentUfoModelInGLTF);
               crosshair.style.display = "block";
             }
     }
@@ -76,8 +76,8 @@ export function CloseALL() {
   });
   
  export function removeUfoModel() {
-    if (currentUfoModel) {
-      scene.remove(currentUfoModel);
+    if (currentUfoModelInGLTF) {
+      scene.remove(currentUfoModelInGLTF);
       crosshair.style.display = "none";
     }
   }
