@@ -71,6 +71,8 @@ async function init() {
         await confirmNFTFunction(accountId);
     }, 500));
     } else {
+      const newToolbarLoad = document.getElementById("toolbar-load");
+
       newToolbarLoad.addEventListener("click", debounce(async () => {
         await handleAllMessages();
       }, 500));
