@@ -47,6 +47,7 @@ export let signer = null;
 async function init() {
   try {
     await dAppConnector.init({ logger: 'error' });
+    const newToolbarLoad = document.getElementById("toolbar-load");
 
     const signers = dAppConnector.signers;
     if (signers && signers.length > 0) {
@@ -65,13 +66,11 @@ async function init() {
       const senderId = AccountId.fromString(connectedAccount);
       signer = dAppConnector.getSigner(senderId);
 
-      const newToolbarLoad = document.getElementById("toolbar-load");
 
       newToolbarLoad.addEventListener("click", debounce(async () => {
         await confirmNFTFunction(accountId);
     }, 500));
     } else {
-      const newToolbarLoad = document.getElementById("toolbar-load");
 
       newToolbarLoad.addEventListener("click", debounce(async () => {
         await handleAllMessages();
