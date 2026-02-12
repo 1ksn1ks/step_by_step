@@ -9,7 +9,6 @@ import { CloseALL, changePopupState } from './cssLogic';
 import { applyAllStyles } from './loadprofilepopup';
 import { scene } from "./threejs";
 
-let lastBounds = null;
 
 
 export let activeMarkerPopups = [];
@@ -38,7 +37,6 @@ export function updateClusters() {
     }
   
     const currentBounds = map.getBounds().toArray().flat();
-    lastBounds = currentBounds;
     const zoom = map.getZoom();
     const clusters = index.getClusters(currentBounds, Math.floor(zoom));
   
@@ -102,11 +100,11 @@ export function updateClusters() {
   
         el.addEventListener("click", (e) => {
           e.stopPropagation();
-          popup.setLngLat(cluster.geometry.coordinates).addTo(map).setDOMContent(cluster.properties.message);
           activePolygonPopups.forEach((popup) => popup.remove());
           activeMarkerPopups.forEach((popup) => popup.remove());
           activeMarkerPopups.push(popup);
           CloseALL();
+          popup.setLngLat(cluster.geometry.coordinates).addTo(map).setDOMContent(cluster.properties.message);
           animateMapTo(map, cluster.geometry.coordinates, null);
           applyAllStyles();
           changePopupState(true);
