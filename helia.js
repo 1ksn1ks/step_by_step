@@ -43,17 +43,25 @@ async function initHelia() {
     console.log('[PeerID] Key exists in datastore?', exists)
 
     if (exists) {
-      try {
-        const res = await datastore.get(PEER_KEY_PATH)
-        if (res?.value instanceof Uint8Array) {
-          peerId = await createFromProtobuf(res.value)
-          console.log('[PeerID] Successfully loaded persistent PeerId:', peerId.toString())
-        } else {
-          console.warn('[PeerID] Stored value invalid — will generate new')
-        }
-      } catch (err) {
-        console.error('[PeerID] Failed to load PeerId:', err.message || err)
-      }
+// In the if (exists) block:
+try {
+  const rawValue = await datastore.get(PEER_KEY_PATH);
+  console.log('[PeerID] get() raw result:', rawValue);
+
+  // No .value — it's the Uint8Array itself
+  if (rawValue && rawValue.constructor?.name === 'Uint8Array' && rawValue.byteLength > 0) {
+    peerId = await createFromProtobuf(rawValue);
+    console.log('[PeerID] Successfully loaded persistent PeerId:', peerId.toString());
+  } else {
+    console.warn('[PeerID] Stored value invalid or empty — will generate new');
+    console.log('[DEBUG] typeof rawValue:', typeof rawValue);
+    console.log('[DEBUG] constructor name:', rawValue?.constructor?.name);
+    console.log('[DEBUG] byteLength:', rawValue?.byteLength);
+    await datastore.delete(PEER_KEY_PATH);
+  }
+} catch (err) {
+  console.error('[PeerID] Failed to load PeerId:', err.message || err);
+}
     }
 
     if (!peerId) {
@@ -65,12 +73,28 @@ async function initHelia() {
         const marshaled = exportToProtobuf(peerId)
         console.log('[PeerID] Marshaled size:', marshaled.length, 'bytes')
 
-        await datastore.put(PEER_KEY_PATH, marshaled)
-        console.log('[PeerID] Successfully saved PeerId to datastore')
-
-        // Quick verify
-        const verify = await datastore.get(PEER_KEY_PATH)
-        console.log('[PeerID] Save verified — exists?', !!verify?.value)
+        await datastore.put(PEER_KEY_PATH, marshaled);
+        console.log('[PeerID] put() completed without error');
+        
+        await new Promise(r => setTimeout(r, 50));
+        
+        try {
+          const verifyValue = await datastore.get(PEER_KEY_PATH);
+          console.log('[PeerID] Verification raw result:', verifyValue);
+        
+          if (verifyValue && verifyValue.constructor?.name === 'Uint8Array' && verifyValue.byteLength > 0) {
+            console.log('[PeerID] Value is valid Uint8Array (length ' + verifyValue.byteLength + ')');
+            console.log('[PeerID] Save verified — exists? true');
+          } else {
+            console.warn('[PeerID] Verification failed — value invalid or missing');
+            console.log('[DEBUG] typeof verifyValue:', typeof verifyValue);
+            console.log('[DEBUG] constructor name:', verifyValue?.constructor?.name);
+            console.log('[DEBUG] byteLength:', verifyValue?.byteLength);
+            console.log('[PeerID] Save verified — exists? false');
+          }
+        } catch (verifyErr) {
+          console.error('[PeerID] Verification read failed:', verifyErr);
+        }
       } catch (saveErr) {
         console.error('[PeerID] Failed to save PeerId:', saveErr.message || saveErr)
       }
