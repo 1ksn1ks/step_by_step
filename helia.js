@@ -26,25 +26,41 @@ export let sharedDb = null
 const PEER_KEY_NAME = '/helia/peer-private-key'  // key in datastore
 
 async function getOrCreatePersistentPeerId(datastore) {
+  const key = PEER_KEY_NAME
+
   try {
-    const exists = await datastore.has({ key: PEER_KEY_NAME })
-    if (exists) {
-      const marshaled = await datastore.get({ key: PEER_KEY_NAME })
-      // marshaled is Uint8Array → load PeerId from protobuf
-      return await createFromProtobuf(marshaled.value)
+    const has = await datastore.has({ key })
+    console.log('[PeerID] Key exists in datastore?', has)
+
+    if (has) {
+      const res = await datastore.get({ key })
+
+      console.log('[PeerID] Loadeaaaaaaaaaaangth:', res.value.length)
+
+      if (!res?.value) {
+        throw new Error('Stored value is empty')
+      }
+      console.log('[PeerID] Loaded marshaled key, length:', res.value.length)
+      const peerId = await createFromProtobuf(res.value)
+      console.log('[PeerID] Successfully restored PeerId:', peerId.toString())
+      return peerId
     }
   } catch (err) {
-    console.warn('Failed to load saved PeerId, generating new one', err)
+    console.error('[PeerID] Failed to load/restore PeerId:', err.message || err)
   }
 
-  // Generate new Ed25519 peer-id (modern & efficient)
+  console.log('[PeerID] Generating new Ed25519 PeerId...')
   const peerId = await createEd25519PeerId()
 
-  // Export to protobuf (libp2p format) and save
-  const marshaled = exportToProtobuf(peerId)
-  await datastore.put({ key: PEER_KEY_NAME, value: marshaled })
+  try {
+    const marshaled = exportToProtobuf(peerId)
+    console.log('[PeerID] Marshaled new key, length:', marshaled.length)
+    await datastore.put({ key, value: marshaled })
+    console.log('[PeerID] Successfully saved new PeerId to datastore')
+  } catch (saveErr) {
+    console.error('[PeerID] Failed to SAVE new PeerId:', saveErr)
+  }
 
-  console.log('Generated and saved new persistent Peer ID')
   return peerId
 }
 
