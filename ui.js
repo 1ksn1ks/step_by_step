@@ -36,7 +36,6 @@ export const everythinginsideoptionsbuttons = [
     "Edit_Profile-column",
     "load-column",
     "create-column",
-    "upload-to-ipfs-column",
     "marker-column",
     "polygon-column",
     "rules-column",

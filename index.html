@@ -58,8 +58,6 @@
         </div>
         <div class="toolbar-column" id="Load_Everything">Load
         </div>
-        <div class="toolbar-column" id="Upload_To_IPFS">Upload
-        </div>
         <div class="toolbar-column" id="Create_New_Topic">Create
         </div>
         <div class="toolbar-column" id="Create_Marker">Marker
@@ -282,35 +280,7 @@
         </div>
       </div>
       
-      <div id="upload-to-ipfs-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
-        <div id="upload-to-ipfs-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
-      
-          <label for="fileInput" style="font-size: 2vh; padding: 0px;">Currentlly work in progress, once finished u will be able to upload imgs/videos/files
-          </label>
-      
-          <input type="file" class="toolbar-column" id="fileInput" />
-          <button id="upload-to-ipfs-button" class="toolbar-column-btns">Upload to IPFS</button>
-          <textarea class="toolbar-column" id="cid-output" placeholder="CID" readonly></textarea>
-      
-          <textarea class="toolbar-column" id="cid-input" type="text" placeholder="Enter CID"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
-          
-          <!-- ADD THIS: Content type selector for fetch -->
-          <select class="toolbar-column" id="content-type">
-            <option value="image">Image/GIF</option>
-            <option value="video">Video</option>
-          </select>
-          
-          <button class="toolbar-column-btns" id="fetch-from-ipfs-button">Fetch from IPFS</button>
-          <div id="cid-output"></div> <!-- Note: You have two #cid-output elements; consider consolidating to one -->
-          <div id="image-container"></div>
-      
-          <button class="toolbar-column-btns" id="copy-share-link" style="display: none;">Copy Share Link</button>
-      
-        </div>
-      </div> <!-- Close the div properly -->
-      
+
       <div id="create-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="create-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
       

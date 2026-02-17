@@ -242,15 +242,6 @@ export function CloseALL() {
     removeUfoModel();
   });
   
-  document.getElementById("Upload_To_IPFS").addEventListener("click", (event) => {
-    event.stopPropagation();
-    CloseALL();
-    document.getElementById("upload-to-ipfs-column").style.display = "block";
-    document.getElementById("upload-to-ipfs-column-container").style.display = "block";
-    OpenToggleToolbar();
-    removeUfoModel();
-  });
-  
   document.getElementById("Create_New_Topic").addEventListener("click", (event) => {
     event.stopPropagation();
     CloseALL();

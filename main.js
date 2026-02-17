@@ -15,9 +15,6 @@ import './rest.js'
 import './loadTOPIC4PIC.js'
 import './topicchat.js'
 import './encryptedtopicchat.js'
-import './helia.js'
-import './upload.js'
-import './fetch.js'
 
 window.restrictLength = function(input, maxLength) {
     if (input.value.length > maxLength) {
