@@ -33,9 +33,8 @@ export const map = new maplibregl.Map({
       map.setLayoutProperty(roadShieldLayer.id, "visibility", "none");
     }
   
-
     map.addLayer(await load3dModels());
-  });
+    });
   
   // Add navigation controls (optional, for testing bearing changes)
   map.addControl(new maplibregl.NavigationControl());

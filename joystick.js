@@ -103,7 +103,6 @@ export function handleMovement() {
     return element && window.getComputedStyle(element).display === "block";
   });
 
-  const zoom = map.getZoom();
   const panSpeed = 10 * getSpeedMultiplier();
   const zoomSpeed = 0.05 * getSpeedMultiplier();
 

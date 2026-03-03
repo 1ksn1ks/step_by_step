@@ -9,7 +9,7 @@ dracoLoader.setDecoderPath('node_modules/three/examples/jsm/libs/draco/');
 
 function generateModels() {
     // Generate 100 unique bot peers
-for (let i = 0; i < 500; i++) {
+for (let i = 0; i < 100; i++) {
     const modelIndex = i; // or use a unique key if not sequential
     const peer_id = `bot_${i}`; // Unique ID: bot_0, bot_1, ..., bot_99
 
@@ -39,7 +39,7 @@ const urls = [
 
     // After initial creation, start live updates
 setInterval(() => {
-    const randomBotIndex = Math.floor(Math.random() * 150);
+    const randomBotIndex = Math.floor(Math.random() * 100);
     const bot = models[randomBotIndex];
 
     // Slight movement (e.g., ±0.1° lat/lon, ±1000m altitude)
@@ -58,11 +58,38 @@ setInterval(() => {
         scaleFactorNFT: bot.scaleFactorNFT
     };
 
-}, 300000); // every 60 seconds
+}, 3000); // every 60 seconds
 }
 }
-// generateModels();
-    
+generateModels();
+
+
+
+const renderedModels = [];  // will contain { model: THREE.Object3D, peer_id, ... }
+
+let lastTime = performance.now();
+
+
+let P2Pcamera = new THREE.Camera();
+let P2Pscene = new THREE.Scene();
+
+const directions = [
+  [1, 1, 1],
+  [-1, 1, 1],
+  [1, -1, 1],
+  [-1, -1, 1],
+  [1, 1, -1],
+  [-1, 1, -1],
+  [1, -1, -1],
+  [-1, -1, -1],
+];
+
+directions.forEach((dir) => {
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 2.5);
+  directionalLight.position.set(...dir).normalize();
+  P2Pscene.add(directionalLight);
+});
+
 
 export async function load3dModels() {
 const customLayer = {
@@ -70,28 +97,6 @@ const customLayer = {
   type: "custom",
   renderingMode: "3d",
   onAdd(map, gl) {
-    this.camera = new THREE.Camera();
-    this.scene = new THREE.Scene();
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    this.scene.add(ambientLight);
-
-    const directions = [
-      [1, 1, 1],
-      [-1, 1, 1],
-      [1, -1, 1],
-      [-1, -1, 1],
-      [1, 1, -1],
-      [-1, 1, -1],
-      [1, -1, -1],
-      [-1, -1, -1],
-    ];
-
-    directions.forEach((dir) => {
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-      directionalLight.position.set(...dir).normalize();
-      this.scene.add(directionalLight);
-    });
 
     this.map = map;
 
@@ -111,7 +116,7 @@ const customLayer = {
     models.forEach(({ url, origin, altitude, scaleFactorNFT }) => {
       loader.load(url, (gltf) => {
         const model = gltf.scene;
-        this.scene.add(model);
+        P2Pscene.add(model);
 
         // Calculate the model's bounding box
         const box = new THREE.Box3().setFromObject(model);
@@ -137,7 +142,7 @@ const customLayer = {
           // Apply the transformation matrix to the model
           const modelTransformMatrix = new THREE.Matrix4()
             .fromArray(modelMatrix)
-            .scale(new THREE.Vector3(10, 10, 10)); // Example scaling
+            .scale(new THREE.Vector3(5, 5, 5)); // Example scaling
 
           // Adjust the model's position to the bottom of the bounding box
           const modelHeight = modelSize.y * scaleFactor;
@@ -154,11 +159,12 @@ const customLayer = {
       args.defaultProjectionData.mainMatrix
     );
 
-    this.camera.projectionMatrix = mapProjectionMatrix;
+    P2Pcamera.projectionMatrix = mapProjectionMatrix;
 
     this.renderer.resetState();
-    this.renderer.render(this.scene, this.camera);
+    this.renderer.render(P2Pscene, P2Pcamera);
     this.map.triggerRepaint();
+
   },
 }
 return customLayer;

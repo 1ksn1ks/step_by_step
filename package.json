@@ -42,6 +42,7 @@
     "maplibre-gl": "^5.15.0",
     "multiformats": "^13.4.2",
     "supercluster": "^8.0.1",
-    "three": "^0.182.0"
+    "three": "^0.182.0",
+    "threebox-plugin": "^2.2.7"
   }
 }

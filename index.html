@@ -1133,34 +1133,16 @@
       
       
       <div id="visibility-controls" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
-        <div class="chat-topic-chat-container" onclick="event.stopPropagation();">
+        <div class="toolbar-containers" onclick="event.stopPropagation();">
       
+     
           <div style="display: flex; align-items: center; margin-bottom: 1vh;">
-            <label for="time-input" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Enter a time of update in milliseconds:
-            </label>
-          </div>
-      
-          <div style="display: flex; align-items: center; margin-bottom: 1vh;">
-            <input type="number" id="time-input" class="toolbar-column-btns" value="60000"/>
-            <button id="update-loop" class="toolbar-column-btns" style="width: 50vw;  margin-left: 1vw; color: white; text-shadow: 0 0 0.5vh black;">Update time
+            <span id="3d-model-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On</span>
+            <button id="toggle-3d-model-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show 3D models
             </button>
+            <span id="3d-model-visibility-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On</span>
           </div>
-      
-          <div style="display: flex; align-items: center; padding-left: 1vh; padding-bottom: 1vh;">
-            <label for="raster-opacity-slider" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Polygon transparency:
-            </label>
-            <input type="range" id="raster-opacity-slider" class="model_sliders" min="0" max="1" step="0.01" value="1">
-          </div>
-      
-          <div style="display: flex; align-items: center; margin-bottom: 1vh;">
-            <span id="polygon-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
-            </span>
-            <button id="toggle-polygon-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show polygons:
-            </button>
-            <span id="polygon-visibility-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
-            </span>
-          </div>
-      
+
           <div style="display: flex; align-items: center; margin-bottom: 1vh;">
             <span id="marker-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
             </span>
@@ -1171,33 +1153,30 @@
           </div>
       
           <div style="display: flex; align-items: center; margin-bottom: 1vh;">
-            <span id="3d-model-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+            <span id="polygon-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
             </span>
-            <button id="toggle-3d-model-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show 3D models
+            <button id="toggle-polygon-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show polygons:
             </button>
-            <span id="3d-model-visibility-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+            <span id="polygon-visibility-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
             </span>
+          </div>
+
+          <div style="display: flex; align-items: center; padding-left: 1vh; padding-bottom: 1vh;">
+            <label for="raster-opacity-slider" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Polygon transparency:
+            </label>
+            <input type="range" id="raster-opacity-slider" class="model_sliders" min="0" max="1" step="0.01" value="1">
           </div>
       
-          <div style="display: flex; align-items: center; margin-bottom: 1vh;">
-            <span id="updates-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
-            </span>
-            <button id="toggle-updates" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">model updates
-            </button>
-            <span id="updates-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
-            </span>
-          </div>
+
       
-          <div style="display: flex; align-items: center; margin-bottom: 1vh;">
-            <button id="update-map-layer-btn" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Update Map
-            </button>
-          </div>
+
+      
       
         </div>
       </div>
       
       <div id="model-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
-        <div id="model-column-container" class="yourfovcontainer" onclick="event.stopPropagation();" >
+        <div id="model-column-container" class="toolbar-containers" onclick="event.stopPropagation();" >
       
       
           <div style="display: flex;">
@@ -1292,7 +1271,7 @@
       </div>
       
       <div id="model-column-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
-        <div id="model-column-container-save" class="yourfovcontainer" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
+        <div id="model-column-container-save" class="toolbar-containers" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
       
           <div id="savesettings" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save settings
           </div>
@@ -1302,7 +1281,7 @@
       
       
       <div id="crosshair-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
-        <div id="crosshair-column-container" class="yourfovcontainer" onclick="event.stopPropagation();">
+        <div id="crosshair-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
       
           <div>
             <label style="font-size: 1.5vh;">Crosshair Color:</label>
@@ -1329,7 +1308,7 @@
       </div>
       
       <div id="crosshair-column-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
-        <div id="crosshair-column-container-save" class="yourfovcontainer" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
+        <div id="crosshair-column-container-save" class="toolbar-containers" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
       
           <div id="savecrosshair" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save settings
           </div>
@@ -1339,7 +1318,7 @@
       
       
       <div id="popup-column-2" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
-        <div id="popup-column-container-2" class="yourfovcontainer" onclick="event.stopPropagation();">
+        <div id="popup-column-container-2" class="toolbar-containers" onclick="event.stopPropagation();">
       
           <div style="top:10vh">
           <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
@@ -1368,7 +1347,7 @@
       </div>
       
       <div id="popup-column-3" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
-        <div id="popup-column-container-3" class="yourfovcontainer" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
+        <div id="popup-column-container-3" class="toolbar-containers" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
       
           <div id="popup-column-3-border" style="display: none; align-items: center;">
             <label style="font-size: 1.5vh;">Border:</label>
@@ -1420,7 +1399,7 @@
       </div>
       
       <div id="main-button-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
-        <div id="main-button-column-container" class="yourfovcontainer" onclick="event.stopPropagation();">
+        <div id="main-button-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
       
           <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
             <label for="color-green" class="yourfov">Height:
@@ -1454,7 +1433,7 @@
       </div>
       
       <div id="main-button-column-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
-        <div id="main-button-column-container-save" class="yourfovcontainer" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
+        <div id="main-button-column-container-save" class="toolbar-containers" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
       
           <div id="save-main-button" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save Settings
           </div>
@@ -1463,7 +1442,7 @@
       </div>
       
       <div id="marker-options-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
-        <div id="marker-options-column-container" class="yourfovcontainer" onclick="event.stopPropagation();">
+        <div id="marker-options-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
       
           <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
             <label for="color-green" class="yourfov">Size:
@@ -1475,7 +1454,7 @@
       </div>
       
       <div id="marker-column-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
-        <div id="marker-column-container-save" class="yourfovcontainer" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
+        <div id="marker-column-container-save" class="toolbar-containers" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
       
           <div id="save-marker-settings" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save Settings
           </div>
@@ -1484,7 +1463,7 @@
       </div>
       
       <div id="button-input-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
-        <div id="button-input-column-container" class="yourfovcontainer" onclick="event.stopPropagation();">
+        <div id="button-input-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
       
           <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
             <label for="color-green" class="yourfov">Font Size:
@@ -1544,7 +1523,7 @@
       </div>
       
       <div id="button-input-column-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
-        <div id="button-input-column-container-save" class="yourfovcontainer" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
+        <div id="button-input-column-container-save" class="toolbar-containers" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
       
           <div id="save-button-button-input" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save Settings
           </div>
@@ -1554,7 +1533,7 @@
       
       
       <div id="topic-chat-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
-        <div id="topic-chat-column-container" class="yourfovcontainer" onclick="event.stopPropagation();">
+        <div id="topic-chat-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
       
           <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
             <label for="color-green" class="yourfov">Text Font Size:
@@ -1608,7 +1587,7 @@
       </div>
       
       <div id="topic-chat-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
-        <div id="topic-chat-container-save" class="yourfovcontainer" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
+        <div id="topic-chat-container-save" class="toolbar-containers" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
       
           <div id="save-topic-chat-settings" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save Settings
           </div>

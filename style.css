@@ -127,25 +127,7 @@ html, body {
     cursor: pointer;
     font-size: 1.5vh;
   }
-  
-  .yourfovcontainer {
-    background-color: rgba(0, 0, 0, 0);
-    color: white;
-    border-radius: 4px;
-    box-sizing: border-box;
-    border-radius: 1vh;
-    overflow-y: auto; /* Enable vertical scrolling */
-    max-height: 80vh; /* Limit the height to 80% of the viewport */
-    touch-action: auto; /* Enable touch interactions */
-    resize: none; /* Prevent manual resizing */
-    width: 100vw;
-    padding-top: 1vh;
-    padding-bottom: 0.5vh;
-    padding-left: 1vw;
-    padding-right: 1vw;
-    animation: slideIn 0.5s ease-in-out;
-  }
-  
+
   .chat-topic-chat-container {
     background-color: rgba(0, 0, 0, 0);
     color: white;
