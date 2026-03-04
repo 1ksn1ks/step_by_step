@@ -58,16 +58,11 @@ setInterval(() => {
         scaleFactorNFT: bot.scaleFactorNFT
     };
 
-}, 3000); // every 60 seconds
+}, 100);
 }
 }
+
 generateModels();
-
-
-
-const renderedModels = [];  // will contain { model: THREE.Object3D, peer_id, ... }
-
-let lastTime = performance.now();
 
 
 let P2Pcamera = new THREE.Camera();
@@ -85,89 +80,109 @@ const directions = [
 ];
 
 directions.forEach((dir) => {
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 2.5);
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
   directionalLight.position.set(...dir).normalize();
   P2Pscene.add(directionalLight);
 });
 
 
+
+// Add this outside load3dModels, or inside the customLayer object
+const modelInstances = []; // array of { threeObject, peer_id, index } or Map
+
 export async function load3dModels() {
-const customLayer = {
-  id: "3d-model",
-  type: "custom",
-  renderingMode: "3d",
-  onAdd(map, gl) {
+  const customLayer = {
+    id: "3d-model",
+    type: "custom",
+    renderingMode: "3d",
 
-    this.map = map;
+    onAdd(map, gl) {
+      this.map = map;
 
-    this.renderer = new THREE.WebGLRenderer({
-      canvas: map.getCanvas(),
-      context: gl,
-      antialias: true,
-    });
+      this.renderer = new THREE.WebGLRenderer({
+        canvas: map.getCanvas(),
+        context: gl,
+        antialias: true,
+      });
+      this.renderer.autoClear = false;
 
-    this.renderer.autoClear = false;
+      const loader = new GLTFLoader();
+      loader.setDRACOLoader(dracoLoader);
 
+      models.forEach((modelData, index) => {
+        loader.load(modelData.url, (gltf) => {
+          const threeModel = gltf.scene;
 
-    const loader = new GLTFLoader();
-    loader.setDRACOLoader(dracoLoader);
+          // Initial scale + centering logic (same as before)
+          const box = new THREE.Box3().setFromObject(threeModel);
+          const modelSize = new THREE.Vector3();
+          box.getSize(modelSize);
 
+          const boundingBoxSize = new THREE.Vector3(50000, 50000, 50000);
+          const scaleFactor = Math.min(
+            boundingBoxSize.x / modelSize.x,
+            boundingBoxSize.y / modelSize.y,
+            boundingBoxSize.z / modelSize.z
+          );
 
-    models.forEach(({ url, origin, altitude, scaleFactorNFT }) => {
-      loader.load(url, (gltf) => {
-        const model = gltf.scene;
-        P2Pscene.add(model);
+          const finalScale = scaleFactor * modelData.scaleFactorNFT;
+          threeModel.scale.set(finalScale, finalScale, finalScale);
 
-        // Calculate the model's bounding box
-        const box = new THREE.Box3().setFromObject(model);
-        const modelSize = new THREE.Vector3();
-        box.getSize(modelSize);
+          // Center vertically (bottom-aligned or centered – your choice)
+          const modelHeight = modelSize.y * scaleFactor;
+          const yOffset = (boundingBoxSize.y - modelHeight) / 2;
+          threeModel.position.set(0, -yOffset, 0);   // local offset
 
-        // Define the desired bounding box dimensions
-        const boundingBoxSize = new THREE.Vector3(10000, 10000, 10000); // Width, Height, Depth
+          P2Pscene.add(threeModel);
 
-        // Calculate the scale factor to fit the model within the bounding box
-        const scaleFactor = Math.min(
-          boundingBoxSize.x / modelSize.x,
-          boundingBoxSize.y / modelSize.y,
-          boundingBoxSize.z / modelSize.z
+          // Store reference
+          modelInstances.push({
+            threeObject: threeModel,
+            peer_id: modelData.peer_id,
+            index: index,   // or just use peer_id if unique
+            finalScale:finalScale
+          });
+
+          // Optional: trigger repaint once loaded
+          this.map.triggerRepaint();
+        });
+      });
+    },
+
+    render(gl, args) {
+      // Critical part: update ALL models' world matrices every frame
+      modelInstances.forEach(({ threeObject, index, finalScale }) => {
+        const data = models[index];  // always read latest data
+        if (!data) return;
+
+        // Get current matrix from map for this lon/lat/alt
+        const modelMatrixArray = this.map.transform.getMatrixForModel(
+          data.origin,     // [lon, lat]
+          data.altitude
         );
 
-        // Apply the scale to the model
-        model.scale.set(scaleFactor*scaleFactorNFT, scaleFactor*scaleFactorNFT, scaleFactor*scaleFactorNFT);
+        // Convert to THREE.Matrix4
+        const transformMatrix = new THREE.Matrix4().fromArray(modelMatrixArray);
 
-          // Calculate the transformation matrix for each model's location and altitude
-          const modelMatrix = this.map.transform.getMatrixForModel(origin, altitude);
+        // Optional extra scale/rotation if needed (you had ×5 before)
+        transformMatrix.scale(new THREE.Vector3(finalScale, finalScale, finalScale));
 
-          // Apply the transformation matrix to the model
-          const modelTransformMatrix = new THREE.Matrix4()
-            .fromArray(modelMatrix)
-            .scale(new THREE.Vector3(5, 5, 5)); // Example scaling
-
-          // Adjust the model's position to the bottom of the bounding box
-          const modelHeight = modelSize.y * scaleFactor;
-          const boundingBoxHeight = boundingBoxSize.y;
-          const yOffset = (boundingBoxHeight - modelHeight) / 2;
-          model.position.set(0, -yOffset, 0);
-
-          model.applyMatrix4(modelTransformMatrix);
+        threeObject.matrix.copy(transformMatrix);
+        threeObject.matrixAutoUpdate = false;
       });
-    });
-  },
-  render(gl, args) {
-    const mapProjectionMatrix = new THREE.Matrix4().fromArray(
-      args.defaultProjectionData.mainMatrix
-    );
 
-    P2Pcamera.projectionMatrix = mapProjectionMatrix;
+      const mapProjectionMatrix = new THREE.Matrix4().fromArray(
+        args.defaultProjectionData.mainMatrix
+      );
+      P2Pcamera.projectionMatrix = mapProjectionMatrix;
+      P2Pcamera.matrixWorldInverse.identity(); // usually needed for custom layers
 
-    this.renderer.resetState();
-    this.renderer.render(P2Pscene, P2Pcamera);
-    this.map.triggerRepaint();
+      this.renderer.resetState();
+      this.renderer.render(P2Pscene, P2Pcamera);
 
-  },
+      this.map.triggerRepaint();
+    }
+  };
+
+  return customLayer;
 }
-return customLayer;
-};
-
-load3dModels()
