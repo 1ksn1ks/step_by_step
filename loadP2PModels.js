@@ -9,7 +9,7 @@ dracoLoader.setDecoderPath('node_modules/three/examples/jsm/libs/draco/');
 
 function generateModels() {
     // Generate 100 unique bot peers
-for (let i = 0; i < 100; i++) {
+for (let i = 0; i < 1000; i++) {
     const modelIndex = i; // or use a unique key if not sequential
     const peer_id = `bot_${i}`; // Unique ID: bot_0, bot_1, ..., bot_99
 
@@ -39,7 +39,7 @@ const urls = [
 
     // After initial creation, start live updates
 setInterval(() => {
-    const randomBotIndex = Math.floor(Math.random() * 100);
+    const randomBotIndex = Math.floor(Math.random() * 1000);
     const bot = models[randomBotIndex];
 
     // Slight movement (e.g., ±0.1° lat/lon, ±1000m altitude)
@@ -58,7 +58,7 @@ setInterval(() => {
         scaleFactorNFT: bot.scaleFactorNFT
     };
 
-}, 1000);
+}, 5000);
 }
 }
 
@@ -85,18 +85,18 @@ directions.forEach((dir) => {
   P2Pscene.add(directionalLight);
 });
 
-
-// ────────────────────────────────────────────────
-// Global / module-level (outside the function)
-// ────────────────────────────────────────────────
-const modelInstances = []; // will hold { threeObject, peer_id, index, finalScale, animState }
+// Global/module-level variables (keep these outside the function)
+const modelInstances = [];
+let isLoading = false;
 
 export async function load3dModels() {
-  // If not already created — do it once
   if (!P2Pscene) {
     P2Pscene = new THREE.Scene();
-    P2Pcamera = new THREE.Camera(); // dummy — we'll override matrices anyway
+    P2Pcamera = new THREE.Camera(); // dummy camera — matrices overridden later
   }
+
+  if (isLoading) return; // prevent double loading
+  isLoading = true;
 
   const customLayer = {
     id: "3d-model",
@@ -113,59 +113,98 @@ export async function load3dModels() {
       });
       this.renderer.autoClear = false;
 
+      // We start loading models after layer is added
+      this.startLoadingModels();
+    },
+
+    // We'll define this method below
+    startLoadingModels() {
+      // ────────────────────────────────────────────────
+      //   BATCH LOADING SETTINGS
+      // ────────────────────────────────────────────────
+      const BATCH_SIZE = 80;                 // 50–120 usually safe range
+      const DELAY_BETWEEN_BATCHES_MS = 1000; // 800–1800 ms depending on device
+
       const loader = new GLTFLoader();
       loader.setDRACOLoader(dracoLoader);
 
-      models.forEach((modelData, index) => {
-        loader.load(modelData.url, (gltf) => {
-          const threeModel = gltf.scene;
+      const loadBatch = async (startIdx) => {
+        const end = Math.min(startIdx + BATCH_SIZE, models.length);
+        console.log(`Loading batch: models ${startIdx} – ${end-1}  (${end - startIdx} models)`);
 
-          // Compute scale + centering (same as before)
-          const box = new THREE.Box3().setFromObject(threeModel);
-          const modelSize = new THREE.Vector3();
-          box.getSize(modelSize);
+        const batchPromises = [];
 
-          const boundingBoxSize = new THREE.Vector3(50000, 50000, 50000);
-          const scaleFactor = Math.min(
-            boundingBoxSize.x / modelSize.x,
-            boundingBoxSize.y / modelSize.y,
-            boundingBoxSize.z / modelSize.z
-          );
+        for (let i = startIdx; i < end; i++) {
+          const modelData = models[i];
+          if (!modelData?.url) continue;
 
-          const finalScale = scaleFactor * (modelData.scaleFactorNFT || 1);
+          const promise = loader.loadAsync(modelData.url)
+            .then((gltf) => {
+              const threeModel = gltf.scene;
 
-          threeModel.scale.set(finalScale, finalScale, finalScale);
+              // ── Compute scale & centering ───────────────────────────────
+              const box = new THREE.Box3().setFromObject(threeModel);
+              const modelSize = new THREE.Vector3();
+              box.getSize(modelSize);
 
-          // Center vertically (bottom or center — adjust yOffset as needed)
-          const modelHeight = modelSize.y * finalScale;
-          const yOffset = modelHeight / 2; // ← changed to center; use 0 for bottom-aligned
-          threeModel.position.set(0, -yOffset, 0);
+              const maxBox = new THREE.Vector3(50000, 50000, 50000);
+              const scaleFactor = Math.min(
+                maxBox.x / modelSize.x,
+                maxBox.y / modelSize.y,
+                maxBox.z / modelSize.z
+              );
 
-          P2Pscene.add(threeModel);
+              const finalScale = scaleFactor * (modelData.scaleFactorNFT || 1);
+              threeModel.scale.set(finalScale, finalScale, finalScale);
 
-          // Store instance with animation state
-          modelInstances.push({
-            threeObject: threeModel,
-            peer_id: modelData.peer_id,
-            index,
-            finalScale,
-            prevMatrix: new THREE.Matrix4(),
-            targetMatrix: new THREE.Matrix4(),
-            animStartTime: 0,
-            animDurationMs: 500,
-            isAnimating: false,
-            lastKnownOrigin: null,
-            lastKnownAltitude: null,
-            opacity: 0,           // ← new
-            opacityTarget: 1,     // ← new
-            fadeStartTime: 0,
-            fadeDurationMs: 600   // a bit longer than position anim looks nice
-          });
+              const modelHeight = modelSize.y * finalScale;
+              const yOffset = modelHeight / 2; // center; use 0 for bottom-aligned
+              threeModel.position.set(0, -yOffset, 0);
 
-          // Optional first repaint
-          map.triggerRepaint();
-        });
-      });
+              P2Pscene.add(threeModel);
+
+              // Store instance data
+              modelInstances.push({
+                threeObject: threeModel,
+                peer_id: modelData.peer_id,
+                index: i,
+                finalScale,
+                prevMatrix: new THREE.Matrix4(),
+                targetMatrix: new THREE.Matrix4(),
+                animStartTime: 0,
+                animDurationMs: 500,
+                isAnimating: false,
+                lastKnownOrigin: null,
+                lastKnownAltitude: null,
+                opacity: 0,
+                opacityTarget: 1,
+                fadeStartTime: 0,
+                fadeDurationMs: 600
+              });
+            })
+            .catch(err => {
+              console.warn(`Failed to load model ${i}: ${modelData.url}`, err);
+            });
+
+          batchPromises.push(promise);
+        }
+
+        await Promise.all(batchPromises);
+
+// Instead of immediate trigger
+setTimeout(() => this.map?.triggerRepaint(), 80);   // 1-2 frames delay
+
+        const nextStart = end;
+        if (nextStart < models.length) {
+          setTimeout(() => loadBatch(nextStart), DELAY_BETWEEN_BATCHES_MS);
+        } else {
+          console.log("Finished queuing all models");
+          isLoading = false;
+        }
+      };
+
+      // Start first batch with tiny delay
+      setTimeout(() => loadBatch(0), 200);
     },
 
     render(gl, args) {
@@ -300,9 +339,7 @@ export async function load3dModels() {
         threeObject.matrixAutoUpdate = false;
       }
 
-        // ─── Apply to object ────────────────────────────────────
-        threeObject.matrix.copy(matrixToApply);
-        threeObject.matrixAutoUpdate = false;
+
       });
 
       // Camera / projection setup (unchanged)
