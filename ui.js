@@ -1,6 +1,6 @@
 
 export const everythinginsideoptionsbuttons = [
-    "toggle-controls-btn",
+    // "toggle-controls-btn",
     "toggle-your-fov-btn",
     "toggle-visibility-controls-btn",
     "toggle-toolbar-btn"

@@ -651,9 +651,9 @@ html, body {
       background: #fff; /* White background, matches default */
       border-radius: 4px; /* Rounded corners */
       box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); /* Subtle shadow */
-      margin: 6vh 10px 10px 10px; /* 5vh top margin, 10px others */
+      margin: 5vh 10px 10px 10px; /* 5vh top margin, 10px others */
       border-radius: 50%;
-      display: none;
+      display: block;
   }
   
   .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-zoom-in,

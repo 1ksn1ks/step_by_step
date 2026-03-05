@@ -95,36 +95,36 @@ export function CloseALL() {
     });
   });
   
-  let toggleControlsPressCount = 0;
+  // let toggleControlsPressCount = 0;
   
-  document.getElementById("toggle-controls-btn").addEventListener("click", (event) => {
-    event.stopPropagation();
-    CloseALL();
-    const speedSlider = document.getElementById("speed-slider");
-    const maplibreglCtrlGroup = document.querySelector(".maplibregl-ctrl.maplibregl-ctrl-group");
-    toggleControlsPressCount++;
-    if (toggleControlsPressCount === 1) {
-      speedSlider.style.display = "block";
-      if (maplibreglCtrlGroup) maplibreglCtrlGroup.style.display = "block";
-    } else if (toggleControlsPressCount > 3) {
-      speedSlider.style.display = "none";
-      if (maplibreglCtrlGroup) maplibreglCtrlGroup.style.display = "none";
-      toggleControlsPressCount = 0;
-    }
-    const zoomControls = document.getElementById("zoom-controls");
-    const leftDpad = document.getElementById("left-dpad");
-    const rightDpad = document.getElementById("right-dpad");
-    const isVisible = getComputedStyle(zoomControls).display !== "none";
-    if (isVisible) {
-      zoomControls.setAttribute("style", "display: none !important");
-      leftDpad.setAttribute("style", "display: none !important");
-      rightDpad.setAttribute("style", "display: none !important");
-    } else {
-      zoomControls.setAttribute("style", "display: flex !important; z-index: 2000 !important; opacity: 1 !important; visibility: visible !important;");
-      leftDpad.setAttribute("style", "display: grid !important; z-index: 2000 !important; opacity: 1 !important; visibility: visible !important;");
-      rightDpad.setAttribute("style", "display: grid !important; z-index: 2000 !important; opacity: 1 !important; visibility: visible !important;");
-    }
-  });
+  // document.getElementById("toggle-controls-btn").addEventListener("click", (event) => {
+  //   event.stopPropagation();
+  //   CloseALL();
+  //   const speedSlider = document.getElementById("speed-slider");
+  //   const maplibreglCtrlGroup = document.querySelector(".maplibregl-ctrl.maplibregl-ctrl-group");
+  //   toggleControlsPressCount++;
+  //   if (toggleControlsPressCount === 1) {
+  //     speedSlider.style.display = "block";
+  //     if (maplibreglCtrlGroup) maplibreglCtrlGroup.style.display = "block";
+  //   } else if (toggleControlsPressCount > 3) {
+  //     speedSlider.style.display = "none";
+  //     if (maplibreglCtrlGroup) maplibreglCtrlGroup.style.display = "none";
+  //     toggleControlsPressCount = 0;
+  //   }
+  //   const zoomControls = document.getElementById("zoom-controls");
+  //   const leftDpad = document.getElementById("left-dpad");
+  //   const rightDpad = document.getElementById("right-dpad");
+  //   const isVisible = getComputedStyle(zoomControls).display !== "none";
+  //   if (isVisible) {
+  //     zoomControls.setAttribute("style", "display: none !important");
+  //     leftDpad.setAttribute("style", "display: none !important");
+  //     rightDpad.setAttribute("style", "display: none !important");
+  //   } else {
+  //     zoomControls.setAttribute("style", "display: flex !important; z-index: 2000 !important; opacity: 1 !important; visibility: visible !important;");
+  //     leftDpad.setAttribute("style", "display: grid !important; z-index: 2000 !important; opacity: 1 !important; visibility: visible !important;");
+  //     rightDpad.setAttribute("style", "display: grid !important; z-index: 2000 !important; opacity: 1 !important; visibility: visible !important;");
+  //   }
+  // });
   
   document.getElementById("toggle-visibility-controls-btn").addEventListener("click", function(event) {
     event.stopPropagation();
