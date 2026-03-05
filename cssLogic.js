@@ -251,23 +251,15 @@ export function CloseALL() {
     removeUfoModel();
   });
   
-  document.getElementById("Create_Marker").addEventListener("click", (event) => {
+  document.getElementById("Draw_Marker_Polygon").addEventListener("click", (event) => {
     event.stopPropagation();
     CloseALL();
-    document.getElementById("marker-column").style.display = "block";
-    document.getElementById("marker-column-container").style.display = "block";
+    document.getElementById("draw-column").style.display = "block";
+    document.getElementById("draw-column-container").style.display = "block";
     OpenToggleToolbar();
     removeUfoModel();
   });
   
-  document.getElementById("Create_Polygon").addEventListener("click", (event) => {
-    event.stopPropagation();
-    CloseALL();
-    document.getElementById("polygon-column").style.display = "block";
-    document.getElementById("polygon-column-container").style.display = "block";
-    OpenToggleToolbar();
-    removeUfoModel();
-  });
   
   document.getElementById("Set_Rules").addEventListener("click", (event) => {
     event.stopPropagation();
@@ -790,6 +782,36 @@ export function CloseALL() {
     document.getElementById("new-keys-from-create").style.display = "none";
     document.getElementById("hide-new-keys-from-create").style.display = "none";
     document.getElementById("show-new-keys-from-create").style.display = "block";
+  });
+
+  document.getElementById("show-draw-marker").addEventListener("click", (event) => {
+    document.getElementById("polygon-column-container").style.display = "none";
+    document.getElementById("marker-column-container").style.display = "block";
+    document.getElementById("hide-draw-marker").style.display = "block";
+    document.getElementById("show-draw-marker").style.display = "none";
+    document.getElementById("hide-draw-polygon").style.display = "none";
+    document.getElementById("show-draw-polygon").style.display = "block";
+  });
+  
+  document.getElementById("hide-draw-marker").addEventListener("click", (event) => {
+    document.getElementById("marker-column-container").style.display = "none";
+    document.getElementById("hide-draw-marker").style.display = "none";
+    document.getElementById("show-draw-marker").style.display = "block";
+  });
+  
+  document.getElementById("show-draw-polygon").addEventListener("click", (event) => {
+    document.getElementById("marker-column-container").style.display = "none";
+    document.getElementById("polygon-column-container").style.display = "block";
+    document.getElementById("hide-draw-polygon").style.display = "block";
+    document.getElementById("show-draw-polygon").style.display = "none";
+    document.getElementById("hide-draw-marker").style.display = "none";
+    document.getElementById("show-draw-marker").style.display = "block";
+  });
+  
+  document.getElementById("hide-draw-polygon").addEventListener("click", (event) => {
+    document.getElementById("polygon-column-container").style.display = "none";
+    document.getElementById("hide-draw-polygon").style.display = "none";
+    document.getElementById("show-draw-polygon").style.display = "block";
   });
   
   

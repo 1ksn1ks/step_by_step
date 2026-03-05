@@ -58,11 +58,9 @@
         </div>
         <div class="toolbar-column" id="Load_Everything">Load
         </div>
+        <div class="toolbar-column" id="Draw_Marker_Polygon">Draw
+        </div>
         <div class="toolbar-column" id="Create_New_Topic">Create
-        </div>
-        <div class="toolbar-column" id="Create_Marker">Marker
-        </div>
-        <div class="toolbar-column" id="Create_Polygon">Polygon
         </div>
         <div class="toolbar-column" id="Set_Rules">Set Rules
         </div>
@@ -280,7 +278,6 @@
         </div>
       </div>
       
-
       <div id="create-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="create-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
       
@@ -382,10 +379,25 @@
       
         </div>
       </div>
+
+      <div id="draw-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <div id="draw-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
       
       
-      <div id="marker-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
-        <div id="marker-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
+          <div style="display: flex;">
+            <button id="show-draw-marker" class="toolbar-column-first-settings-btns">Marker
+            </button>
+            <button id="hide-draw-marker" style="display: none;" class="toolbar-column-first-settings-btns">Marker
+            </button>
+            <button id="show-draw-polygon" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Polygon
+            </button>
+            <button id="hide-draw-polygon" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Polygon
+            </button>
+          </div>
+          
+          
+        <div id="marker-column-container" style="display: none;">
+          <label for="marker" style="font-size: 2vh; padding: 0px;">Marker:
           <div class="toolbar-group">
             <textarea class="toolbar-column" type="text" id="input-field-2-0" placeholder="Domain/Topic ID"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
@@ -463,11 +475,11 @@
       
       
         </div>
-      </div>
       
-      <div id="polygon-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
-        <div id="polygon-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
+        <div id="polygon-column-container" style="display: none;">
           
+          <label for="polygon" style="font-size: 2vh; padding: 0px;">Polygon:
+
           <div class="toolbar-group">
             <textarea class="toolbar-column" type="text" id="input-field-3-0" placeholder="Domain/Topic ID"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
@@ -545,6 +557,8 @@
         </div>
             
         </div>
+
+      </div>
       </div>
       
       <div id="rules-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
