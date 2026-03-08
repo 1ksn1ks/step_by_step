@@ -37,6 +37,10 @@
         </button>
         <button id="toggle-encrypted-chat-btn" class="options-and-topic" style="margin-left: 1vw;">E2EE CHAT
         </button>
+        <button id="show-manual" class="info-button" style="margin-left: 1vw;">𝒊 ✅
+        </button>
+        <button id="hide-manual" class="info-button" style="margin-left: 1vw; display: none;">𝒊 ⛔
+        </button>
       </div>
       
       
@@ -71,6 +75,41 @@
         <div class="toolbar-column" id="Stack_topic_IDs">Stack topic IDs
         </div>
       </div>
+
+
+
+
+<div id="edit-profile-help-overlay" class="info-overlay">
+  <div class="info-overlay-inner" onclick="event.stopPropagation();">
+
+    <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Profile Editor</h3>
+
+
+    <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
+      <li>here u can change your profile picture by inputing web location (URL) of it
+      </li>
+      <li>username by inputing new username and saving
+      </li>
+      <li>topic id name is used add/change the name of topic inside "Load"
+      </li>
+      <li>topicID to PFP is used to link topic id to your profile picture which opens given Topic inside "Load" if PFP is pressed
+      </li>
+      <li>CLICK2LINK is used to link any given URL to your username (u can advertise yourself easy)
+      </li>
+      <li>DOMAIN is used to give a name to topicID globally, this way u can use topic by using domain also
+      </li>
+    </ul>
+
+    <div style="margin-top: 3vh; text-align: center;">
+      <button class="info-overlay-close-button-1"
+      onclick="document.getElementById('edit-profile-help-overlay').style.display='none'">Got it – let's go!</button>
+    </div>
+
+    <div class="info-overlay-close-button-2"
+     onclick="document.getElementById('edit-profile-help-overlay').style.display='none'">×</div>
+
+  </div>
+</div>
       
       <div id="Edit_Profile-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="Edit_Profile-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
@@ -168,6 +207,35 @@
             <button class="toolbar-column-btns" id="button5" style="margin-top: 0.5vh;">Add 28 days to domain
             </button>
           </div>
+      
+        </div>
+      </div>
+
+
+      <div id="load-options-help-overlay" class="info-overlay">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+      
+          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Load Options</h3>
+      
+          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
+            <li>here u can load given topicID or domain (if it's linked)</li>
+            <li>bellow will load topic / topics that are linked to that one domain (stack of topic ids) with their names given by their creator</li>
+            <li>u can also filter loaded domain / topic / topics by:
+              <ul style="padding-left: 6vw; margin: 1vh 0;">
+                <li>blocking user / users</li>
+                <li>by time (date range)</li>
+                <li>loading only from specific user / users</li>
+              </ul>
+            </li>
+          </ul>
+      
+          <div style="margin-top: 3vh; text-align: center;">
+            <button class="info-overlay-close-button-1"
+             onclick="document.getElementById('load-options-help-overlay').style.display='none'">Got it – let's go!</button>
+          </div>
+      
+          <div class="info-overlay-close-button-2"
+           onclick="document.getElementById('load-options-help-overlay').style.display='none'">×</div>
       
         </div>
       </div>
@@ -277,6 +345,33 @@
       
         </div>
       </div>
+
+      <div id="create-topic-help-overlay" class="info-overlay">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+      
+          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Create Topic</h3>
+      
+          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
+            <li>here u can create new topic ID / new pair of keys<br>(topics must be stacked: TOOLBAR > stack topic ids)</li>
+            <li>Admins are used to dictate rules of created topic<br>(to change later u MUST save PRIVATE KEY somewhere safe)</li>
+            <li>Keys are also used in E2EE chat:
+              <ul style="padding-left: 6vw; margin: 1vh 0;">
+                <li>share public key to lock the messages</li>
+                <li>PRIVATE key is used to unlock those LOCKED messages</li>
+              </ul>
+            </li>
+          </ul>
+      
+          <div style="margin-top: 3vh; text-align: center;">
+            <button class="info-overlay-close-button-1"
+             onclick="document.getElementById('create-topic-help-overlay').style.display='none'">Got it – let's go!</button>
+          </div>
+      
+          <div class="info-overlay-close-button-2"
+           onclick="document.getElementById('create-topic-help-overlay').style.display='none'">×</div>
+      
+        </div>
+      </div>
       
       <div id="create-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="create-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
@@ -376,6 +471,40 @@
           <button id="generate-private-and-public-key" class="toolbar-column-btns" style="display: block;">Generate
           </button>
         </div>
+      
+        </div>
+      </div>
+
+      
+      <div id="map-draw-help-overlay" class="info-overlay">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+      
+          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Map Drawing</h3>
+      
+          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
+            <li>here u can draw marker and polygon to the map<br>(check rules for given topic "Rules",<br>u might have to own some NFTs to be able to write on given topic,<br>which is predefined by topic creators)</li>
+            <li>u can create new topic inside TOOLBAR > Create</li>
+            <li>"Domain/Topic ID"<br>- is web location where u want to save data</li>
+            <li>"Number of marker/polygon"<br>- is used to give some reference to them and based on that number u can delete/change them</li>
+            <li>"coordinates"<br>- are used to give them location where from/to on map</li>
+            <li>"Optional settings"<br>- here u can change:
+              <ul style="padding-left: 6vw; margin: 1vh 0;">
+                <li>cover photo (what is seen on the map)</li>
+                <li>Title is located inside popup (which is opened when marker/polygon is pressed)</li>
+                <li>image URL is located inside popup (which is opened when marker/polygon is pressed)</li>
+                <li>message is located inside popup (which is opened when marker/polygon is pressed)</li>
+              </ul>
+            </li>
+            <li>"Delete marker/polygon"<br>- is used to delete marker/polygon by inputing number and Domain/Topic ID where is located</li>
+          </ul>
+      
+          <div style="margin-top: 3vh; text-align: center;">
+            <button class="info-overlay-close-button-1"
+             onclick="document.getElementById('map-draw-help-overlay').style.display='none'">Got it – let's go!</button>
+          </div>
+      
+          <div class="info-overlay-close-button-2"
+           onclick="document.getElementById('map-draw-help-overlay').style.display='none'">×</div>
       
         </div>
       </div>
@@ -560,6 +689,31 @@
 
       </div>
       </div>
+
+      <div id="topic-rules-help-overlay" class="info-overlay">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+      
+          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Topic Rules</h3>
+      
+          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
+            <li>Here u can dictate which markers/polygons will be shown when global users search your topic</li>
+            <li>These rules are directly tied to Domain/TopicID</li>
+            <li>THEY COME IN PAIR AND OVERWRITE LAST SET</li>
+            <li>u can set which NFT user has to have and how much messages per each NFT owned can they post to that topic</li>
+            <li>"max size" is max size of polygon for NFT user has to own</li>
+            <li>input Domain/TopicID and press "Load Topic Rules" to read current given rules</li>
+          </ul>
+      
+          <div style="margin-top: 3vh; text-align: center;">
+            <button class="info-overlay-close-button-1"
+             onclick="document.getElementById('topic-rules-help-overlay').style.display='none'">Got it – let's go!</button>
+          </div>
+      
+          <div class="info-overlay-close-button-2"
+           onclick="document.getElementById('topic-rules-help-overlay').style.display='none'">×</div>
+      
+        </div>
+      </div>
       
       <div id="rules-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="rules-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
@@ -567,8 +721,6 @@
           <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-rules" placeholder="Domain/Topic ID"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
-          <label for="input-field-rules-for-polygons" style="font-size: 2vh; padding: 0px;">These come in pair and they overwrite last set:
-          </label>
       
           <div class="toolbar-group">
             <div style="margin-bottom: 0px;">
@@ -609,6 +761,30 @@
           onclick="event.stopPropagation();"></div>
           <button id="load-topic-rules-for-topic" class="toolbar-column-btns">Load Topic Rules
           </button>
+      
+        </div>
+      </div>
+
+      <div id="model-sharing-rules-help-overlay" class="info-overlay">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+      
+          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Model Sharing & Rules</h3>
+      
+          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
+            <li>"Domain/Topic ID"<br>- is web location where u want to save data</li>
+            <li>input Domain/TopicID and press "Load Topic Rules" to read current given rules</li>
+            <li>"Model sharing"<br>- u choose which NFT/NFTs have to be owned to participate in location (top right corner) sharing with others</li>
+            <li>"Model size"<br>- u can set different multiplayers for model sizes<br>- lets say u want your VIP members to have 2 times bigger models then rest<br>- u choose which NFT is for VIPs and u set size factor to 2 (it can be any number)</li>
+            <li>"Topic chat"<br>- when users search you Domain/Topic ID inside "TOPIC CHAT" only messages from users with given NFT/NFTs will be shown</li>
+          </ul>
+      
+          <div style="margin-top: 3vh; text-align: center;">
+            <button class="info-overlay-close-button-1"
+             onclick="document.getElementById('model-sharing-rules-help-overlay').style.display='none'">Got it – let's go!</button>
+          </div>
+      
+          <div class="info-overlay-close-button-2"
+           onclick="document.getElementById('model-sharing-rules-help-overlay').style.display='none'">×</div>
       
         </div>
       </div>
@@ -711,6 +887,32 @@
       
         </div>
       </div>
+
+      <div id="edit-topic-rules-help-overlay" class="info-overlay">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+      
+          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Edit Topic Rules</h3>
+      
+          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
+            <li>Domain/Topic ID<br>- is what u want to edit</li>
+            <li>Private key<br>- is used to give approval for change</li>
+            <li>Admins<br>- u define who has the authority to dictate rules for given topic</li>
+            <li>optional fee<br>- is used to make other users pay for each message they want to write onto that topic</li>
+            <li>set amount<br>- u set amount</li>
+            <li>set token id of fee<br>- which token id (which hedera token) u want to receive payment</li>
+            <li>set royalty account<br>- which account receives hedera token/tokens from each paid message</li>
+          </ul>
+      
+          <div style="margin-top: 3vh; text-align: center;">
+            <button class="info-overlay-close-button-1"
+             onclick="document.getElementById('edit-topic-rules-help-overlay').style.display='none'">Got it – let's go!</button>
+          </div>
+      
+          <div class="info-overlay-close-button-2"
+           onclick="document.getElementById('edit-topic-rules-help-overlay').style.display='none'">×</div>
+      
+        </div>
+      </div>
       
       <div id="memo-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="memo-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
@@ -744,6 +946,28 @@
       
           <button id="submit-button-Change_Memo" class="toolbar-column-btns" style="display: block;">Submit
           </button>
+      
+        </div>
+      </div>
+
+      <div id="stack-topic-ids-help-overlay" class="info-overlay">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+      
+          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Stack Topic IDs</h3>
+      
+          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
+            <li>Here u can stack one or multiple topics to given topic</li>
+            <li>"Domain/Topic ID"<br>- is web location where u want to save data</li>
+            <li>"Topic ID/IDs"<br>- here u can input single or multiple topic IDs separated by comma</li>
+          </ul>
+      
+          <div style="margin-top: 3vh; text-align: center;">
+            <button class="info-overlay-close-button-1"
+             onclick="document.getElementById('stack-topic-ids-help-overlay').style.display='none'">Got it – let's go!</button>
+          </div>
+      
+          <div class="info-overlay-close-button-2"
+           onclick="document.getElementById('stack-topic-ids-help-overlay').style.display='none'">×</div>
       
         </div>
       </div>
@@ -816,6 +1040,29 @@
       
       <input type="range" id="speed-slider" min="0.1" max="5" step="0.01" value="1" style="display: none;" />
       
+      <div id="topic-chat-help-overlay" class="info-overlay">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+      
+          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Topic Chat</h3>
+      
+          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
+            <li>Domain/Topic ID<br>- is a place where u want to read/write messages from/on</li>
+            <li>Load<br>- load messages from</li>
+            <li>Options<br>- u can filter loaded messages by blocking user/users and by time and also by loading only from specific user/users</li>
+            <li>Go to the top<br>- goes to the top of the chat</li>
+            <li>Submit Message<br>- requires Domain/Topic ID and message with max 256 characters</li>
+          </ul>
+      
+          <div style="margin-top: 3vh; text-align: center;">
+            <button class="info-overlay-close-button-1"
+             onclick="document.getElementById('topic-chat-help-overlay').style.display='none'">Got it – let's go!</button>
+          </div>
+      
+          <div class="info-overlay-close-button-2"
+           onclick="document.getElementById('topic-chat-help-overlay').style.display='none'">×</div>
+      
+        </div>
+      </div>
       
       <div id="topic-chat-container" class="topic-chat-container" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
         <div class="chat-topic-chat-container"  onclick="event.stopPropagation();">
@@ -951,6 +1198,31 @@
             <button id="post-msg" class="toolbar-column-btns" style="margin-left: 1vw ">Submit Message
             </button>
           </div>
+      
+        </div>
+      </div>
+
+      <div id="e2ee-chat-help-overlay" class="info-overlay">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+      
+          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use E2EE Chat</h3>
+      
+          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
+            <li>Domain/Topic ID<br>- is a place where u want to read/write messages from/onto</li>
+            <li>Load<br>- if no PRIVATE key inputed = loads pinned public key<br>- loads messages but requires PRIVATE KEY to unlock (wont show otherwise)</li>
+            <li>Options<br>- u can filter loaded messages by blocking user/users and by time and also by loading only from specific user/users</li>
+            <li>Pin<br>- u as admin can pin public key to your topic so that others can lock messages that only u can unlock</li>
+            <li>Go to the top<br>- goes to the top of the chat</li>
+            <li>Submit Message<br>- requires Domain/Topic ID where to write and message with max 256 characters</li>
+          </ul>
+      
+          <div style="margin-top: 3vh; text-align: center;">
+            <button class="info-overlay-close-button-1"
+             onclick="document.getElementById('e2ee-chat-help-overlay').style.display='none'">Got it – let's go!</button>
+          </div>
+      
+          <div class="info-overlay-close-button-2"
+           onclick="document.getElementById('e2ee-chat-help-overlay').style.display='none'">×</div>
       
         </div>
       </div>

@@ -3,7 +3,8 @@ import {
   everythinginsideoptionsbuttons,
   firstlayercolumns, 
   everythinginsideyourfov, 
-  everythinginsidetoolbar
+  everythinginsidetoolbar,
+  everyoverlay
 } from './ui.js'
 import { adjustTextareaHeight } from './adjusttextarea.js';
 import { currentUfoModelInGLTF, globalLoadedTopicIdsWithNames} from './letall.js';
@@ -41,6 +42,8 @@ export let popIsOpen = false;
 export function changePopupState(a){
   popIsOpen = a
 }
+
+export let isinfo = true;
   
 export function CloseALL() {
     everythinginsideoptionsbuttons.forEach(buttonId => {
@@ -55,6 +58,9 @@ export function CloseALL() {
     firstlayercolumns.forEach(buttonId => {
       document.getElementById(buttonId).style.display = "none";
     });
+    everyoverlay.forEach(buttonId => {
+      document.getElementById(buttonId).style.display = "none";
+    });
     document.getElementById("main-toggle-btn").style.display = "block";
     document.getElementById("topic-chat-btn").style.display = "block";
     document.getElementById("toggle-encrypted-chat-btn").style.display = "block";
@@ -63,6 +69,11 @@ export function CloseALL() {
     document.getElementById("encrypted-chat-private-key-container").style.display = "block";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
     document.getElementById("go-to-submit-message-encrypted-chat").style.display = "block";
+    if (isinfo) {
+      document.getElementById("show-manual").style.display = "block";
+    } else {
+      document.getElementById("hide-manual").style.display = "block";
+    }
     if (popIsOpen === false) {
       if (currentUfoModelInGLTF) {
               scene.add(currentUfoModelInGLTF);
@@ -90,9 +101,30 @@ export function CloseALL() {
     document.getElementById("main-toggle-btn").style.display = "none";
     document.getElementById("topic-chat-btn").style.display = "none";
     document.getElementById("toggle-encrypted-chat-btn").style.display = "none";
+
+    if (isinfo) {
+      document.getElementById("show-manual").style.display = "none";
+    } else {
+      document.getElementById("hide-manual").style.display = "none";
+    }
+
     everythinginsideoptionsbuttons.forEach(buttonId => {
       document.getElementById(buttonId).style.display = "flex";
     });
+  });
+
+  document.getElementById("show-manual").addEventListener("click", function(event) {
+    event.stopPropagation();
+    document.getElementById("show-manual").style.display = "none";
+    document.getElementById("hide-manual").style.display = "block";
+    isinfo = false;
+  });
+
+  document.getElementById("hide-manual").addEventListener("click", function(event) {
+    event.stopPropagation();
+    document.getElementById("show-manual").style.display = "block";
+    document.getElementById("hide-manual").style.display = "none";
+    isinfo = true;
   });
   
   // let toggleControlsPressCount = 0;
@@ -223,6 +255,11 @@ export function CloseALL() {
     CloseALL();
     document.getElementById("Edit_Profile-column").style.display = "block";
     document.getElementById("Edit_Profile-column-container").style.display = "block";
+
+    if (isinfo) {
+      document.getElementById("edit-profile-help-overlay").style.display = "block";
+    }
+
     OpenToggleToolbar();
     removeUfoModel();
   });
@@ -237,6 +274,11 @@ export function CloseALL() {
     const loaded_text_area = document.getElementById("loaded-topics");
     loaded_text_area.innerHTML = '';
     loaded_text_area.innerHTML = globalLoadedTopicIdsWithNames.join('<br>');
+
+    if (isinfo) {
+      document.getElementById("load-options-help-overlay").style.display = "block";
+    }
+
     adjustTextareaHeight(loaded_text_area);
     OpenToggleToolbar();
     removeUfoModel();
@@ -247,15 +289,27 @@ export function CloseALL() {
     CloseALL();
     document.getElementById("create-column").style.display = "block";
     document.getElementById("create-column-container").style.display = "block";
+
+    if (isinfo) {
+      document.getElementById("create-topic-help-overlay").style.display = "block";
+    }
+
     OpenToggleToolbar();
     removeUfoModel();
   });
+
+
   
   document.getElementById("Draw_Marker_Polygon").addEventListener("click", (event) => {
     event.stopPropagation();
     CloseALL();
     document.getElementById("draw-column").style.display = "block";
     document.getElementById("draw-column-container").style.display = "block";
+
+    if (isinfo) {
+      document.getElementById("map-draw-help-overlay").style.display = "block";
+    }
+
     OpenToggleToolbar();
     removeUfoModel();
   });
@@ -266,6 +320,11 @@ export function CloseALL() {
     CloseALL();
     document.getElementById("rules-column").style.display = "block";
     document.getElementById("rules-column-container").style.display = "block";
+
+    if (isinfo) {
+      document.getElementById("topic-rules-help-overlay").style.display = "block";
+    }
+
     OpenToggleToolbar();
     removeUfoModel();
   });
@@ -275,6 +334,11 @@ export function CloseALL() {
     CloseALL();
     document.getElementById("utility-column").style.display = "block";
     document.getElementById("utility-column-container").style.display = "block";
+
+    if (isinfo) {
+      document.getElementById("model-sharing-rules-help-overlay").style.display = "block";
+    }
+
     OpenToggleToolbar();
     removeUfoModel();
   });
@@ -284,6 +348,10 @@ export function CloseALL() {
     CloseALL();
     document.getElementById("memo-column").style.display = "block";
     document.getElementById("memo-column-container").style.display = "block";
+
+    if (isinfo) {
+      document.getElementById("edit-topic-rules-help-overlay").style.display = "block";
+    }
     OpenToggleToolbar();
     removeUfoModel();
   });
@@ -293,6 +361,11 @@ export function CloseALL() {
     CloseALL();
     document.getElementById("stack-topic-ids").style.display = "block";
     document.getElementById("stack-topic-ids-container").style.display = "block";
+
+    if (isinfo) {
+      document.getElementById("stack-topic-ids-help-overlay").style.display = "block";
+    }
+
     OpenToggleToolbar();
     removeUfoModel();
   });
@@ -307,6 +380,11 @@ export function CloseALL() {
     document.getElementById("options-from-topic-chat").style.display = "none";
     document.getElementById("show-options-from-topic-chat").style.display = "block";
     document.getElementById("show-options-from-topic-chat-btn").style.display = "none";
+
+    if (isinfo) {
+      document.getElementById("topic-chat-help-overlay").style.display = "block";
+    }
+
     removeUfoModel();
   });
   
@@ -550,6 +628,11 @@ export function CloseALL() {
     document.getElementById("options-from-encrypted-chat").style.display = "none";
     document.getElementById("show-options-from-encrypted-chat").style.display = "block";
     document.getElementById("show-options-from-encrypted-chat-btn").style.display = "none";
+
+    if (isinfo) {
+    document.getElementById("e2ee-chat-help-overlay").style.display = "block";
+    }
+
     removeUfoModel();
   });
   

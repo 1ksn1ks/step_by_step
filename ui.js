@@ -42,3 +42,16 @@ export const everythinginsideoptionsbuttons = [
     "memo-column",
     "stack-topic-ids",
   ];
+
+  export const everyoverlay = [
+    "edit-profile-help-overlay",
+    "load-options-help-overlay",
+    "create-topic-help-overlay",
+    "map-draw-help-overlay",
+    "topic-rules-help-overlay",
+    "model-sharing-rules-help-overlay",
+    "edit-topic-rules-help-overlay",
+    "stack-topic-ids-help-overlay",
+    "topic-chat-help-overlay",
+    "e2ee-chat-help-overlay"
+  ]

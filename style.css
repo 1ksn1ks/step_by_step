@@ -74,6 +74,72 @@ html, body {
     font-size: 1.5vh;
     animation: zoomIn 0.5s ease-in-out;
   }
+
+  
+
+  .info-button {
+    background-color:transparent;
+    color: white;
+    border: none;
+    padding: 0.8vh 1vw;
+    border-radius: 0.8vh;
+    cursor: pointer;
+    font-size: 1.5vh;
+    animation: zoomIn 0.5s ease-in-out;
+  }
+
+
+.info-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1003;
+  background: rgba(0, 0, 0, 0.65); /* semi-dark modal backdrop */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4vh 5vw;
+  cursor: pointer;
+  user-select: none;
+  display:none;
+  top:10vh;
+}
+
+
+.info-overlay-inner {
+  background: #1e1e2e;
+  color: #e0e0ff;
+  border-radius: 12px;
+  padding: 3vh 4vw;
+  max-width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  border: 1px solid #444;
+  cursor: default;
+  position: relative;
+}
+
+.info-overlay-close-button-1 {
+  background: #6366f1;
+  color: white;
+  border: none;
+  padding: 1.2vh 4vw;
+  border-radius: 8px;
+  font-size: 2.1vh;
+  cursor: pointer;
+  min-width: 160px;
+}
+
+.info-overlay-close-button-2 {
+position: absolute;
+top: 1.2vh;
+right: 1.8vw;
+font-size: 3vh;
+color: #888;
+cursor: pointer;
+line-height: 1;
+}
+
   
   .rotation-controls {
     position: fixed;
