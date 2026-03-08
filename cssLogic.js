@@ -186,6 +186,11 @@ export function CloseALL() {
     document.getElementById("model-column-container").style.display = "block";
     document.getElementById("model-column-save").style.display = "block";
     document.getElementById("model-column-container-save").style.display = "block";
+
+    if (isinfo) {
+      document.getElementById("change-model-help-overlay").style.display = "block";
+    }
+    
     OpenToggleYourFov();
   });
   
@@ -196,7 +201,28 @@ export function CloseALL() {
     document.getElementById("crosshair-column-container").style.display = "block";
     document.getElementById("crosshair-column-save").style.display = "block";
     document.getElementById("crosshair-column-container-save").style.display = "block";
+
+    if (isinfo) {
+      document.getElementById("crosshair-settings-help-overlay").style.display = "block";
+    }
+
     OpenToggleYourFov();
+  });
+
+  document.getElementById("change-marker-options").addEventListener("click", (event) => {
+    event.stopPropagation();
+    CloseALL();
+    document.getElementById("marker-options-column").style.display = "block";
+    document.getElementById("marker-options-column-container").style.display = "block";
+    document.getElementById("marker-column-save").style.display = "block";
+    document.getElementById("marker-column-container-save").style.display = "block";
+
+    if (isinfo) {
+      document.getElementById("marker-size-help-overlay").style.display = "block";
+    }
+    
+    OpenToggleYourFov();
+    removeUfoModel();
   });
   
   document.getElementById("change-color-of-main-buttons").addEventListener("click", (event) => {
@@ -206,17 +232,11 @@ export function CloseALL() {
     document.getElementById("main-button-column-container").style.display = "block";
     document.getElementById("main-button-column-save").style.display = "block";
     document.getElementById("main-button-column-container-save").style.display = "block";
-    OpenToggleYourFov();
-    removeUfoModel();
-  });
-  
-  document.getElementById("change-marker-options").addEventListener("click", (event) => {
-    event.stopPropagation();
-    CloseALL();
-    document.getElementById("marker-options-column").style.display = "block";
-    document.getElementById("marker-options-column-container").style.display = "block";
-    document.getElementById("marker-column-save").style.display = "block";
-    document.getElementById("marker-column-container-save").style.display = "block";
+
+    if (isinfo) {
+      document.getElementById("main-buttons-style-help-overlay").style.display = "block";
+    }
+
     OpenToggleYourFov();
     removeUfoModel();
   });
@@ -228,6 +248,11 @@ export function CloseALL() {
     document.getElementById("button-input-column-container").style.display = "block";
     document.getElementById("button-input-column-save").style.display = "block";
     document.getElementById("button-input-column-container-save").style.display = "block";
+
+    if (isinfo) {
+      document.getElementById("main-buttons-advanced-style-help-overlay").style.display = "block";
+    }
+    
     OpenToggleYourFov();
     removeUfoModel();
   });
@@ -239,6 +264,11 @@ export function CloseALL() {
     document.getElementById("topic-chat-column-container").style.display = "block";
     document.getElementById("topic-chat-save").style.display = "block";
     document.getElementById("topic-chat-container-save").style.display = "block";
+    
+    if (isinfo) {
+      document.getElementById("chat-style-help-overlay").style.display = "block";
+    }
+
     OpenToggleYourFov();
     removeUfoModel();
   });

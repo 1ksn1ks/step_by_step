@@ -53,5 +53,11 @@ export const everythinginsideoptionsbuttons = [
     "edit-topic-rules-help-overlay",
     "stack-topic-ids-help-overlay",
     "topic-chat-help-overlay",
-    "e2ee-chat-help-overlay"
+    "e2ee-chat-help-overlay",
+    "change-model-help-overlay",
+    "crosshair-settings-help-overlay",
+    "marker-size-help-overlay",
+    "main-buttons-style-help-overlay",
+    "main-buttons-advanced-style-help-overlay",
+    "chat-style-help-overlay"
   ]
