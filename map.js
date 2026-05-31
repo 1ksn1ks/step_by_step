@@ -55,3 +55,13 @@ export const map = new maplibregl.Map({
   const overlay = document.getElementById('loader-overlay');
   overlay.style.display = 'none';
 
+// Add the geolocation control to the map
+const geolocate = new maplibregl.GeolocateControl({
+  positionOptions: {
+      enableHighAccuracy: true // Forces the phone to use GPS instead of Wi-Fi
+  },
+  trackUserLocation: true, // Automatically keeps the map centered on the user as they move
+  showUserLocation: true   // Displays a blue dot at the user's current location
+});
+
+map.addControl(geolocate);

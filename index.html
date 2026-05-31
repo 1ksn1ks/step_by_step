@@ -76,40 +76,37 @@
         </div>
       </div>
 
+      <div id="edit-profile-help-overlay" class="info-overlay">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+
+          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Profile Editor</h3>
 
 
+          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
+            <li>here u can change your profile picture by inputing web location (URL) of it
+            </li>
+            <li>username by inputing new username and saving
+            </li>
+            <li>topic id name is used add/change the name of topic inside "Load"
+            </li>
+            <li>topicID to PFP is used to link topic id to your profile picture which opens given Topic inside "Load" if PFP is pressed
+            </li>
+            <li>CLICK2LINK is used to link any given URL to your username (u can advertise yourself easy)
+            </li>
+            <li>DOMAIN is used to give a name to topicID globally, this way u can use topic by using domain also
+            </li>
+          </ul>
 
-<div id="edit-profile-help-overlay" class="info-overlay">
-  <div class="info-overlay-inner" onclick="event.stopPropagation();">
+          <div style="margin-top: 3vh; text-align: center;">
+            <button class="info-overlay-close-button-1"
+            onclick="document.getElementById('edit-profile-help-overlay').style.display='none'">Got it – let's go!</button>
+          </div>
 
-    <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Profile Editor</h3>
+          <div class="info-overlay-close-button-2"
+          onclick="document.getElementById('edit-profile-help-overlay').style.display='none'">×</div>
 
-
-    <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-      <li>here u can change your profile picture by inputing web location (URL) of it
-      </li>
-      <li>username by inputing new username and saving
-      </li>
-      <li>topic id name is used add/change the name of topic inside "Load"
-      </li>
-      <li>topicID to PFP is used to link topic id to your profile picture which opens given Topic inside "Load" if PFP is pressed
-      </li>
-      <li>CLICK2LINK is used to link any given URL to your username (u can advertise yourself easy)
-      </li>
-      <li>DOMAIN is used to give a name to topicID globally, this way u can use topic by using domain also
-      </li>
-    </ul>
-
-    <div style="margin-top: 3vh; text-align: center;">
-      <button class="info-overlay-close-button-1"
-      onclick="document.getElementById('edit-profile-help-overlay').style.display='none'">Got it – let's go!</button>
-    </div>
-
-    <div class="info-overlay-close-button-2"
-     onclick="document.getElementById('edit-profile-help-overlay').style.display='none'">×</div>
-
-  </div>
-</div>
+        </div>
+      </div>
       
       <div id="Edit_Profile-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="Edit_Profile-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
@@ -210,7 +207,6 @@
       
         </div>
       </div>
-
 
       <div id="load-options-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
@@ -474,7 +470,6 @@
       
         </div>
       </div>
-
       
       <div id="map-draw-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">

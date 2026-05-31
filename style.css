@@ -712,14 +712,18 @@ line-height: 1;
     font-size: 1.5vh;
     display: none;
   }
+
+  .maplibregl-ctrl-top-right {
+    top: 3vh !important;
+    right: 10px !important;
+}
   
   .maplibregl-ctrl.maplibregl-ctrl-group {
       background: #fff; /* White background, matches default */
       border-radius: 4px; /* Rounded corners */
       box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); /* Subtle shadow */
-      margin: 5vh 10px 10px 10px; /* 5vh top margin, 10px others */
       border-radius: 50%;
-      display: block;
+      margin-top: 2vh;
   }
   
   .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-zoom-in,
@@ -742,25 +746,22 @@ line-height: 1;
       transition: background-color 0.2s; /* Smooth hover transition */
       border-radius: 50%; /* Circular button */
   }
-  
-  
-  .maplibregl-popup {
-    position: fixed !important; /* Viewport-based positioning */
-    top: 50% !important; /* Center vertically */
-    left: 50% !important; /* Center horizontally */
-    transform: translate(-50%, -50%) !important; /* Center both horizontally and vertically */
-    max-width: 80vw !important;
-    width: max-content !important; /* Allow content to dictate width up to max-width */
-    max-height: 70vh !important;
-    box-sizing: border-box; /* Ensure padding/borders don’t increase width */
-    font: 2vh/3vh 'Helvetica Neue', Arial, Helvetica, sans-serif;
-    text-align: left;
-    z-index: 1000 !important; /* Above map elements */
-    border: 0.3vh solid;
-    border-color: #ffffff;
-    border-radius: 1vh;
-    animation: slideIn 0.5s ease-in-out;
+
+  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-geolocate {
+    top: 15vh !important;
+    width: 2vh; /* Standard button size */
+    height: 2vh; /* Square button */
   }
+
+  .maplibregl-ctrl-geolocate {
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+    border-radius: 50%;
+    width: 2vh; /* Standard button size */
+    height: 2vh; /* Square button */
+    cursor: pointer; /* Pointer cursor */
+    display: flex; /* Center icon */
+    justify-content: center;
+}
   
   .maplibregl-popup-content {
     background-color: rgba(0, 0, 0, 0.8);
