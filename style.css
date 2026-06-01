@@ -718,7 +718,6 @@ line-height: 1;
     right: 10px !important;
     display: flex;
     flex-direction: row;
-    gap: 10px; /* Adds spacing between the two button groups */
 }
 
 .custom-geolocate-position {
@@ -759,6 +758,24 @@ line-height: 1;
     cursor: pointer; /* Pointer cursor */
     display: flex; /* Center icon */
     justify-content: center;
+  }
+
+  .maplibregl-popup {
+    position: fixed !important; /* Viewport-based positioning */
+    top: 50% !important; /* Center vertically */
+    left: 50% !important; /* Center horizontally */
+    transform: translate(-50%, -50%) !important; /* Center both horizontally and vertically */
+    max-width: 80vw !important;
+    width: max-content !important; /* Allow content to dictate width up to max-width */
+    max-height: 70vh !important;
+    box-sizing: border-box; /* Ensure padding/borders don’t increase width */
+    font: 2vh/3vh 'Helvetica Neue', Arial, Helvetica, sans-serif;
+    text-align: left;
+    z-index: 1000 !important; /* Above map elements */
+    border: 0.3vh solid;
+    border-color: #ffffff;
+    border-radius: 1vh;
+    animation: slideIn 0.5s ease-in-out;
   }
   
   .maplibregl-popup-content {
