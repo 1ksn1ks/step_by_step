@@ -716,26 +716,27 @@ line-height: 1;
   .maplibregl-ctrl-top-right {
     top: 3vh !important;
     right: 10px !important;
+    display: flex;
+    flex-direction: row;
+    gap: 10px; /* Adds spacing between the two button groups */
+}
+
+.custom-geolocate-position {
+  position: absolute !important;
+  top: 0vh !important;
+  right: 5vh !important;
+  z-index: 10;
 }
   
   .maplibregl-ctrl.maplibregl-ctrl-group {
       background: #fff; /* White background, matches default */
-      border-radius: 4px; /* Rounded corners */
       box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); /* Subtle shadow */
       border-radius: 50%;
-      margin-top: 2vh;
-  }
-  
-  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-zoom-in,
-  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-zoom-out {
-      display: none;
   }
   
   .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-compass {
       width: 2vh; /* Standard button size */
       height: 2vh; /* Square button */
-      background-color: #fff; /* White background */
-      border: none; /* No border */
       cursor: pointer; /* Pointer cursor */
       display: flex; /* Center icon */
       align-items: center;
@@ -745,15 +746,12 @@ line-height: 1;
       background-repeat: no-repeat;
       transition: background-color 0.2s; /* Smooth hover transition */
       border-radius: 50%; /* Circular button */
+      box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); /* Subtle shadow */
   }
 
   .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-geolocate {
-    top: 15vh !important;
     width: 2vh; /* Standard button size */
     height: 2vh; /* Square button */
-  }
-
-  .maplibregl-ctrl-geolocate {
     box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); /* Subtle shadow */
     border-radius: 50%;
     width: 2vh; /* Standard button size */
@@ -761,7 +759,7 @@ line-height: 1;
     cursor: pointer; /* Pointer cursor */
     display: flex; /* Center icon */
     justify-content: center;
-}
+  }
   
   .maplibregl-popup-content {
     background-color: rgba(0, 0, 0, 0.8);

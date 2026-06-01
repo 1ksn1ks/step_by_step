@@ -36,8 +36,14 @@ export const map = new maplibregl.Map({
     map.addLayer(await load3dModels());
     });
   
-  // Add navigation controls (optional, for testing bearing changes)
-  map.addControl(new maplibregl.NavigationControl());
+const navigation = new maplibregl.NavigationControl({
+  showCompass: true,
+  showZoom: false
+});
+
+map.addControl(navigation);
+navigation._container.classList.add('custom-map-control');
+
 
   document.getElementById("copy-coordinates").addEventListener("click", () => {
     event.stopPropagation();
@@ -65,3 +71,5 @@ const geolocate = new maplibregl.GeolocateControl({
 });
 
 map.addControl(geolocate);
+
+geolocate._container.classList.add('custom-geolocate-position');
