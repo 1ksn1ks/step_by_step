@@ -3,8 +3,8 @@ Developing a fully decentralized, open-source social media platform with limitle
 Key Features:
 
 Personalization: 
-Users can customize usernames, profile pictures, and 3D models visible to others via a P2P sharing system.
-They can link URLs to usernames, associate topic IDs with profile pictures, and save personalized UI settings to the Hedera mirror node.
+-Users can customize usernames, profile pictures, and 3D models visible to others via a P2P sharing system.
+-They can link URLs to usernames, associate topic IDs with profile pictures, and save personalized UI settings to the Hedera mirror node.
 
 Geospatial Interaction:
 Users can post markers and polygons on the 3D globe with customizable settings, creating interactive, location-based content.
