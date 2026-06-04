@@ -1,4 +1,5 @@
 Developing a fully decentralized, open-source social media platform with limitless potential, built on the Hedera network.
+<br>
 <br>The app features a 3D globe interface, allowing users to interact with and write data to the Hedera network, with logic to read and display that data seamlessly.
 
 Key Features:
