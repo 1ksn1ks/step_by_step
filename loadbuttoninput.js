@@ -135,7 +135,6 @@ export async function loadButtonInputSettings(a) {
           button.style.fontSize = fontForButtonInput + "vh" ;
           button.style.color = buttonFontColor;
           button.style.height = ButtonInputHeight + "vh";
-          button.style.width = ButtonInputWidth + "%";
           button.addEventListener('mouseover', () => {
               button.style.backgroundColor = onhoverButtonColor;
           });

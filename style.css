@@ -718,14 +718,14 @@ line-height: 1;
     right: 10px !important;
     display: flex;
     flex-direction: row;
-}
+  }
 
-.custom-geolocate-position {
-  position: absolute !important;
-  top: 0vh !important;
-  right: 5vh !important;
-  z-index: 10;
-}
+  .custom-geolocate-position {
+    position: absolute !important;
+    top: 0vh !important;
+    right: 5vh !important;
+    z-index: 10;
+  }
   
   .maplibregl-ctrl.maplibregl-ctrl-group {
       background: #fff; /* White background, matches default */

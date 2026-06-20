@@ -1,7 +1,7 @@
 import { adjustTextareaHeight } from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
 import { getMessages, getAccountNFTs, sendMessage, getTopicInfo } from './hedera';
-import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage } from './sodium' 
+import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
 import { connectedAccount } from './web3';
 import { profilePictures, usernames, click2url } from './loadalladata';
 import { 
@@ -70,6 +70,8 @@ async function loadMessagesFromEncryptedChat() {
     let userInput = document.getElementById("encrypted-chat-topic-id").value.toLowerCase();
     let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
     let topicId;
+    let encryptedPrivateKey;
+    let decryptedPrivateKey;
 
     if (domainEntry && domainEntry.lastMessage) {
       topicId = domainEntry.lastMessage.topic;
@@ -113,36 +115,36 @@ async function loadMessagesFromEncryptedChat() {
 
     const messages = result.messages;
 
-    const PublicKeyContainer = document.getElementById("encrypted-chat-public-key");
-    const PrivateKeyContainer = document.getElementById("encrypted-chat-private-key");
-    const PrivateKeyValue = PrivateKeyContainer.value;
+    const pass = document.getElementById("encrypted-chat-private-key");
 
-    // Try to load public key from messages (backward scan)
+    const w = pass.value;
+
     try {
-      if (PrivateKeyValue.length < 30 && PublicKeyContainer.value.length < 55) {
-        for (let index = messages.length - 1; index >= 0; index--) {
-          const message = messages[index];
-          let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
+      for (let index = messages.length - 1; index >= 0; index--) {
 
-          if (parsedMessage.publicKey && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-            PublicKeyContainer.value = parsedMessage.publicKey;
-            createEmptyStateMessage(messagesContainer, `Loaded Public Key for topic ${topicId}`);
-            adjustTextareaHeight(messagesContainer);
-            adjustTextareaHeight(PublicKeyContainer);
-            break;
-          }
-        }
+        const message = messages[index];
+        let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
+        if (parsedMessage.encryptedPrivateKey && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
 
-        if (PublicKeyContainer.value.length < 20) {
-          createEmptyStateMessage(messagesContainer, 'No public key found');
-          adjustTextareaHeight(messagesContainer);
-          return;
+          encryptedPrivateKey = parsedMessage.encryptedPrivateKey;
+
+          const nonce = parsedMessage.nonce;
+          const salt = parsedMessage.salt;
+          const password = w;
+
+          decryptedPrivateKey = await decryptWithPassword(encryptedPrivateKey, nonce, salt, password);
+
+          break;
+
         }
-      }
+        else {
+          decryptedPrivateKey = w;
+        }
+  
+     }
     } catch (error) {
-      PublicKeyContainer.value = '';
-      createEmptyStateMessage(PublicKeyContainer, 'No public key found');
-      adjustTextareaHeight(PublicKeyContainer);
+      createEmptyStateMessage(messagesContainer, 'wrong password');
+      adjustTextareaHeight(messagesContainer);
       console.error("Error getting public key:", error);
       return;
     }
@@ -192,7 +194,9 @@ async function loadMessagesFromEncryptedChat() {
     let currentMessagesGroupDiv = null;
     let isFirstGroup = true;
 
-    const PrivateKey = parsePrivateKey(PrivateKeyValue);
+
+    const PrivateKey = parsePrivateKey(decryptedPrivateKey);
+
 
     for (const message of messages) {
       try {
@@ -400,7 +404,7 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
   try {
     let userInput = document.getElementById("encrypted-chat-topic-id").value.toLowerCase();
     let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
-    const PublicKey = parsePublicKey(document.getElementById("encrypted-chat-public-key").value);
+    let PublicKey;
     let topicId;
 
     if (domainEntry && domainEntry.lastMessage) {
@@ -408,6 +412,54 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
     } else {
       topicId = userInput;
     }
+
+    const topicAdmin = [];
+    try {
+      const topicInfo = await getTopicInfo(topicId);
+      const memo = topicInfo.memo || "";
+      const parts = memo.split(',');
+      parts.forEach(part => {
+        if (part.trim().startsWith("0.0.")) {
+          topicAdmin.push(part.trim());
+        }
+      });
+    } catch (error) {
+      createEmptyStateMessage(messagesContainer, 'Invalid Topic ID');
+      adjustTextareaHeight(messagesContainer);
+      console.error("Error getting topic info:", error);
+      return;
+    }
+
+    const messagesContainer = document.getElementById("messages-from-encrypted-chat");
+
+
+    const result = await getMessages(topicId);
+    allLoadedMessagesEncryptedChat = [result];
+
+    const messages = result.messages;
+
+
+    try {
+        for (let index = messages.length - 1; index >= 0; index--) {
+          const message = messages[index];
+          let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
+
+          if (parsedMessage.publicKey && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+            PublicKey = parsePublicKey(parsedMessage.publicKey);
+            adjustTextareaHeight(messagesContainer);
+            break;
+          }
+        
+      }
+    } catch (error) {
+      createEmptyStateMessage(messagesContainer, 'No public key found');
+      adjustTextareaHeight(messagesContainer);
+      console.error("Error getting public key:", error);
+      return;
+    }
+
+    console.log(PublicKey)
+
 
     const message = document.getElementById("user-write-message-encrypted-chat").value;
     const encryptedMessage = await encryptMessage(message, PublicKey);
@@ -866,5 +918,147 @@ document.getElementById("load-load-blocks-from-users-encrypted-chat").addEventLi
     console.log("messagesObject", messages);
   } catch (error) {
     console.error("Error loading filters from users:", error);
+  }
+});
+
+document.getElementById("stack-encrypted-chat-set-password-button").addEventListener("click", async () => {
+  try {
+    const userInput = document.getElementById("encrypted-chat-topic-id").value;
+    
+    const privateKey = document.getElementById("encrypted-chat-change-password-key").value; 
+    const newPassword = document.getElementById("encrypted-chat-new-password-key").value;
+
+    if (!privateKey) throw new Error("Private key is required");
+    if (!newPassword) throw new Error("Password is required");
+
+    let topicId = userInput;
+    const domainEntry = loadedDomains.find(entry => entry.domain === userInput);
+    if (domainEntry && domainEntry.lastMessage) {
+      topicId = domainEntry.lastMessage.topic;
+    }
+
+    const result = await encryptWithPassword(privateKey, newPassword);
+
+    const messageobject = {
+      type: "set_encrypted_key",
+      encryptedPrivateKey: result.encrypted,
+      nonce: result.nonce,
+      salt: result.salt
+    };
+
+    const message = JSON.stringify(messageobject);
+    console.log("message", message);
+    
+    await sendMessage(topicId, message);
+
+    console.log("✅ Encrypted private key sent successfully!");
+
+    // Clear fields for security
+    document.getElementById("encrypted-chat-change-password-key").value = "";
+    document.getElementById("encrypted-chat-new-password-key").value = "";
+
+  } catch (error) {
+    console.error("Error:", error.message);
+    alert("Failed to encrypt: " + error.message);
+  }
+});
+
+
+
+document.getElementById("stack-encrypted-chat-change-password-button").addEventListener("click", async () => {
+  try {
+    const userInput = document.getElementById("encrypted-chat-topic-id").value;
+    
+    const oldPass = document.getElementById("encrypted-chat-change-password-key").value; 
+    const newPassword = document.getElementById("encrypted-chat-new-password-key").value;
+
+    let encryptedPrivateKey;
+    let decryptedPrivateKey;
+
+    if (!oldPass) throw new Error("oldPass key is required");
+    if (!newPassword) throw new Error("Password is required");
+
+    let topicId = userInput;
+    const domainEntry = loadedDomains.find(entry => entry.domain === userInput);
+    if (domainEntry && domainEntry.lastMessage) {
+      topicId = domainEntry.lastMessage.topic;
+    }
+
+    const topicAdmin = [];
+    try {
+      const topicInfo = await getTopicInfo(topicId);
+      const memo = topicInfo.memo || "";
+      const parts = memo.split(',');
+      parts.forEach(part => {
+        if (part.trim().startsWith("0.0.")) {
+          topicAdmin.push(part.trim());
+        }
+      });
+    } catch (error) {
+      createEmptyStateMessage(messagesContainer, 'Invalid Topic ID');
+      adjustTextareaHeight(messagesContainer);
+      console.error("Error getting topic info:", error);
+      return;
+    }
+
+
+    const messagesContainer = document.getElementById("messages-from-encrypted-chat");
+
+
+    const allmesages = await getMessages(topicId);
+    allLoadedMessagesEncryptedChat = [allmesages];
+    
+    const messages = allmesages.messages;
+
+    try {
+      for (let index = messages.length - 1; index >= 0; index--) {
+
+        const message = messages[index];
+        let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
+        if (parsedMessage.encryptedPrivateKey && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+
+          encryptedPrivateKey = parsedMessage.encryptedPrivateKey;
+
+          const nonce = parsedMessage.nonce;
+          const salt = parsedMessage.salt;
+          const password = oldPass;
+
+          decryptedPrivateKey = await decryptWithPassword(encryptedPrivateKey, nonce, salt, password);
+
+          break;
+
+        }
+  
+     }
+    } catch (error) {
+      createEmptyStateMessage(messagesContainer, 'wrong password');
+      adjustTextareaHeight(messagesContainer);
+      console.error("Error getting public key:", error);
+      return;
+    }
+
+    const result = await encryptWithPassword(decryptedPrivateKey, newPassword);
+
+    const messageobject = {
+      type: "set_encrypted_key",
+      encryptedPrivateKey: result.encrypted,
+      nonce: result.nonce,
+      salt: result.salt
+    };
+
+    const message = JSON.stringify(messageobject);
+    console.log("message", message);
+    
+    await sendMessage(topicId, message);
+
+    console.log("✅ Encrypted private key sent successfully!");
+
+    // Clear fields for security
+    document.getElementById("encrypted-chat-change-password-key").value = "";
+    document.getElementById("encrypted-chat-new-password-key").value = "";
+
+  } catch (error) {
+    console.error("Error:", error.message);
+    alert("Failed to encrypt: " + error.message);
   }
 });

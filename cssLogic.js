@@ -297,8 +297,10 @@ export function CloseALL() {
   document.getElementById("Load_Everything").addEventListener("click", (event) => {
     event.stopPropagation();
     CloseALL();
-    loadColumnsEverything()
-    loadColumnsShowOptionsload()
+    loadColumnsEverything();
+    loadColumnsHideOptionsload();
+    document.getElementById("show-options-from-load").style.display = "block";
+    document.getElementById("hide-options-from-load").style.display = "none";
     document.getElementById("load-column").style.display = "block";
     document.getElementById("load-column-container").style.display = "block";
     const loaded_text_area = document.getElementById("loaded-topics");
@@ -432,6 +434,13 @@ export function CloseALL() {
     hideAllShowButtonsFromTopicChat()
   });
   
+
+
+
+
+
+
+
   const allShowButtonsFromTopicChat = [
     document.getElementById("time-from-topic-chat"),
     document.getElementById("time-from-topic-chat-filter"),
@@ -514,7 +523,14 @@ export function CloseALL() {
     document.getElementById("show-block-from-topic-chat").style.display = "block";
   });
   
-  
+
+
+
+
+
+
+
+
   
   const allShowButtonsFromEncryptedChat = [
     document.getElementById("time-from-encrypted-chat"),
@@ -530,6 +546,13 @@ export function CloseALL() {
     document.getElementById("hide-block-from-encrypted-chat"),
     document.getElementById("hide-from-from-encrypted-chat"),
     document.getElementById("hide-time-from-encrypted-chat"),
+    document.getElementById("hide-block-change-password-encrypted-chat"),
+    document.getElementById("hide-time-set-password-encrypted-chat"),
+    document.getElementById("encrypted-chat-change-password-key"),
+    document.getElementById("encrypted-chat-new-password-key"),
+    document.getElementById("change-password-encrypted-chat"),
+    document.getElementById("set-password-encrypted-chat"),
+    document.getElementById("encrypted-chat-public-key"),
   ];
   
   function hideAllShowButtonsFromEncryptedChat() {
@@ -544,6 +567,8 @@ export function CloseALL() {
     document.getElementById("show-block-from-encrypted-chat"),
     document.getElementById("show-pin-public-key-from-encrypted-chat"),
     document.getElementById("go-to-submit-message-encrypted-chat"),
+    document.getElementById("show-block-change-password-encrypted-chat"),
+    document.getElementById("show-time-set-password-encrypted-chat"),
   ];
   
   function showAllShowButtonsFromEncryptedChatOptions() {
@@ -606,6 +631,8 @@ export function CloseALL() {
     hideAllShowButtonsFromEncryptedChat()
     showAllShowButtonsFromEncryptedChatOptions()
     document.getElementById("pin-public-key-from-encrypted-chat").style.display = "block";
+    document.getElementById("encrypted-chat-public-key").style.display = "block";
+
     document.getElementById("hide-pin-public-key-from-encrypted-chat").style.display = "block";
     document.getElementById("show-pin-public-key-from-encrypted-chat").style.display = "none";
     document.getElementById("encrypted-chat-private-key-container").style.display = "none";
@@ -617,29 +644,60 @@ export function CloseALL() {
     hideAllShowButtonsFromEncryptedChat()
     showAllShowButtonsFromEncryptedChatOptions()
     document.getElementById("hide-pin-public-key-from-encrypted-chat").style.display = "none";
+    document.getElementById("encrypted-chat-public-key").style.display = "none";
+
     document.getElementById("show-pin-public-key-from-encrypted-chat").style.display = "block";
+    document.getElementById("go-to-submit-message-encrypted-chat").style.display = "block";
+    document.getElementById("encrypted-chat-private-key-container").style.display = "block";
+    document.getElementById("encrypted-chat-chat-container").style.display = "block";
+  });
+
+  document.getElementById("show-block-change-password-encrypted-chat").addEventListener("click", (event) => {
+    hideAllShowButtonsFromEncryptedChat()
+    showAllShowButtonsFromEncryptedChatOptions()
+    document.getElementById("change-password-encrypted-chat").style.display = "block";
+    document.getElementById("encrypted-chat-change-password-key").style.display = "block";
+    document.getElementById("encrypted-chat-new-password-key").style.display = "block";
+    document.getElementById("hide-block-change-password-encrypted-chat").style.display = "block";
+    document.getElementById("show-block-change-password-encrypted-chat").style.display = "none";
+    document.getElementById("encrypted-chat-private-key-container").style.display = "none";
+    document.getElementById("encrypted-chat-chat-container").style.display = "none";
+    document.getElementById("go-to-submit-message-encrypted-chat").style.display = "none";
+    document.getElementById("encrypted-chat-public-key").style.display = "none";
+
+  });
+  
+  document.getElementById("hide-block-change-password-encrypted-chat").addEventListener("click", (event) => {
+    hideAllShowButtonsFromEncryptedChat()
+    showAllShowButtonsFromEncryptedChatOptions()
     document.getElementById("go-to-submit-message-encrypted-chat").style.display = "block";
     document.getElementById("encrypted-chat-public-key").style.display = "block";
     document.getElementById("encrypted-chat-private-key-container").style.display = "block";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
   });
+
+  document.getElementById("show-time-set-password-encrypted-chat").addEventListener("click", (event) => {
+    hideAllShowButtonsFromEncryptedChat()
+    showAllShowButtonsFromEncryptedChatOptions()
+    document.getElementById("set-password-encrypted-chat").style.display = "block";
+    document.getElementById("encrypted-chat-change-password-key").style.display = "block";
+    document.getElementById("encrypted-chat-new-password-key").style.display = "block";
+    document.getElementById("hide-time-set-password-encrypted-chat").style.display = "block";
+    document.getElementById("show-time-set-password-encrypted-chat").style.display = "none";
+    document.getElementById("encrypted-chat-private-key-container").style.display = "none";
+    document.getElementById("encrypted-chat-chat-container").style.display = "none";
+    document.getElementById("go-to-submit-message-encrypted-chat").style.display = "none";
+    document.getElementById("encrypted-chat-public-key").style.display = "none";
+  });
   
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
+  document.getElementById("hide-time-set-password-encrypted-chat").addEventListener("click", (event) => {
+    hideAllShowButtonsFromEncryptedChat()
+    showAllShowButtonsFromEncryptedChatOptions()
+    document.getElementById("go-to-submit-message-encrypted-chat").style.display = "block";
+    document.getElementById("encrypted-chat-public-key").style.display = "block";
+    document.getElementById("encrypted-chat-private-key-container").style.display = "block";
+    document.getElementById("encrypted-chat-chat-container").style.display = "block";
+  });
   
   document.getElementById("toggle-toolbar-btn-btn").addEventListener("click", (event) => {
     event.stopPropagation();
@@ -684,6 +742,13 @@ export function CloseALL() {
   
   });
   
+
+
+
+
+
+
+
   function closePopupColumn3options() {
     document.getElementById("popup-column-3-border").style.display = "none";
     document.getElementById("popup-column-3-number").style.display = "none";
@@ -746,6 +811,10 @@ export function CloseALL() {
   
   
   
+
+
+
+
   
   
   const allOptionsFromNFTUtility = [
@@ -837,41 +906,152 @@ export function CloseALL() {
   });
   
   
-  document.getElementById("show-topic-rules-from-marker").addEventListener("click", (event) => {
-    document.getElementById("loaded-topic-rules-from-marker").style.display = "block";
-    document.getElementById("hide-topic-rules-from-marker").style.display = "block";
-    document.getElementById("show-topic-rules-from-marker").style.display = "none";
+// ==================== HELPER FUNCTIONS (reuse from before) ====================
+
+function showElements(...ids) {
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "block";
   });
-  
-  document.getElementById("hide-topic-rules-from-marker").addEventListener("click", (event) => {
-    document.getElementById("loaded-topic-rules-from-marker").style.display = "none";
-    document.getElementById("hide-topic-rules-from-marker").style.display = "none";
-    document.getElementById("show-topic-rules-from-marker").style.display = "block";
+}
+
+function showElementsFlex(...ids) {
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "flex";
   });
-  
-  document.getElementById("show-optional-settings-marker").addEventListener("click", (event) => {
-    document.getElementById("optional-settings-from-marker").style.display = "block";
-    document.getElementById("hide-optional-settings-from-marker").style.display = "block";
-    document.getElementById("show-optional-settings-marker").style.display = "none";
+}
+
+function hideElements(...ids) {
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
   });
-  
-  document.getElementById("hide-optional-settings-from-marker").addEventListener("click", (event) => {
-    document.getElementById("optional-settings-from-marker").style.display = "none";
-    document.getElementById("hide-optional-settings-from-marker").style.display = "none";
-    document.getElementById("show-optional-settings-marker").style.display = "block";
-  });
-  
-  document.getElementById("show-delete-marker-from-marker").addEventListener("click", (event) => {
-    document.getElementById("delete-marker-from-marker").style.display = "block";
-    document.getElementById("hide-delete-marker-from-marker").style.display = "block";
-    document.getElementById("show-delete-marker-from-marker").style.display = "none";
-  });
-  
-  document.getElementById("hide-delete-marker-from-marker").addEventListener("click", (event) => {
-    document.getElementById("delete-marker-from-marker").style.display = "none";
-    document.getElementById("hide-delete-marker-from-marker").style.display = "none";
-    document.getElementById("show-delete-marker-from-marker").style.display = "block";
-  });
+}
+
+// ==================== MARKER EVENT LISTENERS ====================
+
+document.getElementById("show-topic-rules-from-marker").addEventListener("click", () => {
+  showElements(
+    "loaded-topic-rules-from-marker",
+    "hide-topic-rules-from-marker",
+    "input-field-2-0",
+  );
+  hideElements(
+    "show-topic-rules-from-marker",
+    "input-field-number-of-marker",
+    "input-field-2-3",
+    "input-field-coverimage-marker",
+    "input-field-2-1",
+    "input-field-image-marker",
+    "input-field-2-2",
+    "char-counter-marker",
+    "marker-submit-buttons"
+  );
+
+  hideElements("optional-settings-from-marker", "hide-optional-settings-from-marker");
+  showElements("show-optional-settings-marker");
+
+  hideElements("delete-marker-from-marker", "hide-delete-marker-from-marker");
+  showElements("show-delete-marker-from-marker");
+});
+
+document.getElementById("hide-topic-rules-from-marker").addEventListener("click", () => {
+  hideElements("loaded-topic-rules-from-marker", "hide-topic-rules-from-marker");
+  showElements("show-topic-rules-from-marker");
+
+  showElements(
+    "input-field-number-of-marker",
+    "input-field-2-3",
+    "input-field-coverimage-marker",
+    "input-field-2-1",
+    "input-field-image-marker",
+    "input-field-2-2",
+    "char-counter-marker",
+  );
+
+  showElementsFlex(
+    "marker-submit-buttons"
+  )
+});
+
+document.getElementById("show-optional-settings-marker").addEventListener("click", () => {
+  showElements("optional-settings-from-marker", "hide-optional-settings-from-marker");
+  hideElements("show-optional-settings-marker");
+
+  showElements(
+    "input-field-number-of-marker",
+    "input-field-2-3",
+    "input-field-coverimage-marker",
+    "input-field-2-1",
+    "input-field-image-marker",
+    "input-field-2-2",
+    "char-counter-marker",
+  );
+
+  showElementsFlex(
+    "marker-submit-buttons"
+  )
+
+  hideElements("delete-marker-from-marker", "hide-delete-marker-from-marker");
+  showElements("show-delete-marker-from-marker");
+
+  hideElements("loaded-topic-rules-from-marker", "hide-topic-rules-from-marker");
+  showElements("show-topic-rules-from-marker");
+});
+
+document.getElementById("hide-optional-settings-from-marker").addEventListener("click", () => {
+  hideElements("optional-settings-from-marker", "hide-optional-settings-from-marker");
+  showElements("show-optional-settings-marker");
+
+  hideElements("delete-marker-from-marker", "hide-delete-marker-from-marker");
+  showElements("show-delete-marker-from-marker");
+
+  hideElements("loaded-topic-rules-from-marker", "hide-topic-rules-from-marker");
+  showElements("show-topic-rules-from-marker");
+});
+
+document.getElementById("show-delete-marker-from-marker").addEventListener("click", () => {
+  showElements("delete-marker-from-marker", "hide-delete-marker-from-marker");
+  hideElements("show-delete-marker-from-marker");
+
+  hideElements(
+    "input-field-number-of-marker",
+    "input-field-2-3",
+    "input-field-coverimage-marker",
+    "input-field-2-1",
+    "input-field-image-marker",
+    "input-field-2-2",
+    "char-counter-marker",
+    "marker-submit-buttons"
+  );
+
+  hideElements("optional-settings-from-marker", "hide-optional-settings-from-marker");
+  showElements("show-optional-settings-marker");
+
+  hideElements("loaded-topic-rules-from-marker", "hide-topic-rules-from-marker");
+  showElements("show-topic-rules-from-marker");
+});
+
+document.getElementById("hide-delete-marker-from-marker").addEventListener("click", () => {
+  hideElements("delete-marker-from-marker", "hide-delete-marker-from-marker");
+  showElements("show-delete-marker-from-marker");
+
+  showElements(
+    "input-field-number-of-marker",
+    "input-field-2-3",
+    "input-field-coverimage-marker",
+    "input-field-2-1",
+    "input-field-image-marker",
+    "input-field-2-2",
+    "char-counter-marker",
+  );
+
+  showElementsFlex(
+    "marker-submit-buttons"
+  )
+
+});
   
   document.getElementById("show-new-topic-from-create").addEventListener("click", (event) => {
     document.getElementById("new-topic-from-create").style.display = "block";
@@ -927,45 +1107,117 @@ export function CloseALL() {
     document.getElementById("show-draw-polygon").style.display = "block";
   });
   
-  
-  
-  
-  document.getElementById("show-topic-rules-from-polygon").addEventListener("click", (event) => {
-    document.getElementById("loaded-topic-rules-from-polygon").style.display = "block";
-    document.getElementById("hide-topic-rules-from-polygon").style.display = "block";
-    document.getElementById("show-topic-rules-from-polygon").style.display = "none";
-  });
-  
-  document.getElementById("hide-topic-rules-from-polygon").addEventListener("click", (event) => {
-    document.getElementById("loaded-topic-rules-from-polygon").style.display = "none";
-    document.getElementById("hide-topic-rules-from-polygon").style.display = "none";
-    document.getElementById("show-topic-rules-from-polygon").style.display = "block";
-  });
-  
-  document.getElementById("show-optional-settings-polygon").addEventListener("click", (event) => {
-    document.getElementById("optional-settings-from-polygon").style.display = "block";
-    document.getElementById("hide-optional-settings-from-polygon").style.display = "block";
-    document.getElementById("show-optional-settings-polygon").style.display = "none";
-  });
-  
-  document.getElementById("hide-optional-settings-from-polygon").addEventListener("click", (event) => {
-    document.getElementById("optional-settings-from-polygon").style.display = "none";
-    document.getElementById("hide-optional-settings-from-polygon").style.display = "none";
-    document.getElementById("show-optional-settings-polygon").style.display = "block";
-  });
-  
-  document.getElementById("show-delete-polygon-from-polygon").addEventListener("click", (event) => {
-    document.getElementById("delete-polygon-from-polygon").style.display = "block";
-    document.getElementById("hide-delete-polygon-from-polygon").style.display = "block";
-    document.getElementById("show-delete-polygon-from-polygon").style.display = "none";
-  });
-  
-  document.getElementById("hide-delete-polygon-from-polygon").addEventListener("click", (event) => {
-    document.getElementById("delete-polygon-from-polygon").style.display = "none";
-    document.getElementById("hide-delete-polygon-from-polygon").style.display = "none";
-    document.getElementById("show-delete-polygon-from-polygon").style.display = "block";
-  });
-  
+
+// ==================== EVENT LISTENERS ====================
+
+document.getElementById("show-topic-rules-from-polygon").addEventListener("click", () => {
+  showElements(
+    "loaded-topic-rules-from-polygon",
+    "hide-topic-rules-from-polygon"
+  );
+  hideElements(
+    "show-topic-rules-from-polygon",
+    "input-field-number-of-polygon",
+    "input-field-3-3",
+    "input-field-3-5",
+    "input-field-3-2",
+    "char-counter-polygon",
+    "polygon-submit-buttons"
+  );
+
+  hideElements("optional-settings-from-polygon", "hide-optional-settings-from-polygon");
+  showElements("show-optional-settings-polygon");
+
+  hideElements("delete-polygon-from-polygon", "hide-delete-polygon-from-polygon");
+  showElements("show-delete-polygon-from-polygon");
+});
+
+document.getElementById("hide-topic-rules-from-polygon").addEventListener("click", () => {
+  hideElements("loaded-topic-rules-from-polygon", "hide-topic-rules-from-polygon");
+  showElements("show-topic-rules-from-polygon");
+
+  showElements(
+    "input-field-number-of-polygon",
+    "input-field-3-3",
+    "input-field-3-5",
+    "input-field-3-2",
+    "char-counter-polygon",
+  );
+  showElementsFlex(
+    "polygon-submit-buttons"
+  )
+
+});
+
+document.getElementById("show-optional-settings-polygon").addEventListener("click", () => {
+  showElements("optional-settings-from-polygon", "hide-optional-settings-from-polygon");
+  hideElements("show-optional-settings-polygon");
+
+  showElements(
+    "input-field-number-of-polygon",
+    "input-field-3-3",
+    "input-field-3-5",
+    "input-field-3-2",
+    "char-counter-polygon",
+  );
+  showElementsFlex(
+    "polygon-submit-buttons"
+  )
+
+  hideElements("delete-polygon-from-polygon", "hide-delete-polygon-from-polygon");
+  showElements("show-delete-polygon-from-polygon");
+
+  hideElements("loaded-topic-rules-from-polygon", "hide-topic-rules-from-polygon");
+  showElements("show-topic-rules-from-polygon");
+});
+
+document.getElementById("hide-optional-settings-from-polygon").addEventListener("click", () => {
+  hideElements("optional-settings-from-polygon", "hide-optional-settings-from-polygon");
+  showElements("show-optional-settings-polygon");
+
+  hideElements("delete-polygon-from-polygon", "hide-delete-polygon-from-polygon");
+  showElements("show-delete-polygon-from-polygon");
+
+  hideElements("loaded-topic-rules-from-polygon", "hide-topic-rules-from-polygon");
+  showElements("show-topic-rules-from-polygon");
+});
+
+document.getElementById("show-delete-polygon-from-polygon").addEventListener("click", () => {
+  showElements("delete-polygon-from-polygon", "hide-delete-polygon-from-polygon");
+  hideElements("show-delete-polygon-from-polygon");
+
+  hideElements(
+    "input-field-number-of-polygon",
+    "input-field-3-3",
+    "input-field-3-5",
+    "input-field-3-2",
+    "char-counter-polygon",
+    "polygon-submit-buttons"
+  );
+
+  hideElements("optional-settings-from-polygon", "hide-optional-settings-from-polygon");
+  showElements("show-optional-settings-polygon");
+
+  hideElements("loaded-topic-rules-from-polygon", "hide-topic-rules-from-polygon");
+  showElements("show-topic-rules-from-polygon");
+});
+
+document.getElementById("hide-delete-polygon-from-polygon").addEventListener("click", () => {
+  hideElements("delete-polygon-from-polygon", "hide-delete-polygon-from-polygon");
+  showElements("show-delete-polygon-from-polygon");
+
+  showElements(
+    "input-field-number-of-polygon",
+    "input-field-3-3",
+    "input-field-3-5",
+    "input-field-3-2",
+    "char-counter-polygon",
+  );
+  showElementsFlex(
+    "polygon-submit-buttons"
+  )
+});
+
   
   
   
@@ -1159,8 +1411,21 @@ export function CloseALL() {
     document.getElementById("hide-load-from-users"),
     document.getElementById("hide-block-from-users"),
     document.getElementById("hide-time-from-users-load-column"),
+    document.getElementById("hide-change-password-load"),
+    document.getElementById("hide-set-password-load"),
+    document.getElementById("hide-unlock-load"),
+    document.getElementById("unlockkey-load"),
+    document.getElementById("encrypt-key-load"),
+    document.getElementById("change-key-load"),
+    document.getElementById("change-password-load"),
+    document.getElementById("set-password-load"),
+    document.getElementById("unlock-load-few"),
+    document.getElementById("unlock-load-all"),
+    document.getElementById("hide-pin-key-load"),
+    document.getElementById("pin-publickkey-load"),
+    document.getElementById("publickkey-load"),
   ];
-  
+
   function loadColumnsEverything() {
     allLoadColumns.forEach(element => {
     element.style.display = "none";
@@ -1171,6 +1436,10 @@ export function CloseALL() {
     document.getElementById("show-load-from-users"),
     document.getElementById("show-block-from-users"),
     document.getElementById("show-time-from-users-load-column"),
+    document.getElementById("show-change-password-load"),
+    document.getElementById("show-set-password-load"),
+    document.getElementById("show-unlock-load"),
+    document.getElementById("show-pin-key-load"),
   ];
   
   
@@ -1179,53 +1448,127 @@ export function CloseALL() {
     element.style.display = "block";
   });
   }
+
+  function loadColumnsHideOptionsload() {
+    loadColumnsShowOptions.forEach(element => {
+    element.style.display = "none";
+  });
+  }
   
   document.getElementById("show-time-from-users-load-column").addEventListener("click", (event) => {
-    loadColumnsEverything()
-    loadColumnsShowOptionsload()
+    loadColumnsEverything();
+    loadColumnsShowOptionsload();
     document.getElementById("time-from-users-load-column").style.display = "block";
     document.getElementById("time-from-users-load-column-filter").style.display = "flex";
     document.getElementById("hide-time-from-users-load-column").style.display = "block";
     document.getElementById("show-time-from-users-load-column").style.display = "none";
   });
-  
   document.getElementById("hide-time-from-users-load-column").addEventListener("click", (event) => {
-    loadColumnsEverything()
-    loadColumnsShowOptionsload()
-    document.getElementById("time-from-users-load-column").style.display = "none";
-    document.getElementById("hide-time-from-users-load-column").style.display = "none";
-    document.getElementById("show-time-from-users-load-column").style.display = "block";
+    loadColumnsEverything();
+    loadColumnsShowOptionsload();
   });
   
   document.getElementById("show-load-from-users").addEventListener("click", (event) => {
-    loadColumnsEverything()
-    loadColumnsShowOptionsload()
+    loadColumnsEverything();
+    loadColumnsShowOptionsload();
     document.getElementById("load-msgs-from-ids-load-column").style.display = "block";
     document.getElementById("load-load-from-users").style.display = "flex";
     document.getElementById("load-load-from-users-label").style.display = "block";
     document.getElementById("show-load-from-users").style.display = "none";
     document.getElementById("hide-load-from-users").style.display = "block";
   });
-  
   document.getElementById("hide-load-from-users").addEventListener("click", (event) => {
-    loadColumnsEverything()
-    loadColumnsShowOptionsload()
+    loadColumnsEverything();
+    loadColumnsShowOptionsload();
   });
   
   document.getElementById("show-block-from-users").addEventListener("click", (event) => {
-    loadColumnsEverything()
-    loadColumnsShowOptionsload()
+    loadColumnsEverything();
+    loadColumnsShowOptionsload();
     document.getElementById("load-blocks-from-ids-load-column").style.display = "block";
     document.getElementById("load-block-from-users").style.display = "flex";
     document.getElementById("load-block-from-users-label").style.display = "block";
     document.getElementById("show-block-from-users").style.display = "none";
     document.getElementById("hide-block-from-users").style.display = "block";
   });
-  
   document.getElementById("hide-block-from-users").addEventListener("click", (event) => {
-    loadColumnsEverything()
-    loadColumnsShowOptionsload()
+    loadColumnsEverything();
+    loadColumnsShowOptionsload();
   });
+
+  document.getElementById("show-change-password-load").addEventListener("click", (event) => {
+    loadColumnsEverything();
+    loadColumnsShowOptionsload();
+    document.getElementById("hide-change-password-load").style.display = "block";
+    document.getElementById("show-change-password-load").style.display = "none";
+    document.getElementById("encrypt-key-load").style.display = "block";
+    document.getElementById("change-key-load").style.display = "block";
+    document.getElementById("change-password-load").style.display = "block";
+  });
+  document.getElementById("hide-change-password-load").addEventListener("click", (event) => {
+    loadColumnsEverything();
+    loadColumnsShowOptionsload();
+  });
+  
+  document.getElementById("show-set-password-load").addEventListener("click", (event) => {
+    loadColumnsEverything();
+    loadColumnsShowOptionsload();
+    document.getElementById("hide-set-password-load").style.display = "block";
+    document.getElementById("show-set-password-load").style.display = "none";
+    document.getElementById("encrypt-key-load").style.display = "block";
+    document.getElementById("change-key-load").style.display = "block";
+    document.getElementById("set-password-load").style.display = "block";
+  });
+  document.getElementById("hide-set-password-load").addEventListener("click", (event) => {
+    loadColumnsEverything();
+    loadColumnsShowOptionsload();
+  });
+
+  document.getElementById("show-unlock-load").addEventListener("click", (event) => {
+    loadColumnsEverything();
+    loadColumnsShowOptionsload();
+    document.getElementById("hide-unlock-load").style.display = "block";
+    document.getElementById("show-unlock-load").style.display = "none";
+    document.getElementById("unlockkey-load").style.display = "block";
+    document.getElementById("unlock-load-all").style.display = "block";
+    document.getElementById("unlock-load-few").style.display = "block";
+
+  });
+  document.getElementById("hide-unlock-load").addEventListener("click", (event) => {
+    loadColumnsEverything();
+    loadColumnsShowOptionsload();
+  });
+
+  document.getElementById("show-options-from-load").addEventListener("click", (event) => {
+    loadColumnsEverything();
+    loadColumnsShowOptionsload();
+    document.getElementById("options-from-load").style.display = "block";
+    document.getElementById("hide-options-from-load").style.display = "block";
+    document.getElementById("show-options-from-load").style.display = "none";
+  });
+  document.getElementById("hide-options-from-load").addEventListener("click", (event) => {
+    loadColumnsEverything();
+    loadColumnsHideOptionsload();
+    document.getElementById("show-options-from-load").style.display = "block";
+    document.getElementById("hide-options-from-load").style.display = "none";
+  });
+
+  document.getElementById("show-pin-key-load").addEventListener("click", (event) => {
+    loadColumnsEverything();
+    loadColumnsShowOptionsload();
+    document.getElementById("hide-pin-key-load").style.display = "block";
+    document.getElementById("show-pin-key-load").style.display = "none";
+    document.getElementById("pin-publickkey-load").style.display = "block";
+    document.getElementById("publickkey-load").style.display = "block";
+  });
+  document.getElementById("hide-pin-key-load").addEventListener("click", (event) => {
+    loadColumnsEverything();
+    loadColumnsShowOptionsload();
+  });
+  
+
+
+
   
   const everythinginsidemodelcolumn = [
     document.getElementById("model-column-model-url"),

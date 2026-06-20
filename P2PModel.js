@@ -1,5 +1,6 @@
 import {map} from './map';
 import { models } from './letall';
+import { generateModels } from './loadP2PModels';
 
 function requestPeerList() {
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -32,6 +33,7 @@ export async function someFunction(accountId, topicId) {
     peerId = topicId + '-' + accountId;
 
     connectToBootstrapServer();
+    generateModels();
 
     function generateMessageId() {
         return Math.random().toString(36).substr(2, 9) + '-' + Date.now();
@@ -101,7 +103,7 @@ export async function someFunction(accountId, topicId) {
 
 
     function connectToBootstrapServer() {
-        ws = new WebSocket('wss://serverws-9avk.onrender.com');
+        ws = new WebSocket('allinhbar.com');
         ws.onopen = () => {
             console.log('Connected to bootstrap server');
             ws.send(JSON.stringify({ action: 'register', peer_id: peerId }));

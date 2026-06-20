@@ -7,7 +7,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 const dracoLoader = new DRACOLoader();
 dracoLoader.setDecoderPath('node_modules/three/examples/jsm/libs/draco/');
 
-function generateModels() {
+export function generateModels() {
     // Generate 100 unique bot peers
 for (let i = 0; i < 100; i++) {
     const modelIndex = i; // or use a unique key if not sequential

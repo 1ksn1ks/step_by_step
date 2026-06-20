@@ -8,6 +8,12 @@ import {adjustTextareaHeight} from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
 import { loadAllData } from './loadalladata';
 import { debounce } from './debounce';
+import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
+
+
+
+let allLoadedMessages;
+
 
 document.getElementById("submit-button-Create_New_Topic").addEventListener("click", async () => {
    try {
@@ -903,6 +909,93 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
        console.error('Error submitting message:', error);
      }
  });
+
+ document.getElementById("submit-button-Create_encrypted-Marker").addEventListener("click", async () => {
+  try {
+    let userInput = document.getElementById("input-field-2-0").value.toLowerCase();
+    let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
+    let topicId;
+    let PublicKey;
+
+
+    if (domainEntry && domainEntry.lastMessage) {
+      topicId = domainEntry.lastMessage.topic;
+    } else {
+      topicId = userInput;
+    }
+
+    
+    const topicAdmin = [];
+    try {
+      const topicInfo = await getTopicInfo(topicId);
+      const memo = topicInfo.memo || "";
+      const parts = memo.split(',');
+      parts.forEach(part => {
+        if (part.trim().startsWith("0.0.")) {
+          topicAdmin.push(part.trim());
+        }
+      });
+    } catch (error) {
+      console.error("Error getting topic info:", error);
+      return;
+    }
+
+    const result = await getMessages(topicId);
+
+    const messages = result.messages;
+
+    try {
+        for (let index = messages.length - 1; index >= 0; index--) {
+          const message = messages[index];
+          let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
+
+          if (parsedMessage.publicKey && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+            PublicKey = parsePublicKey(parsedMessage.publicKey);
+            break;
+          }
+        
+      }
+    } catch (error) {
+      console.error("Error getting public key:", error);
+      return;
+    }
+
+    const title = document.getElementById("input-field-2-1").value;
+    const imageurl = document.getElementById("input-field-image-marker").value;
+    const coverimage = document.getElementById("input-field-coverimage-marker").value;
+    const cleanUrl = imageurl.replace(/\?network=mainnet$/, "");
+    const cleanCoverimage = coverimage.replace(/\?network=mainnet$/, "");
+    const msg = document.getElementById("input-field-2-2").value;
+    const cord = document.getElementById("input-field-2-3").value;
+    const numberOfMarker = document.getElementById("input-field-number-of-marker").value;
+
+          if (numberOfMarker === "" || !Number.isInteger(Number(numberOfMarker))) {
+        alert("Please enter a valid whole number for the Number of Marker.");
+        return;
+    }
+
+    if (!numberOfMarker || !topicId || !cord) {
+          alert("Please fill in all required fields: Number of Marker, Topic ID, and Coordinates.");
+          return;
+        }
+
+    const messageObj = {marker: {data: {title: title, image: [cleanUrl], coverimage: [cleanCoverimage], msg: msg, cord: cord, numberOfMarker: numberOfMarker }}};
+    const messageStringify = JSON.stringify(messageObj);
+
+    console.log(messageStringify)
+
+    const encryptedMessage = await encryptMessage(messageStringify, PublicKey);
+
+    const message = JSON.stringify(encryptedMessage);
+
+    const receipt = await sendMessage(topicId,message);
+    console.log('Receipt:', receipt);
+  } catch (error) {
+    console.error('Error submitting message:', error);
+  }
+});
+
+
  
  document.getElementById("delete-marker-number").addEventListener("click", async () => {
      try {
@@ -1025,6 +1118,131 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
        console.error('Error submitting message:', error);
      }
  });
+
+  document.getElementById("submit-button-Create_encrypted-Polygon").addEventListener("click", async () => {
+  try {
+    let userInput = document.getElementById("input-field-3-0").value.toLowerCase();
+    let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
+    let topicId;
+    let PublicKey;
+
+
+    if (domainEntry && domainEntry.lastMessage) {
+      topicId = domainEntry.lastMessage.topic;
+    } else {
+      topicId = userInput;
+    }
+
+    
+    const topicAdmin = [];
+    try {
+      const topicInfo = await getTopicInfo(topicId);
+      const memo = topicInfo.memo || "";
+      const parts = memo.split(',');
+      parts.forEach(part => {
+        if (part.trim().startsWith("0.0.")) {
+          topicAdmin.push(part.trim());
+        }
+      });
+    } catch (error) {
+      console.error("Error getting topic info:", error);
+      return;
+    }
+
+    const result = await getMessages(topicId);
+
+    const messages = result.messages;
+
+    try {
+        for (let index = messages.length - 1; index >= 0; index--) {
+          const message = messages[index];
+          let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
+
+          if (parsedMessage.publicKey && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+            PublicKey = parsePublicKey(parsedMessage.publicKey);
+            break;
+          }
+        
+      }
+    } catch (error) {
+      console.error("Error getting public key:", error);
+      return;
+    }
+
+    const title = document.getElementById("input-field-3-1").value;
+    const msg = document.getElementById("input-field-3-2").value;
+    const imageurl = document.getElementById("input-field-image-polygon").value;
+    const coverimage = document.getElementById("input-field-coverimage-polygon").value;
+    const cord1 = document.getElementById("input-field-3-3").value; // TOP LEFT
+    const cord3 = document.getElementById("input-field-3-5").value; // BOTTOM RIGHT
+    const numberOfPolygon = document.getElementById("input-field-number-of-polygon").value;
+    const cleanUrl = imageurl.replace(/\?network=mainnet$/, "");
+    const cleanCoverimage = coverimage.replace(/\?network=mainnet$/, "");
+
+          if (numberOfPolygon === "" || !Number.isInteger(Number(numberOfPolygon))) {
+        alert("Please enter a valid whole number for the Number of Polygon.");
+        return;
+    }
+
+    if (!numberOfPolygon || !topicId || !cord1 || !cord3) {
+          alert("Please fill in all required fields: Number of Polygon, Topic ID, and Coordinates.");
+          return; // Stop the submission if any field is empty
+        }
+
+    // Validate and format the coordinates input
+    const Cords = {
+      cord1 : cord1.split(',').map(Number), // Convert to array of numbers
+      cord3 : cord3.split(',').map(Number),
+    };
+
+    const formattedCord = [
+      Cords.cord1,
+      [Cords.cord1[0],Cords.cord3[1]],
+      Cords.cord3,
+      [Cords.cord3[0],Cords.cord1[1]]
+    ];
+
+    // Ensure all coordinates are valid numbers
+    const isValid = formattedCord.every(cord =>
+      Array.isArray(cord) &&
+      cord.length === 2 &&
+      cord.every(num => !isNaN(num) && isFinite(num))
+    );
+
+    if (!isValid) {
+      throw new Error('Please enter valid coordinates in the format number,number for all four corners.');
+    }
+
+    // Create the desired coordinate string without additional array wrapping
+    const cordString = formattedCord.map(cord => `[${cord.join(',')}]`).join(', '); // Join the valid coordinates
+
+    const messageObj = {
+      polygon: {
+        data: {
+          title: title,
+          image: [cleanUrl],
+          coverimage: [cleanCoverimage],
+          msg: msg,
+          cord: cordString,
+          numberOfPolygon: numberOfPolygon
+        }
+      }
+    };
+
+    const messageStringify = JSON.stringify(messageObj);
+
+    console.log(messageStringify)
+
+    const encryptedMessage = await encryptMessage(messageStringify, PublicKey);
+
+    const message = JSON.stringify(encryptedMessage);
+
+    const receipt = await sendMessage(topicId,message);
+    console.log('Receipt:', receipt);
+  } catch (error) {
+    console.error('Error submitting message:', error);
+  }
+});
  
  document.getElementById("delete-polygon-number").addEventListener("click", async () => {
      try {

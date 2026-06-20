@@ -26,7 +26,7 @@
       
       <div id="crosshair" style="display: none;"></div>
       
-      <div style="display: flex; position: fixed; top: 6.5vh; left: 0; z-index: 1006;">
+      <div style="display: flex; position: fixed; top: 6vh; left: 0; z-index: 1006;">
         <button id="main-toggle-btn" class="options-and-topic" style="margin-left: 0.3vh;">OPTIONS
         </button>
         <button id="toggle-toolbar-btn-btn" class="options-and-topic" style="margin-left: 0.3vh; display: none;">TOOLBAR
@@ -111,8 +111,6 @@
       <div id="Edit_Profile-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="Edit_Profile-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
       
-      
-          
           <div style="display: flex;">
             <button id="show-profile-picture-from-edit-profile" class="toolbar-column-first-settings-btns">Profile picture
             </button>
@@ -128,7 +126,6 @@
             </button>
           </div>
       
-          
           <div style="display: flex;">
             <button id="show-topic-id-to-pfp-from-edit-profile" class="toolbar-column-first-settings-btns">Topic ID to PFP
             </button>
@@ -215,7 +212,7 @@
       
           <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
             <li>here u can load given topicID or domain (if it's linked)</li>
-            <li>bellow will load topic / topics that are linked to that one domain (stack of topic ids) with their names given by their creator</li>
+            <li>bellow will load topic / topics that are linked to that one domain (stack of topic ids) with their names (not domains) given by their creator</li>
             <li>u can also filter loaded domain / topic / topics by:
               <ul style="padding-left: 6vw; margin: 1vh 0;">
                 <li>blocking user / users</li>
@@ -243,30 +240,86 @@
           oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
       
-          <button id="toolbar-load" class="toolbar-column-btns">Load Data
+          <button id="toolbar-load" class="toolbar-column-btns">༼ つ ◕_◕༽つ━☆ﾟ.*･｡ﾟ Load
           </button>
       
-          <label for="loaded-topics" style=" font-size: 2vh;padding: 0px;">TopicID-TopicID name:
-          </label>
-      
-          <div class="toolbar-column" style="user-select: text;" id="loaded-topics" placeholder="Loaded Topics" onclick="event.stopPropagation();"
+          <div class="toolbar-column" style="user-select: text; margin-top: 0.5vh;" id="loaded-topics" placeholder="Loaded Topics" onclick="event.stopPropagation();"
           ></div>
       
-      
+
+
+            <div style="display: flex;">
+              <button id="show-pin-key-load" class="toolbar-column-first-settings-btns" style="display: none;">Pin
+              </button>
+              <button id="hide-pin-key-load" class="toolbar-column-first-settings-btns" style="display: none;">Pin
+              </button>
+              <button id="show-options-from-load" class="toolbar-column-btns">Options ✅
+              </button>
+              <button id="hide-options-from-load" class="toolbar-column-btns" style="display: none; margin-left: 1vw;">Options ⛔
+              </button>
+            </div>
+
+
+          <div id="options-from-load" style="display: none;">
+            <div style="display: flex;">
+              <button id="show-change-password-load" class="toolbar-column-first-settings-btns">Change Password
+              </button>
+              <button id="hide-change-password-load" style="display: none;" class="toolbar-column-first-settings-btns">Change Password
+              </button>
+              <button id="show-set-password-load" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Set Password
+              </button>
+              <button id="hide-set-password-load" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Set Password
+              </button>
+              <button id="show-unlock-load" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Unlock ◕_◕
+              </button>
+              <button id="hide-unlock-load" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Unlock ◕_◕
+              </button>
+            </div>
+            <div style="display: flex;">
+              <button id="show-block-from-users" class="toolbar-column-first-settings-btns">Block
+              </button>
+              <button id="hide-block-from-users" style="display: none;" class="toolbar-column-first-settings-btns">Block
+              </button>
+              <button id="show-time-from-users-load-column" class="toolbar-column-settings-btns">Time
+              </button>
+              <button id="hide-time-from-users-load-column" style="display: none;" class="toolbar-column-settings-btns">Time
+              </button>
+              <button id="show-load-from-users" class="toolbar-column-settings-btns">From
+              </button>
+              <button id="hide-load-from-users" style="display: none;" class="toolbar-column-settings-btns">From
+              </button>
+            </div>
+          </div>
+
+          <textarea class="toolbar-column" type="text" id="publickkey-load" placeholder="Public Key" style="display: none;"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+
+          <textarea class="toolbar-column" type="text" id="unlockkey-load" placeholder="Unlock with Private Key / password" style="display: none;"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+  
+          <textarea class="toolbar-column" type="text" id="encrypt-key-load" placeholder="Private Key / old password" style="display: none;"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+  
+          <textarea class="toolbar-column" type="text" id="change-key-load" placeholder="New password" style="display: none;"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+
+          <button id="change-password-load" class="pin-public-key-from-encrypted-chat" style="display: none;">Change Password
+          </button>
+    
+          <button id="set-password-load" class="pin-public-key-from-encrypted-chat" style="display: none;">Set Password
+          </button>
           <div style="display: flex;">
-            <button id="show-block-from-users" class="toolbar-column-first-settings-btns">Block
+            <button id="unlock-load-all" class="toolbar-column-first-settings-btns" style="display: none;"> ༼ つ ಠ_ಠ ༽つ all
             </button>
-            <button id="hide-block-from-users" style="display: none;" class="toolbar-column-first-settings-btns">Block
-            </button>
-            <button id="show-time-from-users-load-column" class="toolbar-column-settings-btns">Time
-            </button>
-            <button id="hide-time-from-users-load-column" style="display: none;" class="toolbar-column-settings-btns">Time
-            </button>
-            <button id="show-load-from-users" class="toolbar-column-settings-btns">From
-            </button>
-            <button id="hide-load-from-users" style="display: none;" class="toolbar-column-settings-btns">From
+            <button id="unlock-load-few" class="toolbar-column-btns" style="display: none; margin-left: 1vw;"> ༼༼ つ -_◕༽︻デ═一 few
             </button>
           </div>
+          <button id="pin-publickkey-load" class="pin-public-key-from-encrypted-chat" style="display: none;"> Pin
+          </button>
       
       
           <div id="time-from-users-load-column" style="display: none;">
@@ -509,13 +562,13 @@
       
       
           <div style="display: flex;">
-            <button id="show-draw-marker" class="toolbar-column-first-settings-btns">Marker
+            <button id="show-draw-marker" class="toolbar-column-first-settings-btns">Marker ✅
             </button>
-            <button id="hide-draw-marker" style="display: none;" class="toolbar-column-first-settings-btns">Marker
+            <button id="hide-draw-marker" style="display: none;" class="toolbar-column-first-settings-btns">Marker ⛔
             </button>
-            <button id="show-draw-polygon" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Polygon
+            <button id="show-draw-polygon" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Polygon ✅
             </button>
-            <button id="hide-draw-polygon" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Polygon
+            <button id="hide-draw-polygon" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Polygon ⛔
             </button>
           </div>
           
@@ -536,17 +589,17 @@
       
       
           <div style="display: flex;">
-            <button id="show-topic-rules-from-marker" class="toolbar-column-first-settings-btns">Rules
+            <button id="show-topic-rules-from-marker" class="toolbar-column-first-settings-btns">Rules ✅
             </button>
-            <button id="hide-topic-rules-from-marker" style="display: none;" class="toolbar-column-first-settings-btns">Rules
+            <button id="hide-topic-rules-from-marker" style="display: none;" class="toolbar-column-first-settings-btns">Rules ⛔
             </button>
-            <button id="show-optional-settings-marker" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional settings
+            <button id="show-optional-settings-marker" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional ✅
             </button>
-            <button id="hide-optional-settings-from-marker" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional settings
+            <button id="hide-optional-settings-from-marker" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional ⛔
             </button>
-            <button id="show-delete-marker-from-marker" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Delete marker
+            <button id="show-delete-marker-from-marker" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Delete ✅
             </button>
-            <button id="hide-delete-marker-from-marker" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Delete marker
+            <button id="hide-delete-marker-from-marker" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Delete ⛔
             </button>
           </div>
       
@@ -571,10 +624,15 @@
             </div>
           </div>
       
+          <div id="marker-submit-buttons" style="display: flex;">
           <button id="submit-button-Create_Marker" class="toolbar-column-btns">
-          Submit
+          Submit regular
           </button>
-      
+          <button id="submit-button-Create_encrypted-Marker" class="toolbar-column-btns" style="margin-left: 1vw">
+            Submit encrypted
+            </button>
+          </div>
+
           <div id="loaded-topic-rules-from-marker" style="display: none;">
           <label for="loaded-topics" style=" font-size: 2vh;padding: 0px;">Loaded Topic Rules:</label>
           
@@ -621,17 +679,17 @@
       
       
           <div style="display: flex;">
-            <button id="show-topic-rules-from-polygon" class="toolbar-column-first-settings-btns">Rules
+            <button id="show-topic-rules-from-polygon" class="toolbar-column-first-settings-btns">Rules ✅
             </button>
-            <button id="hide-topic-rules-from-polygon" style="display: none;" class="toolbar-column-first-settings-btns">Rules
+            <button id="hide-topic-rules-from-polygon" style="display: none;" class="toolbar-column-first-settings-btns">Rules ⛔
             </button>
-            <button id="show-optional-settings-polygon" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional settings
+            <button id="show-optional-settings-polygon" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional ✅
             </button>
-            <button id="hide-optional-settings-from-polygon" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional settings
+            <button id="hide-optional-settings-from-polygon" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional ⛔
             </button>
-            <button id="show-delete-polygon-from-polygon" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Delete polygon
+            <button id="show-delete-polygon-from-polygon" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Delete ✅
             </button>
-            <button id="hide-delete-polygon-from-polygon" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Delete polygon
+            <button id="hide-delete-polygon-from-polygon" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Delete ⛔
             </button>
           </div>
           
@@ -655,10 +713,15 @@
             <div id="char-counter-polygon" style="position: absolute; bottom: 5px; right: 10px; font-size: 2vh; color: #666;">0/256
             </div>
           </div>
-      
-      
-          <button id="submit-button-Create_Polygon" class="toolbar-column-btns" style="display: block;">Submit
-          </button>
+
+          <div id="polygon-submit-buttons" style="display: flex;">
+            <button id="submit-button-Create_Polygon" class="toolbar-column-btns">
+            Submit regular
+            </button>
+            <button id="submit-button-Create_encrypted-Polygon" class="toolbar-column-btns" style="margin-left: 1vw">
+              Submit encrypted
+              </button>
+            </div>
       
         <div id="loaded-topic-rules-from-polygon" style="display: none;">
           <label for="loaded-topics" style=" font-size: 2vh;padding: 0px;">Loaded Topic Rules:</label>
@@ -1071,9 +1134,9 @@
             <div style="display: flex; align-items: center;">
               <button id="load-msgs-from" class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Load
               </button>
-              <button id="show-options-from-topic-chat" class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Options
+              <button id="show-options-from-topic-chat" class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Options ✅
               </button>
-              <button id="show-options-from-topic-chat-btn" display: none; class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Hide
+              <button id="show-options-from-topic-chat-btn" display: none; class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Options ⛔
               </button>
             </div>
           </div>
@@ -1204,8 +1267,8 @@
       
           <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
             <li>Domain/Topic ID<br>- is a place where u want to read/write messages from/onto</li>
-            <li>Load<br>- if no PRIVATE key inputed = loads pinned public key<br>- loads messages but requires PRIVATE KEY to unlock (wont show otherwise)</li>
-            <li>Options<br>- u can filter loaded messages by blocking user/users and by time and also by loading only from specific user/users</li>
+            <li>Load<br>- loads messages from given Domain/Topic ID but requires PRIVATE KEY / password to unlock (wont show otherwise)</li>
+            <li>Options<br>- u can filter loaded messages by blocking user/users and by time and also by loading only from specific user/users<br>-rest should be easy to understand</li>
             <li>Pin<br>- u as admin can pin public key to your topic so that others can lock messages that only u can unlock</li>
             <li>Go to the top<br>- goes to the top of the chat</li>
             <li>Submit Message<br>- requires Domain/Topic ID where to write and message with max 256 characters</li>
@@ -1224,16 +1287,21 @@
       
       <div id="encrypted-chat-container" class="topic-chat-container" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
         <div class="chat-topic-chat-container"  onclick="event.stopPropagation();">
-      
-      
-      <label style="font-size: 2vh; padding-bottom: 0.5vh;">Install BitWarden to save details for future use:
-        </label>
-      
+
         <div id="encrypted-chat-private-key-container">
-        <textarea class="toolbar-column" type="text" id="encrypted-chat-private-key" placeholder="Private Key"
+          <textarea class="toolbar-column" type="text" id="encrypted-chat-private-key" placeholder="Unlock with Private Key / password"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+        </div>
+
+        <textarea class="toolbar-column" type="text" id="encrypted-chat-change-password-key" placeholder="Private Key / old password" style="display: none;"
         onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
         ></textarea>
-      </div>
+
+
+        <textarea class="toolbar-column" type="text" id="encrypted-chat-new-password-key" placeholder="New password" style="display: none;"
+        onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+        ></textarea>
       
           <div style="display: flex; align-items: center;">
       
@@ -1244,11 +1312,12 @@
             <div style="display: flex; align-items: center;">
               <button id="load-msgs-from-encrypted-chat" class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Load
               </button>
-              <button id="show-options-from-encrypted-chat" class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Options
+              <button id="show-options-from-encrypted-chat" class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Options ✅
               </button>
-              <button id="show-options-from-encrypted-chat-btn" display: none; class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Hide
+              <button id="show-options-from-encrypted-chat-btn" display: none; class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Options ⛔
               </button>
            </div> 
+
           </div>
       
           <div id="options-from-encrypted-chat" style="display: none;">
@@ -1266,9 +1335,20 @@
               </button>
               <button id="hide-from-from-encrypted-chat" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">From
               </button>
-              <button id="show-pin-public-key-from-encrypted-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Pin
+            </div>
+
+            <div style="display: flex;">
+              <button id="show-pin-public-key-from-encrypted-chat" class="toolbar-column-first-settings-btns">Pin Public Key
               </button>
-              <button id="hide-pin-public-key-from-encrypted-chat" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Pin
+              <button id="hide-pin-public-key-from-encrypted-chat" style="display: none;" class="toolbar-column-first-settings-btns">Pin Public Key
+              </button>
+              <button id="show-block-change-password-encrypted-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Change Password
+              </button>
+              <button id="hide-block-change-password-encrypted-chat" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Change Password
+              </button>
+              <button id="show-time-set-password-encrypted-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Set Password
+              </button>
+              <button id="hide-time-set-password-encrypted-chat" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Set Password
               </button>
             </div>
       
@@ -1348,7 +1428,7 @@
           <div class="chat-container" id="messages-from-encrypted-chat" onclick="event.stopPropagation();">
           </div>
       
-          <textarea class="toolbar-column" type="text" id="encrypted-chat-public-key" placeholder="Public Key"
+          <textarea class="toolbar-column" type="text" id="encrypted-chat-public-key" placeholder="Public Key" style="display: none;"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
       
@@ -1386,6 +1466,16 @@
           <button id="stack-encrypted-chat-public-key-button" class="pin-public-key-from-encrypted-chat">Pin Public Key
           </button>
       </div>
+
+      <div id="change-password-encrypted-chat" style="display: none;">
+        <button id="stack-encrypted-chat-change-password-button" class="pin-public-key-from-encrypted-chat">Change Password
+        </button>
+    </div>
+
+    <div id="set-password-encrypted-chat" style="display: none;">
+      <button id="stack-encrypted-chat-set-password-button" class="pin-public-key-from-encrypted-chat">Set Password
+      </button>
+  </div>
       
       
         </div>

@@ -1,8 +1,8 @@
 import {getMessages, getTopicInfo, sendMessage, getAccountNFTs} from './hedera'
-import { activePolygonPopups, newActivePolygonPopups} from './polygons';
-import { activeMarkerPopups, newActiveMarkerPopups } from './marker';
+import { activePolygonPopups, newActivePolygonPopups, addPolygonWithImageFill} from './polygons';
+import { activeMarkerPopups, newActiveMarkerPopups, updateClusters, index } from './marker';
 import { removeUfoModel, changePopupState} from './cssLogic'
-import { polygons, geojson, storedMarkers, storedPolygons, currentUfoModelInGLTF } from './letall';
+import { polygons, geojson, storedMarkers, storedPolygons, currentUfoModelInGLTF,  newExistingMarkers,  existingMarkers, newStoredMarkers, newStoredPolygons } from './letall';
 import {updateRulesForModelNFTState} from './confirmnft'
 import { animateMapTo } from './animatemapto';
 import { profilePictures, usernames, click2url} from './loadalladata'
@@ -10,6 +10,12 @@ import maplibregl from 'maplibre-gl';
 import { map } from './map';
 import { applyAllStyles } from './loadprofilepopup';
 import { scene } from './threejs'
+import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium'
+
+
+
+
+export let allLoadedMessages = [];
 
 window.openPopupSettings = function() {
   requestAnimationFrame(() => {
@@ -71,6 +77,24 @@ function createMarkerPopupHTML(data) {
   const topicSpan = document.createElement('span');
   topicSpan.style.cssText = 'position: absolute; top: -0.1em; left: 50%; transform: translateX(-50%); font-size: 1.5vh; color: gray; white-space: nowrap;';
   topicSpan.textContent = `${topicId} ${loadedTopicName}`;
+  topicSpan.style.cursor = "pointer"
+
+  topicSpan.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(topicId);
+      
+      // Izborni korak: Kratka obavijest korisniku da je kopiranje uspjelo
+      const originalText = topicSpan.textContent;
+      topicSpan.textContent = "Copyed!";
+      setTimeout(() => {
+        topicSpan.textContent = originalText;
+      }, 1000);
+  
+    } catch (err) {
+      console.error("Error: ", err);
+    }
+  });
+
   topHeader.appendChild(topicSpan);
 
   container.appendChild(topHeader);
@@ -243,8 +267,27 @@ function createPolygonPopupHTML(data) {
 
   const topicSpan = document.createElement('span');
   topicSpan.style.cssText = 'position: absolute; top: -0.1em; left: 50%; transform: translateX(-50%); font-size: 1.5vh; color: gray; white-space: nowrap;';
+
   topicSpan.textContent = `${topicId} ${loadedTopicName}`;
+  topicSpan.style.cursor = "pointer"
+
+  topicSpan.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(topicId);
+      
+      const originalText = topicSpan.textContent;
+      topicSpan.textContent = "Copyed!";
+      setTimeout(() => {
+        topicSpan.textContent = originalText;
+      }, 1000);
+  
+    } catch (err) {
+      console.error("Error: ", err);
+    }
+  });
+
   topHeader.appendChild(topicSpan);
+
 
   container.appendChild(topHeader);
 
@@ -391,6 +434,7 @@ export async function processTopicMessages(topicId) {
   try {
     const rawResult = await getMessages(topicId);
 
+
     const seen = new Map();
     const uniqueMessages = {messages:[]};
 
@@ -403,6 +447,8 @@ export async function processTopicMessages(topicId) {
         uniqueMessages.messages.push(message);
       }
     }
+
+    allLoadedMessages.push({topicId:topicId,uniqueMessages});
 
 
 const likeCountMapMarker = new Map();
@@ -1283,3 +1329,1310 @@ window.dislikePolygon = async function(timestamp, topicId) {
   const meesage = JSON.stringify(meesageobject);
   await sendMessage(topicId, meesage);
 };
+
+
+
+
+
+
+
+document.getElementById("unlock-load-all").addEventListener("click", async () => {
+  try {
+    let pass = document.getElementById("unlockkey-load").value;
+
+
+    geojson.features = [];
+    polygons.length = 0;
+
+    existingMarkers.forEach(marker => marker.remove());
+    newExistingMarkers([]);
+
+    newStoredMarkers([]);
+    newStoredPolygons([]);
+
+    // Remove existing polygon layers
+    map.getStyle().layers.forEach(layer => {
+    if (layer.id.includes('-layer')) {
+    map.removeLayer(layer.id);
+    }
+    });
+
+    // Remove existing polygon sources
+    const sourceIds = Object.keys(map.getStyle().sources);
+    sourceIds.forEach(sourceId => {
+    if (sourceId.includes('-source')) {
+    map.removeSource(sourceId);
+    }
+    });
+
+
+    let encryptedPrivateKey;
+    let decryptedPrivateKey;
+
+    const totalTopics = allLoadedMessages.length;
+    let processedCount = 0;
+
+    for (const topicData of allLoadedMessages) {
+
+      const topicId = topicData.topicId; 
+
+      const messages = Object.values(topicData.uniqueMessages).flat();
+
+      const w = pass;
+
+      const topicAdmin = [];
+      try {
+        const topicInfo = await getTopicInfo(topicId);
+        const memo = topicInfo.memo || "";
+        const parts = memo.split(',');
+        parts.forEach(part => {
+          if (part.trim().startsWith("0.0.")) {
+            topicAdmin.push(part.trim());
+          }
+        });
+      } catch (error) {
+
+        console.error("Error getting topic info:", error);
+        return;
+      }
+
+      try {
+        for (let index = messages.length - 1; index >= 0; index--) {
+          const message = messages[index];
+
+          let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
+
+          if (parsedMessage.encryptedPrivateKeyForLoad && (topicAdmin.length === 0 || topicAdmin.includes(parsedMessage.payer))) {
+  
+            encryptedPrivateKey = parsedMessage.encryptedPrivateKeyForLoad;
+  
+            const nonce = parsedMessage.nonce;
+            const salt = parsedMessage.salt;
+            const password = w;
+  
+            decryptedPrivateKey = await decryptWithPassword(encryptedPrivateKey, nonce, salt, password);
+
+            break;
+  
+          }
+          else {
+            decryptedPrivateKey = '';
+          }
+    
+       }
+      } catch (error) {
+
+        console.error("Error getting public key:", error);
+
+      }
+
+
+
+
+    const { topicGeojsonFeatures, topicPolygons } = await processTopicE2EEMessages(decryptedPrivateKey, messages, topicId);
+
+    storedMarkers.push(topicGeojsonFeatures);
+    storedPolygons.push(topicPolygons);
+
+
+   processedCount++;
+
+
+  }
+
+  if ( totalTopics === processedCount){
+
+    polygons.forEach(polygon => {
+      addPolygonWithImageFill(map, polygon);
+    });
+
+    if (geojson.features.length > 0) {
+      index.load(geojson.features);
+      updateClusters();
+    }
+
+  }
+
+  } catch (error) {
+    console.error('Error submitting message:', error);
+  }
+});
+
+
+
+
+
+
+export async function processTopicE2EEMessages(decryptedPrivateKey, messages, topicId) {
+  let topicGeojsonFeatures = [];
+  let topicPolygons = [];
+  let loadedTopicName = '';
+  let PrivateKey;
+  const rawResult = messages;
+
+  try{
+  PrivateKey = parsePrivateKey(decryptedPrivateKey);
+  }catch (error) {
+    console.error(`Error loading private key: ${error}`);
+  }
+
+
+  try {
+
+
+      const likeCountMapMarker = new Map();
+      const dislikeCountMapMarker = new Map();
+      const likeCountMapPolygon = new Map();
+      const dislikeCountMapPolygon = new Map();
+      const payerActionsPerTimestamp = new Map();
+
+
+if (rawResult && Array.isArray(rawResult)) {
+
+
+
+  for (const message of rawResult) {
+    try {
+      let parsedMessage = message;
+
+      if (typeof message === 'string') {
+        parsedMessage = JSON.parse(message);
+      }
+
+      const payerId = parsedMessage.payer;
+      let actionTimestamp, actionType;
+
+      // Check for like
+      if (parsedMessage.likeMarker && parsedMessage.likeMarker.timestamp && parsedMessage.payer) {
+        actionTimestamp = parsedMessage.likeMarker.timestamp;
+        actionType = 'likeMarker';
+      }
+      // Check for dislike
+      if (parsedMessage.dislikeMarker && parsedMessage.dislikeMarker.timestamp && parsedMessage.payer) {
+        const dislikeTimestamp = parsedMessage.dislikeMarker.timestamp;
+        // If no like or dislike timestamp is newer, update action
+        if (!actionTimestamp || dislikeTimestamp > actionTimestamp) {
+          actionTimestamp = dislikeTimestamp;
+          actionType = 'dislikeMarker';
+        }
+      }
+      // Check for like
+      if (parsedMessage.likePolygon && parsedMessage.likePolygon.timestamp && parsedMessage.payer) {
+        actionTimestamp = parsedMessage.likePolygon.timestamp;
+        actionType = 'likePolygon';
+      }
+      // Check for dislike
+      if (parsedMessage.dislikePolygon && parsedMessage.dislikePolygon.timestamp && parsedMessage.payer) {
+        actionTimestamp = parsedMessage.dislikePolygon.timestamp;
+        actionType = 'dislikePolygon';
+      }
+
+      // Process the action if it exists
+      if (actionTimestamp && actionType && payerId) {
+        // Initialize map for this timestamp if it doesn't exist
+        if (!payerActionsPerTimestamp.has(actionTimestamp)) {
+          payerActionsPerTimestamp.set(actionTimestamp, new Map());
+        }
+
+        // Update or set the latest action for this payer at this timestamp
+        const payerActions = payerActionsPerTimestamp.get(actionTimestamp);
+        const existingAction = payerActions.get(payerId);
+
+        // Only update if this is a new action or a newer timestamp
+        if (!existingAction || actionTimestamp >= existingAction.timestamp) {
+          // If there's an existing action, remove its previous count
+          if (existingAction) {
+            if (existingAction.type === 'likeMarker') {
+              likeCountMapMarker.set(actionTimestamp, (likeCountMapMarker.get(actionTimestamp) || 0) - 1);
+            } else if (existingAction.type === 'dislikeMarker') {
+              dislikeCountMapMarker.set(actionTimestamp, (dislikeCountMapMarker.get(actionTimestamp) || 0) - 1);
+            }
+            if (existingAction.type === 'likePolygon') {
+              likeCountMapPolygon.set(actionTimestamp, (likeCountMapPolygon.get(actionTimestamp) || 0) - 1);
+            } else if (existingAction.type === 'dislikePolygon') {
+              dislikeCountMapPolygon.set(actionTimestamp, (dislikeCountMapPolygon.get(actionTimestamp) || 0) - 1);
+            }
+          }
+
+          // Store the new action
+          payerActions.set(payerId, { type: actionType, timestamp: actionTimestamp });
+
+          // Increment the count for the new action
+          if (actionType === 'likeMarker') {
+            likeCountMapMarker.set(actionTimestamp, (likeCountMapMarker.get(actionTimestamp) || 0) + 1);
+          } else if (actionType === 'dislikeMarker') {
+            dislikeCountMapMarker.set(actionTimestamp, (dislikeCountMapMarker.get(actionTimestamp) || 0) + 1);
+          }
+          if (actionType === 'likePolygon') {
+            likeCountMapPolygon.set(actionTimestamp, (likeCountMapPolygon.get(actionTimestamp) || 0) + 1);
+          } else if (actionType === 'dislikePolygon') {
+            dislikeCountMapPolygon.set(actionTimestamp, (dislikeCountMapPolygon.get(actionTimestamp) || 0) + 1);
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`Error parsing message for likes/dislikes: ${error}`);
+    }
+  }
+}
+          
+
+          const topicInfo = await getTopicInfo(topicId);
+          const topicAdmin = [];
+          let hasRulesForMarker = false;
+          let hasRulesForPolygon = false;
+          const memo = topicInfo.memo;
+
+          // Split the memo by commas
+          const parts = memo.split(',');
+
+          // Iterate over each part
+          parts.forEach(part => {
+            // Check if the part starts with "0.0."
+            if (part.startsWith("0.0.")) {
+              // Add it to the topicAdmin array
+              topicAdmin.push(part);
+            }
+          });
+
+
+
+          // Check if messages exist and is an array
+          if (!rawResult || !Array.isArray(rawResult)) {
+            console.error(`No messages found for topic ${topicId}.`, rawResult);
+            return { topicGeojsonFeatures, topicPolygons }; // Return empty arrays
+          }
+
+          const messages = rawResult; // Extract messages
+
+          const loadedTopicRulesForMarker = [];
+          const loadedTopicRulesForPolygon = [];
+
+
+
+          // Read rules from messages
+          for (let index = messages.length - 1; index >= 0; index--) {
+            const message = messages[index];
+            try {
+              let parsedMessage = message;
+              if (typeof message === 'string') {
+                parsedMessage = JSON.parse(message);
+              }
+
+              if (parsedMessage.rules && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+                if (parsedMessage.rules.formarker.markerTopicId.startsWith('0.0.') && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+                loadedTopicRulesForMarker.push(parsedMessage.rules.formarker);
+                hasRulesForMarker = true;
+
+              }
+              if (parsedMessage.rules.forpolygon.polygonTopicId.startsWith('0.0.') && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+                loadedTopicRulesForPolygon.push(parsedMessage.rules.forpolygon);
+                hasRulesForPolygon = true;
+
+              }
+                break; // Exit the loop after finding the last message with rules
+              }
+            } catch (messageError) {
+              console.error(`Error processing message ${index}:`, messageError);
+            }
+          }
+
+          for (let index = messages.length - 1; index >= 0; index--) {
+            const message = messages[index];
+            try {
+              let parsedMessage = message;
+              if (typeof message === 'string') {
+                parsedMessage = JSON.parse(message);
+              }
+              // Check if changeName exists and either topicAdmin is empty or includes the payer
+              if (parsedMessage.changeName && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+                loadedTopicName = parsedMessage.changeName;
+                break; // Stop after finding the first valid message
+              }
+            } catch (messageError) {
+              console.error(`Error processing message ${index}:`, messageError);
+            }
+          }
+          const uniquePayerIdsForMarker = new Set();
+          const uniquePayerIdsForPolygon = new Set();
+
+          // Extract payer IDs from messages
+      for (const message of messages) {
+        try {
+          let parsedMessage = message;
+          if (typeof message === 'string') {
+            parsedMessage = JSON.parse(message);
+          }
+
+          // Add payer IDs for markers
+          if (parsedMessage.marker && parsedMessage.marker.data) {
+            uniquePayerIdsForMarker.add(parsedMessage.payer);
+          }
+
+          // Add payer IDs for polygons
+          if (parsedMessage.polygon && parsedMessage.polygon.data) {
+            uniquePayerIdsForPolygon.add(parsedMessage.payer);
+          }
+
+          if (parsedMessage.addTopicNFT && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+          const nfts = parsedMessage.addTopicNFT.split(',').map(nft => nft.trim());
+          nfts.forEach(nft => {
+            if (!loadedNFTsForModel.includes(nft)) {
+              loadedNFTsForModel.push(nft);
+            }
+          });
+          }
+
+          if (parsedMessage.removeTopicNFT && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+            const nft = parsedMessage.removeTopicNFT.trim();
+            const index = loadedNFTsForModel.indexOf(nft);
+            if (index !== -1) {
+              loadedNFTsForModel.splice(index, 1);
+            }
+          }
+
+        if (parsedMessage.addScale && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+          const { NFT, scale } = parsedMessage.addScale;
+          loadedNFTScaleForModel.push({ NFT, scale });
+        }
+
+        if (parsedMessage.removeScale && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+          const { NFT } = parsedMessage.removeScale;
+          const index = loadedNFTScaleForModel.findIndex(item => item.NFT === NFT);
+          if (index !== -1) {
+            loadedNFTScaleForModel.splice(index, 1); // Remove the item if it exists
+          } else {
+            console.log(`NFT: ${NFT} not found in addScale list`);
+          }
+        }
+
+        updateRulesForModelNFTState();
+
+        } catch (error) {
+          console.error("Error extracting payer ID:", error);
+        }
+      }
+
+          // Ownership logic
+          const markerOwnershipArray = [];
+          const polygonOwnershipArray = [];
+
+
+          if (hasRulesForMarker) {
+            // Iterate over each unique payer ID for markers
+            for (const payerId of uniquePayerIdsForMarker) {
+              const tokenIdForMarker = loadedTopicRulesForMarker[0].markerTopicId;
+              const filteredNftsForMarker = await getAccountNFTs(payerId, tokenIdForMarker);
+
+              // Check if the user owns NFTs and push to an array
+              if (filteredNftsForMarker.length > 0) {
+                const numberOfMessages = filteredNftsForMarker.length * loadedTopicRulesForMarker[0].markerMessagesPerNft;
+                const numberOfMarker = [];
+                markerOwnershipArray.push({ payerId, numberOfMessages, numberOfMarker });
+              }
+            }
+          }
+
+          if (hasRulesForPolygon) {
+
+            // Iterate over each unique payer ID for polygons
+            for (const payerId of uniquePayerIdsForPolygon) {
+              const tokenIdForPoly = loadedTopicRulesForPolygon[0].polygonTopicId;
+              const filteredNftsForPoly = await getAccountNFTs(payerId, tokenIdForPoly);
+
+              // Check if the user owns NFTs and push to an array
+              if (filteredNftsForPoly.length > 0) {
+                const numberOfMessages = filteredNftsForPoly.length * loadedTopicRulesForPolygon[0].polygonMessagesPerNft;
+                const numberOfPolygon = [];
+                polygonOwnershipArray.push({ payerId, numberOfMessages, numberOfPolygon });
+              }
+            }
+          }
+
+          if (!hasRulesForMarker) {
+          for (const payerId of uniquePayerIdsForMarker) {
+            const numberOfMarker = [];
+            markerOwnershipArray.push({ payerId, numberOfMarker });
+          }
+        }
+        if (!hasRulesForPolygon) {
+          for (const payerId of uniquePayerIdsForPolygon) {
+            const numberOfPolygon = [];
+            polygonOwnershipArray.push({ payerId, numberOfPolygon });
+          }
+        }
+          // Process each message
+          for (let index = messages.length - 1; index >= 0; index--) {
+            const message = messages[index];
+            try {
+              let parsedMessage = message;
+              let decryptedMessage;
+
+
+              if (typeof message === 'string') {
+                parsedMessage = JSON.parse(message);
+              }
+              
+              if (parsedMessage.ciphertext){
+                decryptedMessage = await decryptMessage(parsedMessage, PrivateKey);
+                parsedMessage = JSON.parse(decryptedMessage)
+              }
+
+              const timestamp = new Date(message.created)
+              .toLocaleString('en-US', {
+                hour12: false,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+              })
+
+
+              const defaultProfilePic = "https://kiloscribe.com/api/inscription-cdn/0.0.4819119";
+              const profileUrl = isValidUrl(message.payer && profilePictures[message.payer] ?
+                profilePictures[message.payer].url :
+                defaultProfilePic) ?
+                (message.payer && profilePictures[message.payer] ? profilePictures[message.payer].url : defaultProfilePic) :
+                defaultProfilePic;
+
+              const payerInfo = message.payer ? `${message.payer}` : 'Anonymous';
+              const username = message.payer && usernames[message.payer] ?
+                ` ${usernames[message.payer].username}` :
+                '';
+              const click2link = message.payer && click2url[message.payer] ?
+                ` ${click2url[message.payer].click2url}` :
+                '';
+
+              if (parsedMessage.marker && parsedMessage.marker.data) {
+                const markernumber = parsedMessage.marker.data.numberOfMarker;
+                const markerOwner = markerOwnershipArray.find(owner => owner.payerId === message.payer);
+                
+                if (parsedMessage.marker.data.deleteMarkerNumber) {
+                  const deleteMarkerNumber = parsedMessage.marker.data.deleteMarkerNumber;
+                  markerOwner.numberOfMarker.push(deleteMarkerNumber);
+                }
+
+                if (markernumber === undefined || markernumber === null || !Number.isInteger(Number(markernumber))) {
+                  continue;
+                }
+                  
+                if (!markerOwner.numberOfMarker.includes(markernumber)) {
+                  markerOwner.numberOfMarker.push(markernumber);
+                
+                if (!hasRulesForMarker || (markerOwner && markerOwner.numberOfMessages > 0)) {
+
+                  if (hasRulesForMarker) {
+                    markerOwner.numberOfMessages -= 1;
+                  }
+
+                  let coords;
+                  try {
+                    const cordData = parsedMessage.marker.data.cord;
+
+                    if (typeof cordData === 'string') {
+                      coords = cordData.split(',').map(num => parseFloat(num.trim()));
+                    } else if (Array.isArray(cordData)) {
+                      coords = cordData;
+                    } else {
+                      throw new Error('Unsupported coordinate format');
+                    }
+
+                    if (!Array.isArray(coords) || coords.length !== 2 || coords.some(isNaN)) {
+                      throw new Error('Invalid coordinate format');
+                    }
+
+                    // Use the final like and dislike counts from the maps
+                    const likeCountMarker = likeCountMapMarker.get(timestamp) || 0;
+                    const dislikeCountMarker = dislikeCountMapMarker.get(timestamp) || 0;
+
+                    // Create marker popup HTML using DOM helper
+                    const markerPopupHTML = createMarkerPopupHTML({
+                      markernumber,
+                      topicId,
+                      loadedTopicName,
+                      profileUrl,
+                      payer: message.payer,
+                      payerInfo,
+                      username,
+                      click2link,
+                      title: parsedMessage.marker.data.title,
+                      image: parsedMessage.marker.data.image,
+                      msg: parsedMessage.marker.data.msg,
+                      timestamp,
+                      likeCountMarker,
+                      dislikeCountMarker
+                    });
+
+                    topicGeojsonFeatures.push({
+                      topicId: topicId,
+                      created: parsedMessage.created,
+                      msgNumber: parsedMessage.marker.data.numberOfMarker,
+                      type: "Feature",
+                      payer: message.payer,
+                      properties: {
+                        message: markerPopupHTML,
+                        imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl
+                      },
+                      geometry: {
+                        type: "Point",
+                        coordinates: coords
+                      }
+                    });
+                  } catch (coordError) {
+                    console.error("Error parsing marker coordinates:", coordError, "Raw coords:", parsedMessage.marker.data.cord);
+                  }
+                }
+              }
+            }
+
+              // Handle polygon type messages
+              if (parsedMessage.polygon && parsedMessage.polygon.data) {
+                const polygonOwner = polygonOwnershipArray.find(owner => owner.payerId === message.payer) ;
+                const polygonnumber = parsedMessage.polygon.data.numberOfPolygon;
+                
+                if (parsedMessage.polygon.data.deletePolygonNumber) {
+                  const deletePolygonNumber = parsedMessage.polygon.data.deletePolygonNumber;
+                  polygonOwner.numberOfPolygon.push(deletePolygonNumber);
+                }
+
+                if (polygonnumber === undefined || polygonnumber === null || !Number.isInteger(Number(polygonnumber))) {
+                  continue;
+                }
+
+                if (!polygonOwner.numberOfPolygon.includes(polygonnumber)) {
+                  polygonOwner.numberOfPolygon.push(polygonnumber);
+
+
+                if (!hasRulesForPolygon || (polygonOwner && polygonOwner.numberOfMessages > 0)) {
+                  if (hasRulesForPolygon) {
+                    polygonOwner.numberOfMessages -= 1;
+                  }
+
+                  try {
+                    const cordStr = parsedMessage.polygon.data.cord;
+
+                    // Validate the coordinate string format
+                    const validCoordPattern = /^\[-?\d+\.?\d*,\s*-?\d+\.?\d*\](,\s*\[-?\d+\.?\d*,\s*-?\d+\.?\d*\])*$/;
+                    if (!validCoordPattern.test(cordStr)) {
+                      continue; // Skip processing this message
+                    }
+
+                    // Parse the coordinates
+                    const coordinates = JSON.parse(`[${cordStr}]`); // Wrap in brackets for valid JSON
+
+                    if (Array.isArray(coordinates) && coordinates.length > 2) {
+                      const polygonSize = hasRulesForPolygon ? loadedTopicRulesForPolygon[0].polygonSize : 1;
+
+                      const likeCountPolygon = likeCountMapPolygon.get(timestamp) || 0;
+                      const dislikeCountPolygon = dislikeCountMapPolygon.get(timestamp) || 0;
+
+                      // Create polygon popup HTML using DOM helper
+                      const polygonPopupHTML = createPolygonPopupHTML({
+                        polygonnumber,
+                        topicId,
+                        loadedTopicName,
+                        profileUrl,
+                        payer: message.payer,
+                        payerInfo,
+                        username,
+                        click2link,
+                        title: parsedMessage.polygon.data.title,
+                        image: parsedMessage.polygon.data.image,
+                        msg: parsedMessage.polygon.data.msg,
+                        timestamp,
+                        likeCountPolygon,
+                        dislikeCountPolygon
+                      });
+
+                      topicPolygons.push({
+                        topicId: topicId,
+                        created: parsedMessage.created,
+                        msgNumber: parsedMessage.polygon.data.numberOfPolygon,
+                        id: `polygon-${message.payer}-${topicId}-${parsedMessage.polygon.data.numberOfPolygon}`,
+                        payer: message.payer,
+                        coordinates: [coordinates],
+                        description: polygonPopupHTML,
+                        imageUrl: isValidUrl(parsedMessage.polygon.data.coverimage) ? parsedMessage.polygon.data.coverimage : profileUrl
+                      });
+                    }
+                  } catch (polygonError) {
+                    console.error("Error parsing polygon data:", polygonError);
+                  }
+                }
+              }
+            }
+            } catch (messageError) {
+              console.error(`Error processing message ${index}:`, messageError);
+            }
+          }
+
+
+        // At the end of the function, push the collected features to the parent arrays
+        geojson.features.push(...topicGeojsonFeatures); // Push topic features to parent geojson array
+        polygons.push(...topicPolygons); // Push topic polygons to parent polygons array
+        return { topicGeojsonFeatures, topicPolygons };
+
+
+        } catch (error) {
+          console.error(`Error loading messages for topic ${topicId}:`, error);
+          return { topicGeojsonFeatures: [], topicPolygons: [] }; // Return empty arrays on error
+        }
+      }
+
+
+
+
+
+      document.getElementById("unlock-load-few").addEventListener("click", async () => {
+        try {
+          let pass = document.getElementById("unlockkey-load").value;
+      
+      
+          geojson.features = [];
+          polygons.length = 0;
+      
+          existingMarkers.forEach(marker => marker.remove());
+          newExistingMarkers([]);
+      
+          newStoredMarkers([]);
+          newStoredPolygons([]);
+      
+          // Remove existing polygon layers
+          map.getStyle().layers.forEach(layer => {
+          if (layer.id.includes('-layer')) {
+          map.removeLayer(layer.id);
+          }
+          });
+      
+          // Remove existing polygon sources
+          const sourceIds = Object.keys(map.getStyle().sources);
+          sourceIds.forEach(sourceId => {
+          if (sourceId.includes('-source')) {
+          map.removeSource(sourceId);
+          }
+          });
+      
+      
+          let encryptedPrivateKey;
+          let decryptedPrivateKey;
+      
+          const totalTopics = allLoadedMessages.length;
+          let processedCount = 0;
+      
+          for (const topicData of allLoadedMessages) {
+      
+            const topicId = topicData.topicId; 
+      
+            const messages = Object.values(topicData.uniqueMessages).flat();
+      
+            const w = pass;
+      
+            const topicAdmin = [];
+            try {
+              const topicInfo = await getTopicInfo(topicId);
+              const memo = topicInfo.memo || "";
+              const parts = memo.split(',');
+              parts.forEach(part => {
+                if (part.trim().startsWith("0.0.")) {
+                  topicAdmin.push(part.trim());
+                }
+              });
+            } catch (error) {
+      
+              console.error("Error getting topic info:", error);
+              return;
+            }
+      
+            try {
+              for (let index = messages.length - 1; index >= 0; index--) {
+                const message = messages[index];
+      
+                let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
+      
+                if (parsedMessage.encryptedPrivateKeyForLoad && (topicAdmin.length === 0 || topicAdmin.includes(parsedMessage.payer))) {
+        
+                  encryptedPrivateKey = parsedMessage.encryptedPrivateKeyForLoad;
+        
+                  const nonce = parsedMessage.nonce;
+                  const salt = parsedMessage.salt;
+                  const password = w;
+        
+                  decryptedPrivateKey = await decryptWithPassword(encryptedPrivateKey, nonce, salt, password);
+      
+                  break;
+        
+                }
+                else {
+                  decryptedPrivateKey = '';
+                }
+          
+             }
+            } catch (error) {
+      
+              console.error("Error getting public key:", error);
+      
+            }
+      
+      
+      
+      
+          const { topicGeojsonFeatures, topicPolygons } = await processFewTopicE2EEMessages(decryptedPrivateKey, messages, topicId);
+      
+          storedMarkers.push(topicGeojsonFeatures);
+          storedPolygons.push(topicPolygons);
+      
+      
+         processedCount++;
+      
+      
+        }
+      
+        if ( totalTopics === processedCount){
+      
+          polygons.forEach(polygon => {
+            addPolygonWithImageFill(map, polygon);
+          });
+      
+          if (geojson.features.length > 0) {
+            index.load(geojson.features);
+            updateClusters();
+          }
+      
+        }
+      
+        } catch (error) {
+          console.error('Error submitting message:', error);
+        }
+      });
+
+
+
+
+      export async function processFewTopicE2EEMessages(decryptedPrivateKey, messages, topicId) {
+        let topicGeojsonFeatures = [];
+        let topicPolygons = [];
+        let loadedTopicName = '';
+        let PrivateKey;
+        const rawResult = messages;
+      
+        try{
+        PrivateKey = parsePrivateKey(decryptedPrivateKey);
+        }catch (error) {
+          console.error(`Error loading private key: ${error}`);
+        }
+      
+      
+        try {
+      
+      
+            const likeCountMapMarker = new Map();
+            const dislikeCountMapMarker = new Map();
+            const likeCountMapPolygon = new Map();
+            const dislikeCountMapPolygon = new Map();
+            const payerActionsPerTimestamp = new Map();
+      
+      
+      if (rawResult && Array.isArray(rawResult)) {
+      
+      
+      
+        for (const message of rawResult) {
+          try {
+            let parsedMessage = message;
+      
+            if (typeof message === 'string') {
+              parsedMessage = JSON.parse(message);
+            }
+      
+            const payerId = parsedMessage.payer;
+            let actionTimestamp, actionType;
+      
+            // Check for like
+            if (parsedMessage.likeMarker && parsedMessage.likeMarker.timestamp && parsedMessage.payer) {
+              actionTimestamp = parsedMessage.likeMarker.timestamp;
+              actionType = 'likeMarker';
+            }
+            // Check for dislike
+            if (parsedMessage.dislikeMarker && parsedMessage.dislikeMarker.timestamp && parsedMessage.payer) {
+              const dislikeTimestamp = parsedMessage.dislikeMarker.timestamp;
+              // If no like or dislike timestamp is newer, update action
+              if (!actionTimestamp || dislikeTimestamp > actionTimestamp) {
+                actionTimestamp = dislikeTimestamp;
+                actionType = 'dislikeMarker';
+              }
+            }
+            // Check for like
+            if (parsedMessage.likePolygon && parsedMessage.likePolygon.timestamp && parsedMessage.payer) {
+              actionTimestamp = parsedMessage.likePolygon.timestamp;
+              actionType = 'likePolygon';
+            }
+            // Check for dislike
+            if (parsedMessage.dislikePolygon && parsedMessage.dislikePolygon.timestamp && parsedMessage.payer) {
+              actionTimestamp = parsedMessage.dislikePolygon.timestamp;
+              actionType = 'dislikePolygon';
+            }
+      
+            // Process the action if it exists
+            if (actionTimestamp && actionType && payerId) {
+              // Initialize map for this timestamp if it doesn't exist
+              if (!payerActionsPerTimestamp.has(actionTimestamp)) {
+                payerActionsPerTimestamp.set(actionTimestamp, new Map());
+              }
+      
+              // Update or set the latest action for this payer at this timestamp
+              const payerActions = payerActionsPerTimestamp.get(actionTimestamp);
+              const existingAction = payerActions.get(payerId);
+      
+              // Only update if this is a new action or a newer timestamp
+              if (!existingAction || actionTimestamp >= existingAction.timestamp) {
+                // If there's an existing action, remove its previous count
+                if (existingAction) {
+                  if (existingAction.type === 'likeMarker') {
+                    likeCountMapMarker.set(actionTimestamp, (likeCountMapMarker.get(actionTimestamp) || 0) - 1);
+                  } else if (existingAction.type === 'dislikeMarker') {
+                    dislikeCountMapMarker.set(actionTimestamp, (dislikeCountMapMarker.get(actionTimestamp) || 0) - 1);
+                  }
+                  if (existingAction.type === 'likePolygon') {
+                    likeCountMapPolygon.set(actionTimestamp, (likeCountMapPolygon.get(actionTimestamp) || 0) - 1);
+                  } else if (existingAction.type === 'dislikePolygon') {
+                    dislikeCountMapPolygon.set(actionTimestamp, (dislikeCountMapPolygon.get(actionTimestamp) || 0) - 1);
+                  }
+                }
+      
+                // Store the new action
+                payerActions.set(payerId, { type: actionType, timestamp: actionTimestamp });
+      
+                // Increment the count for the new action
+                if (actionType === 'likeMarker') {
+                  likeCountMapMarker.set(actionTimestamp, (likeCountMapMarker.get(actionTimestamp) || 0) + 1);
+                } else if (actionType === 'dislikeMarker') {
+                  dislikeCountMapMarker.set(actionTimestamp, (dislikeCountMapMarker.get(actionTimestamp) || 0) + 1);
+                }
+                if (actionType === 'likePolygon') {
+                  likeCountMapPolygon.set(actionTimestamp, (likeCountMapPolygon.get(actionTimestamp) || 0) + 1);
+                } else if (actionType === 'dislikePolygon') {
+                  dislikeCountMapPolygon.set(actionTimestamp, (dislikeCountMapPolygon.get(actionTimestamp) || 0) + 1);
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`Error parsing message for likes/dislikes: ${error}`);
+          }
+        }
+      }
+                
+      
+                const topicInfo = await getTopicInfo(topicId);
+                const topicAdmin = [];
+                let hasRulesForMarker = false;
+                let hasRulesForPolygon = false;
+                const memo = topicInfo.memo;
+      
+                // Split the memo by commas
+                const parts = memo.split(',');
+      
+                // Iterate over each part
+                parts.forEach(part => {
+                  // Check if the part starts with "0.0."
+                  if (part.startsWith("0.0.")) {
+                    // Add it to the topicAdmin array
+                    topicAdmin.push(part);
+                  }
+                });
+      
+      
+      
+                // Check if messages exist and is an array
+                if (!rawResult || !Array.isArray(rawResult)) {
+                  console.error(`No messages found for topic ${topicId}.`, rawResult);
+                  return { topicGeojsonFeatures, topicPolygons }; // Return empty arrays
+                }
+      
+                const messages = rawResult; // Extract messages
+      
+                const loadedTopicRulesForMarker = [];
+                const loadedTopicRulesForPolygon = [];
+      
+      
+      
+                // Read rules from messages
+                for (let index = messages.length - 1; index >= 0; index--) {
+                  const message = messages[index];
+                  try {
+                    let parsedMessage = message;
+                    if (typeof message === 'string') {
+                      parsedMessage = JSON.parse(message);
+                    }
+      
+                    if (parsedMessage.rules && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+                      if (parsedMessage.rules.formarker.markerTopicId.startsWith('0.0.') && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+                      loadedTopicRulesForMarker.push(parsedMessage.rules.formarker);
+                      hasRulesForMarker = true;
+      
+                    }
+                    if (parsedMessage.rules.forpolygon.polygonTopicId.startsWith('0.0.') && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+                      loadedTopicRulesForPolygon.push(parsedMessage.rules.forpolygon);
+                      hasRulesForPolygon = true;
+      
+                    }
+                      break; // Exit the loop after finding the last message with rules
+                    }
+                  } catch (messageError) {
+                    console.error(`Error processing message ${index}:`, messageError);
+                  }
+                }
+      
+                for (let index = messages.length - 1; index >= 0; index--) {
+                  const message = messages[index];
+                  try {
+                    let parsedMessage = message;
+                    if (typeof message === 'string') {
+                      parsedMessage = JSON.parse(message);
+                    }
+                    // Check if changeName exists and either topicAdmin is empty or includes the payer
+                    if (parsedMessage.changeName && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+                      loadedTopicName = parsedMessage.changeName;
+                      break; // Stop after finding the first valid message
+                    }
+                  } catch (messageError) {
+                    console.error(`Error processing message ${index}:`, messageError);
+                  }
+                }
+                const uniquePayerIdsForMarker = new Set();
+                const uniquePayerIdsForPolygon = new Set();
+      
+                // Extract payer IDs from messages
+            for (const message of messages) {
+              try {
+                let parsedMessage = message;
+                if (typeof message === 'string') {
+                  parsedMessage = JSON.parse(message);
+                }
+      
+                // Add payer IDs for markers
+                if (parsedMessage.marker && parsedMessage.marker.data) {
+                  uniquePayerIdsForMarker.add(parsedMessage.payer);
+                }
+      
+                // Add payer IDs for polygons
+                if (parsedMessage.polygon && parsedMessage.polygon.data) {
+                  uniquePayerIdsForPolygon.add(parsedMessage.payer);
+                }
+      
+                if (parsedMessage.addTopicNFT && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+                const nfts = parsedMessage.addTopicNFT.split(',').map(nft => nft.trim());
+                nfts.forEach(nft => {
+                  if (!loadedNFTsForModel.includes(nft)) {
+                    loadedNFTsForModel.push(nft);
+                  }
+                });
+                }
+      
+                if (parsedMessage.removeTopicNFT && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+                  const nft = parsedMessage.removeTopicNFT.trim();
+                  const index = loadedNFTsForModel.indexOf(nft);
+                  if (index !== -1) {
+                    loadedNFTsForModel.splice(index, 1);
+                  }
+                }
+      
+              if (parsedMessage.addScale && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+                const { NFT, scale } = parsedMessage.addScale;
+                loadedNFTScaleForModel.push({ NFT, scale });
+              }
+      
+              if (parsedMessage.removeScale && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+                const { NFT } = parsedMessage.removeScale;
+                const index = loadedNFTScaleForModel.findIndex(item => item.NFT === NFT);
+                if (index !== -1) {
+                  loadedNFTScaleForModel.splice(index, 1); // Remove the item if it exists
+                } else {
+                  console.log(`NFT: ${NFT} not found in addScale list`);
+                }
+              }
+      
+              updateRulesForModelNFTState();
+      
+              } catch (error) {
+                console.error("Error extracting payer ID:", error);
+              }
+            }
+      
+                // Ownership logic
+                const markerOwnershipArray = [];
+                const polygonOwnershipArray = [];
+      
+      
+                if (hasRulesForMarker) {
+                  // Iterate over each unique payer ID for markers
+                  for (const payerId of uniquePayerIdsForMarker) {
+                    const tokenIdForMarker = loadedTopicRulesForMarker[0].markerTopicId;
+                    const filteredNftsForMarker = await getAccountNFTs(payerId, tokenIdForMarker);
+      
+                    // Check if the user owns NFTs and push to an array
+                    if (filteredNftsForMarker.length > 0) {
+                      const numberOfMessages = filteredNftsForMarker.length * loadedTopicRulesForMarker[0].markerMessagesPerNft;
+                      const numberOfMarker = [];
+                      markerOwnershipArray.push({ payerId, numberOfMessages, numberOfMarker });
+                    }
+                  }
+                }
+      
+                if (hasRulesForPolygon) {
+      
+                  // Iterate over each unique payer ID for polygons
+                  for (const payerId of uniquePayerIdsForPolygon) {
+                    const tokenIdForPoly = loadedTopicRulesForPolygon[0].polygonTopicId;
+                    const filteredNftsForPoly = await getAccountNFTs(payerId, tokenIdForPoly);
+      
+                    // Check if the user owns NFTs and push to an array
+                    if (filteredNftsForPoly.length > 0) {
+                      const numberOfMessages = filteredNftsForPoly.length * loadedTopicRulesForPolygon[0].polygonMessagesPerNft;
+                      const numberOfPolygon = [];
+                      polygonOwnershipArray.push({ payerId, numberOfMessages, numberOfPolygon });
+                    }
+                  }
+                }
+      
+                if (!hasRulesForMarker) {
+                for (const payerId of uniquePayerIdsForMarker) {
+                  const numberOfMarker = [];
+                  markerOwnershipArray.push({ payerId, numberOfMarker });
+                }
+              }
+              if (!hasRulesForPolygon) {
+                for (const payerId of uniquePayerIdsForPolygon) {
+                  const numberOfPolygon = [];
+                  polygonOwnershipArray.push({ payerId, numberOfPolygon });
+                }
+              }
+                // Process each message
+                for (let index = messages.length - 1; index >= 0; index--) {
+                  const message = messages[index];
+                  try {
+                    let parsedMessage = message;
+
+                    
+                    let decryptedMessage;
+      
+      
+                    if (typeof message === 'string') {
+                      parsedMessage = JSON.parse(message);
+                    }
+                    
+                    if (parsedMessage.ciphertext){
+                      decryptedMessage = await decryptMessage(parsedMessage, PrivateKey);
+                      parsedMessage = JSON.parse(decryptedMessage)
+                    }
+      
+                    const timestamp = new Date(message.created)
+                    .toLocaleString('en-US', {
+                      hour12: false,
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit'
+                    })
+      
+      
+                    const defaultProfilePic = "https://kiloscribe.com/api/inscription-cdn/0.0.4819119";
+                    const profileUrl = isValidUrl(message.payer && profilePictures[message.payer] ?
+                      profilePictures[message.payer].url :
+                      defaultProfilePic) ?
+                      (message.payer && profilePictures[message.payer] ? profilePictures[message.payer].url : defaultProfilePic) :
+                      defaultProfilePic;
+      
+                    const payerInfo = message.payer ? `${message.payer}` : 'Anonymous';
+                    const username = message.payer && usernames[message.payer] ?
+                      ` ${usernames[message.payer].username}` :
+                      '';
+                    const click2link = message.payer && click2url[message.payer] ?
+                      ` ${click2url[message.payer].click2url}` :
+                      '';
+      
+                    if (parsedMessage.marker && parsedMessage.marker.data) {
+                      const markernumber = parsedMessage.marker.data.numberOfMarker;
+                      const markerOwner = markerOwnershipArray.find(owner => owner.payerId === message.payer);
+                      
+                      if (parsedMessage.marker.data.deleteMarkerNumber) {
+                        const deleteMarkerNumber = parsedMessage.marker.data.deleteMarkerNumber;
+                        markerOwner.numberOfMarker.push(deleteMarkerNumber);
+                      }
+      
+                      if (markernumber === undefined || markernumber === null || !Number.isInteger(Number(markernumber))) {
+                        continue;
+                      }
+                        
+                      if (!markerOwner.numberOfMarker.includes(markernumber)) {
+                        markerOwner.numberOfMarker.push(markernumber);
+                      
+                      if (!hasRulesForMarker || (markerOwner && markerOwner.numberOfMessages > 0)) {
+      
+                        if (hasRulesForMarker) {
+                          markerOwner.numberOfMessages -= 1;
+                        }
+      
+                        let coords;
+                        try {
+                          const cordData = parsedMessage.marker.data.cord;
+      
+                          if (typeof cordData === 'string') {
+                            coords = cordData.split(',').map(num => parseFloat(num.trim()));
+                          } else if (Array.isArray(cordData)) {
+                            coords = cordData;
+                          } else {
+                            throw new Error('Unsupported coordinate format');
+                          }
+      
+                          if (!Array.isArray(coords) || coords.length !== 2 || coords.some(isNaN)) {
+                            throw new Error('Invalid coordinate format');
+                          }
+      
+                          // Use the final like and dislike counts from the maps
+                          const likeCountMarker = likeCountMapMarker.get(timestamp) || 0;
+                          const dislikeCountMarker = dislikeCountMapMarker.get(timestamp) || 0;
+      
+                          // Create marker popup HTML using DOM helper
+                          const markerPopupHTML = createMarkerPopupHTML({
+                            markernumber,
+                            topicId,
+                            loadedTopicName,
+                            profileUrl,
+                            payer: message.payer,
+                            payerInfo,
+                            username,
+                            click2link,
+                            title: parsedMessage.marker.data.title,
+                            image: parsedMessage.marker.data.image,
+                            msg: parsedMessage.marker.data.msg,
+                            timestamp,
+                            likeCountMarker,
+                            dislikeCountMarker
+                          });
+
+                          if (message.ciphertext){
+      
+                          topicGeojsonFeatures.push({
+                            topicId: topicId,
+                            created: parsedMessage.created,
+                            msgNumber: parsedMessage.marker.data.numberOfMarker,
+                            type: "Feature",
+                            payer: message.payer,
+                            properties: {
+                              message: markerPopupHTML,
+                              imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl
+                            },
+                            geometry: {
+                              type: "Point",
+                              coordinates: coords
+                            }
+                          });
+                        }
+                        } catch (coordError) {
+                          console.error("Error parsing marker coordinates:", coordError, "Raw coords:", parsedMessage.marker.data.cord);
+                        }
+                      }
+                    }
+                  }
+      
+                    // Handle polygon type messages
+                    if (parsedMessage.polygon && parsedMessage.polygon.data) {
+                      const polygonOwner = polygonOwnershipArray.find(owner => owner.payerId === message.payer) ;
+                      const polygonnumber = parsedMessage.polygon.data.numberOfPolygon;
+                      
+                      if (parsedMessage.polygon.data.deletePolygonNumber) {
+                        const deletePolygonNumber = parsedMessage.polygon.data.deletePolygonNumber;
+                        polygonOwner.numberOfPolygon.push(deletePolygonNumber);
+                      }
+      
+                      if (polygonnumber === undefined || polygonnumber === null || !Number.isInteger(Number(polygonnumber))) {
+                        continue;
+                      }
+      
+                      if (!polygonOwner.numberOfPolygon.includes(polygonnumber)) {
+                        polygonOwner.numberOfPolygon.push(polygonnumber);
+      
+      
+                      if (!hasRulesForPolygon || (polygonOwner && polygonOwner.numberOfMessages > 0)) {
+                        if (hasRulesForPolygon) {
+                          polygonOwner.numberOfMessages -= 1;
+                        }
+      
+                        try {
+                          const cordStr = parsedMessage.polygon.data.cord;
+      
+                          // Validate the coordinate string format
+                          const validCoordPattern = /^\[-?\d+\.?\d*,\s*-?\d+\.?\d*\](,\s*\[-?\d+\.?\d*,\s*-?\d+\.?\d*\])*$/;
+                          if (!validCoordPattern.test(cordStr)) {
+                            continue; // Skip processing this message
+                          }
+      
+                          // Parse the coordinates
+                          const coordinates = JSON.parse(`[${cordStr}]`); // Wrap in brackets for valid JSON
+      
+                          if (Array.isArray(coordinates) && coordinates.length > 2) {
+                            const polygonSize = hasRulesForPolygon ? loadedTopicRulesForPolygon[0].polygonSize : 1;
+      
+                            const likeCountPolygon = likeCountMapPolygon.get(timestamp) || 0;
+                            const dislikeCountPolygon = dislikeCountMapPolygon.get(timestamp) || 0;
+      
+                            // Create polygon popup HTML using DOM helper
+                            const polygonPopupHTML = createPolygonPopupHTML({
+                              polygonnumber,
+                              topicId,
+                              loadedTopicName,
+                              profileUrl,
+                              payer: message.payer,
+                              payerInfo,
+                              username,
+                              click2link,
+                              title: parsedMessage.polygon.data.title,
+                              image: parsedMessage.polygon.data.image,
+                              msg: parsedMessage.polygon.data.msg,
+                              timestamp,
+                              likeCountPolygon,
+                              dislikeCountPolygon
+                            });
+
+
+                            if(message.ciphertext){
+      
+                            topicPolygons.push({
+                              topicId: topicId,
+                              created: parsedMessage.created,
+                              msgNumber: parsedMessage.polygon.data.numberOfPolygon,
+                              id: `polygon-${message.payer}-${topicId}-${parsedMessage.polygon.data.numberOfPolygon}`,
+                              payer: message.payer,
+                              coordinates: [coordinates],
+                              description: polygonPopupHTML,
+                              imageUrl: isValidUrl(parsedMessage.polygon.data.coverimage) ? parsedMessage.polygon.data.coverimage : profileUrl
+                            });
+                          }
+                          }
+                        } catch (polygonError) {
+                          console.error("Error parsing polygon data:", polygonError);
+                        }
+                      }
+                    }
+                  }
+                  } catch (messageError) {
+                    console.error(`Error processing message ${index}:`, messageError);
+                  }
+                }
+      
+      
+              // At the end of the function, push the collected features to the parent arrays
+              geojson.features.push(...topicGeojsonFeatures); // Push topic features to parent geojson array
+              polygons.push(...topicPolygons); // Push topic polygons to parent polygons array
+              return { topicGeojsonFeatures, topicPolygons };
+      
+      
+              } catch (error) {
+                console.error(`Error loading messages for topic ${topicId}:`, error);
+                return { topicGeojsonFeatures: [], topicPolygons: [] }; // Return empty arrays on error
+              }
+            }

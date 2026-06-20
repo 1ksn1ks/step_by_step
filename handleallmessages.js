@@ -16,17 +16,18 @@ import { getMessages, getTopicInfo } from "./hedera";
 import { newActiveMarkerPopups, updateClusters, index } from "./marker";
 import { newActivePolygonPopups, addPolygonWithImageFill } from "./polygons";
 import { map } from './map.js';
-import { processTopicMessages } from "./processallmessages.js";
+import { processTopicMessages, allLoadedMessages } from "./processallmessages.js";
 import { initialTopicId } from "./extracttopic.js";
 
 
-export let allLoadedMessages = [];
+
 
 
 export async function handleAllMessages() {
     try {
       newStoredMarkers([]);
       newStoredPolygons([]);
+      allLoadedMessages.length = 0;
       let userInput = document.getElementById("input-field").value.toLowerCase();
       let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
       let topicId;
@@ -76,16 +77,13 @@ export async function handleAllMessages() {
   
   
       newGlobalLoadedTopicIdsWithNames([]);
-      let addedTopics = [];
-      let removedTopics = [];
       let loadedTopicsIds = [];
       newActiveMarkerPopups([]);
       newActivePolygonPopups([]);
   
   
       const result = await getMessages(topicId);
-      allLoadedMessages = [];
-      allLoadedMessages.push(result);
+
   
       let hasMoreThanOneTopic = false;
   
@@ -166,7 +164,7 @@ export async function handleAllMessages() {
         storedPolygons.push(topicPolygons);
 
         if (loadedTopicName !== undefined) { // Only skip if loadedTopicName is undefined
-          const topicNamePart = loadedTopicName ? `-${loadedTopicName}` : '';
+          const topicNamePart = loadedTopicName ? ` - ${loadedTopicName}` : '';
           loadedTopicIdsWithNames.push(`${topicId}${topicNamePart}`);
         }
 
