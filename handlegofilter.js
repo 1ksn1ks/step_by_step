@@ -3,10 +3,14 @@ import {
   storedMarkersFiltered,
   storedPolygons,
   storedPolygonsFiltered,
-  existingMarkers
+  existingMarkers,
+  newStoredMarkers,
+  newStoredPolygons,
+  newStoredPolygonsFiltered,
+  newStoredMarkersFiltered
   } from "./letall";
 import { map } from './map.js';
-import {debouncedUpdateClusters} from './marker'
+import {debouncedUpdateClusters, index} from './marker'
 import {addPolygonWithImageFill} from './polygons.js'
 
 
@@ -25,7 +29,7 @@ async function handleGeoFilter() {
   
     // Process blockIds into blockIdsArray
     let blockIdsArray = blockIds ? blockIds.split(",").map(id => id.trim()).filter(id => id.length > 0) : [];
-  
+
     // Convert domain names to topic IDs for loadIds
     if (idsArray.length > 0) {
       idsArray = idsArray.map(id => {
@@ -73,6 +77,7 @@ async function handleGeoFilter() {
       fromDate = new Date(fromDateValue.slice(4, 8), fromDateValue.slice(0, 2) - 1, fromDateValue.slice(2, 4));
       toDate = new Date(toDateValue.slice(4, 8), toDateValue.slice(0, 2) - 1, toDateValue.slice(2, 4));
     }
+
     // Filter storedMarkers
     const filteredFeatures = storedMarkers.flat().filter(feature => {
       const conditions = [];
@@ -132,15 +137,13 @@ async function handleGeoFilter() {
     });
   
     // Update storedMarkers and storedPolygons
-    storedMarkersFiltered = filteredFeatures;
-    console.log("storedMarkersFiltered", storedMarkersFiltered);
-    storedPolygonsFiltered = filteredPolygons;
-    console.log("storedPolygonsFiltered", storedPolygonsFiltered);
+    newStoredMarkersFiltered(filteredFeatures);
+    newStoredPolygonsFiltered(filteredPolygons);
   
     // Clear existing markers and layers
     setTimeout(() => {
       existingMarkers.forEach(marker => marker.remove());
-      existingMarkers = [];
+      existingMarkers.length = 0;
     }, 250);
   
     map.getStyle().layers.forEach(layer => {

@@ -16,6 +16,7 @@ import './loadTOPIC4PIC.js'
 import './topicchat.js'
 import './encryptedtopicchat.js'
 import './LOADcolumn.js'
+import './handlegofilter.js'
 
 window.restrictLength = function(input, maxLength) {
     if (input.value.length > maxLength) {

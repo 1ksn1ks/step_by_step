@@ -65,11 +65,17 @@ export function newStoredMarkers(a) {
   storedMarkers = a;
 }
 export let storedMarkersFiltered = [];
+export function newStoredMarkersFiltered(a) {
+  storedMarkersFiltered = a;
+}
 export let storedPolygons = [];
 export function newStoredPolygons(a) {
   storedPolygons = a;
 }
 export let storedPolygonsFiltered = [];
+export function newStoredPolygonsFiltered(a) {
+  storedPolygonsFiltered = a;
+}
 
 // Not recommended for modern code, but solves the issue
 export let globalLoadedTopicIdsWithNames = [];
