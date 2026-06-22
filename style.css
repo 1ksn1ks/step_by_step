@@ -766,8 +766,8 @@ line-height: 1;
     left: 50% !important;
     transform: translate(-50%, -50%) !important;
     
-    width: 80vw !important;           /* Force exact 80vw width */
-    max-width: 80vw !important;
+    width: 90vw !important;           /* Force exact 80vw width */
+    max-width: 900vw !important;
     max-height: 70vh !important;
     
     box-sizing: border-box !important;
