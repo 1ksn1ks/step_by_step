@@ -1357,8 +1357,9 @@ window.openPolygonNavigation = async function(coordinates) {
     const destination = `${centerLat},${centerLng}`;
 
 
-    // Open Google Maps navigation
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}`, '_blank');
+    // Opens Google Maps centered on the location with a pin
+    window.open( `https://www.google.com/maps?q=${destination}`, '_blank');
+            
 
   } catch (err) {
     console.error("Error opening navigation:", err);
@@ -1374,7 +1375,7 @@ window.openMarkerNavigation = async function(coords) {
 
     const destination = `${lat},${lng}`;
     
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}`, '_blank');
+    window.open( `https://www.google.com/maps?q=${destination}`, '_blank');
 
   } catch (err) {
     console.error("Error opening navigation:", err);
