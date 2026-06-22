@@ -761,27 +761,28 @@ line-height: 1;
   }
 
   .maplibregl-popup {
-    position: fixed !important; /* Viewport-based positioning */
-    top: 50% !important; /* Center vertically */
-    left: 50% !important; /* Center horizontally */
-    transform: translate(-50%, -50%) !important; /* Center both horizontally and vertically */
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    
+    width: 80vw !important;           /* Force exact 80vw width */
     max-width: 80vw !important;
-    width: max-content !important; /* Allow content to dictate width up to max-width */
     max-height: 70vh !important;
-    box-sizing: border-box; /* Ensure padding/borders don’t increase width */
+    
+    box-sizing: border-box !important;
     font: 2vh/3vh 'Helvetica Neue', Arial, Helvetica, sans-serif;
     text-align: left;
-    z-index: 1000 !important; /* Above map elements */
-    border: 0.3vh solid;
-    border-color: #ffffff;
+    z-index: 1000 !important;
+    border: 0.3vh solid #ffffff;
     border-radius: 1vh;
     animation: slideIn 0.5s ease-in-out;
-  }
-  
-  .maplibregl-popup-content {
+}
+
+.maplibregl-popup-content {
     background-color: rgba(0, 0, 0, 0.8);
     color: white;
-    padding: 1vh;
+    padding: 1vh 2vh;                 /* Slightly increased horizontal padding */
     border-radius: 0.8vh;
     font-size: 2vh;
     box-shadow: 0 1vh 2vh rgba(0, 0, 0, 0.3);
@@ -792,11 +793,16 @@ line-height: 1;
     -webkit-user-select: text !important;
     -moz-user-select: text !important;
     -ms-user-select: text !important;
-    overflow-y: auto; /* Scroll if content exceeds max-height */
+    
+    width: 100% !important;           /* Fill the 80vw container */
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    
+    overflow-y: auto;
+    overflow-x: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.5) rgba(0, 0, 0, 0.8);
-    overflow-x: auto; /* Allow horizontal scrolling for wide content */
-  }
+}
   
   .maplibregl-popup-content::-webkit-scrollbar {
     width: 0.8vh;
