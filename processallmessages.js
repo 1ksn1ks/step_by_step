@@ -1336,8 +1336,6 @@ window.openPolygonNavigation = async function(coordinates) {
     let sumLng = 0;
     let count = 0;
 
-    console.log(coordinates)
-
     coordinates.forEach(point => {
       if (Array.isArray(point) && point.length >= 2) {
         const lng = point[0];   // longitude

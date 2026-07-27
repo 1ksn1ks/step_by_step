@@ -184,6 +184,120 @@ export async function getMessages(
   }
 }
 
+export async function subscribeToTopic(
+  topicId,
+  onMessageReceived = null,
+  onError = null,
+  pollIntervalMs = 3000
+) {
+  let lastSequence = 0;
+  let stopped = false;
+  let timeoutId = null;
+  const seenSequences = new Set();
+  const historyMessages = [];
+
+  const baseUrl = `https://mainnet.mirrornode.hedera.com`;
+
+  const processMessages = (messages, isHistory = false) => {
+    for (const msg of messages || []) {
+      const seq = msg.sequence_number;
+      if (seenSequences.has(seq)) continue;
+
+      try {
+        const decoded = Buffer.from(msg.message, 'base64').toString('utf-8');
+        const parsedMessage = JSON.parse(decoded);
+
+        const formatted = {
+          ...parsedMessage,
+          payer: msg.payer_account_id,
+          created: new Date(Number(msg.consensus_timestamp) * 1000),
+          consensus_timestamp: msg.consensus_timestamp,
+          sequence_number: seq,
+        };
+
+        seenSequences.add(seq);
+
+        if (isHistory) {
+          historyMessages.push(formatted);
+        } else {
+          // Only for NEW live messages
+          if (typeof onMessageReceived === "function") {
+            onMessageReceived(formatted);
+          }
+        }
+
+        if (seq > lastSequence) {
+          lastSequence = seq;
+        }
+      } catch (err) {
+        console.warn("Skipping bad message:", err.message);
+      }
+    }
+  };
+
+  // Load history
+  const loadHistory = async () => {
+    let url = `${baseUrl}/api/v1/topics/${topicId}/messages?limit=100&order=asc`;
+
+    while (url && !stopped) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const data = await response.json();
+      processMessages(data.messages, true);
+
+      const nextLink = data.links?.next;
+      url = nextLink ? `${baseUrl}${nextLink}` : null;
+    }
+
+    historyMessages.sort((a, b) => a.sequence_number - b.sequence_number);
+  };
+
+  // Live polling
+  const poll = async () => {
+    if (stopped) return;
+
+    try {
+      let url = `${baseUrl}/api/v1/topics/${topicId}/messages?limit=100&order=asc`;
+      if (lastSequence > 0) {
+        url += `&sequencenumber=gt:${lastSequence}`;
+      }
+
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const data = await response.json();
+      processMessages(data.messages, false);
+    } catch (error) {
+      if (typeof onError === "function") onError(error);
+    } finally {
+      if (!stopped) {
+        timeoutId = setTimeout(poll, pollIntervalMs);
+      }
+    }
+  };
+
+  // Start
+  try {
+    await loadHistory();
+  } catch (error) {
+    if (typeof onError === "function") onError(error);
+  }
+
+  if (!stopped) {
+    poll();
+  }
+
+  return {
+    messages: historyMessages,   // ← This was missing in your current version
+    close() {
+      stopped = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      console.log("Stopped topic subscription");
+    },
+  };
+}
+
 export async function generatePrivateAndPublicKey() {
   const privateKey = await PrivateKey.generateED25519Async();
   const publicKey = privateKey.publicKey;

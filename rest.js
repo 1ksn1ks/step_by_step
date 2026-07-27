@@ -9,10 +9,10 @@ import { loadedDomains } from './loaddomains';
 import { loadAllData } from './loadalladata';
 import { debounce } from './debounce';
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
+import { allLoadedMessages } from './processallmessages';
+import { connectedAccount } from './web3';
 
 
-
-let allLoadedMessages;
 
 
 document.getElementById("submit-button-Create_New_Topic").addEventListener("click", async () => {
@@ -196,7 +196,7 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
  document.getElementById("load-filters-from-users").addEventListener("click", async () => {
    try {
      const messages = allLoadedMessages[0];
-     const userMessages = messages.messages.filter(message => message.payer === globalAccountId);
+     const userMessages = messages.messages.filter(message => message.payer === connectedAccount);
      let lastValidMessage = null;
      for (let i = userMessages.length - 1; i >= 0; i--) {
        if (userMessages[i] && userMessages[i].loadColumnsFromUsers) {
@@ -218,7 +218,7 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
  document.getElementById("load-time-from-users-load-column").addEventListener("click", async () => {
    try {
      const messages = allLoadedMessages[0];
-     const userMessages = messages.messages.filter(message => message.payer === globalAccountId);
+     const userMessages = messages.messages.filter(message => message.payer === connectedAccount);
      let lastValidMessage = null;
      for (let i = userMessages.length - 1; i >= 0; i--) {
        if (userMessages[i] && userMessages[i].saveTimeFromUsersLoadColumn) {
@@ -265,7 +265,7 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
  document.getElementById("load-blocks-from-users").addEventListener("click", async () => {
    try {
      const messages = allLoadedMessages[0];
-     const userMessages = messages.messages.filter(message => message.payer === globalAccountId);
+     const userMessages = messages.messages.filter(message => message.payer === connectedAccount);
      let lastValidMessage = null;
      for (let i = userMessages.length - 1; i >= 0; i--) {
        if (userMessages[i] && userMessages[i].loadColumnChatBlocks) {

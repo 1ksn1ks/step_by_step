@@ -1,6 +1,6 @@
 import {adjustTextareaHeight} from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
-import { getMessages, getAccountNFTs, sendMessage, getTopicInfo } from './hedera';
+import { getMessages, getAccountNFTs, sendMessage, getTopicInfo, subscribeToTopic } from './hedera';
 import { profilePictures, usernames, click2url } from './loadalladata';
 import { 
   topicChatHeaderColor,
@@ -12,6 +12,8 @@ import {
   textTopicChatColor,
   timestampFontSizeTopicChat
  } from './letall';
+
+ import { connectedAccount } from './web3';
 
 
 export let allLoadedMessagesTopicChat = [];
@@ -34,112 +36,13 @@ document.getElementById('go-to-top-msgs').addEventListener('click', function() {
 const purifyConfig = {
   ALLOWED_URI_REGEXP: /^https:\/\/explore\.hashpack\.app\//i
 };
-  
-  document.getElementById("load-msgs-from").addEventListener("click", async () => {
-    try {
-      let userInput = document.getElementById("topic-chat-topic-id").value.toLowerCase();
-      let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
-      let topicId;
-  
-      if (domainEntry && domainEntry.lastMessage) {
-        topicId = domainEntry.lastMessage.topic;
-      } else {
-        topicId = userInput;
-      }
-  
-      const messagesContainer = document.getElementById("messages-from-topic-chat");
-      
-  
-      const topicSpinnerChat = `
-        <div style="display: flex; justify-content: left; align-items: left; height: 100%; ">
-          <div id="topicspinnerchat"></div>
-          <span style="margin-left: 1vw;">Loading messages from ${topicId}</span>
-        </div>`;
-      messagesContainer.innerHTML = topicSpinnerChat;
-      adjustTextareaHeight(messagesContainer);
-  
-      const topicAdmin = [];
-  
-      try {
-        const topicInfo = await getTopicInfo(topicId);
-        const memo = topicInfo.memo || "";
-  
-        const parts = memo.split(',');
-        parts.forEach(part => {
-          if (part.trim().startsWith("0.0.")) {
-            topicAdmin.push(part.trim());
-          }
-        });
-      } catch (error) {
-        messagesContainer.innerHTML = `
-          <div style="display: flex; justify-content: left; align-items: left; height: 100%; ">
-            <span style="margin-left: 1vw;">Invalid Topic ID</span>
-          </div>`;
-        adjustTextareaHeight(messagesContainer);
-        return;
-      }
-  
-      const rawResult = await getMessages(topicId);
-  
-      // Deduplicate
-      const seen = new Map();
-      const uniqueMessages = { messages: [] };
-      for (const msg of rawResult.messages || []) {
-        const seq = msg.sequence_number;
-        if (!seen.has(seq)) {
-          seen.set(seq, true);
-          uniqueMessages.messages.push(msg);
-        }
-      }
-  
-      allLoadedMessagesTopicChat = [uniqueMessages];
-  
-      if (!rawResult || !Array.isArray(rawResult.messages)) {
-        messagesContainer.innerHTML = `
-          <div style="display: flex; justify-content: left; align-items: left; height: 100%;">
-            <span style="margin-left: 1vw;">No messages found</span>
-          </div>`;
-        adjustTextareaHeight(messagesContainer);
-        return;
-      }
-  
-      // Collect NFTs
-      const loadedNFTsForTopicChat = [];
-      for (const msg of rawResult.messages) {
-        try {
-          let parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
-          const payer = parsed.payer || '';
-          if (topicAdmin.length === 0 || topicAdmin.includes(payer)) {
-            if (parsed.addTopicChatNFT) {
-              parsed.addTopicChatNFT.split(',').map(n => n.trim()).forEach(nft => {
-                if (nft.startsWith("0.0.") && !loadedNFTsForTopicChat.includes(nft)) {
-                  loadedNFTsForTopicChat.push(nft);
-                }
-              });
-            }
-            if (parsed.removeTopicChatNFT) {
-              const nft = parsed.removeTopicChatNFT.trim();
-              if (nft.startsWith("0.0.")) {
-                const idx = loadedNFTsForTopicChat.indexOf(nft);
-                if (idx !== -1) loadedNFTsForTopicChat.splice(idx, 1);
-              }
-            }
-          }
-        } catch {}
-      }
 
-  
-// Clear container using DOM
-while (messagesContainer.firstChild) {
-  messagesContainer.removeChild(messagesContainer.firstChild);
-}
+// Keep these outside so they persist between calls
+let previousPayerTopicChat = null;
+let currentGroupContainer = null;
+let currentMessagesGroupDiv = null;
 
-let previousPayer = null;
-storedMessages = [];
-let groupContainer = null;
-let messagesGroupDiv = null;
-
-for (const message of rawResult.messages) {
+async function appendTopicChatMessage(message, messagesContainer, topicAdmin, loadedNFTsForTopicChat) {
   try {
     let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
     const payer = parsedMessage.payer || 'Unknown';
@@ -156,149 +59,218 @@ for (const message of rawResult.messages) {
       }
     }
 
-    if (payerHasNFT && parsedMessage.userMessage) {
-      const userMessage = parsedMessage.userMessage;
-      storedMessages.push(parsedMessage);
+    if (!payerHasNFT || !parsedMessage.userMessage) return;
 
-      const payerImage = profilePictures[payer]?.url || 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
-      const validPayerImage = isValidUrl(payerImage) ? payerImage : 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+    const userMessage = parsedMessage.userMessage;
+    storedMessages.push(parsedMessage);
 
-      const timestamp = new Date(parsedMessage.created)
-        .toLocaleString('en-US', {
-          hour12: false,
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
-        });
+    const payerImage = profilePictures[payer]?.url || 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+    const validPayerImage = isValidUrl(payerImage) ? payerImage : 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 
-      const payerInfo = message.payer ? message.payer : 'Anonymous';
-      const username = message.payer && usernames[message.payer]?.username
-        ? ` ${usernames[message.payer].username}` : '';
-      const click2link = message.payer && click2url[message.payer]?.click2url
-        ? ` ${click2url[message.payer].click2url}` : '';
+    const timestamp = new Date(parsedMessage.created).toLocaleString('en-US', {
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
 
-      // Grouping - start new group if payer changed
-      if (payer !== previousPayer) {
-        if (groupContainer) {
-          messagesContainer.appendChild(groupContainer);
-          const br = document.createElement('br');
-          messagesContainer.appendChild(br);
-        }
+    const payerInfo = message.payer || 'Anonymous';
+    const username = message.payer && usernames[message.payer]?.username
+      ? ` ${usernames[message.payer].username}` : '';
+    const click2link = message.payer && click2url[message.payer]?.click2url
+      ? ` ${click2url[message.payer].click2url}` : '';
 
-        // Create new group container
-        groupContainer = document.createElement('div');
-        groupContainer.className = 'toolbar-group-messages';
-        groupContainer.style.cssText = `position: relative; padding-left: 2.5em; min-height: 2.5em; border-color: ${innerContainerTopicChatColor};`;
+    // ========== GROUPING LOGIC (same as original) ==========
+    if (payer !== previousPayerTopicChat) {
+      // Create new group
+      currentGroupContainer = document.createElement('div');
+      currentGroupContainer.className = 'toolbar-group-messages';
+      currentGroupContainer.style.cssText = `position: relative; padding-left: 2.5em; min-height: 2.5em; border-color: ${innerContainerTopicChatColor};`;
 
-        // Profile image
-        const img = document.createElement('img');
-        img.src = validPayerImage;
-        img.alt = 'Profile photo';
-        img.style.cssText = 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer;';
-        img.dataset.payer = payer;
-        img.className = 'profile-img-click';
-        img.addEventListener('click', () => loadTOPIC4PIC(payer));
-        groupContainer.appendChild(img);
+      // Profile image
+      const img = document.createElement('img');
+      img.src = validPayerImage;
+      img.alt = 'Profile photo';
+      img.style.cssText = 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer;';
+      img.dataset.payer = payer;
+      img.className = 'profile-img-click';
+      img.addEventListener('click', () => loadTOPIC4PIC(payer));
+      currentGroupContainer.appendChild(img);
 
-        // Content wrapper
-        const contentWrapper = document.createElement('div');
-        contentWrapper.style.cssText = 'display: flex; flex-direction: column;';
-        
-        // Header container
-        const headerContainer = document.createElement('div');
-        headerContainer.style.cssText = 'display: flex; align-items: center;';
+      // Content wrapper
+      const contentWrapper = document.createElement('div');
+      contentWrapper.style.cssText = 'display: flex; flex-direction: column;';
 
-        // Header
-        const header = document.createElement('div');
-        header.className = 'toolbar-group-messages-header';
-        header.style.cssText = `display: flex; align-items: center; border-color: ${topicChatHeaderColor}; font-size: ${headerFontSizeTopicChat}vh;`;
+      // Header
+      const headerContainer = document.createElement('div');
+      headerContainer.style.cssText = 'display: flex; align-items: center;';
 
-        // Payer link
-        const payerLink = document.createElement('a');
-        payerLink.href = `https://explore.hashpack.app/${payerInfo}`;
-        payerLink.target = '_blank';
-        payerLink.style.cssText = `color: ${accidTopicChatColor}; text-decoration: none; font-size: ${headerFontSizeTopicChat}vh;`;
-        payerLink.textContent = payerInfo;
-        header.appendChild(payerLink);
+      const header = document.createElement('div');
+      header.className = 'toolbar-group-messages-header';
+      header.style.cssText = `display: flex; align-items: center; border-color: ${topicChatHeaderColor}; font-size: ${headerFontSizeTopicChat}vh;`;
 
-        // Space
-        header.appendChild(document.createTextNode('\u00A0'));
+      const payerLink = document.createElement('a');
+      payerLink.href = `https://explore.hashpack.app/${payerInfo}`;
+      payerLink.target = '_blank';
+      payerLink.style.cssText = `color: ${accidTopicChatColor}; text-decoration: none; font-size: ${headerFontSizeTopicChat}vh;`;
+      payerLink.textContent = payerInfo;
+      header.appendChild(payerLink);
 
-        // Username (link or span)
-        if (click2link.trim()) {
-          const usernameLink = document.createElement('a');
-          usernameLink.href = click2link.trim();
-          usernameLink.target = '_blank';
-          usernameLink.style.cssText = `color: ${usernameTopicChatColor}; text-decoration: none; font-size: ${headerFontSizeTopicChat}vh;`;
-          usernameLink.textContent = username.trim();
-          header.appendChild(usernameLink);
-        } else if (username.trim()) {
-          const usernameSpan = document.createElement('span');
-          usernameSpan.style.cssText = `color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;`;
-          usernameSpan.textContent = username.trim();
-          header.appendChild(usernameSpan);
-        }
+      header.appendChild(document.createTextNode('\u00A0'));
 
-        headerContainer.appendChild(header);
-        contentWrapper.appendChild(headerContainer);
-        groupContainer.appendChild(contentWrapper);
-
-        // Messages group div
-        messagesGroupDiv = document.createElement('div');
-        contentWrapper.appendChild(messagesGroupDiv);
+      if (click2link.trim()) {
+        const usernameLink = document.createElement('a');
+        usernameLink.href = click2link.trim();
+        usernameLink.target = '_blank';
+        usernameLink.style.cssText = `color: ${usernameTopicChatColor}; text-decoration: none; font-size: ${headerFontSizeTopicChat}vh;`;
+        usernameLink.textContent = username.trim();
+        header.appendChild(usernameLink);
+      } else if (username.trim()) {
+        const usernameSpan = document.createElement('span');
+        usernameSpan.style.cssText = `color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;`;
+        usernameSpan.textContent = username.trim();
+        header.appendChild(usernameSpan);
       }
 
-      // Create message content
-      const messageWrapper = document.createElement('div');
-      messageWrapper.style.cssText = `display: flex; flex-direction: column; justify-content: center; margin-top: 0.5em;`;
+      headerContainer.appendChild(header);
+      contentWrapper.appendChild(headerContainer);
+      currentGroupContainer.appendChild(contentWrapper);
 
-      const messageText = document.createElement('div');
-      messageText.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
-      messageText.textContent = userMessage; // Safe - uses textContent
-      messageWrapper.appendChild(messageText);
+      // Messages container inside group
+      currentMessagesGroupDiv = document.createElement('div');
+      contentWrapper.appendChild(currentMessagesGroupDiv);
 
-      const timestampSpan = document.createElement('span');
-      timestampSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
-      timestampSpan.textContent = timestamp;
-      messageWrapper.appendChild(timestampSpan);
+      messagesContainer.appendChild(currentGroupContainer);
+      messagesContainer.appendChild(document.createElement('br'));
 
-      messagesGroupDiv.appendChild(messageWrapper);
-
-      previousPayer = payer;
+      previousPayerTopicChat = payer;
     }
+
+    // ========== ADD MESSAGE TO CURRENT GROUP ==========
+    const messageWrapper = document.createElement('div');
+    messageWrapper.style.cssText = `display: flex; flex-direction: column; justify-content: center; margin-top: 0.5em;`;
+
+    const messageText = document.createElement('div');
+    messageText.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
+    messageText.textContent = userMessage;
+    messageWrapper.appendChild(messageText);
+
+    const timestampSpan = document.createElement('span');
+    timestampSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
+    timestampSpan.textContent = timestamp;
+    messageWrapper.appendChild(timestampSpan);
+
+    currentMessagesGroupDiv.appendChild(messageWrapper);
+
+    // // Auto scroll
+    // messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    adjustTextareaHeight(messagesContainer);
+
   } catch (err) {
-    console.error(`Error processing message:`, err);
+    console.error("Error rendering message:", err);
   }
 }
+  
+document.getElementById("load-msgs-from").addEventListener("click", async () => {
+  try {
+    let userInput = document.getElementById("topic-chat-topic-id").value.toLowerCase();
+    let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
+    let topicId = (domainEntry && domainEntry.lastMessage)
+      ? domainEntry.lastMessage.topic
+      : userInput;
 
-// Append last group if exists
-if (groupContainer) {
-  messagesContainer.appendChild(groupContainer);
-}
+    const messagesContainer = document.getElementById("messages-from-topic-chat");
 
-// Show "no messages" if empty
-if (!messagesContainer.firstChild) {
-  const noMessagesDiv = document.createElement('div');
-  noMessagesDiv.style.cssText = 'display: flex; justify-content: left; align-items: left; height: 100%;';
-  
-  const noMessagesSpan = document.createElement('span');
-  noMessagesSpan.style.marginLeft = '1vw';
-  noMessagesSpan.textContent = 'No messages found';
-  
-  noMessagesDiv.appendChild(noMessagesSpan);
-  messagesContainer.appendChild(noMessagesDiv);
-} else {
-  adjustTextareaHeight(messagesContainer);
-  messagesContainer.scrollTop = messagesContainer.scrollHeight;
-}
-  
+    // Show spinner
+    messagesContainer.innerHTML = `
+      <div style="display: flex; justify-content: left; align-items: left; height: 100%;">
+        <div id="topicspinnerchat"></div>
+        <span style="margin-left: 1vw;">Loading messages from ${topicId}</span>
+      </div>`;
+    adjustTextareaHeight(messagesContainer);
+
+    // Get topic admins
+    const topicAdmin = [];
+    try {
+      const topicInfo = await getTopicInfo(topicId);
+      const memo = topicInfo.memo || "";
+      memo.split(',').forEach(part => {
+        if (part.trim().startsWith("0.0.")) {
+          topicAdmin.push(part.trim());
+        }
+      });
     } catch (error) {
-      console.error("Error loading messages:", error);
+      messagesContainer.innerHTML = `
+        <div style="display: flex; justify-content: left; align-items: left; height: 100%;">
+          <span style="margin-left: 1vw;">Invalid Topic ID</span>
+        </div>`;
+      adjustTextareaHeight(messagesContainer);
+      return;
     }
-  });
+
+    // Load history + start live subscription
+    const rawResult = await subscribeToTopic(topicId, async (newMsg) => {
+      // This runs every time a NEW message arrives
+      await appendTopicChatMessage(newMsg, messagesContainer, topicAdmin, loadedNFTsForTopicChat);
+    });
+
+    // Clear spinner
+    while (messagesContainer.firstChild) {
+      messagesContainer.removeChild(messagesContainer.firstChild);
+    }
+
+    // Collect NFTs from history
+    const loadedNFTsForTopicChat = [];
+    for (const msg of rawResult.messages || []) {
+      try {
+        let parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
+        const payer = parsed.payer || '';
+        if (topicAdmin.length === 0 || topicAdmin.includes(payer)) {
+          if (parsed.addTopicChatNFT) {
+            parsed.addTopicChatNFT.split(',').map(n => n.trim()).forEach(nft => {
+              if (nft.startsWith("0.0.") && !loadedNFTsForTopicChat.includes(nft)) {
+                loadedNFTsForTopicChat.push(nft);
+              }
+            });
+          }
+          if (parsed.removeTopicChatNFT) {
+            const nft = parsed.removeTopicChatNFT.trim();
+            if (nft.startsWith("0.0.")) {
+              const idx = loadedNFTsForTopicChat.indexOf(nft);
+              if (idx !== -1) loadedNFTsForTopicChat.splice(idx, 1);
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // Render all historical messages
+    storedMessages = [];
+    for (const message of rawResult.messages || []) {
+      await appendTopicChatMessage(message, messagesContainer, topicAdmin, loadedNFTsForTopicChat);
+    }
+
+    // No messages case
+    if (!messagesContainer.firstChild) {
+      const noMessagesDiv = document.createElement('div');
+      noMessagesDiv.style.cssText = 'display: flex; justify-content: left; align-items: left; height: 100%;';
+      const span = document.createElement('span');
+      span.style.marginLeft = '1vw';
+      span.textContent = 'No messages found';
+      noMessagesDiv.appendChild(span);
+      messagesContainer.appendChild(noMessagesDiv);
+    } else {
+      adjustTextareaHeight(messagesContainer);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+  } catch (error) {
+    console.error("Error loading messages:", error);
+  }
+});
   
   async function filterTopicMessages(fromDateValue, toDateValue, fromTimeValue, toTimeValue, loadUsersArray, blockUsersArray) {
     let loadedUsersTopicChat = loadUsersArray || [];
@@ -621,7 +593,7 @@ if (!messagesContainer.firstChild) {
   document.getElementById("load-time-from-topic-chat").addEventListener("click", async () => {
     try {
       const messages = allLoadedMessagesTopicChat[0];
-      const userMessages = messages.messages.filter(message => message.payer === globalAccountId);
+      const userMessages = messages.messages.filter(message => message.payer === connectedAccount);
       let lastValidMessage = null;
       for (let i = userMessages.length - 1; i >= 0; i--) {
         if (userMessages[i] && userMessages[i].saveTimeFromTopicChat) {
@@ -668,7 +640,7 @@ if (!messagesContainer.firstChild) {
   document.getElementById("load-filters-from-topic-chat").addEventListener("click", async () => {
     try {
       const messages = allLoadedMessagesTopicChat[0];
-      const userMessages = messages.messages.filter(message => message.payer === globalAccountId);
+      const userMessages = messages.messages.filter(message => message.payer === connectedAccount);
       let lastValidMessage = null;
       for (let i = userMessages.length - 1; i >= 0; i--) {
         if (userMessages[i] && userMessages[i].topicChatFromUsers) {
@@ -681,7 +653,6 @@ if (!messagesContainer.firstChild) {
       } else {
         console.log("No valid user message found with topicChatFromUsers");
       }
-      console.log("messagesObject", messages);
     } catch (error) {
       console.error("Error loading filters from users:", error);
     }
@@ -713,7 +684,7 @@ if (!messagesContainer.firstChild) {
   document.getElementById("load-blocks-from-topic-chat").addEventListener("click", async () => {
     try {
       const messages = allLoadedMessagesTopicChat[0];
-      const userMessages = messages.messages.filter(message => message.payer === globalAccountId);
+      const userMessages = messages.messages.filter(message => message.payer === connectedAccount);
       let lastValidMessage = null;
       for (let i = userMessages.length - 1; i >= 0; i--) {
         if (userMessages[i] && userMessages[i].topicChatBlocks) {

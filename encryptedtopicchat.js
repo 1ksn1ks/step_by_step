@@ -1,6 +1,6 @@
 import { adjustTextareaHeight } from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
-import { getMessages, getAccountNFTs, sendMessage, getTopicInfo } from './hedera';
+import { getMessages, getAccountNFTs, sendMessage, getTopicInfo, subscribeToTopic } from './hedera';
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
 import { connectedAccount } from './web3';
 import { profilePictures, usernames, click2url } from './loadalladata';
@@ -65,33 +65,218 @@ document.getElementById("load-msgs-from-encrypted-chat").addEventListener("click
   await loadMessagesFromEncryptedChat();
 });
 
+// Grouping state for encrypted chat
+let previousPayerEncryptedChat = null;
+let currentGroupContainerEncrypted = null;
+let currentMessagesGroupDivEncrypted = null;
+
+async function appendEncryptedChatMessage(
+  message,
+  messagesContainer,
+  topicAdmin,
+  loadedNFTsForTopicChat,
+  PrivateKey
+) {
+  try {
+    let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
+    const payer = parsedMessage.payer || 'Unknown';
+
+    // NFT check
+    let payerHasNFT = loadedNFTsForTopicChat.length === 0;
+    if (!payerHasNFT) {
+      for (const item of loadedNFTsForTopicChat) {
+        const has = await getAccountNFTs(payer, item);
+        if (has.length > 0) {
+          payerHasNFT = true;
+          break;
+        }
+      }
+    }
+
+    if (!payerHasNFT || !parsedMessage.encryptedMessage) return;
+
+    // Decrypt the message
+    const decryptedMessage = await decryptMessage(parsedMessage.encryptedMessage, PrivateKey);
+
+    const fullMessage = {
+      decryptedMessage,
+      created: parsedMessage.created,
+      payer
+    };
+    storedMessagesEncryptedChat.push(fullMessage);
+
+    const payerImage = profilePictures[payer]?.url || 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+    const validPayerImage = isValidUrl(payerImage) ? payerImage : 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+
+    const timestamp = new Date(parsedMessage.created).toLocaleString('en-US', {
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+
+    const payerInfo = message.payer || 'Anonymous';
+    const username = message.payer && usernames[message.payer]?.username
+      ? ` ${usernames[message.payer].username}` : '';
+    const click2link = message.payer && click2url[message.payer]?.click2url
+      ? ` ${click2url[message.payer].click2url}` : '';
+
+    // ========== GROUPING ==========
+    if (payer !== previousPayerEncryptedChat) {
+      currentGroupContainerEncrypted = document.createElement('div');
+      currentGroupContainerEncrypted.className = 'toolbar-group-messages';
+      currentGroupContainerEncrypted.style.cssText = `
+        position: relative;
+        padding-left: 2.5em;
+        min-height: 2.5em;
+        border-color: ${innerContainerTopicChatColor};
+      `;
+
+      const img = document.createElement('img');
+      img.src = validPayerImage;
+      img.alt = 'Profile photo';
+      img.style.cssText = `
+        position: absolute;
+        left: 0.25em;
+        top: 0.5em;
+        width: 2em;
+        height: 2em;
+        border-radius: 1em;
+        cursor: pointer;
+      `;
+      img.addEventListener('click', () => loadTOPIC4PIC(payer));
+      currentGroupContainerEncrypted.appendChild(img);
+
+      const contentWrapper = document.createElement('div');
+      contentWrapper.style.cssText = 'display: flex; flex-direction: column;';
+
+      const headerContainer = document.createElement('div');
+      headerContainer.style.cssText = 'display: flex; align-items: center;';
+
+      const headerDiv = document.createElement('div');
+      headerDiv.className = 'toolbar-group-messages-header';
+      headerDiv.style.cssText = `
+        display: flex;
+        align-items: center;
+        border-color: ${topicChatHeaderColor};
+        font-size: ${headerFontSizeTopicChat}vh;
+      `;
+
+      const accLink = document.createElement('a');
+      accLink.href = `https://explore.hashpack.app/${encodeURIComponent(payerInfo)}`;
+      accLink.target = '_blank';
+      accLink.rel = 'noopener noreferrer';
+      accLink.style.cssText = `
+        color: ${accidTopicChatColor};
+        text-decoration: none;
+        font-size: ${headerFontSizeTopicChat}vh;
+      `;
+      accLink.textContent = payerInfo;
+      headerDiv.appendChild(accLink);
+
+      headerDiv.appendChild(document.createTextNode('\u00A0'));
+
+      const trimmedUsername = username.trim();
+      const trimmedClick2link = click2link.trim();
+
+      if (trimmedClick2link) {
+        const linkA = document.createElement('a');
+        try {
+          new URL(trimmedClick2link);
+          linkA.href = trimmedClick2link;
+        } catch (e) {
+          console.warn('Invalid click2link URL:', trimmedClick2link);
+        }
+        linkA.target = '_blank';
+        linkA.rel = 'noopener noreferrer';
+        linkA.style.cssText = `
+          color: ${usernameTopicChatColor};
+          text-decoration: none;
+          font-size: ${headerFontSizeTopicChat}vh;
+        `;
+        linkA.textContent = trimmedUsername;
+        headerDiv.appendChild(linkA);
+      } else if (trimmedUsername) {
+        const span = document.createElement('span');
+        span.style.cssText = `
+          color: ${usernameTopicChatColor};
+          font-size: ${headerFontSizeTopicChat}vh;
+        `;
+        span.textContent = trimmedUsername;
+        headerDiv.appendChild(span);
+      }
+
+      headerContainer.appendChild(headerDiv);
+      contentWrapper.appendChild(headerContainer);
+
+      currentMessagesGroupDivEncrypted = document.createElement('div');
+      contentWrapper.appendChild(currentMessagesGroupDivEncrypted);
+
+      currentGroupContainerEncrypted.appendChild(contentWrapper);
+      messagesContainer.appendChild(currentGroupContainerEncrypted);
+      messagesContainer.appendChild(document.createElement('br'));
+
+      previousPayerEncryptedChat = payer;
+    }
+
+    // ========== ADD MESSAGE ==========
+    const msgWrapper = document.createElement('div');
+    msgWrapper.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      margin-top: 0.5em;
+    `;
+
+    const contentDiv = document.createElement('div');
+    contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
+    contentDiv.textContent = decryptedMessage;
+
+    const timeSpan = document.createElement('span');
+    timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
+    timeSpan.textContent = timestamp;
+
+    msgWrapper.appendChild(contentDiv);
+    msgWrapper.appendChild(timeSpan);
+    currentMessagesGroupDivEncrypted.appendChild(msgWrapper);
+
+    // messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    adjustTextareaHeight(messagesContainer);
+
+  } catch (err) {
+    console.error("Error rendering encrypted message:", err);
+  }
+}
+
 async function loadMessagesFromEncryptedChat() {
   try {
     let userInput = document.getElementById("encrypted-chat-topic-id").value.toLowerCase();
     let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
-    let topicId;
-    let encryptedPrivateKey;
-    let decryptedPrivateKey;
-
-    if (domainEntry && domainEntry.lastMessage) {
-      topicId = domainEntry.lastMessage.topic;
-    } else {
-      topicId = userInput;
-    }
+    let topicId = (domainEntry && domainEntry.lastMessage)
+      ? domainEntry.lastMessage.topic
+      : userInput;
 
     const messagesContainer = document.getElementById("messages-from-encrypted-chat");
     if (!messagesContainer) return;
 
-    // Show loading spinner
+    // Reset grouping state
+    previousPayerEncryptedChat = null;
+    currentGroupContainerEncrypted = null;
+    currentMessagesGroupDivEncrypted = null;
+    storedMessagesEncryptedChat = [];
+
     createLoadingSpinner(messagesContainer, topicId);
     adjustTextareaHeight(messagesContainer);
 
+    // Get topic admins
     const topicAdmin = [];
     try {
       const topicInfo = await getTopicInfo(topicId);
       const memo = topicInfo.memo || "";
-      const parts = memo.split(',');
-      parts.forEach(part => {
+      memo.split(',').forEach(part => {
         if (part.trim().startsWith("0.0.")) {
           topicAdmin.push(part.trim());
         }
@@ -99,57 +284,56 @@ async function loadMessagesFromEncryptedChat() {
     } catch (error) {
       createEmptyStateMessage(messagesContainer, 'Invalid Topic ID');
       adjustTextareaHeight(messagesContainer);
-      console.error("Error getting topic info:", error);
       return;
     }
 
-    const result = await getMessages(topicId);
-    allLoadedMessagesEncryptedChat = [result];
+    // Load history + start live subscription
+    const rawResult = await subscribeToTopic(topicId, async (newMsg) => {
+      // Live message → decrypt + render
+      if (window.currentEncryptedPrivateKey) {
+        await appendEncryptedChatMessage(
+          newMsg,
+          messagesContainer,
+          topicAdmin,
+          window.currentLoadedNFTsEncrypted || [],
+          window.currentEncryptedPrivateKey
+        );
+      }
+    });
 
-    if (!result || !Array.isArray(result.messages)) {
-      console.log("No messages found or result is not an array.");
-      createEmptyStateMessage(messagesContainer, 'No messages found');
-      adjustTextareaHeight(messagesContainer);
-      return;
-    }
+    const messages = rawResult.messages || [];
 
-    const messages = result.messages;
-
+    // ========== DECRYPT PRIVATE KEY ==========
     const pass = document.getElementById("encrypted-chat-private-key");
-
     const w = pass.value;
+    let decryptedPrivateKey = w;
 
     try {
-      for (let index = messages.length - 1; index >= 0; index--) {
-
-        const message = messages[index];
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const message = messages[i];
         let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
+
         if (parsedMessage.encryptedPrivateKey && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-
-          encryptedPrivateKey = parsedMessage.encryptedPrivateKey;
-
+          const encryptedPrivateKey = parsedMessage.encryptedPrivateKey;
           const nonce = parsedMessage.nonce;
           const salt = parsedMessage.salt;
-          const password = w;
 
-          decryptedPrivateKey = await decryptWithPassword(encryptedPrivateKey, nonce, salt, password);
-
+          decryptedPrivateKey = await decryptWithPassword(encryptedPrivateKey, nonce, salt, w);
           break;
-
         }
-        else {
-          decryptedPrivateKey = w;
-        }
-  
-     }
+      }
     } catch (error) {
       createEmptyStateMessage(messagesContainer, 'wrong password');
       adjustTextareaHeight(messagesContainer);
-      console.error("Error getting public key:", error);
       return;
     }
 
-    // Collect NFTs
+    const PrivateKey = parsePrivateKey(decryptedPrivateKey);
+
+    // Store for live messages
+    window.currentEncryptedPrivateKey = PrivateKey;
+
+    // ========== COLLECT NFTs ==========
     const loadedNFTsForTopicChat = [];
     for (const msg of messages) {
       try {
@@ -174,214 +358,23 @@ async function loadMessagesFromEncryptedChat() {
       } catch {}
     }
 
-    if (loadedNFTsForTopicChat.length > 0) {
-      console.log("loadedNFTsForTopicChat", loadedNFTsForTopicChat);
-    }
+    window.currentLoadedNFTsEncrypted = loadedNFTsForTopicChat;
 
-    // ────────────────────────────────────────────────────────────────
-    // SAFE RENDERING WITH DOM
-    // ────────────────────────────────────────────────────────────────
-
+    // Clear container
     while (messagesContainer.firstChild) {
       messagesContainer.removeChild(messagesContainer.firstChild);
     }
 
-    const fragment = document.createDocumentFragment();
-
-    let previousPayer = null;
-    storedMessagesEncryptedChat = [];
-    let currentGroupDiv = null;
-    let currentMessagesGroupDiv = null;
-    let isFirstGroup = true;
-
-
-    const PrivateKey = parsePrivateKey(decryptedPrivateKey);
-
-
+    // Render history
     for (const message of messages) {
-      try {
-        let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
-        const payer = parsedMessage.payer || 'Unknown';
-
-        // NFT check
-        let payerHasNFT = loadedNFTsForTopicChat.length === 0;
-        if (!payerHasNFT) {
-          for (const item of loadedNFTsForTopicChat) {
-            const has = await getAccountNFTs(payer, item);
-            if (has.length > 0) {
-              payerHasNFT = true;
-              break;
-            }
-          }
-        }
-
-        if (payerHasNFT && parsedMessage.encryptedMessage) {
-          const encryptedMsg = parsedMessage.encryptedMessage;
-          const decryptedMessage = await decryptMessage(encryptedMsg, PrivateKey);
-
-          const fullMessage = {
-            decryptedMessage,
-            created: parsedMessage.created,
-            payer
-          };
-          storedMessagesEncryptedChat.push(fullMessage);
-
-          const payerImage = profilePictures[payer]?.url || 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
-          const validPayerImage = isValidUrl(payerImage) ? payerImage : 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
-
-          const timestamp = new Date(parsedMessage.created)
-            .toLocaleString('en-US', {
-              hour12: false,
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit'
-            });
-
-          const payerInfo = message.payer ? message.payer : 'Anonymous';
-          const username = message.payer && usernames[message.payer]?.username
-            ? ` ${usernames[message.payer].username}` : '';
-          const click2link = message.payer && click2url[message.payer]?.click2url
-            ? ` ${click2url[message.payer].click2url}` : '';
-
-          // New payer → new group
-          if (payer !== previousPayer) {
-            // Add <br> before new group (except first)
-            if (!isFirstGroup) {
-              const br = document.createElement('br');
-              fragment.appendChild(br);
-            }
-            isFirstGroup = false;
-
-            currentGroupDiv = document.createElement('div');
-            currentGroupDiv.className = 'toolbar-group-messages';
-            currentGroupDiv.style.cssText = `
-              position: relative;
-              padding-left: 2.5em;
-              min-height: 2.5em;
-              border-color: ${innerContainerTopicChatColor};
-            `;
-
-            const img = document.createElement('img');
-            img.src = validPayerImage;
-            img.alt = 'Profile photo';
-            img.style.cssText = `
-              position: absolute;
-              left: 0.25em;
-              top: 0.5em;
-              width: 2em;
-              height: 2em;
-              border-radius: 1em;
-              cursor: pointer;
-            `;
-            img.addEventListener('click', () => loadTOPIC4PIC(payer));
-            currentGroupDiv.appendChild(img);
-
-            // Content wrapper
-            const contentWrapper = document.createElement('div');
-            contentWrapper.style.cssText = 'display: flex; flex-direction: column;';
-
-            // Header container
-            const headerContainer = document.createElement('div');
-            headerContainer.style.cssText = 'display: flex; align-items: center;';
-
-            const headerDiv = document.createElement('div');
-            headerDiv.className = 'toolbar-group-messages-header';
-            headerDiv.style.cssText = `
-              display: flex;
-              align-items: center;
-              border-color: ${topicChatHeaderColor};
-              font-size: ${headerFontSizeTopicChat}vh;
-            `;
-
-            const accLink = document.createElement('a');
-            accLink.href = `https://explore.hashpack.app/${encodeURIComponent(payerInfo)}`;
-            accLink.target = '_blank';
-            accLink.rel = 'noopener noreferrer';
-            accLink.style.cssText = `
-              color: ${accidTopicChatColor};
-              text-decoration: none;
-              font-size: ${headerFontSizeTopicChat}vh;
-            `;
-            accLink.textContent = payerInfo;
-            headerDiv.appendChild(accLink);
-
-            // Add space
-            headerDiv.appendChild(document.createTextNode('\u00A0'));
-
-            const trimmedUsername = username.trim();
-            const trimmedClick2link = click2link.trim();
-
-            if (trimmedClick2link) {
-              const linkA = document.createElement('a');
-              try {
-                new URL(trimmedClick2link);
-                linkA.href = trimmedClick2link;
-              } catch (e) {
-                console.warn('Invalid click2link URL:', trimmedClick2link);
-              }
-              linkA.target = '_blank';
-              linkA.rel = 'noopener noreferrer';
-              linkA.style.cssText = `
-                color: ${usernameTopicChatColor};
-                text-decoration: none;
-                font-size: ${headerFontSizeTopicChat}vh;
-              `;
-              linkA.textContent = trimmedUsername;
-              headerDiv.appendChild(linkA);
-            } else if (trimmedUsername) {
-              const span = document.createElement('span');
-              span.style.cssText = `
-                color: ${usernameTopicChatColor};
-                font-size: ${headerFontSizeTopicChat}vh;
-              `;
-              span.textContent = trimmedUsername;
-              headerDiv.appendChild(span);
-            }
-
-            headerContainer.appendChild(headerDiv);
-            contentWrapper.appendChild(headerContainer);
-
-            // Messages group div
-            currentMessagesGroupDiv = document.createElement('div');
-            contentWrapper.appendChild(currentMessagesGroupDiv);
-
-            currentGroupDiv.appendChild(contentWrapper);
-            fragment.appendChild(currentGroupDiv);
-          }
-
-          // Message content
-          const msgWrapper = document.createElement('div');
-          msgWrapper.style.cssText = `
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            margin-top: 0.5em;
-          `;
-
-          const contentDiv = document.createElement('div');
-          contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
-          contentDiv.textContent = decryptedMessage;
-
-          const timeSpan = document.createElement('span');
-          timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
-          timeSpan.textContent = timestamp;
-
-          msgWrapper.appendChild(contentDiv);
-          msgWrapper.appendChild(timeSpan);
-          currentMessagesGroupDiv.appendChild(msgWrapper);
-
-          previousPayer = payer;
-        }
-      } catch (err) {
-        console.error(`Error processing message:`, err);
-        continue;
-      }
+      await appendEncryptedChatMessage(
+        message,
+        messagesContainer,
+        topicAdmin,
+        loadedNFTsForTopicChat,
+        PrivateKey
+      );
     }
-
-    messagesContainer.appendChild(fragment);
 
     if (messagesContainer.children.length === 0) {
       createEmptyStateMessage(messagesContainer, 'No messages found');
