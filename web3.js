@@ -19,8 +19,6 @@ import { loadMarkerSettings } from './loadmarkersett';
 import { confirmNFTFunction } from './confirmnft';
 import { handleAllMessages } from './handleallmessages';
 import {debounce} from './debounce'
-import { loadUfoModel } from './loadUFOModel';
-import { defaultModelUrl } from './letall';
 
 
 const PROJECT_ID = "fdd65bec25e85908fecf7561fe42b41f";
@@ -60,8 +58,6 @@ async function init() {
       loadMainButtonSettings(accountId)
       loadMarkerSettings(accountId)
       confirmNFTFunction(accountId)
-      let thisUfomodel = await loadProfileObject(accountId)
-      loadUfoModel(thisUfomodel)
 
       const senderId = AccountId.fromString(connectedAccount);
       signer = dAppConnector.getSigner(senderId);
@@ -71,8 +67,6 @@ async function init() {
         await confirmNFTFunction(accountId);
     }, 500));
     } else {
-
-      loadUfoModel(defaultModelUrl)
 
       newToolbarLoad.addEventListener("click", debounce(async () => {
         await handleAllMessages();
