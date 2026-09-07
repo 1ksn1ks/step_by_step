@@ -3,6 +3,8 @@ import { handleAllMessages } from './handleallmessages.js'
 import { getAccountNFTs } from "./hedera";
 import { someFunction } from "./P2PModel.js";
 import { initialTopicId } from "./extracttopic.js";
+import { loadUfoModel } from "./loadUFOModel";
+import { loadProfileObject } from "./loadprofileobject";
 
 let BetaNFTScaleFactor = 1;
 let scaleForModel = 1;
@@ -28,6 +30,7 @@ export async function confirmNFTFunction(accountId) {
   let userInput = document.getElementById("input-field").value.toLowerCase();
   let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
   let topicId;
+  let thisUModel = await loadProfileObject(accountId)
 
   if (domainEntry && domainEntry.lastMessage) {
     topicId = domainEntry.lastMessage.topic;
@@ -74,6 +77,7 @@ export async function confirmNFTFunction(accountId) {
           const checkIfUserHasNFT = await getAccountNFTs(accountId, nft);
           if (checkIfUserHasNFT.length > 0) {
             await someFunction(accountId, topicId);
+            loadUfoModel(thisUModel)
             return true;
           }
         }
@@ -82,6 +86,7 @@ export async function confirmNFTFunction(accountId) {
 
       if (hasRulesForModelNFT === false) {
         await someFunction(accountId, topicId);
+        loadUfoModel(thisUModel)
       }
 
     } catch (error) {

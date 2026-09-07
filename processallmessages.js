@@ -1,4 +1,5 @@
 import {getMessages, getTopicInfo, sendMessage, getAccountNFTs} from './hedera'
+import { adjustTextareaHeight } from './adjusttextarea';
 import { activePolygonPopups, newActivePolygonPopups, addPolygonWithImageFill} from './polygons';
 import { activeMarkerPopups, newActiveMarkerPopups, updateClusters, index } from './marker';
 import { removeUfoModel, changePopupState} from './cssLogic'
@@ -11,6 +12,8 @@ import { map } from './map';
 import { applyAllStyles } from './loadprofilepopup';
 import { scene } from './threejs'
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium'
+import { signer } from './web3';
+import { toast } from './toast'
 
 
 
@@ -60,6 +63,7 @@ function createMarkerPopupHTML(data) {
     timestamp,
     likeCountMarker,
     dislikeCountMarker,
+    comments,
     coords
   } = data;
 
@@ -200,53 +204,60 @@ function createMarkerPopupHTML(data) {
 
   container.appendChild(contentSection);
 
+  // Bottom row (in-flow so the comments section can open below it,
+  // still inside the popup)
+  const bottomRow = document.createElement('div');
+  bottomRow.style.cssText = 'position: relative; height: 2.5vh;';
+
   // Timestamp (bottom right)
   const timestampDiv = document.createElement('div');
   timestampDiv.style.cssText = 'position: absolute; bottom: 0em; right: 1vh; font-size: 1vh; color: gray;';
   timestampDiv.textContent = timestamp;
-  container.appendChild(timestampDiv);
+  bottomRow.appendChild(timestampDiv);
 
+  // Like/Dislike + Comment (bottom center)
+  const likeDislikeDiv = document.createElement('div');
+  likeDislikeDiv.style.cssText = 'position: absolute; bottom: 0em; left: 50%; transform: translateX(-50%); display: flex; gap: 1vh;';
 
+  const likeSpan = document.createElement('span');
+  likeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  likeSpan.textContent = `${likeCountMarker || 0}👍`;
+  likeSpan.onclick = () => window.likeMarker(timestamp, topicId);
+  likeDislikeDiv.appendChild(likeSpan);
 
-    // Like/Dislike + Comment (bottom center)
-    const likeDislikeDiv = document.createElement('div');
-    likeDislikeDiv.style.cssText = 'position: absolute; bottom: 0em; left: 50%; transform: translateX(-50%); display: flex; gap: 1vh;';
-  
-    const likeSpan = document.createElement('span');
-    likeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
-    likeSpan.textContent = `${likeCountMarker || 0}👍`;
-    likeSpan.onclick = () => window.likeMarker(timestamp, topicId);
-    likeDislikeDiv.appendChild(likeSpan);
-  
-    // 💬 Comment Button (between Like and Dislike)
-    const commentSpan = document.createElement('span');
-    commentSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
-    commentSpan.textContent = '💬';
-    commentSpan.onclick = () => window.openMarkerComments(timestamp, topicId);
-    likeDislikeDiv.appendChild(commentSpan);
-  
-    const dislikeSpan = document.createElement('span');
-    dislikeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
-    dislikeSpan.textContent = `${dislikeCountMarker || 0}👎`;
-    dislikeSpan.onclick = () => window.dislikeMarker(timestamp, topicId);
-    likeDislikeDiv.appendChild(dislikeSpan);
-  
-    container.appendChild(likeDislikeDiv);
-  
-    // Settings (bottom left)
-    const settingsSpan = document.createElement('span');
-    settingsSpan.style.cssText = 'position: absolute; bottom: 0em; left: 1vh; font-size: 1.5vh; color: gray; cursor: pointer;';
-    settingsSpan.textContent = '⚙️';
-    settingsSpan.onclick = () => window.openPopupSettings();
-    container.appendChild(settingsSpan);
-  
-    // 📍 Location Button
-    const locationSpan = document.createElement('span');
-    locationSpan.style.cssText = 'position: absolute; bottom: 0em; left: 4vh; font-size: 1.5vh; color: gray; cursor: pointer;';
-    locationSpan.textContent = '📍';
-    locationSpan.onclick = () => window.openMarkerNavigation(coords);
-    container.appendChild(locationSpan);
+  // 💬 Comment Button (between Like and Dislike)
+  const commentSpan = document.createElement('span');
+  commentSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  commentSpan.textContent = comments.length ? `💬${comments.length}` : '💬';
+  commentSpan.onclick = () => window.openMarkerComments(timestamp, topicId);
+  likeDislikeDiv.appendChild(commentSpan);
 
+  const dislikeSpan = document.createElement('span');
+  dislikeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  dislikeSpan.textContent = `${dislikeCountMarker || 0}👎`;
+  dislikeSpan.onclick = () => window.dislikeMarker(timestamp, topicId);
+  likeDislikeDiv.appendChild(dislikeSpan);
+
+  bottomRow.appendChild(likeDislikeDiv);
+
+  // Settings (bottom left)
+  const settingsSpan = document.createElement('span');
+  settingsSpan.style.cssText = 'position: absolute; bottom: 0em; left: 1vh; font-size: 1.5vh; color: gray; cursor: pointer;';
+  settingsSpan.textContent = '⚙️';
+  settingsSpan.onclick = () => window.openPopupSettings();
+  bottomRow.appendChild(settingsSpan);
+
+  // 📍 Location Button
+  const locationSpan = document.createElement('span');
+  locationSpan.style.cssText = 'position: absolute; bottom: 0em; left: 4vh; font-size: 1.5vh; color: gray; cursor: pointer;';
+  locationSpan.textContent = '📍';
+  locationSpan.onclick = () => window.openMarkerNavigation(coords);
+  bottomRow.appendChild(locationSpan);
+
+  container.appendChild(bottomRow);
+
+  // Comments (below the bottom row, hidden until 💬 is pressed)
+  container.appendChild(buildCommentsSection(`marker-comments-${topicId}-${timestamp}`, comments, (input) => window.sendMarkerComment(timestamp, topicId, input)));
 
   return container;
 }
@@ -268,6 +279,7 @@ function createPolygonPopupHTML(data) {
     timestamp,
     likeCountPolygon,
     dislikeCountPolygon,
+    comments,
     coordinates
   } = data;
 
@@ -410,11 +422,16 @@ function createPolygonPopupHTML(data) {
 
   container.appendChild(contentSection);
 
+  // Bottom row (in-flow so the comments section can open below it,
+  // still inside the popup)
+  const bottomRow = document.createElement('div');
+  bottomRow.style.cssText = 'position: relative; height: 2.5vh;';
+
   // Timestamp (bottom right)
   const timestampDiv = document.createElement('div');
   timestampDiv.style.cssText = 'position: absolute; bottom: 0em; right: 1vh; font-size: 1vh; color: gray;';
   timestampDiv.textContent = timestamp;
-  container.appendChild(timestampDiv);
+  bottomRow.appendChild(timestampDiv);
 
   // Like/Dislike + Comment (bottom center)
   const likeDislikeDiv = document.createElement('div');
@@ -429,7 +446,7 @@ function createPolygonPopupHTML(data) {
   // 💬 Comment Button (between Like and Dislike)
   const commentSpan = document.createElement('span');
   commentSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
-  commentSpan.textContent = '💬';
+  commentSpan.textContent = comments.length ? `💬${comments.length}` : '💬';
   commentSpan.onclick = () => window.openPolygonComments(timestamp, topicId);
   likeDislikeDiv.appendChild(commentSpan);
 
@@ -439,21 +456,26 @@ function createPolygonPopupHTML(data) {
   dislikeSpan.onclick = () => window.dislikePolygon(timestamp, topicId);
   likeDislikeDiv.appendChild(dislikeSpan);
 
-  container.appendChild(likeDislikeDiv);
+  bottomRow.appendChild(likeDislikeDiv);
 
   // Settings (bottom left)
   const settingsSpan = document.createElement('span');
   settingsSpan.style.cssText = 'position: absolute; bottom: 0em; left: 1vh; font-size: 1.5vh; color: gray; cursor: pointer;';
   settingsSpan.textContent = '⚙️';
   settingsSpan.onclick = () => window.openPopupSettings();
-  container.appendChild(settingsSpan);
+  bottomRow.appendChild(settingsSpan);
 
   // 📍 Location Button
   const locationSpan = document.createElement('span');
   locationSpan.style.cssText = 'position: absolute; bottom: 0em; left: 4vh; font-size: 1.5vh; color: gray; cursor: pointer;';
   locationSpan.textContent = '📍';
   locationSpan.onclick = () => window.openPolygonNavigation(coordinates);
-  container.appendChild(locationSpan);
+  bottomRow.appendChild(locationSpan);
+
+  container.appendChild(bottomRow);
+
+  // Comments (below the bottom row, hidden until 💬 is pressed)
+  container.appendChild(buildCommentsSection(`polygon-comments-${topicId}-${timestamp}`, comments, (input) => window.sendPolygonComment(timestamp, topicId, input)));
 
   return container;
 }
@@ -488,6 +510,8 @@ const dislikeCountMapMarker = new Map();
 const likeCountMapPolygon = new Map();
 const dislikeCountMapPolygon = new Map();
 const payerActionsPerTimestamp = new Map();
+const commentsMapMarker = new Map();
+const commentsMapPolygon = new Map();
 
 
 if (rawResult.messages && Array.isArray(rawResult.messages)) {
@@ -568,6 +592,31 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
             dislikeCountMapPolygon.set(actionTimestamp, (dislikeCountMapPolygon.get(actionTimestamp) || 0) + 1);
           }
         }
+      }
+
+      // Collect comments (each topic message is one comment; the payer is
+      // the Hedera account that signed it, same as likes)
+      if (parsedMessage.commentMarker && parsedMessage.commentMarker.timestamp && payerId) {
+        const commentTimestamp = parsedMessage.commentMarker.timestamp;
+        if (!commentsMapMarker.has(commentTimestamp)) {
+          commentsMapMarker.set(commentTimestamp, []);
+        }
+        commentsMapMarker.get(commentTimestamp).push({
+          payer: payerId,
+          text: String(parsedMessage.commentMarker.text || '').slice(0, 300),
+          created: parsedMessage.created
+        });
+      }
+      if (parsedMessage.commentPolygon && parsedMessage.commentPolygon.timestamp && payerId) {
+        const commentTimestamp = parsedMessage.commentPolygon.timestamp;
+        if (!commentsMapPolygon.has(commentTimestamp)) {
+          commentsMapPolygon.set(commentTimestamp, []);
+        }
+        commentsMapPolygon.get(commentTimestamp).push({
+          payer: payerId,
+          text: String(parsedMessage.commentPolygon.text || '').slice(0, 300),
+          created: parsedMessage.created
+        });
       }
     } catch (error) {
       console.error(`Error parsing message for likes/dislikes: ${error}`);
@@ -854,6 +903,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       timestamp,
                       likeCountMarker,
                       dislikeCountMarker,
+                      comments: commentsMapMarker.get(timestamp) || [],
                       coords
                     });
 
@@ -936,6 +986,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         timestamp,
                         likeCountPolygon,
                         dislikeCountPolygon,
+                        comments: commentsMapPolygon.get(timestamp) || [],
                         coordinates
                       });
 
@@ -1316,6 +1367,10 @@ window.prevMsgFromPayerPolygon = function(payer, polygonNumber, topicId) {
 };
 
 window.likeMarker = async function(timestamp, topicId) {
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
 
     const meesageobject = {
     likeMarker: {
@@ -1324,8 +1379,142 @@ window.likeMarker = async function(timestamp, topicId) {
   };
 
   const meesage = JSON.stringify(meesageobject);
+  toast.info("Confirm in wallet 👛");
   await sendMessage(topicId, meesage);
-    
+
+};
+
+// Comment section for marker/polygon popups: the list of comments below the
+// message plus a box to leave your own. Hidden until 💬 is pressed.
+// Glass card: rounded corners, blur, thin white border (app-wide glass look).
+function buildCommentsSection(id, comments, onSend) {
+  const section = document.createElement('div');
+  section.id = id;
+  section.style.cssText = 'display: none; margin-top: 1vh; padding: 1vh; border-radius: 1.2vh; background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(1vh); -webkit-backdrop-filter: blur(1vh); border: 0.05vh solid rgba(255, 255, 255, 0.15); text-align: left;';
+
+  const header = document.createElement('div');
+  header.style.cssText = 'font-size: 1.2vh; color: gray; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.8vh;';
+  header.textContent = `Comments (${comments.length})`;
+  section.appendChild(header);
+
+  const list = document.createElement('div');
+  list.style.cssText = 'max-height: 15vh; overflow-y: auto; margin-bottom: 1vh;';
+  if (comments.length === 0) {
+    const empty = document.createElement('p');
+    empty.style.cssText = 'font-size: 1.3vh; color: gray; margin: 0.5vh 0; text-align: center;';
+    empty.textContent = 'No comments yet';
+    list.appendChild(empty);
+  }
+  for (const comment of comments) {
+    const item = document.createElement('div');
+    item.style.cssText = 'margin-bottom: 0.8vh; padding: 0.6vh 1vh; border-radius: 1vh; background: rgba(255, 255, 255, 0.07);';
+    const meta = document.createElement('div');
+    meta.style.cssText = 'font-size: 1.1vh; color: gray;';
+    meta.textContent = `${shortAccount(comment.payer)} · ${comment.created}`;
+    const text = document.createElement('div');
+    text.style.cssText = 'font-size: 1.4vh; margin-top: 0.2vh; white-space: pre-wrap; word-wrap: break-word;';
+    text.textContent = comment.text;
+    item.appendChild(meta);
+    item.appendChild(text);
+    list.appendChild(item);
+  }
+  section.appendChild(list);
+
+  // Input row: rounded glass textarea + rounded pill Send button,
+  // bottom-aligned so the button stays put as the textarea grows.
+  const inputRow = document.createElement('div');
+  inputRow.style.cssText = 'display: flex; align-items: flex-end; gap: 1vh;';
+
+  const input = document.createElement('textarea');
+  input.placeholder = 'Leave a comment...';
+  input.maxLength = 300;
+  input.rows = 2;
+  input.style.cssText = 'flex: 1; resize: none; font-size: 1.4vh; padding: 0.6vh 1vh; border-radius: 1vh; border: 0.05vh solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08); color: white; outline: none;';
+  input.addEventListener('input', () => adjustTextareaHeight(input));
+  inputRow.appendChild(input);
+
+  const sendBtn = document.createElement('span');
+  sendBtn.textContent = 'Send';
+  sendBtn.style.cssText = 'padding: 0.6vh 1.5vh; border-radius: 1.5vh; background: rgba(255, 255, 255, 0.9); color: black; font-size: 1.3vh; font-weight: 600; cursor: pointer; user-select: none; transition: transform 0.15s ease, filter 0.15s ease;';
+  sendBtn.addEventListener('mouseenter', () => { sendBtn.style.transform = 'scale(1.03)'; sendBtn.style.filter = 'brightness(1.1)'; });
+  sendBtn.addEventListener('mouseleave', () => { sendBtn.style.transform = ''; sendBtn.style.filter = ''; });
+  sendBtn.addEventListener('mousedown', () => { sendBtn.style.transform = 'scale(0.97)'; });
+  sendBtn.addEventListener('mouseup', () => { sendBtn.style.transform = 'scale(1.03)'; });
+  sendBtn.onclick = () => onSend(input);
+  inputRow.appendChild(sendBtn);
+  section.appendChild(inputRow);
+
+  return section;
+}
+
+function shortAccount(account) {
+  const digits = String(account || '').replace(/^0\.0\./, '');
+  if (digits.length <= 8) return String(account || '');
+  return `…${digits.slice(-4)}`;
+}
+
+function toggleCommentsSection(id) {
+  const section = document.getElementById(id);
+  if (!section) return;
+  const isOpen = section.style.display !== 'none';
+  section.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    // Soft spring pop-in (app-wide glass look): fade + scale from 0.96
+    section.animate(
+      [{ opacity: 0, transform: 'scale(0.96)' }, { opacity: 1, transform: 'scale(1)' }],
+      { duration: 250, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }
+    );
+    const input = section.querySelector('textarea');
+    if (input) input.focus();
+  }
+}
+
+window.openMarkerComments = function(timestamp, topicId) {
+  toggleCommentsSection(`marker-comments-${topicId}-${timestamp}`);
+};
+
+window.openPolygonComments = function(timestamp, topicId) {
+  toggleCommentsSection(`polygon-comments-${topicId}-${timestamp}`);
+};
+
+window.sendMarkerComment = async function(timestamp, topicId, input) {
+  if (!signer) {
+    toast.error("Connect wallet first");
+    return;
+  }
+  const text = (input.value || '').trim().slice(0, 300);
+  if (!text) {
+    toast.error("Comment is empty");
+    return;
+  }
+  const messageObject = {
+    commentMarker: {
+      timestamp: timestamp,
+      text: text
+    }
+  };
+  toast.info("Confirm in wallet 👛");
+  await sendMessage(topicId, JSON.stringify(messageObject));
+};
+
+window.sendPolygonComment = async function(timestamp, topicId, input) {
+  if (!signer) {
+    toast.error("Connect wallet first");
+    return;
+  }
+  const text = (input.value || '').trim().slice(0, 300);
+  if (!text) {
+    toast.error("Comment is empty");
+    return;
+  }
+  const messageObject = {
+    commentPolygon: {
+      timestamp: timestamp,
+      text: text
+    }
+  };
+  toast.info("Confirm in wallet 👛");
+  await sendMessage(topicId, JSON.stringify(messageObject));
 };
 
 window.openPolygonNavigation = async function(coordinates) {
@@ -1384,7 +1573,11 @@ window.openMarkerNavigation = async function(coords) {
 };
 
 window.likePolygon = async function(timestamp, topicId) {
-    
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
+
     const meesageobject = {
     likePolygon: {
       timestamp: timestamp
@@ -1392,10 +1585,15 @@ window.likePolygon = async function(timestamp, topicId) {
   };
 
   const meesage = JSON.stringify(meesageobject);
+  toast.info("Confirm in wallet 👛");
   await sendMessage(topicId, meesage);
 };
 
 window.dislikeMarker = async function(timestamp, topicId) {
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
 
     const meesageobject = {
     dislikeMarker: {
@@ -1404,11 +1602,16 @@ window.dislikeMarker = async function(timestamp, topicId) {
   };
 
   const meesage = JSON.stringify(meesageobject);
+  toast.info("Confirm in wallet 👛");
   await sendMessage(topicId, meesage);
 };
 
 window.dislikePolygon = async function(timestamp, topicId) {
-    
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
+
     const meesageobject = {
     dislikePolygon: {
       timestamp: timestamp
@@ -1416,6 +1619,7 @@ window.dislikePolygon = async function(timestamp, topicId) {
   };
 
   const meesage = JSON.stringify(meesageobject);
+  toast.info("Confirm in wallet 👛");
   await sendMessage(topicId, meesage);
 };
 
@@ -1574,6 +1778,8 @@ export async function processTopicE2EEMessages(decryptedPrivateKey, messages, to
       const likeCountMapPolygon = new Map();
       const dislikeCountMapPolygon = new Map();
       const payerActionsPerTimestamp = new Map();
+      const commentsMapMarker = new Map();
+      const commentsMapPolygon = new Map();
 
 
 if (rawResult && Array.isArray(rawResult)) {
@@ -1658,6 +1864,31 @@ if (rawResult && Array.isArray(rawResult)) {
             dislikeCountMapPolygon.set(actionTimestamp, (dislikeCountMapPolygon.get(actionTimestamp) || 0) + 1);
           }
         }
+      }
+
+      // Collect comments (each topic message is one comment; the payer is
+      // the Hedera account that signed it, same as likes)
+      if (parsedMessage.commentMarker && parsedMessage.commentMarker.timestamp && payerId) {
+        const commentTimestamp = parsedMessage.commentMarker.timestamp;
+        if (!commentsMapMarker.has(commentTimestamp)) {
+          commentsMapMarker.set(commentTimestamp, []);
+        }
+        commentsMapMarker.get(commentTimestamp).push({
+          payer: payerId,
+          text: String(parsedMessage.commentMarker.text || '').slice(0, 300),
+          created: parsedMessage.created
+        });
+      }
+      if (parsedMessage.commentPolygon && parsedMessage.commentPolygon.timestamp && payerId) {
+        const commentTimestamp = parsedMessage.commentPolygon.timestamp;
+        if (!commentsMapPolygon.has(commentTimestamp)) {
+          commentsMapPolygon.set(commentTimestamp, []);
+        }
+        commentsMapPolygon.get(commentTimestamp).push({
+          payer: payerId,
+          text: String(parsedMessage.commentPolygon.text || '').slice(0, 300),
+          created: parsedMessage.created
+        });
       }
     } catch (error) {
       console.error(`Error parsing message for likes/dislikes: ${error}`);
@@ -1952,6 +2183,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       timestamp,
                       likeCountMarker,
                       dislikeCountMarker,
+                      comments: commentsMapMarker.get(timestamp) || [],
                       coords
                     });
 
@@ -2034,6 +2266,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         timestamp,
                         likeCountPolygon,
                         dislikeCountPolygon,
+                        comments: commentsMapPolygon.get(timestamp) || [],
                         coordinates
                       });
 
@@ -2223,6 +2456,8 @@ export async function processFewTopicE2EEMessages(decryptedPrivateKey, messages,
       const likeCountMapPolygon = new Map();
       const dislikeCountMapPolygon = new Map();
       const payerActionsPerTimestamp = new Map();
+      const commentsMapMarker = new Map();
+      const commentsMapPolygon = new Map();
 
 
 if (rawResult && Array.isArray(rawResult)) {
@@ -2307,6 +2542,31 @@ if (rawResult && Array.isArray(rawResult)) {
             dislikeCountMapPolygon.set(actionTimestamp, (dislikeCountMapPolygon.get(actionTimestamp) || 0) + 1);
           }
         }
+      }
+
+      // Collect comments (each topic message is one comment; the payer is
+      // the Hedera account that signed it, same as likes)
+      if (parsedMessage.commentMarker && parsedMessage.commentMarker.timestamp && payerId) {
+        const commentTimestamp = parsedMessage.commentMarker.timestamp;
+        if (!commentsMapMarker.has(commentTimestamp)) {
+          commentsMapMarker.set(commentTimestamp, []);
+        }
+        commentsMapMarker.get(commentTimestamp).push({
+          payer: payerId,
+          text: String(parsedMessage.commentMarker.text || '').slice(0, 300),
+          created: parsedMessage.created
+        });
+      }
+      if (parsedMessage.commentPolygon && parsedMessage.commentPolygon.timestamp && payerId) {
+        const commentTimestamp = parsedMessage.commentPolygon.timestamp;
+        if (!commentsMapPolygon.has(commentTimestamp)) {
+          commentsMapPolygon.set(commentTimestamp, []);
+        }
+        commentsMapPolygon.get(commentTimestamp).push({
+          payer: payerId,
+          text: String(parsedMessage.commentPolygon.text || '').slice(0, 300),
+          created: parsedMessage.created
+        });
       }
     } catch (error) {
       console.error(`Error parsing message for likes/dislikes: ${error}`);
@@ -2603,6 +2863,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       timestamp,
                       likeCountMarker,
                       dislikeCountMarker,
+                      comments: commentsMapMarker.get(timestamp) || [],
                       coords
                     });
 
@@ -2688,6 +2949,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         timestamp,
                         likeCountPolygon,
                         dislikeCountPolygon,
+                        comments: commentsMapPolygon.get(timestamp) || [],
                         coordinates
                       });
 

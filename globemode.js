@@ -5,10 +5,6 @@ const RAD = Math.PI / 180;
 let mode = 'daynight';
 let updateTimer = null;
 
-function getMode() {
-  return mode;
-}
-
 function normLon(lon) {
   return ((lon + 180) % 360 + 360) % 360 - 180;
 }

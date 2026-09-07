@@ -11,6 +11,8 @@ import {
     innerContainerTopicChatColor,
     topicChatHeaderColor
 } from './letall'
+import { signer } from "./web3";
+import { toast } from "./toast";
 
 let textContainerTopicChatColor;
 
@@ -19,6 +21,10 @@ document.getElementById("save-topic-chat-settings").addEventListener("click", as
     event.stopPropagation();
 
     try {
+        if (!signer) {
+            toast.error("Connect wallet first");
+            return;
+        }
         const topicId = "0.0.9798064";
         const accidTopicChatColor = document.getElementById("accid-topic-chat-color").value;
         const usernameTopicChatColor = document.getElementById("username-topic-chat-color").value;
@@ -29,6 +35,11 @@ document.getElementById("save-topic-chat-settings").addEventListener("click", as
         const textFontSizeTopicChat = Math.min(parseFloat(document.getElementById("text-font-size-topic-chat").value) || 1.5, 10);
         const timestampFontSizeTopicChat = Math.min(parseFloat(document.getElementById("timestamp-font-size-topic-chat").value) || 1.5, 10);
         const headerFontSizeTopicChat = Math.min(parseFloat(document.getElementById("header-font-size-topic-chat").value) || 0.5, 10);
+
+        if (!accidTopicChatColor || !usernameTopicChatColor || !textTopicChatColor || !textContainerTopicChatColor || !innerContainerTopicChatColor || !topicChatHeaderColor) {
+            toast.error("Please fill in all color fields.");
+            return;
+        }
 
         const messageData = {
             data: {
@@ -46,6 +57,7 @@ document.getElementById("save-topic-chat-settings").addEventListener("click", as
 
         const message = JSON.stringify(messageData);
 
+        toast.info("Confirm in wallet 👛");
         const receipt = await sendMessage(
             topicId,
             message

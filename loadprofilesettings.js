@@ -1,11 +1,17 @@
 import { getMessages, sendMessage } from "./hedera";
 import { defaultModelUrl, currentUfoModel} from "./letall";
+import { signer } from "./web3";
+import { toast } from "./toast";
 
 
 document.getElementById("savesettings").addEventListener("click", async (event) => {
   event.stopPropagation();
-  
+
   try {
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
     const topicId = "0.0.9609898";
     const cleanUrl = currentUfoModel||defaultModelUrl;
 
@@ -18,6 +24,11 @@ document.getElementById("savesettings").addEventListener("click", async (event) 
     const positionZ = document.getElementById("position-z").value;
 
     const scaleFactor = document.getElementById("scale-factor").value;
+
+    if (!rotationX || !rotationY || !rotationZ || !positionX || !positionY || !positionZ || !scaleFactor) {
+      toast.error("Please fill in all rotation, position, and scale fields.");
+      return;
+    }
 
     // Construct the message data
     const messageData = {
@@ -43,6 +54,7 @@ document.getElementById("savesettings").addEventListener("click", async (event) 
 
     const message = JSON.stringify(messageData);
 
+    toast.info("Confirm in wallet 👛");
     const receipt = await sendMessage(
         topicId,
         message

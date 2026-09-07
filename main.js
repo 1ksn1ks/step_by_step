@@ -1,4 +1,5 @@
 import './map.js';
+import './toast.js';
 import './loaderprogress.js';
 import './popupanim.js';
 import './cssLogic.js'

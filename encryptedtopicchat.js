@@ -2,8 +2,9 @@ import { adjustTextareaHeight } from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
 import { getMessages, getAccountNFTs, sendMessage, getTopicInfo, subscribeToTopic } from './hedera';
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
-import { connectedAccount } from './web3';
+import { connectedAccount, signer } from './web3';
 import { profilePictures, usernames, click2url } from './loadalladata';
+import { toast } from './toast'
 import { 
   topicChatHeaderColor,
   headerFontSizeTopicChat,
@@ -399,6 +400,10 @@ document.getElementById('go-to-top-msgs-encrypted-chat').addEventListener('click
 
 document.getElementById("post-msg-encrypted-chat").addEventListener("click", async () => {
   try {
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
     let userInput = document.getElementById("encrypted-chat-topic-id").value.toLowerCase();
     let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
     let PublicKey;
@@ -409,7 +414,12 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
     } else {
       topicId = userInput;
     }
+    if (!topicId) {
+      toast.error("Please enter a Topic ID or domain.");
+      return;
+    }
 
+    const messagesContainer = document.getElementById("messages-from-encrypted-chat");
     const topicAdmin = [];
     try {
       const topicInfo = await getTopicInfo(topicId);
@@ -426,9 +436,6 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
       console.error("Error getting topic info:", error);
       return;
     }
-
-    const messagesContainer = document.getElementById("messages-from-encrypted-chat");
-
 
     const result = await getMessages(topicId);
     allLoadedMessagesEncryptedChat = [result];
@@ -455,10 +462,16 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
       return;
     }
 
-    console.log(PublicKey)
-
+    if (!PublicKey) {
+      toast.error("No public key found for this topic. The admin must pin one first.");
+      return;
+    }
 
     const message = document.getElementById("user-write-message-encrypted-chat").value;
+    if (!message) {
+      toast.error("Please enter a message.");
+      return;
+    }
     const encryptedMessage = await encryptMessage(message, PublicKey);
 
     const meesageobject = {
@@ -467,6 +480,7 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
     
     const newMeesage = JSON.stringify(meesageobject);
     console.log('New Meesage:', newMeesage);
+    toast.info("Confirm in wallet 👛");
     const reciept = await sendMessage(topicId, newMeesage);
     console.log('Reciept:', reciept);
   } catch (error) {
@@ -476,6 +490,10 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
 
 document.getElementById("stack-encrypted-chat-public-key-button").addEventListener("click", async () => {
   try {
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
     let userInput = document.getElementById("encrypted-chat-topic-id").value.toLowerCase();
     let publicKey = document.getElementById("encrypted-chat-public-key").value;
     let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
@@ -486,11 +504,20 @@ document.getElementById("stack-encrypted-chat-public-key-button").addEventListen
     } else {
       topicId = userInput;
     }
+    if (!topicId) {
+      toast.error("Please enter a Topic ID or domain.");
+      return;
+    }
+    if (!publicKey) {
+      toast.error("Please enter a public key.");
+      return;
+    }
 
     const messageobject = {
       publicKey: publicKey
     };
     const message = JSON.stringify(messageobject);
+    toast.info("Confirm in wallet 👛");
     const receipt = await sendMessage(topicId, message);
     console.log('Receipt:', receipt);
   } catch (error) {
@@ -769,6 +796,10 @@ document.getElementById("load-block-from-users-button-encrypted-chat").addEventL
 
 document.getElementById("save-time-from-encrypted-chat").addEventListener("click", async () => {
   try {
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
     let userInput = document.getElementById("encrypted-chat-topic-id").value;
     let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
     let topicId;
@@ -777,6 +808,10 @@ document.getElementById("save-time-from-encrypted-chat").addEventListener("click
       topicId = domainEntry.lastMessage.topic;
     } else {
       topicId = userInput;
+    }
+    if (!topicId) {
+      toast.error("Please enter a Topic ID or domain.");
+      return;
     }
     const fromMmddyyyy = document.getElementById("from-mmddyyyy-encrypted-chat").value;
     const toMmddyyyy = document.getElementById("to-mmddyyyy-encrypted-chat").value;
@@ -792,6 +827,7 @@ document.getElementById("save-time-from-encrypted-chat").addEventListener("click
       }
     };
     const meesage = JSON.stringify(meesageobject);
+    toast.info("Confirm in wallet 👛");
     sendMessage(topicId, meesage);
   } catch (error) {
     console.error("Error saving time from encrypted chat:", error);
@@ -824,6 +860,10 @@ document.getElementById("load-time-from-encrypted-chat").addEventListener("click
 
 document.getElementById("load-save-filters-from-users-encrypted-chat").addEventListener("click", async () => {
   try {
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
     let userInput = document.getElementById("encrypted-chat-topic-id").value;
     let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
     let topicId;
@@ -833,12 +873,21 @@ document.getElementById("load-save-filters-from-users-encrypted-chat").addEventL
     } else {
       topicId = userInput;
     }
+    if (!topicId) {
+      toast.error("Please enter a Topic ID or domain.");
+      return;
+    }
     const encryptedChatFromUsers = document.getElementById("load-msgs-from-ids-encrypted-chat").value;
+    if (!encryptedChatFromUsers) {
+      toast.error("Please enter the account IDs to load.");
+      return;
+    }
     console.log("encryptedChatFromUsers", encryptedChatFromUsers);
     const meesageobject = {
       encryptedChatFromUsers: encryptedChatFromUsers
     };
     const meesage = JSON.stringify(meesageobject);
+    toast.info("Confirm in wallet 👛");
     sendMessage(topicId, meesage);
   } catch (error) {
     console.error("Error loading filters from users:", error);
@@ -869,6 +918,10 @@ document.getElementById("load-load-filters-from-users-encrypted-chat").addEventL
 
 document.getElementById("load-save-blocks-from-users-encrypted-chat").addEventListener("click", async () => {
   try {
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
     let userInput = document.getElementById("encrypted-chat-topic-id").value;
     let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
     let topicId;
@@ -878,12 +931,21 @@ document.getElementById("load-save-blocks-from-users-encrypted-chat").addEventLi
     } else {
       topicId = userInput;
     }
+    if (!topicId) {
+      toast.error("Please enter a Topic ID or domain.");
+      return;
+    }
     const encryptedChatBlocks = document.getElementById("load-blocks-from-ids-encrypted-chat").value;
+    if (!encryptedChatBlocks) {
+      toast.error("Please enter the account IDs to block.");
+      return;
+    }
     console.log("encryptedChatBlocks", encryptedChatBlocks);
     const meesageobject = {
       encryptedChatBlocks: encryptedChatBlocks
     };
     const meesage = JSON.stringify(meesageobject);
+    toast.info("Confirm in wallet 👛");
     sendMessage(topicId, meesage);
   } catch (error) {
     console.error("Error loading filters from users:", error);
@@ -914,11 +976,19 @@ document.getElementById("load-load-blocks-from-users-encrypted-chat").addEventLi
 
 document.getElementById("stack-encrypted-chat-set-password-button").addEventListener("click", async () => {
   try {
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
     const userInput = document.getElementById("encrypted-chat-topic-id").value;
-    
-    const privateKey = document.getElementById("encrypted-chat-change-password-key").value; 
+
+    const privateKey = document.getElementById("encrypted-chat-change-password-key").value;
     const newPassword = document.getElementById("encrypted-chat-new-password-key").value;
 
+    if (!userInput) {
+      toast.error("Please enter a Topic ID or domain.");
+      return;
+    }
     if (!privateKey) throw new Error("Private key is required");
     if (!newPassword) throw new Error("Password is required");
 
@@ -939,7 +1009,8 @@ document.getElementById("stack-encrypted-chat-set-password-button").addEventList
 
     const message = JSON.stringify(messageobject);
     console.log("message", message);
-    
+
+    toast.info("Confirm in wallet 👛");
     await sendMessage(topicId, message);
 
     console.log("✅ Encrypted private key sent successfully!");
@@ -950,7 +1021,7 @@ document.getElementById("stack-encrypted-chat-set-password-button").addEventList
 
   } catch (error) {
     console.error("Error:", error.message);
-    alert("Failed to encrypt: " + error.message);
+    toast.error("Failed to encrypt: " + error.message);
   }
 });
 
@@ -958,14 +1029,22 @@ document.getElementById("stack-encrypted-chat-set-password-button").addEventList
 
 document.getElementById("stack-encrypted-chat-change-password-button").addEventListener("click", async () => {
   try {
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
     const userInput = document.getElementById("encrypted-chat-topic-id").value;
-    
-    const oldPass = document.getElementById("encrypted-chat-change-password-key").value; 
+
+    const oldPass = document.getElementById("encrypted-chat-change-password-key").value;
     const newPassword = document.getElementById("encrypted-chat-new-password-key").value;
 
     let encryptedPrivateKey;
     let decryptedPrivateKey;
 
+    if (!userInput) {
+      toast.error("Please enter a Topic ID or domain.");
+      return;
+    }
     if (!oldPass) throw new Error("oldPass key is required");
     if (!newPassword) throw new Error("Password is required");
 
@@ -974,6 +1053,8 @@ document.getElementById("stack-encrypted-chat-change-password-button").addEventL
     if (domainEntry && domainEntry.lastMessage) {
       topicId = domainEntry.lastMessage.topic;
     }
+
+    const messagesContainer = document.getElementById("messages-from-encrypted-chat");
 
     const topicAdmin = [];
     try {
@@ -991,10 +1072,6 @@ document.getElementById("stack-encrypted-chat-change-password-button").addEventL
       console.error("Error getting topic info:", error);
       return;
     }
-
-
-    const messagesContainer = document.getElementById("messages-from-encrypted-chat");
-
 
     const allmesages = await getMessages(topicId);
     allLoadedMessagesEncryptedChat = [allmesages];
@@ -1028,6 +1105,11 @@ document.getElementById("stack-encrypted-chat-change-password-button").addEventL
       return;
     }
 
+    if (!decryptedPrivateKey) {
+      toast.error("No saved private key found for this topic, or the password is wrong.");
+      return;
+    }
+
     const result = await encryptWithPassword(decryptedPrivateKey, newPassword);
 
     const messageobject = {
@@ -1039,7 +1121,8 @@ document.getElementById("stack-encrypted-chat-change-password-button").addEventL
 
     const message = JSON.stringify(messageobject);
     console.log("message", message);
-    
+
+    toast.info("Confirm in wallet 👛");
     await sendMessage(topicId, message);
 
     console.log("✅ Encrypted private key sent successfully!");
@@ -1050,6 +1133,6 @@ document.getElementById("stack-encrypted-chat-change-password-button").addEventL
 
   } catch (error) {
     console.error("Error:", error.message);
-    alert("Failed to encrypt: " + error.message);
+    toast.error("Failed to encrypt: " + error.message);
   }
 });

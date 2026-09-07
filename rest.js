@@ -10,15 +10,31 @@ import { loadAllData } from './loadalladata';
 import { debounce } from './debounce';
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
 import { allLoadedMessages } from './processallmessages';
-import { connectedAccount } from './web3';
+import { connectedAccount, signer } from './web3';
+import { PrivateKey } from '@hashgraph/sdk';
+import { isValidUrl } from './ISVALIDURL.JS';
+import { toast } from './toast';
 
 
 
 
 document.getElementById("submit-button-Create_New_Topic").addEventListener("click", async () => {
    try {
+     if (!signer) {
+       toast.error("Connect wallet first");
+       return;
+     }
      const memo = document.getElementById("input-field-5-1").value || 'this is memo';
      const adminKey = document.getElementById("input-field-5-2").value;
+
+     if (adminKey) {
+       try {
+         PrivateKey.fromStringED25519(adminKey);
+       } catch (keyError) {
+         toast.error("Please enter a valid admin private key.");
+         return;
+       }
+     }
      // const fee = document.getElementById("input-field-5-3").value;
      // const tokenId = document.getElementById("input-field-5-4").value;
      // const royaltyAccount = document.getElementById("input-field-5-5").value;
@@ -73,21 +89,46 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
  
  document.getElementById("submit-button-Change_Memo").addEventListener("click", async () => {
    try {
+     if (!signer) {
+       toast.error("Connect wallet first");
+       return;
+     }
      let userInput = document.getElementById("input-field-topic-id").value.toLowerCase();
      let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
      let topicId;
- 
+
      if (domainEntry && domainEntry.lastMessage) {
        topicId = domainEntry.lastMessage.topic;
        } else {
        topicId = userInput;
+     }
+     if (!topicId) {
+       toast.error("Please enter a Topic ID or domain.");
+       return;
      }
      const memo =document.getElementById("input-field-memo").value || '';
      let adminKey = document.getElementById("input-field-admin-key").value;
      const realfee = document.getElementById("input-field-fee").value;
      const tokenId = document.getElementById("input-field-fee-token").value;
      const royaltyAccount = document.getElementById("input-field-royal-acc").value;
- 
+
+     if (adminKey) {
+       try {
+         PrivateKey.fromStringED25519(adminKey);
+       } catch (keyError) {
+         toast.error("Please enter a valid admin private key.");
+         return;
+       }
+     }
+     if ((realfee || tokenId || royaltyAccount) && !(realfee && tokenId && royaltyAccount)) {
+       toast.error("Fee, Token ID, and Royalty Account must be filled in together.");
+       return;
+     }
+     if (realfee && isNaN(Number(realfee))) {
+       toast.error("Please enter a valid number for the fee.");
+       return;
+     }
+
      const fee = realfee * 1000000
  
      let customFees = [];
@@ -113,17 +154,29 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
  
  document.getElementById("button3").addEventListener("click", async () => {
  try {
+   if (!signer) {
+     toast.error("Connect wallet first");
+     return;
+   }
    let userInput = document.getElementById("Edit_Profile-topic-id").value.toLowerCase();
    const newName = document.getElementById("toolbar-input").value;
- 
- 
+
+   if (!newName) {
+     toast.error("Please enter a new name.");
+     return;
+   }
+
    let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
    let topicId;
- 
+
    if (domainEntry && domainEntry.lastMessage) {
      topicId = domainEntry.lastMessage.topic;
    } else {
      topicId = userInput;
+   }
+   if (!topicId) {
+     toast.error("Please enter a Topic ID or domain.");
+     return;
    }
  
    const meesageobject = {
@@ -131,6 +184,7 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
    };
  
    const meesage = JSON.stringify(meesageobject);
+   toast.info("Confirm in wallet 👛");
    const reciept = await sendMessage(topicId, meesage);
  
  } catch (error) {
@@ -140,22 +194,35 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
  
  document.getElementById("save-filters-from-users").addEventListener("click", async () => {
    try {
+     if (!signer) {
+       toast.error("Connect wallet first");
+       return;
+     }
      let userInput = document.getElementById("input-field").value;
      let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
      let topicId;
- 
+
        if (domainEntry && domainEntry.lastMessage) {
        topicId = domainEntry.lastMessage.topic;
      } else {
        topicId = userInput;
      }
- 
+     if (!topicId) {
+       toast.error("Please enter a Topic ID or domain.");
+       return;
+     }
+
      const loadColumnsFromUsers = document.getElementById("load-msgs-from-ids").value;
+     if (!loadColumnsFromUsers) {
+       toast.error("Please enter the account IDs to load.");
+       return;
+     }
      console.log("loadColumnsFromUsers", loadColumnsFromUsers);
      const meesageobject = {
        loadColumnsFromUsers: loadColumnsFromUsers
      };
      const meesage = JSON.stringify(meesageobject);
+     toast.info("Confirm in wallet 👛");
      const reciept = await sendMessage(topicId, meesage);
    } catch (error) {
      console.error("Error loading filters from users:", error);
@@ -164,14 +231,22 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
  
  document.getElementById("save-time-from-users-load-column").addEventListener("click", async () => {
    try {
+     if (!signer) {
+       toast.error("Connect wallet first");
+       return;
+     }
      let userInput = document.getElementById("input-field").value;
      let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
      let topicId;
- 
+
        if (domainEntry && domainEntry.lastMessage) {
        topicId = domainEntry.lastMessage.topic;
      } else {
        topicId = userInput;
+     }
+     if (!topicId) {
+       toast.error("Please enter a Topic ID or domain.");
+       return;
      }
      const fromMmddyyyy = document.getElementById("from-mmddyyyy-users-load-column").value;
      const toMmddyyyy = document.getElementById("to-mmddyyyy-users-load-column").value;
@@ -187,6 +262,7 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
        }
      };
      const meesage = JSON.stringify(meesageobject);
+     toast.info("Confirm in wallet 👛");
      const reciept = await sendMessage(topicId, meesage);
    } catch (error) {
      console.error("Error loading filters from users:", error);
@@ -241,21 +317,34 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
  
  document.getElementById("save-blocks-from-users").addEventListener("click", async () => {
    try {
+     if (!signer) {
+       toast.error("Connect wallet first");
+       return;
+     }
      let userInput = document.getElementById("input-field").value;
      let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
      let topicId;
- 
+
        if (domainEntry && domainEntry.lastMessage) {
        topicId = domainEntry.lastMessage.topic;
      } else {
        topicId = userInput;
      }
+     if (!topicId) {
+       toast.error("Please enter a Topic ID or domain.");
+       return;
+     }
      const loadColumnChatBlocks = document.getElementById("load-blocks-from-ids").value;
+     if (!loadColumnChatBlocks) {
+       toast.error("Please enter the account IDs to block.");
+       return;
+     }
        console.log("loadColumnChatBlocks", loadColumnChatBlocks);
      const meesageobject = {
        loadColumnChatBlocks: loadColumnChatBlocks
      };
      const meesage = JSON.stringify(meesageobject);
+     toast.info("Confirm in wallet 👛");
      const reciept = await sendMessage(topicId, meesage);
    } catch (error) {
      console.error("Error loading filters from users:", error);
@@ -286,16 +375,29 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
  
  document.getElementById("post-msg").addEventListener("click", async () => {
  try {
+   if (!signer) {
+     toast.error("Connect wallet first");
+     return;
+   }
    const newMessage = document.getElementById("user-write-message").value;
- 
+
+   if (!newMessage) {
+     toast.error("Please enter a message.");
+     return;
+   }
+
  let userInput = document.getElementById("topic-chat-topic-id").value.toLowerCase();
  let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
  let topicId;
- 
+
  if (domainEntry && domainEntry.lastMessage) {
    topicId = domainEntry.lastMessage.topic;
  } else {
    topicId = userInput;
+ }
+ if (!topicId) {
+   toast.error("Please enter a Topic ID or domain.");
+   return;
  }
  
    const meesageobject = {
@@ -303,6 +405,7 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
    };
  
    const meesage = JSON.stringify(meesageobject);
+   toast.info("Confirm in wallet 👛");
    const reciept = await sendMessage(topicId, meesage);
  
  } catch (error) {
@@ -312,20 +415,37 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
  
  document.getElementById("submit-button-Set_Rules").addEventListener("click", async () => {
              try {
+               if (!signer) {
+                 toast.error("Connect wallet first");
+                 return;
+               }
                let userInput = document.getElementById("input-field-topic-id-for-rules").value.toLowerCase();
                let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
                let topicId;
- 
+
                if (domainEntry && domainEntry.lastMessage) {
                  topicId = domainEntry.lastMessage.topic;
                } else {
                  topicId = userInput;
+               }
+               if (!topicId) {
+                 toast.error("Please enter a Topic ID or domain.");
+                 return;
                }
                const polygonTopicId = document.getElementById("input-field-topic-id-for-polygons").value;
                const markerTopicId = document.getElementById("input-field-topic-id-for-markers").value;
                const messagesPerNftPolygon = document.getElementById("input-field-messages-per-nft-for-polygons").value;
                const messagesPerNftMarker = document.getElementById("input-field-messages-per-nft-for-markers").value;
                const SizeForPolygons = document.getElementById("input-field-messages-size-for-polygons").value;
+
+               if (!polygonTopicId || !markerTopicId || !messagesPerNftPolygon || !messagesPerNftMarker || !SizeForPolygons) {
+                 toast.error("Please fill in all required fields: Polygon NFT, Marker NFT, Messages Per NFT, and Polygon Size.");
+                 return;
+               }
+               if (!Number.isInteger(Number(messagesPerNftPolygon)) || !Number.isInteger(Number(messagesPerNftMarker)) || isNaN(Number(SizeForPolygons))) {
+                 toast.error("Please enter valid numbers for Messages Per NFT and Polygon Size.");
+                 return;
+               }
  
                const meesageobject = {
                  rules : {
@@ -341,7 +461,8 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
                }};
  
                const meesage = JSON.stringify(meesageobject);
- 
+
+               toast.info("Confirm in wallet 👛");
                const reciept = await sendMessage(topicId, meesage);
                console.log("Reciept is", reciept);
  
@@ -614,9 +735,18 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  
  document.getElementById("button5").addEventListener("click", async () => {
              try {
+               if (!signer) {
+                 toast.error("Connect wallet first");
+                 return;
+               }
                const topicId = '0.0.9606779';
                const topic = document.getElementById("Edit_Profile-topic-id").value;
                const domain = document.getElementById("toolbar-input").value.toLowerCase();
+
+               if (!topic || !domain) {
+                 toast.error("Please fill in both the Topic ID and the Domain.");
+                 return;
+               }
  
  
                const meesageobject = {
@@ -625,7 +755,8 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
                };
  
                const meesage = JSON.stringify(meesageobject);
- 
+
+               toast.info("Confirm in wallet 👛");
                const reciept = await sendMessage(topicId, meesage);
                console.log("Reciept is", reciept);
  
@@ -636,17 +767,34 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  
  document.getElementById("submit-button-add-scale-for-model").addEventListener("click", async () => {
              try {
+               if (!signer) {
+                 toast.error("Connect wallet first");
+                 return;
+               }
                let userInput = document.getElementById("input-field-topic-id-for-utility").value.toLowerCase();
                let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
                let topicId;
- 
+
                if (domainEntry && domainEntry.lastMessage) {
                  topicId = domainEntry.lastMessage.topic;
                } else {
                  topicId = userInput;
                }
+               if (!topicId) {
+                 toast.error("Please enter a Topic ID or domain.");
+                 return;
+               }
                const stackTopicAddTopicNFT = document.getElementById("input-field-add-remove-NFT-for-model").value;
                const stackTopicAddScale = document.getElementById("input-field-add-remove-scale-for-model").value;
+
+               if (!stackTopicAddTopicNFT || !stackTopicAddScale) {
+                 toast.error("Please fill in both the NFT ID and the Scale.");
+                 return;
+               }
+               if (isNaN(Number(stackTopicAddScale))) {
+                 toast.error("Please enter a valid number for the Scale.");
+                 return;
+               }
  
  
                const meesageobject = {
@@ -657,7 +805,8 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
                };
  
                const meesage = JSON.stringify(meesageobject);
- 
+
+               toast.info("Confirm in wallet 👛");
                const reciept = await sendMessage(topicId, meesage);
                console.log("Reciept is", reciept);
  
@@ -668,16 +817,29 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  
  document.getElementById("submit-button-remove-scale-for-model").addEventListener("click", async () => {
              try {
+               if (!signer) {
+                 toast.error("Connect wallet first");
+                 return;
+               }
                let userInput = document.getElementById("input-field-topic-id-for-utility").value.toLowerCase();
                let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
                let topicId;
- 
+
                if (domainEntry && domainEntry.lastMessage) {
                  topicId = domainEntry.lastMessage.topic;
                } else {
                  topicId = userInput;
                }
+               if (!topicId) {
+                 toast.error("Please enter a Topic ID or domain.");
+                 return;
+               }
                const stackTopicRemoveTopicNFT = document.getElementById("input-field-add-remove-NFT-for-model").value;
+
+               if (!stackTopicRemoveTopicNFT) {
+                 toast.error("Please enter the NFT ID.");
+                 return;
+               }
  
                const meesageobject = {
                        removeScale:{
@@ -686,7 +848,8 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
                };
  
                const meesage = JSON.stringify(meesageobject);
- 
+
+               toast.info("Confirm in wallet 👛");
                const reciept = await sendMessage(topicId, meesage);
                console.log("Reciept is", reciept);
  
@@ -697,16 +860,29 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  
  document.getElementById("submit-button-add-NFT-for-model").addEventListener("click", async () => {
              try {
+               if (!signer) {
+                 toast.error("Connect wallet first");
+                 return;
+               }
                  let userInput = document.getElementById("input-field-topic-id-for-utility").value.toLowerCase();
                let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
                let topicId;
- 
+
                if (domainEntry && domainEntry.lastMessage) {
                  topicId = domainEntry.lastMessage.topic;
                } else {
                  topicId = userInput;
                }
+               if (!topicId) {
+                 toast.error("Please enter a Topic ID or domain.");
+                 return;
+               }
                const stackTopicAddTopicNFT = document.getElementById("input-field-add-remove-NFT-for-model").value;
+
+               if (!stackTopicAddTopicNFT) {
+                 toast.error("Please enter the NFT ID.");
+                 return;
+               }
  
  
                const meesageobject = {
@@ -714,7 +890,8 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
                };
  
                const meesage = JSON.stringify(meesageobject);
- 
+
+               toast.info("Confirm in wallet 👛");
                const reciept = await sendMessage(topicId, meesage);
                console.log("Reciept is", reciept);
  
@@ -725,16 +902,29 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
            
  document.getElementById("submit-button-remove-NFT-for-model").addEventListener("click", async () => {
              try {
+               if (!signer) {
+                 toast.error("Connect wallet first");
+                 return;
+               }
                let userInput = document.getElementById("input-field-topic-id-for-utility").value.toLowerCase();
                let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
                let topicId;
- 
+
                if (domainEntry && domainEntry.lastMessage) {
                  topicId = domainEntry.lastMessage.topic;
                } else {
                  topicId = userInput;
                }
+               if (!topicId) {
+                 toast.error("Please enter a Topic ID or domain.");
+                 return;
+               }
                const stackTopicRemoveTopicNFT = document.getElementById("input-field-add-remove-NFT-for-model").value;
+
+               if (!stackTopicRemoveTopicNFT) {
+                 toast.error("Please enter the NFT ID.");
+                 return;
+               }
  
  
                const meesageobject = {
@@ -742,7 +932,8 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
                };
  
                const meesage = JSON.stringify(meesageobject);
- 
+
+               toast.info("Confirm in wallet 👛");
                const reciept = await sendMessage(topicId, meesage);
                console.log("Reciept is", reciept);
  
@@ -753,16 +944,29 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  
  document.getElementById("submit-button-add-topic-chat").addEventListener("click", async () => {
              try {
+               if (!signer) {
+                 toast.error("Connect wallet first");
+                 return;
+               }
                let userInput = document.getElementById("input-field-topic-id-for-utility").value.toLowerCase();
                let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
                let topicId;
- 
+
                if (domainEntry && domainEntry.lastMessage) {
                  topicId = domainEntry.lastMessage.topic;
                } else {
                  topicId = userInput;
                }
+               if (!topicId) {
+                 toast.error("Please enter a Topic ID or domain.");
+                 return;
+               }
                const stackTopicAddTopicNFT = document.getElementById("input-field-add-remove-topic-chat").value;
+
+               if (!stackTopicAddTopicNFT) {
+                 toast.error("Please enter the Topic Chat NFT ID.");
+                 return;
+               }
  
  
                const meesageobject = {
@@ -770,7 +974,8 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
                };
  
                const meesage = JSON.stringify(meesageobject);
- 
+
+               toast.info("Confirm in wallet 👛");
                const reciept = await sendMessage(topicId, meesage);
                console.log("Reciept is", reciept);
  
@@ -781,16 +986,29 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  
  document.getElementById("submit-button-remove-topic-chat").addEventListener("click", async () => {
              try {
+               if (!signer) {
+                 toast.error("Connect wallet first");
+                 return;
+               }
                let userInput = document.getElementById("input-field-topic-id-for-utility").value.toLowerCase();
                let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
                let topicId;
- 
+
                if (domainEntry && domainEntry.lastMessage) {
                  topicId = domainEntry.lastMessage.topic;
                } else {
                  topicId = userInput;
                }
+               if (!topicId) {
+                 toast.error("Please enter a Topic ID or domain.");
+                 return;
+               }
                const stackTopicRemoveTopicNFT = document.getElementById("input-field-add-remove-topic-chat").value;
+
+               if (!stackTopicRemoveTopicNFT) {
+                 toast.error("Please enter the Topic Chat NFT ID.");
+                 return;
+               }
  
  
                const meesageobject = {
@@ -798,7 +1016,8 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
                };
  
                const meesage = JSON.stringify(meesageobject);
- 
+
+               toast.info("Confirm in wallet 👛");
                const reciept = await sendMessage(topicId, meesage);
                console.log("Reciept is", reciept);
  
@@ -809,16 +1028,29 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  
  document.getElementById("add-topic-id").addEventListener("click", async () => {
              try {
+               if (!signer) {
+                 toast.error("Connect wallet first");
+                 return;
+               }
                let userInput = document.getElementById("stack-topic-ids-topic").value.toLowerCase();
                let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
                let topicId;
- 
+
                if (domainEntry && domainEntry.lastMessage) {
                  topicId = domainEntry.lastMessage.topic;
                } else {
                  topicId = userInput;
                }
+               if (!topicId) {
+                 toast.error("Please enter a Topic ID or domain.");
+                 return;
+               }
                const stackTopicAddTopic = document.getElementById("stack-topic-add-remove-topic").value;
+
+               if (!stackTopicAddTopic) {
+                 toast.error("Please enter the Topic ID to add.");
+                 return;
+               }
  
  
                const meesageobject = {
@@ -828,7 +1060,8 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
                };
  
                const meesage = JSON.stringify(meesageobject);
- 
+
+               toast.info("Confirm in wallet 👛");
                const reciept = await sendMessage(topicId, meesage);
                console.log("Reciept is", reciept);
  
@@ -839,16 +1072,29 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  
  document.getElementById("remove-topic-id").addEventListener("click", async () => {
              try {
+               if (!signer) {
+                 toast.error("Connect wallet first");
+                 return;
+               }
                let userInput = document.getElementById("stack-topic-ids-topic").value.toLowerCase();
      let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
      let topicId;
- 
+
      if (domainEntry && domainEntry.lastMessage) {
        topicId = domainEntry.lastMessage.topic;
      } else {
        topicId = userInput;
      }
+     if (!topicId) {
+       toast.error("Please enter a Topic ID or domain.");
+       return;
+     }
                const stackTopicRemoveTopic = document.getElementById("stack-topic-add-remove-topic").value;
+
+               if (!stackTopicRemoveTopic) {
+                 toast.error("Please enter the Topic ID to remove.");
+                 return;
+               }
  
  
                const meesageobject = {
@@ -858,7 +1104,8 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
                };
  
                const meesage = JSON.stringify(meesageobject);
- 
+
+               toast.info("Confirm in wallet 👛");
                const reciept = await sendMessage(topicId, meesage);
                console.log("Reciept is", reciept);
  
@@ -869,6 +1116,10 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  
  document.getElementById("submit-button-Create_Marker").addEventListener("click", async () => {
      try {
+       if (!signer) {
+         toast.error("Connect wallet first");
+         return;
+       }
        let userInput = document.getElementById("input-field-2-0").value.toLowerCase();
        let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
        let topicId;
@@ -888,18 +1139,19 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
        const numberOfMarker = document.getElementById("input-field-number-of-marker").value;
  
              if (numberOfMarker === "" || !Number.isInteger(Number(numberOfMarker))) {
-           alert("Please enter a valid whole number for the Number of Marker.");
+           toast.error("Please enter a valid whole number for the Number of Marker.");
            return;
        }
  
        if (!numberOfMarker || !topicId || !cord) {
-             alert("Please fill in all required fields: Number of Marker, Topic ID, and Coordinates.");
+             toast.error("Please fill in all required fields: Number of Marker, Topic ID, and Coordinates.");
              return;
            }
  
        const messageObj = {marker: {data: {title: title, image: [cleanUrl], coverimage: [cleanCoverimage], msg: msg, cord: cord, numberOfMarker: numberOfMarker }}};
        const message = JSON.stringify(messageObj);
  
+       toast.info("Confirm in wallet 👛");
        const receipt = await sendMessage(
          topicId,
          message
@@ -912,6 +1164,10 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
 
  document.getElementById("submit-button-Create_encrypted-Marker").addEventListener("click", async () => {
   try {
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
     let userInput = document.getElementById("input-field-2-0").value.toLowerCase();
     let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
     let topicId;
@@ -922,6 +1178,10 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
       topicId = domainEntry.lastMessage.topic;
     } else {
       topicId = userInput;
+    }
+    if (!topicId) {
+      toast.error("Please enter a Topic ID or domain.");
+      return;
     }
 
     
@@ -959,6 +1219,10 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
       console.error("Error getting public key:", error);
       return;
     }
+    if (!PublicKey) {
+      toast.error("No public key found for this topic. The admin must pin one first.");
+      return;
+    }
 
     const title = document.getElementById("input-field-2-1").value;
     const imageurl = document.getElementById("input-field-image-marker").value;
@@ -970,12 +1234,12 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
     const numberOfMarker = document.getElementById("input-field-number-of-marker").value;
 
           if (numberOfMarker === "" || !Number.isInteger(Number(numberOfMarker))) {
-        alert("Please enter a valid whole number for the Number of Marker.");
+        toast.error("Please enter a valid whole number for the Number of Marker.");
         return;
     }
 
     if (!numberOfMarker || !topicId || !cord) {
-          alert("Please fill in all required fields: Number of Marker, Topic ID, and Coordinates.");
+          toast.error("Please fill in all required fields: Number of Marker, Topic ID, and Coordinates.");
           return;
         }
 
@@ -988,6 +1252,7 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
 
     const message = JSON.stringify(encryptedMessage);
 
+    toast.info("Confirm in wallet 👛");
     const receipt = await sendMessage(topicId,message);
     console.log('Receipt:', receipt);
   } catch (error) {
@@ -999,7 +1264,11 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  
  document.getElementById("delete-marker-number").addEventListener("click", async () => {
      try {
- 
+       if (!signer) {
+         toast.error("Connect wallet first");
+         return;
+       }
+
        let userInput = document.getElementById("input-field-2-0").value.toLowerCase();
        let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
        let topicId;
@@ -1012,18 +1281,19 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
        const oldMarkerNumber = document.getElementById("input-field-delete-marker-number").value;
  
              if (oldMarkerNumber === "" || !Number.isInteger(Number(oldMarkerNumber))) {
-           alert("Please enter a valid whole number for the Number of Marker.");
+           toast.error("Please enter a valid whole number for the Number of Marker.");
            return;
        }
  
        if (!oldMarkerNumber || !topicId) {
-             alert("Please fill in all required fields: Number of Marker, Topic ID");
+             toast.error("Please fill in all required fields: Number of Marker, Topic ID");
              return;
            }
  
        const messageObj = {marker: {data: {deleteMarkerNumber: oldMarkerNumber}}};
        const message = JSON.stringify(messageObj);
  
+       toast.info("Confirm in wallet 👛");
        const receipt = await sendMessage(
          topicId,
          message
@@ -1038,6 +1308,10 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  
  document.getElementById("submit-button-Create_Polygon").addEventListener("click", async () => {
      try {
+       if (!signer) {
+         toast.error("Connect wallet first");
+         return;
+       }
        let userInput = document.getElementById("input-field-3-0").value.toLowerCase();
        let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
        let topicId;
@@ -1058,12 +1332,12 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
        const cleanCoverimage = coverimage.replace(/\?network=mainnet$/, "");
  
              if (numberOfPolygon === "" || !Number.isInteger(Number(numberOfPolygon))) {
-           alert("Please enter a valid whole number for the Number of Polygon.");
+           toast.error("Please enter a valid whole number for the Number of Polygon.");
            return;
        }
  
        if (!numberOfPolygon || !topicId || !cord1 || !cord3) {
-             alert("Please fill in all required fields: Number of Polygon, Topic ID, and Coordinates.");
+             toast.error("Please fill in all required fields: Number of Polygon, Topic ID, and Coordinates.");
              return; // Stop the submission if any field is empty
            }
  
@@ -1088,7 +1362,8 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
        );
  
        if (!isValid) {
-         throw new Error('Please enter valid coordinates in the format number,number for all four corners.');
+         toast.error("Please enter valid coordinates in the format number,number for all four corners.");
+         return;
        }
  
        // Create the desired coordinate string without additional array wrapping
@@ -1108,6 +1383,7 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
        };
        const message = JSON.stringify(messageObj);
  
+       toast.info("Confirm in wallet 👛");
        const receipt = await sendMessage(
          topicId,
          message
@@ -1121,6 +1397,10 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
 
   document.getElementById("submit-button-Create_encrypted-Polygon").addEventListener("click", async () => {
   try {
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
     let userInput = document.getElementById("input-field-3-0").value.toLowerCase();
     let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
     let topicId;
@@ -1131,6 +1411,10 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
       topicId = domainEntry.lastMessage.topic;
     } else {
       topicId = userInput;
+    }
+    if (!topicId) {
+      toast.error("Please enter a Topic ID or domain.");
+      return;
     }
 
     
@@ -1168,6 +1452,10 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
       console.error("Error getting public key:", error);
       return;
     }
+    if (!PublicKey) {
+      toast.error("No public key found for this topic. The admin must pin one first.");
+      return;
+    }
 
     const title = document.getElementById("input-field-3-1").value;
     const msg = document.getElementById("input-field-3-2").value;
@@ -1180,12 +1468,12 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
     const cleanCoverimage = coverimage.replace(/\?network=mainnet$/, "");
 
           if (numberOfPolygon === "" || !Number.isInteger(Number(numberOfPolygon))) {
-        alert("Please enter a valid whole number for the Number of Polygon.");
+        toast.error("Please enter a valid whole number for the Number of Polygon.");
         return;
     }
 
     if (!numberOfPolygon || !topicId || !cord1 || !cord3) {
-          alert("Please fill in all required fields: Number of Polygon, Topic ID, and Coordinates.");
+          toast.error("Please fill in all required fields: Number of Polygon, Topic ID, and Coordinates.");
           return; // Stop the submission if any field is empty
         }
 
@@ -1210,7 +1498,8 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
     );
 
     if (!isValid) {
-      throw new Error('Please enter valid coordinates in the format number,number for all four corners.');
+      toast.error("Please enter valid coordinates in the format number,number for all four corners.");
+      return;
     }
 
     // Create the desired coordinate string without additional array wrapping
@@ -1237,6 +1526,7 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
 
     const message = JSON.stringify(encryptedMessage);
 
+    toast.info("Confirm in wallet 👛");
     const receipt = await sendMessage(topicId,message);
     console.log('Receipt:', receipt);
   } catch (error) {
@@ -1246,6 +1536,10 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  
  document.getElementById("delete-polygon-number").addEventListener("click", async () => {
      try {
+       if (!signer) {
+         toast.error("Connect wallet first");
+         return;
+       }
        let userInput = document.getElementById("input-field-3-0").value.toLowerCase();
        let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
        let topicId;
@@ -1258,18 +1552,19 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
        const oldPolygonNumber = document.getElementById("input-field-delete-polygon-number").value;
  
              if (oldPolygonNumber === "" || !Number.isInteger(Number(oldPolygonNumber))) {
-           alert("Please enter a valid whole number for the Number of Polygon.");
+           toast.error("Please enter a valid whole number for the Number of Polygon.");
            return;
        }
  
        if (!oldPolygonNumber || !topicId) {
-             alert("Please fill in all required fields: Number of Polygon, Topic ID");
+             toast.error("Please fill in all required fields: Number of Polygon, Topic ID");
              return;
            }
  
        const messageObj = {polygon: {data: {deletePolygonNumber: oldPolygonNumber}}};
        const message = JSON.stringify(messageObj);
  
+       toast.info("Confirm in wallet 👛");
        const receipt = await sendMessage(
          topicId,
          message
@@ -1285,7 +1580,20 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  document.getElementById("button1").addEventListener("click", async (event) => {
          event.stopPropagation();
          const inputValue = document.getElementById("toolbar-input").value;
- 
+
+         if (!signer) {
+           toast.error("Connect wallet first");
+           return;
+         }
+         if (!inputValue) {
+           toast.error("Please enter a URL.");
+           return;
+         }
+         if (!isValidUrl(inputValue)) {
+           toast.error("Please enter a valid URL.");
+           return;
+         }
+
          try {
            const topicId = "0.0.9609881";
            const cleanUrl = inputValue.replace(/\?network=mainnet$/, "");
@@ -1297,6 +1605,7 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
            };
            const message = JSON.stringify(messageData);
  
+           toast.info("Confirm in wallet 👛");
            const receipt = await sendMessage(
              topicId,
              message
@@ -1316,11 +1625,19 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  document.getElementById("button2").addEventListener("click", async (event) => {
    event.stopPropagation();
    const inputValue = document.getElementById("toolbar-input").value;
- 
+
+   if (!signer) {
+     toast.error("Connect wallet first");
+     return;
+   }
+   if (!inputValue) {
+     toast.error("Please enter a username.");
+     return;
+   }
    // Check if inputValue has less than 20 characters
    if (inputValue.length >= 20) {
-     console.error("Input must be less than 20 characters");
-     return; // Exit the function if the input is too long
+     toast.error("Please enter a username with less than 20 characters.");
+     return;
    }
  
    try {
@@ -1333,6 +1650,7 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
      };
      const message = JSON.stringify(messageData);
  
+     toast.info("Confirm in wallet 👛");
      const receipt = await sendMessage(topicId, message);
      console.log("Username updated successfully:", receipt);
  
@@ -1348,7 +1666,20 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  document.getElementById("button_for_click_url").addEventListener("click", async (event) => {
          event.stopPropagation();
          const inputValue = document.getElementById("toolbar-input").value;
- 
+
+         if (!signer) {
+           toast.error("Connect wallet first");
+           return;
+         }
+         if (!inputValue) {
+           toast.error("Please enter a URL.");
+           return;
+         }
+         if (!isValidUrl(inputValue)) {
+           toast.error("Please enter a valid URL.");
+           return;
+         }
+
          try {
            const topicId = "0.0.9752486";
            const cleanUrl = inputValue.replace(/\?network=mainnet$/, "");
@@ -1360,6 +1691,7 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
            };
            const message = JSON.stringify(messageData);
  
+           toast.info("Confirm in wallet 👛");
            const receipt = await sendMessage(
              topicId,
              message
@@ -1379,8 +1711,16 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  document.getElementById("button_for_topic2pic").addEventListener("click", async (event) => {
    event.stopPropagation();
    const inputValue = document.getElementById("Edit_Profile-topic-id").value;
+   if (!signer) {
+     toast.error("Connect wallet first");
+     return;
+   }
+   if (!inputValue) {
+     toast.error("Please enter a Topic ID.");
+     return;
+   }
    if (inputValue.length >= 20) {
-     console.error("Input must be less than 20 characters");
+     toast.error("Please enter a Topic ID with less than 20 characters.");
      return;
    }
    try {
@@ -1391,6 +1731,7 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
        },
      };
      const message = JSON.stringify(messageData);
+     toast.info("Confirm in wallet 👛");
      const receipt = await sendMessage(
        topicId,
        message

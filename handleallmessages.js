@@ -18,6 +18,7 @@ import { newActivePolygonPopups, addPolygonWithImageFill } from "./polygons";
 import { map } from './map.js';
 import { processTopicMessages, allLoadedMessages } from "./processallmessages.js";
 import { initialTopicId } from "./extracttopic.js";
+import { toast } from "./toast";
 
 
 
@@ -195,7 +196,8 @@ export async function handleAllMessages() {
   
       loaded_text_area.innerHTML = globalLoadedTopicIdsWithNames.join('<br>'); // Update with new values
       adjustTextareaHeight(loaded_text_area); // Adjust height after loading
-  
+
+      toast.info("Topic loaded");
       return loadedTopicIdsWithNames; // Return the loadedTopicsIds array
   
         } catch (error) {

@@ -1,6 +1,7 @@
 import {map} from './map';
 import { models } from './letall';
 import { generateModels } from './loadP2PModels';
+import { toast } from './toast'
 
 function requestPeerList() {
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -68,7 +69,7 @@ export async function someFunction(accountId, topicId) {
         // Validate input
         if (isNaN(x) || isNaN(y) || isNaN(z)) {
             console.error('Invalid coordinates: X, Y, Z must be numbers');
-            alert('Please enter valid numbers for X, Y, Z');
+            toast.error('Please enter valid numbers for X, Y, Z');
             return;
         }
 

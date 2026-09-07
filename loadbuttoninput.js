@@ -1,9 +1,15 @@
 import { getMessages, sendMessage } from "./hedera";
+import { signer } from "./web3";
+import { toast } from "./toast";
 
 document.getElementById("save-button-button-input").addEventListener("click", async (event) => {
     event.stopPropagation();
 
     try {
+        if (!signer) {
+            toast.error("Connect wallet first");
+            return;
+        }
         const topicId = "0.0.9798047";
 
         const InputBorderColor = document.getElementById("input-border-color").value;
@@ -16,6 +22,11 @@ document.getElementById("save-button-button-input").addEventListener("click", as
         const TransparencyButtonInput = Math.min(parseFloat(document.getElementById("transparency-button-input").value) || 0.5, 1);
         const ButtonInputHeight = Math.min(parseFloat(document.getElementById("Button-Input-Height").value) || 3, 100);
         const ButtonInputWidth = Math.min(parseFloat(document.getElementById("Button-Input-Width").value) || 25, 100);
+
+        if (!InputBorderColor || !InputFontColor || !ButtonBorderColor || !ButtonFontColor || !OnhoverButtonColor || !RulesContainerColor) {
+            toast.error("Please fill in all color fields.");
+            return;
+        }
 
         const messageData = {
             data: {
@@ -34,6 +45,7 @@ document.getElementById("save-button-button-input").addEventListener("click", as
 
         const message = JSON.stringify(messageData);
 
+        toast.info("Confirm in wallet 👛");
         const receipt = await sendMessage(
             topicId,
             message

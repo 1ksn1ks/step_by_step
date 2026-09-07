@@ -254,7 +254,7 @@
             <label for="domain-time-left" style="font-size: 2vh;">1 USDC
             (<span style="cursor: pointer; color: rgb(255, 255, 255); text-decoration: underline;"
             onclick="navigator.clipboard.writeText('0.0.456858')
-            .then(() => alert('Copied to clipboard: 0.0.456858'))
+            .then(() => window.toast && window.toast.success('Copied to clipboard'))
             .catch(err => console.error('Failed to copy: ', err));">0.0.456858</span>):
             </label>
             <button class="toolbar-column-btns" id="button5" style="margin-top: 0.5vh;">Add 28 days to domain

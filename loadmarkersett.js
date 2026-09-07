@@ -1,12 +1,18 @@
 import { getMessages, sendMessage } from "./hedera";
 import { setcurrentMarkerSize } from "./marker";
+import { signer } from "./web3";
+import { toast } from "./toast";
 
 document.getElementById("save-marker-settings").addEventListener("click", async (event) => {
     event.stopPropagation();
     try {
+        if (!signer) {
+            toast.error("Connect wallet first");
+            return;
+        }
         const topicId = "0.0.9796116";
 
-        const sizeMarker = Math.min(parseFloat(document.getElementById("Marker-Sizer").value) || 0, 255);
+        const sizeMarker = Math.min(parseFloat(document.getElementById("Marker-Size").value) || 0, 255);
         const messageData = {
             data: {
                 sizeMarker: sizeMarker
@@ -15,6 +21,7 @@ document.getElementById("save-marker-settings").addEventListener("click", async 
 
         const message = JSON.stringify(messageData);
 
+        toast.info("Confirm in wallet 👛");
         const receipt = await sendMessage(
             topicId,
             message

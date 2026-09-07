@@ -1,6 +1,7 @@
 import {adjustTextareaHeight} from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
 import { getMessages, getAccountNFTs, sendMessage, getTopicInfo, subscribeToTopic } from './hedera';
+import { toast } from "./toast";
 import { profilePictures, usernames, click2url } from './loadalladata';
 import { 
   topicChatHeaderColor,
@@ -13,7 +14,7 @@ import {
   timestampFontSizeTopicChat
  } from './letall';
 
- import { connectedAccount } from './web3';
+ import { connectedAccount, signer } from './web3';
 
 
 export let allLoadedMessagesTopicChat = [];
@@ -559,14 +560,22 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
   
   document.getElementById("save-time-from-topic-chat").addEventListener("click", async () => {
     try {
+      if (!signer) {
+        toast.error("Connect wallet first");
+        return;
+      }
       let userInput = document.getElementById("topic-chat-topic-id").value;
       let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
       let topicId;
-  
+
         if (domainEntry && domainEntry.lastMessage) {
         topicId = domainEntry.lastMessage.topic;
       } else {
         topicId = userInput;
+      }
+      if (!topicId) {
+        toast.error("Please enter a Topic ID or domain.");
+        return;
       }
       const fromMmddyyyy = document.getElementById("from-mmddyyyy").value;
       const toMmddyyyy = document.getElementById("to-mmddyyyy").value;
@@ -582,6 +591,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         }
       };
       const meesage = JSON.stringify(meesageobject);
+      toast.info("Confirm in wallet 👛");
       const reciept = await sendMessage(topicId, meesage);
     } catch (error) {
       console.error("Error saving time from topic chat:", error);
@@ -614,21 +624,34 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
   
   document.getElementById("save-filters-from-topic-chat").addEventListener("click", async () => {
     try {
+      if (!signer) {
+        toast.error("Connect wallet first");
+        return;
+      }
       let userInput = document.getElementById("topic-chat-topic-id").value;
       let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
       let topicId;
-  
+
         if (domainEntry && domainEntry.lastMessage) {
         topicId = domainEntry.lastMessage.topic;
       } else {
         topicId = userInput;
       }
+      if (!topicId) {
+        toast.error("Please enter a Topic ID or domain.");
+        return;
+      }
       const topicChatFromUsers = document.getElementById("load-msgs-from-ids-topic-chat").value;
+      if (!topicChatFromUsers) {
+        toast.error("Please enter the account IDs to load.");
+        return;
+      }
       console.log("topicChatFromUsers", topicChatFromUsers);
       const meesageobject = {
         topicChatFromUsers: topicChatFromUsers
       };
       const meesage = JSON.stringify(meesageobject);
+      toast.info("Confirm in wallet 👛");
       const reciept = await sendMessage(topicId, meesage);
     } catch (error) {
       console.error("Error loading filters from users:", error);
@@ -658,21 +681,34 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
   
   document.getElementById("save-blocks-from-topic-chat").addEventListener("click", async () => {
     try {
+      if (!signer) {
+        toast.error("Connect wallet first");
+        return;
+      }
       let userInput = document.getElementById("topic-chat-topic-id").value;
       let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
       let topicId;
-  
+
         if (domainEntry && domainEntry.lastMessage) {
         topicId = domainEntry.lastMessage.topic;
       } else {
         topicId = userInput;
       }
+      if (!topicId) {
+        toast.error("Please enter a Topic ID or domain.");
+        return;
+      }
       const topicChatBlocks = document.getElementById("load-blocks-from-ids-topic-chat").value;
+      if (!topicChatBlocks) {
+        toast.error("Please enter the account IDs to block.");
+        return;
+      }
         console.log("topicChatBlocks", topicChatBlocks);
       const meesageobject = {
         topicChatBlocks: topicChatBlocks
       };
       const meesage = JSON.stringify(meesageobject);
+      toast.info("Confirm in wallet 👛");
       const reciept = await sendMessage(topicId, meesage);
     } catch (error) {
       console.error("Error loading filters from users:", error);
