@@ -45,21 +45,29 @@ map.addControl(navigation);
 navigation._container.classList.add('custom-map-control');
 
 
-  document.getElementById("copy-coordinates").addEventListener("click", () => {
-    event.stopPropagation();
+  document.getElementById("copy-coordinates").addEventListener("click", (e) => {
+    e.stopPropagation();
     const center = map.getCenter();
     const coordinates = `${center.lng.toFixed(5)},${center.lat.toFixed(5)}`;
-  
-    navigator.clipboard.writeText(coordinates).then(() => {
-      }).catch(err => {
-      console.error("Failed to copy coordinates:", err);
-    });
+
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(coordinates).catch(err => {
+        console.error("Failed to copy coordinates:", err);
+      });
+    } else {
+      // Fallback for non-HTTPS contexts where navigator.clipboard is unavailable
+      const textarea = document.createElement("textarea");
+      textarea.value = coordinates;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
   });
 
 
-
-  const overlay = document.getElementById('loader-overlay');
-  overlay.style.display = 'none';
 
 // Add the geolocation control to the map
 const geolocate = new maplibregl.GeolocateControl({

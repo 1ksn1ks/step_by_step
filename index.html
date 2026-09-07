@@ -4,8 +4,78 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Meritocracy</title>
-    
+    <script>
+      // Start counting load progress the moment the page begins parsing
+      (function () {
+        var totalBytes = 0, fileCount = 0, inflight = 0, done = false;
+        var EST_TOTAL = 20 * 1048576; // rough guess of the initial load (tiles stream in, so no real target exists)
 
+        function fmt(b) {
+          if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MB';
+          if (b >= 1024) return (b / 1024).toFixed(0) + ' KB';
+          return b + ' B';
+        }
+
+        function setBar(pct) {
+          var pctEl = document.getElementById('loader-pct');
+          var barEl = document.getElementById('loader-bar-fill');
+          if (pctEl) pctEl.textContent = pct + '%';
+          if (barEl) barEl.style.width = pct + '%';
+        }
+
+        function render() {
+          if (done) return;
+          setBar(Math.min(100, Math.round((totalBytes / EST_TOTAL) * 100)));
+          var el = document.getElementById('loader-progress');
+          if (!el) return;
+          el.textContent = 'Loaded ' + fmt(totalBytes) + ' \u00b7 ' + fileCount + ' files \u00b7 ' + inflight + ' in progress';
+        }
+
+        if ('PerformanceObserver' in window) {
+          try {
+            new PerformanceObserver(function (list) {
+              var entries = list.getEntries();
+              for (var i = 0; i < entries.length; i++) {
+                totalBytes += entries[i].transferSize || entries[i].decodedBodySize || 0;
+                fileCount += 1;
+              }
+              render();
+            }).observe({ type: 'resource', buffered: true });
+          } catch (err) { /* unsupported: counters stay at 0 */ }
+        }
+
+        var rawFetch = window.fetch;
+        window.fetch = function () {
+          inflight += 1;
+          render();
+          var p = rawFetch.apply(this, arguments);
+          function settle() { inflight = Math.max(0, inflight - 1); render(); }
+          p.then(settle, settle);
+          return p;
+        };
+
+        var timer = setInterval(render, 100);
+
+        window.__loaderProgress = {
+          finish: function () {
+            if (done) return;
+            done = true;
+            clearInterval(timer);
+            setBar(100);
+            var el = document.getElementById('loader-progress');
+            if (el) el.textContent = 'Loaded ' + fmt(totalBytes) + ' \u00b7 ' + fileCount + ' files';
+            var overlay = document.getElementById('loader-overlay');
+            if (overlay) {
+              overlay.style.transition = 'opacity 0.4s';
+              overlay.style.opacity = '0';
+              setTimeout(function () { overlay.style.display = 'none'; }, 450);
+            }
+          }
+        };
+
+        render();
+      })();
+    </script>
   </head>
   <body>
 
@@ -13,6 +83,8 @@
       <div class="loader-content">
         <h3>Loading...</h3>
         <div class="spinner"></div>
+        <div id="loader-pct" style="font-family: Arial, sans-serif; font-size: 3.5vh; color: white; margin-top: 1.5vh; text-align: center;">0%</div>
+        <div id="loader-progress" style="font-family: Arial, sans-serif; font-size: 1.8vh; color: white; margin-top: 1vh; min-height: 2.2vh; text-align: center;"></div>
       </div>
     </div>
 
@@ -21,7 +93,7 @@
       <div id="three-container"></div>
       
       <input id="coordinates-display" value="Coordinates:"/>
-      
+
       <button id="copy-coordinates" class="copy-coordinates"></button>
       
       <div id="crosshair" style="display: none;"></div>
@@ -78,33 +150,20 @@
 
       <div id="edit-profile-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-
-          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Profile Editor</h3>
-
-
-          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-            <li>here u can change your profile picture by inputing web location (URL) of it
-            </li>
-            <li>username by inputing new username and saving
-            </li>
-            <li>topic id name is used add/change the name of topic inside "Load"
-            </li>
-            <li>topicID to PFP is used to link topic id to your profile picture which opens given Topic inside "Load" if PFP is pressed
-            </li>
-            <li>CLICK2LINK is used to link any given URL to your username (u can advertise yourself easy)
-            </li>
-            <li>DOMAIN is used to give a name to topicID globally, this way u can use topic by using domain also
-            </li>
+          <h3 class="info-overlay-title">Profile Editor</h3>
+          <p class="info-overlay-subtitle">Make the map yours.</p>
+          <ul class="info-overlay-list">
+            <li><b>Profile picture</b> — paste an image URL to set it.</li>
+            <li><b>Username</b> — enter a new name, then press Save.</li>
+            <li><b>Topic ID name</b> — give a topic a friendly name in Load.</li>
+            <li><b>Topic ID to PFP</b> — link a topic to your PFP; pressing it opens that topic in Load.</li>
+            <li><b>CLICK2LINK</b> — attach any URL to your username.</li>
+            <li><b>Domain</b> — give a topic a global name so you can also find it by domain.</li>
           </ul>
-
-          <div style="margin-top: 3vh; text-align: center;">
-            <button class="info-overlay-close-button-1"
-            onclick="document.getElementById('edit-profile-help-overlay').style.display='none'">Got it – let's go!</button>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('edit-profile-help-overlay').style.display='none'">Got it</button>
           </div>
-
-          <div class="info-overlay-close-button-2"
-          onclick="document.getElementById('edit-profile-help-overlay').style.display='none'">×</div>
-
+          <div class="info-overlay-close-button-2" onclick="document.getElementById('edit-profile-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -207,29 +266,17 @@
 
       <div id="load-options-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-      
-          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Load Options</h3>
-      
-          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-            <li>here u can load given topicID or domain (if it's linked)</li>
-            <li>bellow will load topic / topics that are linked to that one domain (stack of topic ids) with their names (not domains) given by their creator</li>
-            <li>u can also filter loaded domain / topic / topics by:
-              <ul style="padding-left: 6vw; margin: 1vh 0;">
-                <li>blocking user / users</li>
-                <li>by time (date range)</li>
-                <li>loading only from specific user / users</li>
-              </ul>
-            </li>
+          <h3 class="info-overlay-title">Load</h3>
+          <p class="info-overlay-subtitle">Find and read any topic.</p>
+          <ul class="info-overlay-list">
+            <li>Load messages from a topic ID or a linked domain.</li>
+            <li>Stacked topics (multiple IDs on one domain) load together, with the creator's names.</li>
+            <li><b>Options</b> — filter by blocked users, a date/time range, or specific users.</li>
           </ul>
-      
-          <div style="margin-top: 3vh; text-align: center;">
-            <button class="info-overlay-close-button-1"
-             onclick="document.getElementById('load-options-help-overlay').style.display='none'">Got it – let's go!</button>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('load-options-help-overlay').style.display='none'">Got it</button>
           </div>
-      
-          <div class="info-overlay-close-button-2"
-           onclick="document.getElementById('load-options-help-overlay').style.display='none'">×</div>
-      
+          <div class="info-overlay-close-button-2" onclick="document.getElementById('load-options-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -325,15 +372,15 @@
           <div id="time-from-users-load-column" style="display: none;">
             <label style="font-size: 2vh; padding-bottom: 0.5vh;">Month Day Year:
               <div style="display: flex; align-items: center;">
-                <input type="number" id="from-mmddyyyy-users-load-column" class="toolbar-column" step="1" placeholder="MMDDYYYY" oninput="restrictLength(this, 8)" />
-                <input type="number" id="to-mmddyyyy-users-load-column" class="toolbar-column" step="1" placeholder="MMDDYYYY" style="margin-left: 1vw;" oninput="restrictLength(this, 8)" />
+                <input type="date" id="from-mmddyyyy-users-load-column" class="toolbar-column" />
+                <input type="date" id="to-mmddyyyy-users-load-column" class="toolbar-column" style="margin-left: 1vw;" />
               </div>
           </label>
-        
-          <label style="font-size: 2vh; padding-bottom: 0.5vh;">Hour Minute Second:
+
+          <label style="font-size: 2vh; padding-bottom: 0.5vh;">Hour Minute:
             <div style="display: flex; align-items: center;">
-              <input type="number" id="from-hhmmss-users-load-column" class="toolbar-column" step="1" placeholder="HHMMSS" oninput="restrictLength(this, 6)" />
-              <input type="number" id="to-hhmmss-users-load-column" class="toolbar-column" step="1" placeholder="HHMMSS" style="margin-left: 1vw;" oninput="restrictLength(this, 6)" />
+              <input type="time" id="from-hhmmss-users-load-column" class="toolbar-column" />
+              <input type="time" id="to-hhmmss-users-load-column" class="toolbar-column" style="margin-left: 1vw;" />
             </div>
           </label>
         </div>
@@ -397,28 +444,18 @@
 
       <div id="create-topic-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-      
-          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Create Topic</h3>
-      
-          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-            <li>here u can create new topic ID / new pair of keys<br>(topics must be stacked: TOOLBAR > stack topic ids)</li>
-            <li>Admins are used to dictate rules of created topic<br>(to change later u MUST save PRIVATE KEY somewhere safe)</li>
-            <li>Keys are also used in E2EE chat:
-              <ul style="padding-left: 6vw; margin: 1vh 0;">
-                <li>share public key to lock the messages</li>
-                <li>PRIVATE key is used to unlock those LOCKED messages</li>
-              </ul>
-            </li>
+          <h3 class="info-overlay-title">Create Topic</h3>
+          <p class="info-overlay-subtitle">Start a new space.</p>
+          <ul class="info-overlay-list">
+            <li>Create a new topic ID or a new key pair.</li>
+            <li>New topics must be stacked: TOOLBAR → Stack topic IDs.</li>
+            <li><b>Admins</b> — who can change this topic's rules later. Keep your private key safe to do so.</li>
+            <li>Your keys also power E2EE Chat: public locks messages, private unlocks them.</li>
           </ul>
-      
-          <div style="margin-top: 3vh; text-align: center;">
-            <button class="info-overlay-close-button-1"
-             onclick="document.getElementById('create-topic-help-overlay').style.display='none'">Got it – let's go!</button>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('create-topic-help-overlay').style.display='none'">Got it</button>
           </div>
-      
-          <div class="info-overlay-close-button-2"
-           onclick="document.getElementById('create-topic-help-overlay').style.display='none'">×</div>
-      
+          <div class="info-overlay-close-button-2" onclick="document.getElementById('create-topic-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -526,34 +563,21 @@
       
       <div id="map-draw-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-      
-          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Map Drawing</h3>
-      
-          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-            <li>here u can draw marker and polygon to the map<br>(check rules for given topic "Rules",<br>u might have to own some NFTs to be able to write on given topic,<br>which is predefined by topic creators)</li>
-            <li>u can create new topic inside TOOLBAR > Create</li>
-            <li>"Domain/Topic ID"<br>- is web location where u want to save data</li>
-            <li>"Number of marker/polygon"<br>- is used to give some reference to them and based on that number u can delete/change them</li>
-            <li>"coordinates"<br>- are used to give them location where from/to on map</li>
-            <li>"Optional settings"<br>- here u can change:
-              <ul style="padding-left: 6vw; margin: 1vh 0;">
-                <li>cover photo (what is seen on the map)</li>
-                <li>Title is located inside popup (which is opened when marker/polygon is pressed)</li>
-                <li>image URL is located inside popup (which is opened when marker/polygon is pressed)</li>
-                <li>message is located inside popup (which is opened when marker/polygon is pressed)</li>
-              </ul>
-            </li>
-            <li>"Delete marker/polygon"<br>- is used to delete marker/polygon by inputing number and Domain/Topic ID where is located</li>
+          <h3 class="info-overlay-title">Map Drawing</h3>
+          <p class="info-overlay-subtitle">Place markers and polygons.</p>
+          <ul class="info-overlay-list">
+            <li>Draw markers and polygons. Some topics require NFTs — check the topic's Rules.</li>
+            <li>Need a topic? TOOLBAR → Create.</li>
+            <li><b>Domain/Topic ID</b> — where the shape's data is stored.</li>
+            <li><b>Number</b> — reference ID to edit or delete the shape later.</li>
+            <li><b>Coordinates</b> — where the shape sits on the map.</li>
+            <li><b>Optional settings</b> — cover photo, title, image URL, and popup message when pressed.</li>
+            <li><b>Delete</b> — remove a shape by its Number and Domain/Topic ID.</li>
           </ul>
-      
-          <div style="margin-top: 3vh; text-align: center;">
-            <button class="info-overlay-close-button-1"
-             onclick="document.getElementById('map-draw-help-overlay').style.display='none'">Got it – let's go!</button>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('map-draw-help-overlay').style.display='none'">Got it</button>
           </div>
-      
-          <div class="info-overlay-close-button-2"
-           onclick="document.getElementById('map-draw-help-overlay').style.display='none'">×</div>
-      
+          <div class="info-overlay-close-button-2" onclick="document.getElementById('map-draw-help-overlay').style.display='none'">×</div>
         </div>
       </div>
 
@@ -750,26 +774,19 @@
 
       <div id="topic-rules-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-      
-          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Topic Rules</h3>
-      
-          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-            <li>Here u can dictate which markers/polygons will be shown when global users search your topic</li>
-            <li>These rules are directly tied to Domain/TopicID</li>
-            <li>THEY COME IN PAIR AND OVERWRITE LAST SET</li>
-            <li>u can set which NFT user has to have and how much messages per each NFT owned can they post to that topic</li>
-            <li>"max size" is max size of polygon for NFT user has to own</li>
-            <li>input Domain/TopicID and press "Load Topic Rules" to read current given rules</li>
+          <h3 class="info-overlay-title">Topic Rules</h3>
+          <p class="info-overlay-subtitle">Control who can write to your topic.</p>
+          <ul class="info-overlay-list">
+            <li>Choose which markers/polygons appear when others search your topic.</li>
+            <li>Rules are tied to a Domain/Topic ID and set in pairs — the last one wins.</li>
+            <li>Pick the required NFT and how many messages each owned NFT allows.</li>
+            <li><b>Max size</b> — the largest polygon the required NFT can use.</li>
+            <li>Enter a Domain/Topic ID, press <b>Load Topic Rules</b> to read the current rules.</li>
           </ul>
-      
-          <div style="margin-top: 3vh; text-align: center;">
-            <button class="info-overlay-close-button-1"
-             onclick="document.getElementById('topic-rules-help-overlay').style.display='none'">Got it – let's go!</button>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('topic-rules-help-overlay').style.display='none'">Got it</button>
           </div>
-      
-          <div class="info-overlay-close-button-2"
-           onclick="document.getElementById('topic-rules-help-overlay').style.display='none'">×</div>
-      
+          <div class="info-overlay-close-button-2" onclick="document.getElementById('topic-rules-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -825,25 +842,19 @@
 
       <div id="model-sharing-rules-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-      
-          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Model Sharing & Rules</h3>
-      
-          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-            <li>"Domain/Topic ID"<br>- is web location where u want to save data</li>
-            <li>input Domain/TopicID and press "Load Topic Rules" to read current given rules</li>
-            <li>"Model sharing"<br>- u choose which NFT/NFTs have to be owned to participate in location (top right corner) sharing with others</li>
-            <li>"Model size"<br>- u can set different multiplayers for model sizes<br>- lets say u want your VIP members to have 2 times bigger models then rest<br>- u choose which NFT is for VIPs and u set size factor to 2 (it can be any number)</li>
-            <li>"Topic chat"<br>- when users search you Domain/Topic ID inside "TOPIC CHAT" only messages from users with given NFT/NFTs will be shown</li>
+          <h3 class="info-overlay-title">Model Sharing & Rules</h3>
+          <p class="info-overlay-subtitle">Share locations with NFT holders.</p>
+          <ul class="info-overlay-list">
+            <li><b>Domain/Topic ID</b> — where the data is stored.</li>
+            <li><b>Model sharing</b> — choose which NFT holders can share their location (top-right corner).</li>
+            <li><b>Model size</b> — size multiplier per NFT. Example: VIP NFT at 2× → 2× bigger model.</li>
+            <li><b>Topic chat</b> — only messages from users with the required NFT are shown.</li>
+            <li>Enter a Domain/Topic ID and press <b>Load Topic Rules</b> to read the current rules.</li>
           </ul>
-      
-          <div style="margin-top: 3vh; text-align: center;">
-            <button class="info-overlay-close-button-1"
-             onclick="document.getElementById('model-sharing-rules-help-overlay').style.display='none'">Got it – let's go!</button>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('model-sharing-rules-help-overlay').style.display='none'">Got it</button>
           </div>
-      
-          <div class="info-overlay-close-button-2"
-           onclick="document.getElementById('model-sharing-rules-help-overlay').style.display='none'">×</div>
-      
+          <div class="info-overlay-close-button-2" onclick="document.getElementById('model-sharing-rules-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -948,27 +959,21 @@
 
       <div id="edit-topic-rules-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-      
-          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Edit Topic Rules</h3>
-      
-          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-            <li>Domain/Topic ID<br>- is what u want to edit</li>
-            <li>Private key<br>- is used to give approval for change</li>
-            <li>Admins<br>- u define who has the authority to dictate rules for given topic</li>
-            <li>optional fee<br>- is used to make other users pay for each message they want to write onto that topic</li>
-            <li>set amount<br>- u set amount</li>
-            <li>set token id of fee<br>- which token id (which hedera token) u want to receive payment</li>
-            <li>set royalty account<br>- which account receives hedera token/tokens from each paid message</li>
+          <h3 class="info-overlay-title">Update Topic</h3>
+          <p class="info-overlay-subtitle">Edit your topic's rules and fees.</p>
+          <ul class="info-overlay-list">
+            <li><b>Domain/Topic ID</b> — the topic to edit.</li>
+            <li><b>Private key</b> — signs and approves the change.</li>
+            <li><b>Admins</b> — who can set this topic's rules.</li>
+            <li><b>Optional fee</b> — make users pay per message posted.</li>
+            <li><b>Set amount</b> — the fee per message.</li>
+            <li><b>Token ID</b> — the Hedera token received as payment.</li>
+            <li><b>Royalty account</b> — where the payments go.</li>
           </ul>
-      
-          <div style="margin-top: 3vh; text-align: center;">
-            <button class="info-overlay-close-button-1"
-             onclick="document.getElementById('edit-topic-rules-help-overlay').style.display='none'">Got it – let's go!</button>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('edit-topic-rules-help-overlay').style.display='none'">Got it</button>
           </div>
-      
-          <div class="info-overlay-close-button-2"
-           onclick="document.getElementById('edit-topic-rules-help-overlay').style.display='none'">×</div>
-      
+          <div class="info-overlay-close-button-2" onclick="document.getElementById('edit-topic-rules-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -1010,23 +1015,17 @@
 
       <div id="stack-topic-ids-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-      
-          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Stack Topic IDs</h3>
-      
-          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-            <li>Here u can stack one or multiple topics to given topic</li>
-            <li>"Domain/Topic ID"<br>- is web location where u want to save data</li>
-            <li>"Topic ID/IDs"<br>- here u can input single or multiple topic IDs separated by comma</li>
+          <h3 class="info-overlay-title">Stack Topic IDs</h3>
+          <p class="info-overlay-subtitle">Group topics under one domain.</p>
+          <ul class="info-overlay-list">
+            <li>Stack one or more topics under a parent topic.</li>
+            <li><b>Domain/Topic ID</b> — the parent topic.</li>
+            <li><b>Topic ID/IDs</b> — one or more topic IDs, comma-separated.</li>
           </ul>
-      
-          <div style="margin-top: 3vh; text-align: center;">
-            <button class="info-overlay-close-button-1"
-             onclick="document.getElementById('stack-topic-ids-help-overlay').style.display='none'">Got it – let's go!</button>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('stack-topic-ids-help-overlay').style.display='none'">Got it</button>
           </div>
-      
-          <div class="info-overlay-close-button-2"
-           onclick="document.getElementById('stack-topic-ids-help-overlay').style.display='none'">×</div>
-      
+          <div class="info-overlay-close-button-2" onclick="document.getElementById('stack-topic-ids-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -1060,6 +1059,7 @@
           </button>
           <button id="disconnect-wallet-btn" class="connect-wallet-buttons" style="display: none;">Disconnect
           </button>
+          <span id="local-clock"></span>
           </div>
           <div class="account-info">
           <div id="account-id" style="margin-left: 0.5vh;"></div>
@@ -1100,25 +1100,19 @@
       
       <div id="topic-chat-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-      
-          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Topic Chat</h3>
-      
-          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-            <li>Domain/Topic ID<br>- is a place where u want to read/write messages from/onto</li>
-            <li>Load<br>- load messages from domain/topic ID</li>
-            <li>Options<br>- u can filter loaded messages by blocking user/users and by time and also by loading only from specific user/users</li>
-            <li>Go to the top<br>- goes to the top of the chat</li>
-            <li>Submit Message<br>- requires Domain/Topic ID and message with max 256 characters</li>
+          <h3 class="info-overlay-title">Topic Chat</h3>
+          <p class="info-overlay-subtitle">Read and write public messages.</p>
+          <ul class="info-overlay-list">
+            <li><b>Domain/Topic ID</b> — the topic to read and write.</li>
+            <li><b>Load</b> — fetch its messages.</li>
+            <li><b>Options</b> — filter by blocked users, a date/time range, or specific users.</li>
+            <li><b>Go to the top</b> — back to the start of the chat.</li>
+            <li><b>Submit Message</b> — needs a Domain/Topic ID; max 256 characters.</li>
           </ul>
-      
-          <div style="margin-top: 3vh; text-align: center;">
-            <button class="info-overlay-close-button-1"
-             onclick="document.getElementById('topic-chat-help-overlay').style.display='none'">Got it – let's go!</button>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('topic-chat-help-overlay').style.display='none'">Got it</button>
           </div>
-      
-          <div class="info-overlay-close-button-2"
-           onclick="document.getElementById('topic-chat-help-overlay').style.display='none'">×</div>
-      
+          <div class="info-overlay-close-button-2" onclick="document.getElementById('topic-chat-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -1164,15 +1158,15 @@
         <div id="time-from-topic-chat" style="display: none;">
           <label style="font-size: 2vh; padding-bottom: 0.5vh;">Month Day Year:
             <div style="display: flex; align-items: center;">
-              <input type="number" id="from-mmddyyyy" class="toolbar-column" step="1" placeholder="MMDDYYYY" oninput="restrictLength(this, 8)" />
-              <input type="number" id="to-mmddyyyy" class="toolbar-column" step="1" placeholder="MMDDYYYY" style="margin-left: 1vw;" oninput="restrictLength(this, 8)" />
+              <input type="date" id="from-mmddyyyy" class="toolbar-column" />
+              <input type="date" id="to-mmddyyyy" class="toolbar-column" style="margin-left: 1vw;" />
             </div>
         </label>
-      
-        <label style="font-size: 2vh; padding-bottom: 0.5vh;">Hour Minute Second:
+
+        <label style="font-size: 2vh; padding-bottom: 0.5vh;">Hour Minute:
           <div style="display: flex; align-items: center;">
-            <input type="number" id="from-hhmmss" class="toolbar-column" step="1" placeholder="HHMMSS" oninput="restrictLength(this, 6)" />
-            <input type="number" id="to-hhmmss" class="toolbar-column" step="1" placeholder="HHMMSS" style="margin-left: 1vw;" oninput="restrictLength(this, 6)" />
+            <input type="time" id="from-hhmmss" class="toolbar-column" />
+            <input type="time" id="to-hhmmss" class="toolbar-column" style="margin-left: 1vw;" />
           </div>
         </label>
       </div>
@@ -1262,26 +1256,20 @@
 
       <div id="e2ee-chat-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-      
-          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use E2EE Chat</h3>
-      
-          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-            <li>Domain/Topic ID<br>- is a place where u want to read/write messages from/onto</li>
-            <li>Load<br>- loads messages from given Domain/Topic ID but requires PRIVATE KEY / password to unlock (wont show otherwise)</li>
-            <li>Options<br>- u can filter loaded messages by blocking user/users and by time and also by loading only from specific user/users<br>-rest should be easy to understand</li>
-            <li>Pin<br>- u as admin can pin public key to your topic so that others can lock messages that only u can unlock</li>
-            <li>Go to the top<br>- goes to the top of the chat</li>
-            <li>Submit Message<br>- requires Domain/Topic ID where to write and message with max 256 characters</li>
+          <h3 class="info-overlay-title">E2EE Chat</h3>
+          <p class="info-overlay-subtitle">Private, end-to-end encrypted messages.</p>
+          <ul class="info-overlay-list">
+            <li><b>Domain/Topic ID</b> — the topic to read and write.</li>
+            <li><b>Load</b> — fetches messages; your private key / password unlocks them.</li>
+            <li><b>Options</b> — filter by blocked users, a date/time range, or specific users.</li>
+            <li><b>Pin</b> — as admin, pin your public key so only you can unlock messages.</li>
+            <li><b>Go to the top</b> — back to the start of the chat.</li>
+            <li><b>Submit Message</b> — needs a Domain/Topic ID; max 256 characters.</li>
           </ul>
-      
-          <div style="margin-top: 3vh; text-align: center;">
-            <button class="info-overlay-close-button-1"
-             onclick="document.getElementById('e2ee-chat-help-overlay').style.display='none'">Got it – let's go!</button>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('e2ee-chat-help-overlay').style.display='none'">Got it</button>
           </div>
-      
-          <div class="info-overlay-close-button-2"
-           onclick="document.getElementById('e2ee-chat-help-overlay').style.display='none'">×</div>
-      
+          <div class="info-overlay-close-button-2" onclick="document.getElementById('e2ee-chat-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -1357,15 +1345,15 @@
         <div id="time-from-encrypted-chat" style="display: none;"> 
           <label for="from-mmddyyyy-encrypted-chat" style="font-size: 2vh; padding-bottom: 0.5vh;">Month Day Year:
             <div style="display: flex; align-items: center;">
-              <input type="number" id="from-mmddyyyy-encrypted-chat" class="toolbar-column" step="1" placeholder="MMDDYYYY" oninput="restrictLength(this, 8)" />
-              <input type="number" id="to-mmddyyyy-encrypted-chat" class="toolbar-column" step="1" placeholder="MMDDYYYY" style="margin-left: 1vw;" oninput="restrictLength(this, 8)" />
+              <input type="date" id="from-mmddyyyy-encrypted-chat" class="toolbar-column" />
+              <input type="date" id="to-mmddyyyy-encrypted-chat" class="toolbar-column" style="margin-left: 1vw;" />
             </div>
           </label>
-      
-          <label for="from-hhmmss-encrypted-chat" style="font-size: 2vh; padding-bottom: 0.5vh;">Hour Minute Second:
+
+          <label for="from-hhmmss-encrypted-chat" style="font-size: 2vh; padding-bottom: 0.5vh;">Hour Minute:
             <div style="display: flex; align-items: center;">
-              <input type="number" id="from-hhmmss-encrypted-chat" class="toolbar-column" step="1" placeholder="HHMMSS"  oninput="restrictLength(this, 6)" />
-              <input type="number" id="to-hhmmss-encrypted-chat" class="toolbar-column" step="1" placeholder="HHMMSS" style="margin-left: 1vw;" oninput="restrictLength(this, 6)" />
+              <input type="time" id="from-hhmmss-encrypted-chat" class="toolbar-column" />
+              <input type="time" id="to-hhmmss-encrypted-chat" class="toolbar-column" style="margin-left: 1vw;" />
             </div>
           </label>
       </div>
@@ -1525,6 +1513,15 @@
             </span>
           </div>
 
+          <div style="display: flex; align-items: center; margin-bottom: 1vh;">
+            <span id="globe-mode-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Light
+            </span>
+            <button id="toggle-globe-mode" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Globe mode:
+            </button>
+            <span id="globe-mode-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Light
+            </span>
+          </div>
+
           <div style="display: flex; align-items: center; padding-left: 1vh; padding-bottom: 1vh;">
             <label for="raster-opacity-slider" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Polygon transparency:
             </label>
@@ -1537,23 +1534,17 @@
 
       <div id="change-model-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-      
-          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Change Model</h3>
-      
-          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-            <li>here u can change your model by inputing web location (URL) of your given model</li>
-            <li>save it, wait some time for hedera to process it and refresh page after</li>
-            <li>after that u can edit its rotation position and scale</li>
+          <h3 class="info-overlay-title">Change Model</h3>
+          <p class="info-overlay-subtitle">Pick your 3D model.</p>
+          <ul class="info-overlay-list">
+            <li>Paste the model's URL to change your 3D model.</li>
+            <li>Save, wait for Hedera to process, then refresh the page.</li>
+            <li>Then adjust the model's rotation and scale.</li>
           </ul>
-      
-          <div style="margin-top: 3vh; text-align: center;">
-            <button class="info-overlay-close-button-1"
-             onclick="document.getElementById('change-model-help-overlay').style.display='none'">Got it – let's go!</button>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('change-model-help-overlay').style.display='none'">Got it</button>
           </div>
-      
-          <div class="info-overlay-close-button-2"
-           onclick="document.getElementById('change-model-help-overlay').style.display='none'">×</div>
-      
+          <div class="info-overlay-close-button-2" onclick="document.getElementById('change-model-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -1663,21 +1654,15 @@
       
       <div id="crosshair-settings-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-      
-          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Crosshair Settings</h3>
-      
-          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-            <li>here u can change crosshair color, length and thickness</li>
+          <h3 class="info-overlay-title">Crosshair Settings</h3>
+          <p class="info-overlay-subtitle">Tune the crosshair.</p>
+          <ul class="info-overlay-list">
+            <li>Change its color, length, and thickness.</li>
           </ul>
-      
-          <div style="margin-top: 3vh; text-align: center;">
-            <button class="info-overlay-close-button-1"
-             onclick="document.getElementById('crosshair-settings-help-overlay').style.display='none'">Got it – let's go!</button>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('crosshair-settings-help-overlay').style.display='none'">Got it</button>
           </div>
-      
-          <div class="info-overlay-close-button-2"
-           onclick="document.getElementById('crosshair-settings-help-overlay').style.display='none'">×</div>
-      
+          <div class="info-overlay-close-button-2" onclick="document.getElementById('crosshair-settings-help-overlay').style.display='none'">×</div>
         </div>
       </div>
 
@@ -1800,21 +1785,15 @@
       
       <div id="marker-size-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-      
-          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Marker Size Settings</h3>
-      
-          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-            <li>here u can change size of markers that are being shown on the map</li>
+          <h3 class="info-overlay-title">Marker Size</h3>
+          <p class="info-overlay-subtitle">Adjust how markers look.</p>
+          <ul class="info-overlay-list">
+            <li>Set the size of all markers on the map.</li>
           </ul>
-      
-          <div style="margin-top: 3vh; text-align: center;">
-            <button class="info-overlay-close-button-1"
-             onclick="document.getElementById('marker-size-help-overlay').style.display='none'">Got it – let's go!</button>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('marker-size-help-overlay').style.display='none'">Got it</button>
           </div>
-      
-          <div class="info-overlay-close-button-2"
-           onclick="document.getElementById('marker-size-help-overlay').style.display='none'">×</div>
-      
+          <div class="info-overlay-close-button-2" onclick="document.getElementById('marker-size-help-overlay').style.display='none'">×</div>
         </div>
       </div>
 
@@ -1841,21 +1820,15 @@
 
       <div id="main-buttons-style-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-      
-          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Main Buttons Style</h3>
-      
-          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-            <li>here u can change height, width, font size and colors of main buttons</li>
+          <h3 class="info-overlay-title">Main Buttons Style</h3>
+          <p class="info-overlay-subtitle">Style the main buttons.</p>
+          <ul class="info-overlay-list">
+            <li>Change their height, width, font size, and colors.</li>
           </ul>
-      
-          <div style="margin-top: 3vh; text-align: center;">
-            <button class="info-overlay-close-button-1"
-             onclick="document.getElementById('main-buttons-style-help-overlay').style.display='none'">Got it – let's go!</button>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('main-buttons-style-help-overlay').style.display='none'">Got it</button>
           </div>
-      
-          <div class="info-overlay-close-button-2"
-           onclick="document.getElementById('main-buttons-style-help-overlay').style.display='none'">×</div>
-      
+          <div class="info-overlay-close-button-2" onclick="document.getElementById('main-buttons-style-help-overlay').style.display='none'">×</div>
         </div>
       </div>
 
@@ -1904,21 +1877,15 @@
 
       <div id="main-buttons-advanced-style-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-      
-          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Main Buttons Advanced Style</h3>
-      
-          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-            <li>here u can change font size, transparency, height, width and colors of buttons inside main buttons</li>
+          <h3 class="info-overlay-title">Main Buttons — Advanced</h3>
+          <p class="info-overlay-subtitle">Fine-tune inner buttons.</p>
+          <ul class="info-overlay-list">
+            <li>Tune the buttons inside the main buttons: font size, transparency, height, width, colors.</li>
           </ul>
-      
-          <div style="margin-top: 3vh; text-align: center;">
-            <button class="info-overlay-close-button-1"
-             onclick="document.getElementById('main-buttons-advanced-style-help-overlay').style.display='none'">Got it – let's go!</button>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('main-buttons-advanced-style-help-overlay').style.display='none'">Got it</button>
           </div>
-      
-          <div class="info-overlay-close-button-2"
-           onclick="document.getElementById('main-buttons-advanced-style-help-overlay').style.display='none'">×</div>
-      
+          <div class="info-overlay-close-button-2" onclick="document.getElementById('main-buttons-advanced-style-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -1993,21 +1960,15 @@
       
       <div id="chat-style-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-      
-          <h3 style="margin: 0 0 2vh; text-align: center; color: #a5b4fc;">How to use Chat Style Settings</h3>
-      
-          <ul style="padding-left: 5vw; margin: 1vh 0 3vh;">
-            <li>here u can change font size, timestamp font size, header font size and colors of topic chat and e2ee chat</li>
+          <h3 class="info-overlay-title">Chat Style</h3>
+          <p class="info-overlay-subtitle">Style the chat panels.</p>
+          <ul class="info-overlay-list">
+            <li>Change font sizes (text, timestamps, headers) and colors for Topic Chat and E2EE Chat.</li>
           </ul>
-      
-          <div style="margin-top: 3vh; text-align: center;">
-            <button class="info-overlay-close-button-1"
-             onclick="document.getElementById('chat-style-help-overlay').style.display='none'">Got it – let's go!</button>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('chat-style-help-overlay').style.display='none'">Got it</button>
           </div>
-      
-          <div class="info-overlay-close-button-2"
-           onclick="document.getElementById('chat-style-help-overlay').style.display='none'">×</div>
-      
+          <div class="info-overlay-close-button-2" onclick="document.getElementById('chat-style-help-overlay').style.display='none'">×</div>
         </div>
       </div>
 

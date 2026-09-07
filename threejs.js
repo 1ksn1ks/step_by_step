@@ -103,7 +103,7 @@ function animate() {
   
     // Update coordinates display only if changed
     const coordinatesDisplay = document.getElementById("coordinates-display");
-    const newCoords = `lng,lat = ${lng},${lat}`;
+    const newCoords = `lng: ${lng}, lat: ${lat}`;
     if (coordinatesDisplay.value !== newCoords) {
       coordinatesDisplay.value = newCoords;
   

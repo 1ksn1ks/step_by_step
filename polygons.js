@@ -17,8 +17,6 @@ export function newActivePolygonPopups(a) {
   activePolygonPopups = a;
 }
 
-
-
 async function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackUrl = null) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -107,17 +105,19 @@ export async function addPolygonWithImageFill(map, polygon) {
       });
   
       const resizedImageUrl = await createResizedImage(polygon.imageUrl, 512, 512,"https://kiloscribe.com/api/inscription-cdn/0.0.4819119");
-  
+
+      const sourceCoordinates = [
+        [bounds.minLng, bounds.maxLat],
+        [bounds.maxLng, bounds.maxLat],
+        [bounds.maxLng, bounds.minLat],
+        [bounds.minLng, bounds.minLat]
+      ];
+
       // Now safe to add source and layers since style is loaded
       map.addSource(sourceId, {
         type: 'image',
         url: resizedImageUrl,
-        coordinates: [
-          [bounds.minLng, bounds.maxLat],
-          [bounds.maxLng, bounds.maxLat],
-          [bounds.maxLng, bounds.minLat],
-          [bounds.minLng, bounds.minLat]
-        ]
+        coordinates: sourceCoordinates
       });
   
       map.addLayer({
@@ -147,9 +147,10 @@ export async function addPolygonWithImageFill(map, polygon) {
         }
       });
   
-      // Add mask for the polygon
+      // Add mask for the polygon — bounding-box rectangle, exactly matching
+      // the visible image so taps anywhere on it open the popup
       const maskSourceId = `${polygon.id}-mask-source`;
-  
+
       map.addSource(maskSourceId, {
         type: 'geojson',
         data: {
@@ -157,7 +158,13 @@ export async function addPolygonWithImageFill(map, polygon) {
           properties: {},
           geometry: {
             type: 'Polygon',
-            coordinates: polygon.coordinates
+            coordinates: [[
+              [bounds.minLng, bounds.minLat],
+              [bounds.maxLng, bounds.minLat],
+              [bounds.maxLng, bounds.maxLat],
+              [bounds.minLng, bounds.maxLat],
+              [bounds.minLng, bounds.minLat]
+            ]]
           }
         }
       });
@@ -175,7 +182,7 @@ export async function addPolygonWithImageFill(map, polygon) {
       // Add interactivity (only if not already added)
       if (!addedLayers.has(maskLayerId)) {
         const popup = new maplibregl.Popup();
-  
+
         map.on('click', maskLayerId, (e) => {
           if (polygon.description) {
             const targetLngLat = e.lngLat.toArray()
@@ -226,8 +233,6 @@ export async function addPolygonWithImageFill(map, polygon) {
       console.error('Error loading or resizing image:', error);
     }
   }
-  
-
 
   let polygonsVisible = true;
 

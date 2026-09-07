@@ -31,6 +31,7 @@ function createEmptyStateMessage(container, message) {
   
   const emptyDiv = document.createElement('div');
   emptyDiv.style.cssText = 'display: flex; justify-content: left; align-items: left; height: 100%;';
+  emptyDiv.className = 'chat-state';
   
   const emptySpan = document.createElement('span');
   emptySpan.style.marginLeft = '1vw';
@@ -48,6 +49,7 @@ function createLoadingSpinner(container, topicId) {
   
   const loadingDiv = document.createElement('div');
   loadingDiv.style.cssText = 'display: flex; justify-content: left; align-items: left; height: 100%;';
+  loadingDiv.className = 'chat-state';
   
   const spinner = document.createElement('div');
   spinner.id = 'topicspinnerchat';
@@ -233,10 +235,12 @@ async function appendEncryptedChatMessage(
 
     const contentDiv = document.createElement('div');
     contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
+    contentDiv.className = 'chat-msg-text';
     contentDiv.textContent = decryptedMessage;
 
     const timeSpan = document.createElement('span');
     timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
+    timeSpan.className = 'chat-msg-time';
     timeSpan.textContent = timestamp;
 
     msgWrapper.appendChild(contentDiv);
@@ -501,27 +505,19 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
   let fromDate;
   let toDate;
 
-  // Handle date and time parsing
+  // Handle date and time parsing (native date/time input values: YYYY-MM-DD / HH:MM)
   if (fromTimeValue && toTimeValue && fromDateValue && toDateValue) {
-    fromDate = new Date(
-      fromDateValue.slice(4, 8),
-      fromDateValue.slice(0, 2) - 1,
-      fromDateValue.slice(2, 4),
-      fromTimeValue.slice(0, 2),
-      fromTimeValue.slice(2, 4),
-      fromTimeValue.slice(4, 6)
-    );
-    toDate = new Date(
-      toDateValue.slice(4, 8),
-      toDateValue.slice(0, 2) - 1,
-      toDateValue.slice(2, 4),
-      toTimeValue.slice(0, 2),
-      toTimeValue.slice(2, 4),
-      toTimeValue.slice(4, 6)
-    );
+    const [fY, fM, fD] = fromDateValue.split("-").map(Number);
+    const [fH, fMin] = fromTimeValue.split(":").map(Number);
+    const [tY, tM, tD] = toDateValue.split("-").map(Number);
+    const [tH, tMin] = toTimeValue.split(":").map(Number);
+    fromDate = new Date(fY, fM - 1, fD, fH, fMin);
+    toDate = new Date(tY, tM - 1, tD, tH, tMin, 59, 999); // include the whole "to" minute
   } else if (fromDateValue && toDateValue) {
-    fromDate = new Date(fromDateValue.slice(4, 8), fromDateValue.slice(0, 2) - 1, fromDateValue.slice(2, 4));
-    toDate = new Date(toDateValue.slice(4, 8), toDateValue.slice(0, 2) - 1, toDateValue.slice(2, 4));
+    const [fY, fM, fD] = fromDateValue.split("-").map(Number);
+    const [tY, tM, tD] = toDateValue.split("-").map(Number);
+    fromDate = new Date(fY, fM - 1, fD);
+    toDate = new Date(tY, tM - 1, tD, 23, 59, 59, 999); // include the whole "to" day
   } else {
     fromDate = new Date(0);
     toDate = new Date();
@@ -710,10 +706,12 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
 
     const contentDiv = document.createElement('div');
     contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
+    contentDiv.className = 'chat-msg-text';
     contentDiv.textContent = decryptedMessage;
 
     const timeSpan = document.createElement('span');
     timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
+    timeSpan.className = 'chat-msg-time';
     timeSpan.textContent = timestamp;
 
     msgWrapper.appendChild(contentDiv);

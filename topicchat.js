@@ -155,11 +155,13 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
 
     const messageText = document.createElement('div');
     messageText.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
+    messageText.className = 'chat-msg-text';
     messageText.textContent = userMessage;
     messageWrapper.appendChild(messageText);
 
     const timestampSpan = document.createElement('span');
     timestampSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
+    timestampSpan.className = 'chat-msg-time';
     timestampSpan.textContent = timestamp;
     messageWrapper.appendChild(timestampSpan);
 
@@ -186,7 +188,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
 
     // Show spinner
     messagesContainer.innerHTML = `
-      <div style="display: flex; justify-content: left; align-items: left; height: 100%;">
+      <div class="chat-state" style="display: flex; justify-content: left; align-items: left; height: 100%;">
         <div id="topicspinnerchat"></div>
         <span style="margin-left: 1vw;">Loading messages from ${topicId}</span>
       </div>`;
@@ -204,7 +206,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
       });
     } catch (error) {
       messagesContainer.innerHTML = `
-        <div style="display: flex; justify-content: left; align-items: left; height: 100%;">
+        <div class="chat-state" style="display: flex; justify-content: left; align-items: left; height: 100%;">
           <span style="margin-left: 1vw;">Invalid Topic ID</span>
         </div>`;
       adjustTextareaHeight(messagesContainer);
@@ -257,6 +259,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
     if (!messagesContainer.firstChild) {
       const noMessagesDiv = document.createElement('div');
       noMessagesDiv.style.cssText = 'display: flex; justify-content: left; align-items: left; height: 100%;';
+      noMessagesDiv.className = 'chat-state';
       const span = document.createElement('span');
       span.style.marginLeft = '1vw';
       span.textContent = 'No messages found';
@@ -279,27 +282,19 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
     let fromDate;
     let toDate;
   
-    // Handle date and time parsing (unchanged)
+    // Handle date and time parsing (native date/time input values: YYYY-MM-DD / HH:MM)
     if (fromTimeValue && toTimeValue && fromDateValue && toDateValue) {
-      fromDate = new Date(
-        fromDateValue.slice(4, 8),
-        fromDateValue.slice(0, 2) - 1,
-        fromDateValue.slice(2, 4),
-        fromTimeValue.slice(0, 2),
-        fromTimeValue.slice(2, 4),
-        fromTimeValue.slice(4, 6)
-      );
-      toDate = new Date(
-        toDateValue.slice(4, 8),
-        toDateValue.slice(0, 2) - 1,
-        toDateValue.slice(2, 4),
-        toTimeValue.slice(0, 2),
-        toTimeValue.slice(2, 4),
-        toTimeValue.slice(4, 6)
-      );
+      const [fY, fM, fD] = fromDateValue.split("-").map(Number);
+      const [fH, fMin] = fromTimeValue.split(":").map(Number);
+      const [tY, tM, tD] = toDateValue.split("-").map(Number);
+      const [tH, tMin] = toTimeValue.split(":").map(Number);
+      fromDate = new Date(fY, fM - 1, fD, fH, fMin);
+      toDate = new Date(tY, tM - 1, tD, tH, tMin, 59, 999); // include the whole "to" minute
     } else if (fromDateValue && toDateValue) {
-      fromDate = new Date(fromDateValue.slice(4, 8), fromDateValue.slice(0, 2) - 1, fromDateValue.slice(2, 4));
-      toDate = new Date(toDateValue.slice(4, 8), toDateValue.slice(0, 2) - 1, toDateValue.slice(2, 4));
+      const [fY, fM, fD] = fromDateValue.split("-").map(Number);
+      const [tY, tM, tD] = toDateValue.split("-").map(Number);
+      fromDate = new Date(fY, fM - 1, fD);
+      toDate = new Date(tY, tM - 1, tD, 23, 59, 59, 999); // include the whole "to" day
     } else {
       fromDate = new Date(0);
       toDate = new Date();
@@ -490,10 +485,12 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
   
       const contentDiv = document.createElement('div');
       contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
+      contentDiv.className = 'chat-msg-text';
       contentDiv.textContent = userMessage;
-  
+
       const timeSpan = document.createElement('span');
       timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
+      timeSpan.className = 'chat-msg-time';
       timeSpan.textContent = timestamp;
   
       msgWrapper.appendChild(contentDiv);
@@ -509,6 +506,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
     if (messagesContainer.children.length === 0) {
       const noMessagesDiv = document.createElement('div');
       noMessagesDiv.style.cssText = 'display: flex; justify-content: left; align-items: left; height: 100%;';
+      noMessagesDiv.className = 'chat-state';
   
       const noMessagesSpan = document.createElement('span');
       noMessagesSpan.style.marginLeft = '1vw';
