@@ -21,57 +21,50 @@ function subsolarPoint(date) {
   return { lat: decl, lon };
 }
 
-// The night side of the Earth as an unambiguous planar polygon:
-// the terminator latitude for every longitude, closed down to the dark pole.
-function nightFeature(date) {
+// The night side of the Earth as a per-pixel image (0.5° per pixel).
+// Every pixel's darkness comes from the real sun elevation, so the
+// terminator is a smooth sunrise/sunset fade — and because it's a texture,
+// not geometry, there are no tile seams or missing pixels.
+// The image source is a single zoom-0 tile, and the globe projects tile
+// textures with MERCATOR latitude mapping, so each row must be filled with
+// the darkness of the latitude that row will actually be displayed at
+// (linear latitude would land the terminator at the wrong place).
+const IMG_W = 720;
+const IMG_H = 360;
+const FADE_DEG = 4; // fade width in degrees of sun elevation around the horizon
+
+function nightDataUrl(date) {
   const sun = subsolarPoint(date);
   const sinD = Math.sin(sun.lat * RAD);
   const cosD = Math.cos(sun.lat * RAD);
-
-  // Near the equinox the dark region is a full-latitude longitude band
-  if (Math.abs(sun.lat) < 0.5) {
-    const west = normLon(sun.lon - 90);
-    const east = normLon(sun.lon + 90);
-    if (east > west) {
-      return {
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[[west, 90], [west, -90], [east, -90], [east, 90]]]
-        }
-      };
+  const canvas = document.createElement('canvas');
+  canvas.width = IMG_W;
+  canvas.height = IMG_H;
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.createImageData(IMG_W, IMG_H);
+  const px = imgData.data;
+  for (let y = 0; y < IMG_H; y++) {
+    const t = (y + 0.5) / IMG_H; // 0 = north edge .. 1 = south edge
+    // inverse web-mercator: the geographic latitude displayed at row t
+    const lat = (2 * Math.atan(Math.exp(Math.PI * (1 - 2 * t))) - Math.PI / 2) / RAD;
+    const sinLat = Math.sin(lat * RAD);
+    const cosLat = Math.cos(lat * RAD);
+    for (let x = 0; x < IMG_W; x++) {
+      const lon = -180 + ((x + 0.5) / IMG_W) * 360;
+      const sinEl = sinD * sinLat + cosD * cosLat * Math.cos(RAD * (lon - sun.lon));
+      const el = Math.asin(Math.max(-1, Math.min(1, sinEl))) / RAD;
+      let darkness = (FADE_DEG - el) / (2 * FADE_DEG);
+      if (darkness < 0) darkness = 0;
+      else if (darkness > 1) darkness = 1;
+      const i = (y * IMG_W + x) * 4;
+      px[i] = 0;
+      px[i + 1] = 0;
+      px[i + 2] = 26; // #00001a
+      px[i + 3] = Math.round(darkness * 255);
     }
-    return {
-      type: 'Feature',
-      properties: {},
-      geometry: {
-        type: 'MultiPolygon',
-        coordinates: [
-          [[[west, 90], [west, -90], [180, -90], [180, 90]]],
-          [[[-180, 90], [-180, -90], [east, -90], [east, 90]]]
-        ]
-      }
-    };
   }
-
-  const darkPole = sun.lat > 0 ? -90 : 90;
-  const ring = [];
-  const N = 256;
-  for (let i = 0; i <= N; i++) {
-    const lam = -180 + (360 * i) / N;
-    const A = cosD * Math.cos(RAD * (lam - sun.lon));
-    let phi = Math.atan2(-A, sinD) / RAD;
-    if (phi > 90) phi -= 180;
-    if (phi < -90) phi += 180;
-    ring.push([lam, phi]);
-  }
-  ring.push([180, darkPole], [-180, darkPole]);
-  return {
-    type: 'Feature',
-    properties: {},
-    geometry: { type: 'Polygon', coordinates: [ring] }
-  };
+  ctx.putImageData(imgData, 0, 0);
+  return canvas.toDataURL('image/png');
 }
 
 function fullWorldFeature() {
@@ -102,24 +95,44 @@ function fullWorldFeature() {
   };
 }
 
-// What the shade layer should show right now
-function modeData() {
-  if (mode === 'dark') return fullWorldFeature();
-  if (mode === 'daynight') return nightFeature(new Date());
-  return { type: 'FeatureCollection', features: [] };
+function clearShade() {
+  if (map.getLayer('globe-shade')) map.removeLayer('globe-shade');
+  if (map.getSource('globe-shade')) map.removeSource('globe-shade');
 }
 
-function addShadeLayer() {
+// Day-Night: one image source whose texture is swapped in place every minute
+// (updateImage), so the shade never flickers.
+function addDayNightShade() {
   if (map.getLayer('globe-shade')) return;
-  if (!map.getSource('globe-shade')) {
-    map.addSource('globe-shade', {
-      type: 'geojson',
-      // No tile buffer: the default quarter-world buffer wraps around the
-      // antimeridian and double-shades the edges of the globe.
-      buffer: 0,
-      data: modeData()
-    });
-  }
+  // Corners must stay within web-mercator latitude: at exactly ±90° the
+  // south corner's Mercator Y is Infinity, which makes ImageSource compute
+  // tile (0,0,Infinity) that never matches tile (0,0,0) — the image then
+  // renders nothing. The z0 tile still projects onto the whole sphere in
+  // globe mode, so the poles are covered.
+  map.addSource('globe-shade', {
+    type: 'image',
+    url: nightDataUrl(new Date()),
+    coordinates: [[-180, 85.05112877980659], [180, 85.05112877980659], [180, -85.05112877980659], [-180, -85.05112877980659]]
+  });
+  map.addLayer({
+    id: 'globe-shade',
+    type: 'raster',
+    source: 'globe-shade',
+    paint: {
+      'raster-opacity': 0.75,
+      'raster-fade-duration': 0
+    }
+  });
+}
+
+// Dark: the 10° grid over the whole globe (original, unchanged)
+function addDarkShade() {
+  if (map.getLayer('globe-shade')) return;
+  map.addSource('globe-shade', {
+    type: 'geojson',
+    data: fullWorldFeature(),
+    buffer: 0
+  });
   map.addLayer({
     id: 'globe-shade',
     type: 'fill',
@@ -132,12 +145,17 @@ function addShadeLayer() {
   });
 }
 
+function addShadeLayer() {
+  if (mode === 'daynight') addDayNightShade();
+  else addDarkShade();
+}
+
 // isStyleLoaded() is only true after the initial 'load' event (style + all
 // images), so if the style is not ready yet, wait for the next 'style.load'
 // or 'load' and apply then (whichever fires first; addShadeLayer is a no-op
 // once the layer exists).
 function ensureShadeLayer() {
-  if (map.getLayer('globe-shade')) return;
+  if (mode === 'light' || map.getLayer('globe-shade')) return;
   if (map.isStyleLoaded()) {
     addShadeLayer();
     return;
@@ -148,8 +166,10 @@ function ensureShadeLayer() {
 }
 
 function refreshShade() {
-  if (map.getSource('globe-shade')) {
-    map.getSource('globe-shade').setData(modeData());
+  if (mode !== 'daynight') return;
+  const source = map.getSource('globe-shade');
+  if (source && source.updateImage) {
+    source.updateImage({ url: nightDataUrl(new Date()) });
   }
 }
 
@@ -166,8 +186,8 @@ function setMode(next) {
     updateTimer = null;
   }
 
+  clearShade();
   ensureShadeLayer();
-  refreshShade();
 
   if (next === 'daynight') {
     updateTimer = setInterval(refreshShade, 60000);
@@ -176,8 +196,12 @@ function setMode(next) {
 
 // Re-create the shade layer whenever the style (re)loads
 map.on('style.load', () => {
+  if (mode === 'light') {
+    clearShade();
+    return;
+  }
+  clearShade();
   ensureShadeLayer();
-  if (mode !== 'light') refreshShade();
 });
 
 document.getElementById('toggle-globe-mode').addEventListener('click', () => {

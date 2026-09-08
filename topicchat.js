@@ -152,7 +152,7 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
 
     // ========== ADD MESSAGE TO CURRENT GROUP ==========
     const messageWrapper = document.createElement('div');
-    messageWrapper.style.cssText = `display: flex; flex-direction: column; justify-content: center; margin-top: 0.5em;`;
+    messageWrapper.style.cssText = `display: flex; flex-direction: column; justify-content: center; margin-top: 0.2em;`;
 
     const messageText = document.createElement('div');
     messageText.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
@@ -481,7 +481,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         display: flex;
         flex-direction: column;
         justify-content: center;
-        margin-top: 0.5em;
+        margin-top: 0.2em;
       `;
   
       const contentDiv = document.createElement('div');

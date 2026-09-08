@@ -1702,8 +1702,24 @@
         </div>
       </div>
       
-      <div id="popup-column-2" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
-        <div id="popup-column-container-2" class="toolbar-containers" onclick="event.stopPropagation();">
+      <div id="popup-settings-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 1002;" onclick="window.openPopupSettings();"></div>
+
+      <div id="popup-settings-card" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(90vw, 60vh); max-height: 75vh; overflow-y: auto; z-index: 1003; background-color: rgba(15, 15, 20, 0.55); -webkit-backdrop-filter: blur(8px) saturate(140%); backdrop-filter: blur(8px) saturate(140%); color: white; border-radius: 1.5vh; box-sizing: border-box; touch-action: auto; padding: 1.4vh 1.4vw;">
+      <!-- Dummy popup: same classes as the real one, so every picker change
+           shows up here instantly while the real popup stays hidden -->
+      <div id="popup-settings-preview" class="maplibregl-popup">
+        <div class="maplibregl-popup-content" style="max-height: none; padding: 1vh 1.4vw;">
+          <div class="number" style="position: absolute; top: -0.1em; left: 0.1em; font-weight: bold;">6</div>
+          <span class="maplibregl-popup-close-button" style="position: absolute; top: -0.5vh; right: 0;">&times;</span>
+          <div style="color: gray; text-align: center; margin-bottom: 1vh;">0.0.9609912 Freedom</div>
+          <div class="payer-info" style="font-weight: bold;">0.0.981180</div>
+          <div class="username">username</div>
+          <div class="title_color" style="font-weight: bold;">Marker title</div>
+          <div>Message text</div>
+        </div>
+      </div>
+      <div id="popup-column-2" style="width: 100%;">
+        <div id="popup-column-container-2" onclick="event.stopPropagation();">
       
           <div style="top:10vh">
           <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
@@ -1727,12 +1743,11 @@
           </div>
           </div>
           </div>
-      
+
         </div>
       </div>
-      
-      <div id="popup-column-3" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
-        <div id="popup-column-container-3" class="toolbar-containers" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
+      <div id="popup-column-3" style="width: 100%;">
+        <div id="popup-column-container-3" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
       
           <div id="popup-column-3-border" style="display: none; align-items: center;">
             <label style="font-size: 1.5vh;">Border:</label>
@@ -1772,17 +1787,18 @@
           <div id="popup-column-3-font" style="display: none; align-items: center;" >
             <label style="font-size: 1.5vh;">Font:</label>
             <div style="display: flex; align-items: center;">
-            <input type="number" id="popup-font-size" class="yourfov" style="margin-left: 1vw;" value='2' max="255"/>
+            <input type="number" id="popup-font-size" class="yourfov" style="margin-left: 1vw;" value='2' min="1" max="3" step="0.1"/>
             </div>
           </div>
       
           <div></div>
           <div id="savepopup3" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save popup
           </div>
-      
+
         </div>
       </div>
-      
+      </div>
+
       <div id="marker-size-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
           <h3 class="info-overlay-title">Marker Size</h3>

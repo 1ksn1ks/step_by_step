@@ -197,7 +197,7 @@ export async function handleAllMessages() {
       loaded_text_area.innerHTML = globalLoadedTopicIdsWithNames.join('<br>'); // Update with new values
       adjustTextareaHeight(loaded_text_area); // Adjust height after loading
 
-      toast.info("Topic loaded");
+      toast.loaded("Topic loaded");
       return loadedTopicIdsWithNames; // Return the loadedTopicsIds array
   
         } catch (error) {

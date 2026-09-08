@@ -415,8 +415,9 @@ html, body {
   }
 
   .chat-msg-time {
-    margin-top: 0.15em;
-    opacity: 0.55;
+    align-self: flex-end;
+    margin-top: 0.05em;
+    opacity: 0.45;
     letter-spacing: 0.03em;
   }
 
@@ -973,6 +974,24 @@ html, body {
     border-radius: 1vh;
 }
 
+/* Dummy preview popup inside the settings card: neutralize the fixed
+   screen-centering so it flows inside the card instead of covering it */
+#popup-settings-card .maplibregl-popup {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    z-index: auto !important;
+    margin-bottom: 2vh;
+}
+#popup-settings-card .maplibregl-popup,
+#popup-settings-card .maplibregl-popup * {
+    pointer-events: none !important;
+}
+
 @keyframes popupIn {
     from {
         opacity: 0.3;
@@ -1023,24 +1042,32 @@ html, body {
     width: 100% !important;           /* Fill the 80vw container */
     max-width: 100% !important;
     box-sizing: border-box !important;
-    
+
+    /* Scroll inside the card (matches .maplibregl-popup max-height) so a
+       tall popup — or the keyboard shrinking the screen — can't overflow it */
+    max-height: 70vh;
+
     overflow-y: auto;
     overflow-x: auto;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.5) rgba(0, 0, 0, 0.8);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
-  
+
   .maplibregl-popup-content::-webkit-scrollbar {
-    width: 0.8vh;
+    display: none;
+    width: 0;
+    height: 0;
   }
-  
-  .maplibregl-popup-content::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.8);
+
+  .comments-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
-  
-  .maplibregl-popup-content::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.5);
-    border-radius: 0.4vh;
+
+  .comments-scroll::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
   }
   
   .maplibregl-popup-content * {
@@ -1084,6 +1111,14 @@ html, body {
     -ms-user-select: none;
     user-select: none;
     touch-action: none;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
   }
   
   input, textarea {
@@ -1338,4 +1373,68 @@ html, body {
     opacity: 0;
     transform: translateY(8px) scale(0.97);
     transition-duration: 0.22s;
+  }
+
+  /* "Topic loaded" toast: no dot icon, pulsing glow border, explosive
+     launch from off-screen, and it blasts off instead of fading */
+  .toast-loaded {
+    position: relative;
+    animation: toastLaunch 0.55s cubic-bezier(0.16, 1.35, 0.45, 1) both,
+               toastGlow 1.3s ease-in-out 0.55s infinite;
+  }
+
+  @keyframes toastLaunch {
+    0%   { opacity: 0; transform: translateY(140vh) scale(2.2); }
+    62%  { opacity: 1; transform: translateY(-2.5vh) scale(1.06); }
+    82%  { transform: translateY(1.2vh) scale(0.98); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes toastGlow {
+    0%, 100% {
+      border-color: rgba(120, 220, 255, 0.55);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45),
+                  0 0 8px rgba(100, 200, 255, 0.35),
+                  0 0 20px rgba(100, 200, 255, 0.15);
+    }
+    50% {
+      border-color: rgba(170, 235, 255, 0.95);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45),
+                  0 0 16px rgba(140, 220, 255, 0.75),
+                  0 0 40px rgba(140, 220, 255, 0.35);
+    }
+  }
+
+  .toast-burst {
+    position: absolute;
+    inset: -6px;
+    border-radius: 22px;
+    border: 2px solid rgba(140, 220, 255, 0.9);
+    pointer-events: none;
+    animation: toastShock 0.7s ease-out 0.15s both;
+  }
+
+  .toast-burst::before {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border-radius: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    animation: toastShock 0.7s ease-out 0.32s both;
+  }
+
+  @keyframes toastShock {
+    0%   { opacity: 0.9; transform: scale(0.92); }
+    100% { opacity: 0; transform: scale(1.7); }
+  }
+
+  /* Exit: defined after .toast-loaded so this animation replaces launch+glow */
+  .toast-hide-blast {
+    animation: toastBlast 0.45s cubic-bezier(0.3, 0.9, 0.5, 1) forwards !important;
+  }
+
+  @keyframes toastBlast {
+    0%   { opacity: 1; transform: scale(1) translateY(0); filter: brightness(1); }
+    40%  { opacity: 1; transform: scale(1.18) translateY(-1vh); filter: brightness(1.7); }
+    100% { opacity: 0; transform: scale(2.4) translateY(-10vh); filter: brightness(2.2); }
   }

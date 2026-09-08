@@ -6,6 +6,7 @@ import { currentUfoModelInGLTF, polygons } from './letall';
 import { map } from './map'
 import { activeMarkerPopups } from './marker';
 import { CloseALL, changePopupState } from './cssLogic';
+import { makeScrollable } from './makescrollable';
 
 
 
@@ -181,19 +182,41 @@ export async function addPolygonWithImageFill(map, polygon) {
   
       // Add interactivity (only if not already added)
       if (!addedLayers.has(maskLayerId)) {
-        const popup = new maplibregl.Popup();
-
         map.on('click', maskLayerId, (e) => {
           if (polygon.description) {
             const targetLngLat = e.lngLat.toArray()
+            // A fresh popup per click: re-adding the same instance after an
+            // outside-click close gets closed again by its own stale
+            // closeOnClick listener (still in this click's listener list).
+            const popup = new maplibregl.Popup();
+            popup.on('close', () => {
+              changePopupState(false);
+              if (currentUfoModelInGLTF) {
+                scene.add(currentUfoModelInGLTF);
+                crosshair.style.display = "block";
+              }
+              // Remove popup from tracking array when closed
+              const index = activePolygonPopups.indexOf(popup);
+              if (index > -1) {
+                activePolygonPopups.splice(index, 1);
+              }
+            });
+            // Close previously opened popups (other polygons + markers)
+            // before opening this one, so the new popup is not in the list
+            // when the cleanup runs
+            activePolygonPopups.forEach((p) => p.remove());
+            activeMarkerPopups.forEach((p) => p.remove());
+            CloseALL();
             popup
               .setLngLat(e.lngLat)
               .setDOMContent(polygon.description)
               .addTo(map);
+            const polygonPopupContent = popup.getElement()?.querySelector('.maplibregl-popup-content');
+            if (polygonPopupContent && !polygonPopupContent._scrollable) {
+              makeScrollable(polygonPopupContent);
+              polygonPopupContent._scrollable = true;
+            }
             animateMapTo(map, targetLngLat, null);
-            activePolygonPopups.forEach((p) => p.remove());
-            activeMarkerPopups.forEach((p) => p.remove());
-            CloseALL();
             activePolygonPopups.push(popup);
             applyAllStyles();
           }
@@ -201,20 +224,6 @@ export async function addPolygonWithImageFill(map, polygon) {
           if (currentUfoModelInGLTF) {
             scene.remove(currentUfoModelInGLTF);
             crosshair.style.display = "none";
-          }
-        });
-  
-        // Add a listener for the popup's close event
-        popup.on('close', () => {
-          changePopupState(false);
-          if (currentUfoModelInGLTF) {
-            scene.add(currentUfoModelInGLTF);
-            crosshair.style.display = "block";
-            // Remove popup from tracking array when closed
-            const index = activePolygonPopups.indexOf(popup);
-            if (index > -1) {
-              activePolygonPopups.splice(index, 1);
-            }
           }
         });
   

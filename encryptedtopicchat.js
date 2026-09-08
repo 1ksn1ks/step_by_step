@@ -231,7 +231,7 @@ async function appendEncryptedChatMessage(
       display: flex;
       flex-direction: column;
       justify-content: center;
-      margin-top: 0.5em;
+      margin-top: 0.2em;
     `;
 
     const contentDiv = document.createElement('div');
@@ -728,7 +728,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
       display: flex;
       flex-direction: column;
       justify-content: center;
-      margin-top: 0.5em;
+      margin-top: 0.2em;
     `;
 
     const contentDiv = document.createElement('div');
