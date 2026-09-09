@@ -1232,7 +1232,7 @@ document.getElementById("hide-delete-polygon-from-polygon").addEventListener("cl
     document.getElementById("edit-profile-click2link"),
     document.getElementById("edit-profile-topic-id"),
     document.getElementById("edit-profile-topic-id-name"),
-    document.getElementById("edit-profile-topic-id-name-topic2pic"),
+    document.getElementById("edit-profile-bio"),
     document.getElementById("edit-profile-domain-time-left"),
   ];
   
@@ -1241,7 +1241,7 @@ document.getElementById("hide-delete-polygon-from-polygon").addEventListener("cl
     document.getElementById("show-username-from-edit-profile"),
     document.getElementById("show-click2link-from-edit-profile"),
     document.getElementById("show-topic-id-name-from-edit-profile"),
-    document.getElementById("show-topic-id-to-pfp-from-edit-profile"),
+    document.getElementById("show-bio-from-edit-profile"),
     document.getElementById("show-check-domain-availability-from-edit-profile"),
   ];
   
@@ -1251,7 +1251,7 @@ document.getElementById("hide-delete-polygon-from-polygon").addEventListener("cl
     document.getElementById("hide-username-from-edit-profile"),
     document.getElementById("hide-click2link-from-edit-profile"),
     document.getElementById("hide-topic-id-name-from-edit-profile"),
-    document.getElementById("hide-topic-id-to-pfp-from-edit-profile"),
+    document.getElementById("hide-bio-from-edit-profile"),
     document.getElementById("hide-check-domain-availability-from-edit-profile"),
   ];
   
@@ -1357,24 +1357,22 @@ document.getElementById("hide-delete-polygon-from-polygon").addEventListener("cl
     document.getElementById("edit-profile-topic-id-name").style.display = "none";
   });
   
-  document.getElementById("show-topic-id-to-pfp-from-edit-profile").addEventListener("click", (event) => {
+  document.getElementById("show-bio-from-edit-profile").addEventListener("click", (event) => {
     editProfileEverything()
     editProfileShowOptions()
     editProfileHideOptions()
-    document.getElementById("edit-profile-topic-id").style.display = "block";
-    document.getElementById("hide-topic-id-to-pfp-from-edit-profile").style.display = "block";
-    document.getElementById("show-topic-id-to-pfp-from-edit-profile").style.display = "none";
-    document.getElementById("edit-profile-topic-id-name-topic2pic").style.display = "block";
+    document.getElementById("hide-bio-from-edit-profile").style.display = "block";
+    document.getElementById("show-bio-from-edit-profile").style.display = "none";
+    document.getElementById("edit-profile-bio").style.display = "block";
   });
-  
-  document.getElementById("hide-topic-id-to-pfp-from-edit-profile").addEventListener("click", (event) => {
+
+  document.getElementById("hide-bio-from-edit-profile").addEventListener("click", (event) => {
     editProfileEverything()
     editProfileShowOptions()
     editProfileHideOptions()
-    document.getElementById("edit-profile-topic-id").style.display = "none";
-    document.getElementById("hide-topic-id-to-pfp-from-edit-profile").style.display = "none";
-    document.getElementById("show-topic-id-to-pfp-from-edit-profile").style.display = "block";
-    document.getElementById("edit-profile-topic-id-name-topic2pic").style.display = "none";
+    document.getElementById("hide-bio-from-edit-profile").style.display = "none";
+    document.getElementById("show-bio-from-edit-profile").style.display = "block";
+    document.getElementById("edit-profile-bio").style.display = "none";
   });
   
   document.getElementById("show-check-domain-availability-from-edit-profile").addEventListener("click", (event) => {

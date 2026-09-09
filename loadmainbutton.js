@@ -105,21 +105,21 @@ export async function loadMainButtonSettings(a) {
         disconnectButton.forEach(button => {
             button.style.backgroundColor = colorDisconnect;
             button.style.height = MainButtonHeight + "vh";
-            button.style.width = MainButtonWidth + "vw";
+            button.style.width = (MainButtonWidth * 0.45) + "vh";
             button.style.fontSize = MainButtonFontSize + "vh";
         });
 
         menuButtons.forEach(button => {
             button.style.backgroundColor = colorMainButton;
             button.style.height = MainButtonHeight + "vh";
-            button.style.width = MainButtonWidth + "vw";
+            button.style.width = (MainButtonWidth * 0.45) + "vh";
             button.style.fontSize = MainButtonFontSize + "vh";
         });
 
         optionsButtons.forEach(button => {
             button.style.backgroundColor = colorMainButton;
             button.style.height = MainButtonHeight + "vh";
-            button.style.width = MainButtonWidth + "vw";
+            button.style.width = (MainButtonWidth * 0.45) + "vh";
             button.style.fontSize = MainButtonFontSize + "vh";
         });
     }

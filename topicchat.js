@@ -98,7 +98,7 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
       img.style.cssText = 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer;';
       img.dataset.payer = payer;
       img.className = 'profile-img-click';
-      img.addEventListener('click', () => loadTOPIC4PIC(payer));
+      img.addEventListener('click', () => loadBio4PIC(payer));
       currentGroupContainer.appendChild(img);
 
       // Content wrapper
@@ -191,7 +191,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
     messagesContainer.innerHTML = `
       <div class="chat-state" style="display: flex; justify-content: left; align-items: left; height: 100%;">
         <div id="topicspinnerchat"></div>
-        <span style="margin-left: 1vw;">Loading messages from ${topicId}</span>
+        <span style="margin-left: 0.45vh;">Loading messages from ${topicId}</span>
       </div>`;
     adjustTextareaHeight(messagesContainer);
 
@@ -208,7 +208,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
     } catch (error) {
       messagesContainer.innerHTML = `
         <div class="chat-state" style="display: flex; justify-content: left; align-items: left; height: 100%;">
-          <span style="margin-left: 1vw;">Invalid Topic ID</span>
+          <span style="margin-left: 0.45vh;">Invalid Topic ID</span>
         </div>`;
       adjustTextareaHeight(messagesContainer);
       return;
@@ -262,7 +262,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
       noMessagesDiv.style.cssText = 'display: flex; justify-content: left; align-items: left; height: 100%;';
       noMessagesDiv.className = 'chat-state';
       const span = document.createElement('span');
-      span.style.marginLeft = '1vw';
+      span.style.marginLeft = '0.45vh';
       span.textContent = 'No messages found';
       noMessagesDiv.appendChild(span);
       messagesContainer.appendChild(noMessagesDiv);
@@ -398,7 +398,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
           border-radius: 1em;
           cursor: pointer;
         `;
-        img.addEventListener('click', () => loadTOPIC4PIC(payer));
+        img.addEventListener('click', () => loadBio4PIC(payer));
         currentGroupDiv.appendChild(img);
   
         // Content wrapper (matches first function structure)
@@ -511,7 +511,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
       noMessagesDiv.className = 'chat-state';
   
       const noMessagesSpan = document.createElement('span');
-      noMessagesSpan.style.marginLeft = '1vw';
+      noMessagesSpan.style.marginLeft = '0.45vh';
       noMessagesSpan.textContent = 'No messages found';
   
       noMessagesDiv.appendChild(noMessagesSpan);

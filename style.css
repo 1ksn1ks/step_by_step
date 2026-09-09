@@ -71,7 +71,7 @@ html, body {
     backdrop-filter: blur(8px) saturate(140%);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
-    padding: 0.8vh 1vw;
+    padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     cursor: pointer;
     font-size: 1.5vh;
@@ -84,7 +84,7 @@ html, body {
     background-color:transparent;
     color: white;
     border: none;
-    padding: 0.8vh 1vw;
+    padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     cursor: pointer;
     font-size: 1.5vh;
@@ -121,7 +121,7 @@ html, body {
   backdrop-filter: blur(24px) saturate(150%);
   color: #e6e6f0;
   border-radius: 20px;
-  padding: 3.2vh 3.4vw 2.6vh;
+  padding: 3.2vh 1.53vh 2.6vh;
   width: 90%;
   max-height: 76vh;
   overflow-y: auto;
@@ -197,7 +197,7 @@ html, body {
   background: rgba(255, 255, 255, 0.94);
   color: #0b0b14;
   border: none;
-  padding: 1.3vh 5vw;
+  padding: 1.3vh 2.25vh;
   border-radius: 999px;
   font-size: 2vh;
   font-weight: 600;
@@ -208,7 +208,7 @@ html, body {
 .info-overlay-close-button-2 {
   position: absolute;
   top: 1.6vh;
-  right: 1.4vw;
+  right: 0.63vh;
   width: 3.4vh;
   height: 3.4vh;
   display: flex;
@@ -237,8 +237,8 @@ html, body {
     color: white;
     padding-top: 1.4vh;
     padding-bottom: 0.8vh;
-    padding-left: 1.4vw;
-    padding-right: 1.4vw;
+    padding-left: 0.63vh;
+    padding-right: 0.63vh;
     border-radius: 1vh;
     z-index: 1001;
     justify-content: space-around;
@@ -259,7 +259,7 @@ html, body {
     backdrop-filter: blur(8px) saturate(140%);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
-    padding: 0.8vh 1vw;
+    padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     cursor: pointer;
     font-size: 1.5vh;
@@ -309,8 +309,8 @@ html, body {
     width: 98vw;
     padding-top: 1.4vh;
     padding-bottom: 0.8vh;
-    padding-left: 1.4vw;
-    padding-right: 1.4vw;
+    padding-left: 0.63vh;
+    padding-right: 0.63vh;
     animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
@@ -329,8 +329,8 @@ html, body {
     width: 100vw;
     padding-top: 1.4vh;
     padding-bottom: 0.8vh;
-    padding-left: 1.4vw;
-    padding-right: 1.4vw;
+    padding-left: 0.63vh;
+    padding-right: 0.63vh;
     animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   
@@ -350,8 +350,8 @@ html, body {
     color: white;
     padding-top: 1vh;
     padding-bottom: 0.5vh !important;
-    padding-left: 1vw;
-    padding-right: 1vw;
+    padding-left: 0.45vh;
+    padding-right: 0.45vh;
     border: 0.1vh solid white;
     border-radius: 1vh;
     box-sizing: border-box;
@@ -426,7 +426,7 @@ html, body {
     display: flex !important;
     justify-content: center !important;
     align-items: center !important;
-    gap: 1vw;
+    gap: 0.45vh;
   }
 
   .chat-state span {
@@ -459,7 +459,7 @@ html, body {
   
   .pin-public-key-from-encrypted-chat {
     display: block;
-    width: 50vw;
+    width: 22.5vh;
     color: white;
     border: 0.1vh solid white;
     border-radius: 999px;
@@ -472,7 +472,7 @@ html, body {
     backdrop-filter: blur(8px) saturate(140%);
     border: 1px solid rgba(255, 255, 255, 0.3);
     animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-    margin-left: 24vw;
+    margin-left: 10.8vh;
   }
   
   .toolbar-column-settings-btns {
@@ -484,7 +484,7 @@ html, body {
     font-size: 2vh;
     box-sizing: border-box;
     margin-bottom: 0.5vh;
-    margin-left: 1vw;
+    margin-left: 0.45vh;
     height: 5vh;
     background-color: rgba(15, 15, 20, 0.45);
     -webkit-backdrop-filter: blur(8px) saturate(140%);
@@ -532,7 +532,7 @@ html, body {
     display: block;
     width: 100%;
     color: white;
-    padding-left: 1vw;
+    padding-left: 0.45vh;
     border: 0.1vh solid white;
     border-radius: 1vh;
     font-size: 2vh;
@@ -553,7 +553,7 @@ html, body {
     display: block;
     width: 100%;
     color: white;
-    padding-left: 1vw;
+    padding-left: 0.45vh;
     border: 0.1vh solid white;
     border-radius: 1vh;
     font-size: 2vh;
@@ -586,8 +586,8 @@ html, body {
     resize: none; /* Prevent manual resizing */
     padding-top: 1vh;
     padding-bottom: 0.5vh;
-    padding-left: 1vw;
-    padding-right: 1vw;
+    padding-left: 0.45vh;
+    padding-right: 0.45vh;
     width: 100%;
   }
   
@@ -620,7 +620,7 @@ html, body {
   .model_sliders {
     display: block;
     width: 100% !important;
-    padding-left: 1vw;
+    padding-left: 0.45vh;
     border-radius: 1vh;
     font-size: 2vh;
     box-sizing: border-box;
@@ -639,7 +639,7 @@ html, body {
     top: 3vh;
     right: 0;
     z-index: 1005;
-    width: 32.5vw;
+    width: 14.6vh;
     height: 3vh;
     writing-mode: bt-lr;
     transform: rotate(0deg);
@@ -649,8 +649,8 @@ html, body {
     display: block;
     width: 100% !important;
     color: white;
-    padding-left: 1vw;
-    padding-right: 1vw;
+    padding-left: 0.45vh;
+    padding-right: 0.45vh;
     border-radius: 1vh;
     font-size: 2vh;
     box-sizing: border-box;
@@ -681,9 +681,9 @@ html, body {
     display: flex;
     flex-direction: column; /* Stack items vertically */
     align-items: flex-start;
-    font-size: 1.6vw;
-    border-radius: 1.07vw;
-    padding: 0 0.5vw 0;
+    font-size: 0.72vh;
+    border-radius: 0.48vh;
+    padding: 0 0.225vh 0;
   }
   
   .connect-wallet-buttons {
@@ -692,7 +692,7 @@ html, body {
     backdrop-filter: blur(8px) saturate(140%);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
-    padding: 0.8vh 1vw;
+    padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     cursor: pointer;
     font-size: 1.5vh;
@@ -707,7 +707,7 @@ html, body {
     backdrop-filter: blur(8px) saturate(140%);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
-    padding: 0.8vh 1vw;
+    padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     cursor: pointer;
     font-size: 1.5vh;
@@ -735,7 +735,7 @@ html, body {
     backdrop-filter: blur(8px) saturate(140%);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
-    padding: 0.8vh 1vw;
+    padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     font-family: Arial, sans-serif;
     font-size: 1.5vh;
@@ -754,7 +754,7 @@ html, body {
     backdrop-filter: blur(8px) saturate(140%);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
-    padding: 0.8vh 1vw;
+    padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     font-family: Arial, sans-serif;
     z-index: 1000;
@@ -799,12 +799,12 @@ html, body {
   }
   
   #left-dpad {
-    left: 0.5vw;
+    left: 0.225vh;
     display: none;
   }
   
   #right-dpad {
-    right: 0.5vw;
+    right: 0.225vh;
     display: none;
   }
   
@@ -837,7 +837,7 @@ html, body {
   #zoom-controls {
     position: fixed;
     bottom: 40vh;
-    right: 0.5vw;
+    right: 0.225vh;
     z-index: 1005;
     display: none;
     flex-direction: column;
@@ -876,7 +876,7 @@ html, body {
     backdrop-filter: blur(8px) saturate(140%);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
-    padding: 0.8vh 1vw;
+    padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     cursor: pointer;
     font-size: 1.5vh;
@@ -1321,14 +1321,14 @@ html, body {
   .toast {
     display: flex;
     align-items: center;
-    gap: 0.8vw;
+    gap: 0.36vh;
     background: rgba(18, 18, 28, 0.78);
     -webkit-backdrop-filter: blur(24px) saturate(150%);
     backdrop-filter: blur(24px) saturate(150%);
     color: #e6e6f0;
     border: 1px solid rgba(34, 211, 238, 0.85);
     border-radius: 18px;
-    padding: 1.5vh 2vw;
+    padding: 1.5vh 0.9vh;
     font-family: system-ui, sans-serif;
     font-size: 1.8vh;
     font-weight: 500;

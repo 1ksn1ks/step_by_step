@@ -156,7 +156,7 @@
             <li><b>Profile picture</b> — paste an image URL to set it.</li>
             <li><b>Username</b> — enter a new name, then press Save.</li>
             <li><b>Topic ID name</b> — give a topic a friendly name in Load.</li>
-            <li><b>Topic ID to PFP</b> — link a topic to your PFP; pressing it opens that topic in Load.</li>
+            <li><b>BIO</b> — set your profile bio; tapping a PFP shows it in Load.</li>
             <li><b>CLICK2LINK</b> — attach any URL to your username.</li>
             <li><b>Domain</b> — give a topic a global name so you can also find it by domain.</li>
           </ul>
@@ -186,9 +186,9 @@
           </div>
       
           <div style="display: flex;">
-            <button id="show-topic-id-to-pfp-from-edit-profile" class="toolbar-column-first-settings-btns">Topic ID to PFP
+            <button id="show-bio-from-edit-profile" class="toolbar-column-first-settings-btns">BIO
             </button>
-            <button id="hide-topic-id-to-pfp-from-edit-profile" style="display: none;" class="toolbar-column-first-settings-btns">Topic ID to PFP
+            <button id="hide-bio-from-edit-profile" style="display: none;" class="toolbar-column-first-settings-btns">BIO
             </button>
             <button id="show-click2link-from-edit-profile" class="toolbar-column-settings-btns">CLICK2LINK
             </button>
@@ -238,8 +238,12 @@
             </button>
           </div>
       
-          <div id="edit-profile-topic-id-name-topic2pic" style="display: none;">
-            <button class="toolbar-column-btns" id="button_for_topic2pic">TOPIC2PIC
+          <div id="edit-profile-bio" style="display: none;">
+            <textarea type="text" id="Edit_Profile-bio" placeholder="Your bio" maxlength="256"
+            class="toolbar-column" onclick="event.stopPropagation();"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <button class="toolbar-column-btns" id="button_for_bio">BIO
             </button>
           </div>
       
@@ -1709,7 +1713,7 @@
            shows up here instantly while the real popup stays hidden -->
       <div id="popup-settings-preview" class="maplibregl-popup">
         <div class="maplibregl-popup-content" style="max-height: none; padding: 1vh 1.4vw;">
-          <div class="number" style="position: absolute; top: -0.1em; left: 0.1em; font-weight: bold;">42</div>
+          <div class="number" style="position: absolute; top: -0.1em; left: 0.1em; font-weight: bold;">256</div>
           <span class="maplibregl-popup-close-button" style="position: absolute; top: -0.5vh; right: 0;">&times;</span>
           <div style="color: gray; text-align: center; margin-bottom: 1vh;">topic id - topic id name</div>
           <div class="payer-info" style="font-weight: bold;">account id</div>
@@ -1729,17 +1733,17 @@
           </div>
           <div id="popup-column-2-close" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">Close
           </div>
-          <div id="popup-column-2-accid" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">AccID
+          <div id="popup-column-2-font" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">Font
           </div>
           </div>
           <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
-          <div id="popup-column-2-username" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Username
+          <div id="popup-column-2-accid" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">AccID
+          </div>
+          <div id="popup-column-2-username" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">Username
           </div>
           <div id="popup-column-2-titles" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">Title
           </div>
           <div id="popup-column-2-text" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">Text
-          </div>
-          <div id="popup-column-2-font" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">Font
           </div>
           </div>
           </div>

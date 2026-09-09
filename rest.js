@@ -489,7 +489,7 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
                const topicSpinnerChat = `
          <div style="display: flex; justify-content: left; align-items: left; padding-top: 1vh; padding-bottom: 1vh;">
            <div id="topicspinnerchat"></div>
-           <span style="margin-left: 1vw;">loading messages from ${topicId}</span>
+           <span style="margin-left: 0.45vh;">loading messages from ${topicId}</span>
            </div>`;
          messagesContainer.innerHTML = topicSpinnerChat;
          adjustTextareaHeight(messagesContainer);
@@ -599,7 +599,7 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
     const topicSpinnerChat = `
     <div style="display: flex; justify-content: left; align-items: left; padding-top: 1vh; padding-bottom: 1vh;">
     <div id="topicspinnerchat"></div>
-    <span style="margin-left: 1vw;">loading messages from ${topicId}</span>
+    <span style="margin-left: 0.45vh;">loading messages from ${topicId}</span>
     </div>`;
     messagesContainer.innerHTML = topicSpinnerChat;
     adjustTextareaHeight(messagesContainer);
@@ -1708,26 +1708,26 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
          }
  });
  
- document.getElementById("button_for_topic2pic").addEventListener("click", async (event) => {
+ document.getElementById("button_for_bio").addEventListener("click", async (event) => {
    event.stopPropagation();
-   const inputValue = document.getElementById("Edit_Profile-topic-id").value;
+   const inputValue = document.getElementById("Edit_Profile-bio").value;
    if (!signer) {
      toast.error("Connect wallet first");
      return;
    }
    if (!inputValue) {
-     toast.error("Please enter a Topic ID.");
+     toast.error("Please enter your bio.");
      return;
    }
-   if (inputValue.length >= 20) {
-     toast.error("Please enter a Topic ID with less than 20 characters.");
+   if (inputValue.length > 256) {
+     toast.error("Please enter a bio with 256 characters or less.");
      return;
    }
    try {
      const topicId = "0.0.9759201";
      const messageData = {
        data: {
-         topic2pic: [inputValue],
+         topic_bio: [inputValue],
        },
      };
      const message = JSON.stringify(messageData);
@@ -1736,13 +1736,13 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
        topicId,
        message
      );
-     console.log("Profile TOPIC2PIC updated successfully:", receipt);
-     document.getElementById("Edit_Profile-topic-id").value = "";
- 
+     console.log("Profile topic_bio updated successfully:", receipt);
+     document.getElementById("Edit_Profile-bio").value = "";
+
      debounce(loadAllData(), 10000);
- 
+
    } catch (error) {
-     console.error("Error updating profile TOPIC2PIC:", error);
+     console.error("Error updating profile topic_bio:", error);
    }
  });
  
@@ -1763,7 +1763,7 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
                const topicSpinnerChat = `
          <div style="display: flex; justify-content: left; align-items: left; padding-top: 1vh; padding-bottom: 1vh;">
            <div id="topicspinnerchat"></div>
-           <span style="margin-left: 1vw;">loading messages from ${topicId}</span>
+           <span style="margin-left: 0.45vh;">loading messages from ${topicId}</span>
            </div>`;
          messagesContainer.innerHTML = topicSpinnerChat;
          adjustTextareaHeight(messagesContainer);
@@ -1852,7 +1852,7 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
                const topicSpinnerChat = `
          <div style="display: flex; justify-content: left; align-items: left; padding-top: 1vh; padding-bottom: 1vh;">
            <div id="topicspinnerchat"></div>
-           <span style="margin-left: 1vw;">loading messages from ${topicId}</span>
+           <span style="margin-left: 0.45vh;">loading messages from ${topicId}</span>
            </div>`;
          messagesContainer.innerHTML = topicSpinnerChat;
          adjustTextareaHeight(messagesContainer);

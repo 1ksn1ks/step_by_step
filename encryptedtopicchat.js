@@ -35,7 +35,7 @@ function createEmptyStateMessage(container, message) {
   emptyDiv.className = 'chat-state';
   
   const emptySpan = document.createElement('span');
-  emptySpan.style.marginLeft = '1vw';
+  emptySpan.style.marginLeft = '0.45vh';
   emptySpan.textContent = message;
   
   emptyDiv.appendChild(emptySpan);
@@ -57,7 +57,7 @@ function createLoadingSpinner(container, topicId) {
   loadingDiv.appendChild(spinner);
   
   const loadingSpan = document.createElement('span');
-  loadingSpan.style.marginLeft = '1vw';
+  loadingSpan.style.marginLeft = '0.45vh';
   loadingSpan.textContent = `Loading messages from ${topicId}`;
   loadingDiv.appendChild(loadingSpan);
   
@@ -150,7 +150,7 @@ async function appendEncryptedChatMessage(
         border-radius: 1em;
         cursor: pointer;
       `;
-      img.addEventListener('click', () => loadTOPIC4PIC(payer));
+      img.addEventListener('click', () => loadBio4PIC(payer));
       currentGroupContainerEncrypted.appendChild(img);
 
       const contentWrapper = document.createElement('div');
@@ -646,7 +646,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
         border-radius: 1em;
         cursor: pointer;
       `;
-      img.addEventListener('click', () => loadTOPIC4PIC(payer));
+      img.addEventListener('click', () => loadBio4PIC(payer));
       currentGroupDiv.appendChild(img);
 
       // Content wrapper

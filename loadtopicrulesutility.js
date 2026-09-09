@@ -16,7 +16,7 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
               const topicSpinnerChat = `
         <div style="display: flex; justify-content: left; align-items: left; padding-top: 1vh; padding-bottom: 1vh;">
           <div id="topicspinnerchat"></div>
-          <span style="margin-left: 1vw;">loading messages from ${topicId}</span>
+          <span style="margin-left: 0.45vh;">loading messages from ${topicId}</span>
           </div>`;
         messagesContainer.innerHTML = topicSpinnerChat;
         adjustTextareaHeight(messagesContainer);

@@ -116,7 +116,7 @@ function createMarkerPopupHTML(data) {
   profileImg.src = profileUrl;
   profileImg.alt = 'Profile photo';
   profileImg.style.cssText = 'width: 7vh; height: 7vh; margin-right: 1em; border-radius: 50%; cursor: pointer;';
-  profileImg.onclick = () => window.loadTOPIC4PIC(payer);
+  profileImg.onclick = () => window.loadBio4PIC(payer);
   profileSection.appendChild(profileImg);
 
   const headerDiv = document.createElement('div');
@@ -334,7 +334,7 @@ function createPolygonPopupHTML(data) {
   profileImg.src = profileUrl;
   profileImg.alt = 'Profile photo';
   profileImg.style.cssText = 'width: 7vh; height: 7vh; margin-right: 1em; border-radius: 50%; cursor: pointer;';
-  profileImg.onclick = () => window.loadTOPIC4PIC(payer);
+  profileImg.onclick = () => window.loadBio4PIC(payer);
   profileSection.appendChild(profileImg);
 
   const headerDiv = document.createElement('div');
@@ -1482,7 +1482,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
     img.src = validPayerImage;
     img.alt = 'Profile photo';
     img.style.cssText = 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer;';
-    img.addEventListener('click', () => window.loadTOPIC4PIC(payer));
+    img.addEventListener('click', () => window.loadBio4PIC(payer));
     group.appendChild(img);
 
     const contentWrapper = document.createElement('div');
