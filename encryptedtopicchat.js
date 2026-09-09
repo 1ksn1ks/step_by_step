@@ -386,6 +386,7 @@ async function loadMessagesFromEncryptedChat() {
     } else {
       adjustTextareaHeight(messagesContainer);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      toast.loaded("Encrypted messages loaded");
     }
 
   } catch (error) {

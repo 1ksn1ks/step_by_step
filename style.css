@@ -1326,13 +1326,14 @@ html, body {
     -webkit-backdrop-filter: blur(24px) saturate(150%);
     backdrop-filter: blur(24px) saturate(150%);
     color: #e6e6f0;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(34, 211, 238, 0.85);
     border-radius: 18px;
     padding: 1.5vh 2vw;
     font-family: system-ui, sans-serif;
     font-size: 1.8vh;
     font-weight: 500;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    animation: toastBorderPulse 1.3s ease-in-out infinite;
     opacity: 0;
     transform: translateY(16px) scale(0.96);
     transition: opacity 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -1340,18 +1341,18 @@ html, body {
     max-width: 80vw;
   }
 
-  .toast-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 3.2vh;
-    height: 3.2vh;
-    min-width: 22px;
-    min-height: 22px;
-    border-radius: 50%;
-    font-size: 1.7vh;
-    font-weight: 700;
-    color: #0b0b12;
+  /* Border vibrates in the pin's cyan */
+  @keyframes toastBorderPulse {
+    0%, 100% {
+      border-color: rgba(34, 211, 238, 0.95);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45),
+                  0 0 12px rgba(34, 211, 238, 0.45);
+    }
+    50% {
+      border-color: rgba(34, 211, 238, 0.3);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45),
+                  0 0 2px rgba(34, 211, 238, 0.08);
+    }
   }
 
   .toast-text {
@@ -1359,10 +1360,6 @@ html, body {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-
-  .toast-success .toast-icon { background: #34c759; }
-  .toast-error .toast-icon { background: #ff453a; }
-  .toast-info .toast-icon { background: #0a84ff; }
 
   .toast-show {
     opacity: 1;
@@ -1437,4 +1434,216 @@ html, body {
     0%   { opacity: 1; transform: scale(1) translateY(0); filter: brightness(1); }
     40%  { opacity: 1; transform: scale(1.18) translateY(-1vh); filter: brightness(1.7); }
     100% { opacity: 0; transform: scale(2.4) translateY(-10vh); filter: brightness(2.2); }
+  }
+
+  /* ============ DRAW HERE (long-press / right-click) ============ */
+
+  .maplibregl-canvas {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Anchor row: [📍 Marker] [pin] [⬛ Polygon] — the pin's tip sits exactly
+     on the map point, so the row is bottom-centered on it */
+  .draw-here-anchor {
+    position: fixed;
+    z-index: 6000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 1.2vh;
+    transform: translate(-50%, -100%);
+    pointer-events: none;
+  }
+
+  .draw-here-anchor > * {
+    pointer-events: auto;
+  }
+
+  .draw-here-pin {
+    width: 3vh;
+    height: 3vh;
+    border-radius: 50% 50% 50% 0;
+    background: #22d3ee;
+    border: 0.12vh solid rgba(255, 255, 255, 0.9);
+    transform: rotate(-45deg);
+    box-shadow: 0 0 2vh rgba(34, 211, 238, 0.8);
+    cursor: pointer;
+    animation: drawHerePinDrop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    flex-shrink: 0;
+    /* The rotated teardrop's tip extends 3vh·(√2−1)/2 ≈ 0.62vh below the
+       layout box — lift it so the tip lands exactly on the map point */
+    margin-bottom: 0.62vh;
+  }
+
+  @keyframes drawHerePinDrop {
+    from { transform: rotate(-45deg) scale(1.6) translateY(-2vh); opacity: 0; }
+    to   { transform: rotate(-45deg) scale(1) translateY(0); opacity: 1; }
+  }
+
+  .draw-here-btn {
+    padding: 1vh 1.4vh;
+    font-size: 1.8vh;
+    color: white;
+    background: rgba(15, 15, 20, 0.85);
+    backdrop-filter: blur(1.5vh);
+    -webkit-backdrop-filter: blur(1.5vh);
+    border: 0.06vh solid rgba(255, 255, 255, 0.25);
+    border-radius: 1.2vh;
+    cursor: pointer;
+    white-space: nowrap;
+    animation: drawHereBtnIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes drawHereBtnIn {
+    from { opacity: 0; transform: scale(0.85); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  .draw-here-btn:active {
+    background: rgba(34, 211, 238, 0.35);
+  }
+
+  /* ============ FIRST-LOAD ONBOARDING ============ */
+
+  .onboard-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9000; /* below toasts (10000), above everything else */
+  }
+
+  .onboard-scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .onboard-card {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(86vw, 64vh);
+    padding: 4vh 3vh 3vh;
+    border-radius: 2vh;
+    background: rgba(15, 15, 20, 0.9);
+    border: 0.1vh solid rgba(34, 211, 238, 0.6);
+    box-shadow: 0 1vh 5vh rgba(0, 0, 0, 0.6),
+                0 0 2.5vh rgba(34, 211, 238, 0.25);
+    animation: onboardBorderPulse 1.3s ease-in-out infinite;
+    text-align: center;
+    color: white;
+  }
+
+  /* Same cyan border vibration as the toasts */
+  @keyframes onboardBorderPulse {
+    0%, 100% {
+      border-color: rgba(34, 211, 238, 0.95);
+      box-shadow: 0 1vh 5vh rgba(0, 0, 0, 0.6),
+                  0 0 3vh rgba(34, 211, 238, 0.55);
+    }
+    50% {
+      border-color: rgba(34, 211, 238, 0.3);
+      box-shadow: 0 1vh 5vh rgba(0, 0, 0, 0.6),
+                  0 0 1vh rgba(34, 211, 238, 0.15);
+    }
+  }
+
+  .onboard-skip {
+    position: absolute;
+    top: 0.4vh;
+    right: 0.8vh;
+    min-width: 5vh;
+    min-height: 5vh;
+    padding: 0.5vh 1vh;
+    background: rgba(255, 255, 255, 0.08);
+    border: 0.06vh solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    color: white;
+    font-size: 2.4vh;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.8;
+  }
+
+  .onboard-icon {
+    font-size: 7vh;
+    line-height: 1.1;
+    margin-bottom: 1.5vh;
+  }
+
+  .onboard-title {
+    font-size: 3vh;
+    font-weight: 600;
+    margin: 0 0 1vh;
+    color: #22d3ee;
+  }
+
+  .onboard-body {
+    font-size: 2vh;
+    line-height: 1.5;
+    opacity: 0.85;
+    margin: 0 0 2.5vh;
+  }
+
+  .onboard-dots {
+    display: flex;
+    justify-content: center;
+    gap: 0.8vh;
+    margin-bottom: 2vh;
+  }
+
+  .onboard-dot {
+    width: 1.2vh;
+    height: 1.2vh;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.25);
+    transition: background 0.2s, transform 0.2s;
+  }
+
+  .onboard-dot-active {
+    background: #22d3ee;
+    transform: scale(1.25);
+  }
+
+  .onboard-nav {
+    display: flex;
+    justify-content: center;
+    gap: 1.5vh;
+  }
+
+  .onboard-prev {
+    padding: 1.4vh 3vh;
+    font-size: 2.2vh;
+    font-weight: 600;
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+    border: 0.08vh solid rgba(255, 255, 255, 0.25);
+    border-radius: 1.4vh;
+    cursor: pointer;
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .onboard-prev:active {
+    transform: scale(0.95);
+  }
+
+  .onboard-next {
+    padding: 1.4vh 3.5vh;
+    font-size: 2.2vh;
+    font-weight: 600;
+    color: #0b0b12;
+    background: #22d3ee;
+    border: none;
+    border-radius: 1.4vh;
+    cursor: pointer;
+    box-shadow: 0 0 1.6vh rgba(34, 211, 238, 0.5);
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .onboard-next:active {
+    transform: scale(0.95);
   }

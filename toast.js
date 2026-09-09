@@ -1,7 +1,5 @@
 const DURATION = 2600;
 
-const ICONS = { success: "✓", error: "✕", info: "•" };
-
 function getContainer() {
   let el = document.getElementById("toast-container");
   if (!el) {
@@ -24,11 +22,6 @@ function show(message, type = "info") {
     burst.className = "toast-burst";
     burst.setAttribute("aria-hidden", "true");
     el.append(burst);
-  } else {
-    const icon = document.createElement("span");
-    icon.className = "toast-icon";
-    icon.textContent = ICONS[type] || ICONS.info;
-    el.append(icon);
   }
 
   const text = document.createElement("span");

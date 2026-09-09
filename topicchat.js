@@ -269,6 +269,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
     } else {
       adjustTextareaHeight(messagesContainer);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      toast.loaded("Messages loaded");
     }
 
   } catch (error) {

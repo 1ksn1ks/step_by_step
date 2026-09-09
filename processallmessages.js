@@ -611,7 +611,9 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
         commentsMapMarker.get(commentTimestamp).push({
           payer: payerId,
           text: String(parsedMessage.commentMarker.text || '').slice(0, 300),
-          created: parsedMessage.created
+          // ISO string, NOT the Date object: like/reply messages store this
+          // value through JSON (string), so map keys must be strings too
+          created: new Date(parsedMessage.created).toISOString()
         });
       }
       if (parsedMessage.commentPolygon && parsedMessage.commentPolygon.timestamp && payerId) {
@@ -622,7 +624,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
         commentsMapPolygon.get(commentTimestamp).push({
           payer: payerId,
           text: String(parsedMessage.commentPolygon.text || '').slice(0, 300),
-          created: parsedMessage.created
+          created: new Date(parsedMessage.created).toISOString()
         });
       }
 
@@ -636,7 +638,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
         repliesMapMarker.get(parentId).push({
           payer: payerId,
           text: String(parsedMessage.replyMarker.text || '').slice(0, 300),
-          created: parsedMessage.created
+          created: new Date(parsedMessage.created).toISOString()
         });
       }
       if (parsedMessage.replyPolygon && parsedMessage.replyPolygon.parentId && payerId) {
@@ -647,7 +649,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
         repliesMapPolygon.get(parentId).push({
           payer: payerId,
           text: String(parsedMessage.replyPolygon.text || '').slice(0, 300),
-          created: parsedMessage.created
+          created: new Date(parsedMessage.created).toISOString()
         });
       }
     } catch (error) {
@@ -1556,18 +1558,36 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
     messageText.textContent = node.text;
     wrapper.appendChild(messageText);
 
-    // Meta row: 👍 👎 ↩ (left) ... timestamp (right)
+    // Meta row: 👍 💬N 👎 ↩ (left) ... timestamp (right)
     const metaRow = document.createElement('div');
     metaRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-top: 0.05em;';
 
     const likeDislikeDiv = document.createElement('div');
     likeDislikeDiv.style.cssText = 'display: flex; gap: 0.5em;';
 
+    // 💬N badge (same look as the popup's 💬 button) on any node that has a
+    // thread: replies stay collapsed until it is pressed
+    const children = node.replies || [];
+    let badge = null;
+    let thread = null;
+    if (children.length > 0) {
+      thread = document.createElement('div');
+      thread.style.display = 'none';
+      badge = document.createElement('span');
+      badge.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+      badge.textContent = `💬${children.length}`;
+      badge.onclick = () => {
+        thread.style.display = thread.style.display === 'none' ? '' : 'none';
+      };
+    }
+
     const likeSpan = document.createElement('span');
     likeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
     likeSpan.textContent = `${node.likeCount || 0}👍`;
     likeSpan.onclick = () => kind === 'polygon' ? window.likePolygon(node.created, topicId) : window.likeMarker(node.created, topicId);
     likeDislikeDiv.appendChild(likeSpan);
+
+    if (badge) likeDislikeDiv.appendChild(badge);
 
     const dislikeSpan = document.createElement('span');
     dislikeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
@@ -1605,7 +1625,10 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
 
     wrapper.appendChild(metaRow);
 
-    (node.replies || []).forEach((child) => wrapper.appendChild(renderNode(child, depth + 1)));
+    if (thread) {
+      children.forEach((child) => thread.appendChild(renderNode(child, depth + 1)));
+      wrapper.appendChild(thread);
+    }
 
     return wrapper;
   };
@@ -1667,28 +1690,107 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
   return section;
 }
 
-function toggleCommentsSection(id) {
-  const section = document.getElementById(id);
-  if (!section) return;
-  const isOpen = section.style.display !== 'none';
-  section.style.display = isOpen ? 'none' : 'block';
-  if (!isOpen) {
-    // Soft spring pop-in (app-wide glass look): fade + scale from 0.96
-    section.animate(
-      [{ opacity: 0, transform: 'scale(0.96)' }, { opacity: 1, transform: 'scale(1)' }],
-      { duration: 250, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }
-    );
-    const input = section.querySelector('textarea');
-    if (input) input.focus();
+// One comments modal at a time: the post popup stays open (dimmed) behind it
+let commentsModal = null;      // fullscreen wrapper (scrim + card)
+let commentsModalSection = null; // the comments section currently inside it
+
+function closeCommentsModal() {
+  if (!commentsModal) return;
+  if (commentsModalSection) {
+    const home = commentsModalSection._homeParent;
+    if (home && home.isConnected) home.appendChild(commentsModalSection);
+    // Restore the section's inline styles saved when the modal opened
+    const s = commentsModalSection._modalSaves;
+    if (s) {
+      for (const [prop, val] of Object.entries(s)) {
+        commentsModalSection.style[prop] = val;
+      }
+      delete commentsModalSection._modalSaves;
+    }
+    const list = commentsModalSection.querySelector('.comments-scroll');
+    if (list) list.style.maxHeight = '15vh';
   }
+  commentsModal.remove();
+  commentsModal = null;
+  commentsModalSection = null;
+}
+
+function openCommentsModal(sectionId) {
+  if (commentsModal) closeCommentsModal();
+  const section = document.getElementById(sectionId);
+  if (!section) return;
+
+  // Fullscreen wrapper above the post popup: the wrapper's own z-index (5000)
+  // beats .maplibregl-popup's z-index:1000!important, so the modal stacks on
+  // top even though the card itself reuses the popup classes
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'position: fixed; inset: 0; z-index: 5000;';
+
+  const scrim = document.createElement('div');
+  scrim.style.cssText = 'position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);';
+  scrim.onclick = closeCommentsModal;
+  scrim.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
+  wrapper.appendChild(scrim);
+
+  // Card reuses the popup classes: same glass look, centering and the
+  // keyboard-fit handler keeps it on screen while typing
+  const card = document.createElement('div');
+  card.className = 'maplibregl-popup';
+  const cardContent = document.createElement('div');
+  cardContent.className = 'maplibregl-popup-content';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'maplibregl-popup-close-button';
+  closeBtn.textContent = '×';
+  closeBtn.onclick = (e) => {
+    e.stopPropagation();
+    closeCommentsModal();
+  };
+  cardContent.appendChild(closeBtn);
+
+  // Move the already-built (hidden) section into the modal so its state —
+  // comments, reply mode, reply target — carries over untouched
+  section._homeParent = section.parentElement;
+  section._modalSaves = {
+    display: section.style.display,
+    marginTop: section.style.marginTop,
+    padding: section.style.padding,
+    background: section.style.background,
+    border: section.style.border,
+    borderRadius: section.style.borderRadius,
+    backdropFilter: section.style.backdropFilter,
+    webkitBackdropFilter: section.style.webkitBackdropFilter
+  };
+  cardContent.appendChild(section);
+  section.style.display = 'block';
+  // Neutralize the section's own glass card inside the modal's card
+  section.style.marginTop = '0';
+  section.style.padding = '0';
+  section.style.background = 'transparent';
+  section.style.border = 'none';
+  section.style.borderRadius = '0';
+  section.style.backdropFilter = 'none';
+  section.style.webkitBackdropFilter = 'none';
+  const list = section.querySelector('.comments-scroll');
+  if (list) list.style.maxHeight = '50vh';
+
+  card.appendChild(cardContent);
+  wrapper.appendChild(card);
+  document.body.appendChild(wrapper);
+
+  commentsModal = wrapper;
+  commentsModalSection = section;
+
+  const input = section.querySelector('textarea');
+  if (input) setTimeout(() => input.focus(), 100);
 }
 
 window.openMarkerComments = function(timestamp, topicId) {
-  toggleCommentsSection(`marker-comments-${topicId}-${timestamp}`);
+  openCommentsModal(`marker-comments-${topicId}-${timestamp}`);
 };
 
 window.openPolygonComments = function(timestamp, topicId) {
-  toggleCommentsSection(`polygon-comments-${topicId}-${timestamp}`);
+  openCommentsModal(`polygon-comments-${topicId}-${timestamp}`);
 };
 
 window.sendMarkerComment = async function(timestamp, topicId, input) {
@@ -2134,7 +2236,9 @@ if (rawResult && Array.isArray(rawResult)) {
         commentsMapMarker.get(commentTimestamp).push({
           payer: payerId,
           text: String(parsedMessage.commentMarker.text || '').slice(0, 300),
-          created: parsedMessage.created
+          // ISO string, NOT the Date object: like/reply messages store this
+          // value through JSON (string), so map keys must be strings too
+          created: new Date(parsedMessage.created).toISOString()
         });
       }
       if (parsedMessage.commentPolygon && parsedMessage.commentPolygon.timestamp && payerId) {
@@ -2145,7 +2249,7 @@ if (rawResult && Array.isArray(rawResult)) {
         commentsMapPolygon.get(commentTimestamp).push({
           payer: payerId,
           text: String(parsedMessage.commentPolygon.text || '').slice(0, 300),
-          created: parsedMessage.created
+          created: new Date(parsedMessage.created).toISOString()
         });
       }
 
@@ -2159,7 +2263,7 @@ if (rawResult && Array.isArray(rawResult)) {
         repliesMapMarker.get(parentId).push({
           payer: payerId,
           text: String(parsedMessage.replyMarker.text || '').slice(0, 300),
-          created: parsedMessage.created
+          created: new Date(parsedMessage.created).toISOString()
         });
       }
       if (parsedMessage.replyPolygon && parsedMessage.replyPolygon.parentId && payerId) {
@@ -2170,7 +2274,7 @@ if (rawResult && Array.isArray(rawResult)) {
         repliesMapPolygon.get(parentId).push({
           payer: payerId,
           text: String(parsedMessage.replyPolygon.text || '').slice(0, 300),
-          created: parsedMessage.created
+          created: new Date(parsedMessage.created).toISOString()
         });
       }
     } catch (error) {
@@ -2849,7 +2953,9 @@ if (rawResult && Array.isArray(rawResult)) {
         commentsMapMarker.get(commentTimestamp).push({
           payer: payerId,
           text: String(parsedMessage.commentMarker.text || '').slice(0, 300),
-          created: parsedMessage.created
+          // ISO string, NOT the Date object: like/reply messages store this
+          // value through JSON (string), so map keys must be strings too
+          created: new Date(parsedMessage.created).toISOString()
         });
       }
       if (parsedMessage.commentPolygon && parsedMessage.commentPolygon.timestamp && payerId) {
@@ -2860,7 +2966,7 @@ if (rawResult && Array.isArray(rawResult)) {
         commentsMapPolygon.get(commentTimestamp).push({
           payer: payerId,
           text: String(parsedMessage.commentPolygon.text || '').slice(0, 300),
-          created: parsedMessage.created
+          created: new Date(parsedMessage.created).toISOString()
         });
       }
 
@@ -2874,7 +2980,7 @@ if (rawResult && Array.isArray(rawResult)) {
         repliesMapMarker.get(parentId).push({
           payer: payerId,
           text: String(parsedMessage.replyMarker.text || '').slice(0, 300),
-          created: parsedMessage.created
+          created: new Date(parsedMessage.created).toISOString()
         });
       }
       if (parsedMessage.replyPolygon && parsedMessage.replyPolygon.parentId && payerId) {
@@ -2885,7 +2991,7 @@ if (rawResult && Array.isArray(rawResult)) {
         repliesMapPolygon.get(parentId).push({
           payer: payerId,
           text: String(parsedMessage.replyPolygon.text || '').slice(0, 300),
-          created: parsedMessage.created
+          created: new Date(parsedMessage.created).toISOString()
         });
       }
     } catch (error) {
