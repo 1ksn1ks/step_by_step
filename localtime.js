@@ -62,3 +62,13 @@ function updateClock() {
 updateClock();
 setInterval(updateClock, 1000);
 map.on('move', updateClock);
+
+const zoomEl = document.getElementById('local-zoom');
+
+function updateZoom() {
+  if (!zoomEl) return;
+  zoomEl.textContent = `Z:${map.getZoom().toFixed(1)}`;
+}
+
+updateZoom();
+map.on('zoom', updateZoom);

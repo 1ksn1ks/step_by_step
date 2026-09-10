@@ -41,6 +41,7 @@ export const everythinginsideoptionsbuttons = [
     "utility-column",
     "memo-column",
     "stack-topic-ids",
+    "initial-xyz-column",
   ];
 
   export const everyoverlay = [

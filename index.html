@@ -130,6 +130,7 @@
       
       
       <div id="toolbar" class="toolbar" style="display: none; flex-direction: column;">
+        <div class="options-column-title">🧰 TOOLBAR</div>
         <div class="toolbar-column" id="Edit_Profile">Edit
         </div>
         <div class="toolbar-column" id="Load_Everything">Load
@@ -145,6 +146,8 @@
         <div class="toolbar-column" id="Change_Memo">Update Topic
         </div>
         <div class="toolbar-column" id="Stack_topic_IDs">Stack topic IDs
+        </div>
+        <div class="toolbar-column" id="Set_Initial_XYZ">Set initial XYZ
         </div>
       </div>
 
@@ -169,7 +172,9 @@
       
       <div id="Edit_Profile-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="Edit_Profile-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
-      
+
+          <div class="options-column-title">👤 PROFILE</div>
+
           <div style="display: flex;">
             <button id="show-profile-picture-from-edit-profile" class="toolbar-column-first-settings-btns">Profile picture
             </button>
@@ -286,15 +291,22 @@
       
       <div id="load-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="load-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
-      
-          <textarea class="toolbar-column" type="text" id="input-field" placeholder="Domain/Topic ID" onclick="event.stopPropagation();"
-          oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
-      
+
+          <div class="options-column-title">🪐 LOAD</div>
+
+          <div style="position: relative;">
+            <textarea class="toolbar-column" type="text" id="input-field" placeholder="Domain/Topic ID" onclick="event.stopPropagation();"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <button id="paste-topic-btn" onclick="event.stopPropagation();"
+            style="position: absolute; top: 0.5vh; right: 0.5vh; background: rgba(255, 255, 255, 0.12); color: white; border: 0.05vh solid rgba(255, 255, 255, 0.35); border-radius: 999px; padding: 0.15vh 0.7vh; font-size: 1.4vh; cursor: pointer;">📋</button>
+          </div>
+
           <button id="toolbar-load" class="toolbar-column-btns">༼ つ ◕_◕༽つ━☆ﾟ.*･｡ﾟ Load
           </button>
       
-          <div class="toolbar-column" style="user-select: text; margin-top: 0.5vh;" id="loaded-topics" placeholder="Loaded Topics" onclick="event.stopPropagation();"
+          <div class="load-section-label">Loaded topics:</div>
+          <div class="toolbar-column" style="user-select: text;" id="loaded-topics" placeholder="Loaded Topics" onclick="event.stopPropagation();"
           ></div>
       
 
@@ -465,8 +477,9 @@
       
       <div id="create-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="create-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
-      
-      
+
+          <div class="options-column-title">✨ CREATE</div>
+
           <div style="display: flex;">
             <button id="show-new-topic-from-create" class="toolbar-column-first-settings-btns">New Topic
             </button>
@@ -587,8 +600,9 @@
 
       <div id="draw-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="draw-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
-      
-      
+
+          <div class="options-column-title" id="draw-column-title">✏️ DRAW</div>
+
           <div style="display: flex;">
             <button id="show-draw-marker" class="toolbar-column-first-settings-btns">Marker ✅
             </button>
@@ -796,7 +810,9 @@
       
       <div id="rules-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="rules-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
-      
+
+          <div class="options-column-title">📜 RULES</div>
+
           <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-rules" placeholder="Domain/Topic ID"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
@@ -840,7 +856,30 @@
           onclick="event.stopPropagation();"></div>
           <button id="load-topic-rules-for-topic" class="toolbar-column-btns">Load Topic Rules
           </button>
-      
+
+        </div>
+      </div>
+
+      <div id="initial-xyz-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <div id="initial-xyz-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
+
+          <div class="options-column-title">🎯 XYZ</div>
+
+          <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-initial-xyz" placeholder="Domain/Topic ID"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+
+          <textarea class="toolbar-column" type="text" id="input-field-lng-lat-for-initial-xyz" placeholder="lng,lat"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+
+          <textarea class="toolbar-column" type="text" id="input-field-zoom-for-initial-xyz" placeholder="Zoom level"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+
+          <button id="submit-button-Set_Initial_XYZ" class="toolbar-column-btns" style="display: block;">Set initial XYZ
+          </button>
+
         </div>
       </div>
 
@@ -864,7 +903,9 @@
       
       <div id="utility-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="utility-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
-          
+
+          <div class="options-column-title">🧩 NFT</div>
+
           <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-utility" placeholder="Domain/Topic ID"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
@@ -983,7 +1024,9 @@
       
       <div id="memo-column" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="memo-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
-      
+
+          <div class="options-column-title">🏷 MEMO</div>
+
           <div class="toolbar-group">
             <textarea class="toolbar-column" type="text" id="input-field-topic-id" placeholder="Domain/Topic ID"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
@@ -1035,7 +1078,9 @@
       
       <div id="stack-topic-ids" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="stack-topic-ids-container" class="toolbar-containers" onclick="event.stopPropagation();">
-      
+
+          <div class="options-column-title">📚 STACK</div>
+
           <label for="stack-topic-ids-topic" style="font-size: 2vh; padding: 0px;">Main Domain/Topic ID:
           <textarea class="toolbar-column" type="text" id="stack-topic-ids-topic" placeholder="Domain/Topic ID"
           click="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
@@ -1059,11 +1104,10 @@
           </button>
           <button id="connect-wallet-btn" class="connect-wallet-buttons" style="display: none;" >Connect
           </button>
-          <button id="connect-new-wallet-btn" class="connect-wallet-buttons" style="display: none;">Create
-          </button>
           <button id="disconnect-wallet-btn" class="connect-wallet-buttons" style="display: none;">Disconnect
           </button>
           <span id="local-clock"></span>
+          <span id="local-zoom"></span>
           </div>
           <div class="account-info">
           <div id="account-id" style="margin-left: 0.5vh;"></div>
@@ -1122,9 +1166,11 @@
       
       <div id="topic-chat-container" class="topic-chat-container" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
         <div class="chat-topic-chat-container"  onclick="event.stopPropagation();">
-      
+
+          <div class="options-column-title">💬 TOPIC CHAT</div>
+
           <div style="display: flex; align-items: center;">
-      
+
             <textarea class="toolbar-column" type="text" id="topic-chat-topic-id" placeholder="Domain/Topic ID"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
@@ -1279,6 +1325,8 @@
       
       <div id="encrypted-chat-container" class="topic-chat-container" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
         <div class="chat-topic-chat-container"  onclick="event.stopPropagation();">
+
+        <div class="options-column-title">🔒 E2EE CHAT</div>
 
         <div id="encrypted-chat-private-key-container">
           <textarea class="toolbar-column" type="text" id="encrypted-chat-private-key" placeholder="Unlock with Private Key / password"
@@ -1474,6 +1522,7 @@
       </div>
       
       <div id="rotation-controls" class='rotation-controls' onclick="event.stopPropagation();">
+        <div class="options-column-title">⚙ SETTINGS</div>
         <div class="toolbar-column" id="change-model-settings">Model Settings
         </div>
         <div class="toolbar-column" id="change-crosshair-settings">Crosshair Settings
@@ -1488,10 +1537,12 @@
         </div>
       </div>
           
-      <div id="visibility-controls" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
+      <div id="visibility-controls" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 1vw; width: 98vw;">
         <div class="toolbar-containers" onclick="event.stopPropagation();">
       
      
+          <div class="options-column-title">👁 VISIBILITY</div>
+
           <div style="display: flex; align-items: center; margin-bottom: 1vh;">
             <span id="3d-model-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On</span>
             <button id="toggle-3d-model-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show 3D models
@@ -1554,8 +1605,9 @@
       
       <div id="model-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
         <div id="model-column-container" class="toolbar-containers" onclick="event.stopPropagation();" >
-      
-      
+
+          <div class="options-column-title">🛸 MODEL</div>
+
           <div style="display: flex;">
             <button id="show-model-column-model-url" class="toolbar-column-first-settings-btns">URL
             </button>
@@ -1672,7 +1724,9 @@
 
       <div id="crosshair-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
         <div id="crosshair-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
-      
+
+          <div class="options-column-title">➕ CROSSHAIR</div>
+
           <div>
             <label style="font-size: 1.5vh;">Crosshair Color:</label>
             <input type="color" id="crosshair-color" class="yourfov" value="#000000">
@@ -1709,6 +1763,8 @@
       <div id="popup-settings-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 1002;" onclick="window.openPopupSettings();"></div>
 
       <div id="popup-settings-card" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(90vw, 60vh); max-height: 75vh; overflow-y: auto; z-index: 1003; background-color: rgba(15, 15, 20, 0.55); -webkit-backdrop-filter: blur(8px) saturate(140%); backdrop-filter: blur(8px) saturate(140%); color: white; border-radius: 1.5vh; box-sizing: border-box; touch-action: auto; padding: 1.4vh 1.4vw;">
+        <div class="options-column-title">💬 POPUP</div>
+
       <!-- Dummy popup: same classes as the real one, so every picker change
            shows up here instantly while the real popup stays hidden -->
       <div id="popup-settings-preview" class="maplibregl-popup">
@@ -1819,7 +1875,9 @@
 
       <div id="marker-options-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
         <div id="marker-options-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
-      
+
+          <div class="options-column-title">📍 MARKERS</div>
+
           <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
             <label for="color-green" class="yourfov">Size:
             </label>
@@ -1854,7 +1912,9 @@
 
       <div id="main-button-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
         <div id="main-button-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
-      
+
+          <div class="options-column-title">🔘 BUTTONS</div>
+
           <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
             <label for="color-green" class="yourfov">Height:
             </label>
@@ -1911,7 +1971,9 @@
       
       <div id="button-input-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
         <div id="button-input-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
-      
+
+          <div class="options-column-title">🎨 STYLES</div>
+
           <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
             <label for="color-green" class="yourfov">Font Size:
             </label>
@@ -1994,7 +2056,9 @@
 
       <div id="topic-chat-column" style="display: none; position: absolute; z-index: 1002; top: 10vh; left: 0; width: 100vw;">
         <div id="topic-chat-column-container" class="toolbar-containers" onclick="event.stopPropagation();">
-      
+
+          <div class="options-column-title">💬 CHAT</div>
+
           <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
             <label for="color-green" class="yourfov">Text Font Size:
             </label>

@@ -233,7 +233,7 @@ function createMarkerPopupHTML(data) {
   // 💬 Comment Button (between Like and Dislike)
   const commentSpan = document.createElement('span');
   commentSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
-  commentSpan.textContent = comments.length ? `💬${comments.length}` : '💬';
+  commentSpan.textContent = comments.length ? `💬${countAllMessages(comments)}` : '💬';
   commentSpan.onclick = () => window.openMarkerComments(timestamp, topicId);
   likeDislikeDiv.appendChild(commentSpan);
 
@@ -451,7 +451,7 @@ function createPolygonPopupHTML(data) {
   // 💬 Comment Button (between Like and Dislike)
   const commentSpan = document.createElement('span');
   commentSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
-  commentSpan.textContent = comments.length ? `💬${comments.length}` : '💬';
+  commentSpan.textContent = comments.length ? `💬${countAllMessages(comments)}` : '💬';
   commentSpan.onclick = () => window.openPolygonComments(timestamp, topicId);
   likeDislikeDiv.appendChild(commentSpan);
 
@@ -1440,6 +1440,10 @@ function buildReplyTree(node, repliesMap, likeMap, dislikeMap, depth = 0) {
   }));
 }
 
+// Count every message in a tree: each node plus all of its nested replies.
+// Used by the "Comments (N)" header, the popup 💬 button and each node's 💬 badge.
+const countAllMessages = (nodes) => nodes.reduce((sum, n) => sum + 1 + (n.replies ? countAllMessages(n.replies) : 0), 0);
+
 // Comment section for marker/polygon popups: the list of comments below the
 // message plus a box to leave your own. Hidden until 💬 is pressed.
 // Glass card: rounded corners, blur, thin white border (app-wide glass look).
@@ -1450,7 +1454,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
 
   const header = document.createElement('div');
   header.style.cssText = 'font-size: 1.2vh; color: gray; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.8vh;';
-  header.textContent = `Comments (${comments.length})`;
+  header.textContent = `Comments (${countAllMessages(comments)})`;
   section.appendChild(header);
 
   const list = document.createElement('div');
@@ -1490,7 +1494,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
 
     const header = document.createElement('div');
     header.className = 'toolbar-group-messages-header';
-    header.style.cssText = `display: flex; align-items: center; border: 0.05vh solid ${topicChatHeaderColor}; font-size: ${headerFontSizeTopicChat}vh;`;
+    header.style.cssText = `display: flex; align-items: center; font-size: ${headerFontSizeTopicChat}vh;`;
     const payerLink = document.createElement('a');
     payerLink.href = `https://explore.hashpack.app/${encodeURIComponent(payer)}`;
     payerLink.target = '_blank';
@@ -1527,29 +1531,56 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
   let replyTarget = null;
 
   // Render one comment/reply and its whole reply thread (recursive, so
-  // replies-to-replies nest without a depth limit; the visual indent caps
-  // at 4 levels so deep threads still fit on a phone). A like on any node
-  // is just a regular likeMarker/likePolygon with that node's own created
-  // timestamp, so the existing per-payer counting applies unchanged.
+  // replies-to-replies nest without a depth limit). Each thread opens in
+  // its own glass container card (like the comments section), stacked under
+  // the node it belongs to - the box shows the grouping, so no indent is
+  // needed. A like on any node is just a regular likeMarker/likePolygon
+  // with that node's own created timestamp, so the existing per-payer
+  // counting applies unchanged.
   const renderNode = (node, depth) => {
     const wrapper = document.createElement('div');
     if (depth === 0) {
       wrapper.style.cssText = 'display: flex; flex-direction: column; margin-top: 0.2em;';
     } else {
-      wrapper.style.cssText = depth <= 4
-        ? 'margin-top: 0.2em; padding-left: 1em; border-left: 0.1vh solid rgba(255, 255, 255, 0.18);'
-        : 'margin-top: 0.2em;';
+      wrapper.style.cssText = 'margin-top: 0.2em;';
     }
 
     if (depth > 0) {
+      // Match the top-level comment header: acc id in the acc
+      // color, username in the username color (was one same-color link before)
+      const whoRow = document.createElement('div');
+      whoRow.style.cssText = `display: inline-flex; align-items: center; gap: 0.3em; padding: 0.025em 0.1em 0.025em 0.1em; border-radius: 0.4em; font-size: ${headerFontSizeTopicChat / 2}vh;`;
+      const payerPic = document.createElement('img');
+      const picUrl = profilePictures[node.payer]?.url || defaultProfilePic;
+      payerPic.src = isValidUrl(picUrl) ? picUrl : defaultProfilePic;
+      payerPic.alt = 'Profile photo';
+      payerPic.style.cssText = 'width: 1.2em; height: 1.2em; border-radius: 1em; object-fit: cover; border: 0.05vh solid rgba(255, 255, 255, 0.35); cursor: pointer;';
+      payerPic.addEventListener('click', () => window.loadBio4PIC(node.payer));
+      whoRow.appendChild(payerPic);
       const payerLabel = document.createElement('a');
       payerLabel.href = `https://explore.hashpack.app/${encodeURIComponent(node.payer)}`;
       payerLabel.target = '_blank';
       payerLabel.rel = 'noopener noreferrer';
-      payerLabel.style.cssText = `color: ${accidTopicChatColor}; text-decoration: none; font-size: 1.1vh;`;
-      const uname = usernames[node.payer]?.username ? ` ${usernames[node.payer].username}` : '';
-      payerLabel.textContent = node.payer + uname;
-      wrapper.appendChild(payerLabel);
+      payerLabel.style.cssText = `color: ${accidTopicChatColor}; text-decoration: none;`;
+      payerLabel.textContent = node.payer;
+      whoRow.appendChild(payerLabel);
+      const uname = usernames[node.payer]?.username?.trim();
+      const replyClick2 = click2url[node.payer]?.click2url;
+      if (uname && replyClick2) {
+        const usernameLink = document.createElement('a');
+        usernameLink.href = replyClick2;
+        usernameLink.target = '_blank';
+        usernameLink.rel = 'noopener noreferrer';
+        usernameLink.style.cssText = `color: ${usernameTopicChatColor}; text-decoration: none;`;
+        usernameLink.textContent = uname;
+        whoRow.appendChild(usernameLink);
+      } else if (uname) {
+        const usernameSpan = document.createElement('span');
+        usernameSpan.style.cssText = `color: ${usernameTopicChatColor};`;
+        usernameSpan.textContent = uname;
+        whoRow.appendChild(usernameSpan);
+      }
+      wrapper.appendChild(whoRow);
     }
 
     const messageText = document.createElement('div');
@@ -1560,7 +1591,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
 
     // Meta row: 👍 💬N 👎 ↩ (left) ... timestamp (right)
     const metaRow = document.createElement('div');
-    metaRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-top: 0.05em;';
+    metaRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-top: 0;';
 
     const likeDislikeDiv = document.createElement('div');
     likeDislikeDiv.style.cssText = 'display: flex; gap: 0.5em;';
@@ -1572,10 +1603,12 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
     let thread = null;
     if (children.length > 0) {
       thread = document.createElement('div');
+      thread.className = 'reply-thread';
       thread.style.display = 'none';
+
       badge = document.createElement('span');
       badge.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
-      badge.textContent = `💬${children.length}`;
+      badge.textContent = `💬${countAllMessages(children)}`;
       badge.onclick = () => {
         thread.style.display = thread.style.display === 'none' ? '' : 'none';
       };
@@ -1600,8 +1633,17 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
     replyBtn.textContent = '↩';
     replyBtn.onclick = () => {
       replyTarget = node;
-      const uname = usernames[node.payer]?.username || node.payer;
-      replyChipLabel.textContent = `↩ Replying to ${uname}`;
+      const uname = usernames[node.payer]?.username?.trim() || '';
+      const created = new Date(node.created).toLocaleString('en-US', {
+        hour12: false,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      replyChipLabel.textContent = `↩ Replying to ${node.payer}${uname ? ` ${uname}` : ''} — ${created}`;
       replyChip.style.display = 'flex';
       input.focus();
     };
@@ -1611,7 +1653,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
 
     const timestampSpan = document.createElement('span');
     timestampSpan.className = 'chat-msg-time';
-    timestampSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
+    timestampSpan.style.cssText = `font-size: 0.75vh; color: gray;`;
     timestampSpan.textContent = new Date(node.created).toLocaleString('en-US', {
       hour12: false,
       year: 'numeric',

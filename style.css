@@ -244,12 +244,12 @@ html, body {
     justify-content: space-around;
     width: 98vw;
     top: 10vh;
-    left: 0;
+    left: 1vw;
     transform: none;
     display: none;
     animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
-  
+
   .menu_buttons {
     position: fixed;
     left: 0;
@@ -304,7 +304,7 @@ html, body {
     z-index: 1001;
     justify-content: space-around;
     top: 10vh;
-    left: 0;
+    left: 1vw;
     transform: none;
     width: 98vw;
     padding-top: 1.4vh;
@@ -385,6 +385,21 @@ html, body {
     border: 1px solid rgba(255, 255, 255, 0.35);
     box-shadow: 0 0.15vh 0.6vh rgba(0, 0, 0, 0.4);
     background-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .reply-thread {
+    margin-top: 0;
+    width: 100%;
+    border: none;
+    padding-top: 0;
+    padding-bottom: 0.25em;
+    padding-left: 0.5em;
+    padding-right: 0.5em;
+    border-radius: 1.2vh;
+    box-sizing: border-box;
+    background-color: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0.2vh 0.8vh rgba(0, 0, 0, 0.25);
+    touch-action: auto;
   }
 
   .toolbar-group-messages-header {
@@ -741,6 +756,22 @@ html, body {
     font-size: 1.5vh;
     white-space: nowrap;
     margin-left: 0; /* 0.5 gap comes from the button's margin-right */
+    align-self: center;
+    pointer-events: none;
+  }
+
+  #local-zoom {
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 0.8vh 0.45vh;
+    border-radius: 0.8vh;
+    font-family: Arial, sans-serif;
+    font-size: 1.5vh;
+    white-space: nowrap;
+    margin-left: 0.5vh;
     align-self: center;
     pointer-events: none;
   }
@@ -1646,4 +1677,139 @@ html, body {
 
   .onboard-next:active {
     transform: scale(0.95);
+  }
+
+  /* ── Topic + E2EE chat: keep the open animation, drop only the opacity fade ──
+     The shared slideIn/zoomIn keyframes animate opacity 0→1, which makes the
+     dark glass inputs/buttons "get darker" as the panel opens. These no-fade
+     twins keep the same slide/pop + timing but hold opacity at 1. Scoped to the
+     two chat panels only — the toolbar/popups/toasts keep their fades. */
+  @keyframes slideInNoFade {
+    from { transform: translateX(-200px); }
+    to   { transform: translateY(0); }
+  }
+  @keyframes zoomInNoFade {
+    from { transform: scale(0.96); }
+    to   { transform: scale(1); }
+  }
+
+  #topic-chat-container,
+  #encrypted-chat-container,
+  #topic-chat-container .chat-topic-chat-container,
+  #encrypted-chat-container .chat-topic-chat-container {
+    animation-name: slideInNoFade;
+  }
+
+  #topic-chat-container .toolbar-column,
+  #encrypted-chat-container .toolbar-column,
+  #topic-chat-container .toolbar-column-btns,
+  #encrypted-chat-container .toolbar-column-btns,
+  #topic-chat-container .toolbar-column-first-settings-btns,
+  #encrypted-chat-container .toolbar-column-first-settings-btns,
+  #topic-chat-container .toolbar-column-settings-btns,
+  #encrypted-chat-container .toolbar-column-settings-btns {
+    animation-name: zoomInNoFade;
+  }
+
+  /* Panel flair (all toolbar/settings panels — the user theme settings
+     still control colors/sizes inline; these only add glow, gradient,
+     motion and titles) */
+  .options-column-title {
+    font-size: 2.4vh;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: #22d3ee;
+    text-shadow: 0 0 1.5vh rgba(34, 211, 238, 0.6);
+    text-align: center;
+    margin-bottom: 1vh;
+    animation: optionsTitleFloat 3s ease-in-out infinite;
+  }
+
+  @keyframes optionsTitleFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-0.4vh); }
+  }
+
+  .load-section-label {
+    font-size: 1.2vh;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: gray;
+    padding-left: 0.45vh;
+    margin-bottom: 0.4vh;
+  }
+
+  .toolbar-containers .toolbar-column {
+    background-image: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+    transition: box-shadow 0.25s ease;
+  }
+
+  .toolbar-containers .toolbar-column:focus {
+    box-shadow: 0 0 1.5vh rgba(34, 211, 238, 0.45), inset 0 0 0.5vh rgba(34, 211, 238, 0.12);
+    outline: none;
+  }
+
+  #load-column-container #loaded-topics {
+    line-height: 1.7;
+    letter-spacing: 0.04em;
+  }
+
+  .toolbar-containers .toolbar-column-btns,
+  .toolbar-containers .toolbar-column-first-settings-btns,
+  .toolbar-containers .toolbar-column-settings-btns,
+  #toolbar .toolbar-column,
+  #rotation-controls .toolbar-column {
+    transition: box-shadow 0.25s ease;
+  }
+
+  .toolbar-containers .toolbar-column-btns:hover,
+  .toolbar-containers .toolbar-column-first-settings-btns:hover,
+  .toolbar-containers .toolbar-column-settings-btns:hover,
+  #toolbar .toolbar-column:hover,
+  #rotation-controls .toolbar-column:hover {
+    box-shadow: 0 0 1.2vh rgba(34, 211, 238, 0.4);
+  }
+
+  #toolbar-load:hover {
+    box-shadow: 0 0 1.8vh rgba(34, 211, 238, 0.55);
+  }
+
+  /* Onboard-style cyan glow border on the toolbar, every panel that opens
+     from it (edit, load, draw, ...) and the visibility + settings columns.
+     slideIn is kept (panels re-run it when opened), pulse starts after it. */
+  #toolbar,
+  .toolbar-containers,
+  #rotation-controls {
+    box-sizing: border-box; /* border+padding fit inside the 98vw/100vw width */
+    border: 0.1vh solid rgba(34, 211, 238, 0.6);
+    animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+               onboardBorderPulse 1.3s ease-in-out 0.3s infinite;
+  }
+
+  /* Same glow for the topic chat + e2ee chat cards (they use slideInNoFade) */
+  #topic-chat-container .chat-topic-chat-container,
+  #encrypted-chat-container .chat-topic-chat-container {
+    border: 0.1vh solid rgba(34, 211, 238, 0.6);
+    animation: slideInNoFade 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+               onboardBorderPulse 1.3s ease-in-out 0.3s infinite;
+  }
+
+  /* Same glow for every info overlay card (keeps its pop-in first) */
+  .info-overlay-inner {
+    border: 0.1vh solid rgba(34, 211, 238, 0.6);
+    animation: overlay-pop-in 0.34s cubic-bezier(0.34, 1.56, 0.64, 1),
+               onboardBorderPulse 1.3s ease-in-out 0.34s infinite;
+  }
+
+  /* Same glow for the toolbar's own buttons (keeps their zoomIn) */
+  #toolbar .toolbar-column {
+    border: 0.1vh solid rgba(34, 211, 238, 0.6);
+    animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+               onboardBorderPulse 1.3s ease-in-out 0.25s infinite;
+  }
+
+  /* The visibility card must fill its (narrower) wrapper instead of using
+     the viewport-wide 100vw, or it overflows past the right screen edge */
+  #visibility-controls .toolbar-containers {
+    width: 100%;
   }
