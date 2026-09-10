@@ -168,8 +168,3 @@ walletBtn.addEventListener("click", () => {
   disconnectBtn.style.display = "none";
   walletBtn.style.display = "none";
 });
-
-document.getElementById("connect-new-wallet-btn").addEventListener("click", () => {
-  window.open("https://wallet.hashpack.app", "_blank");
-});
-
