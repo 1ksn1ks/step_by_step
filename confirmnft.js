@@ -11,6 +11,7 @@ let scaleForModel = 1;
 let finalScaleForModel = 1;
 
 export let hasRulesForModelNFT = false;
+export let ownsModelNFT = false;
 export let loadedNFTsForModel = [];
 export let loadedNFTScaleForModel = [];
 
@@ -41,6 +42,7 @@ export async function confirmNFTFunction(accountId) {
 
   loadedNFTsForModel.length = 0;
   hasRulesForModelNFT = false;
+  ownsModelNFT = false;
 
 
   const NFTForModel = await getAccountNFTs(accountId, tokenIdForModel);
@@ -71,6 +73,7 @@ export async function confirmNFTFunction(accountId) {
 
 
   if (NFTForModel.length > 0) {
+    ownsModelNFT = true;
     try {
       if (hasRulesForModelNFT === true) {
         for (const nft of loadedNFTsForModel) {

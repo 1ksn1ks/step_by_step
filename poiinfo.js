@@ -128,6 +128,9 @@ document.addEventListener('keydown', (e) => {
 
 map.on('click', (e) => {
   if (Date.now() < suppressClickUntil) return; // it was a press-hold, not a tap
+  // Globe mode: a tap in empty space (outside the globe) must not trigger —
+  // isPointOnMapSurface does a ray/sphere intersection test (true in 2D mode).
+  if (!map.transform.isPointOnMapSurface(e.point)) return;
   // Polygon taps open their own popup — don't ask twice
   const hits = map.queryRenderedFeatures(e.point);
   if (hits.some((f) => f.layer && f.layer.id.includes('-mask-layer'))) return;

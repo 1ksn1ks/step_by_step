@@ -166,7 +166,7 @@
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('edit-profile-help-overlay').style.display='none'">Got it</button>
           </div>
-          <div class="info-overlay-close-button-2" onclick="document.getElementById('edit-profile-help-overlay').style.display='none'">×</div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('edit-profile-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -285,7 +285,7 @@
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('load-options-help-overlay').style.display='none'">Got it</button>
           </div>
-          <div class="info-overlay-close-button-2" onclick="document.getElementById('load-options-help-overlay').style.display='none'">×</div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('load-options-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -299,7 +299,7 @@
             oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
             <button id="paste-topic-btn" onclick="event.stopPropagation();"
-            style="position: absolute; top: 0.5vh; right: 0.5vh; background: rgba(255, 255, 255, 0.12); color: white; border: 0.05vh solid rgba(255, 255, 255, 0.35); border-radius: 999px; padding: 0.15vh 0.7vh; font-size: 1.4vh; cursor: pointer;">📋</button>
+            style="position: absolute; top: 0.5vh; bottom: 0.5vh; right: 0.5vh; background: rgba(255, 255, 255, 0.12); color: white; border: 0.05vh solid rgba(255, 255, 255, 0.35); border-radius: 999px; padding: 0.15vh 0.7vh; font-size: 2.2vh; cursor: pointer;">📋</button>
           </div>
 
           <button id="toolbar-load" class="toolbar-column-btns">༼ つ ◕_◕༽つ━☆ﾟ.*･｡ﾟ Load
@@ -471,7 +471,7 @@
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('create-topic-help-overlay').style.display='none'">Got it</button>
           </div>
-          <div class="info-overlay-close-button-2" onclick="document.getElementById('create-topic-help-overlay').style.display='none'">×</div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('create-topic-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -594,7 +594,7 @@
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('map-draw-help-overlay').style.display='none'">Got it</button>
           </div>
-          <div class="info-overlay-close-button-2" onclick="document.getElementById('map-draw-help-overlay').style.display='none'">×</div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('map-draw-help-overlay').style.display='none'">×</div>
         </div>
       </div>
 
@@ -804,7 +804,7 @@
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('topic-rules-help-overlay').style.display='none'">Got it</button>
           </div>
-          <div class="info-overlay-close-button-2" onclick="document.getElementById('topic-rules-help-overlay').style.display='none'">×</div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('topic-rules-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -897,7 +897,7 @@
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('model-sharing-rules-help-overlay').style.display='none'">Got it</button>
           </div>
-          <div class="info-overlay-close-button-2" onclick="document.getElementById('model-sharing-rules-help-overlay').style.display='none'">×</div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('model-sharing-rules-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -1018,7 +1018,7 @@
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('edit-topic-rules-help-overlay').style.display='none'">Got it</button>
           </div>
-          <div class="info-overlay-close-button-2" onclick="document.getElementById('edit-topic-rules-help-overlay').style.display='none'">×</div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('edit-topic-rules-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -1072,7 +1072,7 @@
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('stack-topic-ids-help-overlay').style.display='none'">Got it</button>
           </div>
-          <div class="info-overlay-close-button-2" onclick="document.getElementById('stack-topic-ids-help-overlay').style.display='none'">×</div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('stack-topic-ids-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -1160,14 +1160,14 @@
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('topic-chat-help-overlay').style.display='none'">Got it</button>
           </div>
-          <div class="info-overlay-close-button-2" onclick="document.getElementById('topic-chat-help-overlay').style.display='none'">×</div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('topic-chat-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
       <div id="topic-chat-container" class="topic-chat-container" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
         <div class="chat-topic-chat-container"  onclick="event.stopPropagation();">
 
-          <div class="options-column-title">💬 TOPIC CHAT</div>
+          <div class="chat-panel-title">💬 TOPIC CHAT</div>
 
           <div style="display: flex; align-items: center;">
 
@@ -1319,14 +1319,14 @@
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('e2ee-chat-help-overlay').style.display='none'">Got it</button>
           </div>
-          <div class="info-overlay-close-button-2" onclick="document.getElementById('e2ee-chat-help-overlay').style.display='none'">×</div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('e2ee-chat-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
       <div id="encrypted-chat-container" class="topic-chat-container" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
         <div class="chat-topic-chat-container"  onclick="event.stopPropagation();">
 
-        <div class="options-column-title">🔒 E2EE CHAT</div>
+        <div class="chat-panel-title">🔒 E2EE CHAT</div>
 
         <div id="encrypted-chat-private-key-container">
           <textarea class="toolbar-column" type="text" id="encrypted-chat-private-key" placeholder="Unlock with Private Key / password"
@@ -1523,9 +1523,9 @@
       
       <div id="rotation-controls" class='rotation-controls' onclick="event.stopPropagation();">
         <div class="options-column-title">⚙ SETTINGS</div>
-        <div class="toolbar-column" id="change-model-settings">Model Settings
+        <div class="toolbar-column" id="change-model-settings" style="display: none;">Model Settings
         </div>
-        <div class="toolbar-column" id="change-crosshair-settings">Crosshair Settings
+        <div class="toolbar-column" id="change-crosshair-settings" style="display: none;">Crosshair Settings
         </div>
         <div class="toolbar-column" id="change-marker-options">Marker Options
         </div>
@@ -1599,7 +1599,7 @@
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('change-model-help-overlay').style.display='none'">Got it</button>
           </div>
-          <div class="info-overlay-close-button-2" onclick="document.getElementById('change-model-help-overlay').style.display='none'">×</div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('change-model-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -1718,7 +1718,7 @@
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('crosshair-settings-help-overlay').style.display='none'">Got it</button>
           </div>
-          <div class="info-overlay-close-button-2" onclick="document.getElementById('crosshair-settings-help-overlay').style.display='none'">×</div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('crosshair-settings-help-overlay').style.display='none'">×</div>
         </div>
       </div>
 
@@ -1869,7 +1869,7 @@
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('marker-size-help-overlay').style.display='none'">Got it</button>
           </div>
-          <div class="info-overlay-close-button-2" onclick="document.getElementById('marker-size-help-overlay').style.display='none'">×</div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('marker-size-help-overlay').style.display='none'">×</div>
         </div>
       </div>
 
@@ -1906,7 +1906,7 @@
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('main-buttons-style-help-overlay').style.display='none'">Got it</button>
           </div>
-          <div class="info-overlay-close-button-2" onclick="document.getElementById('main-buttons-style-help-overlay').style.display='none'">×</div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('main-buttons-style-help-overlay').style.display='none'">×</div>
         </div>
       </div>
 
@@ -1965,7 +1965,7 @@
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('main-buttons-advanced-style-help-overlay').style.display='none'">Got it</button>
           </div>
-          <div class="info-overlay-close-button-2" onclick="document.getElementById('main-buttons-advanced-style-help-overlay').style.display='none'">×</div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('main-buttons-advanced-style-help-overlay').style.display='none'">×</div>
         </div>
       </div>
       
@@ -2050,7 +2050,7 @@
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('chat-style-help-overlay').style.display='none'">Got it</button>
           </div>
-          <div class="info-overlay-close-button-2" onclick="document.getElementById('chat-style-help-overlay').style.display='none'">×</div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('chat-style-help-overlay').style.display='none'">×</div>
         </div>
       </div>
 

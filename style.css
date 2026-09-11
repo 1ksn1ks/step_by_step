@@ -227,6 +227,50 @@ html, body {
   color: #ffffff;
 }
 
+/* Info overlay X (close) buttons — top-right, cyan border + animated glow */
+.info-overlay-x {
+  position: absolute;
+  top: 0.5vh;
+  right: 0.5vh;
+  width: 3.4vh;
+  height: 3.4vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 2.4vh;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(34, 211, 238, 0.5);
+  box-shadow: 0 0 1vh rgba(34, 211, 238, 0.5),
+              inset 0 0 0.6vh rgba(34, 211, 238, 0.25);
+  cursor: pointer;
+  line-height: 1;
+  animation: overlayXGlow 2s ease-in-out infinite;
+}
+
+@keyframes overlayXGlow {
+  0%, 100% {
+    box-shadow: 0 0 1vh rgba(34, 211, 238, 0.5),
+                inset 0 0 0.6vh rgba(34, 211, 238, 0.25);
+    border-color: rgba(34, 211, 238, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 2vh rgba(34, 211, 238, 0.85),
+                inset 0 0 1vh rgba(34, 211, 238, 0.45);
+    border-color: rgba(34, 211, 238, 0.9);
+  }
+}
+
+.info-overlay-x:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  animation: none;
+  border-color: rgba(34, 211, 238, 0.9);
+  box-shadow: 0 0 1.6vh rgba(34, 211, 238, 0.8),
+              inset 0 0 0.8vh rgba(34, 211, 238, 0.4);
+}
+
   .rotation-controls {
     position: fixed;
     display: flex;
@@ -1730,6 +1774,20 @@ html, body {
     50% { transform: translateY(-0.4vh); }
   }
 
+  /* Chat panel titles (Topic Chat / E2EE Chat) */
+  .chat-panel-title {
+    font-size: 2.4vh;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: #22d3ee;
+    text-shadow: 0 0 1.5vh rgba(34, 211, 238, 0.6);
+    text-align: center;
+    margin-bottom: 0;
+    padding-top: 1vh;
+    padding-bottom: 0.5vh;
+    animation: optionsTitleFloat 3s ease-in-out infinite;
+  }
+
   .load-section-label {
     font-size: 1.2vh;
     letter-spacing: 0.2em;
@@ -1801,15 +1859,27 @@ html, body {
                onboardBorderPulse 1.3s ease-in-out 0.34s infinite;
   }
 
-  /* Same glow for the toolbar's own buttons (keeps their zoomIn) */
-  #toolbar .toolbar-column {
-    border: 0.1vh solid rgba(34, 211, 238, 0.6);
-    animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-               onboardBorderPulse 1.3s ease-in-out 0.25s infinite;
+  /* Toolbar + settings buttons: centered text (horizontally + vertically)
+     and pill corners like .toolbar-column-btns everywhere else */
+  #toolbar .toolbar-column,
+  #rotation-controls .toolbar-column {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding-left: 0;
+    border-radius: 999px;
   }
 
   /* The visibility card must fill its (narrower) wrapper instead of using
      the viewport-wide 100vw, or it overflows past the right screen edge */
   #visibility-controls .toolbar-containers {
     width: 100%;
+  }
+
+  /* Visibility rows: [value] - [button, centered via auto margins] - [value] */
+  #visibility-controls .toolbar-column-btns {
+    width: auto;
+    margin-left: auto;
+    margin-right: auto;
   }

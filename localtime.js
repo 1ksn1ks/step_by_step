@@ -67,7 +67,7 @@ const zoomEl = document.getElementById('local-zoom');
 
 function updateZoom() {
   if (!zoomEl) return;
-  zoomEl.textContent = `Z:${map.getZoom().toFixed(1)}`;
+  zoomEl.textContent = `Z: ${map.getZoom().toFixed(1)}`;
 }
 
 updateZoom();
