@@ -15,6 +15,10 @@ export let ownsModelNFT = false;
 export let loadedNFTsForModel = [];
 export let loadedNFTScaleForModel = [];
 
+export function setOwnsModelNFT(value) {
+  ownsModelNFT = value;
+}
+
 loadedNFTScaleForModel.sort((a, b) => b.scale - a.scale);
 
 export function updateRulesForModelNFTState() {

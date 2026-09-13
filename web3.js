@@ -16,7 +16,7 @@ import { loadProfileObject } from './loadprofileobject';
 import { loadButtonInputSettings } from './loadbuttoninput';
 import { loadMainButtonSettings } from './loadmainbutton';
 import { loadMarkerSettings } from './loadmarkersett';
-import { confirmNFTFunction, ownsModelNFT } from './confirmnft';
+import { confirmNFTFunction, setOwnsModelNFT, ownsModelNFT } from './confirmnft';
 import { handleAllMessages } from './handleallmessages';
 import {debounce} from './debounce'
 
@@ -151,7 +151,7 @@ async function disconnectWallet() {
     await signClient.disconnectAll();
 
     connectedAccount = null;
-    ownsModelNFT = false;
+    setOwnsModelNFT(false);
     walletBtn.style.display = "block";
     disconnectBtn.style.display = "none";
     accountSpan.textContent = 'None';
