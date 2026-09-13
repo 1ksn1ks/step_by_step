@@ -11,6 +11,8 @@ import { currentUfoModelInGLTF, globalLoadedTopicIdsWithNames} from './letall.js
 import { activePolygonPopups } from './polygons.js';
 import { activeMarkerPopups } from './marker.js';
 import { scene } from './threejs.js'
+import { renderLoadedTopics } from './handleallmessages.js';
+import { toast } from './toast.js';
 
 const toolbarColumns = document.querySelectorAll('.toolbar-column');
 
@@ -23,6 +25,24 @@ toolbarColumns.forEach(column => {
     column.classList.remove('active'); // Remove active class on touch end
   });
 });
+
+// LOAD column paste button (inside the Domain/Topic ID field, always
+// visible): replaces whatever is in the input with the clipboard text.
+// readText needs a secure context, so a blocked read just shows a toast.
+const loadInput = document.getElementById("input-field");
+const pasteBtn = document.getElementById("paste-topic-btn");
+if (pasteBtn) {
+  pasteBtn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    try {
+      const text = await navigator.clipboard.readText();
+      if (loadInput) loadInput.value = text.trim();
+    } catch (err) {
+      console.error("Paste failed:", err);
+      toast.error("Clipboard blocked - paste manually");
+    }
+  });
+}
 
 export function OpenToggleToolbar() {
     document.getElementById("main-toggle-btn").style.display = "none";
@@ -304,8 +324,7 @@ export function CloseALL() {
     document.getElementById("load-column").style.display = "block";
     document.getElementById("load-column-container").style.display = "block";
     const loaded_text_area = document.getElementById("loaded-topics");
-    loaded_text_area.innerHTML = '';
-    loaded_text_area.innerHTML = globalLoadedTopicIdsWithNames.join('<br>');
+    renderLoadedTopics(); // Rows: topic id + name + 📋 copy + ✕ unload
 
     if (isinfo) {
       document.getElementById("load-options-help-overlay").style.display = "block";
@@ -397,6 +416,16 @@ export function CloseALL() {
     if (isinfo) {
       document.getElementById("stack-topic-ids-help-overlay").style.display = "block";
     }
+
+    OpenToggleToolbar();
+    removeUfoModel();
+  });
+
+  document.getElementById("Set_Initial_XYZ").addEventListener("click", (event) => {
+    event.stopPropagation();
+    CloseALL();
+    document.getElementById("initial-xyz-column").style.display = "block";
+    document.getElementById("initial-xyz-column-container").style.display = "block";
 
     OpenToggleToolbar();
     removeUfoModel();
@@ -1077,6 +1106,15 @@ document.getElementById("hide-delete-marker-from-marker").addEventListener("clic
     document.getElementById("show-new-keys-from-create").style.display = "block";
   });
 
+  // The DRAW column title reflects the open form: MARKER / POLYGON / DRAW
+  function updateDrawTitle() {
+    const t = document.getElementById("draw-column-title");
+    if (!t) return;
+    if (document.getElementById("marker-column-container").style.display === "block") t.textContent = "📍 MARKER";
+    else if (document.getElementById("polygon-column-container").style.display === "block") t.textContent = "🔷 POLYGON";
+    else t.textContent = "✏️ DRAW";
+  }
+
   document.getElementById("show-draw-marker").addEventListener("click", (event) => {
     document.getElementById("polygon-column-container").style.display = "none";
     document.getElementById("marker-column-container").style.display = "block";
@@ -1084,14 +1122,16 @@ document.getElementById("hide-delete-marker-from-marker").addEventListener("clic
     document.getElementById("show-draw-marker").style.display = "none";
     document.getElementById("hide-draw-polygon").style.display = "none";
     document.getElementById("show-draw-polygon").style.display = "block";
+    updateDrawTitle();
   });
-  
+
   document.getElementById("hide-draw-marker").addEventListener("click", (event) => {
     document.getElementById("marker-column-container").style.display = "none";
     document.getElementById("hide-draw-marker").style.display = "none";
     document.getElementById("show-draw-marker").style.display = "block";
+    updateDrawTitle();
   });
-  
+
   document.getElementById("show-draw-polygon").addEventListener("click", (event) => {
     document.getElementById("marker-column-container").style.display = "none";
     document.getElementById("polygon-column-container").style.display = "block";
@@ -1099,12 +1139,14 @@ document.getElementById("hide-delete-marker-from-marker").addEventListener("clic
     document.getElementById("show-draw-polygon").style.display = "none";
     document.getElementById("hide-draw-marker").style.display = "none";
     document.getElementById("show-draw-marker").style.display = "block";
+    updateDrawTitle();
   });
-  
+
   document.getElementById("hide-draw-polygon").addEventListener("click", (event) => {
     document.getElementById("polygon-column-container").style.display = "none";
     document.getElementById("hide-draw-polygon").style.display = "none";
     document.getElementById("show-draw-polygon").style.display = "block";
+    updateDrawTitle();
   });
   
 
@@ -1232,7 +1274,7 @@ document.getElementById("hide-delete-polygon-from-polygon").addEventListener("cl
     document.getElementById("edit-profile-click2link"),
     document.getElementById("edit-profile-topic-id"),
     document.getElementById("edit-profile-topic-id-name"),
-    document.getElementById("edit-profile-topic-id-name-topic2pic"),
+    document.getElementById("edit-profile-bio"),
     document.getElementById("edit-profile-domain-time-left"),
   ];
   
@@ -1241,7 +1283,7 @@ document.getElementById("hide-delete-polygon-from-polygon").addEventListener("cl
     document.getElementById("show-username-from-edit-profile"),
     document.getElementById("show-click2link-from-edit-profile"),
     document.getElementById("show-topic-id-name-from-edit-profile"),
-    document.getElementById("show-topic-id-to-pfp-from-edit-profile"),
+    document.getElementById("show-bio-from-edit-profile"),
     document.getElementById("show-check-domain-availability-from-edit-profile"),
   ];
   
@@ -1251,7 +1293,7 @@ document.getElementById("hide-delete-polygon-from-polygon").addEventListener("cl
     document.getElementById("hide-username-from-edit-profile"),
     document.getElementById("hide-click2link-from-edit-profile"),
     document.getElementById("hide-topic-id-name-from-edit-profile"),
-    document.getElementById("hide-topic-id-to-pfp-from-edit-profile"),
+    document.getElementById("hide-bio-from-edit-profile"),
     document.getElementById("hide-check-domain-availability-from-edit-profile"),
   ];
   
@@ -1357,24 +1399,22 @@ document.getElementById("hide-delete-polygon-from-polygon").addEventListener("cl
     document.getElementById("edit-profile-topic-id-name").style.display = "none";
   });
   
-  document.getElementById("show-topic-id-to-pfp-from-edit-profile").addEventListener("click", (event) => {
+  document.getElementById("show-bio-from-edit-profile").addEventListener("click", (event) => {
     editProfileEverything()
     editProfileShowOptions()
     editProfileHideOptions()
-    document.getElementById("edit-profile-topic-id").style.display = "block";
-    document.getElementById("hide-topic-id-to-pfp-from-edit-profile").style.display = "block";
-    document.getElementById("show-topic-id-to-pfp-from-edit-profile").style.display = "none";
-    document.getElementById("edit-profile-topic-id-name-topic2pic").style.display = "block";
+    document.getElementById("hide-bio-from-edit-profile").style.display = "block";
+    document.getElementById("show-bio-from-edit-profile").style.display = "none";
+    document.getElementById("edit-profile-bio").style.display = "block";
   });
-  
-  document.getElementById("hide-topic-id-to-pfp-from-edit-profile").addEventListener("click", (event) => {
+
+  document.getElementById("hide-bio-from-edit-profile").addEventListener("click", (event) => {
     editProfileEverything()
     editProfileShowOptions()
     editProfileHideOptions()
-    document.getElementById("edit-profile-topic-id").style.display = "none";
-    document.getElementById("hide-topic-id-to-pfp-from-edit-profile").style.display = "none";
-    document.getElementById("show-topic-id-to-pfp-from-edit-profile").style.display = "block";
-    document.getElementById("edit-profile-topic-id-name-topic2pic").style.display = "none";
+    document.getElementById("hide-bio-from-edit-profile").style.display = "none";
+    document.getElementById("show-bio-from-edit-profile").style.display = "block";
+    document.getElementById("edit-profile-bio").style.display = "none";
   });
   
   document.getElementById("show-check-domain-availability-from-edit-profile").addEventListener("click", (event) => {

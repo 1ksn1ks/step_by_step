@@ -20,8 +20,8 @@ export const everythinginsideoptionsbuttons = [
     "model-column-save",
     "crosshair-column",
     "crosshair-column-save",
-    "popup-column-2",
-    "popup-column-3",
+    "popup-settings-backdrop",
+    "popup-settings-card",
     "main-button-column",
     "main-button-column-save",
     "marker-options-column",
@@ -41,6 +41,7 @@ export const everythinginsideoptionsbuttons = [
     "utility-column",
     "memo-column",
     "stack-topic-ids",
+    "initial-xyz-column",
   ];
 
   export const everyoverlay = [

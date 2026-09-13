@@ -1,6 +1,7 @@
 import {adjustTextareaHeight} from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
 import { getMessages, getAccountNFTs, sendMessage, getTopicInfo, subscribeToTopic } from './hedera';
+import { toast } from "./toast";
 import { profilePictures, usernames, click2url } from './loadalladata';
 import { 
   topicChatHeaderColor,
@@ -13,7 +14,7 @@ import {
   timestampFontSizeTopicChat
  } from './letall';
 
- import { connectedAccount } from './web3';
+ import { connectedAccount, signer } from './web3';
 
 
 export let allLoadedMessagesTopicChat = [];
@@ -97,7 +98,7 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
       img.style.cssText = 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer;';
       img.dataset.payer = payer;
       img.className = 'profile-img-click';
-      img.addEventListener('click', () => loadTOPIC4PIC(payer));
+      img.addEventListener('click', () => loadBio4PIC(payer));
       currentGroupContainer.appendChild(img);
 
       // Content wrapper
@@ -151,15 +152,17 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
 
     // ========== ADD MESSAGE TO CURRENT GROUP ==========
     const messageWrapper = document.createElement('div');
-    messageWrapper.style.cssText = `display: flex; flex-direction: column; justify-content: center; margin-top: 0.5em;`;
+    messageWrapper.style.cssText = `display: flex; flex-direction: column; justify-content: center; margin-top: 0.2em;`;
 
     const messageText = document.createElement('div');
     messageText.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
+    messageText.className = 'chat-msg-text';
     messageText.textContent = userMessage;
     messageWrapper.appendChild(messageText);
 
     const timestampSpan = document.createElement('span');
     timestampSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
+    timestampSpan.className = 'chat-msg-time';
     timestampSpan.textContent = timestamp;
     messageWrapper.appendChild(timestampSpan);
 
@@ -186,9 +189,9 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
 
     // Show spinner
     messagesContainer.innerHTML = `
-      <div style="display: flex; justify-content: left; align-items: left; height: 100%;">
+      <div class="chat-state" style="display: flex; justify-content: left; align-items: left; height: 100%;">
         <div id="topicspinnerchat"></div>
-        <span style="margin-left: 1vw;">Loading messages from ${topicId}</span>
+        <span style="margin-left: 0.45vh;">Loading messages from ${topicId}</span>
       </div>`;
     adjustTextareaHeight(messagesContainer);
 
@@ -204,8 +207,8 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
       });
     } catch (error) {
       messagesContainer.innerHTML = `
-        <div style="display: flex; justify-content: left; align-items: left; height: 100%;">
-          <span style="margin-left: 1vw;">Invalid Topic ID</span>
+        <div class="chat-state" style="display: flex; justify-content: left; align-items: left; height: 100%;">
+          <span style="margin-left: 0.45vh;">Invalid Topic ID</span>
         </div>`;
       adjustTextareaHeight(messagesContainer);
       return;
@@ -257,14 +260,16 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
     if (!messagesContainer.firstChild) {
       const noMessagesDiv = document.createElement('div');
       noMessagesDiv.style.cssText = 'display: flex; justify-content: left; align-items: left; height: 100%;';
+      noMessagesDiv.className = 'chat-state';
       const span = document.createElement('span');
-      span.style.marginLeft = '1vw';
+      span.style.marginLeft = '0.45vh';
       span.textContent = 'No messages found';
       noMessagesDiv.appendChild(span);
       messagesContainer.appendChild(noMessagesDiv);
     } else {
       adjustTextareaHeight(messagesContainer);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      toast.loaded("Messages loaded");
     }
 
   } catch (error) {
@@ -279,27 +284,19 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
     let fromDate;
     let toDate;
   
-    // Handle date and time parsing (unchanged)
+    // Handle date and time parsing (native date/time input values: YYYY-MM-DD / HH:MM)
     if (fromTimeValue && toTimeValue && fromDateValue && toDateValue) {
-      fromDate = new Date(
-        fromDateValue.slice(4, 8),
-        fromDateValue.slice(0, 2) - 1,
-        fromDateValue.slice(2, 4),
-        fromTimeValue.slice(0, 2),
-        fromTimeValue.slice(2, 4),
-        fromTimeValue.slice(4, 6)
-      );
-      toDate = new Date(
-        toDateValue.slice(4, 8),
-        toDateValue.slice(0, 2) - 1,
-        toDateValue.slice(2, 4),
-        toTimeValue.slice(0, 2),
-        toTimeValue.slice(2, 4),
-        toTimeValue.slice(4, 6)
-      );
+      const [fY, fM, fD] = fromDateValue.split("-").map(Number);
+      const [fH, fMin] = fromTimeValue.split(":").map(Number);
+      const [tY, tM, tD] = toDateValue.split("-").map(Number);
+      const [tH, tMin] = toTimeValue.split(":").map(Number);
+      fromDate = new Date(fY, fM - 1, fD, fH, fMin);
+      toDate = new Date(tY, tM - 1, tD, tH, tMin, 59, 999); // include the whole "to" minute
     } else if (fromDateValue && toDateValue) {
-      fromDate = new Date(fromDateValue.slice(4, 8), fromDateValue.slice(0, 2) - 1, fromDateValue.slice(2, 4));
-      toDate = new Date(toDateValue.slice(4, 8), toDateValue.slice(0, 2) - 1, toDateValue.slice(2, 4));
+      const [fY, fM, fD] = fromDateValue.split("-").map(Number);
+      const [tY, tM, tD] = toDateValue.split("-").map(Number);
+      fromDate = new Date(fY, fM - 1, fD);
+      toDate = new Date(tY, tM - 1, tD, 23, 59, 59, 999); // include the whole "to" day
     } else {
       fromDate = new Date(0);
       toDate = new Date();
@@ -401,7 +398,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
           border-radius: 1em;
           cursor: pointer;
         `;
-        img.addEventListener('click', () => loadTOPIC4PIC(payer));
+        img.addEventListener('click', () => loadBio4PIC(payer));
         currentGroupDiv.appendChild(img);
   
         // Content wrapper (matches first function structure)
@@ -485,15 +482,17 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         display: flex;
         flex-direction: column;
         justify-content: center;
-        margin-top: 0.5em;
+        margin-top: 0.2em;
       `;
   
       const contentDiv = document.createElement('div');
       contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
+      contentDiv.className = 'chat-msg-text';
       contentDiv.textContent = userMessage;
-  
+
       const timeSpan = document.createElement('span');
       timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
+      timeSpan.className = 'chat-msg-time';
       timeSpan.textContent = timestamp;
   
       msgWrapper.appendChild(contentDiv);
@@ -509,9 +508,10 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
     if (messagesContainer.children.length === 0) {
       const noMessagesDiv = document.createElement('div');
       noMessagesDiv.style.cssText = 'display: flex; justify-content: left; align-items: left; height: 100%;';
+      noMessagesDiv.className = 'chat-state';
   
       const noMessagesSpan = document.createElement('span');
-      noMessagesSpan.style.marginLeft = '1vw';
+      noMessagesSpan.style.marginLeft = '0.45vh';
       noMessagesSpan.textContent = 'No messages found';
   
       noMessagesDiv.appendChild(noMessagesSpan);
@@ -561,14 +561,22 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
   
   document.getElementById("save-time-from-topic-chat").addEventListener("click", async () => {
     try {
+      if (!signer) {
+        toast.error("Connect wallet first");
+        return;
+      }
       let userInput = document.getElementById("topic-chat-topic-id").value;
       let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
       let topicId;
-  
+
         if (domainEntry && domainEntry.lastMessage) {
         topicId = domainEntry.lastMessage.topic;
       } else {
         topicId = userInput;
+      }
+      if (!topicId) {
+        toast.error("Please enter a Topic ID or domain.");
+        return;
       }
       const fromMmddyyyy = document.getElementById("from-mmddyyyy").value;
       const toMmddyyyy = document.getElementById("to-mmddyyyy").value;
@@ -584,6 +592,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         }
       };
       const meesage = JSON.stringify(meesageobject);
+      toast.info("Confirm in wallet 👛");
       const reciept = await sendMessage(topicId, meesage);
     } catch (error) {
       console.error("Error saving time from topic chat:", error);
@@ -616,21 +625,34 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
   
   document.getElementById("save-filters-from-topic-chat").addEventListener("click", async () => {
     try {
+      if (!signer) {
+        toast.error("Connect wallet first");
+        return;
+      }
       let userInput = document.getElementById("topic-chat-topic-id").value;
       let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
       let topicId;
-  
+
         if (domainEntry && domainEntry.lastMessage) {
         topicId = domainEntry.lastMessage.topic;
       } else {
         topicId = userInput;
       }
+      if (!topicId) {
+        toast.error("Please enter a Topic ID or domain.");
+        return;
+      }
       const topicChatFromUsers = document.getElementById("load-msgs-from-ids-topic-chat").value;
+      if (!topicChatFromUsers) {
+        toast.error("Please enter the account IDs to load.");
+        return;
+      }
       console.log("topicChatFromUsers", topicChatFromUsers);
       const meesageobject = {
         topicChatFromUsers: topicChatFromUsers
       };
       const meesage = JSON.stringify(meesageobject);
+      toast.info("Confirm in wallet 👛");
       const reciept = await sendMessage(topicId, meesage);
     } catch (error) {
       console.error("Error loading filters from users:", error);
@@ -660,21 +682,34 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
   
   document.getElementById("save-blocks-from-topic-chat").addEventListener("click", async () => {
     try {
+      if (!signer) {
+        toast.error("Connect wallet first");
+        return;
+      }
       let userInput = document.getElementById("topic-chat-topic-id").value;
       let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
       let topicId;
-  
+
         if (domainEntry && domainEntry.lastMessage) {
         topicId = domainEntry.lastMessage.topic;
       } else {
         topicId = userInput;
       }
+      if (!topicId) {
+        toast.error("Please enter a Topic ID or domain.");
+        return;
+      }
       const topicChatBlocks = document.getElementById("load-blocks-from-ids-topic-chat").value;
+      if (!topicChatBlocks) {
+        toast.error("Please enter the account IDs to block.");
+        return;
+      }
         console.log("topicChatBlocks", topicChatBlocks);
       const meesageobject = {
         topicChatBlocks: topicChatBlocks
       };
       const meesage = JSON.stringify(meesageobject);
+      toast.info("Confirm in wallet 👛");
       const reciept = await sendMessage(topicId, meesage);
     } catch (error) {
       console.error("Error loading filters from users:", error);

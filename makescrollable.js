@@ -1,4 +1,4 @@
-function makeScrollable(el) {
+export function makeScrollable(el) {
     let startY = 0, startScroll = 0;
     let isDragging = false;
     let hasMoved = false;

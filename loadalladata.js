@@ -3,15 +3,15 @@ import { getMessages } from "./hedera";
 export let profilePictures = [];
 export let usernames = [];
 export let click2url = [];
-export let topic2pic = [];
+export let topicBio = [];
 
 export async function loadAllData() {
    profilePictures = await loadProfilePicture();
    usernames       = await loadUsername();
    click2url       = await loadCLICK2URL();
-   topic2pic       = await loadTOPIC2PIC();
+   topicBio        = await loadTopicBio();
 
-  return { profilePictures, usernames, click2url, topic2pic };
+  return { profilePictures, usernames, click2url, topicBio };
 }
 
 loadAllData();
@@ -144,36 +144,36 @@ try {
 }
 
 
-export async function loadTOPIC2PIC() {
+export async function loadTopicBio() {
 const topicId = "0.0.9759201";
-const accountTOPIC2PIC = {}; // Dictionary to store account IDs and their topics2pic
+const accountTopicBio = {}; // Dictionary to store account IDs and their bios
 
 try {
   const rawResult = await getMessages(topicId);
 
   // Check if rawResult exists and has messages
   if (!rawResult || !Array.isArray(rawResult.messages)) {
-    console.log("No TOPIC2PIC found, using defaults");
+    console.log("No topic_bio found, using defaults");
     return {};
   }
 
-  // Process all messages to build the accountTOPIC2PIC dictionary
+  // Process all messages to build the accountTopicBio dictionary
   rawResult.messages.forEach(message => {
-    if (message.payer && message.data && message.data.topic2pic) {
-      // Only store topics2pic with less than 20 characters
-      if (message.data.topic2pic.length < 20) {
-        accountTOPIC2PIC[message.payer] = {
-          topic2pic: message.data.topic2pic,
+    if (message.payer && message.data && message.data.topic_bio) {
+      // Only store bios with less than 256 characters
+      if (message.data.topic_bio.length < 256) {
+        accountTopicBio[message.payer] = {
+          topic_bio: message.data.topic_bio,
           timestamp: message.timestamp
         };
       }
     }
   });
 
-  return accountTOPIC2PIC;
+  return accountTopicBio;
 
 } catch (error) {
-  console.log("Error in loadTOPIC2PIC:", error);
+  console.log("Error in loadTopicBio:", error);
   return {}; // Return empty object instead of throwing error
 }
 }

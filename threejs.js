@@ -100,10 +100,11 @@ function animate() {
     const center = map.getCenter();
     const lat = center.lat.toFixed(5);
     const lng = center.lng.toFixed(5);
-  
+    const zoom = map.getZoom().toFixed(1);
+
     // Update coordinates display only if changed
     const coordinatesDisplay = document.getElementById("coordinates-display");
-    const newCoords = `lng,lat = ${lng},${lat}`;
+    const newCoords = `Z: ${zoom} · lng: ${lng}, lat: ${lat}`;
     if (coordinatesDisplay.value !== newCoords) {
       coordinatesDisplay.value = newCoords;
   

@@ -1,16 +1,27 @@
 import { getMessages, sendMessage } from "./hedera";
+import { signer } from "./web3";
+import { toast } from "./toast";
 
 
 document.getElementById("savecrosshair").addEventListener("click", async (event) => {
     event.stopPropagation();
-    
+
             try {
+                if (!signer) {
+                    toast.error("Connect wallet first");
+                    return;
+                }
                 const topicId = "0.0.9609927";
-    
+
                 const colorCrosshair = document.getElementById("crosshair-color").value;
-    
+
                 const crosshairBeforeWidth = document.getElementById("crosshair-before-after").value;
                 const crosshairAfterHeight = document.getElementById("crosshair-after-before").value;
+
+                if (!colorCrosshair || !crosshairBeforeWidth || !crosshairAfterHeight) {
+                    toast.error("Please fill in all crosshair fields.");
+                    return;
+                }
     
                 // Construct the message data
                 const messageData = {
@@ -26,7 +37,8 @@ document.getElementById("savecrosshair").addEventListener("click", async (event)
                 };
     
                 const message = JSON.stringify(messageData);
-    
+
+                toast.info("Confirm in wallet 👛");
                 const receipt = await sendMessage(
                     topicId,
                     message

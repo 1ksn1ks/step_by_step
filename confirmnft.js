@@ -3,15 +3,15 @@ import { handleAllMessages } from './handleallmessages.js'
 import { getAccountNFTs } from "./hedera";
 import { someFunction } from "./P2PModel.js";
 import { initialTopicId } from "./extracttopic.js";
-import { loadUfoModel } from "./loadUFOModel.js";
-import { loadProfileObject } from "./loadprofileobject.js";
+import { loadUfoModel } from "./loadUFOModel";
+import { loadProfileObject } from "./loadprofileobject";
 
 let BetaNFTScaleFactor = 1;
 let scaleForModel = 1;
 let finalScaleForModel = 1;
 
-
 export let hasRulesForModelNFT = false;
+export let ownsModelNFT = false;
 export let loadedNFTsForModel = [];
 export let loadedNFTScaleForModel = [];
 
@@ -31,8 +31,7 @@ export async function confirmNFTFunction(accountId) {
   let userInput = document.getElementById("input-field").value.toLowerCase();
   let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
   let topicId;
-
-  let thisUfomodel = await loadProfileObject(accountId)
+  let thisUModel = await loadProfileObject(accountId)
 
   if (domainEntry && domainEntry.lastMessage) {
     topicId = domainEntry.lastMessage.topic;
@@ -43,6 +42,7 @@ export async function confirmNFTFunction(accountId) {
 
   loadedNFTsForModel.length = 0;
   hasRulesForModelNFT = false;
+  ownsModelNFT = false;
 
 
   const NFTForModel = await getAccountNFTs(accountId, tokenIdForModel);
@@ -73,13 +73,14 @@ export async function confirmNFTFunction(accountId) {
 
 
   if (NFTForModel.length > 0) {
+    ownsModelNFT = true;
     try {
       if (hasRulesForModelNFT === true) {
         for (const nft of loadedNFTsForModel) {
           const checkIfUserHasNFT = await getAccountNFTs(accountId, nft);
           if (checkIfUserHasNFT.length > 0) {
             await someFunction(accountId, topicId);
-            loadUfoModel(thisUfomodel)
+            loadUfoModel(thisUModel)
             return true;
           }
         }
@@ -88,7 +89,7 @@ export async function confirmNFTFunction(accountId) {
 
       if (hasRulesForModelNFT === false) {
         await someFunction(accountId, topicId);
-        loadUfoModel(thisUfomodel)
+        loadUfoModel(thisUModel)
       }
 
     } catch (error) {

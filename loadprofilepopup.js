@@ -1,12 +1,18 @@
 import { getMessages, sendMessage } from "./hedera";
+import { signer } from "./web3";
+import { toast } from "./toast";
 
 
 document.getElementById("savepopup3").addEventListener("click", async (event) => {
     event.stopPropagation();
-    
+
             try {
+                if (!signer) {
+                    toast.error("Connect wallet first");
+                    return;
+                }
                 const topicId = "0.0.9771374";
-    
+
                 const hexColorBorder = document.getElementById('color-picker-popup-border').value;
                 const hexColorNumber = document.getElementById('color-picker-popup-number').value;
                 const hexColorClose = document.getElementById('color-picker-popup-close').value;
@@ -14,7 +20,12 @@ document.getElementById("savepopup3").addEventListener("click", async (event) =>
                 const hexColorUsername = document.getElementById('color-picker-popup-username').value;
                 const hexColorTitles = document.getElementById('color-picker-popup-titles').value;
                 const hexColorText = document.getElementById('color-picker-popup-text').value;
-                const popupFontSize = Math.min(parseFloat(document.getElementById("popup-font-size").value) || 0.5, 10);
+                const popupFontSize = Math.min(Math.max(parseFloat(document.getElementById("popup-font-size").value) || 1, 1), 3);
+
+                if (!hexColorBorder || !hexColorNumber || !hexColorClose || !hexColorAccid || !hexColorUsername || !hexColorTitles || !hexColorText) {
+                    toast.error("Please fill in all color fields.");
+                    return;
+                }
     
                 const messageData = {
                     data: {
@@ -30,7 +41,8 @@ document.getElementById("savepopup3").addEventListener("click", async (event) =>
                 };
     
                 const message = JSON.stringify(messageData);
-    
+
+                toast.info("Confirm in wallet 👛");
                 const receipt = await sendMessage(
                     topicId,
                     message
@@ -81,7 +93,7 @@ export async function loadProfilePopup(a) {
                 document.getElementById("color-picker-popup-username").value = colorUsername;
                 document.getElementById("color-picker-popup-titles").value = colorTitles;
                 document.getElementById("color-picker-popup-text").value = colorText;
-                document.getElementById("popup-font-size").value = popupFontSize;
+                document.getElementById("popup-font-size").value = Math.min(Math.max(parseFloat(popupFontSize) || 1, 1), 3);
     
                 updatePopupBorder();
                 updatePopupNumber();
@@ -180,7 +192,7 @@ export function applyAllStyles() {
     
     function updatePopupFontSize() {
         const popupFontSize = document.getElementById("popup-font-size").value;
-        const popupFontSizeValue = Math.min(parseFloat(popupFontSize) || 0.5, 10);
+        const popupFontSizeValue = Math.min(Math.max(parseFloat(popupFontSize) || 1, 1), 3);
         const popupTexts = document.querySelectorAll('.maplibregl-popup-content');
         popupTexts.forEach(text => {
             text.style.fontSize = `${popupFontSizeValue}vh`;

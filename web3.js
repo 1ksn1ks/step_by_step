@@ -16,7 +16,7 @@ import { loadProfileObject } from './loadprofileobject';
 import { loadButtonInputSettings } from './loadbuttoninput';
 import { loadMainButtonSettings } from './loadmainbutton';
 import { loadMarkerSettings } from './loadmarkersett';
-import { confirmNFTFunction } from './confirmnft';
+import { confirmNFTFunction, ownsModelNFT } from './confirmnft';
 import { handleAllMessages } from './handleallmessages';
 import {debounce} from './debounce'
 
@@ -57,7 +57,7 @@ async function init() {
       loadButtonInputSettings(accountId)
       loadMainButtonSettings(accountId)
       loadMarkerSettings(accountId)
-      confirmNFTFunction(accountId)
+      confirmNFTFunction(accountId).then(() => updateUI())
 
       const senderId = AccountId.fromString(connectedAccount);
       signer = dAppConnector.getSigner(senderId);
@@ -65,6 +65,7 @@ async function init() {
 
       newToolbarLoad.addEventListener("click", debounce(async () => {
         await confirmNFTFunction(accountId);
+        updateUI();
     }, 500));
     } else {
 
@@ -100,6 +101,10 @@ function updateUI() {
     disconnectBtn.style.display = "none";
     walletBtn.style.display = "block";  // or whatever your default is
   }
+
+  const nftSettingsVisible = connectedAccount && ownsModelNFT ? "block" : "none";
+  document.getElementById("change-model-settings").style.display = nftSettingsVisible;
+  document.getElementById("change-crosshair-settings").style.display = nftSettingsVisible;
 }
 
 init();
@@ -120,7 +125,7 @@ async function connectWallet() {
       loadButtonInputSettings(accountId)
       loadMainButtonSettings(accountId)
       loadMarkerSettings(accountId)
-      confirmNFTFunction(accountId)
+      confirmNFTFunction(accountId).then(() => updateUI())
 
       const senderId = AccountId.fromString(connectedAccount);
       signer = dAppConnector.getSigner(senderId);
@@ -129,7 +134,6 @@ async function connectWallet() {
       disconnectBtn.style.display = "block";
       connectBtn.style.display = "none";
       disconnectBtn.textContent = 'Disconnect';
-      document.getElementById("connect-new-wallet-btn").style.display = "none";
 
       console.log('Signer stored globally:', signer);
     } else {
@@ -147,10 +151,12 @@ async function disconnectWallet() {
     await signClient.disconnectAll();
 
     connectedAccount = null;
+    ownsModelNFT = false;
     walletBtn.style.display = "block";
     disconnectBtn.style.display = "none";
     accountSpan.textContent = 'None';
     connectBtn.textContent = 'Connect';
+    updateUI();
   } catch (err) {
     console.error('Disconnect error:', err);
     connectedAccount = null;
@@ -163,13 +169,8 @@ connectBtn.addEventListener('click', connectWallet);
 disconnectBtn.addEventListener('click', disconnectWallet);
 
 walletBtn.addEventListener("click", () => {
-  document.getElementById("connect-new-wallet-btn").style.display = "block";
   document.getElementById("connect-wallet-btn").style.display = "block";
   disconnectBtn.style.display = "none";
   walletBtn.style.display = "none";
-});
-
-document.getElementById("connect-new-wallet-btn").addEventListener("click", () => {
-  window.open("https://wallet.hashpack.app", "_blank");
 });
 

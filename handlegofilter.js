@@ -57,25 +57,17 @@ async function handleGeoFilter() {
     let toDate;
   
     if (fromTimeValue && toTimeValue && fromDateValue && toDateValue) {
-      fromDate = new Date(
-        fromDateValue.slice(4, 8),
-        fromDateValue.slice(0, 2) - 1,
-        fromDateValue.slice(2, 4),
-        fromTimeValue.slice(0, 2), // Hours
-        fromTimeValue.slice(2, 4), // Minutes
-        fromTimeValue.slice(4, 6)  // Seconds
-      );
-      toDate = new Date(
-        toDateValue.slice(4, 8),
-        toDateValue.slice(0, 2) - 1,
-        toDateValue.slice(2, 4),
-        toTimeValue.slice(0, 2), // Hours
-        toTimeValue.slice(2, 4), // Minutes
-        toTimeValue.slice(4, 6)  // Seconds
-      );
+      const [fY, fM, fD] = fromDateValue.split("-").map(Number);
+      const [fH, fMin] = fromTimeValue.split(":").map(Number);
+      const [tY, tM, tD] = toDateValue.split("-").map(Number);
+      const [tH, tMin] = toTimeValue.split(":").map(Number);
+      fromDate = new Date(fY, fM - 1, fD, fH, fMin);
+      toDate = new Date(tY, tM - 1, tD, tH, tMin, 59, 999); // include the whole "to" minute
     } else if (fromDateValue && toDateValue) {
-      fromDate = new Date(fromDateValue.slice(4, 8), fromDateValue.slice(0, 2) - 1, fromDateValue.slice(2, 4));
-      toDate = new Date(toDateValue.slice(4, 8), toDateValue.slice(0, 2) - 1, toDateValue.slice(2, 4));
+      const [fY, fM, fD] = fromDateValue.split("-").map(Number);
+      const [tY, tM, tD] = toDateValue.split("-").map(Number);
+      fromDate = new Date(fY, fM - 1, fD);
+      toDate = new Date(tY, tM - 1, tD, 23, 59, 59, 999); // include the whole "to" day
     }
 
     // Filter storedMarkers

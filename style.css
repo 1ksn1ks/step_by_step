@@ -8,6 +8,7 @@ html, body {
     height: 100vh;
     top: 0;
     left: 0;
+    background-color: #0a0a0a;
   }
   
   #loader-overlay {
@@ -54,7 +55,7 @@ html, body {
     width: 100%;
     height: 100%;
   }
-  
+
   #three-container {
     position: fixed;
     top: 0;
@@ -65,121 +66,254 @@ html, body {
   }
   
   .options-and-topic {
-    background-color: #007bff;
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
     color: white;
-    border: none;
-    padding: 0.8vh 1vw;
-    border-radius: 0.8vh;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 0.8vh 0.45vh;
+    border-radius: 1.5vh;
     cursor: pointer;
     font-size: 1.5vh;
-    animation: zoomIn 0.5s ease-in-out;
+    animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
-  
+
 
   .info-button {
     background-color:transparent;
     color: white;
     border: none;
-    padding: 0.8vh 1vw;
+    padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     cursor: pointer;
     font-size: 1.5vh;
-    animation: zoomIn 0.5s ease-in-out;
+    animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
 
 .info-overlay {
   position: absolute;
   inset: 0;
+  top: 10vh;
   z-index: 1003;
-  background: rgba(0, 0, 0, 0.65); /* semi-dark modal backdrop */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4vh 5vw;
+  background: rgba(8, 8, 18, 0.68);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
   cursor: pointer;
   user-select: none;
-  display:none;
-  top:10vh;
+  display: none;
+  animation: overlay-fade-in 0.22s ease-out;
 }
 
+@keyframes overlay-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 
 .info-overlay-inner {
-  background: #1e1e2e;
-  color: #e0e0ff;
-  border-radius: 12px;
-  padding: 3vh 4vw;
-  max-width: 100%;
-  max-height: 80vh;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(18, 18, 28, 0.78);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
+  color: #e6e6f0;
+  border-radius: 20px;
+  padding: 3.2vh 1.53vh 2.6vh;
+  width: 90%;
+  max-height: 76vh;
   overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-  border: 1px solid #444;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   cursor: default;
+  animation: overlay-pop-in 0.34s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes overlay-pop-in {
+  from { transform: translate(-50%, -50%) scale(0.94); opacity: 0; }
+  to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+.info-overlay-inner::-webkit-scrollbar { width: 6px; }
+.info-overlay-inner::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.info-overlay-title {
+  margin: 0;
+  font-size: 2.6vh;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: center;
+  color: #ffffff;
+}
+
+.info-overlay-subtitle {
+  margin: 0.8vh 0 0;
+  font-size: 1.8vh;
+  text-align: center;
+  color: rgba(230, 230, 245, 0.6);
+}
+
+.info-overlay-list {
+  list-style: none;
+  margin: 2.4vh 0 0;
+  padding: 0;
+}
+
+.info-overlay-list li {
   position: relative;
+  padding: 0.55vh 0 0.55vh 2.8vh;
+  font-size: 1.9vh;
+  line-height: 1.45;
+  color: rgba(230, 230, 245, 0.85);
+}
+
+.info-overlay-list li::before {
+  content: "";
+  position: absolute;
+  left: 0.6vh;
+  top: 1.4vh;
+  width: 0.55vh;
+  height: 0.55vh;
+  border-radius: 50%;
+  background: #7c9eff;
+}
+
+.info-overlay-list b {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.info-overlay-actions {
+  margin-top: 3vh;
+  text-align: center;
 }
 
 .info-overlay-close-button-1 {
-  background: #6366f1;
-  color: white;
+  background: rgba(255, 255, 255, 0.94);
+  color: #0b0b14;
   border: none;
-  padding: 1.2vh 4vw;
-  border-radius: 8px;
-  font-size: 2.1vh;
+  padding: 1.3vh 2.25vh;
+  border-radius: 999px;
+  font-size: 2vh;
+  font-weight: 600;
   cursor: pointer;
-  min-width: 160px;
+  min-width: 180px;
 }
 
 .info-overlay-close-button-2 {
-position: absolute;
-top: 1.2vh;
-right: 1.8vw;
-font-size: 3vh;
-color: #888;
-cursor: pointer;
-line-height: 1;
+  position: absolute;
+  top: 1.6vh;
+  right: 0.63vh;
+  width: 3.4vh;
+  height: 3.4vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 2.4vh;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  line-height: 1;
 }
 
-  
+.info-overlay-close-button-2:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+/* Info overlay X (close) buttons — top-right, cyan border + animated glow */
+.info-overlay-x {
+  position: absolute;
+  top: 0.5vh;
+  right: 0.5vh;
+  width: 3.4vh;
+  height: 3.4vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 2.4vh;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(34, 211, 238, 0.5);
+  box-shadow: 0 0 1vh rgba(34, 211, 238, 0.5),
+              inset 0 0 0.6vh rgba(34, 211, 238, 0.25);
+  cursor: pointer;
+  line-height: 1;
+  animation: overlayXGlow 2s ease-in-out infinite;
+}
+
+@keyframes overlayXGlow {
+  0%, 100% {
+    box-shadow: 0 0 1vh rgba(34, 211, 238, 0.5),
+                inset 0 0 0.6vh rgba(34, 211, 238, 0.25);
+    border-color: rgba(34, 211, 238, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 2vh rgba(34, 211, 238, 0.85),
+                inset 0 0 1vh rgba(34, 211, 238, 0.45);
+    border-color: rgba(34, 211, 238, 0.9);
+  }
+}
+
+.info-overlay-x:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  animation: none;
+  border-color: rgba(34, 211, 238, 0.9);
+  box-shadow: 0 0 1.6vh rgba(34, 211, 238, 0.8),
+              inset 0 0 0.8vh rgba(34, 211, 238, 0.4);
+}
+
   .rotation-controls {
     position: fixed;
     display: flex;
     flex-direction: column;
-    background-color: rgba(0, 0, 0, 0.8);
+    background-color: rgba(15, 15, 20, 0.55);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
     color: white;
-    padding-top: 1vh;
-    padding-bottom: 0.5vh;
-    padding-left: 1vw;
-    padding-right: 1vw;
-    border-radius: 1vh;
+    padding-top: 1.4vh;
+    padding-bottom: 0.8vh;
+    padding-left: 0.63vh;
+    padding-right: 0.63vh;
+    border-radius: 2vh;
     z-index: 1001;
     justify-content: space-around;
     width: 98vw;
     top: 10vh;
-    left: 0;
+    left: 1vw;
     transform: none;
     display: none;
-    animation: slideIn 0.5s ease-in-out;
+    animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
-  
+
   .menu_buttons {
     position: fixed;
     left: 0;
     z-index: 1006;
-    background-color: #007bff;
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
     color: white;
-    border: none;
-    padding: 0.8vh 1vw;
-    border-radius: 0.8vh;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 0.8vh 0.45vh;
+    border-radius: 1.5vh;
     cursor: pointer;
     font-size: 1.5vh;
     display: none;
     margin-left: 0.3vh;
-    animation: zoomIn 0.5s ease-in-out;
+    animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   
   @keyframes zoomIn {
-    from { transform: scale(0.5); opacity: 0; }
+    from { transform: scale(0.96); opacity: 0; }
     to { transform: scale(1); opacity: 1; }
   }
   
@@ -198,32 +332,55 @@ line-height: 1;
     background-color: rgba(0, 0, 0, 0);
     color: white;
     box-sizing: border-box;
-    border-radius: 1vh;
-    animation: slideIn 0.5s ease-in-out;
+    animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
-  
+
   .toolbar {
     position: fixed;
     display: flex;
     flex-direction: column;
-    background-color: rgba(0, 0, 0, 0.8);
+    background-color: rgba(15, 15, 20, 0.55);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
     color: white;
-    border-radius: 1vh;
+    border-radius: 2vh;
     z-index: 1001;
     justify-content: space-around;
     top: 10vh;
-    left: 0;
+    left: 1vw;
     transform: none;
     width: 98vw;
-    padding-top: 1vh;
-    padding-bottom: 0.5vh;
-    padding-left: 1vw;
-    padding-right: 1vw;
-    animation: slideIn 0.5s ease-in-out;
+    padding-top: 1.4vh;
+    padding-bottom: 0.8vh;
+    padding-left: 0.63vh;
+    padding-right: 0.63vh;
+    animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
-  
+
   .toolbar-containers {
-    background-color: rgba(0, 0, 0, 0.8);
+    background-color: rgba(15, 15, 20, 0.55);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    color: white;
+    border-radius: 4px;
+    box-sizing: border-box;
+    border-radius: 2vh;
+    overflow-y: auto; /* Enable vertical scrolling */
+    max-height: 80vh; /* Limit the height to 80% of the viewport */
+    touch-action: auto; /* Enable touch interactions */
+    resize: none; /* Prevent manual resizing */
+    width: 100vw;
+    padding-top: 1.4vh;
+    padding-bottom: 0.8vh;
+    padding-left: 0.63vh;
+    padding-right: 0.63vh;
+    animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .save-settings-toolbar-containers {
+    background-color: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
     color: white;
     border-radius: 4px;
     box-sizing: border-box;
@@ -233,13 +390,13 @@ line-height: 1;
     touch-action: auto; /* Enable touch interactions */
     resize: none; /* Prevent manual resizing */
     width: 100vw;
-    padding-top: 1vh;
-    padding-bottom: 0.5vh;
-    padding-left: 1vw;
-    padding-right: 1vw;
-    animation: slideIn 0.5s ease-in-out;
+    padding-top: 1.4vh;
+    padding-bottom: 0.8vh;
+    padding-left: 0.63vh;
+    padding-right: 0.63vh;
+    animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
-  
+
   @keyframes slideIn {
       from {
         opacity: 0;
@@ -250,14 +407,14 @@ line-height: 1;
         transform: translateY(0);
       }
     }
-  
+
   .toolbar-group {
     width: 100%;
     color: white;
     padding-top: 1vh;
     padding-bottom: 0.5vh !important;
-    padding-left: 1vw;
-    padding-right: 1vw;
+    padding-left: 0.45vh;
+    padding-right: 0.45vh;
     border: 0.1vh solid white;
     border-radius: 1vh;
     box-sizing: border-box;
@@ -270,35 +427,96 @@ line-height: 1;
   }
   
   .toolbar-group-messages {
-    margin-bottom: -1em !important;
+    margin-bottom: 0.6em;
     width: 100%;
     color: white;
-    border: 0.1vh solid white;
-    padding-top: 0.25em;
+    border: none;
+    padding-top: 0.4em;
     padding-bottom: 0.5em;
-    border-radius: 1vh;
+    padding-right: 0.5em;
+    border-radius: 1.2vh;
     box-sizing: border-box;
-    border: 0.1vh solid #ffc107;
     overflow: hidden; /* Hide scrollbars */
     resize: none; /* Prevent manual resizing */
-    background-color: transparent;
+    background-color: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0.2vh 0.8vh rgba(0, 0, 0, 0.25);
     touch-action: auto; /* Enable touch interactions */
   }
-  
+
+  .toolbar-group-messages > img {
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    box-shadow: 0 0.15vh 0.6vh rgba(0, 0, 0, 0.4);
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .reply-thread {
+    margin-top: 0.4em;
+    width: 100%;
+    border: none;
+    border-left: 0.15vh solid rgba(255, 255, 255, 0.15);
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-left: 0.5em;
+    padding-right: 0;
+    border-radius: 0;
+    box-sizing: border-box;
+    background-color: transparent;
+    box-shadow: none;
+    touch-action: auto;
+  }
+
   .toolbar-group-messages-header {
-    margin-bottom: -0.5em !important;
-    border: 0.1vh solid white;
+    margin-bottom: 0.15em;
+    border: none;
     padding-top: 0.05em;
     padding-bottom: 0.1em;
-    padding-left: 0.25em;
-    padding-right: 0.25em;
-    border-radius: 1vh;
+    padding-left: 0.1em;
+    padding-right: 0.1em;
+    border-radius: 0.8vh;
     box-sizing: border-box;
-    border: 0.1vh solid #ffc107;
-    overflow: hidden; /* Hide scrollbars */
+    overflow: visible;
     resize: none; /* Prevent manual resizing */
     background-color: transparent;
+    font-weight: 600;
+    letter-spacing: 0.02em;
     touch-action: auto; /* Enable touch interactions */
+  }
+
+  /* Chat message bubble + timestamp (topic + encrypted chat) */
+  .chat-msg-text {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.9vh;
+    padding: 0.25em 0.6em;
+    line-height: 1.35;
+    word-wrap: break-word;
+  }
+
+  .chat-msg-time {
+    align-self: flex-end;
+    margin-top: 0.05em;
+    opacity: 0.45;
+    letter-spacing: 0.03em;
+  }
+
+  /* Centered loading / empty states */
+  .chat-state {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 0.45vh;
+  }
+
+  .chat-state span {
+    margin-left: 0 !important;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  /* JS-appended group separators: spacing comes from margins now */
+  #topic-chat-container .chat-container br,
+  #encrypted-chat-container .chat-container br {
+    display: none;
   }
   
   .toolbar-column-btns {
@@ -306,30 +524,34 @@ line-height: 1;
     width: 100%;
     color: white;
     border: 0.1vh solid white;
-    border-radius: 1vh;
+    border-radius: 999px;
     font-size: 2vh;
     box-sizing: border-box;
     margin-bottom: 0.5vh;
     height: 5vh;
-    background-color: transparent;
-    border: 0.1vh solid #007bff;
-    animation: zoomIn 0.5s ease-in-out;
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   
   .pin-public-key-from-encrypted-chat {
     display: block;
-    width: 50vw;
+    width: 22.5vh;
     color: white;
     border: 0.1vh solid white;
-    border-radius: 1vh;
+    border-radius: 999px;
     font-size: 2vh;
     box-sizing: border-box;
     margin-bottom: 0.5vh;
     height: 5vh;
-    background-color: transparent;
-    border: 0.1vh solid #007bff;
-    animation: zoomIn 0.5s ease-in-out;
-    margin-left: 24vw;
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    margin-left: 10.8vh;
   }
   
   .toolbar-column-settings-btns {
@@ -337,15 +559,17 @@ line-height: 1;
     width: 100%;
     color: white;
     border: 0.1vh solid white;
-    border-radius: 1vh;
+    border-radius: 999px;
     font-size: 2vh;
     box-sizing: border-box;
     margin-bottom: 0.5vh;
-    margin-left: 1vw;
+    margin-left: 0.45vh;
     height: 5vh;
-    background-color: transparent;
-    border: 0.1vh solid #007bff;
-    animation: zoomIn 0.5s ease-in-out;
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   
   .toolbar-column-first-settings-btns {
@@ -353,28 +577,80 @@ line-height: 1;
     width: 100%;
     color: white;
     border: 0.1vh solid white;
-    border-radius: 1vh;
+    border-radius: 999px;
     font-size: 2vh;
     box-sizing: border-box;
     margin-bottom: 0.5vh;
     height: 5vh;
-    background-color: transparent;
-    border: 0.1vh solid #007bff;
-    animation: zoomIn 0.5s ease-in-out;
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
-  
+
   .toolbar-column-btns:hover,
-  .toolbar-column-btns:active,
   .toolbar-column-first-settings-btns:hover,
-  .toolbar-column-first-settings-btns:active,
   .toolbar-column-settings-btns:hover,
-  .toolbar-column-settings-btns:active,
-  .pin-public-key-from-encrypted-chat:hover,
-  .pin-public-key-from-encrypted-chat:active {
-    background-color: #007bff;
-    color: white;
+  .pin-public-key-from-encrypted-chat:hover {
+    background-color: rgba(255, 255, 255, 0.2);
   }
-  
+
+  /* Save Settings buttons — cyan glowing border on the button itself */
+  .save-settings-btn {
+    border: 0.1vh solid rgba(34, 211, 238, 0.6);
+    box-shadow: 0 0 1vh rgba(34, 211, 238, 0.4),
+                inset 0 0 0.6vh rgba(34, 211, 238, 0.15);
+  }
+
+  .save-settings-btn:hover {
+    border-color: rgba(34, 211, 238, 0.9);
+    box-shadow: 0 0 1.6vh rgba(34, 211, 238, 0.7),
+                inset 0 0 0.8vh rgba(34, 211, 238, 0.3);
+  }
+
+  /* Submit Message buttons — cyan glowing border */
+  .submit-message-btn {
+    border: 0.1vh solid rgba(34, 211, 238, 0.6);
+    box-shadow: 0 0 1vh rgba(34, 211, 238, 0.4),
+                inset 0 0 0.6vh rgba(34, 211, 238, 0.15);
+  }
+
+  .submit-message-btn:hover {
+    border-color: rgba(34, 211, 238, 0.9);
+    box-shadow: 0 0 1.6vh rgba(34, 211, 238, 0.7),
+                inset 0 0 0.8vh rgba(34, 211, 238, 0.3);
+  }
+
+  /* Submit button moved inside the message input (bottom-right) */
+  .msg-send-btn {
+    position: absolute;
+    bottom: 1vh;
+    right: 1vh;
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 0.5vh 0.9vh;
+    font-size: 2.2vh;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Keep typed text clear of the in-input send button */
+  #user-write-message,
+  #user-write-message-encrypted-chat {
+    padding-bottom: 4.5vh;
+    padding-right: 5vh;
+  }
+
+  /* Keep typed text clear of the character counter (draw marker/polygon) */
+  #input-field-2-2,
+  #input-field-3-2 {
+    padding-bottom: 2.5vh;
+  }
+
   .toolbar-column:hover,
   .toolbar-column.active,
   .toolbar-column-first-settings-btns:hover,
@@ -390,26 +666,28 @@ line-height: 1;
     display: block;
     width: 100%;
     color: white;
-    padding-left: 1vw;
+    padding-left: 0.45vh;
     border: 0.1vh solid white;
     border-radius: 1vh;
     font-size: 2vh;
     box-sizing: border-box;
     margin-bottom: 0.5vh;
     height: 5vh;
-    border: 0.1vh solid #007bff;
+    border: 1px solid rgba(255, 255, 255, 0.3);
     overflow: hidden; /* Hide scrollbars */
     resize: none; /* Prevent manual resizing */
-    background-color: transparent;
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
     touch-action: auto; /* Enable touch interactions */
-    animation: zoomIn 0.5s ease-in-out;
+    animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   
   .toolbar-column-loaded-rules {
     display: block;
     width: 100%;
     color: white;
-    padding-left: 1vw;
+    padding-left: 0.45vh;
     border: 0.1vh solid white;
     border-radius: 1vh;
     font-size: 2vh;
@@ -417,29 +695,32 @@ line-height: 1;
     margin-bottom: 0.5vh;
     height: 5vh;
     max-height: 50vh; /* Set maximum height */
-    border: 0.1vh solid #007bff;
+    border: 1px solid rgba(255, 255, 255, 0.3);
     overflow: hidden; /* Hide scrollbars */
     resize: none; /* Prevent manual resizing */
-    background-color: transparent;
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
     touch-action: auto; /* Enable touch interactions */
-    animation: zoomIn 0.5s ease-in-out;
+    animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   
   .topic-chat-container {
-    background-color: rgba(0, 0, 0, 0.9);
+    background-color: rgba(15, 15, 20, 0.55);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
     color: white;
-    border-radius: 4px;
+    border-radius: 2vh;
     box-sizing: border-box;
-    border-radius: 1vh;
     overflow-y: auto; /* Enable vertical scrolling */
     overflow: hidden; /* Hide scrollbars */
     max-height: 80vh; /* Limit the height to 80% of the viewport */
     touch-action: auto; /* Enable touch interactions */
     resize: none; /* Prevent manual resizing */
-    padding-top: 1vh;
-    padding-bottom: 0.5vh;
-    padding-left: 1vw;
-    padding-right: 1vw;
+    padding-top: 1.4vh;
+    padding-bottom: 0.8vh;
+    padding-left: 0.63vh;
+    padding-right: 0.63vh;
     width: 100%;
   }
   
@@ -454,10 +735,12 @@ line-height: 1;
     border-radius: 1vh;
     font-size: 2vh;
     box-sizing: border-box;
-    border: 0.1vh solid #007bff;
+    border: 1px solid rgba(255, 255, 255, 0.3);
     overflow: hidden; /* Hide scrollbars */
     resize: none; /* Prevent manual resizing */
-    background-color: transparent;
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
     touch-action: auto; /* Enable touch interactions */
     max-height: 50vh; /* Set maximum height */
     overflow-y: scroll; /* Explicitly enable vertical scrolling */
@@ -466,11 +749,11 @@ line-height: 1;
     scrollbar-width: none; /* Firefox */
     margin-bottom: 0.5vh;
   }
-  
+
   .model_sliders {
     display: block;
     width: 100% !important;
-    padding-left: 1vw;
+    padding-left: 0.45vh;
     border-radius: 1vh;
     font-size: 2vh;
     box-sizing: border-box;
@@ -489,7 +772,7 @@ line-height: 1;
     top: 3vh;
     right: 0;
     z-index: 1005;
-    width: 32.5vw;
+    width: 14.6vh;
     height: 3vh;
     writing-mode: bt-lr;
     transform: rotate(0deg);
@@ -499,70 +782,68 @@ line-height: 1;
     display: block;
     width: 100% !important;
     color: white;
-    padding-left: 1vw;
-    padding-right: 1vw;
+    padding-left: 0.45vh;
+    padding-right: 0.45vh;
     border-radius: 1vh;
     font-size: 2vh;
     box-sizing: border-box;
     margin-bottom: 0.5vh;
     height: 5vh;
-    border: 0.1vh solid #007bff;
+    border: 1px solid rgba(255, 255, 255, 0.3);
     overflow: hidden; /* Hide scrollbars */
     resize: none; /* Prevent manual resizing */
-    background-color: transparent;
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
     touch-action: auto; /* Enable touch interactions */
-    background-color: transparent;
     text-align: left; /* Center-align the text */
     text-shadow: 0 0 0.5vh black;
   }
   
   .flex-container {
     display: flex;
-    align-items: center;
-    margin-bottom: 1.33vh;
-    position: relative;
-    z-index: 003;
+    align-items: flex-start;
+    gap: 0;
+    position: fixed;
+    top: 2px;
+    left: 2px;
+    z-index: 5003;
   }
   
   #wallet-section {
-    position: fixed;
-    top: 0;
-    left: 0;
     display: flex;
     flex-direction: column; /* Stack items vertically */
     align-items: flex-start;
-    font-size: 1.6vw;
-    border-radius: 1.07vw;
-    background-color: rgba(51, 51, 51, 0.0);
-    z-index: 5003;
-    backdrop-filter: blur(5px);
-    margin-top: 0.3vh;
-    margin-left: 0.3vh;
+    font-size: 0.72vh;
+    border-radius: 0.48vh;
+    padding: 0 0.225vh 0;
   }
   
   .connect-wallet-buttons {
-    background-color: #ffc107;
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
     color: white;
-    border: none;
-    padding: 0.8vh 1vw;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     cursor: pointer;
     font-size: 1.5vh;
-    text-shadow: 0 0 0.5vh black;
     margin-right: 0.5vh;
-    animation: zoomIn 0.5s ease-in-out;
+    animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   
   #disconnect-wallet-btn {
     display: none;
-    background-color: #ffc107;
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
     color: white;
-    border: none;
-    padding: 0.8vh 1vw;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     cursor: pointer;
     font-size: 1.5vh;
-    text-shadow: 0 0 0.5vh black;
   }
   
   .account-info {
@@ -570,7 +851,7 @@ line-height: 1;
     flex-direction: column;
     font-family: Arial, sans-serif;
     color: white;
-    padding-top: 0.5vh;
+    padding-top: 0;
     border: none;
     border-radius: 0.8vh;
     cursor: pointer;
@@ -581,26 +862,46 @@ line-height: 1;
     color: white;
   }
   
+  #local-clock {
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 0.8vh 0.45vh;
+    border-radius: 0.8vh;
+    font-family: Arial, sans-serif;
+    font-size: 1.5vh;
+    white-space: nowrap;
+    margin-left: 0; /* 0.5 gap comes from the button's margin-right */
+    align-self: center;
+    pointer-events: none;
+  }
+
   #coordinates-display {
     position: fixed;
     top: 2px;
     right: 2px;
-    background-color: rgba(0, 0, 0, 0.7);
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
     color: white;
-    padding: 5px 5px;
-    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 0.8vh 0.45vh;
+    border-radius: 0.8vh;
     font-family: Arial, sans-serif;
     z-index: 1000;
-    font-size: 2vh;
-    border: none;
+    font-size: 1.5vh;
     width: auto;
     pointer-events: none; /* Allow clicks to pass through */
   }
   
   .touch-button {
-    background-color: rgba(0, 0, 0, 0.2);
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
     color: white;
-    border: 2px solid white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
     padding: 0.5vh;
     margin: 0.3vh;
     border-radius: 1vh;
@@ -611,7 +912,6 @@ line-height: 1;
     display: none;
     align-items: center;
     justify-content: center;
-    backdrop-filter: blur(2px);
   }
   
   .touch-button:hover {
@@ -632,12 +932,12 @@ line-height: 1;
   }
   
   #left-dpad {
-    left: 0.5vw;
+    left: 0.225vh;
     display: none;
   }
   
   #right-dpad {
-    right: 0.5vw;
+    right: 0.225vh;
     display: none;
   }
   
@@ -670,7 +970,7 @@ line-height: 1;
   #zoom-controls {
     position: fixed;
     bottom: 40vh;
-    right: 0.5vw;
+    right: 0.225vh;
     z-index: 1005;
     display: none;
     flex-direction: column;
@@ -678,9 +978,11 @@ line-height: 1;
   }
   
   .zoom-button {
-    background-color: rgba(0, 0, 0, 0.2);
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
     color: white;
-    border: 2px solid white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
     width: 8vh;
     height: 8vh;
     margin: 0.3vh;
@@ -690,7 +992,6 @@ line-height: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    backdrop-filter: blur(2px);
   }
   
   .zoom-button:hover {
@@ -703,10 +1004,12 @@ line-height: 1;
     top: 6.5vh;
     left: 0;
     z-index: 1006;
-    background-color: #007bff;
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
     color: white;
-    border: none;
-    padding: 0.8vh 1vw;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     cursor: pointer;
     font-size: 1.5vh;
@@ -714,50 +1017,206 @@ line-height: 1;
   }
 
   .maplibregl-ctrl-top-right {
-    top: 3vh !important;
+    top: 5vh !important;
     right: 10px !important;
     display: flex;
     flex-direction: row;
   }
 
+  /* Location search — same circular dark-glass look as the compass/geolocate
+     nav buttons; sits in their row, left of the geolocate with the same gap
+     (1vh) so all three line up evenly */
+  #search-toggle-btn {
+    position: fixed;
+    top: calc(5vh + 10px);
+    right: calc(8vh + 20px);
+    width: 3vh;
+    height: 3vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6vh;
+    line-height: 1;
+    z-index: 1005;
+    background-color: rgba(10, 10, 18, 0.55);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+  }
+
+  #search-toggle-btn:hover {
+    background-color: rgba(30, 30, 42, 0.65);
+    border-color: rgba(255, 255, 255, 0.45);
+  }
+
+  /* Opens at the same height the topic chat opens; hugs the input (grows
+     with what is typed) and never gets wider than 98vw */
+  #search-bar {
+    position: fixed;
+    top: 10vh;
+    left: 1vh;
+    width: fit-content;
+    max-width: 98vw;
+    z-index: 1005;
+  }
+
+  #search-input {
+    width: auto; /* sized from its `size` attr — grows with the typed text */
+    max-width: 98vw;
+    box-sizing: border-box;
+    background-color: rgba(15, 15, 20, 0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 2vh;
+    padding: 0.8vh 3.5vh 0.8vh 1.2vh; /* 0.25vh between text and × */
+    font-size: 1.5vh;
+    font-family: Arial, sans-serif;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  /* × inside the input's right edge: clears the current text.
+     0.25vh gap to top/bottom/right; height stretches, so it never overflows */
+  #search-clear-btn {
+    position: absolute;
+    top: 0.25vh;
+    bottom: 0.25vh;
+    right: 0.25vh;
+    width: 3vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8vh;
+    line-height: 1;
+    background-color: rgba(10, 10, 18, 0.55);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+  }
+
+  #search-clear-btn:hover {
+    background-color: rgba(30, 30, 42, 0.65);
+    border-color: rgba(255, 255, 255, 0.45);
+  }
+
+  #search-input::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  #search-input:focus {
+    border-color: rgba(34, 211, 238, 0.6);
+    box-shadow: 0 0 1vh rgba(34, 211, 238, 0.4);
+  }
+
+  #search-results {
+    position: absolute;
+    top: calc(100% + 0.5vh);
+    left: 0;
+    width: 100%;
+    background-color: rgba(15, 15, 20, 0.75);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    backdrop-filter: blur(16px) saturate(150%);
+    border: 0.1vh solid rgba(34, 211, 238, 0.6);
+    border-radius: 2vh;
+    overflow-y: auto;
+    max-height: 40vh;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  }
+
+  .search-result-item {
+    padding: 1vh 1.2vh;
+    font-size: 1.4vh;
+    color: #e6e6f0;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .search-result-item:last-child {
+    border-bottom: none;
+  }
+
+  .search-result-item:hover {
+    background-color: rgba(34, 211, 238, 0.15);
+    color: #ffffff;
+  }
+
   .custom-geolocate-position {
     position: absolute !important;
     top: 0vh !important;
-    right: 5vh !important;
+    right: 4vh !important;
     z-index: 10;
   }
   
   .maplibregl-ctrl.maplibregl-ctrl-group {
-      background: #fff; /* White background, matches default */
-      box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+      background: transparent;
+      box-shadow: none;
       border-radius: 50%;
   }
-  
-  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-compass {
-      width: 2vh; /* Standard button size */
-      height: 2vh; /* Square button */
-      cursor: pointer; /* Pointer cursor */
-      display: flex; /* Center icon */
-      align-items: center;
-      justify-content: center;
-      background-size: 18px 18px; /* Icon size */
-      background-position: center;
-      background-repeat: no-repeat;
-      transition: background-color 0.2s; /* Smooth hover transition */
+
+  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-compass,
+  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-geolocate {
+      width: 3vh; /* Standard button size */
+      height: 3vh; /* Square button */
+      background-color: rgba(10, 10, 18, 0.55); /* Dark glass, matches app theme */
+      -webkit-backdrop-filter: blur(8px) saturate(140%);
+      backdrop-filter: blur(8px) saturate(140%);
+      border: 1px solid rgba(255, 255, 255, 0.25);
       border-radius: 50%; /* Circular button */
-      box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+      cursor: pointer; /* Pointer cursor */
+      transition: background-color 0.2s, border-color 0.2s; /* Smooth hover transition */
   }
 
-  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-geolocate {
-    width: 2vh; /* Standard button size */
-    height: 2vh; /* Square button */
-    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); /* Subtle shadow */
-    border-radius: 50%;
-    width: 2vh; /* Standard button size */
-    height: 2vh; /* Square button */
-    cursor: pointer; /* Pointer cursor */
-    display: flex; /* Center icon */
-    justify-content: center;
+  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-compass:hover,
+  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-geolocate:hover {
+      background-color: rgba(30, 30, 42, 0.65);
+      border-color: rgba(255, 255, 255, 0.45);
+  }
+
+  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon,
+  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-geolocate .maplibregl-ctrl-icon {
+      background-size: 70% 70%; /* Scale icons with the 3vh buttons */
+  }
+
+  /* Light icon variants so the glyphs read on the dark glass */
+  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon {
+      background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' fill='%23fff' viewBox='0 0 29 29'%3E%3Cpath d='m10.5 14 4-8 4 8z'/%3E%3Cpath fill='%23777' d='m10.5 16 4 8 4-8z'/%3E%3C/svg%3E");
+  }
+
+  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-geolocate .maplibregl-ctrl-icon {
+      background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' fill='%23fff' viewBox='0 0 20 20'%3E%3Cpath d='M10 4C9 4 9 5 9 5v.1A5 5 0 0 0 5.1 9H5s-1 0-1 1 1 1 1 1h.1A5 5 0 0 0 9 14.9v.1s0 1 1 1 1-1 1-1v-.1a5 5 0 0 0 3.9-3.9h.1s1 0 1-1-1-1-1-1h-.1A5 5 0 0 0 11 5.1V5s0-1-1-1m0 2.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 1 1 0-7'/%3E%3Ccircle cx='10' cy='10' r='2'/%3E%3C/svg%3E");
+  }
+
+  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-geolocate:disabled .maplibregl-ctrl-icon {
+      background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' fill='%23fff' viewBox='0 0 20 20'%3E%3Cpath d='M10 4C9 4 9 5 9 5v.1A5 5 0 0 0 5.1 9H5s-1 0-1 1 1 1 1 1h.1A5 5 0 0 0 9 14.9v.1s0 1 1 1 1-1 1-1v-.1a5 5 0 0 0 3.9-3.9h.1s1 0 1-1-1-1-1-1h-.1A5 5 0 0 0 11 5.1V5s0-1-1-1m0 2.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 1 1 0-7'/%3E%3Ccircle cx='10' cy='10' r='2'/%3E%3C/svg%3E");
+  }
+
+  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-active .maplibregl-ctrl-icon {
+      background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' fill='%235ac8ff' viewBox='0 0 20 20'%3E%3Cpath d='M10 4C9 4 9 5 9 5v.1A5 5 0 0 0 5.1 9H5s-1 0-1 1 1 1 1 1h.1A5 5 0 0 0 9 14.9v.1s0 1 1 1 1-1 1-1v-.1a5 5 0 0 0 3.9-3.9h.1s1 0 1-1-1-1-1-1h-.1A5 5 0 0 0 11 5.1V5s0-1-1-1m0 2.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 1 1 0-7'/%3E%3Ccircle cx='10' cy='10' r='2'/%3E%3C/svg%3E");
+  }
+
+  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-background .maplibregl-ctrl-icon {
+      background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' fill='%235ac8ff' viewBox='0 0 20 20'%3E%3Cpath d='M10 4C9 4 9 5 9 5v.1A5 5 0 0 0 5.1 9H5s-1 0-1 1 1 1 1 1h.1A5 5 0 0 0 9 14.9v.1s0 1 1 1 1-1 1-1v-.1a5 5 0 0 0 3.9-3.9h.1s1 0 1-1-1-1-1-1h-.1A5 5 0 0 0 11 5.1V5s0-1-1-1m0 2.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 1 1 0-7'/%3E%3C/svg%3E");
+  }
+
+  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-active-error .maplibregl-ctrl-icon {
+      background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' fill='%23ff8a75' viewBox='0 0 20 20'%3E%3Cpath d='M10 4C9 4 9 5 9 5v.1A5 5 0 0 0 5.1 9H5s-1 0-1 1 1 1 1 1h.1A5 5 0 0 0 9 14.9v.1s0 1 1 1 1-1 1-1v-.1a5 5 0 0 0 3.9-3.9h.1s1 0 1-1-1-1-1-1h-.1A5 5 0 0 0 11 5.1V5s0-1-1-1m0 2.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 1 1 0-7'/%3E%3Ccircle cx='10' cy='10' r='2'/%3E%3C/svg%3E");
+  }
+
+  .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-background-error .maplibregl-ctrl-icon {
+      background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' fill='%23ff6b52' viewBox='0 0 20 20'%3E%3Cpath d='M10 4C9 4 9 5 9 5v.1A5 5 0 0 0 5.1 9H5s-1 0-1 1 1 1 1 1h.1A5 5 0 0 0 9 14.9v.1s0 1 1 1 1-1 1-1v-.1a5 5 0 0 0 3.9-3.9h.1s1 0 1-1-1-1-1-1h-.1A5 5 0 0 0 11 5.1V5s0-1-1-1m0 2.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 1 1 0-7'/%3E%3C/svg%3E");
   }
 
   .maplibregl-popup {
@@ -776,16 +1235,65 @@ line-height: 1;
     z-index: 1000 !important;
     border: 0.3vh solid #ffffff;
     border-radius: 1vh;
-    animation: slideIn 0.5s ease-in-out;
+}
+
+/* Dummy preview popup inside the settings card: neutralize the fixed
+   screen-centering so it flows inside the card instead of covering it */
+#popup-settings-card .maplibregl-popup {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    z-index: auto !important;
+    margin-bottom: 2vh;
+}
+#popup-settings-card .maplibregl-popup,
+#popup-settings-card .maplibregl-popup * {
+    pointer-events: none !important;
+}
+
+@keyframes popupIn {
+    from {
+        opacity: 0.3;
+        transform: scale(0.92) translateZ(0);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateZ(0);
+    }
+}
+
+@keyframes popupOut {
+    from {
+        opacity: 1;
+        transform: scale(1) translateZ(0);
+    }
+    to {
+        opacity: 0;
+        transform: scale(0.9) translateZ(0);
+    }
+}
+
+.maplibregl-popup-content.closing {
+    animation: popupOut 0.15s ease-in both;
 }
 
 .maplibregl-popup-content {
-    background-color: rgba(0, 0, 0, 0.8);
+    background-color: rgba(15, 15, 20, 0.55);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    backdrop-filter: blur(10px) saturate(140%);
+    border: 0.2vh solid rgba(255, 255, 255, 0.25);
+    will-change: transform, opacity;
+    transform: translateZ(0);
+    animation: popupIn 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     color: white;
     padding: 1vh 2vh;                 /* Slightly increased horizontal padding */
     border-radius: 0.8vh;
     font-size: 2vh;
-    box-shadow: 0 1vh 2vh rgba(0, 0, 0, 0.3);
+    box-shadow: inset 0 0.2vh 0 rgba(255, 255, 255, 0.12), 0 1vh 2vh rgba(0, 0, 0, 0.3);
     text-align: left;
     word-wrap: break-word;
     white-space: normal;
@@ -797,24 +1305,32 @@ line-height: 1;
     width: 100% !important;           /* Fill the 80vw container */
     max-width: 100% !important;
     box-sizing: border-box !important;
-    
+
+    /* Scroll inside the card (matches .maplibregl-popup max-height) so a
+       tall popup — or the keyboard shrinking the screen — can't overflow it */
+    max-height: 70vh;
+
     overflow-y: auto;
     overflow-x: auto;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.5) rgba(0, 0, 0, 0.8);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
-  
+
   .maplibregl-popup-content::-webkit-scrollbar {
-    width: 0.8vh;
+    display: none;
+    width: 0;
+    height: 0;
   }
-  
-  .maplibregl-popup-content::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.8);
+
+  .comments-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
-  
-  .maplibregl-popup-content::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.5);
-    border-radius: 0.4vh;
+
+  .comments-scroll::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
   }
   
   .maplibregl-popup-content * {
@@ -858,6 +1374,14 @@ line-height: 1;
     -ms-user-select: none;
     user-select: none;
     touch-action: none;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
   }
   
   input, textarea {
@@ -880,7 +1404,7 @@ line-height: 1;
     #remove-topic-id {
     height: 5vh; /* Adjust the height as needed */
     font-size: 2vh; /* Adjust the font size for better readability */
-    border-radius: 1vh; /* Add this line to make the buttons round */
+    border-radius: 999px; /* Add this line to make the buttons round */
   }
   
   #crosshair {
@@ -963,16 +1487,573 @@ line-height: 1;
   }
   
   #topicspinnerchat {
-    width: 1.5vh;
-    height: 1.5vh;
-    border: 0.5vh solid #ccc;
+    width: 2.5vh;
+    height: 2.5vh;
+    border: 0.5vh solid rgba(255, 255, 255, 0.25);
     border-top: 0.5vh solid #4caf50;
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
-  
+
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
   }
-  
+
+  /* iOS-style micro-interactions: springy hover/press on all buttons */
+  button[type="submit"],
+  #add-topic-id,
+  #remove-topic-id,
+  .toolbar-column-btns,
+  .toolbar-column-first-settings-btns,
+  .toolbar-column-settings-btns,
+  .pin-public-key-from-encrypted-chat,
+  div.toolbar-column,
+  .options-and-topic,
+  .menu_buttons,
+  .info-button,
+  .info-overlay-close-button-1,
+  .info-overlay-close-button-2,
+  .touch-button,
+  .zoom-button,
+  #toggle-controls-btn,
+  .connect-wallet-buttons,
+  #disconnect-wallet-btn {
+    will-change: transform;
+    transition: transform 0.12s ease, filter 0.12s ease,
+      background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  }
+
+  button[type="submit"]:hover,
+  #add-topic-id:hover,
+  #remove-topic-id:hover,
+  .toolbar-column-btns:hover,
+  .toolbar-column-first-settings-btns:hover,
+  .toolbar-column-settings-btns:hover,
+  .pin-public-key-from-encrypted-chat:hover,
+  div.toolbar-column:hover,
+  .options-and-topic:hover,
+  .menu_buttons:hover,
+  .info-button:hover,
+  .info-overlay-close-button-1:hover,
+  .info-overlay-close-button-2:hover,
+  .touch-button:hover,
+  .zoom-button:hover,
+  #toggle-controls-btn:hover,
+  .connect-wallet-buttons:hover,
+  #disconnect-wallet-btn:hover {
+    transform: scale(1.03);
+    filter: brightness(1.08);
+  }
+
+  button[type="submit"]:active,
+  #add-topic-id:active,
+  #remove-topic-id:active,
+  .toolbar-column-btns:active,
+  .toolbar-column-first-settings-btns:active,
+  .toolbar-column-settings-btns:active,
+  .pin-public-key-from-encrypted-chat:active,
+  div.toolbar-column:active,
+  .options-and-topic:active,
+  .menu_buttons:active,
+  .info-button:active,
+  .info-overlay-close-button-1:active,
+  .info-overlay-close-button-2:active,
+  .touch-button:active,
+  .zoom-button:active,
+  #toggle-controls-btn:active,
+  .connect-wallet-buttons:active,
+  #disconnect-wallet-btn:active {
+    transform: scale(0.97);
+  }
+
+  /* Toast / snackbar */
+  #toast-container {
+    position: fixed;
+    bottom: 4vh;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1vh;
+    z-index: 10000;
+    pointer-events: none;
+  }
+
+  .toast {
+    display: flex;
+    align-items: center;
+    gap: 0.36vh;
+    background: rgba(18, 18, 28, 0.78);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    backdrop-filter: blur(24px) saturate(150%);
+    color: #e6e6f0;
+    border: 1px solid rgba(34, 211, 238, 0.85);
+    border-radius: 18px;
+    padding: 1.5vh 0.9vh;
+    font-family: system-ui, sans-serif;
+    font-size: 1.8vh;
+    font-weight: 500;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    animation: toastBorderPulse 1.3s ease-in-out infinite;
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+    transition: opacity 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+              transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+    max-width: 80vw;
+  }
+
+  /* Border vibrates in the pin's cyan */
+  @keyframes toastBorderPulse {
+    0%, 100% {
+      border-color: rgba(34, 211, 238, 0.95);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45),
+                  0 0 12px rgba(34, 211, 238, 0.45);
+    }
+    50% {
+      border-color: rgba(34, 211, 238, 0.3);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45),
+                  0 0 2px rgba(34, 211, 238, 0.08);
+    }
+  }
+
+  .toast-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .toast-show {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  .toast-hide {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+    transition-duration: 0.22s;
+  }
+
+  /* "Topic loaded" toast: no dot icon, pulsing glow border, explosive
+     launch from off-screen, and it blasts off instead of fading */
+  .toast-loaded {
+    position: relative;
+    animation: toastLaunch 0.55s cubic-bezier(0.16, 1.35, 0.45, 1) both,
+               toastGlow 1.3s ease-in-out 0.55s infinite;
+  }
+
+  @keyframes toastLaunch {
+    0%   { opacity: 0; transform: translateY(140vh) scale(2.2); }
+    62%  { opacity: 1; transform: translateY(-2.5vh) scale(1.06); }
+    82%  { transform: translateY(1.2vh) scale(0.98); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes toastGlow {
+    0%, 100% {
+      border-color: rgba(120, 220, 255, 0.55);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45),
+                  0 0 8px rgba(100, 200, 255, 0.35),
+                  0 0 20px rgba(100, 200, 255, 0.15);
+    }
+    50% {
+      border-color: rgba(170, 235, 255, 0.95);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45),
+                  0 0 16px rgba(140, 220, 255, 0.75),
+                  0 0 40px rgba(140, 220, 255, 0.35);
+    }
+  }
+
+  .toast-burst {
+    position: absolute;
+    inset: -6px;
+    border-radius: 22px;
+    border: 2px solid rgba(140, 220, 255, 0.9);
+    pointer-events: none;
+    animation: toastShock 0.7s ease-out 0.15s both;
+  }
+
+  .toast-burst::before {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border-radius: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    animation: toastShock 0.7s ease-out 0.32s both;
+  }
+
+  @keyframes toastShock {
+    0%   { opacity: 0.9; transform: scale(0.92); }
+    100% { opacity: 0; transform: scale(1.7); }
+  }
+
+  /* Exit: defined after .toast-loaded so this animation replaces launch+glow */
+  .toast-hide-blast {
+    animation: toastBlast 0.45s cubic-bezier(0.3, 0.9, 0.5, 1) forwards !important;
+  }
+
+  @keyframes toastBlast {
+    0%   { opacity: 1; transform: scale(1) translateY(0); filter: brightness(1); }
+    40%  { opacity: 1; transform: scale(1.18) translateY(-1vh); filter: brightness(1.7); }
+    100% { opacity: 0; transform: scale(2.4) translateY(-10vh); filter: brightness(2.2); }
+  }
+
+  /* ============ DRAW HERE (long-press / right-click) ============ */
+
+  .maplibregl-canvas {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Anchor row: [📍 Marker] [pin] [⬛ Polygon] — the pin's tip sits exactly
+     on the map point, so the row is bottom-centered on it */
+  .draw-here-anchor {
+    position: fixed;
+    z-index: 6000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 1.2vh;
+    transform: translate(-50%, -100%);
+    pointer-events: none;
+  }
+
+  .draw-here-anchor > * {
+    pointer-events: auto;
+  }
+
+  .draw-here-pin {
+    width: 3vh;
+    height: 3vh;
+    border-radius: 50% 50% 50% 0;
+    background: #22d3ee;
+    border: 0.12vh solid rgba(255, 255, 255, 0.9);
+    transform: rotate(-45deg);
+    box-shadow: 0 0 2vh rgba(34, 211, 238, 0.8);
+    cursor: pointer;
+    animation: drawHerePinDrop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    flex-shrink: 0;
+    /* The rotated teardrop's tip extends 3vh·(√2−1)/2 ≈ 0.62vh below the
+       layout box — lift it so the tip lands exactly on the map point */
+    margin-bottom: 0.62vh;
+  }
+
+  @keyframes drawHerePinDrop {
+    from { transform: rotate(-45deg) scale(1.6) translateY(-2vh); opacity: 0; }
+    to   { transform: rotate(-45deg) scale(1) translateY(0); opacity: 1; }
+  }
+
+  .draw-here-btn {
+    padding: 1vh 1.4vh;
+    font-size: 1.8vh;
+    color: white;
+    background: rgba(15, 15, 20, 0.85);
+    backdrop-filter: blur(1.5vh);
+    -webkit-backdrop-filter: blur(1.5vh);
+    border: 0.06vh solid rgba(255, 255, 255, 0.25);
+    border-radius: 1.2vh;
+    cursor: pointer;
+    white-space: nowrap;
+    animation: drawHereBtnIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes drawHereBtnIn {
+    from { opacity: 0; transform: scale(0.85); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  .draw-here-btn:active {
+    background: rgba(34, 211, 238, 0.35);
+  }
+
+  /* ============ FIRST-LOAD ONBOARDING ============ */
+
+  .onboard-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9000; /* below toasts (10000), above everything else */
+  }
+
+  .onboard-scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .onboard-card {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(86vw, 64vh);
+    padding: 4vh 3vh 3vh;
+    border-radius: 2vh;
+    background: rgba(15, 15, 20, 0.9);
+    border: 0.1vh solid rgba(34, 211, 238, 0.6);
+    box-shadow: 0 1vh 5vh rgba(0, 0, 0, 0.6),
+                0 0 2.5vh rgba(34, 211, 238, 0.25);
+    animation: onboardBorderPulse 1.3s ease-in-out infinite;
+    text-align: center;
+    color: white;
+  }
+
+  /* Same cyan border vibration as the toasts */
+  @keyframes onboardBorderPulse {
+    0%, 100% {
+      border-color: rgba(34, 211, 238, 0.95);
+      box-shadow: 0 1vh 5vh rgba(0, 0, 0, 0.6),
+                  0 0 3vh rgba(34, 211, 238, 0.55);
+    }
+    50% {
+      border-color: rgba(34, 211, 238, 0.3);
+      box-shadow: 0 1vh 5vh rgba(0, 0, 0, 0.6),
+                  0 0 1vh rgba(34, 211, 238, 0.15);
+    }
+  }
+
+  .onboard-skip {
+    position: absolute;
+    top: 0.4vh;
+    right: 0.8vh;
+    min-width: 5vh;
+    min-height: 5vh;
+    padding: 0.5vh 1vh;
+    background: rgba(255, 255, 255, 0.08);
+    border: 0.06vh solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    color: white;
+    font-size: 2.4vh;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.8;
+  }
+
+  .onboard-icon {
+    font-size: 7vh;
+    line-height: 1.1;
+    margin-bottom: 1.5vh;
+  }
+
+  .onboard-title {
+    font-size: 3vh;
+    font-weight: 600;
+    margin: 0 0 1vh;
+    color: #22d3ee;
+  }
+
+  .onboard-body {
+    font-size: 2vh;
+    line-height: 1.5;
+    opacity: 0.85;
+    margin: 0 0 2.5vh;
+  }
+
+  .onboard-dots {
+    display: flex;
+    justify-content: center;
+    gap: 0.8vh;
+    margin-bottom: 2vh;
+  }
+
+  .onboard-dot {
+    width: 1.2vh;
+    height: 1.2vh;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.25);
+    transition: background 0.2s, transform 0.2s;
+  }
+
+  .onboard-dot-active {
+    background: #22d3ee;
+    transform: scale(1.25);
+  }
+
+  .onboard-nav {
+    display: flex;
+    justify-content: center;
+    gap: 1.5vh;
+  }
+
+  .onboard-prev {
+    padding: 1.4vh 3vh;
+    font-size: 2.2vh;
+    font-weight: 600;
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+    border: 0.08vh solid rgba(255, 255, 255, 0.25);
+    border-radius: 1.4vh;
+    cursor: pointer;
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .onboard-prev:active {
+    transform: scale(0.95);
+  }
+
+  .onboard-next {
+    padding: 1.4vh 3.5vh;
+    font-size: 2.2vh;
+    font-weight: 600;
+    color: #0b0b12;
+    background: #22d3ee;
+    border: none;
+    border-radius: 1.4vh;
+    cursor: pointer;
+    box-shadow: 0 0 1.6vh rgba(34, 211, 238, 0.5);
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .onboard-next:active {
+    transform: scale(0.95);
+  }
+
+  /* ── Topic + E2EE chat: keep the open animation, drop only the opacity fade ──
+     The shared slideIn/zoomIn keyframes animate opacity 0→1, which makes the
+     dark glass inputs/buttons "get darker" as the panel opens. These no-fade
+     twins keep the same slide/pop + timing but hold opacity at 1. Scoped to the
+     two chat panels only — the toolbar/popups/toasts keep their fades. */
+  @keyframes slideInNoFade {
+    from { transform: translateX(-200px); }
+    to   { transform: translateY(0); }
+  }
+  @keyframes zoomInNoFade {
+    from { transform: scale(0.96); }
+    to   { transform: scale(1); }
+  }
+
+  #topic-chat-container,
+  #encrypted-chat-container,
+  #topic-chat-container .chat-topic-chat-container,
+  #encrypted-chat-container .chat-topic-chat-container {
+    animation-name: slideInNoFade;
+  }
+
+  #topic-chat-container .toolbar-column,
+  #encrypted-chat-container .toolbar-column,
+  #topic-chat-container .toolbar-column-btns,
+  #encrypted-chat-container .toolbar-column-btns,
+  #topic-chat-container .toolbar-column-first-settings-btns,
+  #encrypted-chat-container .toolbar-column-first-settings-btns,
+  #topic-chat-container .toolbar-column-settings-btns,
+  #encrypted-chat-container .toolbar-column-settings-btns {
+    animation-name: zoomInNoFade;
+  }
+
+  /* Panel flair (all toolbar/settings panels — the user theme settings
+     still control colors/sizes inline; these only add glow, gradient,
+     motion and titles) */
+  .options-column-title {
+    font-size: 2.4vh;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: #22d3ee;
+    text-shadow: 0 0 1.5vh rgba(34, 211, 238, 0.6);
+    text-align: center;
+    margin-bottom: 1vh;
+    animation: optionsTitleFloat 3s ease-in-out infinite;
+  }
+
+  @keyframes optionsTitleFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-0.4vh); }
+  }
+
+  .load-section-label {
+    font-size: 1.2vh;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: gray;
+    padding-left: 0.45vh;
+    margin-bottom: 0.4vh;
+  }
+
+  .toolbar-containers .toolbar-column {
+    background-image: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+    transition: box-shadow 0.25s ease;
+  }
+
+  .toolbar-containers .toolbar-column:focus {
+    box-shadow: 0 0 1.5vh rgba(34, 211, 238, 0.45), inset 0 0 0.5vh rgba(34, 211, 238, 0.12);
+    outline: none;
+  }
+
+  #load-column-container #loaded-topics {
+    line-height: 1.7;
+    letter-spacing: 0.04em;
+  }
+
+  .toolbar-containers .toolbar-column-btns,
+  .toolbar-containers .toolbar-column-first-settings-btns,
+  .toolbar-containers .toolbar-column-settings-btns,
+  #toolbar .toolbar-column,
+  #rotation-controls .toolbar-column {
+    transition: box-shadow 0.25s ease;
+  }
+
+  .toolbar-containers .toolbar-column-btns:hover,
+  .toolbar-containers .toolbar-column-first-settings-btns:hover,
+  .toolbar-containers .toolbar-column-settings-btns:hover,
+  #toolbar .toolbar-column:hover,
+  #rotation-controls .toolbar-column:hover {
+    box-shadow: 0 0 1.2vh rgba(34, 211, 238, 0.4);
+  }
+
+  #toolbar-load:hover {
+    box-shadow: 0 0 1.8vh rgba(34, 211, 238, 0.55);
+  }
+
+  /* Onboard-style cyan glow border on the toolbar, every panel that opens
+     from it (edit, load, draw, ...) and the visibility + settings columns.
+     slideIn is kept (panels re-run it when opened), pulse starts after it. */
+  #toolbar,
+  .toolbar-containers,
+  #rotation-controls {
+    box-sizing: border-box; /* border+padding fit inside the 98vw/100vw width */
+    border: 0.1vh solid rgba(34, 211, 238, 0.6);
+    animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+               onboardBorderPulse 1.3s ease-in-out 0.3s infinite;
+  }
+
+  /* Same glow for the topic chat + e2ee chat cards (border on the outer container) */
+  #topic-chat-container,
+  #encrypted-chat-container {
+    border: 0.1vh solid rgba(34, 211, 238, 0.6);
+    animation: slideInNoFade 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+               onboardBorderPulse 1.3s ease-in-out 0.3s infinite;
+  }
+
+  /* Same glow for every info overlay card (keeps its pop-in first) */
+  .info-overlay-inner {
+    border: 0.1vh solid rgba(34, 211, 238, 0.6);
+    animation: overlay-pop-in 0.34s cubic-bezier(0.34, 1.56, 0.64, 1),
+               onboardBorderPulse 1.3s ease-in-out 0.34s infinite;
+  }
+
+  /* Toolbar + settings buttons: centered text (horizontally + vertically)
+     and pill corners like .toolbar-column-btns everywhere else */
+  #toolbar .toolbar-column,
+  #rotation-controls .toolbar-column {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding-left: 0;
+    border-radius: 999px;
+  }
+
+  /* The visibility card must fill its (narrower) wrapper instead of using
+     the viewport-wide 100vw, or it overflows past the right screen edge */
+  #visibility-controls .toolbar-containers {
+    width: 100%;
+  }
+
+  /* Visibility rows: [value] - [button, centered via auto margins] - [value] */
+  #visibility-controls .toolbar-column-btns {
+    width: auto;
+    margin-left: auto;
+    margin-right: auto;
+  }

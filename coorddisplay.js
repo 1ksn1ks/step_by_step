@@ -2,16 +2,11 @@ function adjustButtonSize() {
     const coordinatesDisplay = document.getElementById('coordinates-display');
     const copyCoordinatesButton = document.getElementById('copy-coordinates');
 
-    // Get the computed styles of the input field
-    const computedStyle = window.getComputedStyle(coordinatesDisplay);
-
-    // Parse the width and height to numbers (removing 'px')
-    const width = parseFloat(computedStyle.width);
-    const height = parseFloat(computedStyle.height);
-
-    // Add a bit extra (e.g., 10px) and set back as strings with 'px'
-    copyCoordinatesButton.style.width = `${width + 30}px`;
-    copyCoordinatesButton.style.height = `${height + 10}px`;
+    // Use the rendered size (includes padding and border) so the
+    // button exactly matches the display
+    const rect = coordinatesDisplay.getBoundingClientRect();
+    copyCoordinatesButton.style.width = `${rect.width}px`;
+    copyCoordinatesButton.style.height = `${rect.height}px`;
   }
 
   // Call the function initially to set the size
@@ -19,3 +14,7 @@ function adjustButtonSize() {
 
   // Optionally, add an event listener to adjust size on window resize
   window.addEventListener('resize', adjustButtonSize);
+
+  // Track the display as its own width changes with the coordinates text
+  const coordinatesDisplay = document.getElementById('coordinates-display');
+  new ResizeObserver(adjustButtonSize).observe(coordinatesDisplay);

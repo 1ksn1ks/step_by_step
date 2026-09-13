@@ -18,10 +18,73 @@ import { newActivePolygonPopups, addPolygonWithImageFill } from "./polygons";
 import { map } from './map.js';
 import { processTopicMessages, allLoadedMessages } from "./processallmessages.js";
 import { initialTopicId } from "./extracttopic.js";
+import { toast } from "./toast";
+import { applyInitialXYZ } from "./setinitialxyz.js";
 
+// Copy text to the clipboard with an http-safe fallback: navigator.clipboard
+// only exists on HTTPS/localhost, so on a plain http origin (the dev remote)
+// a temporary textarea + execCommand is used instead.
+export function copyTextToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+  return new Promise((resolve, reject) => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position: fixed; opacity: 0;';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      const ok = document.execCommand('copy');
+      ok ? resolve() : reject(new Error('execCommand copy failed'));
+    } catch (err) {
+      reject(err);
+    } finally {
+      ta.remove();
+    }
+  });
+}
 
+// Render the "Loaded topics:" list as rows: topic id + name and a 📋 button
+// that copies just the topic id.
+export function renderLoadedTopics() {
+  const el = document.getElementById('loaded-topics');
+  if (!el) return;
+  el.innerHTML = '';
 
+  for (const entry of globalLoadedTopicIdsWithNames) {
+    const topicId = entry.split(' - ')[0];
 
+    const row = document.createElement('div');
+    row.style.cssText = 'display: flex; align-items: center; gap: 0.5em; padding: 0.15em 0.2em;';
+
+    const label = document.createElement('span');
+    label.style.cssText = 'flex: 1; white-space: normal; word-break: break-all;';
+    label.textContent = entry;
+    row.appendChild(label);
+
+    const copyBtn = document.createElement('span');
+    copyBtn.textContent = '📋';
+    copyBtn.style.cssText = 'cursor: pointer; font-size: 1.6vh;';
+    copyBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        await copyTextToClipboard(topicId);
+        copyBtn.textContent = '✓';
+        setTimeout(() => (copyBtn.textContent = '📋'), 900);
+      } catch (err) {
+        console.error('Copy failed:', err);
+        toast.error('Could not copy topic id');
+      }
+    });
+    row.appendChild(copyBtn);
+
+    el.appendChild(row);
+  }
+
+  adjustTextareaHeight(el);
+}
 
 export async function handleAllMessages() {
     try {
@@ -43,7 +106,7 @@ export async function handleAllMessages() {
       const topicSpinnerChat = `
       <div style="display: flex; justify-content: left; align-items: left; padding-top: 1vh; padding-bottom: 1vh;">
         <div id="topicspinnerchat"></div>
-         <span style="margin-left: 1vw;">loading messages from ${topicId}</span>
+         <span style="margin-left: 0.45vh;">loading messages from ${topicId}</span>
         </div>`;
       loaded_text_area.innerHTML = topicSpinnerChat;
       adjustTextareaHeight(loaded_text_area);
@@ -67,7 +130,7 @@ export async function handleAllMessages() {
       loaded_text_area.value = '';
       const topicSpinnerChat = `
       <div style="display: flex; justify-content: left; align-items: left; padding-top: 1vh; padding-bottom: 1vh;">
-         <span style="margin-left: 1vw;">Invalid Topic ID</span>
+         <span style="margin-left: 0.45vh;">Invalid Topic ID</span>
         </div>`;
       loaded_text_area.innerHTML = topicSpinnerChat;
       adjustTextareaHeight(loaded_text_area);
@@ -84,7 +147,8 @@ export async function handleAllMessages() {
   
       const result = await getMessages(topicId);
 
-  
+      applyInitialXYZ(result.messages, topicAdmin);
+
       let hasMoreThanOneTopic = false;
   
       geojson.features = [];
@@ -193,9 +257,9 @@ export async function handleAllMessages() {
         return idA - idB;
       });
   
-      loaded_text_area.innerHTML = globalLoadedTopicIdsWithNames.join('<br>'); // Update with new values
-      adjustTextareaHeight(loaded_text_area); // Adjust height after loading
-  
+      renderLoadedTopics(); // Update with rows: topic id + name + 📋 + ✕
+
+      toast.loaded("Topic loaded");
       return loadedTopicIdsWithNames; // Return the loadedTopicsIds array
   
         } catch (error) {

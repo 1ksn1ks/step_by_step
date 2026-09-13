@@ -1,8 +1,11 @@
 import {getMessages, getTopicInfo, sendMessage, getAccountNFTs} from './hedera'
+import { adjustTextareaHeight } from './adjusttextarea';
 import { activePolygonPopups, newActivePolygonPopups, addPolygonWithImageFill} from './polygons';
 import { activeMarkerPopups, newActiveMarkerPopups, updateClusters, index } from './marker';
 import { removeUfoModel, changePopupState} from './cssLogic'
-import { polygons, geojson, storedMarkers, storedPolygons, currentUfoModelInGLTF,  newExistingMarkers,  existingMarkers, newStoredMarkers, newStoredPolygons } from './letall';
+import { polygons, geojson, storedMarkers, storedPolygons, currentUfoModelInGLTF,  newExistingMarkers,  existingMarkers, newStoredMarkers, newStoredPolygons,
+  accidTopicChatColor, usernameTopicChatColor, textTopicChatColor, innerContainerTopicChatColor, topicChatHeaderColor,
+  textFontSizeTopicChat, timestampFontSizeTopicChat, headerFontSizeTopicChat } from './letall';
 import {updateRulesForModelNFTState} from './confirmnft'
 import { animateMapTo } from './animatemapto';
 import { profilePictures, usernames, click2url} from './loadalladata'
@@ -11,6 +14,9 @@ import { map } from './map';
 import { applyAllStyles } from './loadprofilepopup';
 import { scene } from './threejs'
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium'
+import { signer } from './web3';
+import { makeScrollable } from './makescrollable';
+import { toast } from './toast'
 
 
 
@@ -19,15 +25,17 @@ export let allLoadedMessages = [];
 
 window.openPopupSettings = function() {
   requestAnimationFrame(() => {
-    if (document.getElementById("popup-column-2").style.display === "block" && document.getElementById("popup-column-3").style.display === "block") {
-      document.getElementById("popup-column-2").style.display = "none";
-      document.getElementById("popup-column-container-2").style.display = "none";
-      document.getElementById("popup-column-3").style.display = "none";
+    // The settings live in one centered card over a dark backdrop; the
+    // backdrop hides the map popup underneath and closes on tap.
+    const backdrop = document.getElementById("popup-settings-backdrop");
+    const card = document.getElementById("popup-settings-card");
+    if (backdrop.style.display === "block") {
+      backdrop.style.display = "none";
+      card.style.display = "none";
       document.getElementById("popup-column-container-3").style.display = "none";
     } else {
-      document.getElementById("popup-column-2").style.display = "block";
-      document.getElementById("popup-column-container-2").style.display = "block";
-      document.getElementById("popup-column-3").style.display = "block";
+      backdrop.style.display = "block";
+      card.style.display = "block";
       document.getElementById("popup-column-container-3").style.display = "block";
       removeUfoModel();
     }
@@ -60,6 +68,7 @@ function createMarkerPopupHTML(data) {
     timestamp,
     likeCountMarker,
     dislikeCountMarker,
+    comments,
     coords
   } = data;
 
@@ -107,7 +116,7 @@ function createMarkerPopupHTML(data) {
   profileImg.src = profileUrl;
   profileImg.alt = 'Profile photo';
   profileImg.style.cssText = 'width: 7vh; height: 7vh; margin-right: 1em; border-radius: 50%; cursor: pointer;';
-  profileImg.onclick = () => window.loadTOPIC4PIC(payer);
+  profileImg.onclick = () => window.loadBio4PIC(payer);
   profileSection.appendChild(profileImg);
 
   const headerDiv = document.createElement('div');
@@ -200,53 +209,60 @@ function createMarkerPopupHTML(data) {
 
   container.appendChild(contentSection);
 
+  // Bottom row (in-flow so the comments section can open below it,
+  // still inside the popup)
+  const bottomRow = document.createElement('div');
+  bottomRow.style.cssText = 'position: relative; height: 2.5vh;';
+
   // Timestamp (bottom right)
   const timestampDiv = document.createElement('div');
   timestampDiv.style.cssText = 'position: absolute; bottom: 0em; right: 1vh; font-size: 1vh; color: gray;';
   timestampDiv.textContent = timestamp;
-  container.appendChild(timestampDiv);
+  bottomRow.appendChild(timestampDiv);
 
+  // Like/Dislike + Comment (bottom center)
+  const likeDislikeDiv = document.createElement('div');
+  likeDislikeDiv.style.cssText = 'position: absolute; bottom: 0em; left: 50%; transform: translateX(-50%); display: flex; gap: 1vh;';
 
+  const likeSpan = document.createElement('span');
+  likeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  likeSpan.textContent = `${likeCountMarker || 0}👍`;
+  likeSpan.onclick = () => window.likeMarker(timestamp, topicId);
+  likeDislikeDiv.appendChild(likeSpan);
 
-    // Like/Dislike + Comment (bottom center)
-    const likeDislikeDiv = document.createElement('div');
-    likeDislikeDiv.style.cssText = 'position: absolute; bottom: 0em; left: 50%; transform: translateX(-50%); display: flex; gap: 1vh;';
-  
-    const likeSpan = document.createElement('span');
-    likeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
-    likeSpan.textContent = `${likeCountMarker || 0}👍`;
-    likeSpan.onclick = () => window.likeMarker(timestamp, topicId);
-    likeDislikeDiv.appendChild(likeSpan);
-  
-    // 💬 Comment Button (between Like and Dislike)
-    const commentSpan = document.createElement('span');
-    commentSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
-    commentSpan.textContent = '💬';
-    commentSpan.onclick = () => window.openMarkerComments(timestamp, topicId);
-    likeDislikeDiv.appendChild(commentSpan);
-  
-    const dislikeSpan = document.createElement('span');
-    dislikeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
-    dislikeSpan.textContent = `${dislikeCountMarker || 0}👎`;
-    dislikeSpan.onclick = () => window.dislikeMarker(timestamp, topicId);
-    likeDislikeDiv.appendChild(dislikeSpan);
-  
-    container.appendChild(likeDislikeDiv);
-  
-    // Settings (bottom left)
-    const settingsSpan = document.createElement('span');
-    settingsSpan.style.cssText = 'position: absolute; bottom: 0em; left: 1vh; font-size: 1.5vh; color: gray; cursor: pointer;';
-    settingsSpan.textContent = '⚙️';
-    settingsSpan.onclick = () => window.openPopupSettings();
-    container.appendChild(settingsSpan);
-  
-    // 📍 Location Button
-    const locationSpan = document.createElement('span');
-    locationSpan.style.cssText = 'position: absolute; bottom: 0em; left: 4vh; font-size: 1.5vh; color: gray; cursor: pointer;';
-    locationSpan.textContent = '📍';
-    locationSpan.onclick = () => window.openMarkerNavigation(coords);
-    container.appendChild(locationSpan);
+  // 💬 Comment Button (between Like and Dislike)
+  const commentSpan = document.createElement('span');
+  commentSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  commentSpan.textContent = comments.length ? `💬${countAllMessages(comments)}` : '💬';
+  commentSpan.onclick = () => window.openMarkerComments(timestamp, topicId);
+  likeDislikeDiv.appendChild(commentSpan);
 
+  const dislikeSpan = document.createElement('span');
+  dislikeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  dislikeSpan.textContent = `${dislikeCountMarker || 0}👎`;
+  dislikeSpan.onclick = () => window.dislikeMarker(timestamp, topicId);
+  likeDislikeDiv.appendChild(dislikeSpan);
+
+  bottomRow.appendChild(likeDislikeDiv);
+
+  // Settings (bottom left)
+  const settingsSpan = document.createElement('span');
+  settingsSpan.style.cssText = 'position: absolute; bottom: 0em; left: 1vh; font-size: 1.5vh; color: gray; cursor: pointer;';
+  settingsSpan.textContent = '⚙️';
+  settingsSpan.onclick = () => window.openPopupSettings();
+  bottomRow.appendChild(settingsSpan);
+
+  // 📍 Location Button
+  const locationSpan = document.createElement('span');
+  locationSpan.style.cssText = 'position: absolute; bottom: 0em; left: 4vh; font-size: 1.5vh; color: gray; cursor: pointer;';
+  locationSpan.textContent = '📍';
+  locationSpan.onclick = () => window.openMarkerNavigation(coords);
+  bottomRow.appendChild(locationSpan);
+
+  container.appendChild(bottomRow);
+
+  // Comments (below the bottom row, hidden until 💬 is pressed)
+  container.appendChild(buildCommentsSection(`marker-comments-${topicId}-${timestamp}`, comments, (input) => window.sendMarkerComment(timestamp, topicId, input), (parentId, input) => window.sendMarkerReply(timestamp, parentId, topicId, input), topicId, 'marker'));
 
   return container;
 }
@@ -268,6 +284,7 @@ function createPolygonPopupHTML(data) {
     timestamp,
     likeCountPolygon,
     dislikeCountPolygon,
+    comments,
     coordinates
   } = data;
 
@@ -317,7 +334,7 @@ function createPolygonPopupHTML(data) {
   profileImg.src = profileUrl;
   profileImg.alt = 'Profile photo';
   profileImg.style.cssText = 'width: 7vh; height: 7vh; margin-right: 1em; border-radius: 50%; cursor: pointer;';
-  profileImg.onclick = () => window.loadTOPIC4PIC(payer);
+  profileImg.onclick = () => window.loadBio4PIC(payer);
   profileSection.appendChild(profileImg);
 
   const headerDiv = document.createElement('div');
@@ -410,11 +427,16 @@ function createPolygonPopupHTML(data) {
 
   container.appendChild(contentSection);
 
+  // Bottom row (in-flow so the comments section can open below it,
+  // still inside the popup)
+  const bottomRow = document.createElement('div');
+  bottomRow.style.cssText = 'position: relative; height: 2.5vh;';
+
   // Timestamp (bottom right)
   const timestampDiv = document.createElement('div');
   timestampDiv.style.cssText = 'position: absolute; bottom: 0em; right: 1vh; font-size: 1vh; color: gray;';
   timestampDiv.textContent = timestamp;
-  container.appendChild(timestampDiv);
+  bottomRow.appendChild(timestampDiv);
 
   // Like/Dislike + Comment (bottom center)
   const likeDislikeDiv = document.createElement('div');
@@ -429,7 +451,7 @@ function createPolygonPopupHTML(data) {
   // 💬 Comment Button (between Like and Dislike)
   const commentSpan = document.createElement('span');
   commentSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
-  commentSpan.textContent = '💬';
+  commentSpan.textContent = comments.length ? `💬${countAllMessages(comments)}` : '💬';
   commentSpan.onclick = () => window.openPolygonComments(timestamp, topicId);
   likeDislikeDiv.appendChild(commentSpan);
 
@@ -439,21 +461,26 @@ function createPolygonPopupHTML(data) {
   dislikeSpan.onclick = () => window.dislikePolygon(timestamp, topicId);
   likeDislikeDiv.appendChild(dislikeSpan);
 
-  container.appendChild(likeDislikeDiv);
+  bottomRow.appendChild(likeDislikeDiv);
 
   // Settings (bottom left)
   const settingsSpan = document.createElement('span');
   settingsSpan.style.cssText = 'position: absolute; bottom: 0em; left: 1vh; font-size: 1.5vh; color: gray; cursor: pointer;';
   settingsSpan.textContent = '⚙️';
   settingsSpan.onclick = () => window.openPopupSettings();
-  container.appendChild(settingsSpan);
+  bottomRow.appendChild(settingsSpan);
 
   // 📍 Location Button
   const locationSpan = document.createElement('span');
   locationSpan.style.cssText = 'position: absolute; bottom: 0em; left: 4vh; font-size: 1.5vh; color: gray; cursor: pointer;';
   locationSpan.textContent = '📍';
   locationSpan.onclick = () => window.openPolygonNavigation(coordinates);
-  container.appendChild(locationSpan);
+  bottomRow.appendChild(locationSpan);
+
+  container.appendChild(bottomRow);
+
+  // Comments (below the bottom row, hidden until 💬 is pressed)
+  container.appendChild(buildCommentsSection(`polygon-comments-${topicId}-${timestamp}`, comments, (input) => window.sendPolygonComment(timestamp, topicId, input), (parentId, input) => window.sendPolygonReply(timestamp, parentId, topicId, input), topicId, 'polygon'));
 
   return container;
 }
@@ -488,6 +515,10 @@ const dislikeCountMapMarker = new Map();
 const likeCountMapPolygon = new Map();
 const dislikeCountMapPolygon = new Map();
 const payerActionsPerTimestamp = new Map();
+const commentsMapMarker = new Map();
+const commentsMapPolygon = new Map();
+const repliesMapMarker = new Map();
+const repliesMapPolygon = new Map();
 
 
 if (rawResult.messages && Array.isArray(rawResult.messages)) {
@@ -568,6 +599,58 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
             dislikeCountMapPolygon.set(actionTimestamp, (dislikeCountMapPolygon.get(actionTimestamp) || 0) + 1);
           }
         }
+      }
+
+      // Collect comments (each topic message is one comment; the payer is
+      // the Hedera account that signed it, same as likes)
+      if (parsedMessage.commentMarker && parsedMessage.commentMarker.timestamp && payerId) {
+        const commentTimestamp = parsedMessage.commentMarker.timestamp;
+        if (!commentsMapMarker.has(commentTimestamp)) {
+          commentsMapMarker.set(commentTimestamp, []);
+        }
+        commentsMapMarker.get(commentTimestamp).push({
+          payer: payerId,
+          text: String(parsedMessage.commentMarker.text || '').slice(0, 300),
+          // ISO string, NOT the Date object: like/reply messages store this
+          // value through JSON (string), so map keys must be strings too
+          created: new Date(parsedMessage.created).toISOString()
+        });
+      }
+      if (parsedMessage.commentPolygon && parsedMessage.commentPolygon.timestamp && payerId) {
+        const commentTimestamp = parsedMessage.commentPolygon.timestamp;
+        if (!commentsMapPolygon.has(commentTimestamp)) {
+          commentsMapPolygon.set(commentTimestamp, []);
+        }
+        commentsMapPolygon.get(commentTimestamp).push({
+          payer: payerId,
+          text: String(parsedMessage.commentPolygon.text || '').slice(0, 300),
+          created: new Date(parsedMessage.created).toISOString()
+        });
+      }
+
+      // Collect replies (nested comments; parentId = the created timestamp
+      // of the comment or reply being answered)
+      if (parsedMessage.replyMarker && parsedMessage.replyMarker.parentId && payerId) {
+        const parentId = parsedMessage.replyMarker.parentId;
+        if (!repliesMapMarker.has(parentId)) {
+          repliesMapMarker.set(parentId, []);
+        }
+        repliesMapMarker.get(parentId).push({
+          payer: payerId,
+          text: String(parsedMessage.replyMarker.text || '').slice(0, 300),
+          created: new Date(parsedMessage.created).toISOString()
+        });
+      }
+      if (parsedMessage.replyPolygon && parsedMessage.replyPolygon.parentId && payerId) {
+        const parentId = parsedMessage.replyPolygon.parentId;
+        if (!repliesMapPolygon.has(parentId)) {
+          repliesMapPolygon.set(parentId, []);
+        }
+        repliesMapPolygon.get(parentId).push({
+          payer: payerId,
+          text: String(parsedMessage.replyPolygon.text || '').slice(0, 300),
+          created: new Date(parsedMessage.created).toISOString()
+        });
       }
     } catch (error) {
       console.error(`Error parsing message for likes/dislikes: ${error}`);
@@ -854,6 +937,12 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       timestamp,
                       likeCountMarker,
                       dislikeCountMarker,
+                      comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
+                        ...c,
+                        likeCount: likeCountMapMarker.get(c.created) || 0,
+                        dislikeCount: dislikeCountMapMarker.get(c.created) || 0,
+                        replies: buildReplyTree(c, repliesMapMarker, likeCountMapMarker, dislikeCountMapMarker)
+                      })),
                       coords
                     });
 
@@ -936,6 +1025,12 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         timestamp,
                         likeCountPolygon,
                         dislikeCountPolygon,
+                        comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
+                          ...c,
+                          likeCount: likeCountMapPolygon.get(c.created) || 0,
+                          dislikeCount: dislikeCountMapPolygon.get(c.created) || 0,
+                          replies: buildReplyTree(c, repliesMapPolygon, likeCountMapPolygon, dislikeCountMapPolygon)
+                        })),
                         coordinates
                       });
 
@@ -1316,6 +1411,10 @@ window.prevMsgFromPayerPolygon = function(payer, polygonNumber, topicId) {
 };
 
 window.likeMarker = async function(timestamp, topicId) {
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
 
     const meesageobject = {
     likeMarker: {
@@ -1324,8 +1423,498 @@ window.likeMarker = async function(timestamp, topicId) {
   };
 
   const meesage = JSON.stringify(meesageobject);
+  toast.info("Confirm in wallet 👛");
   await sendMessage(topicId, meesage);
-    
+
+};
+
+// Recursively build a reply thread (replies-to-replies supported; the
+// depth guard stops malformed parentId cycles from overflowing the stack).
+function buildReplyTree(node, repliesMap, likeMap, dislikeMap, depth = 0) {
+  if (depth > 50) return [];
+  return (repliesMap.get(node.created) || []).map((r) => ({
+    ...r,
+    likeCount: likeMap.get(r.created) || 0,
+    dislikeCount: dislikeMap.get(r.created) || 0,
+    replies: buildReplyTree(r, repliesMap, likeMap, dislikeMap, depth + 1)
+  }));
+}
+
+// Count every message in a tree: each node plus all of its nested replies.
+// Used by the "Comments (N)" header and the popup 💬 button.
+const countAllMessages = (nodes) => nodes.reduce((sum, n) => sum + 1 + (n.replies ? countAllMessages(n.replies) : 0), 0);
+
+// Comment section for marker/polygon popups: the list of comments below the
+// message plus a box to leave your own. Hidden until 💬 is pressed.
+// Glass card: rounded corners, blur, thin white border (app-wide glass look).
+function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
+  const section = document.createElement('div');
+  section.id = id;
+  section.style.cssText = 'display: none; margin-top: 1vh; padding: 1vh; border-radius: 1.2vh; background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(1vh); -webkit-backdrop-filter: blur(1vh); border: 0.05vh solid rgba(255, 255, 255, 0.15); text-align: left;';
+
+  const header = document.createElement('div');
+  header.style.cssText = 'font-size: 1.2vh; color: gray; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.8vh;';
+  header.textContent = `Comments (${countAllMessages(comments)})`;
+  section.appendChild(header);
+
+  const list = document.createElement('div');
+  list.className = 'comments-scroll';
+  list.style.cssText = 'max-height: 15vh; overflow-y: auto; margin-bottom: 1vh;';
+  if (comments.length === 0) {
+    const empty = document.createElement('p');
+    empty.style.cssText = 'font-size: 1.3vh; color: gray; margin: 0.5vh 0; text-align: center;';
+    empty.textContent = 'No comments yet';
+    list.appendChild(empty);
+  }
+
+  // Topic-chat look: consecutive comments by the same payer form one group -
+  // round profile photo on the left (opens the payer's topic), payer/username
+  // header, then each comment's text with a small gray timestamp below it.
+  const defaultProfilePic = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+  let currentGroupPayer = null;
+  let currentMessagesDiv = null;
+
+  const startGroup = (payer) => {
+    currentGroupPayer = payer;
+    const group = document.createElement('div');
+    group.className = 'toolbar-group-messages';
+    group.style.cssText = `position: relative; padding-left: 2.5em; min-height: 2.5em; border-color: ${innerContainerTopicChatColor};`;
+
+    const payerImage = profilePictures[payer]?.url || defaultProfilePic;
+    const validPayerImage = isValidUrl(payerImage) ? payerImage : defaultProfilePic;
+    const img = document.createElement('img');
+    img.src = validPayerImage;
+    img.alt = 'Profile photo';
+    img.style.cssText = 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer;';
+    img.addEventListener('click', () => window.loadBio4PIC(payer));
+    group.appendChild(img);
+
+    const contentWrapper = document.createElement('div');
+    contentWrapper.style.cssText = 'display: flex; flex-direction: column;';
+
+    const header = document.createElement('div');
+    header.className = 'toolbar-group-messages-header';
+    header.style.cssText = `display: flex; align-items: center; font-size: ${headerFontSizeTopicChat}vh;`;
+    const payerLink = document.createElement('a');
+    payerLink.href = `https://explore.hashpack.app/${encodeURIComponent(payer)}`;
+    payerLink.target = '_blank';
+    payerLink.rel = 'noopener noreferrer';
+    payerLink.style.cssText = `color: ${accidTopicChatColor}; text-decoration: none;`;
+    payerLink.textContent = payer;
+    header.appendChild(payerLink);
+    header.appendChild(document.createTextNode('\u00A0'));
+
+    const username = usernames[payer]?.username ? ` ${usernames[payer].username}` : '';
+    const click2link = click2url[payer]?.click2url ? ` ${click2url[payer].click2url}` : '';
+    if (click2link.trim()) {
+      const usernameLink = document.createElement('a');
+      usernameLink.href = click2link.trim();
+      usernameLink.target = '_blank';
+      usernameLink.rel = 'noopener noreferrer';
+      usernameLink.style.cssText = `color: ${usernameTopicChatColor}; text-decoration: none;`;
+      usernameLink.textContent = username.trim();
+      header.appendChild(usernameLink);
+    } else if (username.trim()) {
+      const usernameSpan = document.createElement('span');
+      usernameSpan.style.cssText = `color: ${usernameTopicChatColor};`;
+      usernameSpan.textContent = username.trim();
+      header.appendChild(usernameSpan);
+    }
+    contentWrapper.appendChild(header);
+
+    currentMessagesDiv = document.createElement('div');
+    contentWrapper.appendChild(currentMessagesDiv);
+    group.appendChild(contentWrapper);
+    list.appendChild(group);
+  };
+
+  let replyTarget = null;
+
+  // Render one comment/reply and its whole reply thread (recursive, so
+  // replies-to-replies nest without a depth limit). A top-level comment and
+  // its replies share one glass card; nesting is marked by a thin left
+  // divider. A like on any node is just a regular likeMarker/likePolygon
+  // with that node's own created timestamp, so the existing per-payer
+  // counting applies unchanged.
+  const renderNode = (node, depth) => {
+    const wrapper = document.createElement('div');
+    if (depth === 0) {
+      wrapper.style.cssText = 'display: flex; flex-direction: column; margin-top: 0.2em; padding: 0.6vh 1vh; border-radius: 1.2vh; background: rgba(255, 255, 255, 0.05); border: 0.05vh solid rgba(255, 255, 255, 0.12); box-sizing: border-box;';
+    } else {
+      wrapper.style.cssText = 'margin-top: 0.2em;';
+    }
+
+    if (depth > 0) {
+      // Match the top-level comment header: acc id in the acc
+      // color, username in the username color (was one same-color link before)
+      const whoRow = document.createElement('div');
+      whoRow.style.cssText = `display: inline-flex; align-items: center; gap: 0.3em; padding: 0.025em 0.1em 0.025em 0.1em; border-radius: 0.4em; font-size: ${headerFontSizeTopicChat / 2}vh;`;
+      const payerPic = document.createElement('img');
+      const picUrl = profilePictures[node.payer]?.url || defaultProfilePic;
+      payerPic.src = isValidUrl(picUrl) ? picUrl : defaultProfilePic;
+      payerPic.alt = 'Profile photo';
+      payerPic.style.cssText = 'width: 1.2em; height: 1.2em; border-radius: 1em; object-fit: cover; border: 0.05vh solid rgba(255, 255, 255, 0.35); cursor: pointer;';
+      payerPic.addEventListener('click', () => window.loadBio4PIC(node.payer));
+      whoRow.appendChild(payerPic);
+      const payerLabel = document.createElement('a');
+      payerLabel.href = `https://explore.hashpack.app/${encodeURIComponent(node.payer)}`;
+      payerLabel.target = '_blank';
+      payerLabel.rel = 'noopener noreferrer';
+      payerLabel.style.cssText = `color: ${accidTopicChatColor}; text-decoration: none;`;
+      payerLabel.textContent = node.payer;
+      whoRow.appendChild(payerLabel);
+      const uname = usernames[node.payer]?.username?.trim();
+      const replyClick2 = click2url[node.payer]?.click2url;
+      if (uname && replyClick2) {
+        const usernameLink = document.createElement('a');
+        usernameLink.href = replyClick2;
+        usernameLink.target = '_blank';
+        usernameLink.rel = 'noopener noreferrer';
+        usernameLink.style.cssText = `color: ${usernameTopicChatColor}; text-decoration: none;`;
+        usernameLink.textContent = uname;
+        whoRow.appendChild(usernameLink);
+      } else if (uname) {
+        const usernameSpan = document.createElement('span');
+        usernameSpan.style.cssText = `color: ${usernameTopicChatColor};`;
+        usernameSpan.textContent = uname;
+        whoRow.appendChild(usernameSpan);
+      }
+      wrapper.appendChild(whoRow);
+    }
+
+    const messageText = document.createElement('div');
+    messageText.className = 'chat-msg-text';
+    messageText.style.cssText = `font-size: ${textFontSizeTopicChat}vh; color: ${textTopicChatColor}; white-space: pre-wrap; word-wrap: break-word;`;
+    messageText.textContent = node.text;
+    wrapper.appendChild(messageText);
+
+    // Meta row: 👍 💬N 👎 ↩ (left) ... timestamp (right)
+    const metaRow = document.createElement('div');
+    metaRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-top: 0;';
+
+    const likeDislikeDiv = document.createElement('div');
+    likeDislikeDiv.style.cssText = 'display: flex; gap: 0.5em;';
+
+    // Reply thread: inline in the same card as the comment (a thin left
+    // divider marks the nesting). Collapsed by default; the 💬N badge on any
+    // node with replies toggles it open/closed.
+    const children = node.replies || [];
+    let badge = null;
+    let thread = null;
+    if (children.length > 0) {
+      thread = document.createElement('div');
+      thread.className = 'reply-thread';
+      thread.style.display = 'none';
+
+      badge = document.createElement('span');
+      badge.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+      badge.textContent = `💬${countAllMessages(children)}`;
+      badge.onclick = () => {
+        thread.style.display = thread.style.display === 'none' ? '' : 'none';
+      };
+    }
+
+    const likeSpan = document.createElement('span');
+    likeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+    likeSpan.textContent = `${node.likeCount || 0}👍`;
+    likeSpan.onclick = () => kind === 'polygon' ? window.likePolygon(node.created, topicId) : window.likeMarker(node.created, topicId);
+    likeDislikeDiv.appendChild(likeSpan);
+
+    if (badge) likeDislikeDiv.appendChild(badge);
+
+    const dislikeSpan = document.createElement('span');
+    dislikeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+    dislikeSpan.textContent = `${node.dislikeCount || 0}👎`;
+    dislikeSpan.onclick = () => kind === 'polygon' ? window.dislikePolygon(node.created, topicId) : window.dislikeMarker(node.created, topicId);
+    likeDislikeDiv.appendChild(dislikeSpan);
+
+    const replyBtn = document.createElement('span');
+    replyBtn.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+    replyBtn.textContent = '↩';
+    replyBtn.onclick = () => {
+      replyTarget = node;
+      const uname = usernames[node.payer]?.username?.trim() || '';
+      const created = new Date(node.created).toLocaleString('en-US', {
+        hour12: false,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      replyChipLabel.textContent = `↩ Replying to ${node.payer}${uname ? ` ${uname}` : ''} — ${created}`;
+      replyChip.style.display = 'flex';
+      input.focus();
+    };
+    likeDislikeDiv.appendChild(replyBtn);
+
+    metaRow.appendChild(likeDislikeDiv);
+
+    const timestampSpan = document.createElement('span');
+    timestampSpan.className = 'chat-msg-time';
+    timestampSpan.style.cssText = `font-size: 0.75vh; color: gray;`;
+    timestampSpan.textContent = new Date(node.created).toLocaleString('en-US', {
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+    metaRow.appendChild(timestampSpan);
+
+    wrapper.appendChild(metaRow);
+
+    if (thread) {
+      children.forEach((child) => thread.appendChild(renderNode(child, depth + 1)));
+      wrapper.appendChild(thread);
+    }
+
+    return wrapper;
+  };
+
+  for (const comment of comments) {
+    if (comment.payer !== currentGroupPayer) {
+      startGroup(comment.payer);
+    }
+    currentMessagesDiv.appendChild(renderNode(comment, 0));
+  }
+  makeScrollable(list);
+  section.appendChild(list);
+
+  // Reply-mode chip above the input ("↩ Replying to @payer ✕")
+  const replyChip = document.createElement('div');
+  replyChip.style.cssText = 'display: none; align-items: center; gap: 0.5em; margin-bottom: 0.8vh; font-size: 1.2vh; color: gray;';
+  const replyChipLabel = document.createElement('span');
+  replyChipLabel.style.cssText = 'flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+  const replyChipClose = document.createElement('span');
+  replyChipClose.textContent = '✕';
+  replyChipClose.style.cssText = 'cursor: pointer; color: gray;';
+  replyChipClose.onclick = () => { replyTarget = null; replyChip.style.display = 'none'; };
+  replyChip.appendChild(replyChipLabel);
+  replyChip.appendChild(replyChipClose);
+  section.appendChild(replyChip);
+
+  // Input row: rounded glass textarea + rounded pill Send button,
+  // bottom-aligned so the button stays put as the textarea grows.
+  const inputRow = document.createElement('div');
+  inputRow.style.cssText = 'display: flex; align-items: flex-end; gap: 1vh;';
+
+  const input = document.createElement('textarea');
+  input.placeholder = 'Leave a comment...';
+  input.maxLength = 300;
+  input.rows = 2;
+  input.style.cssText = 'flex: 1; resize: none; font-size: 1.4vh; padding: 0.6vh 1vh; border-radius: 1vh; border: 0.05vh solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08); color: white; outline: none;';
+  input.addEventListener('input', () => adjustTextareaHeight(input));
+  inputRow.appendChild(input);
+
+  const sendBtn = document.createElement('span');
+  sendBtn.textContent = 'Send';
+  sendBtn.style.cssText = 'padding: 0.6vh 1.5vh; border-radius: 1.5vh; background: rgba(255, 255, 255, 0.9); color: black; font-size: 1.3vh; font-weight: 600; cursor: pointer; user-select: none; transition: transform 0.15s ease, filter 0.15s ease;';
+  sendBtn.addEventListener('mouseenter', () => { sendBtn.style.transform = 'scale(1.03)'; sendBtn.style.filter = 'brightness(1.1)'; });
+  sendBtn.addEventListener('mouseleave', () => { sendBtn.style.transform = ''; sendBtn.style.filter = ''; });
+  sendBtn.addEventListener('mousedown', () => { sendBtn.style.transform = 'scale(0.97)'; });
+  sendBtn.addEventListener('mouseup', () => { sendBtn.style.transform = 'scale(1.03)'; });
+  sendBtn.onclick = () => {
+    if (replyTarget) {
+      onReply(replyTarget.created, input);
+      replyTarget = null;
+      replyChip.style.display = 'none';
+    } else {
+      onSend(input);
+    }
+  };
+  inputRow.appendChild(sendBtn);
+  section.appendChild(inputRow);
+
+  return section;
+}
+
+// One comments modal at a time: the post popup stays open (dimmed) behind it
+let commentsModal = null;      // fullscreen wrapper (scrim + card)
+let commentsModalSection = null; // the comments section currently inside it
+
+function closeCommentsModal() {
+  if (!commentsModal) return;
+  if (commentsModalSection) {
+    const home = commentsModalSection._homeParent;
+    if (home && home.isConnected) home.appendChild(commentsModalSection);
+    // Restore the section's inline styles saved when the modal opened
+    const s = commentsModalSection._modalSaves;
+    if (s) {
+      for (const [prop, val] of Object.entries(s)) {
+        commentsModalSection.style[prop] = val;
+      }
+      delete commentsModalSection._modalSaves;
+    }
+    const list = commentsModalSection.querySelector('.comments-scroll');
+    if (list) list.style.maxHeight = '15vh';
+  }
+  commentsModal.remove();
+  commentsModal = null;
+  commentsModalSection = null;
+}
+
+function openCommentsModal(sectionId) {
+  if (commentsModal) closeCommentsModal();
+  const section = document.getElementById(sectionId);
+  if (!section) return;
+
+  // Fullscreen wrapper above the post popup: the wrapper's own z-index (5000)
+  // beats .maplibregl-popup's z-index:1000!important, so the modal stacks on
+  // top even though the card itself reuses the popup classes
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'position: fixed; inset: 0; z-index: 5000;';
+
+  const scrim = document.createElement('div');
+  scrim.style.cssText = 'position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);';
+  scrim.onclick = closeCommentsModal;
+  scrim.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
+  wrapper.appendChild(scrim);
+
+  // Card reuses the popup classes: same glass look, centering and the
+  // keyboard-fit handler keeps it on screen while typing
+  const card = document.createElement('div');
+  card.className = 'maplibregl-popup';
+  const cardContent = document.createElement('div');
+  cardContent.className = 'maplibregl-popup-content';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'maplibregl-popup-close-button';
+  closeBtn.textContent = '×';
+  closeBtn.onclick = (e) => {
+    e.stopPropagation();
+    closeCommentsModal();
+  };
+  cardContent.appendChild(closeBtn);
+
+  // Move the already-built (hidden) section into the modal so its state —
+  // comments, reply mode, reply target — carries over untouched
+  section._homeParent = section.parentElement;
+  section._modalSaves = {
+    display: section.style.display,
+    marginTop: section.style.marginTop,
+    padding: section.style.padding,
+    background: section.style.background,
+    border: section.style.border,
+    borderRadius: section.style.borderRadius,
+    backdropFilter: section.style.backdropFilter,
+    webkitBackdropFilter: section.style.webkitBackdropFilter
+  };
+  cardContent.appendChild(section);
+  section.style.display = 'block';
+  // Neutralize the section's own glass card inside the modal's card
+  section.style.marginTop = '0';
+  section.style.padding = '0';
+  section.style.background = 'transparent';
+  section.style.border = 'none';
+  section.style.borderRadius = '0';
+  section.style.backdropFilter = 'none';
+  section.style.webkitBackdropFilter = 'none';
+  const list = section.querySelector('.comments-scroll');
+  if (list) list.style.maxHeight = '50vh';
+
+  card.appendChild(cardContent);
+  wrapper.appendChild(card);
+  document.body.appendChild(wrapper);
+
+  commentsModal = wrapper;
+  commentsModalSection = section;
+
+  const input = section.querySelector('textarea');
+  if (input) setTimeout(() => input.focus(), 100);
+}
+
+window.openMarkerComments = function(timestamp, topicId) {
+  openCommentsModal(`marker-comments-${topicId}-${timestamp}`);
+};
+
+window.openPolygonComments = function(timestamp, topicId) {
+  openCommentsModal(`polygon-comments-${topicId}-${timestamp}`);
+};
+
+window.sendMarkerComment = async function(timestamp, topicId, input) {
+  if (!signer) {
+    toast.error("Connect wallet first");
+    return;
+  }
+  const text = (input.value || '').trim().slice(0, 300);
+  if (!text) {
+    toast.error("Comment is empty");
+    return;
+  }
+  const messageObject = {
+    commentMarker: {
+      timestamp: timestamp,
+      text: text
+    }
+  };
+  toast.info("Confirm in wallet 👛");
+  await sendMessage(topicId, JSON.stringify(messageObject));
+};
+
+window.sendPolygonComment = async function(timestamp, topicId, input) {
+  if (!signer) {
+    toast.error("Connect wallet first");
+    return;
+  }
+  const text = (input.value || '').trim().slice(0, 300);
+  if (!text) {
+    toast.error("Comment is empty");
+    return;
+  }
+  const messageObject = {
+    commentPolygon: {
+      timestamp: timestamp,
+      text: text
+    }
+  };
+  toast.info("Confirm in wallet 👛");
+  await sendMessage(topicId, JSON.stringify(messageObject));
+};
+
+window.sendMarkerReply = async function(postTimestamp, parentId, topicId, input) {
+  if (!signer) {
+    toast.error("Connect wallet first");
+    return;
+  }
+  const text = (input.value || '').trim().slice(0, 300);
+  if (!text) {
+    toast.error("Comment is empty");
+    return;
+  }
+  const messageObject = {
+    replyMarker: {
+      timestamp: postTimestamp,
+      parentId: parentId,
+      text: text
+    }
+  };
+  toast.info("Confirm in wallet 👛");
+  await sendMessage(topicId, JSON.stringify(messageObject));
+};
+
+window.sendPolygonReply = async function(postTimestamp, parentId, topicId, input) {
+  if (!signer) {
+    toast.error("Connect wallet first");
+    return;
+  }
+  const text = (input.value || '').trim().slice(0, 300);
+  if (!text) {
+    toast.error("Comment is empty");
+    return;
+  }
+  const messageObject = {
+    replyPolygon: {
+      timestamp: postTimestamp,
+      parentId: parentId,
+      text: text
+    }
+  };
+  toast.info("Confirm in wallet 👛");
+  await sendMessage(topicId, JSON.stringify(messageObject));
 };
 
 window.openPolygonNavigation = async function(coordinates) {
@@ -1384,7 +1973,11 @@ window.openMarkerNavigation = async function(coords) {
 };
 
 window.likePolygon = async function(timestamp, topicId) {
-    
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
+
     const meesageobject = {
     likePolygon: {
       timestamp: timestamp
@@ -1392,10 +1985,15 @@ window.likePolygon = async function(timestamp, topicId) {
   };
 
   const meesage = JSON.stringify(meesageobject);
+  toast.info("Confirm in wallet 👛");
   await sendMessage(topicId, meesage);
 };
 
 window.dislikeMarker = async function(timestamp, topicId) {
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
 
     const meesageobject = {
     dislikeMarker: {
@@ -1404,11 +2002,16 @@ window.dislikeMarker = async function(timestamp, topicId) {
   };
 
   const meesage = JSON.stringify(meesageobject);
+  toast.info("Confirm in wallet 👛");
   await sendMessage(topicId, meesage);
 };
 
 window.dislikePolygon = async function(timestamp, topicId) {
-    
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
+
     const meesageobject = {
     dislikePolygon: {
       timestamp: timestamp
@@ -1416,6 +2019,7 @@ window.dislikePolygon = async function(timestamp, topicId) {
   };
 
   const meesage = JSON.stringify(meesageobject);
+  toast.info("Confirm in wallet 👛");
   await sendMessage(topicId, meesage);
 };
 
@@ -1574,6 +2178,10 @@ export async function processTopicE2EEMessages(decryptedPrivateKey, messages, to
       const likeCountMapPolygon = new Map();
       const dislikeCountMapPolygon = new Map();
       const payerActionsPerTimestamp = new Map();
+      const commentsMapMarker = new Map();
+      const commentsMapPolygon = new Map();
+      const repliesMapMarker = new Map();
+      const repliesMapPolygon = new Map();
 
 
 if (rawResult && Array.isArray(rawResult)) {
@@ -1658,6 +2266,58 @@ if (rawResult && Array.isArray(rawResult)) {
             dislikeCountMapPolygon.set(actionTimestamp, (dislikeCountMapPolygon.get(actionTimestamp) || 0) + 1);
           }
         }
+      }
+
+      // Collect comments (each topic message is one comment; the payer is
+      // the Hedera account that signed it, same as likes)
+      if (parsedMessage.commentMarker && parsedMessage.commentMarker.timestamp && payerId) {
+        const commentTimestamp = parsedMessage.commentMarker.timestamp;
+        if (!commentsMapMarker.has(commentTimestamp)) {
+          commentsMapMarker.set(commentTimestamp, []);
+        }
+        commentsMapMarker.get(commentTimestamp).push({
+          payer: payerId,
+          text: String(parsedMessage.commentMarker.text || '').slice(0, 300),
+          // ISO string, NOT the Date object: like/reply messages store this
+          // value through JSON (string), so map keys must be strings too
+          created: new Date(parsedMessage.created).toISOString()
+        });
+      }
+      if (parsedMessage.commentPolygon && parsedMessage.commentPolygon.timestamp && payerId) {
+        const commentTimestamp = parsedMessage.commentPolygon.timestamp;
+        if (!commentsMapPolygon.has(commentTimestamp)) {
+          commentsMapPolygon.set(commentTimestamp, []);
+        }
+        commentsMapPolygon.get(commentTimestamp).push({
+          payer: payerId,
+          text: String(parsedMessage.commentPolygon.text || '').slice(0, 300),
+          created: new Date(parsedMessage.created).toISOString()
+        });
+      }
+
+      // Collect replies (nested comments; parentId = the created timestamp
+      // of the comment or reply being answered)
+      if (parsedMessage.replyMarker && parsedMessage.replyMarker.parentId && payerId) {
+        const parentId = parsedMessage.replyMarker.parentId;
+        if (!repliesMapMarker.has(parentId)) {
+          repliesMapMarker.set(parentId, []);
+        }
+        repliesMapMarker.get(parentId).push({
+          payer: payerId,
+          text: String(parsedMessage.replyMarker.text || '').slice(0, 300),
+          created: new Date(parsedMessage.created).toISOString()
+        });
+      }
+      if (parsedMessage.replyPolygon && parsedMessage.replyPolygon.parentId && payerId) {
+        const parentId = parsedMessage.replyPolygon.parentId;
+        if (!repliesMapPolygon.has(parentId)) {
+          repliesMapPolygon.set(parentId, []);
+        }
+        repliesMapPolygon.get(parentId).push({
+          payer: payerId,
+          text: String(parsedMessage.replyPolygon.text || '').slice(0, 300),
+          created: new Date(parsedMessage.created).toISOString()
+        });
       }
     } catch (error) {
       console.error(`Error parsing message for likes/dislikes: ${error}`);
@@ -1952,6 +2612,12 @@ if (rawResult && Array.isArray(rawResult)) {
                       timestamp,
                       likeCountMarker,
                       dislikeCountMarker,
+                      comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
+                        ...c,
+                        likeCount: likeCountMapMarker.get(c.created) || 0,
+                        dislikeCount: dislikeCountMapMarker.get(c.created) || 0,
+                        replies: buildReplyTree(c, repliesMapMarker, likeCountMapMarker, dislikeCountMapMarker)
+                      })),
                       coords
                     });
 
@@ -2034,6 +2700,12 @@ if (rawResult && Array.isArray(rawResult)) {
                         timestamp,
                         likeCountPolygon,
                         dislikeCountPolygon,
+                        comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
+                          ...c,
+                          likeCount: likeCountMapPolygon.get(c.created) || 0,
+                          dislikeCount: dislikeCountMapPolygon.get(c.created) || 0,
+                          replies: buildReplyTree(c, repliesMapPolygon, likeCountMapPolygon, dislikeCountMapPolygon)
+                        })),
                         coordinates
                       });
 
@@ -2223,6 +2895,10 @@ export async function processFewTopicE2EEMessages(decryptedPrivateKey, messages,
       const likeCountMapPolygon = new Map();
       const dislikeCountMapPolygon = new Map();
       const payerActionsPerTimestamp = new Map();
+      const commentsMapMarker = new Map();
+      const commentsMapPolygon = new Map();
+      const repliesMapMarker = new Map();
+      const repliesMapPolygon = new Map();
 
 
 if (rawResult && Array.isArray(rawResult)) {
@@ -2307,6 +2983,58 @@ if (rawResult && Array.isArray(rawResult)) {
             dislikeCountMapPolygon.set(actionTimestamp, (dislikeCountMapPolygon.get(actionTimestamp) || 0) + 1);
           }
         }
+      }
+
+      // Collect comments (each topic message is one comment; the payer is
+      // the Hedera account that signed it, same as likes)
+      if (parsedMessage.commentMarker && parsedMessage.commentMarker.timestamp && payerId) {
+        const commentTimestamp = parsedMessage.commentMarker.timestamp;
+        if (!commentsMapMarker.has(commentTimestamp)) {
+          commentsMapMarker.set(commentTimestamp, []);
+        }
+        commentsMapMarker.get(commentTimestamp).push({
+          payer: payerId,
+          text: String(parsedMessage.commentMarker.text || '').slice(0, 300),
+          // ISO string, NOT the Date object: like/reply messages store this
+          // value through JSON (string), so map keys must be strings too
+          created: new Date(parsedMessage.created).toISOString()
+        });
+      }
+      if (parsedMessage.commentPolygon && parsedMessage.commentPolygon.timestamp && payerId) {
+        const commentTimestamp = parsedMessage.commentPolygon.timestamp;
+        if (!commentsMapPolygon.has(commentTimestamp)) {
+          commentsMapPolygon.set(commentTimestamp, []);
+        }
+        commentsMapPolygon.get(commentTimestamp).push({
+          payer: payerId,
+          text: String(parsedMessage.commentPolygon.text || '').slice(0, 300),
+          created: new Date(parsedMessage.created).toISOString()
+        });
+      }
+
+      // Collect replies (nested comments; parentId = the created timestamp
+      // of the comment or reply being answered)
+      if (parsedMessage.replyMarker && parsedMessage.replyMarker.parentId && payerId) {
+        const parentId = parsedMessage.replyMarker.parentId;
+        if (!repliesMapMarker.has(parentId)) {
+          repliesMapMarker.set(parentId, []);
+        }
+        repliesMapMarker.get(parentId).push({
+          payer: payerId,
+          text: String(parsedMessage.replyMarker.text || '').slice(0, 300),
+          created: new Date(parsedMessage.created).toISOString()
+        });
+      }
+      if (parsedMessage.replyPolygon && parsedMessage.replyPolygon.parentId && payerId) {
+        const parentId = parsedMessage.replyPolygon.parentId;
+        if (!repliesMapPolygon.has(parentId)) {
+          repliesMapPolygon.set(parentId, []);
+        }
+        repliesMapPolygon.get(parentId).push({
+          payer: payerId,
+          text: String(parsedMessage.replyPolygon.text || '').slice(0, 300),
+          created: new Date(parsedMessage.created).toISOString()
+        });
       }
     } catch (error) {
       console.error(`Error parsing message for likes/dislikes: ${error}`);
@@ -2603,6 +3331,12 @@ if (rawResult && Array.isArray(rawResult)) {
                       timestamp,
                       likeCountMarker,
                       dislikeCountMarker,
+                      comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
+                        ...c,
+                        likeCount: likeCountMapMarker.get(c.created) || 0,
+                        dislikeCount: dislikeCountMapMarker.get(c.created) || 0,
+                        replies: buildReplyTree(c, repliesMapMarker, likeCountMapMarker, dislikeCountMapMarker)
+                      })),
                       coords
                     });
 
@@ -2688,6 +3422,12 @@ if (rawResult && Array.isArray(rawResult)) {
                         timestamp,
                         likeCountPolygon,
                         dislikeCountPolygon,
+                        comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
+                          ...c,
+                          likeCount: likeCountMapPolygon.get(c.created) || 0,
+                          dislikeCount: dislikeCountMapPolygon.get(c.created) || 0,
+                          replies: buildReplyTree(c, repliesMapPolygon, likeCountMapPolygon, dislikeCountMapPolygon)
+                        })),
                         coordinates
                       });
 

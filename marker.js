@@ -8,6 +8,7 @@ import { activePolygonPopups } from './polygons';
 import { CloseALL, changePopupState } from './cssLogic';
 import { applyAllStyles } from './loadprofilepopup';
 import { scene } from "./threejs";
+import { makeScrollable } from './makescrollable';
 
 
 
@@ -105,6 +106,11 @@ export function updateClusters() {
           activeMarkerPopups.push(popup);
           CloseALL();
           popup.setLngLat(cluster.geometry.coordinates).addTo(map).setDOMContent(cluster.properties.message);
+          const markerPopupContent = popup.getElement()?.querySelector('.maplibregl-popup-content');
+          if (markerPopupContent && !markerPopupContent._scrollable) {
+            makeScrollable(markerPopupContent);
+            markerPopupContent._scrollable = true;
+          }
           animateMapTo(map, cluster.geometry.coordinates, null);
           applyAllStyles();
           changePopupState(true);

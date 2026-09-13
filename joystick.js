@@ -103,10 +103,16 @@ export function handleMovement() {
     return element && window.getComputedStyle(element).display === "block";
   });
 
+  // Also block while typing in any input/textarea (search bar, popup
+  // comments/replies, etc.) so WASD/QE don't pan the map mid-keystroke.
+  const active = document.activeElement;
+  const isTyping = (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA"))
+    && active.id !== "speed-slider";
+
   const panSpeed = 10 * getSpeedMultiplier();
   const zoomSpeed = 0.05 * getSpeedMultiplier();
 
-  if (!isBlocked) {
+  if (!isBlocked && !isTyping) {
     if (keys.w) {
       map.panBy([0, -panSpeed], { animate: false });
     }

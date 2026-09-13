@@ -1,16 +1,27 @@
 import { getMessages, sendMessage } from "./hedera";
+import { signer } from "./web3";
+import { toast } from "./toast";
 
 document.getElementById("save-main-button").addEventListener("click", async (event) => {
     event.stopPropagation();
-    
+
     try {
+        if (!signer) {
+            toast.error("Connect wallet first");
+            return;
+        }
         const topicId = "0.0.9797981";
-        
+
         const colorDisconnect = document.getElementById("disconnect-button-color").value;
         const colorMainButton = document.getElementById("main-button-color").value;
         const MainButtonHeight = Math.min(parseFloat(document.getElementById("Main-Button-Height").value) || 100, 100);
         const MainButtonWidth = Math.min(parseFloat(document.getElementById("Main-Button-Width").value) || 100, 100);
         const MainButtonFontSize = Math.min(parseFloat(document.getElementById("Main-Button-Font-Size").value) || 2, 10);
+
+        if (!colorDisconnect || !colorMainButton) {
+            toast.error("Please fill in both color fields.");
+            return;
+        }
         const messageData = {
             data: {
                 colorDisconnect: colorDisconnect,
@@ -23,6 +34,7 @@ document.getElementById("save-main-button").addEventListener("click", async (eve
 
         const message = JSON.stringify(messageData);
 
+        toast.info("Confirm in wallet 👛");
         const receipt = await sendMessage(
             topicId,
             message
@@ -93,21 +105,21 @@ export async function loadMainButtonSettings(a) {
         disconnectButton.forEach(button => {
             button.style.backgroundColor = colorDisconnect;
             button.style.height = MainButtonHeight + "vh";
-            button.style.width = MainButtonWidth + "vw";
+            button.style.width = (MainButtonWidth * 0.45) + "vh";
             button.style.fontSize = MainButtonFontSize + "vh";
         });
 
         menuButtons.forEach(button => {
             button.style.backgroundColor = colorMainButton;
             button.style.height = MainButtonHeight + "vh";
-            button.style.width = MainButtonWidth + "vw";
+            button.style.width = (MainButtonWidth * 0.45) + "vh";
             button.style.fontSize = MainButtonFontSize + "vh";
         });
 
         optionsButtons.forEach(button => {
             button.style.backgroundColor = colorMainButton;
             button.style.height = MainButtonHeight + "vh";
-            button.style.width = MainButtonWidth + "vw";
+            button.style.width = (MainButtonWidth * 0.45) + "vh";
             button.style.fontSize = MainButtonFontSize + "vh";
         });
     }
