@@ -128,6 +128,15 @@ function setSecondCorner(loc) {
   toast.info('Polygon opened');
 }
 
+// Search results: the same pin, but without the action buttons
+export function showSearchPin(loc) {
+  cleanup();
+  makePinEl();
+  pressLoc = loc;
+  anchorOpen = false;
+  onMapMove();
+}
+
 function handlePress(loc) {
   if (awaitingSecondCorner) {
     setSecondCorner(loc);

@@ -16,6 +16,7 @@ import { scene } from './threejs'
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium'
 import { signer } from './web3';
 import { makeScrollable } from './makescrollable';
+import { copyTextToClipboard } from './handleallmessages';
 import { toast } from './toast'
 
 
@@ -91,8 +92,9 @@ function createMarkerPopupHTML(data) {
 
   topicSpan.addEventListener("click", async () => {
     try {
-      await navigator.clipboard.writeText(topicId);
-      
+      await copyTextToClipboard(topicId);
+      toast.success("Copied topic id");
+
       const originalText = topicSpan.textContent;
       topicSpan.textContent = "Copyed!";
       setTimeout(() => {
@@ -212,17 +214,17 @@ function createMarkerPopupHTML(data) {
   // Bottom row (in-flow so the comments section can open below it,
   // still inside the popup)
   const bottomRow = document.createElement('div');
-  bottomRow.style.cssText = 'position: relative; height: 2.5vh;';
+  bottomRow.style.cssText = 'position: relative; height: 3.5vh; line-height: 1;';
 
   // Timestamp (bottom right)
   const timestampDiv = document.createElement('div');
-  timestampDiv.style.cssText = 'position: absolute; bottom: 0em; right: 1vh; font-size: 1vh; color: gray;';
+  timestampDiv.style.cssText = 'position: absolute; bottom: -0.5vh; right: -1.5vh; font-size: 1vh; color: gray;';
   timestampDiv.textContent = timestamp;
   bottomRow.appendChild(timestampDiv);
 
   // Like/Dislike + Comment (bottom center)
   const likeDislikeDiv = document.createElement('div');
-  likeDislikeDiv.style.cssText = 'position: absolute; bottom: 0em; left: 50%; transform: translateX(-50%); display: flex; gap: 1vh;';
+  likeDislikeDiv.style.cssText = 'position: absolute; bottom: -0.5vh; left: 50%; transform: translateX(-50%); display: flex; gap: 1vh;';
 
   const likeSpan = document.createElement('span');
   likeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
@@ -247,14 +249,14 @@ function createMarkerPopupHTML(data) {
 
   // Settings (bottom left)
   const settingsSpan = document.createElement('span');
-  settingsSpan.style.cssText = 'position: absolute; bottom: 0em; left: 1vh; font-size: 1.5vh; color: gray; cursor: pointer;';
+  settingsSpan.style.cssText = 'position: absolute; bottom: -0.5vh; left: -1.5vh; font-size: 1.5vh; color: gray; cursor: pointer;';
   settingsSpan.textContent = '⚙️';
   settingsSpan.onclick = () => window.openPopupSettings();
   bottomRow.appendChild(settingsSpan);
 
   // 📍 Location Button
   const locationSpan = document.createElement('span');
-  locationSpan.style.cssText = 'position: absolute; bottom: 0em; left: 4vh; font-size: 1.5vh; color: gray; cursor: pointer;';
+  locationSpan.style.cssText = 'position: absolute; bottom: -0.5vh; left: 2vh; font-size: 1.5vh; color: gray; cursor: pointer;';
   locationSpan.textContent = '📍';
   locationSpan.onclick = () => window.openMarkerNavigation(coords);
   bottomRow.appendChild(locationSpan);
@@ -308,8 +310,9 @@ function createPolygonPopupHTML(data) {
 
   topicSpan.addEventListener("click", async () => {
     try {
-      await navigator.clipboard.writeText(topicId);
-      
+      await copyTextToClipboard(topicId);
+      toast.success("Copied topic id");
+
       const originalText = topicSpan.textContent;
       topicSpan.textContent = "Copyed!";
       setTimeout(() => {
@@ -430,17 +433,17 @@ function createPolygonPopupHTML(data) {
   // Bottom row (in-flow so the comments section can open below it,
   // still inside the popup)
   const bottomRow = document.createElement('div');
-  bottomRow.style.cssText = 'position: relative; height: 2.5vh;';
+  bottomRow.style.cssText = 'position: relative; height: 3.5vh; line-height: 1;';
 
   // Timestamp (bottom right)
   const timestampDiv = document.createElement('div');
-  timestampDiv.style.cssText = 'position: absolute; bottom: 0em; right: 1vh; font-size: 1vh; color: gray;';
+  timestampDiv.style.cssText = 'position: absolute; bottom: -0.5vh; right: -1.5vh; font-size: 1vh; color: gray;';
   timestampDiv.textContent = timestamp;
   bottomRow.appendChild(timestampDiv);
 
   // Like/Dislike + Comment (bottom center)
   const likeDislikeDiv = document.createElement('div');
-  likeDislikeDiv.style.cssText = 'position: absolute; bottom: 0em; left: 50%; transform: translateX(-50%); display: flex; gap: 1vh;';
+  likeDislikeDiv.style.cssText = 'position: absolute; bottom: -0.5vh; left: 50%; transform: translateX(-50%); display: flex; gap: 1vh;';
 
   const likeSpan = document.createElement('span');
   likeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
@@ -465,14 +468,14 @@ function createPolygonPopupHTML(data) {
 
   // Settings (bottom left)
   const settingsSpan = document.createElement('span');
-  settingsSpan.style.cssText = 'position: absolute; bottom: 0em; left: 1vh; font-size: 1.5vh; color: gray; cursor: pointer;';
+  settingsSpan.style.cssText = 'position: absolute; bottom: -0.5vh; left: -1.5vh; font-size: 1.5vh; color: gray; cursor: pointer;';
   settingsSpan.textContent = '⚙️';
   settingsSpan.onclick = () => window.openPopupSettings();
   bottomRow.appendChild(settingsSpan);
 
   // 📍 Location Button
   const locationSpan = document.createElement('span');
-  locationSpan.style.cssText = 'position: absolute; bottom: 0em; left: 4vh; font-size: 1.5vh; color: gray; cursor: pointer;';
+  locationSpan.style.cssText = 'position: absolute; bottom: -0.5vh; left: 2vh; font-size: 1.5vh; color: gray; cursor: pointer;';
   locationSpan.textContent = '📍';
   locationSpan.onclick = () => window.openPolygonNavigation(coordinates);
   bottomRow.appendChild(locationSpan);

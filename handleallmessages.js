@@ -71,6 +71,7 @@ export function renderLoadedTopics() {
       e.stopPropagation();
       try {
         await copyTextToClipboard(topicId);
+        toast.success("Copied topic id");
         copyBtn.textContent = '✓';
         setTimeout(() => (copyBtn.textContent = '📋'), 900);
       } catch (err) {

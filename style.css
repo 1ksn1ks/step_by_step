@@ -369,7 +369,8 @@ html, body {
     max-height: 80vh; /* Limit the height to 80% of the viewport */
     touch-action: auto; /* Enable touch interactions */
     resize: none; /* Prevent manual resizing */
-    width: 100vw;
+    left: 1vw;
+    width: 98vw;
     padding-top: 1.4vh;
     padding-bottom: 0.8vh;
     padding-left: 0.63vh;
@@ -1986,6 +1987,14 @@ html, body {
     letter-spacing: 0.04em;
   }
 
+  /* The list must not scale on hover/press — the global .toolbar-column
+     scale shifts the 📋 copy button and breaks the first click */
+  #loaded-topics:hover,
+  #loaded-topics:active {
+    transform: none;
+    filter: none;
+  }
+
   .toolbar-containers .toolbar-column-btns,
   .toolbar-containers .toolbar-column-first-settings-btns,
   .toolbar-containers .toolbar-column-settings-btns,
@@ -2043,12 +2052,6 @@ html, body {
     text-align: center;
     padding-left: 0;
     border-radius: 999px;
-  }
-
-  /* The visibility card must fill its (narrower) wrapper instead of using
-     the viewport-wide 100vw, or it overflows past the right screen edge */
-  #visibility-controls .toolbar-containers {
-    width: 100%;
   }
 
   /* Visibility rows: [value] - [button, centered via auto margins] - [value] */

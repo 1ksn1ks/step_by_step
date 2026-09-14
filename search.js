@@ -2,6 +2,7 @@ import { map } from './map.js';
 import { CloseALL } from './cssLogic.js';
 import { activeMarkerPopups } from './marker.js';
 import { activePolygonPopups } from './polygons.js';
+import { showSearchPin } from './drawhere.js';
 
 const searchInput = document.getElementById('search-input');
 const searchResults = document.getElementById('search-results');
@@ -61,7 +62,10 @@ function showResults(results, query) {
     item.className = 'search-result-item';
     item.textContent = r.display_name;
     item.title = r.display_name;
-    item.addEventListener('click', () => {
+    item.addEventListener('click', (e) => {
+      // Don't let this click reach the map's "tap outside closes the pin"
+      // listeners, or the freshly dropped search pin would vanish at once
+      e.stopPropagation();
       map.flyTo({
         center: [parseFloat(r.lon), parseFloat(r.lat)],
         zoom: 14,
@@ -70,6 +74,8 @@ function showResults(results, query) {
       searchInput.value = r.display_name.split(',')[0];
       closeResults();
       searchInput.blur();
+      // Drop the draw-here pin (no buttons) at the picked location
+      showSearchPin({ lng: parseFloat(r.lon), lat: parseFloat(r.lat) });
       // Picking a destination closes any open marker/polygon popups
       activePolygonPopups.forEach((popup) => popup.remove());
       activeMarkerPopups.forEach((popup) => popup.remove());
