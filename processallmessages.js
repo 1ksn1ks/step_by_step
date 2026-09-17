@@ -492,6 +492,7 @@ export async function processTopicMessages(topicId) {
   let topicGeojsonFeatures = [];
   let topicPolygons = [];
   let loadedTopicName = '';
+  let topicBio = undefined;
 
   try {
     const rawResult = await getMessages(topicId);
@@ -1060,10 +1061,29 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
           }
 
 
+        // Topic bio: newest valid topic_bio message (same admin rule as
+        // changeName — only admin payers count when the memo lists admins)
+        for (let index = messages.length - 1; index >= 0; index--) {
+          const message = messages[index];
+          try {
+            let parsedMessage = message;
+            if (typeof message === 'string') {
+              parsedMessage = JSON.parse(message);
+            }
+            if (parsedMessage.data && parsedMessage.data.topic_bio && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
+              const raw = parsedMessage.data.topic_bio;
+              topicBio = Array.isArray(raw) ? raw[0] : String(raw);
+              break; // Stop after finding the first valid message
+            }
+          } catch (messageError) {
+            console.error(`Error processing message ${index}:`, messageError);
+          }
+        }
+
         // At the end of the function, push the collected features to the parent arrays
         geojson.features.push(...topicGeojsonFeatures); // Push topic features to parent geojson array
         polygons.push(...topicPolygons); // Push topic polygons to parent polygons array
-        return { topicGeojsonFeatures, topicPolygons, loadedTopicName };
+        return { topicGeojsonFeatures, topicPolygons, loadedTopicName, topicBio };
 
 
         } catch (error) {

@@ -2,7 +2,7 @@ import { map } from './map.js';
 import { CloseALL } from './cssLogic.js';
 import { activeMarkerPopups } from './marker.js';
 import { activePolygonPopups } from './polygons.js';
-import { showSearchPin } from './drawhere.js';
+import { showSearchPin, closeDrawAnchor } from './drawhere.js';
 
 const searchInput = document.getElementById('search-input');
 const searchResults = document.getElementById('search-results');
@@ -35,6 +35,7 @@ function closeSearchBar() {
 // but leaves any open marker/polygon popups alone
 searchToggleBtn.addEventListener('click', (e) => {
   e.stopPropagation();
+  closeDrawAnchor();
   if (searchBar.style.display !== 'block') {
     CloseALL();
     searchBar.style.display = 'block';

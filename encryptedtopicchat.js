@@ -141,6 +141,7 @@ async function appendEncryptedChatMessage(
       const img = document.createElement('img');
       img.src = validPayerImage;
       img.alt = 'Profile photo';
+      img.dataset.payer = payer;
       img.style.cssText = `
         position: absolute;
         left: 0.25em;
@@ -250,10 +251,88 @@ async function appendEncryptedChatMessage(
 
     // messagesContainer.scrollTop = messagesContainer.scrollHeight;
     adjustTextareaHeight(messagesContainer);
+    applyEncryptedChatMsgFilterSort();
 
   } catch (err) {
     console.error("Error rendering encrypted message:", err);
   }
+}
+
+// Live search + sort for the e2ee chat message groups
+// (payer id = "topic id", username = "topic name")
+let encryptedChatMsgSortDir = null; // null = chronological, 'az'/'za' = by username
+
+function encryptedChatGroupUsername(group) {
+  const payer = group.querySelector('img')?.dataset.payer || '';
+  return (usernames[payer]?.username || '').trim() || payer;
+}
+
+function applyEncryptedChatMsgFilterSort() {
+  const container = document.getElementById('messages-from-encrypted-chat');
+  if (!container) return;
+  const searchEl = document.getElementById('e2ee-chat-msg-search');
+  const query = (searchEl ? searchEl.value : '').trim().toLowerCase();
+
+  const oldEmpty = container.querySelector('.chat-msg-empty');
+  if (oldEmpty) oldEmpty.remove();
+  const groups = Array.from(container.children).filter(el => el.classList.contains('toolbar-group-messages'));
+
+  let visible = groups;
+  if (query) {
+    visible = groups.filter(g => {
+      const payer = g.querySelector('img')?.dataset.payer || '';
+      const username = (usernames[payer]?.username || '').toLowerCase();
+      return payer.toLowerCase().includes(query) || username.includes(query);
+    });
+  }
+  groups.forEach(g => g.style.display = 'none');
+  visible.forEach(g => g.style.display = '');
+
+  if (encryptedChatMsgSortDir) {
+    visible = [...visible].sort((a, b) =>
+      encryptedChatMsgSortDir === 'az'
+        ? encryptedChatGroupUsername(a).localeCompare(encryptedChatGroupUsername(b), undefined, { sensitivity: 'base', numeric: true })
+        : encryptedChatGroupUsername(b).localeCompare(encryptedChatGroupUsername(a), undefined, { sensitivity: 'base', numeric: true }));
+    visible.forEach(g => container.appendChild(g));
+  }
+
+  if (query && visible.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'chat-msg-empty';
+    empty.style.cssText = 'color: gray; padding: 1vh 0; text-align: center;';
+    empty.textContent = 'No matching messages';
+    container.appendChild(empty);
+  }
+  adjustTextareaHeight(container);
+}
+
+const encryptedChatMsgSearch = document.getElementById('e2ee-chat-msg-search');
+const encryptedChatMsgSortAz = document.getElementById('e2ee-chat-msg-sort-az');
+const encryptedChatMsgSortZa = document.getElementById('e2ee-chat-msg-sort-za');
+
+function updateEncryptedChatMsgSortButtons() {
+  encryptedChatMsgSortAz.classList.toggle('active', encryptedChatMsgSortDir === 'az');
+  encryptedChatMsgSortZa.classList.toggle('active', encryptedChatMsgSortDir === 'za');
+}
+
+if (encryptedChatMsgSearch) {
+  encryptedChatMsgSearch.addEventListener('input', applyEncryptedChatMsgFilterSort);
+}
+if (encryptedChatMsgSortAz) {
+  encryptedChatMsgSortAz.addEventListener('click', (e) => {
+    e.stopPropagation();
+    encryptedChatMsgSortDir = encryptedChatMsgSortDir === 'az' ? null : 'az';
+    updateEncryptedChatMsgSortButtons();
+    applyEncryptedChatMsgFilterSort();
+  });
+}
+if (encryptedChatMsgSortZa) {
+  encryptedChatMsgSortZa.addEventListener('click', (e) => {
+    e.stopPropagation();
+    encryptedChatMsgSortDir = encryptedChatMsgSortDir === 'za' ? null : 'za';
+    updateEncryptedChatMsgSortButtons();
+    applyEncryptedChatMsgFilterSort();
+  });
 }
 
 async function loadMessagesFromEncryptedChat() {
@@ -637,6 +716,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
       const img = document.createElement('img');
       img.src = validPayerImage;
       img.alt = 'Profile photo';
+      img.dataset.payer = payer;
       img.style.cssText = `
         position: absolute;
         left: 0.25em;
@@ -757,6 +837,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
     adjustTextareaHeight(messagesContainer);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
   }
+  applyEncryptedChatMsgFilterSort();
 }
   
 async function handleFilterMessagesEncryptedChat() {

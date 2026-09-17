@@ -60,5 +60,6 @@ export const everythinginsideoptionsbuttons = [
     "marker-size-help-overlay",
     "main-buttons-style-help-overlay",
     "main-buttons-advanced-style-help-overlay",
-    "chat-style-help-overlay"
+    "chat-style-help-overlay",
+    "visibility-help-overlay"
   ]

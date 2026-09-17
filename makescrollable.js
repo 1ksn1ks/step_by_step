@@ -185,6 +185,7 @@ export function makeScrollable(el) {
   makeScrollable(document.getElementById('messages-from-encrypted-chat'));  // inner container
   makeScrollable(document.getElementById('Edit_Profile-column-container'));
   makeScrollable(document.getElementById('load-column-container'));
+  makeScrollable(document.getElementById('loaded-topics'));
   makeScrollable(document.getElementById('create-column-container'));
   makeScrollable(document.getElementById('marker-column-container'));
   makeScrollable(document.getElementById('polygon-column-container'));

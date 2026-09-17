@@ -1,13 +1,12 @@
-import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
+import { closeDrawAnchor } from './drawhere.js';
 
-// Plain tap/click on the map (PC left-click, phone tap) → a question:
+// Long-press (phone) / right-click (PC) on the map → a question:
 // "Do you want to open this place in Google Maps?" — Yes opens Google Maps
 // for that spot in a new tab, No/×/outside just closes.
 //
-// Right-click and press-hold (the 📍/🔷 pin in drawhere.js) must keep
-// working, so the hold is mirrored here (same 500 ms / 12 px tolerance)
-// and the click a hold generates is swallowed.
+// The plain tap/click (the 📍/🔷 pin in drawhere.js) must keep working,
+// so the tap a hold generates is swallowed via holdJustHappened().
 
 const HOLD_MS = 500;
 const MOVE_TOLERANCE = 12; // px — same as drawhere.js
@@ -17,14 +16,23 @@ const canvas = map.getCanvas();
 let suppressClickUntil = 0;
 let holdTimer = null;
 let holdStart = null;
+let lastTouchTime = 0;
+
+// drawhere.js checks this to skip the tap that a long-press generates
+export function holdJustHappened() {
+  return Date.now() < suppressClickUntil;
+}
 
 canvas.addEventListener('touchstart', (e) => {
   if (e.touches.length !== 1) return;
+  lastTouchTime = Date.now();
   const t = e.touches[0];
   holdStart = { x: t.clientX, y: t.clientY };
   holdTimer = setTimeout(() => {
     holdTimer = null;
-    suppressClickUntil = Date.now() + 600; // the hold became a pin, not a tap
+    suppressClickUntil = Date.now() + 600; // the hold became a question, not a tap
+    const rect = canvas.getBoundingClientRect();
+    askGoogleMaps(map.unproject([t.clientX - rect.left, t.clientY - rect.top]));
   }, HOLD_MS);
 }, { passive: true });
 
@@ -66,15 +74,23 @@ function closeQuestion() {
 }
 
 function askGoogleMaps(lngLat) {
+  closeDrawAnchor(); // a long-press replaces an open 📍/🔷 pin
   closeQuestion();
   const { lng, lat } = lngLat;
 
-  // Teardrop pin at the pressed spot (same look/animation as the draw-here pin)
+  // The draw-here pin itself: same anchor structure, positioned with left/top
+  // (a MapLibre Marker would set an inline transform the drop animation overrides)
+  const pinAnchor = document.createElement('div');
+  pinAnchor.className = 'draw-here-anchor';
   const pinEl = document.createElement('div');
   pinEl.className = 'draw-here-pin';
-  questionPin = new maplibregl.Marker({ element: pinEl, anchor: 'bottom' })
-    .setLngLat([lng, lat])
-    .addTo(map);
+  pinEl.onclick = closeQuestion; // like the draw-here pin: tap closes
+  pinAnchor.appendChild(pinEl);
+  const p = map.project([lng, lat]);
+  pinAnchor.style.left = p.x + 'px';
+  pinAnchor.style.top = p.y + 'px';
+  document.body.appendChild(pinAnchor);
+  questionPin = pinAnchor;
 
   const backdrop = document.createElement('div');
   backdrop.style.cssText = 'position: fixed; inset: 0; z-index: 1010; background: rgba(0, 0, 0, 0.35); display: flex; align-items: center; justify-content: center;';
@@ -126,13 +142,10 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeQuestion();
 });
 
-map.on('click', (e) => {
-  if (Date.now() < suppressClickUntil) return; // it was a press-hold, not a tap
-  // Globe mode: a tap in empty space (outside the globe) must not trigger —
-  // isPointOnMapSurface does a ray/sphere intersection test (true in 2D mode).
-  if (!map.transform.isPointOnMapSurface(e.point)) return;
-  // Polygon taps open their own popup — don't ask twice
-  const hits = map.queryRenderedFeatures(e.point);
-  if (hits.some((f) => f.layer && f.layer.id.includes('-mask-layer'))) return;
-  askGoogleMaps(e.lngLat);
+// PC: right-click (the PC twin of the phone long-press)
+canvas.addEventListener('contextmenu', (e) => {
+  if (Date.now() - lastTouchTime < 1000) return; // touch-origin (iOS long-press ghost)
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  askGoogleMaps(map.unproject([e.clientX - rect.left, e.clientY - rect.top]));
 });

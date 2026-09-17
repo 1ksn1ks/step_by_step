@@ -171,12 +171,90 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
     // // Auto scroll
     // messagesContainer.scrollTop = messagesContainer.scrollHeight;
     adjustTextareaHeight(messagesContainer);
+    applyTopicChatMsgFilterSort();
 
   } catch (err) {
     console.error("Error rendering message:", err);
   }
 }
-  
+
+// Live search + sort for the topic chat message groups
+// (payer id = "topic id", username = "topic name")
+let topicChatMsgSortDir = null; // null = chronological, 'az'/'za' = by username
+
+function topicChatGroupUsername(group) {
+  const payer = group.querySelector('.profile-img-click')?.dataset.payer || '';
+  return (usernames[payer]?.username || '').trim() || payer;
+}
+
+function applyTopicChatMsgFilterSort() {
+  const container = document.getElementById('messages-from-topic-chat');
+  if (!container) return;
+  const searchEl = document.getElementById('topic-chat-msg-search');
+  const query = (searchEl ? searchEl.value : '').trim().toLowerCase();
+
+  const oldEmpty = container.querySelector('.chat-msg-empty');
+  if (oldEmpty) oldEmpty.remove();
+  const groups = Array.from(container.children).filter(el => el.classList.contains('toolbar-group-messages'));
+
+  let visible = groups;
+  if (query) {
+    visible = groups.filter(g => {
+      const payer = g.querySelector('.profile-img-click')?.dataset.payer || '';
+      const username = (usernames[payer]?.username || '').toLowerCase();
+      return payer.toLowerCase().includes(query) || username.includes(query);
+    });
+  }
+  groups.forEach(g => g.style.display = 'none');
+  visible.forEach(g => g.style.display = '');
+
+  if (topicChatMsgSortDir) {
+    visible = [...visible].sort((a, b) =>
+      topicChatMsgSortDir === 'az'
+        ? topicChatGroupUsername(a).localeCompare(topicChatGroupUsername(b), undefined, { sensitivity: 'base', numeric: true })
+        : topicChatGroupUsername(b).localeCompare(topicChatGroupUsername(a), undefined, { sensitivity: 'base', numeric: true }));
+    visible.forEach(g => container.appendChild(g));
+  }
+
+  if (query && visible.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'chat-msg-empty';
+    empty.style.cssText = 'color: gray; padding: 1vh 0; text-align: center;';
+    empty.textContent = 'No matching messages';
+    container.appendChild(empty);
+  }
+  adjustTextareaHeight(container);
+}
+
+const topicChatMsgSearch = document.getElementById('topic-chat-msg-search');
+const topicChatMsgSortAz = document.getElementById('topic-chat-msg-sort-az');
+const topicChatMsgSortZa = document.getElementById('topic-chat-msg-sort-za');
+
+function updateTopicChatMsgSortButtons() {
+  topicChatMsgSortAz.classList.toggle('active', topicChatMsgSortDir === 'az');
+  topicChatMsgSortZa.classList.toggle('active', topicChatMsgSortDir === 'za');
+}
+
+if (topicChatMsgSearch) {
+  topicChatMsgSearch.addEventListener('input', applyTopicChatMsgFilterSort);
+}
+if (topicChatMsgSortAz) {
+  topicChatMsgSortAz.addEventListener('click', (e) => {
+    e.stopPropagation();
+    topicChatMsgSortDir = topicChatMsgSortDir === 'az' ? null : 'az';
+    updateTopicChatMsgSortButtons();
+    applyTopicChatMsgFilterSort();
+  });
+}
+if (topicChatMsgSortZa) {
+  topicChatMsgSortZa.addEventListener('click', (e) => {
+    e.stopPropagation();
+    topicChatMsgSortDir = topicChatMsgSortDir === 'za' ? null : 'za';
+    updateTopicChatMsgSortButtons();
+    applyTopicChatMsgFilterSort();
+  });
+}
+
 document.getElementById("load-msgs-from").addEventListener("click", async () => {
   try {
     let userInput = document.getElementById("topic-chat-topic-id").value.toLowerCase();
@@ -389,6 +467,8 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         const img = document.createElement('img');
         img.src = validPayerImage;
         img.alt = 'Profile photo';
+        img.dataset.payer = payer;
+        img.className = 'profile-img-click';
         img.style.cssText = `
           position: absolute;
           left: 0.25em;
@@ -520,6 +600,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
       adjustTextareaHeight(messagesContainer);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
+    applyTopicChatMsgFilterSort();
   }
   
   async function handleFilterMessages() {

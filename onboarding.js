@@ -17,7 +17,7 @@ const SLIDES = [
   {
     icon: '📍',
     title: 'Drawing',
-    body: 'Hold (phone) or right-click (PC) anywhere on the map to drop a pin — then add a 📍 marker there or draw a 🔷 polygon.'
+    body: 'Tap (phone) or left-click (PC) anywhere on the map to drop a pin — then add a 📍 marker there or draw a 🔷 polygon.'
   }
 ];
 
@@ -74,7 +74,12 @@ function build() {
 
   const scrim = document.createElement('div');
   scrim.className = 'onboard-scrim';
-  scrim.onclick = closeOnboarding; // tapping the dark background closes
+  // Tapping the dark background closes only the onboarding — stopping the
+  // click keeps the document handlers (CloseALL / pin close) from firing
+  scrim.onclick = (e) => {
+    e.stopPropagation();
+    closeOnboarding();
+  };
   overlay.appendChild(scrim);
 
   const card = document.createElement('div');

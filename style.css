@@ -426,7 +426,7 @@ html, body {
     background-color: transparent;
     touch-action: auto; /* Enable touch interactions */
   }
-  
+
   .toolbar-group-messages {
     margin-bottom: 0.6em;
     width: 100%;
@@ -623,7 +623,8 @@ html, body {
                 inset 0 0 0.8vh rgba(34, 211, 238, 0.3);
   }
 
-  /* Submit button moved inside the message input (bottom-right) */
+  /* Submit button inside the message input — 1vh gap on top/right/bottom
+     at the default 5vh field height: button = 3vh (1.8vh glyph + 2×0.6vh) */
   .msg-send-btn {
     position: absolute;
     bottom: 1vh;
@@ -631,25 +632,51 @@ html, body {
     width: auto;
     height: auto;
     margin: 0;
-    padding: 0.5vh 0.9vh;
-    font-size: 2.2vh;
+    padding: 0.6vh;
+    font-size: 1.8vh;
     line-height: 1;
     display: flex;
     align-items: center;
     justify-content: center;
   }
 
-  /* Keep typed text clear of the in-input send button */
+  /* Keep typed text clear of the in-input send button (bottom row only —
+     the button's row is reserved by the padding below, text uses full width) */
   #user-write-message,
   #user-write-message-encrypted-chat {
     padding-bottom: 4.5vh;
-    padding-right: 5vh;
+    padding-right: 0.45vh;
   }
 
   /* Keep typed text clear of the character counter (draw marker/polygon) */
   #input-field-2-2,
   #input-field-3-2 {
     padding-bottom: 2.5vh;
+  }
+
+  /* Keep typed text clear of the character counter (bio) */
+  #Edit_Profile-bio {
+    padding-bottom: 2.5vh;
+    padding-right: 0.45vh;
+  }
+
+  /* Keep typed text clear of the character counter (topic bio) */
+  #topic-bio-input {
+    padding-bottom: 2.5vh;
+  }
+
+  /* Even space at top and bottom inside the box */
+  #messages-from-topic-chat,
+  #messages-from-encrypted-chat {
+    padding-top: 0.25em;
+    padding-bottom: 0.25em;
+  }
+
+  /* The last group's own margin would leave extra gap at the bottom —
+     drop it only for the LAST group inside these two containers */
+  #messages-from-topic-chat > .toolbar-group-messages:last-of-type,
+  #messages-from-encrypted-chat > .toolbar-group-messages:last-of-type {
+    margin-bottom: 0;
   }
 
   .toolbar-column:hover,
@@ -1818,19 +1845,22 @@ html, body {
 
   .onboard-skip {
     position: absolute;
-    top: 0.4vh;
-    right: 0.8vh;
+    top: 0.6vh;
+    right: 0.6vh;
     min-width: 5vh;
     min-height: 5vh;
     padding: 0.5vh 1vh;
     background: rgba(255, 255, 255, 0.08);
-    border: 0.06vh solid rgba(255, 255, 255, 0.2);
+    border: 0.2vh solid rgba(34, 211, 238, 0.6);
+    box-shadow: 0 0 1vh rgba(34, 211, 238, 0.5),
+                inset 0 0 0.6vh rgba(34, 211, 238, 0.25);
     border-radius: 50%;
     color: white;
     font-size: 2.4vh;
     line-height: 1;
     cursor: pointer;
     opacity: 0.8;
+    animation: overlayXGlow 2s ease-in-out infinite;
   }
 
   .onboard-icon {
@@ -1995,6 +2025,53 @@ html, body {
     filter: none;
   }
 
+  /* Symetrical frame around the search row + list inside the box */
+  #loaded-topics {
+    padding: 0.45vh;
+    max-height: 50vh; /* extend with content, scroll when it overflows */
+    overflow-y: auto;
+  }
+
+  /* Search + sort row above the loaded topics list */
+  .loaded-topics-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5vh;
+    margin-bottom: 0.5vh;
+  }
+
+  .loaded-topics-search {
+    flex: 1;
+    min-width: 0;
+    background-color: rgba(15, 15, 20, 0.45);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 1vh;
+    padding: 0.4vh 0.8vh;
+    font-size: 2vh;
+    outline: none;
+  }
+
+  .loaded-topics-search::placeholder {
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  .loaded-topics-sort {
+    background: rgba(255, 255, 255, 0.12);
+    color: white;
+    border: 0.05vh solid rgba(255, 255, 255, 0.35);
+    border-radius: 999px;
+    padding: 0.15vh 0.7vh;
+    font-size: 1.8vh;
+    cursor: pointer;
+  }
+
+  .loaded-topics-sort.active {
+    border-color: rgba(34, 211, 238, 0.8);
+    box-shadow: 0 0 1vh rgba(34, 211, 238, 0.4);
+    color: #22d3ee;
+  }
+
   .toolbar-containers .toolbar-column-btns,
   .toolbar-containers .toolbar-column-first-settings-btns,
   .toolbar-containers .toolbar-column-settings-btns,
@@ -2030,6 +2107,8 @@ html, body {
   /* Same glow for the topic chat + e2ee chat cards (border on the outer container) */
   #topic-chat-container,
   #encrypted-chat-container {
+    left: 1vw;
+    width: 98vw;
     border: 0.1vh solid rgba(34, 211, 238, 0.6);
     animation: slideInNoFade 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
                onboardBorderPulse 1.3s ease-in-out 0.3s infinite;

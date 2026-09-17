@@ -82,3 +82,9 @@ export let globalLoadedTopicIdsWithNames = [];
 export function newGlobalLoadedTopicIdsWithNames(a) {
   globalLoadedTopicIdsWithNames = a;
 }
+
+// topic id -> topic bio (newest valid topic_bio message per topic)
+export let globalTopicBios = {};
+export function newGlobalTopicBios(a) {
+  globalTopicBios = a;
+}

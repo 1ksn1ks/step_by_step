@@ -10,6 +10,7 @@ import { loadAllData } from './loadalladata';
 import { debounce } from './debounce';
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
 import { allLoadedMessages } from './processallmessages';
+import { handleAllMessages } from './handleallmessages';
 import { connectedAccount, signer } from './web3';
 import { PrivateKey } from '@hashgraph/sdk';
 import { isValidUrl } from './ISVALIDURL.JS';
@@ -108,6 +109,44 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
      }
      const memo =document.getElementById("input-field-memo").value || '';
      let adminKey = document.getElementById("input-field-admin-key").value;
+
+     if (adminKey) {
+       try {
+         PrivateKey.fromStringED25519(adminKey);
+       } catch (keyError) {
+         toast.error("Please enter a valid admin private key.");
+         return;
+       }
+     }
+
+     await updateTopic({topicId:topicId , memo:memo, adminKey:adminKey});
+
+   } catch (error) {
+   console.error("Error creating topic:", error);
+   }
+ });
+
+ document.getElementById("submit-button-Change_Fee").addEventListener("click", async () => {
+   try {
+     if (!signer) {
+       toast.error("Connect wallet first");
+       return;
+     }
+     let userInput = document.getElementById("input-field-topic-id-fee").value.toLowerCase();
+     let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
+     let topicId;
+
+     if (domainEntry && domainEntry.lastMessage) {
+       topicId = domainEntry.lastMessage.topic;
+     } else {
+       topicId = userInput;
+     }
+     if (!topicId) {
+       toast.error("Please enter a Topic ID or domain.");
+       return;
+     }
+     const memo = document.getElementById("input-field-memo-fee").value || '';
+     let adminKey = document.getElementById("input-field-admin-key-fee").value;
      const realfee = document.getElementById("input-field-fee").value;
      const tokenId = document.getElementById("input-field-fee-token").value;
      const royaltyAccount = document.getElementById("input-field-royal-acc").value;
@@ -120,35 +159,27 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
          return;
        }
      }
-     if ((realfee || tokenId || royaltyAccount) && !(realfee && tokenId && royaltyAccount)) {
-       toast.error("Fee, Token ID, and Royalty Account must be filled in together.");
+     if (!realfee || !tokenId || !royaltyAccount) {
+       toast.error("Fee, Token ID, and Royalty Account must all be filled in.");
        return;
      }
-     if (realfee && isNaN(Number(realfee))) {
+     if (isNaN(Number(realfee))) {
        toast.error("Please enter a valid number for the fee.");
        return;
      }
 
      const fee = realfee * 1000000
- 
-     let customFees = [];
- 
-     if (realfee && tokenId && royaltyAccount) {
-       customFees.push({
-         denominatingTokenId: tokenId,
-         amount: fee,
-         collectorAccountId: royaltyAccount
-       });
 
+     const customFees = [{
+       denominatingTokenId: tokenId,
+       amount: fee,
+       collectorAccountId: royaltyAccount
+     }];
 
-       await updateTopic({topicId:topicId , memo:memo, adminKey:adminKey, customFees:customFees});
-     } else {
-     await updateTopic({topicId:topicId , memo:memo, adminKey:adminKey});
-     }
- 
- 
+     await updateTopic({topicId:topicId , memo:memo, adminKey:adminKey, customFees:customFees});
+
    } catch (error) {
-   console.error("Error creating topic:", error);
+   console.error("Error updating topic fee:", error);
    }
  });
  
@@ -1745,7 +1776,54 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
      console.error("Error updating profile topic_bio:", error);
    }
  });
- 
+
+ document.getElementById("button_for_topic_bio").addEventListener("click", async (event) => {
+   event.stopPropagation();
+   const inputValue = document.getElementById("topic-bio-input").value;
+   if (!signer) {
+     toast.error("Connect wallet first");
+     return;
+   }
+   if (!inputValue) {
+     toast.error("Please enter a topic bio.");
+     return;
+   }
+   if (inputValue.length > 256) {
+     toast.error("Please enter a topic bio with 256 characters or less.");
+     return;
+   }
+   try {
+     const userInput = document.getElementById("input-field-topic-id-bio").value.toLowerCase();
+     const domainEntry = loadedDomains.find(entry => entry.domain === userInput);
+     const topicId = (domainEntry && domainEntry.lastMessage)
+       ? domainEntry.lastMessage.topic
+       : userInput;
+     if (!topicId) {
+       toast.error("Please enter a Topic ID or domain.");
+       return;
+     }
+     const messageData = {
+       data: {
+         topic_bio: [inputValue],
+       },
+     };
+     const message = JSON.stringify(messageData);
+     toast.info("Confirm in wallet 👛");
+     const receipt = await sendMessage(
+       topicId,
+       message
+     );
+     console.log("Topic topic_bio updated successfully:", receipt);
+     document.getElementById("topic-bio-input").value = "";
+     document.getElementById("char-counter-topic-bio").textContent = "0/256";
+
+     debounce(handleAllMessages(), 10000);
+
+   } catch (error) {
+     console.error("Error updating topic topic_bio:", error);
+   }
+ });
+
  document.getElementById("load-topic-rules-for-marker").addEventListener("click", async () => {
      try {
        let userInput = document.getElementById("input-field-2-0").value.toLowerCase();

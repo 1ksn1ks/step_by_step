@@ -13,6 +13,7 @@ import { activeMarkerPopups } from './marker.js';
 import { scene } from './threejs.js'
 import { renderLoadedTopics } from './handleallmessages.js';
 import { toast } from './toast.js';
+import { closeDrawAnchor } from './drawhere.js';
 
 const toolbarColumns = document.querySelectorAll('.toolbar-column');
 
@@ -102,6 +103,16 @@ export function CloseALL() {
     }
   }
   
+  // Backdrop press closes only that overlay — letting it bubble to the
+  // document handlers would also run CloseALL / close the draw pin
+  document.querySelectorAll('.info-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target !== overlay) return;
+      e.stopPropagation();
+      overlay.style.display = 'none';
+    });
+  });
+
   document.addEventListener('click', function(event) {
     CloseALL();
   });
@@ -116,6 +127,7 @@ export function CloseALL() {
   document.getElementById("main-toggle-btn").addEventListener("click", function(event) {
     event.stopPropagation();
     CloseALL();
+    closeDrawAnchor();
     activePolygonPopups.forEach((popup) => popup.remove());
     activeMarkerPopups.forEach((popup) => popup.remove());
     document.getElementById("main-toggle-btn").style.display = "none";
@@ -182,6 +194,11 @@ export function CloseALL() {
     event.stopPropagation();
     CloseALL();
     document.getElementById("visibility-controls").style.display = "block";
+
+    if (isinfo) {
+      document.getElementById("visibility-help-overlay").style.display = "block";
+    }
+
     removeUfoModel();
   });
   
@@ -400,6 +417,14 @@ export function CloseALL() {
     document.getElementById("memo-column").style.display = "block";
     document.getElementById("memo-column-container").style.display = "block";
 
+    // Start with only the three sub-buttons; each opens its own panel
+    showElements("show-update-bio-from-memo", "show-memo-from-memo", "show-fee-from-memo");
+    hideElements(
+      "hide-update-bio-from-memo", "update-bio-from-memo",
+      "hide-memo-from-memo", "memo-from-memo",
+      "hide-fee-from-memo", "fee-from-memo"
+    );
+
     if (isinfo) {
       document.getElementById("edit-topic-rules-help-overlay").style.display = "block";
     }
@@ -434,6 +459,7 @@ export function CloseALL() {
   document.getElementById("topic-chat-btn").addEventListener("click", (event) => {
     event.stopPropagation();
     CloseALL();
+    closeDrawAnchor();
     hideAllShowButtonsFromTopicChat()
     activePolygonPopups.forEach((popup) => popup.remove());
     activeMarkerPopups.forEach((popup) => popup.remove());
@@ -738,6 +764,7 @@ export function CloseALL() {
   document.getElementById("toggle-encrypted-chat-btn").addEventListener("click", (event) => {
     event.stopPropagation();
     CloseALL();
+    closeDrawAnchor();
     activePolygonPopups.forEach((popup) => popup.remove());
     activeMarkerPopups.forEach((popup) => popup.remove());
     hideAllShowButtonsFromEncryptedChat()
@@ -1258,6 +1285,75 @@ document.getElementById("hide-delete-polygon-from-polygon").addEventListener("cl
   showElementsFlex(
     "polygon-submit-buttons"
   )
+});
+
+// ==================== UPDATE TOPIC (MEMO COLUMN) EVENT LISTENERS ====================
+// Pressing a ✅ opens only that panel and re-shows the other two ✅ buttons
+
+document.getElementById("show-update-bio-from-memo").addEventListener("click", () => {
+  showElements("update-bio-from-memo", "hide-update-bio-from-memo");
+  hideElements("show-update-bio-from-memo");
+
+  hideElements("memo-from-memo", "hide-memo-from-memo");
+  showElements("show-memo-from-memo");
+
+  hideElements("fee-from-memo", "hide-fee-from-memo");
+  showElements("show-fee-from-memo");
+});
+
+document.getElementById("hide-update-bio-from-memo").addEventListener("click", () => {
+  hideElements("update-bio-from-memo", "hide-update-bio-from-memo");
+  showElements("show-update-bio-from-memo");
+
+  hideElements("memo-from-memo", "hide-memo-from-memo");
+  showElements("show-memo-from-memo");
+
+  hideElements("fee-from-memo", "hide-fee-from-memo");
+  showElements("show-fee-from-memo");
+});
+
+document.getElementById("show-memo-from-memo").addEventListener("click", () => {
+  showElements("memo-from-memo", "hide-memo-from-memo");
+  hideElements("show-memo-from-memo");
+
+  hideElements("update-bio-from-memo", "hide-update-bio-from-memo");
+  showElements("show-update-bio-from-memo");
+
+  hideElements("fee-from-memo", "hide-fee-from-memo");
+  showElements("show-fee-from-memo");
+});
+
+document.getElementById("hide-memo-from-memo").addEventListener("click", () => {
+  hideElements("memo-from-memo", "hide-memo-from-memo");
+  showElements("show-memo-from-memo");
+
+  hideElements("update-bio-from-memo", "hide-update-bio-from-memo");
+  showElements("show-update-bio-from-memo");
+
+  hideElements("fee-from-memo", "hide-fee-from-memo");
+  showElements("show-fee-from-memo");
+});
+
+document.getElementById("show-fee-from-memo").addEventListener("click", () => {
+  showElements("fee-from-memo", "hide-fee-from-memo");
+  hideElements("show-fee-from-memo");
+
+  hideElements("update-bio-from-memo", "hide-update-bio-from-memo");
+  showElements("show-update-bio-from-memo");
+
+  hideElements("memo-from-memo", "hide-memo-from-memo");
+  showElements("show-memo-from-memo");
+});
+
+document.getElementById("hide-fee-from-memo").addEventListener("click", () => {
+  hideElements("fee-from-memo", "hide-fee-from-memo");
+  showElements("show-fee-from-memo");
+
+  hideElements("update-bio-from-memo", "hide-update-bio-from-memo");
+  showElements("show-update-bio-from-memo");
+
+  hideElements("memo-from-memo", "hide-memo-from-memo");
+  showElements("show-memo-from-memo");
 });
 
   
