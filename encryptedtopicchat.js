@@ -478,6 +478,30 @@ document.getElementById('go-to-top-msgs-encrypted-chat').addEventListener('click
   container.scrollTop = 0;
 });
 
+// Show the arrows while scrolling (⬆ when not at the very top, ⬇ when not
+// at the very bottom); fade out 2s after scrolling stops
+const e2eeMessages = document.getElementById('messages-from-encrypted-chat');
+const e2eeGoToTop = document.getElementById('go-to-top-msgs-encrypted-chat');
+const e2eeGoToBottom = document.getElementById('go-to-bottom-msgs-encrypted-chat');
+let e2eeArrowsTimer = null;
+function updateE2eeArrows() {
+  const atTop = e2eeMessages.scrollTop <= 0;
+  const atBottom = e2eeMessages.scrollHeight - e2eeMessages.scrollTop - e2eeMessages.clientHeight <= 0;
+  e2eeGoToTop.classList.toggle('go-to-top-visible', !atTop);
+  e2eeGoToBottom.classList.toggle('go-to-bottom-visible', !atBottom);
+  clearTimeout(e2eeArrowsTimer);
+  e2eeArrowsTimer = setTimeout(() => {
+    e2eeGoToTop.classList.remove('go-to-top-visible');
+    e2eeGoToBottom.classList.remove('go-to-bottom-visible');
+  }, 2000);
+}
+e2eeMessages.addEventListener('scroll', updateE2eeArrows);
+
+document.getElementById('go-to-bottom-msgs-encrypted-chat').addEventListener('click', function() {
+  const container = document.getElementById('messages-from-encrypted-chat');
+  container.scrollTop = container.scrollHeight;
+});
+
 document.getElementById("post-msg-encrypted-chat").addEventListener("click", async () => {
   try {
     if (!signer) {

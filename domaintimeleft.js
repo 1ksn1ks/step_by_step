@@ -1,6 +1,6 @@
 document.getElementById("button4").addEventListener("click", async () => {
 
-    const domain = document.getElementById("toolbar-input").value.toLowerCase();
+    const domain = document.getElementById("domain-name-input").value.toLowerCase();
     const domainObject = loadedDomains.find(d => d.domain === domain);
   
     if (domainObject) {

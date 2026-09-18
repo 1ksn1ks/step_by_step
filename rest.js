@@ -189,8 +189,8 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
      toast.error("Connect wallet first");
      return;
    }
-   let userInput = document.getElementById("Edit_Profile-topic-id").value.toLowerCase();
-   const newName = document.getElementById("toolbar-input").value;
+   let userInput = document.getElementById("input-field-topic-id-name").value.toLowerCase();
+   const newName = document.getElementById("input-field-topic-name").value;
 
    if (!newName) {
      toast.error("Please enter a new name.");
@@ -771,8 +771,8 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
                  return;
                }
                const topicId = '0.0.9606779';
-               const topic = document.getElementById("Edit_Profile-topic-id").value;
-               const domain = document.getElementById("toolbar-input").value.toLowerCase();
+               const topic = document.getElementById("domain-topic-id").value;
+               const domain = document.getElementById("domain-name-input").value.toLowerCase();
 
                if (!topic || !domain) {
                  toast.error("Please fill in both the Topic ID and the Domain.");

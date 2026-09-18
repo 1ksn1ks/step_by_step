@@ -146,6 +146,8 @@
         </div>
         <div class="toolbar-column" id="Create_New_Topic">Create
         </div>
+        <div class="toolbar-column" id="Domain">Domain
+        </div>
         <div class="toolbar-column" id="Set_Rules">Set Rules
         </div>
         <div class="toolbar-column" id="NFT-utility">NFT Utility
@@ -165,10 +167,8 @@
           <ul class="info-overlay-list">
             <li><b>Profile picture</b> — paste an image URL to set it.</li>
             <li><b>Username</b> — enter a new name, then press Save.</li>
-            <li><b>Topic ID name</b> — give a topic a friendly name in Load.</li>
             <li><b>BIO</b> — set your profile bio; tapping a PFP shows it in Load.</li>
             <li><b>CLICK2LINK</b> — attach any URL to your username.</li>
-            <li><b>Domain</b> — give a topic a global name so you can also find it by domain.</li>
           </ul>
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('edit-profile-help-overlay').style.display='none'">Got it</button>
@@ -191,12 +191,8 @@
             </button>
             <button id="hide-username-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Username
             </button>
-            <button id="show-topic-id-name-from-edit-profile" class="toolbar-column-settings-btns" >Topic ID name
-            </button>
-            <button id="hide-topic-id-name-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Topic ID name
-            </button>
           </div>
-      
+
           <div style="display: flex;">
             <button id="show-bio-from-edit-profile" class="toolbar-column-first-settings-btns">BIO
             </button>
@@ -206,22 +202,11 @@
             </button>
             <button id="hide-click2link-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">CLICK2LINK
             </button>
-            <button id="show-check-domain-availability-from-edit-profile" class="toolbar-column-settings-btns">Domain
-            </button>
-            <button id="hide-check-domain-availability-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Domain
-            </button>
           </div>
       
       
       
       
-      
-          <div id="edit-profile-topic-id" style="display: none;">
-            <textarea type="text" id="Edit_Profile-topic-id" placeholder="Topic ID"
-            class="toolbar-column" onclick="event.stopPropagation();"
-            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
-          </div>
       
           <div id="edit-profile-url-name-domain" style="display: none;">
             <textarea type="text" id="toolbar-input" placeholder="URL/Name/Domain"
@@ -245,11 +230,6 @@
             </button>
           </div>
       
-          <div id="edit-profile-topic-id-name" style="display: none;">
-            <button class="toolbar-column-btns" id="button3">TopicID name
-            </button>
-          </div>
-      
           <div id="edit-profile-bio" style="display: none;">
             <div style="position: relative;">
               <textarea type="text" id="Edit_Profile-bio" placeholder="Your bio" maxlength="256"
@@ -263,24 +243,54 @@
             </button>
           </div>
       
-          <div id="edit-profile-domain-time-left" style="display: none;">
-            <textarea type="text" id="domain-time-left" placeholder="Domain Time Left"
-            class="toolbar-column" onclick="event.stopPropagation();" readonly>
-            </textarea>
-      
-            <button class="toolbar-column-btns" id="button4">Check Domain Availability
-            </button>
-      
-            <label for="domain-time-left" style="font-size: 2vh;">1 USDC
-            (<span style="cursor: pointer; color: rgb(255, 255, 255); text-decoration: underline;"
-            onclick="navigator.clipboard.writeText('0.0.456858')
-            .then(() => window.toast && window.toast.success('Copied to clipboard'))
-            .catch(err => console.error('Failed to copy: ', err));">0.0.456858</span>):
-            </label>
-            <button class="toolbar-column-btns" id="button5" style="margin-top: 0.5vh;">Add 28 days to domain
-            </button>
+        </div>
+      </div>
+
+      <div id="domain-help-overlay" class="info-overlay">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+          <h3 class="info-overlay-title">Domain</h3>
+          <p class="info-overlay-subtitle">Give a topic a friendly global name.</p>
+          <ul class="info-overlay-list">
+            <li><b>Domain</b> — the name you want (e.g. mymap). Anyone can then load the topic by that name instead of the 0.0.x id.</li>
+            <li><b>Check Domain Availability</b> — asks the domain registry: "no one uses this domain" means it's free to claim; otherwise it shows how much time is left on the current registration.</li>
+            <li><b>Add 28 days to domain</b> — registers the domain for the topic (or renews an existing one) for 28 days. Costs 1 USDC (token 0.0.456858 — tap the id to copy it).</li>
+            <li>After registering, paste the domain into Load and it opens the topic directly.</li>
+          </ul>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('domain-help-overlay').style.display='none'">Got it</button>
           </div>
-      
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('domain-help-overlay').style.display='none'">×</div>
+        </div>
+      </div>
+
+      <div id="domain-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <div id="domain-column-container">
+
+          <div class="options-column-title">🌐 DOMAIN</div>
+
+          <textarea class="toolbar-column" type="text" id="domain-topic-id" placeholder="Domain/Topic ID"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+          <textarea class="toolbar-column" type="text" id="domain-name-input" placeholder="Domain name"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+
+          <textarea type="text" id="domain-time-left" placeholder="Domain Time Left"
+          class="toolbar-column" onclick="event.stopPropagation();" readonly>
+          </textarea>
+
+          <button class="toolbar-column-btns" id="button4">Check Domain Availability
+          </button>
+
+          <label for="domain-time-left" style="font-size: 2vh;">1 USDC
+          (<span style="cursor: pointer; color: rgb(255, 255, 255); text-decoration: underline;"
+          onclick="navigator.clipboard.writeText('0.0.456858')
+          .then(() => window.toast && window.toast.success('Copied to clipboard'))
+          .catch(err => console.error('Failed to copy: ', err));">0.0.456858</span>):
+          </label>
+          <button class="toolbar-column-btns" id="button5" style="margin-top: 0.5vh;">Add 28 days to domain
+          </button>
+
         </div>
       </div>
 
@@ -1045,9 +1055,16 @@
             </button>
             <button id="hide-memo-from-memo" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Memo ⛔
             </button>
-            <button id="show-fee-from-memo" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Add fee ✅
+          </div>
+
+          <div style="display: flex;">
+            <button id="show-fee-from-memo" class="toolbar-column-first-settings-btns">Add fee ✅
             </button>
-            <button id="hide-fee-from-memo" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Add fee ⛔
+            <button id="hide-fee-from-memo" style="display: none;" class="toolbar-column-first-settings-btns">Add fee ⛔
+            </button>
+            <button id="show-topic-name-from-memo" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Topic name ✅
+            </button>
+            <button id="hide-topic-name-from-memo" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Topic name ⛔
             </button>
           </div>
 
@@ -1101,6 +1118,17 @@
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
             <button id="submit-button-Change_Fee" class="toolbar-column-btns" style="display: block;">Submit
+            </button>
+          </div>
+
+          <div id="topic-name-from-memo" style="display: none;">
+            <textarea class="toolbar-column" type="text" id="input-field-topic-id-name" placeholder="Domain/Topic ID"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <textarea class="toolbar-column" type="text" id="input-field-topic-name" placeholder="New name"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <button class="toolbar-column-btns" id="button3">TopicID name
             </button>
           </div>
 
@@ -1325,7 +1353,10 @@
             <button id="topic-chat-msg-sort-za" class="loaded-topics-sort" onclick="event.stopPropagation();">Z→A</button>
           </div>
 
-          <div class="chat-container" id="messages-from-topic-chat" onclick="event.stopPropagation();">
+          <div style="position: relative;">
+            <div class="chat-container" id="messages-from-topic-chat" onclick="event.stopPropagation();"></div>
+            <button id="go-to-top-msgs" class="toolbar-column-btns">⬆</button>
+            <button id="go-to-bottom-msgs" class="toolbar-column-btns">⬇</button>
           </div>
       
           <div style="position: relative;">
@@ -1333,7 +1364,7 @@
             class="toolbar-column"
             type="text"
             id="user-write-message"
-            placeholder="Write a message (max 256 characters)"
+            placeholder="Message"
             style="
             max-height: 50vh;
             overflow: auto;
@@ -1347,11 +1378,6 @@
             <button id="post-msg" class="toolbar-column-btns submit-message-btn msg-send-btn">📨</button>
           </div>
 
-          <div style="display: flex; align-items: center;">
-            <button id="go-to-top-msgs" class="toolbar-column-btns">Go to the top
-            </button>
-          </div>
-      
         </div>
       </div>
 
@@ -1520,7 +1546,10 @@
             <button id="e2ee-chat-msg-sort-za" class="loaded-topics-sort" onclick="event.stopPropagation();">Z→A</button>
           </div>
 
-          <div class="chat-container" id="messages-from-encrypted-chat" onclick="event.stopPropagation();">
+          <div style="position: relative;">
+            <div class="chat-container" id="messages-from-encrypted-chat" onclick="event.stopPropagation();"></div>
+            <button id="go-to-top-msgs-encrypted-chat" class="toolbar-column-btns">⬆</button>
+            <button id="go-to-bottom-msgs-encrypted-chat" class="toolbar-column-btns">⬇</button>
           </div>
       
           <textarea class="toolbar-column" type="text" id="encrypted-chat-public-key" placeholder="Public Key" style="display: none;"
@@ -1534,7 +1563,7 @@
             class="toolbar-column"
             type="text"
             id="user-write-message-encrypted-chat"
-            placeholder="Write a message (max 256 characters)"
+            placeholder="Message"
             style="
             max-height: 50vh;
             overflow: auto;
@@ -1549,13 +1578,6 @@
           </div>
         </div>
 
-        <div id="go-to-submit-message-encrypted-chat">
-          <div style="display: flex; align-items: center;">
-            <button id="go-to-top-msgs-encrypted-chat" class="toolbar-column-btns">Go to the top
-            </button>
-          </div>
-        </div>
-      
         <div id="pin-public-key-from-encrypted-chat" style="display: none;">
           <button id="stack-encrypted-chat-public-key-button" class="pin-public-key-from-encrypted-chat">Pin Public Key
           </button>

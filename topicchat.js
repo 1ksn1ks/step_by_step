@@ -25,6 +25,30 @@ document.getElementById('go-to-top-msgs').addEventListener('click', function() {
     container.scrollTop = 0;
   });
 
+  // Show the arrows while scrolling (⬆ when not at the very top, ⬇ when not
+  // at the very bottom); fade out 2s after scrolling stops
+  const topicChatMessages = document.getElementById('messages-from-topic-chat');
+  const topicChatGoToTop = document.getElementById('go-to-top-msgs');
+  const topicChatGoToBottom = document.getElementById('go-to-bottom-msgs');
+  let topicChatArrowsTimer = null;
+  function updateTopicChatArrows() {
+    const atTop = topicChatMessages.scrollTop <= 0;
+    const atBottom = topicChatMessages.scrollHeight - topicChatMessages.scrollTop - topicChatMessages.clientHeight <= 0;
+    topicChatGoToTop.classList.toggle('go-to-top-visible', !atTop);
+    topicChatGoToBottom.classList.toggle('go-to-bottom-visible', !atBottom);
+    clearTimeout(topicChatArrowsTimer);
+    topicChatArrowsTimer = setTimeout(() => {
+      topicChatGoToTop.classList.remove('go-to-top-visible');
+      topicChatGoToBottom.classList.remove('go-to-bottom-visible');
+    }, 2000);
+  }
+  topicChatMessages.addEventListener('scroll', updateTopicChatArrows);
+
+document.getElementById('go-to-bottom-msgs').addEventListener('click', function() {
+    const container = document.getElementById('messages-from-topic-chat');
+    container.scrollTop = container.scrollHeight;
+  });
+
   function isValidUrl(string) {
     try {
       new URL(string);

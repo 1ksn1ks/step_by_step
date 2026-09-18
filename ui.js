@@ -40,6 +40,7 @@ export const everythinginsideoptionsbuttons = [
     "rules-column",
     "utility-column",
     "memo-column",
+    "domain-column",
     "stack-topic-ids",
     "initial-xyz-column",
   ];
@@ -52,6 +53,7 @@ export const everythinginsideoptionsbuttons = [
     "topic-rules-help-overlay",
     "model-sharing-rules-help-overlay",
     "edit-topic-rules-help-overlay",
+    "domain-help-overlay",
     "stack-topic-ids-help-overlay",
     "topic-chat-help-overlay",
     "e2ee-chat-help-overlay",

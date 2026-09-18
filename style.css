@@ -672,6 +672,88 @@ html, body {
     padding-bottom: 0.25em;
   }
 
+  /* Floating back-to-top arrow: absolute overlay in the top-right of the
+     message box; JS shows it only when not scrolled to the very top */
+  #go-to-top-msgs,
+  #go-to-top-msgs-encrypted-chat {
+    position: absolute;
+    top: 0.6vh;
+    right: 0.6vh;
+    width: 4vh;
+    height: 4vh;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    visibility: hidden;
+    z-index: 2;
+  }
+
+  #go-to-top-msgs.go-to-top-visible,
+  #go-to-top-msgs-encrypted-chat.go-to-top-visible {
+    visibility: visible;
+  }
+
+  /* Floating back-to-bottom arrow: absolute overlay in the bottom-right of
+     the message box; JS shows it only when not scrolled to the very bottom */
+  #go-to-bottom-msgs,
+  #go-to-bottom-msgs-encrypted-chat {
+    position: absolute;
+    bottom: 0.6vh;
+    right: 0.6vh;
+    width: 4vh;
+    height: 4vh;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    visibility: hidden;
+    z-index: 2;
+  }
+
+  #go-to-bottom-msgs.go-to-bottom-visible,
+  #go-to-bottom-msgs-encrypted-chat.go-to-bottom-visible {
+    visibility: visible;
+  }
+
+  /* Arrows pop in/out with a spring bounce; hover lifts, press squishes */
+  #go-to-top-msgs,
+  #go-to-top-msgs-encrypted-chat,
+  #go-to-bottom-msgs,
+  #go-to-bottom-msgs-encrypted-chat {
+    opacity: 0;
+    transform: scale(0.5);
+    transition: opacity 0.4s ease,
+                transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+                visibility 0.4s,
+                background-color 0.4s ease;
+  }
+
+  #go-to-top-msgs.go-to-top-visible,
+  #go-to-top-msgs-encrypted-chat.go-to-top-visible,
+  #go-to-bottom-msgs.go-to-bottom-visible,
+  #go-to-bottom-msgs-encrypted-chat.go-to-bottom-visible {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  #go-to-top-msgs:hover,
+  #go-to-top-msgs-encrypted-chat:hover,
+  #go-to-bottom-msgs:hover,
+  #go-to-bottom-msgs-encrypted-chat:hover {
+    transform: scale(1.12);
+    background-color: rgba(30, 30, 40, 0.7);
+  }
+
+  #go-to-top-msgs:active,
+  #go-to-top-msgs-encrypted-chat:active,
+  #go-to-bottom-msgs:active,
+  #go-to-bottom-msgs-encrypted-chat:active {
+    transform: scale(0.9);
+  }
+
   /* The last group's own margin would leave extra gap at the bottom —
      drop it only for the LAST group inside these two containers */
   #messages-from-topic-chat > .toolbar-group-messages:last-of-type,

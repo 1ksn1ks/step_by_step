@@ -89,7 +89,8 @@ export function CloseALL() {
     document.getElementById("toggle-your-fov-btn-btn").style.display = "none";
     document.getElementById("encrypted-chat-private-key-container").style.display = "block";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
-    document.getElementById("go-to-submit-message-encrypted-chat").style.display = "block";
+    document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
+    document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
     if (isinfo) {
       document.getElementById("show-manual").style.display = "block";
     } else {
@@ -417,12 +418,13 @@ export function CloseALL() {
     document.getElementById("memo-column").style.display = "block";
     document.getElementById("memo-column-container").style.display = "block";
 
-    // Start with only the three sub-buttons; each opens its own panel
-    showElements("show-update-bio-from-memo", "show-memo-from-memo", "show-fee-from-memo");
+    // Start with only the four sub-buttons; each opens its own panel
+    showElements("show-update-bio-from-memo", "show-memo-from-memo", "show-fee-from-memo", "show-topic-name-from-memo");
     hideElements(
       "hide-update-bio-from-memo", "update-bio-from-memo",
       "hide-memo-from-memo", "memo-from-memo",
-      "hide-fee-from-memo", "fee-from-memo"
+      "hide-fee-from-memo", "fee-from-memo",
+      "hide-topic-name-from-memo", "topic-name-from-memo"
     );
 
     if (isinfo) {
@@ -431,7 +433,20 @@ export function CloseALL() {
     OpenToggleToolbar();
     removeUfoModel();
   });
-  
+
+  document.getElementById("Domain").addEventListener("click", (event) => {
+    event.stopPropagation();
+    CloseALL();
+    document.getElementById("domain-column").style.display = "block";
+    document.getElementById("domain-column-container").style.display = "block";
+
+    if (isinfo) {
+      document.getElementById("domain-help-overlay").style.display = "block";
+    }
+    OpenToggleToolbar();
+    removeUfoModel();
+  });
+
   document.getElementById("Stack_topic_IDs").addEventListener("click", (event) => {
     event.stopPropagation();
     CloseALL();
@@ -621,7 +636,6 @@ export function CloseALL() {
     document.getElementById("show-from-from-encrypted-chat"),
     document.getElementById("show-block-from-encrypted-chat"),
     document.getElementById("show-pin-public-key-from-encrypted-chat"),
-    document.getElementById("go-to-submit-message-encrypted-chat"),
     document.getElementById("show-block-change-password-encrypted-chat"),
     document.getElementById("show-time-set-password-encrypted-chat"),
   ];
@@ -692,7 +706,8 @@ export function CloseALL() {
     document.getElementById("show-pin-public-key-from-encrypted-chat").style.display = "none";
     document.getElementById("encrypted-chat-private-key-container").style.display = "none";
     document.getElementById("encrypted-chat-chat-container").style.display = "none";
-    document.getElementById("go-to-submit-message-encrypted-chat").style.display = "none";
+    document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "none";
+    document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "none";
   });
   
   document.getElementById("hide-pin-public-key-from-encrypted-chat").addEventListener("click", (event) => {
@@ -702,7 +717,8 @@ export function CloseALL() {
     document.getElementById("encrypted-chat-public-key").style.display = "none";
 
     document.getElementById("show-pin-public-key-from-encrypted-chat").style.display = "block";
-    document.getElementById("go-to-submit-message-encrypted-chat").style.display = "block";
+    document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
+    document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("encrypted-chat-private-key-container").style.display = "block";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
   });
@@ -717,7 +733,8 @@ export function CloseALL() {
     document.getElementById("show-block-change-password-encrypted-chat").style.display = "none";
     document.getElementById("encrypted-chat-private-key-container").style.display = "none";
     document.getElementById("encrypted-chat-chat-container").style.display = "none";
-    document.getElementById("go-to-submit-message-encrypted-chat").style.display = "none";
+    document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "none";
+    document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "none";
     document.getElementById("encrypted-chat-public-key").style.display = "none";
 
   });
@@ -725,7 +742,8 @@ export function CloseALL() {
   document.getElementById("hide-block-change-password-encrypted-chat").addEventListener("click", (event) => {
     hideAllShowButtonsFromEncryptedChat()
     showAllShowButtonsFromEncryptedChatOptions()
-    document.getElementById("go-to-submit-message-encrypted-chat").style.display = "block";
+    document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
+    document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("encrypted-chat-public-key").style.display = "block";
     document.getElementById("encrypted-chat-private-key-container").style.display = "block";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
@@ -741,14 +759,16 @@ export function CloseALL() {
     document.getElementById("show-time-set-password-encrypted-chat").style.display = "none";
     document.getElementById("encrypted-chat-private-key-container").style.display = "none";
     document.getElementById("encrypted-chat-chat-container").style.display = "none";
-    document.getElementById("go-to-submit-message-encrypted-chat").style.display = "none";
+    document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "none";
+    document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "none";
     document.getElementById("encrypted-chat-public-key").style.display = "none";
   });
   
   document.getElementById("hide-time-set-password-encrypted-chat").addEventListener("click", (event) => {
     hideAllShowButtonsFromEncryptedChat()
     showAllShowButtonsFromEncryptedChatOptions()
-    document.getElementById("go-to-submit-message-encrypted-chat").style.display = "block";
+    document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
+    document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("encrypted-chat-public-key").style.display = "block";
     document.getElementById("encrypted-chat-private-key-container").style.display = "block";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
@@ -792,7 +812,8 @@ export function CloseALL() {
     document.getElementById("options-from-encrypted-chat").style.display = "none";
     document.getElementById("show-options-from-encrypted-chat-btn").style.display = "none";
     document.getElementById("show-options-from-encrypted-chat").style.display = "block";
-    document.getElementById("go-to-submit-message-encrypted-chat").style.display = "block";
+    document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
+    document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("encrypted-chat-private-key-container").style.display = "block";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
   
@@ -1288,7 +1309,7 @@ document.getElementById("hide-delete-polygon-from-polygon").addEventListener("cl
 });
 
 // ==================== UPDATE TOPIC (MEMO COLUMN) EVENT LISTENERS ====================
-// Pressing a ✅ opens only that panel and re-shows the other two ✅ buttons
+// Pressing a ✅ opens only that panel and re-shows the other ✅ buttons
 
 document.getElementById("show-update-bio-from-memo").addEventListener("click", () => {
   showElements("update-bio-from-memo", "hide-update-bio-from-memo");
@@ -1299,6 +1320,9 @@ document.getElementById("show-update-bio-from-memo").addEventListener("click", (
 
   hideElements("fee-from-memo", "hide-fee-from-memo");
   showElements("show-fee-from-memo");
+
+  hideElements("topic-name-from-memo", "hide-topic-name-from-memo");
+  showElements("show-topic-name-from-memo");
 });
 
 document.getElementById("hide-update-bio-from-memo").addEventListener("click", () => {
@@ -1310,6 +1334,9 @@ document.getElementById("hide-update-bio-from-memo").addEventListener("click", (
 
   hideElements("fee-from-memo", "hide-fee-from-memo");
   showElements("show-fee-from-memo");
+
+  hideElements("topic-name-from-memo", "hide-topic-name-from-memo");
+  showElements("show-topic-name-from-memo");
 });
 
 document.getElementById("show-memo-from-memo").addEventListener("click", () => {
@@ -1321,6 +1348,9 @@ document.getElementById("show-memo-from-memo").addEventListener("click", () => {
 
   hideElements("fee-from-memo", "hide-fee-from-memo");
   showElements("show-fee-from-memo");
+
+  hideElements("topic-name-from-memo", "hide-topic-name-from-memo");
+  showElements("show-topic-name-from-memo");
 });
 
 document.getElementById("hide-memo-from-memo").addEventListener("click", () => {
@@ -1332,6 +1362,9 @@ document.getElementById("hide-memo-from-memo").addEventListener("click", () => {
 
   hideElements("fee-from-memo", "hide-fee-from-memo");
   showElements("show-fee-from-memo");
+
+  hideElements("topic-name-from-memo", "hide-topic-name-from-memo");
+  showElements("show-topic-name-from-memo");
 });
 
 document.getElementById("show-fee-from-memo").addEventListener("click", () => {
@@ -1343,6 +1376,9 @@ document.getElementById("show-fee-from-memo").addEventListener("click", () => {
 
   hideElements("memo-from-memo", "hide-memo-from-memo");
   showElements("show-memo-from-memo");
+
+  hideElements("topic-name-from-memo", "hide-topic-name-from-memo");
+  showElements("show-topic-name-from-memo");
 });
 
 document.getElementById("hide-fee-from-memo").addEventListener("click", () => {
@@ -1354,6 +1390,37 @@ document.getElementById("hide-fee-from-memo").addEventListener("click", () => {
 
   hideElements("memo-from-memo", "hide-memo-from-memo");
   showElements("show-memo-from-memo");
+
+  hideElements("topic-name-from-memo", "hide-topic-name-from-memo");
+  showElements("show-topic-name-from-memo");
+});
+
+document.getElementById("show-topic-name-from-memo").addEventListener("click", () => {
+  showElements("topic-name-from-memo", "hide-topic-name-from-memo");
+  hideElements("show-topic-name-from-memo");
+
+  hideElements("update-bio-from-memo", "hide-update-bio-from-memo");
+  showElements("show-update-bio-from-memo");
+
+  hideElements("memo-from-memo", "hide-memo-from-memo");
+  showElements("show-memo-from-memo");
+
+  hideElements("fee-from-memo", "hide-fee-from-memo");
+  showElements("show-fee-from-memo");
+});
+
+document.getElementById("hide-topic-name-from-memo").addEventListener("click", () => {
+  hideElements("topic-name-from-memo", "hide-topic-name-from-memo");
+  showElements("show-topic-name-from-memo");
+
+  hideElements("update-bio-from-memo", "hide-update-bio-from-memo");
+  showElements("show-update-bio-from-memo");
+
+  hideElements("memo-from-memo", "hide-memo-from-memo");
+  showElements("show-memo-from-memo");
+
+  hideElements("fee-from-memo", "hide-fee-from-memo");
+  showElements("show-fee-from-memo");
 });
 
   
@@ -1368,29 +1435,22 @@ document.getElementById("hide-fee-from-memo").addEventListener("click", () => {
     document.getElementById("edit-profile-picture"),
     document.getElementById("edit-profile-username"),
     document.getElementById("edit-profile-click2link"),
-    document.getElementById("edit-profile-topic-id"),
-    document.getElementById("edit-profile-topic-id-name"),
     document.getElementById("edit-profile-bio"),
-    document.getElementById("edit-profile-domain-time-left"),
   ];
-  
+
   const insideEditProfileShowOptions = [
     document.getElementById("show-profile-picture-from-edit-profile"),
     document.getElementById("show-username-from-edit-profile"),
     document.getElementById("show-click2link-from-edit-profile"),
-    document.getElementById("show-topic-id-name-from-edit-profile"),
     document.getElementById("show-bio-from-edit-profile"),
-    document.getElementById("show-check-domain-availability-from-edit-profile"),
   ];
-  
-  
+
+
   const insideEditProfileHideOptions = [
     document.getElementById("hide-profile-picture-from-edit-profile"),
     document.getElementById("hide-username-from-edit-profile"),
     document.getElementById("hide-click2link-from-edit-profile"),
-    document.getElementById("hide-topic-id-name-from-edit-profile"),
     document.getElementById("hide-bio-from-edit-profile"),
-    document.getElementById("hide-check-domain-availability-from-edit-profile"),
   ];
   
   
@@ -1474,27 +1534,6 @@ document.getElementById("hide-fee-from-memo").addEventListener("click", () => {
     document.getElementById("edit-profile-click2link").style.display = "none";
   });
   
-  document.getElementById("show-topic-id-name-from-edit-profile").addEventListener("click", (event) => {
-    editProfileEverything()
-    editProfileShowOptions()
-    editProfileHideOptions()
-    document.getElementById("edit-profile-url-name-domain").style.display = "block";
-    document.getElementById("hide-topic-id-name-from-edit-profile").style.display = "block";
-    document.getElementById("show-topic-id-name-from-edit-profile").style.display = "none";
-    document.getElementById("edit-profile-topic-id").style.display = "block";
-    document.getElementById("edit-profile-topic-id-name").style.display = "block";
-  });
-  
-  document.getElementById("hide-topic-id-name-from-edit-profile").addEventListener("click", (event) => {
-    editProfileEverything()
-    editProfileShowOptions()
-    editProfileHideOptions()
-    document.getElementById("edit-profile-url-name-domain").style.display = "none";
-    document.getElementById("hide-topic-id-name-from-edit-profile").style.display = "none";
-    document.getElementById("show-topic-id-name-from-edit-profile").style.display = "block";
-    document.getElementById("edit-profile-topic-id-name").style.display = "none";
-  });
-  
   document.getElementById("show-bio-from-edit-profile").addEventListener("click", (event) => {
     editProfileEverything()
     editProfileShowOptions()
@@ -1511,28 +1550,6 @@ document.getElementById("hide-fee-from-memo").addEventListener("click", () => {
     document.getElementById("hide-bio-from-edit-profile").style.display = "none";
     document.getElementById("show-bio-from-edit-profile").style.display = "block";
     document.getElementById("edit-profile-bio").style.display = "none";
-  });
-  
-  document.getElementById("show-check-domain-availability-from-edit-profile").addEventListener("click", (event) => {
-    editProfileEverything()
-    editProfileShowOptions()
-    editProfileHideOptions()
-    document.getElementById("edit-profile-url-name-domain").style.display = "block";
-    document.getElementById("edit-profile-topic-id").style.display = "block";
-    document.getElementById("hide-check-domain-availability-from-edit-profile").style.display = "block";
-    document.getElementById("show-check-domain-availability-from-edit-profile").style.display = "none";
-    document.getElementById("edit-profile-domain-time-left").style.display = "block";
-  });
-  
-  document.getElementById("hide-check-domain-availability-from-edit-profile").addEventListener("click", (event) => {
-    editProfileEverything()
-    editProfileShowOptions()
-    editProfileHideOptions()
-    document.getElementById("edit-profile-url-name-domain").style.display = "none";
-    document.getElementById("edit-profile-topic-id").style.display = "none";
-    document.getElementById("hide-check-domain-availability-from-edit-profile").style.display = "none";
-    document.getElementById("show-check-domain-availability-from-edit-profile").style.display = "block";
-    document.getElementById("edit-profile-domain-time-left").style.display = "none";
   });
   
   const allLoadColumns = [
