@@ -6,6 +6,7 @@ import { geojson, existingMarkers, newExistingMarkers, currentUfoModelInGLTF } f
 import { map } from './map'
 import { activePolygonPopups } from './polygons';
 import { CloseALL, changePopupState } from './cssLogic';
+import { closeDrawAnchor } from './drawhere';
 import { applyAllStyles } from './loadprofilepopup';
 import { scene } from "./threejs";
 import { makeScrollable } from './makescrollable';
@@ -105,6 +106,7 @@ export function updateClusters() {
           activeMarkerPopups.forEach((popup) => popup.remove());
           activeMarkerPopups.push(popup);
           CloseALL();
+          closeDrawAnchor();
           popup.setLngLat(cluster.geometry.coordinates).addTo(map).setDOMContent(cluster.properties.message);
           const markerPopupContent = popup.getElement()?.querySelector('.maplibregl-popup-content');
           if (markerPopupContent && !markerPopupContent._scrollable) {

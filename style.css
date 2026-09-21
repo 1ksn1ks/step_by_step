@@ -623,12 +623,12 @@ html, body {
                 inset 0 0 0.8vh rgba(34, 211, 238, 0.3);
   }
 
-  /* Submit button inside the message input — 1vh gap on top/right/bottom
-     at the default 5vh field height: button = 3vh (1.8vh glyph + 2×0.6vh) */
+  /* Submit button inside the message input — 0.25vh gap from the corner:
+     button = 3vh (1.8vh glyph + 2×0.6vh) */
   .msg-send-btn {
     position: absolute;
-    bottom: 1vh;
-    right: 1vh;
+    bottom: 0.25vh;
+    right: 0.25vh;
     width: auto;
     height: auto;
     margin: 0;
@@ -641,9 +641,13 @@ html, body {
   }
 
   /* Keep typed text clear of the in-input send button (bottom row only —
-     the button's row is reserved by the padding below, text uses full width) */
+     the button's row is reserved by the padding below, text uses full width).
+     height:auto lets the empty field sit at its natural height (line +
+     reserved button row) so delete-all shrinks it back to the initial size */
   #user-write-message,
   #user-write-message-encrypted-chat {
+    height: auto;
+    min-height: 5vh;
     padding-bottom: 4.5vh;
     padding-right: 0.45vh;
   }

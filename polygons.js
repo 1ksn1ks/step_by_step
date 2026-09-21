@@ -6,6 +6,7 @@ import { currentUfoModelInGLTF, polygons } from './letall';
 import { map } from './map'
 import { activeMarkerPopups } from './marker';
 import { CloseALL, changePopupState } from './cssLogic';
+import { closeDrawAnchor } from './drawhere';
 import { makeScrollable } from './makescrollable';
 
 
@@ -207,6 +208,7 @@ export async function addPolygonWithImageFill(map, polygon) {
             activePolygonPopups.forEach((p) => p.remove());
             activeMarkerPopups.forEach((p) => p.remove());
             CloseALL();
+            closeDrawAnchor();
             popup
               .setLngLat(e.lngLat)
               .setDOMContent(polygon.description)
