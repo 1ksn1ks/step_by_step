@@ -1,3 +1,4 @@
+import './dprcap.js';
 import './map.js';
 import './toast.js';
 import './loaderprogress.js';
@@ -27,6 +28,7 @@ import './encryptedtopicchat.js'
 import './LOADcolumn.js'
 import './handlegofilter.js'
 import './search.js'
+import './domaintimeleft.js'
 
 window.restrictLength = function(input, maxLength) {
     if (input.value.length > maxLength) {

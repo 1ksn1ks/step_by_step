@@ -34,32 +34,37 @@ const urls = [
         url: urls[Math.floor(Math.random() * urls.length)],
         origin: [coordinates.x, coordinates.y],
         altitude: coordinates.z,
-        scaleFactorNFT: scaleFactorNFT
+        scaleFactorNFT: scaleFactorNFT,
+        heading: Math.random() * Math.PI * 2,
+        latDir: Math.random() < 0.5 ? -1 : 1,
+        speed: 1.5 + Math.random() * 2,
+        speedTarget: 0
     };
 
-    // After initial creation, start live updates
-setInterval(() => {
-    const randomBotIndex = Math.floor(Math.random() * 100);
-    const bot = models[randomBotIndex];
-
-    // Slight movement (e.g., ±0.1° lat/lon, ±1000m altitude)
-    const drift = () => -10 + Math.random() * 20;
-    const altDrift = () => -1000 + Math.random() * 2000;
-
-    const newX = Math.max(-180, Math.min(180, bot.origin[0] + drift()));
-    const newY = Math.max(-90, Math.min(90, bot.origin[1] + drift()));
-    const newZ = Math.max(0, Math.min(3500000, bot.altitude + altDrift()));
-
-    // Overwrite same peer with new position
-    models[randomBotIndex] = {
-        ...bot,
-        origin: [newX, newY],
-        altitude: newZ,
-        scaleFactorNFT: bot.scaleFactorNFT
-    };
-
-}, 1000);
 }
+
+// One shared ticker: every bot drifts gently all the time — each with its
+// own slowly-wandering heading, so the field never stops and never jumps
+setInterval(() => {
+    models.forEach((bot) => {
+        if (!bot || !String(bot.peer_id || "").startsWith("bot_")) return;
+        bot.heading += (Math.random() - 0.5) * 0.5;
+        // Real-life feel: users pan in bursts and pause — each bot gets a new
+        // target speed ~every 50s (0.5–3.5°/s) and eases toward it
+        if (Math.random() < 0.02 || !bot.speedTarget) bot.speedTarget = 0.5 + Math.random() * 3;
+        bot.speed += (bot.speedTarget - bot.speed) * 0.05;
+        // Latitude has its own direction, flipped at the caps — and hard-clamped,
+        // because a value outside -90..90 makes MapLibre throw and kills the render
+        if (bot.origin[1] > 85) bot.latDir = -1;
+        else if (bot.origin[1] < -85) bot.latDir = 1;
+        const lat = Math.max(-89, Math.min(89, bot.origin[1] + bot.latDir * bot.speed * 0.5));
+        let lng = bot.origin[0] + Math.cos(bot.heading) * bot.speed;
+        if (lng > 180) lng -= 360;
+        if (lng < -180) lng += 360;
+        bot.origin[0] = lng;
+        bot.origin[1] = lat;
+    });
+}, 1000);
 }
 
 generateModels();
@@ -90,6 +95,15 @@ directions.forEach((dir) => {
 // Global / module-level (outside the function)
 // ────────────────────────────────────────────────
 const modelInstances = []; // will hold { threeObject, peer_id, index, finalScale, animState }
+
+// Scratch objects for the fluid smoothing (no per-frame allocation)
+const _posA = new THREE.Vector3();
+const _quatA = new THREE.Quaternion();
+const _scaleA = new THREE.Vector3();
+const _posB = new THREE.Vector3();
+const _quatB = new THREE.Quaternion();
+const _scaleB = new THREE.Vector3();
+let lastDriftTime = 0;
 
 export async function load3dModels() {
   // If not already created — do it once
@@ -149,14 +163,12 @@ export async function load3dModels() {
             peer_id: modelData.peer_id,
             index,
             finalScale,
-            prevMatrix: new THREE.Matrix4(),
-            targetMatrix: new THREE.Matrix4(),
-            animStartTime: 0,
-            animDurationMs: 500,
-            isAnimating: false,
+            currentMatrix: new THREE.Matrix4(),
+            initialized: false,
+            movedWhileHidden: false,
             lastKnownOrigin: null,
             lastKnownAltitude: null,
-            opacity: 0,           // ← new
+            opacity: 1,           // ← TEST: no fade, instant appear (was 0)
             opacityTarget: 1,     // ← new
             fadeStartTime: 0,
             fadeDurationMs: 600   // a bit longer than position anim looks nice
@@ -170,23 +182,48 @@ export async function load3dModels() {
 
     render(gl, args) {
       const now = performance.now();
+      // Frame delta for the smoothing (clamped: a tab switch must not fast-forward)
+      const dt = lastDriftTime ? Math.min(100, now - lastDriftTime) : 16;
+      lastDriftTime = now;
+
+      // Only bots on the visible hemisphere are processed; the rest sit
+      // behind the globe and are skipped entirely
+      const cLat = (this.map.getCenter().lat * Math.PI) / 180;
+      const cLng = (this.map.getCenter().lng * Math.PI) / 180;
+      const centerVec = [
+        Math.cos(cLat) * Math.cos(cLng),
+        Math.cos(cLat) * Math.sin(cLng),
+        Math.sin(cLat)
+      ];
 
       modelInstances.forEach((instance) => {
-        const { 
-          threeObject, 
-          index, 
+        const {
+          threeObject,
+          index,
           finalScale,
-          prevMatrix,
-          targetMatrix,
-          animStartTime,
-          animDurationMs,
-          isAnimating,
           lastKnownOrigin,
           lastKnownAltitude
         } = instance;
 
         const data = models[index];
         if (!data) return;
+
+        // Far side of the globe: never visible — skip all processing
+        const bLat = (data.origin[1] * Math.PI) / 180;
+        const bLng = (data.origin[0] * Math.PI) / 180;
+        const dot =
+          centerVec[0] * Math.cos(bLat) * Math.cos(bLng) +
+          centerVec[1] * Math.cos(bLat) * Math.sin(bLng) +
+          centerVec[2] * Math.sin(bLat);
+        if (dot < -0.05) {
+          // It drifted out of sight — it will snap in place when it reappears
+          instance.lastKnownOrigin = [...data.origin];
+          instance.lastKnownAltitude = data.altitude;
+          instance.movedWhileHidden = true;
+          if (threeObject.visible) threeObject.visible = false;
+          return;
+        }
+        if (!threeObject.visible) threeObject.visible = true;
 
         // Get the newest map matrix
         const modelMatrixArray = this.map.transform.getMatrixForModel(
@@ -197,69 +234,29 @@ export async function load3dModels() {
         const newMatrix = new THREE.Matrix4().fromArray(modelMatrixArray);
         newMatrix.scale(new THREE.Vector3(finalScale, finalScale, finalScale));
 
-        // ─── Detect change ───────────────────────────────────────
-        const originChanged =
-          !lastKnownOrigin ||
-          data.origin[0] !== lastKnownOrigin[0] ||
-          data.origin[1] !== lastKnownOrigin[1];
-
-        const altitudeChanged =
-          lastKnownAltitude !== null && data.altitude !== lastKnownAltitude;
-
-        const positionChanged = originChanged || altitudeChanged;
-
-        if (positionChanged) {
-          // Start new animation
-          prevMatrix.copy(targetMatrix);           // old target → previous
-          targetMatrix.copy(newMatrix);            // new target
-
-          instance.animStartTime = now;
-          instance.isAnimating = true;
+        // First appearance, or it drifted out of sight — snap in place
+        if (!instance.initialized || instance.movedWhileHidden) {
+          instance.currentMatrix.copy(newMatrix);
+          instance.initialized = true;
+          instance.movedWhileHidden = false;
         }
 
         // ─── Always update last known values ──────────────────────
         instance.lastKnownOrigin = [...data.origin];
         instance.lastKnownAltitude = data.altitude;
 
-        // ─── Compute current matrix ─────────────────────────────
-        let matrixToApply;
+        // ─── Compute current matrix: fluid exponential smoothing ───
+        // Always ease toward the latest target (time constant ~1.5s) —
+        // direction changes mid-flight just bend the path, never snap
+        const t = 1 - Math.exp(-dt / 1500);
+        instance.currentMatrix.decompose(_posA, _quatA, _scaleA);
+        newMatrix.decompose(_posB, _quatB, _scaleB);
+        _posA.lerp(_posB, t);
+        _quatA.slerp(_quatB, t);
+        _scaleA.lerp(_scaleB, t);
+        instance.currentMatrix.compose(_posA, _quatA, _scaleA);
 
-      // Inside your loop, instead of .lerpMatrices(...)
-
-      if (instance.isAnimating) {
-        const elapsed = now - instance.animStartTime;
-        let t = elapsed / instance.animDurationMs;
-        t = Math.min(1, Math.max(0, t));
-
-        // Optional nice ease-in-out
-        t = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-
-        // ─── Decompose both matrices ────────────────────────────────
-        const posA = new THREE.Vector3();
-        const quatA = new THREE.Quaternion();
-        const scaleA = new THREE.Vector3();
-
-        const posB = new THREE.Vector3();
-        const quatB = new THREE.Quaternion();
-        const scaleB = new THREE.Vector3();
-
-        prevMatrix.decompose(posA, quatA, scaleA);
-        targetMatrix.decompose(posB, quatB, scaleB);
-
-        // ─── Interpolate components ─────────────────────────────────
-        const pos = new THREE.Vector3().lerpVectors(posA, posB, t);
-        const quat = new THREE.Quaternion().slerpQuaternions(quatA, quatB, t);
-        const scale = new THREE.Vector3().lerpVectors(scaleA, scaleB, t);
-
-        // ─── Recompose into final matrix ────────────────────────────
-        matrixToApply = new THREE.Matrix4().compose(pos, quat, scale);
-
-        if (t >= 0.999) {
-          instance.isAnimating = false;
-        }
-      } else {
-        matrixToApply = targetMatrix;
-      }
+        const matrixToApply = instance.currentMatrix;
 
       // After computing matrixToApply ...
 

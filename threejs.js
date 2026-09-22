@@ -90,10 +90,61 @@ let targetRotationX = 0;
 let targetRotationY = 0;
 let prevLng = 0;
 let prevLat = 0;
+let coordTextLen = -1;
 const lerpFactor = 0.05; // Controls smoothness
 
+// Stars only show in space: the globe is a circle centered on the map center —
+// cull any star that falls inside it (re-checked on every render)
+let lastRenderTime = 0;
+let globeCenterX = 0;
+let globeCenterY = 0;
+let globeRadius = 0;
 
-function animate() {
+function updateGlobeRadius() {
+  const c = map.getCenter();
+  // a point 89.9° along the meridian from center (wraps over the pole)
+  let lat = c.lat + 89.9;
+  let lng = c.lng;
+  if (lat > 90) { lat = 180 - lat; lng += 180; }
+  if (lat < -90) { lat = -180 - lat; lng -= 180; }
+  const centerPx = map.project([c.lng, c.lat]);
+  const horizonPx = map.project([lng, lat]);
+  globeCenterX = centerPx.x;
+  globeCenterY = centerPx.y;
+  globeRadius = Math.hypot(horizonPx.x - centerPx.x, horizonPx.y - centerPx.y);
+}
+
+// The live position buffer is rewritten by culling, so keep the full pool separately
+const originalStarPositions = new Float32Array(stars.geometry.attributes.position.array);
+
+const _starVec = new THREE.Vector3();
+function cullStarsToSpace() {
+  const pos = stars.geometry.attributes.position;
+  const dst = pos.array;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const r2 = globeRadius * globeRadius;
+  let n = 0;
+  for (let i = 0; i < originalStarPositions.length / 3; i++) {
+    _starVec.set(originalStarPositions[i * 3], originalStarPositions[i * 3 + 1], originalStarPositions[i * 3 + 2])
+      .applyMatrix4(stars.matrixWorld)
+      .project(camera);
+    const sx = (_starVec.x + 1) * 0.5 * w;
+    const sy = (1 - _starVec.y) * 0.5 * h;
+    const dx = sx - globeCenterX;
+    const dy = sy - globeCenterY;
+    if (dx * dx + dy * dy > r2) {
+      dst[n * 3] = originalStarPositions[i * 3];
+      dst[n * 3 + 1] = originalStarPositions[i * 3 + 1];
+      dst[n * 3 + 2] = originalStarPositions[i * 3 + 2];
+      n++;
+    }
+  }
+  pos.needsUpdate = true;
+  stars.geometry.setDrawRange(0, n);
+}
+
+function animate(now) {
     requestAnimationFrame(animate);
     handleMovement();
   
@@ -107,17 +158,22 @@ function animate() {
     const newCoords = `Z: ${zoom} · lng: ${lng}, lat: ${lat}`;
     if (coordinatesDisplay.value !== newCoords) {
       coordinatesDisplay.value = newCoords;
-  
-      const tempSpan = document.createElement("span");
-      tempSpan.style.visibility = "hidden";
-      tempSpan.style.position = "absolute";
-      tempSpan.style.whiteSpace = "nowrap";
-      tempSpan.style.font = window.getComputedStyle(coordinatesDisplay).font;
-      tempSpan.textContent = newCoords;
-      document.body.appendChild(tempSpan);
-  
-      coordinatesDisplay.style.width = `${tempSpan.offsetWidth}px`;
-      document.body.removeChild(tempSpan);
+
+      // Re-measure the field width only when the text length changes —
+      // measuring every frame forced a full layout pass on the main thread
+      if (newCoords.length !== coordTextLen) {
+        coordTextLen = newCoords.length;
+        const tempSpan = document.createElement("span");
+        tempSpan.style.visibility = "hidden";
+        tempSpan.style.position = "absolute";
+        tempSpan.style.whiteSpace = "nowrap";
+        tempSpan.style.font = window.getComputedStyle(coordinatesDisplay).font;
+        tempSpan.textContent = newCoords;
+        document.body.appendChild(tempSpan);
+
+        coordinatesDisplay.style.width = `${tempSpan.offsetWidth + 1}px`;
+        document.body.removeChild(tempSpan);
+      }
     }
   
     // Smooth longitude transition
@@ -139,8 +195,15 @@ function animate() {
     // Apply lerp for smooth rotation
     stars.rotation.y += (targetRotationY - stars.rotation.y) * lerpFactor;
     stars.rotation.x += (targetRotationX - stars.rotation.x) * lerpFactor;
-  
-    renderer.render(scene, camera);
+
+    updateGlobeRadius();
+
+    // Render the starfield at most 60x per second
+    if (now - lastRenderTime >= 16) {
+      cullStarsToSpace();
+      renderer.render(scene, camera);
+      lastRenderTime = now;
+    }
   }
   
   // Initialize with starting longitude and latitude

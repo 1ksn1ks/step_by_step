@@ -27,6 +27,13 @@ toolbarColumns.forEach(column => {
   });
 });
 
+// Slow slider drags on phones are long-presses — kill the browser's
+// copy/paste context menu inside the settings panels (the map's
+// long-press uses touch events and is not affected)
+document.querySelectorAll(".mb-panel").forEach((panel) => {
+  panel.addEventListener("contextmenu", (e) => e.preventDefault());
+});
+
 // LOAD column paste button (inside the Domain/Topic ID field, always
 // visible): replaces whatever is in the input with the clipboard text.
 // readText needs a secure context, so a blocked read just shows a toast.
@@ -64,8 +71,6 @@ export function changePopupState(a){
   popIsOpen = a
 }
 
-export let isinfo = true;
-  
 export function CloseALL() {
     everythinginsideoptionsbuttons.forEach(buttonId => {
       document.getElementById(buttonId).style.display = "none";
@@ -91,11 +96,6 @@ export function CloseALL() {
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
     document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
-    if (isinfo) {
-      document.getElementById("show-manual").style.display = "block";
-    } else {
-      document.getElementById("hide-manual").style.display = "block";
-    }
     if (popIsOpen === false) {
       if (currentUfoModelInGLTF) {
               scene.add(currentUfoModelInGLTF);
@@ -135,29 +135,38 @@ export function CloseALL() {
     document.getElementById("topic-chat-btn").style.display = "none";
     document.getElementById("toggle-encrypted-chat-btn").style.display = "none";
 
-    if (isinfo) {
-      document.getElementById("show-manual").style.display = "none";
-    } else {
-      document.getElementById("hide-manual").style.display = "none";
-    }
-
     everythinginsideoptionsbuttons.forEach(buttonId => {
       document.getElementById(buttonId).style.display = "flex";
     });
   });
 
-  document.getElementById("show-manual").addEventListener("click", function(event) {
-    event.stopPropagation();
-    document.getElementById("show-manual").style.display = "none";
-    document.getElementById("hide-manual").style.display = "block";
-    isinfo = false;
-  });
-
-  document.getElementById("hide-manual").addEventListener("click", function(event) {
-    event.stopPropagation();
-    document.getElementById("show-manual").style.display = "block";
-    document.getElementById("hide-manual").style.display = "none";
-    isinfo = true;
+  // The ? button in the top-right corner of each panel opens that
+  // panel's help overlay (overlays never auto-open anymore)
+  const PANEL_HELP = [
+    ["visibility-controls", "visibility-help-overlay"],
+    ["model-column", "change-model-help-overlay"],
+    ["crosshair-column", "crosshair-settings-help-overlay"],
+    ["marker-options-column", "marker-size-help-overlay"],
+    ["main-button-column", "main-buttons-style-help-overlay"],
+    ["button-input-column", "main-buttons-advanced-style-help-overlay"],
+    ["topic-chat-column", "chat-style-help-overlay"],
+    ["Edit_Profile-column", "edit-profile-help-overlay"],
+    ["load-column", "load-options-help-overlay"],
+    ["create-column", "create-topic-help-overlay"],
+    ["draw-column", "map-draw-help-overlay"],
+    ["rules-column", "topic-rules-help-overlay"],
+    ["utility-column", "model-sharing-rules-help-overlay"],
+    ["memo-column", "edit-topic-rules-help-overlay"],
+    ["domain-column", "domain-help-overlay"],
+    ["stack-topic-ids", "stack-topic-ids-help-overlay"],
+    ["topic-chat-container", "topic-chat-help-overlay"],
+    ["encrypted-chat-container", "e2ee-chat-help-overlay"],
+  ];
+  PANEL_HELP.forEach(([panelId, overlayId]) => {
+    document.getElementById("help-" + panelId).addEventListener("click", (event) => {
+      event.stopPropagation();
+      document.getElementById(overlayId).style.display = "block";
+    });
   });
   
   // let toggleControlsPressCount = 0;
@@ -196,10 +205,6 @@ export function CloseALL() {
     CloseALL();
     document.getElementById("visibility-controls").style.display = "block";
 
-    if (isinfo) {
-      document.getElementById("visibility-help-overlay").style.display = "block";
-    }
-
     removeUfoModel();
   });
   
@@ -225,10 +230,6 @@ export function CloseALL() {
     document.getElementById("model-column-save").style.display = "block";
     document.getElementById("model-column-container-save").style.display = "block";
 
-    if (isinfo) {
-      document.getElementById("change-model-help-overlay").style.display = "block";
-    }
-    
     OpenToggleYourFov();
   });
   
@@ -239,10 +240,6 @@ export function CloseALL() {
     document.getElementById("crosshair-column-container").style.display = "block";
     document.getElementById("crosshair-column-save").style.display = "block";
     document.getElementById("crosshair-column-container-save").style.display = "block";
-
-    if (isinfo) {
-      document.getElementById("crosshair-settings-help-overlay").style.display = "block";
-    }
 
     OpenToggleYourFov();
   });
@@ -255,10 +252,6 @@ export function CloseALL() {
     document.getElementById("marker-column-save").style.display = "block";
     document.getElementById("marker-column-container-save").style.display = "block";
 
-    if (isinfo) {
-      document.getElementById("marker-size-help-overlay").style.display = "block";
-    }
-    
     OpenToggleYourFov();
     removeUfoModel();
   });
@@ -270,10 +263,6 @@ export function CloseALL() {
     document.getElementById("main-button-column-container").style.display = "block";
     document.getElementById("main-button-column-save").style.display = "block";
     document.getElementById("main-button-column-container-save").style.display = "block";
-
-    if (isinfo) {
-      document.getElementById("main-buttons-style-help-overlay").style.display = "block";
-    }
 
     OpenToggleYourFov();
     removeUfoModel();
@@ -287,10 +276,6 @@ export function CloseALL() {
     document.getElementById("button-input-column-save").style.display = "block";
     document.getElementById("button-input-column-container-save").style.display = "block";
 
-    if (isinfo) {
-      document.getElementById("main-buttons-advanced-style-help-overlay").style.display = "block";
-    }
-    
     OpenToggleYourFov();
     removeUfoModel();
   });
@@ -303,10 +288,6 @@ export function CloseALL() {
     document.getElementById("topic-chat-save").style.display = "block";
     document.getElementById("topic-chat-container-save").style.display = "block";
     
-    if (isinfo) {
-      document.getElementById("chat-style-help-overlay").style.display = "block";
-    }
-
     OpenToggleYourFov();
     removeUfoModel();
   });
@@ -324,10 +305,6 @@ export function CloseALL() {
     document.getElementById("Edit_Profile-column").style.display = "block";
     document.getElementById("Edit_Profile-column-container").style.display = "block";
 
-    if (isinfo) {
-      document.getElementById("edit-profile-help-overlay").style.display = "block";
-    }
-
     OpenToggleToolbar();
     removeUfoModel();
   });
@@ -344,10 +321,6 @@ export function CloseALL() {
     const loaded_text_area = document.getElementById("loaded-topics");
     renderLoadedTopics(); // Rows: topic id + name + 📋 copy + ✕ unload
 
-    if (isinfo) {
-      document.getElementById("load-options-help-overlay").style.display = "block";
-    }
-
     adjustTextareaHeight(loaded_text_area);
     OpenToggleToolbar();
     removeUfoModel();
@@ -358,10 +331,6 @@ export function CloseALL() {
     CloseALL();
     document.getElementById("create-column").style.display = "block";
     document.getElementById("create-column-container").style.display = "block";
-
-    if (isinfo) {
-      document.getElementById("create-topic-help-overlay").style.display = "block";
-    }
 
     OpenToggleToolbar();
     removeUfoModel();
@@ -375,10 +344,6 @@ export function CloseALL() {
     document.getElementById("draw-column").style.display = "block";
     document.getElementById("draw-column-container").style.display = "block";
 
-    if (isinfo) {
-      document.getElementById("map-draw-help-overlay").style.display = "block";
-    }
-
     OpenToggleToolbar();
     removeUfoModel();
   });
@@ -390,10 +355,6 @@ export function CloseALL() {
     document.getElementById("rules-column").style.display = "block";
     document.getElementById("rules-column-container").style.display = "block";
 
-    if (isinfo) {
-      document.getElementById("topic-rules-help-overlay").style.display = "block";
-    }
-
     OpenToggleToolbar();
     removeUfoModel();
   });
@@ -403,10 +364,6 @@ export function CloseALL() {
     CloseALL();
     document.getElementById("utility-column").style.display = "block";
     document.getElementById("utility-column-container").style.display = "block";
-
-    if (isinfo) {
-      document.getElementById("model-sharing-rules-help-overlay").style.display = "block";
-    }
 
     OpenToggleToolbar();
     removeUfoModel();
@@ -427,9 +384,6 @@ export function CloseALL() {
       "hide-topic-name-from-memo", "topic-name-from-memo"
     );
 
-    if (isinfo) {
-      document.getElementById("edit-topic-rules-help-overlay").style.display = "block";
-    }
     OpenToggleToolbar();
     removeUfoModel();
   });
@@ -440,9 +394,6 @@ export function CloseALL() {
     document.getElementById("domain-column").style.display = "block";
     document.getElementById("domain-column-container").style.display = "block";
 
-    if (isinfo) {
-      document.getElementById("domain-help-overlay").style.display = "block";
-    }
     OpenToggleToolbar();
     removeUfoModel();
   });
@@ -452,10 +403,6 @@ export function CloseALL() {
     CloseALL();
     document.getElementById("stack-topic-ids").style.display = "block";
     document.getElementById("stack-topic-ids-container").style.display = "block";
-
-    if (isinfo) {
-      document.getElementById("stack-topic-ids-help-overlay").style.display = "block";
-    }
 
     OpenToggleToolbar();
     removeUfoModel();
@@ -482,10 +429,6 @@ export function CloseALL() {
     document.getElementById("options-from-topic-chat").style.display = "none";
     document.getElementById("show-options-from-topic-chat").style.display = "block";
     document.getElementById("show-options-from-topic-chat-btn").style.display = "none";
-
-    if (isinfo) {
-      document.getElementById("topic-chat-help-overlay").style.display = "block";
-    }
 
     removeUfoModel();
   });
@@ -792,10 +735,6 @@ export function CloseALL() {
     document.getElementById("options-from-encrypted-chat").style.display = "none";
     document.getElementById("show-options-from-encrypted-chat").style.display = "block";
     document.getElementById("show-options-from-encrypted-chat-btn").style.display = "none";
-
-    if (isinfo) {
-    document.getElementById("e2ee-chat-help-overlay").style.display = "block";
-    }
 
     removeUfoModel();
   });

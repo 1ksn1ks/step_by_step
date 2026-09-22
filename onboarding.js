@@ -5,11 +5,6 @@ import { map } from './map.js';
 
 const SLIDES = [
   {
-    icon: '𝒊',
-    title: 'Info overlays',
-    body: 'The 𝒊 button (top bar) switches the help overlays on ✅ / off ⛔. When on, opening any panel pops up a short explanation of it.'
-  },
-  {
     icon: '📋',
     title: 'Coordinates',
     body: 'The coordinates field (top right) always shows where you are on the map — tap it to copy them.'

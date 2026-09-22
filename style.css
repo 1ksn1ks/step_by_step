@@ -117,8 +117,8 @@ html, body {
   left: 50%;
   transform: translate(-50%, -50%);
   background: rgba(18, 18, 28, 0.78);
-  -webkit-backdrop-filter: blur(24px) saturate(150%);
-  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  backdrop-filter: blur(10px) saturate(150%);
   color: #e6e6f0;
   border-radius: 20px;
   padding: 3.2vh 1.53vh 2.6vh;
@@ -294,6 +294,11 @@ html, body {
     animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
+  /* Inside the group the buttons stack in flow, not fixed */
+  #menu-buttons-group .menu_buttons {
+    position: static;
+  }
+
   .menu_buttons {
     position: fixed;
     left: 0;
@@ -366,7 +371,9 @@ html, body {
     box-sizing: border-box;
     border-radius: 2vh;
     overflow-y: auto; /* Enable vertical scrolling */
-    max-height: 80vh; /* Limit the height to 80% of the viewport */
+    /* 100dvh - 20dvh: keeps the 10dvh top band and the 10dvh save-bar
+       zone (button 5vh + bottom 2.5vh) free, dvh follows the URL bar */
+    max-height: calc(100dvh - 20dvh);
     touch-action: auto; /* Enable touch interactions */
     resize: none; /* Prevent manual resizing */
     left: 1vw;
@@ -1238,8 +1245,8 @@ html, body {
     left: 0;
     width: 100%;
     background-color: rgba(15, 15, 20, 0.75);
-    -webkit-backdrop-filter: blur(16px) saturate(150%);
-    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(8px) saturate(150%);
+    backdrop-filter: blur(8px) saturate(150%);
     border: 0.1vh solid rgba(34, 211, 238, 0.6);
     border-radius: 2vh;
     overflow-y: auto;
@@ -1397,8 +1404,8 @@ html, body {
 
 .maplibregl-popup-content {
     background-color: rgba(15, 15, 20, 0.55);
-    -webkit-backdrop-filter: blur(10px) saturate(140%);
-    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(6px) saturate(140%);
+    backdrop-filter: blur(6px) saturate(140%);
     border: 0.2vh solid rgba(255, 255, 255, 0.25);
     will-change: transform, opacity;
     transform: translateZ(0);
@@ -1490,6 +1497,8 @@ html, body {
     touch-action: none;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
   }
 
   *::-webkit-scrollbar {
@@ -1700,8 +1709,8 @@ html, body {
     align-items: center;
     gap: 0.36vh;
     background: rgba(18, 18, 28, 0.78);
-    -webkit-backdrop-filter: blur(24px) saturate(150%);
-    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(10px) saturate(150%);
+    backdrop-filter: blur(10px) saturate(150%);
     color: #e6e6f0;
     border: 1px solid rgba(34, 211, 238, 0.85);
     border-radius: 18px;
@@ -2077,6 +2086,292 @@ html, body {
   @keyframes optionsTitleFloat {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-0.4vh); }
+  }
+
+  /* Settings panels (Main Buttons / Button-Input) — glass cards:
+     sliders, color chips, live preview */
+  /* ? help button: top-right corner of every settings panel */
+  .panel-help-btn {
+    position: absolute;
+    top: 0.9vh;
+    right: 0.9vh;
+    z-index: 10;
+    width: 3.2vh;
+    height: 3.2vh;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    font-size: 1.8vh;
+    font-weight: 600;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.12s ease, filter 0.12s ease;
+  }
+
+  .panel-help-btn:hover {
+    transform: scale(1.08);
+    filter: brightness(1.15);
+  }
+
+  .panel-help-btn:active {
+    transform: scale(0.94);
+  }
+
+  .mb-panel .mb-card {
+    background: rgba(255, 255, 255, 0.06);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 1.6vh;
+    padding: 1.2vh 1.4vh 0.8vh;
+    margin-bottom: 1.2vh;
+  }
+
+  .mb-panel .mb-card-title {
+    font-size: 1.2vh;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 0.6vh;
+  }
+
+  .mb-panel .mb-row {
+    display: flex;
+    align-items: center;
+    gap: 1vh;
+    padding: 0.6vh 0;
+  }
+
+  .mb-panel .mb-row-label {
+    font-size: 1.6vh;
+    white-space: nowrap;
+  }
+
+  .mb-panel .mb-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 0.5vh;
+    border-radius: 1vh;
+    background: rgba(255, 255, 255, 0.18);
+    outline: none;
+    cursor: pointer;
+  }
+
+  .mb-panel .mb-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 2.2vh;
+    height: 2.2vh;
+    border-radius: 50%;
+    background: #22d3ee;
+    border: 0.2vh solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 0.2vh 0.6vh rgba(0, 0, 0, 0.5);
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .mb-panel .mb-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+  }
+
+  .mb-panel .mb-slider::-moz-range-thumb {
+    width: 2.2vh;
+    height: 2.2vh;
+    border-radius: 50%;
+    background: #22d3ee;
+    border: 0.2vh solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 0.2vh 0.6vh rgba(0, 0, 0, 0.5);
+  }
+
+  .mb-panel .mb-value-pill {
+    min-width: 7vh;
+    text-align: center;
+    font-size: 1.4vh;
+    font-variant-numeric: tabular-nums;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 1vh;
+    padding: 0.3vh 0.8vh;
+    white-space: nowrap;
+  }
+
+  .mb-panel .mb-swatch {
+    position: relative;
+    width: 4.5vh;
+    height: 4.5vh;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 0.2vh solid rgba(255, 255, 255, 0.35);
+    box-shadow: 0 0.2vh 0.8vh rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .mb-panel .mb-swatch:hover {
+    transform: scale(1.08);
+  }
+
+  /* Invisible: it only opens the native picker. The chip's own background
+     (set by JS) shows the exact current color, including transparency */
+  .mb-panel .mb-swatch input[type="color"] {
+    position: absolute;
+    inset: -30%;
+    width: 160%;
+    height: 160%;
+    border: none;
+    padding: 0;
+    background: none;
+    cursor: pointer;
+    opacity: 0;
+  }
+
+  .mb-panel .mb-preview {
+    display: flex;
+    gap: 1.2vh;
+    justify-content: center;
+    align-items: center;
+    padding: 0.6vh 0 0.4vh;
+  }
+
+  /* Mirrors the real buttons: same padding/border, height+width auto */
+  .mb-panel .mb-preview-btn {
+    padding: 0.8vh 0.45vh;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 1.5vh;
+    color: white;
+    font-family: inherit;
+    cursor: default;
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+  }
+
+  /* Visibility panel preview: a polygon over a checkered background so
+     the transparency is visible */
+  .mb-panel .mb-poly-preview-bg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 1vh;
+    background:
+      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.07) 0 1vh, transparent 1vh 2vh),
+      repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.07) 0 1vh, transparent 1vh 2vh),
+      rgba(15, 15, 20, 0.6);
+  }
+
+  .mb-panel .mb-poly-preview {
+    width: 10vh;
+    height: 4vh;
+    background: white;
+    opacity: 1;
+    transition: opacity 0.15s ease;
+  }
+
+  /* Snug: the checkered background hugs the dummy, no extra space */
+  #visibility-controls .mb-preview {
+    padding: 0;
+  }
+
+  /* Button/Input panel preview: stacked full-width input + pill button,
+     mirroring .toolbar-column / .toolbar-column-btns */
+  .mb-panel .mb-preview-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6vh;
+    padding: 0.4vh 0 0.2vh;
+  }
+
+  .mb-panel .mb-preview-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.4vh 0.6vh;
+    border-radius: 1vh;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(15, 15, 20, 0.45);
+    color: white;
+    font-family: inherit;
+  }
+
+  .mb-panel .mb-preview-pill {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.4vh 1.4vh;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(15, 15, 20, 0.45);
+    color: white;
+    font-family: inherit;
+    cursor: default;
+    white-space: nowrap;
+  }
+
+  /* Chat panel preview: mini message, mirroring
+     .chat-container / .toolbar-group-messages / .chat-msg-text */
+  .mb-panel .mb-chat-preview {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 1vh;
+    background: rgba(15, 15, 20, 0.45);
+    padding: 0.6vh 0.8vh;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5vh;
+  }
+
+  .mb-panel .mb-chat-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6vh;
+  }
+
+  .mb-panel .mb-chat-time {
+    margin-left: auto;
+    opacity: 0.45;
+  }
+
+  .mb-panel .mb-chat-inner {
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 0.8vh;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.5vh 0.6vh;
+  }
+
+  .mb-panel .mb-chat-msg {
+    border-radius: 0.9vh;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 0.25em 0.6em;
+    line-height: 1.35;
+    overflow: hidden;
+  }
+
+  .mb-panel .mb-reset-btn {
+    display: block;
+    width: 100%;
+    margin-top: 0.4vh;
+    padding: 1vh;
+    font-size: 1.6vh;
+    font-weight: 600;
+    color: white;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 1.4vh;
+    cursor: pointer;
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s;
+  }
+
+  .mb-panel .mb-reset-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+    transform: scale(1.02);
+  }
+
+  .mb-panel .mb-reset-btn:active {
+    transform: scale(0.97);
   }
 
   .load-section-label {

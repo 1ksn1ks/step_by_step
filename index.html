@@ -105,7 +105,7 @@
 
       <div id="crosshair" style="display: none;"></div>
       
-      <div style="display: flex; position: fixed; top: 6vh; left: 0; z-index: 1006;">
+      <div id="main-buttons-row" style="display: flex; position: fixed; left: 0; z-index: 1006;">
         <button id="main-toggle-btn" class="options-and-topic" style="margin-left: 0.3vh;">OPTIONS
         </button>
         <button id="toggle-toolbar-btn-btn" class="options-and-topic" style="margin-left: 0.3vh; display: none;">TOOLBAR
@@ -116,24 +116,22 @@
         </button>
         <button id="toggle-encrypted-chat-btn" class="options-and-topic" style="margin-left: 1vw;">E2EE CHAT
         </button>
-        <button id="show-manual" class="info-button" style="margin-left: 1vw;">𝒊 ✅
-        </button>
-        <button id="hide-manual" class="info-button" style="margin-left: 1vw; display: none;">𝒊 ⛔
-        </button>
       </div>
       
       
       <!-- <button id="toggle-controls-btn" class="menu_buttons" style="top: 6.5vh;">CONTROLS
       </button> -->
       
-      <button id="toggle-your-fov-btn" class="menu_buttons" style="top: 6.5vh;">SETTINGS
-      </button>
-      
-      <button id="toggle-visibility-controls-btn" class="menu_buttons" style="top: 11vh;">VISIBILITY
-      </button>
-      
-      <button id="toggle-toolbar-btn" class="menu_buttons" style="top: 15.5vh;">TOOLBAR
-      </button>
+      <div id="menu-buttons-group" style="position: fixed; left: 0; top: 6dvh; z-index: 1006; display: flex; flex-direction: column; gap: 1dvh;">
+        <button id="toggle-your-fov-btn" class="menu_buttons">SETTINGS
+        </button>
+
+        <button id="toggle-visibility-controls-btn" class="menu_buttons">VISIBILITY
+        </button>
+
+        <button id="toggle-toolbar-btn" class="menu_buttons">TOOLBAR
+        </button>
+      </div>
       
       
       <div id="toolbar" class="toolbar" style="display: none; flex-direction: column;">
@@ -178,6 +176,7 @@
       </div>
       
       <div id="Edit_Profile-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <button class="panel-help-btn" id="help-Edit_Profile-column">?</button>
         <div id="Edit_Profile-column-container">
 
           <div class="options-column-title">👤 PROFILE</div>
@@ -264,6 +263,7 @@
       </div>
 
       <div id="domain-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <button class="panel-help-btn" id="help-domain-column">?</button>
         <div id="domain-column-container">
 
           <div class="options-column-title">🌐 DOMAIN</div>
@@ -311,6 +311,7 @@
       </div>
       
       <div id="load-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <button class="panel-help-btn" id="help-load-column">?</button>
         <div id="load-column-container">
 
           <div class="options-column-title">🪐 LOAD</div>
@@ -502,6 +503,7 @@
       </div>
       
       <div id="create-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <button class="panel-help-btn" id="help-create-column">?</button>
         <div id="create-column-container">
 
           <div class="options-column-title">✨ CREATE</div>
@@ -625,6 +627,7 @@
       </div>
 
       <div id="draw-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <button class="panel-help-btn" id="help-draw-column">?</button>
         <div id="draw-column-container">
 
           <div class="options-column-title" id="draw-column-title">✏️ DRAW</div>
@@ -828,6 +831,7 @@
       </div>
       
       <div id="rules-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <button class="panel-help-btn" id="help-rules-column">?</button>
         <div id="rules-column-container">
 
           <div class="options-column-title">📜 RULES</div>
@@ -921,6 +925,7 @@
       </div>
       
       <div id="utility-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <button class="panel-help-btn" id="help-utility-column">?</button>
         <div id="utility-column-container">
 
           <div class="options-column-title">🧩 NFT</div>
@@ -1042,6 +1047,7 @@
       </div>
       
       <div id="memo-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <button class="panel-help-btn" id="help-memo-column">?</button>
         <div id="memo-column-container">
 
           <div class="options-column-title">🏷 UPDATE TOPIC</div>
@@ -1152,6 +1158,7 @@
       </div>
       
       <div id="stack-topic-ids" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <button class="panel-help-btn" id="help-stack-topic-ids">?</button>
         <div id="stack-topic-ids-container">
 
           <div class="options-column-title">📚 STACK</div>
@@ -1239,6 +1246,7 @@
       </div>
       
       <div id="topic-chat-container" class="topic-chat-container" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+        <button class="panel-help-btn" id="help-topic-chat-container">?</button>
         <div class="chat-topic-chat-container"  onclick="event.stopPropagation();">
 
           <div class="options-column-title">💬 TOPIC CHAT</div>
@@ -1401,6 +1409,7 @@
       </div>
       
       <div id="encrypted-chat-container" class="topic-chat-container" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+        <button class="panel-help-btn" id="help-encrypted-chat-container">?</button>
         <div class="chat-topic-chat-container"  onclick="event.stopPropagation();">
 
         <div class="options-column-title">🔒 E2EE CHAT</div>
@@ -1613,53 +1622,63 @@
         </div>
       </div>
           
-      <div id="visibility-controls" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
-        <div>
-      
-     
+      <div id="visibility-controls" class="toolbar-containers mb-panel" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+        <button class="panel-help-btn" id="help-visibility-controls">?</button>
+        <div id="visibility-controls-container">
+
           <div class="options-column-title">👁 VISIBILITY</div>
 
-          <div style="display: flex; align-items: center; margin-bottom: 1vh;">
-            <span id="3d-model-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On</span>
-            <button id="toggle-3d-model-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show 3D models
-            </button>
-            <span id="3d-model-visibility-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On</span>
+          <div class="mb-card">
+            <div class="mb-row">
+              <span id="3d-model-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On</span>
+              <button id="toggle-3d-model-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show 3D models
+              </button>
+              <span id="3d-model-visibility-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On</span>
+            </div>
+            <div class="mb-row">
+              <span id="marker-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+              </span>
+              <button id="toggle-marker-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show markers
+              </button>
+              <span id="marker-visibility-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+              </span>
+            </div>
+            <div class="mb-row">
+              <span id="polygon-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+              </span>
+              <button id="toggle-polygon-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show polygons:
+              </button>
+              <span id="polygon-visibility-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+              </span>
+            </div>
+            <div class="mb-row">
+              <span id="globe-mode-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Light
+              </span>
+              <button id="toggle-globe-mode" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Globe mode:
+              </button>
+              <span id="globe-mode-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Light
+              </span>
+            </div>
           </div>
 
-          <div style="display: flex; align-items: center; margin-bottom: 1vh;">
-            <span id="marker-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
-            </span>
-            <button id="toggle-marker-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show markers
-            </button>
-            <span id="marker-visibility-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
-            </span>
-          </div>
-      
-          <div style="display: flex; align-items: center; margin-bottom: 1vh;">
-            <span id="polygon-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
-            </span>
-            <button id="toggle-polygon-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show polygons:
-            </button>
-            <span id="polygon-visibility-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
-            </span>
+          <div class="mb-card">
+            <div class="mb-card-title">Polygon Transparency</div>
+            <div class="mb-row">
+              <span class="mb-row-label">Opacity</span>
+              <input type="range" id="raster-opacity-slider" class="mb-slider" min="0" max="1" step="0.01" value="1"/>
+              <span class="mb-value-pill" id="raster-opacity-slider-pill">1</span>
+            </div>
           </div>
 
-          <div style="display: flex; align-items: center; margin-bottom: 1vh;">
-            <span id="globe-mode-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Light
-            </span>
-            <button id="toggle-globe-mode" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Globe mode:
-            </button>
-            <span id="globe-mode-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Light
-            </span>
+          <div class="mb-card">
+            <div class="mb-card-title">Preview</div>
+            <div class="mb-preview">
+              <div class="mb-poly-preview-bg">
+                <div class="mb-poly-preview" id="mb-poly-preview"></div>
+              </div>
+            </div>
           </div>
 
-          <div style="display: flex; align-items: center; padding-left: 1vh; padding-bottom: 1vh;">
-            <label for="raster-opacity-slider" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Polygon transparency:
-            </label>
-            <input type="range" id="raster-opacity-slider" class="model_sliders" min="0" max="1" step="0.01" value="1">
-          </div>
-      
-      
         </div>
       </div>
 
@@ -1698,6 +1717,7 @@
       </div>
       
       <div id="model-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+        <button class="panel-help-btn" id="help-model-column">?</button>
         <div id="model-column-container">
 
           <div class="options-column-title">🛸 MODEL</div>
@@ -1817,6 +1837,7 @@
       </div>
 
       <div id="crosshair-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+        <button class="panel-help-btn" id="help-crosshair-column">?</button>
         <div id="crosshair-column-container">
 
           <div class="options-column-title">➕ CROSSHAIR</div>
@@ -1967,17 +1988,23 @@
         </div>
       </div>
 
-      <div id="marker-options-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+      <div id="marker-options-column" class="toolbar-containers mb-panel" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+        <button class="panel-help-btn" id="help-marker-options-column">?</button>
         <div id="marker-options-column-container">
 
           <div class="options-column-title">📍 MARKERS</div>
 
-          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
-            <label for="color-green" class="yourfov">Size:
-            </label>
-            <input type="number" id="Marker-Size" class="yourfov" style="margin-left: 1vw;" max="255" value="5"/>
+          <div class="mb-card">
+            <div class="mb-card-title">Size</div>
+            <div class="mb-row">
+              <span class="mb-row-label">Marker Size</span>
+              <input type="range" id="marker-size" class="mb-slider" min="1" max="10" step="0.1" value="5"/>
+              <span class="mb-value-pill" id="marker-size-pill">5 vh</span>
+            </div>
           </div>
-      
+
+          <button id="reset-marker-size" class="mb-reset-btn">↺ Reset to defaults</button>
+
         </div>
       </div>
       
@@ -2004,39 +2031,52 @@
         </div>
       </div>
 
-      <div id="main-button-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+      <div id="main-button-column" class="toolbar-containers mb-panel" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+        <button class="panel-help-btn" id="help-main-button-column">?</button>
         <div id="main-button-column-container">
 
           <div class="options-column-title">🔘 BUTTONS</div>
 
-          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
-            <label for="color-green" class="yourfov">Height:
-            </label>
-            <input type="number" id="Main-Button-Height" class="yourfov" style="margin-left: 1vw;" max="100" value="3"/>
+          <div class="mb-card">
+            <div class="mb-card-title">Font Size</div>
+            <div class="mb-row">
+              <span class="mb-row-label">Main Buttons</span>
+              <input type="range" id="Main-Button-Font-Size" class="mb-slider" min="0.5" max="10" step="0.1" value="1.5"/>
+              <span class="mb-value-pill" id="Main-Button-Font-Size-pill">1.5 vh</span>
+            </div>
+            <div class="mb-row">
+              <span class="mb-row-label">Wallet</span>
+              <input type="range" id="Wallet-Button-Font-Size" class="mb-slider" min="0.5" max="10" step="0.1" value="1.5"/>
+              <span class="mb-value-pill" id="Wallet-Button-Font-Size-pill">1.5 vh</span>
+            </div>
           </div>
-      
-          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
-            <label for="color-green" class="yourfov">Width:
-            </label>
-            <input type="number" id="Main-Button-Width" class="yourfov" style="margin-left: 1vw;" max="100" value="20"/>
+
+          <div class="mb-card">
+            <div class="mb-card-title">Colors</div>
+            <div class="mb-row">
+              <label class="mb-swatch" id="disconnect-button-color-swatch" for="disconnect-button-color">
+                <input type="color" id="disconnect-button-color" value="#ffc107"/>
+              </label>
+              <span class="mb-row-label">Connect / Disconnect</span>
+            </div>
+            <div class="mb-row">
+              <label class="mb-swatch" id="main-button-color-swatch" for="main-button-color">
+                <input type="color" id="main-button-color" value="#007bff"/>
+              </label>
+              <span class="mb-row-label">Main Buttons</span>
+            </div>
           </div>
-      
-          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
-            <label for="color-green" class="yourfov">Font Size:
-            </label>
-            <input type="number" id="Main-Button-Font-Size" class="yourfov" style="margin-left: 1vw;" max="10" value="1.5"/>
+
+          <div class="mb-card">
+            <div class="mb-card-title">Preview</div>
+            <div class="mb-preview">
+              <button id="mb-preview-connect" class="mb-preview-btn">Disconnect</button>
+              <button id="mb-preview-menu" class="mb-preview-btn">SETTINGS</button>
+            </div>
           </div>
-      
-          <div>
-            <label style="font-size: 1.5vh;">Connect/Disconnect Button Color:</label>
-            <input type="color" id="disconnect-button-color" class="yourfov" value="#ffc107">
-          </div>
-      
-          <div>
-            <label style="font-size: 1.5vh;">Main Buttons Color:</label>
-            <input type="color" id="main-button-color" class="yourfov" value="#007bff">
-          </div>
-      
+
+          <button id="reset-main-button" class="mb-reset-btn">↺ Reset to defaults</button>
+
         </div>
       </div>
 
@@ -2054,7 +2094,7 @@
           <h3 class="info-overlay-title">Main Buttons — Advanced</h3>
           <p class="info-overlay-subtitle">Fine-tune inner buttons.</p>
           <ul class="info-overlay-list">
-            <li>Tune the buttons inside the main buttons: font size, transparency, height, width, colors.</li>
+            <li>Tune the buttons inside the main buttons: font size, height, width, colors.</li>
           </ul>
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('main-buttons-advanced-style-help-overlay').style.display='none'">Got it</button>
@@ -2063,65 +2103,75 @@
         </div>
       </div>
       
-      <div id="button-input-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+      <div id="button-input-column" class="toolbar-containers mb-panel" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+        <button class="panel-help-btn" id="help-button-input-column">?</button>
         <div id="button-input-column-container">
 
           <div class="options-column-title">🎨 STYLES</div>
 
-          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
-            <label for="color-green" class="yourfov">Font Size:
-            </label>
-            <input type="number" id="font-for-button-input" class="yourfov" style="margin-left: 1vw;" max="10" placeholder="Size" value="2" step="0.01"/>
+          <div class="mb-card">
+            <div class="mb-card-title">Sizes</div>
+            <div class="mb-row">
+              <span class="mb-row-label">Font Size</span>
+              <input type="range" id="font-for-button-input" class="mb-slider" min="0.5" max="10" step="0.1" value="2"/>
+              <span class="mb-value-pill" id="font-for-button-input-pill">2 vh</span>
+            </div>
+            <div class="mb-row">
+              <span class="mb-row-label">Height</span>
+              <input type="range" id="Button-Input-Height" class="mb-slider" min="5" max="100" step="0.5" value="5"/>
+              <span class="mb-value-pill" id="Button-Input-Height-pill">5 vh</span>
+            </div>
+            <div class="mb-row">
+              <span class="mb-row-label">Width</span>
+              <input type="range" id="Button-Input-Width" class="mb-slider" min="10" max="100" step="1" value="100"/>
+              <span class="mb-value-pill" id="Button-Input-Width-pill">100 %</span>
+            </div>
           </div>
-      
-          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
-            <label for="color-green" class="yourfov">Transparency:
-            </label>
-            <input type="number" id="transparency-button-input" class="yourfov" style="margin-left: 1vw;" min='0.5' step="0.01" max="1" placeholder="Opacity" value="1"/>
+
+          <div class="mb-card">
+            <div class="mb-card-title">Colors</div>
+            <div class="mb-row">
+              <label class="mb-swatch" id="input-border-color-swatch" for="input-border-color">
+                <input type="color" id="input-border-color" value="#ffffff"/>
+              </label>
+              <span class="mb-row-label">Input Border</span>
+            </div>
+            <div class="mb-row">
+              <label class="mb-swatch" id="input-font-color-swatch" for="input-font-color">
+                <input type="color" id="input-font-color" value="#ffffff"/>
+              </label>
+              <span class="mb-row-label">Input Font</span>
+            </div>
+            <div class="mb-row">
+              <label class="mb-swatch" id="button-border-color-swatch" for="button-border-color">
+                <input type="color" id="button-border-color" value="#ffffff"/>
+              </label>
+              <span class="mb-row-label">Button Border</span>
+            </div>
+            <div class="mb-row">
+              <label class="mb-swatch" id="button-font-color-swatch" for="button-font-color">
+                <input type="color" id="button-font-color" value="#ffffff"/>
+              </label>
+              <span class="mb-row-label">Button Font</span>
+            </div>
+            <div class="mb-row">
+              <label class="mb-swatch" id="onhover-button-color-swatch" for="onhover-button-color">
+                <input type="color" id="onhover-button-color" value="#ffffff"/>
+              </label>
+              <span class="mb-row-label">OnHover Button</span>
+            </div>
           </div>
-      
-          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
-            <label for="color-green" class="yourfov">Height:
-            </label>
-            <input type="number" id="Button-Input-Height" class="yourfov" style="margin-left: 1vw;" min="5" max="100" value="5"/>
+
+          <div class="mb-card">
+            <div class="mb-card-title">Preview</div>
+            <div class="mb-preview-column">
+              <input id="mb-preview-input" class="mb-preview-input" type="text" readonly value="Input"/>
+              <button id="mb-preview-button" class="mb-preview-pill">Button</button>
+            </div>
           </div>
-      
-          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
-            <label for="color-green" class="yourfov">Width:
-            </label>
-            <input type="number" id="Button-Input-Width" class="yourfov" style="margin-left: 1vw;" max="100" value="100"/>
-          </div>
-      
-          <div>
-            <label style="font-size: 1.5vh;">Input Border Color:</label>
-            <input type="color" id="input-border-color" class="yourfov" value="#007bff">
-          </div>
-      
-          <div>
-            <label style="font-size: 1.5vh;">Input Font Color:</label>
-            <input type="color" id="input-font-color" class="yourfov" value="#ffffff">
-          </div>
-      
-          <div>
-            <label style="font-size: 1.5vh;">Button Border Color:</label>
-            <input type="color" id="button-border-color" class="yourfov" value="#007bff">
-          </div>
-      
-          <div>
-            <label style="font-size: 1.5vh;">Button Font Color:</label>
-            <input type="color" id="button-font-color" class="yourfov" value="#ffffff">
-          </div>
-      
-          <div>
-            <label style="font-size: 1.5vh;">OnHover Button Color:</label>
-            <input type="color" id="onhover-button-color" class="yourfov" value="#007bff">
-          </div>
-      
-          <div>
-            <label style="font-size: 1.5vh;">Rules Container Color:</label>
-            <input type="color" id="rules-container-color" class="yourfov" value="#007bff">
-          </div>
-          
+
+          <button id="reset-button-input" class="mb-reset-btn">↺ Reset to defaults</button>
+
         </div>
       </div>
       
@@ -2148,59 +2198,75 @@
         </div>
       </div>
 
-      <div id="topic-chat-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+      <div id="topic-chat-column" class="toolbar-containers mb-panel" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+        <button class="panel-help-btn" id="help-topic-chat-column">?</button>
         <div id="topic-chat-column-container">
 
           <div class="options-column-title">💬 CHAT</div>
 
-          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
-            <label for="color-green" class="yourfov">Text Font Size:
-            </label>
-            <input type="number" id="text-font-size-topic-chat" class="yourfov" style="margin-left: 1vw;" max="10" value="2"/>
+          <div class="mb-card">
+            <div class="mb-card-title">Font Size</div>
+            <div class="mb-row">
+              <span class="mb-row-label">Text</span>
+              <input type="range" id="text-font-size-topic-chat" class="mb-slider" min="0.5" max="10" step="0.1" value="2"/>
+              <span class="mb-value-pill" id="text-font-size-topic-chat-pill">2 vh</span>
+            </div>
+            <div class="mb-row">
+              <span class="mb-row-label">Timestamp</span>
+              <input type="range" id="timestamp-font-size-topic-chat" class="mb-slider" min="0.5" max="10" step="0.05" value="1.25"/>
+              <span class="mb-value-pill" id="timestamp-font-size-topic-chat-pill">1.25 vh</span>
+            </div>
+            <div class="mb-row">
+              <span class="mb-row-label">Header</span>
+              <input type="range" id="header-font-size-topic-chat" class="mb-slider" min="0.5" max="10" step="0.1" value="2"/>
+              <span class="mb-value-pill" id="header-font-size-topic-chat-pill">2 vh</span>
+            </div>
           </div>
-      
-          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
-            <label for="color-green" class="yourfov">Timestamp Font Size:
-            </label>
-            <input type="number" id="timestamp-font-size-topic-chat" class="yourfov" style="margin-left: 1vw;" max="10" value="1.25"/>
+
+          <div class="mb-card">
+            <div class="mb-card-title">Colors</div>
+            <div class="mb-row">
+              <label class="mb-swatch" id="accid-topic-chat-color-swatch" for="accid-topic-chat-color">
+                <input type="color" id="accid-topic-chat-color" value="#800080"/>
+              </label>
+              <span class="mb-row-label">AccID</span>
+            </div>
+            <div class="mb-row">
+              <label class="mb-swatch" id="username-topic-chat-color-swatch" for="username-topic-chat-color">
+                <input type="color" id="username-topic-chat-color" value="#ff9933"/>
+              </label>
+              <span class="mb-row-label">Username</span>
+            </div>
+            <div class="mb-row">
+              <label class="mb-swatch" id="text-topic-chat-color-swatch" for="text-topic-chat-color">
+                <input type="color" id="text-topic-chat-color" value="#ffffff"/>
+              </label>
+              <span class="mb-row-label">Text</span>
+            </div>
+            <div class="mb-row">
+              <label class="mb-swatch" id="text-container-topic-chat-color-swatch" for="text-container-topic-chat-color">
+                <input type="color" id="text-container-topic-chat-color" value="#ffffff"/>
+              </label>
+              <span class="mb-row-label">Outer Container</span>
+            </div>
           </div>
-      
-          <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
-            <label for="color-green" class="yourfov">Header Font Size:
-            </label>
-            <input type="number" id="header-font-size-topic-chat" class="yourfov" style="margin-left: 1vw;" max="10" value="2"/>
+
+          <div class="mb-card">
+            <div class="mb-card-title">Preview</div>
+            <div class="mb-chat-preview" id="mb-chat-preview-outer">
+              <div class="mb-chat-header">
+                <span id="mb-chat-preview-accid">0.0.1234</span>
+                <span id="mb-chat-preview-username">username</span>
+                <span class="mb-chat-time" id="mb-chat-preview-time">12:34</span>
+              </div>
+              <div class="mb-chat-inner" id="mb-chat-preview-inner">
+                <div class="mb-chat-msg" id="mb-chat-preview-msg">Hello there 👋</div>
+              </div>
+            </div>
           </div>
-      
-          <div>
-            <label style="font-size: 1.5vh;">AccID Color:</label>
-            <input type="color" id="accid-topic-chat-color" class="yourfov" value="#800080">
-          </div>
-      
-          <div>
-            <label style="font-size: 1.5vh;">Username Color:</label>
-            <input type="color" id="username-topic-chat-color" class="yourfov" value="#ff9933">
-          </div>
-      
-          <div>
-            <label style="font-size: 1.5vh;">Text Color:</label>
-            <input type="color" id="text-topic-chat-color" class="yourfov" value="#ffffff">
-          </div>
-      
-          <div>
-            <label style="font-size: 1.5vh;">Outer Container Color:</label>
-            <input type="color" id="text-container-topic-chat-color" class="yourfov" value="#007bff">
-          </div>
-      
-          <div>
-            <label style="font-size: 1.5vh;">Inner Container Color:</label>
-            <input type="color" id="inner-container-topic-chat-color" class="yourfov" value="#ffc107">
-          </div>
-      
-          <div>
-            <label style="font-size: 1.5vh;">Header Color:</label>
-            <input type="color" id="topic-chat-header-color" class="yourfov" value="#ffffff">
-          </div>
-      
+
+          <button id="reset-topic-chat" class="mb-reset-btn">↺ Reset to defaults</button>
+
         </div>
       </div>
       

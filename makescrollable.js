@@ -46,6 +46,12 @@ export function makeScrollable(el) {
   
     // ------------------------------------------------- START
     const start = (e, clientY, isTouch = false) => {
+      // Native controls (sliders, color pickers, inputs) keep their own
+      // touch/mouse behavior — only a drag that starts on them must not
+      // turn into a container scroll (the guard doesn't affect elements
+      // that ARE the scrollable, like the textareas)
+      if (e.target !== el && e.target.closest('input, textarea, select')) return;
+
       mouseDownTarget = e.target;
       startY = clientY;
       startScroll = el.scrollTop;
@@ -200,4 +206,11 @@ export function makeScrollable(el) {
   makeScrollable(document.getElementById('loaded-topic-rules-for-polygon'));
   makeScrollable(document.getElementById('loaded-topic-rules-for-topic'));
   makeScrollable(document.getElementById('loaded-topic-rules-for-utility'));
+
+  // Settings panels (glass mb-panel cards)
+  makeScrollable(document.getElementById('main-button-column-container'));
+  makeScrollable(document.getElementById('button-input-column-container'));
+  makeScrollable(document.getElementById('topic-chat-column-container'));
+  makeScrollable(document.getElementById('marker-options-column-container'));
+  makeScrollable(document.getElementById('visibility-controls-container'));
   

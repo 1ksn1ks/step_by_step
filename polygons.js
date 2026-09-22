@@ -19,6 +19,16 @@ export function newActivePolygonPopups(a) {
   activePolygonPopups = a;
 }
 
+// Polygon transparency: live value pill + preview (the per-layer map
+// opacity listeners are added separately in addPolygon)
+const rasterOpacitySlider = document.getElementById("raster-opacity-slider");
+const rasterOpacityPill = document.getElementById("raster-opacity-slider-pill");
+const mbPolyPreview = document.getElementById("mb-poly-preview");
+rasterOpacitySlider.addEventListener("input", (event) => {
+  rasterOpacityPill.textContent = event.target.value;
+  mbPolyPreview.style.opacity = event.target.value;
+});
+
 async function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackUrl = null) {
   return new Promise((resolve, reject) => {
     const img = new Image();

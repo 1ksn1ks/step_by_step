@@ -1,3 +1,5 @@
+import { loadedDomains } from "./loaddomains";
+
 document.getElementById("button4").addEventListener("click", async () => {
 
     const domain = document.getElementById("domain-name-input").value.toLowerCase();
