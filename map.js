@@ -1,5 +1,5 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { load3dModels } from './loadP2PModels.js';
+import { load3dModels, loadDayNight } from './loadP2PModels.js';
 import maplibregl from 'maplibre-gl';
 import { toast } from './toast';
 
@@ -35,6 +35,7 @@ export const map = new maplibregl.Map({
     }
   
     map.addLayer(await load3dModels());
+    map.addLayer(await loadDayNight()); // day/night shade — own layer, topmost so it blends over the bots
     });
   
 const navigation = new maplibregl.NavigationControl({

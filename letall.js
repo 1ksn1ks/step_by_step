@@ -1,4 +1,6 @@
 export let models = [];
+export let shadeMode = 'daynight'; // 'light' | 'dark' | 'daynight' — drives the 3D day/night shade
+export function setShadeMode(m) { shadeMode = m; }
 
 export let existingMarkers = [];
 export function newExistingMarkers(a) {

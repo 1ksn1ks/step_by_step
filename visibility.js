@@ -5,7 +5,9 @@ async function updateMapLayer() {
     if (map.getLayer('3d-model')) {
         map.removeLayer('3d-model');
     }
-    map.addLayer(await load3dModels());
+    // Re-add the bot layer just below the day/night shade so the shade (depthTest
+    // off) stays topmost and keeps blending over the bots after a re-enable.
+    map.addLayer(await load3dModels(), map.getLayer('daynight') ? 'daynight' : undefined);
 }
 
 

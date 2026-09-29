@@ -268,19 +268,20 @@
 
           <div class="options-column-title">🌐 DOMAIN</div>
 
-          <textarea class="toolbar-column" type="text" id="domain-topic-id" placeholder="Domain/Topic ID"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
           <textarea class="toolbar-column" type="text" id="domain-name-input" placeholder="Domain name"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
+
+          <button class="toolbar-column-btns" id="button4">Check Domain Availability
+          </button>
 
           <textarea type="text" id="domain-time-left" placeholder="Domain Time Left"
           class="toolbar-column" onclick="event.stopPropagation();" readonly>
           </textarea>
 
-          <button class="toolbar-column-btns" id="button4">Check Domain Availability
-          </button>
+          <textarea class="toolbar-column" type="text" id="domain-topic-id" placeholder="Domain/Topic ID"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
 
           <label for="domain-time-left" style="font-size: 2vh;">1 USDC
           (<span style="cursor: pointer; color: rgb(255, 255, 255); text-decoration: underline;"
@@ -1245,7 +1246,8 @@
         </div>
       </div>
       
-      <div id="topic-chat-container" class="topic-chat-container" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+      <div id="topic-chat-container" class="topic-chat-container" style="display: none; position: fixed; z-index: 9001; top: 0.5vh; bottom: 0.5vh; top: 0.5dvh; bottom: 0.5dvh; left: 0; right: 0;">
+        <button class="panel-close-btn" id="close-topic-chat-btn">×</button>
         <button class="panel-help-btn" id="help-topic-chat-container">?</button>
         <div class="chat-topic-chat-container"  onclick="event.stopPropagation();">
 
@@ -1361,7 +1363,7 @@
             <button id="topic-chat-msg-sort-za" class="loaded-topics-sort" onclick="event.stopPropagation();">Z→A</button>
           </div>
 
-          <div style="position: relative;">
+          <div class="chat-messages-wrap" style="position: relative;">
             <div class="chat-container" id="messages-from-topic-chat" onclick="event.stopPropagation();"></div>
             <button id="go-to-top-msgs" class="toolbar-column-btns">⬆</button>
             <button id="go-to-bottom-msgs" class="toolbar-column-btns">⬇</button>
@@ -1373,6 +1375,7 @@
             type="text"
             id="user-write-message"
             placeholder="Message"
+            rows="1"
             style="
             max-height: 50vh;
             overflow: auto;
@@ -1381,7 +1384,7 @@
             oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'; document.getElementById('char-counter').textContent = this.value.length + '/256';"
             maxlength="256"
             ></textarea>
-            <div id="char-counter" style="position: absolute; bottom: 5px; right: 7vh; font-size: 2vh; color: #22d3ee;">0/256
+            <div id="char-counter" style="position: absolute; bottom: 1.5vh; right: 5.5vh; font-size: 2vh; color: #22d3ee;">0/256
             </div>
             <button id="post-msg" class="toolbar-column-btns submit-message-btn msg-send-btn">📨</button>
           </div>
@@ -1408,7 +1411,8 @@
         </div>
       </div>
       
-      <div id="encrypted-chat-container" class="topic-chat-container" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
+      <div id="encrypted-chat-container" class="topic-chat-container" style="display: none; position: fixed; z-index: 9001; top: 0.5vh; bottom: 0.5vh; top: 0.5dvh; bottom: 0.5dvh; left: 0; right: 0;">
+        <button class="panel-close-btn" id="close-encrypted-chat-btn">×</button>
         <button class="panel-help-btn" id="help-encrypted-chat-container">?</button>
         <div class="chat-topic-chat-container"  onclick="event.stopPropagation();">
 
@@ -1555,7 +1559,7 @@
             <button id="e2ee-chat-msg-sort-za" class="loaded-topics-sort" onclick="event.stopPropagation();">Z→A</button>
           </div>
 
-          <div style="position: relative;">
+          <div class="chat-messages-wrap" style="position: relative;">
             <div class="chat-container" id="messages-from-encrypted-chat" onclick="event.stopPropagation();"></div>
             <button id="go-to-top-msgs-encrypted-chat" class="toolbar-column-btns">⬆</button>
             <button id="go-to-bottom-msgs-encrypted-chat" class="toolbar-column-btns">⬇</button>
@@ -1573,6 +1577,7 @@
             type="text"
             id="user-write-message-encrypted-chat"
             placeholder="Message"
+            rows="1"
             style="
             max-height: 50vh;
             overflow: auto;
@@ -1581,7 +1586,7 @@
             oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'; document.getElementById('char-counter-encrypted-chat').textContent = this.value.length + '/256';"
             maxlength="256"
             ></textarea>
-            <div id="char-counter-encrypted-chat" style="position: absolute; bottom: 5px; right: 7vh; font-size: 2vh; color: #22d3ee;">0/256
+            <div id="char-counter-encrypted-chat" style="position: absolute; bottom: 1.5vh; right: 5.5vh; font-size: 2vh; color: #22d3ee;">0/256
             </div>
             <button id="post-msg-encrypted-chat" class="toolbar-column-btns submit-message-btn msg-send-btn">📨</button>
           </div>

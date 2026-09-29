@@ -9,6 +9,8 @@ async function loadDomains() {
     const topicId = "0.0.9606779";
 
     const rawResult = await getMessages(topicId);
+    console.log('[loaddomains] raw messages fetched:', rawResult && Array.isArray(rawResult.messages) ? rawResult.messages.length : 'NO MESSAGES ARRAY');
+    console.log('[loaddomains] messages:', rawResult && Array.isArray(rawResult.messages) ? rawResult.messages : rawResult);
 
     const seen = new Map();
     const uniqueMessages = {messages:[]};
@@ -59,6 +61,8 @@ async function loadDomains() {
       }
     }
 
+    console.log('[loaddomains] distinct domains in topic:', domainsMap.size);
+
     const SECONDS_TO_ADD = 2419200;
     const currentTime = Date.now() / 1000;
 
@@ -70,71 +74,46 @@ async function loadDomains() {
         return { domain, lastMessage: null, addedTime: 0 };
       }
 
-      const firstPayer = messages[0].payer;
-      const firstTimestamp = parseFloat(messages[0].timestamp);
-      const initialWindowEnd = firstTimestamp + SECONDS_TO_ADD;
+      // Walk the sorted messages tracking the CURRENT owner and when their
+      // time lapses. The winner is whoever holds the unbroken chain up to now:
+      //   - same owner before lapse  -> adds more time (extend the chain)
+      //   - same owner after lapse   -> re-purchase (window resets)
+      //   - different payer, live    -> ignored (no takeover while active)
+      //   - different payer, lapsed  -> takeover (new owner, new chain)
+      let owner = messages[0].payer;
+      let windowEnd = parseFloat(messages[0].timestamp) + SECONDS_TO_ADD;
+      let lastMessage = messages[0];
 
-      // Check if firstPayer has any renewal (subsequent message) within the initial window
-      const hasRenewal = messages.some((msg, idx) => idx > 0 && msg.payer === firstPayer && parseFloat(msg.timestamp) <= initialWindowEnd);
-
-      let validPayerMessages = [];
-      let startTimestamp;
-
-      if (hasRenewal) {
-        // Use firstPayer and all their messages
-        validPayerMessages = messages.filter(message => message.payer === firstPayer);
-        startTimestamp = firstTimestamp;
-      } else {
-        // Find the first takeover message from a different payer AFTER the initial window end
-        let takeoverIndex = -1;
-        for (let i = 1; i < messages.length; i++) {
-          const msgTimestamp = parseFloat(messages[i].timestamp);
-          if (messages[i].payer !== firstPayer && msgTimestamp > initialWindowEnd) {
-            takeoverIndex = i;
-            break;
+      for (let i = 1; i < messages.length; i++) {
+        const msg = messages[i];
+        const t = parseFloat(msg.timestamp);
+        if (msg.payer === owner) {
+          if (t < windowEnd) {
+            windowEnd += SECONDS_TO_ADD;       // owner adds more time
+          } else {
+            windowEnd = t + SECONDS_TO_ADD;     // owner re-bought after a lapse
           }
+          lastMessage = msg;
+        } else if (t >= windowEnd) {
+          owner = msg.payer;                    // expired -> takeover
+          windowEnd = t + SECONDS_TO_ADD;
+          lastMessage = msg;
         }
-
-        if (takeoverIndex === -1) {
-          // No takeover, fall back to firstPayer with no renewal (initial period only)
-          validPayerMessages = messages.filter(message => message.payer === firstPayer);
-          startTimestamp = firstTimestamp;
-        } else {
-          // Switch to takeover payer and their messages from takeover onwards
-          const takeoverPayer = messages[takeoverIndex].payer;
-          startTimestamp = parseFloat(messages[takeoverIndex].timestamp);
-          validPayerMessages = messages.slice(takeoverIndex).filter(message => message.payer === takeoverPayer);
-        }
+        // else: different payer while the window is live -> ignored
       }
-
-      if (validPayerMessages.length === 0) {
-        return { domain, lastMessage: null, addedTime: 0 };
-      }
-
-      // Compute addedTime starting from the startTimestamp
-      let addedTime = startTimestamp + SECONDS_TO_ADD;
-
-      // Handle sequential renewals: iterate through subsequent messages
-      for (let i = 1; i < validPayerMessages.length; i++) {
-        const renewalTime = parseFloat(validPayerMessages[i].timestamp);
-        if (renewalTime < addedTime) {
-          // Extend expiry if renewal is within current window
-          addedTime = addedTime + SECONDS_TO_ADD;
-        }
-      }
-
-      // Get the last message from the valid payer
-      const lastMessage = validPayerMessages[validPayerMessages.length - 1];
 
       return {
         domain,
         lastMessage,
-        addedTime
+        addedTime: windowEnd
       };
     });
 
     // Filter out expired domains (keep only active ones where addedTime > currentTime)
+    console.log('[loaddomains] expiry check | currentTime:', currentTime.toFixed(0));
+    domainsArray.forEach(d => console.log('[loaddomains]   domain:', d.domain, '| addedTime:', d.addedTime, '| active:', d.addedTime > currentTime));
     domainsArray = domainsArray.filter(item => item.addedTime > currentTime);
+    console.log('[loaddomains] active (unexpired) domains:', domainsArray.length);
 
     return domainsArray;
 
@@ -146,4 +125,5 @@ async function loadDomains() {
 
 loadDomains().then(domains => {
   loadedDomains = domains.filter(domain => !domain.domain.includes("0.0."));
+  console.log('[loaddomains] FINAL loadedDomains:', loadedDomains.length, '(active before "0.0." filter:', domains.length + ')');
 });

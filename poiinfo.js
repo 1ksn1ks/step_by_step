@@ -142,10 +142,20 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeQuestion();
 });
 
-// PC: right-click (the PC twin of the phone long-press)
+// PC: right-click (the PC twin of the phone long-press). A right-click-DRAG is
+// the pitch/rotate gesture, so only a stationary right-click opens the question.
+let rightDownPos = null;
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button === 2) rightDownPos = { x: e.clientX, y: e.clientY };
+});
+
 canvas.addEventListener('contextmenu', (e) => {
   if (Date.now() - lastTouchTime < 1000) return; // touch-origin (iOS long-press ghost)
   e.preventDefault();
+  // Release point vs press point: past the tolerance it was a pitch change, not a right-click
+  const wasDrag = rightDownPos && Math.hypot(e.clientX - rightDownPos.x, e.clientY - rightDownPos.y) > MOVE_TOLERANCE;
+  rightDownPos = null;
+  if (wasDrag) return;
   const rect = canvas.getBoundingClientRect();
   askGoogleMaps(map.unproject([e.clientX - rect.left, e.clientY - rect.top]));
 });

@@ -19,6 +19,19 @@ export function newActiveMarkerPopups(a) {
   activeMarkerPopups = a;
 }
 
+// True when [lng, lat] is on the visible side of the globe. On a globe,
+// far-side points otherwise project onto the visible disc (see-through).
+function isOnVisibleHemisphere(coords) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const center = map.getCenter();
+  const cl = toRad(center.lat);
+  const cgn = toRad(center.lng);
+  const pl = toRad(coords[1]);
+  const pg = toRad(coords[0]);
+  const dot = Math.sin(cl) * Math.sin(pl) + Math.cos(cl) * Math.cos(pl) * Math.cos(pg - cgn);
+  return dot > -0.03; // small horizon margin so edge markers don't pop
+}
+
 
 export const index = new Supercluster({
     radius: 60,
@@ -40,7 +53,11 @@ export function updateClusters() {
   
     const currentBounds = map.getBounds().toArray().flat();
     const zoom = map.getZoom();
-    const clusters = index.getClusters(currentBounds, Math.floor(zoom));
+    // Drop points on the far side of the globe — they would project
+    // through the sphere onto the visible disc
+    const clusters = index.getClusters(currentBounds, Math.floor(zoom)).filter(
+      (c) => isOnVisibleHemisphere(c.geometry.coordinates)
+    );
   
     existingMarkers.forEach((marker) => marker.remove());
     newExistingMarkers([]);

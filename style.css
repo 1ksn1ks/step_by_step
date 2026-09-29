@@ -337,7 +337,31 @@ html, body {
     background-color: rgba(0, 0, 0, 0);
     color: white;
     box-sizing: border-box;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* Message area is the only stretchy part: it fills the leftover space and
+     shrinks when the options panel or the input grows (container stays fixed).
+     flex:auto (basis auto) — with flex:1 (basis 0) it would grow but never
+     shrink, so opening Options pushed the input off-screen. */
+  .chat-messages-wrap {
+    flex: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #messages-from-topic-chat,
+  #messages-from-encrypted-chat {
+    height: 70vh; /* pre-JS fallback; fitChatMessages sets the exact size */
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: none; /* no cap — the fit owns the size, a cap left a gap on tall screens */
+    margin-bottom: 0; /* the class margin pushed the list up, desyncing the ⬆/⬇ arrow gaps */
   }
 
   .toolbar {
@@ -630,12 +654,12 @@ html, body {
                 inset 0 0 0.8vh rgba(34, 211, 238, 0.3);
   }
 
-  /* Submit button inside the message input — 0.25vh gap from the corner:
-     button = 3vh (1.8vh glyph + 2×0.6vh) */
+  /* Submit button inside the message input — 1vh gap from the corner
+     (keeps the 1vh glow inside the box): button = 3vh (1.8vh glyph + 2×0.6vh) */
   .msg-send-btn {
     position: absolute;
-    bottom: 0.25vh;
-    right: 0.25vh;
+    bottom: 1vh;
+    right: 1vh;
     width: auto;
     height: auto;
     margin: 0;
@@ -647,6 +671,11 @@ html, body {
     justify-content: center;
   }
 
+  /* Small breathing room between the message list and the input row */
+  .chat-topic-chat-container > div:last-child {
+    margin-top: 0.5vh;
+  }
+
   /* Keep typed text clear of the in-input send button (bottom row only —
      the button's row is reserved by the padding below, text uses full width).
      height:auto lets the empty field sit at its natural height (line +
@@ -654,8 +683,7 @@ html, body {
   #user-write-message,
   #user-write-message-encrypted-chat {
     height: auto;
-    min-height: 5vh;
-    padding-bottom: 4.5vh;
+    padding-bottom: 4vh; /* = button 3vh + its 1vh offset — smallest the box can start */
     padding-right: 0.45vh;
   }
 
@@ -833,16 +861,15 @@ html, body {
     color: white;
     border-radius: 2vh;
     box-sizing: border-box;
-    overflow-y: auto; /* Enable vertical scrolling */
-    overflow: hidden; /* Hide scrollbars */
-    max-height: 80vh; /* Limit the height to 80% of the viewport */
+    overflow: hidden; /* Fixed full-screen: only the message area resizes */
     touch-action: auto; /* Enable touch interactions */
     resize: none; /* Prevent manual resizing */
+    display: flex;
+    flex-direction: column;
     padding-top: 1.4vh;
     padding-bottom: 0.8vh;
     padding-left: 0.63vh;
     padding-right: 0.63vh;
-    width: 100%;
   }
   
   .chat-container {
@@ -2114,6 +2141,45 @@ html, body {
     transition: transform 0.12s ease, filter 0.12s ease;
   }
 
+  /* × close button: top-left corner of the full-screen topic/E2EE chat */
+  .panel-close-btn {
+    position: absolute;
+    top: 0.9vh;
+    left: 0.9vh;
+    z-index: 10;
+    width: 3.2vh;
+    height: 3.2vh;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    font-size: 1.8vh;
+    font-weight: 600;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.12s ease, filter 0.12s ease;
+  }
+
+  .panel-close-btn:hover {
+    transform: scale(1.08);
+    filter: brightness(1.15);
+  }
+
+  .panel-close-btn:active {
+    transform: scale(0.94);
+  }
+
+  /* Chat help overlays sit above the now full-screen chat container */
+  #topic-chat-help-overlay,
+  #e2ee-chat-help-overlay {
+    z-index: 9501;
+  }
+
   .panel-help-btn:hover {
     transform: scale(1.08);
     filter: brightness(1.15);
@@ -2485,11 +2551,10 @@ html, body {
                onboardBorderPulse 1.3s ease-in-out 0.3s infinite;
   }
 
-  /* Same glow for the topic chat + e2ee chat cards (border on the outer container) */
+  /* Glow border + pulse for the full-screen topic / e2ee chat
+     (size stays edge-defined by the inline top/bottom/left/right) */
   #topic-chat-container,
   #encrypted-chat-container {
-    left: 1vw;
-    width: 98vw;
     border: 0.1vh solid rgba(34, 211, 238, 0.6);
     animation: slideInNoFade 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
                onboardBorderPulse 1.3s ease-in-out 0.3s infinite;

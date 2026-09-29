@@ -22,6 +22,7 @@ export let storedMessages = [];
 
 document.getElementById('go-to-top-msgs').addEventListener('click', function() {
     const container = document.getElementById('messages-from-topic-chat');
+    container.stopSmoothScroll?.();
     container.scrollTop = 0;
   });
 
@@ -46,6 +47,7 @@ document.getElementById('go-to-top-msgs').addEventListener('click', function() {
 
 document.getElementById('go-to-bottom-msgs').addEventListener('click', function() {
     const container = document.getElementById('messages-from-topic-chat');
+    container.stopSmoothScroll?.();
     container.scrollTop = container.scrollHeight;
   });
 

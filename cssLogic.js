@@ -418,6 +418,61 @@ export function CloseALL() {
     removeUfoModel();
   });
   
+  // Chat panels: the message list is the only part that resizes. Whenever
+  // anything inside the panel is shown/hidden (options, filters, auto-growing
+  // inputs), the list is set to exactly the remaining space, so the message
+  // input stays pinned to the bottom of the fixed-size panel.
+  function fitChatMessages(messagesId) {
+    const messages = document.getElementById(messagesId);
+    if (!messages) return;
+    const container = messages.closest(".topic-chat-container");
+    if (!container || getComputedStyle(container).display === "none") return;
+    const wrap = messages.parentElement;      // .chat-messages-wrap
+    const inner = wrap.parentElement;         // .chat-topic-chat-container
+    const span = (el) => {
+      const s = getComputedStyle(el);
+      return el.offsetHeight + (parseFloat(s.marginTop) || 0) + (parseFloat(s.marginBottom) || 0);
+    };
+    let used = 0;
+    for (const child of inner.children) {
+      if (child === wrap) continue;
+      if (getComputedStyle(child).display === "none") continue;
+      used += span(child);
+    }
+    for (const child of wrap.children) {
+      if (child === messages) continue;
+      const cs = getComputedStyle(child);
+      // ⬆⬇ float over the list (absolute) — they take no space
+      if (cs.display === "none" || cs.position === "absolute") continue;
+      used += span(child);
+    }
+    messages.style.height = Math.max(0, inner.clientHeight - used) + "px";
+  }
+
+  [["topic-chat-container", "messages-from-topic-chat"],
+   ["encrypted-chat-container", "messages-from-encrypted-chat"]].forEach(([containerId, messagesId]) => {
+    const container = document.getElementById(containerId);
+    const inner = container.querySelector(".chat-topic-chat-container");
+    const refit = () => fitChatMessages(messagesId);
+    // Every show/hide inside the panel changes a style attribute -> refit
+    new MutationObserver(refit).observe(inner, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["style"],
+    });
+    window.addEventListener("resize", refit);
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", refit);
+  });
+
+  // Enter doesn't insert a line break in the message inputs — line breaks
+  // won't be supported in messages, so don't give users false hope
+  ["user-write-message", "user-write-message-encrypted-chat"].forEach((id) => {
+    const ta = document.getElementById(id);
+    ta.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") e.preventDefault();
+    });
+  });
+
   document.getElementById("topic-chat-btn").addEventListener("click", (event) => {
     event.stopPropagation();
     CloseALL();
@@ -425,14 +480,31 @@ export function CloseALL() {
     hideAllShowButtonsFromTopicChat()
     activePolygonPopups.forEach((popup) => popup.remove());
     activeMarkerPopups.forEach((popup) => popup.remove());
-    document.getElementById("topic-chat-container").style.display = "block";
+    document.getElementById("topic-chat-container").style.display = "flex";
     document.getElementById("options-from-topic-chat").style.display = "none";
     document.getElementById("show-options-from-topic-chat").style.display = "block";
     document.getElementById("show-options-from-topic-chat-btn").style.display = "none";
+    requestAnimationFrame(() => fitChatMessages("messages-from-topic-chat"));
 
     removeUfoModel();
   });
-  
+
+  // Full-screen topic / E2EE chat: × button returns to the map
+  const closeTopicChatBtn = document.getElementById("close-topic-chat-btn");
+  if (closeTopicChatBtn) {
+    closeTopicChatBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      CloseALL();
+    });
+  }
+  const closeEncryptedChatBtn = document.getElementById("close-encrypted-chat-btn");
+  if (closeEncryptedChatBtn) {
+    closeEncryptedChatBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      CloseALL();
+    });
+  }
+
   document.getElementById("show-options-from-topic-chat").addEventListener("click", (event) => {
     document.getElementById("options-from-topic-chat").style.display = "block";
     document.getElementById("show-options-from-topic-chat").style.display = "none";
@@ -731,10 +803,11 @@ export function CloseALL() {
     activePolygonPopups.forEach((popup) => popup.remove());
     activeMarkerPopups.forEach((popup) => popup.remove());
     hideAllShowButtonsFromEncryptedChat()
-    document.getElementById("encrypted-chat-container").style.display = "block";
+    document.getElementById("encrypted-chat-container").style.display = "flex";
     document.getElementById("options-from-encrypted-chat").style.display = "none";
     document.getElementById("show-options-from-encrypted-chat").style.display = "block";
     document.getElementById("show-options-from-encrypted-chat-btn").style.display = "none";
+    requestAnimationFrame(() => fitChatMessages("messages-from-encrypted-chat"));
 
     removeUfoModel();
   });
