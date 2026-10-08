@@ -64,6 +64,43 @@ html, body {
     height: 100%;
     pointer-events: none;
   }
+
+  /* The real moon — positioned per-frame by moon.js, which also scales the
+     size with zoom (this width/height is just the initial value).
+     Texture: FullMoon2010.jpg (public domain, André Lefebvre). Measured: the
+     disk fills 82.97% × 86.92% of the frame and sits ~0.9% below center —
+     the non-square 125% / 120% stretch makes the disk land exactly on the
+     circle's edge (it stays round; only the photo's black margin stretches)
+     so no black rim shows. */
+  #moon {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3.4vh;
+    height: 3.4vh;
+    border-radius: 50%;
+    /* pointer-events: none — the moon must never swallow touches or the
+       wheel: two-finger pinch, pan and scroll-wheel zoom over it reach the
+       map exactly like anywhere else. The tap that opens 1mhbar.com is
+       picked up by the geometric hit test in moon.js instead. overflow clips
+       the embedded wall iframe to the circle. */
+    pointer-events: none;
+    overflow: hidden;
+    background: #05070c url('./moon.jpg') center / 125% 120% no-repeat;
+  }
+  /* The wall snapshot — the circle's inscribed square (1/√2 ≈ 70.71%) so the
+     whole square fits inside the moon with nothing cropped. Clicks pass
+     through it so the whole moon stays clickable (opens 1mhbar.com). */
+  #moon iframe {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 70.71%;
+    height: 70.71%;
+    transform: translate(-50%, -50%);
+    border: 0;
+    pointer-events: none;
+  }
   
   .options-and-topic {
     background-color: rgba(15, 15, 20, 0.45);
@@ -362,6 +399,20 @@ html, body {
     min-height: 0;
     max-height: none; /* no cap — the fit owns the size, a cap left a gap on tall screens */
     margin-bottom: 0; /* the class margin pushed the list up, desyncing the ⬆/⬇ arrow gaps */
+    transition: height 0.25s ease; /* smooth shrink/expand when a button press refits the list */
+  }
+
+  /* Any section revealed by a button press (options, filters, password
+     fields, the message input) fades + slides in — the animation restarts
+     automatically whenever display goes none -> shown. The title keeps its
+     own infinite float, and the textareas keep their zoomInNoFade. */
+  .topic-chat-container .chat-topic-chat-container > *:not(.options-column-title) {
+    animation: chatSectionIn 0.25s ease-out;
+  }
+
+  @keyframes chatSectionIn {
+    from { opacity: 0; transform: translateY(0.6vh); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   .toolbar {
@@ -671,8 +722,10 @@ html, body {
     justify-content: center;
   }
 
-  /* Small breathing room between the message list and the input row */
-  .chat-topic-chat-container > div:last-child {
+  /* Small breathing room between the message list and the input row
+     (the e2ee input is not the last child — hidden option divs follow it) */
+  .chat-topic-chat-container > div:last-child,
+  #encrypted-chat-chat-container {
     margin-top: 0.5vh;
   }
 
@@ -1372,17 +1425,17 @@ html, body {
     top: 50% !important;
     left: 50% !important;
     transform: translate(-50%, -50%) !important;
-    
+
     width: 90vw !important;           /* Force exact 80vw width */
     max-width: 90vw !important;
     max-height: 70vh !important;
-    
+
     box-sizing: border-box !important;
     font: 2vh/3vh 'Helvetica Neue', Arial, Helvetica, sans-serif;
     text-align: left;
     z-index: 1000 !important;
     border: 0.3vh solid #ffffff;
-    border-radius: 1vh;
+    border-radius: 2vh; /* same radius as the .maplibregl-popup-content inside */
 }
 
 /* Dummy preview popup inside the settings card: neutralize the fixed
@@ -1438,8 +1491,8 @@ html, body {
     transform: translateZ(0);
     animation: popupIn 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     color: white;
-    padding: 1vh 2vh;                 /* Slightly increased horizontal padding */
-    border-radius: 0.8vh;
+    padding: 0.4vh 0.6vh;             /* bone — content hugs the shell */
+    border-radius: 2vh;               /* matches the .popup-media-card corners */
     font-size: 2vh;
     box-shadow: inset 0 0.2vh 0 rgba(255, 255, 255, 0.12), 0 1vh 2vh rgba(0, 0, 0, 0.3);
     text-align: left;
@@ -1495,18 +1548,172 @@ html, body {
     -ms-user-select: text !important;
   }
   
-  .maplibregl-popup-close-button {
+  /* Popup top bar chips: marker/polygon number + topic id (glass pills) */
+  .popup-top-id {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.3vh 1vh;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.10);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    font-size: 1.7vh;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1;
     color: white;
-    font-size: 3vh;
-    border: none;
-    background: none;
-    box-shadow: none;
-    padding: 0;
+    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.18), 0 0.4vh 1vh rgba(0, 0, 0, 0.35);
+    transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
+  }
+
+  /* Topic id + name — same glass pill as the number */
+  .popup-top-topic {
+    font-size: 1.4vh;
+    color: rgba(255, 255, 255, 0.55);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    line-height: 1;
+    display: inline-block;
+    padding: 0.35vh 1.1vh;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.14);
+  }
+
+  /* Profile — avatar + acc id + username grouped in one capsule */
+  .popup-profile-bubble {
+    display: flex;
+    align-items: center;
+    gap: 0.9vh;
+    margin-bottom: 0.25vh;
+    padding: 0.35vh 1.2vh 0.35vh 0.35vh;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.12), 0 0.4vh 1vh rgba(0, 0, 0, 0.3);
+  }
+
+  .popup-profile-bubble h2 {
+    margin: 0;
+    font-size: 1.8vh;
+    line-height: 1.35;
+    font-weight: 700;
+  }
+
+  /* Title — its own pill */
+  .popup-title-bubble {
+    display: inline-block;
+    padding: 0.35vh 1.5vh;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.10);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.18), 0 0.4vh 1vh rgba(0, 0, 0, 0.35);
+  }
+
+  /* Message text — same 2vh corners as the popup shell */
+  .popup-text-bubble {
+    display: inline-block;
+    margin: 0.3vh 0;
+    padding: 0.5vh 1.6vh;
+    border-radius: 2vh;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.12);
+  }
+
+  /* Glass × — sits inside the card, same box as the number pill */
+  .maplibregl-popup-close-button {
+    color: rgba(255, 255, 255, 0.85);
+    /* Same box as the number pill — padding 0.3vh 1vh, no fixed size */
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.7vh;
+    line-height: 1;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.10);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.18), 0 0.4vh 1vh rgba(0, 0, 0, 0.35);
+    padding: 0.3vh 1vh;
     margin: 0;
     outline: none;
+    cursor: pointer;
     position: absolute;
-    top: -1vh;
-    right: 0;
+    top: 0.1vh;
+    right: 0.1vh;
+    z-index: 2;
+    transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
+  }
+
+  /* Action chips: nav arrows, ⚙️ 📍 👍 💬 👎 in the bottom row */
+  .popup-icon-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3.8vh;
+    height: 3.8vh;
+    padding: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.10);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    font-size: 1.5vh;
+    line-height: 1;
+    color: white;
+    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.18), 0 0.4vh 1vh rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
+  }
+
+  /* Timestamp — same glass bubble as the other pills */
+  .popup-timestamp {
+    font-size: 1vh;
+    color: rgba(255, 255, 255, 0.45);
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    display: inline-block;
+    padding: 0.3vh 0.9vh;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.12);
+  }
+
+  @media (pointer: fine) {
+    .popup-top-id:hover {
+      transform: scale(1.04);
+      filter: brightness(1.18);
+      background: rgba(255, 255, 255, 0.16);
+    }
+    .popup-top-id:active { transform: scale(0.95); }
+    .popup-icon-chip:hover {
+      transform: scale(1.08);
+      filter: brightness(1.2);
+      background: rgba(255, 255, 255, 0.16);
+    }
+    .popup-icon-chip:active { transform: scale(0.92); }
+    .maplibregl-popup-close-button:hover {
+      transform: scale(1.08);
+      filter: brightness(1.2);
+      background: rgba(255, 255, 255, 0.16);
+    }
+    .maplibregl-popup-close-button:active { transform: scale(0.92); }
   }
   
   .maplibregl-popup-tip {
@@ -2585,3 +2792,230 @@ html, body {
     margin-left: auto;
     margin-right: auto;
   }
+
+/* ── Local news: 24h live markers from a geographic search ─────────────
+   A separate overlay from the topic markers — a pulsing cyan dot and a
+   tap popup (title + "X h ago" + message + image). */
+.local-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Inner anchor for the title label. The OUTER element is MapLibre's marker
+   element (position:absolute + transform via .maplibregl-marker) and must
+   NEVER get its own position — position:relative would put it back in the
+   document flow (stacked after the other markers) and shift it. The box is
+   exactly the dot, so the anchored center stays on the map point. */
+.local-marker-box {
+  position: relative;
+}
+/* The topic face: inner visual element that fills the (sized) marker
+   element. position:relative anchors the live title label; the label is
+   absolute, so the box stays exactly the face. */
+.marker-face {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-size: cover;
+}
+/* The live border, painted on a TOPIC face that has a live point at its
+   exact spot (or whose live twin sits in a live cluster) — the border is
+   part of the face itself, so it can never drift away.
+   border-box keeps the outer size identical to a plain face. */
+.marker-face.live-twin {
+  box-sizing: border-box;
+  border: 2px solid #22d3ee;
+  animation: localPulse 1.8s ease-out infinite;
+}
+/* The solid live dot, at a live point that has no topic twin. Fixed 14px;
+   JS does NOT override its size. */
+.local-marker-dot-solid {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #22d3ee;
+  animation: localPulse 1.8s ease-out infinite;
+}
+/* The glow lives in the keyframes: the animation owns box-shadow, so a
+   static glow here would be overwritten on every frame. */
+@keyframes localPulse {
+  0%   { box-shadow: 0 0 6px rgba(34, 211, 238, 0.9), 0 0 0 0 rgba(34, 211, 238, 0.5); }
+  70%  { box-shadow: 0 0 6px rgba(34, 211, 238, 0.9), 0 0 0 10px rgba(34, 211, 238, 0); }
+  100% { box-shadow: 0 0 6px rgba(34, 211, 238, 0.9), 0 0 0 0 rgba(34, 211, 238, 0.5); }
+}
+.local-marker-label {
+  /* Hangs below the dot, out of flow: the anchor box is the dot/face only,
+     so the dot's center sits exactly on the map point. */
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 2px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  border-radius: 999px;
+  padding: 1px 8px;
+  pointer-events: none;
+}
+/* Cluster bubble (Supercluster) — shared by the live view (localnews.js)
+   and the topic markers (marker.js): a count pill, same glass language as
+   the popup labels. Tap zooms into the cluster.
+   No transform/opacity animation here: MapLibre positions the element with
+   transform: translate(), and any animation on the element made clusters
+   flash at the top-left before jumping into place. They just appear. */
+.cluster-bubble {
+  min-width: 24px;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #22d3ee;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(34, 211, 238, 0.55);
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.35);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.cluster-bubble:active {
+  background: rgba(34, 211, 238, 0.3);
+}
+/* The tap popup itself reuses the regular marker popup (createMarkerPopupHTML),
+   so it inherits the app's existing .maplibregl-popup styling. */
+/* ── In-popup media card (marker + polygon popups) ─────────────────────
+   Modern glass card around the Inside-Image picture/video: rounded
+   corners, white glass border, deep shadow over a soft radial base
+   (letterboxed video frames sit on it instead of flat black), spring
+   pop-in, and a small tap-to-expand chip on pictures. Same language as
+   the rest of the iOS glass UI. */
+.popup-media-card {
+  position: relative;
+  width: 22vh;
+  aspect-ratio: 1;
+  margin: 0.5vh auto 0.7vh;
+  border-radius: 2vh;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 1.2vh 3vh rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  background: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
+  animation: popupMediaIn 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.popup-media-card img,
+.popup-media-card video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  border-radius: inherit;
+}
+/* ⤢ expand — hidden: tapping the picture already opens fullscreen */
+.popup-media-expand {
+  display: none;
+  position: absolute;
+  top: 0.5vh;
+  right: 0.5vh;
+  z-index: 2;
+  width: 3.8vh;
+  height: 3.8vh;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.10);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  backdrop-filter: blur(8px) saturate(140%);
+  color: white;
+  font-size: 1.5vh;
+  line-height: 1;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.18), 0 0.4vh 1vh rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+@keyframes popupMediaIn {
+  from { opacity: 0; transform: scale(0.94); }
+}
+@media (pointer: fine) {
+  .popup-media-card img { transition: transform 0.2s ease, filter 0.2s ease; }
+  .popup-media-card:hover img { transform: scale(1.03); filter: brightness(1.08); }
+  .popup-media-expand:hover { transform: scale(1.08); filter: brightness(1.2); }
+  .popup-media-expand:active { transform: scale(0.94); }
+}
+/* Tap-to-fullscreen media overlay (fullscreenmedia.js) — gallery view:
+   near-black stage, the media is the star, minimal chrome, calm entrance. */
+#media-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 10500;
+  background: rgba(3, 4, 8, 0.94);
+  -webkit-backdrop-filter: blur(24px) saturate(120%);
+  backdrop-filter: blur(24px) saturate(120%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: mediaFsFade 0.25s ease-out;
+}
+#media-fullscreen img,
+#media-fullscreen video {
+  max-width: 100vw;
+  max-height: 100vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 1vh;
+  box-shadow: 0 1.5vh 6vh rgba(0, 0, 0, 0.8);
+  animation: mediaFsZoom 0.4s ease-out;
+}
+.media-fullscreen-close {
+  position: absolute;
+  top: 2vh;
+  right: 2.5vw;
+  width: 5.5vh;
+  height: 5.5vh;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.10);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  backdrop-filter: blur(8px) saturate(140%);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 3.6vh;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.18), 0 0.4vh 1vh rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
+  animation: mediaFsFade 0.3s ease-out 0.12s backwards;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (pointer: fine) {
+  .media-fullscreen-close:hover {
+    transform: scale(1.08);
+    filter: brightness(1.2);
+  }
+  .media-fullscreen-close:active {
+    transform: scale(0.94);
+  }
+}
+@keyframes mediaFsFade {
+  from { opacity: 0; }
+}
+@keyframes mediaFsZoom {
+  from { transform: scale(0.96); opacity: 0; }
+}

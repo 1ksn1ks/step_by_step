@@ -1,6 +1,8 @@
 import {adjustTextareaHeight} from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
-import { getMessages, getAccountNFTs, sendMessage, getTopicInfo, subscribeToTopic } from './hedera';
+import { getAccountNFTs, getTopicInfo, subscribeToTopic } from './hedera';
+import { sendMessage, messageSig, streamOnTopic, streamOnReconnect } from './msgbackend';
+import { getTopicData } from './topicdata';
 import { toast } from "./toast";
 import { profilePictures, usernames, click2url } from './loadalladata';
 import { 
@@ -189,8 +191,9 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
     const timestampSpan = document.createElement('span');
     timestampSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
     timestampSpan.className = 'chat-msg-time';
-    timestampSpan.textContent = timestamp;
+    timestampSpan.textContent = message.pending ? `⏳ ${timestamp}` : timestamp;
     messageWrapper.appendChild(timestampSpan);
+    if (message.pending) messageWrapper.dataset.sig = messageSig(message);
 
     currentMessagesGroupDiv.appendChild(messageWrapper);
 
@@ -318,11 +321,99 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
       return;
     }
 
-    // Load history + start live subscription
-    const rawResult = await subscribeToTopic(topicId, async (newMsg) => {
+    // Load history + start live updates — via the data layer (backend when
+    // it already has the topic: instant, phones stay off the mirror;
+    // otherwise the original mirror path: subscribeToTopic)
+    const onNewMsg = async (newMsg) => {
       // This runs every time a NEW message arrives
       await appendTopicChatMessage(newMsg, messagesContainer, topicAdmin, loadedNFTsForTopicChat);
-    });
+    };
+    let rawResult;
+    // A pending bubble became canonical: clear its ⏳ marker
+    const onConfirm = (m) => {
+      const sig = messageSig(m);
+      for (const el of messagesContainer.querySelectorAll('[data-sig]')) {
+        if (el.dataset.sig !== sig) continue;
+        delete el.dataset.sig;
+        const t = el.querySelector('.chat-msg-time');
+        if (t) t.textContent = t.textContent.replace('⏳ ', '');
+        break;
+      }
+    };
+    // A pending bubble never reached the mirror: drop it
+    const onExpire = (m) => {
+      const sig = messageSig(m);
+      for (const el of messagesContainer.querySelectorAll('[data-sig]')) {
+        if (el.dataset.sig === sig) {
+          el.remove();
+          break;
+        }
+      }
+    };
+    const viaData = await getTopicData(topicId);
+    if (viaData.viaBackend) {
+      // Live via the shared SSE stream (no 3s polling): the server pushes
+      // new / pending / confirmed / expired events the moment they happen
+      const seen = new Set(viaData.messages.map(messageSig));
+      const pendingSigs = new Set(viaData.messages.filter((m) => m.pending).map(messageSig));
+      let liveReady = false;
+      const handleStream = (evt) => {
+        const m = evt.message;
+        const sig = messageSig(m);
+        if (evt.type === "pending") {
+          if (seen.has(sig)) return; // the canonical row already arrived
+          seen.add(sig);
+          pendingSigs.add(sig);
+          onNewMsg(m);
+        } else if (evt.type === "message") {
+          if (seen.has(sig)) {
+            if (pendingSigs.has(sig)) {
+              pendingSigs.delete(sig);
+              onConfirm(m);
+            }
+            return;
+          }
+          seen.add(sig);
+          onNewMsg(m);
+        } else if (evt.type === "confirmed") {
+          if (pendingSigs.has(sig)) {
+            pendingSigs.delete(sig);
+            onConfirm(m);
+          }
+        } else if (evt.type === "expired") {
+          if (pendingSigs.has(sig)) {
+            pendingSigs.delete(sig);
+            onExpire(m);
+          }
+        }
+      };
+      const offTopic = streamOnTopic(topicId, handleStream);
+      const offReconnect = streamOnReconnect(async () => {
+        if (!liveReady) {
+          liveReady = true; // first open: the history is already fresh
+          return;
+        }
+        // The stream just came back: absorb anything missed while down
+        const fresh = await getTopicData(topicId, { force: true });
+        for (const m of fresh.messages) {
+          const sig = messageSig(m);
+          if (seen.has(sig)) continue;
+          seen.add(sig);
+          if (m.pending) pendingSigs.add(sig);
+          await onNewMsg(m);
+        }
+      });
+      // A re-Load of this panel drops the previous live subscription first
+      if (messagesContainer.__offLive) messagesContainer.__offLive();
+      const offLive = () => {
+        offTopic();
+        offReconnect();
+      };
+      messagesContainer.__offLive = offLive;
+      rawResult = { messages: viaData.messages, close: offLive };
+    } else {
+      rawResult = await subscribeToTopic(topicId, onNewMsg);
+    }
 
     // Clear spinner
     while (messagesContainer.firstChild) {
@@ -549,9 +640,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
           try {
             new URL(trimmedClick2link);
             linkA.href = trimmedClick2link;
-          } catch (e) {
-            console.warn('Invalid click2link URL:', trimmedClick2link);
-          }
+          } catch (e) {}
           linkA.target = '_blank';
           linkA.rel = 'noopener noreferrer';
           linkA.style.cssText = `

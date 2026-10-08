@@ -1,4 +1,5 @@
-import { getMessages, sendMessage } from "./hedera";
+import { sendMessage } from "./msgbackend";
+import { getTopicData as getMessages } from "./topicdata";
 import { signer } from "./web3";
 import { toast } from "./toast";
 

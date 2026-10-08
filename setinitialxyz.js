@@ -1,8 +1,9 @@
-import { sendMessage } from './hedera';
+import { sendMessage } from './msgbackend';
 import { signer } from './web3';
 import { toast } from './toast';
 import { loadedDomains } from './loaddomains';
 import { map } from './map.js';
+import { cancelAnimateMapTo } from './animatemapto.js';
 
 document.getElementById("submit-button-Set_Initial_XYZ").addEventListener("click", async () => {
   try {
@@ -75,6 +76,7 @@ export function applyInitialXYZ(messages, topicAdmin) {
     }
   }
   if (target) {
+    cancelAnimateMapTo(); // stop any popup-open loop, or it kills this flyTo
     map.flyTo({ center: [target.lng, target.lat], zoom: target.zoom, essential: true });
   }
 }

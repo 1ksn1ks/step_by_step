@@ -14,7 +14,8 @@ import {
   newGlobalTopicBios
   } from "./letall";
 import { loadedDomains } from "./loaddomains";
-import { getMessages, getTopicInfo } from "./hedera";
+import { getTopicInfo } from "./hedera";
+import { getTopicData as getMessages } from "./topicdata";
 import { newActiveMarkerPopups, updateClusters, index } from "./marker";
 import { newActivePolygonPopups, addPolygonWithImageFill } from "./polygons";
 import { map } from './map.js';

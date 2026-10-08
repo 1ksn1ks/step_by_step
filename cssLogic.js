@@ -14,6 +14,7 @@ import { scene } from './threejs.js'
 import { renderLoadedTopics } from './handleallmessages.js';
 import { toast } from './toast.js';
 import { closeDrawAnchor } from './drawhere.js';
+import { closePressAnchor } from './poiinfo.js';
 
 const toolbarColumns = document.querySelectorAll('.toolbar-column');
 
@@ -69,6 +70,16 @@ export function OpenToggleToolbar() {
 export let popIsOpen = false;
 export function changePopupState(a){
   popIsOpen = a
+}
+
+// Closes every transient map overlay at once: the left-tap draw pin (📍/🔷),
+// the long-press / right-click press pin (🗺/📡) and all open marker +
+// polygon popups. Opening one of these should never leave another behind.
+export function closeTransientMapUI() {
+  closeDrawAnchor();
+  closePressAnchor();
+  activePolygonPopups.forEach((popup) => popup.remove());
+  activeMarkerPopups.forEach((popup) => popup.remove());
 }
 
 export function CloseALL() {
@@ -128,9 +139,7 @@ export function CloseALL() {
   document.getElementById("main-toggle-btn").addEventListener("click", function(event) {
     event.stopPropagation();
     CloseALL();
-    closeDrawAnchor();
-    activePolygonPopups.forEach((popup) => popup.remove());
-    activeMarkerPopups.forEach((popup) => popup.remove());
+    closeTransientMapUI();
     document.getElementById("main-toggle-btn").style.display = "none";
     document.getElementById("topic-chat-btn").style.display = "none";
     document.getElementById("toggle-encrypted-chat-btn").style.display = "none";
@@ -168,7 +177,39 @@ export function CloseALL() {
       document.getElementById(overlayId).style.display = "block";
     });
   });
-  
+
+  // × close button: top-left corner — the opposite side of the ? help button
+  // — of the toolbar itself, every toolbar container, the visibility panel,
+  // the settings panel (rotation-controls) and each of its sub-panels. Same
+  // behaviour as the chat close buttons: stopPropagation + CloseALL (back to
+  // the map).
+  const PANELS_WITH_CLOSE = [
+    "toolbar",
+    ...everythinginsidetoolbar,
+    "visibility-controls",
+    "rotation-controls",
+    "model-column",
+    "crosshair-column",
+    "marker-options-column",
+    "main-button-column",
+    "button-input-column",
+    "topic-chat-column",
+    "popup-settings-card",
+  ];
+  PANELS_WITH_CLOSE.forEach(panelId => {
+    const panel = document.getElementById(panelId);
+    if (!panel || panel.querySelector(".panel-close-btn")) return;
+    const btn = document.createElement("button");
+    btn.className = "panel-close-btn";
+    btn.id = "close-" + panelId + "-btn";
+    btn.textContent = "×";
+    btn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      CloseALL();
+    });
+    panel.appendChild(btn);
+  });
+
   // let toggleControlsPressCount = 0;
   
   // document.getElementById("toggle-controls-btn").addEventListener("click", (event) => {
@@ -217,8 +258,7 @@ export function CloseALL() {
   document.getElementById("toggle-your-fov-btn-btn").addEventListener("click", (event) => {
     event.stopPropagation();
     CloseALL();
-    activePolygonPopups.forEach((popup) => popup.remove());
-    activeMarkerPopups.forEach((popup) => popup.remove());
+    closeTransientMapUI();
     document.getElementById("rotation-controls").style.display = "block";
   });
   
@@ -476,10 +516,8 @@ export function CloseALL() {
   document.getElementById("topic-chat-btn").addEventListener("click", (event) => {
     event.stopPropagation();
     CloseALL();
-    closeDrawAnchor();
+    closeTransientMapUI();
     hideAllShowButtonsFromTopicChat()
-    activePolygonPopups.forEach((popup) => popup.remove());
-    activeMarkerPopups.forEach((popup) => popup.remove());
     document.getElementById("topic-chat-container").style.display = "flex";
     document.getElementById("options-from-topic-chat").style.display = "none";
     document.getElementById("show-options-from-topic-chat").style.display = "block";
@@ -664,6 +702,12 @@ export function CloseALL() {
   document.getElementById("show-time-from-encrypted-chat").addEventListener("click", (event) => {
     hideAllShowButtonsFromEncryptedChat()
     showAllShowButtonsFromEncryptedChatOptions()
+    // a Pin/Change/Set password mode may have hidden these — Block/Time/From
+    // are the "load messages" context, so the normal inputs come back
+    document.getElementById("encrypted-chat-private-key-container").style.display = "block";
+    document.getElementById("encrypted-chat-chat-container").style.display = "block";
+    document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
+    document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("time-from-encrypted-chat").style.display = "block";
     document.getElementById("time-from-encrypted-chat-filter").style.display = "flex";
     document.getElementById("hide-time-from-encrypted-chat").style.display = "block";
@@ -680,6 +724,12 @@ export function CloseALL() {
   document.getElementById("show-from-from-encrypted-chat").addEventListener("click", (event) => {
     hideAllShowButtonsFromEncryptedChat()
     showAllShowButtonsFromEncryptedChatOptions()
+    // a Pin/Change/Set password mode may have hidden these — Block/Time/From
+    // are the "load messages" context, so the normal inputs come back
+    document.getElementById("encrypted-chat-private-key-container").style.display = "block";
+    document.getElementById("encrypted-chat-chat-container").style.display = "block";
+    document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
+    document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("load-msgs-from-ids-from-encrypted-chat").style.display = "block";
     document.getElementById("load-load-from-users-label-from-encrypted-chat").style.display = "block";
     document.getElementById("load-load-from-users-from-encrypted-chat").style.display = "flex";
@@ -697,6 +747,12 @@ export function CloseALL() {
   document.getElementById("show-block-from-encrypted-chat").addEventListener("click", (event) => {
     hideAllShowButtonsFromEncryptedChat()
     showAllShowButtonsFromEncryptedChatOptions()
+    // a Pin/Change/Set password mode may have hidden these — Block/Time/From
+    // are the "load messages" context, so the normal inputs come back
+    document.getElementById("encrypted-chat-private-key-container").style.display = "block";
+    document.getElementById("encrypted-chat-chat-container").style.display = "block";
+    document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
+    document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("load-block-from-users-from-encrypted-chat").style.display = "flex";
     document.getElementById("load-blocks-from-ids-from-encrypted-chat").style.display = "block";
     document.getElementById("load-block-from-users-label-from-encrypted-chat").style.display = "block";
@@ -759,7 +815,8 @@ export function CloseALL() {
     showAllShowButtonsFromEncryptedChatOptions()
     document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
-    document.getElementById("encrypted-chat-public-key").style.display = "block";
+    // the public-key field belongs to Pin mode only
+    document.getElementById("encrypted-chat-public-key").style.display = "none";
     document.getElementById("encrypted-chat-private-key-container").style.display = "block";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
   });
@@ -784,7 +841,8 @@ export function CloseALL() {
     showAllShowButtonsFromEncryptedChatOptions()
     document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
-    document.getElementById("encrypted-chat-public-key").style.display = "block";
+    // the public-key field belongs to Pin mode only
+    document.getElementById("encrypted-chat-public-key").style.display = "none";
     document.getElementById("encrypted-chat-private-key-container").style.display = "block";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
   });

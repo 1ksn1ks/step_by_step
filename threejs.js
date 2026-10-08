@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { handleMovement } from './joystick.js';
 import { map } from './map.js';
+import { updateMoon, moonScreen } from './moon.js';
 
 export const scene = new THREE.Scene();
 
@@ -94,7 +95,10 @@ let coordTextLen = -1;
 const lerpFactor = 0.05; // Controls smoothness
 
 // Stars only show in space: the globe is a circle centered on the map center —
-// cull any star that falls inside it (re-checked on every render)
+// cull any star that falls inside it (re-checked on every render). The moon is
+// a DOM div painted UNDER this canvas, so stars over it would show through —
+// cull the moon's circle the same way (moonScreen: {x, y, half} or null,
+// refreshed every frame by updateMoon() before the render).
 let lastRenderTime = 0;
 let globeCenterX = 0;
 let globeCenterY = 0;
@@ -124,6 +128,13 @@ function cullStarsToSpace() {
   const w = window.innerWidth;
   const h = window.innerHeight;
   const r2 = globeRadius * globeRadius;
+  // Refresh matrixWorld to the CURRENT rotation before culling: animate()
+  // lerps stars.rotation every frame, but matrixWorld otherwise still holds
+  // the PREVIOUS render's transform — during a fast spin that one-frame lag
+  // painted stars up to a frame's worth of travel inside the globe/moon
+  // circles (they "flew behind" the moon while rotating). The render below
+  // recomputes the same matrix, so cull decision == painted position.
+  stars.updateMatrixWorld();
   let n = 0;
   for (let i = 0; i < originalStarPositions.length / 3; i++) {
     _starVec.set(originalStarPositions[i * 3], originalStarPositions[i * 3 + 1], originalStarPositions[i * 3 + 2])
@@ -133,12 +144,21 @@ function cullStarsToSpace() {
     const sy = (1 - _starVec.y) * 0.5 * h;
     const dx = sx - globeCenterX;
     const dy = sy - globeCenterY;
-    if (dx * dx + dy * dy > r2) {
-      dst[n * 3] = originalStarPositions[i * 3];
-      dst[n * 3 + 1] = originalStarPositions[i * 3 + 1];
-      dst[n * 3 + 2] = originalStarPositions[i * 3 + 2];
-      n++;
+    if (dx * dx + dy * dy <= r2) continue; // behind the globe
+    const moon = moonScreen; // live binding — {x, y, half} or null
+    if (moon) {
+      // +2px pad: a star sprite is ~2px wide, so cull to the rim, not the
+      // exact circle — no star pixels can ever overlap the moon's edge, even
+      // mid-spin when the rotation lerp moves stars a sub-pixel per frame.
+      const mr = moon.half + 2;
+      const mx = sx - moon.x;
+      const my = sy - moon.y;
+      if (mx * mx + my * my <= mr * mr) continue; // behind the moon
     }
+    dst[n * 3] = originalStarPositions[i * 3];
+    dst[n * 3 + 1] = originalStarPositions[i * 3 + 1];
+    dst[n * 3 + 2] = originalStarPositions[i * 3 + 2];
+    n++;
   }
   pos.needsUpdate = true;
   stars.geometry.setDrawRange(0, n);
@@ -197,6 +217,7 @@ function animate(now) {
     stars.rotation.x += (targetRotationX - stars.rotation.x) * lerpFactor;
 
     updateGlobeRadius();
+    updateMoon();
 
     // Render the starfield at most 60x per second
     if (now - lastRenderTime >= 16) {

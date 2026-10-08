@@ -1,4 +1,5 @@
-import { getMessages, sendMessage } from "./hedera";
+import { sendMessage } from "./msgbackend";
+import { getTopicData as getMessages } from "./topicdata";
 import { defaultModelUrl, currentUfoModel} from "./letall";
 import { signer } from "./web3";
 import { toast } from "./toast";
@@ -114,10 +115,8 @@ export async function loadProfileSettings(a) {
           // Add scale factor input update
           document.getElementById("scale-factor").value = scale.scaleFactor; // Update scale factor input
           document.getElementById("scale-factor-value").value = scale.scaleFactor; // Update scale factor value
-  
-        
-      } else {
-        console.log("Last message does not have valid data."); // Log invalid data
+
+
       }
 
 

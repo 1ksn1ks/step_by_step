@@ -23,6 +23,7 @@
     "@walletconnect/modal": "^2.7.0",
     "dompurify": "^3.3.1",
     "gif.js.optimized": "^1.0.1",
+    "gifuct-js": "^2.1.2",
     "libsodium-wrappers": "^0.8.0",
     "libsodium-wrappers-sumo": "^0.8.4",
     "maplibre-gl": "^5.15.0",

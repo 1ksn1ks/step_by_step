@@ -1,4 +1,5 @@
-import { getMessages, sendMessage } from "./hedera";
+import { sendMessage } from "./msgbackend";
+import { getTopicData as getMessages } from "./topicdata";
 import { signer } from "./web3";
 import { toast } from "./toast";
 
@@ -92,9 +93,7 @@ export async function loadProfileCrosshair(a) {
             updateColorCrosshair(); // Update crosshair color
             updateCrosshairBeforeAfter(crosshair.beforeWidth); // Update crosshair before width
             updateCrosshairAfterBefore(crosshair.afterHeight); // Update crosshair after height
-    
-        } else {
-            console.log("Last message does not have valid data."); // Log invalid data
+
         }
     
         return accountObjectSettings; // Return the populated array

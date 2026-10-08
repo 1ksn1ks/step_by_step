@@ -1,4 +1,5 @@
-import { getMessages } from "./hedera";
+import { getTopicData as getMessages } from "./topicdata";
+import { fetchUserSettings } from "./msgbackend";
 
 export let profilePictures = [];
 export let usernames = [];
@@ -6,10 +7,33 @@ export let click2url = [];
 export let topicBio = [];
 
 export async function loadAllData() {
-   profilePictures = await loadProfilePicture();
-   usernames       = await loadUsername();
-   click2url       = await loadCLICK2URL();
-   topicBio        = await loadTopicBio();
+  // Fast path: one denormalized request — the backend already collapses the
+  // four profile topics to the latest valid value per account, so this stays
+  // tiny no matter how many updates exist. Falls back to the per-topic path
+  // below when the backend is offline or hasn't backfilled yet.
+  try {
+    const { ready, settings } = await fetchUserSettings();
+    if (ready) {
+      profilePictures = {};
+      usernames = {};
+      click2url = {};
+      topicBio = {};
+      for (const s of settings) {
+        if (s.profilePic) profilePictures[s.accountId] = { url: s.profilePic, timestamp: s.updatedAt };
+        if (s.username) usernames[s.accountId] = { username: s.username, timestamp: s.updatedAt };
+        if (s.click2url) click2url[s.accountId] = { click2url: s.click2url, timestamp: s.updatedAt };
+        if (s.bio) topicBio[s.accountId] = { topic_bio: s.bio, timestamp: s.updatedAt };
+      }
+      return { profilePictures, usernames, click2url, topicBio };
+    }
+  } catch (e) {
+    // fall through to the per-topic path
+  }
+
+  profilePictures = await loadProfilePicture();
+  usernames       = await loadUsername();
+  click2url       = await loadCLICK2URL();
+  topicBio        = await loadTopicBio();
 
   return { profilePictures, usernames, click2url, topicBio };
 }

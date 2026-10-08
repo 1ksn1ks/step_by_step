@@ -1,9 +1,10 @@
-import {getMessages,
+import {
   getTopicInfo,
-   sendMessage,
     generatePrivateAndPublicKey,
      createTopic,
       updateTopic} from './hedera'
+import { sendMessage, reportMarker } from './msgbackend'
+import { getTopicData as getMessages } from './topicdata'
 import {adjustTextareaHeight} from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
 import { loadAllData } from './loadalladata';
@@ -1181,13 +1182,14 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  
        const messageObj = {marker: {data: {title: title, image: [cleanUrl], coverimage: [cleanCoverimage], msg: msg, cord: cord, numberOfMarker: numberOfMarker }}};
        const message = JSON.stringify(messageObj);
- 
+
        toast.info("Confirm in wallet 👛");
        const receipt = await sendMessage(
          topicId,
          message
        );
        console.log('Receipt:', receipt);
+       reportMarker(topicId, cord, title, cleanUrl, msg, connectedAccount, numberOfMarker);
      } catch (error) {
        console.error('Error submitting message:', error);
      }
@@ -1286,6 +1288,7 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
     toast.info("Confirm in wallet 👛");
     const receipt = await sendMessage(topicId,message);
     console.log('Receipt:', receipt);
+    reportMarker(topicId, cord, title, cleanUrl, msg, connectedAccount, numberOfMarker);
   } catch (error) {
     console.error('Error submitting message:', error);
   }

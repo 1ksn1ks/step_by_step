@@ -1,4 +1,5 @@
-import { getMessages, sendMessage } from "./hedera";
+import { sendMessage } from "./msgbackend";
+import { getTopicData as getMessages } from "./topicdata";
 import { setcurrentMarkerSize, updateClusters } from "./marker";
 import { signer } from "./web3";
 import { toast } from "./toast";
@@ -30,6 +31,7 @@ function updateMarkerSettings() {
     setcurrentMarkerSize(size);
     updateClusters();
     updatePills();
+    document.dispatchEvent(new Event('marker-size-changed')); // live dots resize with the slider
 }
 
 // Panel starts on the default value; the map markers are left untouched
@@ -110,9 +112,7 @@ export async function loadMarkerSettings(a) {
 document.getElementById("reset-marker-size").addEventListener("click", (event) => {
     event.stopPropagation();
     syncControls(CSS_DEFAULTS);
-    setcurrentMarkerSize(CSS_DEFAULTS.size);
-    updateClusters();
-    updatePills();
+    updateMarkerSettings(); // re-reads the control (now the default) + fires marker-size-changed
     toast.info("Reset to defaults");
 });
 

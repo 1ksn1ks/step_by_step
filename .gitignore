@@ -1,3 +1,13 @@
+# Secrets — never commit
+.env
+server/.env
+certs/
+
+# Local message cache (the server recreates this from the mirror)
+server/data.db
+server/data.db-shm
+server/data.db-wal
+
 # Logs
 logs
 *.log

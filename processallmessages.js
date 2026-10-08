@@ -1,14 +1,17 @@
-import {getMessages, getTopicInfo, sendMessage, getAccountNFTs} from './hedera'
+import {getTopicInfo, getAccountNFTs} from './hedera'
+import {sendMessage} from './msgbackend'
+import {getTopicData as getMessages} from './topicdata'
 import { adjustTextareaHeight } from './adjusttextarea';
 import { activePolygonPopups, newActivePolygonPopups, addPolygonWithImageFill} from './polygons';
 import { activeMarkerPopups, newActiveMarkerPopups, updateClusters, index } from './marker';
-import { removeUfoModel, changePopupState} from './cssLogic'
+import { removeUfoModel, changePopupState, closeTransientMapUI} from './cssLogic'
 import { polygons, geojson, storedMarkers, storedPolygons, currentUfoModelInGLTF,  newExistingMarkers,  existingMarkers, newStoredMarkers, newStoredPolygons,
   accidTopicChatColor, usernameTopicChatColor, textTopicChatColor, innerContainerTopicChatColor, topicChatHeaderColor,
   textFontSizeTopicChat, timestampFontSizeTopicChat, headerFontSizeTopicChat } from './letall';
 import {updateRulesForModelNFTState} from './confirmnft'
-import { animateMapTo } from './animatemapto';
+import { animateMapTo, cancelAnimateMapTo } from './animatemapto';
 import { profilePictures, usernames, click2url} from './loadalladata'
+import { openMediaFullscreen } from './fullscreenmedia';
 import maplibregl from 'maplibre-gl';
 import { map } from './map';
 import { applyAllStyles } from './loadprofilepopup';
@@ -53,7 +56,8 @@ function isValidUrl(url) {
 }
 
 // Helper function to create marker popup HTML using DOM
-function createMarkerPopupHTML(data) {
+// (exported so the 24h local-news markers reuse the exact same popup)
+export function createMarkerPopupHTML(data) {
   const {
     markernumber,
     topicId,
@@ -70,25 +74,66 @@ function createMarkerPopupHTML(data) {
     likeCountMarker,
     dislikeCountMarker,
     comments,
-    coords
+    coords,
+    // Optional (live-marker view): walk a custom list instead of the topic
+    onPrev,
+    onNext
   } = data;
 
   const container = document.createElement('div');
 
-  // Top header with number and topic info
+  // Swipe left = next message, swipe right = previous. Only clearly
+  // horizontal drags trigger it (vertical scroll, taps and video drags
+  // are ignored).
+  let swipeX = null, swipeY = null;
+  container.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.popup-media-card')) return;
+    swipeX = e.clientX;
+    swipeY = e.clientY;
+  });
+  container.addEventListener('pointerup', (e) => {
+    if (swipeX === null) return;
+    const dx = e.clientX - swipeX;
+    const dy = e.clientY - swipeY;
+    swipeX = swipeY = null;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx < 0) {
+      onNext ? onNext() : window.nextMsgFromPayerMarker(payer, markernumber, topicId);
+    } else {
+      onPrev ? onPrev() : window.prevMsgFromPayerMarker(payer, markernumber, topicId);
+    }
+  });
+
+  // Top header with number and topic info (glass pill bar)
   const topHeader = document.createElement('div');
-  topHeader.style.cssText = 'position: flex;';
+  topHeader.style.cssText = 'position: relative; display: flex; align-items: flex-start; height: 2.5vh; margin-top: -0.3vh; margin-left: -0.5vh; margin-bottom: 0.25vh;';
 
   const numberDiv = document.createElement('div');
-  numberDiv.className = 'number';
-  numberDiv.style.cssText = 'position: absolute; top: -0.1em; left: 0.1em; font-weight: bold;';
+  numberDiv.className = 'number popup-top-id';
+  numberDiv.style.cssText = 'cursor: pointer;';
   numberDiv.textContent = markernumber;
+  // Tap the number → zoom to 19 centered on this marker. coords arrives as
+  // [lng, lat] from the topic pipeline, "lng,lat" from the live-marker view.
+  numberDiv.addEventListener('click', (e) => {
+    e.stopPropagation();
+    let c = null;
+    if (Array.isArray(coords) && coords.length === 2) {
+      c = [Number(coords[0]), Number(coords[1])];
+    } else if (typeof coords === 'string') {
+      const [a, b] = coords.split(',').map(Number);
+      if (Number.isFinite(a) && Number.isFinite(b)) c = [a, b];
+    }
+    if (c) {
+      cancelAnimateMapTo(); // stop the popup-open loop, or it kills this flyTo
+      map.flyTo({ center: c, zoom: 19, essentialOnly: true });
+    }
+  });
   topHeader.appendChild(numberDiv);
 
   const topicSpan = document.createElement('span');
-  topicSpan.style.cssText = 'position: absolute; top: -0.1em; left: 50%; transform: translateX(-50%); font-size: 1.5vh; color: gray; white-space: nowrap;';
+  topicSpan.className = 'popup-top-topic';
+  topicSpan.style.cssText = 'position: absolute; left: 50%; top: 0; transform: translateX(-50%); cursor: pointer;';
   topicSpan.textContent = `${topicId} ${loadedTopicName}`;
-  topicSpan.style.cursor = "pointer"
 
   topicSpan.addEventListener("click", async () => {
     try {
@@ -100,7 +145,7 @@ function createMarkerPopupHTML(data) {
       setTimeout(() => {
         topicSpan.textContent = originalText;
       }, 1000);
-  
+
     } catch (err) {
       console.error("Error: ", err);
     }
@@ -112,12 +157,12 @@ function createMarkerPopupHTML(data) {
 
   // Profile section
   const profileSection = document.createElement('div');
-  profileSection.style.cssText = 'display: flex; align-items: center;';
+  profileSection.className = 'popup-profile-bubble';
 
   const profileImg = document.createElement('img');
   profileImg.src = profileUrl;
   profileImg.alt = 'Profile photo';
-  profileImg.style.cssText = 'width: 7vh; height: 7vh; margin-right: 1em; border-radius: 50%; cursor: pointer;';
+  profileImg.style.cssText = 'width: 7vh; height: 7vh; flex-shrink: 0; border-radius: 50%; cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.25); box-shadow: 0 0.4vh 1vh rgba(0, 0, 0, 0.45);';
   profileImg.onclick = () => window.loadBio4PIC(payer);
   profileSection.appendChild(profileImg);
 
@@ -143,9 +188,7 @@ function createMarkerPopupHTML(data) {
     try {
       new URL(trimmedClick2link);
       usernameLink.href = trimmedClick2link;
-    } catch (e) {
-      console.warn('Invalid click2link URL:', trimmedClick2link);
-    }
+    } catch (e) {}
     usernameLink.target = '_blank';
     usernameLink.rel = 'noopener noreferrer';
     usernameLink.className = 'username';
@@ -170,98 +213,127 @@ function createMarkerPopupHTML(data) {
   navSection.style.cssText = 'display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: 1vh;';
 
   const prevSpan = document.createElement('span');
-  prevSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
-  prevSpan.textContent = '◀️';
-  prevSpan.onclick = () => window.prevMsgFromPayerMarker(payer, markernumber, topicId);
+  prevSpan.className = 'popup-icon-chip';
+  prevSpan.textContent = '←';
+  prevSpan.onclick = onPrev
+    ? () => onPrev()
+    : () => window.prevMsgFromPayerMarker(payer, markernumber, topicId);
   navSection.appendChild(prevSpan);
 
   const titleDiv = document.createElement('div');
   titleDiv.style.cssText = 'text-align: center; flex-grow: 1;';
   const titleStrong = document.createElement('strong');
-  titleStrong.className = 'title_color';
+  titleStrong.className = 'title_color popup-title-bubble';
   titleStrong.textContent = title;
   titleDiv.appendChild(titleStrong);
   navSection.appendChild(titleDiv);
 
   const nextSpan = document.createElement('span');
-  nextSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
-  nextSpan.textContent = '▶️';
-  nextSpan.onclick = () => window.nextMsgFromPayerMarker(payer, markernumber, topicId);
+  nextSpan.className = 'popup-icon-chip';
+  nextSpan.textContent = '→';
+  nextSpan.onclick = onNext
+    ? () => onNext()
+    : () => window.nextMsgFromPayerMarker(payer, markernumber, topicId);
   navSection.appendChild(nextSpan);
 
   contentSection.appendChild(navSection);
 
-  // Image
+  // Image — or video when the user pasted a .mp4/.webm URL into the Image
+  // field (the dot still shows the Cover Image still, so no video ever loads
+  // into the marker DOM). The file itself downloads only on play.
   if (isValidUrl(image)) {
     const imageDiv = document.createElement('div');
-    const img = document.createElement('img');
-    img.src = image;
-    img.style.cssText = 'width: 20vh; height: 20vh; display: block; margin: 0 auto;';
-    imageDiv.appendChild(img);
+    imageDiv.className = 'popup-media-card'; // glass media card (style.css)
+    const isVideo = /\.(mp4|webm)(\?|#|$)/i.test(image);
+    const media = isVideo ? document.createElement('video') : document.createElement('img');
+    media.src = image;
+    if (isVideo) {
+      media.controls = true;
+      media.playsInline = true; // iOS: play inline, no full-screen takeover
+      media.preload = 'metadata'; // opening the popup costs a few KB, not the file
+    } else {
+      // Tap the picture → fullscreen overlay (tap backdrop / × / Esc closes)
+      media.style.cursor = 'zoom-in';
+      media.addEventListener('click', () => openMediaFullscreen(image, false));
+      const chip = document.createElement('button');
+      chip.className = 'popup-media-expand';
+      chip.title = 'Expand';
+      chip.textContent = '⤢';
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openMediaFullscreen(image, false);
+      });
+      imageDiv.appendChild(chip);
+    }
+    imageDiv.appendChild(media);
     contentSection.appendChild(imageDiv);
   }
 
   // Message text
   const msgDiv = document.createElement('div');
   const msgP = document.createElement('p');
-  msgP.className = 'text_color';
+  msgP.className = 'text_color popup-text-bubble';
   msgP.textContent = msg;
   msgDiv.appendChild(msgP);
   contentSection.appendChild(msgDiv);
 
   container.appendChild(contentSection);
 
-  // Bottom row (in-flow so the comments section can open below it,
-  // still inside the popup)
+  // Row 6 — 👍 💬 👎 centered (⚙️ 📍 + timestamp live in row 7)
   const bottomRow = document.createElement('div');
-  bottomRow.style.cssText = 'position: relative; height: 3.5vh; line-height: 1;';
+  bottomRow.style.cssText = 'position: relative; height: 4vh; line-height: 1; margin-top: 0.4vh;';
 
-  // Timestamp (bottom right)
+  // Timestamp (row 7, right side)
   const timestampDiv = document.createElement('div');
-  timestampDiv.style.cssText = 'position: absolute; bottom: -0.5vh; right: -1.5vh; font-size: 1vh; color: gray;';
+  timestampDiv.className = 'popup-timestamp';
+  timestampDiv.style.cssText = 'margin-left: auto; margin-right: -0.5vh;';
   timestampDiv.textContent = timestamp;
-  bottomRow.appendChild(timestampDiv);
 
   // Like/Dislike + Comment (bottom center)
   const likeDislikeDiv = document.createElement('div');
-  likeDislikeDiv.style.cssText = 'position: absolute; bottom: -0.5vh; left: 50%; transform: translateX(-50%); display: flex; gap: 1vh;';
+  likeDislikeDiv.style.cssText = 'position: absolute; bottom: 0.3vh; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 0.5vh;';
 
   const likeSpan = document.createElement('span');
-  likeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  likeSpan.className = 'popup-icon-chip';
   likeSpan.textContent = `${likeCountMarker || 0}👍`;
   likeSpan.onclick = () => window.likeMarker(timestamp, topicId);
   likeDislikeDiv.appendChild(likeSpan);
 
   // 💬 Comment Button (between Like and Dislike)
   const commentSpan = document.createElement('span');
-  commentSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  commentSpan.className = 'popup-icon-chip';
   commentSpan.textContent = comments.length ? `💬${countAllMessages(comments)}` : '💬';
   commentSpan.onclick = () => window.openMarkerComments(timestamp, topicId);
   likeDislikeDiv.appendChild(commentSpan);
 
   const dislikeSpan = document.createElement('span');
-  dislikeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  dislikeSpan.className = 'popup-icon-chip';
   dislikeSpan.textContent = `${dislikeCountMarker || 0}👎`;
   dislikeSpan.onclick = () => window.dislikeMarker(timestamp, topicId);
   likeDislikeDiv.appendChild(dislikeSpan);
 
   bottomRow.appendChild(likeDislikeDiv);
 
-  // Settings (bottom left)
+  // Settings (row 7)
   const settingsSpan = document.createElement('span');
-  settingsSpan.style.cssText = 'position: absolute; bottom: -0.5vh; left: -1.5vh; font-size: 1.5vh; color: gray; cursor: pointer;';
+  settingsSpan.className = 'popup-icon-chip';
   settingsSpan.textContent = '⚙️';
   settingsSpan.onclick = () => window.openPopupSettings();
-  bottomRow.appendChild(settingsSpan);
 
   // 📍 Location Button
   const locationSpan = document.createElement('span');
-  locationSpan.style.cssText = 'position: absolute; bottom: -0.5vh; left: 2vh; font-size: 1.5vh; color: gray; cursor: pointer;';
+  locationSpan.className = 'popup-icon-chip';
   locationSpan.textContent = '📍';
   locationSpan.onclick = () => window.openMarkerNavigation(coords);
-  bottomRow.appendChild(locationSpan);
+  // Row 7 — ⚙️ 📍 on their own row: same left inset as row 1, same 0.25vh gap as rows 1–2
+  const bottomLeftRow = document.createElement('div');
+  bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: 0.7vh; height: 4vh; margin-top: 0.25vh; margin-left: -0.5vh; margin-bottom: -0.3vh;';
+  bottomLeftRow.appendChild(settingsSpan);
+  bottomLeftRow.appendChild(locationSpan);
+  bottomLeftRow.appendChild(timestampDiv);
 
   container.appendChild(bottomRow);
+  container.appendChild(bottomLeftRow);
 
   // Comments (below the bottom row, hidden until 💬 is pressed)
   container.appendChild(buildCommentsSection(`marker-comments-${topicId}-${timestamp}`, comments, (input) => window.sendMarkerComment(timestamp, topicId, input), (parentId, input) => window.sendMarkerReply(timestamp, parentId, topicId, input), topicId, 'marker'));
@@ -292,21 +364,56 @@ function createPolygonPopupHTML(data) {
 
   const container = document.createElement('div');
 
-  // Top header with number and topic info
+  // Swipe left = next message, swipe right = previous. Only clearly
+  // horizontal drags trigger it (vertical scroll, taps and video drags
+  // are ignored).
+  let swipeX = null, swipeY = null;
+  container.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.popup-media-card')) return;
+    swipeX = e.clientX;
+    swipeY = e.clientY;
+  });
+  container.addEventListener('pointerup', (e) => {
+    if (swipeX === null) return;
+    const dx = e.clientX - swipeX;
+    const dy = e.clientY - swipeY;
+    swipeX = swipeY = null;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx < 0) window.nextMsgFromPayerPolygon(payer, polygonnumber, topicId);
+    else window.prevMsgFromPayerPolygon(payer, polygonnumber, topicId);
+  });
+
+  // Top header with number and topic info (glass pill bar)
   const topHeader = document.createElement('div');
-  topHeader.style.cssText = 'position: flex;';
+  topHeader.style.cssText = 'position: relative; display: flex; align-items: flex-start; height: 2.5vh; margin-top: -0.3vh; margin-left: -0.5vh; margin-bottom: 0.25vh;';
 
   const numberDiv = document.createElement('div');
-  numberDiv.className = 'number';
-  numberDiv.style.cssText = 'position: absolute; top: -0.1em; left: 0.1em; font-weight: bold;';
+  numberDiv.className = 'number popup-top-id';
+  numberDiv.style.cssText = 'cursor: pointer;';
   numberDiv.textContent = polygonnumber;
+  // Tap the number → zoom to 19 centered on the polygon (centroid of vertices)
+  numberDiv.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (Array.isArray(coordinates) && coordinates.length > 0) {
+      const center = coordinates.reduce(
+        (acc, p) => [acc[0] + p[0], acc[1] + p[1]],
+        [0, 0]
+      );
+      cancelAnimateMapTo(); // stop the popup-open loop, or it kills this flyTo
+      map.flyTo({
+        center: [center[0] / coordinates.length, center[1] / coordinates.length],
+        zoom: 19,
+        essentialOnly: true,
+      });
+    }
+  });
   topHeader.appendChild(numberDiv);
 
   const topicSpan = document.createElement('span');
-  topicSpan.style.cssText = 'position: absolute; top: -0.1em; left: 50%; transform: translateX(-50%); font-size: 1.5vh; color: gray; white-space: nowrap;';
+  topicSpan.className = 'popup-top-topic';
+  topicSpan.style.cssText = 'position: absolute; left: 50%; top: 0; transform: translateX(-50%); cursor: pointer;';
 
   topicSpan.textContent = `${topicId} ${loadedTopicName}`;
-  topicSpan.style.cursor = "pointer"
 
   topicSpan.addEventListener("click", async () => {
     try {
@@ -331,12 +438,12 @@ function createPolygonPopupHTML(data) {
 
   // Profile section
   const profileSection = document.createElement('div');
-  profileSection.style.cssText = 'display: flex; align-items: center;';
+  profileSection.className = 'popup-profile-bubble';
 
   const profileImg = document.createElement('img');
   profileImg.src = profileUrl;
   profileImg.alt = 'Profile photo';
-  profileImg.style.cssText = 'width: 7vh; height: 7vh; margin-right: 1em; border-radius: 50%; cursor: pointer;';
+  profileImg.style.cssText = 'width: 7vh; height: 7vh; flex-shrink: 0; border-radius: 50%; cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.25); box-shadow: 0 0.4vh 1vh rgba(0, 0, 0, 0.45);';
   profileImg.onclick = () => window.loadBio4PIC(payer);
   profileSection.appendChild(profileImg);
 
@@ -362,9 +469,7 @@ function createPolygonPopupHTML(data) {
     try {
       new URL(trimmedClick2link);
       usernameLink.href = trimmedClick2link;
-    } catch (e) {
-      console.warn('Invalid click2link URL:', trimmedClick2link);
-    }
+    } catch (e) {}
     usernameLink.target = '_blank';
     usernameLink.rel = 'noopener noreferrer';
     usernameLink.className = 'username';
@@ -389,98 +494,125 @@ function createPolygonPopupHTML(data) {
   navSection.style.cssText = 'display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: 1vh;';
 
   const prevSpan = document.createElement('span');
-  prevSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
-  prevSpan.textContent = '◀️';
+  prevSpan.className = 'popup-icon-chip';
+  prevSpan.textContent = '←';
   prevSpan.onclick = () => window.prevMsgFromPayerPolygon(payer, polygonnumber, topicId);
   navSection.appendChild(prevSpan);
 
   const titleDiv = document.createElement('div');
   titleDiv.style.cssText = 'text-align: center; flex-grow: 1;';
   const titleStrong = document.createElement('strong');
-  titleStrong.className = 'title_color';
+  titleStrong.className = 'title_color popup-title-bubble';
   titleStrong.textContent = title;
   titleDiv.appendChild(titleStrong);
   navSection.appendChild(titleDiv);
 
   const nextSpan = document.createElement('span');
-  nextSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
-  nextSpan.textContent = '▶️';
+  nextSpan.className = 'popup-icon-chip';
+  nextSpan.textContent = '→';
   nextSpan.onclick = () => window.nextMsgFromPayerPolygon(payer, polygonnumber, topicId);
   navSection.appendChild(nextSpan);
 
   contentSection.appendChild(navSection);
 
-  // Image
-  if (isValidUrl(image)) {
+  // Image — or video when the Inside image URL field holds a .mp4/.webm
+  // (same behavior as marker popups: in-popup player with sound; the map
+  // cover stays the muted loop). The field arrives as an ARRAY (["url"]) —
+  // normalize before the url/regex checks.
+  const popupImageUrl = Array.isArray(image) ? image[0] : image;
+  if (isValidUrl(popupImageUrl)) {
     const imageDiv = document.createElement('div');
-    const img = document.createElement('img');
-    img.src = image;
-    img.style.cssText = 'width: 20vh; height: 20vh; display: block; margin: 0 auto;';
-    imageDiv.appendChild(img);
+    imageDiv.className = 'popup-media-card'; // glass media card (style.css)
+    const isVideo = /\.(mp4|webm)(\?|#|$)/i.test(popupImageUrl);
+    const media = isVideo ? document.createElement('video') : document.createElement('img');
+    media.src = popupImageUrl;
+    if (isVideo) {
+      media.controls = true;
+      media.playsInline = true; // iOS: play inline, no full-screen takeover
+      media.preload = 'metadata'; // opening the popup costs a few KB, not the file
+    } else {
+      // Tap the picture → fullscreen overlay (tap backdrop / × / Esc closes)
+      media.style.cursor = 'zoom-in';
+      media.addEventListener('click', () => openMediaFullscreen(popupImageUrl, false));
+      const chip = document.createElement('button');
+      chip.className = 'popup-media-expand';
+      chip.title = 'Expand';
+      chip.textContent = '⤢';
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openMediaFullscreen(popupImageUrl, false);
+      });
+      imageDiv.appendChild(chip);
+    }
+    imageDiv.appendChild(media);
     contentSection.appendChild(imageDiv);
   }
 
   // Message text
   const msgDiv = document.createElement('div');
   const msgP = document.createElement('p');
-  msgP.className = 'text_color';
+  msgP.className = 'text_color popup-text-bubble';
   msgP.textContent = msg;
   msgDiv.appendChild(msgP);
   contentSection.appendChild(msgDiv);
 
   container.appendChild(contentSection);
 
-  // Bottom row (in-flow so the comments section can open below it,
-  // still inside the popup)
+  // Row 6 — 👍 💬 👎 centered (⚙️ 📍 + timestamp live in row 7)
   const bottomRow = document.createElement('div');
-  bottomRow.style.cssText = 'position: relative; height: 3.5vh; line-height: 1;';
+  bottomRow.style.cssText = 'position: relative; height: 4vh; line-height: 1; margin-top: 0.4vh;';
 
-  // Timestamp (bottom right)
+  // Timestamp (row 7, right side)
   const timestampDiv = document.createElement('div');
-  timestampDiv.style.cssText = 'position: absolute; bottom: -0.5vh; right: -1.5vh; font-size: 1vh; color: gray;';
+  timestampDiv.className = 'popup-timestamp';
+  timestampDiv.style.cssText = 'margin-left: auto; margin-right: -0.5vh;';
   timestampDiv.textContent = timestamp;
-  bottomRow.appendChild(timestampDiv);
 
   // Like/Dislike + Comment (bottom center)
   const likeDislikeDiv = document.createElement('div');
-  likeDislikeDiv.style.cssText = 'position: absolute; bottom: -0.5vh; left: 50%; transform: translateX(-50%); display: flex; gap: 1vh;';
+  likeDislikeDiv.style.cssText = 'position: absolute; bottom: 0.3vh; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 0.5vh;';
 
   const likeSpan = document.createElement('span');
-  likeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  likeSpan.className = 'popup-icon-chip';
   likeSpan.textContent = `${likeCountPolygon || 0}👍`;
   likeSpan.onclick = () => window.likePolygon(timestamp, topicId);
   likeDislikeDiv.appendChild(likeSpan);
 
   // 💬 Comment Button (between Like and Dislike)
   const commentSpan = document.createElement('span');
-  commentSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  commentSpan.className = 'popup-icon-chip';
   commentSpan.textContent = comments.length ? `💬${countAllMessages(comments)}` : '💬';
   commentSpan.onclick = () => window.openPolygonComments(timestamp, topicId);
   likeDislikeDiv.appendChild(commentSpan);
 
   const dislikeSpan = document.createElement('span');
-  dislikeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+  dislikeSpan.className = 'popup-icon-chip';
   dislikeSpan.textContent = `${dislikeCountPolygon || 0}👎`;
   dislikeSpan.onclick = () => window.dislikePolygon(timestamp, topicId);
   likeDislikeDiv.appendChild(dislikeSpan);
 
   bottomRow.appendChild(likeDislikeDiv);
 
-  // Settings (bottom left)
+  // Settings (row 7)
   const settingsSpan = document.createElement('span');
-  settingsSpan.style.cssText = 'position: absolute; bottom: -0.5vh; left: -1.5vh; font-size: 1.5vh; color: gray; cursor: pointer;';
+  settingsSpan.className = 'popup-icon-chip';
   settingsSpan.textContent = '⚙️';
   settingsSpan.onclick = () => window.openPopupSettings();
-  bottomRow.appendChild(settingsSpan);
 
   // 📍 Location Button
   const locationSpan = document.createElement('span');
-  locationSpan.style.cssText = 'position: absolute; bottom: -0.5vh; left: 2vh; font-size: 1.5vh; color: gray; cursor: pointer;';
+  locationSpan.className = 'popup-icon-chip';
   locationSpan.textContent = '📍';
   locationSpan.onclick = () => window.openPolygonNavigation(coordinates);
-  bottomRow.appendChild(locationSpan);
+  // Row 7 — ⚙️ 📍 on their own row: same left inset as row 1, same 0.25vh gap as rows 1–2
+  const bottomLeftRow = document.createElement('div');
+  bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: 0.7vh; height: 4vh; margin-top: 0.25vh; margin-left: -0.5vh; margin-bottom: -0.3vh;';
+  bottomLeftRow.appendChild(settingsSpan);
+  bottomLeftRow.appendChild(locationSpan);
+  bottomLeftRow.appendChild(timestampDiv);
 
   container.appendChild(bottomRow);
+  container.appendChild(bottomLeftRow);
 
   // Comments (below the bottom row, hidden until 💬 is pressed)
   container.appendChild(buildCommentsSection(`polygon-comments-${topicId}-${timestamp}`, comments, (input) => window.sendPolygonComment(timestamp, topicId, input), (parentId, input) => window.sendPolygonReply(timestamp, parentId, topicId, input), topicId, 'polygon'));
@@ -1164,6 +1296,7 @@ window.nextMsgFromPayerMarker = function(payer, markerNumber, topicId) {
 };
 
 function showMarker(m) {
+    closeTransientMapUI(); // a popup replaces any open pin (📍/🔷 or 🗺/📡) and any other popup
     activeMarkerPopups.forEach(p => p.remove());
     newActiveMarkerPopups([]);
     const popup = new maplibregl.Popup()
@@ -1261,6 +1394,7 @@ window.nextMsgFromPayerPolygon = function(payer, polygonNumber, topicId) {
 };
 
 function showPolygon(p) {
+    closeTransientMapUI(); // a popup replaces any open pin (📍/🔷 or 🗺/📡) and any other popup
     activePolygonPopups.forEach(popup => popup.remove());
     newActivePolygonPopups([]);
 

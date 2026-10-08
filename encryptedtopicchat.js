@@ -1,6 +1,8 @@
 import { adjustTextareaHeight } from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
-import { getMessages, getAccountNFTs, sendMessage, getTopicInfo, subscribeToTopic } from './hedera';
+import { getMessages as getMessagesMirror, getAccountNFTs, getTopicInfo, subscribeToTopic } from './hedera';
+import { sendMessage, messageSig, streamOnTopic, streamOnReconnect } from './msgbackend';
+import { getTopicData } from './topicdata';
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
 import { connectedAccount, signer } from './web3';
 import { profilePictures, usernames, click2url } from './loadalladata';
@@ -191,9 +193,7 @@ async function appendEncryptedChatMessage(
         try {
           new URL(trimmedClick2link);
           linkA.href = trimmedClick2link;
-        } catch (e) {
-          console.warn('Invalid click2link URL:', trimmedClick2link);
-        }
+        } catch (e) {}
         linkA.target = '_blank';
         linkA.rel = 'noopener noreferrer';
         linkA.style.cssText = `
@@ -243,7 +243,8 @@ async function appendEncryptedChatMessage(
     const timeSpan = document.createElement('span');
     timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
     timeSpan.className = 'chat-msg-time';
-    timeSpan.textContent = timestamp;
+    timeSpan.textContent = message.pending ? `⏳ ${timestamp}` : timestamp;
+    if (message.pending) msgWrapper.dataset.sig = messageSig(message);
 
     msgWrapper.appendChild(contentDiv);
     msgWrapper.appendChild(timeSpan);
@@ -255,6 +256,25 @@ async function appendEncryptedChatMessage(
 
   } catch (err) {
     console.error("Error rendering encrypted message:", err);
+  }
+}
+
+// Pending-bubble housekeeping (driven by the live stream events)
+function clearPendingMarker(container, sig) {
+  for (const el of container.querySelectorAll('[data-sig]')) {
+    if (el.dataset.sig !== sig) continue;
+    delete el.dataset.sig;
+    const t = el.querySelector('.chat-msg-time');
+    if (t) t.textContent = t.textContent.replace('⏳ ', '');
+    break;
+  }
+}
+function removePendingBubble(container, sig) {
+  for (const el of container.querySelectorAll('[data-sig]')) {
+    if (el.dataset.sig === sig) {
+      el.remove();
+      break;
+    }
   }
 }
 
@@ -371,19 +391,28 @@ async function loadMessagesFromEncryptedChat() {
       return;
     }
 
-    // Load history + start live subscription
-    const rawResult = await subscribeToTopic(topicId, async (newMsg) => {
-      // Live message → decrypt + render
-      if (window.currentEncryptedPrivateKey) {
-        await appendEncryptedChatMessage(
-          newMsg,
-          messagesContainer,
-          topicAdmin,
-          window.currentLoadedNFTsEncrypted || [],
-          window.currentEncryptedPrivateKey
-        );
-      }
-    });
+    // History from the data layer (backend preferred, phones off the
+    // mirror). Live updates: the shared SSE stream when the backend has
+    // the topic (subscribed below, once the private key is ready),
+    // otherwise the original mirror path.
+    const viaData = await getTopicData(topicId);
+    let rawResult;
+    if (viaData.viaBackend) {
+      rawResult = { messages: viaData.messages };
+    } else {
+      rawResult = await subscribeToTopic(topicId, async (newMsg) => {
+        // Live message → decrypt + render
+        if (window.currentEncryptedPrivateKey) {
+          await appendEncryptedChatMessage(
+            newMsg,
+            messagesContainer,
+            topicAdmin,
+            window.currentLoadedNFTsEncrypted || [],
+            window.currentEncryptedPrivateKey
+          );
+        }
+      });
+    }
 
     const messages = rawResult.messages || [];
 
@@ -458,6 +487,73 @@ async function loadMessagesFromEncryptedChat() {
         loadedNFTsForTopicChat,
         PrivateKey
       );
+    }
+
+    // Live updates via the shared SSE stream — started after the private
+    // key is ready so live messages can be decrypted as they arrive
+    if (viaData.viaBackend) {
+      const seen = new Set(messages.map(messageSig));
+      const pendingSigs = new Set(messages.filter((m) => m.pending).map(messageSig));
+      let liveReady = false;
+      const renderLive = (m) =>
+        appendEncryptedChatMessage(
+          m,
+          messagesContainer,
+          topicAdmin,
+          window.currentLoadedNFTsEncrypted || [],
+          PrivateKey
+        );
+      const handleStream = (evt) => {
+        const m = evt.message;
+        const sig = messageSig(m);
+        if (evt.type === "pending") {
+          if (seen.has(sig)) return;
+          seen.add(sig);
+          pendingSigs.add(sig);
+          renderLive(m);
+        } else if (evt.type === "message") {
+          if (seen.has(sig)) {
+            if (pendingSigs.has(sig)) {
+              pendingSigs.delete(sig);
+              clearPendingMarker(messagesContainer, sig);
+            }
+            return;
+          }
+          seen.add(sig);
+          renderLive(m);
+        } else if (evt.type === "confirmed") {
+          if (pendingSigs.has(sig)) {
+            pendingSigs.delete(sig);
+            clearPendingMarker(messagesContainer, sig);
+          }
+        } else if (evt.type === "expired") {
+          if (pendingSigs.has(sig)) {
+            pendingSigs.delete(sig);
+            removePendingBubble(messagesContainer, sig);
+          }
+        }
+      };
+      const offTopic = streamOnTopic(topicId, handleStream);
+      const offReconnect = streamOnReconnect(async () => {
+        if (!liveReady) {
+          liveReady = true;
+          return;
+        }
+        const fresh = await getTopicData(topicId, { force: true });
+        for (const m of fresh.messages) {
+          const sig = messageSig(m);
+          if (seen.has(sig)) continue;
+          seen.add(sig);
+          if (m.pending) pendingSigs.add(sig);
+          renderLive(m);
+        }
+      });
+      if (messagesContainer.__offLive) messagesContainer.__offLive();
+      const offLive = () => {
+        offTopic();
+        offReconnect();
+      };
+      messagesContainer.__offLive = offLive;
     }
 
     if (messagesContainer.children.length === 0) {
@@ -543,7 +639,10 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
       return;
     }
 
-    const result = await getMessages(topicId);
+    // Data layer: session cache → backend (instant, phones off the mirror)
+    // → mirror fallback. (The admin password flow further down keeps the
+    // mirror: it scans full history for the admin's key message.)
+    const result = await getTopicData(topicId);
     allLoadedMessagesEncryptedChat = [result];
 
     const messages = result.messages;
@@ -796,9 +895,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
         try {
           new URL(trimmedClick2link);
           linkA.href = trimmedClick2link;
-        } catch (e) {
-          console.warn('Invalid click2link URL:', trimmedClick2link);
-        }
+        } catch (e) {}
         linkA.target = '_blank';
         linkA.rel = 'noopener noreferrer';
         linkA.style.cssText = `
@@ -846,7 +943,8 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
     const timeSpan = document.createElement('span');
     timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
     timeSpan.className = 'chat-msg-time';
-    timeSpan.textContent = timestamp;
+    timeSpan.textContent = message.pending ? `⏳ ${timestamp}` : timestamp;
+    if (message.pending) msgWrapper.dataset.sig = messageSig(message);
 
     msgWrapper.appendChild(contentDiv);
     msgWrapper.appendChild(timeSpan);
@@ -1181,7 +1279,8 @@ document.getElementById("stack-encrypted-chat-change-password-button").addEventL
       return;
     }
 
-    const allmesages = await getMessages(topicId);
+    // Admin flow scans full history for the admin's key message — mirror
+    const allmesages = await getMessagesMirror(topicId);
     allLoadedMessagesEncryptedChat = [allmesages];
     
     const messages = allmesages.messages;

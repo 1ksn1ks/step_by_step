@@ -16,7 +16,7 @@ import { loadProfileObject } from './loadprofileobject';
 import { loadButtonInputSettings } from './loadbuttoninput';
 import { loadMainButtonSettings } from './loadmainbutton';
 import { loadMarkerSettings } from './loadmarkersett';
-import { confirmNFTFunction, setOwnsModelNFT, ownsModelNFT } from './confirmnft';
+import { confirmNFTFunction, ownsModelNFT, setOwnsModelNFT } from './confirmnft';
 import { handleAllMessages } from './handleallmessages';
 import {debounce} from './debounce'
 

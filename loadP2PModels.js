@@ -52,6 +52,24 @@ function sunDirectionVec(date) {
   };
 }
 
+// The daynight fragment shader's math, in JS: the shade strength at a
+// (lat,lng) — 0 = full day, 1 = full night. The flat view can't use the 3D
+// shade sphere, so it tints the whole screen with the value the globe shows
+// at that spot (same (lat,lng)->normal mapping, same 15° fade, same
+// smoothstep — the tint matches the globe pixel-for-pixel).
+export function shadeStrengthAt(lat, lon, date = new Date()) {
+  const phi = lat * RAD;
+  const lam = lon * RAD;
+  const nx = Math.cos(phi) * Math.sin(lam);
+  const ny = Math.sin(phi);
+  const nz = Math.cos(phi) * Math.cos(lam);
+  const sun = sunDirectionVec(date);
+  const cosAng = Math.min(1, Math.max(-1, nx * sun.x + ny * sun.y + nz * sun.z));
+  const el = Math.asin(cosAng); // sun elevation (radians), 0 at the terminator
+  const t = Math.min(1, Math.max(0, (15 * RAD - el) / (30 * RAD)));
+  return t * t * (3 - 2 * t); // smoothstep — identical to the shader
+}
+
 // Major cities [lng, lat, population weight] — real users live in cities
 const CITIES = [
     [139.69, 35.68, 37],   // Tokyo
@@ -503,11 +521,11 @@ export async function load3dModels() {
     // frame and, when flat, place bots with MapLibre's own getMatrixForModel.
     const isFlat = (projData.mainMatrix === projData.fallbackMatrix);
 
-    // Grow smaller as we zoom in — loan-style amortization: each tiny zoom
-    // step pays a fixed % of the remaining size. 80% per level, city ref 15,
-    // sky ref 5
-    const zoomScaleCity = zoom > 15 ? Math.pow(0.8, zoom - 15) : 1;
-    const zoomScaleSky = zoom > 5 ? Math.pow(0.8, zoom - 5) : 1;
+    // Grow smaller as we zoom in — the map scale doubles per level, so the
+    // decay must beat 0.5/level or the 40px cap pins the size at every zoom
+    // (city 0.2 -> ~5px at max z19, sky 0.4 -> ~4px, 4px floor at world zoom)
+    const zoomScaleCity = zoom > 15 ? Math.pow(0.2, zoom - 15) : 1;
+    const zoomScaleSky = zoom > 5 ? Math.pow(0.4, zoom - 5) : 1;
     // On-screen clamp: below the floor they vanish, above 40px they eat fill-rate.
     // Flat floor: a constant 4px minimum so models never grow as you zoom in
     // (a zoom-ramping floor made them balloon past z8).
@@ -520,7 +538,11 @@ export async function load3dModels() {
     const pxAtLat = (latDeg) => {
       const qA = map.project([center.lng, latDeg]);
       const qB = map.project([center.lng + 0.001, latDeg]);
-      return Math.hypot(qB.x - qA.x, qB.y - qA.y) / (0.001 * 111320);
+      // 0.001° of longitude shrinks with cos(lat): dividing by the equatorial
+      // distance underestimates px/m by 1/cos(lat) (11.5x at lat 85), which
+      // made the 4/40px clamp balloon to ~46/460px on screen near the poles.
+      const meters = 0.001 * 111320 * Math.max(Math.cos(latDeg * RAD), 1e-6);
+      return Math.hypot(qB.x - qA.x, qB.y - qA.y) / meters;
     };
     const px0 = pxAtLat(center.lat);
 
@@ -564,6 +586,11 @@ export async function load3dModels() {
     const wSize = map.transform && map.transform.worldSize;
     const ePix = wSize > 0 ? wSize / (2 * Math.PI) / Math.cos(cLat) : 0;
     let kappa = (Dcam > 0 && ePix > 0) ? Dcam / ePix : 1e9;
+    // Flat-frame camera height above the ground (meters): Dcam px / px0 px/m.
+    // At deep zoom this drops BELOW the bots' real altitude, so a bot placed
+    // at its true height sits above the camera and leaves the frustum — the
+    // "bots vanish when zooming in" bug. emitBot pins flat altitudes to 0.9x.
+    const camAltFlat = (Dcam > 0 && px0 > 0.0001) ? Dcam / px0 : Infinity;
     const cosPitch = Math.cos(pitchR);
     // n' = unit direction from the map center toward the camera — normalized
     // (robust, no cancellation); falls back to the center direction if the
@@ -622,7 +649,7 @@ export async function load3dModels() {
     }
 
     return {
-      isFlat, zoomScaleCity, zoomScaleSky, floor, px0,
+      isFlat, zoomScaleCity, zoomScaleSky, floor, px0, camAltFlat,
       kappa, cosPitch, nvx, nvy, nvz, stx, sty, stz,
       rVis, rCull, cmx, cmy, cmz
     };
@@ -646,6 +673,10 @@ export async function load3dModels() {
       inst.slotCount = 0;
       if (inst.fade < 1) inst.fade = Math.min(1, inst.fade + dt / 0.6); // load fade-in: grow 0→1 over 0.6s
     }
+    // Far zoom-out (engine floor is -2): if the globe ever shrinks below the
+    // bots' 4px floor, px/m rounds to 0 and the size clamp divides by zero
+    // (Infinity matrices). Skip the pass (negated form also catches NaN).
+    if (!(2 * cv.px0 * EARTH_R >= 4)) return;
     let overflow = false;
 
     // Writes one bot's matrix into its group's instance buffers
@@ -726,7 +757,11 @@ export async function load3dModels() {
         // Flat (mercator) frame: MapLibre's own real-size model matrix, scaled
         // to our clamped size (s). Unit-sphere positions are invalid here —
         // this is the frame that flung the bots off-screen before.
-        const mm = map.transform.getMatrixForModel([b.origin[0], b.origin[1]], b.altitude);
+        // Pin the altitude just below the flat camera plane (the same rule as
+        // the globe frame's u-pin): at deep zoom the camera is lower than the
+        // bots' real altitude and they leave the frustum otherwise.
+        const altFlat = Math.min(b.altitude, cv.camAltFlat * 0.9);
+        const mm = map.transform.getMatrixForModel([b.origin[0], b.origin[1]], altFlat);
         const o = slot * 16;
         for (let pi = 0, pn = inst.parts.length; pi < pn; pi++) {
           const buf = inst.parts[pi].buf;
@@ -897,6 +932,7 @@ export function loadDayNight() {
     uniforms: {
       uSunDir: { value: new THREE.Vector3(1, 0, 0) },
       uFade: { value: 15 * RAD }, // fade half-width in sun elevation (radians) — wide band, smoothstep-eased
+      uNightOnly: { value: 0 }, // 1 = dark mode: no sun, no terminator — whole globe in night
       uOpacity: { value: 0.75 }
     },
     vertexShader: `
@@ -913,6 +949,7 @@ export function loadDayNight() {
       precision highp float;
       uniform vec3 uSunDir;
       uniform float uFade;
+      uniform float uNightOnly;
       uniform float uOpacity;
       varying vec3 vNormal;
       void main() {
@@ -920,6 +957,7 @@ export function loadDayNight() {
         float cosAng = clamp(dot(n, uSunDir), -1.0, 1.0);
         float el = asin(cosAng); // sun elevation (radians), 0 at the terminator
         float t = clamp((uFade - el) / (2.0 * uFade), 0.0, 1.0); // 0 = full day, 1 = full night
+        t = mix(t, 1.0, uNightOnly); // dark mode: no light, so no fade — full night everywhere
         float d = t * t * (3.0 - 2.0 * t); // smoothstep — imperceptibly gradual, no visible edge
         gl_FragColor = vec4(0.0, 0.0, 0.102, d * uOpacity); // #00001a
       }`
@@ -927,6 +965,49 @@ export function loadDayNight() {
   const dayNightMesh = new THREE.Mesh(new THREE.SphereGeometry(1.001, 96, 48), dayNightMat);
   dayNightMesh.frustumCulled = false;
   state.scene.add(dayNightMesh);
+
+  // Flat frame: the shade sphere can't exist there, so the flat view tints
+  // the whole screen at the strength sampled at the map center (same math as
+  // the shader). Re-sampled on every painted frame, so dragging across the
+  // terminator darkens/lightens the view live.
+  //
+  // Rendered as ONE clip-space fullscreen quad in its own scene — NOT as a
+  // map fill layer: a map layer gets split into per-tile chunks, and during
+  // the globe->flat morph each chunk warps differently, showing a visible
+  // grid of seams at the tile boundaries. A clip-space quad has no tiles:
+  // one square, exactly the screen, no seams.
+  const tintScene = new THREE.Scene();
+  const tintCamera = new THREE.Camera(); // identity projection — quad is in clip space
+  const tintMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+    uniforms: {
+      uColor: { value: new THREE.Color(0.0, 0.0, 0.102) }, // #00001a, same as the sphere
+      uOpacity: { value: 0 },
+    },
+    vertexShader: `
+      void main() {
+        gl_Position = vec4(position.xy, 0.0, 1.0); // PlaneGeometry(2,2) -> exact screen
+      }`,
+    fragmentShader: `
+      precision highp float;
+      uniform vec3 uColor;
+      uniform float uOpacity;
+      void main() {
+        gl_FragColor = vec4(uColor, uOpacity);
+      }`
+  });
+  const tintMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), tintMat);
+  tintMesh.frustumCulled = false;
+  tintScene.add(tintMesh);
+
+  function flatTintOpacity() {
+    if (shadeMode === 'dark') return dayNightMat.uniforms.uOpacity.value;
+    if (shadeMode !== 'daynight') return 0;
+    const c = state.map.getCenter();
+    return shadeStrengthAt(c.lat, c.lng) * dayNightMat.uniforms.uOpacity.value;
+  }
 
   return {
     id: "daynight",
@@ -947,6 +1028,9 @@ export function loadDayNight() {
       state.scene.remove(dayNightMesh);
       dayNightMesh.geometry.dispose();
       dayNightMat.dispose();
+      tintScene.remove(tintMesh);
+      tintMesh.geometry.dispose();
+      tintMat.dispose();
       if (state.renderer) state.renderer.dispose();
       state.renderer = null;
       state.map = null;
@@ -955,20 +1039,42 @@ export function loadDayNight() {
     render(gl, args) {
       if (!state.renderer || !state.map) return;
       const map = state.map;
-      // The unit-sphere shade is only valid in the globe frame; in the flat
-      // (mercator, ~z12+) frame and in light/dark modes it is hidden.
-      const isFlat = args.defaultProjectionData.mainMatrix === args.defaultProjectionData.fallbackMatrix;
-      const visible = shadeMode === 'daynight' && !isFlat;
-      dayNightMesh.visible = visible;
-      if (!visible) return; // nothing to draw this frame
+      // The globe->flat transition MORPHS a single frame (the tile shaders
+      // mix flat/globe positions with _globeness; z11 = pure globe, z12 =
+      // pure flat — MapLibre's own ["interpolate", ["zoom"], 11, globe,
+      // 12, mercator] expression), so the shade must be ONE constant
+      // strength across it, with the two shades NEVER overlapping (overlap
+      // = double shade = too dark). Handover at z11: the 3D sphere owns
+      // the pure-globe side (z<=11), and from the first transition frame on
+      // (z>11) the fullscreen tint quad takes over — one clip-space square,
+      // no tiles, so no seam grid during the morph. First and last
+      // transition frame carry the identical shade, no fade, no pop.
+      const modeOn = shadeMode === 'daynight' || shadeMode === 'dark';
+      const inFlat = map.getZoom() > 11;
+      const sphereVisible = modeOn && !inFlat;
+      const tintVisible = modeOn && inFlat;
+      dayNightMesh.visible = sphereVisible;
+      tintMesh.visible = tintVisible;
+      if (tintVisible) tintMat.uniforms.uOpacity.value = flatTintOpacity();
+      if (!sphereVisible && !tintVisible) return; // nothing to draw this frame
       try {
-        const sun = sunDirectionVec(new Date());
-        dayNightMat.uniforms.uSunDir.value.set(sun.x, sun.y, sun.z);
-        dnCamera.projectionMatrix = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix);
-        dnCamera.matrixWorldInverse.identity();
-        state.renderer.resetState();
-        state.renderer.render(state.scene, dnCamera);
-        map.triggerRepaint(); // keep the sun tracking across frames
+        if (sphereVisible) {
+          const nightOnly = shadeMode === 'dark';
+          dayNightMat.uniforms.uNightOnly.value = nightOnly ? 1.0 : 0.0;
+          if (!nightOnly) {
+            const sun = sunDirectionVec(new Date());
+            dayNightMat.uniforms.uSunDir.value.set(sun.x, sun.y, sun.z);
+          }
+          dnCamera.projectionMatrix = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix);
+          dnCamera.matrixWorldInverse.identity();
+          state.renderer.resetState();
+          state.renderer.render(state.scene, dnCamera);
+          if (!nightOnly) map.triggerRepaint(); // only daynight animates; dark is static
+        }
+        if (tintVisible) {
+          state.renderer.resetState();
+          state.renderer.render(tintScene, tintCamera);
+        }
       } catch (err) {
         console.error('daynight render error', err);
       }

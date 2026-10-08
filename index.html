@@ -676,12 +676,20 @@
           <textarea class="toolbar-column" type="text" id="input-field-coverimage-marker" placeholder="Cover Image URL"
           oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';" onclick="event.stopPropagation();"
           ></textarea>
+          <div style="display: flex;">
+            <button id="upload-cover-marker" class="toolbar-column-btns">📎 Upload image (cover)</button>
+            <input type="file" id="upload-cover-marker-file" accept="image/png,image/jpeg,image/webp,image/gif" style="display: none;">
+          </div>
           <textarea class="toolbar-column" type="text" id="input-field-2-1" placeholder="Title"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
           <textarea class="toolbar-column" type="text" id="input-field-image-marker" placeholder="Image URL"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
+          <div style="display: flex;">
+            <button id="upload-media-marker" class="toolbar-column-btns">📎 Upload image / video</button>
+            <input type="file" id="upload-media-marker-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" style="display: none;">
+          </div>
           </div>
       
           <div style="position: relative;">
@@ -762,12 +770,20 @@
           <textarea class="toolbar-column" type="text" id="input-field-coverimage-polygon" placeholder="Cover Image URL"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
-          <textarea class="toolbar-column" type="text" id="input-field-3-1" placeholder="Title" 
+          <div style="display: flex;">
+            <button id="upload-cover-polygon" class="toolbar-column-btns">📎 Upload cover (image / gif / video)</button>
+            <input type="file" id="upload-cover-polygon-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" style="display: none;">
+          </div>
+          <textarea class="toolbar-column" type="text" id="input-field-3-1" placeholder="Title"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
           <textarea class="toolbar-column" type="text" id="input-field-image-polygon" placeholder="Inside image URL"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
+          <div style="display: flex;">
+            <button id="upload-media-polygon" class="toolbar-column-btns">📎 Upload image / video</button>
+            <input type="file" id="upload-media-polygon-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" style="display: none;">
+          </div>
           </div>
       
           <div style="position: relative;">

@@ -12,12 +12,9 @@ let finalScaleForModel = 1;
 
 export let hasRulesForModelNFT = false;
 export let ownsModelNFT = false;
+export function setOwnsModelNFT(v) { ownsModelNFT = v; }
 export let loadedNFTsForModel = [];
 export let loadedNFTScaleForModel = [];
-
-export function setOwnsModelNFT(value) {
-  ownsModelNFT = value;
-}
 
 loadedNFTScaleForModel.sort((a, b) => b.scale - a.scale);
 

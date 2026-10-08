@@ -1,4 +1,5 @@
-import { getMessages, sendMessage } from "./hedera";
+import { sendMessage } from "./msgbackend";
+import { getTopicData as getMessages } from "./topicdata";
 import { signer } from "./web3";
 import { toast } from "./toast";
 
@@ -103,9 +104,7 @@ export async function loadProfilePopup(a) {
                 updatePopupTitles();
                 updatePopupText();
                 updatePopupFontSize();
-    
-            } else {
-                console.log("Last message does not have valid data.");
+
             }
     
             return accountObjectSettings;

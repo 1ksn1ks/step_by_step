@@ -2,7 +2,8 @@ import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
 import { toast } from './toast.js';
 import { initialTopicId } from './extracttopic.js';
-import { holdJustHappened } from './poiinfo.js';
+import { holdJustHappened, closePressAnchor } from './poiinfo.js';
+import { closeTransientMapUI } from './cssLogic.js';
 
 // Plain tap/click on the map (PC left-click, phone tap) → a pin with the
 // two actions split around it: 📍 Marker on the left, 🔷 Polygon on the
@@ -71,6 +72,8 @@ function makePinEl() {
 }
 
 function showAnchor(loc) {
+  // A tap pin replaces open popups and the long-press 🗺/📡 pin
+  closeTransientMapUI();
   clearDrawPreview();
   makePinEl();
   pressLoc = loc;
@@ -142,6 +145,7 @@ export function showSearchPin(loc) {
 }
 
 function handlePress(loc) {
+  closePressAnchor(); // a plain tap replaces the open long-press 🗺/📡 anchor
   if (awaitingSecondCorner) {
     setSecondCorner(loc);
     return;

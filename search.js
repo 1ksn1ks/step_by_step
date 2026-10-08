@@ -3,6 +3,9 @@ import { CloseALL } from './cssLogic.js';
 import { activeMarkerPopups } from './marker.js';
 import { activePolygonPopups } from './polygons.js';
 import { showSearchPin, closeDrawAnchor } from './drawhere.js';
+import { fetchLocalMarkers } from './msgbackend.js';
+import { showLocalMarkers } from './localnews.js';
+import { cancelAnimateMapTo } from './animatemapto.js';
 
 const searchInput = document.getElementById('search-input');
 const searchResults = document.getElementById('search-results');
@@ -67,6 +70,7 @@ function showResults(results, query) {
       // Don't let this click reach the map's "tap outside closes the pin"
       // listeners, or the freshly dropped search pin would vanish at once
       e.stopPropagation();
+      cancelAnimateMapTo(); // stop the popup-open loop, or it kills this flyTo
       map.flyTo({
         center: [parseFloat(r.lon), parseFloat(r.lat)],
         zoom: 14,
@@ -80,6 +84,14 @@ function showResults(results, query) {
       // Picking a destination closes any open marker/polygon popups
       activePolygonPopups.forEach((popup) => popup.remove());
       activeMarkerPopups.forEach((popup) => popup.remove());
+      // Local news: show the 24h live markers for this result's country.
+      // A new pick swaps the set (showLocalMarkers clears the previous one).
+      const country = (r.address && r.address.country) || r.country_name || "";
+      if (country) {
+        fetchLocalMarkers(country).then(({ markers }) => showLocalMarkers(markers));
+      } else {
+        showLocalMarkers([]);
+      }
     });
     searchResults.appendChild(item);
   }
@@ -95,7 +107,21 @@ function showResults(results, query) {
 async function doSearch(query) {
   const requestId = ++currentRequest;
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(query)}`;
+    // addressdetails=1 → r.address.country for the local-news view;
+    // accept-language=en → country names in English, matching the backend's
+    // (also English) reverse-geocode so the two sides always agree;
+    // viewbox → bias results toward what's currently on screen, so "Athens"
+    // means Athens, Greece when you're looking at Europe (skipped when the
+    // whole globe is visible — there's no context to bias by).
+    let viewbox = "";
+    const b = map.getBounds();
+    if (
+      [b.west, b.south, b.east, b.north].every(Number.isFinite) &&
+      b.north - b.south < 180
+    ) {
+      viewbox = `&viewbox=${b.west},${b.south},${b.east},${b.north}`;
+    }
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=10&addressdetails=1&accept-language=en&q=${encodeURIComponent(query)}${viewbox}`;
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if (!res.ok) return;
     const data = await res.json();

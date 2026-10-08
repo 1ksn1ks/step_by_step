@@ -1,6 +1,8 @@
 import { adjustTextareaHeight } from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
-import { getMessages, getAccountNFTs, sendMessage, getTopicInfo } from './hedera';
+import { getAccountNFTs, getTopicInfo } from './hedera';
+import { sendMessage } from './msgbackend';
+import { getTopicData as getMessages } from './topicdata';
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium'
 import { signer } from './web3';
 import { toast } from './toast'

@@ -1,4 +1,4 @@
-import { getMessages } from "./hedera";
+import { getTopicData as getMessages } from "./topicdata";
 
 
 export let loadedDomains = [];
@@ -9,8 +9,6 @@ async function loadDomains() {
     const topicId = "0.0.9606779";
 
     const rawResult = await getMessages(topicId);
-    console.log('[loaddomains] raw messages fetched:', rawResult && Array.isArray(rawResult.messages) ? rawResult.messages.length : 'NO MESSAGES ARRAY');
-    console.log('[loaddomains] messages:', rawResult && Array.isArray(rawResult.messages) ? rawResult.messages : rawResult);
 
     const seen = new Map();
     const uniqueMessages = {messages:[]};
@@ -28,7 +26,6 @@ async function loadDomains() {
 
 
     if (!rawResult || !Array.isArray(rawResult.messages)) {
-      console.log("No messages found or rawResult is not an array.");
       return [];
     }
 
@@ -60,8 +57,6 @@ async function loadDomains() {
         console.error(`Error processing message ${index}:`, messageError);
       }
     }
-
-    console.log('[loaddomains] distinct domains in topic:', domainsMap.size);
 
     const SECONDS_TO_ADD = 2419200;
     const currentTime = Date.now() / 1000;
@@ -110,10 +105,7 @@ async function loadDomains() {
     });
 
     // Filter out expired domains (keep only active ones where addedTime > currentTime)
-    console.log('[loaddomains] expiry check | currentTime:', currentTime.toFixed(0));
-    domainsArray.forEach(d => console.log('[loaddomains]   domain:', d.domain, '| addedTime:', d.addedTime, '| active:', d.addedTime > currentTime));
     domainsArray = domainsArray.filter(item => item.addedTime > currentTime);
-    console.log('[loaddomains] active (unexpired) domains:', domainsArray.length);
 
     return domainsArray;
 
@@ -125,5 +117,4 @@ async function loadDomains() {
 
 loadDomains().then(domains => {
   loadedDomains = domains.filter(domain => !domain.domain.includes("0.0."));
-  console.log('[loaddomains] FINAL loadedDomains:', loadedDomains.length, '(active before "0.0." filter:', domains.length + ')');
 });

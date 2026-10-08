@@ -1,10 +1,12 @@
 import { map } from './map.js';
-import { closeDrawAnchor } from './drawhere.js';
+import { closeTransientMapUI } from './cssLogic.js';
 
-// Long-press (phone) / right-click (PC) on the map → a question:
-// "Do you want to open this place in Google Maps?" — Yes opens Google Maps
-// for that spot in a new tab, No/×/outside just closes.
-//
+// Long-press (phone) / right-click (PC) on the map → the SAME pin as the
+// plain tap (drawhere.js), with two actions split around it:
+//   🗺 Open in Maps (left)  — that spot in the phone's default maps app
+//                              (geo:), or Google Maps web on a PC
+//   📡 Look for Live (right) — the 24h live markers of the country at that
+//                              spot (the exact view a country search shows)
 // The plain tap/click (the 📍/🔷 pin in drawhere.js) must keep working,
 // so the tap a hold generates is swallowed via holdJustHappened().
 
@@ -30,9 +32,9 @@ canvas.addEventListener('touchstart', (e) => {
   holdStart = { x: t.clientX, y: t.clientY };
   holdTimer = setTimeout(() => {
     holdTimer = null;
-    suppressClickUntil = Date.now() + 600; // the hold became a question, not a tap
+    suppressClickUntil = Date.now() + 600; // the hold became the pin, not a tap
     const rect = canvas.getBoundingClientRect();
-    askGoogleMaps(map.unproject([t.clientX - rect.left, t.clientY - rect.top]));
+    showPressAnchor(map.unproject([t.clientX - rect.left, t.clientY - rect.top]));
   }, HOLD_MS);
 }, { passive: true });
 
@@ -59,91 +61,97 @@ canvas.addEventListener('touchcancel', () => {
   }
 }, { passive: true });
 
-let question = null;
-let questionPin = null;
+let pressAnchor = null; // the anchor element (left button, pin, right button)
+let pressLoc = null;    // the geographic point under the pin
 
-function closeQuestion() {
-  if (questionPin) {
-    questionPin.remove();
-    questionPin = null;
+// Keeps the pin anchored to its map point while the camera moves
+// (same as the draw pin in drawhere.js)
+function onMapMove() {
+  if (!pressAnchor || !pressLoc) return;
+  const p = map.project(pressLoc);
+  pressAnchor.style.left = p.x + 'px';
+  pressAnchor.style.top = p.y + 'px';
+}
+map.on('move', onMapMove);
+
+export function closePressAnchor() {
+  if (pressAnchor) {
+    pressAnchor.remove();
+    pressAnchor = null;
   }
-  if (question) {
-    question.remove();
-    question = null;
-  }
+  pressLoc = null;
 }
 
-function askGoogleMaps(lngLat) {
-  closeDrawAnchor(); // a long-press replaces an open 📍/🔷 pin
-  closeQuestion();
-  const { lng, lat } = lngLat;
+function showPressAnchor(lngLat) {
+  // A long-press / right-click replaces open popups and the 📍/🔷 pin
+  closeTransientMapUI();
+  pressLoc = lngLat;
 
-  // The draw-here pin itself: same anchor structure, positioned with left/top
-  // (a MapLibre Marker would set an inline transform the drop animation overrides)
-  const pinAnchor = document.createElement('div');
-  pinAnchor.className = 'draw-here-anchor';
-  const pinEl = document.createElement('div');
-  pinEl.className = 'draw-here-pin';
-  pinEl.onclick = closeQuestion; // like the draw-here pin: tap closes
-  pinAnchor.appendChild(pinEl);
-  const p = map.project([lng, lat]);
-  pinAnchor.style.left = p.x + 'px';
-  pinAnchor.style.top = p.y + 'px';
-  document.body.appendChild(pinAnchor);
-  questionPin = pinAnchor;
+  const anchor = document.createElement('div');
+  anchor.className = 'draw-here-anchor';
 
-  const backdrop = document.createElement('div');
-  backdrop.style.cssText = 'position: fixed; inset: 0; z-index: 1010; background: rgba(0, 0, 0, 0.35); display: flex; align-items: center; justify-content: center;';
+  const pin = document.createElement('div');
+  pin.className = 'draw-here-pin';
+  pin.onclick = closePressAnchor; // like the draw-here pin: tap closes
+  anchor.appendChild(pin);
 
-  const card = document.createElement('div');
-  card.style.cssText = 'position: relative; background: rgba(15, 15, 20, 0.85); -webkit-backdrop-filter: blur(10px) saturate(140%); backdrop-filter: blur(10px) saturate(140%); border: 0.2vh solid rgba(255, 255, 255, 0.3); border-radius: 1vh; padding: 2vh 2.5vh; color: white; font-family: Arial, sans-serif; text-align: center; max-width: 80vw;';
-
-  const q = document.createElement('div');
-  q.textContent = 'Do you want to open this place in Google Maps?';
-  q.style.cssText = 'font-size: 2.2vh; margin-bottom: 2vh;';
-
-  const btnRow = document.createElement('div');
-  btnRow.style.cssText = 'display: flex; gap: 1.5vh; justify-content: center;';
-
-  const yes = document.createElement('button');
-  yes.textContent = 'Yes';
-  yes.style.cssText = 'background: rgba(34, 211, 238, 0.9); color: black; border: none; border-radius: 1vh; padding: 0.8vh 2.5vh; font-size: 1.8vh; font-weight: 600; cursor: pointer;';
-
-  const no = document.createElement('button');
-  no.textContent = 'No';
-  no.style.cssText = 'background: rgba(255, 255, 255, 0.12); color: white; border: 0.1vh solid rgba(255, 255, 255, 0.3); border-radius: 1vh; padding: 0.8vh 2.5vh; font-size: 1.8vh; cursor: pointer;';
-
-  const close = document.createElement('span');
-  close.textContent = '×';
-  close.style.cssText = 'position: absolute; top: 0.7vh; right: 1vh; font-size: 2.4vh; color: gray; cursor: pointer;';
-
-  yes.onclick = () => {
-    closeQuestion();
-    window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank', 'noopener');
+  const mapsBtn = document.createElement('button');
+  mapsBtn.className = 'draw-here-btn';
+  mapsBtn.textContent = '🗺 Open in Maps';
+  mapsBtn.onclick = (e) => {
+    e.stopPropagation();
+    closePressAnchor();
+    // Mobile: geo: opens the phone's DEFAULT maps app (Apple Maps on iOS,
+    // whatever the user set on Android). PC: geo: has no reliable handler
+    // (Linux: none at all), so desktop keeps Google Maps web.
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const url = isMobile
+      ? `geo:${lngLat.lat},${lngLat.lng}`
+      : `https://www.google.com/maps/search/?api=1&query=${lngLat.lat},${lngLat.lng}`;
+    window.open(url, '_blank', 'noopener');
   };
-  no.onclick = closeQuestion;
-  close.onclick = closeQuestion;
 
-  btnRow.appendChild(yes);
-  btnRow.appendChild(no);
-  card.appendChild(q);
-  card.appendChild(btnRow);
-  card.appendChild(close);
-  backdrop.appendChild(card);
-  backdrop.addEventListener('click', (e) => {
-    if (e.target === backdrop) closeQuestion();
-  });
+  const liveBtn = document.createElement('button');
+  liveBtn.className = 'draw-here-btn';
+  liveBtn.textContent = '📡 Look for Live';
+  liveBtn.onclick = (e) => {
+    e.stopPropagation();
+    closePressAnchor();
+    // The exact pipeline a country search uses: reverse-geocode the spot in
+    // ENGLISH (so the country string matches what /api/local stored), then
+    // show that country's 24h live markers. Dynamic: localnews pulls in
+    // processallmessages → threejs, which use `map` at MODULE LEVEL.
+    import('./localnews.js')
+      .then(({ showLocationMarkers }) =>
+        showLocationMarkers(lngLat.lat, lngLat.lng)
+      )
+      .catch(() => {});
+  };
 
-  document.body.appendChild(backdrop);
-  question = backdrop;
+  // Same layout as the draw pin: left button, pin, right button
+  anchor.insertBefore(mapsBtn, anchor.firstChild);
+  anchor.appendChild(liveBtn);
+  const p = map.project([lngLat.lng, lngLat.lat]);
+  anchor.style.left = p.x + 'px';
+  anchor.style.top = p.y + 'px';
+  document.body.appendChild(anchor);
+  pressAnchor = anchor;
 }
+
+// Tap anywhere outside the pin/buttons closes it — same as the draw pin.
+// The click of the tap that OPENED the anchor is still inside
+// suppressClickUntil, so it is ignored here.
+document.addEventListener('click', (e) => {
+  if (Date.now() < suppressClickUntil) return;
+  if (pressAnchor && !pressAnchor.contains(e.target)) closePressAnchor();
+});
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeQuestion();
+  if (e.key === 'Escape') closePressAnchor();
 });
 
 // PC: right-click (the PC twin of the phone long-press). A right-click-DRAG is
-// the pitch/rotate gesture, so only a stationary right-click opens the question.
+// the pitch/rotate gesture, so only a stationary right-click opens the anchor.
 let rightDownPos = null;
 canvas.addEventListener('mousedown', (e) => {
   if (e.button === 2) rightDownPos = { x: e.clientX, y: e.clientY };
@@ -157,5 +165,5 @@ canvas.addEventListener('contextmenu', (e) => {
   rightDownPos = null;
   if (wasDrag) return;
   const rect = canvas.getBoundingClientRect();
-  askGoogleMaps(map.unproject([e.clientX - rect.left, e.clientY - rect.top]));
+  showPressAnchor(map.unproject([e.clientX - rect.left, e.clientY - rect.top]));
 });

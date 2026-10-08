@@ -1,0 +1,99 @@
+================================================================
+ HEDERA MAP — INSTALL ON A NEW PC
+================================================================
+
+WHAT'S IN THIS FOLDER
+---------------------
+- the whole app (frontend + backend)
+- server/.env.example — copy to server/.env and fill in the R2 values
+- NO node_modules — you install the modules yourself (step 3)
+- NO server/.env, NO certs/, NO server/data.db in git
+  (those stay on your machine; see below)
+
+STEP 1 — INSTALL NODE.JS (one time, ~2 min)
+-------------------------------------------
+- Go to https://nodejs.org and download the LTS version (v22 or
+  newer). Install with default options.
+- Check it worked (terminal):  node -v   → should print v22.x or newer
+
+STEP 2 — UNZIP
+--------------
+- Put the unzipped folder somewhere simple, e.g.  C:\hedera-map
+- Avoid paths with spaces or special characters.
+
+STEP 3 — INSTALL THE MODULES (you do this part, internet needed)
+----------------------------------------------------------------
+Open a terminal IN THE FOLDER (Windows: open cmd, then
+`cd C:\hedera-map`), then run:
+
+    npm install
+
+Copy the upload config and fill in your own Cloudflare R2 values
+(this file is gitignored — do not commit it):
+
+    copy server\.env.example server\.env
+
+Then the backend's own modules:
+
+    cd server
+    npm install
+
+This takes a few minutes. Both must finish without errors.
+
+STEP 4 — START (open TWO terminals, keep both open)
+---------------------------------------------------
+Terminal 1 — the backend:
+
+    cd server
+    node index.js
+
+→ it prints that it is listening on port 8787. Leave it running.
+
+Terminal 2 — the app (in the main folder, not server):
+
+    npm run dev
+
+→ open in your browser:  http://localhost:5173
+  If certs/server.crt and certs/server.key are present, Vite uses
+  HTTPS instead:  https://localhost:5173
+  The browser will warn "Not secure" (self-signed cert).
+  Click Advanced → Proceed / Accept the risk. Once per browser.
+  Those cert files are gitignored. Do not commit the private key.
+
+THAT'S IT.
+- media uploads work once server/.env has your R2 values
+- topic history is a local cache: the server creates server/data.db
+  and backfills it from the Hedera mirror. Do not commit that file.
+
+PHONE ACCESS (optional — same as old PC)
+----------------------------------------
+1. Install Tailscale on the new PC and log into the same account
+   (https://tailscale.com).
+2. Your app is then reachable at:
+     https://<your-pc-tailscale-name>.<your-tailnet>.ts.net:5173
+   (see the MagicDNS name at https://login.tailscale.com)
+3. Keep both terminals from step 4 running.
+
+PRODUCTION BUILD (optional — faster, no hot reload)
+---------------------------------------------------
+    npm run build
+    npm run preview
+→ http://localhost:5173   (or https:// if certs/ is present)
+  The backend on 8787 must still be running.
+
+TROUBLESHOOTING
+---------------
+- "port 5173 already in use"  → close whatever uses it, or stop
+  the other terminal and restart.
+- Upload fails / "R2" errors  → the token in server/.env may have
+  been rotated — open server/.env and fix the values.
+- npm install fails           → make sure node -v is v22 or newer.
+- Backend says CORS error on  → backend must run on plain HTTP
+  port 8787 (it does by default — just `node index.js`).
+- Blank page / connection
+  refused in phone            → both terminals running? Tailscale
+  connected? Firewall allows 5173?
+
+STOPPING
+--------
+Ctrl+C in each terminal. To start again later: step 4.
