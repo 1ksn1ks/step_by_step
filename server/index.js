@@ -14,7 +14,7 @@
 
 import "dotenv/config";
 import express from "express";
-import Database from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -57,7 +57,7 @@ const DATA_DIR = process.env.DATA_DIR || __dirname;
 let db;
 try {
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  db = new Database(path.join(DATA_DIR, "data.db"));
+  db = new DatabaseSync(path.join(DATA_DIR, "data.db"));
 } catch (err) {
   console.error(`cannot open database at ${DATA_DIR}: ${err.message}`);
   if (err.code === "EACCES" || err.code === "EPERM") {
@@ -65,7 +65,7 @@ try {
   }
   process.exit(1);
 }
-db.pragma("journal_mode = WAL");
+db.exec("PRAGMA journal_mode = WAL");
 db.exec(`
   CREATE TABLE IF NOT EXISTS messages (
     topic_id TEXT NOT NULL,
@@ -560,7 +560,18 @@ function markerReactions(topicId, createdISO) {
 // per-account user_settings view.
 const storePage = (topicId, msgs) => {
   const stored = [];
-  db.transaction((rows) => {
+  const transaction = (fn) => (...args) => {
+    db.exec("BEGIN");
+    try {
+      const result = fn(...args);
+      db.exec("COMMIT");
+      return result;
+    } catch (err) {
+      db.exec("ROLLBACK");
+      throw err;
+    }
+  };
+  transaction((rows) => {
     for (const m of rows) {
       let body;
       try {
