@@ -11,7 +11,7 @@
     "dev": "vite",
     "build": "vite build",
     "postbuild": "npm install --prefix server",
-    "start": "node server/index.js",
+    "start": "node server/boot.js",
     "preview": "vite preview"
   },
   "devDependencies": {

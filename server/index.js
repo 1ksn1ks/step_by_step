@@ -54,8 +54,17 @@ const PROFILE_TOPICS = {
 // DATA_DIR is the persistent disk on Railway. Mount a volume at /data and
 // set DATA_DIR=/data. Locally the file stays next to this script.
 const DATA_DIR = process.env.DATA_DIR || __dirname;
-fs.mkdirSync(DATA_DIR, { recursive: true });
-const db = new Database(path.join(DATA_DIR, "data.db"));
+let db;
+try {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  db = new Database(path.join(DATA_DIR, "data.db"));
+} catch (err) {
+  console.error(`cannot open database at ${DATA_DIR}: ${err.message}`);
+  if (err.code === "EACCES" || err.code === "EPERM") {
+    console.error("The volume is not writable. Set RAILWAY_RUN_UID=0 on the Railway service and redeploy.");
+  }
+  process.exit(1);
+}
 db.pragma("journal_mode = WAL");
 db.exec(`
   CREATE TABLE IF NOT EXISTS messages (
@@ -1180,7 +1189,7 @@ if (fs.existsSync(distDir)) {
   });
 }
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   const serving = fs.existsSync(distDir) ? ", serving dist" : "";
   console.log(`topic backend on :${PORT} (mirror: ${MIRROR})${serving}`);
 });
