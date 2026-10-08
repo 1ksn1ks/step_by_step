@@ -15,6 +15,7 @@
 import "dotenv/config";
 import express from "express";
 import Database from "better-sqlite3";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { S3Client, PutObjectCommand, PutBucketCorsCommand } from "@aws-sdk/client-s3";
@@ -50,7 +51,11 @@ const PROFILE_TOPICS = {
 };
 
 // ── SQLite (one file, disposable cache) ────────────────────────────────
-const db = new Database(path.join(__dirname, "data.db"));
+// DATA_DIR is the persistent disk on Railway. Mount a volume at /data and
+// set DATA_DIR=/data. Locally the file stays next to this script.
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const db = new Database(path.join(DATA_DIR, "data.db"));
 db.pragma("journal_mode = WAL");
 db.exec(`
   CREATE TABLE IF NOT EXISTS messages (
@@ -1161,4 +1166,21 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true, tracked: q.listTopics.all().length, mirror: MIRROR, streams: resTopics.size });
 });
 
-app.listen(PORT, () => console.log(`topic backend on :${PORT} (mirror: ${MIRROR})`));
+// Production: one process serves the built map and the API on the same
+// origin. /api routes above win. Local `npm run dev` still uses Vite.
+const distDir = path.join(__dirname, "..", "dist");
+if (fs.existsSync(distDir)) {
+  app.use(express.static(distDir));
+  app.use((req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    if (req.path.startsWith("/api")) return next();
+    res.sendFile(path.join(distDir, "index.html"), (err) => {
+      if (err) next(err);
+    });
+  });
+}
+
+app.listen(PORT, () => {
+  const serving = fs.existsSync(distDir) ? ", serving dist" : "";
+  console.log(`topic backend on :${PORT} (mirror: ${MIRROR})${serving}`);
+});
