@@ -179,7 +179,7 @@
           <h3 class="info-overlay-title">Profile Editor</h3>
           <p class="info-overlay-subtitle">Make the map yours.</p>
           <ul class="info-overlay-list">
-            <li><b>Profile picture</b> — paste an image URL to set it.</li>
+            <li><b>Profile picture</b> — upload an image. The preview shows it before you save.</li>
             <li><b>Username</b> — enter a new name, then press Save.</li>
             <li><b>BIO</b> — set your profile bio; tapping a PFP shows it in Load.</li>
             <li><b>CLICK2LINK</b> — attach any URL to your username.</li>
@@ -231,6 +231,16 @@
           </div>
       
           <div id="edit-profile-picture" style="display: none;">
+            <input type="hidden" id="input-field-profile-picture">
+            <div class="upload-preview" id="preview-profile-picture" hidden>
+              <img alt="" hidden>
+              <video muted playsinline loop autoplay hidden></video>
+              <button type="button" class="upload-preview-clear">Remove</button>
+            </div>
+            <div style="display: flex;">
+              <button id="upload-profile-picture" class="toolbar-column-btns" type="button">📎 Upload image</button>
+              <input type="file" id="upload-profile-picture-file" accept="image/png,image/jpeg,image/webp,image/gif" style="display: none;">
+            </div>
             <button class="toolbar-column-btns" id="button1" style="display: block;">Change PFP
             </button>
           </div>

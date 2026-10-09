@@ -1613,14 +1613,14 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
  
  document.getElementById("button1").addEventListener("click", async (event) => {
          event.stopPropagation();
-         const inputValue = document.getElementById("toolbar-input").value;
+         const inputValue = document.getElementById("input-field-profile-picture").value;
 
          if (!signer) {
            toast.error("Connect wallet first");
            return;
          }
          if (!inputValue) {
-           toast.error("Please enter a URL.");
+           toast.error("Upload an image first.");
            return;
          }
          if (!isValidUrl(inputValue)) {

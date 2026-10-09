@@ -1610,7 +1610,6 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     editProfileEverything()
     editProfileShowOptions()
     editProfileHideOptions()
-    document.getElementById("edit-profile-url-name-domain").style.display = "block";
     document.getElementById("hide-profile-picture-from-edit-profile").style.display = "block";
     document.getElementById("show-profile-picture-from-edit-profile").style.display = "none";
     document.getElementById("edit-profile-picture").style.display = "block";

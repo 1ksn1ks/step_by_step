@@ -10,6 +10,8 @@
 // Inside field is what the popup plays — e.g. a 15s cover ad + the real
 // video in the popup. No automatic thumbnail.
 import { toast } from "./toast.js";
+import { connectedAccount } from "./web3.js";
+import { profilePictures } from "./loadalladata.js";
 
 const VIDEO_MAX = 100 * 1024 * 1024;
 const IMAGE_MAX = 20 * 1024 * 1024;
@@ -79,6 +81,7 @@ const PREVIEW_FOR = {
   "input-field-image-marker": "preview-image-marker",
   "input-field-coverimage-polygon": "preview-coverimage-polygon",
   "input-field-image-polygon": "preview-image-polygon",
+  "input-field-profile-picture": "preview-profile-picture",
 };
 
 function isVideoUrl(url) {
@@ -194,6 +197,18 @@ bindUploader("upload-media-marker", "upload-media-marker-file", "input-field-ima
 bindUploader("upload-cover-marker", "upload-cover-marker-file", "input-field-coverimage-marker", MARKER_COVER_TYPES, "Only PNG, JPG, WebP, GIF");
 bindUploader("upload-cover-polygon", "upload-cover-polygon-file", "input-field-coverimage-polygon", POLYGON_COVER_TYPES, "Only PNG, JPG, GIF, WebP, MP4, WebM");
 bindUploader("upload-media-polygon", "upload-media-polygon-file", "input-field-image-polygon", MEDIA_TYPES, "Only PNG, JPG, GIF, WebP, MP4, WebM");
+bindUploader("upload-profile-picture", "upload-profile-picture-file", "input-field-profile-picture", MARKER_COVER_TYPES, "Only PNG, JPG, WebP, GIF");
+
+function showSavedProfilePreview() {
+  const field = document.getElementById("input-field-profile-picture");
+  const uploaded = field && field.value;
+  const saved = connectedAccount && profilePictures[connectedAccount] && profilePictures[connectedAccount].url;
+  const url = uploaded || saved;
+  if (url) showFieldPreview("input-field-profile-picture", url, "image");
+}
+
+const showProfilePicture = document.getElementById("show-profile-picture-from-edit-profile");
+if (showProfilePicture) showProfilePicture.addEventListener("click", showSavedProfilePreview);
 
 for (const fieldId of Object.keys(PREVIEW_FOR)) {
   const box = previewBox(fieldId);
