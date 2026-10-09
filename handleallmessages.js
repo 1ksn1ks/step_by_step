@@ -239,8 +239,6 @@ export async function handleAllMessages() {
   
       const result = await getMessages(topicId);
 
-      applyInitialXYZ(result.messages, topicAdmin);
-
       let hasMoreThanOneTopic = false;
   
       geojson.features = [];
@@ -345,6 +343,10 @@ export async function handleAllMessages() {
         }
 
       }
+
+      // After the cluster index exists. Flying earlier runs updateClusters
+      // on every animation frame before index.load and kills the map.
+      applyInitialXYZ(result.messages, topicAdmin);
   
       newGlobalLoadedTopicIdsWithNames(loadedTopicIdsWithNames);
   

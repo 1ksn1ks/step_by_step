@@ -186,6 +186,14 @@ export function updateClusters(force = true) {
 
     const currentBounds = map.getBounds().toArray().flat();
     const zoom = map.getZoom();
+    // A camera move (initial XYZ flyTo) can run while topic messages are
+    // still being parsed, before index.load. getClusters then throws inside
+    // the map frame and the map stays dead ("already running").
+    const treeZoom = Math.max(
+      index.options.minZoom,
+      Math.min(Math.floor(+zoom), index.options.maxZoom + 1)
+    );
+    if (!Number.isFinite(treeZoom) || !index.trees[treeZoom]) return;
     // Drop points on the far side of the globe — they would project
     // through the sphere onto the visible disc
     const clusters = index.getClusters(currentBounds, Math.floor(zoom)).filter(
@@ -345,7 +353,13 @@ export function updateClusters(force = true) {
   // Per-frame viewport path (see updateClusters) — the old 1s-debounced
   // moveend re-render let the cluster state lag the zoom, which read as
   // markers sliding and jumping mid-zoom.
-  const viewportTopicUpdate = () => updateClusters(false);
+  const viewportTopicUpdate = () => {
+    try {
+      updateClusters(false);
+    } catch (err) {
+      console.error("updateClusters failed", err);
+    }
+  };
 
   let markersVisible = false;
 
