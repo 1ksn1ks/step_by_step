@@ -1179,6 +1179,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         payer: message.payer,
                         coordinates: [coordinates],
                         description: polygonPopupHTML,
+                        title: String(parsedMessage.polygon.data.title || "").slice(0, 20),
                         imageUrl: isValidUrl(parsedMessage.polygon.data.coverimage) ? parsedMessage.polygon.data.coverimage : profileUrl
                       });
                     }
@@ -2873,6 +2874,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         payer: message.payer,
                         coordinates: [coordinates],
                         description: polygonPopupHTML,
+                        title: String(parsedMessage.polygon.data.title || "").slice(0, 20),
                         imageUrl: isValidUrl(parsedMessage.polygon.data.coverimage) ? parsedMessage.polygon.data.coverimage : profileUrl
                       });
                     }
@@ -3599,6 +3601,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         payer: message.payer,
                         coordinates: [coordinates],
                         description: polygonPopupHTML,
+                        title: String(parsedMessage.polygon.data.title || "").slice(0, 20),
                         imageUrl: isValidUrl(parsedMessage.polygon.data.coverimage) ? parsedMessage.polygon.data.coverimage : profileUrl
                       });
                     }

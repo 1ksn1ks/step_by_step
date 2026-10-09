@@ -1161,9 +1161,7 @@ document.getElementById("show-topic-rules-from-marker").addEventListener("click"
     "show-topic-rules-from-marker",
     "input-field-number-of-marker",
     "input-field-2-3",
-    "input-field-coverimage-marker",
     "input-field-2-1",
-    "input-field-image-marker",
     "input-field-2-2",
     "char-counter-marker",
     "marker-submit-buttons"
@@ -1183,9 +1181,7 @@ document.getElementById("hide-topic-rules-from-marker").addEventListener("click"
   showElements(
     "input-field-number-of-marker",
     "input-field-2-3",
-    "input-field-coverimage-marker",
     "input-field-2-1",
-    "input-field-image-marker",
     "input-field-2-2",
     "char-counter-marker",
   );
@@ -1202,9 +1198,7 @@ document.getElementById("show-optional-settings-marker").addEventListener("click
   showElements(
     "input-field-number-of-marker",
     "input-field-2-3",
-    "input-field-coverimage-marker",
     "input-field-2-1",
-    "input-field-image-marker",
     "input-field-2-2",
     "char-counter-marker",
   );
@@ -1238,9 +1232,7 @@ document.getElementById("show-delete-marker-from-marker").addEventListener("clic
   hideElements(
     "input-field-number-of-marker",
     "input-field-2-3",
-    "input-field-coverimage-marker",
     "input-field-2-1",
-    "input-field-image-marker",
     "input-field-2-2",
     "char-counter-marker",
     "marker-submit-buttons"
@@ -1260,9 +1252,7 @@ document.getElementById("hide-delete-marker-from-marker").addEventListener("clic
   showElements(
     "input-field-number-of-marker",
     "input-field-2-3",
-    "input-field-coverimage-marker",
     "input-field-2-1",
-    "input-field-image-marker",
     "input-field-2-2",
     "char-counter-marker",
   );

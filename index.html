@@ -689,9 +689,12 @@
           </div>
       
           <div id="optional-settings-from-marker" style="display: none;">
-          <textarea class="toolbar-column" type="text" id="input-field-coverimage-marker" placeholder="Cover Image URL"
-          oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';" onclick="event.stopPropagation();"
-          ></textarea>
+          <input type="hidden" id="input-field-coverimage-marker">
+          <div class="upload-preview" id="preview-coverimage-marker" hidden>
+            <img alt="" hidden>
+            <video muted playsinline loop autoplay hidden></video>
+            <button type="button" class="upload-preview-clear">Remove</button>
+          </div>
           <div style="display: flex;">
             <button id="upload-cover-marker" class="toolbar-column-btns">📎 Upload image (cover)</button>
             <input type="file" id="upload-cover-marker-file" accept="image/png,image/jpeg,image/webp,image/gif" style="display: none;">
@@ -704,9 +707,12 @@
           <div id="char-counter-marker-title" style="position: absolute; bottom: 5px; right: 10px; font-size: 2vh; color: #22d3ee;">0/20
           </div>
           </div>
-          <textarea class="toolbar-column" type="text" id="input-field-image-marker" placeholder="Image URL"
-            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
+          <input type="hidden" id="input-field-image-marker">
+          <div class="upload-preview" id="preview-image-marker" hidden>
+            <img alt="" hidden>
+            <video muted playsinline loop autoplay hidden></video>
+            <button type="button" class="upload-preview-clear">Remove</button>
+          </div>
           <div style="display: flex;">
             <button id="upload-media-marker" class="toolbar-column-btns">📎 Upload image / video</button>
             <input type="file" id="upload-media-marker-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" style="display: none;">
@@ -788,9 +794,12 @@
           </div>
           
           <div id="optional-settings-from-polygon" style="display: none;">
-          <textarea class="toolbar-column" type="text" id="input-field-coverimage-polygon" placeholder="Cover Image URL"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
+          <input type="hidden" id="input-field-coverimage-polygon">
+          <div class="upload-preview" id="preview-coverimage-polygon" hidden>
+            <img alt="" hidden>
+            <video muted playsinline loop autoplay hidden></video>
+            <button type="button" class="upload-preview-clear">Remove</button>
+          </div>
           <div style="display: flex;">
             <button id="upload-cover-polygon" class="toolbar-column-btns">📎 Upload cover (image / gif / video)</button>
             <input type="file" id="upload-cover-polygon-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" style="display: none;">
@@ -803,9 +812,12 @@
           <div id="char-counter-polygon-title" style="position: absolute; bottom: 5px; right: 10px; font-size: 2vh; color: #22d3ee;">0/20
           </div>
           </div>
-          <textarea class="toolbar-column" type="text" id="input-field-image-polygon" placeholder="Inside image URL"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
+          <input type="hidden" id="input-field-image-polygon">
+          <div class="upload-preview" id="preview-image-polygon" hidden>
+            <img alt="" hidden>
+            <video muted playsinline loop autoplay hidden></video>
+            <button type="button" class="upload-preview-clear">Remove</button>
+          </div>
           <div style="display: flex;">
             <button id="upload-media-polygon" class="toolbar-column-btns">📎 Upload image / video</button>
             <input type="file" id="upload-media-polygon-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" style="display: none;">

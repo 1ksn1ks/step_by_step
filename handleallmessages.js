@@ -362,6 +362,12 @@ export async function handleAllMessages() {
   
         } catch (error) {
           console.error("Error processing topic messages:", error);
+        } finally {
+          // Notification links wait for this before looking up a marker.
+          if (!window.__topicsReady) {
+            window.__topicsReady = true;
+            window.dispatchEvent(new Event("topics-ready"));
+          }
         }
   };
   

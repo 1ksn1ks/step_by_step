@@ -16,6 +16,51 @@ import { closePressAnchor } from './poiinfo';
 
 export let addedLayers = new Set();
 
+let polygonTitleTip = null;
+let polygonTitleTimer = 0;
+let polygonTitleFromTouch = false;
+
+function ensurePolygonTitleTip() {
+  if (polygonTitleTip) return polygonTitleTip;
+  polygonTitleTip = document.createElement("div");
+  polygonTitleTip.className = "polygon-title-tip";
+  polygonTitleTip.hidden = true;
+  document.body.appendChild(polygonTitleTip);
+  return polygonTitleTip;
+}
+
+function eventPoint(e) {
+  if (e.point) return e.point;
+  const touch = e.originalEvent && (e.originalEvent.touches?.[0] || e.originalEvent.changedTouches?.[0]);
+  if (!touch) return null;
+  const rect = map.getCanvas().getBoundingClientRect();
+  return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+}
+
+function hidePolygonTitle() {
+  clearTimeout(polygonTitleTimer);
+  polygonTitleFromTouch = false;
+  if (polygonTitleTip) polygonTitleTip.hidden = true;
+}
+
+function showPolygonTitle(title, point, fromTouch) {
+  const text = String(title || "").trim();
+  if (!text || !point) {
+    hidePolygonTitle();
+    return;
+  }
+  clearTimeout(polygonTitleTimer);
+  polygonTitleFromTouch = fromTouch;
+  const tip = ensurePolygonTitleTip();
+  tip.textContent = text;
+  tip.hidden = false;
+  const rect = map.getCanvas().getBoundingClientRect();
+  tip.style.left = `${rect.left + point.x}px`;
+  tip.style.top = `${rect.top + point.y}px`;
+}
+
+map.on("movestart", hidePolygonTitle);
+
 export let activePolygonPopups = [];
 export function newActivePolygonPopups(a) {
   activePolygonPopups = a;
@@ -558,6 +603,7 @@ export async function addPolygonWithImageFill(map, polygon) {
       // Add interactivity (only if not already added)
       if (!addedLayers.has(maskLayerId)) {
         map.on('click', maskLayerId, (e) => {
+          hidePolygonTitle();
           if (polygon.description) {
             const targetLngLat = e.lngLat.toArray()
             // A fresh popup per click: re-adding the same instance after an
@@ -602,9 +648,28 @@ export async function addPolygonWithImageFill(map, polygon) {
         map.on('mouseenter', maskLayerId, () => {
           map.getCanvas().style.cursor = 'pointer';
         });
-  
+
+        map.on('mousemove', maskLayerId, (e) => {
+          showPolygonTitle(polygon.title, eventPoint(e), false);
+        });
+
         map.on('mouseleave', maskLayerId, () => {
           map.getCanvas().style.cursor = '';
+          if (polygonTitleFromTouch) {
+            clearTimeout(polygonTitleTimer);
+            polygonTitleTimer = setTimeout(hidePolygonTitle, 1200);
+          } else {
+            hidePolygonTitle();
+          }
+        });
+
+        map.on('touchstart', maskLayerId, (e) => {
+          showPolygonTitle(polygon.title, eventPoint(e), true);
+        });
+
+        map.on('touchend', maskLayerId, () => {
+          clearTimeout(polygonTitleTimer);
+          polygonTitleTimer = setTimeout(hidePolygonTitle, 1200);
         });
 
         // Mark this layer as added

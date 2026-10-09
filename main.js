@@ -31,6 +31,7 @@ import './handlegofilter.js'
 import './search.js'
 import './domaintimeleft.js'
 import './installapp.js'
+import './openplace.js'
 
 window.restrictLength = function(input, maxLength) {
     if (input.value.length > maxLength) {

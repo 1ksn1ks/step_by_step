@@ -1,6 +1,7 @@
 // Marker/polygon media upload — pick a file from the phone, stream it to
 // Cloudflare R2 through /api/upload (server/index.js), and auto-fill the
-// form field. Four uploaders (2026-10-06 layout):
+// form field, then show the file itself instead of the address.
+// Four uploaders (2026-10-06 layout):
 //   marker form:  "📎 Upload image / video" → Image URL (image/gif/mp4/webm)
 //                 "📎 Upload image (cover)" → Cover Image URL (stills + gif)
 //   polygon form: "📎 Upload cover (image / gif / video)" → Cover Image URL
@@ -73,6 +74,75 @@ function fillField(id, value) {
   el.dispatchEvent(new Event("input"));
 }
 
+const PREVIEW_FOR = {
+  "input-field-coverimage-marker": "preview-coverimage-marker",
+  "input-field-image-marker": "preview-image-marker",
+  "input-field-coverimage-polygon": "preview-coverimage-polygon",
+  "input-field-image-polygon": "preview-image-polygon",
+};
+
+function isVideoUrl(url) {
+  return /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url);
+}
+
+function previewBox(fieldId) {
+  const id = PREVIEW_FOR[fieldId];
+  return id ? document.getElementById(id) : null;
+}
+
+function revokePreviewUrl(box) {
+  const objectUrl = box && box.dataset.objectUrl;
+  if (!objectUrl) return;
+  URL.revokeObjectURL(objectUrl);
+  delete box.dataset.objectUrl;
+}
+
+// The address stays in the textarea for submit. The draw form shows the
+// picture or video in its place.
+function showFieldPreview(fieldId, url, kind) {
+  const field = document.getElementById(fieldId);
+  const box = previewBox(fieldId);
+  if (!field || !box) return;
+  const img = box.querySelector("img");
+  const video = box.querySelector("video");
+  const videoMode = kind === "video" || isVideoUrl(url);
+  if (box.dataset.objectUrl && box.dataset.objectUrl !== url) revokePreviewUrl(box);
+  if (String(url).startsWith("blob:")) box.dataset.objectUrl = url;
+  if (videoMode) {
+    img.hidden = true;
+    img.removeAttribute("src");
+    video.hidden = false;
+    if (video.getAttribute("src") !== url) {
+      video.src = url;
+      video.play().catch(() => {});
+    }
+  } else {
+    video.pause();
+    video.hidden = true;
+    video.removeAttribute("src");
+    video.load();
+    img.hidden = false;
+    if (img.getAttribute("src") !== url) img.src = url;
+  }
+  box.hidden = false;
+}
+
+function hideFieldPreview(fieldId) {
+  const field = document.getElementById(fieldId);
+  const box = previewBox(fieldId);
+  if (!field || !box) return;
+  const img = box.querySelector("img");
+  const video = box.querySelector("video");
+  revokePreviewUrl(box);
+  img.removeAttribute("src");
+  img.hidden = true;
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
+  video.hidden = true;
+  box.hidden = true;
+}
+
 async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg) {
   if (uploading) return;
   if (!allowedTypes.has(file.type)) {
@@ -88,12 +158,19 @@ async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg
   uploading = true;
   btn.disabled = true;
   const label = isVideo ? "video" : "image";
+  const previous = document.getElementById(targetFieldId)?.value || "";
+  const localUrl = URL.createObjectURL(file);
+  showFieldPreview(targetFieldId, localUrl, isVideo ? "video" : "image");
   const pill = progressPill(`Uploading ${label} 0%`);
   try {
     const url = await uploadToR2(file, pill, `Uploading ${label}`);
     fillField(targetFieldId, url);
-    toast.success("Uploaded — URL filled in");
+    showFieldPreview(targetFieldId, url, isVideo ? "video" : "image");
+    toast.success("Uploaded");
   } catch (err) {
+    fillField(targetFieldId, previous);
+    if (/^https?:\/\//i.test(previous)) showFieldPreview(targetFieldId, previous);
+    else hideFieldPreview(targetFieldId);
     toast.error(err.message || "Upload failed");
   } finally {
     pill.done();
@@ -117,3 +194,14 @@ bindUploader("upload-media-marker", "upload-media-marker-file", "input-field-ima
 bindUploader("upload-cover-marker", "upload-cover-marker-file", "input-field-coverimage-marker", MARKER_COVER_TYPES, "Only PNG, JPG, WebP, GIF");
 bindUploader("upload-cover-polygon", "upload-cover-polygon-file", "input-field-coverimage-polygon", POLYGON_COVER_TYPES, "Only PNG, JPG, GIF, WebP, MP4, WebM");
 bindUploader("upload-media-polygon", "upload-media-polygon-file", "input-field-image-polygon", MEDIA_TYPES, "Only PNG, JPG, GIF, WebP, MP4, WebM");
+
+for (const fieldId of Object.keys(PREVIEW_FOR)) {
+  const box = previewBox(fieldId);
+  const clear = box && box.querySelector(".upload-preview-clear");
+  if (!clear) continue;
+  clear.addEventListener("click", (event) => {
+    event.stopPropagation();
+    fillField(fieldId, "");
+    hideFieldPreview(fieldId);
+  });
+}
