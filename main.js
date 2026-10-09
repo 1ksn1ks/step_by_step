@@ -30,6 +30,7 @@ import './LOADcolumn.js'
 import './handlegofilter.js'
 import './search.js'
 import './domaintimeleft.js'
+import './installapp.js'
 
 window.restrictLength = function(input, maxLength) {
     if (input.value.length > maxLength) {

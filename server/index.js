@@ -19,6 +19,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { S3Client, PutObjectCommand, PutBucketCorsCommand } from "@aws-sdk/client-s3";
+import { appIcon, APP_ICONS } from "./appicon.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1186,11 +1187,26 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true, tracked: q.listTopics.all().length, mirror: MIRROR, streams: resTopics.size });
 });
 
+// Drawn on request from the moon photo and the live 1mhbar.com wall.
+// Registered before dist so a baked PNG in public/ is only the fallback.
+app.get(Object.keys(APP_ICONS).map((name) => "/icons/" + name), appIcon);
+
 // Production: one process serves the built map and the API on the same
 // origin. /api routes above win. Local `npm run dev` still uses Vite.
 const distDir = path.join(__dirname, "..", "dist");
 if (fs.existsSync(distDir)) {
-  app.use(express.static(distDir));
+  app.use(express.static(distDir, {
+    setHeaders(res, filePath) {
+      const base = path.basename(filePath);
+      if (base === "sw.js") {
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Service-Worker-Allowed", "/");
+      } else if (base === "manifest.webmanifest") {
+        res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
+        res.setHeader("Cache-Control", "no-cache");
+      }
+    }
+  }));
   app.use((req, res, next) => {
     if (req.method !== "GET" && req.method !== "HEAD") return next();
     if (req.path.startsWith("/api")) return next();
