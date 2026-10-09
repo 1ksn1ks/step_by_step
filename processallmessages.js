@@ -1090,7 +1090,8 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       payer: message.payer,
                       properties: {
                         message: markerPopupHTML,
-                        imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl
+                        imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl,
+                        title: String(parsedMessage.marker.data.title || "").slice(0, 20)
                       },
                       geometry: {
                         type: "Point",
@@ -2783,7 +2784,8 @@ if (rawResult && Array.isArray(rawResult)) {
                       payer: message.payer,
                       properties: {
                         message: markerPopupHTML,
-                        imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl
+                        imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl,
+                        title: String(parsedMessage.marker.data.title || "").slice(0, 20)
                       },
                       geometry: {
                         type: "Point",
@@ -3504,7 +3506,8 @@ if (rawResult && Array.isArray(rawResult)) {
                       payer: message.payer,
                       properties: {
                         message: markerPopupHTML,
-                        imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl
+                        imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl,
+                        title: String(parsedMessage.marker.data.title || "").slice(0, 20)
                       },
                       geometry: {
                         type: "Point",

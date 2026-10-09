@@ -78,6 +78,97 @@ function notifyTopicClustersUpdated() {
 
 let lastTopicSig = null;
 
+// Title pill above a topic dot. Desktop shows it on hover. A phone has no
+// hover: a short tap still opens the popup, and holding the dot shows the
+// title without opening it. Live twins already wear a permanent label.
+let markerTitleTip = null;
+let markerTitleHideTimer = 0;
+let markerHoldTimer = 0;
+
+function ensureMarkerTitleTip() {
+  if (markerTitleTip) return markerTitleTip;
+  markerTitleTip = document.createElement("div");
+  markerTitleTip.className = "marker-title-tip";
+  markerTitleTip.hidden = true;
+  document.body.appendChild(markerTitleTip);
+  return markerTitleTip;
+}
+
+function hideMarkerTitle() {
+  clearTimeout(markerTitleHideTimer);
+  if (markerTitleTip) markerTitleTip.hidden = true;
+}
+
+function showMarkerTitle(title, el) {
+  const text = String(title || "").trim();
+  if (!text || !el.isConnected) {
+    hideMarkerTitle();
+    return;
+  }
+  clearTimeout(markerTitleHideTimer);
+  const tip = ensureMarkerTitleTip();
+  tip.textContent = text;
+  tip.hidden = false;
+  const rect = el.getBoundingClientRect();
+  tip.style.left = `${rect.left + rect.width / 2}px`;
+  tip.style.top = `${rect.top}px`;
+}
+
+function markerCanHover() {
+  return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+}
+
+map.on("movestart", () => {
+  clearTimeout(markerHoldTimer);
+  hideMarkerTitle();
+});
+
+function bindMarkerTitle(el, title) {
+  el.addEventListener("mouseenter", () => {
+    if (markerCanHover()) showMarkerTitle(title, el);
+  });
+  el.addEventListener("mouseleave", () => {
+    if (markerCanHover()) hideMarkerTitle();
+  });
+  el.addEventListener("contextmenu", (event) => event.preventDefault());
+  el.addEventListener("touchstart", (event) => {
+    const touch = event.touches && event.touches[0];
+    const startX = touch ? touch.clientX : 0;
+    const startY = touch ? touch.clientY : 0;
+    clearTimeout(markerHoldTimer);
+    markerHoldTimer = setTimeout(() => {
+      el.dataset.holdTitle = "1";
+      showMarkerTitle(title, el);
+    }, 450);
+    const cancelIfSlid = (moveEvent) => {
+      const moved = moveEvent.touches && moveEvent.touches[0];
+      if (!moved) return;
+      if (Math.hypot(moved.clientX - startX, moved.clientY - startY) > 12) {
+        clearTimeout(markerHoldTimer);
+        el.removeEventListener("touchmove", cancelIfSlid);
+      }
+    };
+    el.addEventListener("touchmove", cancelIfSlid, { passive: true });
+    const dropMove = () => el.removeEventListener("touchmove", cancelIfSlid);
+    el.addEventListener("touchend", dropMove, { once: true });
+    el.addEventListener("touchcancel", dropMove, { once: true });
+  }, { passive: true });
+  el.addEventListener("touchend", () => {
+    clearTimeout(markerHoldTimer);
+    if (el.dataset.holdTitle === "1") {
+      clearTimeout(markerTitleHideTimer);
+      markerTitleHideTimer = setTimeout(() => {
+        delete el.dataset.holdTitle;
+        hideMarkerTitle();
+      }, 1200);
+    }
+  });
+  el.addEventListener("touchcancel", () => {
+    clearTimeout(markerHoldTimer);
+    delete el.dataset.holdTitle;
+  });
+}
+
 export function updateClusters(force = true) {
   if (markersVisible){
     if (geojson.features.length === 0) {
@@ -109,6 +200,7 @@ export function updateClusters(force = true) {
 
     unclusteredTopicPoints.clear();
     existingMarkers.forEach((marker) => marker.remove());
+    hideMarkerTitle();
     newExistingMarkers([]);
   
     clusters.forEach(async (cluster) => {
@@ -156,16 +248,17 @@ export function updateClusters(force = true) {
           console.error("Error loading marker image:", error);
           face.style.backgroundColor = "rgba(255, 255, 255, 0.8)";
         }
-        if (livePointCoords.has(twinKey)) {
+        const markerTitle = String(cluster.properties.title || "").trim();
+        const liveTitle = livePointCoords.has(twinKey) ? livePointTitles.get(twinKey) : "";
+        if (liveTitle) {
           // A live point at this exact spot → the live border (on the face)
-          // and the live title under it.
-          const liveTitle = livePointTitles.get(twinKey);
-          if (liveTitle) {
-            const label = document.createElement("div");
-            label.className = "local-marker-label";
-            label.textContent = liveTitle;
-            face.appendChild(label);
-          }
+          // and the live title under it. That label stays up, so no hover pill.
+          const label = document.createElement("div");
+          label.className = "local-marker-label";
+          label.textContent = liveTitle;
+          face.appendChild(label);
+        } else if (markerTitle) {
+          bindMarkerTitle(el, markerTitle);
         }
       }
 
@@ -186,6 +279,8 @@ export function updateClusters(force = true) {
   
         el.addEventListener("click", (e) => {
           e.stopPropagation();
+          if (el.dataset.holdTitle === "1") return;
+          hideMarkerTitle();
           activePolygonPopups.forEach((popup) => popup.remove());
           activeMarkerPopups.forEach((popup) => popup.remove());
           activeMarkerPopups.push(popup);
