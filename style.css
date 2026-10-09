@@ -3081,3 +3081,49 @@ html, body {
 @keyframes mediaFsZoom {
   from { transform: scale(0.96); opacity: 0; }
 }
+
+/* Click required before Chrome will open its install dialog. */
+#install-recommend {
+  position: fixed;
+  z-index: 10020;
+  left: 50%;
+  top: 12vh;
+  transform: translateX(-50%);
+  width: min(86vw, 420px);
+  box-sizing: border-box;
+  padding: 2.2vh 2vh 1.8vh;
+  border-radius: 2vh;
+  background: rgba(18, 18, 28, 0.9);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  backdrop-filter: blur(10px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 2vh 5vh rgba(0, 0, 0, 0.45);
+  color: #e6e6f0;
+  font-family: system-ui, sans-serif;
+  text-align: center;
+}
+#install-recommend[hidden] {
+  display: none;
+}
+#install-recommend p {
+  margin: 0 0 1.6vh;
+  font-size: 2vh;
+}
+#install-recommend div {
+  display: flex;
+  justify-content: center;
+  gap: 1vh;
+}
+#install-recommend button {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 1.7vh;
+  padding: 0.8vh 1.8vh;
+  cursor: pointer;
+}
+#install-recommend-yes {
+  background: rgba(34, 211, 238, 0.22);
+  border-color: rgba(34, 211, 238, 0.7);
+}
