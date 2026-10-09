@@ -17,6 +17,7 @@ import {
  } from './letall';
 
  import { connectedAccount, signer } from './web3';
+import { expandTopicChat, scheduleTopicChatLayout } from './cssLogic.js';
 
 
 export let allLoadedMessagesTopicChat = [];
@@ -253,6 +254,7 @@ function applyTopicChatMsgFilterSort() {
     container.appendChild(empty);
   }
   adjustTextareaHeight(container);
+  scheduleTopicChatLayout();
 }
 
 const topicChatMsgSearch = document.getElementById('topic-chat-msg-search');
@@ -301,6 +303,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         <span style="margin-left: 0.45vh;">Loading messages from ${topicId}</span>
       </div>`;
     adjustTextareaHeight(messagesContainer);
+    expandTopicChat();
 
     // Get topic admins
     const topicAdmin = [];
@@ -318,6 +321,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
           <span style="margin-left: 0.45vh;">Invalid Topic ID</span>
         </div>`;
       adjustTextareaHeight(messagesContainer);
+      expandTopicChat();
       return;
     }
 
@@ -346,6 +350,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
       for (const el of messagesContainer.querySelectorAll('[data-sig]')) {
         if (el.dataset.sig === sig) {
           el.remove();
+          scheduleTopicChatLayout();
           break;
         }
       }
@@ -466,6 +471,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
       toast.loaded("Messages loaded");
     }
+    expandTopicChat();
 
   } catch (error) {
     console.error("Error loading messages:", error);

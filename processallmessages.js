@@ -18,7 +18,7 @@ import { applyAllStyles } from './loadprofilepopup';
 import { scene } from './threejs'
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium'
 import { signer } from './web3';
-import { makeScrollable } from './makescrollable';
+import { refitPopups } from './popupanim';
 import { copyTextToClipboard } from './handleallmessages';
 import { toast } from './toast'
 
@@ -106,7 +106,7 @@ export function createMarkerPopupHTML(data) {
 
   // Top header with number and topic info (glass pill bar)
   const topHeader = document.createElement('div');
-  topHeader.style.cssText = 'position: relative; display: flex; align-items: flex-start; height: 2.5vh; margin-top: -0.3vh; margin-left: -0.5vh; margin-bottom: 0.25vh;';
+  topHeader.style.cssText = 'position: relative; display: flex; align-items: flex-start; height: calc(var(--u) * 2.5); margin-top: calc(var(--u) * -0.3); margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * 0.25);';
 
   const numberDiv = document.createElement('div');
   numberDiv.className = 'number popup-top-id';
@@ -162,7 +162,7 @@ export function createMarkerPopupHTML(data) {
   const profileImg = document.createElement('img');
   profileImg.src = profileUrl;
   profileImg.alt = 'Profile photo';
-  profileImg.style.cssText = 'width: 7vh; height: 7vh; flex-shrink: 0; border-radius: 50%; cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.25); box-shadow: 0 0.4vh 1vh rgba(0, 0, 0, 0.45);';
+  profileImg.style.cssText = 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; cursor: pointer; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
   profileImg.onclick = () => window.loadBio4PIC(payer);
   profileSection.appendChild(profileImg);
 
@@ -210,7 +210,7 @@ export function createMarkerPopupHTML(data) {
 
   // Navigation and title
   const navSection = document.createElement('div');
-  navSection.style.cssText = 'display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: 1vh;';
+  navSection.style.cssText = 'display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: calc(var(--u) * 1);';
 
   const prevSpan = document.createElement('span');
   prevSpan.className = 'popup-icon-chip';
@@ -224,7 +224,7 @@ export function createMarkerPopupHTML(data) {
   titleDiv.style.cssText = 'text-align: center; flex-grow: 1;';
   const titleStrong = document.createElement('strong');
   titleStrong.className = 'title_color popup-title-bubble';
-  titleStrong.textContent = title;
+  titleStrong.textContent = String(title || '').slice(0, 20);
   titleDiv.appendChild(titleStrong);
   navSection.appendChild(titleDiv);
 
@@ -281,17 +281,17 @@ export function createMarkerPopupHTML(data) {
 
   // Row 6 — 👍 💬 👎 centered (⚙️ 📍 + timestamp live in row 7)
   const bottomRow = document.createElement('div');
-  bottomRow.style.cssText = 'position: relative; height: 4vh; line-height: 1; margin-top: 0.4vh;';
+  bottomRow.style.cssText = 'position: relative; height: calc(var(--u) * 4); line-height: 1; margin-top: calc(var(--u) * 0.4);';
 
   // Timestamp (row 7, right side)
   const timestampDiv = document.createElement('div');
   timestampDiv.className = 'popup-timestamp';
-  timestampDiv.style.cssText = 'margin-left: auto; margin-right: -0.5vh;';
+  timestampDiv.style.cssText = 'margin-left: auto; margin-right: calc(var(--u) * -0.5);';
   timestampDiv.textContent = timestamp;
 
   // Like/Dislike + Comment (bottom center)
   const likeDislikeDiv = document.createElement('div');
-  likeDislikeDiv.style.cssText = 'position: absolute; bottom: 0.3vh; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 0.5vh;';
+  likeDislikeDiv.style.cssText = 'position: absolute; bottom: calc(var(--u) * 0.3); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: calc(var(--u) * 0.5);';
 
   const likeSpan = document.createElement('span');
   likeSpan.className = 'popup-icon-chip';
@@ -327,7 +327,7 @@ export function createMarkerPopupHTML(data) {
   locationSpan.onclick = () => window.openMarkerNavigation(coords);
   // Row 7 — ⚙️ 📍 on their own row: same left inset as row 1, same 0.25vh gap as rows 1–2
   const bottomLeftRow = document.createElement('div');
-  bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: 0.7vh; height: 4vh; margin-top: 0.25vh; margin-left: -0.5vh; margin-bottom: -0.3vh;';
+  bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: calc(var(--u) * 0.25); margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);';
   bottomLeftRow.appendChild(settingsSpan);
   bottomLeftRow.appendChild(locationSpan);
   bottomLeftRow.appendChild(timestampDiv);
@@ -385,7 +385,7 @@ function createPolygonPopupHTML(data) {
 
   // Top header with number and topic info (glass pill bar)
   const topHeader = document.createElement('div');
-  topHeader.style.cssText = 'position: relative; display: flex; align-items: flex-start; height: 2.5vh; margin-top: -0.3vh; margin-left: -0.5vh; margin-bottom: 0.25vh;';
+  topHeader.style.cssText = 'position: relative; display: flex; align-items: flex-start; height: calc(var(--u) * 2.5); margin-top: calc(var(--u) * -0.3); margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * 0.25);';
 
   const numberDiv = document.createElement('div');
   numberDiv.className = 'number popup-top-id';
@@ -443,7 +443,7 @@ function createPolygonPopupHTML(data) {
   const profileImg = document.createElement('img');
   profileImg.src = profileUrl;
   profileImg.alt = 'Profile photo';
-  profileImg.style.cssText = 'width: 7vh; height: 7vh; flex-shrink: 0; border-radius: 50%; cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.25); box-shadow: 0 0.4vh 1vh rgba(0, 0, 0, 0.45);';
+  profileImg.style.cssText = 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; cursor: pointer; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
   profileImg.onclick = () => window.loadBio4PIC(payer);
   profileSection.appendChild(profileImg);
 
@@ -491,7 +491,7 @@ function createPolygonPopupHTML(data) {
 
   // Navigation and title
   const navSection = document.createElement('div');
-  navSection.style.cssText = 'display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: 1vh;';
+  navSection.style.cssText = 'display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: calc(var(--u) * 1);';
 
   const prevSpan = document.createElement('span');
   prevSpan.className = 'popup-icon-chip';
@@ -503,7 +503,7 @@ function createPolygonPopupHTML(data) {
   titleDiv.style.cssText = 'text-align: center; flex-grow: 1;';
   const titleStrong = document.createElement('strong');
   titleStrong.className = 'title_color popup-title-bubble';
-  titleStrong.textContent = title;
+  titleStrong.textContent = String(title || '').slice(0, 20);
   titleDiv.appendChild(titleStrong);
   navSection.appendChild(titleDiv);
 
@@ -560,17 +560,17 @@ function createPolygonPopupHTML(data) {
 
   // Row 6 — 👍 💬 👎 centered (⚙️ 📍 + timestamp live in row 7)
   const bottomRow = document.createElement('div');
-  bottomRow.style.cssText = 'position: relative; height: 4vh; line-height: 1; margin-top: 0.4vh;';
+  bottomRow.style.cssText = 'position: relative; height: calc(var(--u) * 4); line-height: 1; margin-top: calc(var(--u) * 0.4);';
 
   // Timestamp (row 7, right side)
   const timestampDiv = document.createElement('div');
   timestampDiv.className = 'popup-timestamp';
-  timestampDiv.style.cssText = 'margin-left: auto; margin-right: -0.5vh;';
+  timestampDiv.style.cssText = 'margin-left: auto; margin-right: calc(var(--u) * -0.5);';
   timestampDiv.textContent = timestamp;
 
   // Like/Dislike + Comment (bottom center)
   const likeDislikeDiv = document.createElement('div');
-  likeDislikeDiv.style.cssText = 'position: absolute; bottom: 0.3vh; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 0.5vh;';
+  likeDislikeDiv.style.cssText = 'position: absolute; bottom: calc(var(--u) * 0.3); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: calc(var(--u) * 0.5);';
 
   const likeSpan = document.createElement('span');
   likeSpan.className = 'popup-icon-chip';
@@ -606,7 +606,7 @@ function createPolygonPopupHTML(data) {
   locationSpan.onclick = () => window.openPolygonNavigation(coordinates);
   // Row 7 — ⚙️ 📍 on their own row: same left inset as row 1, same 0.25vh gap as rows 1–2
   const bottomLeftRow = document.createElement('div');
-  bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: 0.7vh; height: 4vh; margin-top: 0.25vh; margin-left: -0.5vh; margin-bottom: -0.3vh;';
+  bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: calc(var(--u) * 0.25); margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);';
   bottomLeftRow.appendChild(settingsSpan);
   bottomLeftRow.appendChild(locationSpan);
   bottomLeftRow.appendChild(timestampDiv);
@@ -1607,19 +1607,19 @@ const countAllMessages = (nodes) => nodes.reduce((sum, n) => sum + 1 + (n.replie
 function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
   const section = document.createElement('div');
   section.id = id;
-  section.style.cssText = 'display: none; margin-top: 1vh; padding: 1vh; border-radius: 1.2vh; background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(1vh); -webkit-backdrop-filter: blur(1vh); border: 0.05vh solid rgba(255, 255, 255, 0.15); text-align: left;';
+  section.style.cssText = 'display: none; margin-top: calc(var(--u) * 1); padding: calc(var(--u) * 1); border-radius: calc(var(--u) * 1.2); background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(calc(var(--u) * 1)); -webkit-backdrop-filter: blur(calc(var(--u) * 1)); border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.15); text-align: left;';
 
   const header = document.createElement('div');
-  header.style.cssText = 'font-size: 1.2vh; color: gray; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.8vh;';
+  header.style.cssText = 'font-size: calc(var(--u) * 1.2); color: gray; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: calc(var(--u) * 0.8);';
   header.textContent = `Comments (${countAllMessages(comments)})`;
   section.appendChild(header);
 
   const list = document.createElement('div');
   list.className = 'comments-scroll';
-  list.style.cssText = 'max-height: 15vh; overflow-y: auto; margin-bottom: 1vh;';
+  list.style.cssText = 'margin-bottom: calc(var(--u) * 1);';
   if (comments.length === 0) {
     const empty = document.createElement('p');
-    empty.style.cssText = 'font-size: 1.3vh; color: gray; margin: 0.5vh 0; text-align: center;';
+    empty.style.cssText = 'font-size: calc(var(--u) * 1.3); color: gray; margin: calc(var(--u) * 0.5) 0; text-align: center;';
     empty.textContent = 'No comments yet';
     list.appendChild(empty);
   }
@@ -1651,7 +1651,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
 
     const header = document.createElement('div');
     header.className = 'toolbar-group-messages-header';
-    header.style.cssText = `display: flex; align-items: center; font-size: ${headerFontSizeTopicChat}vh;`;
+    header.style.cssText = `display: flex; align-items: center; font-size: calc(var(--u) * ${headerFontSizeTopicChat});`;
     const payerLink = document.createElement('a');
     payerLink.href = `https://explore.hashpack.app/${encodeURIComponent(payer)}`;
     payerLink.target = '_blank';
@@ -1696,7 +1696,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
   const renderNode = (node, depth) => {
     const wrapper = document.createElement('div');
     if (depth === 0) {
-      wrapper.style.cssText = 'display: flex; flex-direction: column; margin-top: 0.2em; padding: 0.6vh 1vh; border-radius: 1.2vh; background: rgba(255, 255, 255, 0.05); border: 0.05vh solid rgba(255, 255, 255, 0.12); box-sizing: border-box;';
+      wrapper.style.cssText = 'display: flex; flex-direction: column; margin-top: 0.2em; padding: calc(var(--u) * 0.6) calc(var(--u) * 1); border-radius: calc(var(--u) * 1.2); background: rgba(255, 255, 255, 0.05); border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.12); box-sizing: border-box;';
     } else {
       wrapper.style.cssText = 'margin-top: 0.2em;';
     }
@@ -1705,12 +1705,12 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
       // Match the top-level comment header: acc id in the acc
       // color, username in the username color (was one same-color link before)
       const whoRow = document.createElement('div');
-      whoRow.style.cssText = `display: inline-flex; align-items: center; gap: 0.3em; padding: 0.025em 0.1em 0.025em 0.1em; border-radius: 0.4em; font-size: ${headerFontSizeTopicChat / 2}vh;`;
+      whoRow.style.cssText = `display: inline-flex; align-items: center; gap: 0.3em; padding: 0.025em 0.1em 0.025em 0.1em; border-radius: 0.4em; font-size: calc(var(--u) * ${headerFontSizeTopicChat / 2});`;
       const payerPic = document.createElement('img');
       const picUrl = profilePictures[node.payer]?.url || defaultProfilePic;
       payerPic.src = isValidUrl(picUrl) ? picUrl : defaultProfilePic;
       payerPic.alt = 'Profile photo';
-      payerPic.style.cssText = 'width: 1.2em; height: 1.2em; border-radius: 1em; object-fit: cover; border: 0.05vh solid rgba(255, 255, 255, 0.35); cursor: pointer;';
+      payerPic.style.cssText = 'width: 1.2em; height: 1.2em; border-radius: 1em; object-fit: cover; border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.35); cursor: pointer;';
       payerPic.addEventListener('click', () => window.loadBio4PIC(node.payer));
       whoRow.appendChild(payerPic);
       const payerLabel = document.createElement('a');
@@ -1741,7 +1741,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
 
     const messageText = document.createElement('div');
     messageText.className = 'chat-msg-text';
-    messageText.style.cssText = `font-size: ${textFontSizeTopicChat}vh; color: ${textTopicChatColor}; white-space: pre-wrap; word-wrap: break-word;`;
+    messageText.style.cssText = `font-size: calc(var(--u) * ${textFontSizeTopicChat}); color: ${textTopicChatColor}; white-space: pre-wrap; word-wrap: break-word;`;
     messageText.textContent = node.text;
     wrapper.appendChild(messageText);
 
@@ -1764,7 +1764,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
       thread.style.display = 'none';
 
       badge = document.createElement('span');
-      badge.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+      badge.style.cssText = 'font-size: calc(var(--u) * 1.5); color: gray; cursor: pointer;';
       badge.textContent = `💬${countAllMessages(children)}`;
       badge.onclick = () => {
         thread.style.display = thread.style.display === 'none' ? '' : 'none';
@@ -1772,7 +1772,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
     }
 
     const likeSpan = document.createElement('span');
-    likeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+    likeSpan.style.cssText = 'font-size: calc(var(--u) * 1.5); color: gray; cursor: pointer;';
     likeSpan.textContent = `${node.likeCount || 0}👍`;
     likeSpan.onclick = () => kind === 'polygon' ? window.likePolygon(node.created, topicId) : window.likeMarker(node.created, topicId);
     likeDislikeDiv.appendChild(likeSpan);
@@ -1780,13 +1780,13 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
     if (badge) likeDislikeDiv.appendChild(badge);
 
     const dislikeSpan = document.createElement('span');
-    dislikeSpan.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+    dislikeSpan.style.cssText = 'font-size: calc(var(--u) * 1.5); color: gray; cursor: pointer;';
     dislikeSpan.textContent = `${node.dislikeCount || 0}👎`;
     dislikeSpan.onclick = () => kind === 'polygon' ? window.dislikePolygon(node.created, topicId) : window.dislikeMarker(node.created, topicId);
     likeDislikeDiv.appendChild(dislikeSpan);
 
     const replyBtn = document.createElement('span');
-    replyBtn.style.cssText = 'font-size: 1.5vh; color: gray; cursor: pointer;';
+    replyBtn.style.cssText = 'font-size: calc(var(--u) * 1.5); color: gray; cursor: pointer;';
     replyBtn.textContent = '↩';
     replyBtn.onclick = () => {
       replyTarget = node;
@@ -1810,7 +1810,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
 
     const timestampSpan = document.createElement('span');
     timestampSpan.className = 'chat-msg-time';
-    timestampSpan.style.cssText = `font-size: 0.75vh; color: gray;`;
+    timestampSpan.style.cssText = `font-size: calc(var(--u) * 0.75); color: gray;`;
     timestampSpan.textContent = new Date(node.created).toLocaleString('en-US', {
       hour12: false,
       year: 'numeric',
@@ -1838,12 +1838,11 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
     }
     currentMessagesDiv.appendChild(renderNode(comment, 0));
   }
-  makeScrollable(list);
   section.appendChild(list);
 
   // Reply-mode chip above the input ("↩ Replying to @payer ✕")
   const replyChip = document.createElement('div');
-  replyChip.style.cssText = 'display: none; align-items: center; gap: 0.5em; margin-bottom: 0.8vh; font-size: 1.2vh; color: gray;';
+  replyChip.style.cssText = 'display: none; align-items: center; gap: 0.5em; margin-bottom: calc(var(--u) * 0.8); font-size: calc(var(--u) * 1.2); color: gray;';
   const replyChipLabel = document.createElement('span');
   replyChipLabel.style.cssText = 'flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
   const replyChipClose = document.createElement('span');
@@ -1857,19 +1856,19 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
   // Input row: rounded glass textarea + rounded pill Send button,
   // bottom-aligned so the button stays put as the textarea grows.
   const inputRow = document.createElement('div');
-  inputRow.style.cssText = 'display: flex; align-items: flex-end; gap: 1vh;';
+  inputRow.style.cssText = 'display: flex; align-items: flex-end; gap: calc(var(--u) * 1);';
 
   const input = document.createElement('textarea');
   input.placeholder = 'Leave a comment...';
   input.maxLength = 300;
   input.rows = 2;
-  input.style.cssText = 'flex: 1; resize: none; font-size: 1.4vh; padding: 0.6vh 1vh; border-radius: 1vh; border: 0.05vh solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08); color: white; outline: none;';
+  input.style.cssText = 'flex: 1; resize: none; font-size: calc(var(--u) * 1.4); padding: calc(var(--u) * 0.6) calc(var(--u) * 1); border-radius: calc(var(--u) * 1); border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08); color: white; outline: none;';
   input.addEventListener('input', () => adjustTextareaHeight(input));
   inputRow.appendChild(input);
 
   const sendBtn = document.createElement('span');
   sendBtn.textContent = 'Send';
-  sendBtn.style.cssText = 'padding: 0.6vh 1.5vh; border-radius: 1.5vh; background: rgba(255, 255, 255, 0.9); color: black; font-size: 1.3vh; font-weight: 600; cursor: pointer; user-select: none; transition: transform 0.15s ease, filter 0.15s ease;';
+  sendBtn.style.cssText = 'padding: calc(var(--u) * 0.6) calc(var(--u) * 1.5); border-radius: calc(var(--u) * 1.5); background: rgba(255, 255, 255, 0.9); color: black; font-size: calc(var(--u) * 1.3); font-weight: 600; cursor: pointer; user-select: none; transition: transform 0.15s ease, filter 0.15s ease;';
   sendBtn.addEventListener('mouseenter', () => { sendBtn.style.transform = 'scale(1.03)'; sendBtn.style.filter = 'brightness(1.1)'; });
   sendBtn.addEventListener('mouseleave', () => { sendBtn.style.transform = ''; sendBtn.style.filter = ''; });
   sendBtn.addEventListener('mousedown', () => { sendBtn.style.transform = 'scale(0.97)'; });
@@ -1906,12 +1905,11 @@ function closeCommentsModal() {
       }
       delete commentsModalSection._modalSaves;
     }
-    const list = commentsModalSection.querySelector('.comments-scroll');
-    if (list) list.style.maxHeight = '15vh';
   }
   commentsModal.remove();
   commentsModal = null;
   commentsModalSection = null;
+  refitPopups();
 }
 
 function openCommentsModal(sectionId) {
@@ -1931,8 +1929,8 @@ function openCommentsModal(sectionId) {
   scrim.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
   wrapper.appendChild(scrim);
 
-  // Card reuses the popup classes: same glass look, centering and the
-  // keyboard-fit handler keeps it on screen while typing
+  // Card reuses the popup classes. It grows with the comments, then
+  // popupanim shrinks the whole card so it stays inside the screen.
   const card = document.createElement('div');
   card.className = 'maplibregl-popup';
   const cardContent = document.createElement('div');
@@ -1970,8 +1968,6 @@ function openCommentsModal(sectionId) {
   section.style.borderRadius = '0';
   section.style.backdropFilter = 'none';
   section.style.webkitBackdropFilter = 'none';
-  const list = section.querySelector('.comments-scroll');
-  if (list) list.style.maxHeight = '50vh';
 
   card.appendChild(cardContent);
   wrapper.appendChild(card);
@@ -1979,6 +1975,7 @@ function openCommentsModal(sectionId) {
 
   commentsModal = wrapper;
   commentsModalSection = section;
+  refitPopups();
 
   const input = section.querySelector('textarea');
   if (input) setTimeout(() => input.focus(), 100);

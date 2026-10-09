@@ -6,7 +6,6 @@ import { fetchLocalMarkers } from './msgbackend.js';
 import { profilePictures, usernames, click2url } from './loadalladata.js';
 import { CloseALL, changePopupState } from './cssLogic.js';
 import { closeDrawAnchor } from './drawhere.js';
-import { makeScrollable } from './makescrollable.js';
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
 import { applyAllStyles } from './loadprofilepopup.js';
 import { isTopicLayerActive } from './marker.js';
@@ -251,16 +250,11 @@ function openLocalPopup(j) {
     onNext: () => { if (localIndex < localList.length - 1) navigateLocal(localIndex + 1); },
   });
 
-  // Match the regular marker popup behaviour: close other panels, make the
-  // body scrollable, and apply the active theme.
+  // Match the regular marker popup: close other panels and apply the theme.
+  // The card grows with the post; popupanim scales it into the screen.
   CloseALL();
   closeDrawAnchor();
   localPopup.setLngLat([m.lng, m.lat]).addTo(map).setDOMContent(content);
-  const popupContent = localPopup.getElement()?.querySelector('.maplibregl-popup-content');
-  if (popupContent && !popupContent._scrollable) {
-    makeScrollable(popupContent);
-    popupContent._scrollable = true;
-  }
   applyAllStyles();
   changePopupState(true);
 }

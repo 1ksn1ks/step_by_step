@@ -462,11 +462,14 @@ export function CloseALL() {
   // anything inside the panel is shown/hidden (options, filters, auto-growing
   // inputs), the list is set to exactly the remaining space, so the message
   // input stays pinned to the bottom of the fixed-size panel.
+  // The short open state skips this. After Load the panel is the original
+  // full-screen chat, and the list takes the leftover space.
   function fitChatMessages(messagesId) {
     const messages = document.getElementById(messagesId);
     if (!messages) return;
     const container = messages.closest(".topic-chat-container");
     if (!container || getComputedStyle(container).display === "none") return;
+    if (container.classList.contains("topic-chat-compact")) return;
     const wrap = messages.parentElement;      // .chat-messages-wrap
     const inner = wrap.parentElement;         // .chat-topic-chat-container
     const span = (el) => {
@@ -489,11 +492,67 @@ export function CloseALL() {
     messages.style.height = Math.max(0, inner.clientHeight - used) + "px";
   }
 
+  // After Load, both chats use the original full-screen panel. The lock
+  // covers the style writes so the observer below does not layout again
+  // in the same turn.
+  const chatLayoutLock = new Set();
+  const chatLayoutQueued = new Set();
+
+  function layoutChatPanel(containerId, messagesId) {
+    if (chatLayoutLock.has(containerId)) return;
+    const container = document.getElementById(containerId);
+    const messages = document.getElementById(messagesId);
+    if (!container || !messages) return;
+    if (getComputedStyle(container).display === "none") return;
+    if (container.classList.contains("topic-chat-compact")) return;
+
+    chatLayoutLock.add(containerId);
+    try {
+      container.classList.remove("topic-chat-fit", "topic-chat-capped");
+      container.style.height = "";
+      container.style.maxHeight = "";
+      messages.style.overflowY = "";
+      fitChatMessages(messagesId);
+    } finally {
+      requestAnimationFrame(() => { chatLayoutLock.delete(containerId); });
+    }
+  }
+
+  function scheduleChatPanel(containerId, messagesId) {
+    if (chatLayoutQueued.has(containerId) || chatLayoutLock.has(containerId)) return;
+    chatLayoutQueued.add(containerId);
+    requestAnimationFrame(() => {
+      chatLayoutQueued.delete(containerId);
+      layoutChatPanel(containerId, messagesId);
+    });
+  }
+
+  // Leave the short open state and use the original full-screen chat.
+  function expandChatPanel(containerId, messagesId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.classList.remove("topic-chat-compact");
+    layoutChatPanel(containerId, messagesId);
+  }
+
+  export function scheduleTopicChatLayout() {
+    scheduleChatPanel("topic-chat-container", "messages-from-topic-chat");
+  }
+  export function expandTopicChat() {
+    expandChatPanel("topic-chat-container", "messages-from-topic-chat");
+  }
+  export function scheduleEncryptedChatLayout() {
+    scheduleChatPanel("encrypted-chat-container", "messages-from-encrypted-chat");
+  }
+  export function expandEncryptedChat() {
+    expandChatPanel("encrypted-chat-container", "messages-from-encrypted-chat");
+  }
+
   [["topic-chat-container", "messages-from-topic-chat"],
    ["encrypted-chat-container", "messages-from-encrypted-chat"]].forEach(([containerId, messagesId]) => {
     const container = document.getElementById(containerId);
     const inner = container.querySelector(".chat-topic-chat-container");
-    const refit = () => fitChatMessages(messagesId);
+    const refit = () => scheduleChatPanel(containerId, messagesId);
     // Every show/hide inside the panel changes a style attribute -> refit
     new MutationObserver(refit).observe(inner, {
       subtree: true,
@@ -518,11 +577,18 @@ export function CloseALL() {
     CloseALL();
     closeTransientMapUI();
     hideAllShowButtonsFromTopicChat()
-    document.getElementById("topic-chat-container").style.display = "flex";
+    const topicChatPanel = document.getElementById("topic-chat-container");
+    topicChatPanel.classList.add("topic-chat-compact");
+    topicChatPanel.classList.remove("topic-chat-fit", "topic-chat-capped");
+    topicChatPanel.style.height = "";
+    topicChatPanel.style.maxHeight = "";
+    topicChatPanel.style.display = "flex";
     document.getElementById("options-from-topic-chat").style.display = "none";
     document.getElementById("show-options-from-topic-chat").style.display = "block";
     document.getElementById("show-options-from-topic-chat-btn").style.display = "none";
-    requestAnimationFrame(() => fitChatMessages("messages-from-topic-chat"));
+    const topicChatList = document.getElementById("messages-from-topic-chat");
+    topicChatList.style.height = "";
+    topicChatList.style.overflowY = "";
 
     removeUfoModel();
   });
@@ -861,11 +927,18 @@ export function CloseALL() {
     activePolygonPopups.forEach((popup) => popup.remove());
     activeMarkerPopups.forEach((popup) => popup.remove());
     hideAllShowButtonsFromEncryptedChat()
-    document.getElementById("encrypted-chat-container").style.display = "flex";
+    const encryptedChatPanel = document.getElementById("encrypted-chat-container");
+    encryptedChatPanel.classList.add("topic-chat-compact");
+    encryptedChatPanel.classList.remove("topic-chat-fit", "topic-chat-capped");
+    encryptedChatPanel.style.height = "";
+    encryptedChatPanel.style.maxHeight = "";
+    encryptedChatPanel.style.display = "flex";
     document.getElementById("options-from-encrypted-chat").style.display = "none";
     document.getElementById("show-options-from-encrypted-chat").style.display = "block";
     document.getElementById("show-options-from-encrypted-chat-btn").style.display = "none";
-    requestAnimationFrame(() => fitChatMessages("messages-from-encrypted-chat"));
+    const encryptedChatList = document.getElementById("messages-from-encrypted-chat");
+    encryptedChatList.style.height = "";
+    encryptedChatList.style.overflowY = "";
 
     removeUfoModel();
   });

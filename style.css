@@ -1,4 +1,16 @@
 
+/* Registered lengths so the popup fitter can read 96dvw / 96dvh in pixels. */
+@property --popup-max-w {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --popup-max-h {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 html, body {
     margin: 0;
     padding: 0;
@@ -79,11 +91,10 @@ html, body {
     width: 3.4vh;
     height: 3.4vh;
     border-radius: 50%;
-    /* pointer-events: none — the moon must never swallow touches or the
-       wheel: two-finger pinch, pan and scroll-wheel zoom over it reach the
-       map exactly like anywhere else. The tap that opens 1mhbar.com is
-       picked up by the geometric hit test in moon.js instead. overflow clips
-       the embedded wall iframe to the circle. */
+    /* pointer-events: none so a mouse drag or the scroll wheel over the moon
+       still reaches the map. Touches do not: moon.js stops any touch inside
+       the disc before the map sees it, at every zoom. overflow clips the
+       embedded wall iframe to the circle. */
     pointer-events: none;
     overflow: hidden;
     background: #05070c url('./moon.jpg') center / 125% 120% no-repeat;
@@ -400,6 +411,27 @@ html, body {
     max-height: none; /* no cap — the fit owns the size, a cap left a gap on tall screens */
     margin-bottom: 0; /* the class margin pushed the list up, desyncing the ⬆/⬇ arrow gaps */
     transition: height 0.25s ease; /* smooth shrink/expand when a button press refits the list */
+  }
+
+  /* Open level with the toolbar and visibility. Load drops this and the
+     panel is the original full-screen chat again (inline top/bottom 0.5dvh). */
+  #topic-chat-container.topic-chat-compact,
+  #encrypted-chat-container.topic-chat-compact {
+    top: 10vh !important;
+    bottom: auto !important;
+  }
+
+  #topic-chat-container.topic-chat-compact .chat-messages-wrap,
+  #topic-chat-container.topic-chat-compact .loaded-topics-controls,
+  #topic-chat-container.topic-chat-compact #show-options-from-topic-chat,
+  #topic-chat-container.topic-chat-compact #show-options-from-topic-chat-btn,
+  #topic-chat-container.topic-chat-compact #options-from-topic-chat,
+  #encrypted-chat-container.topic-chat-compact .chat-messages-wrap,
+  #encrypted-chat-container.topic-chat-compact .loaded-topics-controls,
+  #encrypted-chat-container.topic-chat-compact #show-options-from-encrypted-chat,
+  #encrypted-chat-container.topic-chat-compact #show-options-from-encrypted-chat-btn,
+  #encrypted-chat-container.topic-chat-compact #options-from-encrypted-chat {
+    display: none !important;
   }
 
   /* Any section revealed by a button press (options, filters, password
@@ -1426,16 +1458,28 @@ html, body {
     left: 50% !important;
     transform: translate(-50%, -50%) !important;
 
-    width: 90vw !important;           /* Force exact 80vw width */
-    max-width: 90vw !important;
-    max-height: 70vh !important;
+    /* One size for every device. dvw/dvh follow the visible screen.
+       --u is 1% of that card the way 1vh used to be on a phone, so the
+       content box and every chip inside it scale together.
+       Height follows the content (no inner scroll). --fit shrinks --u
+       and the width together only when that content would pass 96dvw / 96dvh. */
+    --card: min(90dvw, 70dvh);
+    --u: calc(var(--card) * 0.024 * var(--fit));
+    --fit: 1;
+    --popup-max-w: 96dvw;
+    --popup-max-h: 96dvh;
+    width: calc(var(--card) * var(--fit)) !important;
+    max-width: calc(var(--card) * var(--fit)) !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
 
     box-sizing: border-box !important;
-    font: 2vh/3vh 'Helvetica Neue', Arial, Helvetica, sans-serif;
+    font: calc(var(--u) * 2) / calc(var(--u) * 3) 'Helvetica Neue', Arial, Helvetica, sans-serif;
     text-align: left;
     z-index: 1000 !important;
-    border: 0.3vh solid #ffffff;
-    border-radius: 2vh; /* same radius as the .maplibregl-popup-content inside */
+    border: calc(var(--u) * 0.3) solid #ffffff;
+    border-radius: calc(var(--u) * 2); /* same radius as .maplibregl-popup-content */
 }
 
 /* Dummy preview popup inside the settings card: neutralize the fixed
@@ -1445,11 +1489,12 @@ html, body {
     top: auto !important;
     left: auto !important;
     transform: none !important;
+    --card: 100%;
     width: 100% !important;
     max-width: 100% !important;
     max-height: none !important;
     z-index: auto !important;
-    margin-bottom: 2vh;
+    margin-bottom: calc(var(--u) * 2);
 }
 #popup-settings-card .maplibregl-popup,
 #popup-settings-card .maplibregl-popup * {
@@ -1486,15 +1531,15 @@ html, body {
     background-color: rgba(15, 15, 20, 0.55);
     -webkit-backdrop-filter: blur(6px) saturate(140%);
     backdrop-filter: blur(6px) saturate(140%);
-    border: 0.2vh solid rgba(255, 255, 255, 0.25);
+    border: calc(var(--u) * 0.2) solid rgba(255, 255, 255, 0.25);
     will-change: transform, opacity;
     transform: translateZ(0);
     animation: popupIn 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     color: white;
-    padding: 0.4vh 0.6vh;             /* bone — content hugs the shell */
-    border-radius: 2vh;               /* matches the .popup-media-card corners */
-    font-size: 2vh;
-    box-shadow: inset 0 0.2vh 0 rgba(255, 255, 255, 0.12), 0 1vh 2vh rgba(0, 0, 0, 0.3);
+    padding: calc(var(--u) * 0.4) calc(var(--u) * 0.6); /* bone — content hugs the shell */
+    border-radius: calc(var(--u) * 2); /* matches the .popup-media-card corners */
+    font-size: calc(var(--u) * 2);
+    box-shadow: inset 0 calc(var(--u) * 0.2) 0 rgba(255, 255, 255, 0.12), 0 calc(var(--u) * 1) calc(var(--u) * 2) rgba(0, 0, 0, 0.3);
     text-align: left;
     word-wrap: break-word;
     white-space: normal;
@@ -1503,18 +1548,15 @@ html, body {
     -moz-user-select: text !important;
     -ms-user-select: text !important;
     
-    width: 100% !important;           /* Fill the 80vw container */
+    width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
 
-    /* Scroll inside the card (matches .maplibregl-popup max-height) so a
-       tall popup — or the keyboard shrinking the screen — can't overflow it */
-    max-height: 70vh;
-
-    overflow-y: auto;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    /* Grow with the message. clip keeps the rounded corners and does not scroll.
+       The shell's --fit keeps the card on screen. */
+    max-height: none !important;
+    height: auto !important;
+    overflow: clip !important;
 }
 
   .maplibregl-popup-content::-webkit-scrollbar {
@@ -1552,56 +1594,56 @@ html, body {
   .popup-top-id {
     display: inline-flex;
     align-items: center;
-    padding: 0.3vh 1vh;
+    padding: calc(var(--u) * 0.3) calc(var(--u) * 1);
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.10);
-    border: 1px solid rgba(255, 255, 255, 0.22);
+    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
     -webkit-backdrop-filter: blur(8px) saturate(140%);
     backdrop-filter: blur(8px) saturate(140%);
-    font-size: 1.7vh;
+    font-size: calc(var(--u) * 1.7);
     font-weight: 700;
     letter-spacing: 0.04em;
     line-height: 1;
     color: white;
-    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.18), 0 0.4vh 1vh rgba(0, 0, 0, 0.35);
+    box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.35);
     transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
   }
 
   /* Topic id + name — same glass pill as the number */
   .popup-top-topic {
-    font-size: 1.4vh;
+    font-size: calc(var(--u) * 1.4);
     color: rgba(255, 255, 255, 0.55);
     letter-spacing: 0.02em;
     white-space: nowrap;
     line-height: 1;
     display: inline-block;
-    padding: 0.35vh 1.1vh;
+    padding: calc(var(--u) * 0.35) calc(var(--u) * 1.1);
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.18);
     -webkit-backdrop-filter: blur(8px) saturate(140%);
     backdrop-filter: blur(8px) saturate(140%);
-    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.14);
+    box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.14);
   }
 
   /* Profile — avatar + acc id + username grouped in one capsule */
   .popup-profile-bubble {
     display: flex;
     align-items: center;
-    gap: 0.9vh;
-    margin-bottom: 0.25vh;
-    padding: 0.35vh 1.2vh 0.35vh 0.35vh;
+    gap: calc(var(--u) * 0.9);
+    margin-bottom: calc(var(--u) * 0.25);
+    padding: calc(var(--u) * 0.35) calc(var(--u) * 1.2) calc(var(--u) * 0.35) calc(var(--u) * 0.35);
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.18);
     -webkit-backdrop-filter: blur(8px) saturate(140%);
     backdrop-filter: blur(8px) saturate(140%);
-    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.12), 0 0.4vh 1vh rgba(0, 0, 0, 0.3);
+    box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.12), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.3);
   }
 
   .popup-profile-bubble h2 {
     margin: 0;
-    font-size: 1.8vh;
+    font-size: calc(var(--u) * 1.8);
     line-height: 1.35;
     font-weight: 700;
   }
@@ -1609,50 +1651,50 @@ html, body {
   /* Title — its own pill */
   .popup-title-bubble {
     display: inline-block;
-    padding: 0.35vh 1.5vh;
+    padding: calc(var(--u) * 0.35) calc(var(--u) * 1.5);
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.10);
-    border: 1px solid rgba(255, 255, 255, 0.22);
+    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
     -webkit-backdrop-filter: blur(8px) saturate(140%);
     backdrop-filter: blur(8px) saturate(140%);
-    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.18), 0 0.4vh 1vh rgba(0, 0, 0, 0.35);
+    box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.35);
   }
 
-  /* Message text — same 2vh corners as the popup shell */
+  /* Message text — same corners as the popup shell */
   .popup-text-bubble {
     display: inline-block;
-    margin: 0.3vh 0;
-    padding: 0.5vh 1.6vh;
-    border-radius: 2vh;
+    margin: calc(var(--u) * 0.3) 0;
+    padding: calc(var(--u) * 0.5) calc(var(--u) * 1.6);
+    border-radius: calc(var(--u) * 2);
     background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.16);
     -webkit-backdrop-filter: blur(8px) saturate(140%);
     backdrop-filter: blur(8px) saturate(140%);
-    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.12);
   }
 
   /* Glass × — sits inside the card, same box as the number pill */
   .maplibregl-popup-close-button {
     color: rgba(255, 255, 255, 0.85);
-    /* Same box as the number pill — padding 0.3vh 1vh, no fixed size */
+    /* Same box as the number pill — padding matches .popup-top-id */
     border-radius: 999px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.7vh;
+    font-size: calc(var(--u) * 1.7);
     line-height: 1;
-    border: 1px solid rgba(255, 255, 255, 0.22);
+    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
     background: rgba(255, 255, 255, 0.10);
     -webkit-backdrop-filter: blur(8px) saturate(140%);
     backdrop-filter: blur(8px) saturate(140%);
-    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.18), 0 0.4vh 1vh rgba(0, 0, 0, 0.35);
-    padding: 0.3vh 1vh;
+    box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.35);
+    padding: calc(var(--u) * 0.3) calc(var(--u) * 1);
     margin: 0;
     outline: none;
     cursor: pointer;
     position: absolute;
-    top: 0.1vh;
-    right: 0.1vh;
+    top: calc(var(--u) * 0.1);
+    right: calc(var(--u) * 0.1);
     z-index: 2;
     transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
   }
@@ -1662,18 +1704,18 @@ html, body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 3.8vh;
-    height: 3.8vh;
+    min-width: calc(var(--u) * 3.8);
+    height: calc(var(--u) * 3.8);
     padding: 0;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.10);
-    border: 1px solid rgba(255, 255, 255, 0.22);
+    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
     -webkit-backdrop-filter: blur(8px) saturate(140%);
     backdrop-filter: blur(8px) saturate(140%);
-    font-size: 1.5vh;
+    font-size: calc(var(--u) * 1.5);
     line-height: 1;
     color: white;
-    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.18), 0 0.4vh 1vh rgba(0, 0, 0, 0.35);
+    box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.35);
     cursor: pointer;
     flex-shrink: 0;
     transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
@@ -1681,18 +1723,18 @@ html, body {
 
   /* Timestamp — same glass bubble as the other pills */
   .popup-timestamp {
-    font-size: 1vh;
+    font-size: calc(var(--u) * 1);
     color: rgba(255, 255, 255, 0.45);
     letter-spacing: 0.03em;
     white-space: nowrap;
     display: inline-block;
-    padding: 0.3vh 0.9vh;
+    padding: calc(var(--u) * 0.3) calc(var(--u) * 0.9);
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.16);
     -webkit-backdrop-filter: blur(8px) saturate(140%);
     backdrop-filter: blur(8px) saturate(140%);
-    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.12);
   }
 
   @media (pointer: fine) {
@@ -2904,13 +2946,13 @@ html, body {
    the rest of the iOS glass UI. */
 .popup-media-card {
   position: relative;
-  width: 22vh;
+  width: calc(var(--u) * 22);
   aspect-ratio: 1;
-  margin: 0.5vh auto 0.7vh;
-  border-radius: 2vh;
+  margin: calc(var(--u) * 0.5) auto calc(var(--u) * 0.7);
+  border-radius: calc(var(--u) * 2);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow: 0 1.2vh 3vh rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 calc(var(--u) * 1.2) calc(var(--u) * 3) rgba(0, 0, 0, 0.55), inset 0 0 0 calc(var(--u) * 0.12) rgba(255, 255, 255, 0.05);
   background: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
   animation: popupMediaIn 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -2926,23 +2968,23 @@ html, body {
 .popup-media-expand {
   display: none;
   position: absolute;
-  top: 0.5vh;
-  right: 0.5vh;
+  top: calc(var(--u) * 0.5);
+  right: calc(var(--u) * 0.5);
   z-index: 2;
-  width: 3.8vh;
-  height: 3.8vh;
+  width: calc(var(--u) * 3.8);
+  height: calc(var(--u) * 3.8);
   padding: 0;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.10);
   -webkit-backdrop-filter: blur(8px) saturate(140%);
   backdrop-filter: blur(8px) saturate(140%);
   color: white;
-  font-size: 1.5vh;
+  font-size: calc(var(--u) * 1.5);
   line-height: 1;
   align-items: center;
   justify-content: center;
-  box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.18), 0 0.4vh 1vh rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.35);
   cursor: pointer;
   transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
   -webkit-tap-highlight-color: transparent;
@@ -3018,4 +3060,50 @@ html, body {
 }
 @keyframes mediaFsZoom {
   from { transform: scale(0.96); opacity: 0; }
+}
+
+/* Shown on each visit until Meritocracy is installed. */
+#install-recommend {
+  position: fixed;
+  z-index: 10020;
+  left: 50%;
+  top: 12vh;
+  transform: translateX(-50%);
+  width: min(86vw, 420px);
+  box-sizing: border-box;
+  padding: 2.2vh 2vh 1.8vh;
+  border-radius: 2vh;
+  background: rgba(18, 18, 28, 0.9);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  backdrop-filter: blur(10px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 2vh 5vh rgba(0, 0, 0, 0.45);
+  color: #e6e6f0;
+  font-family: system-ui, sans-serif;
+  text-align: center;
+}
+#install-recommend[hidden] {
+  display: none;
+}
+#install-recommend p {
+  margin: 0 0 1.6vh;
+  font-size: 2vh;
+}
+#install-recommend div {
+  display: flex;
+  justify-content: center;
+  gap: 1vh;
+}
+#install-recommend button {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 1.7vh;
+  padding: 0.8vh 1.8vh;
+  cursor: pointer;
+}
+#install-recommend-yes {
+  background: rgba(34, 211, 238, 0.22);
+  border-color: rgba(34, 211, 238, 0.7);
 }

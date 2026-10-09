@@ -10,7 +10,6 @@ import { closeDrawAnchor } from './drawhere';
 import { closePressAnchor } from './poiinfo';
 import { applyAllStyles } from './loadprofilepopup';
 import { scene } from "./threejs";
-import { makeScrollable } from './makescrollable';
 // Circular with localnews.js (which imports the topic helpers from here) —
 // safe: both sides only touch the other's bindings inside functions.
 import { livePointCoords, livePointTitles } from './localnews';
@@ -194,11 +193,6 @@ export function updateClusters(force = true) {
           closeDrawAnchor();
           closePressAnchor(); // a marker popup replaces the 🗺/📡 pin too
           popup.setLngLat(cluster.geometry.coordinates).addTo(map).setDOMContent(cluster.properties.message);
-          const markerPopupContent = popup.getElement()?.querySelector('.maplibregl-popup-content');
-          if (markerPopupContent && !markerPopupContent._scrollable) {
-            makeScrollable(markerPopupContent);
-            markerPopupContent._scrollable = true;
-          }
           animateMapTo(map, cluster.geometry.coordinates, null);
           applyAllStyles();
           changePopupState(true);

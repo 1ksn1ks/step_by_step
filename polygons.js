@@ -10,7 +10,6 @@ import { activeMarkerPopups } from './marker';
 import { CloseALL, changePopupState } from './cssLogic';
 import { closeDrawAnchor } from './drawhere';
 import { closePressAnchor } from './poiinfo';
-import { makeScrollable } from './makescrollable';
 
 
 
@@ -589,11 +588,6 @@ export async function addPolygonWithImageFill(map, polygon) {
               .setLngLat(e.lngLat)
               .setDOMContent(polygon.description)
               .addTo(map);
-            const polygonPopupContent = popup.getElement()?.querySelector('.maplibregl-popup-content');
-            if (polygonPopupContent && !polygonPopupContent._scrollable) {
-              makeScrollable(polygonPopupContent);
-              polygonPopupContent._scrollable = true;
-            }
             animateMapTo(map, targetLngLat, null);
             activePolygonPopups.push(popup);
             applyAllStyles();

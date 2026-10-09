@@ -7,6 +7,7 @@ import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryp
 import { connectedAccount, signer } from './web3';
 import { profilePictures, usernames, click2url } from './loadalladata';
 import { toast } from './toast'
+import { expandEncryptedChat, scheduleEncryptedChatLayout } from './cssLogic.js';
 import { 
   topicChatHeaderColor,
   headerFontSizeTopicChat,
@@ -42,6 +43,7 @@ function createEmptyStateMessage(container, message) {
   
   emptyDiv.appendChild(emptySpan);
   container.appendChild(emptyDiv);
+  expandEncryptedChat();
 }
 
 // Helper function to create loading spinner
@@ -273,6 +275,7 @@ function removePendingBubble(container, sig) {
   for (const el of container.querySelectorAll('[data-sig]')) {
     if (el.dataset.sig === sig) {
       el.remove();
+      scheduleEncryptedChatLayout();
       break;
     }
   }
@@ -324,6 +327,7 @@ function applyEncryptedChatMsgFilterSort() {
     container.appendChild(empty);
   }
   adjustTextareaHeight(container);
+  scheduleEncryptedChatLayout();
 }
 
 const encryptedChatMsgSearch = document.getElementById('e2ee-chat-msg-search');
@@ -374,6 +378,7 @@ async function loadMessagesFromEncryptedChat() {
 
     createLoadingSpinner(messagesContainer, topicId);
     adjustTextareaHeight(messagesContainer);
+    expandEncryptedChat();
 
     // Get topic admins
     const topicAdmin = [];
@@ -563,6 +568,7 @@ async function loadMessagesFromEncryptedChat() {
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
       toast.loaded("Encrypted messages loaded");
     }
+    expandEncryptedChat();
 
   } catch (error) {
     console.error("Error loading encrypted chat messages:", error);

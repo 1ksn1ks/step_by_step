@@ -1161,7 +1161,7 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
        } else {
          topicId = userInput;
        }
-       const title = document.getElementById("input-field-2-1").value;
+       const title = document.getElementById("input-field-2-1").value.slice(0, 20);
        const imageurl = document.getElementById("input-field-image-marker").value;
        const coverimage = document.getElementById("input-field-coverimage-marker").value;
        const cleanUrl = imageurl.replace(/\?network=mainnet$/, "");
@@ -1257,7 +1257,7 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
       return;
     }
 
-    const title = document.getElementById("input-field-2-1").value;
+    const title = document.getElementById("input-field-2-1").value.slice(0, 20);
     const imageurl = document.getElementById("input-field-image-marker").value;
     const coverimage = document.getElementById("input-field-coverimage-marker").value;
     const cleanUrl = imageurl.replace(/\?network=mainnet$/, "");
@@ -1355,7 +1355,7 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
        } else {
          topicId = userInput;
        }
-       const title = document.getElementById("input-field-3-1").value;
+       const title = document.getElementById("input-field-3-1").value.slice(0, 20);
        const msg = document.getElementById("input-field-3-2").value;
        const imageurl = document.getElementById("input-field-image-polygon").value;
        const coverimage = document.getElementById("input-field-coverimage-polygon").value;
@@ -1491,7 +1491,7 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
       return;
     }
 
-    const title = document.getElementById("input-field-3-1").value;
+    const title = document.getElementById("input-field-3-1").value.slice(0, 20);
     const msg = document.getElementById("input-field-3-2").value;
     const imageurl = document.getElementById("input-field-image-polygon").value;
     const coverimage = document.getElementById("input-field-coverimage-polygon").value;

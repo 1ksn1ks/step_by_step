@@ -194,7 +194,7 @@ export function applyAllStyles() {
         const popupFontSizeValue = Math.min(Math.max(parseFloat(popupFontSize) || 1, 1), 3);
         const popupTexts = document.querySelectorAll('.maplibregl-popup-content');
         popupTexts.forEach(text => {
-            text.style.fontSize = `${popupFontSizeValue}vh`;
+            text.style.fontSize = `calc(var(--u) * ${popupFontSizeValue})`;
         });
     }
     document.getElementById('popup-font-size').addEventListener('input', (event) => {updatePopupFontSize();});
