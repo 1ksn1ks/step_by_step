@@ -30,11 +30,13 @@ function ensurePolygonTitleTip() {
 }
 
 function eventPoint(e) {
-  if (e.point) return e.point;
-  const touch = e.originalEvent && (e.originalEvent.touches?.[0] || e.originalEvent.changedTouches?.[0]);
-  if (!touch) return null;
+  const src = e.originalEvent || e;
+  const touch = src && (src.touches?.[0] || src.changedTouches?.[0]);
+  if (touch) return { x: touch.clientX, y: touch.clientY };
+  if (src && typeof src.clientX === "number") return { x: src.clientX, y: src.clientY };
+  if (!e.point) return null;
   const rect = map.getCanvas().getBoundingClientRect();
-  return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+  return { x: rect.left + e.point.x, y: rect.top + e.point.y };
 }
 
 function hidePolygonTitle() {
@@ -54,9 +56,8 @@ function showPolygonTitle(title, point, fromTouch) {
   const tip = ensurePolygonTitleTip();
   tip.textContent = text;
   tip.hidden = false;
-  const rect = map.getCanvas().getBoundingClientRect();
-  tip.style.left = `${rect.left + point.x}px`;
-  tip.style.top = `${rect.top + point.y}px`;
+  tip.style.left = `${point.x}px`;
+  tip.style.top = `${point.y}px`;
 }
 
 map.on("movestart", hidePolygonTitle);
@@ -645,8 +646,9 @@ export async function addPolygonWithImageFill(map, polygon) {
           }
         });
   
-        map.on('mouseenter', maskLayerId, () => {
+        map.on('mouseenter', maskLayerId, (e) => {
           map.getCanvas().style.cursor = 'pointer';
+          showPolygonTitle(polygon.title, eventPoint(e), false);
         });
 
         map.on('mousemove', maskLayerId, (e) => {

@@ -78,9 +78,10 @@ function notifyTopicClustersUpdated() {
 
 let lastTopicSig = null;
 
-// Title pill above a topic dot. Desktop shows it on hover. A phone has no
-// hover: a short tap still opens the popup, and holding the dot shows the
-// title without opening it. Live twins already wear a permanent label.
+// Title pill just above the cursor, following it across the dot. A phone
+// has no hover: a short tap still opens the popup, and holding the dot
+// shows the title above the finger without opening it. Live twins already
+// wear a permanent label.
 let markerTitleTip = null;
 let markerTitleHideTimer = 0;
 let markerHoldTimer = 0;
@@ -99,9 +100,9 @@ function hideMarkerTitle() {
   if (markerTitleTip) markerTitleTip.hidden = true;
 }
 
-function showMarkerTitle(title, el) {
+function showMarkerTitle(title, x, y) {
   const text = String(title || "").trim();
-  if (!text || !el.isConnected) {
+  if (!text || !Number.isFinite(x) || !Number.isFinite(y)) {
     hideMarkerTitle();
     return;
   }
@@ -109,9 +110,8 @@ function showMarkerTitle(title, el) {
   const tip = ensureMarkerTitleTip();
   tip.textContent = text;
   tip.hidden = false;
-  const rect = el.getBoundingClientRect();
-  tip.style.left = `${rect.left + rect.width / 2}px`;
-  tip.style.top = `${rect.top}px`;
+  tip.style.left = `${x}px`;
+  tip.style.top = `${y}px`;
 }
 
 function markerCanHover() {
@@ -124,8 +124,11 @@ map.on("movestart", () => {
 });
 
 function bindMarkerTitle(el, title) {
-  el.addEventListener("mouseenter", () => {
-    if (markerCanHover()) showMarkerTitle(title, el);
+  el.addEventListener("mouseenter", (event) => {
+    if (markerCanHover()) showMarkerTitle(title, event.clientX, event.clientY);
+  });
+  el.addEventListener("mousemove", (event) => {
+    if (markerCanHover()) showMarkerTitle(title, event.clientX, event.clientY);
   });
   el.addEventListener("mouseleave", () => {
     if (markerCanHover()) hideMarkerTitle();
@@ -138,7 +141,7 @@ function bindMarkerTitle(el, title) {
     clearTimeout(markerHoldTimer);
     markerHoldTimer = setTimeout(() => {
       el.dataset.holdTitle = "1";
-      showMarkerTitle(title, el);
+      showMarkerTitle(title, startX, startY);
     }, 450);
     const cancelIfSlid = (moveEvent) => {
       const moved = moveEvent.touches && moveEvent.touches[0];
