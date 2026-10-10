@@ -18,8 +18,17 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 // longitude-based UTC offset if no zone is found.
 function updateClock() {
   if (!clockEl) return;
-  const { lat, lng } = map.getCenter();
-  const zone = tzlookup(lat, lng);
+  const center = map.getCenter();
+  const lat = center.lat;
+  // The place flight used to hand tz-lookup a longitude past -180. That
+  // throws inside the map move event and freezes the camera mid-ocean.
+  const lng = normLon(center.lng);
+  let zone = 'Unknown';
+  try {
+    zone = tzlookup(lat, lng);
+  } catch {
+    zone = 'Unknown';
+  }
 
   if (zone && zone !== 'Unknown') {
     if (zone !== zoneName) {

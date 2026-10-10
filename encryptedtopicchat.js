@@ -8,6 +8,7 @@ import { connectedAccount, signer } from './web3';
 import { profilePictures, usernames, click2url } from './loadalladata';
 import { toast } from './toast'
 import { expandEncryptedChat, scheduleEncryptedChatLayout } from './cssLogic.js';
+import { refreshFilterTimeButtons } from './drawdate.js';
 import { 
   topicChatHeaderColor,
   headerFontSizeTopicChat,
@@ -1062,6 +1063,7 @@ document.getElementById("load-time-from-encrypted-chat").addEventListener("click
       document.getElementById("to-mmddyyyy-encrypted-chat").value = lastValidMessage.saveTimeFromEncryptedChat.toMmddyyyy || '';
       document.getElementById("from-hhmmss-encrypted-chat").value = lastValidMessage.saveTimeFromEncryptedChat.fromHhmmss || '000000';
       document.getElementById("to-hhmmss-encrypted-chat").value = lastValidMessage.saveTimeFromEncryptedChat.toHhmmss || '000000';
+      refreshFilterTimeButtons();
     } else {
       console.log("No valid user message found with saveTimeFromEncryptedChat");
     }

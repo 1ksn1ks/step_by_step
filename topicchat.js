@@ -18,6 +18,7 @@ import {
 
  import { connectedAccount, signer } from './web3';
 import { expandTopicChat, scheduleTopicChatLayout } from './cssLogic.js';
+import { refreshFilterTimeButtons } from './drawdate.js';
 
 
 export let allLoadedMessagesTopicChat = [];
@@ -817,6 +818,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         document.getElementById("to-mmddyyyy").value = lastValidMessage.saveTimeFromTopicChat.toMmddyyyy || '';
         document.getElementById("from-hhmmss").value = lastValidMessage.saveTimeFromTopicChat.fromHhmmss || '000000';
         document.getElementById("to-hhmmss").value = lastValidMessage.saveTimeFromTopicChat.toHhmmss || '000000';
+        refreshFilterTimeButtons();
       } else {
         console.log("No valid user message found with saveTimeFromTopicChat");
       }

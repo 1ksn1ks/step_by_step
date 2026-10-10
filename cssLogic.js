@@ -1159,7 +1159,7 @@ document.getElementById("show-topic-rules-from-marker").addEventListener("click"
   );
   hideElements(
     "show-topic-rules-from-marker",
-    "input-field-number-of-marker",
+    "next-marker-number-row",
     "input-field-2-3",
     "input-field-2-1",
     "input-field-2-2",
@@ -1179,7 +1179,6 @@ document.getElementById("hide-topic-rules-from-marker").addEventListener("click"
   showElements("show-topic-rules-from-marker");
 
   showElements(
-    "input-field-number-of-marker",
     "input-field-2-3",
     "input-field-2-1",
     "input-field-2-2",
@@ -1187,6 +1186,7 @@ document.getElementById("hide-topic-rules-from-marker").addEventListener("click"
   );
 
   showElementsFlex(
+    "next-marker-number-row",
     "marker-submit-buttons"
   )
 });
@@ -1196,7 +1196,6 @@ document.getElementById("show-optional-settings-marker").addEventListener("click
   hideElements("show-optional-settings-marker");
 
   showElements(
-    "input-field-number-of-marker",
     "input-field-2-3",
     "input-field-2-1",
     "input-field-2-2",
@@ -1204,6 +1203,7 @@ document.getElementById("show-optional-settings-marker").addEventListener("click
   );
 
   showElementsFlex(
+    "next-marker-number-row",
     "marker-submit-buttons"
   )
 
@@ -1230,7 +1230,7 @@ document.getElementById("show-delete-marker-from-marker").addEventListener("clic
   hideElements("show-delete-marker-from-marker");
 
   hideElements(
-    "input-field-number-of-marker",
+    "next-marker-number-row",
     "input-field-2-3",
     "input-field-2-1",
     "input-field-2-2",
@@ -1250,7 +1250,6 @@ document.getElementById("hide-delete-marker-from-marker").addEventListener("clic
   showElements("show-delete-marker-from-marker");
 
   showElements(
-    "input-field-number-of-marker",
     "input-field-2-3",
     "input-field-2-1",
     "input-field-2-2",
@@ -1258,6 +1257,7 @@ document.getElementById("hide-delete-marker-from-marker").addEventListener("clic
   );
 
   showElementsFlex(
+    "next-marker-number-row",
     "marker-submit-buttons"
   )
 
@@ -1340,7 +1340,7 @@ document.getElementById("show-topic-rules-from-polygon").addEventListener("click
   );
   hideElements(
     "show-topic-rules-from-polygon",
-    "input-field-number-of-polygon",
+    "next-polygon-number-row",
     "input-field-3-3",
     "input-field-3-5",
     "input-field-3-2",
@@ -1360,13 +1360,13 @@ document.getElementById("hide-topic-rules-from-polygon").addEventListener("click
   showElements("show-topic-rules-from-polygon");
 
   showElements(
-    "input-field-number-of-polygon",
     "input-field-3-3",
     "input-field-3-5",
     "input-field-3-2",
     "char-counter-polygon",
   );
   showElementsFlex(
+    "next-polygon-number-row",
     "polygon-submit-buttons"
   )
 
@@ -1377,13 +1377,13 @@ document.getElementById("show-optional-settings-polygon").addEventListener("clic
   hideElements("show-optional-settings-polygon");
 
   showElements(
-    "input-field-number-of-polygon",
     "input-field-3-3",
     "input-field-3-5",
     "input-field-3-2",
     "char-counter-polygon",
   );
   showElementsFlex(
+    "next-polygon-number-row",
     "polygon-submit-buttons"
   )
 
@@ -1410,7 +1410,7 @@ document.getElementById("show-delete-polygon-from-polygon").addEventListener("cl
   hideElements("show-delete-polygon-from-polygon");
 
   hideElements(
-    "input-field-number-of-polygon",
+    "next-polygon-number-row",
     "input-field-3-3",
     "input-field-3-5",
     "input-field-3-2",
@@ -1430,13 +1430,13 @@ document.getElementById("hide-delete-polygon-from-polygon").addEventListener("cl
   showElements("show-delete-polygon-from-polygon");
 
   showElements(
-    "input-field-number-of-polygon",
     "input-field-3-3",
     "input-field-3-5",
     "input-field-3-2",
     "char-counter-polygon",
   );
   showElementsFlex(
+    "next-polygon-number-row",
     "polygon-submit-buttons"
   )
 });
@@ -1630,6 +1630,7 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     editProfileShowOptions()
     editProfileHideOptions()
     document.getElementById("edit-profile-url-name-domain").style.display = "block";
+    document.getElementById("toolbar-input").placeholder = "username";
     document.getElementById("hide-username-from-edit-profile").style.display = "block";
     document.getElementById("show-username-from-edit-profile").style.display = "none";
     document.getElementById("edit-profile-username").style.display = "block";
@@ -1651,6 +1652,7 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     editProfileShowOptions()
     editProfileHideOptions()
     document.getElementById("edit-profile-url-name-domain").style.display = "block";
+    document.getElementById("toolbar-input").placeholder = "URL";
     document.getElementById("hide-click2link-from-edit-profile").style.display = "block";
     document.getElementById("show-click2link-from-edit-profile").style.display = "none";
     document.getElementById("edit-profile-click2link").style.display = "block";

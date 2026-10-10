@@ -917,6 +917,261 @@ html, body {
     animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
+  /* Draw number stays one centered line, equal space above and below. */
+  .toolbar-column.draw-number-field {
+    text-align: center;
+    height: 5vh;
+    min-height: 5vh;
+    max-height: 5vh;
+    font-size: 2vh;
+    line-height: 2vh;
+    padding-top: calc((5vh - 2px - 2vh) / 2);
+    padding-bottom: calc((5vh - 2px - 2vh) / 2);
+    padding-left: 0.4vh;
+    padding-right: 0.4vh;
+    overflow: hidden;
+  }
+
+  .toolbar-column.draw-number-field::placeholder {
+    color: rgba(255, 255, 255, 0.55);
+    text-align: center;
+  }
+
+  .filter-time-row {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    width: 100%;
+    gap: 1vw;
+    align-items: center;
+  }
+
+  .filter-time-row .filter-time-open {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .draw-date-picker {
+    position: fixed;
+    inset: 0;
+    z-index: 9600;
+    background: rgba(8, 8, 18, 0.68);
+    -webkit-backdrop-filter: blur(5px);
+    backdrop-filter: blur(5px);
+  }
+
+  .draw-date-card {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(92vw, 52vh);
+    max-height: 86vh;
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 3.2vh 1.6vh 2vh;
+    border-radius: 2vh;
+    color: #e6e6f0;
+    background: rgba(18, 18, 28, 0.92);
+    -webkit-backdrop-filter: blur(10px) saturate(150%);
+    backdrop-filter: blur(10px) saturate(150%);
+    border: 1px solid rgba(34, 211, 238, 0.45);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  }
+
+  .draw-date-title {
+    margin: 0 0 1.4vh;
+    text-align: center;
+    font-size: 2.2vh;
+    font-weight: 600;
+    color: #fff;
+  }
+
+  .draw-date-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1vh;
+    margin-bottom: 1vh;
+  }
+
+  .draw-date-nav button {
+    width: 4vh;
+    height: 4vh;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    font-size: 2.4vh;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  #draw-date-month {
+    flex: 1;
+    text-align: center;
+    font-size: 2vh;
+    font-weight: 600;
+    color: #fff;
+  }
+
+  .draw-date-year-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8vh;
+    margin: 0 0 0.8vh;
+  }
+
+  .draw-date-year-nav button {
+    width: 3.4vh;
+    height: 3.4vh;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    font-size: 2vh;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  #draw-date-year {
+    width: 9vh;
+    height: 3.6vh;
+    box-sizing: border-box;
+    text-align: center;
+    color: #fff;
+    font-size: 2vh;
+    font-weight: 600;
+    border-radius: 1vh;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(15, 15, 20, 0.45);
+  }
+
+  .draw-date-weekdays,
+  .draw-date-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.35vh;
+  }
+
+  /* Always six weeks, so a month with an extra Monday does not grow the card. */
+  .draw-date-grid {
+    grid-template-rows: repeat(6, minmax(0, 1fr));
+    aspect-ratio: 7 / 6;
+  }
+
+  .draw-date-weekdays {
+    margin-bottom: 0.4vh;
+    color: rgba(230, 230, 245, 0.55);
+    font-size: 1.4vh;
+    text-align: center;
+  }
+
+  .draw-date-day {
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: none;
+    border-radius: 1vh;
+    background: transparent;
+    color: #fff;
+    font-size: 1.7vh;
+    cursor: pointer;
+  }
+
+  .draw-date-day-blank {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .draw-date-day:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .draw-date-day.is-today {
+    box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.85);
+  }
+
+  .draw-date-day.is-selected {
+    background: rgba(34, 211, 238, 0.9);
+    color: #0b0b14;
+    font-weight: 700;
+  }
+
+  .draw-date-time {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.7vh;
+    margin-top: 1.4vh;
+  }
+
+  .draw-date-time-label,
+  .draw-date-colon {
+    font-size: 1.8vh;
+    color: rgba(230, 230, 245, 0.75);
+  }
+
+  .draw-date-spin {
+    display: flex;
+    align-items: center;
+    gap: 0.3vh;
+  }
+
+  .draw-date-spin button,
+  #draw-date-now {
+    height: 4vh;
+    min-width: 4vh;
+    padding: 0 1vh;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    font-size: 1.8vh;
+    cursor: pointer;
+  }
+
+  .draw-date-spin input {
+    width: 5vh;
+    height: 4vh;
+    box-sizing: border-box;
+    text-align: center;
+    color: #fff;
+    font-size: 2vh;
+    border-radius: 1vh;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(15, 15, 20, 0.45);
+  }
+
+  .draw-date-preview {
+    margin-top: 1.2vh;
+    text-align: center;
+    font-size: 1.8vh;
+    letter-spacing: 0.04em;
+    color: rgba(230, 230, 245, 0.8);
+  }
+
+  .draw-date-use {
+    display: block;
+    width: 100%;
+    margin-top: 1.4vh;
+    height: 5vh;
+    border: none;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.94);
+    color: #0b0b14;
+    font-size: 2vh;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
   .upload-preview {
     position: relative;
     width: 100%;
@@ -2399,6 +2654,92 @@ html, body {
     50% { transform: translateY(-0.4vh); }
   }
 
+  .profile-live-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8vh;
+    margin: 0 0 1.2vh;
+  }
+
+  .profile-live-label {
+    font-size: 1.5vh;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(34, 211, 238, 0.85);
+    text-align: center;
+  }
+
+  .profile-live-bubble {
+    display: flex;
+    align-items: center;
+    align-self: stretch;
+    gap: 1.2vh;
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0;
+    padding: 0.6vh 1.6vh 0.6vh 0.6vh;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 0.12vh solid rgba(255, 255, 255, 0.18);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.12), 0 0.4vh 1vh rgba(0, 0, 0, 0.3);
+  }
+
+  .profile-live-pic {
+    width: 7vh;
+    height: 7vh;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 0.12vh solid rgba(255, 255, 255, 0.25);
+    background: rgba(0, 0, 0, 0.35);
+  }
+
+  .profile-live-names {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.3;
+  }
+
+  .profile-live-account {
+    font-size: 1.7vh;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .profile-live-name {
+    font-size: 1.9vh;
+    font-weight: 700;
+    text-decoration: none;
+    word-break: break-word;
+  }
+
+  .profile-live-name.is-link {
+    text-decoration: underline;
+  }
+
+  .profile-live-bio {
+    align-self: stretch;
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 1.7vh;
+    color: white;
+    white-space: pre-wrap;
+    word-break: break-word;
+    padding: 0.8vh 1.4vh;
+    border-radius: 1.6vh;
+    background: rgba(255, 255, 255, 0.07);
+    border: 0.12vh solid rgba(255, 255, 255, 0.16);
+  }
+
+  .profile-live-bio.is-empty {
+    color: rgba(255, 255, 255, 0.45);
+  }
+
   /* Settings panels (Main Buttons / Button-Input) — glass cards:
      sliders, color chips, live preview */
   /* ? help button: top-right corner of every settings panel */
@@ -2746,6 +3087,22 @@ html, body {
   #load-column-container #loaded-topics {
     line-height: 1.7;
     letter-spacing: 0.04em;
+  }
+
+  #loaded-topics .profile-live-preview {
+    line-height: 1.3;
+    letter-spacing: normal;
+    margin: 0.3vh 0;
+  }
+
+  #loaded-topics .profile-live-preview,
+  #loaded-topics .profile-live-preview * {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+    cursor: text;
   }
 
   /* The list must not scale on hover/press — the global .toolbar-column

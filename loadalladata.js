@@ -24,6 +24,7 @@ export async function loadAllData() {
         if (s.click2url) click2url[s.accountId] = { click2url: s.click2url, timestamp: s.updatedAt };
         if (s.bio) topicBio[s.accountId] = { topic_bio: s.bio, timestamp: s.updatedAt };
       }
+      document.dispatchEvent(new CustomEvent('profiles-loaded'));
       return { profilePictures, usernames, click2url, topicBio };
     }
   } catch (e) {
@@ -35,6 +36,7 @@ export async function loadAllData() {
   click2url       = await loadCLICK2URL();
   topicBio        = await loadTopicBio();
 
+  document.dispatchEvent(new CustomEvent('profiles-loaded'));
   return { profilePictures, usernames, click2url, topicBio };
 }
 

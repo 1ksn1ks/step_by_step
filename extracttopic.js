@@ -6,8 +6,13 @@ export let initialTopicId = '';
 const defaultTopicId = '0.0.9609912';
 
 export async function extractTopicId() {
-  const path = window.location.pathname;
-  const userInput = path && path !== '/' ? path.slice(1) : '';
+  const url = new URL(window.location.href);
+  const fromPath = url.pathname && url.pathname !== '/'
+    ? decodeURIComponent(url.pathname.slice(1).split('/')[0])
+    : '';
+  // Notification links also carry ?topic= so an older path-less link still opens it.
+  const fromQuery = (url.searchParams.get('topic') || '').trim();
+  const userInput = fromPath || fromQuery;
   
   let topicId;
   if (userInput.startsWith('0.0.')) {

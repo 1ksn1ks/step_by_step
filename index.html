@@ -183,6 +183,7 @@
             <li><b>Username</b> — enter a new name, then press Save.</li>
             <li><b>BIO</b> — set your profile bio; tapping a PFP shows it in Load.</li>
             <li><b>CLICK2LINK</b> — attach any URL to your username.</li>
+            <li><b>Preview</b> — the card updates as you change the picture, name, bio, and link.</li>
           </ul>
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('edit-profile-help-overlay').style.display='none'">Got it</button>
@@ -196,6 +197,18 @@
         <div id="Edit_Profile-column-container">
 
           <div class="options-column-title">👤 PROFILE</div>
+
+          <div id="profile-live-preview" class="profile-live-preview">
+            <div class="profile-live-label">Preview</div>
+            <div class="profile-live-bubble">
+              <img id="profile-live-pic" class="profile-live-pic" alt="Profile photo">
+              <div class="profile-live-names">
+                <div id="profile-live-account" class="profile-live-account"></div>
+                <div id="profile-live-username"></div>
+              </div>
+            </div>
+            <div id="profile-live-bio" class="profile-live-bio"></div>
+          </div>
 
           <div style="display: flex;">
             <button id="show-profile-picture-from-edit-profile" class="toolbar-column-first-settings-btns">Profile picture
@@ -354,7 +367,7 @@
           <button id="toolbar-load" class="toolbar-column-btns">༼ つ ◕_◕༽つ━☆ﾟ.*･｡ﾟ Load
           </button>
       
-          <div class="load-section-label">Loaded topics:</div>
+          <div class="load-section-label" id="loaded-topics-label">Loaded topics:</div>
           <div class="toolbar-column" style="user-select: text;" id="loaded-topics" placeholder="Loaded Topics" onclick="event.stopPropagation();">
             <div class="loaded-topics-controls">
               <input type="text" id="loaded-topics-search" class="loaded-topics-search" placeholder="Search topics" onclick="event.stopPropagation();">
@@ -440,19 +453,14 @@
       
       
           <div id="time-from-users-load-column" style="display: none;">
-            <label style="font-size: 2vh; padding-bottom: 0.5vh;">Month Day Year:
-              <div style="display: flex; align-items: center;">
-                <input type="date" id="from-mmddyyyy-users-load-column" class="toolbar-column" />
-                <input type="date" id="to-mmddyyyy-users-load-column" class="toolbar-column" style="margin-left: 1vw;" />
-              </div>
-          </label>
-
-          <label style="font-size: 2vh; padding-bottom: 0.5vh;">Hour Minute:
-            <div style="display: flex; align-items: center;">
-              <input type="time" id="from-hhmmss-users-load-column" class="toolbar-column" />
-              <input type="time" id="to-hhmmss-users-load-column" class="toolbar-column" style="margin-left: 1vw;" />
+            <div class="filter-time-row">
+            <button type="button" class="toolbar-column-btns filter-time-open" data-label="From" data-date-id="from-mmddyyyy-users-load-column" data-time-id="from-hhmmss-users-load-column">From</button>
+            <button type="button" class="toolbar-column-btns filter-time-open" data-label="To" data-date-id="to-mmddyyyy-users-load-column" data-time-id="to-hhmmss-users-load-column">To</button>
             </div>
-          </label>
+            <input type="date" id="from-mmddyyyy-users-load-column" hidden>
+            <input type="date" id="to-mmddyyyy-users-load-column" hidden>
+            <input type="time" id="from-hhmmss-users-load-column" hidden>
+            <input type="time" id="to-hhmmss-users-load-column" hidden>
         </div>
       
         <div id="time-from-users-load-column-filter" style="display: none;">
@@ -641,7 +649,7 @@
             <li>Draw markers and polygons. Some topics require NFTs — check the topic's Rules.</li>
             <li>Need a topic? TOOLBAR → Create.</li>
             <li><b>Domain/Topic ID</b> — where the shape's data is stored.</li>
-            <li><b>Number</b> — reference ID to edit or delete the shape later.</li>
+            <li><b>Number</b> — reference ID to edit or delete the shape later. Use date opens a calendar already set to the current date and time. One press keeps that, or pick another. The number is saved as yyyymmddhhmm. Next number fills one higher than the highest you already used on this topic. The first one is 1.</li>
             <li><b>Coordinates</b> — where the shape sits on the map.</li>
             <li><b>Optional settings</b> — cover photo, title, image URL, and popup message when pressed.</li>
             <li><b>Delete</b> — remove a shape by its Number and Domain/Topic ID.</li>
@@ -675,9 +683,13 @@
           <textarea class="toolbar-column" type="text" id="input-field-2-0" placeholder="Domain/Topic ID"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
-          <textarea class="toolbar-column" type="text" id="input-field-number-of-marker" placeholder="Number of marker"
-          oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          <div id="next-marker-number-row" style="display: flex; flex-direction: row; flex-wrap: nowrap; width: 100%; gap: 1vw; align-items: center;">
+          <button type="button" id="use-date-marker-number" class="toolbar-column-btns" style="width: auto; flex: 0 0 auto; white-space: nowrap; padding: 0 1.4vh;">Use date</button>
+          <textarea class="toolbar-column draw-number-field" id="input-field-number-of-marker" placeholder="Number of marker"
+          style="flex: 1; min-width: 0; width: auto;"
           ></textarea>
+          <button type="button" id="next-marker-number" class="toolbar-column-btns" style="width: auto; flex: 0 0 auto; white-space: nowrap; padding: 0 1.4vh;">Next number</button>
+          </div>
           <textarea class="toolbar-column" type="text" id="input-field-2-3" placeholder="Coordinates long,lat"
           oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';" onclick="event.stopPropagation();"
           ></textarea>
@@ -777,9 +789,13 @@
           <textarea class="toolbar-column" type="text" id="input-field-3-0" placeholder="Domain/Topic ID"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
-          <textarea class="toolbar-column" type="text" id="input-field-number-of-polygon" placeholder="Number of polygon"
-          oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          <div id="next-polygon-number-row" style="display: flex; flex-direction: row; flex-wrap: nowrap; width: 100%; gap: 1vw; align-items: center;">
+          <button type="button" id="use-date-polygon-number" class="toolbar-column-btns" style="width: auto; flex: 0 0 auto; white-space: nowrap; padding: 0 1.4vh;">Use date</button>
+          <textarea class="toolbar-column draw-number-field" id="input-field-number-of-polygon" placeholder="Number of polygon"
+          style="flex: 1; min-width: 0; width: auto;"
           ></textarea>
+          <button type="button" id="next-polygon-number" class="toolbar-column-btns" style="width: auto; flex: 0 0 auto; white-space: nowrap; padding: 0 1.4vh;">Next number</button>
+          </div>
           <textarea class="toolbar-column" type="text" id="input-field-3-3" placeholder="TOP LEFT long,lat"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
@@ -1354,19 +1370,14 @@
       
         
         <div id="time-from-topic-chat" style="display: none;">
-          <label style="font-size: 2vh; padding-bottom: 0.5vh;">Month Day Year:
-            <div style="display: flex; align-items: center;">
-              <input type="date" id="from-mmddyyyy" class="toolbar-column" />
-              <input type="date" id="to-mmddyyyy" class="toolbar-column" style="margin-left: 1vw;" />
-            </div>
-        </label>
-
-        <label style="font-size: 2vh; padding-bottom: 0.5vh;">Hour Minute:
-          <div style="display: flex; align-items: center;">
-            <input type="time" id="from-hhmmss" class="toolbar-column" />
-            <input type="time" id="to-hhmmss" class="toolbar-column" style="margin-left: 1vw;" />
+          <div class="filter-time-row">
+          <button type="button" class="toolbar-column-btns filter-time-open" data-label="From" data-date-id="from-mmddyyyy" data-time-id="from-hhmmss">From</button>
+          <button type="button" class="toolbar-column-btns filter-time-open" data-label="To" data-date-id="to-mmddyyyy" data-time-id="to-hhmmss">To</button>
           </div>
-        </label>
+          <input type="date" id="from-mmddyyyy" hidden>
+          <input type="date" id="to-mmddyyyy" hidden>
+          <input type="time" id="from-hhmmss" hidden>
+          <input type="time" id="to-hhmmss" hidden>
       </div>
       
       <div id="time-from-topic-chat-filter" style="display: none;">
@@ -1548,20 +1559,15 @@
       
         </div>
       
-        <div id="time-from-encrypted-chat" style="display: none;"> 
-          <label for="from-mmddyyyy-encrypted-chat" style="font-size: 2vh; padding-bottom: 0.5vh;">Month Day Year:
-            <div style="display: flex; align-items: center;">
-              <input type="date" id="from-mmddyyyy-encrypted-chat" class="toolbar-column" />
-              <input type="date" id="to-mmddyyyy-encrypted-chat" class="toolbar-column" style="margin-left: 1vw;" />
-            </div>
-          </label>
-
-          <label for="from-hhmmss-encrypted-chat" style="font-size: 2vh; padding-bottom: 0.5vh;">Hour Minute:
-            <div style="display: flex; align-items: center;">
-              <input type="time" id="from-hhmmss-encrypted-chat" class="toolbar-column" />
-              <input type="time" id="to-hhmmss-encrypted-chat" class="toolbar-column" style="margin-left: 1vw;" />
-            </div>
-          </label>
+        <div id="time-from-encrypted-chat" style="display: none;">
+          <div class="filter-time-row">
+          <button type="button" class="toolbar-column-btns filter-time-open" data-label="From" data-date-id="from-mmddyyyy-encrypted-chat" data-time-id="from-hhmmss-encrypted-chat">From</button>
+          <button type="button" class="toolbar-column-btns filter-time-open" data-label="To" data-date-id="to-mmddyyyy-encrypted-chat" data-time-id="to-hhmmss-encrypted-chat">To</button>
+          </div>
+          <input type="date" id="from-mmddyyyy-encrypted-chat" hidden>
+          <input type="date" id="to-mmddyyyy-encrypted-chat" hidden>
+          <input type="time" id="from-hhmmss-encrypted-chat" hidden>
+          <input type="time" id="to-hhmmss-encrypted-chat" hidden>
       </div>
       
       <div id="time-from-encrypted-chat-filter" style="display: none;">
@@ -2345,6 +2351,44 @@
           <div id="save-topic-chat-settings" class="toolbar-column-btns save-settings-btn" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save Settings
           </div>
       
+        </div>
+      </div>
+
+      <div id="draw-date-picker" class="draw-date-picker" style="display: none;">
+        <div class="draw-date-card" onclick="event.stopPropagation();">
+          <button type="button" id="draw-date-close" class="info-overlay-x" aria-label="Close">×</button>
+          <h3 class="draw-date-title" id="draw-date-title">Pick date and time</h3>
+          <div class="draw-date-year-nav">
+            <button type="button" id="draw-date-year-prev" aria-label="Previous year">‹</button>
+            <input id="draw-date-year" inputmode="numeric" maxlength="4" aria-label="Year">
+            <button type="button" id="draw-date-year-next" aria-label="Next year">›</button>
+          </div>
+          <div class="draw-date-nav">
+            <button type="button" id="draw-date-prev" aria-label="Previous month">‹</button>
+            <div id="draw-date-month"></div>
+            <button type="button" id="draw-date-next" aria-label="Next month">›</button>
+          </div>
+          <div class="draw-date-weekdays" aria-hidden="true">
+            <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+          </div>
+          <div id="draw-date-grid" class="draw-date-grid"></div>
+          <div class="draw-date-time">
+            <span class="draw-date-time-label">Time</span>
+            <div class="draw-date-spin">
+              <button type="button" id="draw-date-hour-down" aria-label="Earlier hour">−</button>
+              <input id="draw-date-hour" inputmode="numeric" maxlength="2" aria-label="Hour">
+              <button type="button" id="draw-date-hour-up" aria-label="Later hour">+</button>
+            </div>
+            <span class="draw-date-colon">:</span>
+            <div class="draw-date-spin">
+              <button type="button" id="draw-date-minute-down" aria-label="Earlier minute">−</button>
+              <input id="draw-date-minute" inputmode="numeric" maxlength="2" aria-label="Minute">
+              <button type="button" id="draw-date-minute-up" aria-label="Later minute">+</button>
+            </div>
+            <button type="button" id="draw-date-now">Now</button>
+          </div>
+          <div id="draw-date-preview" class="draw-date-preview"></div>
+          <button type="button" id="draw-date-use" class="draw-date-use">Use current</button>
         </div>
       </div>
 

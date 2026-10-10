@@ -381,7 +381,9 @@ function extractUserSettings(topicId, payer, body, tsMs) {
   } else if (kind === "click") {
     if (d.click2url && d.click2url.length > 0) q.settingClick.run(payer, d.click2url[0], tsMs);
   } else if (kind === "bio") {
-    if (d.topic_bio && d.topic_bio.length < 256) q.settingBio.run(payer, d.topic_bio, tsMs);
+    // Profiles submit topic_bio as a one-item list. Older messages used a string.
+    const bio = Array.isArray(d.topic_bio) ? d.topic_bio[0] : d.topic_bio;
+    if (typeof bio === "string" && bio.length > 0 && bio.length < 256) q.settingBio.run(payer, bio, tsMs);
   }
 }
 
@@ -581,7 +583,11 @@ const storePage = (topicId, msgs) => {
         continue; // non-JSON message — the app's getMessages skips these too
       }
       q.insertMsg.run(topicId, m.sequence_number, m.consensus_timestamp, m.payer_account_id, body);
-      extractUserSettings(topicId, m.payer_account_id, body, Number(m.consensus_timestamp) * 1000);
+      try {
+        extractUserSettings(topicId, m.payer_account_id, body, Number(m.consensus_timestamp) * 1000);
+      } catch (err) {
+        console.error("user settings skipped", topicId, m.sequence_number, err.message);
+      }
       extractTopicIndex(topicId, m.payer_account_id, body, Number(m.consensus_timestamp) * 1000);
       stored.push({ payer: m.payer_account_id, body, seq: m.sequence_number, ts: m.consensus_timestamp });
     }

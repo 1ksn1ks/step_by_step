@@ -58,10 +58,21 @@ document.getElementById("submit-button-Set_Initial_XYZ").addEventListener("click
   }
 });
 
+function openedFromPlaceLink() {
+  try {
+    const place = new URL(window.location.href).searchParams.get('place');
+    return place === 'marker' || place === 'polygon';
+  } catch (err) {
+    return false;
+  }
+}
+
 // Last setInitialXYZ message wins; if the topic has admins (memo entries
 // starting with 0.0.), only admin messages count, otherwise any payer's
 // message counts. Animates the globe to the stored lng/lat/zoom.
+// A notification link names an exact pin, so the saved view stays put.
 export function applyInitialXYZ(messages, topicAdmin) {
+  if (openedFromPlaceLink()) return;
   let target = null;
   for (const message of messages || []) {
     try {

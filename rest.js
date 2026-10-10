@@ -16,6 +16,9 @@ import { connectedAccount, signer } from './web3';
 import { PrivateKey } from '@hashgraph/sdk';
 import { isValidUrl } from './ISVALIDURL.JS';
 import { toast } from './toast';
+import { nextDrawNumber } from './nextdrawnumber.js';
+import { initialTopicId } from './extracttopic.js';
+import { openDrawDatePicker, refreshFilterTimeButtons } from './drawdate.js';
 
 
 
@@ -339,6 +342,7 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
        document.getElementById("to-mmddyyyy-users-load-column").value = lastValidMessage.saveTimeFromUsersLoadColumn.toMmddyyyy || '';
        document.getElementById("from-hhmmss-users-load-column").value = lastValidMessage.saveTimeFromUsersLoadColumn.fromHhmmss || '000000';
        document.getElementById("to-hhmmss-users-load-column").value = lastValidMessage.saveTimeFromUsersLoadColumn.toHhmmss || '000000';
+       refreshFilterTimeButtons();
      } else {
        console.log("No valid user message found with loadTimeFromUsersLoadColumn");
      }
@@ -1146,7 +1150,60 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
              }
  });
  
- document.getElementById("submit-button-Create_Marker").addEventListener("click", async () => {
+ function topicIdFromDrawField(fieldId) {
+  const typed = (document.getElementById(fieldId).value || '').trim().toLowerCase();
+  const userInput = typed || (document.getElementById('input-field').value || '').trim().toLowerCase() || initialTopicId;
+  if (!userInput) return '';
+  const domainEntry = loadedDomains.find(entry => entry.domain === userInput);
+  if (domainEntry && domainEntry.lastMessage && domainEntry.lastMessage.topic) {
+    return domainEntry.lastMessage.topic;
+  }
+  return userInput;
+}
+
+async function fillNextDrawNumber(kind) {
+  if (!connectedAccount) {
+    toast.error('Connect wallet first');
+    return;
+  }
+  const topicField = kind === 'polygon' ? 'input-field-3-0' : 'input-field-2-0';
+  const numberFieldId = kind === 'polygon' ? 'input-field-number-of-polygon' : 'input-field-number-of-marker';
+  const topicFieldEl = document.getElementById(topicField);
+  const topicId = topicIdFromDrawField(topicField);
+  if (!topicId || !String(topicId).startsWith('0.0.')) {
+    toast.error('Enter a topic first');
+    return;
+  }
+  if (!topicFieldEl.value.trim()) topicFieldEl.value = topicId;
+  try {
+    const result = await getMessages(topicId, { force: true });
+    const next = nextDrawNumber(result.messages, connectedAccount, kind);
+    const field = document.getElementById(numberFieldId);
+    field.value = String(next);
+    adjustTextareaHeight(field);
+  } catch (err) {
+    console.error('Next number failed:', err);
+    toast.error('Could not read your numbers on that topic');
+  }
+}
+
+document.getElementById('use-date-marker-number').addEventListener('click', () => {
+  openDrawDatePicker('marker');
+});
+
+document.getElementById('use-date-polygon-number').addEventListener('click', () => {
+  openDrawDatePicker('polygon');
+});
+
+document.getElementById('next-marker-number').addEventListener('click', () => {
+  fillNextDrawNumber('marker');
+});
+
+document.getElementById('next-polygon-number').addEventListener('click', () => {
+  fillNextDrawNumber('polygon');
+});
+
+document.getElementById("submit-button-Create_Marker").addEventListener("click", async () => {
      try {
        if (!signer) {
          toast.error("Connect wallet first");

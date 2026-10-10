@@ -76,7 +76,20 @@ function toggleTopicBio(topicId, row, arrowBtn) {
 // expands the topic bio below the row, and a 📋 button that copies just the
 // topic id. Filtered by the search box and sorted by the A→Z / Z→A buttons —
 // re-renders on every keystroke / press.
+function restoreLoadedTopics() {
+  const label = document.getElementById('loaded-topics-label');
+  if (label) label.style.display = '';
+  const el = document.getElementById('loaded-topics');
+  const controls = el && el.querySelector('.loaded-topics-controls');
+  if (controls) controls.style.display = '';
+  const list = document.getElementById('loaded-topics-list');
+  if (list) list.style.display = '';
+  const card = document.getElementById('loaded-bio-card');
+  if (card) card.remove();
+}
+
 export function renderLoadedTopics() {
+  restoreLoadedTopics();
   const el = document.getElementById('loaded-topics');
   const list = document.getElementById('loaded-topics-list');
   if (!el || !list) return;
@@ -192,7 +205,8 @@ export async function handleAllMessages() {
       } else {
         topicId = userInput || initialTopicId;
       }
-  
+
+      restoreLoadedTopics();
       const loaded_text_area = document.getElementById("loaded-topics");
       loaded_text_area.value = '';
       const topicSpinnerChat = `
@@ -304,7 +318,13 @@ export async function handleAllMessages() {
       loadedTopicsIds = Array.from(topicActions.entries())
         .filter(([topic, { action }]) => action === 'add' && topic.startsWith('0.0.'))
         .map(([topic]) => topic);
-  
+
+      // A shared topic address is the topic itself, not a list of other topics.
+      // Load its markers and polygons so Open on the map can land on that pin.
+      if (loadedTopicsIds.length === 0 && String(topicId || '').startsWith('0.0.')) {
+        loadedTopicsIds = [topicId];
+      }
+
         const loadedTopicIdsWithNames = [];
   
         const totalTopics = loadedTopicsIds.length;

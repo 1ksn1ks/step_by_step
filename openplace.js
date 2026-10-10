@@ -1,8 +1,9 @@
 // Opens one marker or polygon from a notification link:
-//   https://onlyonhbar.com/?place=marker&topic=0.0.1&payer=0.0.2&n=4&at=lng,lat
+//   https://onlyonhbar.com/0.0.1?place=marker&topic=0.0.1&payer=0.0.2&n=4&at=lng,lat
+// The path is the topic Meritocracy loads. place, payer, n, and at pick the pin.
 // An installed Meritocracy window is the handler for that address
 // (manifest launch_handler: navigate-existing). A normal browser visit
-// uses the same query.
+// uses the same address.
 
 import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
@@ -59,23 +60,92 @@ function findPolygon(place) {
   });
 }
 
-function ringCenter(polygon) {
-  const ring = Array.isArray(polygon.coordinates) ? polygon.coordinates[0] : null;
-  if (!Array.isArray(ring)) return null;
-  let lng = 0;
-  let lat = 0;
-  let count = 0;
+function ringPoints(polygon) {
+  const ring = Array.isArray(polygon && polygon.coordinates) ? polygon.coordinates[0] : null;
+  if (!Array.isArray(ring)) return [];
+  const points = [];
   for (const pair of ring) {
     if (!Array.isArray(pair) || pair.length < 2) continue;
-    const x = Number(pair[0]);
-    const y = Number(pair[1]);
-    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    const lng = Number(pair[0]);
+    const lat = Number(pair[1]);
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+    points.push([lng, lat]);
+  }
+  return points;
+}
+
+function ringCenter(polygon) {
+  const points = ringPoints(polygon);
+  if (!points.length) return null;
+  let lng = 0;
+  let lat = 0;
+  for (const [x, y] of points) {
     lng += x;
     lat += y;
-    count += 1;
   }
-  if (!count) return null;
-  return [lng / count, lat / count];
+  return [lng / points.length, lat / points.length];
+}
+
+// A marker is a point, so it keeps one close zoom. A polygon is framed
+// from its own bounds: a ocean-sized shape stays pulled back, a tiny
+// one comes in close, and neither one is allowed onto the rooftops.
+const MARKER_ZOOM = 18;
+const POLYGON_ZOOM_MIN = 1.5;
+const POLYGON_ZOOM_MAX = 16;
+
+function clampZoom(zoom) {
+  return Math.round(Math.min(POLYGON_ZOOM_MAX, Math.max(POLYGON_ZOOM_MIN, zoom)) * 10) / 10;
+}
+
+function fallbackZoom(spanLng, spanLat, midLat, viewW, viewH) {
+  const usableW = Math.max(viewW || 800, 320) * 0.76;
+  const usableH = Math.max(viewH || 600, 320) * 0.76;
+  const zLng = spanLng > 1e-6 ? Math.log2((usableW * 360) / (spanLng * 512)) : POLYGON_ZOOM_MAX;
+  const cos = Math.max(0.2, Math.cos(midLat * Math.PI / 180));
+  const zLat = spanLat > 1e-6 ? Math.log2((usableH * 360 * cos) / (spanLat * 512)) : POLYGON_ZOOM_MAX;
+  return Math.min(zLng, zLat);
+}
+
+function zoomForPolygon(polygon) {
+  const points = ringPoints(polygon);
+  if (points.length < 2) return 14;
+  const origin = points[0][0];
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  for (const [lng, lat] of points) {
+    let x = lng - origin;
+    if (x > 180) x -= 360;
+    else if (x < -180) x += 360;
+    const absLng = origin + x;
+    if (absLng < minLng) minLng = absLng;
+    if (absLng > maxLng) maxLng = absLng;
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+  }
+  const spanLng = maxLng - minLng;
+  const spanLat = maxLat - minLat;
+  // No real area: close enough to see the shape, not inside a building.
+  if (spanLng < 0.0008 && spanLat < 0.0008) return 15;
+
+  const canvas = map.getCanvas();
+  const viewW = canvas ? canvas.clientWidth : 0;
+  const viewH = canvas ? canvas.clientHeight : 0;
+  const padX = Math.max(36, Math.round(viewW * 0.12));
+  const padY = Math.max(36, Math.round(viewH * 0.12));
+  let zoom = null;
+  try {
+    const cam = map.cameraForBounds([[minLng, minLat], [maxLng, maxLat]], {
+      padding: { top: padY, bottom: padY, left: padX, right: padX },
+      maxZoom: POLYGON_ZOOM_MAX,
+    });
+    if (cam && Number.isFinite(cam.zoom)) zoom = cam.zoom;
+  } catch (err) {
+    zoom = null;
+  }
+  if (zoom == null) zoom = fallbackZoom(spanLng, spanLat, (minLat + maxLat) / 2, viewW, viewH);
+  return clampZoom(zoom);
 }
 
 function hideModel() {
@@ -86,7 +156,7 @@ function hideModel() {
   }
 }
 
-function showPopup(lngLat, content, list) {
+function showPopup(lngLat, content, list, zoom) {
   closeTransientMapUI();
   CloseALL();
   const popup = new maplibregl.Popup()
@@ -105,7 +175,7 @@ function showPopup(lngLat, content, list) {
   changePopupState(true);
   applyAllStyles();
   hideModel();
-  animateMapTo(map, lngLat, 16);
+  animateMapTo(map, lngLat, zoom);
 }
 
 async function ensureTopic(topicId) {
@@ -127,6 +197,9 @@ export async function openLinkedPlace(href) {
   if (!place || opening) return;
   opening = true;
   try {
+    // Markers have no area, so they can fly immediately. A polygon's zoom
+    // depends on the ring, which is only known once that topic is loaded.
+    if (place.kind === 'marker' && place.point) animateMapTo(map, place.point, MARKER_ZOOM);
     if (place.topic) {
       toast.info(place.kind === 'polygon' ? 'Opening polygon…' : 'Opening marker…');
       await ensureTopic(place.topic);
@@ -134,19 +207,24 @@ export async function openLinkedPlace(href) {
     if (place.kind === 'polygon') {
       const polygon = findPolygon(place);
       const lngLat = (polygon && ringCenter(polygon)) || place.point;
+      const zoom = polygon ? zoomForPolygon(polygon) : 8;
       if (polygon && polygon.description && lngLat) {
-        showPopup(lngLat, polygon.description, activePolygonPopups);
+        showPopup(lngLat, polygon.description, activePolygonPopups, zoom);
+        return;
+      }
+      if (lngLat) {
+        animateMapTo(map, lngLat, zoom);
         return;
       }
     } else {
       const marker = findMarker(place);
       const lngLat = (marker && marker.geometry && marker.geometry.coordinates) || place.point;
       if (marker && marker.properties && marker.properties.message && lngLat) {
-        showPopup(lngLat, marker.properties.message, activeMarkerPopups);
+        showPopup(lngLat, marker.properties.message, activeMarkerPopups, MARKER_ZOOM);
         return;
       }
     }
-    if (place.point) animateMapTo(map, place.point, 16);
+    if (place.point) return;
     toast.error(place.kind === 'polygon' ? 'That polygon is not on this topic.' : 'That marker is not on this topic.');
   } catch (err) {
     console.error('Open place failed:', err);
