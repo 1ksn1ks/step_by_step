@@ -199,6 +199,21 @@ bindUploader("upload-cover-polygon", "upload-cover-polygon-file", "input-field-c
 bindUploader("upload-media-polygon", "upload-media-polygon-file", "input-field-image-polygon", MEDIA_TYPES, "Only PNG, JPG, GIF, WebP, MP4, WebM");
 bindUploader("upload-profile-picture", "upload-profile-picture-file", "input-field-profile-picture", MARKER_COVER_TYPES, "Only PNG, JPG, WebP, GIF");
 
+// Topic chat and encrypted chat attach one still image. The address goes
+// in the message; the bytes stay on R2.
+export async function uploadChatImage(file) {
+  if (!file || !MARKER_COVER_TYPES.has(file.type)) {
+    throw new Error("Only PNG, JPG, WebP, GIF");
+  }
+  if (file.size > IMAGE_MAX) throw new Error("Image is too large");
+  const pill = progressPill("Uploading image 0%");
+  try {
+    return await uploadToR2(file, pill, "Uploading image");
+  } finally {
+    pill.done();
+  }
+}
+
 function showSavedProfilePreview() {
   const field = document.getElementById("input-field-profile-picture");
   const uploaded = field && field.value;

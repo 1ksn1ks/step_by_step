@@ -1459,6 +1459,10 @@
           </div>
       
           <div style="position: relative;">
+            <div id="topic-chat-image-preview" class="chat-attach-preview" hidden>
+              <img id="topic-chat-image-preview-img" alt="">
+              <button type="button" id="topic-chat-image-clear" class="chat-attach-clear">×</button>
+            </div>
             <textarea
             class="toolbar-column"
             type="text"
@@ -1475,6 +1479,8 @@
             ></textarea>
             <div id="char-counter" style="position: absolute; bottom: 1.5vh; right: 5.5vh; font-size: 2vh; color: #22d3ee;">0/256
             </div>
+            <button type="button" id="topic-chat-image-btn" class="toolbar-column-btns submit-message-btn msg-image-btn">🖼</button>
+            <input type="file" id="topic-chat-image-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
             <button id="post-msg" class="toolbar-column-btns submit-message-btn msg-send-btn">📨</button>
           </div>
 
@@ -1676,6 +1682,10 @@
           <div id="encrypted-chat-chat-container">
       
           <div style="position: relative;">
+            <div id="encrypted-chat-image-preview" class="chat-attach-preview" hidden>
+              <img id="encrypted-chat-image-preview-img" alt="">
+              <button type="button" id="encrypted-chat-image-clear" class="chat-attach-clear">×</button>
+            </div>
             <textarea
             class="toolbar-column"
             type="text"
@@ -1692,6 +1702,8 @@
             ></textarea>
             <div id="char-counter-encrypted-chat" style="position: absolute; bottom: 1.5vh; right: 5.5vh; font-size: 2vh; color: #22d3ee;">0/256
             </div>
+            <button type="button" id="encrypted-chat-image-btn" class="toolbar-column-btns submit-message-btn msg-image-btn">🖼</button>
+            <input type="file" id="encrypted-chat-image-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
             <button id="post-msg-encrypted-chat" class="toolbar-column-btns submit-message-btn msg-send-btn">📨</button>
           </div>
         </div>
@@ -1970,20 +1982,24 @@
       
       <div id="popup-settings-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 1002;" onclick="window.openPopupSettings();"></div>
 
-      <div id="popup-settings-card" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(90vw, 60vh); max-height: 75vh; overflow-y: auto; z-index: 1003; background-color: rgba(15, 15, 20, 0.55); -webkit-backdrop-filter: blur(8px) saturate(140%); backdrop-filter: blur(8px) saturate(140%); color: white; border-radius: 1.5vh; box-sizing: border-box; touch-action: auto; padding: 1.4vh 1.4vw;">
+      <div id="popup-settings-card" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(90vw, 60vh); max-height: 75vh; overflow-y: auto; z-index: 1003; background-color: rgba(15, 15, 20, 0.55); -webkit-backdrop-filter: blur(8px) saturate(140%); backdrop-filter: blur(8px) saturate(140%); color: white; box-sizing: border-box; touch-action: auto; padding: 1.4vh 1.4vw;">
         <div class="options-column-title">💬 POPUP</div>
 
       <!-- Dummy popup: same classes as the real one, so every picker change
            shows up here instantly while the real popup stays hidden -->
       <div id="popup-settings-preview" class="maplibregl-popup">
-        <div class="maplibregl-popup-content" style="max-height: none; padding: 1vh 1.4vw;">
-          <span class="maplibregl-popup-close-button" style="position: absolute; top: -0.5vh; right: 0;">&times;</span>
-          <div style="color: gray; text-align: left; margin-bottom: 0.6vh; padding-right: 2.4em;">topic id - topic id name</div>
-          <div class="number" style="font-weight: bold; text-align: center; margin-bottom: 1vh;">256</div>
-          <div class="payer-info" style="font-weight: bold;">account id</div>
+        <button type="button" class="maplibregl-popup-close-button" tabindex="-1">&times;</button>
+        <div class="maplibregl-popup-content">
+          <div class="popup-top-row">
+            <div class="popup-top-topic">0.0.9609912 Freedom</div>
+          </div>
+          <div style="display: flex; justify-content: center; margin-bottom: calc(var(--u) * 0.25);">
+            <div class="number popup-top-id">256</div>
+          </div>
+          <div class="payer-info">0.0.9779355</div>
           <div class="username">username</div>
-          <div class="title_color" style="font-weight: bold;">message title</div>
-          <div>message text</div>
+          <div class="title_color popup-title-bubble">message title</div>
+          <div class="text_color">message text</div>
         </div>
       </div>
       <div id="popup-column-2" style="width: 100%;">

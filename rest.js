@@ -19,6 +19,7 @@ import { toast } from './toast';
 import { nextDrawNumber } from './nextdrawnumber.js';
 import { initialTopicId } from './extracttopic.js';
 import { openDrawDatePicker, refreshFilterTimeButtons } from './drawdate.js';
+import { pendingChatImage, chatImageBusy, clearPendingChatImage } from './chatimage.js';
 
 
 
@@ -416,8 +417,13 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
      return;
    }
    const newMessage = document.getElementById("user-write-message").value;
+   if (chatImageBusy("topic")) {
+     toast.error("Wait for the image to finish uploading");
+     return;
+   }
+   const image = pendingChatImage("topic");
 
-   if (!newMessage) {
+   if (!newMessage && !image) {
      toast.error("Please enter a message.");
      return;
    }
@@ -439,10 +445,12 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
    const meesageobject = {
      userMessage: newMessage
    };
+   if (image) meesageobject.image = image;
  
    const meesage = JSON.stringify(meesageobject);
    toast.info("Confirm in wallet 👛");
    const reciept = await sendMessage(topicId, meesage);
+   if (image) clearPendingChatImage("topic");
  
  } catch (error) {
    console.error("Error setting rules:", error);

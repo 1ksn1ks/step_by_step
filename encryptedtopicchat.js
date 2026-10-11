@@ -9,6 +9,7 @@ import { profilePictures, usernames, click2url } from './loadalladata';
 import { toast } from './toast'
 import { expandEncryptedChat, scheduleEncryptedChatLayout } from './cssLogic.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
+import { fillChatMessage, packChatPayload, unpackChatPayload, pendingChatImage, chatImageBusy, clearPendingChatImage } from './chatimage.js';
 import { 
   topicChatHeaderColor,
   headerFontSizeTopicChat,
@@ -104,10 +105,13 @@ async function appendEncryptedChatMessage(
     if (!payerHasNFT || !parsedMessage.encryptedMessage) return;
 
     // Decrypt the message
-    const decryptedMessage = await decryptMessage(parsedMessage.encryptedMessage, PrivateKey);
+    const decryptedRaw = await decryptMessage(parsedMessage.encryptedMessage, PrivateKey);
+    const parts = unpackChatPayload(decryptedRaw);
+    if (!parts.text && !parts.image) return;
 
     const fullMessage = {
-      decryptedMessage,
+      decryptedMessage: parts.text,
+      image: parts.image,
       created: parsedMessage.created,
       payer
     };
@@ -241,7 +245,7 @@ async function appendEncryptedChatMessage(
     const contentDiv = document.createElement('div');
     contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
     contentDiv.className = 'chat-msg-text';
-    contentDiv.textContent = decryptedMessage;
+    fillChatMessage(contentDiv, parts.text, parts.image);
 
     const timeSpan = document.createElement('span');
     timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
@@ -680,11 +684,16 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
     }
 
     const message = document.getElementById("user-write-message-encrypted-chat").value;
-    if (!message) {
+    if (chatImageBusy("e2ee")) {
+      toast.error("Wait for the image to finish uploading");
+      return;
+    }
+    const image = pendingChatImage("e2ee");
+    if (!message && !image) {
       toast.error("Please enter a message.");
       return;
     }
-    const encryptedMessage = await encryptMessage(message, PublicKey);
+    const encryptedMessage = await encryptMessage(packChatPayload(message, image), PublicKey);
 
     const meesageobject = {
       encryptedMessage: encryptedMessage
@@ -694,6 +703,7 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
     console.log('New Meesage:', newMeesage);
     toast.info("Confirm in wallet 👛");
     const reciept = await sendMessage(topicId, newMeesage);
+    if (image) clearPendingChatImage("e2ee");
     console.log('Reciept:', reciept);
   } catch (error) {
     console.error('Error:', error.message);
@@ -945,7 +955,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
     const contentDiv = document.createElement('div');
     contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
     contentDiv.className = 'chat-msg-text';
-    contentDiv.textContent = decryptedMessage;
+    fillChatMessage(contentDiv, decryptedMessage, parsedMessage.image);
 
     const timeSpan = document.createElement('span');
     timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;

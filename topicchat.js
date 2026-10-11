@@ -19,6 +19,7 @@ import {
  import { connectedAccount, signer } from './web3';
 import { expandTopicChat, scheduleTopicChatLayout } from './cssLogic.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
+import { fillChatMessage } from './chatimage.js';
 
 
 export let allLoadedMessagesTopicChat = [];
@@ -90,9 +91,11 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
       }
     }
 
-    if (!payerHasNFT || !parsedMessage.userMessage) return;
+    if (!payerHasNFT) return;
 
     const userMessage = parsedMessage.userMessage;
+    const hasText = userMessage != null && String(userMessage) !== '';
+    if (!hasText && !parsedMessage.image) return;
     storedMessages.push(parsedMessage);
 
     const payerImage = profilePictures[payer]?.url || 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
@@ -187,7 +190,7 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
     const messageText = document.createElement('div');
     messageText.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
     messageText.className = 'chat-msg-text';
-    messageText.textContent = userMessage;
+    fillChatMessage(messageText, hasText ? String(userMessage) : '', parsedMessage.image);
     messageWrapper.appendChild(messageText);
 
     const timestampSpan = document.createElement('span');
@@ -548,6 +551,8 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
   
     filteredMessages.forEach(parsedMessage => {
       const userMessage = parsedMessage.userMessage;
+      const hasText = userMessage != null && String(userMessage) !== '';
+      if (!hasText && !parsedMessage.image) return;
       const payer = parsedMessage.payer || 'Unknown';
   
       const payerImage = profilePictures[payer]?.url || 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
@@ -690,7 +695,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
       const contentDiv = document.createElement('div');
       contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
       contentDiv.className = 'chat-msg-text';
-      contentDiv.textContent = userMessage;
+      fillChatMessage(contentDiv, hasText ? String(userMessage) : '', parsedMessage.image);
 
       const timeSpan = document.createElement('span');
       timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;

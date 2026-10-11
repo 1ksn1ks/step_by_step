@@ -12,7 +12,7 @@ import {updateRulesForModelNFTState} from './confirmnft'
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto';
 import { ringCenter, zoomForPolygon } from './polygonframe.js';
 import { profilePictures, usernames, click2url} from './loadalladata'
-import { openMediaFullscreen } from './fullscreenmedia';
+import { openPreview } from './fullscreenmedia';
 import maplibregl from 'maplibre-gl';
 import { map } from './map';
 import { applyAllStyles } from './loadprofilepopup';
@@ -107,7 +107,7 @@ export function createMarkerPopupHTML(data) {
 
   // Row 1: topic id and name on the left. The × close stays top right.
   const topHeader = document.createElement('div');
-  topHeader.style.cssText = 'position: relative; display: flex; align-items: flex-start; height: calc(var(--u) * 2.5); margin-top: calc(var(--u) * -0.3); margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * 0.25); padding-right: calc(var(--u) * 4.2);';
+  topHeader.className = 'popup-top-row';
 
   const numberDiv = document.createElement('div');
   numberDiv.className = 'number popup-top-id';
@@ -258,14 +258,14 @@ export function createMarkerPopupHTML(data) {
     } else {
       // Tap the picture → fullscreen overlay (tap backdrop / × / Esc closes)
       media.style.cursor = 'zoom-in';
-      media.addEventListener('click', () => openMediaFullscreen(image, false));
+      media.addEventListener('click', () => openPreview(image));
       const chip = document.createElement('button');
       chip.className = 'popup-media-expand';
       chip.title = 'Expand';
       chip.textContent = '⤢';
       chip.addEventListener('click', (e) => {
         e.stopPropagation();
-        openMediaFullscreen(image, false);
+        openPreview(image);
       });
       imageDiv.appendChild(chip);
     }
@@ -389,7 +389,7 @@ function createPolygonPopupHTML(data) {
 
   // Row 1: topic id and name on the left. The × close stays top right.
   const topHeader = document.createElement('div');
-  topHeader.style.cssText = 'position: relative; display: flex; align-items: flex-start; height: calc(var(--u) * 2.5); margin-top: calc(var(--u) * -0.3); margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * 0.25); padding-right: calc(var(--u) * 4.2);';
+  topHeader.className = 'popup-top-row';
 
   const numberDiv = document.createElement('div');
   numberDiv.className = 'number popup-top-id';
@@ -530,14 +530,14 @@ function createPolygonPopupHTML(data) {
     } else {
       // Tap the picture → fullscreen overlay (tap backdrop / × / Esc closes)
       media.style.cursor = 'zoom-in';
-      media.addEventListener('click', () => openMediaFullscreen(popupImageUrl, false));
+      media.addEventListener('click', () => openPreview(popupImageUrl));
       const chip = document.createElement('button');
       chip.className = 'popup-media-expand';
       chip.title = 'Expand';
       chip.textContent = '⤢';
       chip.addEventListener('click', (e) => {
         e.stopPropagation();
-        openMediaFullscreen(popupImageUrl, false);
+        openPreview(popupImageUrl);
       });
       imageDiv.appendChild(chip);
     }

@@ -83,38 +83,44 @@ async function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fal
     img.crossOrigin = "anonymous";
 
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      let width = img.width;
-      let height = img.height;
+      try {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
 
-      // Maintain aspect ratio
-      if (width > maxWidth || height > maxHeight) {
-        if (width / height > maxWidth / maxHeight) {
-          // wider than target ratio → constrain by width
-          if (width > maxWidth) {
-            height = Math.round(height * (maxWidth / width));
-            width = maxWidth;
-          }
-        } else {
-          // taller or same → constrain by height
-          if (height > maxHeight) {
-            width = Math.round(width * (maxHeight / height));
-            height = maxHeight;
+        // Maintain aspect ratio
+        if (width > maxWidth || height > maxHeight) {
+          if (width / height > maxWidth / maxHeight) {
+            // wider than target ratio → constrain by width
+            if (width > maxWidth) {
+              height = Math.round(height * (maxWidth / width));
+              width = maxWidth;
+            }
+          } else {
+            // taller or same → constrain by height
+            if (height > maxHeight) {
+              width = Math.round(width * (maxHeight / height));
+              height = maxHeight;
+            }
           }
         }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // You can also do: 'image/webp', 0.85 for smaller size & good quality
+        resolve(canvas.toDataURL('image/jpeg', 0.92));
+      } catch (err) {
+        // A tainted canvas throws here. One retry on the static fallback.
+        if (fallbackUrl && img.src !== fallbackUrl) img.src = fallbackUrl;
+        else reject(err);
       }
-
-      canvas.width = width;
-      canvas.height = height;
-
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-
-      ctx.drawImage(img, 0, 0, width, height);
-
-      // You can also do: 'image/webp', 0.85 for smaller size & good quality
-      resolve(canvas.toDataURL('image/jpeg', 0.92));
     };
 
     img.onerror = () => {
@@ -131,31 +137,135 @@ async function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fal
 }
 
 // ── Animated covers (gif / video) ────────────────────────────────────────
-// A MapLibre image source is a STATIC texture — that is why a gif cover
-// used to freeze at frame 0. map.updateImage() swaps the texture of a live
-// source, so a small pump drives it: gif frames are decoded with gifuct-js
-// and composited with proper disposal; video frames come from a hidden
-// <video> blitted onto a canvas (~15 fps).
+// A MapLibre image source is a STATIC texture. map source.updateImage({url})
+// swaps it, so a small pump drives gif frames (gifuct-js, proper disposal)
+// and video frames (hidden <video> blitted to a canvas).
 //
-// Power rule (2026-10-07): a cover is only fetched, decoded and pumped
-// while its polygon is actually on screen. In view = the viewport center
-// is inside the source bbox (the zoomed-in-on-polygon case — all four
-// corners are off screen then) OR a bbox corner projects inside the
-// viewport (40px margin) without being hidden by the Earth (all corners
-// occluded → off the visible hemisphere). Off view: the <video> is not
-// even created, a created one is paused (decoding stops), and the shared
-// rAF loop stops entirely when nothing is visible. Visibility is
-// re-checked on moveend/zoomend and every second. Texture caps: video
-// 512² JPEG q0.8 @ ~30 fps; gif composited at native res, uploaded capped
-// at 512. The full native-quality player with sound lives in the popup
-// (the "Inside image" field).
+// A gif profile picture is the fill whenever a polygon has no cover of its
+// own. Phones used to stay black: the in-view test measured the window, not
+// the map canvas (the URL bar makes those differ), and a failed decode
+// deleted the cover while the black placeholder stayed. The first frame is
+// painted as soon as the bytes arrive, shared by every polygon on that URL,
+// and left in place if animation never starts. Decode is also one copy per
+// URL — each polygon used to hold its own frame patches.
+//
+// Animation still waits until the polygon is on screen. In view = the map
+// center is inside the source bbox, or a bbox corner projects inside the
+// canvas (40px margin) and is not hidden by the Earth. Off view: the
+// <video> is not created, a created one is paused, and the rAF stops when
+// nothing is visible. Visibility is re-checked on moveend/zoomend and every
+// second. Texture caps: video 512² JPEG q0.8 @ ~30 fps; gif composited at
+// native res, uploaded capped at 512.
 const mediaCovers = new Map(); // sourceId → cover state
+const gifPlayers = new Map(); // gif url → shared decoder/canvas
+const gifBytes = new Map(); // gif url → Promise<ArrayBuffer>
+const gifDecoded = new Map(); // gif url → Promise<decoded|null>
+const gifStillByUrl = new Map(); // gif url → Promise<dataURL>
 let pumpRunning = false;
 let visTimer = null;
 const VIDEO_FRAME_MS = 33; // ~30 fps texture uploads (2026-10-07, user asked for 30fps)
 const GIF_MIN_DELAY_MS = 20;
 const COVER_FALLBACK = "https://kiloscribe.com/api/inscription-cdn/0.0.4819119";
 const D2R = Math.PI / 180;
+
+// A profile <img> can cache this GIF without CORS. A later canvas fetch then
+// fails on iOS. The public R2 url is unsigned, so a cache-bust query is safe.
+function corsFetchUrl(url) {
+  try {
+    const u = new URL(url, window.location.href);
+    u.searchParams.set('mb', '1');
+    return u.href;
+  } catch {
+    return url;
+  }
+}
+
+function gifBytesOf(url) {
+  let pending = gifBytes.get(url);
+  if (pending) return pending;
+  pending = fetch(corsFetchUrl(url), { mode: 'cors', cache: 'no-store' }).then((res) => {
+    if (!res.ok) throw new Error(String(res.status));
+    return res.arrayBuffer();
+  });
+  pending.catch(() => {
+    if (gifBytes.get(url) === pending) gifBytes.delete(url);
+  });
+  gifBytes.set(url, pending);
+  return pending;
+}
+
+function decodedGif(url) {
+  let pending = gifDecoded.get(url);
+  if (pending) return pending;
+  pending = (async () => {
+    try {
+      const gif = decodeGif(await gifBytesOf(url));
+      gifBytes.delete(url);
+      if (!gif || !gif.frames.length || !gif.width || !gif.height) {
+        if (gifDecoded.get(url) === pending) gifDecoded.delete(url);
+        return null;
+      }
+      return gif;
+    } catch {
+      if (gifDecoded.get(url) === pending) gifDecoded.delete(url);
+      return null;
+    }
+  })();
+  gifDecoded.set(url, pending);
+  return pending;
+}
+
+// First frame as a JPEG. createImageBitmap keeps the browser from decoding
+// every frame just to show the still. Shared: one profile GIF fills many
+// polygons that have no cover of their own.
+function gifStill(url) {
+  let pending = gifStillByUrl.get(url);
+  if (pending) return pending;
+  pending = (async () => {
+    try {
+      const buf = await gifBytesOf(url);
+      const bmp = await createImageBitmap(new Blob([buf], { type: 'image/gif' }));
+      const max = 512;
+      let w = bmp.width;
+      let h = bmp.height;
+      if (!(w > 0) || !(h > 0)) throw new Error('empty gif frame');
+      if (w > max || h > max) {
+        const s = Math.min(max / w, max / h);
+        w = Math.max(1, Math.round(w * s));
+        h = Math.max(1, Math.round(h * s));
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
+      if (bmp.close) bmp.close();
+      return canvas.toDataURL('image/jpeg', 0.85);
+    } catch {
+      try {
+        return await createResizedImage(corsFetchUrl(url), 512, 512, COVER_FALLBACK);
+      } catch {
+        try {
+          return await createResizedImage(COVER_FALLBACK, 512, 512);
+        } catch {
+          if (gifStillByUrl.get(url) === pending) gifStillByUrl.delete(url);
+          return blackDataUrl();
+        }
+      }
+    }
+  })();
+  gifStillByUrl.set(url, pending);
+  return pending;
+}
+
+function paintGifStill(sourceId, url) {
+  gifStill(url).then((dataUrl) => {
+    const cov = mediaCovers.get(sourceId);
+    if (cov && cov.player) return; // animation already owns the texture
+    const src = map.getSource(sourceId);
+    if (!src || typeof src.updateImage !== 'function' || !dataUrl || dataUrl === blackDataUrl()) return;
+    try { src.updateImage({ url: dataUrl }); } catch { /* still stays at the placeholder */ }
+  });
+}
 
 // HMR: drop orphaned cover videos left by a previous module instance
 document.querySelectorAll('video[data-polygon-cover]').forEach((v) => v.remove());
@@ -218,34 +328,157 @@ function decodeGif(buf) {
   }
 }
 
-// In view when the viewport center sits inside the source bbox (the
-// zoomed-in-on-polygon case — all four corners are off screen then) or a
-// bbox corner projects inside the viewport (40px margin) without being
-// hidden by the Earth. corners = the image source's 4 bbox [lng,lat] pairs,
-// st = cameraState().
+// In view when the map center sits inside the source bbox (the zoomed-in
+// case — all four corners are off screen then) or a bbox corner projects
+// inside the canvas (40px margin) without being hidden by the Earth.
+// The canvas size is what MapLibre projects into. window.innerHeight
+// includes the phone URL bar, so a polygon on screen was treated as off
+// view and the gif never left its placeholder.
 function coverInView(corners, st) {
+  const canvas = map.getCanvas();
+  const w = canvas.clientWidth || window.innerWidth;
+  const h = canvas.clientHeight || window.innerHeight;
   const minLng = Math.min(corners[0][0], corners[2][0]);
   const maxLng = Math.max(corners[1][0], corners[3][0]);
   const minLat = Math.min(corners[2][1], corners[3][1]);
   const maxLat = Math.max(corners[0][1], corners[1][1]);
-  const c = map.unproject([st.w / 2, st.h / 2]);
-  if (c.lng >= minLng && c.lng <= maxLng && c.lat >= minLat && c.lat <= maxLat) return true;
-  const { C, f, w, h } = st;
-  const fwd = st.cam.fwd;
-  const right = st.cam.right;
-  const up = st.cam.up;
+  let center = null;
+  try { center = map.getCenter(); } catch { center = null; }
+  if (center && center.lng >= minLng && center.lng <= maxLng && center.lat >= minLat && center.lat <= maxLat) return true;
   for (const [lng, lat] of corners) {
-    const lr = lat * D2R;
-    const gr = lng * D2R;
-    const m = [Math.cos(lr) * Math.cos(gr), Math.cos(lr) * Math.sin(gr), Math.sin(lr)];
-    const wv = [m[0] - C[0], m[1] - C[1], m[2] - C[2]];
-    const z = wv[0] * fwd[0] + wv[1] * fwd[1] + wv[2] * fwd[2];
-    if (z <= 0.01 || earthOccludes(C, m)) continue;
-    const x = w / 2 + (f * (wv[0] * right[0] + wv[1] * right[1] + wv[2] * right[2])) / z;
-    const y = h / 2 - (f * (wv[0] * up[0] + wv[1] * up[1] + wv[2] * up[2])) / z;
-    if (x >= -40 && x <= w + 40 && y >= -40 && y <= h + 40) return true;
+    if (st && st.C) {
+      const lr = lat * D2R;
+      const gr = lng * D2R;
+      const m = [Math.cos(lr) * Math.cos(gr), Math.cos(lr) * Math.sin(gr), Math.sin(lr)];
+      if (earthOccludes(st.C, m)) continue;
+    }
+    let p = null;
+    try { p = map.project([lng, lat]); } catch { p = null; }
+    if (!p) continue;
+    if (p.x >= -40 && p.x <= w + 40 && p.y >= -40 && p.y <= h + 40) return true;
   }
   return false;
+}
+
+function detachCover(cov) {
+  if (!cov) return;
+  if (cov.video) {
+    cov.video.remove();
+    cov.video = null;
+  }
+  const player = cov.player;
+  if (player) {
+    player.covers.delete(cov.sourceId);
+    cov.player = null;
+    if (player.covers.size === 0) gifPlayers.delete(player.url);
+  }
+  mediaCovers.delete(cov.sourceId);
+}
+
+function freezeGif(player) {
+  if (!player) return;
+  gifPlayers.delete(player.url);
+  const doomed = [];
+  for (const cov of mediaCovers.values()) {
+    if (cov.player === player) doomed.push(cov);
+  }
+  player.frames = null;
+  player.covers.clear();
+  for (const cov of doomed) {
+    cov.player = null;
+    if (cov.video) {
+      cov.video.remove();
+      cov.video = null;
+    }
+    mediaCovers.delete(cov.sourceId);
+  }
+}
+
+function compositeGifFrame(player, i) {
+  try {
+    const f = player.frames[i];
+    const { left, top, width: fw, height: fh } = f.dims;
+    const x = left;
+    const y = top;
+    const full = player.full;
+    const fctx = player.fctx;
+    const w = Math.min(fw, full.width - x);
+    const h = Math.min(fh, full.height - y);
+    const saved = (f.disposalType === 3 && w > 0 && h > 0)
+      ? fctx.getImageData(x, y, w, h) : null;
+    if (w > 0 && h > 0) {
+      const region = fctx.getImageData(x, y, w, h);
+      const px = region.data;
+      const patch = f.patch;
+      for (let yy = 0; yy < h; yy++) {
+        for (let xx = 0; xx < w; xx++) {
+          const po = (yy * fw + xx) * 4;
+          if (patch[po + 3] === 0) continue;
+          const o = (yy * w + xx) * 4;
+          px[o] = patch[po];
+          px[o + 1] = patch[po + 1];
+          px[o + 2] = patch[po + 2];
+          px[o + 3] = 255;
+        }
+      }
+      fctx.putImageData(region, x, y);
+    }
+    if (player.out) player.octx.drawImage(full, 0, 0, player.out.width, player.out.height);
+    player.frameUrl = (player.out || full).toDataURL('image/jpeg', 0.8);
+    if (f.disposalType === 2) fctx.clearRect(x, y, w, h);
+    else if (saved) fctx.putImageData(saved, x, y);
+    return !!player.frameUrl;
+  } catch {
+    return false;
+  }
+}
+
+function pushGifFrame(player) {
+  if (!player.frameUrl) return;
+  for (const sourceId of [...player.covers]) {
+    const src = map.getSource(sourceId);
+    if (!src || typeof src.updateImage !== 'function') {
+      detachCover(mediaCovers.get(sourceId));
+      continue;
+    }
+    try {
+      src.updateImage({ url: player.frameUrl });
+    } catch {
+      detachCover(mediaCovers.get(sourceId));
+    }
+  }
+}
+
+function makeGifPlayer(url, gif) {
+  const full = document.createElement('canvas');
+  full.width = gif.width;
+  full.height = gif.height;
+  const fctx = full.getContext('2d', { willReadFrequently: true });
+  let out = null;
+  let octx = null;
+  if (gif.width > 512 || gif.height > 512) {
+    const s = Math.min(512 / gif.width, 512 / gif.height);
+    out = document.createElement('canvas');
+    out.width = Math.max(1, Math.round(gif.width * s));
+    out.height = Math.max(1, Math.round(gif.height * s));
+    octx = out.getContext('2d');
+  }
+  const player = {
+    url,
+    frames: gif.frames,
+    covers: new Set(),
+    idx: 0,
+    nextFrameAt: 0,
+    frameUrl: '',
+    ticked: 0,
+    full,
+    fctx,
+    out,
+    octx,
+  };
+  if (!compositeGifFrame(player, 0)) return null;
+  player.nextFrameAt = performance.now() + Math.max(GIF_MIN_DELAY_MS, gif.frames[0].delay || 0);
+  return player;
 }
 
 // Re-check every cover against ONE camera snapshot; drop covers whose
@@ -253,11 +486,10 @@ function coverInView(corners, st) {
 function visPass() {
   if (mediaCovers.size === 0) { stopVisTimer(); return; }
   for (const sid of [...mediaCovers.keys()]) {
-    if (!map.getSource(sid)) mediaCovers.delete(sid);
+    if (!map.getSource(sid)) detachCover(mediaCovers.get(sid));
   }
   if (mediaCovers.size === 0) { stopVisTimer(); return; }
   const st = cameraState();
-  if (!st) return;
   for (const cov of mediaCovers.values()) cov.inView = coverInView(cov.corners, st);
   ensurePump(); // a cover may have just entered view
 }
@@ -271,20 +503,17 @@ function ensureVisTimer() {
   visTimer = setInterval(visPass, 1000);
 }
 
-// Register an animated cover. NOTHING is fetched or created yet — the
-// first frame only starts once the polygon is actually in view.
+// Register an animated cover. The gif still is painted separately
+// (paintGifStill) so a phone that never starts the pump still shows the
+// picture. Decoding and the <video> wait until the polygon is in view.
 function registerCover(sourceId, layerId, kind, url, corners) {
   // A topic reload re-adds the same sourceId — drop the previous load's
   // entry (and its orphaned hidden <video>, if any) and start fresh, so a
   // stale in-flight state from the old source can't block the new one.
   const stale = mediaCovers.get(sourceId);
-  if (stale) {
-    if (stale.video) stale.video.remove();
-    mediaCovers.delete(sourceId);
-  }
-  const cov = { kind, sourceId, layerId, url, corners, started: false, starting: false, inView: false };
-  const st = cameraState();
-  if (st) cov.inView = coverInView(corners, st);
+  if (stale) detachCover(stale);
+  const cov = { kind, sourceId, layerId, url, corners, started: false, starting: false, inView: false, player: null };
+  cov.inView = coverInView(corners, cameraState());
   mediaCovers.set(sourceId, cov);
   ensureVisTimer();
   if (cov.inView) startCover(cov); // in view at insert time → begin now
@@ -296,7 +525,7 @@ function registerCover(sourceId, layerId, kind, url, corners) {
 // frame 0.
 async function startCover(cov) {
   if (cov.started || cov.starting) return;
-  if (!map.getSource(cov.sourceId)) { mediaCovers.delete(cov.sourceId); return; }
+  if (!map.getSource(cov.sourceId)) { detachCover(cov); return; }
   if (cov.kind === 'video') {
     cov.started = true;
     const video = document.createElement('video');
@@ -321,86 +550,30 @@ async function startCover(cov) {
       img.onload = () => {
         ctx.drawImage(img, 0, 0, 512, 512);
         swapSourceImage(cov.sourceId, canvas);
-        mediaCovers.delete(cov.sourceId);
+        detachCover(cov);
       };
       img.src = COVER_FALLBACK;
     });
     ensurePump();
     return;
   }
-  // gif — deferred fetch + decode
+  // One decode for every polygon that shares this gif (a profile picture
+  // with no polygon cover). Failure leaves the still frame in place.
   cov.starting = true;
-  let buf;
-  try {
-    buf = await (await fetch(cov.url, { mode: 'cors' })).arrayBuffer();
-  } catch {
-    cov.starting = false;
-    mediaCovers.delete(cov.sourceId); // fetch failed — black placeholder stays, no retry
-    return;
-  }
-  const gif = decodeGif(buf);
-  if (!gif || !gif.frames.length || !gif.width || !gif.height) {
-    cov.starting = false;
-    mediaCovers.delete(cov.sourceId);
-    return;
-  }
-  // Compose at the gif's native resolution (proper disposal needs it),
-  // then upload a copy capped at 512 — big gifs used to upload full-res.
-  const full = document.createElement('canvas');
-  full.width = gif.width;
-  full.height = gif.height;
-  const fctx = full.getContext('2d');
-  let out = null;
-  let octx = null;
-  if (gif.width > 512 || gif.height > 512) {
-    const s = Math.min(512 / gif.width, 512 / gif.height);
-    out = document.createElement('canvas');
-    out.width = Math.max(1, Math.round(gif.width * s));
-    out.height = Math.max(1, Math.round(gif.height * s));
-    octx = out.getContext('2d');
-  }
-  const frames = gif.frames;
-  cov.paint = (i) => {
-    const f = frames[i];
-    const { left, top, width: fw, height: fh } = f.dims;
-    const x = left;
-    const y = top;
-    const w = Math.min(fw, full.width - x);
-    const h = Math.min(fh, full.height - y);
-    const saved = (f.disposalType === 3 && w > 0 && h > 0)
-      ? fctx.getImageData(x, y, w, h) : null;
-    if (w > 0 && h > 0) {
-      // The patch is RGBA — alpha 0 means transparent and keeps whatever
-      // was already on the base (required while the frame is shown).
-      const region = fctx.getImageData(x, y, w, h);
-      const px = region.data;
-      const patch = f.patch;
-      for (let yy = 0; yy < h; yy++) {
-        for (let xx = 0; xx < w; xx++) {
-          const po = (yy * fw + xx) * 4;
-          if (patch[po + 3] === 0) continue;
-          const o = (yy * w + xx) * 4;
-          px[o] = patch[po];
-          px[o + 1] = patch[po + 1];
-          px[o + 2] = patch[po + 2];
-          px[o + 3] = 255;
-        }
-      }
-      fctx.putImageData(region, x, y);
-    }
-    if (out) octx.drawImage(full, 0, 0, out.width, out.height);
-    if (!swapSourceImage(cov.sourceId, out || full)) mediaCovers.delete(cov.sourceId);
-    // After-disposal: prepare the base for the NEXT frame.
-    if (f.disposalType === 2) fctx.clearRect(x, y, w, h); // restore to background
-    else if (saved) fctx.putImageData(saved, x, y);       // 3: restore previous
-    // 0/1/4: the frame stays in place (next composites on top)
-  };
-  cov.frames = frames;
-  cov.idx = 0;
-  cov.started = true;
+  const gif = await decodedGif(cov.url);
   cov.starting = false;
-  cov.paint(0);
-  cov.nextFrameAt = performance.now() + Math.max(GIF_MIN_DELAY_MS, frames[0].delay);
+  if (mediaCovers.get(cov.sourceId) !== cov) return;
+  if (!map.getSource(cov.sourceId) || !gif) { detachCover(cov); return; }
+  let player = gifPlayers.get(cov.url);
+  if (!player) {
+    player = makeGifPlayer(cov.url, gif);
+    if (!player) { detachCover(cov); return; }
+    gifPlayers.set(cov.url, player);
+  }
+  player.covers.add(cov.sourceId);
+  cov.player = player;
+  cov.started = true;
+  pushGifFrame(player);
   ensurePump();
 }
 
@@ -437,19 +610,32 @@ function ensurePump() {
           cov.lastFrameAt = now;
           if (cov.video.readyState >= 2) {
             cov.ctx.drawImage(cov.video, 0, 0, 512, 512);
-            if (!swapSourceImage(cov.sourceId, cov.canvas)) mediaCovers.delete(cov.sourceId);
+            if (!swapSourceImage(cov.sourceId, cov.canvas)) detachCover(cov);
           }
         } else if (cov.kind === 'gif') {
-          if (!visible) { cov.nextFrameAt = now; continue; }
-          if (now < cov.nextFrameAt) { any = true; continue; }
+          const player = cov.player;
+          if (!player || !player.frames) { detachCover(cov); continue; }
+          if (player.ticked === now) continue;
+          player.ticked = now;
+          let someone = false;
+          for (const other of mediaCovers.values()) {
+            if (other.player !== player) continue;
+            try {
+              if (other.inView && map.getLayer(other.layerId)
+                && map.getLayoutProperty(other.layerId, 'visibility') === 'visible') someone = true;
+            } catch { /* layer already gone */ }
+          }
+          if (!someone) { player.nextFrameAt = now; continue; }
           any = true;
-          cov.idx = (cov.idx + 1) % cov.frames.length;
-          cov.paint(cov.idx);
-          cov.nextFrameAt = now + Math.max(GIF_MIN_DELAY_MS, cov.frames[cov.idx].delay);
+          if (now < player.nextFrameAt) continue;
+          player.idx = (player.idx + 1) % player.frames.length;
+          if (!compositeGifFrame(player, player.idx)) { freezeGif(player); continue; }
+          pushGifFrame(player);
+          player.nextFrameAt = now + Math.max(GIF_MIN_DELAY_MS, player.frames[player.idx].delay || 0);
         }
       } catch (err) {
         console.error('polygon cover tick failed:', err);
-        mediaCovers.delete(cov.sourceId);
+        detachCover(cov);
       }
     }
     if (any) requestAnimationFrame(tick);
@@ -525,9 +711,9 @@ export async function addPolygonWithImageFill(map, polygon) {
       const kind = mediaKind(coverUrl);
       let sourceInit;
       if (kind === 'gif') {
-        // Black placeholder — the gif itself is only fetched + decoded
-        // once the polygon is in view (registerCover → startCover), so an
-        // off-screen polygon costs nothing at load.
+        // Placeholder until the shared still (or the animation) replaces it.
+        // The still is not gated on the in-view test, so a phone whose
+        // canvas size disagrees with the window still shows the picture.
         sourceInit = { type: 'image', url: blackDataUrl(), coordinates: sourceCoordinates };
       } else if (kind === 'video') {
         // Image sources need a `url` (a `data` property is rejected by this
@@ -541,6 +727,7 @@ export async function addPolygonWithImageFill(map, polygon) {
 
       // Now safe to add source and layers since style is loaded
       map.addSource(sourceId, sourceInit);
+      if (kind === 'gif') paintGifStill(sourceId, coverUrl);
   
       map.addLayer({
         id: layerId,
