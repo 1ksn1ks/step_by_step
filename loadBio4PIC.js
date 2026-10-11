@@ -33,6 +33,11 @@ export async function loadBio4PIC(payer) {
       const accountTopicBio = await loadTopicBio();
       const bio = textOf(accountTopicBio[payer] && accountTopicBio[payer].topic_bio);
 
+      // A document click closes every panel. When the bio is already cached,
+      // this function continues before that click finishes and the panel would
+      // be closed by the same tap. Wait until the tap is over, then open.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
       activePolygonPopups.forEach((popup) => popup.remove());
       activeMarkerPopups.forEach((popup) => popup.remove());
       CloseALL();

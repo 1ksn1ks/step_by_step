@@ -20,6 +20,7 @@ import { nextDrawNumber } from './nextdrawnumber.js';
 import { initialTopicId } from './extracttopic.js';
 import { openDrawDatePicker, refreshFilterTimeButtons } from './drawdate.js';
 import { pendingChatImage, chatImageBusy, clearPendingChatImage } from './chatimage.js';
+import { stackedTopicRules } from './topicrules.js';
 
 
 
@@ -93,6 +94,54 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
    }
  });
  
+ async function loadCurrentMemo(topicInputId, boxId, fieldId) {
+   const messagesContainer = document.getElementById(boxId);
+   try {
+     const userInput = document.getElementById(topicInputId).value.trim().toLowerCase();
+     if (!userInput) {
+       toast.error("Please enter a Topic ID or domain.");
+       return;
+     }
+     const domainEntry = loadedDomains.find(entry => entry.domain === userInput);
+     const topicId = (domainEntry && domainEntry.lastMessage)
+       ? domainEntry.lastMessage.topic
+       : userInput;
+
+     messagesContainer.innerHTML = `
+     <div style="display: flex; justify-content: left; align-items: left; padding-top: 1vh; padding-bottom: 1vh;">
+       <div id="topicspinnerchat"></div>
+       <span style="margin-left: 0.45vh;">loading memo from ${topicId}</span>
+     </div>`;
+     adjustTextareaHeight(messagesContainer);
+
+     const topicInfo = await getTopicInfo(topicId);
+     if (!topicInfo) {
+       messagesContainer.textContent = "Invalid Topic ID";
+       adjustTextareaHeight(messagesContainer);
+       return;
+     }
+     const memo = topicInfo.memo || "";
+     messagesContainer.textContent = memo || "No memo for this topic.";
+     const memoField = document.getElementById(fieldId);
+     memoField.value = memo;
+     memoField.style.height = "";
+     memoField.style.height = memoField.scrollHeight + "px";
+     adjustTextareaHeight(messagesContainer);
+   } catch (error) {
+     console.error("Error loading memo:", error);
+     messagesContainer.textContent = "Invalid Topic ID";
+     adjustTextareaHeight(messagesContainer);
+   }
+ }
+
+ document.getElementById("load-memo-for-topic").addEventListener("click", () => {
+   loadCurrentMemo("input-field-topic-id", "loaded-memo-for-topic", "input-field-memo");
+ });
+
+ document.getElementById("load-memo-for-fee").addEventListener("click", () => {
+   loadCurrentMemo("input-field-topic-id-fee", "loaded-memo-for-fee", "input-field-memo-fee");
+ });
+
  document.getElementById("submit-button-Change_Memo").addEventListener("click", async () => {
    try {
      if (!signer) {
@@ -457,178 +506,182 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
  }
  });
  
- document.getElementById("submit-button-Set_Rules").addEventListener("click", async () => {
-             try {
-               if (!signer) {
-                 toast.error("Connect wallet first");
-                 return;
-               }
-               let userInput = document.getElementById("input-field-topic-id-for-rules").value.toLowerCase();
-               let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
-               let topicId;
+ function utilityTopicId() {
+   const userInput = document.getElementById("input-field-topic-id-for-utility").value.toLowerCase();
+   const domainEntry = loadedDomains.find(entry => entry.domain === userInput);
+   if (domainEntry && domainEntry.lastMessage) {
+     return domainEntry.lastMessage.topic;
+   }
+   return userInput;
+ }
 
-               if (domainEntry && domainEntry.lastMessage) {
-                 topicId = domainEntry.lastMessage.topic;
-               } else {
-                 topicId = userInput;
-               }
-               if (!topicId) {
-                 toast.error("Please enter a Topic ID or domain.");
-                 return;
-               }
-               const polygonTopicId = document.getElementById("input-field-topic-id-for-polygons").value;
-               const markerTopicId = document.getElementById("input-field-topic-id-for-markers").value;
-               const messagesPerNftPolygon = document.getElementById("input-field-messages-per-nft-for-polygons").value;
-               const messagesPerNftMarker = document.getElementById("input-field-messages-per-nft-for-markers").value;
-               const SizeForPolygons = document.getElementById("input-field-messages-size-for-polygons").value;
+ async function sendUtilityRules(rules, topicId = utilityTopicId()) {
+   if (!signer) {
+     toast.error("Connect wallet first");
+     return false;
+   }
+   if (!topicId) {
+     toast.error("Please enter a Topic ID or domain.");
+     return false;
+   }
+   toast.info("Confirm in wallet 👛");
+   const reciept = await sendMessage(topicId, JSON.stringify({ rules }));
+   console.log("Reciept is", reciept);
+   return true;
+ }
 
-               if (!polygonTopicId || !markerTopicId || !messagesPerNftPolygon || !messagesPerNftMarker || !SizeForPolygons) {
-                 toast.error("Please fill in all required fields: Polygon NFT, Marker NFT, Messages Per NFT, and Polygon Size.");
-                 return;
-               }
-               if (!Number.isInteger(Number(messagesPerNftPolygon)) || !Number.isInteger(Number(messagesPerNftMarker)) || isNaN(Number(SizeForPolygons))) {
-                 toast.error("Please enter valid numbers for Messages Per NFT and Polygon Size.");
-                 return;
-               }
- 
-               const meesageobject = {
-                 rules : {
-                   forpolygon: {
-                     polygonTopicId: polygonTopicId,
-                     polygonMessagesPerNft: messagesPerNftPolygon,
-                     polygonSize: SizeForPolygons
-                   },
-                   formarker: {
-                     markerTopicId: markerTopicId,
-                     markerMessagesPerNft: messagesPerNftMarker
-                   }
-               }};
- 
-               const meesage = JSON.stringify(meesageobject);
+ function appendStaticRule(container, text) {
+   const line = document.createElement('div');
+   line.style.userSelect = 'text';
+   line.textContent = text;
+   container.appendChild(line);
+ }
 
-               toast.info("Confirm in wallet 👛");
-               const reciept = await sendMessage(topicId, meesage);
-               console.log("Reciept is", reciept);
- 
-             } catch (error) {
-               console.error("Error setting rules:", error);
-             }
- });
- 
- document.getElementById("load-topic-rules-for-topic").addEventListener("click", async () => {
+ function appendRemovableRule(container, text, side, nftId, extraLines = []) {
+   const row = document.createElement('div');
+   row.className = 'topic-rule-row';
+   row.dataset.side = side;
+   const label = document.createElement('span');
+   label.textContent = text;
+   const button = document.createElement('button');
+   button.type = 'button';
+   button.className = 'topic-rule-remove';
+   button.dataset.side = side;
+   button.dataset.nftId = nftId;
+   button.textContent = '×';
+   button.setAttribute('aria-label', `Remove ${nftId}`);
+   row.appendChild(label);
+   row.appendChild(button);
+   if (!extraLines.length) {
+     container.appendChild(row);
+     return;
+   }
+   const block = document.createElement('div');
+   block.className = 'topic-rule-block';
+   block.dataset.side = side;
+   block.appendChild(row);
+   for (const extra of extraLines) appendStaticRule(block, extra);
+   container.appendChild(block);
+ }
+
+ function bindLoadedRuleRemove(container) {
+   container.addEventListener('click', async (event) => {
+     const button = event.target.closest('.topic-rule-remove');
+     if (!button || !container.contains(button)) return;
+     event.stopPropagation();
+     const nftId = button.dataset.nftId;
+     const side = button.dataset.side;
+     const topicId = container.dataset.loadedTopicId;
+     if (!nftId || !topicId) return;
+     const rules = side === 'polygon'
+       ? { forpolygon: { remove: true, polygonTopicId: nftId } }
+       : { formarker: { remove: true, markerTopicId: nftId } };
      try {
-         let userInput = document.getElementById("input-field-topic-id-for-rules").value.toLowerCase();
-         let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
-         let topicId;
- 
-         if (domainEntry && domainEntry.lastMessage) {
-             topicId = domainEntry.lastMessage.topic;
-         } else {
-             topicId = userInput;
-         }
- 
- 
-             const messagesContainer = document.getElementById('loaded-topic-rules-for-topic');
-               messagesContainer.innerHTML = '';
-               const topicSpinnerChat = `
-         <div style="display: flex; justify-content: left; align-items: left; padding-top: 1vh; padding-bottom: 1vh;">
-           <div id="topicspinnerchat"></div>
-           <span style="margin-left: 0.45vh;">loading messages from ${topicId}</span>
-           </div>`;
-         messagesContainer.innerHTML = topicSpinnerChat;
-         adjustTextareaHeight(messagesContainer);
- 
- 
-         const response = await getMessages(topicId);
-         const topicInfo = await getTopicInfo(topicId);
-         const topicAdmin = [];
-         const memo = topicInfo.memo;
-         let hasRules = false;
- 
-         // Split the memo by commas
-         const parts = memo.split(',');
- 
-         // Iterate over each part
-         parts.forEach(part => {
-             // Check if the part starts with "0.0."
-             if (part.startsWith("0.0.")) {
-                 // Add it to the topicAdmin array
-                 topicAdmin.push(part);
-                 hasRules = true;
-             }
-         });
- 
-         const messages = response.messages; // Extract messages
-         let lastRule = null;
- 
- 
- 
-         // Read rules from messages in reverse order
-         for (let index = messages.length - 1; index >= 0; index--) {
-             const message = messages[index];
-             try {
-                 let parsedMessage = message;
-                 if (typeof message === 'string') {
-                     parsedMessage = JSON.parse(message);
-                 }
-                 if (parsedMessage.rules && topicAdmin.includes(message.payer)) {
-                     lastRule = parsedMessage.rules;
-                     break; // Exit the loop after finding the last message with rules
-                 }
- 
-             } catch (messageError) {
-                 console.error(`Error processing message ${index}:`, messageError);
-             }
-         }
- 
-       let formattedRules = '';
-       if (lastRule) {
-         if (lastRule.forpolygon) {
-           const polygonSize = lastRule.forpolygon.polygonSize;
-           const maxLongitudeSize = 360 / polygonSize;
-           const maxLatitudeSize = 180 / polygonSize;
-           formattedRules +=
-             `<span style="user-select: text;">Polygon NFT ID: ${lastRule.forpolygon.polygonTopicId}</span><br>
-             <span style="user-select: text;">Polygon Messages Per NFT: ${lastRule.forpolygon.polygonMessagesPerNft}</span><br>
-             <span style="user-select: text;">Maximum distance between points is:</span> <br>
-             <span style="user-select: text;">Polygon Size: ${polygonSize}</span><br>
-             <span style="user-select: text;">360/${polygonSize} = ${maxLongitudeSize} for longitude</span><br>
-             <span style="user-select: text;">180/${polygonSize} = ${maxLatitudeSize} for latitude.</span><br>`;
-           hasRules = true;
-           }
- 
-         if (lastRule.formarker ) {
-           formattedRules +=
-             `<span style="user-select: text;">Marker NFT ID: ${lastRule.formarker.markerTopicId}</span><br>
-             <span style="user-select: text;">Marker Messages Per NFT: ${lastRule.formarker.markerMessagesPerNft}</span>`;
-           hasRules = true;
-         }
+       const sent = await sendUtilityRules(rules, topicId);
+       if (!sent) return;
+       const block = button.closest('.topic-rule-block') || button.closest('.topic-rule-row');
+       if (block) block.remove();
+       if (!container.querySelector(`.topic-rule-row[data-side="${side}"]`)) {
+         appendStaticRule(container, side === 'polygon' ? 'Polygon NFT: none' : 'Marker NFT: none');
        }
- 
-                       // Check if messages exist and is an array
-         if (hasRules===false) {
-           const noRulesMessage = `<span style="padding-top: 1vh;">No rules for this topic.</span>`;
-           messagesContainer.innerHTML = noRulesMessage;
-           adjustTextareaHeight(messagesContainer);
-           return;
-         }
- 
-                       // Log the formatted rules onto the textarea
-                       messagesContainer.innerHTML = formattedRules;
-                       adjustTextareaHeight(messagesContainer);
- 
-                   } catch (error) {
-                     const messagesContainer = document.getElementById('loaded-topic-rules-for-topic');
-                     const invalidTopicIdMessage = `<span style="padding-top: 1vh;">Invalid Topic ID</span>`;
-                     messagesContainer.innerHTML = invalidTopicIdMessage;
-                     adjustTextareaHeight(messagesContainer);
-                       
-                   }
+       adjustTextareaHeight(container);
+     } catch (error) {
+       console.error('Error removing loaded rule:', error);
+     }
+   });
+ }
+
+ bindLoadedRuleRemove(document.getElementById('loaded-topic-rules-for-utility'));
+ bindLoadedRuleRemove(document.getElementById('loaded-topic-rules-for-marker'));
+ bindLoadedRuleRemove(document.getElementById('loaded-topic-rules-for-polygon'));
+
+ document.getElementById("submit-button-add-rules-for-markers").addEventListener("click", async () => {
+   try {
+     const markerTopicId = document.getElementById("input-field-topic-id-for-markers").value.trim();
+     const messagesPerNftMarker = document.getElementById("input-field-messages-per-nft-for-markers").value.trim();
+     if (!markerTopicId || !messagesPerNftMarker) {
+       toast.error("Please fill in the Marker NFT and how many markers per NFT.");
+       return;
+     }
+     if (!Number.isInteger(Number(messagesPerNftMarker))) {
+       toast.error("Please enter a valid number for how many markers per NFT.");
+       return;
+     }
+     await sendUtilityRules({
+       formarker: {
+         add: true,
+         markerTopicId: markerTopicId,
+         markerMessagesPerNft: messagesPerNftMarker
+       }
+     });
+   } catch (error) {
+     console.error("Error setting marker rules:", error);
+   }
+ });
+
+ document.getElementById("submit-button-remove-rules-for-markers").addEventListener("click", async () => {
+   try {
+     const markerTopicId = document.getElementById("input-field-topic-id-for-markers").value.trim();
+     if (!markerTopicId) {
+       toast.error("Type the NFT ID of the marker rule to remove.");
+       return;
+     }
+     await sendUtilityRules({
+       formarker: { remove: true, markerTopicId: markerTopicId }
+     });
+   } catch (error) {
+     console.error("Error removing marker rules:", error);
+   }
+ });
+
+ document.getElementById("submit-button-add-rules-for-polygons").addEventListener("click", async () => {
+   try {
+     const polygonTopicId = document.getElementById("input-field-topic-id-for-polygons").value.trim();
+     const messagesPerNftPolygon = document.getElementById("input-field-messages-per-nft-for-polygons").value.trim();
+     const sizeForPolygons = document.getElementById("input-field-messages-size-for-polygons").value.trim();
+     if (!polygonTopicId || !messagesPerNftPolygon || !sizeForPolygons) {
+       toast.error("Please fill in the Polygon NFT, how many polygons per NFT, and the polygon size.");
+       return;
+     }
+     if (!Number.isInteger(Number(messagesPerNftPolygon)) || isNaN(Number(sizeForPolygons))) {
+       toast.error("Please enter valid numbers for how many polygons per NFT and the polygon size.");
+       return;
+     }
+     await sendUtilityRules({
+       forpolygon: {
+         add: true,
+         polygonTopicId: polygonTopicId,
+         polygonMessagesPerNft: messagesPerNftPolygon,
+         polygonSize: sizeForPolygons
+       }
+     });
+   } catch (error) {
+     console.error("Error setting polygon rules:", error);
+   }
+ });
+
+ document.getElementById("submit-button-remove-rules-for-polygons").addEventListener("click", async () => {
+   try {
+     const polygonTopicId = document.getElementById("input-field-topic-id-for-polygons").value.trim();
+     if (!polygonTopicId) {
+       toast.error("Type the NFT ID of the polygon rule to remove.");
+       return;
+     }
+     await sendUtilityRules({
+       forpolygon: { remove: true, polygonTopicId: polygonTopicId }
+     });
+   } catch (error) {
+     console.error("Error removing polygon rules:", error);
+   }
  });
 
 document.getElementById("load-topic-rules-for-utility").addEventListener("click", async () => {
   try {
-    let userInput = document.getElementById("input-field-topic-id-for-utility").value.toLowerCase();
+    let userInput = document.getElementById("input-field-topic-id-for-utility").value.trim().toLowerCase();
+    if (!userInput) {
+      toast.error("Please enter a Topic ID or domain.");
+      return;
+    }
     let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
     let topicId;
 
@@ -669,9 +722,6 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
     });
 
     const messages = response.messages; // Extract messages
-
-    let formattedRules;
-
 
     const loadedNFTsForModel = [];
     const loadedNFTScaleForModel = [];
@@ -739,33 +789,52 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
       }
     }
 
-    if (loadedNFTsForModel.length === 0 && loadedNFTScaleForModel.length === 0 && loadedNFTsForTopicChat.length === 0) {
-      formattedRules = '<span style="user-select: text;">No rules for this topic.</span>';
-    }
+    const { markers, polygons } = stackedTopicRules(messages, topicAdmin);
+    messagesContainer.innerHTML = '';
+    messagesContainer.dataset.loadedTopicId = topicId;
 
     if (loadedNFTsForModel.length > 0) {
-      formattedRules += `<span style="user-select: text;">NFTs for model: ${loadedNFTsForModel.join(', ')}</span><br>`;
-      hasRules = true;
+      appendStaticRule(messagesContainer, `NFTs for model: ${loadedNFTsForModel.join(', ')}`);
     }
     if (loadedNFTScaleForModel.length > 0) {
-      formattedRules += `<span style="user-select: text;">Scales for model: ${loadedNFTScaleForModel.map(item => `${item.NFT} = ${item.scale}`).join(', ')}</span><br>`;
-      hasRules = true;
+      appendStaticRule(messagesContainer, `Scales for model: ${loadedNFTScaleForModel.map(item => `${item.NFT} = ${item.scale}`).join(', ')}`);
     }
     if (loadedNFTsForTopicChat.length > 0) {
-      formattedRules += `<span style="user-select: text;">NFTs for topic chat: ${loadedNFTsForTopicChat.join(', ')}</span><br>`;
-      hasRules = true;
+      appendStaticRule(messagesContainer, `NFTs for topic chat: ${loadedNFTsForTopicChat.join(', ')}`);
+    }
+    if (markers.length === 0) {
+      appendStaticRule(messagesContainer, 'Marker NFT: none');
+    }
+    for (const marker of markers) {
+      if (marker.open) {
+        appendRemovableRule(messagesContainer, 'Marker NFT: anyone can post', 'marker', marker.id);
+      } else {
+        appendRemovableRule(messagesContainer, `Marker NFT: ${marker.markerTopicId} (${marker.markerMessagesPerNft} per NFT)`, 'marker', marker.markerTopicId);
+      }
+    }
+    if (polygons.length === 0) {
+      appendStaticRule(messagesContainer, 'Polygon NFT: none');
+    }
+    for (const polygon of polygons) {
+      if (polygon.open) {
+        appendRemovableRule(messagesContainer, 'Polygon NFT: anyone can post', 'polygon', polygon.id);
+        continue;
+      }
+      const polygonSize = polygon.polygonSize;
+      const maxLongitudeSize = 360 / polygonSize;
+      const maxLatitudeSize = 180 / polygonSize;
+      appendRemovableRule(
+        messagesContainer,
+        `Polygon NFT: ${polygon.polygonTopicId} (${polygon.polygonMessagesPerNft} per NFT, size ${polygonSize})`,
+        'polygon',
+        polygon.polygonTopicId,
+        [
+          `360/${polygonSize} = ${maxLongitudeSize} for longitude`,
+          `180/${polygonSize} = ${maxLatitudeSize} for latitude`,
+        ]
+      );
     }
 
-    // Check if messages exist and is an array
-    if (hasRules===false) {
-      const utilityRulesMessage = `<span>No rules for this topic.</span>`;
-      messagesContainer.innerHTML = utilityRulesMessage;
-      adjustTextareaHeight(messagesContainer);
-      return;
-    }
-
-    // Log the formatted rules onto the textarea
-    messagesContainer.innerHTML = formattedRules;
     adjustTextareaHeight(messagesContainer);
 
   } catch (error) {
@@ -1894,7 +1963,11 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
 
  document.getElementById("load-topic-rules-for-marker").addEventListener("click", async () => {
      try {
-       let userInput = document.getElementById("input-field-2-0").value.toLowerCase();
+       let userInput = document.getElementById("input-field-2-0").value.trim().toLowerCase();
+               if (!userInput) {
+                 toast.error("Please enter a Topic ID or domain.");
+                 return;
+               }
                let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
                let topicId;
  
@@ -1935,40 +2008,30 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
        });
  
        const messages = response.messages; // Extract messages
- 
-       const loadedTopicRulesForMarker = [];
- 
-       // Read rules from messages
-       for (let index = messages.length - 1; index >= 0; index--) {
-         const message = messages[index];
-         try {
-           let parsedMessage = message;
-           if (typeof message === 'string') {
-             parsedMessage = JSON.parse(message);
-           }
-           if (parsedMessage.rules && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-             loadedTopicRulesForMarker.push(parsedMessage.rules.formarker);
-             hasRules = true;
-             break; // Exit the loop after finding the last message with rules
-           }
-         } catch (messageError) {
-           console.error(`Error processing message ${index}:`, messageError);
-         }
-       }
- 
-         if (hasRules===false) {
+       const markerRules = stackedTopicRules(messages, topicAdmin).markers;
+
+         if (markerRules.length === 0) {
            const utilityRulesMessage = `<span>No rules for this topic.</span>`;
            messagesContainer.innerHTML = utilityRulesMessage;
+           delete messagesContainer.dataset.loadedTopicId;
            adjustTextareaHeight(messagesContainer);
            return;
        }
- 
- 
- 
-   const markerRulesMessage = `<span style="user-select: text;">To post markers, you must own NFT.<br>
-     NFT = ${loadedTopicRulesForMarker[0].markerTopicId}.<br>
-     Each NFT allows posting ${loadedTopicRulesForMarker[0].markerMessagesPerNft} markers.</span>`;
-   messagesContainer.innerHTML = markerRulesMessage;
+
+   messagesContainer.innerHTML = '';
+   messagesContainer.dataset.loadedTopicId = topicId;
+   for (const markerRule of markerRules) {
+     if (markerRule.open) {
+       appendRemovableRule(messagesContainer, 'Anyone can post markers.', 'marker', markerRule.id);
+       continue;
+     }
+     appendRemovableRule(
+       messagesContainer,
+       `To post markers, you must own NFT ${markerRule.markerTopicId}. Each NFT allows posting ${markerRule.markerMessagesPerNft} markers.`,
+       'marker',
+       markerRule.markerTopicId
+     );
+   }
    adjustTextareaHeight(messagesContainer);
  
  
@@ -1983,7 +2046,11 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
  
  document.getElementById("load-topic-rules-for-polygon").addEventListener("click", async () => {
      try {
-       let userInput = document.getElementById("input-field-3-0").value.toLowerCase();
+       let userInput = document.getElementById("input-field-3-0").value.trim().toLowerCase();
+               if (!userInput) {
+                 toast.error("Please enter a Topic ID or domain.");
+                 return;
+               }
                let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
                let topicId;
  
@@ -2023,50 +2090,33 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
          }
        });
        const messages = response.messages; // Extract messages
- 
-       const loadedTopicRulesForPolygon = [];
- 
-       // Read rules from messages
-       for (let index = messages.length - 1; index >= 0; index--) {
-         const message = messages[index];
-         try {
-           let parsedMessage = message;
-           if (typeof message === 'string') {
-             parsedMessage = JSON.parse(message);
-           }
-           if (parsedMessage.rules && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-             loadedTopicRulesForPolygon.push(parsedMessage.rules.forpolygon);
-             hasRules = true;
-             break; // Exit the loop after finding the last message with rules
-           }
-         } catch (messageError) {
-           console.error(`Error processing message ${index}:`, messageError);
-         }
-       }
- 
-         if (hasRules===false) {
+       const polygonRules = stackedTopicRules(messages, topicAdmin).polygons;
+
+         if (polygonRules.length === 0) {
            const utilityRulesMessage = `<span>No rules for this topic.</span>`;
            messagesContainer.innerHTML = utilityRulesMessage;
+           delete messagesContainer.dataset.loadedTopicId;
            adjustTextareaHeight(messagesContainer);
            return;
        }
- 
- 
- 
- const polygonRulesMessage = `<span style="user-select: text;">To post polygons, you must own NFT.<br>
-   NFT = ${loadedTopicRulesForPolygon[0].polygonTopicId}.<br>
-   Each NFT allows posting ${loadedTopicRulesForPolygon[0].polygonMessagesPerNft} polygons.<br></span>`;
- 
- const polygonSize = loadedTopicRulesForPolygon[0].polygonSize;
- const maxLongitudeSize = 360 / polygonSize;
- const maxLatitudeSize = 180 / polygonSize;
- 
- const polygonRulesMessages = `<span style="user-select: text;">Maximum distance between points is:<br>
-    ${maxLongitudeSize} for longitude<br>
-    ${maxLatitudeSize} for latitude.<br>
-    If not = wont load.</span>`;
- 
-   messagesContainer.innerHTML = polygonRulesMessage + polygonRulesMessages;
+
+ messagesContainer.innerHTML = '';
+ messagesContainer.dataset.loadedTopicId = topicId;
+ for (const polygonRule of polygonRules) {
+   if (polygonRule.open) {
+     appendRemovableRule(messagesContainer, 'Anyone can post polygons.', 'polygon', polygonRule.id);
+     continue;
+   }
+   const polygonSize = polygonRule.polygonSize;
+   const maxLongitudeSize = 360 / polygonSize;
+   const maxLatitudeSize = 180 / polygonSize;
+   appendRemovableRule(
+     messagesContainer,
+     `To post polygons, you must own NFT ${polygonRule.polygonTopicId}. Each NFT allows posting ${polygonRule.polygonMessagesPerNft} polygons. Maximum distance between points is ${maxLongitudeSize} for longitude and ${maxLatitudeSize} for latitude. If not = wont load.`,
+     'polygon',
+     polygonRule.polygonTopicId
+   );
+ }
    adjustTextareaHeight(messagesContainer);
  
  

@@ -164,7 +164,6 @@ export function CloseALL() {
     ["load-column", "load-options-help-overlay"],
     ["create-column", "create-topic-help-overlay"],
     ["draw-column", "map-draw-help-overlay"],
-    ["rules-column", "topic-rules-help-overlay"],
     ["utility-column", "model-sharing-rules-help-overlay"],
     ["memo-column", "edit-topic-rules-help-overlay"],
     ["domain-column", "domain-help-overlay"],
@@ -389,16 +388,6 @@ export function CloseALL() {
     removeUfoModel();
   });
   
-  
-  document.getElementById("Set_Rules").addEventListener("click", (event) => {
-    event.stopPropagation();
-    CloseALL();
-    document.getElementById("rules-column").style.display = "block";
-    document.getElementById("rules-column-container").style.display = "block";
-
-    OpenToggleToolbar();
-    removeUfoModel();
-  });
   
   document.getElementById("NFT-utility").addEventListener("click", (event) => {
     event.stopPropagation();
@@ -1082,12 +1071,16 @@ export function CloseALL() {
     document.getElementById("hide-model-sharing-from-nft-utility"),
     document.getElementById("hide-model-size-scale-factor-from-nft-utility"),
     document.getElementById("hide-topic-chat-from-nft-utility"),
+    document.getElementById("hide-markers-from-nft-utility"),
+    document.getElementById("hide-polygons-from-nft-utility"),
     document.getElementById("topic-rules-from-nft-utility"),
     document.getElementById("model-sharing-from-nft-utility-label"),
     document.getElementById("model-sharing-from-nft-utility"),
     document.getElementById("model-sharing-from-nft-utility-button-group"),
     document.getElementById("model-size-scale-factor-from-nft-utility"),
     document.getElementById("topic-chat-from-nft-utility"),
+    document.getElementById("markers-from-nft-utility"),
+    document.getElementById("polygons-from-nft-utility"),
   ];
   
   function hideAllInnerOptionsFromNFTUtility() {
@@ -1101,6 +1094,8 @@ export function CloseALL() {
     document.getElementById("show-model-sharing-from-nft-utility"),
     document.getElementById("show-model-size-scale-factor-from-nft-utility"),
     document.getElementById("show-topic-chat-from-nft-utility"),
+    document.getElementById("show-markers-from-nft-utility"),
+    document.getElementById("show-polygons-from-nft-utility"),
   ];
   
   function showAllInnerOptionsFromNFTUtility() {
@@ -1161,6 +1156,32 @@ export function CloseALL() {
   });
   
   document.getElementById("hide-topic-chat-from-nft-utility").addEventListener("click", (event) => {
+    hideAllInnerOptionsFromNFTUtility()
+    showAllInnerOptionsFromNFTUtility()
+  });
+
+  document.getElementById("show-markers-from-nft-utility").addEventListener("click", (event) => {
+    hideAllInnerOptionsFromNFTUtility()
+    showAllInnerOptionsFromNFTUtility()
+    document.getElementById("markers-from-nft-utility").style.display = "block";
+    document.getElementById("hide-markers-from-nft-utility").style.display = "block";
+    document.getElementById("show-markers-from-nft-utility").style.display = "none";
+  });
+
+  document.getElementById("hide-markers-from-nft-utility").addEventListener("click", (event) => {
+    hideAllInnerOptionsFromNFTUtility()
+    showAllInnerOptionsFromNFTUtility()
+  });
+
+  document.getElementById("show-polygons-from-nft-utility").addEventListener("click", (event) => {
+    hideAllInnerOptionsFromNFTUtility()
+    showAllInnerOptionsFromNFTUtility()
+    document.getElementById("polygons-from-nft-utility").style.display = "block";
+    document.getElementById("hide-polygons-from-nft-utility").style.display = "block";
+    document.getElementById("show-polygons-from-nft-utility").style.display = "none";
+  });
+
+  document.getElementById("hide-polygons-from-nft-utility").addEventListener("click", (event) => {
     hideAllInnerOptionsFromNFTUtility()
     showAllInnerOptionsFromNFTUtility()
   });

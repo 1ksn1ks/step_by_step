@@ -97,7 +97,7 @@
     </div>
 
     <div id="install-recommend" hidden>
-      <p>Install Meritocracy on this device?</p>
+      <p>Install on homescreen?</p>
       <div>
         <button type="button" id="install-recommend-yes">Install</button>
         <button type="button" id="install-recommend-no">Not now</button>
@@ -161,8 +161,6 @@
         <div class="toolbar-column" id="Create_New_Topic">Create
         </div>
         <div class="toolbar-column" id="Domain">Domain
-        </div>
-        <div class="toolbar-column" id="Set_Rules">Set Rules
         </div>
         <div class="toolbar-column" id="NFT-utility">NFT Utility
         </div>
@@ -663,7 +661,7 @@
             <li>Draw markers and polygons. Some topics require NFTs — check the topic's Rules.</li>
             <li>Need a topic? TOOLBAR → Create.</li>
             <li><b>Domain/Topic ID</b> — where the shape's data is stored.</li>
-            <li><b>Number</b> — reference ID to edit or delete the shape later. Use date opens a calendar already set to the current date and time. One press keeps that, or pick another. The number is saved as yyyymmddhhmm. Next number fills one higher than the highest you already used on this topic. The first one is 1.</li>
+            <li><b>Number</b> — reference ID to edit or delete the shape later. Use date opens a calendar already set to the current date and time. One press keeps that, or pick another. The number is saved as yyyymmddhhmm. Next number fills one higher than the highest short number you already used on this topic. Short numbers have fewer than 10 characters, so date numbers are skipped. The first one is 1.</li>
             <li><b>Coordinates</b> — where the shape sits on the map.</li>
             <li><b>Optional settings</b> — cover photo, title, image URL, and popup message when pressed.</li>
             <li><b>Delete</b> — remove a shape by its Number and Domain/Topic ID.</li>
@@ -907,77 +905,6 @@
       </div>
       </div>
 
-      <div id="topic-rules-help-overlay" class="info-overlay">
-        <div class="info-overlay-inner" onclick="event.stopPropagation();">
-          <h3 class="info-overlay-title">Topic Rules</h3>
-          <p class="info-overlay-subtitle">Control who can write to your topic.</p>
-          <ul class="info-overlay-list">
-            <li>Choose which markers/polygons appear when others search your topic.</li>
-            <li>Rules are tied to a Domain/Topic ID and set in pairs — the last one wins.</li>
-            <li>Pick the required NFT and how many messages each owned NFT allows.</li>
-            <li><b>Max size</b> — the largest polygon the required NFT can use.</li>
-            <li>Enter a Domain/Topic ID, press <b>Load Topic Rules</b> to read the current rules.</li>
-          </ul>
-          <div class="info-overlay-actions">
-            <button class="info-overlay-close-button-1" onclick="document.getElementById('topic-rules-help-overlay').style.display='none'">Got it</button>
-          </div>
-          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('topic-rules-help-overlay').style.display='none'">×</div>
-        </div>
-      </div>
-      
-      <div id="rules-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top:10vh;">
-        <button class="panel-help-btn" id="help-rules-column">?</button>
-        <div id="rules-column-container">
-
-          <div class="options-column-title">📜 RULES</div>
-
-          <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-rules" placeholder="Domain/Topic ID"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
-      
-          <div class="toolbar-group">
-            <div style="margin-bottom: 0px;">
-              <label for="input-field-rules-for-polygons" style="font-size: 2vh; padding: 0px;">For polygons:
-              </label>
-              <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-polygons" placeholder="NFT ID (set to zero to allow all)"
-              onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-              ></textarea>
-            </div>
-      
-            <textarea class="toolbar-column" type="text" id="input-field-messages-per-nft-for-polygons" placeholder="how many polygons per NFT"
-            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
-      
-            <textarea class="toolbar-column" type="text" id="input-field-messages-size-for-polygons" placeholder="max size = (360,180) / (number)"
-            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
-      
-            <div style="margin-bottom: 10px;">
-              <label for="input-field-add-rules" style=" font-size: 2vh;padding: 0px;">For markers:
-              </label>
-              <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-markers" placeholder="NFT ID (set to zero to allow all)"
-              onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-              ></textarea>
-            </div>
-      
-            <textarea class="toolbar-column" type="text" id="input-field-messages-per-nft-for-markers" placeholder="how many markers per NFT"
-            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
-            <button id="submit-button-Set_Rules" class="toolbar-column-btns" style="display: block;">Submit
-            </button>
-            <div style="margin-bottom: 10px;"></div>
-          </div>
-      
-          <label for="loaded-topics" style=" font-size: 2vh;padding: 0px;">Loaded Topic Rules:
-          </label>
-          <div class="toolbar-column-loaded-rules" style="user-select: text;" id="loaded-topic-rules-for-topic" placeholder="Loaded Topic Rules"
-          onclick="event.stopPropagation();"></div>
-          <button id="load-topic-rules-for-topic" class="toolbar-column-btns">Load Topic Rules
-          </button>
-
-        </div>
-      </div>
-
       <div id="initial-xyz-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <div id="initial-xyz-column-container">
 
@@ -1010,6 +937,9 @@
             <li><b>Model sharing</b> — choose which NFT holders can share their location (top-right corner).</li>
             <li><b>Model size</b> — size multiplier per NFT. Example: VIP NFT at 2× → 2× bigger model.</li>
             <li><b>Topic chat</b> — only messages from users with the required NFT are shown.</li>
+            <li><b>Markers</b> — the NFT required to post markers, and how many each owned NFT allows. Several marker rules can be set. Setting the same NFT again uses the latest count.</li>
+            <li><b>Polygons</b> — the NFT, how many polygons each owned NFT allows, and the max size. Several polygon rules can be set. Setting the same NFT again uses the latest count and size.</li>
+            <li>Remove uses the NFT ID in the field and drops only that rule. Each loaded marker or polygon rule also has an ✕, which sends that same remove message for its NFT.</li>
             <li>Enter a Domain/Topic ID and press <b>Load Topic Rules</b> to read the current rules.</li>
           </ul>
           <div class="info-overlay-actions">
@@ -1034,21 +964,32 @@
       
       
             <div style="display: flex;">
-              <button id="show-topic-rules-from-nft-utility" class="toolbar-column-first-settings-btns">Topic Rules
+              <button id="show-topic-rules-from-nft-utility" class="toolbar-column-first-settings-btns">Topic Rules ✅
               </button>
-              <button id="hide-topic-rules-from-nft-utility" style="display: none;" class="toolbar-column-first-settings-btns">Topic Rules
+              <button id="hide-topic-rules-from-nft-utility" style="display: none;" class="toolbar-column-first-settings-btns">Topic Rules ⛔
               </button>
-              <button id="show-model-sharing-from-nft-utility" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Model sharing
+              <button id="show-model-sharing-from-nft-utility" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Model sharing ✅
               </button>
-              <button id="hide-model-sharing-from-nft-utility" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Model sharing
+              <button id="hide-model-sharing-from-nft-utility" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Model sharing ⛔
               </button>
-              <button id="show-model-size-scale-factor-from-nft-utility" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Model size
+              <button id="show-model-size-scale-factor-from-nft-utility" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Model size ✅
               </button>
-              <button id="hide-model-size-scale-factor-from-nft-utility" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Model size
+              <button id="hide-model-size-scale-factor-from-nft-utility" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Model size ⛔
               </button>
-              <button id="show-topic-chat-from-nft-utility" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Topic Chat
+            </div>
+
+            <div style="display: flex;">
+              <button id="show-topic-chat-from-nft-utility" class="toolbar-column-first-settings-btns">Topic Chat ✅
               </button>
-              <button id="hide-topic-chat-from-nft-utility" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Topic Chat
+              <button id="hide-topic-chat-from-nft-utility" style="display: none;" class="toolbar-column-first-settings-btns">Topic Chat ⛔
+              </button>
+              <button id="show-markers-from-nft-utility" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Markers ✅
+              </button>
+              <button id="hide-markers-from-nft-utility" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Markers ⛔
+              </button>
+              <button id="show-polygons-from-nft-utility" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Polygons ✅
+              </button>
+              <button id="hide-polygons-from-nft-utility" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Polygons ⛔
               </button>
             </div>
       
@@ -1117,6 +1058,43 @@
             </button>
           </div>
         </div>
+
+        <div id="markers-from-nft-utility" style="display: none;">
+          <label for="input-field-topic-id-for-markers" style=" font-size: 2vh;padding: 0px;">For markers:
+          </label>
+          <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-markers" placeholder="NFT ID (set to zero to allow all)"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+          <textarea class="toolbar-column" type="text" id="input-field-messages-per-nft-for-markers" placeholder="how many markers per NFT"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+          <div class="button-group" style="display: flex; flex-direction: row; align-items: center;">
+            <button id="submit-button-add-rules-for-markers" class="toolbar-column-btns">Add
+            </button>
+            <button id="submit-button-remove-rules-for-markers" class="toolbar-column-btns" style="margin-left: 8vw;">Remove
+            </button>
+          </div>
+        </div>
+
+        <div id="polygons-from-nft-utility" style="display: none;">
+          <label for="input-field-topic-id-for-polygons" style=" font-size: 2vh;padding: 0px;">For polygons:
+          </label>
+          <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-polygons" placeholder="NFT ID (set to zero to allow all)"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+          <textarea class="toolbar-column" type="text" id="input-field-messages-per-nft-for-polygons" placeholder="how many polygons per NFT"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+          <textarea class="toolbar-column" type="text" id="input-field-messages-size-for-polygons" placeholder="max size = (360,180) / (number)"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+          ></textarea>
+          <div class="button-group" style="display: flex; flex-direction: row; align-items: center;">
+            <button id="submit-button-add-rules-for-polygons" class="toolbar-column-btns">Add
+            </button>
+            <button id="submit-button-remove-rules-for-polygons" class="toolbar-column-btns" style="margin-left: 8vw;">Remove
+            </button>
+          </div>
+        </div>
       
         </div>
       </div>
@@ -1128,7 +1106,7 @@
           <ul class="info-overlay-list">
             <li><b>Domain/Topic ID</b> — the topic to edit.</li>
             <li><b>Private key</b> — signs and approves the change.</li>
-            <li><b>Admins</b> — who can set this topic's rules.</li>
+            <li><b>Admins</b> — who can set this topic's rules. Load memo shows the current memo before you change it.</li>
             <li><b>Optional fee</b> — make users pay per message posted.</li>
             <li><b>Set amount</b> — the fee per message.</li>
             <li><b>Token ID</b> — the Hedera token received as payment.</li>
@@ -1152,9 +1130,9 @@
             </button>
             <button id="hide-update-bio-from-memo" style="display: none;" class="toolbar-column-first-settings-btns">Update bio ⛔
             </button>
-            <button id="show-memo-from-memo" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Memo ✅
+            <button id="show-topic-name-from-memo" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Topic name ✅
             </button>
-            <button id="hide-memo-from-memo" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Memo ⛔
+            <button id="hide-topic-name-from-memo" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Topic name ⛔
             </button>
           </div>
 
@@ -1163,9 +1141,9 @@
             </button>
             <button id="hide-fee-from-memo" style="display: none;" class="toolbar-column-first-settings-btns">Add fee ⛔
             </button>
-            <button id="show-topic-name-from-memo" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Topic name ✅
+            <button id="show-memo-from-memo" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Memo ✅
             </button>
-            <button id="hide-topic-name-from-memo" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Topic name ⛔
+            <button id="hide-memo-from-memo" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Memo ⛔
             </button>
           </div>
 
@@ -1189,6 +1167,12 @@
             <textarea class="toolbar-column" type="text" id="input-field-topic-id" placeholder="Domain/Topic ID"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
+            <label for="loaded-memo-for-topic" style=" font-size: 2vh;padding: 0px;">Current memo:
+            </label>
+            <div class="toolbar-column-loaded-rules" style="user-select: text;" id="loaded-memo-for-topic"
+            onclick="event.stopPropagation();"></div>
+            <button id="load-memo-for-topic" class="toolbar-column-btns">Load memo
+            </button>
             <textarea class="toolbar-column" type="text" id="input-field-admin-key" placeholder="Private key"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
@@ -1203,6 +1187,12 @@
             <textarea class="toolbar-column" type="text" id="input-field-topic-id-fee" placeholder="Domain/Topic ID"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
+            <label for="loaded-memo-for-fee" style=" font-size: 2vh;padding: 0px;">Current memo:
+            </label>
+            <div class="toolbar-column-loaded-rules" style="user-select: text;" id="loaded-memo-for-fee"
+            onclick="event.stopPropagation();"></div>
+            <button id="load-memo-for-fee" class="toolbar-column-btns">Load memo
+            </button>
             <textarea class="toolbar-column" type="text" id="input-field-admin-key-fee" placeholder="Private key"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
@@ -1991,15 +1981,46 @@
         <button type="button" class="maplibregl-popup-close-button" tabindex="-1">&times;</button>
         <div class="maplibregl-popup-content">
           <div class="popup-top-row">
-            <div class="popup-top-topic">0.0.9609912 Freedom</div>
-          </div>
-          <div style="display: flex; justify-content: center; margin-bottom: calc(var(--u) * 0.25);">
             <div class="number popup-top-id">256</div>
+            <span class="popup-icon-chip">⚙️</span>
           </div>
-          <div class="payer-info">0.0.9779355</div>
-          <div class="username">username</div>
-          <div class="title_color popup-title-bubble">message title</div>
-          <div class="text_color">message text</div>
+          <div class="popup-profile-bubble">
+            <img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23222833'/%3E%3Ccircle cx='32' cy='26' r='10' fill='%23c5cad6'/%3E%3Cellipse cx='32' cy='54' rx='16' ry='12' fill='%23c5cad6'/%3E%3C/svg%3E" style="width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);">
+            <div>
+              <h2>
+                <a class="payer-info" style="text-decoration: none;">0.0.9779355</a><br>
+                <a class="username" style="text-decoration: none;">username</a>
+              </h2>
+            </div>
+          </div>
+          <div style="text-align: center;">
+            <div style="display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: calc(var(--u) * 0.25);">
+              <span class="popup-icon-chip">←</span>
+              <div style="text-align: center; flex-grow: 1;">
+                <strong class="title_color popup-title-bubble">message title</strong>
+              </div>
+              <span class="popup-icon-chip">→</span>
+            </div>
+            <div>
+              <p class="text_color popup-text-bubble">message text</p>
+            </div>
+          </div>
+          <div style="position: relative; height: calc(var(--u) * 6.2); line-height: 1; margin-top: calc(var(--u) * 0.4); overflow: visible;">
+            <div style="position: absolute; top: calc(var(--u) * 0.15); left: 50%; transform: translateX(-50%); display: flex; align-items: flex-start; gap: calc(var(--u) * 0.5);">
+              <div class="heart-like">
+                <input type="checkbox" id="preview-heart-like" disabled>
+                <label for="preview-heart-like" data-count="0" data-next="1"><span></span></label>
+              </div>
+              <div class="heart-like comment-bubble">
+                <input type="checkbox" id="preview-comment-bubble" disabled>
+                <label for="preview-comment-bubble" data-count="0" data-next="0"><span></span></label>
+              </div>
+            </div>
+          </div>
+          <div style="position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: 0; margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);">
+            <span class="popup-top-topic" style="max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis;">0.0.9609912 Freedom</span>
+            <span class="popup-timestamp" style="margin-left: auto; margin-right: calc(var(--u) * -0.5); flex-shrink: 0;">10/10/2026, 21:35</span>
+          </div>
         </div>
       </div>
       <div id="popup-column-2" style="width: 100%;">

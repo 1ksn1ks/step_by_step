@@ -22,7 +22,7 @@ export async function sendMessage(topicId, message) {
   
       console.log (txId)
     } catch (err) {
-      console.error(err);
+      throw err;
     }
   }
 

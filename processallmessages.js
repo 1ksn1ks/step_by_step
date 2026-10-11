@@ -18,10 +18,41 @@ import { map } from './map';
 import { applyAllStyles } from './loadprofilepopup';
 import { scene } from './threejs'
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium'
-import { signer } from './web3';
+import { signer, connectedAccount } from './web3';
 import { refitPopups } from './popupanim';
 import { copyTextToClipboard } from './handleallmessages';
 import { toast } from './toast'
+import { stackedTopicRules, smallestPolygonSize } from './topicrules.js'
+
+// A drawing counts toward the NFT allowance only when it is a real marker
+// or polygon. Likes, comments, deletes, and other messages do not.
+function markerCoordinates(cordData) {
+  let coords;
+  if (typeof cordData === 'string') {
+    coords = cordData.split(',').map((num) => parseFloat(num.trim()));
+  } else if (Array.isArray(cordData)) {
+    coords = cordData;
+  } else {
+    return null;
+  }
+  if (!Array.isArray(coords) || coords.length !== 2 || coords.some((num) => Number.isNaN(num))) {
+    return null;
+  }
+  return coords;
+}
+
+function polygonCoordinates(cordStr) {
+  if (typeof cordStr !== 'string') return null;
+  const validCoordPattern = /^\[-?\d+\.?\d*,\s*-?\d+\.?\d*\](,\s*\[-?\d+\.?\d*,\s*-?\d+\.?\d*\])*$/;
+  if (!validCoordPattern.test(cordStr)) return null;
+  try {
+    const coordinates = JSON.parse(`[${cordStr}]`);
+    if (!Array.isArray(coordinates) || coordinates.length < 3) return null;
+    return coordinates;
+  } catch {
+    return null;
+  }
+}
 
 
 
@@ -46,6 +77,91 @@ window.openPopupSettings = function() {
     }
   });
 };
+
+function payerHasLike(actions, timestamp, type) {
+  const row = actions && actions.get(timestamp);
+  if (!row || !connectedAccount) return false;
+  const mine = row.get(connectedAccount);
+  return !!(mine && mine.type === type);
+}
+
+let heartLikeSeq = 0;
+
+function createHeartLike({ count, liked, mini, onToggle }) {
+  const total = Number(count) || 0;
+  const base = liked ? Math.max(0, total - 1) : total;
+  const root = document.createElement('div');
+  root.className = mini ? 'heart-like heart-like-mini' : 'heart-like';
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.id = `heart-like-${++heartLikeSeq}`;
+  input.checked = !!liked;
+  const label = document.createElement('label');
+  label.htmlFor = input.id;
+  label.dataset.count = String(base);
+  label.dataset.next = String(base + 1);
+  label.appendChild(document.createElement('span'));
+  root.appendChild(input);
+  root.appendChild(label);
+  root.addEventListener('click', (event) => event.stopPropagation());
+  let busy = false;
+  input.addEventListener('change', async () => {
+    if (busy) return;
+    const wantLike = input.checked;
+    root.classList.remove('is-pop', 'is-down');
+    void root.offsetWidth;
+    root.classList.add(wantLike ? 'is-pop' : 'is-down');
+    busy = true;
+    try {
+      const ok = await onToggle(wantLike);
+      if (!ok) {
+        input.checked = !wantLike;
+        root.classList.remove('is-pop', 'is-down');
+      }
+    } catch {
+      input.checked = !wantLike;
+      root.classList.remove('is-pop', 'is-down');
+    }
+    busy = false;
+  });
+  return root;
+}
+
+let commentBubbleInput = null;
+let commentsClosing = false;
+
+function createCommentBubble({ count, mini, onToggle }) {
+  const total = Number(count) || 0;
+  const root = document.createElement('div');
+  root.className = mini ? 'heart-like heart-like-mini comment-bubble' : 'heart-like comment-bubble';
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.id = `comment-bubble-${++heartLikeSeq}`;
+  const label = document.createElement('label');
+  label.htmlFor = input.id;
+  label.dataset.count = String(total);
+  label.dataset.next = String(total);
+  label.appendChild(document.createElement('span'));
+  root.appendChild(input);
+  root.appendChild(label);
+  root.addEventListener('click', (event) => event.stopPropagation());
+  let busy = false;
+  input.addEventListener('change', () => {
+    if (busy) return;
+    const open = input.checked;
+    root.classList.remove('is-pop', 'is-down');
+    void root.offsetWidth;
+    root.classList.add(open ? 'is-pop' : 'is-down');
+    busy = true;
+    try {
+      if (onToggle(open) === false) input.checked = !open;
+      if (input.checked !== open) root.classList.remove('is-pop', 'is-down');
+    } finally {
+      busy = false;
+    }
+  });
+  return root;
+}
 
 function isValidUrl(url) {
   try {
@@ -73,7 +189,7 @@ export function createMarkerPopupHTML(data) {
     msg,
     timestamp,
     likeCountMarker,
-    dislikeCountMarker,
+    likedByMe,
     comments,
     coords,
     // Optional (live-marker view): walk a custom list instead of the topic
@@ -105,7 +221,7 @@ export function createMarkerPopupHTML(data) {
     }
   });
 
-  // Row 1: topic id and name on the left. The × close stays top right.
+  // Top row: × on the left, number in the middle, settings on the right.
   const topHeader = document.createElement('div');
   topHeader.className = 'popup-top-row';
 
@@ -150,14 +266,8 @@ export function createMarkerPopupHTML(data) {
     }
   });
 
-  topHeader.appendChild(topicSpan);
+  topHeader.appendChild(numberDiv);
   container.appendChild(topHeader);
-
-  // Row 2: marker number, centered where the topic id used to sit
-  const numberRow = document.createElement('div');
-  numberRow.style.cssText = 'display: flex; justify-content: center; margin-bottom: calc(var(--u) * 0.25);';
-  numberRow.appendChild(numberDiv);
-  container.appendChild(numberRow);
 
   // Profile section
   const profileSection = document.createElement('div');
@@ -167,7 +277,10 @@ export function createMarkerPopupHTML(data) {
   profileImg.src = profileUrl;
   profileImg.alt = 'Profile photo';
   profileImg.style.cssText = 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; cursor: pointer; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
-  profileImg.onclick = () => window.loadBio4PIC(payer);
+  profileImg.onclick = (event) => {
+    event.stopPropagation();
+    window.loadBio4PIC(payer);
+  };
   profileSection.appendChild(profileImg);
 
   const headerDiv = document.createElement('div');
@@ -214,7 +327,7 @@ export function createMarkerPopupHTML(data) {
 
   // Navigation and title
   const navSection = document.createElement('div');
-  navSection.style.cssText = 'display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: calc(var(--u) * 1);';
+  navSection.style.cssText = 'display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: calc(var(--u) * 0.25);';
 
   const prevSpan = document.createElement('span');
   prevSpan.className = 'popup-icon-chip';
@@ -283,38 +396,29 @@ export function createMarkerPopupHTML(data) {
 
   container.appendChild(contentSection);
 
-  // Row 6 — 👍 💬 👎 centered (⚙️ 📍 + timestamp live in row 7)
+  // Row 6 — heart + comment centered (topic id + timestamp live in row 7)
   const bottomRow = document.createElement('div');
-  bottomRow.style.cssText = 'position: relative; height: calc(var(--u) * 4); line-height: 1; margin-top: calc(var(--u) * 0.4);';
+  bottomRow.style.cssText = 'position: relative; height: calc(var(--u) * 6.2); line-height: 1; margin-top: calc(var(--u) * 0.4); overflow: visible;';
 
   // Timestamp (row 7, right side)
   const timestampDiv = document.createElement('div');
   timestampDiv.className = 'popup-timestamp';
-  timestampDiv.style.cssText = 'margin-left: auto; margin-right: calc(var(--u) * -0.5);';
+  timestampDiv.style.cssText = 'margin-left: auto; margin-right: calc(var(--u) * -0.5); flex-shrink: 0;';
   timestampDiv.textContent = timestamp;
 
-  // Like/Dislike + Comment (bottom center)
   const likeDislikeDiv = document.createElement('div');
-  likeDislikeDiv.style.cssText = 'position: absolute; bottom: calc(var(--u) * 0.3); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: calc(var(--u) * 0.5);';
+  likeDislikeDiv.style.cssText = 'position: absolute; top: calc(var(--u) * 0.15); left: 50%; transform: translateX(-50%); display: flex; align-items: flex-start; gap: calc(var(--u) * 0.5);';
+  likeDislikeDiv.appendChild(createHeartLike({
+    count: likeCountMarker,
+    liked: likedByMe,
+    onToggle: (wantLike) => window.likeMarker(timestamp, topicId, !wantLike),
+  }));
 
-  const likeSpan = document.createElement('span');
-  likeSpan.className = 'popup-icon-chip';
-  likeSpan.textContent = `${likeCountMarker || 0}👍`;
-  likeSpan.onclick = () => window.likeMarker(timestamp, topicId);
-  likeDislikeDiv.appendChild(likeSpan);
-
-  // 💬 Comment Button (between Like and Dislike)
-  const commentSpan = document.createElement('span');
-  commentSpan.className = 'popup-icon-chip';
-  commentSpan.textContent = comments.length ? `💬${countAllMessages(comments)}` : '💬';
-  commentSpan.onclick = () => window.openMarkerComments(timestamp, topicId);
-  likeDislikeDiv.appendChild(commentSpan);
-
-  const dislikeSpan = document.createElement('span');
-  dislikeSpan.className = 'popup-icon-chip';
-  dislikeSpan.textContent = `${dislikeCountMarker || 0}👎`;
-  dislikeSpan.onclick = () => window.dislikeMarker(timestamp, topicId);
-  likeDislikeDiv.appendChild(dislikeSpan);
+  const markerCommentsId = `marker-comments-${topicId}-${timestamp}`;
+  likeDislikeDiv.appendChild(createCommentBubble({
+    count: countAllMessages(comments),
+    onToggle: (open) => toggleCommentsBubble(open, markerCommentsId),
+  }));
 
   bottomRow.appendChild(likeDislikeDiv);
 
@@ -323,24 +427,20 @@ export function createMarkerPopupHTML(data) {
   settingsSpan.className = 'popup-icon-chip';
   settingsSpan.textContent = '⚙️';
   settingsSpan.onclick = () => window.openPopupSettings();
-
-  // 📍 Location Button
-  const locationSpan = document.createElement('span');
-  locationSpan.className = 'popup-icon-chip';
-  locationSpan.textContent = '📍';
-  locationSpan.onclick = () => window.openMarkerNavigation(coords);
-  // Row 7 — ⚙️ 📍 on their own row: same left inset as row 1, same 0.25vh gap as rows 1–2
+  topHeader.appendChild(settingsSpan);
+  // Row 7 — topic id and name on the left, timestamp on the right.
   const bottomLeftRow = document.createElement('div');
-  bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: calc(var(--u) * 0.25); margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);';
-  bottomLeftRow.appendChild(settingsSpan);
-  bottomLeftRow.appendChild(locationSpan);
+  bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: 0; margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);';
+  bottomLeftRow.appendChild(topicSpan);
   bottomLeftRow.appendChild(timestampDiv);
 
   container.appendChild(bottomRow);
   container.appendChild(bottomLeftRow);
 
   // Comments (below the bottom row, hidden until 💬 is pressed)
-  container.appendChild(buildCommentsSection(`marker-comments-${topicId}-${timestamp}`, comments, (input) => window.sendMarkerComment(timestamp, topicId, input), (parentId, input) => window.sendMarkerReply(timestamp, parentId, topicId, input), topicId, 'marker'));
+  const markerComments = buildCommentsSection(markerCommentsId, comments, (input) => window.sendMarkerComment(timestamp, topicId, input), (parentId, input) => window.sendMarkerReply(timestamp, parentId, topicId, input), topicId, 'marker');
+  markerComments._bubbleInput = likeDislikeDiv.querySelector('.comment-bubble input');
+  container.appendChild(markerComments);
 
   return container;
 }
@@ -361,7 +461,7 @@ function createPolygonPopupHTML(data) {
     msg,
     timestamp,
     likeCountPolygon,
-    dislikeCountPolygon,
+    likedByMe,
     comments,
     coordinates
   } = data;
@@ -387,7 +487,7 @@ function createPolygonPopupHTML(data) {
     else window.prevMsgFromPayerPolygon(payer, polygonnumber, topicId);
   });
 
-  // Row 1: topic id and name on the left. The × close stays top right.
+  // Top row: × on the left, number in the middle, settings on the right.
   const topHeader = document.createElement('div');
   topHeader.className = 'popup-top-row';
 
@@ -424,14 +524,8 @@ function createPolygonPopupHTML(data) {
     }
   });
 
-  topHeader.appendChild(topicSpan);
+  topHeader.appendChild(numberDiv);
   container.appendChild(topHeader);
-
-  // Row 2: polygon number, centered where the topic id used to sit
-  const numberRow = document.createElement('div');
-  numberRow.style.cssText = 'display: flex; justify-content: center; margin-bottom: calc(var(--u) * 0.25);';
-  numberRow.appendChild(numberDiv);
-  container.appendChild(numberRow);
 
   // Profile section
   const profileSection = document.createElement('div');
@@ -441,7 +535,10 @@ function createPolygonPopupHTML(data) {
   profileImg.src = profileUrl;
   profileImg.alt = 'Profile photo';
   profileImg.style.cssText = 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; cursor: pointer; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
-  profileImg.onclick = () => window.loadBio4PIC(payer);
+  profileImg.onclick = (event) => {
+    event.stopPropagation();
+    window.loadBio4PIC(payer);
+  };
   profileSection.appendChild(profileImg);
 
   const headerDiv = document.createElement('div');
@@ -488,7 +585,7 @@ function createPolygonPopupHTML(data) {
 
   // Navigation and title
   const navSection = document.createElement('div');
-  navSection.style.cssText = 'display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: calc(var(--u) * 1);';
+  navSection.style.cssText = 'display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: calc(var(--u) * 0.25);';
 
   const prevSpan = document.createElement('span');
   prevSpan.className = 'popup-icon-chip';
@@ -555,38 +652,29 @@ function createPolygonPopupHTML(data) {
 
   container.appendChild(contentSection);
 
-  // Row 6 — 👍 💬 👎 centered (⚙️ 📍 + timestamp live in row 7)
+  // Row 6 — heart + comment centered (topic id + timestamp live in row 7)
   const bottomRow = document.createElement('div');
-  bottomRow.style.cssText = 'position: relative; height: calc(var(--u) * 4); line-height: 1; margin-top: calc(var(--u) * 0.4);';
+  bottomRow.style.cssText = 'position: relative; height: calc(var(--u) * 6.2); line-height: 1; margin-top: calc(var(--u) * 0.4); overflow: visible;';
 
   // Timestamp (row 7, right side)
   const timestampDiv = document.createElement('div');
   timestampDiv.className = 'popup-timestamp';
-  timestampDiv.style.cssText = 'margin-left: auto; margin-right: calc(var(--u) * -0.5);';
+  timestampDiv.style.cssText = 'margin-left: auto; margin-right: calc(var(--u) * -0.5); flex-shrink: 0;';
   timestampDiv.textContent = timestamp;
 
-  // Like/Dislike + Comment (bottom center)
   const likeDislikeDiv = document.createElement('div');
-  likeDislikeDiv.style.cssText = 'position: absolute; bottom: calc(var(--u) * 0.3); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: calc(var(--u) * 0.5);';
+  likeDislikeDiv.style.cssText = 'position: absolute; top: calc(var(--u) * 0.15); left: 50%; transform: translateX(-50%); display: flex; align-items: flex-start; gap: calc(var(--u) * 0.5);';
+  likeDislikeDiv.appendChild(createHeartLike({
+    count: likeCountPolygon,
+    liked: likedByMe,
+    onToggle: (wantLike) => window.likePolygon(timestamp, topicId, !wantLike),
+  }));
 
-  const likeSpan = document.createElement('span');
-  likeSpan.className = 'popup-icon-chip';
-  likeSpan.textContent = `${likeCountPolygon || 0}👍`;
-  likeSpan.onclick = () => window.likePolygon(timestamp, topicId);
-  likeDislikeDiv.appendChild(likeSpan);
-
-  // 💬 Comment Button (between Like and Dislike)
-  const commentSpan = document.createElement('span');
-  commentSpan.className = 'popup-icon-chip';
-  commentSpan.textContent = comments.length ? `💬${countAllMessages(comments)}` : '💬';
-  commentSpan.onclick = () => window.openPolygonComments(timestamp, topicId);
-  likeDislikeDiv.appendChild(commentSpan);
-
-  const dislikeSpan = document.createElement('span');
-  dislikeSpan.className = 'popup-icon-chip';
-  dislikeSpan.textContent = `${dislikeCountPolygon || 0}👎`;
-  dislikeSpan.onclick = () => window.dislikePolygon(timestamp, topicId);
-  likeDislikeDiv.appendChild(dislikeSpan);
+  const polygonCommentsId = `polygon-comments-${topicId}-${timestamp}`;
+  likeDislikeDiv.appendChild(createCommentBubble({
+    count: countAllMessages(comments),
+    onToggle: (open) => toggleCommentsBubble(open, polygonCommentsId),
+  }));
 
   bottomRow.appendChild(likeDislikeDiv);
 
@@ -595,24 +683,20 @@ function createPolygonPopupHTML(data) {
   settingsSpan.className = 'popup-icon-chip';
   settingsSpan.textContent = '⚙️';
   settingsSpan.onclick = () => window.openPopupSettings();
-
-  // 📍 Location Button
-  const locationSpan = document.createElement('span');
-  locationSpan.className = 'popup-icon-chip';
-  locationSpan.textContent = '📍';
-  locationSpan.onclick = () => window.openPolygonNavigation(coordinates);
-  // Row 7 — ⚙️ 📍 on their own row: same left inset as row 1, same 0.25vh gap as rows 1–2
+  topHeader.appendChild(settingsSpan);
+  // Row 7 — topic id and name on the left, timestamp on the right.
   const bottomLeftRow = document.createElement('div');
-  bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: calc(var(--u) * 0.25); margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);';
-  bottomLeftRow.appendChild(settingsSpan);
-  bottomLeftRow.appendChild(locationSpan);
+  bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: 0; margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);';
+  bottomLeftRow.appendChild(topicSpan);
   bottomLeftRow.appendChild(timestampDiv);
 
   container.appendChild(bottomRow);
   container.appendChild(bottomLeftRow);
 
   // Comments (below the bottom row, hidden until 💬 is pressed)
-  container.appendChild(buildCommentsSection(`polygon-comments-${topicId}-${timestamp}`, comments, (input) => window.sendPolygonComment(timestamp, topicId, input), (parentId, input) => window.sendPolygonReply(timestamp, parentId, topicId, input), topicId, 'polygon'));
+  const polygonComments = buildCommentsSection(polygonCommentsId, comments, (input) => window.sendPolygonComment(timestamp, topicId, input), (parentId, input) => window.sendPolygonReply(timestamp, parentId, topicId, input), topicId, 'polygon');
+  polygonComments._bubbleInput = likeDislikeDiv.querySelector('.comment-bubble input');
+  container.appendChild(polygonComments);
 
   return container;
 }
@@ -688,6 +772,16 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
       if (parsedMessage.dislikePolygon && parsedMessage.dislikePolygon.timestamp && parsedMessage.payer) {
         actionTimestamp = parsedMessage.dislikePolygon.timestamp;
         actionType = 'dislikePolygon';
+      }
+      // Taking a like back. Unlike is not a dislike: it clears that payer's
+      // like and adds nothing, so the heart count drops and no 👎 is stored.
+      if (parsedMessage.unlikeMarker && parsedMessage.unlikeMarker.timestamp && parsedMessage.payer) {
+        actionTimestamp = parsedMessage.unlikeMarker.timestamp;
+        actionType = 'unlikeMarker';
+      }
+      if (parsedMessage.unlikePolygon && parsedMessage.unlikePolygon.timestamp && parsedMessage.payer) {
+        actionTimestamp = parsedMessage.unlikePolygon.timestamp;
+        actionType = 'unlikePolygon';
       }
 
       // Process the action if it exists
@@ -825,30 +919,19 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
 
 
 
-          // Read rules from messages
-          for (let index = messages.length - 1; index >= 0; index--) {
-            const message = messages[index];
-            try {
-              let parsedMessage = message;
-              if (typeof message === 'string') {
-                parsedMessage = JSON.parse(message);
-              }
-
-              if (parsedMessage.rules && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-                if (parsedMessage.rules.formarker.markerTopicId.startsWith('0.0.') && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-                loadedTopicRulesForMarker.push(parsedMessage.rules.formarker);
-                hasRulesForMarker = true;
-
-              }
-              if (parsedMessage.rules.forpolygon.polygonTopicId.startsWith('0.0.') && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-                loadedTopicRulesForPolygon.push(parsedMessage.rules.forpolygon);
-                hasRulesForPolygon = true;
-
-              }
-                break; // Exit the loop after finding the last message with rules
-              }
-            } catch (messageError) {
-              console.error(`Error processing message ${index}:`, messageError);
+          // Each side is its own stack. The same NFT id keeps its latest
+          // values. "0" on a side lets anyone post.
+          const topicRules = stackedTopicRules(messages, topicAdmin);
+          if (!topicRules.markers.some((rule) => rule.open)) {
+            for (const rule of topicRules.markers) {
+              loadedTopicRulesForMarker.push(rule);
+              hasRulesForMarker = true;
+            }
+          }
+          if (!topicRules.polygons.some((rule) => rule.open)) {
+            for (const rule of topicRules.polygons) {
+              loadedTopicRulesForPolygon.push(rule);
+              hasRulesForPolygon = true;
             }
           }
 
@@ -881,12 +964,12 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
 
           // Add payer IDs for markers
           if (parsedMessage.marker && parsedMessage.marker.data) {
-            uniquePayerIdsForMarker.add(parsedMessage.payer);
+            uniquePayerIdsForMarker.add(message.payer || parsedMessage.payer);
           }
 
           // Add payer IDs for polygons
           if (parsedMessage.polygon && parsedMessage.polygon.data) {
-            uniquePayerIdsForPolygon.add(parsedMessage.payer);
+            uniquePayerIdsForPolygon.add(message.payer || parsedMessage.payer);
           }
 
           if (parsedMessage.addTopicNFT && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
@@ -936,15 +1019,16 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
           if (hasRulesForMarker) {
             // Iterate over each unique payer ID for markers
             for (const payerId of uniquePayerIdsForMarker) {
-              const tokenIdForMarker = loadedTopicRulesForMarker[0].markerTopicId;
-              const filteredNftsForMarker = await getAccountNFTs(payerId, tokenIdForMarker);
-
-              // Check if the user owns NFTs and push to an array
-              if (filteredNftsForMarker.length > 0) {
-                const numberOfMessages = filteredNftsForMarker.length * loadedTopicRulesForMarker[0].markerMessagesPerNft;
-                const numberOfMarker = [];
-                markerOwnershipArray.push({ payerId, numberOfMessages, numberOfMarker });
+              let numberOfMessages = 0;
+              for (const rule of loadedTopicRulesForMarker) {
+                const filteredNftsForMarker = await getAccountNFTs(payerId, rule.markerTopicId);
+                if (filteredNftsForMarker.length > 0) {
+                  numberOfMessages += filteredNftsForMarker.length * Number(rule.markerMessagesPerNft);
+                }
               }
+
+              const numberOfMarker = [];
+              markerOwnershipArray.push({ payerId, numberOfMessages, numberOfMarker });
             }
           }
 
@@ -952,15 +1036,16 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
 
             // Iterate over each unique payer ID for polygons
             for (const payerId of uniquePayerIdsForPolygon) {
-              const tokenIdForPoly = loadedTopicRulesForPolygon[0].polygonTopicId;
-              const filteredNftsForPoly = await getAccountNFTs(payerId, tokenIdForPoly);
-
-              // Check if the user owns NFTs and push to an array
-              if (filteredNftsForPoly.length > 0) {
-                const numberOfMessages = filteredNftsForPoly.length * loadedTopicRulesForPolygon[0].polygonMessagesPerNft;
-                const numberOfPolygon = [];
-                polygonOwnershipArray.push({ payerId, numberOfMessages, numberOfPolygon });
+              let numberOfMessages = 0;
+              for (const rule of loadedTopicRulesForPolygon) {
+                const filteredNftsForPoly = await getAccountNFTs(payerId, rule.polygonTopicId);
+                if (filteredNftsForPoly.length > 0) {
+                  numberOfMessages += filteredNftsForPoly.length * Number(rule.polygonMessagesPerNft);
+                }
               }
+
+              const numberOfPolygon = [];
+              polygonOwnershipArray.push({ payerId, numberOfMessages, numberOfPolygon });
             }
           }
 
@@ -1015,44 +1100,29 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
               if (parsedMessage.marker && parsedMessage.marker.data) {
                 const markernumber = parsedMessage.marker.data.numberOfMarker;
                 const markerOwner = markerOwnershipArray.find(owner => owner.payerId === message.payer);
-                
+                if (!markerOwner) {
+                  continue;
+                }
+
                 if (parsedMessage.marker.data.deleteMarkerNumber) {
                   const deleteMarkerNumber = parsedMessage.marker.data.deleteMarkerNumber;
                   markerOwner.numberOfMarker.push(deleteMarkerNumber);
                 }
 
-                if (markernumber === undefined || markernumber === null || !Number.isInteger(Number(markernumber))) {
-                  continue;
-                }
-                  
-                if (!markerOwner.numberOfMarker.includes(markernumber)) {
-                  markerOwner.numberOfMarker.push(markernumber);
-                
-                if (!hasRulesForMarker || (markerOwner && markerOwner.numberOfMessages > 0)) {
+                const markerCoords = (markernumber === undefined || markernumber === null || !Number.isInteger(Number(markernumber)))
+                  ? null
+                  : markerCoordinates(parsedMessage.marker.data.cord);
 
+                if (markerCoords && !markerOwner.numberOfMarker.includes(markernumber)) {
+                if (!hasRulesForMarker || markerOwner.numberOfMessages > 0) {
+                  markerOwner.numberOfMarker.push(markernumber);
                   if (hasRulesForMarker) {
                     markerOwner.numberOfMessages -= 1;
                   }
 
-                  let coords;
-                  try {
-                    const cordData = parsedMessage.marker.data.cord;
-
-                    if (typeof cordData === 'string') {
-                      coords = cordData.split(',').map(num => parseFloat(num.trim()));
-                    } else if (Array.isArray(cordData)) {
-                      coords = cordData;
-                    } else {
-                      throw new Error('Unsupported coordinate format');
-                    }
-
-                    if (!Array.isArray(coords) || coords.length !== 2 || coords.some(isNaN)) {
-                      throw new Error('Invalid coordinate format');
-                    }
-
-                    // Use the final like and dislike counts from the maps
+                  const coords = markerCoords;
+                  {
                     const likeCountMarker = likeCountMapMarker.get(timestamp) || 0;
-                    const dislikeCountMarker = dislikeCountMapMarker.get(timestamp) || 0;
 
                     // Create marker popup HTML using DOM helper
                     const markerPopupHTML = createMarkerPopupHTML({
@@ -1069,12 +1139,12 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       msg: parsedMessage.marker.data.msg,
                       timestamp,
                       likeCountMarker,
-                      dislikeCountMarker,
+                      likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
                       comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
                         ...c,
                         likeCount: likeCountMapMarker.get(c.created) || 0,
-                        dislikeCount: dislikeCountMapMarker.get(c.created) || 0,
-                        replies: buildReplyTree(c, repliesMapMarker, likeCountMapMarker, dislikeCountMapMarker)
+                        likedByMe: payerHasLike(payerActionsPerTimestamp, c.created, 'likeMarker'),
+                        replies: buildReplyTree(c, repliesMapMarker, likeCountMapMarker, dislikeCountMapMarker, 0, payerActionsPerTimestamp, 'likeMarker')
                       })),
                       coords
                     });
@@ -1095,8 +1165,6 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         coordinates: coords
                       }
                     });
-                  } catch (coordError) {
-                    console.error("Error parsing marker coordinates:", coordError, "Raw coords:", parsedMessage.marker.data.cord);
                   }
                 }
               }
@@ -1104,44 +1172,34 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
 
               // Handle polygon type messages
               if (parsedMessage.polygon && parsedMessage.polygon.data) {
-                const polygonOwner = polygonOwnershipArray.find(owner => owner.payerId === message.payer) ;
+                const polygonOwner = polygonOwnershipArray.find(owner => owner.payerId === message.payer);
+                if (!polygonOwner) {
+                  continue;
+                }
                 const polygonnumber = parsedMessage.polygon.data.numberOfPolygon;
-                
+
                 if (parsedMessage.polygon.data.deletePolygonNumber) {
                   const deletePolygonNumber = parsedMessage.polygon.data.deletePolygonNumber;
                   polygonOwner.numberOfPolygon.push(deletePolygonNumber);
                 }
 
-                if (polygonnumber === undefined || polygonnumber === null || !Number.isInteger(Number(polygonnumber))) {
-                  continue;
-                }
+                const polygonRing = (polygonnumber === undefined || polygonnumber === null || !Number.isInteger(Number(polygonnumber)))
+                  ? null
+                  : polygonCoordinates(parsedMessage.polygon.data.cord);
 
-                if (!polygonOwner.numberOfPolygon.includes(polygonnumber)) {
+                if (polygonRing && !polygonOwner.numberOfPolygon.includes(polygonnumber)) {
+                if (!hasRulesForPolygon || polygonOwner.numberOfMessages > 0) {
                   polygonOwner.numberOfPolygon.push(polygonnumber);
-
-
-                if (!hasRulesForPolygon || (polygonOwner && polygonOwner.numberOfMessages > 0)) {
                   if (hasRulesForPolygon) {
                     polygonOwner.numberOfMessages -= 1;
                   }
 
-                  try {
-                    const cordStr = parsedMessage.polygon.data.cord;
-
-                    // Validate the coordinate string format
-                    const validCoordPattern = /^\[-?\d+\.?\d*,\s*-?\d+\.?\d*\](,\s*\[-?\d+\.?\d*,\s*-?\d+\.?\d*\])*$/;
-                    if (!validCoordPattern.test(cordStr)) {
-                      continue; // Skip processing this message
-                    }
-
-                    // Parse the coordinates
-                    const coordinates = JSON.parse(`[${cordStr}]`); // Wrap in brackets for valid JSON
-
+                  {
+                    const coordinates = polygonRing;
                     if (Array.isArray(coordinates) && coordinates.length > 2) {
-                      const polygonSize = hasRulesForPolygon ? loadedTopicRulesForPolygon[0].polygonSize : 1;
+                      const polygonSize = hasRulesForPolygon ? smallestPolygonSize(loadedTopicRulesForPolygon) : 1;
 
                       const likeCountPolygon = likeCountMapPolygon.get(timestamp) || 0;
-                      const dislikeCountPolygon = dislikeCountMapPolygon.get(timestamp) || 0;
 
                       // Create polygon popup HTML using DOM helper
                       const polygonPopupHTML = createPolygonPopupHTML({
@@ -1158,12 +1216,12 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         msg: parsedMessage.polygon.data.msg,
                         timestamp,
                         likeCountPolygon,
-                        dislikeCountPolygon,
+                        likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
                         comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
                           ...c,
                           likeCount: likeCountMapPolygon.get(c.created) || 0,
-                          dislikeCount: dislikeCountMapPolygon.get(c.created) || 0,
-                          replies: buildReplyTree(c, repliesMapPolygon, likeCountMapPolygon, dislikeCountMapPolygon)
+                          likedByMe: payerHasLike(payerActionsPerTimestamp, c.created, 'likePolygon'),
+                          replies: buildReplyTree(c, repliesMapPolygon, likeCountMapPolygon, dislikeCountMapPolygon, 0, payerActionsPerTimestamp, 'likePolygon')
                         })),
                         coordinates
                       });
@@ -1180,8 +1238,6 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         imageUrl: isValidUrl(parsedMessage.polygon.data.coverimage) ? parsedMessage.polygon.data.coverimage : profileUrl
                       });
                     }
-                  } catch (polygonError) {
-                    console.error("Error parsing polygon data:", polygonError);
                   }
                 }
               }
@@ -1566,38 +1622,37 @@ window.prevMsgFromPayerPolygon = function(payer, polygonNumber, topicId) {
     return null;
 };
 
-window.likeMarker = async function(timestamp, topicId) {
+window.likeMarker = async function(timestamp, topicId, remove) {
     if (!signer) {
       toast.error("Connect wallet first");
-      return;
+      return false;
     }
 
-    const meesageobject = {
-    likeMarker: {
-      timestamp: timestamp
-    }
-  };
+    const meesageobject = remove
+      ? { unlikeMarker: { timestamp: timestamp } }
+      : { likeMarker: { timestamp: timestamp } };
 
   const meesage = JSON.stringify(meesageobject);
   toast.info("Confirm in wallet 👛");
   await sendMessage(topicId, meesage);
-
+  return true;
 };
 
 // Recursively build a reply thread (replies-to-replies supported; the
 // depth guard stops malformed parentId cycles from overflowing the stack).
-function buildReplyTree(node, repliesMap, likeMap, dislikeMap, depth = 0) {
+function buildReplyTree(node, repliesMap, likeMap, dislikeMap, depth = 0, actions = null, likeType = 'likeMarker') {
   if (depth > 50) return [];
   return (repliesMap.get(node.created) || []).map((r) => ({
     ...r,
     likeCount: likeMap.get(r.created) || 0,
     dislikeCount: dislikeMap.get(r.created) || 0,
-    replies: buildReplyTree(r, repliesMap, likeMap, dislikeMap, depth + 1)
+    likedByMe: payerHasLike(actions, r.created, likeType),
+    replies: buildReplyTree(r, repliesMap, likeMap, dislikeMap, depth + 1, actions, likeType)
   }));
 }
 
 // Count every message in a tree: each node plus all of its nested replies.
-// Used by the "Comments (N)" header and the popup 💬 button.
+// Used by the popup 💬 button.
 const countAllMessages = (nodes) => nodes.reduce((sum, n) => sum + 1 + (n.replies ? countAllMessages(n.replies) : 0), 0);
 
 // Comment section for marker/polygon popups: the list of comments below the
@@ -1607,11 +1662,6 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
   const section = document.createElement('div');
   section.id = id;
   section.style.cssText = 'display: none; margin-top: calc(var(--u) * 1); padding: calc(var(--u) * 1); border-radius: calc(var(--u) * 1.2); background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(calc(var(--u) * 1)); -webkit-backdrop-filter: blur(calc(var(--u) * 1)); border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.15); text-align: left;';
-
-  const header = document.createElement('div');
-  header.style.cssText = 'font-size: calc(var(--u) * 1.2); color: gray; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: calc(var(--u) * 0.8);';
-  header.textContent = `Comments (${countAllMessages(comments)})`;
-  section.appendChild(header);
 
   const list = document.createElement('div');
   list.className = 'comments-scroll';
@@ -1744,12 +1794,12 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
     messageText.textContent = node.text;
     wrapper.appendChild(messageText);
 
-    // Meta row: 👍 💬N 👎 ↩ (left) ... timestamp (right)
+    // Meta row: heart, reply count, reply (left) ... timestamp (right)
     const metaRow = document.createElement('div');
     metaRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-top: 0;';
 
     const likeDislikeDiv = document.createElement('div');
-    likeDislikeDiv.style.cssText = 'display: flex; gap: 0.5em;';
+    likeDislikeDiv.style.cssText = 'display: flex; align-items: center; gap: 0.5em;';
 
     // Reply thread: inline in the same card as the comment (a thin left
     // divider marks the nesting). Collapsed by default; the 💬N badge on any
@@ -1762,27 +1812,25 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
       thread.className = 'reply-thread';
       thread.style.display = 'none';
 
-      badge = document.createElement('span');
-      badge.style.cssText = 'font-size: calc(var(--u) * 1.5); color: gray; cursor: pointer;';
-      badge.textContent = `💬${countAllMessages(children)}`;
-      badge.onclick = () => {
-        thread.style.display = thread.style.display === 'none' ? '' : 'none';
-      };
+      badge = createCommentBubble({
+        count: countAllMessages(children),
+        mini: true,
+        onToggle: (open) => {
+          thread.style.display = open ? '' : 'none';
+        },
+      });
     }
 
-    const likeSpan = document.createElement('span');
-    likeSpan.style.cssText = 'font-size: calc(var(--u) * 1.5); color: gray; cursor: pointer;';
-    likeSpan.textContent = `${node.likeCount || 0}👍`;
-    likeSpan.onclick = () => kind === 'polygon' ? window.likePolygon(node.created, topicId) : window.likeMarker(node.created, topicId);
-    likeDislikeDiv.appendChild(likeSpan);
+    likeDislikeDiv.appendChild(createHeartLike({
+      count: node.likeCount,
+      liked: node.likedByMe,
+      mini: true,
+      onToggle: (wantLike) => kind === 'polygon'
+        ? window.likePolygon(node.created, topicId, !wantLike)
+        : window.likeMarker(node.created, topicId, !wantLike),
+    }));
 
     if (badge) likeDislikeDiv.appendChild(badge);
-
-    const dislikeSpan = document.createElement('span');
-    dislikeSpan.style.cssText = 'font-size: calc(var(--u) * 1.5); color: gray; cursor: pointer;';
-    dislikeSpan.textContent = `${node.dislikeCount || 0}👎`;
-    dislikeSpan.onclick = () => kind === 'polygon' ? window.dislikePolygon(node.created, topicId) : window.dislikeMarker(node.created, topicId);
-    likeDislikeDiv.appendChild(dislikeSpan);
 
     const replyBtn = document.createElement('span');
     replyBtn.style.cssText = 'font-size: calc(var(--u) * 1.5); color: gray; cursor: pointer;';
@@ -1891,24 +1939,51 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
 let commentsModal = null;      // fullscreen wrapper (scrim + card)
 let commentsModalSection = null; // the comments section currently inside it
 
-function closeCommentsModal() {
-  if (!commentsModal) return;
-  if (commentsModalSection) {
-    const home = commentsModalSection._homeParent;
-    if (home && home.isConnected) home.appendChild(commentsModalSection);
-    // Restore the section's inline styles saved when the modal opened
-    const s = commentsModalSection._modalSaves;
-    if (s) {
-      for (const [prop, val] of Object.entries(s)) {
-        commentsModalSection.style[prop] = val;
-      }
-      delete commentsModalSection._modalSaves;
-    }
+function toggleCommentsBubble(open, sectionId) {
+  if (open) {
+    openCommentsModal(sectionId);
+    if (!(commentsModalSection && commentsModalSection.id === sectionId)) return false;
+    commentBubbleInput = commentsModalSection._bubbleInput || null;
+    return;
   }
-  commentsModal.remove();
-  commentsModal = null;
-  commentsModalSection = null;
-  refitPopups();
+  if (!commentsClosing && commentsModalSection && commentsModalSection.id === sectionId) {
+    closeCommentsModal();
+  }
+}
+
+function closeCommentsModal() {
+  if (!commentsModal || commentsClosing) return;
+  commentsClosing = true;
+  try {
+    if (commentsModalSection) {
+      const home = commentsModalSection._homeParent;
+      if (home && home.isConnected) home.appendChild(commentsModalSection);
+      const saved = commentsModalSection._modalSaves;
+      if (saved) {
+        for (const [prop, val] of Object.entries(saved)) {
+          commentsModalSection.style[prop] = val;
+        }
+        delete commentsModalSection._modalSaves;
+      }
+    }
+    const input = commentBubbleInput;
+    commentsModal.remove();
+    commentsModal = null;
+    commentsModalSection = null;
+    commentBubbleInput = null;
+    if (input) {
+      input.checked = false;
+      const root = input.closest('.comment-bubble');
+      if (root) {
+        root.classList.remove('is-pop', 'is-down');
+        void root.offsetWidth;
+        root.classList.add('is-down');
+      }
+    }
+    refitPopups();
+  } finally {
+    commentsClosing = false;
+  }
 }
 
 function openCommentsModal(sectionId) {
@@ -1981,11 +2056,17 @@ function openCommentsModal(sectionId) {
 }
 
 window.openMarkerComments = function(timestamp, topicId) {
-  openCommentsModal(`marker-comments-${topicId}-${timestamp}`);
+  const section = document.getElementById(`marker-comments-${topicId}-${timestamp}`);
+  const input = section && section._bubbleInput;
+  if (input && !input.checked) input.checked = true;
+  else if (!input) openCommentsModal(`marker-comments-${topicId}-${timestamp}`);
 };
 
 window.openPolygonComments = function(timestamp, topicId) {
-  openCommentsModal(`polygon-comments-${topicId}-${timestamp}`);
+  const section = document.getElementById(`polygon-comments-${topicId}-${timestamp}`);
+  const input = section && section._bubbleInput;
+  if (input && !input.checked) input.checked = true;
+  else if (!input) openCommentsModal(`polygon-comments-${topicId}-${timestamp}`);
 };
 
 window.sendMarkerComment = async function(timestamp, topicId, input) {
@@ -2125,21 +2206,20 @@ window.openMarkerNavigation = async function(coords) {
   
 };
 
-window.likePolygon = async function(timestamp, topicId) {
+window.likePolygon = async function(timestamp, topicId, remove) {
     if (!signer) {
       toast.error("Connect wallet first");
-      return;
+      return false;
     }
 
-    const meesageobject = {
-    likePolygon: {
-      timestamp: timestamp
-    }
-  };
+    const meesageobject = remove
+      ? { unlikePolygon: { timestamp: timestamp } }
+      : { likePolygon: { timestamp: timestamp } };
 
   const meesage = JSON.stringify(meesageobject);
   toast.info("Confirm in wallet 👛");
   await sendMessage(topicId, meesage);
+  return true;
 };
 
 window.dislikeMarker = async function(timestamp, topicId) {
@@ -2376,6 +2456,16 @@ if (rawResult && Array.isArray(rawResult)) {
         actionTimestamp = parsedMessage.dislikePolygon.timestamp;
         actionType = 'dislikePolygon';
       }
+      // Taking a like back. Unlike is not a dislike: it clears that payer's
+      // like and adds nothing, so the heart count drops and no 👎 is stored.
+      if (parsedMessage.unlikeMarker && parsedMessage.unlikeMarker.timestamp && parsedMessage.payer) {
+        actionTimestamp = parsedMessage.unlikeMarker.timestamp;
+        actionType = 'unlikeMarker';
+      }
+      if (parsedMessage.unlikePolygon && parsedMessage.unlikePolygon.timestamp && parsedMessage.payer) {
+        actionTimestamp = parsedMessage.unlikePolygon.timestamp;
+        actionType = 'unlikePolygon';
+      }
 
       // Process the action if it exists
       if (actionTimestamp && actionType && payerId) {
@@ -2512,30 +2602,19 @@ if (rawResult && Array.isArray(rawResult)) {
 
 
 
-          // Read rules from messages
-          for (let index = messages.length - 1; index >= 0; index--) {
-            const message = messages[index];
-            try {
-              let parsedMessage = message;
-              if (typeof message === 'string') {
-                parsedMessage = JSON.parse(message);
-              }
-
-              if (parsedMessage.rules && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-                if (parsedMessage.rules.formarker.markerTopicId.startsWith('0.0.') && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-                loadedTopicRulesForMarker.push(parsedMessage.rules.formarker);
-                hasRulesForMarker = true;
-
-              }
-              if (parsedMessage.rules.forpolygon.polygonTopicId.startsWith('0.0.') && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-                loadedTopicRulesForPolygon.push(parsedMessage.rules.forpolygon);
-                hasRulesForPolygon = true;
-
-              }
-                break; // Exit the loop after finding the last message with rules
-              }
-            } catch (messageError) {
-              console.error(`Error processing message ${index}:`, messageError);
+          // Each side is its own stack. The same NFT id keeps its latest
+          // values. "0" on a side lets anyone post.
+          const topicRules = stackedTopicRules(messages, topicAdmin);
+          if (!topicRules.markers.some((rule) => rule.open)) {
+            for (const rule of topicRules.markers) {
+              loadedTopicRulesForMarker.push(rule);
+              hasRulesForMarker = true;
+            }
+          }
+          if (!topicRules.polygons.some((rule) => rule.open)) {
+            for (const rule of topicRules.polygons) {
+              loadedTopicRulesForPolygon.push(rule);
+              hasRulesForPolygon = true;
             }
           }
 
@@ -2568,12 +2647,12 @@ if (rawResult && Array.isArray(rawResult)) {
 
           // Add payer IDs for markers
           if (parsedMessage.marker && parsedMessage.marker.data) {
-            uniquePayerIdsForMarker.add(parsedMessage.payer);
+            uniquePayerIdsForMarker.add(message.payer || parsedMessage.payer);
           }
 
           // Add payer IDs for polygons
           if (parsedMessage.polygon && parsedMessage.polygon.data) {
-            uniquePayerIdsForPolygon.add(parsedMessage.payer);
+            uniquePayerIdsForPolygon.add(message.payer || parsedMessage.payer);
           }
 
           if (parsedMessage.addTopicNFT && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
@@ -2623,15 +2702,16 @@ if (rawResult && Array.isArray(rawResult)) {
           if (hasRulesForMarker) {
             // Iterate over each unique payer ID for markers
             for (const payerId of uniquePayerIdsForMarker) {
-              const tokenIdForMarker = loadedTopicRulesForMarker[0].markerTopicId;
-              const filteredNftsForMarker = await getAccountNFTs(payerId, tokenIdForMarker);
-
-              // Check if the user owns NFTs and push to an array
-              if (filteredNftsForMarker.length > 0) {
-                const numberOfMessages = filteredNftsForMarker.length * loadedTopicRulesForMarker[0].markerMessagesPerNft;
-                const numberOfMarker = [];
-                markerOwnershipArray.push({ payerId, numberOfMessages, numberOfMarker });
+              let numberOfMessages = 0;
+              for (const rule of loadedTopicRulesForMarker) {
+                const filteredNftsForMarker = await getAccountNFTs(payerId, rule.markerTopicId);
+                if (filteredNftsForMarker.length > 0) {
+                  numberOfMessages += filteredNftsForMarker.length * Number(rule.markerMessagesPerNft);
+                }
               }
+
+              const numberOfMarker = [];
+              markerOwnershipArray.push({ payerId, numberOfMessages, numberOfMarker });
             }
           }
 
@@ -2639,15 +2719,16 @@ if (rawResult && Array.isArray(rawResult)) {
 
             // Iterate over each unique payer ID for polygons
             for (const payerId of uniquePayerIdsForPolygon) {
-              const tokenIdForPoly = loadedTopicRulesForPolygon[0].polygonTopicId;
-              const filteredNftsForPoly = await getAccountNFTs(payerId, tokenIdForPoly);
-
-              // Check if the user owns NFTs and push to an array
-              if (filteredNftsForPoly.length > 0) {
-                const numberOfMessages = filteredNftsForPoly.length * loadedTopicRulesForPolygon[0].polygonMessagesPerNft;
-                const numberOfPolygon = [];
-                polygonOwnershipArray.push({ payerId, numberOfMessages, numberOfPolygon });
+              let numberOfMessages = 0;
+              for (const rule of loadedTopicRulesForPolygon) {
+                const filteredNftsForPoly = await getAccountNFTs(payerId, rule.polygonTopicId);
+                if (filteredNftsForPoly.length > 0) {
+                  numberOfMessages += filteredNftsForPoly.length * Number(rule.polygonMessagesPerNft);
+                }
               }
+
+              const numberOfPolygon = [];
+              polygonOwnershipArray.push({ payerId, numberOfMessages, numberOfPolygon });
             }
           }
 
@@ -2710,44 +2791,29 @@ if (rawResult && Array.isArray(rawResult)) {
               if (parsedMessage.marker && parsedMessage.marker.data) {
                 const markernumber = parsedMessage.marker.data.numberOfMarker;
                 const markerOwner = markerOwnershipArray.find(owner => owner.payerId === message.payer);
-                
+                if (!markerOwner) {
+                  continue;
+                }
+
                 if (parsedMessage.marker.data.deleteMarkerNumber) {
                   const deleteMarkerNumber = parsedMessage.marker.data.deleteMarkerNumber;
                   markerOwner.numberOfMarker.push(deleteMarkerNumber);
                 }
 
-                if (markernumber === undefined || markernumber === null || !Number.isInteger(Number(markernumber))) {
-                  continue;
-                }
-                  
-                if (!markerOwner.numberOfMarker.includes(markernumber)) {
-                  markerOwner.numberOfMarker.push(markernumber);
-                
-                if (!hasRulesForMarker || (markerOwner && markerOwner.numberOfMessages > 0)) {
+                const markerCoords = (markernumber === undefined || markernumber === null || !Number.isInteger(Number(markernumber)))
+                  ? null
+                  : markerCoordinates(parsedMessage.marker.data.cord);
 
+                if (markerCoords && !markerOwner.numberOfMarker.includes(markernumber)) {
+                if (!hasRulesForMarker || markerOwner.numberOfMessages > 0) {
+                  markerOwner.numberOfMarker.push(markernumber);
                   if (hasRulesForMarker) {
                     markerOwner.numberOfMessages -= 1;
                   }
 
-                  let coords;
-                  try {
-                    const cordData = parsedMessage.marker.data.cord;
-
-                    if (typeof cordData === 'string') {
-                      coords = cordData.split(',').map(num => parseFloat(num.trim()));
-                    } else if (Array.isArray(cordData)) {
-                      coords = cordData;
-                    } else {
-                      throw new Error('Unsupported coordinate format');
-                    }
-
-                    if (!Array.isArray(coords) || coords.length !== 2 || coords.some(isNaN)) {
-                      throw new Error('Invalid coordinate format');
-                    }
-
-                    // Use the final like and dislike counts from the maps
+                  const coords = markerCoords;
+                  {
                     const likeCountMarker = likeCountMapMarker.get(timestamp) || 0;
-                    const dislikeCountMarker = dislikeCountMapMarker.get(timestamp) || 0;
 
                     // Create marker popup HTML using DOM helper
                     const markerPopupHTML = createMarkerPopupHTML({
@@ -2764,12 +2830,12 @@ if (rawResult && Array.isArray(rawResult)) {
                       msg: parsedMessage.marker.data.msg,
                       timestamp,
                       likeCountMarker,
-                      dislikeCountMarker,
+                      likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
                       comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
                         ...c,
                         likeCount: likeCountMapMarker.get(c.created) || 0,
-                        dislikeCount: dislikeCountMapMarker.get(c.created) || 0,
-                        replies: buildReplyTree(c, repliesMapMarker, likeCountMapMarker, dislikeCountMapMarker)
+                        likedByMe: payerHasLike(payerActionsPerTimestamp, c.created, 'likeMarker'),
+                        replies: buildReplyTree(c, repliesMapMarker, likeCountMapMarker, dislikeCountMapMarker, 0, payerActionsPerTimestamp, 'likeMarker')
                       })),
                       coords
                     });
@@ -2790,8 +2856,6 @@ if (rawResult && Array.isArray(rawResult)) {
                         coordinates: coords
                       }
                     });
-                  } catch (coordError) {
-                    console.error("Error parsing marker coordinates:", coordError, "Raw coords:", parsedMessage.marker.data.cord);
                   }
                 }
               }
@@ -2799,44 +2863,34 @@ if (rawResult && Array.isArray(rawResult)) {
 
               // Handle polygon type messages
               if (parsedMessage.polygon && parsedMessage.polygon.data) {
-                const polygonOwner = polygonOwnershipArray.find(owner => owner.payerId === message.payer) ;
+                const polygonOwner = polygonOwnershipArray.find(owner => owner.payerId === message.payer);
+                if (!polygonOwner) {
+                  continue;
+                }
                 const polygonnumber = parsedMessage.polygon.data.numberOfPolygon;
-                
+
                 if (parsedMessage.polygon.data.deletePolygonNumber) {
                   const deletePolygonNumber = parsedMessage.polygon.data.deletePolygonNumber;
                   polygonOwner.numberOfPolygon.push(deletePolygonNumber);
                 }
 
-                if (polygonnumber === undefined || polygonnumber === null || !Number.isInteger(Number(polygonnumber))) {
-                  continue;
-                }
+                const polygonRing = (polygonnumber === undefined || polygonnumber === null || !Number.isInteger(Number(polygonnumber)))
+                  ? null
+                  : polygonCoordinates(parsedMessage.polygon.data.cord);
 
-                if (!polygonOwner.numberOfPolygon.includes(polygonnumber)) {
+                if (polygonRing && !polygonOwner.numberOfPolygon.includes(polygonnumber)) {
+                if (!hasRulesForPolygon || polygonOwner.numberOfMessages > 0) {
                   polygonOwner.numberOfPolygon.push(polygonnumber);
-
-
-                if (!hasRulesForPolygon || (polygonOwner && polygonOwner.numberOfMessages > 0)) {
                   if (hasRulesForPolygon) {
                     polygonOwner.numberOfMessages -= 1;
                   }
 
-                  try {
-                    const cordStr = parsedMessage.polygon.data.cord;
-
-                    // Validate the coordinate string format
-                    const validCoordPattern = /^\[-?\d+\.?\d*,\s*-?\d+\.?\d*\](,\s*\[-?\d+\.?\d*,\s*-?\d+\.?\d*\])*$/;
-                    if (!validCoordPattern.test(cordStr)) {
-                      continue; // Skip processing this message
-                    }
-
-                    // Parse the coordinates
-                    const coordinates = JSON.parse(`[${cordStr}]`); // Wrap in brackets for valid JSON
-
+                  {
+                    const coordinates = polygonRing;
                     if (Array.isArray(coordinates) && coordinates.length > 2) {
-                      const polygonSize = hasRulesForPolygon ? loadedTopicRulesForPolygon[0].polygonSize : 1;
+                      const polygonSize = hasRulesForPolygon ? smallestPolygonSize(loadedTopicRulesForPolygon) : 1;
 
                       const likeCountPolygon = likeCountMapPolygon.get(timestamp) || 0;
-                      const dislikeCountPolygon = dislikeCountMapPolygon.get(timestamp) || 0;
 
                       // Create polygon popup HTML using DOM helper
                       const polygonPopupHTML = createPolygonPopupHTML({
@@ -2853,12 +2907,12 @@ if (rawResult && Array.isArray(rawResult)) {
                         msg: parsedMessage.polygon.data.msg,
                         timestamp,
                         likeCountPolygon,
-                        dislikeCountPolygon,
+                        likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
                         comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
                           ...c,
                           likeCount: likeCountMapPolygon.get(c.created) || 0,
-                          dislikeCount: dislikeCountMapPolygon.get(c.created) || 0,
-                          replies: buildReplyTree(c, repliesMapPolygon, likeCountMapPolygon, dislikeCountMapPolygon)
+                          likedByMe: payerHasLike(payerActionsPerTimestamp, c.created, 'likePolygon'),
+                          replies: buildReplyTree(c, repliesMapPolygon, likeCountMapPolygon, dislikeCountMapPolygon, 0, payerActionsPerTimestamp, 'likePolygon')
                         })),
                         coordinates
                       });
@@ -2875,8 +2929,6 @@ if (rawResult && Array.isArray(rawResult)) {
                         imageUrl: isValidUrl(parsedMessage.polygon.data.coverimage) ? parsedMessage.polygon.data.coverimage : profileUrl
                       });
                     }
-                  } catch (polygonError) {
-                    console.error("Error parsing polygon data:", polygonError);
                   }
                 }
               }
@@ -3095,6 +3147,16 @@ if (rawResult && Array.isArray(rawResult)) {
         actionTimestamp = parsedMessage.dislikePolygon.timestamp;
         actionType = 'dislikePolygon';
       }
+      // Taking a like back. Unlike is not a dislike: it clears that payer's
+      // like and adds nothing, so the heart count drops and no 👎 is stored.
+      if (parsedMessage.unlikeMarker && parsedMessage.unlikeMarker.timestamp && parsedMessage.payer) {
+        actionTimestamp = parsedMessage.unlikeMarker.timestamp;
+        actionType = 'unlikeMarker';
+      }
+      if (parsedMessage.unlikePolygon && parsedMessage.unlikePolygon.timestamp && parsedMessage.payer) {
+        actionTimestamp = parsedMessage.unlikePolygon.timestamp;
+        actionType = 'unlikePolygon';
+      }
 
       // Process the action if it exists
       if (actionTimestamp && actionType && payerId) {
@@ -3231,30 +3293,19 @@ if (rawResult && Array.isArray(rawResult)) {
 
 
 
-          // Read rules from messages
-          for (let index = messages.length - 1; index >= 0; index--) {
-            const message = messages[index];
-            try {
-              let parsedMessage = message;
-              if (typeof message === 'string') {
-                parsedMessage = JSON.parse(message);
-              }
-
-              if (parsedMessage.rules && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-                if (parsedMessage.rules.formarker.markerTopicId.startsWith('0.0.') && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-                loadedTopicRulesForMarker.push(parsedMessage.rules.formarker);
-                hasRulesForMarker = true;
-
-              }
-              if (parsedMessage.rules.forpolygon.polygonTopicId.startsWith('0.0.') && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-                loadedTopicRulesForPolygon.push(parsedMessage.rules.forpolygon);
-                hasRulesForPolygon = true;
-
-              }
-                break; // Exit the loop after finding the last message with rules
-              }
-            } catch (messageError) {
-              console.error(`Error processing message ${index}:`, messageError);
+          // Each side is its own stack. The same NFT id keeps its latest
+          // values. "0" on a side lets anyone post.
+          const topicRules = stackedTopicRules(messages, topicAdmin);
+          if (!topicRules.markers.some((rule) => rule.open)) {
+            for (const rule of topicRules.markers) {
+              loadedTopicRulesForMarker.push(rule);
+              hasRulesForMarker = true;
+            }
+          }
+          if (!topicRules.polygons.some((rule) => rule.open)) {
+            for (const rule of topicRules.polygons) {
+              loadedTopicRulesForPolygon.push(rule);
+              hasRulesForPolygon = true;
             }
           }
 
@@ -3287,12 +3338,12 @@ if (rawResult && Array.isArray(rawResult)) {
 
           // Add payer IDs for markers
           if (parsedMessage.marker && parsedMessage.marker.data) {
-            uniquePayerIdsForMarker.add(parsedMessage.payer);
+            uniquePayerIdsForMarker.add(message.payer || parsedMessage.payer);
           }
 
           // Add payer IDs for polygons
           if (parsedMessage.polygon && parsedMessage.polygon.data) {
-            uniquePayerIdsForPolygon.add(parsedMessage.payer);
+            uniquePayerIdsForPolygon.add(message.payer || parsedMessage.payer);
           }
 
           if (parsedMessage.addTopicNFT && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
@@ -3342,15 +3393,16 @@ if (rawResult && Array.isArray(rawResult)) {
           if (hasRulesForMarker) {
             // Iterate over each unique payer ID for markers
             for (const payerId of uniquePayerIdsForMarker) {
-              const tokenIdForMarker = loadedTopicRulesForMarker[0].markerTopicId;
-              const filteredNftsForMarker = await getAccountNFTs(payerId, tokenIdForMarker);
-
-              // Check if the user owns NFTs and push to an array
-              if (filteredNftsForMarker.length > 0) {
-                const numberOfMessages = filteredNftsForMarker.length * loadedTopicRulesForMarker[0].markerMessagesPerNft;
-                const numberOfMarker = [];
-                markerOwnershipArray.push({ payerId, numberOfMessages, numberOfMarker });
+              let numberOfMessages = 0;
+              for (const rule of loadedTopicRulesForMarker) {
+                const filteredNftsForMarker = await getAccountNFTs(payerId, rule.markerTopicId);
+                if (filteredNftsForMarker.length > 0) {
+                  numberOfMessages += filteredNftsForMarker.length * Number(rule.markerMessagesPerNft);
+                }
               }
+
+              const numberOfMarker = [];
+              markerOwnershipArray.push({ payerId, numberOfMessages, numberOfMarker });
             }
           }
 
@@ -3358,15 +3410,16 @@ if (rawResult && Array.isArray(rawResult)) {
 
             // Iterate over each unique payer ID for polygons
             for (const payerId of uniquePayerIdsForPolygon) {
-              const tokenIdForPoly = loadedTopicRulesForPolygon[0].polygonTopicId;
-              const filteredNftsForPoly = await getAccountNFTs(payerId, tokenIdForPoly);
-
-              // Check if the user owns NFTs and push to an array
-              if (filteredNftsForPoly.length > 0) {
-                const numberOfMessages = filteredNftsForPoly.length * loadedTopicRulesForPolygon[0].polygonMessagesPerNft;
-                const numberOfPolygon = [];
-                polygonOwnershipArray.push({ payerId, numberOfMessages, numberOfPolygon });
+              let numberOfMessages = 0;
+              for (const rule of loadedTopicRulesForPolygon) {
+                const filteredNftsForPoly = await getAccountNFTs(payerId, rule.polygonTopicId);
+                if (filteredNftsForPoly.length > 0) {
+                  numberOfMessages += filteredNftsForPoly.length * Number(rule.polygonMessagesPerNft);
+                }
               }
+
+              const numberOfPolygon = [];
+              polygonOwnershipArray.push({ payerId, numberOfMessages, numberOfPolygon });
             }
           }
 
@@ -3431,44 +3484,29 @@ if (rawResult && Array.isArray(rawResult)) {
               if (parsedMessage.marker && parsedMessage.marker.data) {
                 const markernumber = parsedMessage.marker.data.numberOfMarker;
                 const markerOwner = markerOwnershipArray.find(owner => owner.payerId === message.payer);
-                
+                if (!markerOwner) {
+                  continue;
+                }
+
                 if (parsedMessage.marker.data.deleteMarkerNumber) {
                   const deleteMarkerNumber = parsedMessage.marker.data.deleteMarkerNumber;
                   markerOwner.numberOfMarker.push(deleteMarkerNumber);
                 }
 
-                if (markernumber === undefined || markernumber === null || !Number.isInteger(Number(markernumber))) {
-                  continue;
-                }
-                  
-                if (!markerOwner.numberOfMarker.includes(markernumber)) {
-                  markerOwner.numberOfMarker.push(markernumber);
-                
-                if (!hasRulesForMarker || (markerOwner && markerOwner.numberOfMessages > 0)) {
+                const markerCoords = (markernumber === undefined || markernumber === null || !Number.isInteger(Number(markernumber)))
+                  ? null
+                  : markerCoordinates(parsedMessage.marker.data.cord);
 
+                if (markerCoords && !markerOwner.numberOfMarker.includes(markernumber)) {
+                if (!hasRulesForMarker || markerOwner.numberOfMessages > 0) {
+                  markerOwner.numberOfMarker.push(markernumber);
                   if (hasRulesForMarker) {
                     markerOwner.numberOfMessages -= 1;
                   }
 
-                  let coords;
-                  try {
-                    const cordData = parsedMessage.marker.data.cord;
-
-                    if (typeof cordData === 'string') {
-                      coords = cordData.split(',').map(num => parseFloat(num.trim()));
-                    } else if (Array.isArray(cordData)) {
-                      coords = cordData;
-                    } else {
-                      throw new Error('Unsupported coordinate format');
-                    }
-
-                    if (!Array.isArray(coords) || coords.length !== 2 || coords.some(isNaN)) {
-                      throw new Error('Invalid coordinate format');
-                    }
-
-                    // Use the final like and dislike counts from the maps
+                  const coords = markerCoords;
+                  {
                     const likeCountMarker = likeCountMapMarker.get(timestamp) || 0;
-                    const dislikeCountMarker = dislikeCountMapMarker.get(timestamp) || 0;
 
                     // Create marker popup HTML using DOM helper
                     const markerPopupHTML = createMarkerPopupHTML({
@@ -3485,12 +3523,12 @@ if (rawResult && Array.isArray(rawResult)) {
                       msg: parsedMessage.marker.data.msg,
                       timestamp,
                       likeCountMarker,
-                      dislikeCountMarker,
+                      likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
                       comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
                         ...c,
                         likeCount: likeCountMapMarker.get(c.created) || 0,
-                        dislikeCount: dislikeCountMapMarker.get(c.created) || 0,
-                        replies: buildReplyTree(c, repliesMapMarker, likeCountMapMarker, dislikeCountMapMarker)
+                        likedByMe: payerHasLike(payerActionsPerTimestamp, c.created, 'likeMarker'),
+                        replies: buildReplyTree(c, repliesMapMarker, likeCountMapMarker, dislikeCountMapMarker, 0, payerActionsPerTimestamp, 'likeMarker')
                       })),
                       coords
                     });
@@ -3514,8 +3552,6 @@ if (rawResult && Array.isArray(rawResult)) {
                       }
                     });
                   }
-                  } catch (coordError) {
-                    console.error("Error parsing marker coordinates:", coordError, "Raw coords:", parsedMessage.marker.data.cord);
                   }
                 }
               }
@@ -3523,44 +3559,34 @@ if (rawResult && Array.isArray(rawResult)) {
 
               // Handle polygon type messages
               if (parsedMessage.polygon && parsedMessage.polygon.data) {
-                const polygonOwner = polygonOwnershipArray.find(owner => owner.payerId === message.payer) ;
+                const polygonOwner = polygonOwnershipArray.find(owner => owner.payerId === message.payer);
+                if (!polygonOwner) {
+                  continue;
+                }
                 const polygonnumber = parsedMessage.polygon.data.numberOfPolygon;
-                
+
                 if (parsedMessage.polygon.data.deletePolygonNumber) {
                   const deletePolygonNumber = parsedMessage.polygon.data.deletePolygonNumber;
                   polygonOwner.numberOfPolygon.push(deletePolygonNumber);
                 }
 
-                if (polygonnumber === undefined || polygonnumber === null || !Number.isInteger(Number(polygonnumber))) {
-                  continue;
-                }
+                const polygonRing = (polygonnumber === undefined || polygonnumber === null || !Number.isInteger(Number(polygonnumber)))
+                  ? null
+                  : polygonCoordinates(parsedMessage.polygon.data.cord);
 
-                if (!polygonOwner.numberOfPolygon.includes(polygonnumber)) {
+                if (polygonRing && !polygonOwner.numberOfPolygon.includes(polygonnumber)) {
+                if (!hasRulesForPolygon || polygonOwner.numberOfMessages > 0) {
                   polygonOwner.numberOfPolygon.push(polygonnumber);
-
-
-                if (!hasRulesForPolygon || (polygonOwner && polygonOwner.numberOfMessages > 0)) {
                   if (hasRulesForPolygon) {
                     polygonOwner.numberOfMessages -= 1;
                   }
 
-                  try {
-                    const cordStr = parsedMessage.polygon.data.cord;
-
-                    // Validate the coordinate string format
-                    const validCoordPattern = /^\[-?\d+\.?\d*,\s*-?\d+\.?\d*\](,\s*\[-?\d+\.?\d*,\s*-?\d+\.?\d*\])*$/;
-                    if (!validCoordPattern.test(cordStr)) {
-                      continue; // Skip processing this message
-                    }
-
-                    // Parse the coordinates
-                    const coordinates = JSON.parse(`[${cordStr}]`); // Wrap in brackets for valid JSON
-
+                  {
+                    const coordinates = polygonRing;
                     if (Array.isArray(coordinates) && coordinates.length > 2) {
-                      const polygonSize = hasRulesForPolygon ? loadedTopicRulesForPolygon[0].polygonSize : 1;
+                      const polygonSize = hasRulesForPolygon ? smallestPolygonSize(loadedTopicRulesForPolygon) : 1;
 
                       const likeCountPolygon = likeCountMapPolygon.get(timestamp) || 0;
-                      const dislikeCountPolygon = dislikeCountMapPolygon.get(timestamp) || 0;
 
                       // Create polygon popup HTML using DOM helper
                       const polygonPopupHTML = createPolygonPopupHTML({
@@ -3577,12 +3603,12 @@ if (rawResult && Array.isArray(rawResult)) {
                         msg: parsedMessage.polygon.data.msg,
                         timestamp,
                         likeCountPolygon,
-                        dislikeCountPolygon,
+                        likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
                         comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
                           ...c,
                           likeCount: likeCountMapPolygon.get(c.created) || 0,
-                          dislikeCount: dislikeCountMapPolygon.get(c.created) || 0,
-                          replies: buildReplyTree(c, repliesMapPolygon, likeCountMapPolygon, dislikeCountMapPolygon)
+                          likedByMe: payerHasLike(payerActionsPerTimestamp, c.created, 'likePolygon'),
+                          replies: buildReplyTree(c, repliesMapPolygon, likeCountMapPolygon, dislikeCountMapPolygon, 0, payerActionsPerTimestamp, 'likePolygon')
                         })),
                         coordinates
                       });
@@ -3603,8 +3629,6 @@ if (rawResult && Array.isArray(rawResult)) {
                       });
                     }
                     }
-                  } catch (polygonError) {
-                    console.error("Error parsing polygon data:", polygonError);
                   }
                 }
               }

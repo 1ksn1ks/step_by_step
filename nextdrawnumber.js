@@ -1,5 +1,6 @@
-// Highest whole number this account already used on a topic, plus one.
-// No earlier marker or polygon from them means the next number is 1.
+// One higher than the highest short number this account already used on a
+// topic. Short means fewer than 10 characters, so date numbers
+// (yyyymmddhhmm) are left out. No earlier short number means 1.
 export function nextDrawNumber(messages, payer, kind) {
   const shape = kind === 'polygon' ? 'polygon' : 'marker';
   const numberKey = shape === 'polygon' ? 'numberOfPolygon' : 'numberOfMarker';
@@ -12,7 +13,9 @@ export function nextDrawNumber(messages, payer, kind) {
     const data = message[shape] && message[shape].data;
     if (!data) continue;
     for (const raw of [data[numberKey], data[deleteKey]]) {
-      const n = Number(raw);
+      const text = String(raw ?? '').trim();
+      if (!text || text.length >= 10) continue;
+      const n = Number(text);
       if (Number.isInteger(n) && n > highest) highest = n;
     }
   }

@@ -1265,11 +1265,62 @@ html, body {
     cursor: pointer;
   }
   
+  .topic-rule-row {
+    display: flex;
+    align-items: center;
+    gap: 0.8vh;
+    padding: 0.35vh 0.2vh 0.35vh 0;
+  }
+
+  .topic-rule-row > span {
+    flex: 1;
+    user-select: text;
+    word-break: break-all;
+  }
+
+  .topic-rule-remove {
+    appearance: none;
+    -webkit-appearance: none;
+    flex: 0 0 auto;
+    width: 2.8vh;
+    height: 2.8vh;
+    margin: 0;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(34, 211, 238, 0.55);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 0.8vh rgba(34, 211, 238, 0.45),
+                inset 0 0 0.5vh rgba(34, 211, 238, 0.2);
+    color: rgba(255, 255, 255, 0.88);
+    font-family: inherit;
+    font-size: 1.7vh;
+    font-weight: 600;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+  }
+
+  .topic-rule-remove:hover {
+    transform: scale(1.08);
+    background: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+    border-color: rgba(34, 211, 238, 0.9);
+    box-shadow: 0 0 1.4vh rgba(34, 211, 238, 0.75),
+                inset 0 0 0.7vh rgba(34, 211, 238, 0.35);
+  }
+
+  .topic-rule-remove:active {
+    transform: scale(0.94);
+  }
+
   .toolbar-column-loaded-rules {
     display: block;
     width: 100%;
     color: white;
-    padding-left: 0.45vh;
+    padding: 0.45vh 0.7vh;
     border: 0.1vh solid white;
     border-radius: 1vh;
     font-size: 2vh;
@@ -1959,22 +2010,39 @@ html, body {
     position: relative;
     display: flex;
     align-items: flex-start;
+    justify-content: flex-end;
     height: calc(var(--u) * 3.8);
-    margin: calc(var(--u) * -0.2) 0 calc(var(--u) * 0.25) calc(var(--u) * -0.5);
-    padding-right: calc(var(--u) * 4.8);
+    margin: calc(var(--u) * -0.2) calc(var(--u) * -0.5) calc(var(--u) * 0.4) 0;
+  }
+
+  /* Number shares the top row and stays centered. A long number can grow
+     until it reaches the × and the settings chip. The pill is 20% smaller
+     than the settings chip and sits in the middle of that row. */
+  .popup-top-row > .popup-top-id {
+    position: absolute;
+    left: 50%;
+    top: calc((var(--u) * 3.8 + 2 * max(1px, var(--u) * 0.12)) * 0.1);
+    transform: translateX(-50%);
+    box-sizing: border-box;
+    width: max-content;
+    min-width: 40%;
+    max-width: calc(100% - var(--u) * 10);
+    white-space: nowrap;
   }
 
   /* Popup top bar chips: marker/polygon number + topic id (glass pills) */
   .popup-top-id {
     display: inline-flex;
     align-items: center;
-    padding: calc(var(--u) * 0.3) calc(var(--u) * 1);
+    justify-content: center;
+    height: calc((var(--u) * 3.8 + 2 * max(1px, var(--u) * 0.12)) * 0.8);
+    padding: 0 calc(var(--u) * 0.8);
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.10);
     border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
     -webkit-backdrop-filter: blur(8px) saturate(140%);
     backdrop-filter: blur(8px) saturate(140%);
-    font-size: calc(var(--u) * 1.7);
+    font-size: calc(var(--u) * 1.36);
     font-weight: 700;
     letter-spacing: 0.04em;
     line-height: 1;
@@ -1983,28 +2051,30 @@ html, body {
     transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
   }
 
-  /* Topic id + name — same height as the bottom .popup-icon-chip bubbles */
+  /* Topic id + name — same bubble as the timestamp on the right */
   .popup-top-topic {
-    font-size: calc(var(--u) * 1.4);
-    color: rgba(255, 255, 255, 0.55);
-    letter-spacing: 0.02em;
+    font-size: calc(var(--u) * 1);
+    color: rgba(255, 255, 255, 0.45);
+    letter-spacing: 0.03em;
     white-space: nowrap;
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-    height: calc(var(--u) * 3.8);
-    padding: 0 calc(var(--u) * 1.1);
+    display: inline-block;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: calc(var(--u) * 0.3) calc(var(--u) * 0.9);
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
-    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.07);
+    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.16);
     -webkit-backdrop-filter: blur(8px) saturate(140%);
     backdrop-filter: blur(8px) saturate(140%);
-    box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.14);
+    box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.12);
   }
 
   /* Profile — avatar + acc id + username grouped in one capsule */
   .popup-profile-bubble {
     display: flex;
+    box-sizing: border-box;
     align-items: center;
     gap: calc(var(--u) * 0.9);
     margin-bottom: calc(var(--u) * 0.25);
@@ -2043,8 +2113,9 @@ html, body {
 
   /* Message text — same corners as the popup shell */
   .popup-text-bubble {
-    display: inline-block;
-    margin: calc(var(--u) * 0.3) 0;
+    display: block;
+    width: fit-content;
+    margin: calc(var(--u) * 0.25) auto 0;
     padding: calc(var(--u) * 0.5) calc(var(--u) * 1.6);
     border-radius: calc(var(--u) * 2);
     background: rgba(255, 255, 255, 0.07);
@@ -2077,12 +2148,13 @@ html, body {
     cursor: pointer;
     position: absolute;
     top: calc(var(--u) * 0.2) !important;
-    right: calc(var(--u) * 0.1) !important;
+    left: calc(var(--u) * 0.1) !important;
+    right: auto !important;
     z-index: 2;
     transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
   }
 
-  /* Action chips: nav arrows, ⚙️ 📍 👍 💬 👎 in the bottom row */
+  /* Action chips: nav arrows, ⚙️, and 💬 in the bottom row */
   .popup-icon-chip {
     display: inline-flex;
     align-items: center;
@@ -2122,11 +2194,11 @@ html, body {
 
   @media (pointer: fine) {
     .popup-top-id:hover {
-      transform: scale(1.04);
+      transform: translateX(-50%) scale(1.04);
       filter: brightness(1.18);
       background: rgba(255, 255, 255, 0.16);
     }
-    .popup-top-id:active { transform: scale(0.95); }
+    .popup-top-id:active { transform: translateX(-50%) scale(0.95); }
     .popup-icon-chip:hover {
       transform: scale(1.08);
       filter: brightness(1.2);
@@ -2139,6 +2211,265 @@ html, body {
       background: rgba(255, 255, 255, 0.16);
     }
     .maplibregl-popup-close-button:active { transform: scale(0.92); }
+  }
+
+  /* Heart like (josetxu pen). --h is local so it does not replace popup --u.
+     The count stays on the heart. The pop, shrink, and disc run only after a tap. */
+  .heart-like {
+    --h: calc(var(--u) * 0.38);
+    --clr: #777;
+    --bg: rgba(255, 255, 255, 0.85);
+    position: relative;
+    width: calc(var(--h) * 10);
+    height: calc(var(--h) * 10);
+    flex-shrink: 0;
+    z-index: 2;
+  }
+
+  .heart-like-mini {
+    --h: calc(var(--u) * 0.22);
+  }
+
+  .heart-like input {
+    display: none;
+  }
+
+  .heart-like label {
+    background: rgba(255, 255, 255, 0.10);
+    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.35);
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    inset: 0;
+    box-sizing: border-box;
+    border-radius: 999px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .heart-like label:before {
+    content: attr(data-count);
+    position: absolute;
+    left: 50%;
+    top: calc(100% - var(--h) * 1.15);
+    transform: translateX(-50%);
+    min-width: calc(var(--h) * 2.3);
+    padding: 0 calc(var(--h) * 0.35);
+    box-sizing: border-box;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.10);
+    border: calc(var(--u) * 0.08) solid rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+    font-size: calc(var(--h) * 1.85);
+    font-family: Arial, Helvetica, sans-serif;
+    color: #fff;
+    line-height: calc(var(--h) * 2.15);
+    z-index: 3;
+    pointer-events: none;
+  }
+
+  .heart-like-mini label:before {
+    font-size: calc(var(--u) * 0.85);
+    line-height: calc(var(--u) * 1);
+    min-width: calc(var(--u) * 1.2);
+    top: 100%;
+  }
+
+  .heart-like input:checked + label:before {
+    content: attr(data-next);
+    color: #fff;
+    background: #ff3c41;
+  }
+
+  .heart-like.is-pop label:before {
+    animation: heart-count-up 0.7s ease;
+  }
+
+  .heart-like.is-down label:before {
+    animation: heart-count-down 0.7s ease;
+  }
+
+  @keyframes heart-count-up {
+    50% { transform: translateX(-50%) translateY(calc(var(--h) * -4.2)); }
+  }
+
+  @keyframes heart-count-down {
+    50% { transform: translateX(-50%) translateY(calc(var(--h) * 1.8)); }
+  }
+
+  .heart-like label:after {
+    content: "";
+    width: calc(var(--h) * 8);
+    height: calc(var(--h) * 8);
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: calc(var(--h) * -4);
+    margin-top: calc(var(--h) * -4);
+    border-radius: 100%;
+    box-sizing: border-box;
+    z-index: 0;
+    opacity: 0;
+    pointer-events: none;
+    --pos: 95%;
+    background:
+      radial-gradient(circle at 50% 50%, #fff0 0 62%, var(--bg) 63% 65%, #fff0 66% 100%),
+      radial-gradient(circle at 50% var(--pos), var(--bg) 0 4%, #fff0 4.5% 100%);
+  }
+
+  .heart-like.is-pop label:after {
+    --bg: #ff3c41;
+    --pos: 5%;
+    animation: heart-disc 0.85s ease, heart-spin 0.65s ease-in-out 0.2s;
+  }
+
+  .heart-like.is-down label:after {
+    animation: heart-disc 0.85s ease, heart-spin-back 0.65s ease-in-out 0.2s;
+  }
+
+  @keyframes heart-spin {
+    100% { transform: rotate(360deg); }
+  }
+
+  @keyframes heart-spin-back {
+    100% { transform: rotate(-360deg); }
+  }
+
+  @keyframes heart-disc {
+    0% { width: calc(var(--h) * 8); height: calc(var(--h) * 8); margin-left: calc(var(--h) * -4); margin-top: calc(var(--h) * -4); opacity: 0.9; }
+    65% { width: calc(var(--h) * 16); height: calc(var(--h) * 16); margin-left: calc(var(--h) * -8); margin-top: calc(var(--h) * -8); opacity: 1; }
+    100% { width: calc(var(--h) * 8); height: calc(var(--h) * 8); margin-left: calc(var(--h) * -4); margin-top: calc(var(--h) * -4); opacity: 0; }
+  }
+
+  .heart-like label span {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .heart-like label span:before {
+    content: "";
+    position: absolute;
+    border-radius: calc(var(--h) * 0.17);
+    border: calc(var(--h) * 2.53) solid transparent;
+    border-top: calc(var(--h) * 2.67) solid var(--clr);
+    margin-top: calc(var(--h) * 5.1);
+    margin-left: calc(var(--h) * 2.53);
+  }
+
+  .heart-like label span:after {
+    content: "";
+    position: absolute;
+    background: var(--clr);
+    width: calc(var(--h) * 3.33);
+    height: calc(var(--h) * 3.33);
+    border-radius: 100%;
+    margin-left: calc(var(--h) * 2.23);
+    margin-top: calc(var(--h) * 2.33);
+    box-shadow: calc(var(--h) * 2.33) 0 0 0 var(--clr);
+  }
+
+  .heart-like input:checked + label span {
+    --clr: #ff3c41;
+  }
+
+  .heart-like.is-pop label span {
+    --clr: #ff3c41;
+    animation: heart-pop 0.5s ease;
+  }
+
+  .heart-like.is-down label span {
+    animation: heart-shrink 0.5s ease;
+  }
+
+  @keyframes heart-pop {
+    75% { transform: scale(1.25); }
+  }
+
+  @keyframes heart-shrink {
+    75% { transform: scale(0.75); }
+  }
+
+  @media (pointer: fine) {
+    .heart-like:hover label {
+      background: rgba(255, 255, 255, 0.16);
+    }
+  }
+
+  .heart-like:hover label span:before,
+  .heart-like:hover label span:after {
+    --clr: #9d4958;
+  }
+
+  .heart-like:hover input:checked + label span:before,
+  .heart-like:hover input:checked + label span:after {
+    --clr: #ff3c41;
+  }
+
+  /* Comment bubble: same glass control as the heart, cyan while comments are open. */
+  .comment-bubble input:checked + label span {
+    --clr: #22d3ee;
+  }
+
+  .heart-like.comment-bubble input:checked + label:before {
+    background: #22d3ee;
+    color: #04242a;
+  }
+
+  .heart-like.comment-bubble label span:before {
+    content: "";
+    position: absolute;
+    width: 0;
+    height: 0;
+    margin: 0;
+    border-radius: 0;
+    border-style: solid;
+    border-width: calc(var(--h) * 1.35) calc(var(--h) * 1.15) 0 0;
+    border-color: var(--clr) transparent transparent transparent;
+    background: none;
+    box-shadow: none;
+    left: 54%;
+    top: 60%;
+    transform: rotate(16deg);
+  }
+
+  .heart-like.comment-bubble label span:after {
+    content: "";
+    position: absolute;
+    background: var(--clr);
+    width: calc(var(--h) * 5.2);
+    height: calc(var(--h) * 3.7);
+    border-radius: calc(var(--h) * 1.15);
+    margin: 0;
+    box-shadow: none;
+    left: 50%;
+    top: 42%;
+    transform: translate(-50%, -50%);
+  }
+
+  .comment-bubble.is-pop label span {
+    --clr: #22d3ee;
+  }
+
+  .comment-bubble.is-pop label:after {
+    --bg: #22d3ee;
+  }
+
+  .heart-like.comment-bubble:hover label span:before,
+  .heart-like.comment-bubble:hover label span:after {
+    --clr: #67e8f9;
+  }
+
+  .heart-like.comment-bubble:hover input:checked + label span:before,
+  .heart-like.comment-bubble:hover input:checked + label span:after {
+    --clr: #22d3ee;
   }
   
   .maplibregl-popup-tip {
@@ -2181,7 +2512,6 @@ html, body {
     #submit-button-Create_Polygon,
     #submit-button-Create_New_Topic,
     #submit-button-Change_Memo,
-    #submit-button-Set_Rules,
     #add-topic-id,
     #remove-topic-id {
     height: 5vh; /* Adjust the height as needed */
@@ -3541,7 +3871,7 @@ html, body {
   position: relative;
   width: calc(var(--u) * 22);
   aspect-ratio: 1;
-  margin: calc(var(--u) * 0.5) auto calc(var(--u) * 0.7);
+  margin: 0 auto;
   border-radius: calc(var(--u) * 2);
   overflow: hidden;
   border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);

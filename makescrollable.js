@@ -291,7 +291,6 @@ export function makeScrollable(el) {
   makeScrollable(document.getElementById('create-column-container'));
   makeScrollable(document.getElementById('marker-column-container'));
   makeScrollable(document.getElementById('polygon-column-container'));
-  makeScrollable(document.getElementById('rules-column-container'));
   makeScrollable(document.getElementById('utility-column-container'));
   makeScrollable(document.getElementById('memo-column-container'));
   makeScrollable(document.getElementById('domain-column-container'));
@@ -300,8 +299,9 @@ export function makeScrollable(el) {
   makeScrollable(document.getElementById('input-field-2-2'));
   makeScrollable(document.getElementById('loaded-topic-rules-for-marker'));
   makeScrollable(document.getElementById('loaded-topic-rules-for-polygon'));
-  makeScrollable(document.getElementById('loaded-topic-rules-for-topic'));
   makeScrollable(document.getElementById('loaded-topic-rules-for-utility'));
+  makeScrollable(document.getElementById('loaded-memo-for-topic'));
+  makeScrollable(document.getElementById('loaded-memo-for-fee'));
 
   // Settings panels (glass mb-panel cards)
   makeScrollable(document.getElementById('main-button-column-container'));

@@ -291,6 +291,9 @@ const q = {
     INSERT INTO reactions (topic_id, target_key, payer, kind) VALUES (?, ?, ?, ?)
     ON CONFLICT(topic_id, target_key, payer) DO UPDATE SET kind = excluded.kind
   `),
+  deleteReaction: db.prepare(
+    "DELETE FROM reactions WHERE topic_id = ? AND target_key = ? AND payer = ?"
+  ),
   insertComment: db.prepare(`
     INSERT OR IGNORE INTO comments (topic_id, target_key, created, payer, text, parent_id)
     VALUES (?, ?, ?, ?, ?, ?)
@@ -467,7 +470,9 @@ function extractTopicIndex(topicId, payer, body, tsMs) {
       }
     }
   }
-  if (d.likeMarker && d.likeMarker.timestamp && payer) {
+  if (d.unlikeMarker && d.unlikeMarker.timestamp && payer) {
+    q.deleteReaction.run(topicId, String(d.unlikeMarker.timestamp), payer);
+  } else if (d.likeMarker && d.likeMarker.timestamp && payer) {
     q.upsertReaction.run(topicId, String(d.likeMarker.timestamp), payer, "like");
   } else if (d.dislikeMarker && d.dislikeMarker.timestamp && payer) {
     q.upsertReaction.run(topicId, String(d.dislikeMarker.timestamp), payer, "dislike");
