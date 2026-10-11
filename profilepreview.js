@@ -6,6 +6,7 @@ import { profilePictures, usernames, click2url, topicBio } from './loadalladata.
 const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 
 const picEl = document.getElementById('profile-live-pic');
+const circleEl = document.getElementById('profile-circle-preview-img');
 const accountEl = document.getElementById('profile-live-account');
 const nameEl = document.getElementById('profile-live-username');
 const bioEl = document.getElementById('profile-live-bio');
@@ -69,6 +70,7 @@ function render() {
   if (!picEl) return;
   const nextPic = pictureUrl();
   if (picEl.getAttribute('src') !== nextPic) picEl.src = nextPic;
+  if (circleEl && circleEl.getAttribute('src') !== nextPic) circleEl.src = nextPic;
 
   accountEl.textContent = connectedAccount || 'Not connected';
   accountEl.style.color = colorOf('color-picker-popup-accid', '#800080');
@@ -103,10 +105,14 @@ function render() {
   bioEl.classList.toggle('is-empty', !hasBio);
 }
 
-picEl.addEventListener('error', () => {
-  failedPic = picEl.src;
+function useFallback(src) {
+  failedPic = src;
   if (picEl.getAttribute('src') !== DEFAULT_PIC) picEl.src = DEFAULT_PIC;
-});
+  if (circleEl && circleEl.getAttribute('src') !== DEFAULT_PIC) circleEl.src = DEFAULT_PIC;
+}
+
+picEl.addEventListener('error', () => useFallback(picEl.src));
+if (circleEl) circleEl.addEventListener('error', () => useFallback(circleEl.src));
 
 nameInput.addEventListener('input', () => {
   if (sectionOpen('edit-profile-username')) draftUsername = nameInput.value;

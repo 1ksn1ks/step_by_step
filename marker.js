@@ -332,8 +332,11 @@ export function updateClusters(force = true) {
         // CPU-backed canvas: toDataURL here must not churn GPU readbacks
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-        // Draw image at lower resolution
-        ctx.drawImage(img, 0, 0, size, size);
+        // Same center crop as the On markers preview (object-fit: cover).
+        const side = Math.min(img.width, img.height);
+        const sx = (img.width - side) / 2;
+        const sy = (img.height - side) / 2;
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
 
         // Convert to low quality JPEG-like format
         const dataUrl = canvas.toDataURL('image/jpeg', 0.5);

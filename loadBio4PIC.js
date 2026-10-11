@@ -3,6 +3,7 @@ import { activePolygonPopups } from './polygons';
 import { activeMarkerPopups } from './marker';
 import { CloseALL, OpenToggleToolbar } from './cssLogic';
 import { adjustTextareaHeight } from './adjusttextarea';
+import { fillTopicIds } from './topicidintext';
 
 const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const EMPTY_BIO = 'User has not set a bio yet. You can set yours by going to OPTIONS > TOOLBAR > EDIT > BIO';
@@ -68,10 +69,15 @@ export async function loadBio4PIC(payer) {
 
       const names = document.createElement('div');
       names.className = 'profile-live-names';
-      const account = document.createElement('div');
+      const account = document.createElement('a');
       account.className = 'profile-live-account';
+      account.href = `https://explore.hashpack.app/${encodeURIComponent(payer)}`;
+      account.target = '_blank';
+      account.rel = 'noopener noreferrer';
       account.textContent = payer;
       account.style.color = colorOf('color-picker-popup-accid', '#800080');
+      account.style.textDecoration = 'none';
+      account.addEventListener('click', (event) => event.stopPropagation());
       names.appendChild(account);
 
       const name = textOf(usernames[payer] && usernames[payer].username).trim();
@@ -79,25 +85,18 @@ export async function loadBio4PIC(payer) {
       const nameColor = colorOf('color-picker-popup-username', '#ff9933');
       if (name) {
         const nameSlot = document.createElement('div');
-        if (link) {
-          const anchor = document.createElement('a');
-          anchor.className = 'profile-live-name is-link';
-          anchor.textContent = name;
-          anchor.style.color = nameColor;
-          if (validUrl(link)) {
-            anchor.href = link;
-            anchor.target = '_blank';
-            anchor.rel = 'noopener noreferrer';
-          }
-          anchor.addEventListener('click', (event) => event.stopPropagation());
-          nameSlot.appendChild(anchor);
-        } else {
-          const span = document.createElement('span');
-          span.className = 'profile-live-name';
-          span.textContent = name;
-          span.style.color = nameColor;
-          nameSlot.appendChild(span);
+        const nameEl = link ? document.createElement('a') : document.createElement('span');
+        nameEl.className = 'profile-live-name';
+        nameEl.textContent = name;
+        nameEl.style.color = nameColor;
+        nameEl.style.textDecoration = 'none';
+        if (link && validUrl(link)) {
+          nameEl.href = link;
+          nameEl.target = '_blank';
+          nameEl.rel = 'noopener noreferrer';
         }
+        nameEl.addEventListener('click', (event) => event.stopPropagation());
+        nameSlot.appendChild(nameEl);
         names.appendChild(nameSlot);
       }
 
@@ -107,7 +106,8 @@ export async function loadBio4PIC(payer) {
       const bioEl = document.createElement('div');
       bioEl.className = 'profile-live-bio';
       const hasBio = bio.trim().length > 0;
-      bioEl.textContent = hasBio ? bio : EMPTY_BIO;
+      if (hasBio) fillTopicIds(bioEl, bio, 'profile-live-topic');
+      else bioEl.textContent = EMPTY_BIO;
       bioEl.classList.toggle('is-empty', !hasBio);
 
       card.appendChild(bubble);

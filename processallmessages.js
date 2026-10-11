@@ -10,6 +10,7 @@ import { polygons, geojson, storedMarkers, storedPolygons, currentUfoModelInGLTF
   textFontSizeTopicChat, timestampFontSizeTopicChat, headerFontSizeTopicChat } from './letall';
 import {updateRulesForModelNFTState} from './confirmnft'
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto';
+import { ringCenter, zoomForPolygon } from './polygonframe.js';
 import { profilePictures, usernames, click2url} from './loadalladata'
 import { openMediaFullscreen } from './fullscreenmedia';
 import maplibregl from 'maplibre-gl';
@@ -104,9 +105,9 @@ export function createMarkerPopupHTML(data) {
     }
   });
 
-  // Top header with number and topic info (glass pill bar)
+  // Row 1: topic id and name on the left. The × close stays top right.
   const topHeader = document.createElement('div');
-  topHeader.style.cssText = 'position: relative; display: flex; align-items: flex-start; height: calc(var(--u) * 2.5); margin-top: calc(var(--u) * -0.3); margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * 0.25);';
+  topHeader.style.cssText = 'position: relative; display: flex; align-items: flex-start; height: calc(var(--u) * 2.5); margin-top: calc(var(--u) * -0.3); margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * 0.25); padding-right: calc(var(--u) * 4.2);';
 
   const numberDiv = document.createElement('div');
   numberDiv.className = 'number popup-top-id';
@@ -128,11 +129,9 @@ export function createMarkerPopupHTML(data) {
       map.flyTo({ center: c, zoom: 19, essentialOnly: true });
     }
   });
-  topHeader.appendChild(numberDiv);
-
   const topicSpan = document.createElement('span');
   topicSpan.className = 'popup-top-topic';
-  topicSpan.style.cssText = 'position: absolute; left: 50%; top: 0; transform: translateX(-50%); cursor: pointer;';
+  topicSpan.style.cssText = 'cursor: pointer; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis;';
   topicSpan.textContent = `${topicId} ${loadedTopicName}`;
 
   topicSpan.addEventListener("click", async () => {
@@ -152,8 +151,13 @@ export function createMarkerPopupHTML(data) {
   });
 
   topHeader.appendChild(topicSpan);
-
   container.appendChild(topHeader);
+
+  // Row 2: marker number, centered where the topic id used to sit
+  const numberRow = document.createElement('div');
+  numberRow.style.cssText = 'display: flex; justify-content: center; margin-bottom: calc(var(--u) * 0.25);';
+  numberRow.appendChild(numberDiv);
+  container.appendChild(numberRow);
 
   // Profile section
   const profileSection = document.createElement('div');
@@ -162,7 +166,7 @@ export function createMarkerPopupHTML(data) {
   const profileImg = document.createElement('img');
   profileImg.src = profileUrl;
   profileImg.alt = 'Profile photo';
-  profileImg.style.cssText = 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; cursor: pointer; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
+  profileImg.style.cssText = 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; cursor: pointer; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
   profileImg.onclick = () => window.loadBio4PIC(payer);
   profileSection.appendChild(profileImg);
 
@@ -383,36 +387,25 @@ function createPolygonPopupHTML(data) {
     else window.prevMsgFromPayerPolygon(payer, polygonnumber, topicId);
   });
 
-  // Top header with number and topic info (glass pill bar)
+  // Row 1: topic id and name on the left. The × close stays top right.
   const topHeader = document.createElement('div');
-  topHeader.style.cssText = 'position: relative; display: flex; align-items: flex-start; height: calc(var(--u) * 2.5); margin-top: calc(var(--u) * -0.3); margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * 0.25);';
+  topHeader.style.cssText = 'position: relative; display: flex; align-items: flex-start; height: calc(var(--u) * 2.5); margin-top: calc(var(--u) * -0.3); margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * 0.25); padding-right: calc(var(--u) * 4.2);';
 
   const numberDiv = document.createElement('div');
   numberDiv.className = 'number popup-top-id';
   numberDiv.style.cssText = 'cursor: pointer;';
   numberDiv.textContent = polygonnumber;
-  // Tap the number → zoom to 19 centered on the polygon (centroid of vertices)
+  // Tap the number → same frame Open on the map uses for this polygon.
   numberDiv.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (Array.isArray(coordinates) && coordinates.length > 0) {
-      const center = coordinates.reduce(
-        (acc, p) => [acc[0] + p[0], acc[1] + p[1]],
-        [0, 0]
-      );
-      cancelAnimateMapTo(); // stop the popup-open loop, or it kills this flyTo
-      map.flyTo({
-        center: [center[0] / coordinates.length, center[1] / coordinates.length],
-        zoom: 19,
-        essentialOnly: true,
-      });
-    }
+    const polygon = { coordinates: [coordinates] };
+    const center = ringCenter(polygon);
+    if (!center) return;
+    animateMapTo(map, center, zoomForPolygon(polygon));
   });
-  topHeader.appendChild(numberDiv);
-
   const topicSpan = document.createElement('span');
   topicSpan.className = 'popup-top-topic';
-  topicSpan.style.cssText = 'position: absolute; left: 50%; top: 0; transform: translateX(-50%); cursor: pointer;';
-
+  topicSpan.style.cssText = 'cursor: pointer; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis;';
   topicSpan.textContent = `${topicId} ${loadedTopicName}`;
 
   topicSpan.addEventListener("click", async () => {
@@ -432,9 +425,13 @@ function createPolygonPopupHTML(data) {
   });
 
   topHeader.appendChild(topicSpan);
-
-
   container.appendChild(topHeader);
+
+  // Row 2: polygon number, centered where the topic id used to sit
+  const numberRow = document.createElement('div');
+  numberRow.style.cssText = 'display: flex; justify-content: center; margin-bottom: calc(var(--u) * 0.25);';
+  numberRow.appendChild(numberDiv);
+  container.appendChild(numberRow);
 
   // Profile section
   const profileSection = document.createElement('div');
@@ -443,7 +440,7 @@ function createPolygonPopupHTML(data) {
   const profileImg = document.createElement('img');
   profileImg.src = profileUrl;
   profileImg.alt = 'Profile photo';
-  profileImg.style.cssText = 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; cursor: pointer; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
+  profileImg.style.cssText = 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; cursor: pointer; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
   profileImg.onclick = () => window.loadBio4PIC(payer);
   profileSection.appendChild(profileImg);
 

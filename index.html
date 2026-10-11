@@ -179,7 +179,7 @@
           <h3 class="info-overlay-title">Profile Editor</h3>
           <p class="info-overlay-subtitle">Make the map yours.</p>
           <ul class="info-overlay-list">
-            <li><b>Profile picture</b> — upload an image. The preview shows it before you save.</li>
+            <li><b>Profile picture</b> — upload an image. On markers is the center crop. On polygons is the full picture beside it.</li>
             <li><b>Username</b> — enter a new name, then press Save.</li>
             <li><b>BIO</b> — set your profile bio; tapping a PFP shows it in Load.</li>
             <li><b>CLICK2LINK</b> — attach any URL to your username.</li>
@@ -245,10 +245,18 @@
       
           <div id="edit-profile-picture" style="display: none;">
             <input type="hidden" id="input-field-profile-picture">
-            <div class="upload-preview" id="preview-profile-picture" hidden>
-              <img alt="" hidden>
-              <video muted playsinline loop autoplay hidden></video>
-              <button type="button" class="upload-preview-clear">Remove</button>
+            <div class="profile-picture-previews">
+              <div class="profile-circle-preview">
+                <img id="profile-circle-preview-img" alt="Circle preview">
+                <div class="profile-circle-preview-label">On markers</div>
+              </div>
+              <div class="profile-polygon-preview">
+                <div class="upload-preview" id="preview-profile-picture" hidden>
+                  <img alt="" hidden>
+                  <video muted playsinline loop autoplay hidden></video>
+                </div>
+                <div class="profile-circle-preview-label">On polygons</div>
+              </div>
             </div>
             <div style="display: flex;">
               <button id="upload-profile-picture" class="toolbar-column-btns" type="button">📎 Upload image</button>
@@ -429,11 +437,17 @@
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
   
-          <textarea class="toolbar-column" type="text" id="encrypt-key-load" placeholder="Private Key / old password" style="display: none;"
+          <div id="encrypt-key-load-label" style="display: none;">
+            <label style="font-size: 2vh; padding: 0px;">Private key</label>
+          </div>
+          <textarea class="toolbar-column" type="text" id="encrypt-key-load" placeholder="Private key" style="display: none;"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
-  
-          <textarea class="toolbar-column" type="text" id="change-key-load" placeholder="New password" style="display: none;"
+
+          <div id="change-key-load-label" style="display: none;">
+            <label style="font-size: 2vh; padding: 0px;">Password</label>
+          </div>
+          <textarea class="toolbar-column" type="text" id="change-key-load" placeholder="Password" style="display: none;"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
 
@@ -1499,15 +1513,6 @@
           ></textarea>
         </div>
 
-        <textarea class="toolbar-column" type="text" id="encrypted-chat-change-password-key" placeholder="Private Key / old password" style="display: none;"
-        onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-        ></textarea>
-
-
-        <textarea class="toolbar-column" type="text" id="encrypted-chat-new-password-key" placeholder="New password" style="display: none;"
-        onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-        ></textarea>
-      
           <div style="display: flex; align-items: center;">
       
             <textarea class="toolbar-column" type="text" id="encrypted-chat-topic-id" placeholder="Domain/Topic ID"
@@ -1557,6 +1562,39 @@
               </button>
             </div>
       
+        </div>
+
+        <textarea class="toolbar-column" type="text" id="encrypted-chat-public-key" placeholder="Public Key" style="display: none;"
+        onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+        ></textarea>
+
+        <div id="encrypted-chat-change-password-key-label" style="display: none;">
+          <label style="font-size: 2vh; padding: 0px;">Private key</label>
+        </div>
+        <textarea class="toolbar-column" type="text" id="encrypted-chat-change-password-key" placeholder="Private key" style="display: none;"
+        onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+        ></textarea>
+
+        <div id="encrypted-chat-new-password-key-label" style="display: none;">
+          <label style="font-size: 2vh; padding: 0px;">Password</label>
+        </div>
+        <textarea class="toolbar-column" type="text" id="encrypted-chat-new-password-key" placeholder="Password" style="display: none;"
+        onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+        ></textarea>
+
+        <div id="pin-public-key-from-encrypted-chat" style="display: none;">
+          <button id="stack-encrypted-chat-public-key-button" class="pin-public-key-from-encrypted-chat">Pin Public Key
+          </button>
+        </div>
+
+        <div id="change-password-encrypted-chat" style="display: none;">
+          <button id="stack-encrypted-chat-change-password-button" class="pin-public-key-from-encrypted-chat">Change Password
+          </button>
+        </div>
+
+        <div id="set-password-encrypted-chat" style="display: none;">
+          <button id="stack-encrypted-chat-set-password-button" class="pin-public-key-from-encrypted-chat">Set Password
+          </button>
         </div>
       
         <div id="time-from-encrypted-chat" style="display: none;">
@@ -1635,10 +1673,6 @@
             <button id="go-to-bottom-msgs-encrypted-chat" class="toolbar-column-btns">⬇</button>
           </div>
       
-          <textarea class="toolbar-column" type="text" id="encrypted-chat-public-key" placeholder="Public Key" style="display: none;"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
-      
           <div id="encrypted-chat-chat-container">
       
           <div style="position: relative;">
@@ -1662,22 +1696,6 @@
           </div>
         </div>
 
-        <div id="pin-public-key-from-encrypted-chat" style="display: none;">
-          <button id="stack-encrypted-chat-public-key-button" class="pin-public-key-from-encrypted-chat">Pin Public Key
-          </button>
-      </div>
-
-      <div id="change-password-encrypted-chat" style="display: none;">
-        <button id="stack-encrypted-chat-change-password-button" class="pin-public-key-from-encrypted-chat">Change Password
-        </button>
-    </div>
-
-    <div id="set-password-encrypted-chat" style="display: none;">
-      <button id="stack-encrypted-chat-set-password-button" class="pin-public-key-from-encrypted-chat">Set Password
-      </button>
-  </div>
-      
-      
         </div>
       </div>
       
@@ -1959,9 +1977,9 @@
            shows up here instantly while the real popup stays hidden -->
       <div id="popup-settings-preview" class="maplibregl-popup">
         <div class="maplibregl-popup-content" style="max-height: none; padding: 1vh 1.4vw;">
-          <div class="number" style="position: absolute; top: -0.1em; left: 0.1em; font-weight: bold;">256</div>
           <span class="maplibregl-popup-close-button" style="position: absolute; top: -0.5vh; right: 0;">&times;</span>
-          <div style="color: gray; text-align: center; margin-bottom: 1vh;">topic id - topic id name</div>
+          <div style="color: gray; text-align: left; margin-bottom: 0.6vh; padding-right: 2.4em;">topic id - topic id name</div>
+          <div class="number" style="font-weight: bold; text-align: center; margin-bottom: 1vh;">256</div>
           <div class="payer-info" style="font-weight: bold;">account id</div>
           <div class="username">username</div>
           <div class="title_color" style="font-weight: bold;">message title</div>

@@ -23,6 +23,7 @@ import { processTopicMessages, allLoadedMessages } from "./processallmessages.js
 import { initialTopicId } from "./extracttopic.js";
 import { toast } from "./toast";
 import { applyInitialXYZ } from "./setinitialxyz.js";
+import { fillTopicIds } from "./topicidintext.js";
 
 // Copy text to the clipboard with an http-safe fallback: navigator.clipboard
 // only exists on HTTPS/localhost, so on a plain http origin (the dev remote)
@@ -67,7 +68,10 @@ function toggleTopicBio(topicId, row, arrowBtn) {
   const bioEl = document.createElement('div');
   bioEl.className = 'topic-bio-row';
   bioEl.style.cssText = 'color: rgba(255,255,255,0.6); font-size: 1.6vh; line-height: 1.4; padding: 0.1em 0.2em 0.3em 1.4em; white-space: pre-wrap; word-break: break-word;';
-  bioEl.textContent = globalTopicBios[topicId] || 'No bio set yet';
+  const raw = globalTopicBios[topicId];
+  const bio = Array.isArray(raw) ? String(raw[0] || '') : (typeof raw === 'string' ? raw : '');
+  if (bio) fillTopicIds(bioEl, bio);
+  else bioEl.textContent = 'No bio set yet';
   row.after(bioEl);
   arrowBtn.textContent = '▾';
 }

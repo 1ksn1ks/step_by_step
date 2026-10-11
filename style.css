@@ -1931,6 +1931,11 @@ html, body {
     box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.12), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.3);
   }
 
+  .popup-profile-bubble > img {
+    object-fit: cover;
+    object-position: center;
+  }
+
   .popup-profile-bubble h2 {
     margin: 0;
     font-size: calc(var(--u) * 1.8);
@@ -2691,9 +2696,81 @@ html, body {
     height: 7vh;
     border-radius: 50%;
     object-fit: cover;
+    object-position: center;
     flex-shrink: 0;
     border: 0.12vh solid rgba(255, 255, 255, 0.25);
     background: rgba(0, 0, 0, 0.35);
+  }
+
+  /* Marker circle on the left, the uploaded picture on the right. */
+  .profile-picture-previews {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 1.6vh;
+    margin: 0.6vh 0 1vh;
+  }
+
+  .profile-circle-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6vh;
+    margin: 0;
+    flex: 0 0 auto;
+  }
+
+  .profile-polygon-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6vh;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 52%;
+  }
+
+  .profile-polygon-preview:has(.upload-preview[hidden]) {
+    display: none;
+  }
+
+  .profile-polygon-preview .upload-preview {
+    box-sizing: border-box;
+    width: 16vh;
+    height: 16vh;
+    max-width: 100%;
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .profile-polygon-preview .upload-preview img,
+  .profile-polygon-preview .upload-preview video {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    object-fit: contain;
+  }
+
+  .profile-circle-preview img {
+    box-sizing: border-box;
+    width: 16vh;
+    height: 16vh;
+    border-radius: 50%;
+    object-fit: cover;
+    object-position: center;
+    border: 0.15vh solid rgba(255, 255, 255, 0.28);
+    background: rgba(0, 0, 0, 0.35);
+    box-shadow: 0 0.4vh 1.2vh rgba(0, 0, 0, 0.45);
+  }
+
+  .profile-circle-preview-label {
+    font-size: 1.4vh;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
   }
 
   .profile-live-names {
@@ -3105,6 +3182,18 @@ html, body {
     cursor: text;
   }
 
+  #loaded-topics .profile-live-account,
+  #loaded-topics .profile-live-name,
+  #loaded-topics .profile-live-topic {
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  #loaded-topics .profile-live-topic {
+    color: #22d3ee;
+    text-decoration: underline;
+  }
+
   /* The list must not scale on hover/press — the global .toolbar-column
      scale shifts the 📋 copy button and breaks the first click */
   #loaded-topics:hover,
@@ -3254,6 +3343,8 @@ html, body {
   height: 100%;
   border-radius: 50%;
   background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   -webkit-touch-callout: none;
   user-select: none;
 }

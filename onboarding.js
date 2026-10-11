@@ -154,7 +154,19 @@ function build() {
   renderSlide();
 }
 
+// Open in app from the notification app lands on ?place=marker|polygon.
+// That visit is here to see a pin, so the coordinates/drawing intro stays off.
+function openedFromNotification() {
+  try {
+    const kind = new URL(window.location.href).searchParams.get('place');
+    return kind === 'marker' || kind === 'polygon';
+  } catch {
+    return false;
+  }
+}
+
 function start() {
+  if (openedFromNotification()) return;
   const show = () => {
     if (document.getElementById('onboard-overlay')) return;
     build();

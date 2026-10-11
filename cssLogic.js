@@ -107,6 +107,7 @@ export function CloseALL() {
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
     document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
+    setE2eeMessagesVisible(true);
     if (popIsOpen === false) {
       if (currentUfoModelInGLTF) {
               scene.add(currentUfoModelInGLTF);
@@ -738,7 +739,9 @@ export function CloseALL() {
     document.getElementById("hide-block-change-password-encrypted-chat"),
     document.getElementById("hide-time-set-password-encrypted-chat"),
     document.getElementById("encrypted-chat-change-password-key"),
+    document.getElementById("encrypted-chat-change-password-key-label"),
     document.getElementById("encrypted-chat-new-password-key"),
+    document.getElementById("encrypted-chat-new-password-key-label"),
     document.getElementById("change-password-encrypted-chat"),
     document.getElementById("set-password-encrypted-chat"),
     document.getElementById("encrypted-chat-public-key"),
@@ -774,6 +777,7 @@ export function CloseALL() {
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
     document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
+    setE2eeMessagesVisible(true);
     document.getElementById("time-from-encrypted-chat").style.display = "block";
     document.getElementById("time-from-encrypted-chat-filter").style.display = "flex";
     document.getElementById("hide-time-from-encrypted-chat").style.display = "block";
@@ -796,6 +800,7 @@ export function CloseALL() {
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
     document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
+    setE2eeMessagesVisible(true);
     document.getElementById("load-msgs-from-ids-from-encrypted-chat").style.display = "block";
     document.getElementById("load-load-from-users-label-from-encrypted-chat").style.display = "block";
     document.getElementById("load-load-from-users-from-encrypted-chat").style.display = "flex";
@@ -819,6 +824,7 @@ export function CloseALL() {
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
     document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
+    setE2eeMessagesVisible(true);
     document.getElementById("load-block-from-users-from-encrypted-chat").style.display = "flex";
     document.getElementById("load-blocks-from-ids-from-encrypted-chat").style.display = "block";
     document.getElementById("load-block-from-users-label-from-encrypted-chat").style.display = "block";
@@ -845,6 +851,7 @@ export function CloseALL() {
     document.getElementById("encrypted-chat-chat-container").style.display = "none";
     document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "none";
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "none";
+    setE2eeMessagesVisible(false);
   });
   
   document.getElementById("hide-pin-public-key-from-encrypted-chat").addEventListener("click", (event) => {
@@ -858,12 +865,38 @@ export function CloseALL() {
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("encrypted-chat-private-key-container").style.display = "block";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
+    setE2eeMessagesVisible(true);
   });
+
+  // Search row and the message list stay out of the way for Pin, Change
+  // password, and Set password. Clearing the inline display lets the
+  // normal chat CSS show them again.
+  function setE2eeMessagesVisible(visible) {
+    const search = document.getElementById('e2ee-chat-msg-search');
+    const controls = search && search.closest('.loaded-topics-controls');
+    const messages = document.getElementById('messages-from-encrypted-chat');
+    const wrap = messages && messages.closest('.chat-messages-wrap');
+    const display = visible ? '' : 'none';
+    if (controls) controls.style.display = display;
+    if (wrap) wrap.style.display = display;
+  }
+
+  function labelPasswordFields(keyId, keyText, passId, passText) {
+    const key = document.getElementById(keyId);
+    const pass = document.getElementById(passId);
+    key.placeholder = keyText;
+    pass.placeholder = passText;
+    document.querySelector('#' + keyId + '-label label').textContent = keyText;
+    document.querySelector('#' + passId + '-label label').textContent = passText;
+    document.getElementById(keyId + '-label').style.display = 'block';
+    document.getElementById(passId + '-label').style.display = 'block';
+  }
 
   document.getElementById("show-block-change-password-encrypted-chat").addEventListener("click", (event) => {
     hideAllShowButtonsFromEncryptedChat()
     showAllShowButtonsFromEncryptedChatOptions()
     document.getElementById("change-password-encrypted-chat").style.display = "block";
+    labelPasswordFields('encrypted-chat-change-password-key', 'Old password', 'encrypted-chat-new-password-key', 'New password');
     document.getElementById("encrypted-chat-change-password-key").style.display = "block";
     document.getElementById("encrypted-chat-new-password-key").style.display = "block";
     document.getElementById("hide-block-change-password-encrypted-chat").style.display = "block";
@@ -873,6 +906,7 @@ export function CloseALL() {
     document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "none";
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "none";
     document.getElementById("encrypted-chat-public-key").style.display = "none";
+    setE2eeMessagesVisible(false);
 
   });
   
@@ -885,12 +919,14 @@ export function CloseALL() {
     document.getElementById("encrypted-chat-public-key").style.display = "none";
     document.getElementById("encrypted-chat-private-key-container").style.display = "block";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
+    setE2eeMessagesVisible(true);
   });
 
   document.getElementById("show-time-set-password-encrypted-chat").addEventListener("click", (event) => {
     hideAllShowButtonsFromEncryptedChat()
     showAllShowButtonsFromEncryptedChatOptions()
     document.getElementById("set-password-encrypted-chat").style.display = "block";
+    labelPasswordFields('encrypted-chat-change-password-key', 'Private key', 'encrypted-chat-new-password-key', 'Password');
     document.getElementById("encrypted-chat-change-password-key").style.display = "block";
     document.getElementById("encrypted-chat-new-password-key").style.display = "block";
     document.getElementById("hide-time-set-password-encrypted-chat").style.display = "block";
@@ -900,6 +936,7 @@ export function CloseALL() {
     document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "none";
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "none";
     document.getElementById("encrypted-chat-public-key").style.display = "none";
+    setE2eeMessagesVisible(false);
   });
   
   document.getElementById("hide-time-set-password-encrypted-chat").addEventListener("click", (event) => {
@@ -911,6 +948,7 @@ export function CloseALL() {
     document.getElementById("encrypted-chat-public-key").style.display = "none";
     document.getElementById("encrypted-chat-private-key-container").style.display = "block";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
+    setE2eeMessagesVisible(true);
   });
   
   document.getElementById("toggle-toolbar-btn-btn").addEventListener("click", (event) => {
@@ -939,6 +977,7 @@ export function CloseALL() {
     const encryptedChatList = document.getElementById("messages-from-encrypted-chat");
     encryptedChatList.style.height = "";
     encryptedChatList.style.overflowY = "";
+    setE2eeMessagesVisible(true);
 
     removeUfoModel();
   });
@@ -959,6 +998,7 @@ export function CloseALL() {
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("encrypted-chat-private-key-container").style.display = "block";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
+    setE2eeMessagesVisible(true);
   
   });
   
@@ -1703,7 +1743,9 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("hide-unlock-load"),
     document.getElementById("unlockkey-load"),
     document.getElementById("encrypt-key-load"),
+    document.getElementById("encrypt-key-load-label"),
     document.getElementById("change-key-load"),
+    document.getElementById("change-key-load-label"),
     document.getElementById("change-password-load"),
     document.getElementById("set-password-load"),
     document.getElementById("unlock-load-few"),
@@ -1788,6 +1830,7 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     loadColumnsShowOptionsload();
     document.getElementById("hide-change-password-load").style.display = "block";
     document.getElementById("show-change-password-load").style.display = "none";
+    labelPasswordFields('encrypt-key-load', 'Old password', 'change-key-load', 'New password');
     document.getElementById("encrypt-key-load").style.display = "block";
     document.getElementById("change-key-load").style.display = "block";
     document.getElementById("change-password-load").style.display = "block";
@@ -1802,6 +1845,7 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     loadColumnsShowOptionsload();
     document.getElementById("hide-set-password-load").style.display = "block";
     document.getElementById("show-set-password-load").style.display = "none";
+    labelPasswordFields('encrypt-key-load', 'Private key', 'change-key-load', 'Password');
     document.getElementById("encrypt-key-load").style.display = "block";
     document.getElementById("change-key-load").style.display = "block";
     document.getElementById("set-password-load").style.display = "block";
