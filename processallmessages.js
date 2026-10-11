@@ -1,4 +1,5 @@
-import {getTopicInfo, getAccountNFTs} from './hedera'
+import {getTopicInfo} from './hedera'
+import { prepareHoldings, fetchAccountTokens } from './nftcache.js'
 import {sendMessage} from './msgbackend'
 import {getTopicData as getMessages} from './topicdata'
 import { adjustTextareaHeight } from './adjusttextarea';
@@ -52,6 +53,215 @@ function polygonCoordinates(cordStr) {
   } catch {
     return null;
   }
+}
+
+// null means the account is not in the cache yet. 0 means they hold none.
+function slotsFromHoldings(holdings, payerId, rules, idKey, countKey) {
+  if (!holdings.has(payerId)) return null;
+  const tokens = holdings.get(payerId);
+  let total = 0;
+  for (const rule of rules) {
+    const count = Number(tokens[rule[idKey]]) || 0;
+    if (count > 0) total += count * Number(rule[countKey]);
+  }
+  return total;
+}
+
+// Newest valid drawing first, so the mirror queue starts at the messages
+// the map should show before the older ones.
+function newestPayerOrder(messages) {
+  const order = [];
+  const seen = new Set();
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index];
+    let parsed = message;
+    try {
+      if (typeof message === 'string') parsed = JSON.parse(message);
+    } catch {
+      continue;
+    }
+    const payer = message && (message.payer || parsed.payer);
+    if (!payer || seen.has(payer)) continue;
+    const marker = parsed.marker && parsed.marker.data;
+    const polygon = parsed.polygon && parsed.polygon.data;
+    const markerOk = marker && Number.isInteger(Number(marker.numberOfMarker)) && markerCoordinates(marker.cord);
+    const polygonOk = polygon && Number.isInteger(Number(polygon.numberOfPolygon)) && polygonCoordinates(polygon.cord);
+    if (!markerOk && !polygonOk) continue;
+    seen.add(payer);
+    order.push(payer);
+  }
+  if (order.length > 0) return order;
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const payer = messages[index] && messages[index].payer;
+    if (!payer || seen.has(payer)) continue;
+    seen.add(payer);
+    order.push(payer);
+  }
+  return order;
+}
+
+async function assignDrawingOwnership({
+  hasRulesForMarker,
+  hasRulesForPolygon,
+  markerPayers,
+  polygonPayers,
+  markerRules,
+  polygonRules,
+}) {
+  const payerIds = [];
+  const seen = new Set();
+  const addPayer = (payerId) => {
+    if (!payerId || seen.has(payerId)) return;
+    seen.add(payerId);
+    payerIds.push(payerId);
+  };
+  if (hasRulesForMarker) {
+    for (const payerId of markerPayers) addPayer(payerId);
+  }
+  if (hasRulesForPolygon) {
+    for (const payerId of polygonPayers) addPayer(payerId);
+  }
+  const holdings = await prepareHoldings(payerIds);
+  const markerOwnershipArray = [];
+  const polygonOwnershipArray = [];
+
+  if (hasRulesForMarker) {
+    for (const payerId of markerPayers) {
+      const slots = slotsFromHoldings(holdings, payerId, markerRules, 'markerTopicId', 'markerMessagesPerNft');
+      markerOwnershipArray.push({
+        payerId,
+        numberOfMessages: slots || 0,
+        numberOfMarker: [],
+        pending: slots === null,
+      });
+    }
+  } else {
+    for (const payerId of markerPayers) {
+      markerOwnershipArray.push({ payerId, numberOfMarker: [], pending: false });
+    }
+  }
+
+  if (hasRulesForPolygon) {
+    for (const payerId of polygonPayers) {
+      const slots = slotsFromHoldings(holdings, payerId, polygonRules, 'polygonTopicId', 'polygonMessagesPerNft');
+      polygonOwnershipArray.push({
+        payerId,
+        numberOfMessages: slots || 0,
+        numberOfPolygon: [],
+        pending: slots === null,
+      });
+    }
+  } else {
+    for (const payerId of polygonPayers) {
+      polygonOwnershipArray.push({ payerId, numberOfPolygon: [], pending: false });
+    }
+  }
+
+  return { holdings, markerOwnershipArray, polygonOwnershipArray, payerIds };
+}
+
+let clusterTimer = null;
+let indexWarned = false;
+
+function publishApprovedDrawings(features, polys, state, sync) {
+  const markers = features.slice(state.markers);
+  const nextPolys = polys.slice(state.polys);
+  state.markers = features.length;
+  state.polys = polys.length;
+  if (markers.length > 0) geojson.features.push(...markers);
+  if (nextPolys.length > 0) {
+    polygons.push(...nextPolys);
+    for (const polygon of nextPolys) addPolygonWithImageFill(map, polygon);
+  }
+  const flush = () => {
+    clusterTimer = null;
+    if (geojson.features.length === 0) return;
+    try {
+      index.load(geojson.features);
+      updateClusters();
+    } catch (err) {
+      if (!indexWarned) {
+        indexWarned = true;
+        console.warn('marker index update skipped');
+      }
+    }
+  };
+  if (sync) {
+    if (clusterTimer) clearTimeout(clusterTimer);
+    flush();
+    return;
+  }
+  if (markers.length === 0) return;
+  if (clusterTimer) return;
+  clusterTimer = setTimeout(flush, 150);
+}
+
+// Cached accounts are drawn in one newest-to-oldest pass. Each missing
+// account is fetched, saved, and drawn before the next request goes out.
+function deferConnectedAccount(ctx) {
+  if (!connectedAccount || !ctx.payerIds.includes(connectedAccount)) return;
+  ctx.holdings.delete(connectedAccount);
+  const touch = (list, hasRules, numbersKey) => {
+    if (!hasRules) return;
+    const owner = list.find((row) => row.payerId === connectedAccount);
+    if (!owner) return;
+    owner.pending = true;
+    owner.numberOfMessages = 0;
+    owner[numbersKey] = [];
+  };
+  touch(ctx.markerOwnershipArray, ctx.hasRulesForMarker, 'numberOfMarker');
+  touch(ctx.polygonOwnershipArray, ctx.hasRulesForPolygon, 'numberOfPolygon');
+}
+
+async function showDrawingsAsApproved(ctx) {
+  deferConnectedAccount(ctx);
+  const publishState = { markers: 0, polys: 0 };
+  const publish = (sync) => publishApprovedDrawings(ctx.features, ctx.polygonsOut, publishState, sync);
+  await ctx.drawLoaded();
+  publish(false);
+  const pendingPayers = ctx.payerIds.filter((payerId) => ctx.payerWaiting(payerId));
+  const payerRank = newestPayerOrder(ctx.messages);
+  pendingPayers.sort((a, b) => {
+    const ai = payerRank.indexOf(a);
+    const bi = payerRank.indexOf(b);
+    const limit = payerRank.length;
+    return (ai < 0 ? limit : ai) - (bi < 0 ? limit : bi);
+  });
+  if (connectedAccount) {
+    const mine = pendingPayers.indexOf(connectedAccount);
+    if (mine > 0) {
+      pendingPayers.splice(mine, 1);
+      pendingPayers.unshift(connectedAccount);
+    }
+  }
+  for (const payerId of pendingPayers) {
+    let tokens;
+    try {
+      tokens = await fetchAccountTokens(payerId, payerId === connectedAccount);
+    } catch (err) {
+      console.warn('NFT holdings unavailable for', payerId);
+      continue;
+    }
+    ctx.holdings.set(payerId, tokens);
+    if (ctx.hasRulesForMarker) {
+      const markerOwner = ctx.markerOwnershipArray.find((owner) => owner.payerId === payerId);
+      if (markerOwner && markerOwner.pending) {
+        markerOwner.numberOfMessages = slotsFromHoldings(ctx.holdings, payerId, ctx.markerRules, 'markerTopicId', 'markerMessagesPerNft') || 0;
+        markerOwner.pending = false;
+      }
+    }
+    if (ctx.hasRulesForPolygon) {
+      const polygonOwner = ctx.polygonOwnershipArray.find((owner) => owner.payerId === payerId);
+      if (polygonOwner && polygonOwner.pending) {
+        polygonOwner.numberOfMessages = slotsFromHoldings(ctx.holdings, payerId, ctx.polygonRules, 'polygonTopicId', 'polygonMessagesPerNft') || 0;
+        polygonOwner.pending = false;
+      }
+    }
+    ctx.drawState.batch = ctx.messagesByPayer.get(payerId) || [];
+    await ctx.drawLoaded();
+    publish(false);
+  }
+  publish(true);
 }
 
 
@@ -1011,59 +1221,44 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
         }
       }
 
-          // Ownership logic
-          const markerOwnershipArray = [];
-          const polygonOwnershipArray = [];
-
-
-          if (hasRulesForMarker) {
-            // Iterate over each unique payer ID for markers
-            for (const payerId of uniquePayerIdsForMarker) {
-              let numberOfMessages = 0;
-              for (const rule of loadedTopicRulesForMarker) {
-                const filteredNftsForMarker = await getAccountNFTs(payerId, rule.markerTopicId);
-                if (filteredNftsForMarker.length > 0) {
-                  numberOfMessages += filteredNftsForMarker.length * Number(rule.markerMessagesPerNft);
-                }
-              }
-
-              const numberOfMarker = [];
-              markerOwnershipArray.push({ payerId, numberOfMessages, numberOfMarker });
+          // Cached holdings draw immediately. Missing accounts stay pending
+          // until their token list returns.
+          const {
+            holdings,
+            markerOwnershipArray,
+            polygonOwnershipArray,
+            payerIds,
+          } = await assignDrawingOwnership({
+            hasRulesForMarker,
+            hasRulesForPolygon,
+            markerPayers: uniquePayerIdsForMarker,
+            polygonPayers: uniquePayerIdsForPolygon,
+            markerRules: loadedTopicRulesForMarker,
+            polygonRules: loadedTopicRulesForPolygon,
+          });
+          const newestMessages = messages.slice().reverse();
+          const messagesByPayer = new Map();
+          for (const message of newestMessages) {
+            const payerId = message && message.payer;
+            if (!payerId) continue;
+            let bucket = messagesByPayer.get(payerId);
+            if (!bucket) {
+              bucket = [];
+              messagesByPayer.set(payerId, bucket);
             }
+            bucket.push(message);
           }
-
-          if (hasRulesForPolygon) {
-
-            // Iterate over each unique payer ID for polygons
-            for (const payerId of uniquePayerIdsForPolygon) {
-              let numberOfMessages = 0;
-              for (const rule of loadedTopicRulesForPolygon) {
-                const filteredNftsForPoly = await getAccountNFTs(payerId, rule.polygonTopicId);
-                if (filteredNftsForPoly.length > 0) {
-                  numberOfMessages += filteredNftsForPoly.length * Number(rule.polygonMessagesPerNft);
-                }
-              }
-
-              const numberOfPolygon = [];
-              polygonOwnershipArray.push({ payerId, numberOfMessages, numberOfPolygon });
-            }
-          }
-
-          if (!hasRulesForMarker) {
-          for (const payerId of uniquePayerIdsForMarker) {
-            const numberOfMarker = [];
-            markerOwnershipArray.push({ payerId, numberOfMarker });
-          }
-        }
-        if (!hasRulesForPolygon) {
-          for (const payerId of uniquePayerIdsForPolygon) {
-            const numberOfPolygon = [];
-            polygonOwnershipArray.push({ payerId, numberOfPolygon });
-          }
-        }
-          // Process each message
-          for (let index = messages.length - 1; index >= 0; index--) {
-            const message = messages[index];
+          const drawState = { batch: newestMessages };
+          const payerWaiting = (payerId) => {
+            const markerOwner = markerOwnershipArray.find((owner) => owner.payerId === payerId);
+            const polygonOwner = polygonOwnershipArray.find((owner) => owner.payerId === payerId);
+            return !!((markerOwner && markerOwner.pending) || (polygonOwner && polygonOwner.pending));
+          };
+          const drawLoaded = async () => {
+          const drawBatch = drawState.batch;
+          for (let index = 0; index < drawBatch.length; index++) {
+            const message = drawBatch[index];
+            if (message && message.payer && payerWaiting(message.payer)) continue;
             try {
               let parsedMessage = message;
               if (typeof message === 'string') {
@@ -1246,7 +1441,25 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
               console.error(`Error processing message ${index}:`, messageError);
             }
           }
+          };
 
+          await showDrawingsAsApproved({
+            messages,
+            messagesByPayer,
+            drawState,
+            drawLoaded,
+            payerWaiting,
+            holdings,
+            payerIds,
+            markerOwnershipArray,
+            polygonOwnershipArray,
+            markerRules: loadedTopicRulesForMarker,
+            polygonRules: loadedTopicRulesForPolygon,
+            hasRulesForMarker,
+            hasRulesForPolygon,
+            features: topicGeojsonFeatures,
+            polygonsOut: topicPolygons,
+          });
 
         // Topic bio: newest valid topic_bio message (same admin rule as
         // changeName — only admin payers count when the memo lists admins)
@@ -1267,9 +1480,6 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
           }
         }
 
-        // At the end of the function, push the collected features to the parent arrays
-        geojson.features.push(...topicGeojsonFeatures); // Push topic features to parent geojson array
-        polygons.push(...topicPolygons); // Push topic polygons to parent polygons array
         return { topicGeojsonFeatures, topicPolygons, loadedTopicName, topicBio };
 
 
@@ -2694,59 +2904,44 @@ if (rawResult && Array.isArray(rawResult)) {
         }
       }
 
-          // Ownership logic
-          const markerOwnershipArray = [];
-          const polygonOwnershipArray = [];
-
-
-          if (hasRulesForMarker) {
-            // Iterate over each unique payer ID for markers
-            for (const payerId of uniquePayerIdsForMarker) {
-              let numberOfMessages = 0;
-              for (const rule of loadedTopicRulesForMarker) {
-                const filteredNftsForMarker = await getAccountNFTs(payerId, rule.markerTopicId);
-                if (filteredNftsForMarker.length > 0) {
-                  numberOfMessages += filteredNftsForMarker.length * Number(rule.markerMessagesPerNft);
-                }
-              }
-
-              const numberOfMarker = [];
-              markerOwnershipArray.push({ payerId, numberOfMessages, numberOfMarker });
+          // Cached holdings draw immediately. Missing accounts stay pending
+          // until their token list returns.
+          const {
+            holdings,
+            markerOwnershipArray,
+            polygonOwnershipArray,
+            payerIds,
+          } = await assignDrawingOwnership({
+            hasRulesForMarker,
+            hasRulesForPolygon,
+            markerPayers: uniquePayerIdsForMarker,
+            polygonPayers: uniquePayerIdsForPolygon,
+            markerRules: loadedTopicRulesForMarker,
+            polygonRules: loadedTopicRulesForPolygon,
+          });
+          const newestMessages = messages.slice().reverse();
+          const messagesByPayer = new Map();
+          for (const message of newestMessages) {
+            const payerId = message && message.payer;
+            if (!payerId) continue;
+            let bucket = messagesByPayer.get(payerId);
+            if (!bucket) {
+              bucket = [];
+              messagesByPayer.set(payerId, bucket);
             }
+            bucket.push(message);
           }
-
-          if (hasRulesForPolygon) {
-
-            // Iterate over each unique payer ID for polygons
-            for (const payerId of uniquePayerIdsForPolygon) {
-              let numberOfMessages = 0;
-              for (const rule of loadedTopicRulesForPolygon) {
-                const filteredNftsForPoly = await getAccountNFTs(payerId, rule.polygonTopicId);
-                if (filteredNftsForPoly.length > 0) {
-                  numberOfMessages += filteredNftsForPoly.length * Number(rule.polygonMessagesPerNft);
-                }
-              }
-
-              const numberOfPolygon = [];
-              polygonOwnershipArray.push({ payerId, numberOfMessages, numberOfPolygon });
-            }
-          }
-
-          if (!hasRulesForMarker) {
-          for (const payerId of uniquePayerIdsForMarker) {
-            const numberOfMarker = [];
-            markerOwnershipArray.push({ payerId, numberOfMarker });
-          }
-        }
-        if (!hasRulesForPolygon) {
-          for (const payerId of uniquePayerIdsForPolygon) {
-            const numberOfPolygon = [];
-            polygonOwnershipArray.push({ payerId, numberOfPolygon });
-          }
-        }
-          // Process each message
-          for (let index = messages.length - 1; index >= 0; index--) {
-            const message = messages[index];
+          const drawState = { batch: newestMessages };
+          const payerWaiting = (payerId) => {
+            const markerOwner = markerOwnershipArray.find((owner) => owner.payerId === payerId);
+            const polygonOwner = polygonOwnershipArray.find((owner) => owner.payerId === payerId);
+            return !!((markerOwner && markerOwner.pending) || (polygonOwner && polygonOwner.pending));
+          };
+          const drawLoaded = async () => {
+          const drawBatch = drawState.batch;
+          for (let index = 0; index < drawBatch.length; index++) {
+            const message = drawBatch[index];
+            if (message && message.payer && payerWaiting(message.payer)) continue;
             try {
               let parsedMessage = message;
               let decryptedMessage;
@@ -2937,11 +3132,26 @@ if (rawResult && Array.isArray(rawResult)) {
               console.error(`Error processing message ${index}:`, messageError);
             }
           }
+          };
 
+          await showDrawingsAsApproved({
+            messages,
+            messagesByPayer,
+            drawState,
+            drawLoaded,
+            payerWaiting,
+            holdings,
+            payerIds,
+            markerOwnershipArray,
+            polygonOwnershipArray,
+            markerRules: loadedTopicRulesForMarker,
+            polygonRules: loadedTopicRulesForPolygon,
+            hasRulesForMarker,
+            hasRulesForPolygon,
+            features: topicGeojsonFeatures,
+            polygonsOut: topicPolygons,
+          });
 
-        // At the end of the function, push the collected features to the parent arrays
-        geojson.features.push(...topicGeojsonFeatures); // Push topic features to parent geojson array
-        polygons.push(...topicPolygons); // Push topic polygons to parent polygons array
         return { topicGeojsonFeatures, topicPolygons };
 
 
@@ -3385,59 +3595,44 @@ if (rawResult && Array.isArray(rawResult)) {
         }
       }
 
-          // Ownership logic
-          const markerOwnershipArray = [];
-          const polygonOwnershipArray = [];
-
-
-          if (hasRulesForMarker) {
-            // Iterate over each unique payer ID for markers
-            for (const payerId of uniquePayerIdsForMarker) {
-              let numberOfMessages = 0;
-              for (const rule of loadedTopicRulesForMarker) {
-                const filteredNftsForMarker = await getAccountNFTs(payerId, rule.markerTopicId);
-                if (filteredNftsForMarker.length > 0) {
-                  numberOfMessages += filteredNftsForMarker.length * Number(rule.markerMessagesPerNft);
-                }
-              }
-
-              const numberOfMarker = [];
-              markerOwnershipArray.push({ payerId, numberOfMessages, numberOfMarker });
+          // Cached holdings draw immediately. Missing accounts stay pending
+          // until their token list returns.
+          const {
+            holdings,
+            markerOwnershipArray,
+            polygonOwnershipArray,
+            payerIds,
+          } = await assignDrawingOwnership({
+            hasRulesForMarker,
+            hasRulesForPolygon,
+            markerPayers: uniquePayerIdsForMarker,
+            polygonPayers: uniquePayerIdsForPolygon,
+            markerRules: loadedTopicRulesForMarker,
+            polygonRules: loadedTopicRulesForPolygon,
+          });
+          const newestMessages = messages.slice().reverse();
+          const messagesByPayer = new Map();
+          for (const message of newestMessages) {
+            const payerId = message && message.payer;
+            if (!payerId) continue;
+            let bucket = messagesByPayer.get(payerId);
+            if (!bucket) {
+              bucket = [];
+              messagesByPayer.set(payerId, bucket);
             }
+            bucket.push(message);
           }
-
-          if (hasRulesForPolygon) {
-
-            // Iterate over each unique payer ID for polygons
-            for (const payerId of uniquePayerIdsForPolygon) {
-              let numberOfMessages = 0;
-              for (const rule of loadedTopicRulesForPolygon) {
-                const filteredNftsForPoly = await getAccountNFTs(payerId, rule.polygonTopicId);
-                if (filteredNftsForPoly.length > 0) {
-                  numberOfMessages += filteredNftsForPoly.length * Number(rule.polygonMessagesPerNft);
-                }
-              }
-
-              const numberOfPolygon = [];
-              polygonOwnershipArray.push({ payerId, numberOfMessages, numberOfPolygon });
-            }
-          }
-
-          if (!hasRulesForMarker) {
-          for (const payerId of uniquePayerIdsForMarker) {
-            const numberOfMarker = [];
-            markerOwnershipArray.push({ payerId, numberOfMarker });
-          }
-        }
-        if (!hasRulesForPolygon) {
-          for (const payerId of uniquePayerIdsForPolygon) {
-            const numberOfPolygon = [];
-            polygonOwnershipArray.push({ payerId, numberOfPolygon });
-          }
-        }
-          // Process each message
-          for (let index = messages.length - 1; index >= 0; index--) {
-            const message = messages[index];
+          const drawState = { batch: newestMessages };
+          const payerWaiting = (payerId) => {
+            const markerOwner = markerOwnershipArray.find((owner) => owner.payerId === payerId);
+            const polygonOwner = polygonOwnershipArray.find((owner) => owner.payerId === payerId);
+            return !!((markerOwner && markerOwner.pending) || (polygonOwner && polygonOwner.pending));
+          };
+          const drawLoaded = async () => {
+          const drawBatch = drawState.batch;
+          for (let index = 0; index < drawBatch.length; index++) {
+            const message = drawBatch[index];
+            if (message && message.payer && payerWaiting(message.payer)) continue;
             try {
               let parsedMessage = message;
 
@@ -3637,11 +3832,26 @@ if (rawResult && Array.isArray(rawResult)) {
               console.error(`Error processing message ${index}:`, messageError);
             }
           }
+          };
 
+          await showDrawingsAsApproved({
+            messages,
+            messagesByPayer,
+            drawState,
+            drawLoaded,
+            payerWaiting,
+            holdings,
+            payerIds,
+            markerOwnershipArray,
+            polygonOwnershipArray,
+            markerRules: loadedTopicRulesForMarker,
+            polygonRules: loadedTopicRulesForPolygon,
+            hasRulesForMarker,
+            hasRulesForPolygon,
+            features: topicGeojsonFeatures,
+            polygonsOut: topicPolygons,
+          });
 
-        // At the end of the function, push the collected features to the parent arrays
-        geojson.features.push(...topicGeojsonFeatures); // Push topic features to parent geojson array
-        polygons.push(...topicPolygons); // Push topic polygons to parent polygons array
         return { topicGeojsonFeatures, topicPolygons };
 
 
