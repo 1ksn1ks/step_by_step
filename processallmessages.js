@@ -1923,11 +1923,11 @@ const countAllMessages = (nodes) => nodes.reduce((sum, n) => sum + 1 + (n.replie
 
 // Comment section for marker/polygon popups: the list of comments below the
 // message plus a box to leave your own. Hidden until 💬 is pressed.
-// Glass card: rounded corners, blur, thin white border (app-wide glass look).
+// Light panel: rounded corners, thin white border, no live blur.
 function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
   const section = document.createElement('div');
   section.id = id;
-  section.style.cssText = 'display: none; margin-top: calc(var(--u) * 1); padding: calc(var(--u) * 1); border-radius: calc(var(--u) * 1.2); background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(calc(var(--u) * 1)); -webkit-backdrop-filter: blur(calc(var(--u) * 1)); border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.15); text-align: left;';
+  section.style.cssText = 'display: none; margin-top: calc(var(--u) * 1); padding: calc(var(--u) * 1); border-radius: calc(var(--u) * 1.2); background: rgba(255, 255, 255, 0.10); border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.15); text-align: left;';
 
   const list = document.createElement('div');
   list.className = 'comments-scroll';
@@ -2264,7 +2264,7 @@ function openCommentsModal(sectionId) {
   wrapper.style.cssText = 'position: fixed; inset: 0; z-index: 5000;';
 
   const scrim = document.createElement('div');
-  scrim.style.cssText = 'position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);';
+  scrim.style.cssText = 'position: absolute; inset: 0; background: rgba(0, 0, 0, 0.72);';
   scrim.onclick = closeCommentsModal;
   scrim.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
   wrapper.appendChild(scrim);

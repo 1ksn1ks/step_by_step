@@ -114,9 +114,7 @@ html, body {
   }
   
   .options-and-topic {
-    background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    background-color: rgba(15, 15, 20, 0.86);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
     padding: 0.8vh 0.45vh;
@@ -145,9 +143,7 @@ html, body {
   inset: 0;
   top: 10vh;
   z-index: 1003;
-  background: rgba(8, 8, 18, 0.68);
-  -webkit-backdrop-filter: blur(5px);
-  backdrop-filter: blur(5px);
+  background: rgba(8, 8, 18, 0.82);
   cursor: pointer;
   user-select: none;
   display: none;
@@ -164,9 +160,7 @@ html, body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: rgba(18, 18, 28, 0.78);
-  -webkit-backdrop-filter: blur(10px) saturate(150%);
-  backdrop-filter: blur(10px) saturate(150%);
+  background: rgba(18, 18, 28, 0.94);
   color: #e6e6f0;
   border-radius: 20px;
   padding: 3.2vh 1.53vh 2.6vh;
@@ -323,9 +317,7 @@ html, body {
     position: fixed;
     display: flex;
     flex-direction: column;
-    background-color: rgba(15, 15, 20, 0.55);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    background-color: rgba(15, 15, 20, 0.90);
     color: white;
     padding-top: 1.4vh;
     padding-bottom: 0.8vh;
@@ -351,9 +343,7 @@ html, body {
     position: fixed;
     left: 0;
     z-index: 1006;
-    background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    background-color: rgba(15, 15, 20, 0.86);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
     padding: 0.8vh 0.45vh;
@@ -451,9 +441,7 @@ html, body {
     position: fixed;
     display: flex;
     flex-direction: column;
-    background-color: rgba(15, 15, 20, 0.55);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    background-color: rgba(15, 15, 20, 0.90);
     color: white;
     border-radius: 2vh;
     z-index: 1001;
@@ -470,9 +458,7 @@ html, body {
   }
 
   .toolbar-containers {
-    background-color: rgba(15, 15, 20, 0.55);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    background-color: rgba(15, 15, 20, 0.90);
     color: white;
     border-radius: 4px;
     box-sizing: border-box;
@@ -645,8 +631,6 @@ html, body {
     margin-bottom: 0.5vh;
     height: 5vh;
     background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     border: 1px solid rgba(255, 255, 255, 0.3);
     animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
@@ -662,8 +646,6 @@ html, body {
     margin-bottom: 0.5vh;
     height: 5vh;
     background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     border: 1px solid rgba(255, 255, 255, 0.3);
     animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
     margin-left: 10.8vh;
@@ -681,8 +663,6 @@ html, body {
     margin-left: 0.45vh;
     height: 5vh;
     background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     border: 1px solid rgba(255, 255, 255, 0.3);
     animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
@@ -698,8 +678,6 @@ html, body {
     margin-bottom: 0.5vh;
     height: 5vh;
     background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     border: 1px solid rgba(255, 255, 255, 0.3);
     animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
@@ -969,8 +947,6 @@ html, body {
     overflow: hidden; /* Hide scrollbars */
     resize: none; /* Prevent manual resizing */
     background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     touch-action: auto; /* Enable touch interactions */
     animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
@@ -1017,9 +993,7 @@ html, body {
     position: fixed;
     inset: 0;
     z-index: 9600;
-    background: rgba(8, 8, 18, 0.68);
-    -webkit-backdrop-filter: blur(5px);
-    backdrop-filter: blur(5px);
+    background: rgba(8, 8, 18, 0.82);
   }
 
   .draw-date-card {
@@ -1035,8 +1009,6 @@ html, body {
     border-radius: 2vh;
     color: #e6e6f0;
     background: rgba(18, 18, 28, 0.92);
-    -webkit-backdrop-filter: blur(10px) saturate(150%);
-    backdrop-filter: blur(10px) saturate(150%);
     border: 1px solid rgba(34, 211, 238, 0.45);
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
   }
@@ -1332,16 +1304,12 @@ html, body {
     overflow: hidden; /* Hide scrollbars */
     resize: none; /* Prevent manual resizing */
     background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     touch-action: auto; /* Enable touch interactions */
     animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   
   .topic-chat-container {
-    background-color: rgba(15, 15, 20, 0.55);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    background-color: rgba(15, 15, 20, 0.90);
     color: white;
     border-radius: 2vh;
     box-sizing: border-box;
@@ -1371,8 +1339,6 @@ html, body {
     overflow: hidden; /* Hide scrollbars */
     resize: none; /* Prevent manual resizing */
     background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     touch-action: auto; /* Enable touch interactions */
     max-height: 50vh; /* Set maximum height */
     overflow-y: scroll; /* Explicitly enable vertical scrolling */
@@ -1425,8 +1391,6 @@ html, body {
     overflow: hidden; /* Hide scrollbars */
     resize: none; /* Prevent manual resizing */
     background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     touch-action: auto; /* Enable touch interactions */
     text-align: left; /* Center-align the text */
     text-shadow: 0 0 0.5vh black;
@@ -1452,9 +1416,7 @@ html, body {
   }
   
   .connect-wallet-buttons {
-    background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    background-color: rgba(15, 15, 20, 0.86);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
     padding: 0.8vh 0.45vh;
@@ -1467,9 +1429,7 @@ html, body {
   
   #disconnect-wallet-btn {
     display: none;
-    background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    background-color: rgba(15, 15, 20, 0.86);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
     padding: 0.8vh 0.45vh;
@@ -1495,9 +1455,9 @@ html, body {
   }
   
   #local-clock {
-    background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    display: inline-flex;
+    align-items: center;
+    background-color: rgba(15, 15, 20, 0.86);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
     padding: 0.8vh 0.45vh;
@@ -1514,9 +1474,7 @@ html, body {
     position: fixed;
     top: 2px;
     right: 2px;
-    background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    background-color: rgba(15, 15, 20, 0.86);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
     padding: 0.8vh 0.45vh;
@@ -1529,9 +1487,7 @@ html, body {
   }
   
   .touch-button {
-    background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    background-color: rgba(15, 15, 20, 0.86);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
     padding: 0.5vh;
@@ -1610,9 +1566,7 @@ html, body {
   }
   
   .zoom-button {
-    background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    background-color: rgba(15, 15, 20, 0.86);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
     width: 8vh;
@@ -1636,9 +1590,7 @@ html, body {
     top: 6.5vh;
     left: 0;
     z-index: 1006;
-    background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    background-color: rgba(15, 15, 20, 0.86);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
     padding: 0.8vh 0.45vh;
@@ -1670,9 +1622,7 @@ html, body {
     font-size: 1.6vh;
     line-height: 1;
     z-index: 1005;
-    background-color: rgba(10, 10, 18, 0.55);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    background-color: rgba(10, 10, 18, 0.88);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.25);
     border-radius: 50%;
@@ -1681,7 +1631,7 @@ html, body {
   }
 
   #search-toggle-btn:hover {
-    background-color: rgba(30, 30, 42, 0.65);
+    background-color: rgba(30, 30, 42, 0.94);
     border-color: rgba(255, 255, 255, 0.45);
   }
 
@@ -1700,9 +1650,7 @@ html, body {
     width: auto; /* sized from its `size` attr — grows with the typed text */
     max-width: 98vw;
     box-sizing: border-box;
-    background-color: rgba(15, 15, 20, 0.45);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    background-color: rgba(15, 15, 20, 0.86);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 2vh;
@@ -1726,9 +1674,7 @@ html, body {
     justify-content: center;
     font-size: 1.8vh;
     line-height: 1;
-    background-color: rgba(10, 10, 18, 0.55);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
+    background-color: rgba(10, 10, 18, 0.88);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.25);
     border-radius: 50%;
@@ -1737,7 +1683,7 @@ html, body {
   }
 
   #search-clear-btn:hover {
-    background-color: rgba(30, 30, 42, 0.65);
+    background-color: rgba(30, 30, 42, 0.94);
     border-color: rgba(255, 255, 255, 0.45);
   }
 
@@ -1755,9 +1701,7 @@ html, body {
     top: calc(100% + 0.5vh);
     left: 0;
     width: 100%;
-    background-color: rgba(15, 15, 20, 0.75);
-    -webkit-backdrop-filter: blur(8px) saturate(150%);
-    backdrop-filter: blur(8px) saturate(150%);
+    background-color: rgba(15, 15, 20, 0.94);
     border: 0.1vh solid rgba(34, 211, 238, 0.6);
     border-radius: 2vh;
     overflow-y: auto;
@@ -1802,9 +1746,7 @@ html, body {
   .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-geolocate {
       width: 3vh; /* Standard button size */
       height: 3vh; /* Square button */
-      background-color: rgba(10, 10, 18, 0.55); /* Dark glass, matches app theme */
-      -webkit-backdrop-filter: blur(8px) saturate(140%);
-      backdrop-filter: blur(8px) saturate(140%);
+      background-color: rgba(10, 10, 18, 0.88); /* Dark glass, matches app theme */
       border: 1px solid rgba(255, 255, 255, 0.25);
       border-radius: 50%; /* Circular button */
       cursor: pointer; /* Pointer cursor */
@@ -1813,7 +1755,7 @@ html, body {
 
   .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-compass:hover,
   .maplibregl-ctrl.maplibregl-ctrl-group button.maplibregl-ctrl-geolocate:hover {
-      background-color: rgba(30, 30, 42, 0.65);
+      background-color: rgba(30, 30, 42, 0.94);
       border-color: rgba(255, 255, 255, 0.45);
   }
 
@@ -1878,11 +1820,9 @@ html, body {
     z-index: 1000 !important;
     border: calc(var(--u) * 0.3) solid #ffffff;
     border-radius: calc(var(--u) * 2);
-    /* The glass lives on the shell. A rounded content box inside the border
+    /* Solid fill on the shell. A rounded content box inside the border
        left a see-through crescent in the corners. */
-    background-color: rgba(15, 15, 20, 0.55);
-    -webkit-backdrop-filter: blur(6px) saturate(140%);
-    backdrop-filter: blur(6px) saturate(140%);
+    background-color: rgba(15, 15, 20, 0.90);
     overflow: hidden !important;
     clip-path: inset(0 round calc(var(--u) * 2));
 }
@@ -2040,8 +1980,6 @@ html, body {
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.10);
     border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     font-size: calc(var(--u) * 1.36);
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -2066,8 +2004,6 @@ html, body {
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.07);
     border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.16);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.12);
   }
 
@@ -2082,8 +2018,6 @@ html, body {
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.07);
     border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.18);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.12), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.3);
   }
 
@@ -2106,8 +2040,6 @@ html, body {
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.10);
     border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.35);
   }
 
@@ -2120,8 +2052,6 @@ html, body {
     border-radius: calc(var(--u) * 2);
     background: rgba(255, 255, 255, 0.07);
     border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.16);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.12);
   }
 
@@ -2139,8 +2069,6 @@ html, body {
     line-height: 1;
     border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
     background: rgba(255, 255, 255, 0.10);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.35);
     padding: 0;
     margin: 0;
@@ -2165,8 +2093,6 @@ html, body {
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.10);
     border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     font-size: calc(var(--u) * 1.5);
     line-height: 1;
     color: white;
@@ -2187,8 +2113,6 @@ html, body {
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.07);
     border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.16);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.12);
   }
 
@@ -2237,8 +2161,6 @@ html, body {
   .heart-like label {
     background: rgba(255, 255, 255, 0.10);
     border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.35);
     width: 100%;
     height: 100%;
@@ -2697,9 +2619,7 @@ html, body {
     display: flex;
     align-items: center;
     gap: 0.36vh;
-    background: rgba(18, 18, 28, 0.78);
-    -webkit-backdrop-filter: blur(10px) saturate(150%);
-    backdrop-filter: blur(10px) saturate(150%);
+    background: rgba(18, 18, 28, 0.92);
     color: #e6e6f0;
     border: 1px solid rgba(34, 211, 238, 0.85);
     border-radius: 18px;
@@ -2861,9 +2781,7 @@ html, body {
     padding: 1vh 1.4vh;
     font-size: 1.8vh;
     color: white;
-    background: rgba(15, 15, 20, 0.85);
-    backdrop-filter: blur(1.5vh);
-    -webkit-backdrop-filter: blur(1.5vh);
+    background: rgba(15, 15, 20, 0.92);
     border: 0.06vh solid rgba(255, 255, 255, 0.25);
     border-radius: 1.2vh;
     cursor: pointer;
@@ -2891,9 +2809,7 @@ html, body {
   .onboard-scrim {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.78);
   }
 
   .onboard-card {
@@ -3104,8 +3020,6 @@ html, body {
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.07);
     border: 0.12vh solid rgba(255, 255, 255, 0.18);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     box-shadow: inset 0 0.15vh 0 rgba(255, 255, 255, 0.12), 0 0.4vh 1vh rgba(0, 0, 0, 0.3);
   }
 
@@ -3247,8 +3161,6 @@ html, body {
     height: 3.2vh;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.12);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     border: 1px solid rgba(255, 255, 255, 0.3);
     color: white;
     font-size: 1.8vh;
@@ -3271,8 +3183,6 @@ html, body {
     height: 3.2vh;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.12);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     border: 1px solid rgba(255, 255, 255, 0.3);
     color: white;
     font-size: 1.8vh;
@@ -3311,8 +3221,6 @@ html, body {
 
   .mb-panel .mb-card {
     background: rgba(255, 255, 255, 0.06);
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 1.6vh;
     padding: 1.2vh 1.4vh 0.8vh;
@@ -3435,8 +3343,6 @@ html, body {
     color: white;
     font-family: inherit;
     cursor: default;
-    -webkit-backdrop-filter: blur(8px) saturate(140%);
-    backdrop-filter: blur(8px) saturate(140%);
   }
 
   /* Visibility panel preview: a polygon over a checkered background so
@@ -3900,8 +3806,6 @@ html, body {
   border-radius: 50%;
   border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.10);
-  -webkit-backdrop-filter: blur(8px) saturate(140%);
-  backdrop-filter: blur(8px) saturate(140%);
   color: white;
   font-size: calc(var(--u) * 1.5);
   line-height: 1;
@@ -3932,8 +3836,6 @@ html, body {
   height: 100vh;
   height: 100dvh;
   background: rgba(3, 4, 8, 0.94);
-  -webkit-backdrop-filter: blur(24px) saturate(120%);
-  backdrop-filter: blur(24px) saturate(120%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3971,8 +3873,6 @@ html, body {
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.10);
-  -webkit-backdrop-filter: blur(8px) saturate(140%);
-  backdrop-filter: blur(8px) saturate(140%);
   color: rgba(255, 255, 255, 0.9);
   font-size: 1.8vh;
   line-height: 1;
@@ -4012,9 +3912,7 @@ html, body {
   box-sizing: border-box;
   padding: 2.2vh 2vh 1.8vh;
   border-radius: 2vh;
-  background: rgba(18, 18, 28, 0.9);
-  -webkit-backdrop-filter: blur(10px) saturate(150%);
-  backdrop-filter: blur(10px) saturate(150%);
+  background: rgba(18, 18, 28, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow: 0 2vh 5vh rgba(0, 0, 0, 0.45);
   color: #e6e6f0;
