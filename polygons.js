@@ -77,8 +77,13 @@ rasterOpacitySlider.addEventListener("input", (event) => {
   mbPolyPreview.style.opacity = event.target.value;
 });
 
-async function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackUrl = null) {
-  return new Promise((resolve, reject) => {
+const resizedImageCache = new Map();
+
+function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackUrl = null) {
+  const key = `${imageUrl}|${maxWidth}|${maxHeight}`;
+  const cached = resizedImageCache.get(key);
+  if (cached) return cached;
+  const pending = new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
 
@@ -134,6 +139,9 @@ async function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fal
 
     img.src = imageUrl;
   });
+  resizedImageCache.set(key, pending);
+  pending.catch(() => {});
+  return pending;
 }
 
 // ── Animated covers (gif / video) ────────────────────────────────────────
