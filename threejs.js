@@ -5,7 +5,10 @@ import { updateMoon, moonScreen } from './moon.js';
 
 export const scene = new THREE.Scene();
 
-export const renderer = new THREE.WebGLRenderer({ alpha: true });
+// preserveDrawingBuffer keeps the last star frame on the canvas while the
+// loop below skips redraws. Without it the browser may clear the canvas
+// after compositing, and a still map would lose its stars.
+export const renderer = new THREE.WebGLRenderer({ alpha: true, preserveDrawingBuffer: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 document
@@ -94,15 +97,40 @@ let prevLat = 0;
 let coordTextLen = -1;
 const lerpFactor = 0.05; // Controls smoothness
 
-// Stars only show in space: the globe is a circle centered on the map center —
-// cull any star that falls inside it (re-checked on every render). The moon is
-// a DOM div painted UNDER this canvas, so stars over it would show through —
-// cull the moon's circle the same way (moonScreen: {x, y, half} or null,
-// refreshed every frame by updateMoon() before the render).
+// Stars only show in space: the globe is a circle centered on the map center.
+// The moon is a DOM div painted UNDER this canvas, so stars over it would
+// show through — cull that circle too (moonScreen: {x, y, half} or null).
+// Both checks run when the picture can change: the map view, the catch-up
+// spin, the moon's screen circle, or a resize. A still sky keeps the last frame.
 let lastRenderTime = 0;
 let globeCenterX = 0;
 let globeCenterY = 0;
 let globeRadius = 0;
+let heldLat = null;
+let heldLng = null;
+let heldZoom = null;
+let heldBearing = null;
+let heldPitch = null;
+let heldMoon = '';
+let starsDirty = true;
+let resizeDirty = false;
+// ~0.1px at this camera. Snap the leftover so the glide can finish and stay finished.
+const ROT_EPS = 1e-4;
+
+function viewMoved(lat, lng, zoom, bearing, pitch) {
+  if (heldLat === null) return true;
+  return Math.abs(lat - heldLat) > 1e-7
+    || Math.abs(lng - heldLng) > 1e-7
+    || Math.abs(zoom - heldZoom) > 1e-5
+    || Math.abs(bearing - heldBearing) > 1e-4
+    || Math.abs(pitch - heldPitch) > 1e-4;
+}
+
+function moonBucket() {
+  const moon = moonScreen;
+  if (!moon) return 'none';
+  return `${Math.round(moon.x)}|${Math.round(moon.y)}|${Math.round(moon.half)}`;
+}
 
 function updateGlobeRadius() {
   const c = map.getCenter();
@@ -212,19 +240,47 @@ function animate(now) {
     targetRotationY -= (deltaLng * Math.PI) / 180; // Full rotation mapping
     targetRotationX += (deltaLat * Math.PI) / 180;
   
-    // Apply lerp for smooth rotation
-    stars.rotation.y += (targetRotationY - stars.rotation.y) * lerpFactor;
-    stars.rotation.x += (targetRotationX - stars.rotation.x) * lerpFactor;
+    // Glide toward the map, then snap the last fraction of a pixel.
+    // Leaving the lerp running would creep forever and never count as still.
+    const dy = targetRotationY - stars.rotation.y;
+    const dx = targetRotationX - stars.rotation.x;
+    let spinning = false;
+    if (Math.abs(dy) < ROT_EPS && Math.abs(dx) < ROT_EPS) {
+      if (dy !== 0 || dx !== 0) {
+        stars.rotation.y = targetRotationY;
+        stars.rotation.x = targetRotationX;
+        spinning = true;
+      }
+    } else {
+      stars.rotation.y += dy * lerpFactor;
+      stars.rotation.x += dx * lerpFactor;
+      spinning = true;
+    }
+
+    updateMoon();
+    const moonNow = moonBucket();
+    if (viewMoved(center.lat, center.lng, map.getZoom(), map.getBearing(), map.getPitch())
+      || spinning
+      || moonNow !== heldMoon
+      || resizeDirty) {
+      starsDirty = true;
+    }
+    // Settled sky: keyboard and the readout already ran. Leave the last frame up.
+    if (!starsDirty) return;
+    if (!resizeDirty && now - lastRenderTime < 16) return;
 
     updateGlobeRadius();
-    updateMoon();
-
-    // Render the starfield at most 60x per second
-    if (now - lastRenderTime >= 16) {
-      cullStarsToSpace();
-      renderer.render(scene, camera);
-      lastRenderTime = now;
-    }
+    cullStarsToSpace();
+    renderer.render(scene, camera);
+    lastRenderTime = now || performance.now();
+    heldLat = center.lat;
+    heldLng = center.lng;
+    heldZoom = map.getZoom();
+    heldBearing = map.getBearing();
+    heldPitch = map.getPitch();
+    heldMoon = moonNow;
+    starsDirty = false;
+    resizeDirty = false;
   }
   
   // Initialize with starting longitude and latitude
@@ -241,6 +297,7 @@ function animate(now) {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     map.resize();
+    resizeDirty = true;
   });
   
   animate();
