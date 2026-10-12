@@ -654,16 +654,27 @@ map.on('zoomend', visPass);
 // first. Track the first 'load' and only wait for it if it has not fired.
 let styleLoadSeen = false;
 map.on('load', () => { styleLoadSeen = true; });
+// Held from the moment an add starts until addSource finishes. The resize
+// await is the gap where a second caller used to pass the getSource check.
+const pendingPolygonSources = new Set();
 
 export async function addPolygonWithImageFill(map, polygon) {
     const sourceId = `${polygon.id}-source`;
     const layerId = `${polygon.id}-image-layer`;
     const maskLayerId = `${polygon.id}-mask-layer`;
-  
-    // Check if the source already exists
-    if (map.getSource(sourceId)) {
-      return; // Skip adding this polygon if the source already exists
+
+    if (pendingPolygonSources.has(sourceId) || map.getSource(sourceId)) {
+      return;
     }
+    pendingPolygonSources.add(sourceId);
+    try {
+    await addPolygonSource(map, polygon, sourceId, layerId, maskLayerId);
+    } finally {
+      pendingPolygonSources.delete(sourceId);
+    }
+}
+
+async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
 
     // A fresh add creates a NEW mask layer (the old one was removed with the
     // source), so a stale addedLayers entry from a previous topic load is

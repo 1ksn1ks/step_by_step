@@ -246,17 +246,15 @@ export function updateClusters(force = true) {
         const face = document.createElement("div");
         face.className = "marker-face" + (livePointCoords.has(twinKey) ? " live-twin" : "");
         el.appendChild(face);
-        try {
-          const lowQualityUrl = await createLowQualityImage(cluster.properties.imageUrl);
+        const lowQualityUrl = await createLowQualityImage(cluster.properties.imageUrl);
+        if (lowQualityUrl) {
           face.style.backgroundImage = `url(${lowQualityUrl})`;
-
           const img = new Image();
           img.onload = () => {
             face.style.backgroundImage = `url(${cluster.properties.imageUrl})`;
           };
           img.src = cluster.properties.imageUrl;
-        } catch (error) {
-          console.error("Error loading marker image:", error);
+        } else {
           face.style.backgroundColor = "rgba(255, 255, 255, 0.8)";
         }
         const markerTitle = String(cluster.properties.title || "").trim();
@@ -319,33 +317,35 @@ export function updateClusters(force = true) {
   }
 
   function createLowQualityImage(imageUrl, size = 32) {
+    if (!imageUrl) return Promise.resolve(null);
     const cached = lowQualityImageCache.get(imageUrl);
-    if (cached) return Promise.resolve(cached);
-    return new Promise((resolve, reject) => {
+    if (cached) return cached;
+    // Stored before img.src so a cluster rebuild shares this one request.
+    // A missing file rejects once; later markers reuse that result.
+    const pending = new Promise((resolve) => {
       const img = new Image();
       img.crossOrigin = "Anonymous";
       img.onload = () => {
-        // Create a small canvas for the low quality version
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        // CPU-backed canvas: toDataURL here must not churn GPU readbacks
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-        // Same center crop as the On markers preview (object-fit: cover).
-        const side = Math.min(img.width, img.height);
-        const sx = (img.width - side) / 2;
-        const sy = (img.height - side) / 2;
-        ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
-
-        // Convert to low quality JPEG-like format
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
-        lowQualityImageCache.set(imageUrl, dataUrl);
-        resolve(dataUrl);
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          const side = Math.min(img.width, img.height);
+          const sx = (img.width - side) / 2;
+          const sy = (img.height - side) / 2;
+          ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+          resolve(canvas.toDataURL('image/jpeg', 0.5));
+        } catch {
+          resolve(null);
+        }
       };
-      img.onerror = reject;
+      img.onerror = () => resolve(null);
       img.src = imageUrl;
-    });}
+    });
+    lowQualityImageCache.set(imageUrl, pending);
+    return pending;
+  }
   }
   
   
