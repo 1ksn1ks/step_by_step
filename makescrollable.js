@@ -302,6 +302,11 @@ export function makeScrollable(el) {
   makeScrollable(document.getElementById('loaded-topic-rules-for-utility'));
   makeScrollable(document.getElementById('loaded-memo-for-topic'));
   makeScrollable(document.getElementById('loaded-memo-for-fee'));
+  makeScrollable(document.getElementById('loaded-bio-for-topic'));
+  makeScrollable(document.getElementById('loaded-name-for-topic'));
+  makeScrollable(document.getElementById('loaded-stack-for-topic'));
+  makeScrollable(document.getElementById('loaded-xyz-for-topic'));
+  makeScrollable(document.getElementById('initial-xyz-column-container'));
 
   // Settings panels (glass mb-panel cards)
   makeScrollable(document.getElementById('main-button-column-container'));

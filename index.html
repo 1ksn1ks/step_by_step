@@ -348,6 +348,7 @@
             <li>Load messages from a topic ID or a linked domain.</li>
             <li>Stacked topics (multiple IDs on one domain) load together, with the creator's names.</li>
             <li><b>Options</b> — filter by blocked users, a date/time range, or specific users.</li>
+            <li><b>Saved on this phone</b> — a topic you load stays here. The next load fetches only new messages. Names, pictures, links, and bios stay here too, and the next open fetches only accounts that changed.</li>
           </ul>
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('load-options-help-overlay').style.display='none'">Got it</button>
@@ -913,6 +914,12 @@
           <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-initial-xyz" placeholder="Domain/Topic ID"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
+          <label for="loaded-xyz-for-topic" style=" font-size: 2vh;padding: 0px;">Current XYZ:
+          </label>
+          <div class="toolbar-column-loaded-rules" style="user-select: text; white-space: pre-wrap; word-break: break-word;" id="loaded-xyz-for-topic"
+          onclick="event.stopPropagation();"></div>
+          <button id="load-xyz-for-topic" class="toolbar-column-btns">Load XYZ
+          </button>
 
           <textarea class="toolbar-column" type="text" id="input-field-lng-lat-for-initial-xyz" placeholder="lng,lat"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
@@ -1107,6 +1114,7 @@
             <li><b>Domain/Topic ID</b> — the topic to edit.</li>
             <li><b>Private key</b> — signs and approves the change.</li>
             <li><b>Admins</b> — who can set this topic's rules. Load memo shows the current memo before you change it.</li>
+            <li><b>Update bio</b> and <b>Topic name</b> — Load bio and Load name fill the current text before you change it.</li>
             <li><b>Optional fee</b> — make users pay per message posted.</li>
             <li><b>Set amount</b> — the fee per message.</li>
             <li><b>Token ID</b> — the Hedera token received as payment.</li>
@@ -1151,6 +1159,12 @@
             <textarea class="toolbar-column" type="text" id="input-field-topic-id-bio" placeholder="Domain/Topic ID"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
+            <label for="loaded-bio-for-topic" style=" font-size: 2vh;padding: 0px;">Current bio:
+            </label>
+            <div class="toolbar-column-loaded-rules" style="user-select: text; white-space: pre-wrap; word-break: break-word;" id="loaded-bio-for-topic"
+            onclick="event.stopPropagation();"></div>
+            <button id="load-bio-for-topic" class="toolbar-column-btns">Load bio
+            </button>
             <div style="position: relative;">
               <textarea class="toolbar-column" type="text" id="topic-bio-input" placeholder="Topic bio (max 256 characters)" maxlength="256"
               onclick="event.stopPropagation();"
@@ -1216,6 +1230,12 @@
             <textarea class="toolbar-column" type="text" id="input-field-topic-id-name" placeholder="Domain/Topic ID"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
+            <label for="loaded-name-for-topic" style=" font-size: 2vh;padding: 0px;">Current name:
+            </label>
+            <div class="toolbar-column-loaded-rules" style="user-select: text; white-space: pre-wrap; word-break: break-word;" id="loaded-name-for-topic"
+            onclick="event.stopPropagation();"></div>
+            <button id="load-name-for-topic" class="toolbar-column-btns">Load name
+            </button>
             <textarea class="toolbar-column" type="text" id="input-field-topic-name" placeholder="New name"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
@@ -1234,6 +1254,7 @@
             <li>Stack one or more topics under a parent topic.</li>
             <li><b>Domain/Topic ID</b> — the parent topic.</li>
             <li><b>Topic ID/IDs</b> — one or more topic IDs, comma-separated.</li>
+            <li><b>Load topics</b> — fills that field with the topics stacked now.</li>
           </ul>
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('stack-topic-ids-help-overlay').style.display='none'">Got it</button>
@@ -1252,6 +1273,12 @@
           <textarea class="toolbar-column" type="text" id="stack-topic-ids-topic" placeholder="Domain/Topic ID"
           click="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
+          <label for="loaded-stack-for-topic" style=" font-size: 2vh;padding: 0px;">Current topics:
+          </label>
+          <div class="toolbar-column-loaded-rules" style="user-select: text; white-space: pre-wrap; word-break: break-word;" id="loaded-stack-for-topic"
+          onclick="event.stopPropagation();"></div>
+          <button id="load-stack-for-topic" class="toolbar-column-btns">Load topics
+          </button>
           <textarea class="toolbar-column" type="text" id="stack-topic-add-remove-topic" placeholder="Topic ID/IDs 0.0.1,0.0.2.."
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>

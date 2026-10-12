@@ -127,15 +127,22 @@ async function fetchWithRetry(url, retries = 3, delay = 1000) {
 
 export async function getMessages(
   topicId,
+  { afterSeq = 0 } = {},
 ) {
 
   const baseUrl = `https://mainnet.mirrornode.hedera.com`;
-  
-  let timestampQuery = '';
+  const after = Number(afterSeq) || 0;
 
-  let url = `${baseUrl}/api/v1/topics/${topicId}/messages?limit=100${timestampQuery}`;
-  
+  // Walk forward from the oldest message, or from the sequence already
+  // saved. The mirror's default order is newest-first, which would pin the
+  // watermark on the newest page and never go back for the rest if a
+  // download stopped. order=asc lets the next open continue from lastSequence.
+  let url = after > 0
+    ? `${baseUrl}/api/v1/topics/${topicId}/messages?limit=100&order=asc&sequencenumber=gt:${after}`
+    : `${baseUrl}/api/v1/topics/${topicId}/messages?limit=100&order=asc`;
+
   const allMessages = [];
+  let lastSequence = after;
 
   try {
     while (url) {
@@ -146,6 +153,8 @@ export async function getMessages(
       let nextLink = data.links?.next || null;
 
       for (const msg of messages) {
+        const seq = Number(msg.sequence_number);
+        if (Number.isFinite(seq) && seq > lastSequence) lastSequence = seq;
         try {
           const decoded = Buffer.from(msg.message, 'base64').toString('utf-8');
           const parsedMessage = JSON.parse(decoded);
@@ -174,12 +183,15 @@ export async function getMessages(
     return {
       messages: allMessages,
       error: '',
+      lastSequence,
     };
   } catch (error) {
     console.error('Error fetching topic messages:', error);
+    allMessages.sort((a, b) => a.sequence_number - b.sequence_number);
     return {
-      messages: [],
+      messages: allMessages,
       error: error.message || error.toString(),
+      lastSequence,
     };
   }
 }

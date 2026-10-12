@@ -4,6 +4,7 @@ import { activeMarkerPopups } from './marker';
 import { CloseALL, OpenToggleToolbar } from './cssLogic';
 import { adjustTextareaHeight } from './adjusttextarea';
 import { fillTopicIds } from './topicidintext';
+import { payerUsernameNode } from './payerlink.js';
 
 const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const EMPTY_BIO = 'User has not set a bio yet. You can set yours by going to OPTIONS > TOOLBAR > EDIT > BIO';
@@ -90,17 +91,8 @@ export async function loadBio4PIC(payer) {
       const nameColor = colorOf('color-picker-popup-username', '#ff9933');
       if (name) {
         const nameSlot = document.createElement('div');
-        const nameEl = link ? document.createElement('a') : document.createElement('span');
-        nameEl.className = 'profile-live-name';
-        nameEl.textContent = name;
+        const nameEl = payerUsernameNode(name, link, { className: 'profile-live-name' });
         nameEl.style.color = nameColor;
-        nameEl.style.textDecoration = 'none';
-        if (link && validUrl(link)) {
-          nameEl.href = link;
-          nameEl.target = '_blank';
-          nameEl.rel = 'noopener noreferrer';
-        }
-        nameEl.addEventListener('click', (event) => event.stopPropagation());
         nameSlot.appendChild(nameEl);
         names.appendChild(nameSlot);
       }

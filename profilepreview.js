@@ -2,6 +2,7 @@
 // then swaps in whatever is currently typed or uploaded.
 import { connectedAccount } from './web3.js';
 import { profilePictures, usernames, click2url, topicBio } from './loadalladata.js';
+import { payerUsernameNode, safeHttpUrl } from './payerlink.js';
 
 const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 
@@ -45,15 +46,6 @@ function sectionOpen(id) {
   return !!el && el.style.display !== 'none';
 }
 
-function validUrl(value) {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
 function pictureUrl() {
   const box = document.getElementById('preview-profile-picture');
   const img = box && box.querySelector('img');
@@ -79,24 +71,12 @@ function render() {
   const link = (draftLink !== null ? draftLink : savedLink()).trim();
   const nameColor = colorOf('color-picker-popup-username', '#ff9933');
   nameEl.replaceChildren();
-  if (name && link) {
-    const anchor = document.createElement('a');
-    anchor.className = 'profile-live-name is-link';
-    anchor.textContent = name;
-    anchor.style.color = nameColor;
-    if (validUrl(link)) {
-      anchor.href = link;
-      anchor.target = '_blank';
-      anchor.rel = 'noopener noreferrer';
-    }
-    anchor.addEventListener('click', (event) => event.stopPropagation());
-    nameEl.appendChild(anchor);
-  } else if (name) {
-    const span = document.createElement('span');
-    span.className = 'profile-live-name';
-    span.textContent = name;
-    span.style.color = nameColor;
-    nameEl.appendChild(span);
+  if (name) {
+    const node = payerUsernameNode(name, link, {
+      className: safeHttpUrl(link) ? 'profile-live-name is-link' : 'profile-live-name'
+    });
+    node.style.color = nameColor;
+    nameEl.appendChild(node);
   }
 
   const bio = draftBio !== null ? draftBio : savedBio();

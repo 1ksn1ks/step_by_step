@@ -1,6 +1,6 @@
 import { adjustTextareaHeight } from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
-import { getMessages as getMessagesMirror, getAccountNFTs, getTopicInfo, subscribeToTopic } from './hedera';
+import { getAccountNFTs, getTopicInfo, subscribeToTopic } from './hedera';
 import { sendMessage, messageSig, streamOnTopic, streamOnReconnect } from './msgbackend';
 import { getTopicData } from './topicdata';
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
@@ -8,6 +8,7 @@ import { connectedAccount, signer } from './web3';
 import { profilePictures, usernames, click2url } from './loadalladata';
 import { toast } from './toast'
 import { expandEncryptedChat, scheduleEncryptedChatLayout } from './cssLogic.js';
+import { payerUsernameNode } from './payerlink.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
 import { fillChatMessage, packChatPayload, unpackChatPayload, pendingChatImage, chatImageBusy, clearPendingChatImage } from './chatimage.js';
 import { 
@@ -193,31 +194,10 @@ async function appendEncryptedChatMessage(
       headerDiv.appendChild(document.createTextNode('\u00A0'));
 
       const trimmedUsername = username.trim();
-      const trimmedClick2link = click2link.trim();
-
-      if (trimmedClick2link) {
-        const linkA = document.createElement('a');
-        try {
-          new URL(trimmedClick2link);
-          linkA.href = trimmedClick2link;
-        } catch (e) {}
-        linkA.target = '_blank';
-        linkA.rel = 'noopener noreferrer';
-        linkA.style.cssText = `
-          color: ${usernameTopicChatColor};
-          text-decoration: none;
-          font-size: ${headerFontSizeTopicChat}vh;
-        `;
-        linkA.textContent = trimmedUsername;
-        headerDiv.appendChild(linkA);
-      } else if (trimmedUsername) {
-        const span = document.createElement('span');
-        span.style.cssText = `
-          color: ${usernameTopicChatColor};
-          font-size: ${headerFontSizeTopicChat}vh;
-        `;
-        span.textContent = trimmedUsername;
-        headerDiv.appendChild(span);
+      if (trimmedUsername) {
+        headerDiv.appendChild(payerUsernameNode(trimmedUsername, click2link, {
+          cssText: `color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;`
+        }));
       }
 
       headerContainer.appendChild(headerDiv);
@@ -905,31 +885,10 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
       headerDiv.appendChild(document.createTextNode('\u00A0'));
 
       const trimmedUsername = username.trim();
-      const trimmedClick2link = click2link.trim();
-
-      if (trimmedClick2link) {
-        const linkA = document.createElement('a');
-        try {
-          new URL(trimmedClick2link);
-          linkA.href = trimmedClick2link;
-        } catch (e) {}
-        linkA.target = '_blank';
-        linkA.rel = 'noopener noreferrer';
-        linkA.style.cssText = `
-          color: ${usernameTopicChatColor};
-          text-decoration: none;
-          font-size: ${headerFontSizeTopicChat}vh;
-        `;
-        linkA.textContent = trimmedUsername;
-        headerDiv.appendChild(linkA);
-      } else if (trimmedUsername) {
-        const span = document.createElement('span');
-        span.style.cssText = `
-          color: ${usernameTopicChatColor};
-          font-size: ${headerFontSizeTopicChat}vh;
-        `;
-        span.textContent = trimmedUsername;
-        headerDiv.appendChild(span);
+      if (trimmedUsername) {
+        headerDiv.appendChild(payerUsernameNode(trimmedUsername, click2link, {
+          cssText: `color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;`
+        }));
       }
 
       headerContainer.appendChild(headerDiv);
@@ -1297,8 +1256,8 @@ document.getElementById("stack-encrypted-chat-change-password-button").addEventL
       return;
     }
 
-    // Admin flow scans full history for the admin's key message — mirror
-    const allmesages = await getMessagesMirror(topicId);
+    // Admin flow scans the saved history plus any messages after it.
+    const allmesages = await getTopicData(topicId);
     allLoadedMessagesEncryptedChat = [allmesages];
     
     const messages = allmesages.messages;

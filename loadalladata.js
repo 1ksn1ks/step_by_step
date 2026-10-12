@@ -1,46 +1,179 @@
 import { getTopicData as getMessages } from "./topicdata";
 import { fetchUserSettings } from "./msgbackend";
+import { readSettings, writeSettings } from "./settingscache.js";
+import { publishProfilePictures } from "./picturecache.js";
 
 export let profilePictures = [];
 export let usernames = [];
 export let click2url = [];
 export let topicBio = [];
 
-export async function loadAllData() {
-  // Fast path: one denormalized request — the backend already collapses the
-  // four profile topics to the latest valid value per account, so this stays
-  // tiny no matter how many updates exist. Falls back to the per-topic path
-  // below when the backend is offline or hasn't backfilled yet.
-  try {
-    const { ready, settings } = await fetchUserSettings();
-    if (ready) {
-      profilePictures = {};
-      usernames = {};
-      click2url = {};
-      topicBio = {};
-      for (const s of settings) {
-        if (s.profilePic) profilePictures[s.accountId] = { url: s.profilePic, timestamp: s.updatedAt };
-        if (s.username) usernames[s.accountId] = { username: s.username, timestamp: s.updatedAt };
-        if (s.click2url) click2url[s.accountId] = { click2url: s.click2url, timestamp: s.updatedAt };
-        if (s.bio) topicBio[s.accountId] = { topic_bio: s.bio, timestamp: s.updatedAt };
-      }
-      document.dispatchEvent(new CustomEvent('profiles-loaded'));
-      return { profilePictures, usernames, click2url, topicBio };
-    }
-  } catch (e) {
-    // fall through to the per-topic path
-  }
+// A change this phone just sent. It is shown immediately and is not written
+// into the saved copy. The next server card that matches it removes it. If
+// the message never lands, the next cold open shows the saved server value.
+const ownOverlay = new Map();
+let inflight = null;
+let toldCacheFull = false;
+let triedTopicFallback = false;
+const SETTINGS_POLL_MS = 30000;
 
-  profilePictures = await loadProfilePicture();
-  usernames       = await loadUsername();
-  click2url       = await loadCLICK2URL();
-  topicBio        = await loadTopicBio();
+function tellCacheFull() {
+  if (toldCacheFull) return;
+  toldCacheFull = true;
+  window.dispatchEvent(new CustomEvent('topic-cache-full'));
+}
 
-  document.dispatchEvent(new CustomEvent('profiles-loaded'));
+function snapshot() {
   return { profilePictures, usernames, click2url, topicBio };
 }
 
+function pictureList(accounts) {
+  const urls = [];
+  for (const row of accounts || []) {
+    if (row && row.profilePic) urls.push(row.profilePic);
+  }
+  return urls;
+}
+
+function applyAccounts(accounts) {
+  const pics = {};
+  const names = {};
+  const links = {};
+  const bios = {};
+  for (const row of accounts || []) {
+    if (!row || !row.accountId) continue;
+    if (row.profilePic) pics[row.accountId] = { url: row.profilePic, timestamp: row.updatedAt };
+    if (row.username) names[row.accountId] = { username: row.username, timestamp: row.updatedAt };
+    if (row.click2url) links[row.accountId] = { click2url: row.click2url, timestamp: row.updatedAt };
+    if (row.bio) bios[row.accountId] = { topic_bio: row.bio, timestamp: row.updatedAt };
+  }
+  profilePictures = pics;
+  usernames = names;
+  click2url = links;
+  topicBio = bios;
+}
+
+function mergeAccounts(local, incoming) {
+  const byId = new Map();
+  for (const row of local || []) {
+    if (row && row.accountId) byId.set(row.accountId, row);
+  }
+  for (const row of incoming || []) {
+    if (row && row.accountId) byId.set(row.accountId, row);
+  }
+  return [...byId.values()];
+}
+
+function reconcileOverlay(accounts) {
+  const byId = new Map();
+  for (const row of accounts || []) {
+    if (row && row.accountId) byId.set(row.accountId, row);
+  }
+  for (const [accountId, patch] of ownOverlay) {
+    const row = byId.get(accountId);
+    if (!row) continue;
+    if (patch.username && row.username === patch.username) delete patch.username;
+    if (patch.profilePic && row.profilePic === patch.profilePic) delete patch.profilePic;
+    if (patch.click2url && row.click2url === patch.click2url) delete patch.click2url;
+    if (patch.bio && row.bio === patch.bio) delete patch.bio;
+    if (!patch.username && !patch.profilePic && !patch.click2url && !patch.bio) ownOverlay.delete(accountId);
+  }
+}
+
+function applyOverlay() {
+  for (const [accountId, patch] of ownOverlay) {
+    if (patch.profilePic) profilePictures[accountId] = { url: patch.profilePic, timestamp: Date.now() };
+    if (patch.username) usernames[accountId] = { username: patch.username, timestamp: Date.now() };
+    if (patch.click2url) click2url[accountId] = { click2url: patch.click2url, timestamp: Date.now() };
+    if (patch.bio) topicBio[accountId] = { topic_bio: patch.bio, timestamp: Date.now() };
+  }
+}
+
+export function showOwnProfile(accountId, patch) {
+  if (!accountId || !patch) return;
+  const prev = ownOverlay.get(accountId) || {};
+  ownOverlay.set(accountId, { ...prev, ...patch });
+  applyOverlay();
+  if (patch.profilePic) publishProfilePictures([patch.profilePic]);
+  document.dispatchEvent(new CustomEvent('profiles-loaded'));
+}
+
+async function loadAllDataBody() {
+  let local = { generation: '', revision: 0, accounts: [] };
+  try {
+    local = await readSettings();
+  } catch (error) {
+    console.warn('settings cache read failed', error);
+  }
+  if (local.accounts.length) {
+    applyAccounts(local.accounts);
+    applyOverlay();
+    await publishProfilePictures(pictureList(local.accounts));
+    document.dispatchEvent(new CustomEvent('profiles-loaded'));
+  }
+
+  let remote = { ready: false, generation: '', revision: 0, settings: [] };
+  try {
+    remote = await fetchUserSettings(local.revision, local.generation);
+  } catch (error) {
+    console.warn('settings fetch failed', error);
+  }
+  if (remote.ready) {
+    const replace = remote.generation !== local.generation || !(local.revision > 0);
+    const unchanged = !replace
+      && remote.generation === local.generation
+      && remote.revision === local.revision
+      && !(remote.settings && remote.settings.length);
+    if (unchanged) return snapshot();
+    const accounts = replace ? (remote.settings || []) : mergeAccounts(local.accounts, remote.settings);
+    reconcileOverlay(accounts);
+    applyAccounts(accounts);
+    applyOverlay();
+    try {
+      const full = await writeSettings(
+        remote.generation,
+        remote.revision,
+        replace ? accounts : remote.settings,
+        replace
+      );
+      if (full) tellCacheFull();
+    } catch (error) {
+      console.warn('settings cache write failed', error);
+    }
+    await publishProfilePictures(pictureList(accounts));
+    document.dispatchEvent(new CustomEvent('profiles-loaded'));
+    return snapshot();
+  }
+
+  if (local.accounts.length || triedTopicFallback) return snapshot();
+  triedTopicFallback = true;
+  profilePictures = await loadProfilePicture();
+  usernames = await loadUsername();
+  click2url = await loadCLICK2URL();
+  topicBio = await loadTopicBio();
+  applyOverlay();
+  document.dispatchEvent(new CustomEvent('profiles-loaded'));
+  return snapshot();
+}
+
+export function loadAllData() {
+  if (inflight) return inflight;
+  inflight = loadAllDataBody().finally(() => {
+    inflight = null;
+  });
+  return inflight;
+}
+
 loadAllData();
+
+setInterval(() => {
+  if (document.visibilityState === 'hidden') return;
+  loadAllData();
+}, SETTINGS_POLL_MS);
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') loadAllData();
+});
 
 export async function loadProfilePicture() {
 const topicId = "0.0.9609881";

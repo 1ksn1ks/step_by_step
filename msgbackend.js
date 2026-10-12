@@ -24,12 +24,13 @@ export function trackTopic(topicId) {
 
 // Same shape as getMessages(): { messages, error } + ready
 // ready=false → backend offline or topic not backfilled yet → caller falls back
-export async function fetchMessagesBackend(topicId, limit = 1000) {
+export async function fetchMessagesBackend(topicId, limit = 1000, afterSeq = 0) {
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 2500);
+    const after = Number(afterSeq) > 0 ? `&after_seq=${Math.floor(Number(afterSeq))}` : '';
     const res = await fetch(
-      `${BACKEND_URL}/api/messages?topic=${encodeURIComponent(topicId)}&limit=${limit}`,
+      `${BACKEND_URL}/api/messages?topic=${encodeURIComponent(topicId)}&limit=${limit}${after}`,
       { signal: ctrl.signal }
     );
     clearTimeout(t);
@@ -235,16 +236,29 @@ export async function fetchLocalMarkers(country) {
 // field) — the backend denormalizes the four profile topics for us.
 // ready=false → backend offline or profile topics not backfilled yet →
 // the caller falls back to reading the topics directly.
-export async function fetchUserSettings() {
+export async function fetchUserSettings(afterRev = 0, generation = "") {
   try {
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 2500);
-    const res = await fetch(BACKEND_URL + "/api/user-settings", { signal: ctrl.signal });
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    const params = new URLSearchParams();
+    const after = Math.floor(Number(afterRev) || 0);
+    if (after > 0) params.set("after_rev", String(after));
+    if (generation) params.set("generation", generation);
+    const query = params.toString();
+    const res = await fetch(
+      BACKEND_URL + "/api/user-settings" + (query ? "?" + query : ""),
+      { signal: ctrl.signal }
+    );
     clearTimeout(t);
-    if (!res.ok) return { ready: false, settings: [] };
+    if (!res.ok) return { ready: false, generation: "", revision: 0, settings: [] };
     const data = await res.json();
-    return { ready: !!data.ready, settings: data.settings || [] };
+    return {
+      ready: !!data.ready,
+      generation: data.generation || "",
+      revision: Number(data.revision) || 0,
+      settings: data.settings || [],
+    };
   } catch (e) {
-    return { ready: false, settings: [] };
+    return { ready: false, generation: "", revision: 0, settings: [] };
   }
 }

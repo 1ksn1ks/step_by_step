@@ -178,7 +178,7 @@ export function CloseALL() {
     });
   });
 
-  // × close button: top-left corner — the opposite side of the ? help button
+  // × close button: top-right corner — the opposite side of the ? help button
   // — of the toolbar itself, every toolbar container, the visibility panel,
   // the settings panel (rotation-controls) and each of its sub-panels. Same
   // behaviour as the chat close buttons: stopPropagation + CloseALL (back to

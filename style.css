@@ -1944,15 +1944,15 @@ html, body {
     -ms-user-select: text !important;
   }
   
-  /* Same inset as the last row: 0.1u from the side border, 0.2u from the top,
-     matching the ⚙️ chip (padding 0.6/0.4 plus that row's negative margin). */
+  /* Same inset as the last row: 0.1u from the side border, 0.2u from the top.
+     The ⚙️ chip sits on the left; the negative left margin matches the old right inset. */
   .popup-top-row {
     position: relative;
     display: flex;
     align-items: flex-start;
-    justify-content: flex-end;
+    justify-content: flex-start;
     height: calc(var(--u) * 3.8);
-    margin: calc(var(--u) * -0.2) calc(var(--u) * -0.5) calc(var(--u) * 0.4) 0;
+    margin: calc(var(--u) * -0.2) 0 calc(var(--u) * 0.4) calc(var(--u) * -0.5);
   }
 
   /* Number shares the top row and stays centered. A long number can grow
@@ -2076,8 +2076,8 @@ html, body {
     cursor: pointer;
     position: absolute;
     top: calc(var(--u) * 0.2) !important;
-    left: calc(var(--u) * 0.1) !important;
-    right: auto !important;
+    right: calc(var(--u) * 0.1) !important;
+    left: auto !important;
     z-index: 2;
     transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
   }
@@ -3151,11 +3151,12 @@ html, body {
 
   /* Settings panels (Main Buttons / Button-Input) — glass cards:
      sliders, color chips, live preview */
-  /* ? help button: top-right corner of every settings panel */
+  /* ? help button: top-left corner of every settings panel */
   .panel-help-btn {
     position: absolute;
     top: 0.9vh;
-    right: 0.9vh;
+    left: 0.9vh !important;
+    right: auto !important;
     z-index: 10;
     width: 3.2vh;
     height: 3.2vh;
@@ -3173,11 +3174,13 @@ html, body {
     transition: transform 0.12s ease, filter 0.12s ease;
   }
 
-  /* × close button: top-left corner of the full-screen topic/E2EE chat */
+  /* × close button: top-right of the toolbar, every option panel, and the
+     full-screen chats. Panels with no ? still keep the × on the right. */
   .panel-close-btn {
     position: absolute;
     top: 0.9vh;
-    left: 0.9vh;
+    right: 0.9vh !important;
+    left: auto !important;
     z-index: 10;
     width: 3.2vh;
     height: 3.2vh;
@@ -3717,6 +3720,38 @@ html, body {
 }
 .polygon-title-tip[hidden],
 .marker-title-tip[hidden] { display: none; }
+
+/* Payer CLICK2LINK, shown above the username. Lives on document.body so a
+   popup or chat cannot clip it. Above chats (9001) and the comments modal
+   (5000), under toasts (10000). */
+.payer-link-tip {
+  position: fixed;
+  z-index: 9600;
+  max-width: min(72vw, 28rem);
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #fff;
+  background: rgba(15, 15, 20, 0.94);
+  border: 1px solid rgba(34, 211, 238, 0.55);
+  border-radius: 999px;
+  padding: 6px 12px;
+  pointer-events: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.payer-link-tip[hidden] { display: none; }
+a.payer-link {
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+  cursor: pointer;
+}
+#loaded-topics .profile-live-preview a.payer-link {
+  text-decoration: underline;
+  cursor: pointer;
+}
 .local-marker-label {
   /* Hangs below the dot, out of flow: the anchor box is the dot/face only,
      so the dot's center sits exactly on the map point. */

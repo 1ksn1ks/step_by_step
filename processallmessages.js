@@ -24,6 +24,7 @@ import { refitPopups } from './popupanim';
 import { copyTextToClipboard } from './handleallmessages';
 import { toast } from './toast'
 import { stackedTopicRules, smallestPolygonSize } from './topicrules.js'
+import { payerUsernameNode } from './payerlink.js'
 
 // A drawing counts toward the NFT allowance only when it is a real marker
 // or polygon. Likes, comments, deletes, and other messages do not.
@@ -471,7 +472,7 @@ export function createMarkerPopupHTML(data) {
   // are ignored).
   let swipeX = null, swipeY = null;
   container.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.popup-media-card')) return;
+    if (e.target.closest('.popup-media-card, .payer-link')) return;
     swipeX = e.clientX;
     swipeY = e.clientY;
   });
@@ -488,7 +489,7 @@ export function createMarkerPopupHTML(data) {
     }
   });
 
-  // Top row: × on the left, number in the middle, settings on the right.
+  // Top row: settings on the left, number in the middle, × on the right.
   const topHeader = document.createElement('div');
   topHeader.className = 'popup-top-row';
 
@@ -565,23 +566,8 @@ export function createMarkerPopupHTML(data) {
   h2.appendChild(document.createElement('br'));
 
   const trimmedUsername = username.trim();
-  const trimmedClick2link = click2link.trim();
-
-  if (trimmedClick2link) {
-    const usernameLink = document.createElement('a');
-    try {
-      new URL(trimmedClick2link);
-      usernameLink.href = trimmedClick2link;
-    } catch (e) {}
-    usernameLink.target = '_blank';
-    usernameLink.rel = 'noopener noreferrer';
-    usernameLink.className = 'username';
-    usernameLink.style.textDecoration = 'none';
-    usernameLink.textContent = trimmedUsername;
-    h2.appendChild(usernameLink);
-  } else if (trimmedUsername) {
-    const usernameText = document.createTextNode(trimmedUsername);
-    h2.appendChild(usernameText);
+  if (trimmedUsername) {
+    h2.appendChild(payerUsernameNode(trimmedUsername, click2link, { className: 'username' }));
   }
 
   headerDiv.appendChild(h2);
@@ -740,7 +726,7 @@ function createPolygonPopupHTML(data) {
   // are ignored).
   let swipeX = null, swipeY = null;
   container.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.popup-media-card')) return;
+    if (e.target.closest('.popup-media-card, .payer-link')) return;
     swipeX = e.clientX;
     swipeY = e.clientY;
   });
@@ -754,7 +740,7 @@ function createPolygonPopupHTML(data) {
     else window.prevMsgFromPayerPolygon(payer, polygonnumber, topicId);
   });
 
-  // Top row: × on the left, number in the middle, settings on the right.
+  // Top row: settings on the left, number in the middle, × on the right.
   const topHeader = document.createElement('div');
   topHeader.className = 'popup-top-row';
 
@@ -823,23 +809,8 @@ function createPolygonPopupHTML(data) {
   h2.appendChild(document.createElement('br'));
 
   const trimmedUsername = username.trim();
-  const trimmedClick2link = click2link.trim();
-
-  if (trimmedClick2link) {
-    const usernameLink = document.createElement('a');
-    try {
-      new URL(trimmedClick2link);
-      usernameLink.href = trimmedClick2link;
-    } catch (e) {}
-    usernameLink.target = '_blank';
-    usernameLink.rel = 'noopener noreferrer';
-    usernameLink.className = 'username';
-    usernameLink.style.textDecoration = 'none';
-    usernameLink.textContent = trimmedUsername;
-    h2.appendChild(usernameLink);
-  } else if (trimmedUsername) {
-    const usernameText = document.createTextNode(trimmedUsername);
-    h2.appendChild(usernameText);
+  if (trimmedUsername) {
+    h2.appendChild(payerUsernameNode(trimmedUsername, click2link, { className: 'username' }));
   }
 
   headerDiv.appendChild(h2);
@@ -1978,19 +1949,10 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
 
     const username = usernames[payer]?.username ? ` ${usernames[payer].username}` : '';
     const click2link = click2url[payer]?.click2url ? ` ${click2url[payer].click2url}` : '';
-    if (click2link.trim()) {
-      const usernameLink = document.createElement('a');
-      usernameLink.href = click2link.trim();
-      usernameLink.target = '_blank';
-      usernameLink.rel = 'noopener noreferrer';
-      usernameLink.style.cssText = `color: ${usernameTopicChatColor}; text-decoration: none;`;
-      usernameLink.textContent = username.trim();
-      header.appendChild(usernameLink);
-    } else if (username.trim()) {
-      const usernameSpan = document.createElement('span');
-      usernameSpan.style.cssText = `color: ${usernameTopicChatColor};`;
-      usernameSpan.textContent = username.trim();
-      header.appendChild(usernameSpan);
+    if (username.trim()) {
+      header.appendChild(payerUsernameNode(username.trim(), click2link, {
+        cssText: `color: ${usernameTopicChatColor};`
+      }));
     }
     contentWrapper.appendChild(header);
 
@@ -2037,19 +1999,10 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
       whoRow.appendChild(payerLabel);
       const uname = usernames[node.payer]?.username?.trim();
       const replyClick2 = click2url[node.payer]?.click2url;
-      if (uname && replyClick2) {
-        const usernameLink = document.createElement('a');
-        usernameLink.href = replyClick2;
-        usernameLink.target = '_blank';
-        usernameLink.rel = 'noopener noreferrer';
-        usernameLink.style.cssText = `color: ${usernameTopicChatColor}; text-decoration: none;`;
-        usernameLink.textContent = uname;
-        whoRow.appendChild(usernameLink);
-      } else if (uname) {
-        const usernameSpan = document.createElement('span');
-        usernameSpan.style.cssText = `color: ${usernameTopicChatColor};`;
-        usernameSpan.textContent = uname;
-        whoRow.appendChild(usernameSpan);
+      if (uname) {
+        whoRow.appendChild(payerUsernameNode(uname, replyClick2, {
+          cssText: `color: ${usernameTopicChatColor};`
+        }));
       }
       wrapper.appendChild(whoRow);
     }

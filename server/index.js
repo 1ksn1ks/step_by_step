@@ -157,11 +157,26 @@ db.exec(`
 for (const migration of [
   "ALTER TABLE topics ADD COLUMN memo TEXT",
   "ALTER TABLE live_markers ADD COLUMN number TEXT",
+  "ALTER TABLE user_settings ADD COLUMN revision INTEGER NOT NULL DEFAULT 0",
 ]) {
   try {
     db.exec(migration);
   } catch {
     /* column already there */
+  }
+}
+db.exec("CREATE INDEX IF NOT EXISTS user_settings_revision ON user_settings(revision)");
+// settings_generation stays for the life of this database file. A new file
+// (a rebuilt cache) gets a new id so phones drop their copy and take the
+// directory again. settings_revision counts writes, not message time.
+{
+  const hasGeneration = db.prepare("SELECT value FROM meta WHERE key = 'settings_generation'").get();
+  if (!hasGeneration) {
+    db.prepare("INSERT INTO meta (key, value) VALUES ('settings_generation', ?)").run(crypto.randomUUID());
+  }
+  const hasRevision = db.prepare("SELECT value FROM meta WHERE key = 'settings_revision'").get();
+  if (!hasRevision) {
+    db.prepare("INSERT INTO meta (key, value) VALUES ('settings_revision', '0')").run();
   }
 }
 
@@ -253,22 +268,38 @@ const q = {
   // Each statement upserts ONLY its own column, so the other settings a
   // user has are left untouched.
   settingUsername: db.prepare(`
-    INSERT INTO user_settings (account_id, username, updated_at) VALUES (?, ?, ?)
-    ON CONFLICT(account_id) DO UPDATE SET username = excluded.username, updated_at = excluded.updated_at
+    INSERT INTO user_settings (account_id, username, updated_at, revision) VALUES (?, ?, ?, ?)
+    ON CONFLICT(account_id) DO UPDATE SET username = excluded.username, updated_at = excluded.updated_at, revision = excluded.revision
   `),
   settingPic: db.prepare(`
-    INSERT INTO user_settings (account_id, profile_pic, updated_at) VALUES (?, ?, ?)
-    ON CONFLICT(account_id) DO UPDATE SET profile_pic = excluded.profile_pic, updated_at = excluded.updated_at
+    INSERT INTO user_settings (account_id, profile_pic, updated_at, revision) VALUES (?, ?, ?, ?)
+    ON CONFLICT(account_id) DO UPDATE SET profile_pic = excluded.profile_pic, updated_at = excluded.updated_at, revision = excluded.revision
   `),
   settingClick: db.prepare(`
-    INSERT INTO user_settings (account_id, click2url, updated_at) VALUES (?, ?, ?)
-    ON CONFLICT(account_id) DO UPDATE SET click2url = excluded.click2url, updated_at = excluded.updated_at
+    INSERT INTO user_settings (account_id, click2url, updated_at, revision) VALUES (?, ?, ?, ?)
+    ON CONFLICT(account_id) DO UPDATE SET click2url = excluded.click2url, updated_at = excluded.updated_at, revision = excluded.revision
   `),
   settingBio: db.prepare(`
-    INSERT INTO user_settings (account_id, bio, updated_at) VALUES (?, ?, ?)
-    ON CONFLICT(account_id) DO UPDATE SET bio = excluded.bio, updated_at = excluded.updated_at
+    INSERT INTO user_settings (account_id, bio, updated_at, revision) VALUES (?, ?, ?, ?)
+    ON CONFLICT(account_id) DO UPDATE SET bio = excluded.bio, updated_at = excluded.updated_at, revision = excluded.revision
   `),
+  getUserSetting: db.prepare("SELECT * FROM user_settings WHERE account_id = ?"),
+  bumpSettingsRevision: db.prepare(
+    "UPDATE meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'settings_revision'"
+  ),
+  readSettingsRevision: db.prepare(
+    "SELECT CAST(value AS INTEGER) AS revision FROM meta WHERE key = 'settings_revision'"
+  ),
+  readSettingsGeneration: db.prepare(
+    "SELECT value AS generation FROM meta WHERE key = 'settings_generation'"
+  ),
+  setSettingsRevision: db.prepare(
+    "UPDATE user_settings SET revision = ? WHERE account_id = ?"
+  ),
   listUserSettings: db.prepare("SELECT * FROM user_settings ORDER BY updated_at DESC"),
+  settingsSince: db.prepare(
+    "SELECT * FROM user_settings WHERE revision > ? ORDER BY revision ASC"
+  ),
   // live-marker derived views — PK-prefix lookups only.
   // marker_index upserts: a re-upload of the same cord+number must win,
   // because the app renders the NEWEST message per number.
@@ -367,6 +398,17 @@ const pendingToAppMessage = (p) => {
 // Profile-data topics are mixed (e.g. the bio topic also carries topic2pic),
 // so extract ONLY the relevant field per account. storePage feeds rows
 // oldest→newest, so the last valid value for each field wins.
+// A repeat of the same value does not move the revision, so a phone that
+// already has this card is not told to download it again.
+function saveSetting(statement, accountId, column, value, tsMs) {
+  if (typeof value !== "string" || value.length === 0) return;
+  const row = q.getUserSetting.get(accountId);
+  if (row && row[column] === value) return;
+  q.bumpSettingsRevision.run();
+  const revision = q.readSettingsRevision.get().revision;
+  statement.run(accountId, value, tsMs, revision);
+}
+
 function extractUserSettings(topicId, payer, body, tsMs) {
   if (!(topicId in PROFILE_TOPICS)) return;
   let data;
@@ -378,15 +420,15 @@ function extractUserSettings(topicId, payer, body, tsMs) {
   const d = data && typeof data === "object" && data.data ? data.data : {};
   const kind = PROFILE_TOPICS[topicId];
   if (kind === "username") {
-    if (d.username && d.username.length < 20) q.settingUsername.run(payer, d.username, tsMs);
+    if (d.username && d.username.length < 20) saveSetting(q.settingUsername, payer, "username", d.username, tsMs);
   } else if (kind === "pic") {
-    if (d.urls && d.urls.length > 0) q.settingPic.run(payer, d.urls[0], tsMs);
+    if (d.urls && d.urls.length > 0) saveSetting(q.settingPic, payer, "profile_pic", d.urls[0], tsMs);
   } else if (kind === "click") {
-    if (d.click2url && d.click2url.length > 0) q.settingClick.run(payer, d.click2url[0], tsMs);
+    if (d.click2url && d.click2url.length > 0) saveSetting(q.settingClick, payer, "click2url", d.click2url[0], tsMs);
   } else if (kind === "bio") {
     // Profiles submit topic_bio as a one-item list. Older messages used a string.
     const bio = Array.isArray(d.topic_bio) ? d.topic_bio[0] : d.topic_bio;
-    if (typeof bio === "string" && bio.length > 0 && bio.length < 256) q.settingBio.run(payer, bio, tsMs);
+    if (typeof bio === "string" && bio.length > 0 && bio.length < 256) saveSetting(q.settingBio, payer, "bio", bio, tsMs);
   }
 }
 
@@ -406,6 +448,27 @@ function backfillUserSettings() {
   }
 }
 backfillUserSettings();
+
+// Rows saved before revisions existed get a number, oldest first, so a
+// phone can ask for everything newer than the number it has stored.
+{
+  const pending = db.prepare(
+    "SELECT account_id FROM user_settings WHERE revision = 0 ORDER BY updated_at ASC, account_id ASC"
+  ).all();
+  if (pending.length) {
+    db.exec("BEGIN");
+    try {
+      for (const row of pending) {
+        q.bumpSettingsRevision.run();
+        q.setSettingsRevision.run(q.readSettingsRevision.get().revision, row.account_id);
+      }
+      db.exec("COMMIT");
+    } catch (err) {
+      db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+}
 
 // ── Live-marker derived views (marker_index / reactions / comments) ─────
 // The app keys marker likes by a timezone-formatted timestamp string and
@@ -1090,22 +1153,35 @@ app.get("/api/local", (req, res) => {
 // (latest valid username / profile pic / click2url / bio). `ready` is true
 // only once all four profile topics are backfilled, so the app never trusts
 // a half-built table.
+function userSettingPayload(row) {
+  return {
+    accountId: row.account_id,
+    username: row.username || "",
+    profilePic: row.profile_pic || "",
+    click2url: row.click2url || "",
+    bio: row.bio || "",
+    updatedAt: row.updated_at || 0,
+  };
+}
+
 app.get("/api/user-settings", (req, res) => {
   const ready = Object.keys(PROFILE_TOPICS).every((id) => {
     const t = q.getTopic.get(id);
     return t && t.backfilled === 1;
   });
-  const rows = q.listUserSettings.all();
+  const generation = (q.readSettingsGeneration.get() || {}).generation || "";
+  const revision = (q.readSettingsRevision.get() || {}).revision || 0;
+  const after = Math.max(0, Math.floor(Number(req.query.after_rev) || 0));
+  const clientGen = String(req.query.generation || "");
+  // A phone with a different database id, or no saved copy, gets every
+  // current card. Otherwise only accounts written after the revision it has.
+  const full = clientGen !== generation || !(after > 0);
+  const rows = full ? q.listUserSettings.all() : q.settingsSince.all(after);
   res.json({
     ready,
-    settings: rows.map((r) => ({
-      accountId: r.account_id,
-      username: r.username || "",
-      profilePic: r.profile_pic || "",
-      click2url: r.click2url || "",
-      bio: r.bio || "",
-      updatedAt: r.updated_at || 0,
-    })),
+    generation,
+    revision,
+    settings: rows.map(userSettingPayload),
   });
 });
 

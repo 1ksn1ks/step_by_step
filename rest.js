@@ -7,7 +7,7 @@ import { sendMessage, reportMarker } from './msgbackend'
 import { getTopicData as getMessages } from './topicdata'
 import {adjustTextareaHeight} from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
-import { loadAllData } from './loadalladata';
+import { loadAllData, showOwnProfile } from './loadalladata';
 import { debounce } from './debounce';
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
 import { allLoadedMessages } from './processallmessages';
@@ -21,6 +21,7 @@ import { initialTopicId } from './extracttopic.js';
 import { openDrawDatePicker, refreshFilterTimeButtons } from './drawdate.js';
 import { pendingChatImage, chatImageBusy, clearPendingChatImage } from './chatimage.js';
 import { stackedTopicRules } from './topicrules.js';
+import { adminsFromMemo, currentTopicBio, currentTopicName, currentStackedTopics, currentInitialXYZ } from './loadcurrenttopic.js';
 
 
 
@@ -140,6 +141,102 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
 
  document.getElementById("load-memo-for-fee").addEventListener("click", () => {
    loadCurrentMemo("input-field-topic-id-fee", "loaded-memo-for-fee", "input-field-memo-fee");
+ });
+
+ function fillGrownField(fieldId, value) {
+   const field = document.getElementById(fieldId);
+   if (!field) return;
+   field.value = value;
+   field.style.height = "";
+   field.style.height = field.scrollHeight + "px";
+ }
+
+ // Same load as memo: resolve the topic, show the current value, and drop it
+ // into the field so it can be edited and sent again.
+ async function loadTopicRecord(topicInputId, boxId, label) {
+   const box = document.getElementById(boxId);
+   try {
+     const userInput = document.getElementById(topicInputId).value.trim().toLowerCase();
+     if (!userInput) {
+       toast.error("Please enter a Topic ID or domain.");
+       return null;
+     }
+     const domainEntry = loadedDomains.find(entry => entry.domain === userInput);
+     const topicId = (domainEntry && domainEntry.lastMessage)
+       ? domainEntry.lastMessage.topic
+       : userInput;
+
+     const safeTopicId = String(topicId).replace(/[&<>"']/g, (ch) => ({
+       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+     }[ch]));
+     box.innerHTML = `
+     <div style="display: flex; justify-content: left; align-items: left; padding-top: 1vh; padding-bottom: 1vh;">
+       <div id="topicspinnerchat"></div>
+       <span style="margin-left: 0.45vh;">loading ${label} from ${safeTopicId}</span>
+     </div>`;
+     adjustTextareaHeight(box);
+
+     const topicInfo = await getTopicInfo(topicId);
+     if (!topicInfo) {
+       box.textContent = "Invalid Topic ID";
+       adjustTextareaHeight(box);
+       return null;
+     }
+     const result = await getMessages(topicId, { force: true });
+     const messages = result && Array.isArray(result.messages) ? result.messages : [];
+     return { messages, topicAdmin: adminsFromMemo(topicInfo.memo), box };
+   } catch (error) {
+     console.error(`Error loading ${label}:`, error);
+     box.textContent = "Invalid Topic ID";
+     adjustTextareaHeight(box);
+     return null;
+   }
+ }
+
+ document.getElementById("load-bio-for-topic").addEventListener("click", async () => {
+   const loaded = await loadTopicRecord("input-field-topic-id-bio", "loaded-bio-for-topic", "bio");
+   if (!loaded) return;
+   const bio = currentTopicBio(loaded.messages, loaded.topicAdmin);
+   loaded.box.textContent = bio || "No bio for this topic.";
+   adjustTextareaHeight(loaded.box);
+   fillGrownField("topic-bio-input", bio);
+   const counter = document.getElementById("char-counter-topic-bio");
+   if (counter) counter.textContent = `${bio.length}/256`;
+ });
+
+ document.getElementById("load-name-for-topic").addEventListener("click", async () => {
+   const loaded = await loadTopicRecord("input-field-topic-id-name", "loaded-name-for-topic", "name");
+   if (!loaded) return;
+   const name = currentTopicName(loaded.messages, loaded.topicAdmin);
+   loaded.box.textContent = name || "No name for this topic.";
+   adjustTextareaHeight(loaded.box);
+   fillGrownField("input-field-topic-name", name);
+ });
+
+ document.getElementById("load-stack-for-topic").addEventListener("click", async () => {
+   const loaded = await loadTopicRecord("stack-topic-ids-topic", "loaded-stack-for-topic", "topics");
+   if (!loaded) return;
+   const ids = currentStackedTopics(loaded.messages, loaded.topicAdmin);
+   loaded.box.textContent = ids.length ? ids.join("\n") : "No stacked topics.";
+   adjustTextareaHeight(loaded.box);
+   fillGrownField("stack-topic-add-remove-topic", ids.join(","));
+ });
+
+ document.getElementById("load-xyz-for-topic").addEventListener("click", async () => {
+   const loaded = await loadTopicRecord("input-field-topic-id-for-initial-xyz", "loaded-xyz-for-topic", "view");
+   if (!loaded) return;
+   const view = currentInitialXYZ(loaded.messages, loaded.topicAdmin);
+   if (!view) {
+     loaded.box.textContent = "No saved view for this topic.";
+     fillGrownField("input-field-lng-lat-for-initial-xyz", "");
+     fillGrownField("input-field-zoom-for-initial-xyz", "");
+   } else {
+     const coords = `${view.lng},${view.lat}`;
+     loaded.box.textContent = `${coords} zoom ${view.zoom}`;
+     fillGrownField("input-field-lng-lat-for-initial-xyz", coords);
+     fillGrownField("input-field-zoom-for-initial-xyz", String(view.zoom));
+   }
+   adjustTextareaHeight(loaded.box);
  });
 
  document.getElementById("submit-button-Change_Memo").addEventListener("click", async () => {
@@ -1779,6 +1876,7 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
              message
            );
            console.log("Profile picture updated successfully:", receipt);
+           showOwnProfile(connectedAccount, { profilePic: cleanUrl });
  
            document.getElementById("toolbar-input").value = "";
  
@@ -1821,6 +1919,7 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
      toast.info("Confirm in wallet 👛");
      const receipt = await sendMessage(topicId, message);
      console.log("Username updated successfully:", receipt);
+     showOwnProfile(connectedAccount, { username: inputValue });
  
      document.getElementById("toolbar-input").value = "";
  
@@ -1865,6 +1964,7 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
              message
            );
            console.log("Profile CLICK2URL updated successfully:", receipt);
+           showOwnProfile(connectedAccount, { click2url: cleanUrl });
  
            document.getElementById("toolbar-input").value = "";
  
@@ -1905,6 +2005,7 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
        message
      );
      console.log("Profile topic_bio updated successfully:", receipt);
+     showOwnProfile(connectedAccount, { bio: inputValue });
      document.getElementById("Edit_Profile-bio").value = "";
 
      debounce(loadAllData(), 10000);

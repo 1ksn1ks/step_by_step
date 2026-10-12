@@ -18,6 +18,7 @@ import {
 
  import { connectedAccount, signer } from './web3';
 import { expandTopicChat, scheduleTopicChatLayout } from './cssLogic.js';
+import { payerUsernameNode } from './payerlink.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
 import { fillChatMessage } from './chatimage.js';
 
@@ -155,18 +156,10 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
 
       header.appendChild(document.createTextNode('\u00A0'));
 
-      if (click2link.trim()) {
-        const usernameLink = document.createElement('a');
-        usernameLink.href = click2link.trim();
-        usernameLink.target = '_blank';
-        usernameLink.style.cssText = `color: ${usernameTopicChatColor}; text-decoration: none; font-size: ${headerFontSizeTopicChat}vh;`;
-        usernameLink.textContent = username.trim();
-        header.appendChild(usernameLink);
-      } else if (username.trim()) {
-        const usernameSpan = document.createElement('span');
-        usernameSpan.style.cssText = `color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;`;
-        usernameSpan.textContent = username.trim();
-        header.appendChild(usernameSpan);
+      if (username.trim()) {
+        header.appendChild(payerUsernameNode(username.trim(), click2link, {
+          cssText: `color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;`
+        }));
       }
 
       headerContainer.appendChild(header);
@@ -645,31 +638,10 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
   
         // Username link or span
         const trimmedUsername = username.trim();
-        const trimmedClick2link = click2link.trim();
-  
-        if (trimmedClick2link) {
-          const linkA = document.createElement('a');
-          try {
-            new URL(trimmedClick2link);
-            linkA.href = trimmedClick2link;
-          } catch (e) {}
-          linkA.target = '_blank';
-          linkA.rel = 'noopener noreferrer';
-          linkA.style.cssText = `
-            color: ${usernameTopicChatColor};
-            text-decoration: none;
-            font-size: ${headerFontSizeTopicChat}vh;
-          `;
-          linkA.textContent = trimmedUsername;
-          headerDiv.appendChild(linkA);
-        } else if (trimmedUsername) {
-          const span = document.createElement('span');
-          span.style.cssText = `
-            color: ${usernameTopicChatColor};
-            font-size: ${headerFontSizeTopicChat}vh;
-          `;
-          span.textContent = trimmedUsername;
-          headerDiv.appendChild(span);
+        if (trimmedUsername) {
+          headerDiv.appendChild(payerUsernameNode(trimmedUsername, click2link, {
+            cssText: `color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;`
+          }));
         }
   
         headerContainer.appendChild(headerDiv);
