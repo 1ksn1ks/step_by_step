@@ -100,6 +100,63 @@ function newestPayerOrder(messages) {
   return order;
 }
 
+// Newest-first pass already used to bucket messages. The topic name and the
+// newest-drawing payer order come from that same walk.
+function indexNewestMessages(messages, topicAdmin) {
+  let loadedTopicName = '';
+  const payerOrder = [];
+  const payerSeen = new Set();
+  let sawDrawing = false;
+  const messagesByPayer = new Map();
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index];
+    let parsed = message;
+    let parsedOk = typeof message !== 'string';
+    if (typeof message === 'string') {
+      try {
+        parsed = JSON.parse(message);
+        parsedOk = true;
+      } catch {
+        parsedOk = false;
+      }
+    }
+    const envelopePayer = message && message.payer;
+    const payerId = envelopePayer || (parsedOk && parsed && parsed.payer) || '';
+    if (parsedOk && parsed && !loadedTopicName && parsed.changeName && (topicAdmin.length === 0 || topicAdmin.includes(envelopePayer))) {
+      loadedTopicName = parsed.changeName;
+    }
+    if (parsedOk && parsed && payerId && !payerSeen.has(payerId)) {
+      const marker = parsed.marker && parsed.marker.data;
+      const polygon = parsed.polygon && parsed.polygon.data;
+      const markerOk = marker && Number.isInteger(Number(marker.numberOfMarker)) && markerCoordinates(marker.cord);
+      const polygonOk = polygon && Number.isInteger(Number(polygon.numberOfPolygon)) && polygonCoordinates(polygon.cord);
+      if (markerOk || polygonOk) {
+        payerSeen.add(payerId);
+        payerOrder.push(payerId);
+        sawDrawing = true;
+      }
+    }
+    if (!envelopePayer) continue;
+    let bucket = messagesByPayer.get(envelopePayer);
+    if (!bucket) {
+      bucket = [];
+      messagesByPayer.set(envelopePayer, bucket);
+    }
+    bucket.push(message);
+  }
+  if (!sawDrawing) {
+    payerOrder.length = 0;
+    const seen = new Set();
+    for (let index = messages.length - 1; index >= 0; index--) {
+      const payer = messages[index] && messages[index].payer;
+      if (!payer || seen.has(payer)) continue;
+      seen.add(payer);
+      payerOrder.push(payer);
+    }
+  }
+  return { loadedTopicName, payerOrder, messagesByPayer };
+}
+
 async function assignDrawingOwnership({
   hasRulesForMarker,
   hasRulesForPolygon,
@@ -193,7 +250,7 @@ function publishApprovedDrawings(features, polys, state, sync) {
   }
   if (markers.length === 0) return;
   if (clusterTimer) return;
-  clusterTimer = setTimeout(flush, 150);
+  clusterTimer = setTimeout(flush, 400);
 }
 
 // Cached accounts are drawn in one newest-to-oldest pass. Each missing
@@ -220,7 +277,7 @@ async function showDrawingsAsApproved(ctx) {
   await ctx.drawLoaded();
   publish(false);
   const pendingPayers = ctx.payerIds.filter((payerId) => ctx.payerWaiting(payerId));
-  const payerRank = newestPayerOrder(ctx.messages);
+  const payerRank = Array.isArray(ctx.payerOrder) ? ctx.payerOrder : newestPayerOrder(ctx.messages);
   pendingPayers.sort((a, b) => {
     const ai = payerRank.indexOf(a);
     const bi = payerRank.indexOf(b);
@@ -911,6 +968,30 @@ function createPolygonPopupHTML(data) {
   return container;
 }
 
+// The card is built on the first open and kept on the feature. Topic load
+// only stores the record (a function), so comments, profile, and media are
+// not created for every drawing up front. 24h local-news popups still call
+// createMarkerPopupHTML themselves because those open immediately.
+export function markerPopupNode(properties) {
+  if (!properties) return null;
+  if (properties.message) return properties.message;
+  const data = properties.popupData;
+  if (!data) return null;
+  const record = typeof data === 'function' ? data() : data;
+  properties.message = createMarkerPopupHTML(record);
+  return properties.message;
+}
+
+export function polygonPopupNode(polygon) {
+  if (!polygon) return null;
+  if (polygon.description) return polygon.description;
+  const data = polygon.popupData;
+  if (!data) return null;
+  const record = typeof data === 'function' ? data() : data;
+  polygon.description = createPolygonPopupHTML(record);
+  return polygon.description;
+}
+
 export async function processTopicMessages(topicId) {
   let topicGeojsonFeatures = [];
   let topicPolygons = [];
@@ -1145,22 +1226,6 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
             }
           }
 
-          for (let index = messages.length - 1; index >= 0; index--) {
-            const message = messages[index];
-            try {
-              let parsedMessage = message;
-              if (typeof message === 'string') {
-                parsedMessage = JSON.parse(message);
-              }
-              // Check if changeName exists and either topicAdmin is empty or includes the payer
-              if (parsedMessage.changeName && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-                loadedTopicName = parsedMessage.changeName;
-                break; // Stop after finding the first valid message
-              }
-            } catch (messageError) {
-              console.error(`Error processing message ${index}:`, messageError);
-            }
-          }
           const uniquePayerIdsForMarker = new Set();
           const uniquePayerIdsForPolygon = new Set();
 
@@ -1237,17 +1302,10 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
             polygonRules: loadedTopicRulesForPolygon,
           });
           const newestMessages = messages.slice().reverse();
-          const messagesByPayer = new Map();
-          for (const message of newestMessages) {
-            const payerId = message && message.payer;
-            if (!payerId) continue;
-            let bucket = messagesByPayer.get(payerId);
-            if (!bucket) {
-              bucket = [];
-              messagesByPayer.set(payerId, bucket);
-            }
-            bucket.push(message);
-          }
+          const indexed = indexNewestMessages(messages, topicAdmin);
+          loadedTopicName = indexed.loadedTopicName;
+          const messagesByPayer = indexed.messagesByPayer;
+          const payerOrder = indexed.payerOrder;
           const drawState = { batch: newestMessages };
           const payerWaiting = (payerId) => {
             const markerOwner = markerOwnershipArray.find((owner) => owner.payerId === payerId);
@@ -1317,10 +1375,9 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
 
                   const coords = markerCoords;
                   {
-                    const likeCountMarker = likeCountMapMarker.get(timestamp) || 0;
-
-                    // Create marker popup HTML using DOM helper
-                    const markerPopupHTML = createMarkerPopupHTML({
+                    // Card is built on the first tap. The record closes over
+                    // this drawing; comments and the heart are not built now.
+                    const markerPopupData = () => ({
                       markernumber,
                       topicId,
                       loadedTopicName,
@@ -1333,7 +1390,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       image: parsedMessage.marker.data.image,
                       msg: parsedMessage.marker.data.msg,
                       timestamp,
-                      likeCountMarker,
+                      likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
                       likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
                       comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
                         ...c,
@@ -1351,7 +1408,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       type: "Feature",
                       payer: message.payer,
                       properties: {
-                        message: markerPopupHTML,
+                        popupData: markerPopupData,
                         imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl,
                         title: String(parsedMessage.marker.data.title || "").slice(0, 20)
                       },
@@ -1394,10 +1451,8 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                     if (Array.isArray(coordinates) && coordinates.length > 2) {
                       const polygonSize = hasRulesForPolygon ? smallestPolygonSize(loadedTopicRulesForPolygon) : 1;
 
-                      const likeCountPolygon = likeCountMapPolygon.get(timestamp) || 0;
-
-                      // Create polygon popup HTML using DOM helper
-                      const polygonPopupHTML = createPolygonPopupHTML({
+                      // Card is built on the first tap.
+                      const polygonPopupData = () => ({
                         polygonnumber,
                         topicId,
                         loadedTopicName,
@@ -1410,7 +1465,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         image: parsedMessage.polygon.data.image,
                         msg: parsedMessage.polygon.data.msg,
                         timestamp,
-                        likeCountPolygon,
+                        likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
                         likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
                         comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
                           ...c,
@@ -1428,7 +1483,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         id: `polygon-${message.payer}-${topicId}-${parsedMessage.polygon.data.numberOfPolygon}`,
                         payer: message.payer,
                         coordinates: [coordinates],
-                        description: polygonPopupHTML,
+                        popupData: polygonPopupData,
                         title: String(parsedMessage.polygon.data.title || "").slice(0, 20),
                         imageUrl: isValidUrl(parsedMessage.polygon.data.coverimage) ? parsedMessage.polygon.data.coverimage : profileUrl
                       });
@@ -1446,6 +1501,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
           await showDrawingsAsApproved({
             messages,
             messagesByPayer,
+            payerOrder,
             drawState,
             drawLoaded,
             payerWaiting,
@@ -1566,7 +1622,7 @@ function showMarker(m) {
     newActiveMarkerPopups([]);
     const popup = new maplibregl.Popup()
         .setLngLat(m.geometry.coordinates)
-        .setDOMContent(m.properties.message)
+        .setDOMContent(markerPopupNode(m.properties))
         .addTo(map);
 
     activeMarkerPopups.push(popup);
@@ -1677,7 +1733,7 @@ function showPolygon(p) {
 
     const popup = new maplibregl.Popup()
         .setLngLat(targetLngLat)
-        .setDOMContent(p.description)
+        .setDOMContent(polygonPopupNode(p))
         .addTo(map);
 
     activePolygonPopups.push(popup);
@@ -2828,22 +2884,6 @@ if (rawResult && Array.isArray(rawResult)) {
             }
           }
 
-          for (let index = messages.length - 1; index >= 0; index--) {
-            const message = messages[index];
-            try {
-              let parsedMessage = message;
-              if (typeof message === 'string') {
-                parsedMessage = JSON.parse(message);
-              }
-              // Check if changeName exists and either topicAdmin is empty or includes the payer
-              if (parsedMessage.changeName && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-                loadedTopicName = parsedMessage.changeName;
-                break; // Stop after finding the first valid message
-              }
-            } catch (messageError) {
-              console.error(`Error processing message ${index}:`, messageError);
-            }
-          }
           const uniquePayerIdsForMarker = new Set();
           const uniquePayerIdsForPolygon = new Set();
 
@@ -2920,17 +2960,10 @@ if (rawResult && Array.isArray(rawResult)) {
             polygonRules: loadedTopicRulesForPolygon,
           });
           const newestMessages = messages.slice().reverse();
-          const messagesByPayer = new Map();
-          for (const message of newestMessages) {
-            const payerId = message && message.payer;
-            if (!payerId) continue;
-            let bucket = messagesByPayer.get(payerId);
-            if (!bucket) {
-              bucket = [];
-              messagesByPayer.set(payerId, bucket);
-            }
-            bucket.push(message);
-          }
+          const indexed = indexNewestMessages(messages, topicAdmin);
+          loadedTopicName = indexed.loadedTopicName;
+          const messagesByPayer = indexed.messagesByPayer;
+          const payerOrder = indexed.payerOrder;
           const drawState = { batch: newestMessages };
           const payerWaiting = (payerId) => {
             const markerOwner = markerOwnershipArray.find((owner) => owner.payerId === payerId);
@@ -3008,10 +3041,9 @@ if (rawResult && Array.isArray(rawResult)) {
 
                   const coords = markerCoords;
                   {
-                    const likeCountMarker = likeCountMapMarker.get(timestamp) || 0;
-
-                    // Create marker popup HTML using DOM helper
-                    const markerPopupHTML = createMarkerPopupHTML({
+                    // Card is built on the first tap. The record closes over
+                    // this drawing; comments and the heart are not built now.
+                    const markerPopupData = () => ({
                       markernumber,
                       topicId,
                       loadedTopicName,
@@ -3024,7 +3056,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       image: parsedMessage.marker.data.image,
                       msg: parsedMessage.marker.data.msg,
                       timestamp,
-                      likeCountMarker,
+                      likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
                       likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
                       comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
                         ...c,
@@ -3042,7 +3074,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       type: "Feature",
                       payer: message.payer,
                       properties: {
-                        message: markerPopupHTML,
+                        popupData: markerPopupData,
                         imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl,
                         title: String(parsedMessage.marker.data.title || "").slice(0, 20)
                       },
@@ -3085,10 +3117,8 @@ if (rawResult && Array.isArray(rawResult)) {
                     if (Array.isArray(coordinates) && coordinates.length > 2) {
                       const polygonSize = hasRulesForPolygon ? smallestPolygonSize(loadedTopicRulesForPolygon) : 1;
 
-                      const likeCountPolygon = likeCountMapPolygon.get(timestamp) || 0;
-
-                      // Create polygon popup HTML using DOM helper
-                      const polygonPopupHTML = createPolygonPopupHTML({
+                      // Card is built on the first tap.
+                      const polygonPopupData = () => ({
                         polygonnumber,
                         topicId,
                         loadedTopicName,
@@ -3101,7 +3131,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         image: parsedMessage.polygon.data.image,
                         msg: parsedMessage.polygon.data.msg,
                         timestamp,
-                        likeCountPolygon,
+                        likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
                         likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
                         comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
                           ...c,
@@ -3119,7 +3149,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         id: `polygon-${message.payer}-${topicId}-${parsedMessage.polygon.data.numberOfPolygon}`,
                         payer: message.payer,
                         coordinates: [coordinates],
-                        description: polygonPopupHTML,
+                        popupData: polygonPopupData,
                         title: String(parsedMessage.polygon.data.title || "").slice(0, 20),
                         imageUrl: isValidUrl(parsedMessage.polygon.data.coverimage) ? parsedMessage.polygon.data.coverimage : profileUrl
                       });
@@ -3137,6 +3167,7 @@ if (rawResult && Array.isArray(rawResult)) {
           await showDrawingsAsApproved({
             messages,
             messagesByPayer,
+            payerOrder,
             drawState,
             drawLoaded,
             payerWaiting,
@@ -3519,22 +3550,6 @@ if (rawResult && Array.isArray(rawResult)) {
             }
           }
 
-          for (let index = messages.length - 1; index >= 0; index--) {
-            const message = messages[index];
-            try {
-              let parsedMessage = message;
-              if (typeof message === 'string') {
-                parsedMessage = JSON.parse(message);
-              }
-              // Check if changeName exists and either topicAdmin is empty or includes the payer
-              if (parsedMessage.changeName && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-                loadedTopicName = parsedMessage.changeName;
-                break; // Stop after finding the first valid message
-              }
-            } catch (messageError) {
-              console.error(`Error processing message ${index}:`, messageError);
-            }
-          }
           const uniquePayerIdsForMarker = new Set();
           const uniquePayerIdsForPolygon = new Set();
 
@@ -3611,17 +3626,10 @@ if (rawResult && Array.isArray(rawResult)) {
             polygonRules: loadedTopicRulesForPolygon,
           });
           const newestMessages = messages.slice().reverse();
-          const messagesByPayer = new Map();
-          for (const message of newestMessages) {
-            const payerId = message && message.payer;
-            if (!payerId) continue;
-            let bucket = messagesByPayer.get(payerId);
-            if (!bucket) {
-              bucket = [];
-              messagesByPayer.set(payerId, bucket);
-            }
-            bucket.push(message);
-          }
+          const indexed = indexNewestMessages(messages, topicAdmin);
+          loadedTopicName = indexed.loadedTopicName;
+          const messagesByPayer = indexed.messagesByPayer;
+          const payerOrder = indexed.payerOrder;
           const drawState = { batch: newestMessages };
           const payerWaiting = (payerId) => {
             const markerOwner = markerOwnershipArray.find((owner) => owner.payerId === payerId);
@@ -3701,10 +3709,9 @@ if (rawResult && Array.isArray(rawResult)) {
 
                   const coords = markerCoords;
                   {
-                    const likeCountMarker = likeCountMapMarker.get(timestamp) || 0;
-
-                    // Create marker popup HTML using DOM helper
-                    const markerPopupHTML = createMarkerPopupHTML({
+                    // Card is built on the first tap. The record closes over
+                    // this drawing; comments and the heart are not built now.
+                    const markerPopupData = () => ({
                       markernumber,
                       topicId,
                       loadedTopicName,
@@ -3717,7 +3724,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       image: parsedMessage.marker.data.image,
                       msg: parsedMessage.marker.data.msg,
                       timestamp,
-                      likeCountMarker,
+                      likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
                       likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
                       comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
                         ...c,
@@ -3737,7 +3744,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       type: "Feature",
                       payer: message.payer,
                       properties: {
-                        message: markerPopupHTML,
+                        popupData: markerPopupData,
                         imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl,
                         title: String(parsedMessage.marker.data.title || "").slice(0, 20)
                       },
@@ -3781,10 +3788,8 @@ if (rawResult && Array.isArray(rawResult)) {
                     if (Array.isArray(coordinates) && coordinates.length > 2) {
                       const polygonSize = hasRulesForPolygon ? smallestPolygonSize(loadedTopicRulesForPolygon) : 1;
 
-                      const likeCountPolygon = likeCountMapPolygon.get(timestamp) || 0;
-
-                      // Create polygon popup HTML using DOM helper
-                      const polygonPopupHTML = createPolygonPopupHTML({
+                      // Card is built on the first tap.
+                      const polygonPopupData = () => ({
                         polygonnumber,
                         topicId,
                         loadedTopicName,
@@ -3797,7 +3802,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         image: parsedMessage.polygon.data.image,
                         msg: parsedMessage.polygon.data.msg,
                         timestamp,
-                        likeCountPolygon,
+                        likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
                         likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
                         comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
                           ...c,
@@ -3818,7 +3823,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         id: `polygon-${message.payer}-${topicId}-${parsedMessage.polygon.data.numberOfPolygon}`,
                         payer: message.payer,
                         coordinates: [coordinates],
-                        description: polygonPopupHTML,
+                        popupData: polygonPopupData,
                         title: String(parsedMessage.polygon.data.title || "").slice(0, 20),
                         imageUrl: isValidUrl(parsedMessage.polygon.data.coverimage) ? parsedMessage.polygon.data.coverimage : profileUrl
                       });
@@ -3837,6 +3842,7 @@ if (rawResult && Array.isArray(rawResult)) {
           await showDrawingsAsApproved({
             messages,
             messagesByPayer,
+            payerOrder,
             drawState,
             drawLoaded,
             payerWaiting,

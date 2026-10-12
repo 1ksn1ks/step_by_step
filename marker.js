@@ -13,6 +13,7 @@ import { scene } from "./threejs";
 // Circular with localnews.js (which imports the topic helpers from here) —
 // safe: both sides only touch the other's bindings inside functions.
 import { livePointCoords, livePointTitles } from './localnews';
+import { markerPopupNode } from './processallmessages.js';
 
 
 
@@ -143,12 +144,12 @@ map.on("movestart", () => {
   hideMarkerTitle();
 });
 
-function bindMarkerTitle(el, title) {
+function bindMarkerTitle(el) {
   el.addEventListener("mouseenter", (event) => {
-    if (markerCanHover()) showMarkerTitle(title, event.clientX, event.clientY);
+    if (markerCanHover()) showMarkerTitle(el._markerTitle, event.clientX, event.clientY);
   });
   el.addEventListener("mousemove", (event) => {
-    if (markerCanHover()) showMarkerTitle(title, event.clientX, event.clientY);
+    if (markerCanHover()) showMarkerTitle(el._markerTitle, event.clientX, event.clientY);
   });
   el.addEventListener("mouseleave", () => {
     if (markerCanHover()) hideMarkerTitle();
@@ -161,7 +162,7 @@ function bindMarkerTitle(el, title) {
     clearTimeout(markerHoldTimer);
     markerHoldTimer = setTimeout(() => {
       el.dataset.holdTitle = "1";
-      showMarkerTitle(title, startX, startY);
+      showMarkerTitle(el._markerTitle, startX, startY);
     }, 450);
     const cancelIfSlid = (moveEvent) => {
       const moved = moveEvent.touches && moveEvent.touches[0];
@@ -192,15 +193,202 @@ function bindMarkerTitle(el, title) {
   });
 }
 
+// Dots that are still on screen stay. A cluster change only adds the
+// markers that appeared and removes the ones that left. Keys are the
+// supercluster id for a bubble and the drawing identity for a point, so a
+// reload of the same drawing reuses its element and its picture.
+const keptMarkers = new Map();
+
+function markerFeatureKey(cluster) {
+  if (cluster.properties.cluster) return 'c' + cluster.properties.cluster_id;
+  const num = cluster.msgNumber != null ? cluster.msgNumber : '';
+  return `p:${cluster.topicId || ''}:${cluster.payer || ''}:${num}:${topicPointKey(cluster.geometry.coordinates)}`;
+}
+
+function applyMarkerBox(el, isCluster) {
+  const size = `${currentMarkerSize}vh`;
+  el.style.width = size;
+  el.style.height = size;
+  el.style.cursor = 'pointer';
+  if (isCluster) {
+    el.style.minWidth = size;
+    el.style.boxSizing = 'border-box';
+  }
+}
+
+function placeKeptMarker(entry) {
+  if (!entry.marker._map) entry.marker.addTo(map);
+}
+
+export function releaseTopicMarkers() {
+  const hadPoints = unclusteredTopicPoints.size > 0;
+  const hadMarkers = keptMarkers.size > 0;
+  for (const entry of keptMarkers.values()) {
+    try { entry.marker.remove(); } catch { /* already gone */ }
+  }
+  keptMarkers.clear();
+  newExistingMarkers([]);
+  lastTopicSig = null;
+  hideMarkerTitle();
+  if (hadPoints || hadMarkers) {
+    unclusteredTopicPoints.clear();
+    notifyTopicClustersUpdated();
+  }
+}
+
+function syncKeptMarkers() {
+  const list = [];
+  for (const entry of keptMarkers.values()) list.push(entry.marker);
+  newExistingMarkers(list);
+}
+
+function paintMarkerPicture(entry, url) {
+  const seq = (entry.pictureSeq || 0) + 1;
+  entry.pictureSeq = seq;
+  entry.pictureUrl = url;
+  loadFullImage(url).then((loaded) => {
+    if (entry.pictureSeq !== seq) return;
+    if (keptMarkers.get(entry.key) !== entry) return;
+    const face = entry.face;
+    let view = face.querySelector('img');
+    if (loaded) {
+      face.style.backgroundColor = '';
+      if (!view) {
+        view = document.createElement('img');
+        view.alt = '';
+        view.draggable = false;
+        view.style.cssText = 'width:100%;height:100%;object-fit:cover;object-position:center;border-radius:50%;display:block;pointer-events:none;';
+        face.insertBefore(view, face.firstChild);
+      }
+      if (view.src !== loaded.src) view.src = loaded.src;
+    } else {
+      if (view) view.remove();
+      face.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+    }
+  });
+}
+
+function syncLiveFace(entry) {
+  const twinKey = topicPointKey(entry.feature.geometry.coordinates);
+  const live = livePointCoords.has(twinKey);
+  entry.face.classList.toggle('live-twin', live);
+  const liveTitle = live ? (livePointTitles.get(twinKey) || '') : '';
+  let label = entry.face.querySelector('.local-marker-label');
+  if (liveTitle) {
+    if (!label) {
+      label = document.createElement('div');
+      label.className = 'local-marker-label';
+      entry.face.appendChild(label);
+    }
+    if (label.textContent !== liveTitle) label.textContent = liveTitle;
+  } else if (label) {
+    label.remove();
+  }
+  // A live label stays up, so the hover pill stays empty while it is showing.
+  entry.el._markerTitle = liveTitle ? '' : String(entry.feature.properties.title || '').trim();
+  if (entry.el._markerTitle && !entry.titleBound) {
+    bindMarkerTitle(entry.el);
+    entry.titleBound = true;
+  }
+}
+
+function createKeptMarker(cluster, key) {
+  const isCluster = !!cluster.properties.cluster;
+  const el = document.createElement('div');
+  el.className = isCluster ? 'cluster-bubble' : 'marker';
+  applyMarkerBox(el, isCluster);
+  const entry = { key, el, kind: isCluster ? 'cluster' : 'point' };
+
+  if (isCluster) {
+    entry.cluster = cluster;
+    el.textContent = cluster.properties.point_count_abbreviated;
+    el.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const current = entry.cluster;
+      activePolygonPopups.forEach((popup) => popup.remove());
+      activeMarkerPopups.forEach((popup) => popup.remove());
+      const expansionZoom = await index.getClusterExpansionZoom(current.id) + 0.1;
+      animateMapTo(map, current.geometry.coordinates, expansionZoom);
+    });
+  } else {
+    entry.feature = cluster;
+    // The visual goes on an inner face element: the outer element is
+    // MapLibre's marker element (positioned absolute + transform by
+    // .maplibregl-marker) and must NEVER get a position of its own —
+    // position:relative would put it back in the document flow (stacked
+    // after the other markers) and shift it. The face fills the outer
+    // element, so the anchored box stays exactly the dot.
+    const face = document.createElement('div');
+    face.className = 'marker-face';
+    face.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+    el.appendChild(face);
+    entry.face = face;
+    entry.pictureUrl = null;
+    entry.pictureSeq = 0;
+    entry.titleBound = false;
+    const popup = new maplibregl.Popup();
+    entry.popup = popup;
+    popup.on('close', () => {
+      changePopupState(false);
+      if (currentUfoModelInGLTF) {
+        scene.add(currentUfoModelInGLTF);
+        crosshair.style.display = 'block';
+      }
+    });
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (el.dataset.holdTitle === '1') return;
+      hideMarkerTitle();
+      const current = entry.feature;
+      const node = markerPopupNode(current.properties);
+      if (!node) return;
+      activePolygonPopups.forEach((popup) => popup.remove());
+      activeMarkerPopups.forEach((popup) => popup.remove());
+      activeMarkerPopups.push(popup);
+      CloseALL();
+      closeDrawAnchor();
+      closePressAnchor(); // a marker popup replaces the 🗺/📡 pin too
+      popup.setLngLat(current.geometry.coordinates).addTo(map).setDOMContent(node);
+      animateMapTo(map, current.geometry.coordinates, null);
+      applyAllStyles();
+      changePopupState(true);
+      if (currentUfoModelInGLTF) {
+        scene.remove(currentUfoModelInGLTF);
+        crosshair.style.display = 'none';
+      }
+    });
+    syncLiveFace(entry);
+    paintMarkerPicture(entry, markerPictureUrl(cluster.properties.imageUrl));
+  }
+
+  entry.marker = new maplibregl.Marker({ element: el })
+    .setLngLat(cluster.geometry.coordinates)
+    .addTo(map);
+  return entry;
+}
+
+function refreshKeptMarker(entry, cluster) {
+  applyMarkerBox(entry.el, entry.kind === 'cluster');
+  entry.marker.setLngLat(cluster.geometry.coordinates);
+  placeKeptMarker(entry);
+  if (entry.kind === 'cluster') {
+    entry.cluster = cluster;
+    const count = cluster.properties.point_count_abbreviated;
+    if (entry.el.textContent !== String(count)) entry.el.textContent = count;
+    return;
+  }
+  entry.feature = cluster;
+  syncLiveFace(entry);
+  const pictureUrl = markerPictureUrl(cluster.properties.imageUrl);
+  if (pictureUrl !== entry.pictureUrl) paintMarkerPicture(entry, pictureUrl);
+}
+
 export function updateClusters(force = true) {
   if (markersVisible){
     if (geojson.features.length === 0) {
       // Notify only on the real transition — the per-frame viewport path
       // calls this constantly and must stay silent when nothing changed.
-      if (unclusteredTopicPoints.size > 0) {
-        unclusteredTopicPoints.clear();
-        notifyTopicClustersUpdated();
-      }
+      if (keptMarkers.size > 0 || unclusteredTopicPoints.size > 0) releaseTopicMarkers();
       return;
     }
 
@@ -223,113 +411,31 @@ export function updateClusters(force = true) {
     // frame the cluster state changes — otherwise the markers are already
     // at their true coordinates and simply pan/zoom with the map.
     const sig = clusters
-      .map((c) => (c.properties.cluster ? 'c' + c.properties.cluster_id : 'p' + topicPointKey(c.geometry.coordinates)))
+      .map((c) => markerFeatureKey(c))
       .sort()
       .join('|');
     if (!force && sig === lastTopicSig) return;
+    if (sig !== lastTopicSig) hideMarkerTitle();
     lastTopicSig = sig;
 
+    const wanted = new Map();
+    for (const cluster of clusters) wanted.set(markerFeatureKey(cluster), cluster);
+    for (const key of [...keptMarkers.keys()]) {
+      if (wanted.has(key)) continue;
+      keptMarkers.get(key).marker.remove();
+      keptMarkers.delete(key);
+    }
+
     unclusteredTopicPoints.clear();
-    existingMarkers.forEach((marker) => marker.remove());
-    hideMarkerTitle();
-    newExistingMarkers([]);
-  
-    clusters.forEach(async (cluster) => {
-      const el = document.createElement("div");
-      el.className = cluster.properties.cluster ? "cluster-bubble" : "marker";
-      const iconSize = [`${currentMarkerSize}vh`, `${currentMarkerSize}vh`];
-      el.style.width = iconSize[0];
-      el.style.height = iconSize[1];
-      el.style.cursor = "pointer";
-
-      if (cluster.properties.cluster) {
-        el.textContent = cluster.properties.point_count_abbreviated;
-        el.style.minWidth = iconSize[0]; // the size slider still sizes the bubble
-        el.style.boxSizing = "border-box";
-
-        el.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          activePolygonPopups.forEach((popup) => popup.remove());
-          activeMarkerPopups.forEach((popup) => popup.remove());
-          const expansionZoom = await index.getClusterExpansionZoom(cluster.id) + 0.1;
-          animateMapTo(map, cluster.geometry.coordinates, expansionZoom);
-        });
-      } else {
-        const twinKey = topicPointKey(cluster.geometry.coordinates);
-        unclusteredTopicPoints.add(twinKey);
-        // The visual goes on an inner face element: the outer element is
-        // MapLibre's marker element (positioned absolute + transform by
-        // .maplibregl-marker) and must NEVER get a position of its own —
-        // position:relative would put it back in the document flow (stacked
-        // after the other markers) and shift it. The face fills the outer
-        // element, so the anchored box stays exactly the dot.
-        const face = document.createElement("div");
-        face.className = "marker-face" + (livePointCoords.has(twinKey) ? " live-twin" : "");
-        el.appendChild(face);
-        const pictureUrl = markerPictureUrl(cluster.properties.imageUrl);
-        const loaded = await loadFullImage(pictureUrl);
-        if (loaded) {
-          const view = document.createElement('img');
-          view.src = loaded.src;
-          view.alt = '';
-          view.draggable = false;
-          view.style.cssText = 'width:100%;height:100%;object-fit:cover;object-position:center;border-radius:50%;display:block;pointer-events:none;';
-          face.appendChild(view);
-        } else {
-          face.style.backgroundColor = "rgba(255, 255, 255, 0.8)";
-        }
-        const markerTitle = String(cluster.properties.title || "").trim();
-        const liveTitle = livePointCoords.has(twinKey) ? livePointTitles.get(twinKey) : "";
-        if (liveTitle) {
-          // A live point at this exact spot → the live border (on the face)
-          // and the live title under it. That label stays up, so no hover pill.
-          const label = document.createElement("div");
-          label.className = "local-marker-label";
-          label.textContent = liveTitle;
-          face.appendChild(label);
-        } else if (markerTitle) {
-          bindMarkerTitle(el, markerTitle);
-        }
-      }
-
-      const marker = new maplibregl.Marker({ element: el })
-        .setLngLat(cluster.geometry.coordinates)
-        .addTo(map);
-  
+    for (const [key, cluster] of wanted) {
+      const entry = keptMarkers.get(key);
+      if (entry) refreshKeptMarker(entry, cluster);
+      else keptMarkers.set(key, createKeptMarker(cluster, key));
       if (!cluster.properties.cluster) {
-        const popup = new maplibregl.Popup();
-  
-        popup.on("close", () => {
-          changePopupState(false);
-          if (currentUfoModelInGLTF) {
-            scene.add(currentUfoModelInGLTF);
-            crosshair.style.display = "block";
-          }
-        });
-  
-        el.addEventListener("click", (e) => {
-          e.stopPropagation();
-          if (el.dataset.holdTitle === "1") return;
-          hideMarkerTitle();
-          activePolygonPopups.forEach((popup) => popup.remove());
-          activeMarkerPopups.forEach((popup) => popup.remove());
-          activeMarkerPopups.push(popup);
-          CloseALL();
-          closeDrawAnchor();
-          closePressAnchor(); // a marker popup replaces the 🗺/📡 pin too
-          popup.setLngLat(cluster.geometry.coordinates).addTo(map).setDOMContent(cluster.properties.message);
-          animateMapTo(map, cluster.geometry.coordinates, null);
-          applyAllStyles();
-          changePopupState(true);
-          if (currentUfoModelInGLTF) {
-            scene.remove(currentUfoModelInGLTF);
-            crosshair.style.display = "none";
-          }
-        });
+        unclusteredTopicPoints.add(topicPointKey(cluster.geometry.coordinates));
       }
-      existingMarkers.push(marker);
-    });
-
+    }
+    syncKeptMarkers();
     notifyTopicClustersUpdated();
   } else {
     // topic markers hidden → every live dot uses the old solid style

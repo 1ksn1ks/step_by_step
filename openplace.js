@@ -11,7 +11,7 @@ import { geojson, polygons, currentUfoModelInGLTF } from './letall.js';
 import { activeMarkerPopups } from './marker.js';
 import { activePolygonPopups, addPolygonWithImageFill } from './polygons.js';
 import { updateClusters, index } from './marker.js';
-import { processTopicMessages, allLoadedMessages } from './processallmessages.js';
+import { processTopicMessages, allLoadedMessages, markerPopupNode, polygonPopupNode } from './processallmessages.js';
 import { animateMapTo } from './animatemapto.js';
 import { applyAllStyles } from './loadprofilepopup.js';
 import { CloseALL, changePopupState, closeTransientMapUI } from './cssLogic.js';
@@ -125,8 +125,9 @@ export async function openLinkedPlace(href) {
       const polygon = findPolygon(place);
       const lngLat = (polygon && ringCenter(polygon)) || place.point;
       const zoom = polygon ? zoomForPolygon(polygon) : 8;
-      if (polygon && polygon.description && lngLat) {
-        showPopup(lngLat, polygon.description, activePolygonPopups, zoom);
+      const polygonCard = polygon && polygonPopupNode(polygon);
+      if (polygonCard && lngLat) {
+        showPopup(lngLat, polygonCard, activePolygonPopups, zoom);
         return;
       }
       if (lngLat) {
@@ -136,8 +137,9 @@ export async function openLinkedPlace(href) {
     } else {
       const marker = findMarker(place);
       const lngLat = (marker && marker.geometry && marker.geometry.coordinates) || place.point;
-      if (marker && marker.properties && marker.properties.message && lngLat) {
-        showPopup(lngLat, marker.properties.message, activeMarkerPopups, MARKER_ZOOM);
+      const markerCard = marker && marker.properties && markerPopupNode(marker.properties);
+      if (markerCard && lngLat) {
+        showPopup(lngLat, markerCard, activeMarkerPopups, MARKER_ZOOM);
         return;
       }
     }

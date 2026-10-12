@@ -7,6 +7,7 @@ import { currentUfoModelInGLTF, polygons } from './letall';
 import { map } from './map'
 import { cameraState, earthOccludes } from './moon.js';
 import { activeMarkerPopups } from './marker';
+import { polygonPopupNode } from './processallmessages.js';
 import { CloseALL, changePopupState } from './cssLogic';
 import { closeDrawAnchor } from './drawhere';
 import { closePressAnchor } from './poiinfo';
@@ -297,16 +298,22 @@ function blackDataUrl() {
   return black512;
 }
 
-// MapLibre v5: map.updateImage() only addresses style images, not image
-// SOURCES — sources are swapped via source.updateImage({url}), which
-// reloads the texture from that url (canvas/ImageData inputs are ignored
-// silently). So each animated frame is encoded to a data-URL and the
-// source is pointed at it.
+// MapLibre's updateImage only accepts a URL, then decodes it and drops the
+// GL texture. Animated frames upload the canvas itself: texture.update
+// copies the pixels, and a missing texture is rebuilt from source.image
+// on the next prepare. Off-screen covers never reach this.
 function swapSourceImage(sourceId, canvas) {
   const src = map.getSource(sourceId);
-  if (!src || typeof src.updateImage !== 'function') return false;
+  if (!src || !canvas) return false;
   try {
-    src.updateImage({ url: canvas.toDataURL('image/jpeg', 0.8) });
+    src.image = canvas;
+    const texture = src.texture;
+    if (texture && typeof texture.update === 'function') {
+      texture.update(canvas);
+    } else if (texture) {
+      src.texture = null;
+    }
+    map.triggerRepaint();
     return true;
   } catch {
     return false;
@@ -431,27 +438,35 @@ function compositeGifFrame(player, i) {
       }
       fctx.putImageData(region, x, y);
     }
-    if (player.out) player.octx.drawImage(full, 0, 0, player.out.width, player.out.height);
-    player.frameUrl = (player.out || full).toDataURL('image/jpeg', 0.8);
+    // Disposal below mutates `full`. The uploaded canvas has to stay the
+    // frame that was just drawn, and stay the same size so the GL texture
+    // can be updated in place.
+    if (player.out) {
+      player.octx.drawImage(full, 0, 0, player.out.width, player.out.height);
+      player.frameCanvas = player.out;
+    } else {
+      if (!player.hold) {
+        player.hold = document.createElement('canvas');
+        player.hold.width = full.width;
+        player.hold.height = full.height;
+        player.hctx = player.hold.getContext('2d');
+      }
+      player.hctx.drawImage(full, 0, 0);
+      player.frameCanvas = player.hold;
+    }
     if (f.disposalType === 2) fctx.clearRect(x, y, w, h);
     else if (saved) fctx.putImageData(saved, x, y);
-    return !!player.frameUrl;
+    return !!player.frameCanvas;
   } catch {
+    player.frameCanvas = null;
     return false;
   }
 }
 
 function pushGifFrame(player) {
-  if (!player.frameUrl) return;
+  if (!player.frameCanvas) return;
   for (const sourceId of [...player.covers]) {
-    const src = map.getSource(sourceId);
-    if (!src || typeof src.updateImage !== 'function') {
-      detachCover(mediaCovers.get(sourceId));
-      continue;
-    }
-    try {
-      src.updateImage({ url: player.frameUrl });
-    } catch {
+    if (!swapSourceImage(sourceId, player.frameCanvas)) {
       detachCover(mediaCovers.get(sourceId));
     }
   }
@@ -477,7 +492,7 @@ function makeGifPlayer(url, gif) {
     covers: new Set(),
     idx: 0,
     nextFrameAt: 0,
-    frameUrl: '',
+    frameCanvas: null,
     ticked: 0,
     full,
     fctx,
@@ -811,7 +826,8 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
       if (!addedLayers.has(maskLayerId)) {
         map.on('click', maskLayerId, (e) => {
           hidePolygonTitle();
-          if (polygon.description) {
+          const description = polygonPopupNode(polygon);
+          if (description) {
             const targetLngLat = e.lngLat.toArray()
             // A fresh popup per click: re-adding the same instance after an
             // outside-click close gets closed again by its own stale
@@ -839,7 +855,7 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
             closePressAnchor(); // a polygon popup replaces the 🗺/📡 pin too
             popup
               .setLngLat(e.lngLat)
-              .setDOMContent(polygon.description)
+              .setDOMContent(description)
               .addTo(map);
             animateMapTo(map, targetLngLat, null);
             activePolygonPopups.push(popup);
