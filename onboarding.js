@@ -6,8 +6,8 @@ import { appAlreadyInstalled, runInstallPrompt } from './installapp.js';
 
 const INTRO = [
   {
-    icon: '📋',
-    title: 'Coordinates',
+    icons: ['📋', '🕐'],
+    title: 'Coordinates & clock',
     body: 'The top right follows the spot you are looking at.',
     rows: [
       { name: '📋 Coordinates', note: 'Tap it to copy this spot.' },
@@ -15,8 +15,8 @@ const INTRO = [
     ]
   },
   {
-    icon: '📍',
-    title: 'Drawing',
+    icons: ['📍', '🔷'],
+    title: 'Marker & polygon',
     body: 'Tap (phone) or left-click (PC) anywhere on the map.',
     rows: [
       { name: '📍 Marker', note: 'Opens a marker at this spot.' },
@@ -24,8 +24,8 @@ const INTRO = [
     ]
   },
   {
-    icon: '🗺',
-    title: 'Right-click',
+    icons: ['🗺', '📡'],
+    title: 'Maps & live',
     body: 'Right-click (PC) or hold (phone) on the map.',
     rows: [
       { name: '🗺 Open in Maps', note: 'Opens this spot in your maps app.' },
@@ -61,7 +61,19 @@ let installNav = null;
 
 function renderSlide(direction = 1) {
   const slide = slides[slideIndex];
-  iconEl.textContent = slide.icon;
+  iconEl.replaceChildren();
+  const icons = slide.icons || (slide.icon ? [slide.icon] : []);
+  icons.forEach((emoji, i) => {
+    if (i > 0) {
+      const join = document.createElement('span');
+      join.className = 'onboard-icon-join';
+      join.textContent = '&';
+      iconEl.appendChild(join);
+    }
+    const item = document.createElement('span');
+    item.textContent = emoji;
+    iconEl.appendChild(item);
+  });
   titleEl.textContent = slide.title;
   bodyEl.textContent = slide.body || '';
   bodyEl.style.display = slide.body ? '' : 'none';

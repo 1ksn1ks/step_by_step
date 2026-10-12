@@ -326,7 +326,7 @@ function createKeptMarker(cluster, key) {
     entry.pictureUrl = null;
     entry.pictureSeq = 0;
     entry.titleBound = false;
-    const popup = new maplibregl.Popup();
+    const popup = new maplibregl.Popup({ focusAfterOpen: false });
     entry.popup = popup;
     popup.on('close', () => {
       changePopupState(false);

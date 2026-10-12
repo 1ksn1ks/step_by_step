@@ -445,6 +445,51 @@ function isValidUrl(url) {
 // right is the next one, matching the ← → chips.
 const popupPagers = new Set();
 let popupKeysBound = false;
+let popupStepQueue = 0;
+let popupStepScheduled = false;
+
+// A card is built once and reused the next time that post is shown. Dropping
+// its pager while it is off the map makes the arrows die the moment you come
+// back to it (the 8th press on a stack of 9). Detached cards stay registered.
+function latestPopupPager() {
+  let pager = null;
+  for (const candidate of popupPagers) {
+    if (candidate.container.isConnected) pager = candidate;
+  }
+  return pager;
+}
+
+function touchPopupPager(container) {
+  if (!container) return;
+  for (const entry of popupPagers) {
+    if (entry.container !== container) continue;
+    popupPagers.delete(entry);
+    popupPagers.add(entry);
+    return;
+  }
+}
+
+// The popup is rebuilt on every step. Doing that inside keydown removes the
+// focused button before the key press finishes, and the browser then drops
+// the rest of a fast repeat. Steps run after the key press, one per press.
+function schedulePopupStep(direction) {
+  popupStepQueue += direction;
+  if (popupStepScheduled) return;
+  popupStepScheduled = true;
+  requestAnimationFrame(() => {
+    popupStepScheduled = false;
+    const steps = popupStepQueue;
+    popupStepQueue = 0;
+    const count = Math.abs(steps);
+    const forward = steps > 0;
+    for (let i = 0; i < count; i++) {
+      const pager = latestPopupPager();
+      if (!pager) return;
+      if (forward) pager.goNext();
+      else pager.goPrev();
+    }
+  });
+}
 
 function bindPopupPager(container, goPrev, goNext) {
   let swipeX = null;
@@ -476,19 +521,13 @@ function bindPopupPager(container, goPrev, goNext) {
     const active = document.activeElement;
     if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT' || active.isContentEditable)) return;
     if (document.getElementById('media-fullscreen')) return;
-    let pager = null;
-    for (const candidate of popupPagers) {
-      if (!candidate.container.isConnected) {
-        popupPagers.delete(candidate);
-        continue;
-      }
-      pager = candidate;
-    }
+    const pager = latestPopupPager();
     if (!pager) return;
     event.preventDefault();
     event.stopPropagation();
-    if (event.key === 'ArrowLeft') pager.goPrev();
-    else pager.goNext();
+    const focused = document.activeElement;
+    if (focused && focused.closest && focused.closest('.maplibregl-popup')) focused.blur();
+    schedulePopupStep(event.key === 'ArrowLeft' ? -1 : 1);
   }, true);
 }
 
@@ -964,21 +1003,26 @@ function createPolygonPopupHTML(data) {
 // createMarkerPopupHTML themselves because those open immediately.
 export function markerPopupNode(properties) {
   if (!properties) return null;
-  if (properties.message) return properties.message;
-  const data = properties.popupData;
-  if (!data) return null;
-  const record = typeof data === 'function' ? data() : data;
-  properties.message = createMarkerPopupHTML(record);
+  if (!properties.message) {
+    const data = properties.popupData;
+    if (!data) return null;
+    const record = typeof data === 'function' ? data() : data;
+    properties.message = createMarkerPopupHTML(record);
+  }
+  // Showing this card again: it is the one the arrows must move.
+  touchPopupPager(properties.message);
   return properties.message;
 }
 
 export function polygonPopupNode(polygon) {
   if (!polygon) return null;
-  if (polygon.description) return polygon.description;
-  const data = polygon.popupData;
-  if (!data) return null;
-  const record = typeof data === 'function' ? data() : data;
-  polygon.description = createPolygonPopupHTML(record);
+  if (!polygon.description) {
+    const data = polygon.popupData;
+    if (!data) return null;
+    const record = typeof data === 'function' ? data() : data;
+    polygon.description = createPolygonPopupHTML(record);
+  }
+  touchPopupPager(polygon.description);
   return polygon.description;
 }
 
@@ -1610,7 +1654,7 @@ function showMarker(m) {
     closeTransientMapUI(); // a popup replaces any open pin (📍/🔷 or 🗺/📡) and any other popup
     activeMarkerPopups.forEach(p => p.remove());
     newActiveMarkerPopups([]);
-    const popup = new maplibregl.Popup()
+    const popup = new maplibregl.Popup({ focusAfterOpen: false })
         .setLngLat(m.geometry.coordinates)
         .setDOMContent(markerPopupNode(m.properties))
         .addTo(map);
@@ -1721,7 +1765,7 @@ function showPolygon(p) {
     const centerLat = (bounds.minLat + bounds.maxLat) / 2;
     const targetLngLat = [centerLng, centerLat];
 
-    const popup = new maplibregl.Popup()
+    const popup = new maplibregl.Popup({ focusAfterOpen: false })
         .setLngLat(targetLngLat)
         .setDOMContent(polygonPopupNode(p))
         .addTo(map);

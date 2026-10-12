@@ -832,7 +832,7 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
             // A fresh popup per click: re-adding the same instance after an
             // outside-click close gets closed again by its own stale
             // closeOnClick listener (still in this click's listener list).
-            const popup = new maplibregl.Popup();
+            const popup = new maplibregl.Popup({ focusAfterOpen: false });
             popup.on('close', () => {
               changePopupState(false);
               if (currentUfoModelInGLTF) {
