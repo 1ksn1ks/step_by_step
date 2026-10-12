@@ -1,39 +1,98 @@
 import { map } from './map.js';
+import { appAlreadyInstalled, runInstallPrompt } from './installapp.js';
 
-// First-load onboarding: a 4-slide glass overlay shown on every site
-// refresh, explaining the basics of the app.
+// First-load onboarding. The install question is the first page.
+// An installed app skips the whole introduction.
 
-const SLIDES = [
+const INTRO = [
   {
     icon: '📋',
     title: 'Coordinates',
-    body: 'The coordinates field (top right) always shows where you are on the map — tap it to copy them.'
+    body: 'The top right follows the spot you are looking at.',
+    rows: [
+      { name: '📋 Coordinates', note: 'Tap it to copy this spot.' },
+      { name: '🕐 Clock', note: 'Shows the current time at those coordinates.' }
+    ]
   },
   {
     icon: '📍',
     title: 'Drawing',
-    body: 'Tap (phone) or left-click (PC) anywhere on the map to drop a pin — then add a 📍 marker there or draw a 🔷 polygon.'
+    body: 'Tap (phone) or left-click (PC) anywhere on the map.',
+    rows: [
+      { name: '📍 Marker', note: 'Opens a marker at this spot.' },
+      { name: '🔷 Polygon', note: 'First tap is the top left. The next tap is the bottom right.' }
+    ]
+  },
+  {
+    icon: '🗺',
+    title: 'Right-click',
+    body: 'Right-click (PC) or hold (phone) on the map.',
+    rows: [
+      { name: '🗺 Open in Maps', note: 'Opens this spot in your maps app.' },
+      { name: '📡 Look for Live', note: 'Shows that country\'s live markers from the last 24 hours.' }
+    ]
   }
 ];
 
+function slidesForThisVisit() {
+  return [
+    {
+      icon: '📲',
+      title: 'Install on homescreen?',
+      body: 'Installing removes this intro.',
+      install: true
+    },
+    ...INTRO
+  ];
+}
+
 let slideIndex = 0;
+let slides = INTRO;
 let overlay = null;
 let iconEl = null;
 let titleEl = null;
 let bodyEl = null;
+let rowsEl = null;
 let dotsEl = null;
 let prevBtn = null;
 let nextBtn = null;
+let introNav = null;
+let installNav = null;
 
 function renderSlide(direction = 1) {
-  const slide = SLIDES[slideIndex];
+  const slide = slides[slideIndex];
   iconEl.textContent = slide.icon;
   titleEl.textContent = slide.title;
-  bodyEl.textContent = slide.body;
+  bodyEl.textContent = slide.body || '';
+  bodyEl.style.display = slide.body ? '' : 'none';
+  bodyEl.style.marginBottom = slide.rows ? '1.2vh' : '';
+  rowsEl.replaceChildren();
+  if (slide.rows && slide.rows.length) {
+    rowsEl.style.display = '';
+    for (const row of slide.rows) {
+      const item = document.createElement('div');
+      item.className = 'onboard-row';
+      const name = document.createElement('div');
+      name.className = 'onboard-row-name';
+      name.textContent = row.name;
+      const note = document.createElement('div');
+      note.className = 'onboard-row-note';
+      note.textContent = row.note;
+      item.append(name, note);
+      rowsEl.appendChild(item);
+    }
+  } else {
+    rowsEl.style.display = 'none';
+  }
   Array.from(dotsEl.children).forEach((dot, i) => {
     dot.classList.toggle('onboard-dot-active', i === slideIndex);
   });
-  nextBtn.textContent = slideIndex === SLIDES.length - 1 ? 'Got it' : 'Next ›';
+  const installPage = !!slide.install;
+  introNav.style.display = installPage ? 'none' : 'flex';
+  installNav.style.display = installPage ? 'flex' : 'none';
+  const lastSlide = slideIndex === slides.length - 1;
+  nextBtn.textContent = lastSlide ? 'Got it' : 'Next ›';
+  nextBtn.classList.toggle('is-quiet', !lastSlide);
   prevBtn.style.display = slideIndex === 0 ? 'none' : 'inline-block';
   // Slide-in: fade + nudge with the app's spring (nudges from the direction you came)
   const content = overlay.querySelector('.onboard-content');
@@ -102,9 +161,12 @@ function build() {
   bodyEl = document.createElement('p');
   bodyEl.className = 'onboard-body';
 
+  rowsEl = document.createElement('div');
+  rowsEl.className = 'onboard-rows';
+
   dotsEl = document.createElement('div');
   dotsEl.className = 'onboard-dots';
-  SLIDES.forEach(() => {
+  slides.forEach(() => {
     const dot = document.createElement('span');
     dot.className = 'onboard-dot';
     dotsEl.appendChild(dot);
@@ -125,7 +187,7 @@ function build() {
   nextBtn.className = 'onboard-next';
   nextBtn.onclick = (e) => {
     e.stopPropagation();
-    if (slideIndex < SLIDES.length - 1) {
+    if (slideIndex < slides.length - 1) {
       slideIndex++;
       renderSlide(1);
     } else {
@@ -133,11 +195,37 @@ function build() {
     }
   };
 
-  const nav = document.createElement('div');
-  nav.className = 'onboard-nav';
-  nav.append(prevBtn, nextBtn);
+  introNav = document.createElement('div');
+  introNav.className = 'onboard-nav';
+  introNav.append(prevBtn, nextBtn);
 
-  content.append(iconEl, titleEl, bodyEl, dotsEl, nav);
+  const notNowBtn = document.createElement('button');
+  notNowBtn.className = 'onboard-prev';
+  notNowBtn.textContent = 'Not now';
+  notNowBtn.onclick = (e) => {
+    e.stopPropagation();
+    if (slideIndex < slides.length - 1) {
+      slideIndex++;
+      renderSlide(1);
+    } else {
+      closeOnboarding();
+    }
+  };
+
+  const installBtn = document.createElement('button');
+  installBtn.className = 'onboard-next';
+  installBtn.textContent = 'Install';
+  installBtn.onclick = async (e) => {
+    e.stopPropagation();
+    const accepted = await runInstallPrompt();
+    if (accepted) closeOnboarding();
+  };
+
+  installNav = document.createElement('div');
+  installNav.className = 'onboard-nav';
+  installNav.append(installBtn, notNowBtn);
+
+  content.append(iconEl, titleEl, bodyEl, rowsEl, dotsEl, introNav, installNav);
   card.appendChild(content);
   document.body.appendChild(overlay);
 
@@ -167,8 +255,12 @@ function openedFromNotification() {
 
 function start() {
   if (openedFromNotification()) return;
-  const show = () => {
+  const show = async () => {
     if (document.getElementById('onboard-overlay')) return;
+    if (await appAlreadyInstalled()) return;
+    if (document.getElementById('onboard-overlay')) return;
+    slides = slidesForThisVisit();
+    slideIndex = 0;
     build();
   };
   // Let the loader fade first, then pop the onboarding on top of the map

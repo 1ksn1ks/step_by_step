@@ -2,7 +2,7 @@
 // then swaps in whatever is currently typed or uploaded.
 import { connectedAccount } from './web3.js';
 import { profilePictures, usernames, click2url, topicBio } from './loadalladata.js';
-import { payerUsernameNode, safeHttpUrl } from './payerlink.js';
+import { payerUsernameNode } from './payerlink.js';
 
 const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 
@@ -72,9 +72,7 @@ function render() {
   const nameColor = colorOf('color-picker-popup-username', '#ff9933');
   nameEl.replaceChildren();
   if (name) {
-    const node = payerUsernameNode(name, link, {
-      className: safeHttpUrl(link) ? 'profile-live-name is-link' : 'profile-live-name'
-    });
+    const node = payerUsernameNode(name, link, { className: 'profile-live-name' });
     node.style.color = nameColor;
     nameEl.appendChild(node);
   }

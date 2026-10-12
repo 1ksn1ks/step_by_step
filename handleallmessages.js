@@ -25,6 +25,32 @@ import { toast } from "./toast";
 import { applyInitialXYZ } from "./setinitialxyz.js";
 import { fillTopicIds } from "./topicidintext.js";
 
+// Account ids and topic ids share the 0.0. form, and Hedera gives each number
+// to only one of them. A remembered answer skips a second mirror ask.
+const accountChecks = new Map();
+
+async function isHederaAccount(id) {
+  if (accountChecks.has(id)) return accountChecks.get(id);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetch(`https://mainnet.mirrornode.hedera.com/api/v1/accounts/${id}`, { signal: controller.signal });
+    if (response.status === 404) {
+      accountChecks.set(id, false);
+      return false;
+    }
+    if (!response.ok) return false;
+    const data = await response.json();
+    const yes = !!(data && data.account);
+    if (yes) accountChecks.set(id, true);
+    return yes;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Copy text to the clipboard with an http-safe fallback: navigator.clipboard
 // only exists on HTTPS/localhost, so on a plain http origin (the dev remote)
 // a temporary textarea + execCommand is used instead.
@@ -197,10 +223,15 @@ if (sortTopicsZa) {
 
 export async function handleAllMessages() {
     try {
+      const userInput = document.getElementById("input-field").value.toLowerCase();
+      const accountMatch = userInput.trim().match(/^(0\.0\.\d+)(?:-[a-z0-9]+)?$/);
+      if (accountMatch && await isHederaAccount(accountMatch[1]) && typeof window.loadBio4PIC === 'function') {
+        await window.loadBio4PIC(accountMatch[1]);
+        return;
+      }
       newStoredMarkers([]);
       newStoredPolygons([]);
       allLoadedMessages.length = 0;
-      let userInput = document.getElementById("input-field").value.toLowerCase();
       let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
       let topicId;
   

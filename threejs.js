@@ -201,22 +201,25 @@ function animate(now) {
     const lng = center.lng.toFixed(5);
     const zoom = map.getZoom().toFixed(1);
 
-    // Update coordinates display only if changed
+    // Update coordinates display only if changed. A successful copy holds
+    // the same "Copyed!" flash the topic name uses, then the live text returns.
     const coordinatesDisplay = document.getElementById("coordinates-display");
     const newCoords = `Z: ${zoom} · lng: ${lng}, lat: ${lat}`;
-    if (coordinatesDisplay.value !== newCoords) {
-      coordinatesDisplay.value = newCoords;
+    const copiedUntil = Number(coordinatesDisplay.dataset.copiedUntil) || 0;
+    const nextText = Date.now() < copiedUntil ? "Copyed!" : newCoords;
+    if (coordinatesDisplay.value !== nextText) {
+      coordinatesDisplay.value = nextText;
 
       // Re-measure the field width only when the text length changes —
       // measuring every frame forced a full layout pass on the main thread
-      if (newCoords.length !== coordTextLen) {
-        coordTextLen = newCoords.length;
+      if (nextText.length !== coordTextLen) {
+        coordTextLen = nextText.length;
         const tempSpan = document.createElement("span");
         tempSpan.style.visibility = "hidden";
         tempSpan.style.position = "absolute";
         tempSpan.style.whiteSpace = "nowrap";
         tempSpan.style.font = window.getComputedStyle(coordinatesDisplay).font;
-        tempSpan.textContent = newCoords;
+        tempSpan.textContent = nextText;
         document.body.appendChild(tempSpan);
 
         coordinatesDisplay.style.width = `${tempSpan.offsetWidth + 1}px`;

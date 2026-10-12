@@ -78,8 +78,7 @@ export function attachPayerLink(el, rawUrl) {
   el.target = '_blank';
   el.rel = 'noopener noreferrer';
   el.classList.add('payer-link');
-  el.style.textDecoration = 'underline';
-  el.style.textUnderlineOffset = '0.12em';
+  el.style.textDecoration = 'none';
   el.style.cursor = 'pointer';
   const show = () => {
     if (!el.isConnected) {
@@ -103,7 +102,7 @@ export function attachPayerLink(el, rawUrl) {
 }
 
 // An anchor when rawUrl is http(s), otherwise a span. className and cssText
-// are applied first so the link underline can replace text-decoration:none.
+// are applied first. The link stays clickable without an underline.
 export function payerUsernameNode(name, rawUrl, { className = '', cssText = '' } = {}) {
   const url = safeHttpUrl(rawUrl);
   const el = document.createElement(url ? 'a' : 'span');

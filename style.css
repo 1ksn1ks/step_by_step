@@ -2883,6 +2883,34 @@ html, body {
     margin: 0 0 2.5vh;
   }
 
+  .onboard-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 1vh;
+    margin: 0 0 2.5vh;
+    text-align: left;
+  }
+
+  .onboard-row {
+    padding: 1.1vh 1.4vh;
+    border-radius: 1.2vh;
+    background: rgba(255, 255, 255, 0.06);
+    border: 0.08vh solid rgba(255, 255, 255, 0.16);
+  }
+
+  .onboard-row-name {
+    font-size: 1.9vh;
+    font-weight: 700;
+    color: white;
+  }
+
+  .onboard-row-note {
+    margin-top: 0.25vh;
+    font-size: 1.7vh;
+    line-height: 1.35;
+    opacity: 0.8;
+  }
+
   .onboard-dots {
     display: flex;
     justify-content: center;
@@ -2940,6 +2968,13 @@ html, body {
 
   .onboard-next:active {
     transform: scale(0.95);
+  }
+
+  .onboard-next.is-quiet {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+    border: 0.08vh solid rgba(255, 255, 255, 0.25);
+    box-shadow: none;
   }
 
   /* ── Topic + E2EE chat: keep the open animation, drop only the opacity fade ──
@@ -3125,10 +3160,6 @@ html, body {
     font-weight: 700;
     text-decoration: none;
     word-break: break-word;
-  }
-
-  .profile-live-name.is-link {
-    text-decoration: underline;
   }
 
   .profile-live-bio {
@@ -3516,9 +3547,10 @@ html, body {
     text-decoration: none;
   }
 
+  /* Topic ids in a bio stay cyan and clickable, with no underline. */
   #loaded-topics .profile-live-topic {
     color: #22d3ee;
-    text-decoration: underline;
+    text-decoration: none;
   }
 
   /* The list must not scale on hover/press — the global .toolbar-column
@@ -3744,12 +3776,11 @@ html, body {
 }
 .payer-link-tip[hidden] { display: none; }
 a.payer-link {
-  text-decoration: underline;
-  text-underline-offset: 0.12em;
+  text-decoration: none;
   cursor: pointer;
 }
 #loaded-topics .profile-live-preview a.payer-link {
-  text-decoration: underline;
+  text-decoration: none;
   cursor: pointer;
 }
 .local-marker-label {
@@ -3936,46 +3967,4 @@ a.payer-link {
   from { transform: scale(0.96); opacity: 0; }
 }
 
-/* Click required before Chrome will open its install dialog. */
-#install-recommend {
-  position: fixed;
-  z-index: 10020;
-  left: 50%;
-  top: 12vh;
-  transform: translateX(-50%);
-  width: min(86vw, 420px);
-  box-sizing: border-box;
-  padding: 2.2vh 2vh 1.8vh;
-  border-radius: 2vh;
-  background: rgba(18, 18, 28, 0.94);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 2vh 5vh rgba(0, 0, 0, 0.45);
-  color: #e6e6f0;
-  font-family: system-ui, sans-serif;
-  text-align: center;
-}
-#install-recommend[hidden] {
-  display: none;
-}
-#install-recommend p {
-  margin: 0 0 1.6vh;
-  font-size: 2vh;
-}
-#install-recommend div {
-  display: flex;
-  justify-content: center;
-  gap: 1vh;
-}
-#install-recommend button {
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  font-size: 1.7vh;
-  padding: 0.8vh 1.8vh;
-  cursor: pointer;
-}
-#install-recommend-yes {
-  background: rgba(34, 211, 238, 0.22);
-  border-color: rgba(34, 211, 238, 0.7);
-}
+

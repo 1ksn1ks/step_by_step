@@ -71,6 +71,11 @@ map.addControl(navigation);
 navigation._container.classList.add('custom-map-control');
 
 
+  function flashCoordinatesCopied() {
+    const display = document.getElementById("coordinates-display");
+    if (display) display.dataset.copiedUntil = String(Date.now() + 1000);
+  }
+
   document.getElementById("copy-coordinates").addEventListener("click", (e) => {
     e.stopPropagation();
     const center = map.getCenter();
@@ -79,6 +84,7 @@ navigation._container.classList.add('custom-map-control');
     if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(coordinates).then(() => {
         toast.success("Coordinates copied");
+        flashCoordinatesCopied();
       }).catch(err => {
         console.error("Failed to copy coordinates:", err);
         toast.error("Failed to copy coordinates");
@@ -94,6 +100,7 @@ navigation._container.classList.add('custom-map-control');
       document.execCommand("copy");
       document.body.removeChild(textarea);
       toast.success("Coordinates copied");
+      flashCoordinatesCopied();
     }
   });
 

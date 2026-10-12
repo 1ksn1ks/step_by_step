@@ -96,14 +96,6 @@
       </div>
     </div>
 
-    <div id="install-recommend" hidden>
-      <p>Install on homescreen?</p>
-      <div>
-        <button type="button" id="install-recommend-yes">Install</button>
-        <button type="button" id="install-recommend-no">Not now</button>
-      </div>
-    </div>
-
       <div id="map"></div>
       
       <div id="three-container"></div>
@@ -345,7 +337,7 @@
           <h3 class="info-overlay-title">Load</h3>
           <p class="info-overlay-subtitle">Find and read any topic.</p>
           <ul class="info-overlay-list">
-            <li>Load messages from a topic ID or a linked domain.</li>
+            <li>Load messages from a topic ID or a linked domain. An account id opens that person's bio, the same card as tapping their profile picture.</li>
             <li>Stacked topics (multiple IDs on one domain) load together, with the creator's names.</li>
             <li><b>Options</b> — filter by blocked users, a date/time range, or specific users.</li>
             <li><b>Saved on this phone</b> — a topic you load stays here. The next load fetches only new messages. Names, pictures, links, and bios stay here too, and the next open fetches only accounts that changed.</li>
@@ -364,7 +356,7 @@
           <div class="options-column-title">🪐 LOAD</div>
 
           <div style="position: relative;">
-            <textarea class="toolbar-column" type="text" id="input-field" placeholder="Domain/Topic ID" onclick="event.stopPropagation();"
+            <textarea class="toolbar-column" type="text" id="input-field" placeholder="Domain/Topic/Account ID" onclick="event.stopPropagation();"
             oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
             <button id="paste-topic-btn" onclick="event.stopPropagation();"

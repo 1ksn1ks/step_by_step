@@ -26,6 +26,7 @@ export function fillTopicIds(bioEl, bio, className) {
     const topicId = match[0];
     const hit = document.createElement('span');
     if (className) hit.className = className;
+    hit.style.textDecoration = 'none';
     hit.textContent = topicId;
     hit.addEventListener('click', (event) => {
       event.stopPropagation();

@@ -5,6 +5,17 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://onlyonhbar.com/manifest.webmanifest"
+    },
+    {
+      "platform": "webapp",
+      "url": "https://localhost:5173/manifest.webmanifest"
+    }
+  ],
   "launch_handler": {
     "client_mode": ["navigate-existing", "auto"]
   },

@@ -440,6 +440,58 @@ function isValidUrl(url) {
   }
 }
 
+// Phone swipe and keyboard arrows share one pager. A mouse drag is a text
+// selection, so it never turns the page. Left is the previous message,
+// right is the next one, matching the ← → chips.
+const popupPagers = new Set();
+let popupKeysBound = false;
+
+function bindPopupPager(container, goPrev, goNext) {
+  let swipeX = null;
+  let swipeY = null;
+  container.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'touch') return;
+    if (e.target.closest('.popup-media-card, .payer-link')) return;
+    swipeX = e.clientX;
+    swipeY = e.clientY;
+  });
+  container.addEventListener('pointerup', (e) => {
+    if (e.pointerType !== 'touch' || swipeX === null) return;
+    const dx = e.clientX - swipeX;
+    const dy = e.clientY - swipeY;
+    swipeX = swipeY = null;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx < 0) goNext();
+    else goPrev();
+  });
+  container.addEventListener('pointercancel', () => {
+    swipeX = swipeY = null;
+  });
+  popupPagers.add({ container, goPrev, goNext });
+  if (popupKeysBound) return;
+  popupKeysBound = true;
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT' || active.isContentEditable)) return;
+    if (document.getElementById('media-fullscreen')) return;
+    let pager = null;
+    for (const candidate of popupPagers) {
+      if (!candidate.container.isConnected) {
+        popupPagers.delete(candidate);
+        continue;
+      }
+      pager = candidate;
+    }
+    if (!pager) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key === 'ArrowLeft') pager.goPrev();
+    else pager.goNext();
+  }, true);
+}
+
 // Helper function to create marker popup HTML using DOM
 // (exported so the 24h local-news markers reuse the exact same popup)
 export function createMarkerPopupHTML(data) {
@@ -466,28 +518,9 @@ export function createMarkerPopupHTML(data) {
   } = data;
 
   const container = document.createElement('div');
-
-  // Swipe left = next message, swipe right = previous. Only clearly
-  // horizontal drags trigger it (vertical scroll, taps and video drags
-  // are ignored).
-  let swipeX = null, swipeY = null;
-  container.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.popup-media-card, .payer-link')) return;
-    swipeX = e.clientX;
-    swipeY = e.clientY;
-  });
-  container.addEventListener('pointerup', (e) => {
-    if (swipeX === null) return;
-    const dx = e.clientX - swipeX;
-    const dy = e.clientY - swipeY;
-    swipeX = swipeY = null;
-    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    if (dx < 0) {
-      onNext ? onNext() : window.nextMsgFromPayerMarker(payer, markernumber, topicId);
-    } else {
-      onPrev ? onPrev() : window.prevMsgFromPayerMarker(payer, markernumber, topicId);
-    }
-  });
+  const goPrevMarker = () => onPrev ? onPrev() : window.prevMsgFromPayerMarker(payer, markernumber, topicId);
+  const goNextMarker = () => onNext ? onNext() : window.nextMsgFromPayerMarker(payer, markernumber, topicId);
+  bindPopupPager(container, goPrevMarker, goNextMarker);
 
   // Top row: settings on the left, number in the middle, × on the right.
   const topHeader = document.createElement('div');
@@ -720,25 +753,11 @@ function createPolygonPopupHTML(data) {
   } = data;
 
   const container = document.createElement('div');
-
-  // Swipe left = next message, swipe right = previous. Only clearly
-  // horizontal drags trigger it (vertical scroll, taps and video drags
-  // are ignored).
-  let swipeX = null, swipeY = null;
-  container.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.popup-media-card, .payer-link')) return;
-    swipeX = e.clientX;
-    swipeY = e.clientY;
-  });
-  container.addEventListener('pointerup', (e) => {
-    if (swipeX === null) return;
-    const dx = e.clientX - swipeX;
-    const dy = e.clientY - swipeY;
-    swipeX = swipeY = null;
-    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    if (dx < 0) window.nextMsgFromPayerPolygon(payer, polygonnumber, topicId);
-    else window.prevMsgFromPayerPolygon(payer, polygonnumber, topicId);
-  });
+  bindPopupPager(
+    container,
+    () => window.prevMsgFromPayerPolygon(payer, polygonnumber, topicId),
+    () => window.nextMsgFromPayerPolygon(payer, polygonnumber, topicId)
+  );
 
   // Top row: settings on the left, number in the middle, × on the right.
   const topHeader = document.createElement('div');

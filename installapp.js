@@ -1,71 +1,81 @@
-// The card is the click Chrome requires. Install calls prompt() on that
-// click, which opens Chrome's own install dialog. Calling prompt() during
-// load is rejected, so the card waits. Not now lasts until the next load.
+// Chrome will only open its install dialog from a click. The introduction's
+// first page is that click. Calling prompt() during load is rejected.
 // An installed window is never asked. iPhone never fires
 // beforeinstallprompt, so install there stays Share → Add to Home Screen.
 
-const installCard = document.getElementById("install-recommend");
-const installYes = document.getElementById("install-recommend-yes");
-const installNo = document.getElementById("install-recommend-no");
-
+const INSTALLED_KEY = 'meritocracy-homescreen';
 let deferredPrompt = null;
 
-function isInstalled() {
-  return window.matchMedia("(display-mode: standalone)").matches
-    || window.matchMedia("(display-mode: fullscreen)").matches
+function displayMode(mode) {
+  return window.matchMedia(`(display-mode: ${mode})`).matches;
+}
+
+// True when this window is the installed app, not a browser tab.
+export function isAppInstalled() {
+  return displayMode('standalone')
+    || displayMode('fullscreen')
+    || displayMode('minimal-ui')
+    || displayMode('window-controls-overlay')
     || window.navigator.standalone === true;
 }
 
-function hideRecommend() {
-  if (installCard) installCard.hidden = true;
+function rememberInstalled() {
+  try { localStorage.setItem(INSTALLED_KEY, '1'); } catch { /* private mode */ }
 }
 
-function showRecommend() {
-  if (!installCard || isInstalled() || !deferredPrompt) return;
-  installCard.hidden = false;
+function rememberedInstalled() {
+  try { return localStorage.getItem(INSTALLED_KEY) === '1'; } catch { return false; }
+}
+
+// Also true in a browser tab when this site is already on the homescreen.
+export async function appAlreadyInstalled() {
+  if (isAppInstalled()) {
+    rememberInstalled();
+    return true;
+  }
+  if (typeof navigator.getInstalledRelatedApps === 'function') {
+    try {
+      const apps = await navigator.getInstalledRelatedApps();
+      const here = new URL('/manifest.webmanifest', window.location.href).href;
+      const installed = apps.some((app) => app.platform === 'webapp' && (!app.url || app.url === here));
+      if (installed) rememberInstalled();
+      return installed || rememberedInstalled();
+    } catch {
+      return rememberedInstalled();
+    }
+  }
+  return rememberedInstalled();
+}
+
+export async function runInstallPrompt() {
+  const promptEvent = deferredPrompt;
+  if (!promptEvent || isAppInstalled()) return false;
+  deferredPrompt = null;
+  try {
+    const choice = await promptEvent.prompt();
+    const accepted = !!(choice && choice.outcome === 'accepted');
+    if (accepted) rememberInstalled();
+    return accepted;
+  } catch (err) {
+    console.warn("Install prompt failed", err);
+    return false;
+  }
 }
 
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
-  if (isInstalled()) {
+  if (isAppInstalled()) {
     deferredPrompt = null;
-    hideRecommend();
     return;
   }
+  try { localStorage.removeItem(INSTALLED_KEY); } catch { /* private mode */ }
   deferredPrompt = event;
-  showRecommend();
 });
 
 window.addEventListener("appinstalled", () => {
   deferredPrompt = null;
-  hideRecommend();
+  rememberInstalled();
 });
-
-if (installYes) {
-  installYes.addEventListener("click", async (event) => {
-    event.stopPropagation();
-    const promptEvent = deferredPrompt;
-    if (!promptEvent) return;
-    deferredPrompt = null;
-    hideRecommend();
-    try {
-      await promptEvent.prompt();
-    } catch (err) {
-      console.warn("Install prompt failed", err);
-    }
-  });
-}
-
-if (installNo) {
-  installNo.addEventListener("click", (event) => {
-    event.stopPropagation();
-    hideRecommend();
-  });
-}
-
-if (installCard) {
-  installCard.addEventListener("click", (event) => event.stopPropagation());
-}
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch((err) => {
