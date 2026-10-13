@@ -151,6 +151,15 @@ db.exec(`
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+  -- One integer per post. created is the message's ISO time, the same
+  -- value the phone already has. Not rebuilt from Hedera: wiping this
+  -- file resets the counts.
+  CREATE TABLE IF NOT EXISTS popup_views (
+    topic_id TEXT NOT NULL,
+    created  TEXT NOT NULL,
+    views    INTEGER NOT NULL,
+    PRIMARY KEY (topic_id, created)
+  );
 `);
 // Migrations: columns added after earlier deployments created the tables
 // (CREATE TABLE IF NOT EXISTS won't add a column to an existing one).
@@ -331,6 +340,15 @@ const q = {
   `),
   listComments: db.prepare(
     "SELECT created, payer, text, parent_id FROM comments WHERE topic_id = ? AND target_key = ? ORDER BY created ASC"
+  ),
+  // One row per post. The insert adds the first view; a repeat adds one.
+  bumpPopupView: db.prepare(`
+    INSERT INTO popup_views (topic_id, created, views) VALUES (?, ?, 1)
+    ON CONFLICT(topic_id, created) DO UPDATE SET views = popup_views.views + 1
+    RETURNING views
+  `),
+  getPopupView: db.prepare(
+    "SELECT views FROM popup_views WHERE topic_id = ? AND created = ?"
   ),
 };
 
@@ -1000,6 +1018,31 @@ app.post("/api/track", (req, res) => {
   if (!isTopicId(topic)) return res.status(400).json({ ok: false, error: "bad topic" });
   q.upsertTopic.run(topic, Date.now());
   res.json({ ok: true });
+});
+
+// One view of one post. created is that message's ISO time. inc 1 adds a
+// view; inc 0 only reads. The phone sends inc 1 the first time that
+// browser opens the post, then inc 0 after that.
+app.post("/api/popup-view", (req, res) => {
+  const topic = req.body && req.body.topic;
+  const created = req.body && req.body.created;
+  const inc = req.body && Number(req.body.inc) === 1 ? 1 : 0;
+  if (!isTopicId(topic) || typeof created !== "string" || created.length > 40) {
+    return res.status(400).json({ ok: false, error: "bad view" });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(created)) {
+    return res.status(400).json({ ok: false, error: "bad view" });
+  }
+  const ms = Date.parse(created);
+  if (!Number.isFinite(ms) || ms < Date.parse("2019-01-01T00:00:00Z") || ms > Date.now() + 86400000) {
+    return res.status(400).json({ ok: false, error: "bad view" });
+  }
+  if (!inc) {
+    const row = q.getPopupView.get(topic, created);
+    return res.json({ ok: true, views: row ? row.views : 0 });
+  }
+  const row = q.bumpPopupView.get(topic, created);
+  res.json({ ok: true, views: row ? row.views : 1 });
 });
 
 // app: "I just sent this message" (after the wallet confirms) → stored as

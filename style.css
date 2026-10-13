@@ -2103,6 +2103,14 @@ html, body {
   }
 
   /* Timestamp — same glass bubble as the other pills */
+  .popup-views {
+    display: none;
+  }
+
+  .popup-timestamp.popup-views.is-shown {
+    display: inline-block;
+  }
+
   .popup-timestamp {
     font-size: calc(var(--u) * 1);
     color: rgba(255, 255, 255, 0.45);

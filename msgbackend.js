@@ -22,6 +22,29 @@ export function trackTopic(topicId) {
   }).catch(() => {});
 }
 
+// Read or add one view for one post. created is the message ISO time.
+// Returns the total, or null when the server is unreachable.
+export async function popupView(topicId, created, inc) {
+  if (!topicId || !created) return null;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 4000);
+  try {
+    const res = await fetch(BACKEND_URL + "/api/popup-view", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic: topicId, created, inc: inc ? 1 : 0 }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data && data.ok ? Number(data.views) || 0 : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Same shape as getMessages(): { messages, error } + ready
 // ready=false → backend offline or topic not backfilled yet → caller falls back
 export async function fetchMessagesBackend(topicId, limit = 1000, afterSeq = 0) {

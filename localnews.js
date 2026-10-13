@@ -1,7 +1,7 @@
 import maplibregl from 'maplibre-gl';
 import Supercluster from 'supercluster';
 import { map } from './map';
-import { createMarkerPopupHTML } from './processallmessages.js';
+import { createMarkerPopupHTML, notePopupView } from './processallmessages.js';
 import { fetchLocalMarkers } from './msgbackend.js';
 import { profilePictures, usernames, click2url } from './loadalladata.js';
 import { CloseALL, changePopupState } from './cssLogic.js';
@@ -242,6 +242,7 @@ function openLocalPopup(j) {
     image: m.image || '',
     msg: m.msg || '',
     timestamp: formatTimestamp(m.created, m.lastSeen),
+    created: m.created || '',
     likeCountMarker: m.likeCount || 0,
     dislikeCountMarker: m.dislikeCount || 0,
     comments: m.comments || [],
@@ -255,6 +256,7 @@ function openLocalPopup(j) {
   CloseALL();
   closeDrawAnchor();
   localPopup.setLngLat([m.lng, m.lat]).addTo(map).setDOMContent(content);
+  notePopupView(content);
   applyAllStyles();
   changePopupState(true);
 }

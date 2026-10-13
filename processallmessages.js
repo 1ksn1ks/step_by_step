@@ -1,6 +1,6 @@
 import {getTopicInfo} from './hedera'
 import { prepareHoldings, fetchAccountTokens } from './nftcache.js'
-import {sendMessage} from './msgbackend'
+import {sendMessage, popupView} from './msgbackend'
 import {getTopicData as getMessages} from './topicdata'
 import { adjustTextareaHeight } from './adjusttextarea';
 import { activePolygonPopups, newActivePolygonPopups, addPolygonWithImageFill} from './polygons';
@@ -491,6 +491,80 @@ function schedulePopupStep(direction) {
   });
 }
 
+// The message's ISO time. Same string the server stores as the view key.
+function messageCreated(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString();
+}
+
+const POPUP_VIEWS_KEY = 'meritocracy-popup-views';
+const popupViewsCounted = new Set();
+
+function rememberedPopupViews() {
+  try {
+    const raw = localStorage.getItem(POPUP_VIEWS_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(list) ? list : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function rememberPopupView(key) {
+  popupViewsCounted.add(key);
+  try {
+    const seen = rememberedPopupViews();
+    seen.add(key);
+    localStorage.setItem(POPUP_VIEWS_KEY, JSON.stringify([...seen]));
+  } catch {
+    // The server already counted this open. A full phone store just
+    // means the next visit on this browser may count once more.
+  }
+}
+
+function tagPopupView(container, topicId, created) {
+  const iso = messageCreated(created);
+  if (!iso || !/^\d+\.\d+\.\d+$/.test(String(topicId || ''))) return;
+  container.dataset.viewTopic = String(topicId);
+  container.dataset.viewCreated = iso;
+}
+
+let popupViewSeq = 0;
+const popupViewInflight = new Map();
+
+// One browser counts once per post. Later opens only refresh the number.
+export function notePopupView(container) {
+  const el = container && container.querySelector('.popup-views');
+  if (!el) return;
+  const topicId = container.dataset.viewTopic;
+  const created = container.dataset.viewCreated;
+  if (!topicId || !created) return;
+  const key = topicId + '|' + created;
+  const seq = ++popupViewSeq;
+  el.dataset.seq = String(seq);
+  let job = popupViewInflight.get(key);
+  if (!job) {
+    const already = popupViewsCounted.has(key) || rememberedPopupViews().has(key);
+    if (!already) popupViewsCounted.add(key);
+    job = popupView(topicId, created, already ? 0 : 1).then((views) => {
+      popupViewInflight.delete(key);
+      if (views == null) {
+        if (!already) popupViewsCounted.delete(key);
+        return null;
+      }
+      if (!already) rememberPopupView(key);
+      return views;
+    });
+    popupViewInflight.set(key, job);
+  }
+  job.then((views) => {
+    if (views == null || !el.isConnected || el.dataset.seq !== String(seq)) return;
+    el.textContent = views === 1 ? '1 view' : views + ' views';
+    el.classList.add('is-shown');
+  });
+}
+
 function bindPopupPager(container, goPrev, goNext) {
   let swipeX = null;
   let swipeY = null;
@@ -551,12 +625,14 @@ export function createMarkerPopupHTML(data) {
     likedByMe,
     comments,
     coords,
+    created,
     // Optional (live-marker view): walk a custom list instead of the topic
     onPrev,
     onNext
   } = data;
 
   const container = document.createElement('div');
+  tagPopupView(container, topicId, created);
   const goPrevMarker = () => onPrev ? onPrev() : window.prevMsgFromPayerMarker(payer, markernumber, topicId);
   const goNextMarker = () => onNext ? onNext() : window.nextMsgFromPayerMarker(payer, markernumber, topicId);
   bindPopupPager(container, goPrevMarker, goNextMarker);
@@ -726,9 +802,11 @@ export function createMarkerPopupHTML(data) {
   bottomRow.style.cssText = 'position: relative; height: calc(var(--u) * 6.2); line-height: 1; margin-top: calc(var(--u) * 0.4); overflow: visible;';
 
   // Timestamp (row 7, right side)
+  const viewsDiv = document.createElement('div');
+  viewsDiv.className = 'popup-timestamp popup-views';
   const timestampDiv = document.createElement('div');
   timestampDiv.className = 'popup-timestamp';
-  timestampDiv.style.cssText = 'margin-left: auto; margin-right: calc(var(--u) * -0.5); flex-shrink: 0;';
+  timestampDiv.style.cssText = 'margin-right: calc(var(--u) * -0.5); flex-shrink: 0;';
   timestampDiv.textContent = timestamp;
 
   const likeDislikeDiv = document.createElement('div');
@@ -756,8 +834,11 @@ export function createMarkerPopupHTML(data) {
   // Row 7 — topic id and name on the left, timestamp on the right.
   const bottomLeftRow = document.createElement('div');
   bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: 0; margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);';
+  const metaRight = document.createElement('div');
+  metaRight.style.cssText = 'margin-left: auto; display: flex; align-items: center; gap: calc(var(--u) * 0.45); flex-shrink: 0;';
+  metaRight.append(viewsDiv, timestampDiv);
   bottomLeftRow.appendChild(topicSpan);
-  bottomLeftRow.appendChild(timestampDiv);
+  bottomLeftRow.appendChild(metaRight);
 
   container.appendChild(bottomRow);
   container.appendChild(bottomLeftRow);
@@ -788,10 +869,12 @@ function createPolygonPopupHTML(data) {
     likeCountPolygon,
     likedByMe,
     comments,
-    coordinates
+    coordinates,
+    created
   } = data;
 
   const container = document.createElement('div');
+  tagPopupView(container, topicId, created);
   bindPopupPager(
     container,
     () => window.prevMsgFromPayerPolygon(payer, polygonnumber, topicId),
@@ -953,9 +1036,11 @@ function createPolygonPopupHTML(data) {
   bottomRow.style.cssText = 'position: relative; height: calc(var(--u) * 6.2); line-height: 1; margin-top: calc(var(--u) * 0.4); overflow: visible;';
 
   // Timestamp (row 7, right side)
+  const viewsDiv = document.createElement('div');
+  viewsDiv.className = 'popup-timestamp popup-views';
   const timestampDiv = document.createElement('div');
   timestampDiv.className = 'popup-timestamp';
-  timestampDiv.style.cssText = 'margin-left: auto; margin-right: calc(var(--u) * -0.5); flex-shrink: 0;';
+  timestampDiv.style.cssText = 'margin-right: calc(var(--u) * -0.5); flex-shrink: 0;';
   timestampDiv.textContent = timestamp;
 
   const likeDislikeDiv = document.createElement('div');
@@ -983,8 +1068,11 @@ function createPolygonPopupHTML(data) {
   // Row 7 — topic id and name on the left, timestamp on the right.
   const bottomLeftRow = document.createElement('div');
   bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: 0; margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);';
+  const metaRight = document.createElement('div');
+  metaRight.style.cssText = 'margin-left: auto; display: flex; align-items: center; gap: calc(var(--u) * 0.45); flex-shrink: 0;';
+  metaRight.append(viewsDiv, timestampDiv);
   bottomLeftRow.appendChild(topicSpan);
-  bottomLeftRow.appendChild(timestampDiv);
+  bottomLeftRow.appendChild(metaRight);
 
   container.appendChild(bottomRow);
   container.appendChild(bottomLeftRow);
@@ -1011,6 +1099,7 @@ export function markerPopupNode(properties) {
   }
   // Showing this card again: it is the one the arrows must move.
   touchPopupPager(properties.message);
+  notePopupView(properties.message);
   return properties.message;
 }
 
@@ -1023,6 +1112,7 @@ export function polygonPopupNode(polygon) {
     polygon.description = createPolygonPopupHTML(record);
   }
   touchPopupPager(polygon.description);
+  notePopupView(polygon.description);
   return polygon.description;
 }
 
@@ -1424,6 +1514,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       image: parsedMessage.marker.data.image,
                       msg: parsedMessage.marker.data.msg,
                       timestamp,
+                      created: messageCreated(parsedMessage.created),
                       likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
                       likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
                       comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
@@ -1499,6 +1590,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         image: parsedMessage.polygon.data.image,
                         msg: parsedMessage.polygon.data.msg,
                         timestamp,
+                        created: messageCreated(parsedMessage.created),
                         likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
                         likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
                         comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
@@ -3072,6 +3164,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       image: parsedMessage.marker.data.image,
                       msg: parsedMessage.marker.data.msg,
                       timestamp,
+                      created: messageCreated(parsedMessage.created),
                       likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
                       likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
                       comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
@@ -3147,6 +3240,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         image: parsedMessage.polygon.data.image,
                         msg: parsedMessage.polygon.data.msg,
                         timestamp,
+                        created: messageCreated(parsedMessage.created),
                         likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
                         likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
                         comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
@@ -3740,6 +3834,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       image: parsedMessage.marker.data.image,
                       msg: parsedMessage.marker.data.msg,
                       timestamp,
+                      created: messageCreated(parsedMessage.created),
                       likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
                       likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
                       comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
@@ -3818,6 +3913,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         image: parsedMessage.polygon.data.image,
                         msg: parsedMessage.polygon.data.msg,
                         timestamp,
+                        created: messageCreated(parsedMessage.created),
                         likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
                         likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
                         comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
