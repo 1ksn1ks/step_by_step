@@ -1,4 +1,5 @@
-import { loadTopicBio, usernames, profilePictures, click2url } from './loadalladata';
+import { loadTopicBio, usernames, profilePictures, click2url, profileTopics } from './loadalladata';
+import { followControls } from './followtopic';
 import { activePolygonPopups } from './polygons';
 import { activeMarkerPopups } from './marker';
 import { CloseALL, OpenToggleToolbar } from './cssLogic';
@@ -109,6 +110,14 @@ export async function loadBio4PIC(payer) {
 
       card.appendChild(bubble);
       card.appendChild(bioEl);
+      const home = profileTopics[payer];
+      if (home) {
+        const topicLine = document.createElement('div');
+        topicLine.className = 'profile-live-topic profile-connected-topic';
+        topicLine.textContent = home;
+        card.appendChild(topicLine);
+        card.appendChild(followControls(home, payer));
+      }
       loaded_text_area.appendChild(card);
       adjustTextareaHeight(loaded_text_area);
 

@@ -11,7 +11,8 @@ const circleEl = document.getElementById('profile-circle-preview-img');
 const accountEl = document.getElementById('profile-live-account');
 const nameEl = document.getElementById('profile-live-username');
 const bioEl = document.getElementById('profile-live-bio');
-const nameInput = document.getElementById('toolbar-input');
+const nameInput = document.getElementById('edit-profile-username-input');
+const linkInput = document.getElementById('edit-profile-click2link-input');
 const bioInput = document.getElementById('Edit_Profile-bio');
 
 let draftUsername = null;
@@ -39,11 +40,6 @@ function savedBio() {
 function savedPicture() {
   const url = connectedAccount && profilePictures[connectedAccount] && profilePictures[connectedAccount].url;
   return typeof url === 'string' && url ? url : '';
-}
-
-function sectionOpen(id) {
-  const el = document.getElementById(id);
-  return !!el && el.style.display !== 'none';
 }
 
 function pictureUrl() {
@@ -92,15 +88,23 @@ function useFallback(src) {
 picEl.addEventListener('error', () => useFallback(picEl.src));
 if (circleEl) circleEl.addEventListener('error', () => useFallback(circleEl.src));
 
-nameInput.addEventListener('input', () => {
-  if (sectionOpen('edit-profile-username')) draftUsername = nameInput.value;
-  if (sectionOpen('edit-profile-click2link')) draftLink = nameInput.value;
+function keepDraft(event, input, apply) {
+  // A save clears the box from code. That is not a new draft, so the card
+  // goes back to the name, link, or bio that was just stored.
+  apply(event.isTrusted ? input.value : null);
   render();
+}
+
+nameInput.addEventListener('input', (event) => {
+  keepDraft(event, nameInput, (value) => { draftUsername = value; });
 });
 
-bioInput.addEventListener('input', () => {
-  draftBio = bioInput.value;
-  render();
+linkInput.addEventListener('input', (event) => {
+  keepDraft(event, linkInput, (value) => { draftLink = value; });
+});
+
+bioInput.addEventListener('input', (event) => {
+  keepDraft(event, bioInput, (value) => { draftBio = value; });
 });
 
 document.getElementById('input-field-profile-picture').addEventListener('input', render);

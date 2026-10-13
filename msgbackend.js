@@ -76,6 +76,33 @@ export async function popupView(topicId, created, inc) {
   }
 }
 
+// Read or change the follower count for one topic. follow 1 adds this
+// account, follow 0 removes it, and null only reads. Returns null when
+// the server is unreachable.
+export async function topicFollow(topicId, account, follow) {
+  if (!topicId) return null;
+  const body = { topic: topicId, account: account || '' };
+  if (follow === 1 || follow === 0) body.follow = follow;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 4000);
+  try {
+    const res = await fetch(BACKEND_URL + '/api/topic-follow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || !data.ok) return null;
+    return { followers: Number(data.followers) || 0, following: !!data.following };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Same shape as getMessages(): { messages, error } + ready
 // ready=false → backend offline or topic not backfilled yet → caller falls back
 export async function fetchMessagesBackend(topicId, limit = 1000, afterSeq = 0) {

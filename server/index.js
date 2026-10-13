@@ -20,6 +20,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { S3Client, PutObjectCommand, PutBucketCorsCommand } from "@aws-sdk/client-s3";
 import { appIcon, APP_ICONS } from "./appicon.js";
+import { profileTopicAction } from "./profiletopic.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -167,6 +168,7 @@ for (const migration of [
   "ALTER TABLE topics ADD COLUMN memo TEXT",
   "ALTER TABLE live_markers ADD COLUMN number TEXT",
   "ALTER TABLE user_settings ADD COLUMN revision INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE user_settings ADD COLUMN topic TEXT",
 ]) {
   try {
     db.exec(migration);
@@ -175,6 +177,13 @@ for (const migration of [
   }
 }
 db.exec("CREATE INDEX IF NOT EXISTS user_settings_revision ON user_settings(revision)");
+db.exec(`
+  CREATE TABLE IF NOT EXISTS topic_follows (
+    topic_id   TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    PRIMARY KEY (topic_id, account_id)
+  );
+`);
 // settings_generation stays for the life of this database file. A new file
 // (a rebuilt cache) gets a new id so phones drop their copy and take the
 // directory again. settings_revision counts writes, not message time.
@@ -292,6 +301,25 @@ const q = {
     INSERT INTO user_settings (account_id, bio, updated_at, revision) VALUES (?, ?, ?, ?)
     ON CONFLICT(account_id) DO UPDATE SET bio = excluded.bio, updated_at = excluded.updated_at, revision = excluded.revision
   `),
+  settingTopic: db.prepare(`
+    INSERT INTO user_settings (account_id, topic, updated_at, revision) VALUES (?, ?, ?, ?)
+    ON CONFLICT(account_id) DO UPDATE SET topic = excluded.topic, updated_at = excluded.updated_at, revision = excluded.revision
+  `),
+  clearTopic: db.prepare(
+    "UPDATE user_settings SET topic = '', updated_at = ?, revision = ? WHERE account_id = ? AND topic IS NOT NULL AND topic != ''"
+  ),
+  followTopic: db.prepare(
+    "INSERT OR IGNORE INTO topic_follows (topic_id, account_id) VALUES (?, ?)"
+  ),
+  unfollowTopic: db.prepare(
+    "DELETE FROM topic_follows WHERE topic_id = ? AND account_id = ?"
+  ),
+  countFollowers: db.prepare(
+    "SELECT COUNT(*) AS n FROM topic_follows WHERE topic_id = ?"
+  ),
+  getFollow: db.prepare(
+    "SELECT account_id FROM topic_follows WHERE topic_id = ? AND account_id = ?"
+  ),
   getUserSetting: db.prepare("SELECT * FROM user_settings WHERE account_id = ?"),
   bumpSettingsRevision: db.prepare(
     "UPDATE meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'settings_revision'"
@@ -416,7 +444,7 @@ const pendingToAppMessage = (p) => {
   };
 };
 
-// Profile-data topics are mixed (e.g. the bio topic also carries topic2pic),
+// Profile-data topics are mixed (the bio topic also carries the linked topic),
 // so extract ONLY the relevant field per account. storePage feeds rows
 // oldest→newest, so the last valid value for each field wins.
 // A repeat of the same value does not move the revision, so a phone that
@@ -450,7 +478,33 @@ function extractUserSettings(topicId, payer, body, tsMs) {
     // Profiles submit topic_bio as a one-item list. Older messages used a string.
     const bio = Array.isArray(d.topic_bio) ? d.topic_bio[0] : d.topic_bio;
     if (typeof bio === "string" && bio.length > 0 && bio.length < 256) saveSetting(q.settingBio, payer, "bio", bio, tsMs);
+    // Connect saves profileTopic. Remove sends clearProfileTopic and does not
+    // write a topic id. A bio-only message leaves the link alone. Old
+    // topic2pic messages are still read.
+    const link = profileTopicAction(d);
+    if (link && link.action === "set") saveSetting(q.settingTopic, payer, "topic", link.topic, tsMs);
+    else if (link && link.action === "clear") clearTopicSetting(payer, tsMs);
   }
+}
+
+function clearTopicSetting(accountId, tsMs) {
+  const row = q.getUserSetting.get(accountId);
+  if (!row || !row.topic) return;
+  q.bumpSettingsRevision.run();
+  const revision = q.readSettingsRevision.get().revision;
+  q.clearTopic.run(tsMs, revision, accountId);
+}
+
+function extractFollow(topicId, payer, body) {
+  let data;
+  try {
+    data = JSON.parse(body);
+  } catch {
+    return;
+  }
+  if (!data || typeof data !== "object" || !isTopicId(payer)) return;
+  if (data.follow) q.followTopic.run(topicId, payer);
+  else if (data.unfollow) q.unfollowTopic.run(topicId, payer);
 }
 
 // One-time startup: if user_settings is empty but the profile topics already
@@ -674,6 +728,7 @@ const storePage = (topicId, msgs) => {
       q.insertMsg.run(topicId, m.sequence_number, m.consensus_timestamp, m.payer_account_id, body);
       try {
         extractUserSettings(topicId, m.payer_account_id, body, Number(m.consensus_timestamp) * 1000);
+        extractFollow(topicId, m.payer_account_id, body);
       } catch (err) {
         console.error("user settings skipped", topicId, m.sequence_number, err.message);
       }
@@ -1048,6 +1103,25 @@ app.post("/api/popup-view", (req, res) => {
   res.json({ ok: true, views: row ? row.views : 1 });
 });
 
+// One follower per account on a topic. follow 1 adds, follow 0 removes.
+// Omitting follow only reads. The same change is applied when the wallet
+// message lands, so a repeat does not add a second follower.
+app.post("/api/topic-follow", (req, res) => {
+  const topic = req.body && req.body.topic;
+  const account = req.body && req.body.account;
+  if (!isTopicId(topic)) return res.status(400).json({ ok: false, error: "bad topic" });
+  const follow = req.body && req.body.follow;
+  const wants = follow === 1 || follow === 0 || follow === "1" || follow === "0";
+  if (wants) {
+    if (!isTopicId(account)) return res.status(400).json({ ok: false, error: "bad account" });
+    if (follow === 1 || follow === "1") q.followTopic.run(topic, account);
+    else q.unfollowTopic.run(topic, account);
+  }
+  const counted = q.countFollowers.get(topic);
+  const following = isTopicId(account) ? !!q.getFollow.get(topic, account) : false;
+  res.json({ ok: true, followers: counted ? Number(counted.n) || 0 : 0, following });
+});
+
 // app: "I just sent this message" (after the wallet confirms) → stored as
 // PENDING so every viewer sees it instantly; the poller — or a mirror row
 // that was already stored — confirms it. Unconfirmed rows expire in 10 min.
@@ -1211,6 +1285,7 @@ function userSettingPayload(row) {
     profilePic: row.profile_pic || "",
     click2url: row.click2url || "",
     bio: row.bio || "",
+    topic: row.topic || "",
     updatedAt: row.updated_at || 0,
   };
 }

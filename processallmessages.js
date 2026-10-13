@@ -12,7 +12,9 @@ import { polygons, geojson, storedMarkers, storedPolygons, currentUfoModelInGLTF
 import {updateRulesForModelNFTState} from './confirmnft'
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto';
 import { ringCenter, zoomForPolygon } from './polygonframe.js';
-import { profilePictures, usernames, click2url} from './loadalladata'
+import { profilePictures, usernames, click2url } from './loadalladata'
+import { confirmShare, unshareFromMyTopic, followControls, sharePin } from './followtopic'
+import { clearShareTopic, noteShare, shareState, takeSharePin, takeUnsharePin } from './sharecount.js'
 import { openPreview } from './fullscreenmedia';
 import maplibregl from 'maplibre-gl';
 import { map } from './map';
@@ -355,11 +357,12 @@ function payerHasLike(actions, timestamp, type) {
 
 let heartLikeSeq = 0;
 
-function createHeartLike({ count, liked, mini, onToggle }) {
+function createHeartLike({ count, liked, mini, className, onToggle }) {
   const total = Number(count) || 0;
   const base = liked ? Math.max(0, total - 1) : total;
   const root = document.createElement('div');
   root.className = mini ? 'heart-like heart-like-mini' : 'heart-like';
+  if (className) root.className += ' ' + className;
   const input = document.createElement('input');
   input.type = 'checkbox';
   input.id = `heart-like-${++heartLikeSeq}`;
@@ -429,6 +432,15 @@ function createCommentBubble({ count, mini, onToggle }) {
     }
   });
   return root;
+}
+
+function createShareBubble({ count, shared, onToggle }) {
+  return createHeartLike({
+    count,
+    liked: shared,
+    className: 'share-bubble',
+    onToggle,
+  });
 }
 
 function isValidUrl(url) {
@@ -615,6 +627,108 @@ function bindPopupPager(container, goPrev, goNext) {
     if (focused && focused.closest && focused.closest('.maplibregl-popup')) focused.blur();
     schedulePopupStep(event.key === 'ArrowLeft' ? -1 : 1);
   }, true);
+}
+
+function shareField(value) {
+  if (Array.isArray(value)) return shareField(value[0]);
+  return typeof value === 'string' ? value : '';
+}
+
+// A share is a pin on the sharer's topic. The front card is the original post.
+// It does not use a marker or polygon allowance. An unshare removes that pin.
+const sharePinDecisions = new WeakMap();
+
+function pinDecisions(features) {
+  let decisions = sharePinDecisions.get(features);
+  if (!decisions) {
+    decisions = new Map();
+    sharePinDecisions.set(features, decisions);
+  }
+  return decisions;
+}
+
+function appendShareFeature(features, ctx) {
+  const parsed = ctx.parsedMessage;
+  const sharer = ctx.message && ctx.message.payer;
+  const decisions = pinDecisions(features);
+  const unshare = parsed && parsed.unshare;
+  if (unshare && typeof unshare === 'object') {
+    const topic = typeof unshare.topic === 'string' ? unshare.topic.trim() : '';
+    const created = messageCreated(unshare.created);
+    if (sharer && /^\d+\.\d+\.\d+$/.test(topic) && created) {
+      takeUnsharePin(decisions, features, sharer + '|' + topic + '|' + created);
+    }
+    return;
+  }
+  const share = parsed && parsed.share;
+  if (!share || typeof share !== 'object') return;
+  const pin = markerCoordinates(share.pin || share.coords) || sharePin(share.pin || share.coords);
+  const original = typeof share.topic === 'string' ? share.topic.trim() : '';
+  const created = messageCreated(share.created);
+  if (!sharer || !/^\d+\.\d+\.\d+$/.test(original) || !pin || !created) return;
+  const author = typeof share.payer === 'string' ? share.payer : '';
+  const defaultProfilePic = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+  const authorPic = author && profilePictures[author] && profilePictures[author].url;
+  const profileUrl = isValidUrl(authorPic) ? authorPic : defaultProfilePic;
+  const username = author && usernames[author] ? ` ${usernames[author].username}` : '';
+  const click2link = author && click2url[author] ? ` ${click2url[author].click2url}` : '';
+  const kind = share.kind === 'polygon' ? 'polygon' : 'marker';
+  const image = shareField(share.image);
+  const title = shareField(share.title);
+  const msg = shareField(share.msg);
+  const number = share.number == null ? '' : share.number;
+  const timestamp = new Date(created).toLocaleString('en-US', {
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  const record = () => ({
+    markernumber: number,
+    polygonnumber: number,
+    topicId: original,
+    loadedTopicName: '',
+    profileUrl,
+    payer: author,
+    payerInfo: author || 'Anonymous',
+    username,
+    click2link,
+    title,
+    image,
+    msg,
+    timestamp,
+    created,
+    likeCountMarker: 0,
+    likeCountPolygon: 0,
+    likedByMe: false,
+    comments: [],
+    coords: pin,
+    coordinates: pin,
+    viewCount: null,
+    kind,
+    share: { sharer, home: ctx.topicId },
+  });
+  const sharerPic = sharer && profilePictures[sharer] && profilePictures[sharer].url;
+  takeSharePin(decisions, features, sharer + '|' + original + '|' + created, {
+    topicId: ctx.topicId,
+    created: parsed.created,
+    msgNumber: 'share-' + created + '-' + sharer,
+    shareKey: sharer + '|' + original + '|' + created,
+    type: 'Feature',
+    payer: sharer,
+    properties: {
+      popupData: record,
+      imageUrl: isValidUrl(image) ? image : (isValidUrl(sharerPic) ? sharerPic : profileUrl),
+      title: String(title || '').slice(0, 20),
+    },
+    geometry: {
+      type: 'Point',
+      coordinates: pin,
+    },
+  });
 }
 
 // Helper function to create marker popup HTML using DOM
@@ -810,7 +924,7 @@ export function createMarkerPopupHTML(data) {
 
   container.appendChild(contentSection);
 
-  // Row 6 — heart + comment centered (topic id + timestamp live in row 7)
+  // Row 6 — heart, comment, and share centered (topic id + timestamp live in row 7)
   const bottomRow = document.createElement('div');
   bottomRow.style.cssText = 'position: relative; height: calc(var(--u) * 6.2); line-height: 1; margin-top: calc(var(--u) * 0.4); overflow: visible;';
 
@@ -835,6 +949,24 @@ export function createMarkerPopupHTML(data) {
   likeDislikeDiv.appendChild(createCommentBubble({
     count: countAllMessages(comments),
     onToggle: (open) => toggleCommentsBubble(open, markerCommentsId),
+  }));
+  const markerShare = {
+    kind: 'marker',
+    topicId,
+    created,
+    payer,
+    title,
+    msg,
+    image,
+    coords,
+    number: markernumber,
+    timestamp,
+  };
+  const markerShareState = shareState(topicId, timestamp, connectedAccount);
+  likeDislikeDiv.appendChild(createShareBubble({
+    count: markerShareState.count,
+    shared: markerShareState.mine,
+    onToggle: (wantShare) => wantShare ? confirmShare(markerShare) : unshareFromMyTopic(markerShare),
   }));
 
   bottomRow.appendChild(likeDislikeDiv);
@@ -1046,7 +1178,7 @@ function createPolygonPopupHTML(data) {
 
   container.appendChild(contentSection);
 
-  // Row 6 — heart + comment centered (topic id + timestamp live in row 7)
+  // Row 6 — heart, comment, and share centered (topic id + timestamp live in row 7)
   const bottomRow = document.createElement('div');
   bottomRow.style.cssText = 'position: relative; height: calc(var(--u) * 6.2); line-height: 1; margin-top: calc(var(--u) * 0.4); overflow: visible;';
 
@@ -1071,6 +1203,24 @@ function createPolygonPopupHTML(data) {
   likeDislikeDiv.appendChild(createCommentBubble({
     count: countAllMessages(comments),
     onToggle: (open) => toggleCommentsBubble(open, polygonCommentsId),
+  }));
+  const polygonShare = {
+    kind: 'polygon',
+    topicId,
+    created,
+    payer,
+    title,
+    msg,
+    image,
+    coords: coordinates,
+    number: polygonnumber,
+    timestamp,
+  };
+  const polygonShareState = shareState(topicId, timestamp, connectedAccount);
+  likeDislikeDiv.appendChild(createShareBubble({
+    count: polygonShareState.count,
+    shared: polygonShareState.mine,
+    onToggle: (wantShare) => wantShare ? confirmShare(polygonShare) : unshareFromMyTopic(polygonShare),
   }));
 
   bottomRow.appendChild(likeDislikeDiv);
@@ -1101,6 +1251,52 @@ function createPolygonPopupHTML(data) {
   return container;
 }
 
+// The sharer's profile sits on the bigger card. The original post stays
+// the regular card in front. Sharing this card points at that original.
+function createSharePopupHTML(record) {
+  const shell = document.createElement('div');
+  shell.className = 'popup-share';
+  const back = document.createElement('div');
+  back.className = 'popup-share-back';
+  const sharer = record.share && record.share.sharer;
+  const home = record.share && record.share.home;
+  const defaultPic = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+  const rawPic = sharer && profilePictures[sharer] && profilePictures[sharer].url;
+  const img = document.createElement('img');
+  img.className = 'popup-share-pic';
+  img.alt = 'Profile photo';
+  img.src = isValidUrl(rawPic) ? rawPic : defaultPic;
+  img.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (sharer) window.loadBio4PIC(sharer);
+  });
+  const names = document.createElement('div');
+  names.className = 'popup-share-names';
+  const rawName = sharer && usernames[sharer] && usernames[sharer].username;
+  const name = typeof rawName === 'string' ? rawName.trim() : '';
+  const rawLink = sharer && click2url[sharer] && click2url[sharer].click2url;
+  if (name) {
+    names.appendChild(payerUsernameNode(name, typeof rawLink === 'string' ? rawLink.trim() : '', { className: 'popup-share-name' }));
+  }
+  const account = document.createElement('div');
+  account.className = 'popup-share-account';
+  account.textContent = sharer || '';
+  names.appendChild(account);
+  const who = document.createElement('div');
+  who.className = 'popup-share-who';
+  who.append(img, names);
+  back.appendChild(who);
+  if (home) back.appendChild(followControls(home, sharer));
+  const front = document.createElement('div');
+  front.className = 'popup-share-front';
+  const card = record.kind === 'polygon'
+    ? createPolygonPopupHTML(record)
+    : createMarkerPopupHTML(record);
+  front.appendChild(card);
+  shell.append(back, front);
+  return shell;
+}
+
 // The card is built on the first open and kept on the feature. Topic load
 // only stores the record (a function), so comments, profile, and media are
 // not created for every drawing up front. 24h local-news popups still call
@@ -1111,7 +1307,9 @@ export function markerPopupNode(properties) {
     const data = properties.popupData;
     if (!data) return null;
     const record = typeof data === 'function' ? data() : data;
-    properties.message = createMarkerPopupHTML(record);
+    properties.message = record && record.share
+      ? createSharePopupHTML(record)
+      : createMarkerPopupHTML(record);
   }
   // Showing this card again: it is the one the arrows must move.
   touchPopupPager(properties.message);
@@ -1165,7 +1363,7 @@ const commentsMapMarker = new Map();
 const commentsMapPolygon = new Map();
 const repliesMapMarker = new Map();
 const repliesMapPolygon = new Map();
-
+clearShareTopic(topicId);
 
 if (rawResult.messages && Array.isArray(rawResult.messages)) {
   for (const message of rawResult.messages) {
@@ -1212,6 +1410,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
         actionTimestamp = parsedMessage.unlikePolygon.timestamp;
         actionType = 'unlikePolygon';
       }
+      noteShare(parsedMessage, topicId);
 
       // Process the action if it exists
       if (actionTimestamp && actionType && payerId) {
@@ -1487,6 +1686,12 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
               const click2link = message.payer && click2url[message.payer] ?
                 ` ${click2url[message.payer].click2url}` :
                 '';
+
+              appendShareFeature(topicGeojsonFeatures, {
+                message,
+                parsedMessage,
+                topicId,
+              });
 
               if (parsedMessage.marker && parsedMessage.marker.data) {
                 const markernumber = parsedMessage.marker.data.numberOfMarker;
@@ -2803,7 +3008,7 @@ export async function processTopicE2EEMessages(decryptedPrivateKey, messages, to
       const commentsMapPolygon = new Map();
       const repliesMapMarker = new Map();
       const repliesMapPolygon = new Map();
-
+      clearShareTopic(topicId);
 
 if (rawResult && Array.isArray(rawResult)) {
 
@@ -2854,6 +3059,7 @@ if (rawResult && Array.isArray(rawResult)) {
         actionTimestamp = parsedMessage.unlikePolygon.timestamp;
         actionType = 'unlikePolygon';
       }
+      noteShare(parsedMessage, topicId);
 
       // Process the action if it exists
       if (actionTimestamp && actionType && payerId) {
@@ -3137,6 +3343,12 @@ if (rawResult && Array.isArray(rawResult)) {
               const click2link = message.payer && click2url[message.payer] ?
                 ` ${click2url[message.payer].click2url}` :
                 '';
+
+              appendShareFeature(topicGeojsonFeatures, {
+                message,
+                parsedMessage,
+                topicId,
+              });
 
               if (parsedMessage.marker && parsedMessage.marker.data) {
                 const markernumber = parsedMessage.marker.data.numberOfMarker;
@@ -3471,7 +3683,7 @@ export async function processFewTopicE2EEMessages(decryptedPrivateKey, messages,
       const commentsMapPolygon = new Map();
       const repliesMapMarker = new Map();
       const repliesMapPolygon = new Map();
-
+      clearShareTopic(topicId);
 
 if (rawResult && Array.isArray(rawResult)) {
 
@@ -3522,6 +3734,7 @@ if (rawResult && Array.isArray(rawResult)) {
         actionTimestamp = parsedMessage.unlikePolygon.timestamp;
         actionType = 'unlikePolygon';
       }
+      noteShare(parsedMessage, topicId);
 
       // Process the action if it exists
       if (actionTimestamp && actionType && payerId) {
@@ -3807,6 +4020,12 @@ if (rawResult && Array.isArray(rawResult)) {
               const click2link = message.payer && click2url[message.payer] ?
                 ` ${click2url[message.payer].click2url}` :
                 '';
+
+              appendShareFeature(topicGeojsonFeatures, {
+                message,
+                parsedMessage,
+                topicId,
+              });
 
               if (parsedMessage.marker && parsedMessage.marker.data) {
                 const markernumber = parsedMessage.marker.data.numberOfMarker;

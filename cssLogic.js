@@ -1625,7 +1625,6 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
   
   
   const insideEditProfileEverything = [
-    document.getElementById("edit-profile-url-name-domain"),
     document.getElementById("edit-profile-picture"),
     document.getElementById("edit-profile-username"),
     document.getElementById("edit-profile-click2link"),
@@ -1680,7 +1679,6 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     editProfileEverything()
     editProfileShowOptions()
     editProfileHideOptions()
-    document.getElementById("edit-profile-url-name-domain").style.display = "none";
     document.getElementById("hide-profile-picture-from-edit-profile").style.display = "none";
     document.getElementById("show-profile-picture-from-edit-profile").style.display = "block";
     document.getElementById("edit-profile-picture").style.display = "none";
@@ -1690,8 +1688,6 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     editProfileEverything()
     editProfileShowOptions()
     editProfileHideOptions()
-    document.getElementById("edit-profile-url-name-domain").style.display = "block";
-    document.getElementById("toolbar-input").placeholder = "username";
     document.getElementById("hide-username-from-edit-profile").style.display = "block";
     document.getElementById("show-username-from-edit-profile").style.display = "none";
     document.getElementById("edit-profile-username").style.display = "block";
@@ -1702,7 +1698,6 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     editProfileEverything()
     editProfileShowOptions()
     editProfileHideOptions()
-    document.getElementById("edit-profile-url-name-domain").style.display = "none";
     document.getElementById("hide-username-from-edit-profile").style.display = "none";
     document.getElementById("show-username-from-edit-profile").style.display = "block";
     document.getElementById("edit-profile-username").style.display = "none";
@@ -1712,8 +1707,6 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     editProfileEverything()
     editProfileShowOptions()
     editProfileHideOptions()
-    document.getElementById("edit-profile-url-name-domain").style.display = "block";
-    document.getElementById("toolbar-input").placeholder = "URL";
     document.getElementById("hide-click2link-from-edit-profile").style.display = "block";
     document.getElementById("show-click2link-from-edit-profile").style.display = "none";
     document.getElementById("edit-profile-click2link").style.display = "block";
@@ -1723,7 +1716,6 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     editProfileEverything()
     editProfileShowOptions()
     editProfileHideOptions()
-    document.getElementById("edit-profile-url-name-domain").style.display = "none";
     document.getElementById("hide-click2link-from-edit-profile").style.display = "none";
     document.getElementById("show-click2link-from-edit-profile").style.display = "block";
     document.getElementById("edit-profile-click2link").style.display = "none";

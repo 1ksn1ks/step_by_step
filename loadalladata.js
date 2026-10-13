@@ -2,11 +2,14 @@ import { getTopicData as getMessages } from "./topicdata";
 import { fetchUserSettings } from "./msgbackend";
 import { readSettings, writeSettings } from "./settingscache.js";
 import { publishProfilePictures } from "./picturecache.js";
+import { profileTopicAction } from "./server/profiletopic.js";
 
 export let profilePictures = [];
 export let usernames = [];
 export let click2url = [];
 export let topicBio = [];
+// The topic connected to an account. Shares land there. Followers follow it.
+export let profileTopics = {};
 
 // A change this phone just sent. It is shown immediately and is not written
 // into the saved copy. The next server card that matches it removes it. If
@@ -40,17 +43,20 @@ function applyAccounts(accounts) {
   const names = {};
   const links = {};
   const bios = {};
+  const topics = {};
   for (const row of accounts || []) {
     if (!row || !row.accountId) continue;
     if (row.profilePic) pics[row.accountId] = { url: row.profilePic, timestamp: row.updatedAt };
     if (row.username) names[row.accountId] = { username: row.username, timestamp: row.updatedAt };
     if (row.click2url) links[row.accountId] = { click2url: row.click2url, timestamp: row.updatedAt };
     if (row.bio) bios[row.accountId] = { topic_bio: row.bio, timestamp: row.updatedAt };
+    if (row.topic) topics[row.accountId] = row.topic;
   }
   profilePictures = pics;
   usernames = names;
   click2url = links;
   topicBio = bios;
+  profileTopics = topics;
 }
 
 function mergeAccounts(local, incoming) {
@@ -76,7 +82,8 @@ function reconcileOverlay(accounts) {
     if (patch.profilePic && row.profilePic === patch.profilePic) delete patch.profilePic;
     if (patch.click2url && row.click2url === patch.click2url) delete patch.click2url;
     if (patch.bio && row.bio === patch.bio) delete patch.bio;
-    if (!patch.username && !patch.profilePic && !patch.click2url && !patch.bio) ownOverlay.delete(accountId);
+    if ('topic' in patch && (row.topic || '') === (patch.topic || '')) delete patch.topic;
+    if (!patch.username && !patch.profilePic && !patch.click2url && !patch.bio && !('topic' in patch)) ownOverlay.delete(accountId);
   }
 }
 
@@ -86,6 +93,10 @@ function applyOverlay() {
     if (patch.username) usernames[accountId] = { username: patch.username, timestamp: Date.now() };
     if (patch.click2url) click2url[accountId] = { click2url: patch.click2url, timestamp: Date.now() };
     if (patch.bio) topicBio[accountId] = { topic_bio: patch.bio, timestamp: Date.now() };
+    if ('topic' in patch) {
+      if (patch.topic) profileTopics[accountId] = patch.topic;
+      else delete profileTopics[accountId];
+    }
   }
 }
 
@@ -151,6 +162,7 @@ async function loadAllDataBody() {
   usernames = await loadUsername();
   click2url = await loadCLICK2URL();
   topicBio = await loadTopicBio();
+  profileTopics = bioTopicLinks;
   applyOverlay();
   document.dispatchEvent(new CustomEvent('profiles-loaded'));
   return snapshot();
@@ -303,9 +315,13 @@ try {
 }
 
 
+// Last bio-topic walk. Used only when the settings server is not ready.
+let bioTopicLinks = {};
+
 export async function loadTopicBio() {
 const topicId = "0.0.9759201";
 const accountTopicBio = {}; // Dictionary to store account IDs and their bios
+const links = {};
 
 try {
   const rawResult = await getMessages(topicId);
@@ -313,6 +329,7 @@ try {
   // Check if rawResult exists and has messages
   if (!rawResult || !Array.isArray(rawResult.messages)) {
     console.log("No topic_bio found, using defaults");
+    bioTopicLinks = {};
     return {};
   }
 
@@ -327,8 +344,14 @@ try {
         };
       }
     }
+    const link = profileTopicAction(message && message.data);
+    if (link && message.payer) {
+      if (link.action === "set") links[message.payer] = link.topic;
+      else delete links[message.payer];
+    }
   });
 
+  bioTopicLinks = links;
   return accountTopicBio;
 
 } catch (error) {

@@ -173,6 +173,7 @@
             <li><b>Username</b> — enter a new name, then press Save.</li>
             <li><b>BIO</b> — set your profile bio; tapping a PFP shows it in Load.</li>
             <li><b>CLICK2LINK</b> — attach any URL to your username.</li>
+            <li><b>Your topic</b> — the topic connected to this account. Share posts land here. Followers follow this topic. Connect saves the topic id. Remove takes that connection off.</li>
             <li><b>Preview</b> — the card updates as you change the picture, name, bio, and link.</li>
           </ul>
           <div class="info-overlay-actions">
@@ -198,6 +199,17 @@
               </div>
             </div>
             <div id="profile-live-bio" class="profile-live-bio"></div>
+          </div>
+
+          <div id="edit-profile-topic">
+            <div id="loaded-profile-topic">No topic connected.</div>
+            <textarea id="edit-profile-topic-input" placeholder="Topic ID"
+            class="toolbar-column" onclick="event.stopPropagation();"
+            ></textarea>
+            <div class="profile-topic-actions">
+              <button id="connect-profile-topic" class="toolbar-column-btns" type="button">Connect</button>
+              <button id="remove-profile-topic" class="toolbar-column-btns profile-topic-remove" type="button">Remove</button>
+            </div>
           </div>
 
           <div style="display: flex;">
@@ -226,13 +238,6 @@
       
       
       
-          <div id="edit-profile-url-name-domain" style="display: none;">
-            <textarea type="text" id="toolbar-input" placeholder="URL/Name/Domain"
-            class="toolbar-column" onclick="event.stopPropagation();"
-            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
-          </div>
-      
           <div id="edit-profile-picture" style="display: none;">
             <input type="hidden" id="input-field-profile-picture">
             <div class="profile-picture-previews">
@@ -257,11 +262,19 @@
           </div>
       
           <div id="edit-profile-username" style="display: none;">
+            <textarea type="text" id="edit-profile-username-input" placeholder="Username" maxlength="19"
+            class="toolbar-column" onclick="event.stopPropagation();"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
             <button class="toolbar-column-btns" id="button2" style="display: block;">Change Username
             </button>
           </div>
       
           <div id="edit-profile-click2link" style="display: none;">
+            <textarea type="text" id="edit-profile-click2link-input" placeholder="URL"
+            class="toolbar-column" onclick="event.stopPropagation();"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
             <button class="toolbar-column-btns" id="button_for_click_url" style="display: block;">Tag URL to username
             </button>
           </div>
@@ -2033,6 +2046,10 @@
               <div class="heart-like comment-bubble">
                 <input type="checkbox" id="preview-comment-bubble" disabled>
                 <label for="preview-comment-bubble" data-count="0" data-next="0"><span></span></label>
+              </div>
+              <div class="heart-like share-bubble">
+                <input type="checkbox" id="preview-share-bubble" disabled>
+                <label for="preview-share-bubble" data-count="0" data-next="1"><span></span></label>
               </div>
             </div>
           </div>

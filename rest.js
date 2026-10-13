@@ -7,7 +7,8 @@ import { sendMessage, reportMarker } from './msgbackend'
 import { getTopicData as getMessages } from './topicdata'
 import {adjustTextareaHeight} from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
-import { loadAllData, showOwnProfile } from './loadalladata';
+import { loadAllData, showOwnProfile, profileTopics } from './loadalladata';
+import { connectProfileTopic, removeProfileTopic } from './followtopic';
 import { debounce } from './debounce';
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
 import { allLoadedMessages } from './processallmessages';
@@ -1878,8 +1879,6 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
            console.log("Profile picture updated successfully:", receipt);
            showOwnProfile(connectedAccount, { profilePic: cleanUrl });
  
-           document.getElementById("toolbar-input").value = "";
- 
            debounce(loadAllData(), 10000);
  
          } catch (error) {
@@ -1890,7 +1889,7 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
  
  document.getElementById("button2").addEventListener("click", async (event) => {
    event.stopPropagation();
-   const inputValue = document.getElementById("toolbar-input").value;
+   const inputValue = document.getElementById("edit-profile-username-input").value;
 
    if (!signer) {
      toast.error("Connect wallet first");
@@ -1921,7 +1920,9 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
      console.log("Username updated successfully:", receipt);
      showOwnProfile(connectedAccount, { username: inputValue });
  
-     document.getElementById("toolbar-input").value = "";
+     const usernameField = document.getElementById("edit-profile-username-input");
+     usernameField.value = "";
+     usernameField.dispatchEvent(new Event("input"));
  
      debounce(loadAllData(), 10000);
  
@@ -1932,7 +1933,7 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
  
  document.getElementById("button_for_click_url").addEventListener("click", async (event) => {
          event.stopPropagation();
-         const inputValue = document.getElementById("toolbar-input").value;
+         const inputValue = document.getElementById("edit-profile-click2link-input").value;
 
          if (!signer) {
            toast.error("Connect wallet first");
@@ -1966,7 +1967,9 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
            console.log("Profile CLICK2URL updated successfully:", receipt);
            showOwnProfile(connectedAccount, { click2url: cleanUrl });
  
-           document.getElementById("toolbar-input").value = "";
+           const linkField = document.getElementById("edit-profile-click2link-input");
+          linkField.value = "";
+          linkField.dispatchEvent(new Event("input"));
  
            debounce(loadAllData(), 10000);
  
@@ -2006,7 +2009,9 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
      );
      console.log("Profile topic_bio updated successfully:", receipt);
      showOwnProfile(connectedAccount, { bio: inputValue });
-     document.getElementById("Edit_Profile-bio").value = "";
+     const bioField = document.getElementById("Edit_Profile-bio");
+    bioField.value = "";
+    bioField.dispatchEvent(new Event("input"));
 
      debounce(loadAllData(), 10000);
 
@@ -2014,6 +2019,49 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
      console.error("Error updating profile topic_bio:", error);
    }
  });
+
+function profileTopicFromInput() {
+  const field = document.getElementById("edit-profile-topic-input");
+  const raw = field ? field.value.trim() : "";
+  const domainEntry = loadedDomains.find(entry => entry.domain === raw.toLowerCase());
+  if (domainEntry && domainEntry.lastMessage && domainEntry.lastMessage.topic) {
+    return domainEntry.lastMessage.topic;
+  }
+  return raw;
+}
+
+function showProfileTopic() {
+  const label = document.getElementById("loaded-profile-topic");
+  if (!label) return;
+  const topic = connectedAccount && profileTopics[connectedAccount];
+  label.textContent = topic ? topic : "No topic connected.";
+}
+
+document.addEventListener("profiles-loaded", showProfileTopic);
+document.getElementById("Edit_Profile").addEventListener("click", showProfileTopic);
+
+document.getElementById("connect-profile-topic").addEventListener("click", async (event) => {
+  event.stopPropagation();
+  try {
+    const connected = await connectProfileTopic(profileTopicFromInput());
+    if (!connected) return;
+    const field = document.getElementById("edit-profile-topic-input");
+    if (field) field.value = "";
+    showProfileTopic();
+  } catch (error) {
+    console.error("connect topic failed", error);
+  }
+});
+
+document.getElementById("remove-profile-topic").addEventListener("click", async (event) => {
+  event.stopPropagation();
+  try {
+    await removeProfileTopic();
+    showProfileTopic();
+  } catch (error) {
+    console.error("remove topic failed", error);
+  }
+});
 
  document.getElementById("button_for_topic_bio").addEventListener("click", async (event) => {
    event.stopPropagation();

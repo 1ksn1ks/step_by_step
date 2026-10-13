@@ -83,6 +83,7 @@ export async function writeSettings(generation, revision, rows, replace) {
         profilePic: row.profilePic || '',
         click2url: row.click2url || '',
         bio: row.bio || '',
+        topic: row.topic || '',
         updatedAt: Number(row.updatedAt) || 0,
       });
     }

@@ -1827,6 +1827,12 @@ html, body {
     clip-path: inset(0 round calc(var(--u) * 2));
 }
 
+/* A share is a wider frame. The profile row uses the extra room.
+   The front card sets its own size back to a normal popup. */
+.maplibregl-popup:has(.popup-share) {
+    --card: min(96dvw, 86dvh);
+}
+
 /* Dummy preview popup inside the settings card: neutralize the fixed
    screen-centering so it flows inside the card instead of covering it.
    --card must be a length. 100% made --u a percentage, so the border
@@ -2080,6 +2086,153 @@ html, body {
     left: auto !important;
     z-index: 2;
     transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
+  }
+
+  .popup-share {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--u) * 0.55);
+  }
+
+  .popup-share-back {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: calc(var(--u) * 0.6);
+    flex-wrap: wrap;
+    padding: calc(var(--u) * 0.15) calc(var(--u) * 0.2) 0;
+  }
+
+  .popup-share-who {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--u) * 0.7);
+    min-width: 0;
+  }
+
+  .popup-share-pic {
+    width: calc(var(--u) * 4.2);
+    height: calc(var(--u) * 4.2);
+    border-radius: 50%;
+    object-fit: cover;
+    object-position: center;
+    flex-shrink: 0;
+    cursor: pointer;
+    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25);
+  }
+
+  .popup-share-names {
+    min-width: 0;
+  }
+
+  .popup-share-name,
+  .popup-share-account {
+    display: block;
+    font-size: calc(var(--u) * 1.15);
+    font-weight: 700;
+    color: white;
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .popup-share-account {
+    font-weight: 600;
+    font-size: calc(var(--u) * 0.95);
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .popup-share-front {
+    width: min(90dvw, 70dvh);
+    max-width: 100%;
+    margin: 0 auto;
+    box-sizing: border-box;
+    --card: min(90dvw, 70dvh);
+    --u: calc(min(90dvw, 70dvh) * 0.024);
+    background: rgba(15, 15, 20, 0.96);
+    border: calc(var(--u) * 0.3) solid #ffffff;
+    border-radius: calc(var(--u) * 2);
+    overflow: hidden;
+    padding: calc(var(--u) * 0.4) calc(var(--u) * 0.6);
+  }
+
+  .popup-share-chip {
+    width: auto;
+    min-width: 0;
+    padding: 0 calc(var(--u) * 0.75);
+    font-family: inherit;
+    font-size: calc(var(--u) * 1.05);
+    font-weight: 700;
+    appearance: none;
+  }
+
+  .topic-follow {
+    display: flex;
+    align-items: center;
+    gap: 0.8vh;
+    flex-shrink: 0;
+  }
+
+  .topic-follow-count {
+    font-size: 1.6vh;
+    color: rgba(255, 255, 255, 0.78);
+    white-space: nowrap;
+  }
+
+  .topic-follow-btn {
+    appearance: none;
+    border: 0.12vh solid rgba(34, 211, 238, 0.55);
+    background: rgba(34, 211, 238, 0.18);
+    color: white;
+    border-radius: 999px;
+    padding: 0.45vh 1.3vh;
+    font-size: 1.5vh;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  #loaded-bio-card .topic-follow {
+    align-self: stretch;
+    justify-content: space-between;
+    margin-top: 0.2vh;
+  }
+
+  #loaded-topics .profile-connected-topic {
+    cursor: text;
+    text-align: center;
+  }
+
+  #loaded-topics .topic-follow-btn {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  #edit-profile-topic {
+    margin: 0.4vh 0 1vh;
+  }
+
+  .profile-topic-actions {
+    display: flex;
+    gap: 0.6vh;
+  }
+
+  .profile-topic-actions .toolbar-column-btns {
+    width: auto;
+    flex: 1;
+  }
+
+  .profile-topic-actions .profile-topic-remove {
+    color: #f07178;
+    border-color: rgba(240, 113, 120, 0.55);
+  }
+
+  #loaded-profile-topic {
+    font-size: 1.7vh;
+    color: #22d3ee;
+    text-align: center;
+    padding: 0.3vh 0 0.6vh;
+    word-break: break-all;
   }
 
   /* Action chips: nav arrows, ⚙️, and 💬 in the bottom row */
@@ -2400,6 +2553,53 @@ html, body {
   .heart-like.comment-bubble:hover input:checked + label span:before,
   .heart-like.comment-bubble:hover input:checked + label span:after {
     --clr: #22d3ee;
+  }
+
+  /* Share: same glass control as the heart, green while this account has shared. */
+  .heart-like.share-bubble label span {
+    background-color: #777;
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='black' stroke-width='2' stroke-linecap='round' d='M8.6 13.2l6.8 3.6M8.6 10.8l6.8-3.6'/%3E%3Ccircle cx='6' cy='12' r='2.3' fill='black'/%3E%3Ccircle cx='18' cy='6' r='2.3' fill='black'/%3E%3Ccircle cx='18' cy='18' r='2.3' fill='black'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='black' stroke-width='2' stroke-linecap='round' d='M8.6 13.2l6.8 3.6M8.6 10.8l6.8-3.6'/%3E%3Ccircle cx='6' cy='12' r='2.3' fill='black'/%3E%3Ccircle cx='18' cy='6' r='2.3' fill='black'/%3E%3Ccircle cx='18' cy='18' r='2.3' fill='black'/%3E%3C/svg%3E");
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: calc(var(--h) * 5.6) calc(var(--h) * 5.6);
+    mask-size: calc(var(--h) * 5.6) calc(var(--h) * 5.6);
+  }
+
+  .heart-like.share-bubble label span:before,
+  .heart-like.share-bubble label span:after {
+    content: none;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    width: 0;
+    height: 0;
+    margin: 0;
+  }
+
+  .heart-like.share-bubble input:checked + label span,
+  .heart-like.share-bubble.is-pop label span {
+    --clr: #3dd68c;
+    background-color: #3dd68c;
+  }
+
+  .heart-like.share-bubble input:checked + label:before {
+    background: #3dd68c;
+    color: #06240f;
+  }
+
+  .heart-like.share-bubble.is-pop label:after {
+    --bg: #3dd68c;
+  }
+
+  .heart-like.share-bubble:hover label span {
+    background-color: #86efac;
+  }
+
+  .heart-like.share-bubble:hover input:checked + label span {
+    background-color: #3dd68c;
   }
   
   .maplibregl-popup-tip {
