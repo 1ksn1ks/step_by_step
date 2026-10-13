@@ -1,6 +1,6 @@
 import {getTopicInfo} from './hedera'
 import { prepareHoldings, fetchAccountTokens } from './nftcache.js'
-import {sendMessage, popupView} from './msgbackend'
+import {sendMessage, popupView, knownPopupViews, setPopupViewTotal} from './msgbackend'
 import {getTopicData as getMessages} from './topicdata'
 import { adjustTextareaHeight } from './adjusttextarea';
 import { activePolygonPopups, newActivePolygonPopups, addPolygonWithImageFill} from './polygons';
@@ -530,39 +530,51 @@ function tagPopupView(container, topicId, created) {
   container.dataset.viewCreated = iso;
 }
 
-let popupViewSeq = 0;
 const popupViewInflight = new Map();
 
-// One browser counts once per post. Later opens only refresh the number.
-export function notePopupView(container) {
-  const el = container && container.querySelector('.popup-views');
+function viewLabel(n) {
+  return n === 1 ? '1 view' : n + ' views';
+}
+
+// The number is written while the card is built, with the time and the
+// title. The first open from this browser adds one. Later opens keep that
+// number. Nothing is fetched just to fill the pill in afterwards.
+function paintPopupView(el, topicId, created, fallback) {
   if (!el) return;
-  const topicId = container.dataset.viewTopic;
-  const created = container.dataset.viewCreated;
-  if (!topicId || !created) return;
-  const key = topicId + '|' + created;
-  const seq = ++popupViewSeq;
-  el.dataset.seq = String(seq);
-  let job = popupViewInflight.get(key);
-  if (!job) {
-    const already = popupViewsCounted.has(key) || rememberedPopupViews().has(key);
-    if (!already) popupViewsCounted.add(key);
-    job = popupView(topicId, created, already ? 0 : 1).then((views) => {
-      popupViewInflight.delete(key);
-      if (views == null) {
-        if (!already) popupViewsCounted.delete(key);
-        return null;
-      }
-      if (!already) rememberPopupView(key);
-      return views;
-    });
-    popupViewInflight.set(key, job);
+  const iso = messageCreated(created);
+  if (!iso || !/^\d+\.\d+\.\d+$/.test(String(topicId || ''))) return;
+  const key = topicId + '|' + iso;
+  let known = knownPopupViews(topicId, iso);
+  if (Number.isFinite(fallback)) known = known == null ? fallback : Math.max(known, fallback);
+  const already = popupViewsCounted.has(key) || rememberedPopupViews().has(key);
+  let shown;
+  if (already) {
+    popupViewsCounted.add(key);
+    if (known == null) return;
+    shown = known;
+  } else {
+    shown = (known == null ? 0 : known) + 1;
+    popupViewsCounted.add(key);
+    setPopupViewTotal(topicId, iso, shown);
+    if (!popupViewInflight.has(key)) {
+      const job = popupView(topicId, iso, 1).then((views) => {
+        popupViewInflight.delete(key);
+        if (views == null) return;
+        rememberPopupView(key);
+        setPopupViewTotal(topicId, iso, views);
+        if (views === shown) return;
+        document.querySelectorAll(
+          `[data-view-topic="${topicId}"][data-view-created="${iso}"] .popup-views`
+        ).forEach((node) => {
+          node.textContent = viewLabel(views);
+          node.classList.add('is-shown');
+        });
+      });
+      popupViewInflight.set(key, job);
+    }
   }
-  job.then((views) => {
-    if (views == null || !el.isConnected || el.dataset.seq !== String(seq)) return;
-    el.textContent = views === 1 ? '1 view' : views + ' views';
-    el.classList.add('is-shown');
-  });
+  el.textContent = viewLabel(shown);
+  el.classList.add('is-shown');
 }
 
 function bindPopupPager(container, goPrev, goNext) {
@@ -626,6 +638,7 @@ export function createMarkerPopupHTML(data) {
     comments,
     coords,
     created,
+    viewCount,
     // Optional (live-marker view): walk a custom list instead of the topic
     onPrev,
     onNext
@@ -804,6 +817,7 @@ export function createMarkerPopupHTML(data) {
   // Timestamp (row 7, right side)
   const viewsDiv = document.createElement('div');
   viewsDiv.className = 'popup-timestamp popup-views';
+  paintPopupView(viewsDiv, topicId, created, Number.isFinite(viewCount) ? viewCount : null);
   const timestampDiv = document.createElement('div');
   timestampDiv.className = 'popup-timestamp';
   timestampDiv.style.cssText = 'margin-right: calc(var(--u) * -0.5); flex-shrink: 0;';
@@ -870,7 +884,8 @@ function createPolygonPopupHTML(data) {
     likedByMe,
     comments,
     coordinates,
-    created
+    created,
+    viewCount
   } = data;
 
   const container = document.createElement('div');
@@ -1038,6 +1053,7 @@ function createPolygonPopupHTML(data) {
   // Timestamp (row 7, right side)
   const viewsDiv = document.createElement('div');
   viewsDiv.className = 'popup-timestamp popup-views';
+  paintPopupView(viewsDiv, topicId, created, Number.isFinite(viewCount) ? viewCount : null);
   const timestampDiv = document.createElement('div');
   timestampDiv.className = 'popup-timestamp';
   timestampDiv.style.cssText = 'margin-right: calc(var(--u) * -0.5); flex-shrink: 0;';
@@ -1099,7 +1115,6 @@ export function markerPopupNode(properties) {
   }
   // Showing this card again: it is the one the arrows must move.
   touchPopupPager(properties.message);
-  notePopupView(properties.message);
   return properties.message;
 }
 
@@ -1112,7 +1127,6 @@ export function polygonPopupNode(polygon) {
     polygon.description = createPolygonPopupHTML(record);
   }
   touchPopupPager(polygon.description);
-  notePopupView(polygon.description);
   return polygon.description;
 }
 

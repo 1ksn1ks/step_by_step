@@ -22,6 +22,37 @@ export function trackTopic(topicId) {
   }).catch(() => {});
 }
 
+// Counts that arrived with a topic's messages, or with a live marker.
+// A popup reads this while it is built, the same way it reads the time.
+const popupViewTotals = new Map();
+const popupViewTopics = new Set();
+
+export function takePopupViews(topicId, views) {
+  const topic = String(topicId || '');
+  if (!topic || !views || typeof views !== 'object' || Array.isArray(views)) return;
+  popupViewTopics.add(topic);
+  for (const [created, n] of Object.entries(views)) {
+    const num = Number(n);
+    if (Number.isFinite(num)) popupViewTotals.set(topic + '|' + created, num);
+  }
+}
+
+// null means this topic's counts have not arrived. 0 means none yet.
+export function knownPopupViews(topicId, created) {
+  const topic = String(topicId || '');
+  const key = topic + '|' + created;
+  if (popupViewTotals.has(key)) return popupViewTotals.get(key);
+  if (popupViewTopics.has(topic)) return 0;
+  return null;
+}
+
+export function setPopupViewTotal(topicId, created, views) {
+  const topic = String(topicId || '');
+  if (!topic || !created || !Number.isFinite(views)) return;
+  popupViewTopics.add(topic);
+  popupViewTotals.set(topic + '|' + created, views);
+}
+
 // Read or add one view for one post. created is the message ISO time.
 // Returns the total, or null when the server is unreachable.
 export async function popupView(topicId, created, inc) {
@@ -59,7 +90,12 @@ export async function fetchMessagesBackend(topicId, limit = 1000, afterSeq = 0) 
     clearTimeout(t);
     if (!res.ok) return { messages: [], error: "backend HTTP " + res.status, ready: false };
     const data = await res.json();
-    return { messages: data.messages || [], error: "", ready: !!data.ready };
+    return {
+      messages: data.messages || [],
+      error: "",
+      ready: !!data.ready,
+      views: data.views && typeof data.views === "object" && !Array.isArray(data.views) ? data.views : null,
+    };
   } catch (e) {
     return { messages: [], error: e.message || String(e), ready: false };
   }

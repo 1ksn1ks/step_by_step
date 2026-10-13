@@ -18,7 +18,7 @@
 // would leave DEFAULT_TTL in the temporal dead zone when their top-level
 // loads run getTopicData (circular init).
 
-import { trackTopic, fetchMessagesBackend } from './msgbackend';
+import { trackTopic, fetchMessagesBackend, takePopupViews } from './msgbackend';
 import {
   highestSequence,
   mergeMessages,
@@ -57,6 +57,7 @@ async function fetchTail(topicId, limit, lastSeq) {
   let reached = after;
   for (let guard = 0; guard < 30; guard++) {
     const page = await fetchMessagesBackend(topicId, limit, after);
+    if (page.views) takePopupViews(topicId, page.views);
     if (!page.ready) {
       const { getMessages: getMessagesMirror } = await import('./hedera');
       const mirrorResult = await getMessagesMirror(topicId, { afterSeq: after });

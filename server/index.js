@@ -350,6 +350,9 @@ const q = {
   getPopupView: db.prepare(
     "SELECT views FROM popup_views WHERE topic_id = ? AND created = ?"
   ),
+  listPopupViews: db.prepare(
+    "SELECT created, views FROM popup_views WHERE topic_id = ?"
+  ),
 };
 
 // Exactly the shape the app's getMessages() produces
@@ -1021,8 +1024,8 @@ app.post("/api/track", (req, res) => {
 });
 
 // One view of one post. created is that message's ISO time. inc 1 adds a
-// view; inc 0 only reads. The phone sends inc 1 the first time that
-// browser opens the post, then inc 0 after that.
+// view; inc 0 only reads. The phone adds one the first time that browser
+// opens the post. Later opens already have the number on the card.
 app.post("/api/popup-view", (req, res) => {
   const topic = req.body && req.body.topic;
   const created = req.body && req.body.created;
@@ -1154,11 +1157,15 @@ app.get("/api/local", (req, res) => {
   // Resolve each distinct topic's name (empty while the topic is still
   // backfilling) and keep the topic warm so the poller finishes the job.
   const names = new Map();
+  const viewMaps = new Map();
   for (const r of rows) {
     q.upsertTopic.run(r.topic, Date.now());
     if (!names.has(r.topic)) {
       names.set(r.topic, getTopicName(r.topic));
       fetchTopicMemo(r.topic);
+      const counts = new Map();
+      for (const view of q.listPopupViews.all(r.topic)) counts.set(view.created, view.views);
+      viewMaps.set(r.topic, counts);
     }
   }
   res.json({
@@ -1187,6 +1194,7 @@ app.get("/api/local", (req, res) => {
         likeCount: reactions ? reactions.likeCount : 0,
         dislikeCount: reactions ? reactions.dislikeCount : 0,
         comments: reactions ? reactions.comments : [],
+        views: idx && idx.created ? ((viewMaps.get(r.topic) || new Map()).get(idx.created) || 0) : 0,
       };
     }),
   });
@@ -1249,7 +1257,15 @@ app.get("/api/messages", (req, res) => {
     .all(topic)
     .filter((p) => Date.now() - p.submitted_at < PENDING_TTL_MS);
 
-  res.json({ ready, messages: [...rows.map(toAppMessage), ...pend.map(pendingToAppMessage)] });
+  // Counts travel with the messages, so a popup can show its number the
+  // moment it is built. One row per post that has been opened.
+  const views = {};
+  for (const view of q.listPopupViews.all(topic)) views[view.created] = view.views;
+  res.json({
+    ready,
+    messages: [...rows.map(toAppMessage), ...pend.map(pendingToAppMessage)],
+    views,
+  });
 });
 
 // ── Live stream (SSE) ──────────────────────────────────────────────────
