@@ -1827,12 +1827,6 @@ html, body {
     clip-path: inset(0 round calc(var(--u) * 2));
 }
 
-/* A share is a wider frame. The profile row uses the extra room.
-   The front card sets its own size back to a normal popup. */
-.maplibregl-popup:has(.popup-share) {
-    --card: min(96dvw, 86dvh);
-}
-
 /* Dummy preview popup inside the settings card: neutralize the fixed
    screen-centering so it flows inside the card instead of covering it.
    --card must be a length. 100% made --u a percentage, so the border
@@ -2086,85 +2080,6 @@ html, body {
     left: auto !important;
     z-index: 2;
     transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
-  }
-
-  .popup-share {
-    display: flex;
-    flex-direction: column;
-    gap: calc(var(--u) * 0.55);
-  }
-
-  .popup-share-back {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: calc(var(--u) * 0.6);
-    flex-wrap: wrap;
-    padding: calc(var(--u) * 0.15) calc(var(--u) * 0.2) 0;
-  }
-
-  .popup-share-who {
-    display: flex;
-    align-items: center;
-    gap: calc(var(--u) * 0.7);
-    min-width: 0;
-  }
-
-  .popup-share-pic {
-    width: calc(var(--u) * 4.2);
-    height: calc(var(--u) * 4.2);
-    border-radius: 50%;
-    object-fit: cover;
-    object-position: center;
-    flex-shrink: 0;
-    cursor: pointer;
-    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25);
-  }
-
-  .popup-share-names {
-    min-width: 0;
-  }
-
-  .popup-share-name,
-  .popup-share-account {
-    display: block;
-    font-size: calc(var(--u) * 1.15);
-    font-weight: 700;
-    color: white;
-    text-decoration: none;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .popup-share-account {
-    font-weight: 600;
-    font-size: calc(var(--u) * 0.95);
-    color: rgba(255, 255, 255, 0.7);
-  }
-
-  .popup-share-front {
-    width: min(90dvw, 70dvh);
-    max-width: 100%;
-    margin: 0 auto;
-    box-sizing: border-box;
-    --card: min(90dvw, 70dvh);
-    --u: calc(min(90dvw, 70dvh) * 0.024);
-    background: rgba(15, 15, 20, 0.96);
-    border: calc(var(--u) * 0.3) solid #ffffff;
-    border-radius: calc(var(--u) * 2);
-    overflow: hidden;
-    padding: calc(var(--u) * 0.4) calc(var(--u) * 0.6);
-  }
-
-  .popup-share-chip {
-    width: auto;
-    min-width: 0;
-    padding: 0 calc(var(--u) * 0.75);
-    font-family: inherit;
-    font-size: calc(var(--u) * 1.05);
-    font-weight: 700;
-    appearance: none;
   }
 
   .topic-follow {

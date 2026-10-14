@@ -1,6 +1,6 @@
 import {getTopicInfo} from './hedera'
 import { prepareHoldings, fetchAccountTokens } from './nftcache.js'
-import {sendMessage, popupView, knownPopupViews, setPopupViewTotal} from './msgbackend'
+import {sendMessage, popupView, knownPopupViews, setPopupViewTotal, fetchPost} from './msgbackend'
 import {getTopicData as getMessages} from './topicdata'
 import { adjustTextareaHeight } from './adjusttextarea';
 import { activePolygonPopups, newActivePolygonPopups, addPolygonWithImageFill} from './polygons';
@@ -13,7 +13,7 @@ import {updateRulesForModelNFTState} from './confirmnft'
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto';
 import { ringCenter, zoomForPolygon } from './polygonframe.js';
 import { profilePictures, usernames, click2url } from './loadalladata'
-import { confirmShare, unshareFromMyTopic, followControls, sharePin } from './followtopic'
+import { confirmShare, unshareFromMyTopic, sharePin } from './followtopic'
 import { clearShareTopic, noteShare, shareState, takeSharePin, takeUnsharePin } from './sharecount.js'
 import { openPreview } from './fullscreenmedia';
 import maplibregl from 'maplibre-gl';
@@ -674,9 +674,16 @@ function appendShareFeature(features, ctx) {
   const click2link = author && click2url[author] ? ` ${click2url[author].click2url}` : '';
   const kind = share.kind === 'polygon' ? 'polygon' : 'marker';
   const image = shareField(share.image);
+  const cover = shareField(share.cover);
+  const topicName = shareField(share.topicName);
   const title = shareField(share.title);
   const msg = shareField(share.msg);
   const number = share.number == null ? '' : share.number;
+  // Counts snapshotted into the pin when it was shared. Missing on pins
+  // shared before the snapshot existed — they fall back to zero/none.
+  const savedViews = Number(share.views);
+  const savedLikes = Number(share.likes);
+  const savedComments = Number(share.comments);
   const timestamp = new Date(created).toLocaleString('en-US', {
     hour12: false,
     year: 'numeric',
@@ -690,7 +697,7 @@ function appendShareFeature(features, ctx) {
     markernumber: number,
     polygonnumber: number,
     topicId: original,
-    loadedTopicName: '',
+    loadedTopicName: topicName,
     profileUrl,
     payer: author,
     payerInfo: author || 'Anonymous',
@@ -698,20 +705,21 @@ function appendShareFeature(features, ctx) {
     click2link,
     title,
     image,
+    coverimage: cover,
     msg,
     timestamp,
     created,
-    likeCountMarker: 0,
-    likeCountPolygon: 0,
+    likeCountMarker: Number.isFinite(savedLikes) ? savedLikes : 0,
+    likeCountPolygon: Number.isFinite(savedLikes) ? savedLikes : 0,
     likedByMe: false,
     comments: [],
+    commentsCount: Number.isFinite(savedComments) ? savedComments : null,
     coords: pin,
     coordinates: pin,
-    viewCount: null,
+    viewCount: Number.isFinite(savedViews) ? savedViews : null,
     kind,
     share: { sharer, home: ctx.topicId },
   });
-  const sharerPic = sharer && profilePictures[sharer] && profilePictures[sharer].url;
   takeSharePin(decisions, features, sharer + '|' + original + '|' + created, {
     topicId: ctx.topicId,
     created: parsed.created,
@@ -721,7 +729,9 @@ function appendShareFeature(features, ctx) {
     payer: sharer,
     properties: {
       popupData: record,
-      imageUrl: isValidUrl(image) ? image : (isValidUrl(sharerPic) ? sharerPic : profileUrl),
+      // The dot wears the same face as the original post: its cover image,
+      // else the original owner's picture — never the sharer's.
+      imageUrl: isValidUrl(cover) ? cover : profileUrl,
       title: String(title || '').slice(0, 20),
     },
     geometry: {
@@ -753,6 +763,8 @@ export function createMarkerPopupHTML(data) {
     coords,
     created,
     viewCount,
+    coverimage,
+    commentsCount,
     // Optional (live-marker view): walk a custom list instead of the topic
     onPrev,
     onNext
@@ -947,9 +959,11 @@ export function createMarkerPopupHTML(data) {
 
   const markerCommentsId = `marker-comments-${topicId}-${timestamp}`;
   likeDislikeDiv.appendChild(createCommentBubble({
-    count: countAllMessages(comments),
+    count: Number.isFinite(commentsCount) ? commentsCount : countAllMessages(comments),
     onToggle: (open) => toggleCommentsBubble(open, markerCommentsId),
   }));
+  // Everything the card shows goes into the pin, so the shared card on
+  // another topic looks the same as the original one.
   const markerShare = {
     kind: 'marker',
     topicId,
@@ -958,6 +972,11 @@ export function createMarkerPopupHTML(data) {
     title,
     msg,
     image,
+    coverimage,
+    loadedTopicName,
+    views: parseInt(viewsDiv.textContent, 10),
+    likes: likeCountMarker,
+    commentsCount: Number.isFinite(commentsCount) ? commentsCount : countAllMessages(comments),
     coords,
     number: markernumber,
     timestamp,
@@ -1017,7 +1036,9 @@ function createPolygonPopupHTML(data) {
     comments,
     coordinates,
     created,
-    viewCount
+    viewCount,
+    coverimage,
+    commentsCount
   } = data;
 
   const container = document.createElement('div');
@@ -1201,9 +1222,10 @@ function createPolygonPopupHTML(data) {
 
   const polygonCommentsId = `polygon-comments-${topicId}-${timestamp}`;
   likeDislikeDiv.appendChild(createCommentBubble({
-    count: countAllMessages(comments),
+    count: Number.isFinite(commentsCount) ? commentsCount : countAllMessages(comments),
     onToggle: (open) => toggleCommentsBubble(open, polygonCommentsId),
   }));
+  // Same rule as markers: the pin carries the whole card.
   const polygonShare = {
     kind: 'polygon',
     topicId,
@@ -1212,6 +1234,11 @@ function createPolygonPopupHTML(data) {
     title,
     msg,
     image,
+    coverimage,
+    loadedTopicName,
+    views: parseInt(viewsDiv.textContent, 10),
+    likes: likeCountPolygon,
+    commentsCount: Number.isFinite(commentsCount) ? commentsCount : countAllMessages(comments),
     coords: coordinates,
     number: polygonnumber,
     timestamp,
@@ -1251,50 +1278,73 @@ function createPolygonPopupHTML(data) {
   return container;
 }
 
-// The sharer's profile sits on the bigger card. The original post stays
-// the regular card in front. Sharing this card points at that original.
-function createSharePopupHTML(record) {
-  const shell = document.createElement('div');
-  shell.className = 'popup-share';
-  const back = document.createElement('div');
-  back.className = 'popup-share-back';
-  const sharer = record.share && record.share.sharer;
-  const home = record.share && record.share.home;
-  const defaultPic = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
-  const rawPic = sharer && profilePictures[sharer] && profilePictures[sharer].url;
-  const img = document.createElement('img');
-  img.className = 'popup-share-pic';
-  img.alt = 'Profile photo';
-  img.src = isValidUrl(rawPic) ? rawPic : defaultPic;
-  img.addEventListener('click', (event) => {
-    event.stopPropagation();
-    if (sharer) window.loadBio4PIC(sharer);
+// A shared pin is a reference, not a copy. The card built from the
+// snapshot renders immediately; while the tab sits there the pin is
+// re-read live from the original post (one indexed lookup per key on
+// the backend) and the live card replaces the snapshot in place. The
+// live card is kept on the feature — later opens do not re-fetch.
+// Backend offline, or the topic not mirrored there: the snapshot stays.
+const shareLiveInflight = new Map();
+
+function liveShareRecord(live, base) {
+  const ts = new Date(live.created).toLocaleString('en-US', {
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
   });
-  const names = document.createElement('div');
-  names.className = 'popup-share-names';
-  const rawName = sharer && usernames[sharer] && usernames[sharer].username;
-  const name = typeof rawName === 'string' ? rawName.trim() : '';
-  const rawLink = sharer && click2url[sharer] && click2url[sharer].click2url;
-  if (name) {
-    names.appendChild(payerUsernameNode(name, typeof rawLink === 'string' ? rawLink.trim() : '', { className: 'popup-share-name' }));
+  return {
+    markernumber: live.number,
+    polygonnumber: live.number,
+    topicId: live.topic,
+    loadedTopicName: live.topicName || base.loadedTopicName || '',
+    profileUrl: base.profileUrl,
+    payer: live.payer || base.payer,
+    payerInfo: live.payer || base.payerInfo,
+    username: base.username,
+    click2link: base.click2link,
+    title: live.title,
+    image: live.image,
+    coverimage: live.coverimage,
+    msg: live.msg,
+    timestamp: ts,
+    created: live.created,
+    likeCountMarker: live.likes || 0,
+    likeCountPolygon: live.likes || 0,
+    likedByMe: !!live.likedByMe,
+    comments: live.comments || [],
+    coords: base.coords,
+    coordinates: base.coordinates,
+    viewCount: Number.isFinite(live.views) ? live.views : null,
+    kind: live.kind === 'polygon' ? 'polygon' : 'marker',
+    share: base.share,
+  };
+}
+
+function hydrateSharePin(properties, record) {
+  const key = record.topicId + '|' + record.created;
+  if (!shareLiveInflight.has(key)) {
+    shareLiveInflight.set(
+      key,
+      fetchPost(record.topicId, record.created, connectedAccount || '')
+        .catch(() => null)
+        .finally(() => shareLiveInflight.delete(key))
+    );
   }
-  const account = document.createElement('div');
-  account.className = 'popup-share-account';
-  account.textContent = sharer || '';
-  names.appendChild(account);
-  const who = document.createElement('div');
-  who.className = 'popup-share-who';
-  who.append(img, names);
-  back.appendChild(who);
-  if (home) back.appendChild(followControls(home, sharer));
-  const front = document.createElement('div');
-  front.className = 'popup-share-front';
-  const card = record.kind === 'polygon'
-    ? createPolygonPopupHTML(record)
-    : createMarkerPopupHTML(record);
-  front.appendChild(card);
-  shell.append(back, front);
-  return shell;
+  shareLiveInflight.get(key).then((live) => {
+    if (!live || properties._live) return;
+    const freshRecord = liveShareRecord(live, record);
+    properties._live = true;
+    if (properties.message && properties.message.parentNode) {
+      const fresh = createMarkerPopupHTML(freshRecord);
+      properties.message.replaceWith(fresh);
+      properties.message = fresh;
+      touchPopupPager(fresh);
+    }
+  });
 }
 
 // The card is built on the first open and kept on the feature. Topic load
@@ -1307,9 +1357,8 @@ export function markerPopupNode(properties) {
     const data = properties.popupData;
     if (!data) return null;
     const record = typeof data === 'function' ? data() : data;
-    properties.message = record && record.share
-      ? createSharePopupHTML(record)
-      : createMarkerPopupHTML(record);
+    properties.message = createMarkerPopupHTML(record);
+    if (record && record.share && !properties._live) hydrateSharePin(properties, record);
   }
   // Showing this card again: it is the one the arrows must move.
   touchPopupPager(properties.message);
@@ -1731,6 +1780,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       click2link,
                       title: parsedMessage.marker.data.title,
                       image: parsedMessage.marker.data.image,
+                      coverimage: parsedMessage.marker.data.coverimage,
                       msg: parsedMessage.marker.data.msg,
                       timestamp,
                       created: messageCreated(parsedMessage.created),
@@ -1807,6 +1857,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         click2link,
                         title: parsedMessage.polygon.data.title,
                         image: parsedMessage.polygon.data.image,
+                        coverimage: parsedMessage.polygon.data.coverimage,
                         msg: parsedMessage.polygon.data.msg,
                         timestamp,
                         created: messageCreated(parsedMessage.created),
@@ -3388,6 +3439,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       click2link,
                       title: parsedMessage.marker.data.title,
                       image: parsedMessage.marker.data.image,
+                      coverimage: parsedMessage.marker.data.coverimage,
                       msg: parsedMessage.marker.data.msg,
                       timestamp,
                       created: messageCreated(parsedMessage.created),
@@ -3464,6 +3516,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         click2link,
                         title: parsedMessage.polygon.data.title,
                         image: parsedMessage.polygon.data.image,
+                        coverimage: parsedMessage.polygon.data.coverimage,
                         msg: parsedMessage.polygon.data.msg,
                         timestamp,
                         created: messageCreated(parsedMessage.created),
@@ -4065,6 +4118,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       click2link,
                       title: parsedMessage.marker.data.title,
                       image: parsedMessage.marker.data.image,
+                      coverimage: parsedMessage.marker.data.coverimage,
                       msg: parsedMessage.marker.data.msg,
                       timestamp,
                       created: messageCreated(parsedMessage.created),
@@ -4144,6 +4198,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         click2link,
                         title: parsedMessage.polygon.data.title,
                         image: parsedMessage.polygon.data.image,
+                        coverimage: parsedMessage.polygon.data.coverimage,
                         msg: parsedMessage.polygon.data.msg,
                         timestamp,
                         created: messageCreated(parsedMessage.created),

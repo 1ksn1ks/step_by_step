@@ -67,6 +67,8 @@ function shareReady(source) {
 export async function confirmShare(source) {
   const ready = shareReady(source);
   if (!ready) return false;
+  // The pin carries the whole card: cover, topic name, and the views,
+  // hearts, and comments counts as they are when the share is sent.
   const payload = {
     share: {
       topic: source.topicId,
@@ -75,6 +77,11 @@ export async function confirmShare(source) {
       title: shareText(source.title).slice(0, 20),
       msg: shareText(source.msg),
       image: shareText(source.image),
+      cover: shareText(source.coverimage),
+      topicName: shareText(source.loadedTopicName),
+      views: Number.isFinite(source.views) ? source.views : '',
+      likes: Number.isFinite(source.likes) ? source.likes : '',
+      comments: Number.isFinite(source.commentsCount) ? source.commentsCount : '',
       coords: ready.pin,
       pin: ready.pin,
       number: source.number == null ? '' : String(source.number),

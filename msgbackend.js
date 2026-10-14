@@ -76,6 +76,29 @@ export async function popupView(topicId, created, inc) {
   }
 }
 
+// The original post behind a shared pin: body, topic name, views, hearts,
+// and the comment tree in one round trip. Each piece is a PK point/prefix
+// lookup on the backend, so the cost does not grow with the table size.
+// null = backend offline or the topic is not mirrored there — the caller
+// keeps the snapshot the pin message carries.
+export async function fetchPost(topicId, created, account = "") {
+  if (!topicId || !created) return null;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    const res = await fetch(
+      `${BACKEND_URL}/api/post?topic=${encodeURIComponent(topicId)}&created=${encodeURIComponent(created)}&account=${encodeURIComponent(account)}`,
+      { signal: ctrl.signal }
+    );
+    clearTimeout(t);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data && data.ok && data.found ? data : null;
+  } catch {
+    return null;
+  }
+}
+
 // Read or change the follower count for one topic. follow 1 adds this
 // account, follow 0 removes it, and null only reads. Returns null when
 // the server is unreachable.

@@ -177,6 +177,10 @@ for (const migration of [
   }
 }
 db.exec("CREATE INDEX IF NOT EXISTS user_settings_revision ON user_settings(revision)");
+// /api/post looks one message up by (topic, ISO time). ts is stored at
+// nanosecond precision while the key only carries milliseconds, so the
+// index narrows the scan to a 1ms window that JS verifies exactly.
+db.exec("CREATE INDEX IF NOT EXISTS messages_ts ON messages(topic_id, ts)");
 db.exec(`
   CREATE TABLE IF NOT EXISTS topic_follows (
     topic_id   TEXT NOT NULL,
@@ -380,6 +384,13 @@ const q = {
   ),
   listPopupViews: db.prepare(
     "SELECT created, views FROM popup_views WHERE topic_id = ?"
+  ),
+  // 1ms window around a known ISO time (see messages_ts index above)
+  msgsInWindow: db.prepare(
+    "SELECT seq, ts, payer, body FROM messages WHERE topic_id = ? AND ts >= ? AND ts < ? ORDER BY seq ASC"
+  ),
+  getReaction: db.prepare(
+    "SELECT kind FROM reactions WHERE topic_id = ? AND target_key = ? AND payer = ?"
   ),
 };
 
@@ -1101,6 +1112,111 @@ app.post("/api/popup-view", (req, res) => {
   }
   const row = q.bumpPopupView.get(topic, created);
   res.json({ ok: true, views: row ? row.views : 1 });
+});
+
+// Topic names resolve from changeName messages (a scan of the topic);
+// the result is cached for the process life — names rarely change.
+const topicNameCache = new Map();
+function topicNameFor(topicId) {
+  if (!topicNameCache.has(topicId)) topicNameCache.set(topicId, getTopicName(topicId));
+  return topicNameCache.get(topicId);
+}
+
+// The original post behind a shared pin: the pin message carries only
+// (topic, created) — the card is rebuilt live here. Every lookup is a
+// PK point/prefix query, so the cost is flat from 10K to 100M rows;
+// found=false means the topic is not mirrored in this cache (the app
+// keeps the snapshot the pin message carries).
+app.get("/api/post", (req, res) => {
+  const topic = req.query.topic;
+  const created = req.query.created;
+  const account = typeof req.query.account === "string" ? req.query.account : "";
+  if (
+    !isTopicId(topic) ||
+    typeof created !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(created)
+  ) {
+    return res.status(400).json({ ok: false, error: "bad post" });
+  }
+  const ms = Date.parse(created);
+  if (!Number.isFinite(ms)) return res.status(400).json({ ok: false, error: "bad post" });
+  let row = null;
+  for (const r of q.msgsInWindow.all(
+    topic,
+    (ms / 1000 - 0.000001).toFixed(9),
+    ((ms + 1) / 1000 + 0.000001).toFixed(9)
+  )) {
+    if (new Date(Number(r.ts) * 1000).toISOString() === created) {
+      row = r;
+      break;
+    }
+  }
+  if (!row) return res.json({ ok: true, found: false });
+  let d;
+  try {
+    d = JSON.parse(row.body);
+  } catch {
+    return res.json({ ok: true, found: false });
+  }
+  const data = (d.marker && d.marker.data) || (d.polygon && d.polygon.data) || null;
+  if (!data) return res.json({ ok: true, found: false });
+  const reactions = markerReactions(topic, created);
+  const viewRow = q.getPopupView.get(topic, created);
+  const myLike = account ? q.getReaction.get(topic, formatMarkerKey(created), account) : null;
+  // Which comment nodes does this account have liked — one IN query.
+  if (account) {
+    const ckeys = new Set();
+    const collect = (nodes) => {
+      for (const n of nodes) {
+        ckeys.add(n.created);
+        collect(n.replies || []);
+      }
+    };
+    collect(reactions.comments);
+    if (ckeys.size > 0) {
+      const ph = [...ckeys].map(() => "?").join(",");
+      const liked = new Set(
+        db
+          .prepare(
+            `SELECT target_key FROM reactions
+             WHERE topic_id = ? AND payer = ? AND kind = 'like' AND target_key IN (${ph})`
+          )
+          .all(topic, account, ...ckeys)
+          .map((r) => r.target_key)
+      );
+      const mark = (nodes) => {
+        for (const n of nodes) {
+          n.likedByMe = liked.has(n.created);
+          mark(n.replies || []);
+        }
+      };
+      mark(reactions.comments);
+    }
+  }
+  res.json({
+    ok: true,
+    found: true,
+    topic,
+    created,
+    kind: d.marker ? "marker" : "polygon",
+    number: String(
+      data.numberOfMarker != null
+        ? data.numberOfMarker
+        : data.numberOfPolygon != null
+          ? data.numberOfPolygon
+          : ""
+    ),
+    title: String(data.title || ""),
+    image: data.image,
+    coverimage: data.coverimage,
+    msg: data.msg,
+    payer: row.payer,
+    topicName: topicNameFor(topic),
+    views: viewRow ? viewRow.views : 0,
+    likes: reactions.likeCount,
+    likedByMe: !!(myLike && myLike.kind === "like"),
+    comments: reactions.comments,
+  });
 });
 
 // One follower per account on a topic. follow 1 adds, follow 0 removes.
