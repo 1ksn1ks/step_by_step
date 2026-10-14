@@ -2063,6 +2063,38 @@ document.getElementById("remove-profile-topic").addEventListener("click", async 
   }
 });
 
+// Pin the account's Ed25519 public key to its connected topic. The E2EE chat
+// scans topic history newest-first for this message shape, so re-pinning
+// simply replaces the old key.
+document.getElementById("pin-profile-public-key").addEventListener("click", async (event) => {
+  event.stopPropagation();
+  try {
+    if (!signer) {
+      toast.error("Connect wallet first");
+      return;
+    }
+    const home = connectedAccount && profileTopics[connectedAccount];
+    if (!home) {
+      toast.error("Connect a topic in Edit profile first");
+      return;
+    }
+    const keyField = document.getElementById("edit-profile-public-key-input");
+    const key = keyField.value.trim();
+    if (!/^[0-9a-f]+$/i.test(key) || key.length < 64 || key.length % 2 !== 0) {
+      toast.error("Enter the public key as hex (64+ characters)");
+      return;
+    }
+    toast.info("Confirm in wallet 👛");
+    const receipt = await sendMessage(home, JSON.stringify({ publicKey: key }));
+    console.log("Public key pinned to", home, ":", receipt);
+    keyField.value = "";
+    keyField.dispatchEvent(new Event("input"));
+    toast.success("Public key pinned");
+  } catch (error) {
+    console.error("Error pinning public key:", error);
+  }
+});
+
  document.getElementById("button_for_topic_bio").addEventListener("click", async (event) => {
    event.stopPropagation();
    const inputValue = document.getElementById("topic-bio-input").value;

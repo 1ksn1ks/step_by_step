@@ -5,7 +5,8 @@ import { sendMessage, messageSig, streamOnTopic, streamOnReconnect } from './msg
 import { getTopicData } from './topicdata';
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
 import { connectedAccount, signer } from './web3';
-import { profilePictures, usernames, click2url } from './loadalladata';
+import { profilePictures, usernames, click2url, profileTopics } from './loadalladata';
+import { isHederaAccount } from './handleallmessages';
 import { toast } from './toast'
 import { expandEncryptedChat, scheduleEncryptedChatLayout } from './cssLogic.js';
 import { payerUsernameNode } from './payerlink.js';
@@ -344,16 +345,39 @@ if (encryptedChatMsgSortZa) {
   });
 }
 
+// The E2EE input takes a domain, a topic id, or a PAYER id: a payer with a
+// topic connected to their profile is messaged on that topic (their public
+// key is pinned there via Edit profile). Usernames are deliberately not
+// accepted — anyone can squat a name on a fresh account.
+async function resolveE2eeTopic(input) {
+  const value = String(input || '').trim().toLowerCase();
+  if (!value) return { error: 'Please enter a Topic ID, domain, or payer ID.' };
+  const domainEntry = loadedDomains.find(entry => entry.domain === value);
+  if (domainEntry && domainEntry.lastMessage) {
+    return { topicId: domainEntry.lastMessage.topic, via: domainEntry.domain };
+  }
+  const bare = value.split('-')[0];
+  if (bare in profileTopics) {
+    return { topicId: profileTopics[bare], via: bare };
+  }
+  if (/^(0\.0\.\d+)(?:-[a-z0-9]+)?$/.test(value) && (await isHederaAccount(bare))) {
+    return { error: `${bare} has no public topic connected — connect one in Edit profile first.` };
+  }
+  return { topicId: value, via: null };
+}
+
 async function loadMessagesFromEncryptedChat() {
   try {
-    let userInput = document.getElementById("encrypted-chat-topic-id").value.toLowerCase();
-    let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
-    let topicId = (domainEntry && domainEntry.lastMessage)
-      ? domainEntry.lastMessage.topic
-      : userInput;
+    const resolved = await resolveE2eeTopic(document.getElementById("encrypted-chat-topic-id").value);
 
     const messagesContainer = document.getElementById("messages-from-encrypted-chat");
     if (!messagesContainer) return;
+    if (resolved.error) {
+      createEmptyStateMessage(messagesContainer, resolved.error);
+      adjustTextareaHeight(messagesContainer);
+      return;
+    }
+    let topicId = resolved.topicId;
 
     // Reset grouping state
     previousPayerEncryptedChat = null;
@@ -361,7 +385,12 @@ async function loadMessagesFromEncryptedChat() {
     currentMessagesGroupDivEncrypted = null;
     storedMessagesEncryptedChat = [];
 
-    createLoadingSpinner(messagesContainer, topicId);
+    createLoadingSpinner(
+      messagesContainer,
+      resolved.via && resolved.via !== resolved.topicId
+        ? `${resolved.topicId} (via ${resolved.via})`
+        : topicId
+    );
     adjustTextareaHeight(messagesContainer);
     expandEncryptedChat();
 
@@ -597,20 +626,13 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
       toast.error("Connect wallet first");
       return;
     }
-    let userInput = document.getElementById("encrypted-chat-topic-id").value.toLowerCase();
-    let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
-    let PublicKey;
-    let topicId;
-
-    if (domainEntry && domainEntry.lastMessage) {
-      topicId = domainEntry.lastMessage.topic;
-    } else {
-      topicId = userInput;
-    }
-    if (!topicId) {
-      toast.error("Please enter a Topic ID or domain.");
+    const resolved = await resolveE2eeTopic(document.getElementById("encrypted-chat-topic-id").value);
+    if (resolved.error) {
+      toast.error(resolved.error);
       return;
     }
+    let PublicKey;
+    let topicId = resolved.topicId;
 
     const messagesContainer = document.getElementById("messages-from-encrypted-chat");
     const topicAdmin = [];
@@ -696,20 +718,13 @@ document.getElementById("stack-encrypted-chat-public-key-button").addEventListen
       toast.error("Connect wallet first");
       return;
     }
-    let userInput = document.getElementById("encrypted-chat-topic-id").value.toLowerCase();
-    let publicKey = document.getElementById("encrypted-chat-public-key").value;
-    let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
-    let topicId;
-
-    if (domainEntry && domainEntry.lastMessage) {
-      topicId = domainEntry.lastMessage.topic;
-    } else {
-      topicId = userInput;
-    }
-    if (!topicId) {
-      toast.error("Please enter a Topic ID or domain.");
+    const resolved = await resolveE2eeTopic(document.getElementById("encrypted-chat-topic-id").value);
+    if (resolved.error) {
+      toast.error(resolved.error);
       return;
     }
+    const topicId = resolved.topicId;
+    let publicKey = document.getElementById("encrypted-chat-public-key").value;
     if (!publicKey) {
       toast.error("Please enter a public key.");
       return;
@@ -982,19 +997,12 @@ document.getElementById("save-time-from-encrypted-chat").addEventListener("click
       toast.error("Connect wallet first");
       return;
     }
-    let userInput = document.getElementById("encrypted-chat-topic-id").value;
-    let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
-    let topicId;
-
-    if (domainEntry && domainEntry.lastMessage) {
-      topicId = domainEntry.lastMessage.topic;
-    } else {
-      topicId = userInput;
-    }
-    if (!topicId) {
-      toast.error("Please enter a Topic ID or domain.");
+    const resolved = await resolveE2eeTopic(document.getElementById("encrypted-chat-topic-id").value);
+    if (resolved.error) {
+      toast.error(resolved.error);
       return;
     }
+    const topicId = resolved.topicId;
     const fromMmddyyyy = document.getElementById("from-mmddyyyy-encrypted-chat").value;
     const toMmddyyyy = document.getElementById("to-mmddyyyy-encrypted-chat").value;
     const fromHhmmss = document.getElementById("from-hhmmss-encrypted-chat").value;
@@ -1047,19 +1055,12 @@ document.getElementById("load-save-filters-from-users-encrypted-chat").addEventL
       toast.error("Connect wallet first");
       return;
     }
-    let userInput = document.getElementById("encrypted-chat-topic-id").value;
-    let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
-    let topicId;
-
-    if (domainEntry && domainEntry.lastMessage) {
-      topicId = domainEntry.lastMessage.topic;
-    } else {
-      topicId = userInput;
-    }
-    if (!topicId) {
-      toast.error("Please enter a Topic ID or domain.");
+    const resolved = await resolveE2eeTopic(document.getElementById("encrypted-chat-topic-id").value);
+    if (resolved.error) {
+      toast.error(resolved.error);
       return;
     }
+    const topicId = resolved.topicId;
     const encryptedChatFromUsers = document.getElementById("load-msgs-from-ids-encrypted-chat").value;
     if (!encryptedChatFromUsers) {
       toast.error("Please enter the account IDs to load.");
@@ -1105,19 +1106,12 @@ document.getElementById("load-save-blocks-from-users-encrypted-chat").addEventLi
       toast.error("Connect wallet first");
       return;
     }
-    let userInput = document.getElementById("encrypted-chat-topic-id").value;
-    let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
-    let topicId;
-
-    if (domainEntry && domainEntry.lastMessage) {
-      topicId = domainEntry.lastMessage.topic;
-    } else {
-      topicId = userInput;
-    }
-    if (!topicId) {
-      toast.error("Please enter a Topic ID or domain.");
+    const resolved = await resolveE2eeTopic(document.getElementById("encrypted-chat-topic-id").value);
+    if (resolved.error) {
+      toast.error(resolved.error);
       return;
     }
+    const topicId = resolved.topicId;
     const encryptedChatBlocks = document.getElementById("load-blocks-from-ids-encrypted-chat").value;
     if (!encryptedChatBlocks) {
       toast.error("Please enter the account IDs to block.");
@@ -1168,18 +1162,15 @@ document.getElementById("stack-encrypted-chat-set-password-button").addEventList
     const privateKey = document.getElementById("encrypted-chat-change-password-key").value;
     const newPassword = document.getElementById("encrypted-chat-new-password-key").value;
 
-    if (!userInput) {
-      toast.error("Please enter a Topic ID or domain.");
-      return;
-    }
     if (!privateKey) throw new Error("Private key is required");
     if (!newPassword) throw new Error("Password is required");
 
-    let topicId = userInput;
-    const domainEntry = loadedDomains.find(entry => entry.domain === userInput);
-    if (domainEntry && domainEntry.lastMessage) {
-      topicId = domainEntry.lastMessage.topic;
+    const resolved = await resolveE2eeTopic(userInput);
+    if (resolved.error) {
+      toast.error(resolved.error);
+      return;
     }
+    const topicId = resolved.topicId;
 
     const result = await encryptWithPassword(privateKey, newPassword);
 
@@ -1224,18 +1215,15 @@ document.getElementById("stack-encrypted-chat-change-password-button").addEventL
     let encryptedPrivateKey;
     let decryptedPrivateKey;
 
-    if (!userInput) {
-      toast.error("Please enter a Topic ID or domain.");
-      return;
-    }
     if (!oldPass) throw new Error("oldPass key is required");
     if (!newPassword) throw new Error("Password is required");
 
-    let topicId = userInput;
-    const domainEntry = loadedDomains.find(entry => entry.domain === userInput);
-    if (domainEntry && domainEntry.lastMessage) {
-      topicId = domainEntry.lastMessage.topic;
+    const resolved = await resolveE2eeTopic(userInput);
+    if (resolved.error) {
+      toast.error(resolved.error);
+      return;
     }
+    const topicId = resolved.topicId;
 
     const messagesContainer = document.getElementById("messages-from-encrypted-chat");
 

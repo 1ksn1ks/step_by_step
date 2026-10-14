@@ -2150,6 +2150,17 @@ html, body {
     word-break: break-all;
   }
 
+  #edit-profile-public-key {
+    margin: 0.4vh 0 1vh;
+  }
+
+  #edit-profile-key-note {
+    font-size: 1.5vh;
+    color: #8d93a5;
+    text-align: center;
+    padding: 0.3vh 0 0.6vh;
+  }
+
   /* Action chips: nav arrows, ⚙️, and 💬 in the bottom row */
   .popup-icon-chip {
     display: inline-flex;

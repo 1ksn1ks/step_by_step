@@ -174,6 +174,7 @@
             <li><b>BIO</b> — set your profile bio; tapping a PFP shows it in Load.</li>
             <li><b>CLICK2LINK</b> — attach any URL to your username.</li>
             <li><b>Your topic</b> — the topic connected to this account. Share posts land here. Followers follow this topic. Connect saves the topic id. Remove takes that connection off.</li>
+            <li><b>Public key</b> — pin your Ed25519 public key to your connected topic. Anyone can then send you an encrypted message just by your payer id.</li>
             <li><b>Preview</b> — the card updates as you change the picture, name, bio, and link.</li>
           </ul>
           <div class="info-overlay-actions">
@@ -210,6 +211,15 @@
               <button id="connect-profile-topic" class="toolbar-column-btns" type="button">Connect</button>
               <button id="remove-profile-topic" class="toolbar-column-btns profile-topic-remove" type="button">Remove</button>
             </div>
+          </div>
+
+          <div id="edit-profile-public-key">
+            <div id="edit-profile-key-note">People message you by payer id — your key is pinned to the topic connected above.</div>
+            <textarea type="text" id="edit-profile-public-key-input" placeholder="Ed25519 public key (hex)"
+            class="toolbar-column" onclick="event.stopPropagation();"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <button class="toolbar-column-btns" id="pin-profile-public-key" type="button">Pin to my topic</button>
           </div>
 
           <div style="display: flex;">
@@ -1543,7 +1553,7 @@
 
           <div style="display: flex; align-items: center;">
       
-            <textarea class="toolbar-column" type="text" id="encrypted-chat-topic-id" placeholder="Domain/Topic ID"
+            <textarea class="toolbar-column" type="text" id="encrypted-chat-topic-id" placeholder="Domain / Topic ID / Payer ID"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
       

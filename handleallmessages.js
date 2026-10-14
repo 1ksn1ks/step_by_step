@@ -29,7 +29,7 @@ import { fillTopicIds } from "./topicidintext.js";
 // to only one of them. A remembered answer skips a second mirror ask.
 const accountChecks = new Map();
 
-async function isHederaAccount(id) {
+export async function isHederaAccount(id) {
   if (accountChecks.has(id)) return accountChecks.get(id);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 4000);
