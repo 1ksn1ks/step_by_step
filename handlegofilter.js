@@ -128,9 +128,39 @@ async function handleGeoFilter() {
       return conditions.every(condition => condition);
     });
   
+    // Same invariant as the live list: one post (one timestamp) is one
+    // drawing, even when it sits in several stored topics. Keys are
+    // normalized — the same instant arrives as a Date object on the mirror
+    // path and as an ISO string on the backend/share path.
+    const keyOf = (value) => {
+      if (value == null || value === '') return '';
+      const date = value instanceof Date ? value : new Date(value);
+      return Number.isNaN(date.getTime()) ? String(value) : date.toISOString();
+    };
+    const uniqueFeatures = [];
+    const seenFeatureTimes = new Set();
+    for (const feature of filteredFeatures) {
+      const key = keyOf(feature.created);
+      if (key) {
+        if (seenFeatureTimes.has(key)) continue;
+        seenFeatureTimes.add(key);
+      }
+      uniqueFeatures.push(feature);
+    }
+    const uniquePolygons = [];
+    const seenPolygonTimes = new Set();
+    for (const polygon of filteredPolygons) {
+      const key = keyOf(polygon.created);
+      if (key) {
+        if (seenPolygonTimes.has(key)) continue;
+        seenPolygonTimes.add(key);
+      }
+      uniquePolygons.push(polygon);
+    }
+
     // Update storedMarkers and storedPolygons
-    newStoredMarkersFiltered(filteredFeatures);
-    newStoredPolygonsFiltered(filteredPolygons);
+    newStoredMarkersFiltered(uniqueFeatures);
+    newStoredPolygonsFiltered(uniquePolygons);
   
     // Clear existing markers and layers
     setTimeout(() => {

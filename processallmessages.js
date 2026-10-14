@@ -223,15 +223,41 @@ async function assignDrawingOwnership({
 let clusterTimer = null;
 let indexWarned = false;
 
+// One post is one drawing. The same post (same consensus timestamp) can
+// reach the live list through more than one loaded topic, and a second copy
+// would paint a dot on top of the first — so a drawing whose timestamp is
+// already live is dropped.
+function dedupeByTimestamp(drawings, liveList) {
+  // Normalize: the backend path stores ISO strings, the mirror path stores
+  // Date objects — the same instant must produce the same key.
+  const keyOf = (value) => {
+    if (value == null || value === '') return '';
+    return messageCreated(value) || String(value);
+  };
+  const seen = new Set(liveList.map((d) => keyOf(d && d.created)).filter(Boolean));
+  const fresh = [];
+  for (const drawing of drawings) {
+    const key = keyOf(drawing && drawing.created);
+    if (key) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    fresh.push(drawing);
+  }
+  return fresh;
+}
+
 function publishApprovedDrawings(features, polys, state, sync) {
   const markers = features.slice(state.markers);
   const nextPolys = polys.slice(state.polys);
   state.markers = features.length;
   state.polys = polys.length;
-  if (markers.length > 0) geojson.features.push(...markers);
-  if (nextPolys.length > 0) {
-    polygons.push(...nextPolys);
-    for (const polygon of nextPolys) addPolygonWithImageFill(map, polygon);
+  const freshMarkers = dedupeByTimestamp(markers, geojson.features);
+  const freshPolys = dedupeByTimestamp(nextPolys, polygons);
+  if (freshMarkers.length > 0) geojson.features.push(...freshMarkers);
+  if (freshPolys.length > 0) {
+    polygons.push(...freshPolys);
+    for (const polygon of freshPolys) addPolygonWithImageFill(map, polygon);
   }
   const flush = () => {
     clusterTimer = null;
@@ -251,7 +277,7 @@ function publishApprovedDrawings(features, polys, state, sync) {
     flush();
     return;
   }
-  if (markers.length === 0) return;
+  if (freshMarkers.length === 0) return;
   if (clusterTimer) return;
   clusterTimer = setTimeout(flush, 400);
 }
@@ -722,7 +748,10 @@ function appendShareFeature(features, ctx) {
   });
   takeSharePin(decisions, features, sharer + '|' + original + '|' + created, {
     topicId: ctx.topicId,
-    created: parsed.created,
+    // The original post's timestamp (share.created), not this share message's
+    // own — so the pin and the original post dedupe to one drawing, and the
+    // GO date filter treats the pin as a post from the original's date.
+    created: created,
     msgNumber: 'share-' + created + '-' + sharer,
     shareKey: sharer + '|' + original + '|' + created,
     type: 'Feature',
