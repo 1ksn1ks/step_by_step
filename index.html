@@ -685,11 +685,11 @@
           <h3 class="info-overlay-title">Map Drawing</h3>
           <p class="info-overlay-subtitle">Place markers and polygons.</p>
           <ul class="info-overlay-list">
-            <li>Draw markers and polygons. Some topics require NFTs — check the topic's Rules.</li>
+            <li>Draw markers and polygons. Some topics require an NFT to post. Those rules are under Model Sharing.</li>
             <li>Need a topic? TOOLBAR → Create.</li>
             <li><b>Domain/Topic ID</b> — where the shape's data is stored.</li>
             <li><b>Coordinates</b> — where the shape sits on the map.</li>
-            <li><b>Optional settings</b> — cover photo, title, image URL, and popup message when pressed.</li>
+            <li><b>Preview</b> — type the title and message on the card, tap the picture for the image or video, and tap the cover above the card for the map image.</li>
           </ul>
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('map-draw-help-overlay').style.display='none'">Got it</button>
@@ -704,7 +704,7 @@
 
           <div class="options-column-title" id="draw-column-title">✏️ DRAW</div>
 
-          <div style="display: flex;">
+          <div id="draw-shape-switch" style="display: flex;">
             <button id="show-draw-marker" class="toolbar-column-first-settings-btns">Marker ✅
             </button>
             <button id="hide-draw-marker" style="display: none;" class="toolbar-column-first-settings-btns">Marker ⛔
@@ -717,168 +717,154 @@
           
           
         <div id="marker-column-container" style="display: none;">
-          <textarea class="toolbar-column" type="text" id="input-field-2-0" placeholder="Domain/Topic ID"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
-          <textarea class="toolbar-column" type="text" id="input-field-2-3" placeholder="Coordinates long,lat"
-          oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';" onclick="event.stopPropagation();"
-          ></textarea>
+          <textarea id="input-field-2-0" hidden></textarea>
 
-
-          <div style="display: flex;">
-            <button id="show-topic-rules-from-marker" class="toolbar-column-first-settings-btns">Rules ✅
-            </button>
-            <button id="hide-topic-rules-from-marker" style="display: none;" class="toolbar-column-first-settings-btns">Rules ⛔
-            </button>
-            <button id="show-optional-settings-marker" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional ✅
-            </button>
-            <button id="hide-optional-settings-from-marker" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional ⛔
-            </button>
-          </div>
-      
-          <div id="optional-settings-from-marker" style="display: none;">
-          <input type="hidden" id="input-field-coverimage-marker">
-          <div class="upload-preview" id="preview-coverimage-marker" hidden>
-            <img alt="" hidden>
-            <video muted playsinline loop autoplay hidden></video>
-            <button type="button" class="upload-preview-clear">Remove</button>
-          </div>
-          <div style="display: flex;">
-            <button id="upload-cover-marker" class="toolbar-column-btns">📎 Upload image (cover)</button>
-            <input type="file" id="upload-cover-marker-file" accept="image/png,image/jpeg,image/webp,image/gif" style="display: none;">
-          </div>
-          <div style="position: relative;">
-          <textarea class="toolbar-column" type="text" id="input-field-2-1" placeholder="Title" maxlength="20"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';
-          document.getElementById('char-counter-marker-title').textContent = this.value.length + '/20';"
-          ></textarea>
-          <div id="char-counter-marker-title" style="position: absolute; bottom: 5px; right: 10px; font-size: 2vh; color: #22d3ee;">0/20
-          </div>
-          </div>
-          <input type="hidden" id="input-field-image-marker">
-          <div class="upload-preview" id="preview-image-marker" hidden>
-            <img alt="" hidden>
-            <video muted playsinline loop autoplay hidden></video>
-            <button type="button" class="upload-preview-clear">Remove</button>
-          </div>
-          <div style="display: flex;">
-            <button id="upload-media-marker" class="toolbar-column-btns">📎 Upload image / video</button>
-            <input type="file" id="upload-media-marker-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" style="display: none;">
-          </div>
-          </div>
-      
-          <div style="position: relative;">
-            <textarea class="toolbar-column" type="text" id="input-field-2-2" placeholder="Message" maxlength="256"
-            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';
-            document.getElementById('char-counter-marker').textContent = this.value.length + '/256';"
-            ></textarea>
-            <div id="char-counter-marker" style="position: absolute; bottom: 5px; right: 10px; font-size: 2vh; color: #22d3ee;">0/256
+          <div id="draw-marker-editor" class="draw-popup-editor">
+            <div id="draw-marker-cover-preview" class="draw-cover-preview draw-cover-preview-marker" role="button" tabindex="0" aria-label="Marker cover">
+              <span class="draw-cover-hint">Cover</span>
+              <img alt="" hidden>
             </div>
-          </div>
-
-          <div id="marker-submit-buttons" style="display: flex;">
-          <button id="submit-button-Create_Marker" class="toolbar-column-btns">
-          🌍 Submit regular
-          </button>
-          <button id="submit-button-Create_encrypted-Marker" class="toolbar-column-btns" style="margin-left: 1vw">
-            🔒 Submit encrypted
-            </button>
-          </div>
-
-          <div id="loaded-topic-rules-from-marker" style="display: none;">
-          <label for="loaded-topics" style=" font-size: 2vh;padding: 0px;">Loaded Topic Rules:</label>
-          
-          <div class="toolbar-column-loaded-rules" type="text" style="user-select: text;" id="loaded-topic-rules-for-marker" placeholder="Loaded Topic Rules"
-          onclick="event.stopPropagation();"
-          ></div>
-          <button id="load-topic-rules-for-marker" class="toolbar-column-btns">
-          Load Topic Rules
-          </button>
+            <div class="maplibregl-popup">
+              <div class="maplibregl-popup-content">
+                <div class="popup-sheet">
+                  <div class="popup-profile-bubble">
+                    <img alt="Profile photo" src="https://kiloscribe.com/api/inscription-cdn/0.0.4819119">
+                    <div>
+                      <h2>
+                        <a class="payer-info" style="text-decoration: none;"></a><br>
+                      </h2>
+                    </div>
+                  </div>
+                  <div class="popup-nav">
+                    <span class="popup-icon-chip" aria-hidden="true">←</span>
+                    <div style="text-align: center; flex-grow: 1;">
+                      <div id="draw-marker-title" class="title_color popup-title-bubble draw-popup-title" contenteditable="true" role="textbox" aria-label="Title" data-placeholder="Title" data-max="20"></div>
+                    </div>
+                    <span class="popup-icon-chip" aria-hidden="true">→</span>
+                  </div>
+                  <div class="popup-body" style="text-align: center;">
+                    <div id="draw-marker-media" class="popup-media-card draw-popup-media" role="button" tabindex="0" aria-label="Upload image or video">
+                      <span class="draw-popup-media-hint">Image / video</span>
+                      <img alt="" hidden>
+                      <video muted playsinline loop autoplay hidden></video>
+                      <button type="button" class="draw-popup-clear" hidden aria-label="Remove image">×</button>
+                    </div>
+                    <div id="draw-marker-text" class="text_color popup-text-bubble draw-popup-text" contenteditable="true" role="textbox" aria-label="Message" data-placeholder="Message" data-max="256"></div>
+                  </div>
+                  <div class="popup-gap"></div>
+                  <div class="popup-dock draw-popup-topic-row">
+                    <span id="draw-marker-topic" class="popup-top-topic draw-popup-topic" contenteditable="true" role="textbox" aria-label="Topic" data-placeholder="Topic id/domain/account id" data-max="100"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="draw-coord-fields">
+              <textarea class="toolbar-column" type="text" id="input-field-2-3" placeholder="Coordinates long,lat"
+              oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';" onclick="event.stopPropagation();"
+              ></textarea>
+            </div>
+            <div class="draw-submit-row">
+              <button type="button" id="submit-button-Create_Marker" class="toolbar-column-btns" title="Submit regular" aria-label="Submit regular">🌍 Submit regular</button>
+              <button type="button" id="submit-button-Create_encrypted-Marker" class="toolbar-column-btns" title="Submit encrypted" aria-label="Submit encrypted">🔒 Submit encrypted</button>
+            </div>
+            <textarea id="input-field-2-1" maxlength="20" hidden></textarea>
+            <textarea id="input-field-2-2" maxlength="256" hidden></textarea>
+            <input type="hidden" id="input-field-coverimage-marker">
+            <input type="hidden" id="input-field-image-marker">
+            <div class="upload-preview" id="preview-coverimage-marker" hidden>
+              <img alt="" hidden>
+              <video muted playsinline loop autoplay hidden></video>
+              <button type="button" class="upload-preview-clear">Remove</button>
+            </div>
+            <div class="upload-preview" id="preview-image-marker" hidden>
+              <img alt="" hidden>
+              <video muted playsinline loop autoplay hidden></video>
+              <button type="button" class="upload-preview-clear">Remove</button>
+            </div>
+            <button type="button" id="upload-cover-marker" hidden>cover</button>
+            <input type="file" id="upload-cover-marker-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+            <button type="button" id="upload-media-marker" hidden>media</button>
+            <input type="file" id="upload-media-marker-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" hidden>
           </div>
       
         </div>
       
         <div id="polygon-column-container" style="display: none;">
 
-          <textarea class="toolbar-column" type="text" id="input-field-3-0" placeholder="Domain/Topic ID"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
-          <textarea class="toolbar-column" type="text" id="input-field-3-3" placeholder="TOP LEFT long,lat"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
-          <textarea class="toolbar-column" type="text" id="input-field-3-5" placeholder="BOTTOM RIGHT long,lat"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
+          <textarea id="input-field-3-0" hidden></textarea>
 
-
-          <div style="display: flex;">
-            <button id="show-topic-rules-from-polygon" class="toolbar-column-first-settings-btns">Rules ✅
-            </button>
-            <button id="hide-topic-rules-from-polygon" style="display: none;" class="toolbar-column-first-settings-btns">Rules ⛔
-            </button>
-            <button id="show-optional-settings-polygon" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional ✅
-            </button>
-            <button id="hide-optional-settings-from-polygon" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional ⛔
-            </button>
-          </div>
-          
-          <div id="optional-settings-from-polygon" style="display: none;">
-          <input type="hidden" id="input-field-coverimage-polygon">
-          <div class="upload-preview" id="preview-coverimage-polygon" hidden>
-            <img alt="" hidden>
-            <video muted playsinline loop autoplay hidden></video>
-            <button type="button" class="upload-preview-clear">Remove</button>
-          </div>
-          <div style="display: flex;">
-            <button id="upload-cover-polygon" class="toolbar-column-btns">📎 Upload cover (image / gif / video)</button>
-            <input type="file" id="upload-cover-polygon-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" style="display: none;">
-          </div>
-          <div style="position: relative;">
-          <textarea class="toolbar-column" type="text" id="input-field-3-1" placeholder="Title" maxlength="20"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';
-          document.getElementById('char-counter-polygon-title').textContent = this.value.length + '/20';"
-          ></textarea>
-          <div id="char-counter-polygon-title" style="position: absolute; bottom: 5px; right: 10px; font-size: 2vh; color: #22d3ee;">0/20
-          </div>
-          </div>
-          <input type="hidden" id="input-field-image-polygon">
-          <div class="upload-preview" id="preview-image-polygon" hidden>
-            <img alt="" hidden>
-            <video muted playsinline loop autoplay hidden></video>
-            <button type="button" class="upload-preview-clear">Remove</button>
-          </div>
-          <div style="display: flex;">
-            <button id="upload-media-polygon" class="toolbar-column-btns">📎 Upload image / video</button>
-            <input type="file" id="upload-media-polygon-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" style="display: none;">
-          </div>
-          </div>
-      
-          <div style="position: relative;">
-            <textarea class="toolbar-column" id="input-field-3-2" placeholder="Message" maxlength="256"
-            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';
-            document.getElementById('char-counter-polygon').textContent = this.value.length + '/256';"
-            ></textarea>
-            <div id="char-counter-polygon" style="position: absolute; bottom: 5px; right: 10px; font-size: 2vh; color: #22d3ee;">0/256
+          <div id="draw-polygon-editor" class="draw-popup-editor">
+            <div id="draw-polygon-cover-preview" class="draw-cover-preview draw-cover-preview-polygon" role="button" tabindex="0" aria-label="Polygon cover">
+              <span class="draw-popup-media-hint">Cover</span>
+              <img alt="" hidden>
+              <video muted playsinline loop autoplay hidden></video>
+              <button type="button" class="draw-popup-clear" hidden aria-label="Remove cover">×</button>
             </div>
-          </div>
-
-          <div id="polygon-submit-buttons" style="display: flex;">
-            <button id="submit-button-Create_Polygon" class="toolbar-column-btns">
-            🌍 Submit regular
-            </button>
-            <button id="submit-button-Create_encrypted-Polygon" class="toolbar-column-btns" style="margin-left: 1vw">
-              🔒 Submit encrypted
-              </button>
+            <div class="maplibregl-popup">
+              <div class="maplibregl-popup-content">
+                <div class="popup-sheet">
+                  <div class="popup-profile-bubble">
+                    <img alt="Profile photo" src="https://kiloscribe.com/api/inscription-cdn/0.0.4819119">
+                    <div>
+                      <h2>
+                        <a class="payer-info" style="text-decoration: none;"></a><br>
+                      </h2>
+                    </div>
+                  </div>
+                  <div class="popup-nav">
+                    <span class="popup-icon-chip" aria-hidden="true">←</span>
+                    <div style="text-align: center; flex-grow: 1;">
+                      <div id="draw-polygon-title" class="title_color popup-title-bubble draw-popup-title" contenteditable="true" role="textbox" aria-label="Title" data-placeholder="Title" data-max="20"></div>
+                    </div>
+                    <span class="popup-icon-chip" aria-hidden="true">→</span>
+                  </div>
+                  <div class="popup-body" style="text-align: center;">
+                    <div id="draw-polygon-media" class="popup-media-card draw-popup-media" role="button" tabindex="0" aria-label="Upload image or video">
+                      <span class="draw-popup-media-hint">Image / video</span>
+                      <img alt="" hidden>
+                      <video muted playsinline loop autoplay hidden></video>
+                      <button type="button" class="draw-popup-clear" hidden aria-label="Remove image">×</button>
+                    </div>
+                    <div id="draw-polygon-text" class="text_color popup-text-bubble draw-popup-text" contenteditable="true" role="textbox" aria-label="Message" data-placeholder="Message" data-max="256"></div>
+                  </div>
+                  <div class="popup-gap"></div>
+                  <div class="popup-dock draw-popup-topic-row">
+                    <span id="draw-polygon-topic" class="popup-top-topic draw-popup-topic" contenteditable="true" role="textbox" aria-label="Topic" data-placeholder="Topic id/domain/account id" data-max="100"></span>
+                  </div>
+                </div>
+              </div>
             </div>
-      
-        <div id="loaded-topic-rules-from-polygon" style="display: none;">
-          <label for="loaded-topics" style=" font-size: 2vh;padding: 0px;">Loaded Topic Rules:</label>
-          <div class="toolbar-column-loaded-rules" type="text" style="user-select: text;" id="loaded-topic-rules-for-polygon" placeholder="Loaded Topic Rules"
-          onclick="event.stopPropagation();"
-          ></div>
-          <button id="load-topic-rules-for-polygon" class="toolbar-column-btns">Load Topic Rules
-          </button>
-        </div>
+            <div class="draw-coord-fields draw-coord-fields-pair">
+              <textarea class="toolbar-column" type="text" id="input-field-3-3" placeholder="TOP LEFT long,lat"
+              onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+              ></textarea>
+              <textarea class="toolbar-column" type="text" id="input-field-3-5" placeholder="BOTTOM RIGHT long,lat"
+              onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+              ></textarea>
+            </div>
+            <div class="draw-submit-row">
+              <button type="button" id="submit-button-Create_Polygon" class="toolbar-column-btns" title="Submit regular" aria-label="Submit regular">🌍 Submit regular</button>
+              <button type="button" id="submit-button-Create_encrypted-Polygon" class="toolbar-column-btns" title="Submit encrypted" aria-label="Submit encrypted">🔒 Submit encrypted</button>
+            </div>
+            <textarea id="input-field-3-1" maxlength="20" hidden></textarea>
+            <textarea id="input-field-3-2" maxlength="256" hidden></textarea>
+            <input type="hidden" id="input-field-coverimage-polygon">
+            <input type="hidden" id="input-field-image-polygon">
+            <div class="upload-preview" id="preview-coverimage-polygon" hidden>
+              <img alt="" hidden>
+              <video muted playsinline loop autoplay hidden></video>
+              <button type="button" class="upload-preview-clear">Remove</button>
+            </div>
+            <div class="upload-preview" id="preview-image-polygon" hidden>
+              <img alt="" hidden>
+              <video muted playsinline loop autoplay hidden></video>
+              <button type="button" class="upload-preview-clear">Remove</button>
+            </div>
+            <button type="button" id="upload-cover-polygon" hidden>cover</button>
+            <input type="file" id="upload-cover-polygon-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" hidden>
+            <button type="button" id="upload-media-polygon" hidden>media</button>
+            <input type="file" id="upload-media-polygon-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" hidden>
+          </div>
       
         </div>
 

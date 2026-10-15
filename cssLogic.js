@@ -383,6 +383,11 @@ export function CloseALL() {
     CloseALL();
     document.getElementById("draw-column").style.display = "block";
     document.getElementById("draw-column-container").style.display = "block";
+    // A map tap already picked marker or polygon, so the switch row is redundant.
+    // The toolbar Draw button leaves it up so the shape can still be chosen.
+    const fromMap = event.currentTarget.dataset.fromMap === "1";
+    delete event.currentTarget.dataset.fromMap;
+    document.getElementById("draw-shape-switch").style.display = fromMap ? "none" : "flex";
 
     OpenToggleToolbar();
     removeUfoModel();
@@ -1210,82 +1215,6 @@ function hideElements(...ids) {
   });
 }
 
-// ==================== MARKER EVENT LISTENERS ====================
-
-document.getElementById("show-topic-rules-from-marker").addEventListener("click", () => {
-  showElements(
-    "loaded-topic-rules-from-marker",
-    "hide-topic-rules-from-marker",
-    "input-field-2-0",
-  );
-  hideElements(
-    "show-topic-rules-from-marker",
-    "next-marker-number-row",
-    "input-field-2-3",
-    "input-field-2-1",
-    "input-field-2-2",
-    "char-counter-marker",
-    "marker-submit-buttons"
-  );
-
-  hideElements("optional-settings-from-marker", "hide-optional-settings-from-marker");
-  showElements("show-optional-settings-marker");
-
-  hideElements("delete-marker-from-marker", "hide-delete-marker-from-marker");
-  showElements("show-delete-marker-from-marker");
-});
-
-document.getElementById("hide-topic-rules-from-marker").addEventListener("click", () => {
-  hideElements("loaded-topic-rules-from-marker", "hide-topic-rules-from-marker");
-  showElements("show-topic-rules-from-marker");
-
-  showElements(
-    "input-field-2-3",
-    "input-field-2-1",
-    "input-field-2-2",
-    "char-counter-marker",
-  );
-
-  showElementsFlex(
-    "next-marker-number-row",
-    "marker-submit-buttons"
-  )
-});
-
-document.getElementById("show-optional-settings-marker").addEventListener("click", () => {
-  showElements("optional-settings-from-marker", "hide-optional-settings-from-marker");
-  hideElements("show-optional-settings-marker");
-
-  showElements(
-    "input-field-2-3",
-    "input-field-2-1",
-    "input-field-2-2",
-    "char-counter-marker",
-  );
-
-  showElementsFlex(
-    "next-marker-number-row",
-    "marker-submit-buttons"
-  )
-
-  hideElements("delete-marker-from-marker", "hide-delete-marker-from-marker");
-  showElements("show-delete-marker-from-marker");
-
-  hideElements("loaded-topic-rules-from-marker", "hide-topic-rules-from-marker");
-  showElements("show-topic-rules-from-marker");
-});
-
-document.getElementById("hide-optional-settings-from-marker").addEventListener("click", () => {
-  hideElements("optional-settings-from-marker", "hide-optional-settings-from-marker");
-  showElements("show-optional-settings-marker");
-
-  hideElements("delete-marker-from-marker", "hide-delete-marker-from-marker");
-  showElements("show-delete-marker-from-marker");
-
-  hideElements("loaded-topic-rules-from-marker", "hide-topic-rules-from-marker");
-  showElements("show-topic-rules-from-marker");
-});
-
   document.getElementById("show-new-topic-from-create").addEventListener("click", (event) => {
     document.getElementById("new-topic-from-create").style.display = "block";
     document.getElementById("hide-new-topic-from-create").style.display = "block";
@@ -1353,80 +1282,6 @@ document.getElementById("hide-optional-settings-from-marker").addEventListener("
     updateDrawTitle();
   });
   
-
-// ==================== EVENT LISTENERS ====================
-
-document.getElementById("show-topic-rules-from-polygon").addEventListener("click", () => {
-  showElements(
-    "loaded-topic-rules-from-polygon",
-    "hide-topic-rules-from-polygon"
-  );
-  hideElements(
-    "show-topic-rules-from-polygon",
-    "next-polygon-number-row",
-    "input-field-3-3",
-    "input-field-3-5",
-    "input-field-3-2",
-    "char-counter-polygon",
-    "polygon-submit-buttons"
-  );
-
-  hideElements("optional-settings-from-polygon", "hide-optional-settings-from-polygon");
-  showElements("show-optional-settings-polygon");
-
-  hideElements("delete-polygon-from-polygon", "hide-delete-polygon-from-polygon");
-  showElements("show-delete-polygon-from-polygon");
-});
-
-document.getElementById("hide-topic-rules-from-polygon").addEventListener("click", () => {
-  hideElements("loaded-topic-rules-from-polygon", "hide-topic-rules-from-polygon");
-  showElements("show-topic-rules-from-polygon");
-
-  showElements(
-    "input-field-3-3",
-    "input-field-3-5",
-    "input-field-3-2",
-    "char-counter-polygon",
-  );
-  showElementsFlex(
-    "next-polygon-number-row",
-    "polygon-submit-buttons"
-  )
-
-});
-
-document.getElementById("show-optional-settings-polygon").addEventListener("click", () => {
-  showElements("optional-settings-from-polygon", "hide-optional-settings-from-polygon");
-  hideElements("show-optional-settings-polygon");
-
-  showElements(
-    "input-field-3-3",
-    "input-field-3-5",
-    "input-field-3-2",
-    "char-counter-polygon",
-  );
-  showElementsFlex(
-    "next-polygon-number-row",
-    "polygon-submit-buttons"
-  )
-
-  hideElements("delete-polygon-from-polygon", "hide-delete-polygon-from-polygon");
-  showElements("show-delete-polygon-from-polygon");
-
-  hideElements("loaded-topic-rules-from-polygon", "hide-topic-rules-from-polygon");
-  showElements("show-topic-rules-from-polygon");
-});
-
-document.getElementById("hide-optional-settings-from-polygon").addEventListener("click", () => {
-  hideElements("optional-settings-from-polygon", "hide-optional-settings-from-polygon");
-  showElements("show-optional-settings-polygon");
-
-  hideElements("delete-polygon-from-polygon", "hide-delete-polygon-from-polygon");
-  showElements("show-delete-polygon-from-polygon");
-
-  hideElements("loaded-topic-rules-from-polygon", "hide-topic-rules-from-polygon");
-  showElements("show-topic-rules-from-polygon");
-});
 
 // ==================== UPDATE TOPIC (MEMO COLUMN) EVENT LISTENERS ====================
 // Pressing a ✅ opens only that panel and re-shows the other ✅ buttons

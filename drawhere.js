@@ -106,7 +106,9 @@ function startMarkerHere(loc) {
   if (wasAwaiting) toast.info('Polygon draw cancelled');
   openDrawColumn();
   showMarkerForm();
-  document.getElementById('input-field-2-0').value = currentTopic();
+  const markerTopic = document.getElementById('input-field-2-0');
+  markerTopic.value = currentTopic();
+  markerTopic.dispatchEvent(new Event('input', { bubbles: true }));
   document.getElementById('input-field-2-3').value = `${loc.lng.toFixed(5)},${loc.lat.toFixed(5)}`;
   toast.info('Marker opened');
 }
@@ -129,7 +131,9 @@ function setSecondCorner(loc) {
   cleanup();
   openDrawColumn();
   showPolygonForm();
-  document.getElementById('input-field-3-0').value = currentTopic();
+  const polygonTopic = document.getElementById('input-field-3-0');
+  polygonTopic.value = currentTopic();
+  polygonTopic.dispatchEvent(new Event('input', { bubbles: true }));
   document.getElementById('input-field-3-3').value = `${topLeft.lng.toFixed(5)},${topLeft.lat.toFixed(5)}`;
   document.getElementById('input-field-3-5').value = `${loc.lng.toFixed(5)},${loc.lat.toFixed(5)}`;
   toast.info('Polygon opened');
@@ -159,9 +163,12 @@ function handlePress(loc) {
   showAnchor(loc);
 }
 
-// Reuses the toolbar button so CloseALL / toolbar / UFO handling stay identical
+// Reuses the toolbar button so CloseALL / toolbar / UFO handling stay identical.
+// fromMap hides the Marker / Polygon switch: the pin already chose the shape.
 function openDrawColumn() {
-  document.getElementById('Draw_Marker_Polygon').click();
+  const drawBtn = document.getElementById('Draw_Marker_Polygon');
+  drawBtn.dataset.fromMap = '1';
+  drawBtn.click();
 }
 
 function showMarkerForm() {

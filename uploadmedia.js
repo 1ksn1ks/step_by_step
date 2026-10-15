@@ -12,6 +12,7 @@
 import { toast } from "./toast.js";
 import { connectedAccount } from "./web3.js";
 import { profilePictures } from "./loadalladata.js";
+import { paintDrawField } from "./drawpreview.js";
 
 const VIDEO_MAX = 100 * 1024 * 1024;
 const IMAGE_MAX = 20 * 1024 * 1024;
@@ -128,6 +129,7 @@ function showFieldPreview(fieldId, url, kind) {
     if (img.getAttribute("src") !== url) img.src = url;
   }
   box.hidden = false;
+  paintDrawField(fieldId, url, videoMode ? "video" : "image");
 }
 
 function hideFieldPreview(fieldId) {
@@ -144,6 +146,7 @@ function hideFieldPreview(fieldId) {
   video.load();
   video.hidden = true;
   box.hidden = true;
+  paintDrawField(fieldId, "");
 }
 
 async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg) {
