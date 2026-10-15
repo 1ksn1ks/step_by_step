@@ -1979,19 +1979,21 @@
       <div id="popup-settings-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 1002;" onclick="window.openPopupSettings();"></div>
 
       <div id="popup-settings-card" style="display: none; z-index: 1003; background-color: rgba(15, 15, 20, 0.90); color: white; box-sizing: border-box; padding: 1.4vh 1.4vw;">
+        <button type="button" id="popup-settings-delete" aria-label="Delete" title="Delete" style="display: none;">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>
+        </button>
         <div class="options-column-title">💬 POPUP</div>
 
       <div id="popup-settings-tools" onclick="event.stopPropagation();">
-        <div class="popup-settings-row">
-          <div id="popup-settings-preview-toggle" class="toolbar-column-btns">Preview</div>
-        </div>
         <div class="popup-settings-label">Prev / next</div>
         <div class="popup-settings-row">
           <div id="popup-pager-account" class="toolbar-column-btns is-on">Same account</div>
           <div id="popup-pager-time" class="toolbar-column-btns">By time</div>
           <div id="popup-pager-random" class="toolbar-column-btns">Random</div>
         </div>
-        <div id="popup-settings-delete" class="toolbar-column-btns" style="display: none;">Delete</div>
+        <div class="popup-settings-row">
+          <div id="popup-settings-preview-toggle" class="toolbar-column-btns">Preview</div>
+        </div>
       </div>
 
       <!-- Dummy popup: same classes as the real one, so every picker change

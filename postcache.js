@@ -46,6 +46,17 @@ export async function readPostCard(topicId, created) {
   });
 }
 
+export async function forgetPostCard(topicId, created) {
+  const database = await openDb();
+  if (!database || !topicId || !created) return;
+  return new Promise((resolve) => {
+    const tx = database.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).delete(cardKey(topicId, created));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  });
+}
+
 export async function writePostCard(topicId, created, card) {
   const database = await openDb();
   if (!database || !topicId || !created || !card) return;

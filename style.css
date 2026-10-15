@@ -1802,21 +1802,25 @@ html, body {
   }
 
   /* One frame for every popup and for the popup settings card.
-     The top edge is the bottom of OPTIONS / TOPIC CHAT / E2EE CHAT.
-     popupanim.js writes the four variables from that row and the
-     visible screen. Content scrolls inside; the frame does not grow. */
+     Top is the toolbar line (10vh), so the gap under OPTIONS / TOPIC
+     CHAT / E2EE CHAT matches the toolbar. Left, right, and bottom match
+     the fully open topic chat and E2EE chat. Content scrolls inside. */
   :root {
-    --chrome-bottom: 10dvh;
-    --popup-gap: 1.2dvh;
-    --popup-card: min(90dvw, 70dvh);
-    --popup-max-h: calc(100dvh - var(--chrome-bottom) - (2 * var(--popup-gap)));
+    --popup-top: 10vh;
+    --popup-left: 0px;
+    --popup-right: 0px;
+    --popup-bottom: 0.5dvh;
+    --popup-card: 100vw;
+    --popup-max-h: calc(100dvh - 10vh - 0.5dvh);
   }
 
   .maplibregl-popup {
     position: fixed !important;
-    top: calc(var(--chrome-bottom) + var(--popup-gap)) !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
+    top: var(--popup-top) !important;
+    left: var(--popup-left) !important;
+    right: var(--popup-right) !important;
+    bottom: var(--popup-bottom) !important;
+    transform: none !important;
     /* Not !important: the settings sample uses this class and hides
        with an inline display until Preview is pressed. */
     display: flex;
@@ -1827,10 +1831,10 @@ html, body {
     --card: var(--popup-card);
     --u: calc(var(--card) * 0.024 * var(--fit));
     --fit: 1;
-    width: var(--popup-card) !important;
-    max-width: var(--popup-card) !important;
-    height: var(--popup-max-h) !important;
-    max-height: var(--popup-max-h) !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
 
     box-sizing: border-box !important;
     font: calc(var(--u) * 2) / calc(var(--u) * 3) 'Helvetica Neue', Arial, Helvetica, sans-serif;
@@ -1853,13 +1857,16 @@ html, body {
 #popup-settings-card {
     container-type: inline-size;
     position: fixed !important;
-    top: calc(var(--chrome-bottom) + var(--popup-gap)) !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    width: var(--popup-card) !important;
-    max-width: var(--popup-card) !important;
-    height: var(--popup-max-h) !important;
-    max-height: var(--popup-max-h) !important;
+    /* Same top, sides, and bottom as .maplibregl-popup. */
+    top: var(--popup-top) !important;
+    left: var(--popup-left) !important;
+    right: var(--popup-right) !important;
+    bottom: var(--popup-bottom) !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -1876,6 +1883,7 @@ html, body {
     position: relative !important;
     top: auto !important;
     left: auto !important;
+    right: auto !important;
     bottom: auto !important;
     transform: none !important;
     height: auto !important;
@@ -1937,12 +1945,45 @@ html, body {
     background-color: rgba(255, 255, 255, 0.22);
     border-color: rgba(255, 255, 255, 0.9);
 }
-#popup-settings-delete {
-    flex: none;
-    width: 100%;
-    margin-top: 0.2vh;
-    border-color: rgba(255, 90, 90, 0.75);
+/* Same row and same circle as .panel-close-btn, on the left. */
+#popup-settings-card #popup-settings-delete {
+    position: absolute;
+    top: 0.9vh;
+    left: 0.9vh;
+    right: auto;
+    z-index: 11;
+    box-sizing: border-box;
+    width: 3.2vh;
+    height: 3.2vh;
+    min-width: 3.2vh;
+    min-height: 3.2vh;
+    margin: 0;
+    padding: 0;
+    border-radius: 50%;
+    background: rgba(255, 80, 80, 0.18);
+    border: 1px solid rgba(255, 90, 90, 0.75);
     color: #ffc9c9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex: none;
+}
+#popup-settings-card #popup-settings-delete svg {
+    width: 1.7vh;
+    height: 1.7vh;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+#popup-settings-card #popup-settings-delete:hover {
+    transform: scale(1.08);
+    filter: brightness(1.15);
+}
+#popup-settings-card #popup-settings-delete:active {
+    transform: scale(0.94);
 }
 
 @keyframes popupIn {

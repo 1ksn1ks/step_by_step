@@ -82,8 +82,8 @@ export async function confirmShare(source) {
   return true;
 }
 
-// Taking a share back drops that person from the count. The pin message
-// is sent only when a topic is still connected.
+// The pin lives on the topic this account connected in Edit profile.
+// Removing it is the first wallet confirm. The count is the second, on the original.
 export async function unshareFromMyTopic(source) {
   if (!signer || !connectedAccount) {
     toast.error('Connect wallet first');
@@ -93,34 +93,36 @@ export async function unshareFromMyTopic(source) {
     toast.error('This post cannot be shared');
     return false;
   }
+  const created = source.created || '';
+  // Shares are written to the topic this account connected in Edit profile.
+  const pinTopic = profileTopics[connectedAccount];
+  if (!pinTopic || !created) {
+    toast.error('Connect a topic in Edit profile first');
+    return false;
+  }
   toast.info('Confirm in wallet 👛');
+  try {
+    await sendMessage(pinTopic, JSON.stringify({
+      unshare: { topic: source.topicId, created },
+    }));
+  } catch (error) {
+    console.error('unshare pin failed', error);
+    toast.error('The pin is still on your topic');
+    return false;
+  }
   try {
     await sendMessage(source.topicId, JSON.stringify({
       unsharePost: {
         timestamp: source.timestamp,
-        created: source.created || '',
+        created,
       },
     }));
   } catch (error) {
     console.error('unshare count failed', error);
-    return false;
+    toast.error('Share count was not saved');
+    return true;
   }
   noteShare({ payer: connectedAccount, unsharePost: { timestamp: source.timestamp } }, source.topicId);
-  // The share button drops the pin on the account's current topic. Settings
-  // delete passes the topic the pin was loaded from, which can be an older
-  // share on a different topic than the one connected now.
-  const pinTopic = source.pinTopic || profileTopics[connectedAccount];
-  if (pinTopic && source.created) {
-    try {
-      await sendMessage(pinTopic, JSON.stringify({ unshare: { topic: source.topicId, created: source.created } }));
-    } catch (error) {
-      console.error('unshare pin failed', error);
-      toast.error('The pin is still on your topic');
-      // Settings delete must leave the pin on the map when this send fails.
-      // The share button still treats the dropped count as done.
-      return source.pinTopic ? false : true;
-    }
-  }
   toast.success('Share removed');
   return true;
 }

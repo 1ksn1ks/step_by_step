@@ -93,6 +93,7 @@ export async function fetchPost(topicId, created, account = "") {
     clearTimeout(t);
     if (!res.ok) return null;
     const data = await res.json();
+    if (data && data.ok && data.deleted) return { deleted: true };
     return data && data.ok && data.found ? data : null;
   } catch {
     return null;

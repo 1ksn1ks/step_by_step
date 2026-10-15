@@ -12,10 +12,10 @@ import { polygons, geojson, storedMarkers, storedPolygons, storedMarkersFiltered
 import {updateRulesForModelNFTState} from './confirmnft'
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto';
 import { ringCenter, zoomForPolygon } from './polygonframe.js';
-import { profilePictures, usernames, click2url } from './loadalladata'
+import { profilePictures, usernames, click2url, profileTopics } from './loadalladata'
 import { confirmShare, unshareFromMyTopic, sharePin } from './followtopic'
 import { clearShareTopic, noteShare, shareState, shareMine, takeSharePin, takeUnsharePin } from './sharecount.js'
-import { readPostCard, writePostCard } from './postcache.js'
+import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
 import { openPreview } from './fullscreenmedia';
 import maplibregl from 'maplibre-gl';
 import { map } from './map';
@@ -73,7 +73,7 @@ function slotsFromHoldings(holdings, payerId, rules, idKey, countKey) {
 
 // null: this post has no number. New drawings omit it.
 // false: a number is present but it is not a whole number, so the post stays unloaded.
-// otherwise: the number already written on an older post. Delete messages match it.
+// otherwise: the number already written on an older post. An old delete still names it.
 function legacyShapeNumber(value) {
   if (value == null || String(value).trim() === '') return null;
   if (!Number.isInteger(Number(value))) return false;
@@ -415,8 +415,10 @@ function paintDeleteButton() {
     btn.style.display = 'none';
     return;
   }
+  const label = walk.share ? 'Delete share' : 'Delete';
   btn.style.display = 'flex';
-  btn.textContent = walk.share ? 'Delete share' : 'Delete';
+  btn.setAttribute('aria-label', label);
+  btn.title = label;
 }
 
 function closePopupSettings() {
@@ -435,6 +437,11 @@ function bindPopupSettings() {
   const toggle = document.getElementById('popup-settings-preview-toggle');
   if (!toggle) return;
   popupSettingsBound = true;
+  const card = document.getElementById('popup-settings-card');
+  // Document clicks run CloseALL, which hides this card. The trash has to
+  // stay here, so a click inside the card stops there. The × still closes
+  // because its own handler calls CloseALL.
+  if (card) card.addEventListener('click', (event) => event.stopPropagation());
   toggle.addEventListener('click', () => {
     const preview = document.getElementById('popup-settings-preview');
     if (!preview) return;
@@ -449,13 +456,15 @@ function bindPopupSettings() {
     });
   }
   const del = document.getElementById('popup-settings-delete');
-  if (del) del.addEventListener('click', () => { deletePopupTarget(); });
+  if (del) del.addEventListener('click', (event) => {
+    event.stopPropagation();
+    deletePopupTarget();
+  });
 }
 
 window.openPopupSettings = function(target) {
   requestAnimationFrame(() => {
-    // The settings live in one centered card over a dark backdrop; the
-    // backdrop hides the map popup underneath and closes on tap.
+    // Same frame as the map popup. The backdrop hides it and closes on tap.
     const backdrop = document.getElementById("popup-settings-backdrop");
     const card = document.getElementById("popup-settings-card");
     if (!backdrop || !card) return;
@@ -469,6 +478,7 @@ window.openPopupSettings = function(target) {
       paintDeleteButton();
       backdrop.style.display = "block";
       card.style.display = "block";
+      refitPopups();
       removeUfoModel();
     }
   });
@@ -634,6 +644,35 @@ function messageCreated(value) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toISOString();
+}
+
+// A delete names the post's time. Older deletes still name the marker or
+// polygon number, and those posts stay hidden. The number list also keeps
+// one drawing from being added twice.
+function rememberShapeDelete(owner, numbersKey, data) {
+  if (!owner || !data) return;
+  const marker = numbersKey === 'numberOfMarker';
+  const numberKey = marker ? 'deleteMarkerNumber' : 'deletePolygonNumber';
+  const createdKey = marker ? 'deleteMarkerCreated' : 'deletePolygonCreated';
+  const stampKey = marker ? 'deleteMarkerTimestamp' : 'deletePolygonTimestamp';
+  const rawNumber = data[numberKey];
+  if (rawNumber != null && String(rawNumber).trim() !== '') owner[numbersKey].push(rawNumber);
+  if (!owner.deletedCreated) owner.deletedCreated = new Set();
+  if (!owner.deletedTimestamp) owner.deletedTimestamp = new Set();
+  const created = messageCreated(data[createdKey]);
+  if (created) owner.deletedCreated.add(created);
+  const stamp = data[stampKey];
+  if (stamp != null && String(stamp).trim() !== '') owner.deletedTimestamp.add(String(stamp));
+}
+
+function postWasDeleted(owner, numbersKey, slot, created, timestamp) {
+  if (!owner) return false;
+  const numbers = owner[numbersKey];
+  if (numbers && numbers.includes(slot)) return true;
+  const iso = messageCreated(created);
+  if (iso && owner.deletedCreated && owner.deletedCreated.has(iso)) return true;
+  if (timestamp && owner.deletedTimestamp && owner.deletedTimestamp.has(String(timestamp))) return true;
+  return false;
 }
 
 const POPUP_VIEWS_KEY = 'meritocracy-popup-views';
@@ -1104,7 +1143,12 @@ export function createMarkerPopupHTML(data) {
   likeDislikeDiv.appendChild(createShareBubble({
     count: markerShareState.count,
     shared: markerShareState.mine,
-    onToggle: (wantShare) => wantShare ? confirmShare(markerShare) : unshareFromMyTopic(markerShare),
+    onToggle: async (wantShare) => {
+      if (wantShare) return confirmShare(markerShare);
+      const ok = await unshareFromMyTopic(markerShare);
+      if (ok) dropSharePin(markerShare);
+      return ok;
+    },
   }));
 
   bottomRow.appendChild(likeDislikeDiv);
@@ -1354,7 +1398,12 @@ function createPolygonPopupHTML(data) {
   likeDislikeDiv.appendChild(createShareBubble({
     count: polygonShareState.count,
     shared: polygonShareState.mine,
-    onToggle: (wantShare) => wantShare ? confirmShare(polygonShare) : unshareFromMyTopic(polygonShare),
+    onToggle: async (wantShare) => {
+      if (wantShare) return confirmShare(polygonShare);
+      const ok = await unshareFromMyTopic(polygonShare);
+      if (ok) dropSharePin(polygonShare);
+      return ok;
+    },
   }));
 
   bottomRow.appendChild(likeDislikeDiv);
@@ -1522,6 +1571,25 @@ function hydrateSharePin(properties, record) {
     );
   }
   shareLiveInflight.get(flightKey).then((live) => {
+    if (live && live.deleted) {
+      properties._shareFresh = key;
+      forgetPostCard(record.topicId, record.created);
+      applyShareCard(properties, {
+        ...record,
+        title: '',
+        msg: 'This post was deleted',
+        image: null,
+        coverimage: null,
+        comments: [],
+        likeCountMarker: 0,
+        likeCountPolygon: 0,
+        shareCount: 0,
+        sharedByMe: false,
+        viewCount: 0,
+        commentsCount: 0,
+      });
+      return;
+    }
     if (!live) return;
     const freshRecord = liveShareRecord(live, properties._shareRecord || record);
     properties._shareFresh = key;
@@ -1955,20 +2023,22 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                   continue;
                 }
 
-                if (parsedMessage.marker.data.deleteMarkerNumber) {
-                  const deleteMarkerNumber = parsedMessage.marker.data.deleteMarkerNumber;
-                  markerOwner.numberOfMarker.push(deleteMarkerNumber);
-                }
+                rememberShapeDelete(markerOwner, 'numberOfMarker', parsedMessage.marker.data);
 
-                // A stored whole number keeps dedup and delete. No number is a new post.
+                // A stored whole number keeps dedup. No number is a new post.
+                // A delete matches the post's time, and an older delete still
+                // matches the number it named.
+                // The envelope time is the consensus timestamp. A decrypted body
+                // does not carry it, and that time is what a delete names.
+                const postCreated = (message && message.created) || parsedMessage.created;
                 const markernumber = legacyNumber == null
-                  ? (messageCreated(parsedMessage.created) || ('draw-' + index))
+                  ? (messageCreated(postCreated) || ('draw-' + index))
                   : legacyNumber;
                 const markerCoords = legacyNumber === false
                   ? null
                   : markerCoordinates(parsedMessage.marker.data.cord);
 
-                if (markerCoords && !markerOwner.numberOfMarker.includes(markernumber)) {
+                if (markerCoords && !postWasDeleted(markerOwner, 'numberOfMarker', markernumber, postCreated, timestamp)) {
                 if (!hasRulesForMarker || markerOwner.numberOfMessages > 0) {
                   markerOwner.numberOfMarker.push(markernumber);
                   if (hasRulesForMarker) {
@@ -1993,7 +2063,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       coverimage: parsedMessage.marker.data.coverimage,
                       msg: parsedMessage.marker.data.msg,
                       timestamp,
-                      created: messageCreated(parsedMessage.created),
+                      created: messageCreated(postCreated),
                       likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
                       likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
                       comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
@@ -2007,7 +2077,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
 
                     topicGeojsonFeatures.push({
                       topicId: topicId,
-                      created: parsedMessage.created,
+                      created: postCreated,
                       msgNumber: markernumber,
                       type: "Feature",
                       payer: message.payer,
@@ -2034,19 +2104,17 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                 }
                 const legacyPolygonNumber = legacyShapeNumber(parsedMessage.polygon.data.numberOfPolygon);
 
-                if (parsedMessage.polygon.data.deletePolygonNumber) {
-                  const deletePolygonNumber = parsedMessage.polygon.data.deletePolygonNumber;
-                  polygonOwner.numberOfPolygon.push(deletePolygonNumber);
-                }
+                rememberShapeDelete(polygonOwner, 'numberOfPolygon', parsedMessage.polygon.data);
 
+                const postCreated = (message && message.created) || parsedMessage.created;
                 const polygonnumber = legacyPolygonNumber == null
-                  ? (messageCreated(parsedMessage.created) || ('draw-' + index))
+                  ? (messageCreated(postCreated) || ('draw-' + index))
                   : legacyPolygonNumber;
                 const polygonRing = legacyPolygonNumber === false
                   ? null
                   : polygonCoordinates(parsedMessage.polygon.data.cord);
 
-                if (polygonRing && !polygonOwner.numberOfPolygon.includes(polygonnumber)) {
+                if (polygonRing && !postWasDeleted(polygonOwner, 'numberOfPolygon', polygonnumber, postCreated, timestamp)) {
                 if (!hasRulesForPolygon || polygonOwner.numberOfMessages > 0) {
                   polygonOwner.numberOfPolygon.push(polygonnumber);
                   if (hasRulesForPolygon) {
@@ -2073,7 +2141,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         coverimage: parsedMessage.polygon.data.coverimage,
                         msg: parsedMessage.polygon.data.msg,
                         timestamp,
-                        created: messageCreated(parsedMessage.created),
+                        created: messageCreated(postCreated),
                         likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
                         likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
                         comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
@@ -2087,7 +2155,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
 
                       topicPolygons.push({
                         topicId: topicId,
-                        created: parsedMessage.created,
+                        created: postCreated,
                         msgNumber: polygonnumber,
                         id: `polygon-${message.payer}-${topicId}-${polygonnumber}`,
                         payer: message.payer,
@@ -2194,6 +2262,7 @@ function bindWalk(record, walk) {
     author: record.payer || payer,
     authorTopic: record.topicId || topicId,
     authorCreated: record.created || '',
+    created: record.created || '',
     authorKey,
     share: record.share || null,
     timestamp: record.timestamp || '',
@@ -2380,10 +2449,16 @@ window.prevMsgFromPayerPolygon = function(payer, polygonNumber, topicId, walk) {
 };
 
 function samePin(item, walk) {
-  return !!(item && walk
-    && String(item.payer) === String(walk.payer)
-    && String(item.msgNumber) === String(walk.number)
-    && String(item.topicId) === String(walk.topicId));
+  if (!item || !walk) return false;
+  if (String(item.payer) !== String(walk.payer)) return false;
+  if (String(item.topicId) !== String(walk.topicId)) return false;
+  if (walk.number != null && String(item.msgNumber) === String(walk.number)) return true;
+  // A share pin carries the original post's time, so time alone would also
+  // remove that pin. Originals match on the post time.
+  if (walk.share || String(item.msgNumber || '').startsWith('share-')) return false;
+  const created = messageCreated(walk.created || walk.authorCreated);
+  const itemCreated = messageCreated(item.created);
+  return !!(created && itemCreated && created === itemCreated);
 }
 
 function pullPin(list, walk) {
@@ -2453,6 +2528,26 @@ function removeLoadedPost(walk) {
   }
 }
 
+// A share pin is a point on the sharer's connected profile topic.
+function dropSharePin(source) {
+  const created = messageCreated(source && source.created);
+  const pinTopic = profileTopics[connectedAccount];
+  if (!created || !pinTopic || !connectedAccount) return;
+  removeLoadedPost({
+    payer: connectedAccount,
+    topicId: pinTopic,
+    share: true,
+    created,
+    number: 'share-' + created + '-' + connectedAccount,
+  });
+  closeOpenPopups();
+}
+
+function hideDeleteButton() {
+  const btn = document.getElementById('popup-settings-delete');
+  if (btn) btn.style.display = 'none';
+}
+
 async function deletePopupTarget() {
   if (popupDeleteBusy) return;
   const walk = popupSettingsTarget;
@@ -2464,28 +2559,40 @@ async function deletePopupTarget() {
         toast.error('This post cannot be deleted');
         return;
       }
+      // The pin was written to the topic connected on this account's profile.
       const ok = await unshareFromMyTopic({
         topicId: walk.authorTopic,
         created: walk.authorCreated,
         timestamp: walk.timestamp,
-        pinTopic: walk.topicId,
       });
       if (!ok) return;
+      dropSharePin({ created: walk.authorCreated });
     } else {
-      if (walk.number == null || walk.number === '' || !walk.topicId) {
+      const created = messageCreated(walk.created || walk.authorCreated);
+      const timestamp = walk.timestamp ? String(walk.timestamp) : '';
+      if ((!created && !timestamp) || !walk.topicId) {
         toast.error('This post cannot be deleted');
         return;
       }
+      const fields = {};
+      if (walk.shape === 'polygon') {
+        if (created) fields.deletePolygonCreated = created;
+        if (timestamp) fields.deletePolygonTimestamp = timestamp;
+      } else {
+        if (created) fields.deleteMarkerCreated = created;
+        if (timestamp) fields.deleteMarkerTimestamp = timestamp;
+      }
       const body = walk.shape === 'polygon'
-        ? { polygon: { data: { deletePolygonNumber: walk.number } } }
-        : { marker: { data: { deleteMarkerNumber: walk.number } } };
+        ? { polygon: { data: fields } }
+        : { marker: { data: fields } };
       toast.info('Confirm in wallet 👛');
       await sendMessage(walk.topicId, JSON.stringify(body));
       toast.success('Deleted');
+      removeLoadedPost(walk);
+      closeOpenPopups();
     }
-    removeLoadedPost(walk);
-    closePopupSettings();
-    closeOpenPopups();
+    // The card stays open. The pin is already gone, so the trash hides.
+    hideDeleteButton();
   } catch (error) {
     console.error('popup delete failed', error);
     toast.error('Delete was not saved');
@@ -3618,20 +3725,22 @@ if (rawResult && Array.isArray(rawResult)) {
                   continue;
                 }
 
-                if (parsedMessage.marker.data.deleteMarkerNumber) {
-                  const deleteMarkerNumber = parsedMessage.marker.data.deleteMarkerNumber;
-                  markerOwner.numberOfMarker.push(deleteMarkerNumber);
-                }
+                rememberShapeDelete(markerOwner, 'numberOfMarker', parsedMessage.marker.data);
 
-                // A stored whole number keeps dedup and delete. No number is a new post.
+                // A stored whole number keeps dedup. No number is a new post.
+                // A delete matches the post's time, and an older delete still
+                // matches the number it named.
+                // The envelope time is the consensus timestamp. A decrypted body
+                // does not carry it, and that time is what a delete names.
+                const postCreated = (message && message.created) || parsedMessage.created;
                 const markernumber = legacyNumber == null
-                  ? (messageCreated(parsedMessage.created) || ('draw-' + index))
+                  ? (messageCreated(postCreated) || ('draw-' + index))
                   : legacyNumber;
                 const markerCoords = legacyNumber === false
                   ? null
                   : markerCoordinates(parsedMessage.marker.data.cord);
 
-                if (markerCoords && !markerOwner.numberOfMarker.includes(markernumber)) {
+                if (markerCoords && !postWasDeleted(markerOwner, 'numberOfMarker', markernumber, postCreated, timestamp)) {
                 if (!hasRulesForMarker || markerOwner.numberOfMessages > 0) {
                   markerOwner.numberOfMarker.push(markernumber);
                   if (hasRulesForMarker) {
@@ -3656,7 +3765,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       coverimage: parsedMessage.marker.data.coverimage,
                       msg: parsedMessage.marker.data.msg,
                       timestamp,
-                      created: messageCreated(parsedMessage.created),
+                      created: messageCreated(postCreated),
                       likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
                       likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
                       comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
@@ -3670,7 +3779,7 @@ if (rawResult && Array.isArray(rawResult)) {
 
                     topicGeojsonFeatures.push({
                       topicId: topicId,
-                      created: parsedMessage.created,
+                      created: postCreated,
                       msgNumber: markernumber,
                       type: "Feature",
                       payer: message.payer,
@@ -3697,19 +3806,17 @@ if (rawResult && Array.isArray(rawResult)) {
                 }
                 const legacyPolygonNumber = legacyShapeNumber(parsedMessage.polygon.data.numberOfPolygon);
 
-                if (parsedMessage.polygon.data.deletePolygonNumber) {
-                  const deletePolygonNumber = parsedMessage.polygon.data.deletePolygonNumber;
-                  polygonOwner.numberOfPolygon.push(deletePolygonNumber);
-                }
+                rememberShapeDelete(polygonOwner, 'numberOfPolygon', parsedMessage.polygon.data);
 
+                const postCreated = (message && message.created) || parsedMessage.created;
                 const polygonnumber = legacyPolygonNumber == null
-                  ? (messageCreated(parsedMessage.created) || ('draw-' + index))
+                  ? (messageCreated(postCreated) || ('draw-' + index))
                   : legacyPolygonNumber;
                 const polygonRing = legacyPolygonNumber === false
                   ? null
                   : polygonCoordinates(parsedMessage.polygon.data.cord);
 
-                if (polygonRing && !polygonOwner.numberOfPolygon.includes(polygonnumber)) {
+                if (polygonRing && !postWasDeleted(polygonOwner, 'numberOfPolygon', polygonnumber, postCreated, timestamp)) {
                 if (!hasRulesForPolygon || polygonOwner.numberOfMessages > 0) {
                   polygonOwner.numberOfPolygon.push(polygonnumber);
                   if (hasRulesForPolygon) {
@@ -3736,7 +3843,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         coverimage: parsedMessage.polygon.data.coverimage,
                         msg: parsedMessage.polygon.data.msg,
                         timestamp,
-                        created: messageCreated(parsedMessage.created),
+                        created: messageCreated(postCreated),
                         likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
                         likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
                         comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
@@ -3750,7 +3857,7 @@ if (rawResult && Array.isArray(rawResult)) {
 
                       topicPolygons.push({
                         topicId: topicId,
-                        created: parsedMessage.created,
+                        created: postCreated,
                         msgNumber: polygonnumber,
                         id: `polygon-${message.payer}-${topicId}-${polygonnumber}`,
                         payer: message.payer,
@@ -4304,20 +4411,22 @@ if (rawResult && Array.isArray(rawResult)) {
                   continue;
                 }
 
-                if (parsedMessage.marker.data.deleteMarkerNumber) {
-                  const deleteMarkerNumber = parsedMessage.marker.data.deleteMarkerNumber;
-                  markerOwner.numberOfMarker.push(deleteMarkerNumber);
-                }
+                rememberShapeDelete(markerOwner, 'numberOfMarker', parsedMessage.marker.data);
 
-                // A stored whole number keeps dedup and delete. No number is a new post.
+                // A stored whole number keeps dedup. No number is a new post.
+                // A delete matches the post's time, and an older delete still
+                // matches the number it named.
+                // The envelope time is the consensus timestamp. A decrypted body
+                // does not carry it, and that time is what a delete names.
+                const postCreated = (message && message.created) || parsedMessage.created;
                 const markernumber = legacyNumber == null
-                  ? (messageCreated(parsedMessage.created) || ('draw-' + index))
+                  ? (messageCreated(postCreated) || ('draw-' + index))
                   : legacyNumber;
                 const markerCoords = legacyNumber === false
                   ? null
                   : markerCoordinates(parsedMessage.marker.data.cord);
 
-                if (markerCoords && !markerOwner.numberOfMarker.includes(markernumber)) {
+                if (markerCoords && !postWasDeleted(markerOwner, 'numberOfMarker', markernumber, postCreated, timestamp)) {
                 if (!hasRulesForMarker || markerOwner.numberOfMessages > 0) {
                   markerOwner.numberOfMarker.push(markernumber);
                   if (hasRulesForMarker) {
@@ -4342,7 +4451,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       coverimage: parsedMessage.marker.data.coverimage,
                       msg: parsedMessage.marker.data.msg,
                       timestamp,
-                      created: messageCreated(parsedMessage.created),
+                      created: messageCreated(postCreated),
                       likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
                       likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
                       comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
@@ -4358,7 +4467,7 @@ if (rawResult && Array.isArray(rawResult)) {
 
                     topicGeojsonFeatures.push({
                       topicId: topicId,
-                      created: parsedMessage.created,
+                      created: postCreated,
                       msgNumber: markernumber,
                       type: "Feature",
                       payer: message.payer,
@@ -4386,19 +4495,17 @@ if (rawResult && Array.isArray(rawResult)) {
                 }
                 const legacyPolygonNumber = legacyShapeNumber(parsedMessage.polygon.data.numberOfPolygon);
 
-                if (parsedMessage.polygon.data.deletePolygonNumber) {
-                  const deletePolygonNumber = parsedMessage.polygon.data.deletePolygonNumber;
-                  polygonOwner.numberOfPolygon.push(deletePolygonNumber);
-                }
+                rememberShapeDelete(polygonOwner, 'numberOfPolygon', parsedMessage.polygon.data);
 
+                const postCreated = (message && message.created) || parsedMessage.created;
                 const polygonnumber = legacyPolygonNumber == null
-                  ? (messageCreated(parsedMessage.created) || ('draw-' + index))
+                  ? (messageCreated(postCreated) || ('draw-' + index))
                   : legacyPolygonNumber;
                 const polygonRing = legacyPolygonNumber === false
                   ? null
                   : polygonCoordinates(parsedMessage.polygon.data.cord);
 
-                if (polygonRing && !polygonOwner.numberOfPolygon.includes(polygonnumber)) {
+                if (polygonRing && !postWasDeleted(polygonOwner, 'numberOfPolygon', polygonnumber, postCreated, timestamp)) {
                 if (!hasRulesForPolygon || polygonOwner.numberOfMessages > 0) {
                   polygonOwner.numberOfPolygon.push(polygonnumber);
                   if (hasRulesForPolygon) {
@@ -4425,7 +4532,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         coverimage: parsedMessage.polygon.data.coverimage,
                         msg: parsedMessage.polygon.data.msg,
                         timestamp,
-                        created: messageCreated(parsedMessage.created),
+                        created: messageCreated(postCreated),
                         likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
                         likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
                         comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
@@ -4442,7 +4549,7 @@ if (rawResult && Array.isArray(rawResult)) {
 
                       topicPolygons.push({
                         topicId: topicId,
-                        created: parsedMessage.created,
+                        created: postCreated,
                         msgNumber: polygonnumber,
                         id: `polygon-${message.payer}-${topicId}-${polygonnumber}`,
                         payer: message.payer,

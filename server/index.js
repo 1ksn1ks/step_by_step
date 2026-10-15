@@ -161,6 +161,13 @@ db.exec(`
     views    INTEGER NOT NULL,
     PRIMARY KEY (topic_id, created)
   );
+  -- A post removed by its author. created is the original message ISO time.
+  CREATE TABLE IF NOT EXISTS deleted_posts (
+    topic_id TEXT NOT NULL,
+    created  TEXT NOT NULL,
+    payer    TEXT NOT NULL,
+    PRIMARY KEY (topic_id, created, payer)
+  );
 `);
 // Migrations: columns added after earlier deployments created the tables
 // (CREATE TABLE IF NOT EXISTS won't add a column to an existing one).
@@ -359,6 +366,35 @@ const q = {
     INSERT INTO marker_index (topic_id, cord, number, created) VALUES (?, ?, ?, ?)
     ON CONFLICT(topic_id, cord, number) DO UPDATE SET created = excluded.created
   `),
+  markerIndexByCreated: db.prepare(
+    "SELECT cord, number, created FROM marker_index WHERE topic_id = ? AND created = ?"
+  ),
+  markerIndexByNumber: db.prepare(
+    "SELECT cord, number, created FROM marker_index WHERE topic_id = ? AND number = ?"
+  ),
+  deleteMarkerIndexByCreated: db.prepare(
+    "DELETE FROM marker_index WHERE topic_id = ? AND created = ?"
+  ),
+  deleteMarkerIndexByNumber: db.prepare(
+    "DELETE FROM marker_index WHERE topic_id = ? AND number = ?"
+  ),
+  deleteLiveAt: db.prepare(
+    "DELETE FROM live_markers WHERE topic = ? AND cord = ? AND payer = ?"
+  ),
+  deleteLiveByNumber: db.prepare(
+    "DELETE FROM live_markers WHERE topic = ? AND number = ? AND payer = ?"
+  ),
+  insertDeletedPost: db.prepare(
+    "INSERT OR IGNORE INTO deleted_posts (topic_id, created, payer) VALUES (?, ?, ?)"
+  ),
+  isDeletedPost: db.prepare(
+    "SELECT 1 AS n FROM deleted_posts WHERE topic_id = ? AND created = ? AND payer = ?"
+  ),
+  // Legacy polygon deletes name a number. Polygons are not in marker_index,
+  // so the original message is found on this payer's rows.
+  polygonBodiesByPayer: db.prepare(
+    "SELECT body, ts FROM messages WHERE topic_id = ? AND payer = ? AND body LIKE '%numberOfPolygon%'"
+  ),
   getMarkerIndex: db.prepare(
     "SELECT created FROM marker_index WHERE topic_id = ? AND cord = ? AND number = ?"
   ),
@@ -660,6 +696,9 @@ function extractTopicIndex(topicId, payer, body, tsMs) {
   }
   applyContentReactions(topicId, payer, d, created);
   applyShare(topicId, payer, d);
+  if (m) applyPostDelete(topicId, payer, m, "marker");
+  const polygon = d.polygon && d.polygon.data;
+  if (polygon) applyPostDelete(topicId, payer, polygon, "polygon");
 }
 
 // Marker and polygon likes, comments, and replies share one table.
@@ -710,6 +749,59 @@ function isoCreated(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString();
+}
+
+// A delete names the original post's time. An older delete names its number.
+// The row is dropped from the 24h view and from /api/post.
+function applyPostDelete(topicId, payer, data, kind) {
+  if (!payer || !data) return;
+  const marker = kind !== "polygon";
+  const numberKey = marker ? "deleteMarkerNumber" : "deletePolygonNumber";
+  const createdKey = marker ? "deleteMarkerCreated" : "deletePolygonCreated";
+  const rawNumber = data[numberKey];
+  const hasNumber = rawNumber != null && String(rawNumber).trim() !== "";
+  // The locale stamp is a phone-side match only. Parsing it here would
+  // shift the instant, so the server records the ISO the phone sent.
+  const created = isoCreated(data[createdKey]);
+  if (!created && !hasNumber) return;
+
+  const mark = (iso) => {
+    if (!iso) return;
+    q.insertDeletedPost.run(topicId, iso, payer);
+    if (!marker) return;
+    for (const row of q.markerIndexByCreated.all(topicId, iso)) {
+      q.deleteLiveAt.run(topicId, row.cord, payer);
+    }
+    q.deleteMarkerIndexByCreated.run(topicId, iso);
+  };
+
+  if (created) mark(created);
+  if (hasNumber && marker) {
+    const number = String(rawNumber);
+    for (const row of q.markerIndexByNumber.all(topicId, number)) mark(row.created);
+    q.deleteLiveByNumber.run(topicId, number, payer);
+    q.deleteMarkerIndexByNumber.run(topicId, number);
+  }
+  if (hasNumber && !marker && !created) {
+    for (const row of q.polygonBodiesByPayer.all(topicId, payer)) {
+      let body;
+      try {
+        body = JSON.parse(row.body);
+      } catch {
+        continue;
+      }
+      const drawing = body && body.polygon && body.polygon.data;
+      if (!drawing || drawing.numberOfPolygon !== rawNumber) continue;
+      if (
+        drawing.deletePolygonNumber != null ||
+        drawing.deletePolygonCreated ||
+        drawing.deletePolygonTimestamp
+      ) {
+        continue;
+      }
+      mark(new Date(Number(row.ts) * 1000).toISOString());
+    }
+  }
 }
 
 function applyShare(topicId, payer, body) {
@@ -770,6 +862,31 @@ function backfillShares() {
     }
   }
   db.prepare("INSERT INTO meta (key, value) VALUES ('shares_backfilled', '1')").run();
+}
+
+// Deletes written before the time key existed, and new time deletes that
+// arrived before this table did, get one walk. Later messages apply themselves.
+function backfillDeletes() {
+  const flag = db.prepare("SELECT value FROM meta WHERE key = 'deletes_backfilled'").get();
+  if (flag) return;
+  const rows = db.prepare(
+    `SELECT topic_id, payer, body FROM messages
+     WHERE body LIKE '%deleteMarker%'
+        OR body LIKE '%deletePolygon%'
+     ORDER BY topic_id ASC, seq ASC`
+  ).all();
+  for (const r of rows) {
+    try {
+      const body = JSON.parse(r.body);
+      const marker = body && body.marker && body.marker.data;
+      const polygon = body && body.polygon && body.polygon.data;
+      if (marker) applyPostDelete(r.topic_id, r.payer, marker, "marker");
+      if (polygon) applyPostDelete(r.topic_id, r.payer, polygon, "polygon");
+    } catch (err) {
+      console.error("delete backfill skipped", r.topic_id, err.message);
+    }
+  }
+  db.prepare("INSERT INTO meta (key, value) VALUES ('deletes_backfilled', '1')").run();
 }
 // Note: called below, after the geo section (it queues reverse-geocodes).
 
@@ -1079,6 +1196,7 @@ async function geoWorker() {
 // marker discovery queues reverse-geocodes).
 backfillDerived();
 backfillShares();
+backfillDeletes();
 
 // Discovered markers (storePage) queue geokeys without a /api/marker kick —
 // a periodic sweep keeps the queue draining.
@@ -1347,6 +1465,9 @@ app.get("/api/post", async (req, res) => {
     }
     const data = (d.marker && d.marker.data) || (d.polygon && d.polygon.data) || null;
     if (!data) return res.json({ ok: true, found: false });
+    if (q.isDeletedPost.get(topic, new Date(created).toISOString(), row.payer)) {
+      return res.json({ ok: true, found: false, deleted: true });
+    }
     const reactions = markerReactions(topic, created);
     const viewRow = q.getPopupView.get(topic, created);
     const myLike = account ? q.getReaction.get(topic, formatMarkerKey(created), account) : null;

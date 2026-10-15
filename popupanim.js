@@ -26,44 +26,69 @@ maplibregl.Popup.prototype.remove = function () {
   return startClose(this, originalRemove);
 };
 
-// One frame for every map popup and for the popup settings card. The top
-// of that frame is the bottom of OPTIONS / TOPIC CHAT / E2EE CHAT. A post
-// with more text, a picture, or open comments scrolls inside the frame.
+// One frame for every map popup and for the popup settings card.
+// The top line is the toolbar (10vh), so the gap under OPTIONS / TOPIC
+// CHAT / E2EE CHAT matches that panel. Left, right, and bottom match the
+// fully open topic chat and E2EE chat: flush to the sides, 0.5dvh up
+// from the bottom. A post with more text scrolls inside the frame.
 // The visual viewport is the tighter limit while the keyboard is open,
-// because dvh does not shrink for the keyboard. Width stays on the full
-// screen so the keyboard does not also make the card narrower.
+// because dvh does not shrink for the keyboard.
 const visualViewport = window.visualViewport;
 let scheduled = false;
-let chromePx = 0;
-
-function readChrome(offsetTop) {
-  const row = document.getElementById('main-buttons-row');
-  if (!row) return chromePx;
-  const rect = row.getBoundingClientRect();
-  // Hidden while another panel is open. Keep the last real bottom so the
-  // frame does not jump up into the button row.
-  if (rect.height < 2) return chromePx;
-  const bottom = rect.bottom - offsetTop;
-  if (bottom > 0) chromePx = bottom;
-  return chromePx;
-}
 
 function fitPopupsToViewport() {
-  const viewH = visualViewport ? visualViewport.height : window.innerHeight;
+  const layoutH = window.innerHeight;
+  const viewH = visualViewport ? visualViewport.height : layoutH;
   const viewW = visualViewport ? visualViewport.width : window.innerWidth;
   const offsetTop = visualViewport ? visualViewport.offsetTop : 0;
-  const chrome = readChrome(offsetTop) || window.innerHeight * 0.1;
-  const gap = Math.max(8, viewH * 0.012);
-  const available = Math.max(80, viewH - chrome - gap * 2);
-  const card = Math.min(window.innerWidth * 0.9, window.innerHeight * 0.7, viewW * 0.98);
+  const offsetLeft = visualViewport ? visualViewport.offsetLeft : 0;
   const root = document.documentElement.style;
-  root.setProperty('--chrome-bottom', `${offsetTop + chrome}px`);
-  root.setProperty('--popup-gap', `${gap}px`);
-  root.setProperty('--popup-max-h', `${available}px`);
-  root.setProperty('--popup-card', `${card}px`);
+  const keyboard = layoutH - viewH > 80 || offsetTop > 40;
+  // Same width the chat uses between left 0 and right 0. Chips scale from it.
+  root.setProperty('--popup-card', `${Math.max(80, viewW - offsetLeft)}px`);
+  root.setProperty('--popup-left', `${offsetLeft}px`);
+  root.setProperty('--popup-right', '0px');
+  if (!keyboard) {
+    root.setProperty('--popup-top', '10vh');
+    root.setProperty('--popup-bottom', '0.5dvh');
+    root.setProperty('--popup-max-h', 'calc(100dvh - 10vh - 0.5dvh)');
+    clearPopupFit();
+    pinSettingsCard();
+    return;
+  }
+  // Keep the toolbar line when it is still on screen, and keep 0.5% of
+  // the visible height clear above the keyboard.
+  const toolbarTop = layoutH * 0.1;
+  const bottomInset = viewH * 0.005;
+  const top = Math.max(toolbarTop, offsetTop);
+  const bottom = Math.max(0, layoutH - (offsetTop + viewH) + bottomInset);
+  root.setProperty('--popup-top', `${top}px`);
+  root.setProperty('--popup-bottom', `${bottom}px`);
+  root.setProperty('--popup-max-h', `${Math.max(80, offsetTop + viewH - top - bottomInset)}px`);
+  clearPopupFit();
+  pinSettingsCard();
+}
 
-  // Older fits wrote a per-popup top and --fit. Those would pin one post
-  // to a different size than the shared frame.
+// The settings card has to use this same frame. An older rule still in the
+// loaded stylesheet pins it to the top of the screen; these win over that.
+function pinSettingsCard() {
+  const card = document.getElementById('popup-settings-card');
+  if (!card) return;
+  const set = (prop, value) => card.style.setProperty(prop, value, 'important');
+  set('top', 'var(--popup-top)');
+  set('right', 'var(--popup-right)');
+  set('bottom', 'var(--popup-bottom)');
+  set('left', 'var(--popup-left)');
+  set('transform', 'none');
+  set('width', 'auto');
+  set('height', 'auto');
+  set('max-width', 'none');
+  set('max-height', 'none');
+}
+
+// Older fits wrote a per-popup top and --fit. Those would pin one post
+// to a different size than the shared frame.
+function clearPopupFit() {
   document.querySelectorAll('.maplibregl-popup').forEach((el) => {
     if (el.closest('#popup-settings-card')) return;
     el.style.removeProperty('top');
@@ -109,9 +134,4 @@ if (visualViewport) {
   visualViewport.addEventListener('scroll', scheduleFit);
 }
 window.addEventListener('resize', scheduleFit);
-
-const buttonRow = document.getElementById('main-buttons-row');
-if (buttonRow && typeof ResizeObserver !== 'undefined') {
-  new ResizeObserver(scheduleFit).observe(buttonRow);
-}
 scheduleFit();
