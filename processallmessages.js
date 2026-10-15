@@ -3,10 +3,10 @@ import { prepareHoldings, fetchAccountTokens } from './nftcache.js'
 import {sendMessage, popupView, knownPopupViews, setPopupViewTotal, fetchPost} from './msgbackend'
 import {getTopicData as getMessages} from './topicdata'
 import { adjustTextareaHeight } from './adjusttextarea';
-import { activePolygonPopups, newActivePolygonPopups, addPolygonWithImageFill} from './polygons';
+import { activePolygonPopups, newActivePolygonPopups, addPolygonWithImageFill, dropPolygonCover} from './polygons';
 import { activeMarkerPopups, newActiveMarkerPopups, updateClusters, index } from './marker';
 import { removeUfoModel, changePopupState, closeTransientMapUI} from './cssLogic'
-import { polygons, geojson, storedMarkers, storedPolygons, currentUfoModelInGLTF,  newExistingMarkers,  existingMarkers, newStoredMarkers, newStoredPolygons,
+import { polygons, geojson, storedMarkers, storedPolygons, storedMarkersFiltered, storedPolygonsFiltered, currentUfoModelInGLTF,  newExistingMarkers,  existingMarkers, newStoredMarkers, newStoredPolygons,
   accidTopicChatColor, usernameTopicChatColor, textTopicChatColor, innerContainerTopicChatColor, topicChatHeaderColor,
   textFontSizeTopicChat, timestampFontSizeTopicChat, headerFontSizeTopicChat } from './letall';
 import {updateRulesForModelNFTState} from './confirmnft'
@@ -14,7 +14,8 @@ import { animateMapTo, cancelAnimateMapTo } from './animatemapto';
 import { ringCenter, zoomForPolygon } from './polygonframe.js';
 import { profilePictures, usernames, click2url } from './loadalladata'
 import { confirmShare, unshareFromMyTopic, sharePin } from './followtopic'
-import { clearShareTopic, noteShare, shareState, takeSharePin, takeUnsharePin } from './sharecount.js'
+import { clearShareTopic, noteShare, shareState, shareMine, takeSharePin, takeUnsharePin } from './sharecount.js'
+import { readPostCard, writePostCard } from './postcache.js'
 import { openPreview } from './fullscreenmedia';
 import maplibregl from 'maplibre-gl';
 import { map } from './map';
@@ -70,6 +71,15 @@ function slotsFromHoldings(holdings, payerId, rules, idKey, countKey) {
   return total;
 }
 
+// null: this post has no number. New drawings omit it.
+// false: a number is present but it is not a whole number, so the post stays unloaded.
+// otherwise: the number already written on an older post. Delete messages match it.
+function legacyShapeNumber(value) {
+  if (value == null || String(value).trim() === '') return null;
+  if (!Number.isInteger(Number(value))) return false;
+  return value;
+}
+
 // Newest valid drawing first, so the mirror queue starts at the messages
 // the map should show before the older ones.
 function newestPayerOrder(messages) {
@@ -87,8 +97,8 @@ function newestPayerOrder(messages) {
     if (!payer || seen.has(payer)) continue;
     const marker = parsed.marker && parsed.marker.data;
     const polygon = parsed.polygon && parsed.polygon.data;
-    const markerOk = marker && Number.isInteger(Number(marker.numberOfMarker)) && markerCoordinates(marker.cord);
-    const polygonOk = polygon && Number.isInteger(Number(polygon.numberOfPolygon)) && polygonCoordinates(polygon.cord);
+    const markerOk = marker && legacyShapeNumber(marker.numberOfMarker) !== false && markerCoordinates(marker.cord);
+    const polygonOk = polygon && legacyShapeNumber(polygon.numberOfPolygon) !== false && polygonCoordinates(polygon.cord);
     if (!markerOk && !polygonOk) continue;
     seen.add(payer);
     order.push(payer);
@@ -131,8 +141,8 @@ function indexNewestMessages(messages, topicAdmin) {
     if (parsedOk && parsed && payerId && !payerSeen.has(payerId)) {
       const marker = parsed.marker && parsed.marker.data;
       const polygon = parsed.polygon && parsed.polygon.data;
-      const markerOk = marker && Number.isInteger(Number(marker.numberOfMarker)) && markerCoordinates(marker.cord);
-      const polygonOk = polygon && Number.isInteger(Number(polygon.numberOfPolygon)) && polygonCoordinates(polygon.cord);
+      const markerOk = marker && legacyShapeNumber(marker.numberOfMarker) !== false && markerCoordinates(marker.cord);
+      const polygonOk = polygon && legacyShapeNumber(polygon.numberOfPolygon) !== false && polygonCoordinates(polygon.cord);
       if (markerOk || polygonOk) {
         payerSeen.add(payerId);
         payerOrder.push(payerId);
@@ -355,20 +365,110 @@ async function showDrawingsAsApproved(ctx) {
 
 export let allLoadedMessages = [];
 
-window.openPopupSettings = function() {
+const PAGER_MODE_KEY = 'meritocracy-pager-mode';
+let popupSettingsTarget = null;
+let popupSettingsBound = false;
+let popupDeleteBusy = false;
+
+function pagerMode() {
+  try {
+    const mode = localStorage.getItem(PAGER_MODE_KEY);
+    if (mode === 'time' || mode === 'random' || mode === 'account') return mode;
+  } catch {
+    // A blocked store just keeps the default for this visit.
+  }
+  return 'account';
+}
+
+function walkTarget(value) {
+  if (!value || value.payer == null || value.number == null || !value.topicId) return null;
+  return value;
+}
+
+function setPopupPreview(open) {
+  const preview = document.getElementById('popup-settings-preview');
+  const toggle = document.getElementById('popup-settings-preview-toggle');
+  const colors = document.getElementById('popup-column-2');
+  const pickers = document.getElementById('popup-column-container-3');
+  if (preview) preview.style.display = open ? 'flex' : 'none';
+  if (toggle) toggle.textContent = open ? 'Hide preview' : 'Preview';
+  // Border, Close, Font, and the other color buttons, plus Save popup,
+  // only belong next to the sample. They stay hidden until Preview is open.
+  if (colors) colors.style.display = open ? 'block' : 'none';
+  if (pickers) pickers.style.display = open ? 'block' : 'none';
+}
+
+function paintPagerModes() {
+  const mode = pagerMode();
+  for (const name of ['account', 'time', 'random']) {
+    const btn = document.getElementById('popup-pager-' + name);
+    if (btn) btn.classList.toggle('is-on', name === mode);
+  }
+}
+
+function paintDeleteButton() {
+  const btn = document.getElementById('popup-settings-delete');
+  if (!btn) return;
+  const walk = popupSettingsTarget;
+  const mine = !!(walk && signer && connectedAccount && walk.payer === connectedAccount);
+  if (!mine) {
+    btn.style.display = 'none';
+    return;
+  }
+  btn.style.display = 'flex';
+  btn.textContent = walk.share ? 'Delete share' : 'Delete';
+}
+
+function closePopupSettings() {
+  const backdrop = document.getElementById('popup-settings-backdrop');
+  const card = document.getElementById('popup-settings-card');
+  const column = document.getElementById('popup-column-container-3');
+  if (backdrop) backdrop.style.display = 'none';
+  if (card) card.style.display = 'none';
+  if (column) column.style.display = 'none';
+  popupSettingsTarget = null;
+  setPopupPreview(false);
+}
+
+function bindPopupSettings() {
+  if (popupSettingsBound) return;
+  const toggle = document.getElementById('popup-settings-preview-toggle');
+  if (!toggle) return;
+  popupSettingsBound = true;
+  toggle.addEventListener('click', () => {
+    const preview = document.getElementById('popup-settings-preview');
+    if (!preview) return;
+    setPopupPreview(preview.style.display === 'none');
+  });
+  for (const mode of ['account', 'time', 'random']) {
+    const btn = document.getElementById('popup-pager-' + mode);
+    if (!btn) continue;
+    btn.addEventListener('click', () => {
+      try { localStorage.setItem(PAGER_MODE_KEY, mode); } catch { /* keep it for this visit */ }
+      paintPagerModes();
+    });
+  }
+  const del = document.getElementById('popup-settings-delete');
+  if (del) del.addEventListener('click', () => { deletePopupTarget(); });
+}
+
+window.openPopupSettings = function(target) {
   requestAnimationFrame(() => {
     // The settings live in one centered card over a dark backdrop; the
     // backdrop hides the map popup underneath and closes on tap.
     const backdrop = document.getElementById("popup-settings-backdrop");
     const card = document.getElementById("popup-settings-card");
+    if (!backdrop || !card) return;
     if (backdrop.style.display === "block") {
-      backdrop.style.display = "none";
-      card.style.display = "none";
-      document.getElementById("popup-column-container-3").style.display = "none";
+      closePopupSettings();
     } else {
+      bindPopupSettings();
+      popupSettingsTarget = walkTarget(target);
+      setPopupPreview(false);
+      paintPagerModes();
+      paintDeleteButton();
       backdrop.style.display = "block";
       card.style.display = "block";
-      document.getElementById("popup-column-container-3").style.display = "block";
       removeUfoModel();
     }
   });
@@ -655,6 +755,15 @@ function bindPopupPager(container, goPrev, goNext) {
   }, true);
 }
 
+// A rebuilt card carries the server's share count. A card built from the
+// topic walk still uses the messages already seen this visit.
+function shownShareState(data, topicId, timestamp) {
+  if (data && Number.isFinite(data.shareCount)) {
+    return { count: data.shareCount, mine: !!data.sharedByMe };
+  }
+  return shareState(topicId, timestamp, connectedAccount);
+}
+
 function shareField(value) {
   if (Array.isArray(value)) return shareField(value[0]);
   return typeof value === 'string' ? value : '';
@@ -705,8 +814,9 @@ function appendShareFeature(features, ctx) {
   const title = shareField(share.title);
   const msg = shareField(share.msg);
   const number = share.number == null ? '' : share.number;
-  // Counts snapshotted into the pin when it was shared. Missing on pins
-  // shared before the snapshot existed — they fall back to zero/none.
+  // Older pins copied the card into the message. A new pin is only a
+  // pointer, so those fields are empty until the phone cache or the
+  // server rebuilds the original post. Missing numbers fall back to zero.
   const savedViews = Number(share.views);
   const savedLikes = Number(share.likes);
   const savedComments = Number(share.comments);
@@ -800,35 +910,16 @@ export function createMarkerPopupHTML(data) {
   } = data;
 
   const container = document.createElement('div');
+  container.className = 'popup-sheet';
   tagPopupView(container, topicId, created);
   const goPrevMarker = () => onPrev ? onPrev() : window.prevMsgFromPayerMarker(payer, markernumber, topicId);
   const goNextMarker = () => onNext ? onNext() : window.nextMsgFromPayerMarker(payer, markernumber, topicId);
   bindPopupPager(container, goPrevMarker, goNextMarker);
 
-  // Top row: settings on the left, number in the middle, × on the right.
+  // Top row: settings on the left, × on the right.
   const topHeader = document.createElement('div');
   topHeader.className = 'popup-top-row';
 
-  const numberDiv = document.createElement('div');
-  numberDiv.className = 'number popup-top-id';
-  numberDiv.style.cssText = 'cursor: pointer;';
-  numberDiv.textContent = markernumber;
-  // Tap the number → zoom to 19 centered on this marker. coords arrives as
-  // [lng, lat] from the topic pipeline, "lng,lat" from the live-marker view.
-  numberDiv.addEventListener('click', (e) => {
-    e.stopPropagation();
-    let c = null;
-    if (Array.isArray(coords) && coords.length === 2) {
-      c = [Number(coords[0]), Number(coords[1])];
-    } else if (typeof coords === 'string') {
-      const [a, b] = coords.split(',').map(Number);
-      if (Number.isFinite(a) && Number.isFinite(b)) c = [a, b];
-    }
-    if (c) {
-      cancelAnimateMapTo(); // stop the popup-open loop, or it kills this flyTo
-      map.flyTo({ center: c, zoom: 19, essentialOnly: true });
-    }
-  });
   const topicSpan = document.createElement('span');
   topicSpan.className = 'popup-top-topic';
   topicSpan.style.cssText = 'cursor: pointer; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis;';
@@ -850,7 +941,6 @@ export function createMarkerPopupHTML(data) {
     }
   });
 
-  topHeader.appendChild(numberDiv);
   container.appendChild(topHeader);
 
   // Profile section
@@ -890,13 +980,15 @@ export function createMarkerPopupHTML(data) {
   profileSection.appendChild(headerDiv);
   container.appendChild(profileSection);
 
-  // Content section
+  // Content section. Image and text scroll. The arrow row stays under the name.
   const contentSection = document.createElement('div');
+  contentSection.className = 'popup-body';
   contentSection.style.textAlign = 'center';
 
-  // Navigation and title
+  // Navigation and title. Side inset matches the gear: out of the content pad
+  // so the pad does not cover the arrow circles.
   const navSection = document.createElement('div');
-  navSection.style.cssText = 'display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: calc(var(--u) * 0.25);';
+  navSection.className = 'popup-nav';
 
   const prevSpan = document.createElement('span');
   prevSpan.className = 'popup-icon-chip';
@@ -921,8 +1013,6 @@ export function createMarkerPopupHTML(data) {
     ? () => onNext()
     : () => window.nextMsgFromPayerMarker(payer, markernumber, topicId);
   navSection.appendChild(nextSpan);
-
-  contentSection.appendChild(navSection);
 
   // Image — or video when the user pasted a .mp4/.webm URL into the Image
   // field (the dot still shows the Cover Image still, so no video ever loads
@@ -963,10 +1053,18 @@ export function createMarkerPopupHTML(data) {
   msgDiv.appendChild(msgP);
   contentSection.appendChild(msgDiv);
 
+  // Title sits under the profile. The picture and text follow it.
+  // The gap takes the spare room, so the hearts and the topic stay
+  // on the bottom of the frame.
+  container.appendChild(navSection);
   container.appendChild(contentSection);
+  const markerGap = document.createElement('div');
+  markerGap.className = 'popup-gap';
+  container.appendChild(markerGap);
 
   // Row 6 — heart, comment, and share centered (topic id + timestamp live in row 7)
   const bottomRow = document.createElement('div');
+  bottomRow.className = 'popup-dock';
   bottomRow.style.cssText = 'position: relative; height: calc(var(--u) * 6.2); line-height: 1; margin-top: calc(var(--u) * 0.4); overflow: visible;';
 
   // Timestamp (row 7, right side)
@@ -975,7 +1073,7 @@ export function createMarkerPopupHTML(data) {
   paintPopupView(viewsDiv, topicId, created, Number.isFinite(viewCount) ? viewCount : null);
   const timestampDiv = document.createElement('div');
   timestampDiv.className = 'popup-timestamp';
-  timestampDiv.style.cssText = 'margin-right: calc(var(--u) * -0.5); flex-shrink: 0;';
+  timestampDiv.style.cssText = 'flex-shrink: 0;';
   timestampDiv.textContent = timestamp;
 
   const likeDislikeDiv = document.createElement('div');
@@ -991,26 +1089,18 @@ export function createMarkerPopupHTML(data) {
     count: Number.isFinite(commentsCount) ? commentsCount : countAllMessages(comments),
     onToggle: (open) => toggleCommentsBubble(open, markerCommentsId),
   }));
-  // Everything the card shows goes into the pin, so the shared card on
-  // another topic looks the same as the original one.
+  // The pin stores the topic and the post time. The card is filled later
+  // from the phone cache and then from the server.
   const markerShare = {
     kind: 'marker',
     topicId,
     created,
     payer,
-    title,
-    msg,
-    image,
-    coverimage,
-    loadedTopicName,
-    views: parseInt(viewsDiv.textContent, 10),
-    likes: likeCountMarker,
-    commentsCount: Number.isFinite(commentsCount) ? commentsCount : countAllMessages(comments),
     coords,
     number: markernumber,
     timestamp,
   };
-  const markerShareState = shareState(topicId, timestamp, connectedAccount);
+  const markerShareState = shownShareState(data, topicId, timestamp);
   likeDislikeDiv.appendChild(createShareBubble({
     count: markerShareState.count,
     shared: markerShareState.mine,
@@ -1023,11 +1113,16 @@ export function createMarkerPopupHTML(data) {
   const settingsSpan = document.createElement('span');
   settingsSpan.className = 'popup-icon-chip';
   settingsSpan.textContent = '⚙️';
-  settingsSpan.onclick = () => window.openPopupSettings();
+  settingsSpan.onclick = (event) => {
+    event.stopPropagation();
+    window.openPopupSettings(data.walk);
+  };
   topHeader.appendChild(settingsSpan);
   // Row 7 — topic id and name on the left, timestamp on the right.
+  // -0.5u cancels the content's side pad so the pills are not covered.
   const bottomLeftRow = document.createElement('div');
-  bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: 0; margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);';
+  bottomLeftRow.className = 'popup-dock';
+  bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: 0; margin-left: calc(var(--u) * -0.5); margin-right: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);';
   const metaRight = document.createElement('div');
   metaRight.style.cssText = 'margin-left: auto; display: flex; align-items: center; gap: calc(var(--u) * 0.45); flex-shrink: 0;';
   metaRight.append(viewsDiv, timestampDiv);
@@ -1067,33 +1162,22 @@ function createPolygonPopupHTML(data) {
     created,
     viewCount,
     coverimage,
-    commentsCount
+    commentsCount,
+    onPrev,
+    onNext
   } = data;
 
   const container = document.createElement('div');
+  container.className = 'popup-sheet';
   tagPopupView(container, topicId, created);
-  bindPopupPager(
-    container,
-    () => window.prevMsgFromPayerPolygon(payer, polygonnumber, topicId),
-    () => window.nextMsgFromPayerPolygon(payer, polygonnumber, topicId)
-  );
+  const goPrevPolygon = () => onPrev ? onPrev() : window.prevMsgFromPayerPolygon(payer, polygonnumber, topicId);
+  const goNextPolygon = () => onNext ? onNext() : window.nextMsgFromPayerPolygon(payer, polygonnumber, topicId);
+  bindPopupPager(container, goPrevPolygon, goNextPolygon);
 
-  // Top row: settings on the left, number in the middle, × on the right.
+  // Top row: settings on the left, × on the right.
   const topHeader = document.createElement('div');
   topHeader.className = 'popup-top-row';
 
-  const numberDiv = document.createElement('div');
-  numberDiv.className = 'number popup-top-id';
-  numberDiv.style.cssText = 'cursor: pointer;';
-  numberDiv.textContent = polygonnumber;
-  // Tap the number → same frame Open on the map uses for this polygon.
-  numberDiv.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const polygon = { coordinates: [coordinates] };
-    const center = ringCenter(polygon);
-    if (!center) return;
-    animateMapTo(map, center, zoomForPolygon(polygon));
-  });
   const topicSpan = document.createElement('span');
   topicSpan.className = 'popup-top-topic';
   topicSpan.style.cssText = 'cursor: pointer; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis;';
@@ -1115,7 +1199,6 @@ function createPolygonPopupHTML(data) {
     }
   });
 
-  topHeader.appendChild(numberDiv);
   container.appendChild(topHeader);
 
   // Profile section
@@ -1157,16 +1240,17 @@ function createPolygonPopupHTML(data) {
 
   // Content section
   const contentSection = document.createElement('div');
+  contentSection.className = 'popup-body';
   contentSection.style.textAlign = 'center';
 
-  // Navigation and title
+  // Navigation and title. Side inset matches the gear.
   const navSection = document.createElement('div');
-  navSection.style.cssText = 'display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: calc(var(--u) * 0.25);';
+  navSection.className = 'popup-nav';
 
   const prevSpan = document.createElement('span');
   prevSpan.className = 'popup-icon-chip';
   prevSpan.textContent = '←';
-  prevSpan.onclick = () => window.prevMsgFromPayerPolygon(payer, polygonnumber, topicId);
+  prevSpan.onclick = goPrevPolygon;
   navSection.appendChild(prevSpan);
 
   const titleDiv = document.createElement('div');
@@ -1180,10 +1264,9 @@ function createPolygonPopupHTML(data) {
   const nextSpan = document.createElement('span');
   nextSpan.className = 'popup-icon-chip';
   nextSpan.textContent = '→';
-  nextSpan.onclick = () => window.nextMsgFromPayerPolygon(payer, polygonnumber, topicId);
+  nextSpan.onclick = goNextPolygon;
   navSection.appendChild(nextSpan);
-
-  contentSection.appendChild(navSection);
+  container.appendChild(navSection);
 
   // Image — or video when the Inside image URL field holds a .mp4/.webm
   // (same behavior as marker popups: in-popup player with sound; the map
@@ -1227,9 +1310,13 @@ function createPolygonPopupHTML(data) {
   contentSection.appendChild(msgDiv);
 
   container.appendChild(contentSection);
+  const polygonGap = document.createElement('div');
+  polygonGap.className = 'popup-gap';
+  container.appendChild(polygonGap);
 
   // Row 6 — heart, comment, and share centered (topic id + timestamp live in row 7)
   const bottomRow = document.createElement('div');
+  bottomRow.className = 'popup-dock';
   bottomRow.style.cssText = 'position: relative; height: calc(var(--u) * 6.2); line-height: 1; margin-top: calc(var(--u) * 0.4); overflow: visible;';
 
   // Timestamp (row 7, right side)
@@ -1238,7 +1325,7 @@ function createPolygonPopupHTML(data) {
   paintPopupView(viewsDiv, topicId, created, Number.isFinite(viewCount) ? viewCount : null);
   const timestampDiv = document.createElement('div');
   timestampDiv.className = 'popup-timestamp';
-  timestampDiv.style.cssText = 'margin-right: calc(var(--u) * -0.5); flex-shrink: 0;';
+  timestampDiv.style.cssText = 'flex-shrink: 0;';
   timestampDiv.textContent = timestamp;
 
   const likeDislikeDiv = document.createElement('div');
@@ -1254,25 +1341,16 @@ function createPolygonPopupHTML(data) {
     count: Number.isFinite(commentsCount) ? commentsCount : countAllMessages(comments),
     onToggle: (open) => toggleCommentsBubble(open, polygonCommentsId),
   }));
-  // Same rule as markers: the pin carries the whole card.
   const polygonShare = {
     kind: 'polygon',
     topicId,
     created,
     payer,
-    title,
-    msg,
-    image,
-    coverimage,
-    loadedTopicName,
-    views: parseInt(viewsDiv.textContent, 10),
-    likes: likeCountPolygon,
-    commentsCount: Number.isFinite(commentsCount) ? commentsCount : countAllMessages(comments),
     coords: coordinates,
     number: polygonnumber,
     timestamp,
   };
-  const polygonShareState = shareState(topicId, timestamp, connectedAccount);
+  const polygonShareState = shownShareState(data, topicId, timestamp);
   likeDislikeDiv.appendChild(createShareBubble({
     count: polygonShareState.count,
     shared: polygonShareState.mine,
@@ -1285,11 +1363,15 @@ function createPolygonPopupHTML(data) {
   const settingsSpan = document.createElement('span');
   settingsSpan.className = 'popup-icon-chip';
   settingsSpan.textContent = '⚙️';
-  settingsSpan.onclick = () => window.openPopupSettings();
+  settingsSpan.onclick = (event) => {
+    event.stopPropagation();
+    window.openPopupSettings(data.walk);
+  };
   topHeader.appendChild(settingsSpan);
   // Row 7 — topic id and name on the left, timestamp on the right.
   const bottomLeftRow = document.createElement('div');
-  bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: 0; margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);';
+  bottomLeftRow.className = 'popup-dock';
+  bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: 0; margin-left: calc(var(--u) * -0.5); margin-right: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);';
   const metaRight = document.createElement('div');
   metaRight.style.cssText = 'margin-left: auto; display: flex; align-items: center; gap: calc(var(--u) * 0.45); flex-shrink: 0;';
   metaRight.append(viewsDiv, timestampDiv);
@@ -1307,13 +1389,50 @@ function createPolygonPopupHTML(data) {
   return container;
 }
 
-// A shared pin is a reference, not a copy. The card built from the
-// snapshot renders immediately; while the tab sits there the pin is
-// re-read live from the original post (one indexed lookup per key on
-// the backend) and the live card replaces the snapshot in place. The
-// live card is kept on the feature — later opens do not re-fetch.
-// Backend offline, or the topic not mirrored there: the snapshot stays.
+// A shared pin is a pointer. The phone shows a saved card first, then the
+// server rebuilds the original post (name, hearts, comments, share count)
+// and the phone saves that card. Every open asks again so the counts move.
+// If the server is down, the saved card stays. An old pin that still carries
+// a copy of the card keeps that copy until one of those two answers arrives.
 const shareLiveInflight = new Map();
+
+function popupHTML(record) {
+  return record && record.kind === 'polygon'
+    ? createPolygonPopupHTML(record)
+    : createMarkerPopupHTML(record);
+}
+
+function commentsAreOpen(node) {
+  if (!node || !node.querySelectorAll) return false;
+  const sections = node.querySelectorAll('[id^="marker-comments-"], [id^="polygon-comments-"]');
+  for (const section of sections) {
+    if (section.style.display !== 'none') return true;
+  }
+  return false;
+}
+
+function applyShareCard(properties, record) {
+  properties._shareRecord = record;
+  const current = properties.message;
+  // Leave the card alone while its comment thread is open on screen.
+  // A closed popup is replaced so the next open shows the new counts.
+  if (current && current.isConnected && commentsAreOpen(current)) return;
+  bindWalk(record, properties.walkKey);
+  const fresh = popupHTML(record);
+  if (current && current.parentNode) {
+    current.replaceWith(fresh);
+    properties.message = fresh;
+    touchPopupPager(fresh);
+    // The new card is a fresh set of elements. Username, account, title,
+    // and number colors are painted onto the elements that are on screen,
+    // so the replacement has to be painted again or those links fall back
+    // to the browser's default color.
+    applyAllStyles();
+    refitPopups();
+    return;
+  }
+  properties.message = fresh;
+}
 
 function liveShareRecord(live, base) {
   const ts = new Date(live.created).toLocaleString('en-US', {
@@ -1325,16 +1444,36 @@ function liveShareRecord(live, base) {
     minute: '2-digit',
     second: '2-digit',
   });
+  const payer = live.payer || base.payer || '';
+  const defaultProfilePic = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+  const authorPic = payer && profilePictures[payer] && profilePictures[payer].url;
+  const profileUrl = isValidUrl(authorPic) ? authorPic : (base.profileUrl || defaultProfilePic);
+  const knownName = payer && usernames[payer] && usernames[payer].username;
+  const knownLink = payer && click2url[payer] && click2url[payer].click2url;
+  const topicId = live.topic || base.topicId;
+  const serverCount = Number(live.shares);
+  let shareCount = Number.isFinite(serverCount) ? serverCount : 0;
+  let sharedByMe = !!live.sharedByMe;
+  // This visit already recorded this account's share or unshare. The mirror
+  // may not have that message yet, so the checkbox follows the phone.
+  const mine = shareMine(topicId, base.timestamp, connectedAccount);
+  if (mine === true && !sharedByMe) {
+    sharedByMe = true;
+    shareCount += 1;
+  } else if (mine === false && sharedByMe) {
+    sharedByMe = false;
+    shareCount = Math.max(0, shareCount - 1);
+  }
   return {
     markernumber: live.number,
     polygonnumber: live.number,
-    topicId: live.topic,
+    topicId,
     loadedTopicName: live.topicName || base.loadedTopicName || '',
-    profileUrl: base.profileUrl,
-    payer: live.payer || base.payer,
-    payerInfo: live.payer || base.payerInfo,
-    username: base.username,
-    click2link: base.click2link,
+    profileUrl,
+    payer,
+    payerInfo: payer || base.payerInfo || 'Anonymous',
+    username: knownName ? ` ${knownName}` : (base.username || ''),
+    click2link: knownLink ? ` ${knownLink}` : (base.click2link || ''),
     title: live.title,
     image: live.image,
     coverimage: live.coverimage,
@@ -1344,50 +1483,79 @@ function liveShareRecord(live, base) {
     likeCountMarker: live.likes || 0,
     likeCountPolygon: live.likes || 0,
     likedByMe: !!live.likedByMe,
-    comments: live.comments || [],
+    comments: Array.isArray(live.comments) ? live.comments : [],
     coords: base.coords,
-    coordinates: base.coordinates,
+    coordinates: base.coordinates || base.coords,
     viewCount: Number.isFinite(live.views) ? live.views : null,
-    kind: live.kind === 'polygon' ? 'polygon' : 'marker',
+    kind: live.kind === 'polygon' ? 'polygon' : (base.kind === 'polygon' ? 'polygon' : 'marker'),
     share: base.share,
+    shareCount,
+    sharedByMe,
+  };
+}
+
+function cachedShareRecord(cached, base) {
+  if (!cached || typeof cached !== 'object') return null;
+  return {
+    ...cached,
+    coords: base.coords,
+    coordinates: base.coordinates || base.coords,
+    share: base.share,
+    kind: cached.kind === 'polygon' || base.kind === 'polygon' ? 'polygon' : 'marker',
   };
 }
 
 function hydrateSharePin(properties, record) {
   const key = record.topicId + '|' + record.created;
-  if (!shareLiveInflight.has(key)) {
+  readPostCard(record.topicId, record.created).then((cached) => {
+    if (properties._shareFresh === key) return;
+    const saved = cachedShareRecord(cached, record);
+    if (saved) applyShareCard(properties, saved);
+  }).catch(() => {});
+  const flightKey = key + '|' + (connectedAccount || '');
+  if (!shareLiveInflight.has(flightKey)) {
     shareLiveInflight.set(
-      key,
+      flightKey,
       fetchPost(record.topicId, record.created, connectedAccount || '')
         .catch(() => null)
-        .finally(() => shareLiveInflight.delete(key))
+        .finally(() => shareLiveInflight.delete(flightKey))
     );
   }
-  shareLiveInflight.get(key).then((live) => {
-    if (!live || properties._live) return;
-    const freshRecord = liveShareRecord(live, record);
-    properties._live = true;
-    if (properties.message && properties.message.parentNode) {
-      const fresh = createMarkerPopupHTML(freshRecord);
-      properties.message.replaceWith(fresh);
-      properties.message = fresh;
-      touchPopupPager(fresh);
-    }
-  });
+  shareLiveInflight.get(flightKey).then((live) => {
+    if (!live) return;
+    const freshRecord = liveShareRecord(live, properties._shareRecord || record);
+    properties._shareFresh = key;
+    writePostCard(record.topicId, record.created, freshRecord);
+    applyShareCard(properties, freshRecord);
+  }).catch(() => {});
 }
 
 // The card is built on the first open and kept on the feature. Topic load
 // only stores the record (a function), so comments, profile, and media are
 // not created for every drawing up front. 24h local-news popups still call
 // createMarkerPopupHTML themselves because those open immediately.
-export function markerPopupNode(properties) {
+// A share pin asks for the original post on every open.
+export function markerPopupNode(properties, feature) {
   if (!properties) return null;
+  if (feature && feature.payer && feature.msgNumber != null && feature.topicId) {
+    // The pin's own account, even when the card shows the original author.
+    properties.walkKey = {
+      payer: feature.payer,
+      number: feature.msgNumber,
+      topicId: feature.topicId,
+      shape: 'marker',
+    };
+  }
   if (!properties.message) {
     const data = properties.popupData;
     if (!data) return null;
     const record = typeof data === 'function' ? data() : data;
-    properties.message = createMarkerPopupHTML(record);
-    if (record && record.share && !properties._live) hydrateSharePin(properties, record);
+    properties._shareRecord = record;
+    bindWalk(record, properties.walkKey);
+    properties.message = popupHTML(record);
+  }
+  if (properties._shareRecord && properties._shareRecord.share) {
+    hydrateSharePin(properties, properties._shareRecord);
   }
   // Showing this card again: it is the one the arrows must move.
   touchPopupPager(properties.message);
@@ -1396,10 +1564,19 @@ export function markerPopupNode(properties) {
 
 export function polygonPopupNode(polygon) {
   if (!polygon) return null;
+  if (polygon.payer && polygon.msgNumber != null && polygon.topicId) {
+    polygon.walkKey = {
+      payer: polygon.payer,
+      number: polygon.msgNumber,
+      topicId: polygon.topicId,
+      shape: 'polygon',
+    };
+  }
   if (!polygon.description) {
     const data = polygon.popupData;
     if (!data) return null;
     const record = typeof data === 'function' ? data() : data;
+    bindWalk(record, polygon.walkKey);
     polygon.description = createPolygonPopupHTML(record);
   }
   touchPopupPager(polygon.description);
@@ -1772,7 +1949,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
               });
 
               if (parsedMessage.marker && parsedMessage.marker.data) {
-                const markernumber = parsedMessage.marker.data.numberOfMarker;
+                const legacyNumber = legacyShapeNumber(parsedMessage.marker.data.numberOfMarker);
                 const markerOwner = markerOwnershipArray.find(owner => owner.payerId === message.payer);
                 if (!markerOwner) {
                   continue;
@@ -1783,7 +1960,11 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                   markerOwner.numberOfMarker.push(deleteMarkerNumber);
                 }
 
-                const markerCoords = (markernumber === undefined || markernumber === null || !Number.isInteger(Number(markernumber)))
+                // A stored whole number keeps dedup and delete. No number is a new post.
+                const markernumber = legacyNumber == null
+                  ? (messageCreated(parsedMessage.created) || ('draw-' + index))
+                  : legacyNumber;
+                const markerCoords = legacyNumber === false
                   ? null
                   : markerCoordinates(parsedMessage.marker.data.cord);
 
@@ -1827,7 +2008,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                     topicGeojsonFeatures.push({
                       topicId: topicId,
                       created: parsedMessage.created,
-                      msgNumber: parsedMessage.marker.data.numberOfMarker,
+                      msgNumber: markernumber,
                       type: "Feature",
                       payer: message.payer,
                       properties: {
@@ -1851,14 +2032,17 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                 if (!polygonOwner) {
                   continue;
                 }
-                const polygonnumber = parsedMessage.polygon.data.numberOfPolygon;
+                const legacyPolygonNumber = legacyShapeNumber(parsedMessage.polygon.data.numberOfPolygon);
 
                 if (parsedMessage.polygon.data.deletePolygonNumber) {
                   const deletePolygonNumber = parsedMessage.polygon.data.deletePolygonNumber;
                   polygonOwner.numberOfPolygon.push(deletePolygonNumber);
                 }
 
-                const polygonRing = (polygonnumber === undefined || polygonnumber === null || !Number.isInteger(Number(polygonnumber)))
+                const polygonnumber = legacyPolygonNumber == null
+                  ? (messageCreated(parsedMessage.created) || ('draw-' + index))
+                  : legacyPolygonNumber;
+                const polygonRing = legacyPolygonNumber === false
                   ? null
                   : polygonCoordinates(parsedMessage.polygon.data.cord);
 
@@ -1904,8 +2088,8 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       topicPolygons.push({
                         topicId: topicId,
                         created: parsedMessage.created,
-                        msgNumber: parsedMessage.polygon.data.numberOfPolygon,
-                        id: `polygon-${message.payer}-${topicId}-${parsedMessage.polygon.data.numberOfPolygon}`,
+                        msgNumber: polygonnumber,
+                        id: `polygon-${message.payer}-${topicId}-${polygonnumber}`,
                         payer: message.payer,
                         coordinates: [coordinates],
                         popupData: polygonPopupData,
@@ -1970,84 +2154,142 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
         }
       }
 
-window.nextMsgFromPayerMarker = function(payer, markerNumber, topicId) {
-    if (!storedMarkers || !payer || markerNumber == null || !topicId) {
-        console.error('Invalid input or missing storedMarkers');
-        return null;
-    }
+function postTime(item) {
+  const t = new Date(item && item.created).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
 
-    // --------------------------------------------------------------
-    // 1. Flatten + sort all markers chronologically
-    // --------------------------------------------------------------
-    const markers = storedMarkers
-        .flat()
-        .sort((a, b) => new Date(a.msgNumber) - new Date(b.msgNumber));
+function postsFlat(groups) {
+  return (groups || []).flat().filter((item) => item && item.payer);
+}
 
-    // --------------------------------------------------------------
-    // 2. Locate the current marker
-    // --------------------------------------------------------------
-    let curIdx = -1;
-    for (let i = 0; i < markers.length; i++) {
-        if (markers[i].payer === payer &&
-            markers[i].msgNumber === String(markerNumber) &&
-            markers[i].topicId === topicId) {
-            curIdx = i;
-            break;
-        }
-    }
-    if (curIdx === -1) return null;
+function byTime(a, b) {
+  const ta = postTime(a);
+  const tb = postTime(b);
+  if (ta !== tb) return ta - tb;
+  const byPayer = String(a.payer).localeCompare(String(b.payer));
+  if (byPayer !== 0) return byPayer;
+  const byTopic = String(a.topicId).localeCompare(String(b.topicId));
+  if (byTopic !== 0) return byTopic;
+  return String(a.msgNumber).localeCompare(String(b.msgNumber));
+}
 
-    // --------------------------------------------------------------
-    // 3. Next marker in the SAME topic
-    // --------------------------------------------------------------
-    for (let i = curIdx + 1; i < markers.length; i++) {
-        if (markers[i].payer === payer && markers[i].topicId === topicId) {
-            return showMarker(markers[i]);
-        }
-    }
+// The arrows follow the pin that is open. Same account uses the person on
+// the card (the original author when the pin is a share). By time and
+// random stay on the pin's own list, so a share does not jump into the
+// author's posts.
+function bindWalk(record, walk) {
+  if (!record || !walk || !walk.payer || walk.number == null || !walk.topicId) return record;
+  const payer = walk.payer;
+  const number = walk.number;
+  const topicId = walk.topicId;
+  const authorKey = record.markernumber != null && record.markernumber !== ''
+    ? record.markernumber
+    : record.polygonnumber;
+  record.walk = {
+    payer,
+    number,
+    topicId,
+    shape: walk.shape,
+    author: record.payer || payer,
+    authorTopic: record.topicId || topicId,
+    authorCreated: record.created || '',
+    authorKey,
+    share: record.share || null,
+    timestamp: record.timestamp || '',
+    kind: record.kind === 'polygon' || walk.shape === 'polygon' ? 'polygon' : 'marker',
+  };
+  const step = record.walk;
+  if (walk.shape === 'polygon') {
+    record.onPrev = () => window.prevMsgFromPayerPolygon(payer, number, topicId, step);
+    record.onNext = () => window.nextMsgFromPayerPolygon(payer, number, topicId, step);
+  } else {
+    record.onPrev = () => window.prevMsgFromPayerMarker(payer, number, topicId, step);
+    record.onNext = () => window.nextMsgFromPayerMarker(payer, number, topicId, step);
+  }
+  return record;
+}
 
-    // --------------------------------------------------------------
-    // 4. No more in this topic → next topic (or wrap to first)
-    // --------------------------------------------------------------
-    const firstSeen = new Map();               // topicId → earliest msgNumber
-    for (const m of markers) {
-        if (m.payer !== payer) continue;
-        if (!firstSeen.has(m.topicId)) {
-            firstSeen.set(m.topicId, m.msgNumber);
-        }
-    }
+function findPin(posts, payer, number, topicId) {
+  const key = String(number);
+  const who = String(payer);
+  const topic = String(topicId);
+  for (let i = 0; i < posts.length; i++) {
+    const item = posts[i];
+    if (String(item.payer) === who && String(item.msgNumber) === key && String(item.topicId) === topic) return i;
+  }
+  return -1;
+}
 
-    const orderedTopics = Array.from(firstSeen.entries())
-        .sort(([, a], [, b]) => new Date(a) - new Date(b))
-        .map(([t]) => t);
+function findAuthorPost(posts, walk) {
+  if (!walk) return -1;
+  const author = String(walk.author || '');
+  const topic = String(walk.authorTopic || '');
+  const created = messageCreated(walk.authorCreated);
+  const key = walk.authorKey == null ? '' : String(walk.authorKey);
+  for (let i = 0; i < posts.length; i++) {
+    const item = posts[i];
+    if (String(item.payer) !== author || String(item.topicId) !== topic) continue;
+    if (created && messageCreated(item.created) === created) return i;
+    if (key !== '' && String(item.msgNumber) === key) return i;
+  }
+  return -1;
+}
 
-    const curTopicPos = orderedTopics.indexOf(topicId);
-    let nextTopicPos = curTopicPos + 1;
+// Same account wraps inside that one account. By time is one timeline of
+// every loaded post of this shape. Random picks another loaded post.
+// One post, or a post that is not in the list, stays put.
+function listForStep(pinGroups, pinPayer, walk) {
+  const mode = pagerMode();
+  if (mode === 'account') {
+    const author = (walk && walk.author) || pinPayer;
+    const groups = walk && walk.kind === 'polygon' ? storedPolygons : pinGroups;
+    if (!author) return [];
+    return postsFlat(groups).filter((item) => String(item.payer) === String(author)).sort(byTime);
+  }
+  return postsFlat(pinGroups).sort(byTime);
+}
 
-    // LOOP to first topic if we are at the end
-    if (nextTopicPos >= orderedTopics.length) nextTopicPos = 0;
+function stepPosts(posts, payer, number, topicId, direction, walk) {
+  if (!posts || posts.length < 2) return null;
+  const mode = pagerMode();
+  // The open pin wins when it is already in this list (your own post, or
+  // your own share). A share of someone else's post is not in their list,
+  // so the step starts at the original instead. If that original is not
+  // loaded either, the arrows stay put.
+  let curIdx = findPin(posts, payer, number, topicId);
+  if (curIdx === -1 && mode === 'account' && walk) curIdx = findAuthorPost(posts, walk);
+  if (curIdx === -1) return null;
+  if (mode === 'random') {
+    let pick = Math.floor(Math.random() * (posts.length - 1));
+    if (pick >= curIdx) pick += 1;
+    return posts[pick];
+  }
+  const dir = direction < 0 ? -1 : 1;
+  return posts[(curIdx + dir + posts.length) % posts.length];
+}
 
-    const nextTopicId = orderedTopics[nextTopicPos];
+function showPost(item) {
+  if (!item) return null;
+  if (item.geometry && item.geometry.type === 'Point') return showMarker(item);
+  return showPolygon(item);
+}
 
-    // --------------------------------------------------------------
-    // 5. Return FIRST marker of that next topic
-    // --------------------------------------------------------------
-    for (const m of markers) {
-        if (m.payer === payer && m.topicId === nextTopicId) {
-            return showMarker(m);
-        }
-    }
-
-    return null;   // should never hit
+window.nextMsgFromPayerMarker = function(payer, markerNumber, topicId, walk) {
+  if (!payer || markerNumber == null || !topicId) return null;
+  const next = stepPosts(listForStep(storedMarkers, payer, walk), payer, markerNumber, topicId, 1, walk);
+  return next ? showPost(next) : null;
 };
 
 function showMarker(m) {
     closeTransientMapUI(); // a popup replaces any open pin (📍/🔷 or 🗺/📡) and any other popup
     activeMarkerPopups.forEach(p => p.remove());
     newActiveMarkerPopups([]);
+    activePolygonPopups.forEach(p => p.remove());
+    newActivePolygonPopups([]);
     const popup = new maplibregl.Popup({ focusAfterOpen: false })
         .setLngLat(m.geometry.coordinates)
-        .setDOMContent(markerPopupNode(m.properties))
+        .setDOMContent(markerPopupNode(m.properties, m))
         .addTo(map);
 
     activeMarkerPopups.push(popup);
@@ -2073,76 +2315,18 @@ function showMarker(m) {
     return m;
 }
 
-window.nextMsgFromPayerPolygon = function(payer, polygonNumber, topicId) {
-    if (!storedPolygons || !payer || polygonNumber == null || !topicId) {
-        console.error('Invalid input or missing storedPolygons');
-        return null;
-    }
-
-    // 1. Flatten & sort all polygons by time
-    const polygons = storedPolygons
-        .flat()
-        .sort((a, b) => new Date(a.msgNumber) - new Date(b.msgNumber));
-
-    // 2. Find current polygon index
-    let currentIdx = -1;
-    for (let i = 0; i < polygons.length; i++) {
-        if (polygons[i].payer === payer &&
-            polygons[i].msgNumber === String(polygonNumber) &&
-            polygons[i].topicId === topicId) {
-            currentIdx = i;
-            break;
-        }
-    }
-    if (currentIdx === -1) {
-        console.log('Current polygon not found');
-        return null;
-    }
-
-    // 3. Try next polygon in SAME topic
-    for (let i = currentIdx + 1; i < polygons.length; i++) {
-        if (polygons[i].payer === payer && polygons[i].topicId === topicId) {
-            return showPolygon(polygons[i]);
-        }
-    }
-
-    // 4. No more in this topic → find next topic (or loop to first)
-    const firstSeen = new Map(); // topicId → earliest msgNumber
-    for (const p of polygons) {
-        if (p.payer !== payer) continue;
-        if (!firstSeen.has(p.topicId)) {
-            firstSeen.set(p.topicId, p.msgNumber);
-        }
-    }
-
-    const orderedTopics = Array.from(firstSeen.entries())
-        .sort(([, a], [, b]) => new Date(a) - new Date(b))
-        .map(([t]) => t);
-
-    const currentTopicIdx = orderedTopics.indexOf(topicId);
-    let nextTopicIdx = currentTopicIdx + 1;
-
-    // LOOP: if at last topic → go to first
-    if (nextTopicIdx >= orderedTopics.length) {
-        nextTopicIdx = 0; // wrap around
-    }
-
-    const nextTopicId = orderedTopics[nextTopicIdx];
-
-    // 5. Return FIRST polygon of the next topic
-    for (const p of polygons) {
-        if (p.payer === payer && p.topicId === nextTopicId) {
-            return showPolygon(p);
-        }
-    }
-
-    return null; // fallback
+window.nextMsgFromPayerPolygon = function(payer, polygonNumber, topicId, walk) {
+  if (!payer || polygonNumber == null || !topicId) return null;
+  const next = stepPosts(listForStep(storedPolygons, payer, walk), payer, polygonNumber, topicId, 1, walk);
+  return next ? showPost(next) : null;
 };
 
 function showPolygon(p) {
     closeTransientMapUI(); // a popup replaces any open pin (📍/🔷 or 🗺/📡) and any other popup
     activePolygonPopups.forEach(popup => popup.remove());
     newActivePolygonPopups([]);
+    activeMarkerPopups.forEach(popup => popup.remove());
+    newActiveMarkerPopups([]);
 
     const coordinates = p.coordinates[0];
     const bounds = coordinates.reduce((b, coord) => ({
@@ -2183,135 +2367,132 @@ function showPolygon(p) {
     return p;
 }
 
-window.prevMsgFromPayerMarker = function(payer, markerNumber, topicId) {
-  if (!storedMarkers || !payer || markerNumber == null || !topicId) {
-        console.error('Invalid input or missing storedMarkers');
-        return null;
-    }
-
-    // --------------------------------------------------------------
-    // 1. Flatten + sort all markers chronologically
-    // --------------------------------------------------------------
-    const markers = storedMarkers
-        .flat()
-        .sort((a, b) => new Date(a.msgNumber) - new Date(b.msgNumber));
-
-    // --------------------------------------------------------------
-    // 2. Locate the current marker
-    // --------------------------------------------------------------
-    let curIdx = -1;
-    for (let i = 0; i < markers.length; i++) {
-        if (markers[i].payer === payer &&
-            markers[i].msgNumber === String(markerNumber) &&
-            markers[i].topicId === topicId) {
-            curIdx = i;
-            break;
-        }
-    }
-    if (curIdx === -1) return null;
-
-    // 1. previous in SAME topic
-    for (let i = curIdx - 1; i >= 0; i--) {
-        if (markers[i].payer === payer && markers[i].topicId === topicId) {
-            return showMarker(markers[i]);
-        }
-    }
-
-    // 2. previous topic (wrap to last if first)
-    const lastSeen = new Map();   // topicId → latest msgNumber
-    for (const m of markers) {
-        if (m.payer !== payer) continue;
-        if (!lastSeen.has(m.topicId) ||
-            new Date(m.msgNumber) > new Date(lastSeen.get(m.topicId))) {
-            lastSeen.set(m.topicId, m.msgNumber);
-        }
-    }
-
-    const orderedTopics = Array.from(lastSeen.entries())
-        .sort(([, a], [, b]) => new Date(a) - new Date(b))
-        .map(([t]) => t);
-
-    const curPos = orderedTopics.indexOf(topicId);
-    let prevPos = curPos - 1;
-    if (prevPos < 0) prevPos = orderedTopics.length - 1;
-
-    const prevTopicId = orderedTopics[prevPos];
-
-    // 3. LAST marker of previous topic
-    for (let i = markers.length - 1; i >= 0; i--) {
-        if (markers[i].payer === payer && markers[i].topicId === prevTopicId) {
-            return showMarker(markers[i]);
-        }
-    }
-
-    return null;
+window.prevMsgFromPayerMarker = function(payer, markerNumber, topicId, walk) {
+  if (!payer || markerNumber == null || !topicId) return null;
+  const prev = stepPosts(listForStep(storedMarkers, payer, walk), payer, markerNumber, topicId, -1, walk);
+  return prev ? showPost(prev) : null;
 };
 
-window.prevMsgFromPayerPolygon = function(payer, polygonNumber, topicId) {
-    if (!storedPolygons || !payer || polygonNumber == null || !topicId) {
-        console.error('Invalid input or missing storedPolygons');
-        return null;
-    }
-
-    // 1. Flatten & sort chronologically
-    const polygons = storedPolygons
-        .flat()
-        .sort((a, b) => new Date(a.msgNumber) - new Date(b.msgNumber));
-
-    // 2. Find current polygon index
-    let currentIdx = -1;
-    for (let i = 0; i < polygons.length; i++) {
-        if (polygons[i].payer === payer &&
-            polygons[i].msgNumber === String(polygonNumber) &&
-            polygons[i].topicId === topicId) {
-            currentIdx = i;
-            break;
-        }
-    }
-    if (currentIdx === -1) {
-        console.log('Current polygon not found');
-        return null;
-    }
-
-    // 3. Try previous polygon in SAME topic
-    for (let i = currentIdx - 1; i >= 0; i--) {
-        if (polygons[i].payer === payer && polygons[i].topicId === topicId) {
-            return showPolygon(polygons[i]);
-        }
-    }
-
-    // 4. No previous in this topic → go to PREVIOUS topic (or wrap to last)
-    const lastSeen = new Map(); // topicId → latest msgNumber
-    for (const p of polygons) {
-        if (p.payer !== payer) continue;
-        if (!lastSeen.has(p.topicId) || new Date(p.msgNumber) > new Date(lastSeen.get(p.topicId))) {
-            lastSeen.set(p.topicId, p.msgNumber);
-        }
-    }
-
-    const orderedTopics = Array.from(lastSeen.entries())
-        .sort(([, a], [, b]) => new Date(a) - new Date(b))
-        .map(([t]) => t);
-
-    const currentTopicIdx = orderedTopics.indexOf(topicId);
-    let prevTopicIdx = currentTopicIdx - 1;
-
-    // LOOP: if at first topic → go to last topic
-    if (prevTopicIdx < 0) {
-        prevTopicIdx = orderedTopics.length - 1;
-    }
-
-    const prevTopicId = orderedTopics[prevTopicIdx];
-
-    // 5. Return LAST polygon of the previous topic
-    for (let i = polygons.length - 1; i >= 0; i--) {
-        if (polygons[i].payer === payer && polygons[i].topicId === prevTopicId) {
-            return showPolygon(polygons[i]);
-        }
-    }
-
-    return null;
+window.prevMsgFromPayerPolygon = function(payer, polygonNumber, topicId, walk) {
+  if (!payer || polygonNumber == null || !topicId) return null;
+  const prev = stepPosts(listForStep(storedPolygons, payer, walk), payer, polygonNumber, topicId, -1, walk);
+  return prev ? showPost(prev) : null;
 };
+
+function samePin(item, walk) {
+  return !!(item && walk
+    && String(item.payer) === String(walk.payer)
+    && String(item.msgNumber) === String(walk.number)
+    && String(item.topicId) === String(walk.topicId));
+}
+
+function pullPin(list, walk) {
+  if (!Array.isArray(list)) return;
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (samePin(list[i], walk)) list.splice(i, 1);
+  }
+}
+
+function pullPinBuckets(groups, walk) {
+  for (const bucket of groups || []) pullPin(bucket, walk);
+}
+
+function removeMapLayer(id) {
+  try {
+    if (map.getLayer(id)) map.removeLayer(id);
+  } catch (err) {
+    console.error('layer remove failed', id, err);
+  }
+}
+
+function removeMapSource(id) {
+  try {
+    if (map.getSource(id)) map.removeSource(id);
+  } catch (err) {
+    console.error('source remove failed', id, err);
+  }
+}
+
+function closeOpenPopups() {
+  activeMarkerPopups.forEach((popup) => popup.remove());
+  newActiveMarkerPopups([]);
+  activePolygonPopups.forEach((popup) => popup.remove());
+  newActivePolygonPopups([]);
+  changePopupState(false);
+}
+
+// The pin leaves the map as soon as the wallet send succeeds. A later topic
+// reload still honors the delete or unshare message.
+function removeLoadedPost(walk) {
+  if (!walk) return;
+  if (walk.share || walk.shape !== 'polygon') {
+    pullPinBuckets(storedMarkers, walk);
+    pullPin(geojson.features, walk);
+    pullPin(storedMarkersFiltered, walk);
+    try {
+      index.load(geojson.features);
+      updateClusters();
+    } catch (err) {
+      console.error('marker remove failed', err);
+    }
+    return;
+  }
+  pullPinBuckets(storedPolygons, walk);
+  pullPin(storedPolygonsFiltered, walk);
+  const removed = [];
+  for (let i = polygons.length - 1; i >= 0; i--) {
+    if (samePin(polygons[i], walk)) removed.push(polygons.splice(i, 1)[0]);
+  }
+  for (const polygon of removed) {
+    if (!polygon || !polygon.id) continue;
+    dropPolygonCover(polygon.id);
+    removeMapLayer(polygon.id + '-mask-layer');
+    removeMapLayer(polygon.id + '-image-layer');
+    removeMapSource(polygon.id + '-mask-source');
+    removeMapSource(polygon.id + '-source');
+  }
+}
+
+async function deletePopupTarget() {
+  if (popupDeleteBusy) return;
+  const walk = popupSettingsTarget;
+  if (!walk || !signer || !connectedAccount || walk.payer !== connectedAccount) return;
+  popupDeleteBusy = true;
+  try {
+    if (walk.share) {
+      if (!walk.authorTopic || !walk.authorCreated || !walk.timestamp) {
+        toast.error('This post cannot be deleted');
+        return;
+      }
+      const ok = await unshareFromMyTopic({
+        topicId: walk.authorTopic,
+        created: walk.authorCreated,
+        timestamp: walk.timestamp,
+        pinTopic: walk.topicId,
+      });
+      if (!ok) return;
+    } else {
+      if (walk.number == null || walk.number === '' || !walk.topicId) {
+        toast.error('This post cannot be deleted');
+        return;
+      }
+      const body = walk.shape === 'polygon'
+        ? { polygon: { data: { deletePolygonNumber: walk.number } } }
+        : { marker: { data: { deleteMarkerNumber: walk.number } } };
+      toast.info('Confirm in wallet 👛');
+      await sendMessage(walk.topicId, JSON.stringify(body));
+      toast.success('Deleted');
+    }
+    removeLoadedPost(walk);
+    closePopupSettings();
+    closeOpenPopups();
+  } catch (error) {
+    console.error('popup delete failed', error);
+    toast.error('Delete was not saved');
+  } finally {
+    popupDeleteBusy = false;
+  }
+}
 
 window.likeMarker = async function(timestamp, topicId, remove) {
     if (!signer) {
@@ -3431,7 +3612,7 @@ if (rawResult && Array.isArray(rawResult)) {
               });
 
               if (parsedMessage.marker && parsedMessage.marker.data) {
-                const markernumber = parsedMessage.marker.data.numberOfMarker;
+                const legacyNumber = legacyShapeNumber(parsedMessage.marker.data.numberOfMarker);
                 const markerOwner = markerOwnershipArray.find(owner => owner.payerId === message.payer);
                 if (!markerOwner) {
                   continue;
@@ -3442,7 +3623,11 @@ if (rawResult && Array.isArray(rawResult)) {
                   markerOwner.numberOfMarker.push(deleteMarkerNumber);
                 }
 
-                const markerCoords = (markernumber === undefined || markernumber === null || !Number.isInteger(Number(markernumber)))
+                // A stored whole number keeps dedup and delete. No number is a new post.
+                const markernumber = legacyNumber == null
+                  ? (messageCreated(parsedMessage.created) || ('draw-' + index))
+                  : legacyNumber;
+                const markerCoords = legacyNumber === false
                   ? null
                   : markerCoordinates(parsedMessage.marker.data.cord);
 
@@ -3486,7 +3671,7 @@ if (rawResult && Array.isArray(rawResult)) {
                     topicGeojsonFeatures.push({
                       topicId: topicId,
                       created: parsedMessage.created,
-                      msgNumber: parsedMessage.marker.data.numberOfMarker,
+                      msgNumber: markernumber,
                       type: "Feature",
                       payer: message.payer,
                       properties: {
@@ -3510,14 +3695,17 @@ if (rawResult && Array.isArray(rawResult)) {
                 if (!polygonOwner) {
                   continue;
                 }
-                const polygonnumber = parsedMessage.polygon.data.numberOfPolygon;
+                const legacyPolygonNumber = legacyShapeNumber(parsedMessage.polygon.data.numberOfPolygon);
 
                 if (parsedMessage.polygon.data.deletePolygonNumber) {
                   const deletePolygonNumber = parsedMessage.polygon.data.deletePolygonNumber;
                   polygonOwner.numberOfPolygon.push(deletePolygonNumber);
                 }
 
-                const polygonRing = (polygonnumber === undefined || polygonnumber === null || !Number.isInteger(Number(polygonnumber)))
+                const polygonnumber = legacyPolygonNumber == null
+                  ? (messageCreated(parsedMessage.created) || ('draw-' + index))
+                  : legacyPolygonNumber;
+                const polygonRing = legacyPolygonNumber === false
                   ? null
                   : polygonCoordinates(parsedMessage.polygon.data.cord);
 
@@ -3563,8 +3751,8 @@ if (rawResult && Array.isArray(rawResult)) {
                       topicPolygons.push({
                         topicId: topicId,
                         created: parsedMessage.created,
-                        msgNumber: parsedMessage.polygon.data.numberOfPolygon,
-                        id: `polygon-${message.payer}-${topicId}-${parsedMessage.polygon.data.numberOfPolygon}`,
+                        msgNumber: polygonnumber,
+                        id: `polygon-${message.payer}-${topicId}-${polygonnumber}`,
                         payer: message.payer,
                         coordinates: [coordinates],
                         popupData: polygonPopupData,
@@ -4110,7 +4298,7 @@ if (rawResult && Array.isArray(rawResult)) {
               });
 
               if (parsedMessage.marker && parsedMessage.marker.data) {
-                const markernumber = parsedMessage.marker.data.numberOfMarker;
+                const legacyNumber = legacyShapeNumber(parsedMessage.marker.data.numberOfMarker);
                 const markerOwner = markerOwnershipArray.find(owner => owner.payerId === message.payer);
                 if (!markerOwner) {
                   continue;
@@ -4121,7 +4309,11 @@ if (rawResult && Array.isArray(rawResult)) {
                   markerOwner.numberOfMarker.push(deleteMarkerNumber);
                 }
 
-                const markerCoords = (markernumber === undefined || markernumber === null || !Number.isInteger(Number(markernumber)))
+                // A stored whole number keeps dedup and delete. No number is a new post.
+                const markernumber = legacyNumber == null
+                  ? (messageCreated(parsedMessage.created) || ('draw-' + index))
+                  : legacyNumber;
+                const markerCoords = legacyNumber === false
                   ? null
                   : markerCoordinates(parsedMessage.marker.data.cord);
 
@@ -4167,7 +4359,7 @@ if (rawResult && Array.isArray(rawResult)) {
                     topicGeojsonFeatures.push({
                       topicId: topicId,
                       created: parsedMessage.created,
-                      msgNumber: parsedMessage.marker.data.numberOfMarker,
+                      msgNumber: markernumber,
                       type: "Feature",
                       payer: message.payer,
                       properties: {
@@ -4192,14 +4384,17 @@ if (rawResult && Array.isArray(rawResult)) {
                 if (!polygonOwner) {
                   continue;
                 }
-                const polygonnumber = parsedMessage.polygon.data.numberOfPolygon;
+                const legacyPolygonNumber = legacyShapeNumber(parsedMessage.polygon.data.numberOfPolygon);
 
                 if (parsedMessage.polygon.data.deletePolygonNumber) {
                   const deletePolygonNumber = parsedMessage.polygon.data.deletePolygonNumber;
                   polygonOwner.numberOfPolygon.push(deletePolygonNumber);
                 }
 
-                const polygonRing = (polygonnumber === undefined || polygonnumber === null || !Number.isInteger(Number(polygonnumber)))
+                const polygonnumber = legacyPolygonNumber == null
+                  ? (messageCreated(parsedMessage.created) || ('draw-' + index))
+                  : legacyPolygonNumber;
+                const polygonRing = legacyPolygonNumber === false
                   ? null
                   : polygonCoordinates(parsedMessage.polygon.data.cord);
 
@@ -4248,8 +4443,8 @@ if (rawResult && Array.isArray(rawResult)) {
                       topicPolygons.push({
                         topicId: topicId,
                         created: parsedMessage.created,
-                        msgNumber: parsedMessage.polygon.data.numberOfPolygon,
-                        id: `polygon-${message.payer}-${topicId}-${parsedMessage.polygon.data.numberOfPolygon}`,
+                        msgNumber: polygonnumber,
+                        id: `polygon-${message.payer}-${topicId}-${polygonnumber}`,
                         payer: message.payer,
                         coordinates: [coordinates],
                         popupData: polygonPopupData,

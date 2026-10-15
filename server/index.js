@@ -187,6 +187,17 @@ db.exec(`
     account_id TEXT NOT NULL,
     PRIMARY KEY (topic_id, account_id)
   );
+  -- One row per account that currently shares a post. stamp is the locale
+  -- string the phone sent (old shares). created is the post's ISO time
+  -- (new shares), so a count does not depend on the browser timezone.
+  CREATE TABLE IF NOT EXISTS shares (
+    topic_id TEXT NOT NULL,
+    stamp    TEXT NOT NULL,
+    payer    TEXT NOT NULL,
+    created  TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (topic_id, stamp, payer)
+  );
+  CREATE INDEX IF NOT EXISTS shares_created ON shares(topic_id, created);
 `);
 // settings_generation stays for the life of this database file. A new file
 // (a rebuilt cache) gets a new id so phones drop their copy and take the
@@ -392,6 +403,28 @@ const q = {
   getReaction: db.prepare(
     "SELECT kind FROM reactions WHERE topic_id = ? AND target_key = ? AND payer = ?"
   ),
+  // A repeat share from the same account replaces its row. An empty created
+  // must not wipe an ISO a newer message already stored.
+  upsertShare: db.prepare(`
+    INSERT INTO shares (topic_id, stamp, payer, created) VALUES (?, ?, ?, ?)
+    ON CONFLICT(topic_id, stamp, payer) DO UPDATE SET
+      created = CASE WHEN excluded.created != '' THEN excluded.created ELSE shares.created END
+  `),
+  deleteShareStamp: db.prepare(
+    "DELETE FROM shares WHERE topic_id = ? AND stamp = ? AND payer = ?"
+  ),
+  deleteShareCreated: db.prepare(
+    "DELETE FROM shares WHERE topic_id = ? AND payer = ? AND created = ? AND created != ''"
+  ),
+  countShares: db.prepare(`
+    SELECT COUNT(DISTINCT payer) AS n FROM shares
+    WHERE topic_id = ? AND (created = ? OR stamp = ?)
+  `),
+  myShare: db.prepare(`
+    SELECT 1 AS hit FROM shares
+    WHERE topic_id = ? AND payer = ? AND (created = ? OR stamp = ?)
+    LIMIT 1
+  `),
 };
 
 // Exactly the shape the app's getMessages() produces
@@ -588,8 +621,14 @@ function extractTopicIndex(topicId, payer, body, tsMs) {
   const created = new Date(tsMs).toISOString();
 
   const m = d.marker && d.marker.data;
-  if (m && typeof m.cord === "string" && Number.isInteger(Number(m.numberOfMarker))) {
-    q.insertMarkerIndex.run(topicId, m.cord, String(m.numberOfMarker), created);
+  const rawNumber = m && m.numberOfMarker;
+  const missingNumber = rawNumber == null || String(rawNumber).trim() === "";
+  const legacyNumber = !missingNumber && Number.isInteger(Number(rawNumber));
+  // Older markers are indexed by their number. New markers have no number,
+  // so the message time keeps that row unique. A bad number is still skipped.
+  if (m && typeof m.cord === "string" && (legacyNumber || missingNumber)) {
+    const numberKey = legacyNumber ? String(rawNumber) : created;
+    q.insertMarkerIndex.run(topicId, m.cord, numberKey, created);
     // Self-heal the 24h view: ANY marker message the backend sees becomes
     // live (last_seen = upload time, MAX keeps it from regressing). The app's
     // upload report stays a fast path, but a lost report can no longer hide
@@ -612,32 +651,80 @@ function extractTopicIndex(topicId, payer, body, tsMs) {
         image: (m.image && m.image[0]) || null,
         msg: m.msg || null,
         payer,
-        number: String(m.numberOfMarker),
+        number: numberKey,
         last_seen: tsMs,
       });
         if (!cached) geoQueue.add(geokey);
       }
     }
   }
-  if (d.unlikeMarker && d.unlikeMarker.timestamp && payer) {
-    q.deleteReaction.run(topicId, String(d.unlikeMarker.timestamp), payer);
-  } else if (d.likeMarker && d.likeMarker.timestamp && payer) {
-    q.upsertReaction.run(topicId, String(d.likeMarker.timestamp), payer, "like");
-  } else if (d.dislikeMarker && d.dislikeMarker.timestamp && payer) {
-    q.upsertReaction.run(topicId, String(d.dislikeMarker.timestamp), payer, "dislike");
+  applyContentReactions(topicId, payer, d, created);
+  applyShare(topicId, payer, d);
+}
+
+// Marker and polygon likes, comments, and replies share one table.
+// The phone keys both by the same locale timestamp string. One message
+// is one reaction: unlike wins over like, and marker wins over polygon
+// if a body somehow carries both.
+function applyContentReactions(topicId, payer, body, created) {
+  if (!payer) return;
+  const reactions = [
+    ["unlikeMarker", "unlike"],
+    ["likeMarker", "like"],
+    ["dislikeMarker", "dislike"],
+    ["unlikePolygon", "unlike"],
+    ["likePolygon", "like"],
+    ["dislikePolygon", "dislike"],
+  ];
+  for (const [field, kind] of reactions) {
+    const value = body[field];
+    if (!value || !value.timestamp) continue;
+    const key = String(value.timestamp);
+    if (kind === "unlike") q.deleteReaction.run(topicId, key, payer);
+    else q.upsertReaction.run(topicId, key, payer, kind);
+    break;
   }
-  if (d.commentMarker && d.commentMarker.timestamp && payer) {
+  const comment = (body.commentMarker && body.commentMarker.timestamp && body.commentMarker)
+    || (body.commentPolygon && body.commentPolygon.timestamp && body.commentPolygon);
+  if (comment) {
     q.insertComment.run(
-      topicId, String(d.commentMarker.timestamp), created, payer,
-      String(d.commentMarker.text || "").slice(0, 300), null
+      topicId, String(comment.timestamp), created, payer,
+      String(comment.text || "").slice(0, 300), null
     );
   }
-  if (d.replyMarker && d.replyMarker.parentId && payer) {
+  const reply = (body.replyMarker && body.replyMarker.parentId && body.replyMarker)
+    || (body.replyPolygon && body.replyPolygon.parentId && body.replyPolygon);
+  if (reply) {
     q.insertComment.run(
-      topicId, String(d.replyMarker.parentId), created, payer,
-      String(d.replyMarker.text || "").slice(0, 300), String(d.replyMarker.parentId)
+      topicId, String(reply.parentId), created, payer,
+      String(reply.text || "").slice(0, 300), String(reply.parentId)
     );
   }
+}
+
+// sharePost adds this account. unsharePost removes it. The latest message
+// wins because storePage walks oldest to newest. created is the post ISO
+// when the phone sent one; older messages only have the locale stamp.
+function isoCreated(value) {
+  if (typeof value !== "string" || value.length > 40) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString();
+}
+
+function applyShare(topicId, payer, body) {
+  if (!payer) return;
+  const dropping = body.unsharePost && body.unsharePost.timestamp;
+  const msg = dropping ? body.unsharePost : body.sharePost;
+  if (!msg || !msg.timestamp) return;
+  const stamp = String(msg.timestamp).slice(0, 80);
+  const created = isoCreated(msg.created);
+  if (dropping) {
+    q.deleteShareStamp.run(topicId, stamp, payer);
+    if (created) q.deleteShareCreated.run(topicId, payer, created);
+    return;
+  }
+  q.upsertShare.run(topicId, stamp, payer, created);
 }
 
 // One-time startup: rebuild the derived views from cached messages stored
@@ -656,6 +743,33 @@ function backfillDerived() {
   }
   db.prepare("INSERT INTO meta (key, value) VALUES ('derived_backfilled', '1')")
     .run();
+}
+
+// Shares and polygon reactions were added after derived_backfilled had
+// already run, so that flag will not walk the old rows again. This pass
+// only re-reads messages that can carry those keys.
+function backfillShares() {
+  const flag = db.prepare("SELECT value FROM meta WHERE key = 'shares_backfilled'").get();
+  if (flag) return;
+  const rows = db.prepare(
+    `SELECT topic_id, payer, body, ts FROM messages
+     WHERE body LIKE '%sharePost%'
+        OR body LIKE '%unsharePost%'
+        OR body LIKE '%likePolygon%'
+        OR body LIKE '%unlikePolygon%'
+        OR body LIKE '%dislikePolygon%'
+        OR body LIKE '%commentPolygon%'
+        OR body LIKE '%replyPolygon%'
+     ORDER BY topic_id ASC, seq ASC`
+  ).all();
+  for (const r of rows) {
+    try {
+      extractTopicIndex(r.topic_id, r.payer, r.body, Number(r.ts) * 1000);
+    } catch (err) {
+      console.error("share backfill skipped", r.topic_id, err.message);
+    }
+  }
+  db.prepare("INSERT INTO meta (key, value) VALUES ('shares_backfilled', '1')").run();
 }
 // Note: called below, after the geo section (it queues reverse-geocodes).
 
@@ -708,6 +822,18 @@ function markerReactions(topicId, createdISO) {
     likeCount: counts.get(markerKey + "|like") || 0,
     dislikeCount: counts.get(markerKey + "|dislike") || 0,
     comments: tree,
+  };
+}
+
+// One account once. created matches new share messages (ISO). stamp matches
+// older messages whose locale string is the Zagreb key the likes already use.
+function sharePicture(topicId, createdISO, account) {
+  const stamp = formatMarkerKey(createdISO);
+  const counted = q.countShares.get(topicId, createdISO, stamp);
+  const mine = account ? q.myShare.get(topicId, account, createdISO, stamp) : null;
+  return {
+    shares: counted ? Number(counted.n) || 0 : 0,
+    sharedByMe: !!mine,
   };
 }
 
@@ -828,6 +954,19 @@ async function pollTopic(topicId) {
   return newRows;
 }
 
+// The interval poller and a post lookup must not walk the same topic at
+// once. last_seq would otherwise move backwards between pages.
+const pollInflight = new Map();
+function pollTopicLocked(topicId) {
+  const current = pollInflight.get(topicId);
+  if (current) return current;
+  const run = pollTopic(topicId).finally(() => {
+    if (pollInflight.get(topicId) === run) pollInflight.delete(topicId);
+  });
+  pollInflight.set(topicId, run);
+  return run;
+}
+
 // Unconfirmed pending sends expire after PENDING_TTL_MS (the transaction
 // was dropped or never landed on the mirror) — the stream is told too, so
 // viewers drop the ⏳ bubble.
@@ -875,7 +1014,7 @@ setInterval(async () => {
         { interval: BASE_INTERVAL_MS, nextCheckAt: 0 };
       topicState.set(t.topic_id, st);
       if (Date.now() < st.nextCheckAt) continue; // not due yet
-      const newRows = await pollTopic(t.topic_id);
+      const newRows = await pollTopicLocked(t.topic_id);
       st.interval = newRows > 0
         ? BASE_INTERVAL_MS
         : Math.min(st.interval * 2, MAX_INTERVAL_MS);
@@ -939,6 +1078,7 @@ async function geoWorker() {
 // One-time derived-view backfill (needs the geo section above, since
 // marker discovery queues reverse-geocodes).
 backfillDerived();
+backfillShares();
 
 // Discovered markers (storePage) queue geokeys without a /api/marker kick —
 // a periodic sweep keeps the queue draining.
@@ -1114,20 +1254,75 @@ app.post("/api/popup-view", (req, res) => {
   res.json({ ok: true, views: row ? row.views : 1 });
 });
 
-// Topic names resolve from changeName messages (a scan of the topic);
-// the result is cached for the process life — names rarely change.
+// Topic names resolve from changeName messages (a scan of the topic).
+// A name is cached for the process life. An empty name is cached only
+// after the topic is fully mirrored and its memo is known, so a lookup
+// that ran before the messages existed does not stick as "".
 const topicNameCache = new Map();
 function topicNameFor(topicId) {
-  if (!topicNameCache.has(topicId)) topicNameCache.set(topicId, getTopicName(topicId));
-  return topicNameCache.get(topicId);
+  if (topicNameCache.has(topicId)) return topicNameCache.get(topicId);
+  const name = getTopicName(topicId) || "";
+  const topic = q.getTopic.get(topicId);
+  const settled = topic && topic.backfilled && topic.memo !== null;
+  if (name || settled) topicNameCache.set(topicId, name);
+  return name;
 }
 
-// The original post behind a shared pin: the pin message carries only
-// (topic, created) — the card is rebuilt live here. Every lookup is a
-// PK point/prefix query, so the cost is flat from 10K to 100M rows;
-// found=false means the topic is not mirrored in this cache (the app
-// keeps the snapshot the pin message carries).
-app.get("/api/post", (req, res) => {
+// The message whose ISO time is `created`. ts is nanoseconds; the index
+// narrows it to the millisecond the key carries.
+function findPostRow(topic, created) {
+  const ms = Date.parse(created);
+  if (!Number.isFinite(ms)) return null;
+  for (const r of q.msgsInWindow.all(
+    topic,
+    (ms / 1000 - 0.000001).toFixed(9),
+    ((ms + 1) / 1000 + 0.000001).toFixed(9)
+  )) {
+    if (new Date(Number(r.ts) * 1000).toISOString() === created) return r;
+  }
+  return null;
+}
+
+// A shared pin can name a topic this cache has never stored. Pull it from
+// the mirror until the post shows up, the topic is caught up, or the tick
+// cap is hit. A second lookup waits for the pull already in progress.
+const postPulls = new Map();
+async function pullUntilPost(topic, created) {
+  const running = postPulls.get(topic);
+  if (running) {
+    await running;
+    return findPostRow(topic, created);
+  }
+  const run = (async () => {
+    q.upsertTopic.run(topic, Date.now());
+    const memoPromise = fetchTopicMemo(topic);
+    let row = findPostRow(topic, created);
+    const existing = q.getTopic.get(topic);
+    if (!row && !(existing && existing.backfilled)) {
+      for (let tick = 0; tick < 15 && !row; tick++) {
+        const before = q.getTopic.get(topic);
+        const beforeSeq = before ? before.last_seq : 0;
+        await pollTopicLocked(topic);
+        row = findPostRow(topic, created);
+        const after = q.getTopic.get(topic);
+        if (!after || after.backfilled || after.last_seq === beforeSeq) break;
+      }
+    }
+    await memoPromise;
+    return row;
+  })();
+  postPulls.set(topic, run);
+  try {
+    return await run;
+  } finally {
+    if (postPulls.get(topic) === run) postPulls.delete(topic);
+  }
+}
+
+// The original post behind a shared pin. The pin carries the topic id and
+// the post's ISO time. This rebuilds the card: body, topic name, views,
+// hearts, comments, and how many accounts currently share it.
+app.get("/api/post", async (req, res) => {
   const topic = req.query.topic;
   const created = req.query.created;
   const account = typeof req.query.account === "string" ? req.query.account : "";
@@ -1140,83 +1335,82 @@ app.get("/api/post", (req, res) => {
   }
   const ms = Date.parse(created);
   if (!Number.isFinite(ms)) return res.status(400).json({ ok: false, error: "bad post" });
-  let row = null;
-  for (const r of q.msgsInWindow.all(
-    topic,
-    (ms / 1000 - 0.000001).toFixed(9),
-    ((ms + 1) / 1000 + 0.000001).toFixed(9)
-  )) {
-    if (new Date(Number(r.ts) * 1000).toISOString() === created) {
-      row = r;
-      break;
-    }
-  }
-  if (!row) return res.json({ ok: true, found: false });
-  let d;
   try {
-    d = JSON.parse(row.body);
-  } catch {
-    return res.json({ ok: true, found: false });
-  }
-  const data = (d.marker && d.marker.data) || (d.polygon && d.polygon.data) || null;
-  if (!data) return res.json({ ok: true, found: false });
-  const reactions = markerReactions(topic, created);
-  const viewRow = q.getPopupView.get(topic, created);
-  const myLike = account ? q.getReaction.get(topic, formatMarkerKey(created), account) : null;
-  // Which comment nodes does this account have liked — one IN query.
-  if (account) {
-    const ckeys = new Set();
-    const collect = (nodes) => {
-      for (const n of nodes) {
-        ckeys.add(n.created);
-        collect(n.replies || []);
-      }
-    };
-    collect(reactions.comments);
-    if (ckeys.size > 0) {
-      const ph = [...ckeys].map(() => "?").join(",");
-      const liked = new Set(
-        db
-          .prepare(
-            `SELECT target_key FROM reactions
-             WHERE topic_id = ? AND payer = ? AND kind = 'like' AND target_key IN (${ph})`
-          )
-          .all(topic, account, ...ckeys)
-          .map((r) => r.target_key)
-      );
-      const mark = (nodes) => {
+    let row = findPostRow(topic, created);
+    if (!row) row = await pullUntilPost(topic, created);
+    if (!row) return res.json({ ok: true, found: false });
+    let d;
+    try {
+      d = JSON.parse(row.body);
+    } catch {
+      return res.json({ ok: true, found: false });
+    }
+    const data = (d.marker && d.marker.data) || (d.polygon && d.polygon.data) || null;
+    if (!data) return res.json({ ok: true, found: false });
+    const reactions = markerReactions(topic, created);
+    const viewRow = q.getPopupView.get(topic, created);
+    const myLike = account ? q.getReaction.get(topic, formatMarkerKey(created), account) : null;
+    const picture = sharePicture(topic, created, account);
+    // Which comment nodes does this account have liked — one IN query.
+    if (account) {
+      const ckeys = new Set();
+      const collect = (nodes) => {
         for (const n of nodes) {
-          n.likedByMe = liked.has(n.created);
-          mark(n.replies || []);
+          ckeys.add(n.created);
+          collect(n.replies || []);
         }
       };
-      mark(reactions.comments);
+      collect(reactions.comments);
+      if (ckeys.size > 0) {
+        const ph = [...ckeys].map(() => "?").join(",");
+        const liked = new Set(
+          db
+            .prepare(
+              `SELECT target_key FROM reactions
+               WHERE topic_id = ? AND payer = ? AND kind = 'like' AND target_key IN (${ph})`
+            )
+            .all(topic, account, ...ckeys)
+            .map((r) => r.target_key)
+        );
+        const mark = (nodes) => {
+          for (const n of nodes) {
+            n.likedByMe = liked.has(n.created);
+            mark(n.replies || []);
+          }
+        };
+        mark(reactions.comments);
+      }
     }
+    res.json({
+      ok: true,
+      found: true,
+      topic,
+      created,
+      kind: d.marker ? "marker" : "polygon",
+      number: String(
+        data.numberOfMarker != null
+          ? data.numberOfMarker
+          : data.numberOfPolygon != null
+            ? data.numberOfPolygon
+            : ""
+      ),
+      title: String(data.title || ""),
+      image: data.image,
+      coverimage: data.coverimage,
+      msg: data.msg,
+      payer: row.payer,
+      topicName: topicNameFor(topic),
+      views: viewRow ? viewRow.views : 0,
+      likes: reactions.likeCount,
+      likedByMe: !!(myLike && myLike.kind === "like"),
+      shares: picture.shares,
+      sharedByMe: picture.sharedByMe,
+      comments: reactions.comments,
+    });
+  } catch (err) {
+    console.error("post lookup failed", err && err.message);
+    if (!res.headersSent) res.json({ ok: true, found: false });
   }
-  res.json({
-    ok: true,
-    found: true,
-    topic,
-    created,
-    kind: d.marker ? "marker" : "polygon",
-    number: String(
-      data.numberOfMarker != null
-        ? data.numberOfMarker
-        : data.numberOfPolygon != null
-          ? data.numberOfPolygon
-          : ""
-    ),
-    title: String(data.title || ""),
-    image: data.image,
-    coverimage: data.coverimage,
-    msg: data.msg,
-    payer: row.payer,
-    topicName: topicNameFor(topic),
-    views: viewRow ? viewRow.views : 0,
-    likes: reactions.likeCount,
-    likedByMe: !!(myLike && myLike.kind === "like"),
-    comments: reactions.comments,
-  });
 });
 
 // One follower per account on a topic. follow 1 adds, follow 0 removes.

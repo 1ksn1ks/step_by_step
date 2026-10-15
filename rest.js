@@ -17,9 +17,7 @@ import { connectedAccount, signer } from './web3';
 import { PrivateKey } from '@hashgraph/sdk';
 import { isValidUrl } from './ISVALIDURL.JS';
 import { toast } from './toast';
-import { nextDrawNumber } from './nextdrawnumber.js';
-import { initialTopicId } from './extracttopic.js';
-import { openDrawDatePicker, refreshFilterTimeButtons } from './drawdate.js';
+import { refreshFilterTimeButtons } from './drawdate.js';
 import { pendingChatImage, chatImageBusy, clearPendingChatImage } from './chatimage.js';
 import { stackedTopicRules } from './topicrules.js';
 import { adminsFromMemo, currentTopicBio, currentTopicName, currentStackedTopics, currentInitialXYZ } from './loadcurrenttopic.js';
@@ -1325,59 +1323,6 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
              }
  });
  
- function topicIdFromDrawField(fieldId) {
-  const typed = (document.getElementById(fieldId).value || '').trim().toLowerCase();
-  const userInput = typed || (document.getElementById('input-field').value || '').trim().toLowerCase() || initialTopicId;
-  if (!userInput) return '';
-  const domainEntry = loadedDomains.find(entry => entry.domain === userInput);
-  if (domainEntry && domainEntry.lastMessage && domainEntry.lastMessage.topic) {
-    return domainEntry.lastMessage.topic;
-  }
-  return userInput;
-}
-
-async function fillNextDrawNumber(kind) {
-  if (!connectedAccount) {
-    toast.error('Connect wallet first');
-    return;
-  }
-  const topicField = kind === 'polygon' ? 'input-field-3-0' : 'input-field-2-0';
-  const numberFieldId = kind === 'polygon' ? 'input-field-number-of-polygon' : 'input-field-number-of-marker';
-  const topicFieldEl = document.getElementById(topicField);
-  const topicId = topicIdFromDrawField(topicField);
-  if (!topicId || !String(topicId).startsWith('0.0.')) {
-    toast.error('Enter a topic first');
-    return;
-  }
-  if (!topicFieldEl.value.trim()) topicFieldEl.value = topicId;
-  try {
-    const result = await getMessages(topicId, { force: true });
-    const next = nextDrawNumber(result.messages, connectedAccount, kind);
-    const field = document.getElementById(numberFieldId);
-    field.value = String(next);
-    adjustTextareaHeight(field);
-  } catch (err) {
-    console.error('Next number failed:', err);
-    toast.error('Could not read your numbers on that topic');
-  }
-}
-
-document.getElementById('use-date-marker-number').addEventListener('click', () => {
-  openDrawDatePicker('marker');
-});
-
-document.getElementById('use-date-polygon-number').addEventListener('click', () => {
-  openDrawDatePicker('polygon');
-});
-
-document.getElementById('next-marker-number').addEventListener('click', () => {
-  fillNextDrawNumber('marker');
-});
-
-document.getElementById('next-polygon-number').addEventListener('click', () => {
-  fillNextDrawNumber('polygon');
-});
-
 document.getElementById("submit-button-Create_Marker").addEventListener("click", async () => {
      try {
        if (!signer) {
@@ -1400,19 +1345,13 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
        const cleanCoverimage = coverimage.replace(/\?network=mainnet$/, "");
        const msg = document.getElementById("input-field-2-2").value;
        const cord = document.getElementById("input-field-2-3").value;
-       const numberOfMarker = document.getElementById("input-field-number-of-marker").value;
- 
-             if (numberOfMarker === "" || !Number.isInteger(Number(numberOfMarker))) {
-           toast.error("Please enter a valid whole number for the Number of Marker.");
-           return;
-       }
- 
-       if (!numberOfMarker || !topicId || !cord) {
-             toast.error("Please fill in all required fields: Number of Marker, Topic ID, and Coordinates.");
+
+       if (!topicId || !cord) {
+             toast.error("Please fill in Topic ID and Coordinates.");
              return;
            }
  
-       const messageObj = {marker: {data: {title: title, image: [cleanUrl], coverimage: [cleanCoverimage], msg: msg, cord: cord, numberOfMarker: numberOfMarker }}};
+       const messageObj = {marker: {data: {title: title, image: [cleanUrl], coverimage: [cleanCoverimage], msg: msg, cord: cord }}};
        const message = JSON.stringify(messageObj);
 
        toast.info("Confirm in wallet 👛");
@@ -1421,7 +1360,7 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
          message
        );
        console.log('Receipt:', receipt);
-       reportMarker(topicId, cord, title, cleanUrl, msg, connectedAccount, numberOfMarker);
+       reportMarker(topicId, cord, title, cleanUrl, msg, connectedAccount);
      } catch (error) {
        console.error('Error submitting message:', error);
      }
@@ -1496,19 +1435,13 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
     const cleanCoverimage = coverimage.replace(/\?network=mainnet$/, "");
     const msg = document.getElementById("input-field-2-2").value;
     const cord = document.getElementById("input-field-2-3").value;
-    const numberOfMarker = document.getElementById("input-field-number-of-marker").value;
 
-          if (numberOfMarker === "" || !Number.isInteger(Number(numberOfMarker))) {
-        toast.error("Please enter a valid whole number for the Number of Marker.");
-        return;
-    }
-
-    if (!numberOfMarker || !topicId || !cord) {
-          toast.error("Please fill in all required fields: Number of Marker, Topic ID, and Coordinates.");
+    if (!topicId || !cord) {
+          toast.error("Please fill in Topic ID and Coordinates.");
           return;
         }
 
-    const messageObj = {marker: {data: {title: title, image: [cleanUrl], coverimage: [cleanCoverimage], msg: msg, cord: cord, numberOfMarker: numberOfMarker }}};
+    const messageObj = {marker: {data: {title: title, image: [cleanUrl], coverimage: [cleanCoverimage], msg: msg, cord: cord }}};
     const messageStringify = JSON.stringify(messageObj);
 
     console.log(messageStringify)
@@ -1520,57 +1453,13 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
     toast.info("Confirm in wallet 👛");
     const receipt = await sendMessage(topicId,message);
     console.log('Receipt:', receipt);
-    reportMarker(topicId, cord, title, cleanUrl, msg, connectedAccount, numberOfMarker);
+    reportMarker(topicId, cord, title, cleanUrl, msg, connectedAccount);
   } catch (error) {
     console.error('Error submitting message:', error);
   }
 });
 
 
- 
- document.getElementById("delete-marker-number").addEventListener("click", async () => {
-     try {
-       if (!signer) {
-         toast.error("Connect wallet first");
-         return;
-       }
-
-       let userInput = document.getElementById("input-field-2-0").value.toLowerCase();
-       let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
-       let topicId;
- 
-       if (domainEntry && domainEntry.lastMessage) {
-         topicId = domainEntry.lastMessage.topic;
-       } else {
-         topicId = userInput;
-       }
-       const oldMarkerNumber = document.getElementById("input-field-delete-marker-number").value;
- 
-             if (oldMarkerNumber === "" || !Number.isInteger(Number(oldMarkerNumber))) {
-           toast.error("Please enter a valid whole number for the Number of Marker.");
-           return;
-       }
- 
-       if (!oldMarkerNumber || !topicId) {
-             toast.error("Please fill in all required fields: Number of Marker, Topic ID");
-             return;
-           }
- 
-       const messageObj = {marker: {data: {deleteMarkerNumber: oldMarkerNumber}}};
-       const message = JSON.stringify(messageObj);
- 
-       toast.info("Confirm in wallet 👛");
-       const receipt = await sendMessage(
-         topicId,
-         message
-       );
-       console.log('Receipt:', receipt);
- 
- 
-     } catch (error) {
-       console.error('Error submitting message:', error);
-     }
- });
  
  document.getElementById("submit-button-Create_Polygon").addEventListener("click", async () => {
      try {
@@ -1593,17 +1482,11 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
        const coverimage = document.getElementById("input-field-coverimage-polygon").value;
        const cord1 = document.getElementById("input-field-3-3").value; // TOP LEFT
        const cord3 = document.getElementById("input-field-3-5").value; // BOTTOM RIGHT
-       const numberOfPolygon = document.getElementById("input-field-number-of-polygon").value;
        const cleanUrl = imageurl.replace(/\?network=mainnet$/, "");
        const cleanCoverimage = coverimage.replace(/\?network=mainnet$/, "");
  
-             if (numberOfPolygon === "" || !Number.isInteger(Number(numberOfPolygon))) {
-           toast.error("Please enter a valid whole number for the Number of Polygon.");
-           return;
-       }
- 
-       if (!numberOfPolygon || !topicId || !cord1 || !cord3) {
-             toast.error("Please fill in all required fields: Number of Polygon, Topic ID, and Coordinates.");
+       if (!topicId || !cord1 || !cord3) {
+             toast.error("Please fill in Topic ID and Coordinates.");
              return; // Stop the submission if any field is empty
            }
  
@@ -1642,8 +1525,7 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
              image: [cleanUrl],
              coverimage: [cleanCoverimage],
              msg: msg,
-             cord: cordString,
-             numberOfPolygon: numberOfPolygon
+             cord: cordString
            }
          }
        };
@@ -1729,17 +1611,11 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
     const coverimage = document.getElementById("input-field-coverimage-polygon").value;
     const cord1 = document.getElementById("input-field-3-3").value; // TOP LEFT
     const cord3 = document.getElementById("input-field-3-5").value; // BOTTOM RIGHT
-    const numberOfPolygon = document.getElementById("input-field-number-of-polygon").value;
     const cleanUrl = imageurl.replace(/\?network=mainnet$/, "");
     const cleanCoverimage = coverimage.replace(/\?network=mainnet$/, "");
 
-          if (numberOfPolygon === "" || !Number.isInteger(Number(numberOfPolygon))) {
-        toast.error("Please enter a valid whole number for the Number of Polygon.");
-        return;
-    }
-
-    if (!numberOfPolygon || !topicId || !cord1 || !cord3) {
-          toast.error("Please fill in all required fields: Number of Polygon, Topic ID, and Coordinates.");
+    if (!topicId || !cord1 || !cord3) {
+          toast.error("Please fill in Topic ID and Coordinates.");
           return; // Stop the submission if any field is empty
         }
 
@@ -1778,8 +1654,7 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
           image: [cleanUrl],
           coverimage: [cleanCoverimage],
           msg: msg,
-          cord: cordString,
-          numberOfPolygon: numberOfPolygon
+          cord: cordString
         }
       }
     };
@@ -1799,49 +1674,6 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
     console.error('Error submitting message:', error);
   }
 });
- 
- document.getElementById("delete-polygon-number").addEventListener("click", async () => {
-     try {
-       if (!signer) {
-         toast.error("Connect wallet first");
-         return;
-       }
-       let userInput = document.getElementById("input-field-3-0").value.toLowerCase();
-       let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
-       let topicId;
- 
-       if (domainEntry && domainEntry.lastMessage) {
-         topicId = domainEntry.lastMessage.topic;
-       } else {
-         topicId = userInput;
-       }
-       const oldPolygonNumber = document.getElementById("input-field-delete-polygon-number").value;
- 
-             if (oldPolygonNumber === "" || !Number.isInteger(Number(oldPolygonNumber))) {
-           toast.error("Please enter a valid whole number for the Number of Polygon.");
-           return;
-       }
- 
-       if (!oldPolygonNumber || !topicId) {
-             toast.error("Please fill in all required fields: Number of Polygon, Topic ID");
-             return;
-           }
- 
-       const messageObj = {polygon: {data: {deletePolygonNumber: oldPolygonNumber}}};
-       const message = JSON.stringify(messageObj);
- 
-       toast.info("Confirm in wallet 👛");
-       const receipt = await sendMessage(
-         topicId,
-         message
-       );
-       console.log('Receipt:', receipt);
- 
- 
-     } catch (error) {
-       console.error('Error submitting message:', error);
-     }
- });
  
  document.getElementById("button1").addEventListener("click", async (event) => {
          event.stopPropagation();
@@ -2032,9 +1864,22 @@ function profileTopicFromInput() {
 
 function showProfileTopic() {
   const label = document.getElementById("loaded-profile-topic");
+  const row = document.getElementById("profile-topic-status");
+  const clear = document.getElementById("clear-profile-topic");
   if (!label) return;
   const topic = connectedAccount && profileTopics[connectedAccount];
   label.textContent = topic ? topic : "No topic connected.";
+  if (row) row.classList.toggle("is-empty", !topic);
+  if (clear) clear.hidden = !topic;
+}
+
+async function clearConnectedTopic() {
+  try {
+    await removeProfileTopic();
+    showProfileTopic();
+  } catch (error) {
+    console.error("remove topic failed", error);
+  }
 }
 
 document.addEventListener("profiles-loaded", showProfileTopic);
@@ -2055,12 +1900,12 @@ document.getElementById("connect-profile-topic").addEventListener("click", async
 
 document.getElementById("remove-profile-topic").addEventListener("click", async (event) => {
   event.stopPropagation();
-  try {
-    await removeProfileTopic();
-    showProfileTopic();
-  } catch (error) {
-    console.error("remove topic failed", error);
-  }
+  await clearConnectedTopic();
+});
+
+document.getElementById("clear-profile-topic").addEventListener("click", async (event) => {
+  event.stopPropagation();
+  await clearConnectedTopic();
 });
 
 // Pin the account's Ed25519 public key to its connected topic. The E2EE chat

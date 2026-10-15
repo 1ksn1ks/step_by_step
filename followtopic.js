@@ -26,24 +26,6 @@ export function sharePin(value) {
   return null;
 }
 
-function shareText(value) {
-  if (Array.isArray(value)) return shareText(value[0]);
-  return typeof value === 'string' ? value : '';
-}
-
-function fitShare(payload) {
-  let body = JSON.stringify(payload);
-  if (body.length <= 1000) return body;
-  payload.share.msg = String(payload.share.msg || '').slice(0, 180);
-  body = JSON.stringify(payload);
-  if (body.length <= 1000) return body;
-  payload.share.image = '';
-  body = JSON.stringify(payload);
-  if (body.length <= 1000) return body;
-  payload.share.msg = String(payload.share.msg || '').slice(0, 40);
-  return JSON.stringify(payload);
-}
-
 function shareReady(source) {
   if (!signer || !connectedAccount) {
     toast.error('Connect wallet first');
@@ -67,22 +49,13 @@ function shareReady(source) {
 export async function confirmShare(source) {
   const ready = shareReady(source);
   if (!ready) return false;
-  // The pin carries the whole card: cover, topic name, and the views,
-  // hearts, and comments counts as they are when the share is sent.
+  // The pin is a pointer. The card is rebuilt from the original post.
   const payload = {
     share: {
       topic: source.topicId,
       created: source.created,
       payer: source.payer || '',
-      title: shareText(source.title).slice(0, 20),
-      msg: shareText(source.msg),
-      image: shareText(source.image),
-      cover: shareText(source.coverimage),
-      topicName: shareText(source.loadedTopicName),
-      views: Number.isFinite(source.views) ? source.views : '',
-      likes: Number.isFinite(source.likes) ? source.likes : '',
-      comments: Number.isFinite(source.commentsCount) ? source.commentsCount : '',
-      coords: ready.pin,
+      coords: source.coords,
       pin: ready.pin,
       number: source.number == null ? '' : String(source.number),
       kind: source.kind || 'marker',
@@ -90,13 +63,15 @@ export async function confirmShare(source) {
   };
   toast.info('Confirm in wallet 👛');
   try {
-    await sendMessage(ready.home, fitShare(payload));
+    await sendMessage(ready.home, JSON.stringify(payload));
   } catch (error) {
     console.error('share pin failed', error);
     return false;
   }
   try {
-    await sendMessage(source.topicId, JSON.stringify({ sharePost: { timestamp: source.timestamp } }));
+    await sendMessage(source.topicId, JSON.stringify({
+      sharePost: { timestamp: source.timestamp, created: source.created },
+    }));
   } catch (error) {
     console.error('share count failed', error);
     toast.error('Share count was not saved');
@@ -120,20 +95,30 @@ export async function unshareFromMyTopic(source) {
   }
   toast.info('Confirm in wallet 👛');
   try {
-    await sendMessage(source.topicId, JSON.stringify({ unsharePost: { timestamp: source.timestamp } }));
+    await sendMessage(source.topicId, JSON.stringify({
+      unsharePost: {
+        timestamp: source.timestamp,
+        created: source.created || '',
+      },
+    }));
   } catch (error) {
     console.error('unshare count failed', error);
     return false;
   }
   noteShare({ payer: connectedAccount, unsharePost: { timestamp: source.timestamp } }, source.topicId);
-  const home = profileTopics[connectedAccount];
-  if (home && source.created) {
+  // The share button drops the pin on the account's current topic. Settings
+  // delete passes the topic the pin was loaded from, which can be an older
+  // share on a different topic than the one connected now.
+  const pinTopic = source.pinTopic || profileTopics[connectedAccount];
+  if (pinTopic && source.created) {
     try {
-      await sendMessage(home, JSON.stringify({ unshare: { topic: source.topicId, created: source.created } }));
+      await sendMessage(pinTopic, JSON.stringify({ unshare: { topic: source.topicId, created: source.created } }));
     } catch (error) {
       console.error('unshare pin failed', error);
       toast.error('The pin is still on your topic');
-      return true;
+      // Settings delete must leave the pin on the map when this send fails.
+      // The share button still treats the dropped count as done.
+      return source.pinTopic ? false : true;
     }
   }
   toast.success('Share removed');

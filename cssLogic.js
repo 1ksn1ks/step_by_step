@@ -1286,44 +1286,6 @@ document.getElementById("hide-optional-settings-from-marker").addEventListener("
   showElements("show-topic-rules-from-marker");
 });
 
-document.getElementById("show-delete-marker-from-marker").addEventListener("click", () => {
-  showElements("delete-marker-from-marker", "hide-delete-marker-from-marker");
-  hideElements("show-delete-marker-from-marker");
-
-  hideElements(
-    "next-marker-number-row",
-    "input-field-2-3",
-    "input-field-2-1",
-    "input-field-2-2",
-    "char-counter-marker",
-    "marker-submit-buttons"
-  );
-
-  hideElements("optional-settings-from-marker", "hide-optional-settings-from-marker");
-  showElements("show-optional-settings-marker");
-
-  hideElements("loaded-topic-rules-from-marker", "hide-topic-rules-from-marker");
-  showElements("show-topic-rules-from-marker");
-});
-
-document.getElementById("hide-delete-marker-from-marker").addEventListener("click", () => {
-  hideElements("delete-marker-from-marker", "hide-delete-marker-from-marker");
-  showElements("show-delete-marker-from-marker");
-
-  showElements(
-    "input-field-2-3",
-    "input-field-2-1",
-    "input-field-2-2",
-    "char-counter-marker",
-  );
-
-  showElementsFlex(
-    "next-marker-number-row",
-    "marker-submit-buttons"
-  )
-
-});
-  
   document.getElementById("show-new-topic-from-create").addEventListener("click", (event) => {
     document.getElementById("new-topic-from-create").style.display = "block";
     document.getElementById("hide-new-topic-from-create").style.display = "block";
@@ -1466,42 +1428,6 @@ document.getElementById("hide-optional-settings-from-polygon").addEventListener(
   showElements("show-topic-rules-from-polygon");
 });
 
-document.getElementById("show-delete-polygon-from-polygon").addEventListener("click", () => {
-  showElements("delete-polygon-from-polygon", "hide-delete-polygon-from-polygon");
-  hideElements("show-delete-polygon-from-polygon");
-
-  hideElements(
-    "next-polygon-number-row",
-    "input-field-3-3",
-    "input-field-3-5",
-    "input-field-3-2",
-    "char-counter-polygon",
-    "polygon-submit-buttons"
-  );
-
-  hideElements("optional-settings-from-polygon", "hide-optional-settings-from-polygon");
-  showElements("show-optional-settings-polygon");
-
-  hideElements("loaded-topic-rules-from-polygon", "hide-topic-rules-from-polygon");
-  showElements("show-topic-rules-from-polygon");
-});
-
-document.getElementById("hide-delete-polygon-from-polygon").addEventListener("click", () => {
-  hideElements("delete-polygon-from-polygon", "hide-delete-polygon-from-polygon");
-  showElements("show-delete-polygon-from-polygon");
-
-  showElements(
-    "input-field-3-3",
-    "input-field-3-5",
-    "input-field-3-2",
-    "char-counter-polygon",
-  );
-  showElementsFlex(
-    "next-polygon-number-row",
-    "polygon-submit-buttons"
-  )
-});
-
 // ==================== UPDATE TOPIC (MEMO COLUMN) EVENT LISTENERS ====================
 // Pressing a ✅ opens only that panel and re-shows the other ✅ buttons
 
@@ -1629,6 +1555,8 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("edit-profile-username"),
     document.getElementById("edit-profile-click2link"),
     document.getElementById("edit-profile-bio"),
+    document.getElementById("edit-profile-topic"),
+    document.getElementById("edit-profile-public-key"),
   ];
 
   const insideEditProfileShowOptions = [
@@ -1636,6 +1564,8 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("show-username-from-edit-profile"),
     document.getElementById("show-click2link-from-edit-profile"),
     document.getElementById("show-bio-from-edit-profile"),
+    document.getElementById("show-topic-from-edit-profile"),
+    document.getElementById("show-public-key-from-edit-profile"),
   ];
 
 
@@ -1644,6 +1574,8 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("hide-username-from-edit-profile"),
     document.getElementById("hide-click2link-from-edit-profile"),
     document.getElementById("hide-bio-from-edit-profile"),
+    document.getElementById("hide-topic-from-edit-profile"),
+    document.getElementById("hide-public-key-from-edit-profile"),
   ];
   
   
@@ -1737,6 +1669,42 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("hide-bio-from-edit-profile").style.display = "none";
     document.getElementById("show-bio-from-edit-profile").style.display = "block";
     document.getElementById("edit-profile-bio").style.display = "none";
+  });
+
+  document.getElementById("show-topic-from-edit-profile").addEventListener("click", (event) => {
+    editProfileEverything()
+    editProfileShowOptions()
+    editProfileHideOptions()
+    document.getElementById("hide-topic-from-edit-profile").style.display = "block";
+    document.getElementById("show-topic-from-edit-profile").style.display = "none";
+    document.getElementById("edit-profile-topic").style.display = "block";
+  });
+
+  document.getElementById("hide-topic-from-edit-profile").addEventListener("click", (event) => {
+    editProfileEverything()
+    editProfileShowOptions()
+    editProfileHideOptions()
+    document.getElementById("hide-topic-from-edit-profile").style.display = "none";
+    document.getElementById("show-topic-from-edit-profile").style.display = "block";
+    document.getElementById("edit-profile-topic").style.display = "none";
+  });
+
+  document.getElementById("show-public-key-from-edit-profile").addEventListener("click", (event) => {
+    editProfileEverything()
+    editProfileShowOptions()
+    editProfileHideOptions()
+    document.getElementById("hide-public-key-from-edit-profile").style.display = "block";
+    document.getElementById("show-public-key-from-edit-profile").style.display = "none";
+    document.getElementById("edit-profile-public-key").style.display = "block";
+  });
+
+  document.getElementById("hide-public-key-from-edit-profile").addEventListener("click", (event) => {
+    editProfileEverything()
+    editProfileShowOptions()
+    editProfileHideOptions()
+    document.getElementById("hide-public-key-from-edit-profile").style.display = "none";
+    document.getElementById("show-public-key-from-edit-profile").style.display = "block";
+    document.getElementById("edit-profile-public-key").style.display = "none";
   });
   
   const allLoadColumns = [

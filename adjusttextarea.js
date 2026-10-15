@@ -3,9 +3,7 @@ export function adjustTextareaHeight(textarea) {
     // never by their content
     if (
       textarea.id === "messages-from-topic-chat" ||
-      textarea.id === "messages-from-encrypted-chat" ||
-      textarea.id === "input-field-number-of-marker" ||
-      textarea.id === "input-field-number-of-polygon"
+      textarea.id === "messages-from-encrypted-chat"
     ) return;
     textarea.style.height = ''; // Reset the height
     textarea.style.height = textarea.scrollHeight + 'px'; // Set it to the scroll height

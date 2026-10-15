@@ -77,15 +77,15 @@ export async function popupView(topicId, created, inc) {
 }
 
 // The original post behind a shared pin: body, topic name, views, hearts,
-// and the comment tree in one round trip. Each piece is a PK point/prefix
-// lookup on the backend, so the cost does not grow with the table size.
-// null = backend offline or the topic is not mirrored there — the caller
-// keeps the snapshot the pin message carries.
+// comments, and the live share count. The first lookup of a topic this
+// cache has never stored also pulls it from the mirror, so the wait is
+// longer than a plain read. null = backend offline or the post is not
+// there yet — the caller keeps the phone cache or the old pin snapshot.
 export async function fetchPost(topicId, created, account = "") {
   if (!topicId || !created) return null;
   try {
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 5000);
+    const t = setTimeout(() => ctrl.abort(), 20000);
     const res = await fetch(
       `${BACKEND_URL}/api/post?topic=${encodeURIComponent(topicId)}&created=${encodeURIComponent(created)}&account=${encodeURIComponent(account)}`,
       { signal: ctrl.signal }

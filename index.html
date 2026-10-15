@@ -173,7 +173,7 @@
             <li><b>Username</b> — enter a new name, then press Save.</li>
             <li><b>BIO</b> — set your profile bio; tapping a PFP shows it in Load.</li>
             <li><b>CLICK2LINK</b> — attach any URL to your username.</li>
-            <li><b>Your topic</b> — the topic connected to this account. Share posts land here. Followers follow this topic. Connect saves the topic id. Remove takes that connection off.</li>
+            <li><b>Your topic</b> — the topic connected to this account. Share posts land here. Followers follow this topic. Connect saves the topic id. The × next to a connected id takes that connection off.</li>
             <li><b>Public key</b> — pin your Ed25519 public key to your connected topic. Anyone can then send you an encrypted message just by your payer id.</li>
             <li><b>Preview</b> — the card updates as you change the picture, name, bio, and link.</li>
           </ul>
@@ -202,26 +202,6 @@
             <div id="profile-live-bio" class="profile-live-bio"></div>
           </div>
 
-          <div id="edit-profile-topic">
-            <div id="loaded-profile-topic">No topic connected.</div>
-            <textarea id="edit-profile-topic-input" placeholder="Topic ID"
-            class="toolbar-column" onclick="event.stopPropagation();"
-            ></textarea>
-            <div class="profile-topic-actions">
-              <button id="connect-profile-topic" class="toolbar-column-btns" type="button">Connect</button>
-              <button id="remove-profile-topic" class="toolbar-column-btns profile-topic-remove" type="button">Remove</button>
-            </div>
-          </div>
-
-          <div id="edit-profile-public-key">
-            <div id="edit-profile-key-note">People message you by payer id — your key is pinned to the topic connected above.</div>
-            <textarea type="text" id="edit-profile-public-key-input" placeholder="Ed25519 public key (hex)"
-            class="toolbar-column" onclick="event.stopPropagation();"
-            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
-            <button class="toolbar-column-btns" id="pin-profile-public-key" type="button">Pin to my topic</button>
-          </div>
-
           <div style="display: flex;">
             <button id="show-profile-picture-from-edit-profile" class="toolbar-column-first-settings-btns">Profile picture
             </button>
@@ -231,16 +211,24 @@
             </button>
             <button id="hide-username-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Username
             </button>
+            <button id="show-bio-from-edit-profile" class="toolbar-column-settings-btns">BIO
+            </button>
+            <button id="hide-bio-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">BIO
+            </button>
           </div>
 
           <div style="display: flex;">
-            <button id="show-bio-from-edit-profile" class="toolbar-column-first-settings-btns">BIO
+            <button id="show-click2link-from-edit-profile" class="toolbar-column-first-settings-btns">CLICK2LINK
             </button>
-            <button id="hide-bio-from-edit-profile" style="display: none;" class="toolbar-column-first-settings-btns">BIO
+            <button id="hide-click2link-from-edit-profile" style="display: none;" class="toolbar-column-first-settings-btns">CLICK2LINK
             </button>
-            <button id="show-click2link-from-edit-profile" class="toolbar-column-settings-btns">CLICK2LINK
+            <button id="show-topic-from-edit-profile" class="toolbar-column-settings-btns">Topic
             </button>
-            <button id="hide-click2link-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">CLICK2LINK
+            <button id="hide-topic-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Topic
+            </button>
+            <button id="show-public-key-from-edit-profile" class="toolbar-column-settings-btns">Public key
+            </button>
+            <button id="hide-public-key-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Public key
             </button>
           </div>
       
@@ -300,6 +288,29 @@
             </div>
             <button class="toolbar-column-btns" id="button_for_bio">BIO
             </button>
+          </div>
+
+          <div id="edit-profile-topic" style="display: none;">
+            <div id="profile-topic-status" class="is-empty">
+              <div id="loaded-profile-topic">No topic connected.</div>
+              <button id="clear-profile-topic" class="profile-topic-clear" type="button" hidden aria-label="Remove connected topic">×</button>
+            </div>
+            <textarea id="edit-profile-topic-input" placeholder="Topic ID"
+            class="toolbar-column" onclick="event.stopPropagation();"
+            ></textarea>
+            <div class="profile-topic-actions">
+              <button id="connect-profile-topic" class="toolbar-column-btns" type="button">Connect</button>
+              <button id="remove-profile-topic" class="toolbar-column-btns profile-topic-remove" type="button">Remove</button>
+            </div>
+          </div>
+
+          <div id="edit-profile-public-key" style="display: none;">
+            <div id="edit-profile-key-note">People message you by payer id — your key is pinned to your connected topic.</div>
+            <textarea type="text" id="edit-profile-public-key-input" placeholder="Ed25519 public key (hex)"
+            class="toolbar-column" onclick="event.stopPropagation();"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <button class="toolbar-column-btns" id="pin-profile-public-key" type="button">Pin to my topic</button>
           </div>
       
         </div>
@@ -677,10 +688,8 @@
             <li>Draw markers and polygons. Some topics require NFTs — check the topic's Rules.</li>
             <li>Need a topic? TOOLBAR → Create.</li>
             <li><b>Domain/Topic ID</b> — where the shape's data is stored.</li>
-            <li><b>Number</b> — reference ID to edit or delete the shape later. Use date opens a calendar already set to the current date and time. One press keeps that, or pick another. The number is saved as yyyymmddhhmm. Next number fills one higher than the highest short number you already used on this topic. Short numbers have fewer than 10 characters, so date numbers are skipped. The first one is 1.</li>
             <li><b>Coordinates</b> — where the shape sits on the map.</li>
             <li><b>Optional settings</b> — cover photo, title, image URL, and popup message when pressed.</li>
-            <li><b>Delete</b> — remove a shape by its Number and Domain/Topic ID.</li>
           </ul>
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('map-draw-help-overlay').style.display='none'">Got it</button>
@@ -711,13 +720,6 @@
           <textarea class="toolbar-column" type="text" id="input-field-2-0" placeholder="Domain/Topic ID"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
-          <div id="next-marker-number-row" style="display: flex; flex-direction: row; flex-wrap: nowrap; width: 100%; gap: 1vw; align-items: center;">
-          <button type="button" id="use-date-marker-number" class="toolbar-column-btns" style="width: auto; flex: 0 0 auto; white-space: nowrap; padding: 0 1.4vh;">Use date</button>
-          <textarea class="toolbar-column draw-number-field" id="input-field-number-of-marker" placeholder="Number of marker"
-          style="flex: 1; min-width: 0; width: auto;"
-          ></textarea>
-          <button type="button" id="next-marker-number" class="toolbar-column-btns" style="width: auto; flex: 0 0 auto; white-space: nowrap; padding: 0 1.4vh;">Next number</button>
-          </div>
           <textarea class="toolbar-column" type="text" id="input-field-2-3" placeholder="Coordinates long,lat"
           oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';" onclick="event.stopPropagation();"
           ></textarea>
@@ -731,10 +733,6 @@
             <button id="show-optional-settings-marker" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional ✅
             </button>
             <button id="hide-optional-settings-from-marker" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional ⛔
-            </button>
-            <button id="show-delete-marker-from-marker" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Delete ✅
-            </button>
-            <button id="hide-delete-marker-from-marker" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Delete ⛔
             </button>
           </div>
       
@@ -798,18 +796,6 @@
           </button>
           </div>
       
-          <div id="delete-marker-from-marker" style="display: none;">
-          <div style="display: flex; flex-direction: row; width: 100%; gap: 1vw;">
-            <textarea class="toolbar-column" type="text" id="input-field-delete-marker-number" placeholder="Number of marker"
-            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
-            <button id="delete-marker-number" class="toolbar-column-btns">
-            Delete marker number
-            </button>
-          </div>
-          </div>
-      
-      
         </div>
       
         <div id="polygon-column-container" style="display: none;">
@@ -817,13 +803,6 @@
           <textarea class="toolbar-column" type="text" id="input-field-3-0" placeholder="Domain/Topic ID"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
-          <div id="next-polygon-number-row" style="display: flex; flex-direction: row; flex-wrap: nowrap; width: 100%; gap: 1vw; align-items: center;">
-          <button type="button" id="use-date-polygon-number" class="toolbar-column-btns" style="width: auto; flex: 0 0 auto; white-space: nowrap; padding: 0 1.4vh;">Use date</button>
-          <textarea class="toolbar-column draw-number-field" id="input-field-number-of-polygon" placeholder="Number of polygon"
-          style="flex: 1; min-width: 0; width: auto;"
-          ></textarea>
-          <button type="button" id="next-polygon-number" class="toolbar-column-btns" style="width: auto; flex: 0 0 auto; white-space: nowrap; padding: 0 1.4vh;">Next number</button>
-          </div>
           <textarea class="toolbar-column" type="text" id="input-field-3-3" placeholder="TOP LEFT long,lat"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
@@ -840,10 +819,6 @@
             <button id="show-optional-settings-polygon" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional ✅
             </button>
             <button id="hide-optional-settings-from-polygon" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Optional ⛔
-            </button>
-            <button id="show-delete-polygon-from-polygon" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Delete ✅
-            </button>
-            <button id="hide-delete-polygon-from-polygon" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Delete ⛔
             </button>
           </div>
           
@@ -905,17 +880,6 @@
           </button>
         </div>
       
-        <div id="delete-polygon-from-polygon" style="display: none;">
-          <div style="display: flex; flex-direction: row; width: 100%; gap: 1vw;">
-            <textarea class="toolbar-column" type="text" id="input-field-delete-polygon-number" placeholder="Number of polygon"
-            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
-            <button id="delete-polygon-number" class="toolbar-column-btns">
-            Delete polygon number
-            </button>
-          </div>
-        </div>
-            
         </div>
 
       </div>
@@ -1546,7 +1510,7 @@
         <div class="options-column-title">🔒 E2EE CHAT</div>
 
         <div id="encrypted-chat-private-key-container">
-          <textarea class="toolbar-column" type="text" id="encrypted-chat-private-key" placeholder="Unlock with Private Key / password"
+          <textarea class="toolbar-column secret-entry" type="text" id="encrypted-chat-private-key" placeholder="Unlock with Private Key / password" spellcheck="false" autocomplete="off" autocapitalize="off"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
         </div>
@@ -1609,14 +1573,14 @@
         <div id="encrypted-chat-change-password-key-label" style="display: none;">
           <label style="font-size: 2vh; padding: 0px;">Private key</label>
         </div>
-        <textarea class="toolbar-column" type="text" id="encrypted-chat-change-password-key" placeholder="Private key" style="display: none;"
+        <textarea class="toolbar-column secret-entry" type="text" id="encrypted-chat-change-password-key" placeholder="Private key" spellcheck="false" autocomplete="off" autocapitalize="off" style="display: none;"
         onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
         ></textarea>
 
         <div id="encrypted-chat-new-password-key-label" style="display: none;">
           <label style="font-size: 2vh; padding: 0px;">Password</label>
         </div>
-        <textarea class="toolbar-column" type="text" id="encrypted-chat-new-password-key" placeholder="Password" style="display: none;"
+        <textarea class="toolbar-column secret-entry" type="text" id="encrypted-chat-new-password-key" placeholder="Password" spellcheck="false" autocomplete="off" autocapitalize="off" style="display: none;"
         onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
         ></textarea>
 
@@ -2014,16 +1978,30 @@
       
       <div id="popup-settings-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 1002;" onclick="window.openPopupSettings();"></div>
 
-      <div id="popup-settings-card" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(90vw, 60vh); max-height: 75vh; overflow-y: auto; z-index: 1003; background-color: rgba(15, 15, 20, 0.90); color: white; box-sizing: border-box; touch-action: auto; padding: 1.4vh 1.4vw;">
+      <div id="popup-settings-card" style="display: none; z-index: 1003; background-color: rgba(15, 15, 20, 0.90); color: white; box-sizing: border-box; padding: 1.4vh 1.4vw;">
         <div class="options-column-title">💬 POPUP</div>
 
+      <div id="popup-settings-tools" onclick="event.stopPropagation();">
+        <div class="popup-settings-row">
+          <div id="popup-settings-preview-toggle" class="toolbar-column-btns">Preview</div>
+        </div>
+        <div class="popup-settings-label">Prev / next</div>
+        <div class="popup-settings-row">
+          <div id="popup-pager-account" class="toolbar-column-btns is-on">Same account</div>
+          <div id="popup-pager-time" class="toolbar-column-btns">By time</div>
+          <div id="popup-pager-random" class="toolbar-column-btns">Random</div>
+        </div>
+        <div id="popup-settings-delete" class="toolbar-column-btns" style="display: none;">Delete</div>
+      </div>
+
       <!-- Dummy popup: same classes as the real one, so every picker change
-           shows up here instantly while the real popup stays hidden -->
-      <div id="popup-settings-preview" class="maplibregl-popup">
+           shows up here instantly while the real popup stays hidden.
+           It stays behind the Preview button until that button is pressed. -->
+      <div id="popup-settings-preview" class="maplibregl-popup" style="display: none;">
         <button type="button" class="maplibregl-popup-close-button" tabindex="-1">&times;</button>
         <div class="maplibregl-popup-content">
+          <div class="popup-sheet">
           <div class="popup-top-row">
-            <div class="number popup-top-id">256</div>
             <span class="popup-icon-chip">⚙️</span>
           </div>
           <div class="popup-profile-bubble">
@@ -2035,19 +2013,19 @@
               </h2>
             </div>
           </div>
-          <div style="text-align: center;">
-            <div style="display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: calc(var(--u) * 0.25);">
-              <span class="popup-icon-chip">←</span>
-              <div style="text-align: center; flex-grow: 1;">
-                <strong class="title_color popup-title-bubble">message title</strong>
-              </div>
-              <span class="popup-icon-chip">→</span>
+          <div class="popup-nav">
+            <span class="popup-icon-chip">←</span>
+            <div style="text-align: center; flex-grow: 1;">
+              <strong class="title_color popup-title-bubble">message title</strong>
             </div>
-            <div>
-              <p class="text_color popup-text-bubble">message text</p>
-            </div>
+            <span class="popup-icon-chip">→</span>
           </div>
-          <div style="position: relative; height: calc(var(--u) * 6.2); line-height: 1; margin-top: calc(var(--u) * 0.4); overflow: visible;">
+          <div class="popup-body" style="text-align: center;">
+            <div class="popup-media-card"><img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Crect width='8' height='8' fill='%233a4154'/%3E%3C/svg%3E"></div>
+            <p class="text_color popup-text-bubble">message text</p>
+          </div>
+          <div class="popup-gap"></div>
+          <div class="popup-dock" style="position: relative; height: calc(var(--u) * 6.2); line-height: 1; margin-top: calc(var(--u) * 0.4);">
             <div style="position: absolute; top: calc(var(--u) * 0.15); left: 50%; transform: translateX(-50%); display: flex; align-items: flex-start; gap: calc(var(--u) * 0.5);">
               <div class="heart-like">
                 <input type="checkbox" id="preview-heart-like" disabled>
@@ -2063,20 +2041,21 @@
               </div>
             </div>
           </div>
-          <div style="position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: 0; margin-left: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);">
+          <div class="popup-dock" style="position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: 0; margin-left: calc(var(--u) * -0.5); margin-right: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);">
             <span class="popup-top-topic" style="max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis;">0.0.9609912 Freedom</span>
-            <span class="popup-timestamp" style="margin-left: auto; margin-right: calc(var(--u) * -0.5); flex-shrink: 0;">10/10/2026, 21:35</span>
+            <span class="popup-timestamp" style="margin-left: auto; flex-shrink: 0;">10/10/2026, 21:35</span>
+          </div>
           </div>
         </div>
       </div>
-      <div id="popup-column-2" style="width: 100%;">
+      <div id="popup-column-2" style="display: none; width: 100%;">
         <div id="popup-column-container-2" onclick="event.stopPropagation();">
       
           <div style="top:10vh">
           <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
           <div id="popup-column-2-border" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Border
           </div>
-          <div id="popup-column-2-number" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">Number
+          <div id="popup-column-2-number" class="toolbar-column-btns" style="display: none; text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">Number
           </div>
           <div id="popup-column-2-close" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">Close
           </div>

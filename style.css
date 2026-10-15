@@ -1,13 +1,15 @@
 
-/* Registered lengths so the popup fitter can read 96dvw / 96dvh in pixels. */
+/* These stay registered as lengths. They must inherit: the fitter writes
+   them on the page, and a popup that cannot inherit --popup-max-h
+   falls back to 0px and disappears. */
 @property --popup-max-w {
   syntax: "<length>";
-  inherits: false;
+  inherits: true;
   initial-value: 0px;
 }
 @property --popup-max-h {
   syntax: "<length>";
-  inherits: false;
+  inherits: true;
   initial-value: 0px;
 }
 
@@ -391,6 +393,12 @@ html, body {
     min-height: 0;
     display: flex;
     flex-direction: column;
+  }
+
+  /* Private key and password stay masked. The value is unchanged for unlock. */
+  .secret-entry {
+    -webkit-text-security: disc;
+    text-security: disc;
   }
 
   #messages-from-topic-chat,
@@ -1793,26 +1801,36 @@ html, body {
       background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' fill='%23ff6b52' viewBox='0 0 20 20'%3E%3Cpath d='M10 4C9 4 9 5 9 5v.1A5 5 0 0 0 5.1 9H5s-1 0-1 1 1 1 1 1h.1A5 5 0 0 0 9 14.9v.1s0 1 1 1 1-1 1-1v-.1a5 5 0 0 0 3.9-3.9h.1s1 0 1-1-1-1-1-1h-.1A5 5 0 0 0 11 5.1V5s0-1-1-1m0 2.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 1 1 0-7'/%3E%3C/svg%3E");
   }
 
+  /* One frame for every popup and for the popup settings card.
+     The top edge is the bottom of OPTIONS / TOPIC CHAT / E2EE CHAT.
+     popupanim.js writes the four variables from that row and the
+     visible screen. Content scrolls inside; the frame does not grow. */
+  :root {
+    --chrome-bottom: 10dvh;
+    --popup-gap: 1.2dvh;
+    --popup-card: min(90dvw, 70dvh);
+    --popup-max-h: calc(100dvh - var(--chrome-bottom) - (2 * var(--popup-gap)));
+  }
+
   .maplibregl-popup {
     position: fixed !important;
-    top: 50% !important;
+    top: calc(var(--chrome-bottom) + var(--popup-gap)) !important;
     left: 50% !important;
-    transform: translate(-50%, -50%) !important;
+    transform: translateX(-50%) !important;
+    /* Not !important: the settings sample uses this class and hides
+       with an inline display until Preview is pressed. */
+    display: flex;
+    flex-direction: column !important;
 
-    /* One size for every device. dvw/dvh follow the visible screen.
-       --u is 1% of that card the way 1vh used to be on a phone, so the
-       content box and every chip inside it scale together.
-       Height follows the content (no inner scroll). --fit shrinks --u
-       and the width together only when that content would pass 96dvw / 96dvh. */
-    --card: min(90dvw, 70dvh);
+    /* --u is 1% of the card the way 1vh used to be on a phone, so the
+       content box and every chip inside it scale together. */
+    --card: var(--popup-card);
     --u: calc(var(--card) * 0.024 * var(--fit));
     --fit: 1;
-    --popup-max-w: 96dvw;
-    --popup-max-h: 96dvh;
-    width: calc(var(--card) * var(--fit)) !important;
-    max-width: calc(var(--card) * var(--fit)) !important;
-    max-height: none !important;
-    height: auto !important;
+    width: var(--popup-card) !important;
+    max-width: var(--popup-card) !important;
+    height: var(--popup-max-h) !important;
+    max-height: var(--popup-max-h) !important;
 
     box-sizing: border-box !important;
     font: calc(var(--u) * 2) / calc(var(--u) * 3) 'Helvetica Neue', Arial, Helvetica, sans-serif;
@@ -1834,8 +1852,21 @@ html, body {
    card's inner width. */
 #popup-settings-card {
     container-type: inline-size;
+    position: fixed !important;
+    top: calc(var(--chrome-bottom) + var(--popup-gap)) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: var(--popup-card) !important;
+    max-width: var(--popup-card) !important;
+    height: var(--popup-max-h) !important;
+    max-height: var(--popup-max-h) !important;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-sizing: border-box !important;
+    touch-action: pan-y;
     /* Same frame as a map popup. The dummy inside still sizes from 100cqi. */
-    --card: min(90dvw, 70dvh);
+    --card: var(--popup-card);
     --fit: 1;
     --u: calc(var(--card) * 0.024 * var(--fit));
     border: calc(var(--u) * 0.3) solid #ffffff;
@@ -1845,7 +1876,9 @@ html, body {
     position: relative !important;
     top: auto !important;
     left: auto !important;
+    bottom: auto !important;
     transform: none !important;
+    height: auto !important;
     --card: 100cqi;
     width: 100% !important;
     max-width: 100% !important;
@@ -1853,9 +1886,63 @@ html, body {
     z-index: auto !important;
     margin-bottom: calc(var(--u) * 2);
 }
+#popup-settings-card .maplibregl-popup-content {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    flex: none;
+}
+#popup-settings-card .maplibregl-popup-content > :not(.maplibregl-popup-close-button),
+#popup-settings-card .popup-sheet,
+#popup-settings-card .popup-body {
+    flex: none !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
 #popup-settings-card .maplibregl-popup,
 #popup-settings-card .maplibregl-popup * {
     pointer-events: none !important;
+}
+.popup-settings-label {
+    font-size: 1.4vh;
+    letter-spacing: 0.08em;
+    opacity: 0.75;
+    margin: 0.2vh 0 0.3vh;
+}
+.popup-settings-row {
+    display: flex;
+    gap: 0.6vh;
+    margin: 0.2vh 0 0.8vh;
+}
+#popup-settings-tools .toolbar-column-btns {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+    height: auto;
+    min-height: 4.4vh;
+    margin-bottom: 0;
+    padding: 0.6vh 0.5vh;
+    font-size: 1.5vh;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+    cursor: pointer;
+    animation: none;
+}
+#popup-settings-tools .toolbar-column-btns.is-on {
+    background-color: rgba(255, 255, 255, 0.22);
+    border-color: rgba(255, 255, 255, 0.9);
+}
+#popup-settings-delete {
+    flex: none;
+    width: 100%;
+    margin-top: 0.2vh;
+    border-color: rgba(255, 90, 90, 0.75);
+    color: #ffc9c9;
 }
 
 @keyframes popupIn {
@@ -1906,11 +1993,86 @@ html, body {
     max-width: 100% !important;
     box-sizing: border-box !important;
 
-    /* Grow with the message. clip keeps the rounded corners and does not scroll.
-       The shell's --fit keeps the card on screen. */
-    max-height: none !important;
+    /* The shell is a fixed frame. The post itself scrolls; the × stays
+       on the frame because it lives in this box, not in the scroller. */
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 100% !important;
     height: auto !important;
-    overflow: clip !important;
+    overflow: hidden !important;
+    position: relative;
+}
+
+/* Comments modal still scrolls its own section. The post sheet does not:
+   an overflow-x clip here cuts the -0.5u side inset off the round chips. */
+.maplibregl-popup-content > :not(.maplibregl-popup-close-button):not(.popup-sheet) {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+}
+
+/* Gear, profile, and the title row stay at the top. A picture sits under
+   the title. Spare room sits above the hearts, so a short post keeps the
+   hearts and the topic on the bottom of the frame. A long post scrolls
+   only the picture and the text. */
+.maplibregl-popup-content > .popup-sheet {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    height: 100%;
+    min-height: 0;
+    overflow: visible;
+    touch-action: pan-y;
+}
+
+.popup-body {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+}
+
+.popup-nav,
+.popup-dock,
+.popup-top-row,
+.popup-profile-bubble {
+    flex: 0 0 auto;
+    overflow: visible;
+}
+
+/* Same 0.1u side inset as the gear and the topic pill. Content padding
+   is 0.6u, so -0.5u pulls the arrow circles out of that pad. */
+.popup-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    /* Sits on the profile. The side inset clears the content pad. */
+    margin: 0 calc(var(--u) * -0.5) calc(var(--u) * 0.25);
+}
+
+/* Takes the spare room so the hearts and the topic stay on the bottom.
+   The title and the picture stay above it. */
+.popup-gap {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.popup-body,
+.popup-body * {
+    touch-action: pan-y;
+}
+
+#popup-settings-card,
+#popup-settings-card * {
+    touch-action: pan-y;
 }
 
   .maplibregl-popup-content::-webkit-scrollbar {
@@ -2137,17 +2299,82 @@ html, body {
     flex: 1;
   }
 
-  .profile-topic-actions .profile-topic-remove {
-    color: #f07178;
-    border-color: rgba(240, 113, 120, 0.55);
+  .profile-topic-actions .profile-topic-remove,
+  #remove-profile-topic {
+    display: none;
+  }
+
+  #profile-topic-status {
+    display: flex;
+    align-items: center;
+    gap: 0.8vh;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0.2vh auto 0.8vh;
+    min-height: 4.2vh;
+    padding: 0.55vh 0.7vh 0.55vh 1.3vh;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 0.12vh solid rgba(34, 211, 238, 0.4);
+  }
+
+  #profile-topic-status.is-empty {
+    justify-content: center;
+    padding-right: 1.3vh;
+    border-color: rgba(255, 255, 255, 0.16);
   }
 
   #loaded-profile-topic {
+    flex: 0 0 auto;
     font-size: 1.7vh;
+    font-weight: 650;
     color: #22d3ee;
-    text-align: center;
-    padding: 0.3vh 0 0.6vh;
+    text-align: left;
+    padding: 0;
     word-break: break-all;
+    user-select: text;
+  }
+
+  #profile-topic-status.is-empty #loaded-profile-topic {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.45);
+    font-weight: 500;
+  }
+
+  .profile-topic-clear {
+    appearance: none;
+    -webkit-appearance: none;
+    flex: 0 0 auto;
+    width: 3vh;
+    height: 3vh;
+    margin: 0;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(240, 113, 120, 0.7);
+    background: rgba(240, 113, 120, 0.14);
+    color: #f07178;
+    font-family: inherit;
+    font-size: 1.7vh;
+    font-weight: 700;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .profile-topic-clear[hidden] {
+    display: none;
+  }
+
+  .profile-topic-clear:hover {
+    transform: scale(1.08);
+    background: rgba(240, 113, 120, 0.28);
+    color: #fff;
+  }
+
+  .profile-topic-clear:active {
+    transform: scale(0.94);
   }
 
   #edit-profile-public-key {

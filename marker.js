@@ -340,7 +340,7 @@ function createKeptMarker(cluster, key) {
       if (el.dataset.holdTitle === '1') return;
       hideMarkerTitle();
       const current = entry.feature;
-      const node = markerPopupNode(current.properties);
+      const node = markerPopupNode(current.properties, current);
       if (!node) return;
       activePolygonPopups.forEach((popup) => popup.remove());
       activeMarkerPopups.forEach((popup) => popup.remove());

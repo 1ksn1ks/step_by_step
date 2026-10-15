@@ -137,7 +137,7 @@ export async function openLinkedPlace(href) {
     } else {
       const marker = findMarker(place);
       const lngLat = (marker && marker.geometry && marker.geometry.coordinates) || place.point;
-      const markerCard = marker && marker.properties && markerPopupNode(marker.properties);
+      const markerCard = marker && marker.properties && markerPopupNode(marker.properties, marker);
       if (markerCard && lngLat) {
         showPopup(lngLat, markerCard, activeMarkerPopups, MARKER_ZOOM);
         return;

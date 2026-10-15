@@ -39,6 +39,15 @@ export function shareState(topicId, timestamp, account) {
   return { count, mine: !!(account && row.get(account) === 'sharePost') };
 }
 
+// null: this account has no share or unshare for that post in this visit.
+// true or false: the latest message from this account, including one the
+// wallet just confirmed and the server has not mirrored yet.
+export function shareMine(topicId, timestamp, account) {
+  const row = sharePayers.get(shareKey(topicId, timestamp));
+  if (!row || !account || !row.has(account)) return null;
+  return row.get(account) === 'sharePost';
+}
+
 // Pin walk is newest first. The first share or unshare for a key decides.
 // An older message does not put the pin back or add a second one.
 export function takeSharePin(decisions, features, key, feature) {

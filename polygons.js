@@ -375,6 +375,13 @@ function coverInView(corners, st) {
   return false;
 }
 
+export function dropPolygonCover(polygonId) {
+  if (!polygonId) return;
+  const cov = mediaCovers.get(polygonId + '-source');
+  if (cov) detachCover(cov);
+  addedLayers.delete(polygonId + '-mask-layer');
+}
+
 function detachCover(cov) {
   if (!cov) return;
   if (cov.video) {
