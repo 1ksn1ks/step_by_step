@@ -2236,14 +2236,24 @@ html, body {
     font-weight: 700;
   }
 
-  /* Title — its own pill */
+  /* Title — its own pill, stretched to fill the row with a small gap
+     from the arrow chips. Margins sit outside the width, so the width
+     must give back both margins or the pill slides under the chips. */
   .popup-title-bubble {
-    display: inline-block;
+    display: block;
+    width: calc(100% - var(--u));
+    box-sizing: border-box;
+    margin: 0 calc(var(--u) * 0.5);
     padding: calc(var(--u) * 0.35) calc(var(--u) * 1.5);
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.10);
     border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
     box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.35);
+  }
+  /* No text typed → the pill has no line box and collapses to a flat line.
+     One invisible space forces the same single-line height as a titled pill. */
+  .popup-title-bubble:empty::before {
+    content: '\00a0';
   }
 
   /* Message text — same corners as the popup shell */
@@ -4262,6 +4272,12 @@ a.payer-link {
   box-shadow: 0 calc(var(--u) * 1.2) calc(var(--u) * 3) rgba(0, 0, 0, 0.55), inset 0 0 0 calc(var(--u) * 0.12) rgba(255, 255, 255, 0.05);
   background: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
   animation: popupMediaIn 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* Video: stretched to (nearly) the full popup width, same height as the square card. */
+.popup-media-card:has(video) {
+  width: 98%;
+  aspect-ratio: auto;
+  height: calc(var(--u) * 22);
 }
 .popup-media-card img,
 .popup-media-card video {
