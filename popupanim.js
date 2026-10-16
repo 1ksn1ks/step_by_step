@@ -119,6 +119,10 @@ const originalSetDOMContent = maplibregl.Popup.prototype.setDOMContent;
 maplibregl.Popup.prototype.setDOMContent = function (node) {
   const result = originalSetDOMContent.call(this, node);
   fitIfOpen(this);
+  // Cached cards are shown again through this call. Follow controls re-read.
+  if (node && node.nodeType === 1) {
+    document.dispatchEvent(new CustomEvent('follow-popup-open', { detail: node }));
+  }
   return result;
 };
 

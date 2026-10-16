@@ -100,13 +100,11 @@ export async function fetchPost(topicId, created, account = "") {
   }
 }
 
-// Read or change the follower count for one topic. follow 1 adds this
-// account, follow 0 removes it, and null only reads. Returns null when
-// the server is unreachable.
-export async function topicFollow(topicId, account, follow) {
+// Read the follower count for one topic. Returns null when the server
+// is unreachable. The server does not write a row from this call.
+export async function topicFollow(topicId, account) {
   if (!topicId) return null;
   const body = { topic: topicId, account: account || '' };
-  if (follow === 1 || follow === 0) body.follow = follow;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 4000);
   try {
@@ -127,13 +125,11 @@ export async function topicFollow(topicId, account, follow) {
   }
 }
 
-// Read or change whether this account follows a person. follow 1 adds,
-// follow 0 removes, and null only reads. Returns null when the server
-// is unreachable.
-export async function userFollow(followee, account, follow) {
+// Read whether this account follows a person. Returns null when the
+// server is unreachable. The server does not write a row from this call.
+export async function userFollow(followee, account) {
   if (!followee) return null;
   const body = { followee, account: account || '' };
-  if (follow === 1 || follow === 0) body.follow = follow;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 4000);
   try {
@@ -147,6 +143,31 @@ export async function userFollow(followee, account, follow) {
     const data = await res.json();
     if (!data || !data.ok) return null;
     return { followers: Number(data.followers) || 0, following: !!data.following };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Accounts and topics this wallet follows. Null when the server is unreachable.
+// Filtering happens on the phone; this is one request, not one per keystroke.
+export async function fetchFollowing(account) {
+  if (!account) return null;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 4000);
+  try {
+    const res = await fetch(
+      BACKEND_URL + '/api/following?account=' + encodeURIComponent(account),
+      { signal: ctrl.signal }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || !data.ok) return null;
+    return {
+      accounts: Array.isArray(data.accounts) ? data.accounts : [],
+      topics: Array.isArray(data.topics) ? data.topics : [],
+    };
   } catch {
     return null;
   } finally {

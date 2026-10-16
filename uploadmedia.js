@@ -51,12 +51,43 @@ function progressPill(label) {
   };
 }
 
+// Read the length from the local file before it is uploaded. The popup
+// later reads that number out of the filename, so it never loads the video
+// just to filter. A slow or broken file uploads without a length.
+function readVideoSeconds(localUrl) {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    let settled = false;
+    const finish = (seconds) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      video.onloadedmetadata = null;
+      video.onerror = null;
+      video.removeAttribute("src");
+      try { video.load(); } catch { /* the element is already idle */ }
+      resolve(seconds);
+    };
+    const timer = setTimeout(() => finish(null), 5000);
+    video.onloadedmetadata = () => {
+      const duration = video.duration;
+      const seconds = Number.isFinite(duration) && duration > 0 ? Math.round(duration) : null;
+      finish(seconds > 0 ? seconds : null);
+    };
+    video.onerror = () => finish(null);
+    video.src = localUrl;
+  });
+}
+
 // POST the file to /api/upload with progress events (XHR — fetch has none).
-function uploadToR2(file, pill, baseLabel) {
+function uploadToR2(file, pill, baseLabel, seconds) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/upload");
     xhr.responseType = "json";
+    if (Number.isInteger(seconds) && seconds > 0) xhr.setRequestHeader("X-Media-Duration", String(seconds));
+    if (connectedAccount) xhr.setRequestHeader("X-Account", connectedAccount);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) pill.set(`${baseLabel} ${Math.round((e.loaded / e.total) * 100)}%`);
     };
@@ -169,7 +200,8 @@ async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg
   showFieldPreview(targetFieldId, localUrl, isVideo ? "video" : "image");
   const pill = progressPill(`Uploading ${label} 0%`);
   try {
-    const url = await uploadToR2(file, pill, `Uploading ${label}`);
+    const seconds = isVideo ? await readVideoSeconds(localUrl) : null;
+    const url = await uploadToR2(file, pill, `Uploading ${label}`, seconds);
     fillField(targetFieldId, url);
     showFieldPreview(targetFieldId, url, isVideo ? "video" : "image");
     toast.success("Uploaded");

@@ -5,6 +5,7 @@ import { signer, connectedAccount } from './web3';
 import { profileTopics } from './loadalladata';
 import { toast } from './toast';
 import { noteShare } from './sharecount.js';
+import { refreshFollowing } from './followsuggest.js';
 
 const PROFILE_BIO_TOPIC = '0.0.9759201';
 const FOLLOW_TOPIC = '0.0.10923187';
@@ -128,8 +129,19 @@ export async function unshareFromMyTopic(source) {
   return true;
 }
 
+const compactCount = new Intl.NumberFormat('en', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
+const exactCount = new Intl.NumberFormat('en');
+
+export function formatCount(n) {
+  return compactCount.format(n);
+}
+
 export function followerLabel(n) {
-  return n === 1 ? '1 follower' : n + ' followers';
+  const exact = exactCount.format(n);
+  return Number(n) === 1 ? '1 follower' : exact + ' followers';
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -183,7 +195,7 @@ function countChip() {
   num.className = 'topic-follow-num';
   const roll = document.createElement('span');
   roll.className = 'topic-follow-num-roll';
-  roll.appendChild(countValue('0'));
+  roll.appendChild(countValue(formatCount(0)));
   num.appendChild(roll);
   count.append(icon, num);
   return count;
@@ -198,9 +210,10 @@ export function paintFollowerCount(count, n) {
   if (!roll) return;
   const prev = count._followers;
   count._followers = n;
-  const text = String(n);
+  const text = formatCount(n);
+  const prevText = prev == null ? '' : formatCount(prev);
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (prev == null || prev === n || reduced) {
+  if (prev == null || prev === n || text === prevText || reduced) {
     roll.style.transition = 'none';
     roll.style.transform = 'none';
     roll.replaceChildren(countValue(text));
@@ -209,10 +222,10 @@ export function paintFollowerCount(count, n) {
   const up = n > prev;
   roll.style.transition = 'none';
   if (up) {
-    roll.replaceChildren(countValue(String(prev)), countValue(text));
+    roll.replaceChildren(countValue(prevText), countValue(text));
     roll.style.transform = 'translateY(0)';
   } else {
-    roll.replaceChildren(countValue(text), countValue(String(prev)));
+    roll.replaceChildren(countValue(text), countValue(prevText));
     roll.style.transform = 'translateY(-50%)';
   }
   const token = (count._roll || 0) + 1;
@@ -279,12 +292,149 @@ function followButton() {
   return btn;
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// The button already shows `next`. Keep reading until the mirror message
+// has been stored, then replace the guess with the stored count.
+async function settleFollow(gen, currentGen, read, paint, next) {
+  const deadline = Date.now() + 90000;
+  while (Date.now() < deadline) {
+    await delay(1500);
+    if (gen !== currentGen()) return;
+    const data = await read();
+    if (gen !== currentGen()) return;
+    if (data && !!data.following === !!next) {
+      paint(data);
+      return;
+    }
+  }
+}
+
 function paintFollowButton(btn, following) {
   btn.classList.toggle('is-following', !!following);
   const label = following ? 'Unfollow' : 'Follow';
   btn.setAttribute('aria-pressed', following ? 'true' : 'false');
   btn.setAttribute('aria-label', label);
   btn.title = label;
+}
+
+// Popups keep the first card. setDOMContent runs again on every open.
+function refreshFollowControls(root) {
+  if (!root || root.nodeType !== 1) return;
+  const boxes = root.classList.contains('topic-follow')
+    ? [root]
+    : root.querySelectorAll('.topic-follow');
+  for (const box of boxes) {
+    if (typeof box._refreshFollow === 'function') box._refreshFollow();
+  }
+}
+
+if (!document.__meritFollowPopup) {
+  document.__meritFollowPopup = true;
+  document.addEventListener('follow-popup-open', (event) => {
+    refreshFollowControls(event.detail);
+  });
+}
+
+// #account-id is the existing connect and disconnect signal.
+function watchWalletAccount() {
+  if (document.__meritFollowAccount) return;
+  const account = document.getElementById('account-id');
+  if (!account) return;
+  document.__meritFollowAccount = true;
+  let last = account.textContent;
+  new MutationObserver(() => {
+    const text = account.textContent;
+    if (text === last) return;
+    last = text;
+    document.querySelectorAll('.topic-follow').forEach((box) => {
+      if (typeof box._refreshFollow === 'function') box._refreshFollow({ accountChange: true });
+    });
+  }).observe(account, { childList: true, characterData: true, subtree: true });
+}
+
+// read uses the live wallet. isMine is checked again on every paint.
+// The button stays disabled only while the wallet prompt is open.
+function mountFollowControl(box, btn, count, read, isMine, send) {
+  let following = false;
+  let inFlight = false;
+  let settling = false;
+  let generation = 0;
+  let refreshGen = 0;
+
+  function paint(data) {
+    if (!data) return;
+    paintFollowerCount(count, data.followers);
+    following = !!data.following;
+    btn.hidden = !!isMine();
+    btn.disabled = inFlight;
+    paintFollowButton(btn, following);
+  }
+
+  function refresh(options) {
+    const accountChange = !!(options && options.accountChange);
+    btn.hidden = !!isMine();
+    if (inFlight) return;
+    if (settling && !accountChange) return;
+    if (settling && accountChange) {
+      generation += 1;
+      settling = false;
+    }
+    btn.disabled = false;
+    const token = ++refreshGen;
+    read().then((data) => {
+      if (token !== refreshGen || inFlight || settling) return;
+      paint(data);
+    });
+  }
+
+  box._refreshFollow = refresh;
+  watchWalletAccount();
+  // The popup open in this same turn reads once. A profile card has no popup event.
+  queueMicrotask(() => {
+    if (refreshGen === 0) refresh();
+  });
+
+  btn.addEventListener('click', async (event) => {
+    event.stopPropagation();
+    if (inFlight || btn.disabled) return;
+    if (isMine()) {
+      btn.hidden = true;
+      return;
+    }
+    if (!signer || !connectedAccount) {
+      toast.error('Connect wallet first');
+      return;
+    }
+    const next = !following;
+    const gen = ++generation;
+    refreshGen += 1;
+    inFlight = true;
+    btn.disabled = true;
+    try {
+      toast.info('Confirm in wallet 👛');
+      await send(next);
+    } catch (error) {
+      console.error('follow failed', error);
+      return;
+    } finally {
+      inFlight = false;
+      btn.disabled = false;
+    }
+    if (gen !== generation) return;
+    const prev = count._followers;
+    const base = typeof prev === 'number' ? prev : 0;
+    paint({ followers: Math.max(0, base + (next ? 1 : -1)), following: next });
+    refreshFollowing();
+    settling = true;
+    try {
+      await settleFollow(gen, () => generation, read, paint, next);
+    } finally {
+      if (gen === generation) settling = false;
+    }
+  });
 }
 
 // The count, plus Follow or Unfollow. Hidden on your own topic.
@@ -294,36 +444,15 @@ export function followControls(topicId, ownerAccount) {
   if (!topicId) return box;
   const count = countChip();
   const btn = followButton();
-  box.append(count, btn);
-  let following = false;
-
-  function paint(data) {
-    if (!data) return;
-    paintFollowerCount(count, data.followers);
-    following = !!data.following;
-    const mine = !!(ownerAccount && connectedAccount && ownerAccount === connectedAccount);
-    btn.hidden = mine;
-    paintFollowButton(btn, following);
-  }
-
-  topicFollow(topicId, connectedAccount || '', null).then(paint);
-
-  btn.addEventListener('click', async (event) => {
-    event.stopPropagation();
-    if (!signer || !connectedAccount) {
-      toast.error('Connect wallet first');
-      return;
-    }
-    const next = !following;
-    try {
-      toast.info('Confirm in wallet 👛');
-      const body = JSON.stringify(next ? { follow: { follow: '1' } } : { unfollow: { unfollow: '1' } });
-      await sendMessage(topicId, body);
-      paint(await topicFollow(topicId, connectedAccount, next ? 1 : 0));
-    } catch (error) {
-      console.error('follow failed', error);
-    }
-  });
+  box.append(btn, count);
+  mountFollowControl(
+    box,
+    btn,
+    count,
+    () => topicFollow(topicId, connectedAccount || ''),
+    () => !!(ownerAccount && connectedAccount && ownerAccount === connectedAccount),
+    (next) => sendMessage(topicId, JSON.stringify(next ? { follow: { follow: '1' } } : { unfollow: { unfollow: '1' } })),
+  );
   return box;
 }
 
@@ -335,36 +464,15 @@ export function followPersonControls(followeeAccount) {
   if (!followeeAccount) return box;
   const count = countChip();
   const btn = followButton();
-  box.append(count, btn);
-  let following = false;
-
-  function paint(data) {
-    if (!data) return;
-    paintFollowerCount(count, data.followers);
-    following = !!data.following;
-    const mine = !!(followeeAccount && connectedAccount && followeeAccount === connectedAccount);
-    btn.hidden = mine;
-    paintFollowButton(btn, following);
-  }
-
-  userFollow(followeeAccount, connectedAccount || '', null).then(paint);
-
-  btn.addEventListener('click', async (event) => {
-    event.stopPropagation();
-    if (!signer || !connectedAccount) {
-      toast.error('Connect wallet first');
-      return;
-    }
-    const next = !following;
-    try {
-      toast.info('Confirm in wallet 👛');
-      const body = JSON.stringify(next ? { follow: followeeAccount } : { unfollow: followeeAccount });
-      await sendMessage(FOLLOW_TOPIC, body);
-      paint(await userFollow(followeeAccount, connectedAccount, next ? 1 : 0));
-    } catch (error) {
-      console.error('follow failed', error);
-    }
-  });
+  box.append(btn, count);
+  mountFollowControl(
+    box,
+    btn,
+    count,
+    () => userFollow(followeeAccount, connectedAccount || ''),
+    () => !!(followeeAccount && connectedAccount && followeeAccount === connectedAccount),
+    (next) => sendMessage(FOLLOW_TOPIC, JSON.stringify(next ? { follow: followeeAccount } : { unfollow: followeeAccount })),
+  );
   return box;
 }
 

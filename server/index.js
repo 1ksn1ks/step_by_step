@@ -22,6 +22,7 @@ import { S3Client, PutObjectCommand, PutBucketCorsCommand } from "@aws-sdk/clien
 import { appIcon, APP_ICONS } from "./appicon.js";
 import { profileTopicAction } from "./profiletopic.js";
 import { hashtagsIn } from "../hashtag.js";
+import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -55,6 +56,9 @@ const PROFILE_TOPICS = {
 // One global topic for person follows. The body names the followee.
 // The mirror payer is the follower.
 const FOLLOW_TOPIC = "0.0.10923187";
+const UPLOAD_PER_HOUR = 30;
+const UPLOAD_BYTES_PER_DAY = 500 * 1024 * 1024;
+const UPLOAD_PER_IP_HOUR = 60;
 
 // ── SQLite (one file, disposable cache) ────────────────────────────────
 // DATA_DIR is the persistent disk on Railway. Mount a volume at /data and
@@ -233,6 +237,7 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS shares_created ON shares(topic_id, created);
 `);
+db.exec("CREATE INDEX IF NOT EXISTS topic_follows_account ON topic_follows(account_id)");
 // settings_generation stays for the life of this database file. A new file
 // (a rebuilt cache) gets a new id so phones drop their copy and take the
 // directory again. settings_revision counts writes, not message time.
@@ -271,9 +276,6 @@ const q = {
     VALUES
       (@tag, @topicId, @seq, @kind, @title, @msg, @payer, @created, @lng, @lat, @number)
   `),
-  deleteHashtagsByCreated: db.prepare(
-    "DELETE FROM hashtags WHERE topic_id = ? AND created = ?"
-  ),
   searchHashtags: db.prepare(`
     SELECT kind, topic_id AS topicId, title, msg, payer, created, lng, lat, number
     FROM hashtags
@@ -405,6 +407,19 @@ const q = {
   ),
   listUserFollowing: db.prepare(
     "SELECT followee FROM user_follows WHERE follower = ? ORDER BY followee"
+  ),
+  listUserFollowingDetail: db.prepare(`
+    SELECT u.followee AS id,
+           COALESCE(s.username, '') AS username,
+           COALESCE(s.profile_pic, '') AS avatar
+    FROM user_follows u
+    LEFT JOIN user_settings s ON s.account_id = u.followee
+    WHERE u.follower = ?
+    ORDER BY u.followee
+    LIMIT 500
+  `),
+  listTopicFollowing: db.prepare(
+    "SELECT topic_id FROM topic_follows WHERE account_id = ? ORDER BY topic_id LIMIT 500"
   ),
   followingFeed: db.prepare(`
     SELECT topic_id, seq, ts, payer, body FROM messages
@@ -931,7 +946,6 @@ function applyPostDelete(topicId, payer, data, kind) {
   const mark = (iso) => {
     if (!iso) return;
     q.insertDeletedPost.run(topicId, iso, payer);
-    q.deleteHashtagsByCreated.run(topicId, iso);
     if (!marker) return;
     for (const row of q.markerIndexByCreated.all(topicId, iso)) {
       q.deleteLiveAt.run(topicId, row.cord, payer);
@@ -1402,6 +1416,41 @@ app.use((req, res, next) => {
   next();
 });
 
+// About 60 requests a minute for one IP on one path. Cloudflare's
+// connecting IP is the visitor; otherwise the first forwarded hop.
+const RATE_WINDOW_MS = 60 * 1000;
+const RATE_MAX = 60;
+const rateHits = new Map();
+
+function clientIp(req) {
+  const cf = req.headers["cf-connecting-ip"];
+  if (typeof cf === "string" && cf.trim()) return cf.trim();
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.trim()) return forwarded.split(",")[0].trim();
+  return (req.socket && req.socket.remoteAddress) || "unknown";
+}
+
+function rateLimit(req, res, next) {
+  const now = Date.now();
+  if (rateHits.size > 4000) {
+    for (const [key, bucket] of rateHits) {
+      if (now >= bucket.reset) rateHits.delete(key);
+    }
+  }
+  const key = clientIp(req) + " " + req.path;
+  let bucket = rateHits.get(key);
+  if (!bucket || now >= bucket.reset) {
+    bucket = { reset: now + RATE_WINDOW_MS, count: 0 };
+    rateHits.set(key, bucket);
+  }
+  bucket.count += 1;
+  if (bucket.count > RATE_MAX) {
+    res.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.reset - now) / 1000))));
+    return res.status(429).json({ ok: false, error: "rate limit" });
+  }
+  next();
+}
+
 // ── R2 media storage ────────────────────────────────────────────────────
 // Marker images/videos live on Cloudflare R2 (S3 API). The phone's bytes
 // stream straight into the bucket — nothing touches this disk. The
@@ -1465,6 +1514,95 @@ const R2_MIME_EXT = {
 const R2_MAX_VIDEO = 100 * 1024 * 1024;
 const R2_MAX_IMAGE = 20 * 1024 * 1024;
 
+// In-memory upload caps. Nothing here is written to the database.
+// An entry stays for the rest of its day so the byte total still applies
+// after the rolling hour has gone quiet.
+const UPLOAD_HOUR_MS = 60 * 60 * 1000;
+const uploadsByAccount = new Map();
+const uploadsByIp = new Map();
+
+function uploadDay(now) {
+  return new Date(now).toISOString().slice(0, 10);
+}
+
+function recentUploads(times, now) {
+  const cutoff = now - UPLOAD_HOUR_MS;
+  let drop = 0;
+  while (drop < times.length && times[drop] <= cutoff) drop += 1;
+  if (drop > 0) times.splice(0, drop);
+  return times.length;
+}
+
+function uploadEntry(bucket, key, now) {
+  const day = uploadDay(now);
+  let entry = bucket.get(key);
+  if (!entry) {
+    entry = { times: [], day, bytes: 0 };
+    bucket.set(key, entry);
+    return entry;
+  }
+  if (entry.day !== day) {
+    entry.day = day;
+    entry.bytes = 0;
+  }
+  return entry;
+}
+
+// The connected wallet id, when the phone sent one. A missing or
+// malformed id is anonymous: the per-IP cap still applies.
+function requireAccount(req) {
+  const raw = req.headers["x-account"];
+  const account = typeof raw === "string" ? raw.trim() : "";
+  if (!/^\d+\.\d+\.\d+$/.test(account)) return null;
+  return account;
+}
+
+function takeUploadSlot(req, res, account, declared) {
+  const now = Date.now();
+  const ipEntry = uploadEntry(uploadsByIp, clientIp(req), now);
+  const accountEntry = account ? uploadEntry(uploadsByAccount, account, now) : null;
+  const declaredBytes = Number.isFinite(declared) && declared > 0 ? declared : 0;
+  const ipOver = recentUploads(ipEntry.times, now) >= UPLOAD_PER_IP_HOUR;
+  const accountOver = !!(accountEntry && (
+    recentUploads(accountEntry.times, now) >= UPLOAD_PER_HOUR ||
+    accountEntry.bytes + declaredBytes > UPLOAD_BYTES_PER_DAY
+  ));
+  if (ipOver || accountOver) {
+    req.resume();
+    res.status(429).json({ ok: false, error: "Upload limit reached, try again later" });
+    return false;
+  }
+  ipEntry.times.push(now);
+  ipEntry.day = uploadDay(now);
+  if (accountEntry) accountEntry.times.push(now);
+  return true;
+}
+
+function addUploadBytes(account, bytes) {
+  if (!account || !(bytes > 0)) return;
+  const entry = uploadsByAccount.get(account);
+  if (!entry) return;
+  const day = uploadDay(Date.now());
+  if (entry.day !== day) {
+    entry.day = day;
+    entry.bytes = 0;
+  }
+  entry.bytes += bytes;
+}
+
+function sweepUploadLimits() {
+  const now = Date.now();
+  const day = uploadDay(now);
+  for (const bucket of [uploadsByAccount, uploadsByIp]) {
+    for (const [key, entry] of bucket) {
+      recentUploads(entry.times, now);
+      if (entry.times.length === 0 && entry.day !== day) bucket.delete(key);
+    }
+  }
+}
+
+setInterval(sweepUploadLimits, UPLOAD_HOUR_MS);
+
 // The phone's file goes straight into R2 (buffered in memory while in
 // flight — capped below, nothing on disk); the response's url is the public
 // r2.pub link the marker's Image URL field stores. A Buffer body sidesteps
@@ -1472,6 +1610,7 @@ const R2_MAX_IMAGE = 20 * 1024 * 1024;
 // Content-Length, and R2 resets the connection either way).
 app.post("/api/upload", (req, res) => {
   if (!r2) return res.status(503).json({ ok: false, error: "R2 not configured — set R2_* in server/.env" });
+  const account = requireAccount(req);
   const type = (req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
   const ext = R2_MIME_EXT[type];
   if (!ext) return res.status(415).json({ ok: false, error: "Unsupported type — images and videos only" });
@@ -1482,6 +1621,7 @@ app.post("/api/upload", (req, res) => {
     req.resume();
     return res.status(413).json({ ok: false, error: `Too big — ${isVideo ? "100 MB video" : "20 MB image"} max` });
   }
+  if (!takeUploadSlot(req, res, account, declared)) return;
   const chunks = [];
   let received = 0;
   let over = false;
@@ -1499,19 +1639,26 @@ app.post("/api/upload", (req, res) => {
   });
   req.on("end", () => {
     if (over) return;
-    const key = `markers/${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+    const body = Buffer.concat(chunks);
+    // New videos can carry their length in the object name. Images, and
+    // videos with no usable duration, keep the original key shape.
+    const seconds = isVideo
+      ? resolvedUploadSeconds(ext, req.headers["x-media-duration"], body)
+      : null;
+    const key = uploadObjectKey(ext, seconds, Date.now(), Math.random().toString(36).slice(2, 8));
     r2
       .send(
         new PutObjectCommand({
           Bucket: R2_BUCKET,
           Key: key,
-          Body: Buffer.concat(chunks),
+          Body: body,
           ContentType: type,
           // CORS comes from the bucket-level rule set at startup above —
           // per-object CORS on PutObject does not exist in S3/R2.
         })
       )
       .then(() => {
+        addUploadBytes(account, body.length);
         res.json({ ok: true, url: `${R2_PUBLIC_BASE}/${key}`, type });
       })
       .catch((err) => {
@@ -1728,59 +1875,51 @@ app.get("/api/post", async (req, res) => {
   }
 });
 
-// One follower per account on a topic. follow 1 adds, follow 0 removes.
-// Omitting follow only reads. The same change is applied when the wallet
-// message lands, so a repeat does not add a second follower.
+// Read the follower count. A follow field in the body is ignored.
+// Rows change only when the mirror message is stored (extractFollow).
 app.post("/api/topic-follow", (req, res) => {
   const topic = req.body && req.body.topic;
   const account = req.body && req.body.account;
   if (!isTopicId(topic)) return res.status(400).json({ ok: false, error: "bad topic" });
-  const follow = req.body && req.body.follow;
-  const wants = follow === 1 || follow === 0 || follow === "1" || follow === "0";
-  if (wants) {
-    if (!isTopicId(account)) return res.status(400).json({ ok: false, error: "bad account" });
-    if (follow === 1 || follow === "1") q.followTopic.run(topic, account);
-    else q.unfollowTopic.run(topic, account);
-  }
   const counted = q.countFollowers.get(topic);
   const following = isTopicId(account) ? !!q.getFollow.get(topic, account) : false;
   res.json({ ok: true, followers: counted ? Number(counted.n) || 0 : 0, following });
 });
 
-// One follower per account on a person. follow 1 adds, follow 0 removes.
-// Omitting follow only reads. The wallet message on FOLLOW_TOPIC applies
-// the same change again, so a repeat does not add a second follower.
-app.get("/api/user-follow", (req, res) => {
+// Read the person-follower count. A follow field in the body is ignored.
+// Rows change only when the mirror message on FOLLOW_TOPIC is stored
+// (extractUserFollow).
+app.get("/api/user-follow", rateLimit, (req, res) => {
   const followee = req.query.followee;
   if (!isTopicId(followee)) return res.status(400).json({ ok: false, error: "bad account" });
   res.json(userFollowState(req.query.account, followee));
 });
 
-app.post("/api/user-follow", (req, res) => {
+app.post("/api/user-follow", rateLimit, (req, res) => {
   const account = req.body && req.body.account;
   const followee = req.body && req.body.followee;
   if (!isTopicId(followee)) return res.status(400).json({ ok: false, error: "bad account" });
-  const follow = req.body && req.body.follow;
-  const wants = follow === 1 || follow === 0 || follow === "1" || follow === "0";
-  if (wants) {
-    if (!isTopicId(account)) return res.status(400).json({ ok: false, error: "bad account" });
-    if (follow === 1 || follow === "1") q.followUser.run(account, followee);
-    else q.unfollowUser.run(account, followee);
-  }
   res.json(userFollowState(account, followee));
 });
 
 app.get("/api/following", (req, res) => {
   const account = req.query.account;
   if (!isTopicId(account)) return res.status(400).json({ ok: false, error: "bad account" });
-  res.json({
-    ok: true,
-    following: q.listUserFollowing.all(account).map((row) => row.followee),
-  });
+  const following = q.listUserFollowing.all(account).map((row) => row.followee).slice(0, 500);
+  const accounts = q.listUserFollowingDetail.all(account).map((row) => ({
+    id: row.id,
+    username: row.username || "",
+    avatar: row.avatar || "",
+  }));
+  const topics = q.listTopicFollowing.all(account).map((row) => ({
+    id: row.topic_id,
+    name: topicNameFor(row.topic_id) || "",
+  }));
+  res.json({ ok: true, following, accounts, topics });
 });
 
 // Newest messages from accounts this person follows. Any tracked topic.
-app.get("/api/following-feed", (req, res) => {
+app.get("/api/following-feed", rateLimit, (req, res) => {
   const account = req.query.account;
   if (!isTopicId(account)) return res.status(400).json({ ok: false, error: "bad account" });
   const limit = Math.min(200, Math.max(1, Math.floor(Number(req.query.limit) || 50)));
@@ -2073,7 +2212,7 @@ setInterval(() => {
   }
 }, 25000);
 
-app.get("/api/hashtags", (req, res) => {
+app.get("/api/hashtags", rateLimit, (req, res) => {
   const tag = String(req.query.tag || "").trim().toLowerCase().replace(/^#/, "");
   if (!/^[\p{L}_][\p{L}\p{N}_]{0,49}$/u.test(tag)) return res.json({ ok: true, posts: [] });
   res.json({ ok: true, posts: q.searchHashtags.all(tag) });

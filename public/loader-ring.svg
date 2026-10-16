@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+  <style>
+    circle{fill:none;stroke-width:16px;stroke-linecap:round;stroke-dasharray:628 628;animation:3s ease-in-out infinite}
+    g{transform-origin:120px 120px;animation:6s ease-in-out infinite}
+    .a{stroke:#22D3EE;animation-name:a}
+    .b{stroke:#A5F3FC;animation-name:b}
+    .gb{transform:rotate(-14deg)}
+    @keyframes a{0%,100%{stroke-dashoffset:50}50%{stroke-dashoffset:625}}
+    @keyframes b{0%,100%{stroke-dashoffset:-625}50%{stroke-dashoffset:-50}}
+  </style>
+  <g><circle class="a" cx="120" cy="120" r="100"/></g>
+  <g class="gb"><circle class="b" cx="120" cy="120" r="100"/></g>
+</svg>

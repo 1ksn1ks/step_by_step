@@ -1,6 +1,8 @@
-// Subtle tilt for polygon pictures on the map. The image is a quad of
-// geographic corners. Those corners move a few screen pixels so the
-// picture leans toward the pointer. The popup is not involved.
+// Subtle tilt for the polygon picture under the pointer. The image is
+// a quad of geographic corners. Those corners move a few screen pixels
+// so that one picture leans. Other polygons stay on their saved corners.
+// The loop runs only while one is under the pointer or a lean is easing
+// back. The popup is not involved.
 
 const MAX_DEG = 8;
 const EASE_MS = 60;
@@ -13,6 +15,8 @@ let pointer = null;
 let touching = false;
 let listening = false;
 let lastNow = 0;
+let pickScheduled = false;
+let latestEvent = null;
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -87,6 +91,17 @@ function restoreAll() {
   for (const quad of quads.values()) restore(quad);
 }
 
+function easing(quad) {
+  return Math.hypot(quad.nx, quad.ny) >= 0.02 || quad.dirty;
+}
+
+function anyEasing() {
+  for (const quad of quads.values()) {
+    if (easing(quad)) return true;
+  }
+  return false;
+}
+
 function maskIds() {
   const ids = [];
   for (const quad of quads.values()) {
@@ -95,7 +110,12 @@ function maskIds() {
   return ids;
 }
 
-function pick(event) {
+// One queryRenderedFeatures per frame. Moves that land in the same
+// frame share that query. The running frame consumes the latest one.
+function resolvePick() {
+  const event = latestEvent;
+  latestEvent = null;
+  if (!mapRef || !event) return;
   pointer = event.point || null;
   const ids = maskIds();
   if (!ids.length || !pointer) {
@@ -122,6 +142,19 @@ function pick(event) {
   }
 }
 
+function pick(event) {
+  latestEvent = event;
+  if (running) return;
+  if (pickScheduled) return;
+  pickScheduled = true;
+  requestAnimationFrame(() => {
+    pickScheduled = false;
+    if (running) return;
+    resolvePick();
+    if (activeId || anyEasing()) ensureLoop();
+  });
+}
+
 function bindPointer() {
   if (listening || !mapRef) return;
   listening = true;
@@ -133,8 +166,10 @@ function bindPointer() {
   });
   mapRef.on('mouseout', () => {
     if (touching) return;
+    latestEvent = null;
     activeId = null;
     pointer = null;
+    if (anyEasing()) ensureLoop();
   });
   mapRef.on('touchstart', (event) => {
     touching = true;
@@ -144,15 +179,20 @@ function bindPointer() {
     if (!touching) return;
     pick(event);
   });
-  mapRef.on('touchend', () => {
+  const lift = () => {
     touching = false;
+    latestEvent = null;
     activeId = null;
     pointer = null;
-  });
-  mapRef.on('touchcancel', () => {
-    touching = false;
+    if (anyEasing()) ensureLoop();
+  };
+  mapRef.on('touchend', lift);
+  mapRef.on('touchcancel', lift);
+  window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', () => {
+    if (!reducedMotion()) return;
+    restoreAll();
+    running = false;
     activeId = null;
-    pointer = null;
   });
 }
 
@@ -160,11 +200,15 @@ function frame(now) {
   if (!mapRef || quads.size === 0 || document.hidden || reducedMotion()) {
     if (reducedMotion() || document.hidden) restoreAll();
     running = false;
+    lastNow = 0;
     if (document.hidden) {
-      document.addEventListener('visibilitychange', () => ensureLoop(), { once: true });
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && (activeId || anyEasing())) ensureLoop();
+      }, { once: true });
     }
     return;
   }
+  if (latestEvent) resolvePick();
   const dt = lastNow ? Math.min(64, now - lastNow) : 16;
   lastNow = now;
   const ease = 1 - Math.exp(-dt / EASE_MS);
@@ -173,11 +217,15 @@ function frame(now) {
   const viewH = canvas.clientHeight;
   // 0 at the start of the cycle, -4px at the middle, back to 0. One cycle is 6s.
   const bob = (Math.cos((now / 6000) * Math.PI * 2) - 1) * 2;
+  let busy = false;
 
   for (const quad of quads.values()) {
+    const hot = quad.sourceId === activeId && pointer;
+    if (!hot && !easing(quad)) continue;
     const source = mapRef.getSource(quad.sourceId);
     if (!source || !source.setCoordinates) {
       quads.delete(quad.sourceId);
+      if (activeId === quad.sourceId) activeId = null;
       continue;
     }
     let visible = false;
@@ -202,7 +250,6 @@ function frame(now) {
       restore(quad);
       continue;
     }
-    const hot = quad.sourceId === activeId && pointer;
     let tx = 0;
     let ty = 0;
     if (hot) {
@@ -214,11 +261,15 @@ function frame(now) {
     quad.nx += (tx - quad.nx) * ease;
     quad.ny += (ty - quad.ny) * ease;
     const mag = Math.hypot(quad.nx, quad.ny);
-    const bobY = bob * (1 - Math.min(1, mag));
+    // The float stays on the polygon under the pointer. The others only ease home.
+    const bobY = hot ? bob * (1 - Math.min(1, mag)) : 0;
     if (mag < 0.02 && Math.abs(bobY) < 0.25) {
+      quad.nx = 0;
+      quad.ny = 0;
       restore(quad);
       continue;
     }
+    busy = true;
     const leaned = lean(projected, quad.nx, quad.ny, bobY);
     const next = [];
     let ok = true;
@@ -235,12 +286,17 @@ function frame(now) {
     writeCoordinates(source, quad, next);
   }
 
-  if (quads.size > 0 && !reducedMotion()) requestAnimationFrame(frame);
-  else running = false;
+  if (activeId && !quads.has(activeId)) activeId = null;
+  if ((busy || activeId || latestEvent) && quads.size > 0 && !reducedMotion() && !document.hidden) {
+    requestAnimationFrame(frame);
+  } else {
+    running = false;
+    lastNow = 0;
+  }
 }
 
 function ensureLoop() {
-  if (running || !mapRef || quads.size === 0 || reducedMotion()) return;
+  if (running || !mapRef || quads.size === 0 || reducedMotion() || document.hidden) return;
   running = true;
   lastNow = 0;
   requestAnimationFrame(frame);
@@ -259,7 +315,6 @@ export function watchPolygonTilt(map, sourceId, layerId, maskLayerId, coordinate
     dirty: false,
   });
   bindPointer();
-  ensureLoop();
 }
 
 export function forgetPolygonTilt(polygonId) {

@@ -1964,18 +1964,38 @@
       
       <div id="popup-settings-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 1002;" onclick="window.openPopupSettings();"></div>
 
-      <div id="popup-settings-card" style="display: none; z-index: 1003; background-color: rgba(15, 15, 20, 0.90); color: white; box-sizing: border-box; padding: 1.4vh 1.4vw;">
+      <div id="popup-settings-card" style="display: none; z-index: 1003;">
         <button type="button" id="popup-settings-delete" aria-label="Delete" title="Delete" style="display: none;">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
         </button>
-        <div class="options-column-title">💬 POPUP</div>
+        <div class="options-column-title">Popup</div>
 
       <div id="popup-settings-tools" onclick="event.stopPropagation();">
-        <div class="popup-settings-label">Prev / next</div>
-        <div class="popup-settings-row">
-          <div id="popup-pager-account" class="toolbar-column-btns is-on">Same account</div>
-          <div id="popup-pager-time" class="toolbar-column-btns">By time</div>
-          <div id="popup-pager-random" class="toolbar-column-btns">Random</div>
+        <div class="popup-settings-group" role="group" aria-labelledby="popup-settings-group-title">
+          <div class="popup-settings-group-head">
+            <div id="popup-settings-group-title" class="popup-settings-group-title">Prev / next arrows</div>
+            <div class="popup-settings-group-hint">Choose what the <span class="popup-settings-arrow" aria-hidden="true">←</span><span class="popup-settings-arrow" aria-hidden="true">→</span> arrows step through</div>
+          </div>
+          <div class="popup-settings-label">Order</div>
+          <div class="popup-settings-row">
+            <div id="popup-pager-account" class="toolbar-column-btns is-on">Same account</div>
+            <div id="popup-pager-time" class="toolbar-column-btns">By time</div>
+            <div id="popup-pager-random" class="toolbar-column-btns">Random</div>
+          </div>
+          <div class="popup-settings-label">Type</div>
+          <div class="popup-settings-row">
+            <div id="popup-media-all" class="toolbar-column-btns is-on">All</div>
+            <div id="popup-media-pictures" class="toolbar-column-btns">Pictures</div>
+            <div id="popup-media-videos" class="toolbar-column-btns">Videos</div>
+            <div id="popup-media-both" class="toolbar-column-btns">Pictures + videos</div>
+          </div>
+          <div class="popup-settings-label">Video length</div>
+          <div class="popup-settings-row">
+            <div id="popup-length-any" class="toolbar-column-btns is-on">Any</div>
+            <div id="popup-length-under" class="toolbar-column-btns">Under 30s</div>
+            <div id="popup-length-mid" class="toolbar-column-btns">30s–2 min</div>
+            <div id="popup-length-over" class="toolbar-column-btns">Over 2 min</div>
+          </div>
         </div>
         <div class="popup-settings-row">
           <div id="popup-settings-preview-toggle" class="toolbar-column-btns">Preview</div>
@@ -1986,12 +2006,8 @@
            shows up here instantly while the real popup stays hidden.
            It stays behind the Preview button until that button is pressed. -->
       <div id="popup-settings-preview" class="maplibregl-popup" style="display: none;">
-        <button type="button" class="maplibregl-popup-close-button" tabindex="-1">&times;</button>
         <div class="maplibregl-popup-content">
           <div class="popup-sheet">
-          <div class="popup-top-row">
-            <span class="popup-icon-chip">⚙️</span>
-          </div>
           <div class="popup-profile-bubble">
             <img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23222833'/%3E%3Ccircle cx='32' cy='26' r='10' fill='%23c5cad6'/%3E%3Cellipse cx='32' cy='54' rx='16' ry='12' fill='%23c5cad6'/%3E%3C/svg%3E" style="width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);">
             <div>
@@ -2009,7 +2025,6 @@
             <span class="popup-icon-chip">→</span>
           </div>
           <div class="popup-body" style="text-align: center;">
-            <div class="popup-media-card"><img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Crect width='8' height='8' fill='%233a4154'/%3E%3C/svg%3E"></div>
             <p class="text_color popup-text-bubble">message text</p>
           </div>
           <div class="popup-gap"></div>
