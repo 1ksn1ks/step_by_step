@@ -13,10 +13,11 @@ import {updateRulesForModelNFTState} from './confirmnft'
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto';
 import { ringCenter, zoomForPolygon } from './polygonframe.js';
 import { profilePictures, usernames, click2url, profileTopics } from './loadalladata'
-import { confirmShare, unshareFromMyTopic, sharePin } from './followtopic'
+import { confirmShare, unshareFromMyTopic, sharePin, followPersonControls } from './followtopic'
 import { clearShareTopic, noteShare, shareState, shareMine, takeSharePin, takeUnsharePin } from './sharecount.js'
 import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
 import { openPreview } from './fullscreenmedia';
+import { paintHashtags } from './hashtag.js';
 import maplibregl from 'maplibre-gl';
 import { map } from './map';
 import { applyAllStyles } from './loadprofilepopup';
@@ -1017,6 +1018,7 @@ export function createMarkerPopupHTML(data) {
 
   headerDiv.appendChild(h2);
   profileSection.appendChild(headerDiv);
+  profileSection.appendChild(followPersonControls(payer));
   container.appendChild(profileSection);
 
   // Content section. Image and text scroll. The arrow row stays under the name.
@@ -1041,7 +1043,7 @@ export function createMarkerPopupHTML(data) {
   titleDiv.style.cssText = 'text-align: center; flex-grow: 1;';
   const titleStrong = document.createElement('strong');
   titleStrong.className = 'title_color popup-title-bubble';
-  titleStrong.textContent = String(title || '').slice(0, 20);
+  paintHashtags(titleStrong, String(title || '').slice(0, 20));
   titleDiv.appendChild(titleStrong);
   navSection.appendChild(titleDiv);
 
@@ -1088,7 +1090,7 @@ export function createMarkerPopupHTML(data) {
   const msgDiv = document.createElement('div');
   const msgP = document.createElement('p');
   msgP.className = 'text_color popup-text-bubble';
-  msgP.textContent = msg;
+  paintHashtags(msgP, Array.isArray(msg) ? msg[0] : msg);
   msgDiv.appendChild(msgP);
   contentSection.appendChild(msgDiv);
 
@@ -1280,6 +1282,7 @@ function createPolygonPopupHTML(data) {
 
   headerDiv.appendChild(h2);
   profileSection.appendChild(headerDiv);
+  profileSection.appendChild(followPersonControls(payer));
   container.appendChild(profileSection);
 
   // Content section
@@ -1301,7 +1304,7 @@ function createPolygonPopupHTML(data) {
   titleDiv.style.cssText = 'text-align: center; flex-grow: 1;';
   const titleStrong = document.createElement('strong');
   titleStrong.className = 'title_color popup-title-bubble';
-  titleStrong.textContent = String(title || '').slice(0, 20);
+  paintHashtags(titleStrong, String(title || '').slice(0, 20));
   titleDiv.appendChild(titleStrong);
   navSection.appendChild(titleDiv);
 
@@ -1349,7 +1352,7 @@ function createPolygonPopupHTML(data) {
   const msgDiv = document.createElement('div');
   const msgP = document.createElement('p');
   msgP.className = 'text_color popup-text-bubble';
-  msgP.textContent = msg;
+  paintHashtags(msgP, Array.isArray(msg) ? msg[0] : msg);
   msgDiv.appendChild(msgP);
   contentSection.appendChild(msgDiv);
 

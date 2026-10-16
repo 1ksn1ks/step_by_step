@@ -1,5 +1,5 @@
 import { loadTopicBio, usernames, profilePictures, click2url, profileTopics } from './loadalladata';
-import { followControls } from './followtopic';
+import { followControls, followPersonControls } from './followtopic';
 import { activePolygonPopups } from './polygons';
 import { activeMarkerPopups } from './marker';
 import { CloseALL, OpenToggleToolbar } from './cssLogic';
@@ -100,6 +100,7 @@ export async function loadBio4PIC(payer) {
 
       bubble.appendChild(img);
       bubble.appendChild(names);
+      bubble.appendChild(followPersonControls(payer));
 
       const bioEl = document.createElement('div');
       bioEl.className = 'profile-live-bio';

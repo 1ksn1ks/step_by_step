@@ -4,14 +4,52 @@ import {
   PrivateKey,
   TopicCreateTransaction,
   TopicUpdateTransaction,
-  AccountId, 
+  AccountId,
+  TransactionId,
   CustomFixedFee} from '@hashgraph/sdk';
 import { signer, dAppConnector } from './web3';
+
+// The wallet connector's ids are @hiero-ledger/sdk objects. They fail
+// instanceof inside @hashgraph/sdk, and fromString then crashes on the
+// object. Keep every id a string, and freeze with this package's
+// TransactionId. freezeWithSigner would install the connector's id first,
+// and TopicCreateTransaction.freezeWith copies that payer into auto-renew.
+function sdkId(value) {
+  if (typeof value === 'string') return value;
+  if (value != null && typeof value.toString === 'function') {
+    const text = value.toString();
+    if (typeof text === 'string' && text !== '[object Object]') return text;
+  }
+  return value;
+}
+
+function connectedAccountId() {
+  const accountId = sdkId(signer.getAccountId());
+  if (typeof accountId !== 'string' || accountId === '') {
+    throw new Error('Connect wallet first');
+  }
+  return accountId;
+}
+
+function nodeAccountId(nodeAddresses) {
+  let node = '0.0.3';
+  if (nodeAddresses && nodeAddresses.length > 0) {
+    node = nodeAddresses[Math.floor(Math.random() * nodeAddresses.length)];
+  }
+  return AccountId.fromString(sdkId(node));
+}
+
+function freezeForConnectedAccount(transaction, nodeAddresses) {
+  transaction.setNodeAccountIds([nodeAccountId(nodeAddresses)]);
+  transaction.setTransactionId(TransactionId.generate(connectedAccountId()));
+  transaction.freeze();
+  return transaction;
+}
 
 export async function sendMessage(topicId, message) {
   
     const transaction = new TopicMessageSubmitTransaction()
-      .setTopicId(TopicId.fromString(topicId))
+      .setTopicId(TopicId.fromString(sdkId(topicId)))
       .setMessage(message);
   
     try {
@@ -27,56 +65,10 @@ export async function sendMessage(topicId, message) {
   }
 
 export async function updateTopic({topicId:topicId , memo:memo, adminKey:adminKey, customFees:customFees}) {
+  const transaction = new TopicUpdateTransaction()
+    .setTopicId(sdkId(topicId))
+    .setTopicMemo(memo || '');
 
-    let transaction = new TopicUpdateTransaction()
-      .setTopicId(topicId)
-      .setTopicMemo(memo || '');
-
-      const nodeAddresses = await dAppConnector.getNodeAddresses();
-
-  
-  
-      if (adminKey) {
-        const adminPrivateKey = PrivateKey.fromStringED25519(adminKey);
-        const adminPublicKey = adminPrivateKey.publicKey;
-
-        transaction
-        .setAdminKey(adminPublicKey)
-        .setFeeScheduleKey(adminPublicKey);
-
-
-    
-        if (customFees) {
-          const hederaCustomFees = customFees.map(fee => {
-              const customFee = new CustomFixedFee()
-                  .setAmount(fee.amount)
-                  .setFeeCollectorAccountId(fee.collectorAccountId)
-                  .setDenominatingTokenId(fee.denominatingTokenId);
-              return customFee;
-          });
-          transaction.setCustomFees(hederaCustomFees);
-      }
-
-    let node;
-
-    if (nodeAddresses && nodeAddresses.length > 0) {
-      node = nodeAddresses[Math.floor(Math.random() * nodeAddresses.length)];
-    } else {
-      node = '0.0.3';
-    }
-
-    transaction.setNodeAccountIds([AccountId.fromString(node)]);
-    transaction = await transaction.freezeWithSigner(signer);
-
-    await transaction.sign(adminPrivateKey);
-  }
-      
-  await transaction.executeWithSigner(signer);
-}
-  
-
-export async function createTopic({memo:memo, adminkey:adminKey}) {
-  let transaction = new TopicCreateTransaction().setTopicMemo(memo);
   const nodeAddresses = await dAppConnector.getNodeAddresses();
 
   if (adminKey) {
@@ -87,18 +79,46 @@ export async function createTopic({memo:memo, adminkey:adminKey}) {
       .setAdminKey(adminPublicKey)
       .setFeeScheduleKey(adminPublicKey);
 
-      let node;
+    if (customFees) {
+      const hederaCustomFees = customFees.map(fee => {
+        const customFee = new CustomFixedFee().setAmount(fee.amount);
+        const collector = sdkId(fee.collectorAccountId);
+        const token = sdkId(fee.denominatingTokenId);
+        if (collector) customFee.setFeeCollectorAccountId(collector);
+        if (token) customFee.setDenominatingTokenId(token);
+        return customFee;
+      });
+      transaction.setCustomFees(hederaCustomFees);
+    }
 
-      if (nodeAddresses && nodeAddresses.length > 0) {
-        node = nodeAddresses[Math.floor(Math.random() * nodeAddresses.length)];
-      } else {
-        node = '0.0.3';
-      }
+    // Update freeze does not copy the payer. Setting auto-renew here would
+    // change who pays renewal on every memo or fee update.
+    freezeForConnectedAccount(transaction, nodeAddresses);
+    await transaction.sign(adminPrivateKey);
+  }
 
-      
-    transaction.setNodeAccountIds([AccountId.fromString(node)]);
-    transaction = await transaction.freezeWithSigner(signer);
+  await transaction.executeWithSigner(signer);
+}
 
+export async function createTopic({memo:memo, adminkey:adminKey} = {}) {
+  const transaction = new TopicCreateTransaction().setTopicMemo(memo);
+  transaction.setAutoRenewAccountId(connectedAccountId());
+
+  const nodeAddresses = await dAppConnector.getNodeAddresses();
+  let adminPrivateKey;
+
+  if (adminKey) {
+    adminPrivateKey = PrivateKey.fromStringED25519(adminKey);
+    const adminPublicKey = adminPrivateKey.publicKey;
+
+    transaction
+      .setAdminKey(adminPublicKey)
+      .setFeeScheduleKey(adminPublicKey);
+  }
+
+  freezeForConnectedAccount(transaction, nodeAddresses);
+
+  if (adminPrivateKey) {
     await transaction.sign(adminPrivateKey);
   }
 

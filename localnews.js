@@ -9,6 +9,7 @@ import { closeDrawAnchor } from './drawhere.js';
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
 import { applyAllStyles } from './loadprofilepopup.js';
 import { isTopicLayerActive } from './marker.js';
+import { watchMarkerTilt, forgetMarkerTilt } from './markertilt.js';
 import { geojson } from './letall.js';
 
 // Same key as marker.js topicPointKey — a live point matching a topic
@@ -90,7 +91,11 @@ function isOnVisibleHemisphere(coords) {
 }
 
 export function clearLocalMarkers(silent = false) {
-  for (const m of localNodes) m.remove();
+  for (const m of localNodes) {
+    const node = m.getElement();
+    forgetMarkerTilt(node && node.querySelector(':scope > .cluster-face'));
+    m.remove();
+  }
   localNodes = [];
   if (localPopup) {
     localPopup.remove();
@@ -166,7 +171,11 @@ function updateLocalClusters(force = true) {
   if (!force && sig === lastLocalSig) return;
   lastLocalSig = sig;
 
-  for (const m of localNodes) m.remove();
+  for (const m of localNodes) {
+    const node = m.getElement();
+    forgetMarkerTilt(node && node.querySelector(':scope > .cluster-face'));
+    m.remove();
+  }
   localNodes = [];
 
   for (const cluster of clusters) {
@@ -174,7 +183,11 @@ function updateLocalClusters(force = true) {
     if (cluster.properties.cluster) {
       // Count bubble — tap zooms into the cluster (same as topic clusters)
       el.className = 'cluster-bubble';
-      el.textContent = cluster.properties.point_count_abbreviated;
+      const face = document.createElement('div');
+      face.className = 'cluster-face';
+      face.textContent = cluster.properties.point_count_abbreviated;
+      el.appendChild(face);
+      watchMarkerTilt(face);
       el.addEventListener('click', async (e) => {
         e.stopPropagation();
         const expansionZoom = (await index.getClusterExpansionZoom(cluster.id)) + 0.1;

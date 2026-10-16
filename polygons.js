@@ -11,6 +11,8 @@ import { polygonPopupNode } from './processallmessages.js';
 import { CloseALL, changePopupState } from './cssLogic';
 import { closeDrawAnchor } from './drawhere';
 import { closePressAnchor } from './poiinfo';
+import { watchPolygonTilt, forgetPolygonTilt } from './polygontilt.js';
+import { fillMapTip } from './maptip.js';
 
 
 
@@ -43,19 +45,26 @@ function eventPoint(e) {
 function hidePolygonTitle() {
   clearTimeout(polygonTitleTimer);
   polygonTitleFromTouch = false;
-  if (polygonTitleTip) polygonTitleTip.hidden = true;
+  if (!polygonTitleTip) return;
+  polygonTitleTip.hidden = true;
+  polygonTitleTip._tipSource = null;
 }
 
-function showPolygonTitle(title, point, fromTouch) {
-  const text = String(title || "").trim();
-  if (!text || !point) {
+function showPolygonTitle(polygon, point, fromTouch) {
+  if (!polygon || !point) {
     hidePolygonTitle();
     return;
   }
+  const tip = ensurePolygonTitleTip();
+  if (tip._tipSource !== polygon) {
+    if (!fillMapTip(tip, polygon)) {
+      hidePolygonTitle();
+      return;
+    }
+    tip._tipSource = polygon;
+  }
   clearTimeout(polygonTitleTimer);
   polygonTitleFromTouch = fromTouch;
-  const tip = ensurePolygonTitleTip();
-  tip.textContent = text;
   tip.hidden = false;
   tip.style.left = `${point.x}px`;
   tip.style.top = `${point.y}px`;
@@ -377,6 +386,7 @@ function coverInView(corners, st) {
 
 export function dropPolygonCover(polygonId) {
   if (!polygonId) return;
+  forgetPolygonTilt(polygonId);
   const cov = mediaCovers.get(polygonId + '-source');
   if (cov) detachCover(cov);
   addedLayers.delete(polygonId + '-mask-layer');
@@ -877,11 +887,11 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
   
         map.on('mouseenter', maskLayerId, (e) => {
           map.getCanvas().style.cursor = 'pointer';
-          showPolygonTitle(polygon.title, eventPoint(e), false);
+          showPolygonTitle(polygon, eventPoint(e), false);
         });
 
         map.on('mousemove', maskLayerId, (e) => {
-          showPolygonTitle(polygon.title, eventPoint(e), false);
+          showPolygonTitle(polygon, eventPoint(e), false);
         });
 
         map.on('mouseleave', maskLayerId, () => {
@@ -895,7 +905,7 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
         });
 
         map.on('touchstart', maskLayerId, (e) => {
-          showPolygonTitle(polygon.title, eventPoint(e), true);
+          showPolygonTitle(polygon, eventPoint(e), true);
         });
 
         map.on('touchend', maskLayerId, () => {
@@ -912,6 +922,7 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
         if (kind === 'gif' || kind === 'video') {
           registerCover(sourceId, layerId, kind, coverUrl, sourceCoordinates);
         }
+        watchPolygonTilt(map, sourceId, layerId, maskLayerId, sourceCoordinates);
       }
     } catch (error) {
       console.error('Error loading or resizing image:', error);

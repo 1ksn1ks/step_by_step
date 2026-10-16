@@ -21,6 +21,7 @@ import { fileURLToPath } from "url";
 import { S3Client, PutObjectCommand, PutBucketCorsCommand } from "@aws-sdk/client-s3";
 import { appIcon, APP_ICONS } from "./appicon.js";
 import { profileTopicAction } from "./profiletopic.js";
+import { hashtagsIn } from "../hashtag.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -51,6 +52,9 @@ const PROFILE_TOPICS = {
   "0.0.9752486": "click",
   "0.0.9759201": "bio",
 };
+// One global topic for person follows. The body names the followee.
+// The mirror payer is the follower.
+const FOLLOW_TOPIC = "0.0.10923187";
 
 // ── SQLite (one file, disposable cache) ────────────────────────────────
 // DATA_DIR is the persistent disk on Railway. Mount a volume at /data and
@@ -168,6 +172,28 @@ db.exec(`
     payer    TEXT NOT NULL,
     PRIMARY KEY (topic_id, created, payer)
   );
+  -- One row per hashtag on a marker or polygon. tag is lowercase.
+  -- created is the post ISO time, the same key a delete already uses.
+  CREATE TABLE IF NOT EXISTS hashtags (
+    tag      TEXT NOT NULL,
+    topic_id TEXT NOT NULL,
+    seq      INTEGER NOT NULL,
+    kind     TEXT NOT NULL,
+    title    TEXT NOT NULL,
+    msg      TEXT NOT NULL,
+    payer    TEXT NOT NULL,
+    created  TEXT NOT NULL,
+    lng      REAL,
+    lat      REAL,
+    number   TEXT NOT NULL,
+    PRIMARY KEY (tag, topic_id, seq, kind)
+  );
+  CREATE TABLE IF NOT EXISTS user_follows (
+    follower TEXT NOT NULL,
+    followee TEXT NOT NULL,
+    PRIMARY KEY (follower, followee)
+  );
+  CREATE INDEX IF NOT EXISTS messages_payer ON messages(payer);
 `);
 // Migrations: columns added after earlier deployments created the tables
 // (CREATE TABLE IF NOT EXISTS won't add a column to an existing one).
@@ -188,6 +214,7 @@ db.exec("CREATE INDEX IF NOT EXISTS user_settings_revision ON user_settings(revi
 // nanosecond precision while the key only carries milliseconds, so the
 // index narrows the scan to a 1ms window that JS verifies exactly.
 db.exec("CREATE INDEX IF NOT EXISTS messages_ts ON messages(topic_id, ts)");
+db.exec("CREATE INDEX IF NOT EXISTS hashtags_tag ON hashtags(tag, created)");
 db.exec(`
   CREATE TABLE IF NOT EXISTS topic_follows (
     topic_id   TEXT NOT NULL,
@@ -237,6 +264,28 @@ const q = {
   insertMsg: db.prepare(`
     INSERT OR IGNORE INTO messages (topic_id, seq, ts, payer, body)
     VALUES (?, ?, ?, ?, ?)
+  `),
+  insertHashtag: db.prepare(`
+    INSERT OR REPLACE INTO hashtags
+      (tag, topic_id, seq, kind, title, msg, payer, created, lng, lat, number)
+    VALUES
+      (@tag, @topicId, @seq, @kind, @title, @msg, @payer, @created, @lng, @lat, @number)
+  `),
+  deleteHashtagsByCreated: db.prepare(
+    "DELETE FROM hashtags WHERE topic_id = ? AND created = ?"
+  ),
+  searchHashtags: db.prepare(`
+    SELECT kind, topic_id AS topicId, title, msg, payer, created, lng, lat, number
+    FROM hashtags
+    WHERE tag = ?
+      AND NOT EXISTS (
+        SELECT 1 FROM deleted_posts d
+        WHERE d.topic_id = hashtags.topic_id
+          AND d.created = hashtags.created
+          AND d.payer = hashtags.payer
+      )
+    ORDER BY created DESC
+    LIMIT 20
   `),
   countTopic: db.prepare("SELECT COUNT(*) AS n FROM messages WHERE topic_id = ?"),
   dropOld: db.prepare(`
@@ -342,6 +391,27 @@ const q = {
   getFollow: db.prepare(
     "SELECT account_id FROM topic_follows WHERE topic_id = ? AND account_id = ?"
   ),
+  followUser: db.prepare(
+    "INSERT OR IGNORE INTO user_follows (follower, followee) VALUES (?, ?)"
+  ),
+  unfollowUser: db.prepare(
+    "DELETE FROM user_follows WHERE follower = ? AND followee = ?"
+  ),
+  countUserFollowers: db.prepare(
+    "SELECT COUNT(*) AS n FROM user_follows WHERE followee = ?"
+  ),
+  getUserFollow: db.prepare(
+    "SELECT follower FROM user_follows WHERE follower = ? AND followee = ?"
+  ),
+  listUserFollowing: db.prepare(
+    "SELECT followee FROM user_follows WHERE follower = ? ORDER BY followee"
+  ),
+  followingFeed: db.prepare(`
+    SELECT topic_id, seq, ts, payer, body FROM messages
+    WHERE payer IN (SELECT followee FROM user_follows WHERE follower = ?)
+    ORDER BY ts DESC, seq DESC
+    LIMIT ?
+  `),
   getUserSetting: db.prepare("SELECT * FROM user_settings WHERE account_id = ?"),
   bumpSettingsRevision: db.prepare(
     "UPDATE meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'settings_revision'"
@@ -587,6 +657,20 @@ function extractFollow(topicId, payer, body) {
   else if (data.unfollow) q.unfollowTopic.run(topicId, payer);
 }
 
+// Person follows live on one global topic. The body is the followee account.
+// The payer is the follower. A repeat of the same pair does not add a row.
+function extractUserFollow(payer, body) {
+  let data;
+  try {
+    data = JSON.parse(body);
+  } catch {
+    return;
+  }
+  if (!data || typeof data !== "object" || !isTopicId(payer)) return;
+  if (isTopicId(data.follow)) q.followUser.run(payer, data.follow);
+  else if (isTopicId(data.unfollow)) q.unfollowUser.run(payer, data.unfollow);
+}
+
 // One-time startup: if user_settings is empty but the profile topics already
 // have cached messages (stored before this feature existed), rebuild the view
 // from the local cache — no mirror requests needed.
@@ -603,6 +687,18 @@ function backfillUserSettings() {
   }
 }
 backfillUserSettings();
+
+// One-time startup: if user_follows is empty but the follow topic already
+// has cached messages, rebuild the pairs from the local cache. Oldest first,
+// so a later unfollow wins. Called once isTopicId exists.
+function backfillUserFollows() {
+  const { n } = db.prepare("SELECT COUNT(*) AS n FROM user_follows").get();
+  if (n > 0) return;
+  const rows = db
+    .prepare("SELECT payer, body FROM messages WHERE topic_id = ? ORDER BY seq ASC")
+    .all(FOLLOW_TOPIC);
+  for (const r of rows) extractUserFollow(r.payer, r.body);
+}
 
 // Rows saved before revisions existed get a number, oldest first, so a
 // phone can ask for everything newer than the number it has stored.
@@ -643,10 +739,76 @@ function formatMarkerKey(createdISO) {
   });
 }
 
+function postNumber(raw, created) {
+  if (raw == null || String(raw).trim() === "") return created;
+  if (!Number.isInteger(Number(raw))) return "";
+  return String(raw).trim();
+}
+
+function pointFromCord(kind, cord) {
+  if (typeof cord !== "string") return null;
+  if (kind === "marker") {
+    const parts = cord.split(",").map((part) => Number(part.trim()));
+    if (parts.length !== 2 || parts.some((n) => !Number.isFinite(n))) return null;
+    return parts;
+  }
+  const pairs = [...cord.matchAll(/\[(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\]/g)];
+  if (pairs.length < 3) return null;
+  let lng = 0;
+  let lat = 0;
+  for (const pair of pairs) {
+    lng += Number(pair[1]);
+    lat += Number(pair[2]);
+  }
+  return [lng / pairs.length, lat / pairs.length];
+}
+
+function textField(value) {
+  if (Array.isArray(value)) return String(value[0] || "");
+  return typeof value === "string" ? value : "";
+}
+
+// Title and message only. Comments are not posts, so a # in a comment
+// does not enter the search index.
+function indexHashtags(topicId, payer, data, tsMs, seq) {
+  if (!data || typeof data !== "object" || !payer) return;
+  const created = new Date(tsMs).toISOString();
+  const drawings = [
+    ["marker", data.marker && data.marker.data, "numberOfMarker"],
+    ["polygon", data.polygon && data.polygon.data, "numberOfPolygon"],
+  ];
+  for (const [kind, drawing, numberKey] of drawings) {
+    if (!drawing) continue;
+    const number = postNumber(drawing[numberKey], created);
+    if (!number) continue;
+    const title = textField(drawing.title).slice(0, 20);
+    const msg = textField(drawing.msg).slice(0, 256);
+    const tags = hashtagsIn(`${title} ${msg}`);
+    if (!tags.length) continue;
+    const point = pointFromCord(kind, drawing.cord);
+    if (!point) continue;
+    for (const tag of tags) {
+      q.insertHashtag.run({
+        tag,
+        topicId,
+        seq: Number(seq) || 0,
+        kind,
+        title,
+        msg,
+        payer,
+        created,
+        lng: point[0],
+        lat: point[1],
+        number,
+      });
+    }
+  }
+}
+
 // Same per-message work as extractUserSettings, but for the marker view:
 // index marker messages, keep per-payer latest reactions, store comments
 // and replies. storePage feeds rows oldest→newest.
-function extractTopicIndex(topicId, payer, body, tsMs) {
+function extractTopicIndex(topicId, payer, body, tsMs, seq) {
   let d;
   try {
     d = JSON.parse(body);
@@ -654,6 +816,7 @@ function extractTopicIndex(topicId, payer, body, tsMs) {
     return;
   }
   if (!d || typeof d !== "object") return;
+  indexHashtags(topicId, payer, d, tsMs, seq);
   const created = new Date(tsMs).toISOString();
 
   const m = d.marker && d.marker.data;
@@ -768,6 +931,7 @@ function applyPostDelete(topicId, payer, data, kind) {
   const mark = (iso) => {
     if (!iso) return;
     q.insertDeletedPost.run(topicId, iso, payer);
+    q.deleteHashtagsByCreated.run(topicId, iso);
     if (!marker) return;
     for (const row of q.markerIndexByCreated.all(topicId, iso)) {
       q.deleteLiveAt.run(topicId, row.cord, payer);
@@ -827,10 +991,10 @@ function backfillDerived() {
   if (flag) return;
   for (const t of q.listTopics.all()) {
     const rows = db
-      .prepare("SELECT payer, body, ts FROM messages WHERE topic_id = ? ORDER BY seq ASC")
+      .prepare("SELECT payer, body, ts, seq FROM messages WHERE topic_id = ? ORDER BY seq ASC")
       .all(t.topic_id);
     for (const r of rows) {
-      extractTopicIndex(t.topic_id, r.payer, r.body, Number(r.ts) * 1000);
+      extractTopicIndex(t.topic_id, r.payer, r.body, Number(r.ts) * 1000, r.seq);
     }
   }
   db.prepare("INSERT INTO meta (key, value) VALUES ('derived_backfilled', '1')")
@@ -844,7 +1008,7 @@ function backfillShares() {
   const flag = db.prepare("SELECT value FROM meta WHERE key = 'shares_backfilled'").get();
   if (flag) return;
   const rows = db.prepare(
-    `SELECT topic_id, payer, body, ts FROM messages
+    `SELECT topic_id, payer, body, ts, seq FROM messages
      WHERE body LIKE '%sharePost%'
         OR body LIKE '%unsharePost%'
         OR body LIKE '%likePolygon%'
@@ -856,7 +1020,7 @@ function backfillShares() {
   ).all();
   for (const r of rows) {
     try {
-      extractTopicIndex(r.topic_id, r.payer, r.body, Number(r.ts) * 1000);
+      extractTopicIndex(r.topic_id, r.payer, r.body, Number(r.ts) * 1000, r.seq);
     } catch (err) {
       console.error("share backfill skipped", r.topic_id, err.message);
     }
@@ -887,6 +1051,26 @@ function backfillDeletes() {
     }
   }
   db.prepare("INSERT INTO meta (key, value) VALUES ('deletes_backfilled', '1')").run();
+}
+
+// Posts written before hashtags existed. Later messages index themselves.
+function backfillHashtags() {
+  const flag = db.prepare("SELECT value FROM meta WHERE key = 'hashtags_backfilled'").get();
+  if (flag) return;
+  const rows = db.prepare(
+    `SELECT topic_id, seq, payer, body, ts FROM messages
+     WHERE body LIKE '%#%'
+     ORDER BY topic_id ASC, seq ASC`
+  ).all();
+  for (const r of rows) {
+    try {
+      const body = JSON.parse(r.body);
+      indexHashtags(r.topic_id, r.payer, body, Number(r.ts) * 1000, r.seq);
+    } catch (err) {
+      console.error("hashtag backfill skipped", r.topic_id, err.message);
+    }
+  }
+  db.prepare("INSERT INTO meta (key, value) VALUES ('hashtags_backfilled', '1')").run();
 }
 // Note: called below, after the geo section (it queues reverse-geocodes).
 
@@ -983,10 +1167,11 @@ const storePage = (topicId, msgs) => {
       try {
         extractUserSettings(topicId, m.payer_account_id, body, Number(m.consensus_timestamp) * 1000);
         extractFollow(topicId, m.payer_account_id, body);
+        if (topicId === FOLLOW_TOPIC) extractUserFollow(m.payer_account_id, body);
       } catch (err) {
         console.error("user settings skipped", topicId, m.sequence_number, err.message);
       }
-      extractTopicIndex(topicId, m.payer_account_id, body, Number(m.consensus_timestamp) * 1000);
+      extractTopicIndex(topicId, m.payer_account_id, body, Number(m.consensus_timestamp) * 1000, m.sequence_number);
       stored.push({ payer: m.payer_account_id, body, seq: m.sequence_number, ts: m.consensus_timestamp });
     }
   })(msgs);
@@ -1118,6 +1303,7 @@ setInterval(async () => {
     // Profile-data topics always stay warm (they feed user_settings), so
     // refresh their last_active every tick to keep them out of TTL eviction.
     for (const id of Object.keys(PROFILE_TOPICS)) q.upsertTopic.run(id, now);
+    q.upsertTopic.run(FOLLOW_TOPIC, now);
     const active = q.listTopics
       .all()
       .filter((t) => now - t.last_active <= TRACK_TTL_MS)
@@ -1197,6 +1383,7 @@ async function geoWorker() {
 backfillDerived();
 backfillShares();
 backfillDeletes();
+backfillHashtags();
 
 // Discovered markers (storePage) queue geokeys without a /api/marker kick —
 // a periodic sweep keeps the queue draining.
@@ -1338,6 +1525,13 @@ app.post("/api/upload", (req, res) => {
 });
 
 const isTopicId = (s) => typeof s === "string" && /^\d+\.\d+\.\d+$/.test(s);
+backfillUserFollows();
+
+function userFollowState(account, followee) {
+  const counted = q.countUserFollowers.get(followee);
+  const following = isTopicId(account) ? !!q.getUserFollow.get(account, followee) : false;
+  return { ok: true, followers: counted ? Number(counted.n) || 0 : 0, following };
+}
 
 // app: "people are viewing this topic now" (chat panel Load)
 app.post("/api/track", (req, res) => {
@@ -1551,6 +1745,50 @@ app.post("/api/topic-follow", (req, res) => {
   const counted = q.countFollowers.get(topic);
   const following = isTopicId(account) ? !!q.getFollow.get(topic, account) : false;
   res.json({ ok: true, followers: counted ? Number(counted.n) || 0 : 0, following });
+});
+
+// One follower per account on a person. follow 1 adds, follow 0 removes.
+// Omitting follow only reads. The wallet message on FOLLOW_TOPIC applies
+// the same change again, so a repeat does not add a second follower.
+app.get("/api/user-follow", (req, res) => {
+  const followee = req.query.followee;
+  if (!isTopicId(followee)) return res.status(400).json({ ok: false, error: "bad account" });
+  res.json(userFollowState(req.query.account, followee));
+});
+
+app.post("/api/user-follow", (req, res) => {
+  const account = req.body && req.body.account;
+  const followee = req.body && req.body.followee;
+  if (!isTopicId(followee)) return res.status(400).json({ ok: false, error: "bad account" });
+  const follow = req.body && req.body.follow;
+  const wants = follow === 1 || follow === 0 || follow === "1" || follow === "0";
+  if (wants) {
+    if (!isTopicId(account)) return res.status(400).json({ ok: false, error: "bad account" });
+    if (follow === 1 || follow === "1") q.followUser.run(account, followee);
+    else q.unfollowUser.run(account, followee);
+  }
+  res.json(userFollowState(account, followee));
+});
+
+app.get("/api/following", (req, res) => {
+  const account = req.query.account;
+  if (!isTopicId(account)) return res.status(400).json({ ok: false, error: "bad account" });
+  res.json({
+    ok: true,
+    following: q.listUserFollowing.all(account).map((row) => row.followee),
+  });
+});
+
+// Newest messages from accounts this person follows. Any tracked topic.
+app.get("/api/following-feed", (req, res) => {
+  const account = req.query.account;
+  if (!isTopicId(account)) return res.status(400).json({ ok: false, error: "bad account" });
+  const limit = Math.min(200, Math.max(1, Math.floor(Number(req.query.limit) || 50)));
+  const messages = q.followingFeed.all(account, limit).map((row) => ({
+    ...toAppMessage(row),
+    topic: row.topic_id,
+  }));
+  res.json({ ok: true, messages });
 });
 
 // app: "I just sent this message" (after the wallet confirms) → stored as
@@ -1834,6 +2072,12 @@ setInterval(() => {
     for (const res of set) sseWrite(res, ": ping\n\n");
   }
 }, 25000);
+
+app.get("/api/hashtags", (req, res) => {
+  const tag = String(req.query.tag || "").trim().toLowerCase().replace(/^#/, "");
+  if (!/^[\p{L}_][\p{L}\p{N}_]{0,49}$/u.test(tag)) return res.json({ ok: true, posts: [] });
+  res.json({ ok: true, posts: q.searchHashtags.all(tag) });
+});
 
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, tracked: q.listTopics.all().length, mirror: MIRROR, streams: resTopics.size });

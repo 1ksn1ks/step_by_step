@@ -14,6 +14,8 @@ import { scene } from "./threejs";
 // safe: both sides only touch the other's bindings inside functions.
 import { livePointCoords, livePointTitles } from './localnews';
 import { markerPopupNode } from './processallmessages.js';
+import { watchMarkerTilt, forgetMarkerTilt } from './markertilt.js';
+import { fillMapTip } from './maptip.js';
 
 
 
@@ -118,18 +120,25 @@ function ensureMarkerTitleTip() {
 
 function hideMarkerTitle() {
   clearTimeout(markerTitleHideTimer);
-  if (markerTitleTip) markerTitleTip.hidden = true;
+  if (!markerTitleTip) return;
+  markerTitleTip.hidden = true;
+  markerTitleTip._tipEl = null;
 }
 
-function showMarkerTitle(title, x, y) {
-  const text = String(title || "").trim();
-  if (!text || !Number.isFinite(x) || !Number.isFinite(y)) {
+function showMarkerTitle(el, x, y) {
+  if (!el || !Number.isFinite(x) || !Number.isFinite(y)) {
     hideMarkerTitle();
     return;
   }
-  clearTimeout(markerTitleHideTimer);
   const tip = ensureMarkerTitleTip();
-  tip.textContent = text;
+  if (tip._tipEl !== el) {
+    if (!fillMapTip(tip, el._markerTip)) {
+      hideMarkerTitle();
+      return;
+    }
+    tip._tipEl = el;
+  }
+  clearTimeout(markerTitleHideTimer);
   tip.hidden = false;
   tip.style.left = `${x}px`;
   tip.style.top = `${y}px`;
@@ -146,10 +155,10 @@ map.on("movestart", () => {
 
 function bindMarkerTitle(el) {
   el.addEventListener("mouseenter", (event) => {
-    if (markerCanHover()) showMarkerTitle(el._markerTitle, event.clientX, event.clientY);
+    if (markerCanHover()) showMarkerTitle(el, event.clientX, event.clientY);
   });
   el.addEventListener("mousemove", (event) => {
-    if (markerCanHover()) showMarkerTitle(el._markerTitle, event.clientX, event.clientY);
+    if (markerCanHover()) showMarkerTitle(el, event.clientX, event.clientY);
   });
   el.addEventListener("mouseleave", () => {
     if (markerCanHover()) hideMarkerTitle();
@@ -162,7 +171,7 @@ function bindMarkerTitle(el) {
     clearTimeout(markerHoldTimer);
     markerHoldTimer = setTimeout(() => {
       el.dataset.holdTitle = "1";
-      showMarkerTitle(el._markerTitle, startX, startY);
+      showMarkerTitle(el, startX, startY);
     }, 450);
     const cancelIfSlid = (moveEvent) => {
       const moved = moveEvent.touches && moveEvent.touches[0];
@@ -224,6 +233,7 @@ export function releaseTopicMarkers() {
   const hadPoints = unclusteredTopicPoints.size > 0;
   const hadMarkers = keptMarkers.size > 0;
   for (const entry of keptMarkers.values()) {
+    forgetMarkerTilt(entry.face);
     try { entry.marker.remove(); } catch { /* already gone */ }
   }
   keptMarkers.clear();
@@ -284,9 +294,9 @@ function syncLiveFace(entry) {
   } else if (label) {
     label.remove();
   }
-  // A live label stays up, so the hover pill stays empty while it is showing.
-  entry.el._markerTitle = liveTitle ? '' : String(entry.feature.properties.title || '').trim();
-  if (entry.el._markerTitle && !entry.titleBound) {
+  // The live label stays under the dot. The hover card still names the post.
+  entry.el._markerTip = entry.feature;
+  if (!entry.titleBound) {
     bindMarkerTitle(entry.el);
     entry.titleBound = true;
   }
@@ -301,7 +311,14 @@ function createKeptMarker(cluster, key) {
 
   if (isCluster) {
     entry.cluster = cluster;
-    el.textContent = cluster.properties.point_count_abbreviated;
+    // The count sits on an inner face. The outer element is MapLibre's
+    // marker and keeps the transform that places the bubble.
+    const face = document.createElement('div');
+    face.className = 'cluster-face';
+    face.textContent = cluster.properties.point_count_abbreviated;
+    el.appendChild(face);
+    entry.face = face;
+    watchMarkerTilt(face);
     el.addEventListener('click', async (e) => {
       e.stopPropagation();
       const current = entry.cluster;
@@ -323,6 +340,7 @@ function createKeptMarker(cluster, key) {
     face.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
     el.appendChild(face);
     entry.face = face;
+    watchMarkerTilt(face);
     entry.pictureUrl = null;
     entry.pictureSeq = 0;
     entry.titleBound = false;
@@ -373,8 +391,8 @@ function refreshKeptMarker(entry, cluster) {
   placeKeptMarker(entry);
   if (entry.kind === 'cluster') {
     entry.cluster = cluster;
-    const count = cluster.properties.point_count_abbreviated;
-    if (entry.el.textContent !== String(count)) entry.el.textContent = count;
+    const count = String(cluster.properties.point_count_abbreviated);
+    if (entry.face && entry.face.textContent !== count) entry.face.textContent = count;
     return;
   }
   entry.feature = cluster;
@@ -422,7 +440,9 @@ export function updateClusters(force = true) {
     for (const cluster of clusters) wanted.set(markerFeatureKey(cluster), cluster);
     for (const key of [...keptMarkers.keys()]) {
       if (wanted.has(key)) continue;
-      keptMarkers.get(key).marker.remove();
+      const gone = keptMarkers.get(key);
+      forgetMarkerTilt(gone.face);
+      gone.marker.remove();
       keptMarkers.delete(key);
     }
 
