@@ -24,6 +24,7 @@ import { appIcon, APP_ICONS } from "./appicon.js";
 import { profileTopicAction } from "./profiletopic.js";
 import { hashtagsIn } from "../hashtag.js";
 import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
+import { startBackupSchedule } from "./backup.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1589,6 +1590,13 @@ if (r2) {
       console.error("R2 CORS setup failed:", err.message);
     });
 }
+
+// Nightly encrypted snapshot of data.db. No-op unless both backup env vars are set.
+startBackupSchedule({
+  r2,
+  bucket: R2_BUCKET,
+  dbPath: path.join(DATA_DIR, "data.db"),
+});
 
 const R2_MIME_EXT = {
   "video/mp4": ".mp4",

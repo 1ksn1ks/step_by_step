@@ -70,6 +70,18 @@ npm start   # listens on :8787
 
 Point the app at the backend in `msgbackend.js` (`BACKEND_URL`) if it is not on the same host.
 
+### Database backup
+
+Leave `BACKUP_ENCRYPTION_KEY` and `BACKUP_PREFIX` empty and the API does not back up. That is the localhost default. When both are set, the server writes a consistent SQLite snapshot to the same R2 bucket about two minutes after start if today's file is missing, then every 24 hours. The UTC object name is `backups/<BACKUP_PREFIX>/db-YYYY-MM-DD.sqlite.gz.enc`. It is gzipped, then AES-256-GCM: 12-byte IV, ciphertext, 16-byte auth tag. `BACKUP_KEEP_DAYS` defaults to 14. A failed backup logs a warning and the API keeps running. The prefix and the key are not logged.
+
+Restore is a local command, not an HTTP route. From the repo root, with the R2 settings and `BACKUP_ENCRYPTION_KEY` in `server/.env`:
+
+```bash
+node scripts/restore-backup.js backups/<BACKUP_PREFIX>/db-YYYY-MM-DD.sqlite.gz.enc restored.sqlite
+```
+
+The argument is the object key, not a URL. The command will not overwrite an existing file. Stop the API before replacing a live `data.db`.
+
 ---
 
 ## 📁 Project structure
