@@ -1653,6 +1653,8 @@ app.post("/api/upload", (req, res) => {
           Key: key,
           Body: body,
           ContentType: type,
+          // Each key is markers/<timestamp>-<random><ext> and is never overwritten.
+          CacheControl: "public, max-age=31536000, immutable",
           // CORS comes from the bucket-level rule set at startup above —
           // per-object CORS on PutObject does not exist in S3/R2.
         })

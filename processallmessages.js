@@ -384,7 +384,7 @@ function pagerMode() {
   return 'account';
 }
 
-function mediaMode() {
+export function mediaMode() {
   try {
     const mode = localStorage.getItem(MEDIA_MODE_KEY);
     if (mode === 'pictures' || mode === 'videos' || mode === 'both' || mode === 'all') return mode;
@@ -394,7 +394,7 @@ function mediaMode() {
   return 'all';
 }
 
-function lengthMode() {
+export function lengthMode() {
   try {
     const mode = localStorage.getItem(LENGTH_MODE_KEY);
     if (mode === 'under' || mode === 'mid' || mode === 'over' || mode === 'any') return mode;
@@ -2467,16 +2467,52 @@ function lengthMatches(item, mode) {
   return seconds > 120;
 }
 
+// The open pin, found even when the arrow was the fallback with no walk.
+// Same account can be standing on a share, whose author post is the start.
+function openIndex(posts, payer, number, topicId, walk) {
+  if (number != null && topicId) {
+    const idx = findPin(posts, payer, number, topicId);
+    if (idx !== -1) return idx;
+  }
+  if (pagerMode() === 'account' && walk) return findAuthorPost(posts, walk);
+  return -1;
+}
+
+// One drawing is one created time, including the same post stored on
+// several topics. An empty time falls back to the pin identity.
+function createdKey(item) {
+  const created = messageCreated(item && item.created);
+  if (created) return created;
+  return String(item && item.payer) + '\0' + String(item && item.topicId) + '\0' + String(item && item.msgNumber);
+}
+
+// Keep the copy that is the open pin, so the step still finds where it started.
+function uniquePosts(posts, payer, number, topicId, walk) {
+  const list = posts || [];
+  const preferredAt = openIndex(list, payer, number, topicId, walk);
+  const preferred = preferredAt === -1 ? null : list[preferredAt];
+  const kept = new Map();
+  const keys = [];
+  for (const item of list) {
+    const key = createdKey(item);
+    if (!kept.has(key)) {
+      kept.set(key, item);
+      keys.push(key);
+      continue;
+    }
+    if (preferred && item === preferred) kept.set(key, item);
+  }
+  return keys.map((key) => kept.get(key));
+}
+
 // The open post stays in the list even when it does not match, so the step
 // can start there. Anything else has to match both Show and Length.
-function filterMedia(posts, payer, walk) {
+function filterMedia(posts, payer, number, topicId, walk) {
   const mode = mediaMode();
   const length = lengthMode();
   if (mode === 'all' && length === 'any') return posts;
   const filtered = posts.filter((item) => mediaMatches(item, mode) && lengthMatches(item, length));
-  if (!walk || walk.number == null || !walk.topicId) return filtered;
-  let openIdx = findPin(posts, walk.payer || payer, walk.number, walk.topicId);
-  if (openIdx === -1 && pagerMode() === 'account') openIdx = findAuthorPost(posts, walk);
+  const openIdx = openIndex(posts, payer, number, topicId, walk);
   if (openIdx === -1) return filtered;
   const open = posts[openIdx];
   if (!filtered.includes(open)) filtered.push(open);
@@ -2491,17 +2527,21 @@ function noMoreMediaLabel() {
 }
 
 function noteNoMoreMedia(posts, payer, number, topicId, walk) {
-  if (mediaMode() === 'all' || !posts || posts.length >= 2) return;
-  let curIdx = findPin(posts, payer, number, topicId);
-  if (curIdx === -1 && pagerMode() === 'account' && walk) curIdx = findAuthorPost(posts, walk);
+  if (mediaMode() === 'all' || !posts || !posts.length) return;
+  const curIdx = openIndex(posts, payer, number, topicId, walk);
   if (curIdx === -1) return;
+  const openKey = createdKey(posts[curIdx]);
+  for (let i = 0; i < posts.length; i++) {
+    if (i === curIdx || createdKey(posts[i]) === openKey) continue;
+    if (mediaMatches(posts[i], mediaMode()) && lengthMatches(posts[i], lengthMode())) return;
+  }
   toast.info(noMoreMediaLabel());
 }
 
 // Same account wraps inside that one account. By time is one timeline of
 // every loaded post of this shape. Random picks another loaded post.
 // One post, or a post that is not in the list, stays put.
-export function listForStep(pinGroups, pinPayer, walk) {
+export function listForStep(pinGroups, pinPayer, walk, payer, number, topicId) {
   const mode = pagerMode();
   let posts;
   if (mode === 'account') {
@@ -2512,11 +2552,12 @@ export function listForStep(pinGroups, pinPayer, walk) {
   } else {
     posts = postsFlat(pinGroups);
   }
-  return filterMedia(posts, pinPayer, walk).sort(byTime);
+  const who = payer == null ? pinPayer : payer;
+  return uniquePosts(filterMedia(posts, who, number, topicId, walk).sort(byTime), who, number, topicId, walk);
 }
 
 function takeStep(pinGroups, payer, number, topicId, direction, walk) {
-  const posts = listForStep(pinGroups, pinPayerFrom(payer, walk), walk);
+  const posts = listForStep(pinGroups, pinPayerFrom(payer, walk), walk, payer, number, topicId);
   const next = stepPosts(posts, payer, number, topicId, direction, walk);
   if (!next) noteNoMoreMedia(posts, payer, number, topicId, walk);
   return next;
@@ -2533,16 +2574,30 @@ export function stepPosts(posts, payer, number, topicId, direction, walk) {
   // your own share). A share of someone else's post is not in their list,
   // so the step starts at the original instead. If that original is not
   // loaded either, the arrows stay put.
-  let curIdx = findPin(posts, payer, number, topicId);
-  if (curIdx === -1 && mode === 'account' && walk) curIdx = findAuthorPost(posts, walk);
+  const curIdx = openIndex(posts, payer, number, topicId, walk);
   if (curIdx === -1) return null;
+  const open = posts[curIdx];
+  const openKey = createdKey(open);
   if (mode === 'random') {
-    let pick = Math.floor(Math.random() * (posts.length - 1));
-    if (pick >= curIdx) pick += 1;
-    return posts[pick];
+    const choices = [];
+    for (let i = 0; i < posts.length; i++) {
+      if (i === curIdx || createdKey(posts[i]) === openKey) continue;
+      if (!mediaMatches(posts[i], mediaMode()) || !lengthMatches(posts[i], lengthMode())) continue;
+      choices.push(posts[i]);
+    }
+    if (!choices.length) return null;
+    return choices[Math.floor(Math.random() * choices.length)];
   }
   const dir = direction < 0 ? -1 : 1;
-  return posts[(curIdx + dir + posts.length) % posts.length];
+  let idx = curIdx;
+  for (let n = 0; n < posts.length - 1; n++) {
+    idx = (idx + dir + posts.length) % posts.length;
+    const item = posts[idx];
+    if (createdKey(item) === openKey) continue;
+    if (!mediaMatches(item, mediaMode()) || !lengthMatches(item, lengthMode())) continue;
+    return item;
+  }
+  return null;
 }
 
 function showPost(item) {
