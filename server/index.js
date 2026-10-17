@@ -74,6 +74,10 @@ const UPLOAD_BYTES_PER_DAY = envPositiveInt("UPLOAD_DAILY_MB_ACCOUNT", 500) * 10
 // How many upload bodies may sit in memory at once. Extra requests get
 // 503 and Retry-After instead of growing without a bound.
 const UPLOAD_MAX_CONCURRENT = envPositiveInt("UPLOAD_MAX_CONCURRENT", 4);
+// One address cannot fill every slot by trickling a few bodies.
+const UPLOAD_MAX_CONCURRENT_PER_IP = envPositiveInt("UPLOAD_MAX_CONCURRENT_PER_IP", 2);
+// A body that stops sending is dropped instead of holding its slot.
+const UPLOAD_BODY_TIMEOUT_MS = envPositiveInt("UPLOAD_BODY_TIMEOUT_MS", 30000);
 // Writes and mirror polls that are open to any visitor.
 const PUBLIC_POST_RATE_LIMIT = envPositiveInt("PUBLIC_POST_RATE_LIMIT", 60);
 // Wallet-signed upload auth stays off until this is exactly "1".
@@ -1738,19 +1742,27 @@ function tooBigMessage(isVideo) {
 }
 
 let uploadsInFlight = 0;
+const uploadsInFlightByIp = new Map();
 
-function beginUpload(res) {
-  if (uploadsInFlight >= UPLOAD_MAX_CONCURRENT) {
+function beginUpload(req, res) {
+  const ip = clientIp(req) || "unknown";
+  const mine = uploadsInFlightByIp.get(ip) || 0;
+  if (mine >= UPLOAD_MAX_CONCURRENT_PER_IP || uploadsInFlight >= UPLOAD_MAX_CONCURRENT) {
     res.setHeader("Retry-After", "5");
     res.status(503).json({ ok: false, error: "Too many uploads, try again shortly" });
     return false;
   }
   uploadsInFlight += 1;
-  return true;
+  uploadsInFlightByIp.set(ip, mine + 1);
+  return ip;
 }
 
-function finishUpload() {
+function finishUpload(ip) {
   uploadsInFlight = Math.max(0, uploadsInFlight - 1);
+  if (!ip) return;
+  const mine = (uploadsInFlightByIp.get(ip) || 1) - 1;
+  if (mine <= 0) uploadsInFlightByIp.delete(ip);
+  else uploadsInFlightByIp.set(ip, mine);
 }
 
 // Off unless TURNSTILE_SECRET_KEY is set. A missing or rejected token is
@@ -1782,14 +1794,27 @@ function readUploadBody(req, max) {
     const chunks = [];
     let received = 0;
     let settled = false;
+    let timer = null;
     const finish = (err, body) => {
       if (settled) return;
       settled = true;
+      if (timer) clearTimeout(timer);
       if (err) reject(err);
       else resolve(body);
     };
+    const armIdle = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        const err = new Error("idle");
+        err.code = 408;
+        req.destroy();
+        finish(err);
+      }, UPLOAD_BODY_TIMEOUT_MS);
+    };
+    armIdle();
     req.on("data", (chunk) => {
       if (settled) return;
+      armIdle();
       received += chunk.length;
       if (received > max) {
         const err = new Error("too big");
@@ -2076,7 +2101,8 @@ app.post("/api/upload", async (req, res) => {
     req.resume();
     return res.status(403).json({ ok: false, error: "Turnstile check failed" });
   }
-  if (!beginUpload(res)) {
+  const uploadIp = beginUpload(req, res);
+  if (!uploadIp) {
     req.resume();
     return;
   }
@@ -2116,9 +2142,10 @@ app.post("/api/upload", async (req, res) => {
   } catch (err) {
     if (res.headersSent) return;
     if (err && err.code === 413) return res.status(413).json({ ok: false, error: tooBigMessage(isVideo) });
+    if (err && err.code === 408) return res.status(408).json({ ok: false, error: "Upload timed out" });
     res.status(400).json({ ok: false, error: "upload aborted" });
   } finally {
-    finishUpload();
+    finishUpload(uploadIp);
   }
 });
 
@@ -2723,7 +2750,11 @@ if (fs.existsSync(distDir)) {
   });
 }
 
-app.listen(PORT, "0.0.0.0", () => {
+const server = app.listen(PORT, "0.0.0.0", () => {
   const serving = fs.existsSync(distDir) ? ", serving dist" : "";
   console.log(`topic backend on :${PORT} (mirror: ${MIRROR})${serving}`);
 });
+// The whole request, including a slow body. headersTimeout must stay above
+// requestTimeout or Node closes the socket on the shorter header timer.
+server.requestTimeout = 120000;
+server.headersTimeout = 121000;
