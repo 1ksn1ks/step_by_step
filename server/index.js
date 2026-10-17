@@ -1539,11 +1539,24 @@ const r2 =
       })
     : null;
 
+function r2CorsOrigins() {
+  const raw = process.env.R2_CORS_ORIGINS;
+  if (raw == null || String(raw).trim() === "") return ["*"];
+  const origins = String(raw).split(",").map((part) => part.trim()).filter(Boolean);
+  return origins.length ? origins : ["*"];
+}
+
+function r2CorsDenied(err) {
+  const name = String((err && (err.name || err.Code)) || "");
+  const message = String((err && err.message) || "");
+  return name === "AccessDenied" || /access denied/i.test(message);
+}
+
 // The app reads covers cross-origin into canvases (gif decode, video →
 // canvas blit for the animated polygon covers) — without CORS the canvas
 // taints and every read throws. CORS is a BUCKET-level setting in S3/R2
 // (a CORS field on PutObject is silently ignored), so apply it on every
-// start — idempotent.
+// start — idempotent. A token that cannot write CORS must not stop the API.
 if (r2) {
   r2
     .send(
@@ -1552,17 +1565,23 @@ if (r2) {
         CORSConfiguration: {
           CORSRules: [
             {
-              AllowedOrigins: ["*"],
-              AllowedMethods: ["GET"],
+              AllowedOrigins: r2CorsOrigins(),
+              AllowedMethods: ["GET", "HEAD"],
               AllowedHeaders: ["*"],
-              MaxAgeSeconds: 3000,
+              MaxAgeSeconds: 3600,
             },
           ],
         },
       })
     )
     .then(() => console.log("R2 bucket CORS ensured"))
-    .catch((err) => console.error("R2 CORS setup failed:", err.message));
+    .catch((err) => {
+      if (r2CorsDenied(err)) {
+        console.warn("R2 CORS was not updated (Access Denied). Set the bucket CORS rule in the Cloudflare dashboard: methods GET and HEAD, AllowedHeaders *, MaxAgeSeconds 3600.");
+        return;
+      }
+      console.error("R2 CORS setup failed:", err.message);
+    });
 }
 
 const R2_MIME_EXT = {
