@@ -2610,6 +2610,27 @@ app.get("/api/hashtags", rateLimit, (req, res) => {
   res.json({ ok: true, posts: q.searchHashtags.all(tag) });
 });
 
+// ICE servers for peer connections. The Metered key stays on the server.
+// METERED_TURN_URL is the credentials endpoint without the query string.
+app.get("/api/turn", publicPostLimit, async (req, res) => {
+  const key = process.env.METERED_API_KEY || "";
+  const base = String(process.env.METERED_TURN_URL || "").trim().replace(/\/+$/, "");
+  if (!key || !base) return res.status(503).json({ ok: false, iceServers: [] });
+  try {
+    const response = await fetch(`${base}?apiKey=${encodeURIComponent(key)}`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) return res.status(502).json({ ok: false, iceServers: [] });
+    const data = await response.json();
+    const iceServers = Array.isArray(data)
+      ? data
+      : (data && Array.isArray(data.iceServers) ? data.iceServers : []);
+    res.json({ ok: true, iceServers });
+  } catch {
+    if (!res.headersSent) res.status(502).json({ ok: false, iceServers: [] });
+  }
+});
+
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, tracked: q.listTopics.all().length, mirror: MIRROR, streams: resTopics.size });
 });

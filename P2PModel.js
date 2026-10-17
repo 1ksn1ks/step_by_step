@@ -22,10 +22,18 @@ let heartbeatInterval = null;
 let gossipInterval = null;
 let peerListRequestInterval = null; // Interval for requesting peer list
 
-const response = 
-    await fetch("https://topicontopic.metered.live/api/v1/turn/credentials?apiKey=39dd49a26425c2cfbb2c3e92af8edcee930f");
-    // Saving the response in the iceServers array
-    const iceServers = await response.json();
+// ICE servers come from this origin. A missing key or a down server leaves
+// the list empty so the rest of the module still loads.
+let iceServers = [];
+try {
+    const response = await fetch("/api/turn", { signal: AbortSignal.timeout(4000) });
+    if (response.ok) {
+        const data = await response.json();
+        if (data && Array.isArray(data.iceServers)) iceServers = data.iceServers;
+    }
+} catch {
+    iceServers = [];
+}
 
 export async function someFunction(accountId, topicId) {
     // Clean up any existing connections
