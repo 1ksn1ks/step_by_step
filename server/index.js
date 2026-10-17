@@ -78,6 +78,8 @@ const UPLOAD_MAX_CONCURRENT = envPositiveInt("UPLOAD_MAX_CONCURRENT", 4);
 const UPLOAD_MAX_CONCURRENT_PER_IP = envPositiveInt("UPLOAD_MAX_CONCURRENT_PER_IP", 2);
 // A body that stops sending is dropped instead of holding its slot.
 const UPLOAD_BODY_TIMEOUT_MS = envPositiveInt("UPLOAD_BODY_TIMEOUT_MS", 30000);
+// Requests to /api/upload from one IP each minute, before Turnstile.
+const UPLOAD_REQUESTS_PER_MIN = envPositiveInt("UPLOAD_REQUESTS_PER_MIN", 30);
 // Writes and mirror polls that are open to any visitor.
 const PUBLIC_POST_RATE_LIMIT = envPositiveInt("PUBLIC_POST_RATE_LIMIT", 60);
 // Wallet-signed upload auth stays off until this is exactly "1".
@@ -1765,6 +1767,32 @@ function finishUpload(ip) {
   else uploadsInFlightByIp.set(ip, mine);
 }
 
+// Separate from the hourly upload caps and from the public post limiter.
+// A rejected request does not take a concurrency slot or an hourly slot.
+const uploadRequestHits = new Map();
+
+function uploadRequestLimited(req, res) {
+  const now = Date.now();
+  if (uploadRequestHits.size > 4000) {
+    for (const [key, bucket] of uploadRequestHits) {
+      if (now >= bucket.reset) uploadRequestHits.delete(key);
+    }
+  }
+  const key = clientIp(req) || "unknown";
+  let bucket = uploadRequestHits.get(key);
+  if (!bucket || now >= bucket.reset) {
+    bucket = { reset: now + RATE_WINDOW_MS, count: 0 };
+    uploadRequestHits.set(key, bucket);
+  }
+  bucket.count += 1;
+  if (bucket.count > UPLOAD_REQUESTS_PER_MIN) {
+    res.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.reset - now) / 1000))));
+    res.status(429).json({ ok: false, error: "rate limit" });
+    return true;
+  }
+  return false;
+}
+
 // Off unless TURNSTILE_SECRET_KEY is set. A missing or rejected token is
 // 403 and does not use an upload slot. The test secret still requires a token.
 async function turnstileOk(req) {
@@ -2096,6 +2124,10 @@ app.post("/api/upload", async (req, res) => {
   if (declared != null && declared > max) {
     req.resume();
     return res.status(413).json({ ok: false, error: tooBigMessage(isVideo) });
+  }
+  if (uploadRequestLimited(req, res)) {
+    req.resume();
+    return;
   }
   if (!(await turnstileOk(req))) {
     req.resume();
