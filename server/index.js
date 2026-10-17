@@ -60,6 +60,18 @@ const UPLOAD_PER_HOUR = 30;
 const UPLOAD_BYTES_PER_DAY = 500 * 1024 * 1024;
 const UPLOAD_PER_IP_HOUR = 60;
 
+function envPositiveInt(name, fallback) {
+  const raw = process.env[name];
+  if (raw == null || String(raw).trim() === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) return fallback;
+  return n;
+}
+
+// How many upload bodies may sit in memory at once. Extra requests get
+// 503 and Retry-After instead of growing without a bound.
+const UPLOAD_MAX_CONCURRENT = envPositiveInt("UPLOAD_MAX_CONCURRENT", 4);
+
 // ── SQLite (one file, disposable cache) ────────────────────────────────
 // DATA_DIR is the persistent disk on Railway. Mount a volume at /data and
 // set DATA_DIR=/data. Locally the file stays next to this script.
@@ -1620,12 +1632,112 @@ function sweepUploadLimits() {
 
 setInterval(sweepUploadLimits, UPLOAD_HOUR_MS);
 
+const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const JPEG_SIG = Buffer.from([0xff, 0xd8, 0xff]);
+const GIF87 = Buffer.from("GIF87a");
+const GIF89 = Buffer.from("GIF89a");
+const RIFF = Buffer.from("RIFF");
+const WEBP = Buffer.from("WEBP");
+const EBML = Buffer.from([0x1a, 0x45, 0xdf, 0xa3]);
+const FTYP = Buffer.from("ftyp");
+
+function hasBytes(buf, sig, offset = 0) {
+  if (buf.length < offset + sig.length) return false;
+  return buf.subarray(offset, offset + sig.length).equals(sig);
+}
+
+// Major brand plus compatible brands inside the first ftyp box.
+function isoBrands(buf) {
+  if (buf.length < 12 || !hasBytes(buf, FTYP, 4)) return null;
+  const size = buf.readUInt32BE(0);
+  const end = Math.min(buf.length, size >= 16 ? size : 16, 128);
+  const brands = [buf.subarray(8, 12).toString("latin1")];
+  for (let i = 16; i + 4 <= end; i += 4) brands.push(buf.subarray(i, i + 4).toString("latin1"));
+  return brands;
+}
+
+function isQuickTime(brands) {
+  return brands.some((brand) => brand === "qt  " || brand === "mov ");
+}
+
+// The declared Content-Type has to match the file header. A renamed HTML
+// page, or an MP4 labeled as a PNG, never reaches the bucket.
+function magicMatches(type, body) {
+  if (type === "image/png") return hasBytes(body, PNG_SIG);
+  if (type === "image/jpeg") return hasBytes(body, JPEG_SIG);
+  if (type === "image/gif") return hasBytes(body, GIF87) || hasBytes(body, GIF89);
+  if (type === "image/webp") return hasBytes(body, RIFF) && hasBytes(body, WEBP, 8);
+  if (type === "video/webm") {
+    if (!hasBytes(body, EBML)) return false;
+    return body.subarray(0, Math.min(body.length, 128)).toString("latin1").includes("webm");
+  }
+  if (type === "video/mp4" || type === "video/quicktime") {
+    const brands = isoBrands(body);
+    if (!brands) return false;
+    const quick = isQuickTime(brands);
+    return type === "video/quicktime" ? quick : !quick;
+  }
+  return false;
+}
+
+function tooBigMessage(isVideo) {
+  return `Too big — ${isVideo ? "100 MB video" : "20 MB image"} max`;
+}
+
+let uploadsInFlight = 0;
+
+function beginUpload(res) {
+  if (uploadsInFlight >= UPLOAD_MAX_CONCURRENT) {
+    res.setHeader("Retry-After", "5");
+    res.status(503).json({ ok: false, error: "Too many uploads, try again shortly" });
+    return false;
+  }
+  uploadsInFlight += 1;
+  return true;
+}
+
+function finishUpload() {
+  uploadsInFlight = Math.max(0, uploadsInFlight - 1);
+}
+
+function readUploadBody(req, max) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let received = 0;
+    let settled = false;
+    const finish = (err, body) => {
+      if (settled) return;
+      settled = true;
+      if (err) reject(err);
+      else resolve(body);
+    };
+    req.on("data", (chunk) => {
+      if (settled) return;
+      received += chunk.length;
+      if (received > max) {
+        const err = new Error("too big");
+        err.code = 413;
+        req.destroy();
+        finish(err);
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => finish(null, Buffer.concat(chunks)));
+    req.on("error", () => {
+      const err = new Error("aborted");
+      err.code = 400;
+      finish(err);
+    });
+  });
+}
+
 // The phone's file goes straight into R2 (buffered in memory while in
 // flight — capped below, nothing on disk); the response's url is the public
 // r2.pub link the marker's Image URL field stores. A Buffer body sidesteps
 // the SDK's stream-signing limits (flowing streams can't be hashed / need
 // Content-Length, and R2 resets the connection either way).
-app.post("/api/upload", (req, res) => {
+app.post("/api/upload", async (req, res) => {
   if (!r2) return res.status(503).json({ ok: false, error: "R2 not configured — set R2_* in server/.env" });
   const account = requireAccount(req);
   const type = (req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
@@ -1633,38 +1745,39 @@ app.post("/api/upload", (req, res) => {
   if (!ext) return res.status(415).json({ ok: false, error: "Unsupported type — images and videos only" });
   const isVideo = type.startsWith("video/");
   const max = isVideo ? R2_MAX_VIDEO : R2_MAX_IMAGE;
-  const declared = Number(req.headers["content-length"] || 0);
-  if (declared > max) {
+  const lengthHeader = req.headers["content-length"];
+  const declared = lengthHeader == null || lengthHeader === "" ? null : Number(lengthHeader);
+  if (declared != null && (!Number.isFinite(declared) || declared < 0)) {
     req.resume();
-    return res.status(413).json({ ok: false, error: `Too big — ${isVideo ? "100 MB video" : "20 MB image"} max` });
+    return res.status(400).json({ ok: false, error: "Bad upload" });
   }
-  if (!takeUploadSlot(req, res, account, declared)) return;
-  const chunks = [];
-  let received = 0;
-  let over = false;
-  req.on("data", (chunk) => {
-    if (over) return;
-    received += chunk.length;
-    if (received > max) {
-      // Crossed the cap mid-upload — send the 413, then drop the client.
-      over = true;
-      res.status(413).json({ ok: false, error: `Too big — ${isVideo ? "100 MB video" : "20 MB image"} max` });
-      res.on("finish", () => req.destroy());
-      return;
+  if (declared === 0) {
+    req.resume();
+    return res.status(400).json({ ok: false, error: "Empty file" });
+  }
+  if (declared != null && declared > max) {
+    req.resume();
+    return res.status(413).json({ ok: false, error: tooBigMessage(isVideo) });
+  }
+  if (!beginUpload(res)) {
+    req.resume();
+    return;
+  }
+  try {
+    const body = await readUploadBody(req, max);
+    if (!body.length) return res.status(400).json({ ok: false, error: "Empty file" });
+    if (!magicMatches(type, body)) {
+      return res.status(415).json({ ok: false, error: "File contents do not match the declared type" });
     }
-    chunks.push(chunk);
-  });
-  req.on("end", () => {
-    if (over) return;
-    const body = Buffer.concat(chunks);
+    if (!takeUploadSlot(req, res, account, body.length)) return;
     // New videos can carry their length in the object name. Images, and
     // videos with no usable duration, keep the original key shape.
     const seconds = isVideo
       ? resolvedUploadSeconds(ext, req.headers["x-media-duration"], body)
       : null;
     const key = uploadObjectKey(ext, seconds, Date.now(), Math.random().toString(36).slice(2, 8));
-    r2
-      .send(
+    try {
+      await r2.send(
         new PutObjectCommand({
           Bucket: R2_BUCKET,
           Key: key,
@@ -1675,19 +1788,21 @@ app.post("/api/upload", (req, res) => {
           // CORS comes from the bucket-level rule set at startup above —
           // per-object CORS on PutObject does not exist in S3/R2.
         })
-      )
-      .then(() => {
-        addUploadBytes(account, body.length);
-        res.json({ ok: true, url: `${R2_PUBLIC_BASE}/${key}`, type });
-      })
-      .catch((err) => {
-        console.error("R2 upload failed:", err.message);
-        res.status(502).json({ ok: false, error: "R2 upload failed" });
-      });
-  });
-  req.on("error", () => {
-    if (!res.headersSent && !over) res.status(400).json({ ok: false, error: "upload aborted" });
-  });
+      );
+    } catch (err) {
+      console.error("R2 upload failed:", err.message);
+      if (!res.headersSent) res.status(502).json({ ok: false, error: "R2 upload failed" });
+      return;
+    }
+    addUploadBytes(account, body.length);
+    res.json({ ok: true, url: `${R2_PUBLIC_BASE}/${key}`, type });
+  } catch (err) {
+    if (res.headersSent) return;
+    if (err && err.code === 413) return res.status(413).json({ ok: false, error: tooBigMessage(isVideo) });
+    res.status(400).json({ ok: false, error: "upload aborted" });
+  } finally {
+    finishUpload();
+  }
 });
 
 const isTopicId = (s) => typeof s === "string" && /^\d+\.\d+\.\d+$/.test(s);
