@@ -56,9 +56,6 @@ const PROFILE_TOPICS = {
 // One global topic for person follows. The body names the followee.
 // The mirror payer is the follower.
 const FOLLOW_TOPIC = "0.0.10923187";
-const UPLOAD_PER_HOUR = 30;
-const UPLOAD_BYTES_PER_DAY = 500 * 1024 * 1024;
-const UPLOAD_PER_IP_HOUR = 60;
 
 function envPositiveInt(name, fallback) {
   const raw = process.env[name];
@@ -68,9 +65,16 @@ function envPositiveInt(name, fallback) {
   return n;
 }
 
+// Upload caps. Defaults match the previous fixed limits: 30 files an hour
+// and 500 MB a day for one account, 60 files an hour for one IP.
+const UPLOAD_PER_HOUR = envPositiveInt("UPLOAD_RATE_LIMIT_ACCOUNT", 30);
+const UPLOAD_PER_IP_HOUR = envPositiveInt("UPLOAD_RATE_LIMIT_IP", 60);
+const UPLOAD_BYTES_PER_DAY = envPositiveInt("UPLOAD_DAILY_MB_ACCOUNT", 500) * 1024 * 1024;
 // How many upload bodies may sit in memory at once. Extra requests get
 // 503 and Retry-After instead of growing without a bound.
 const UPLOAD_MAX_CONCURRENT = envPositiveInt("UPLOAD_MAX_CONCURRENT", 4);
+// Writes and mirror polls that are open to any visitor.
+const PUBLIC_POST_RATE_LIMIT = envPositiveInt("PUBLIC_POST_RATE_LIMIT", 60);
 
 // ── SQLite (one file, disposable cache) ────────────────────────────────
 // DATA_DIR is the persistent disk on Railway. Mount a volume at /data and
@@ -1480,6 +1484,31 @@ function rateLimit(req, res, next) {
   next();
 }
 
+// Same window as rateLimit, separate counter, so a busy chat poll does not
+// eat the follow/hashtag budget and the cap can be set on its own.
+const publicHits = new Map();
+
+function publicPostLimit(req, res, next) {
+  const now = Date.now();
+  if (publicHits.size > 4000) {
+    for (const [key, bucket] of publicHits) {
+      if (now >= bucket.reset) publicHits.delete(key);
+    }
+  }
+  const key = clientIp(req) + " " + req.path;
+  let bucket = publicHits.get(key);
+  if (!bucket || now >= bucket.reset) {
+    bucket = { reset: now + RATE_WINDOW_MS, count: 0 };
+    publicHits.set(key, bucket);
+  }
+  bucket.count += 1;
+  if (bucket.count > PUBLIC_POST_RATE_LIMIT) {
+    res.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.reset - now) / 1000))));
+    return res.status(429).json({ ok: false, error: "rate limit" });
+  }
+  next();
+}
+
 // ── R2 media storage ────────────────────────────────────────────────────
 // Marker images/videos live on Cloudflare R2 (S3 API). The phone's bytes
 // stream straight into the bucket — nothing touches this disk. The
@@ -1815,7 +1844,7 @@ function userFollowState(account, followee) {
 }
 
 // app: "people are viewing this topic now" (chat panel Load)
-app.post("/api/track", (req, res) => {
+app.post("/api/track", publicPostLimit, (req, res) => {
   const topic = req.body && req.body.topic;
   if (!isTopicId(topic)) return res.status(400).json({ ok: false, error: "bad topic" });
   q.upsertTopic.run(topic, Date.now());
@@ -1825,7 +1854,7 @@ app.post("/api/track", (req, res) => {
 // One view of one post. created is that message's ISO time. inc 1 adds a
 // view; inc 0 only reads. The phone adds one the first time that browser
 // opens the post. Later opens already have the number on the card.
-app.post("/api/popup-view", (req, res) => {
+app.post("/api/popup-view", publicPostLimit, (req, res) => {
   const topic = req.body && req.body.topic;
   const created = req.body && req.body.created;
   const inc = req.body && Number(req.body.inc) === 1 ? 1 : 0;
@@ -1915,7 +1944,7 @@ async function pullUntilPost(topic, created) {
 // The original post behind a shared pin. The pin carries the topic id and
 // the post's ISO time. This rebuilds the card: body, topic name, views,
 // hearts, comments, and how many accounts currently share it.
-app.get("/api/post", async (req, res) => {
+app.get("/api/post", publicPostLimit, async (req, res) => {
   const topic = req.query.topic;
   const created = req.query.created;
   const account = typeof req.query.account === "string" ? req.query.account : "";
@@ -2011,7 +2040,7 @@ app.get("/api/post", async (req, res) => {
 
 // Read the follower count. A follow field in the body is ignored.
 // Rows change only when the mirror message is stored (extractFollow).
-app.post("/api/topic-follow", (req, res) => {
+app.post("/api/topic-follow", publicPostLimit, (req, res) => {
   const topic = req.body && req.body.topic;
   const account = req.body && req.body.account;
   if (!isTopicId(topic)) return res.status(400).json({ ok: false, error: "bad topic" });
@@ -2067,7 +2096,7 @@ app.get("/api/following-feed", rateLimit, (req, res) => {
 // app: "I just sent this message" (after the wallet confirms) → stored as
 // PENDING so every viewer sees it instantly; the poller — or a mirror row
 // that was already stored — confirms it. Unconfirmed rows expire in 10 min.
-app.post("/api/submit", (req, res) => {
+app.post("/api/submit", publicPostLimit, (req, res) => {
   const { topic, body, payer } = req.body || {};
   if (!isTopicId(topic) || typeof body !== "string" || !body || !isTopicId(payer)) {
     return res.status(400).json({ ok: false, error: "bad submit" });
@@ -2133,7 +2162,7 @@ function getTopicName(topicId) {
 // app: "a marker was just uploaded" → kept LIVE for 24h (re-upload of the
 // same topic+cord refreshes it), tagged with its country for the
 // search → local view. Topic history is untouched (separate table).
-app.post("/api/marker", (req, res) => {
+app.post("/api/marker", publicPostLimit, (req, res) => {
   const { topic, cord, title, image, msg, payer, number } = req.body || {};
   if (!isTopicId(topic) || typeof cord !== "string") {
     return res.status(400).json({ ok: false, error: "bad marker" });
@@ -2166,7 +2195,7 @@ app.post("/api/marker", (req, res) => {
 
 // app: "show live markers in this country" (geographic search). Only the
 // 24h view — a marker here is still in its topic history regardless.
-app.get("/api/local", (req, res) => {
+app.get("/api/local", publicPostLimit, (req, res) => {
   const country = String(req.query.country || "").trim();
   if (!country) return res.json({ ok: true, markers: [] });
   const rows = q.listLiveByCountry.all(country, Date.now() - LIVE_TTL_MS);
@@ -2254,10 +2283,10 @@ app.get("/api/user-settings", (req, res) => {
 });
 
 // app: history (latest N below before_seq) or live tail (rows after after_seq)
-app.get("/api/messages", (req, res) => {
+app.get("/api/messages", publicPostLimit, (req, res) => {
   const topic = req.query.topic;
   if (!isTopicId(topic)) return res.json({ ready: false, messages: [] });
-  const limit = Math.min(50000, Math.max(1, Number(req.query.limit) || 100));
+  const limit = Math.min(1000, Math.max(1, Number(req.query.limit) || 100));
   const before = Math.max(0, Number(req.query.before_seq) || 0);
   const after = Math.max(0, Number(req.query.after_seq) || 0);
   const row = q.getTopic.get(topic);
