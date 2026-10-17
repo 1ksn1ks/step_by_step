@@ -1729,6 +1729,30 @@ function finishUpload() {
   uploadsInFlight = Math.max(0, uploadsInFlight - 1);
 }
 
+// Off unless TURNSTILE_SECRET_KEY is set. A missing or rejected token is
+// 403 and does not use an upload slot. The test secret still requires a token.
+async function turnstileOk(req) {
+  const secret = process.env.TURNSTILE_SECRET_KEY;
+  if (!secret) return true;
+  const token = req.headers["cf-turnstile-response"];
+  if (typeof token !== "string" || !token.trim()) return false;
+  const form = new URLSearchParams({ secret, response: token.trim() });
+  const ip = clientIp(req);
+  if (ip && ip !== "unknown") form.set("remoteip", ip);
+  try {
+    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: form,
+      signal: AbortSignal.timeout(8000),
+    });
+    const data = await response.json();
+    return !!(data && data.success === true);
+  } catch {
+    return false;
+  }
+}
+
 function readUploadBody(req, max) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -1787,6 +1811,10 @@ app.post("/api/upload", async (req, res) => {
   if (declared != null && declared > max) {
     req.resume();
     return res.status(413).json({ ok: false, error: tooBigMessage(isVideo) });
+  }
+  if (!(await turnstileOk(req))) {
+    req.resume();
+    return res.status(403).json({ ok: false, error: "Turnstile check failed" });
   }
   if (!beginUpload(res)) {
     req.resume();

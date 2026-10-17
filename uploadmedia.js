@@ -29,6 +29,55 @@ const POLYGON_COVER_TYPES = MEDIA_TYPES;
 
 let uploading = false;
 
+// Managed Turnstile. Rendered only when the public site key is set, so a
+// local run with no key uploads exactly as before. Chat images use
+// uploadToR2, so they send the same token.
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
+let turnstileResponse = "";
+let turnstileWidgetId = null;
+
+function mountTurnstile() {
+  if (!TURNSTILE_SITE_KEY || document.getElementById("upload-turnstile")) return;
+  const box = document.createElement("div");
+  box.id = "upload-turnstile";
+  box.style.cssText = "position:fixed;left:12px;bottom:12px;z-index:40;";
+  document.body.appendChild(box);
+  const script = document.createElement("script");
+  script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+  script.async = true;
+  script.onload = () => {
+    if (!window.turnstile) return;
+    turnstileWidgetId = window.turnstile.render(box, {
+      sitekey: TURNSTILE_SITE_KEY,
+      callback(token) { turnstileResponse = token || ""; },
+      "expired-callback"() { turnstileResponse = ""; },
+      "error-callback"() { turnstileResponse = ""; },
+    });
+  };
+  document.head.appendChild(script);
+}
+
+function currentTurnstileToken() {
+  if (!TURNSTILE_SITE_KEY) return "";
+  try {
+    if (window.turnstile && turnstileWidgetId != null) {
+      const live = window.turnstile.getResponse(turnstileWidgetId);
+      if (live) return live;
+    }
+  } catch { /* widget still loading */ }
+  return turnstileResponse;
+}
+
+function resetTurnstile() {
+  if (!TURNSTILE_SITE_KEY) return;
+  turnstileResponse = "";
+  try {
+    if (window.turnstile && turnstileWidgetId != null) window.turnstile.reset(turnstileWidgetId);
+  } catch { /* widget still loading */ }
+}
+
+mountTurnstile();
+
 // A persistent pill in the toast container that reports upload progress —
 // the regular toasts auto-hide after 2.6 s, too short for a big file.
 function progressPill(label) {
@@ -82,20 +131,29 @@ function readVideoSeconds(localUrl) {
 
 // POST the file to /api/upload with progress events (XHR — fetch has none).
 function uploadToR2(file, pill, baseLabel, seconds) {
+  const turnstile = currentTurnstileToken();
+  if (TURNSTILE_SITE_KEY && !turnstile) {
+    return Promise.reject(new Error("Complete the check first"));
+  }
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/upload");
     xhr.responseType = "json";
     if (Number.isInteger(seconds) && seconds > 0) xhr.setRequestHeader("X-Media-Duration", String(seconds));
     if (connectedAccount) xhr.setRequestHeader("X-Account", connectedAccount);
+    if (turnstile) xhr.setRequestHeader("CF-Turnstile-Response", turnstile);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) pill.set(`${baseLabel} ${Math.round((e.loaded / e.total) * 100)}%`);
     };
     xhr.onload = () => {
+      resetTurnstile();
       if (xhr.status === 200 && xhr.response && xhr.response.ok) resolve(xhr.response.url);
       else reject(new Error((xhr.response && xhr.response.error) || `upload failed (${xhr.status})`));
     };
-    xhr.onerror = () => reject(new Error("network error — is the backend up?"));
+    xhr.onerror = () => {
+      resetTurnstile();
+      reject(new Error("network error — is the backend up?"));
+    };
     xhr.send(file);
   });
 }
