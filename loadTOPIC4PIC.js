@@ -1,4 +1,5 @@
-import {getMessages, getTopicInfo } from './hedera'
+import { getTopicInfo } from './hedera'
+import { getTopicData as getMessages } from './topicdata'
 import { loadTOPIC2PIC, usernames } from './loadalladata'
 import { activePolygonPopups} from './polygons';
 import { activeMarkerPopups } from './marker';

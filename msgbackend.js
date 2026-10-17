@@ -179,18 +179,28 @@ export async function fetchFollowing(account) {
 // ready=false → backend offline or topic not backfilled yet → caller falls back.
 // beforeSeq pages older history. The server ignores it when afterSeq is set,
 // and it never returns more than 1000 rows.
+// A timeout, network error, or HTTP error skips further calls for 30s.
+// A 200 with ready=false only means this topic is not backfilled.
+const BACKEND_COOLDOWN_MS = 30000;
+let backendDownUntil = 0;
+
 export async function fetchMessagesBackend(topicId, limit = 1000, afterSeq = 0, beforeSeq = 0) {
+  if (Date.now() < backendDownUntil) {
+    return { messages: [], error: "backend unavailable", ready: false };
+  }
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 6000);
   try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 2500);
     const after = Number(afterSeq) > 0 ? `&after_seq=${Math.floor(Number(afterSeq))}` : '';
     const before = !after && Number(beforeSeq) > 0 ? `&before_seq=${Math.floor(Number(beforeSeq))}` : '';
     const res = await fetch(
       `${BACKEND_URL}/api/messages?topic=${encodeURIComponent(topicId)}&limit=${limit}${after}${before}`,
       { signal: ctrl.signal }
     );
-    clearTimeout(t);
-    if (!res.ok) return { messages: [], error: "backend HTTP " + res.status, ready: false };
+    if (!res.ok) {
+      backendDownUntil = Date.now() + BACKEND_COOLDOWN_MS;
+      return { messages: [], error: "backend HTTP " + res.status, ready: false };
+    }
     const data = await res.json();
     return {
       messages: data.messages || [],
@@ -199,7 +209,10 @@ export async function fetchMessagesBackend(topicId, limit = 1000, afterSeq = 0, 
       views: data.views && typeof data.views === "object" && !Array.isArray(data.views) ? data.views : null,
     };
   } catch (e) {
+    backendDownUntil = Date.now() + BACKEND_COOLDOWN_MS;
     return { messages: [], error: e.message || String(e), ready: false };
+  } finally {
+    clearTimeout(t);
   }
 }
 
