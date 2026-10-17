@@ -1843,6 +1843,16 @@ function uploadTokenSecret() {
   return process.env.UPLOAD_TOKEN_SECRET || "";
 }
 
+// Fail closed. A missing or short secret must not issue tokens or accept
+// uploads while REQUIRE_UPLOAD_AUTH is on.
+function uploadAuthConfigured() {
+  return Buffer.byteLength(uploadTokenSecret(), "utf8") >= 32;
+}
+
+if (REQUIRE_UPLOAD_AUTH && !uploadAuthConfigured()) {
+  console.error("REQUIRE_UPLOAD_AUTH is set, but UPLOAD_TOKEN_SECRET must be at least 32 bytes. Upload auth will reject requests.");
+}
+
 function issueUploadToken(accountId) {
   const exp = Date.now() + UPLOAD_TOKEN_TTL_MS;
   const body = Buffer.from(JSON.stringify({ accountId, exp })).toString("base64url");
@@ -1852,8 +1862,8 @@ function issueUploadToken(accountId) {
 
 // Constant-time compare of the HMAC. A wrong length never reaches the compare.
 function accountFromUploadToken(header) {
+  if (!uploadAuthConfigured()) return null;
   const secret = uploadTokenSecret();
-  if (!secret) return null;
   const token = typeof header === "string" ? header.trim() : "";
   const dot = token.lastIndexOf(".");
   if (dot <= 0) return null;
@@ -1880,14 +1890,77 @@ function decodeSignature(text) {
   return null;
 }
 
-function collectAccountKeys(key, out = []) {
-  if (!key || typeof key !== "object") return out;
-  if ((key._type === "ED25519" || key._type === "ECDSA_SECP256K1") && typeof key.key === "string") out.push(key);
-  if (Array.isArray(key.keys)) {
-    for (const child of key.keys) collectAccountKeys(child, out);
+// A threshold account or a key list is one policy, not a pile of keys that
+// any single signature can satisfy. Those stay a 400. Only a single
+// ED25519 or ECDSA key on the account can authorize an upload.
+function accountKeyProblem(key) {
+  if (!key || typeof key !== "object") return "BAD_KEY";
+  if (
+    key._type === "ProtobufEncoded" ||
+    key._type === "KeyList" ||
+    key._type === "ThresholdKey" ||
+    Array.isArray(key.keys)
+  ) {
+    return "COMPOUND_KEY";
   }
-  if (key.key && typeof key.key === "object") collectAccountKeys(key.key, out);
-  return out;
+  if (key._type !== "ED25519" && key._type !== "ECDSA_SECP256K1") return "BAD_KEY";
+  if (typeof key.key !== "string") return "BAD_KEY";
+  // The mirror returns the raw public key as hex, not base64.
+  if (key.key.length === 0 || key.key.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(key.key)) return "BAD_KEY";
+  return null;
+}
+
+function accountKeyError(code) {
+  const err = new Error(
+    code === "COMPOUND_KEY"
+      ? "Key lists and threshold keys cannot authorize uploads"
+      : "This account key cannot authorize uploads"
+  );
+  err.code = code;
+  return err;
+}
+
+async function fetchAccountKey(accountId) {
+  let data;
+  try {
+    const response = await fetch(`${MIRROR}/api/v1/accounts/${accountId}`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) {
+      const err = new Error("account lookup failed");
+      err.code = "LOOKUP";
+      throw err;
+    }
+    data = await response.json();
+  } catch (err) {
+    if (err && (err.code === "LOOKUP" || err.code === "COMPOUND_KEY" || err.code === "BAD_KEY")) throw err;
+    const wrapped = new Error("account lookup failed");
+    wrapped.code = "LOOKUP";
+    throw wrapped;
+  }
+  const problem = accountKeyProblem(data && data.key);
+  if (problem) throw accountKeyError(problem);
+  return data.key;
+}
+
+async function hederaPublicKeyClass() {
+  try {
+    const { PublicKey } = await import("@hashgraph/sdk");
+    return PublicKey;
+  } catch {
+    const missing = new Error("Hedera SDK is not installed");
+    missing.code = "NO_SDK";
+    throw missing;
+  }
+}
+
+function publicKeyFromMirror(PublicKey, key) {
+  const raw = Buffer.from(key.key, "hex");
+  try {
+    return key._type === "ED25519" ? PublicKey.fromBytesED25519(raw) : PublicKey.fromBytesECDSA(raw);
+  } catch {
+    throw accountKeyError("BAD_KEY");
+  }
 }
 
 // HIP-820 prefixes the text before the wallet signs it. A wallet that signs
@@ -1899,46 +1972,32 @@ function signedNonceBodies(nonce) {
   ];
 }
 
-async function signatureMatchesAccount(accountId, nonce, signature) {
-  let data;
-  try {
-    const response = await fetch(`${MIRROR}/api/v1/accounts/${accountId}`, {
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!response.ok) return false;
-    data = await response.json();
-  } catch {
-    return false;
-  }
-  const keys = collectAccountKeys(data && data.key);
-  if (!keys.length) return false;
-  let PublicKey;
-  try {
-    ({ PublicKey } = await import("@hashgraph/sdk"));
-  } catch (err) {
-    const missing = new Error("Hedera SDK is not installed");
-    missing.code = "NO_SDK";
-    throw missing;
-  }
-  const messages = signedNonceBodies(nonce);
-  for (const key of keys) {
-    const raw = Buffer.from(key.key, "base64");
-    let pub = null;
+function signatureMatchesKey(pub, nonce, signature) {
+  for (const message of signedNonceBodies(nonce)) {
     try {
-      pub = key._type === "ED25519" ? PublicKey.fromBytesED25519(raw) : PublicKey.fromBytesECDSA(raw);
+      if (pub.verify(message, signature)) return true;
     } catch {
-      pub = null;
-    }
-    if (!pub) continue;
-    for (const message of messages) {
-      try {
-        if (pub.verify(message, signature)) return true;
-      } catch {
-        /* this key did not verify */
-      }
+      /* this message did not verify */
     }
   }
   return false;
+}
+
+function uploadAuthError(res, err) {
+  if (err && err.code === "COMPOUND_KEY") {
+    return res.status(400).json({ ok: false, error: "Key lists and threshold keys cannot authorize uploads" });
+  }
+  if (err && err.code === "BAD_KEY") {
+    return res.status(400).json({ ok: false, error: "This account key cannot authorize uploads" });
+  }
+  if (err && err.code === "NO_SDK") {
+    console.error("upload auth failed:", err.message);
+    return res.status(503).json({ ok: false, error: "Upload auth is not configured" });
+  }
+  if (!(err && err.code === "LOOKUP")) {
+    console.error("upload auth failed:", err && err.message ? err.message : "verify error");
+  }
+  return res.status(401).json({ ok: false, error: "Upload check failed" });
 }
 
 app.get("/api/upload/challenge", publicPostLimit, (req, res) => {
@@ -1951,7 +2010,7 @@ app.get("/api/upload/challenge", publicPostLimit, (req, res) => {
 });
 
 app.post("/api/upload/auth", publicPostLimit, async (req, res) => {
-  if (!uploadTokenSecret()) {
+  if (!uploadAuthConfigured()) {
     return res.status(503).json({ ok: false, error: "Upload auth is not configured" });
   }
   const accountId = req.body && req.body.accountId;
@@ -1962,19 +2021,19 @@ app.post("/api/upload/auth", publicPostLimit, async (req, res) => {
   }
   const signature = decodeSignature(signatureText);
   if (!signature) return res.status(400).json({ ok: false, error: "bad signature" });
-  if (!takeUploadNonce(nonce)) return res.status(401).json({ ok: false, error: "Upload check expired" });
-  let matches = false;
+  // Reject a key list before spending the nonce, so that account can retry
+  // after the key changes. A bad signature still spends it.
+  let pub;
   try {
-    matches = await signatureMatchesAccount(accountId, nonce, signature);
+    const key = await fetchAccountKey(accountId);
+    pub = publicKeyFromMirror(await hederaPublicKeyClass(), key);
   } catch (err) {
-    if (err && err.code === "NO_SDK") {
-      console.error("upload auth failed:", err.message);
-      return res.status(503).json({ ok: false, error: "Upload auth is not configured" });
-    }
-    console.error("upload auth failed:", err && err.message ? err.message : "verify error");
+    return uploadAuthError(res, err);
+  }
+  if (!takeUploadNonce(nonce)) return res.status(401).json({ ok: false, error: "Upload check expired" });
+  if (!signatureMatchesKey(pub, nonce, signature)) {
     return res.status(401).json({ ok: false, error: "Upload check failed" });
   }
-  if (!matches) return res.status(401).json({ ok: false, error: "Upload check failed" });
   res.json({ ok: true, token: issueUploadToken(accountId), expiresIn: 900 });
 });
 
@@ -1982,7 +2041,7 @@ app.post("/api/upload", async (req, res) => {
   if (!r2) return res.status(503).json({ ok: false, error: "R2 not configured — set R2_* in server/.env" });
   let account = null;
   if (REQUIRE_UPLOAD_AUTH) {
-    if (!uploadTokenSecret()) {
+    if (!uploadAuthConfigured()) {
       req.resume();
       return res.status(503).json({ ok: false, error: "Upload auth is not configured" });
     }
