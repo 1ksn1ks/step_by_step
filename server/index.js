@@ -1405,8 +1405,23 @@ setInterval(() => {
   if (geoQueue.size > 0) geoWorker();
 }, 5000);
 
+// How many reverse-proxy hops may set the client address. Railway in front
+// of this process is one hop. 0 keeps the socket address. A client-sent
+// forwarding header is never parsed here.
+function trustProxySetting() {
+  const raw = process.env.TRUST_PROXY;
+  if (raw == null || String(raw).trim() === "") return 1;
+  const text = String(raw).trim().toLowerCase();
+  if (text === "true") return true;
+  if (text === "false") return false;
+  const n = Number(text);
+  if (Number.isInteger(n) && n >= 0) return n;
+  return 1;
+}
+
 // ── API ─────────────────────────────────────────────────────────────────
 const app = express();
+app.set("trust proxy", trustProxySetting());
 app.use(express.json());
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -1416,18 +1431,20 @@ app.use((req, res, next) => {
   next();
 });
 
-// About 60 requests a minute for one IP on one path. Cloudflare's
-// connecting IP is the visitor; otherwise the first forwarded hop.
+// About 60 requests a minute for one IP on one path.
 const RATE_WINDOW_MS = 60 * 1000;
 const RATE_MAX = 60;
 const rateHits = new Map();
 
+// req.ip follows TRUST_PROXY. CF-Connecting-IP is read only when
+// TRUST_CF_IP=1, because that header is client-controlled unless the
+// edge in front of this process strips it.
 function clientIp(req) {
-  const cf = req.headers["cf-connecting-ip"];
-  if (typeof cf === "string" && cf.trim()) return cf.trim();
-  const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string" && forwarded.trim()) return forwarded.split(",")[0].trim();
-  return (req.socket && req.socket.remoteAddress) || "unknown";
+  if (process.env.TRUST_CF_IP === "1") {
+    const cf = req.headers["cf-connecting-ip"];
+    if (typeof cf === "string" && cf.trim()) return cf.trim();
+  }
+  return req.ip || "unknown";
 }
 
 function rateLimit(req, res, next) {
