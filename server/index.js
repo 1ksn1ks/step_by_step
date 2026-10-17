@@ -2412,7 +2412,7 @@ app.post("/api/user-follow", rateLimit, (req, res) => {
   res.json(userFollowState(account, followee));
 });
 
-app.get("/api/following", (req, res) => {
+app.get("/api/following", publicPostLimit, (req, res) => {
   const account = req.query.account;
   if (!isTopicId(account)) return res.status(400).json({ ok: false, error: "bad account" });
   const following = q.listUserFollowing.all(account).map((row) => row.followee).slice(0, 500);
@@ -2509,11 +2509,26 @@ function getTopicName(topicId) {
 // app: "a marker was just uploaded" → kept LIVE for 24h (re-upload of the
 // same topic+cord refreshes it), tagged with its country for the
 // search → local view. Topic history is untouched (separate table).
+// Same limits as the draw form: title maxlength 20, message maxlength 256.
+const MARKER_TITLE_MAX = 20;
+const MARKER_MSG_MAX = 256;
+
+function markerTextError(value, max, tooLong) {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string") return "bad marker";
+  if (value.length > max) return tooLong;
+  return null;
+}
+
 app.post("/api/marker", publicPostLimit, (req, res) => {
   const { topic, cord, title, image, msg, payer, number } = req.body || {};
   if (!isTopicId(topic) || typeof cord !== "string") {
     return res.status(400).json({ ok: false, error: "bad marker" });
   }
+  const titleError = markerTextError(title, MARKER_TITLE_MAX, "title is too long");
+  if (titleError) return res.status(400).json({ ok: false, error: titleError });
+  const msgError = markerTextError(msg, MARKER_MSG_MAX, "message is too long");
+  if (msgError) return res.status(400).json({ ok: false, error: msgError });
   const parts = cord.split(",").map((s) => Number(s.trim()));
   if (parts.length !== 2 || parts.some((n) => !isFinite(n))) {
     return res.status(400).json({ ok: false, error: "bad cord" });
@@ -2608,7 +2623,7 @@ function userSettingPayload(row) {
   };
 }
 
-app.get("/api/user-settings", (req, res) => {
+app.get("/api/user-settings", publicPostLimit, (req, res) => {
   const ready = Object.keys(PROFILE_TOPICS).every((id) => {
     const t = q.getTopic.get(id);
     return t && t.backfilled === 1;
@@ -2685,7 +2700,7 @@ function broadcast(topicId, event) {
   for (const res of set) sseWrite(res, payload);
 }
 
-app.get("/api/stream", (req, res) => {
+app.get("/api/stream", publicPostLimit, (req, res) => {
   const topics = String(req.query.topics || "")
     .split(",")
     .map((t) => t.trim())
