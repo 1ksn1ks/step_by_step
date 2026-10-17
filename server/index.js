@@ -1904,7 +1904,8 @@ function uploadAuthConfigured() {
 }
 
 if (REQUIRE_UPLOAD_AUTH && !uploadAuthConfigured()) {
-  console.error("REQUIRE_UPLOAD_AUTH is set, but UPLOAD_TOKEN_SECRET must be at least 32 bytes. Upload auth will reject requests.");
+  console.error("REQUIRE_UPLOAD_AUTH is set, but UPLOAD_TOKEN_SECRET must be at least 32 bytes. Refusing to start.");
+  process.exit(1);
 }
 
 function issueUploadToken(accountId) {
@@ -2139,6 +2140,18 @@ app.post("/api/upload", async (req, res) => {
     req.resume();
     return;
   }
+  let released = false;
+  const releaseSlot = () => {
+    if (released) return;
+    released = true;
+    finishUpload(uploadIp);
+  };
+  // A dropped connection must free the slot even if the handler is still
+  // inside the body read. A finished body keeps the slot until finally.
+  req.on("aborted", releaseSlot);
+  req.on("close", () => {
+    if (req.aborted || !req.complete) releaseSlot();
+  });
   try {
     const body = await readUploadBody(req, max);
     if (!body.length) return res.status(400).json({ ok: false, error: "Empty file" });
@@ -2184,7 +2197,7 @@ app.post("/api/upload", async (req, res) => {
     }
     res.status(400).json({ ok: false, error: "upload aborted" });
   } finally {
-    finishUpload(uploadIp);
+    releaseSlot();
   }
 });
 
@@ -2516,9 +2529,9 @@ function getTopicName(topicId) {
 // app: "a marker was just uploaded" → kept LIVE for 24h (re-upload of the
 // same topic+cord refreshes it), tagged with its country for the
 // search → local view. Topic history is untouched (separate table).
-// Same limits as the draw form: title maxlength 20, message maxlength 256.
-const MARKER_TITLE_MAX = 20;
-const MARKER_MSG_MAX = 256;
+// The draw form is shorter. These caps stop an oversized API body.
+const MARKER_TITLE_MAX = 120;
+const MARKER_MSG_MAX = 2000;
 
 function markerTextError(value, max, tooLong) {
   if (value == null || value === "") return null;

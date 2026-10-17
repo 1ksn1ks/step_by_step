@@ -11,7 +11,8 @@
     "dev": "vite",
     "build": "vite build",
     "start": "node server/boot.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:security": "node scripts/security-check.mjs"
   },
   "devDependencies": {
     "vite": "^7.2.4",

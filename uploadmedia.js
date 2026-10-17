@@ -29,54 +29,111 @@ const POLYGON_COVER_TYPES = MEDIA_TYPES;
 
 let uploading = false;
 
-// Managed Turnstile. Rendered only when the public site key is set, so a
-// local run with no key uploads exactly as before. Chat images use
-// uploadToR2, so they send the same token.
+// Managed Turnstile. Nothing is drawn until an upload starts, and only when
+// the public site key is set, so a local run with no key uploads as before.
+// The widget lives inside the open sheet, then leaves once the token is
+// used or that sheet closes. Chat images use uploadToR2 too.
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
-let turnstileResponse = "";
 let turnstileWidgetId = null;
+let turnstileScript = null;
+let turnstileUnwatch = null;
+let turnstilePending = null;
 
-function mountTurnstile() {
-  if (!TURNSTILE_SITE_KEY || document.getElementById("upload-turnstile")) return;
+function sheetFor(anchor) {
+  if (!anchor || !anchor.closest) return null;
+  return anchor.closest("#draw-column, #Edit_Profile-column, #topic-chat-container, #encrypted-chat-container");
+}
+
+function removeTurnstile(reason) {
+  if (turnstileUnwatch) {
+    turnstileUnwatch();
+    turnstileUnwatch = null;
+  }
+  if (window.turnstile && turnstileWidgetId != null) {
+    try { window.turnstile.remove(turnstileWidgetId); } catch { /* already gone */ }
+  }
+  turnstileWidgetId = null;
+  const box = document.getElementById("upload-turnstile");
+  if (box) box.remove();
+  const pending = turnstilePending;
+  turnstilePending = null;
+  if (pending && reason) pending.reject(reason);
+}
+
+function loadTurnstileApi() {
+  if (window.turnstile) return Promise.resolve();
+  if (turnstileScript) return turnstileScript;
+  turnstileScript = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      turnstileScript = null;
+      reject(new Error("Could not load the check"));
+    };
+    document.head.appendChild(script);
+  });
+  return turnstileScript;
+}
+
+function watchSheet(sheet, onHide) {
+  const hidden = () => !sheet.isConnected || sheet.hidden || sheet.style.display === "none";
+  const observer = new MutationObserver(() => {
+    if (hidden()) onHide();
+  });
+  observer.observe(sheet, { attributes: true, attributeFilter: ["style", "hidden", "class"] });
+  return () => observer.disconnect();
+}
+
+// Shows the check inside the sheet that started the upload and resolves
+// with a single-use token. No site key means the upload stays unchanged.
+function ensureTurnstileToken(anchor) {
+  if (!TURNSTILE_SITE_KEY) return Promise.resolve("");
+  const sheet = sheetFor(anchor);
+  if (!sheet) return Promise.reject(new Error("Open the upload panel first"));
+  removeTurnstile();
   const box = document.createElement("div");
   box.id = "upload-turnstile";
-  box.style.cssText = "position:fixed;left:12px;bottom:12px;z-index:40;";
-  document.body.appendChild(box);
-  const script = document.createElement("script");
-  script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-  script.async = true;
-  script.onload = () => {
-    if (!window.turnstile) return;
-    turnstileWidgetId = window.turnstile.render(box, {
-      sitekey: TURNSTILE_SITE_KEY,
-      callback(token) { turnstileResponse = token || ""; },
-      "expired-callback"() { turnstileResponse = ""; },
-      "error-callback"() { turnstileResponse = ""; },
+  box.className = "upload-turnstile";
+  sheet.prepend(box);
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      turnstilePending = null;
+      fn(value);
+    };
+    turnstilePending = { reject: (err) => finish(reject, err) };
+    turnstileUnwatch = watchSheet(sheet, () => removeTurnstile(new Error("Upload cancelled")));
+    loadTurnstileApi().then(() => {
+      if (settled || !box.isConnected || !window.turnstile) return;
+      turnstileWidgetId = window.turnstile.render(box, {
+        sitekey: TURNSTILE_SITE_KEY,
+        size: "flexible",
+        callback(token) {
+          if (turnstileUnwatch) {
+            turnstileUnwatch();
+            turnstileUnwatch = null;
+          }
+          const value = token || "";
+          removeTurnstile();
+          if (!value) finish(reject, new Error("Complete the check first"));
+          else finish(resolve, value);
+        },
+        "expired-callback"() {},
+        "error-callback"() {
+          removeTurnstile();
+          finish(reject, new Error("Check failed"));
+        },
+      });
+    }).catch((err) => {
+      removeTurnstile();
+      finish(reject, err);
     });
-  };
-  document.head.appendChild(script);
+  });
 }
-
-function currentTurnstileToken() {
-  if (!TURNSTILE_SITE_KEY) return "";
-  try {
-    if (window.turnstile && turnstileWidgetId != null) {
-      const live = window.turnstile.getResponse(turnstileWidgetId);
-      if (live) return live;
-    }
-  } catch { /* widget still loading */ }
-  return turnstileResponse;
-}
-
-function resetTurnstile() {
-  if (!TURNSTILE_SITE_KEY) return;
-  turnstileResponse = "";
-  try {
-    if (window.turnstile && turnstileWidgetId != null) window.turnstile.reset(turnstileWidgetId);
-  } catch { /* widget still loading */ }
-}
-
-mountTurnstile();
 
 // Off unless the public flag is exactly "1". The server flag is separate
 // and stays off by default, so a normal local upload does not ask the wallet.
@@ -173,9 +230,8 @@ function readVideoSeconds(localUrl) {
 }
 
 // POST the file to /api/upload with progress events (XHR — fetch has none).
-async function uploadToR2(file, pill, baseLabel, seconds) {
-  const turnstile = currentTurnstileToken();
-  if (TURNSTILE_SITE_KEY && !turnstile) throw new Error("Complete the check first");
+async function uploadToR2(file, pill, baseLabel, seconds, anchor) {
+  const turnstile = await ensureTurnstileToken(anchor);
   const uploadToken = await uploadAuthToken();
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -189,12 +245,10 @@ async function uploadToR2(file, pill, baseLabel, seconds) {
       if (e.lengthComputable) pill.set(`${baseLabel} ${Math.round((e.loaded / e.total) * 100)}%`);
     };
     xhr.onload = () => {
-      resetTurnstile();
       if (xhr.status === 200 && xhr.response && xhr.response.ok) resolve(xhr.response.url);
       else reject(new Error((xhr.response && xhr.response.error) || `upload failed (${xhr.status})`));
     };
     xhr.onerror = () => {
-      resetTurnstile();
       reject(new Error("network error — is the backend up?"));
     };
     xhr.send(file);
@@ -302,7 +356,7 @@ async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg
   const pill = progressPill(`Uploading ${label} 0%`);
   try {
     const seconds = isVideo ? await readVideoSeconds(localUrl) : null;
-    const url = await uploadToR2(file, pill, `Uploading ${label}`, seconds);
+    const url = await uploadToR2(file, pill, `Uploading ${label}`, seconds, btn);
     fillField(targetFieldId, url);
     showFieldPreview(targetFieldId, url, isVideo ? "video" : "image");
     toast.success("Uploaded");
@@ -337,14 +391,14 @@ bindUploader("upload-profile-picture", "upload-profile-picture-file", "input-fie
 
 // Topic chat and encrypted chat attach one still image. The address goes
 // in the message; the bytes stay on R2.
-export async function uploadChatImage(file) {
+export async function uploadChatImage(file, anchor) {
   if (!file || !MARKER_COVER_TYPES.has(file.type)) {
     throw new Error("Only PNG, JPG, WebP, GIF");
   }
   if (file.size > IMAGE_MAX) throw new Error("Image is too large");
   const pill = progressPill("Uploading image 0%");
   try {
-    return await uploadToR2(file, pill, "Uploading image");
+    return await uploadToR2(file, pill, "Uploading image", null, anchor);
   } finally {
     pill.done();
   }

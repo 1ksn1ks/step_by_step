@@ -5483,3 +5483,11 @@ a.payer-link {
 @media (prefers-reduced-motion: reduce) {
   .follow-suggest { transition: none; }
 }
+
+.upload-turnstile {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 92dvw;
+  margin: 1.2dvh auto;
+  padding: 0 2dvw;
+}

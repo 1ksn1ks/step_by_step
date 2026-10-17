@@ -176,14 +176,17 @@ export async function fetchFollowing(account) {
 }
 
 // Same shape as getMessages(): { messages, error } + ready
-// ready=false → backend offline or topic not backfilled yet → caller falls back
-export async function fetchMessagesBackend(topicId, limit = 1000, afterSeq = 0) {
+// ready=false → backend offline or topic not backfilled yet → caller falls back.
+// beforeSeq pages older history. The server ignores it when afterSeq is set,
+// and it never returns more than 1000 rows.
+export async function fetchMessagesBackend(topicId, limit = 1000, afterSeq = 0, beforeSeq = 0) {
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 2500);
     const after = Number(afterSeq) > 0 ? `&after_seq=${Math.floor(Number(afterSeq))}` : '';
+    const before = !after && Number(beforeSeq) > 0 ? `&before_seq=${Math.floor(Number(beforeSeq))}` : '';
     const res = await fetch(
-      `${BACKEND_URL}/api/messages?topic=${encodeURIComponent(topicId)}&limit=${limit}${after}`,
+      `${BACKEND_URL}/api/messages?topic=${encodeURIComponent(topicId)}&limit=${limit}${after}${before}`,
       { signal: ctrl.signal }
     );
     clearTimeout(t);

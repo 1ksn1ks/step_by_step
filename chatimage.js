@@ -129,7 +129,7 @@ function bind(kind) {
     s.btn.disabled = true;
     showPreview(s, s.objectUrl);
     try {
-      const url = await uploadChatImage(file);
+      const url = await uploadChatImage(file, s.btn);
       if (mine !== s.gen) return;
       if (s.objectUrl) {
         URL.revokeObjectURL(s.objectUrl);
