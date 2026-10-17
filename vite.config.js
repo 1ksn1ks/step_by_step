@@ -38,9 +38,9 @@ function pwaHeaders() {
 }
 
 // A VITE_ name is inlined into the browser bundle. Fail the build when one
-// looks like a server secret so an R2 key or Turnstile secret cannot ship.
+// looks like a server secret so an R2 key, token, or password cannot ship.
 function assertPublicViteEnv(names) {
-  const blocked = ['R2_', 'SECRET', 'ACCESS_KEY', 'PRIVATE']
+  const blocked = ['R2_', 'SECRET', 'ACCESS_KEY', 'PRIVATE', 'API_KEY', 'TOKEN', 'PASSWORD']
   for (const name of names) {
     if (!name.startsWith('VITE_')) continue
     const upper = name.toUpperCase()
