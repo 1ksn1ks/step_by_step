@@ -1835,7 +1835,8 @@ function readUploadBody(req, max) {
       timer = setTimeout(() => {
         const err = new Error("idle");
         err.code = 408;
-        req.destroy();
+        // Leave the socket up so the handler can answer 408. Destroying
+        // it here drops the response on the floor.
         finish(err);
       }, UPLOAD_BODY_TIMEOUT_MS);
     };
@@ -2174,7 +2175,13 @@ app.post("/api/upload", async (req, res) => {
   } catch (err) {
     if (res.headersSent) return;
     if (err && err.code === 413) return res.status(413).json({ ok: false, error: tooBigMessage(isVideo) });
-    if (err && err.code === 408) return res.status(408).json({ ok: false, error: "Upload timed out" });
+    if (err && err.code === 408) {
+      res.status(408).json({ ok: false, error: "Upload timed out" });
+      res.on("finish", () => {
+        if (!req.destroyed) req.destroy();
+      });
+      return;
+    }
     res.status(400).json({ ok: false, error: "upload aborted" });
   } finally {
     finishUpload(uploadIp);
