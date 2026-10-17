@@ -14,6 +14,7 @@
 
 import "dotenv/config";
 import express from "express";
+import crypto from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import fs from "fs";
 import path from "path";
@@ -75,6 +76,10 @@ const UPLOAD_BYTES_PER_DAY = envPositiveInt("UPLOAD_DAILY_MB_ACCOUNT", 500) * 10
 const UPLOAD_MAX_CONCURRENT = envPositiveInt("UPLOAD_MAX_CONCURRENT", 4);
 // Writes and mirror polls that are open to any visitor.
 const PUBLIC_POST_RATE_LIMIT = envPositiveInt("PUBLIC_POST_RATE_LIMIT", 60);
+// Wallet-signed upload auth stays off until this is exactly "1".
+const REQUIRE_UPLOAD_AUTH = process.env.REQUIRE_UPLOAD_AUTH === "1";
+const UPLOAD_TOKEN_TTL_MS = 15 * 60 * 1000;
+const UPLOAD_NONCE_TTL_MS = 5 * 60 * 1000;
 
 // ── SQLite (one file, disposable cache) ────────────────────────────────
 // DATA_DIR is the persistent disk on Railway. Mount a volume at /data and
@@ -1790,9 +1795,186 @@ function readUploadBody(req, max) {
 // r2.pub link the marker's Image URL field stores. A Buffer body sidesteps
 // the SDK's stream-signing limits (flowing streams can't be hashed / need
 // Content-Length, and R2 resets the connection either way).
+// Single-use nonces for the wallet signature. The value is the expiry time.
+const uploadNonces = new Map();
+
+function sweepUploadNonces(now) {
+  for (const [nonce, exp] of uploadNonces) {
+    if (exp <= now) uploadNonces.delete(nonce);
+  }
+}
+
+function issueUploadNonce() {
+  const now = Date.now();
+  if (uploadNonces.size > 5000) sweepUploadNonces(now);
+  if (uploadNonces.size > 5000) return null;
+  const nonce = crypto.randomBytes(32).toString("base64url");
+  uploadNonces.set(nonce, now + UPLOAD_NONCE_TTL_MS);
+  return nonce;
+}
+
+function takeUploadNonce(nonce) {
+  if (typeof nonce !== "string" || nonce.length < 16 || nonce.length > 200) return false;
+  const exp = uploadNonces.get(nonce);
+  uploadNonces.delete(nonce);
+  return typeof exp === "number" && exp > Date.now();
+}
+
+function uploadTokenSecret() {
+  return process.env.UPLOAD_TOKEN_SECRET || "";
+}
+
+function issueUploadToken(accountId) {
+  const exp = Date.now() + UPLOAD_TOKEN_TTL_MS;
+  const body = Buffer.from(JSON.stringify({ accountId, exp })).toString("base64url");
+  const mac = crypto.createHmac("sha256", uploadTokenSecret()).update(body).digest("base64url");
+  return `${body}.${mac}`;
+}
+
+// Constant-time compare of the HMAC. A wrong length never reaches the compare.
+function accountFromUploadToken(header) {
+  const secret = uploadTokenSecret();
+  if (!secret) return null;
+  const token = typeof header === "string" ? header.trim() : "";
+  const dot = token.lastIndexOf(".");
+  if (dot <= 0) return null;
+  const body = token.slice(0, dot);
+  const given = Buffer.from(token.slice(dot + 1));
+  const expected = Buffer.from(crypto.createHmac("sha256", secret).update(body).digest("base64url"));
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
+  let payload;
+  try {
+    payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+  if (!payload || !/^\d+\.\d+\.\d+$/.test(payload.accountId)) return null;
+  if (typeof payload.exp !== "number" || payload.exp < Date.now()) return null;
+  return payload.accountId;
+}
+
+function decodeSignature(text) {
+  const trimmed = String(text || "").trim();
+  const asBase64 = Buffer.from(trimmed, "base64");
+  if (asBase64.length === 64) return asBase64;
+  if (/^[0-9a-fA-F]{128}$/.test(trimmed)) return Buffer.from(trimmed, "hex");
+  return null;
+}
+
+function collectAccountKeys(key, out = []) {
+  if (!key || typeof key !== "object") return out;
+  if ((key._type === "ED25519" || key._type === "ECDSA_SECP256K1") && typeof key.key === "string") out.push(key);
+  if (Array.isArray(key.keys)) {
+    for (const child of key.keys) collectAccountKeys(child, out);
+  }
+  if (key.key && typeof key.key === "object") collectAccountKeys(key.key, out);
+  return out;
+}
+
+// HIP-820 prefixes the text before the wallet signs it. A wallet that signs
+// the nonce on its own still matches the second buffer.
+function signedNonceBodies(nonce) {
+  return [
+    Buffer.from(`\x19Hedera Signed Message:\n${nonce.length}${nonce}`, "utf8"),
+    Buffer.from(nonce, "utf8"),
+  ];
+}
+
+async function signatureMatchesAccount(accountId, nonce, signature) {
+  let data;
+  try {
+    const response = await fetch(`${MIRROR}/api/v1/accounts/${accountId}`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) return false;
+    data = await response.json();
+  } catch {
+    return false;
+  }
+  const keys = collectAccountKeys(data && data.key);
+  if (!keys.length) return false;
+  let PublicKey;
+  try {
+    ({ PublicKey } = await import("@hashgraph/sdk"));
+  } catch (err) {
+    const missing = new Error("Hedera SDK is not installed");
+    missing.code = "NO_SDK";
+    throw missing;
+  }
+  const messages = signedNonceBodies(nonce);
+  for (const key of keys) {
+    const raw = Buffer.from(key.key, "base64");
+    let pub = null;
+    try {
+      pub = key._type === "ED25519" ? PublicKey.fromBytesED25519(raw) : PublicKey.fromBytesECDSA(raw);
+    } catch {
+      pub = null;
+    }
+    if (!pub) continue;
+    for (const message of messages) {
+      try {
+        if (pub.verify(message, signature)) return true;
+      } catch {
+        /* this key did not verify */
+      }
+    }
+  }
+  return false;
+}
+
+app.get("/api/upload/challenge", publicPostLimit, (req, res) => {
+  const nonce = issueUploadNonce();
+  if (!nonce) {
+    res.setHeader("Retry-After", "30");
+    return res.status(503).json({ ok: false, error: "Too many upload checks, try again shortly" });
+  }
+  res.json({ ok: true, nonce });
+});
+
+app.post("/api/upload/auth", publicPostLimit, async (req, res) => {
+  if (!uploadTokenSecret()) {
+    return res.status(503).json({ ok: false, error: "Upload auth is not configured" });
+  }
+  const accountId = req.body && req.body.accountId;
+  const nonce = req.body && req.body.nonce;
+  const signatureText = req.body && req.body.signature;
+  if (typeof accountId !== "string" || !/^\d+\.\d+\.\d+$/.test(accountId)) {
+    return res.status(400).json({ ok: false, error: "bad account" });
+  }
+  const signature = decodeSignature(signatureText);
+  if (!signature) return res.status(400).json({ ok: false, error: "bad signature" });
+  if (!takeUploadNonce(nonce)) return res.status(401).json({ ok: false, error: "Upload check expired" });
+  let matches = false;
+  try {
+    matches = await signatureMatchesAccount(accountId, nonce, signature);
+  } catch (err) {
+    if (err && err.code === "NO_SDK") {
+      console.error("upload auth failed:", err.message);
+      return res.status(503).json({ ok: false, error: "Upload auth is not configured" });
+    }
+    console.error("upload auth failed:", err && err.message ? err.message : "verify error");
+    return res.status(401).json({ ok: false, error: "Upload check failed" });
+  }
+  if (!matches) return res.status(401).json({ ok: false, error: "Upload check failed" });
+  res.json({ ok: true, token: issueUploadToken(accountId), expiresIn: 900 });
+});
+
 app.post("/api/upload", async (req, res) => {
   if (!r2) return res.status(503).json({ ok: false, error: "R2 not configured — set R2_* in server/.env" });
-  const account = requireAccount(req);
+  let account = null;
+  if (REQUIRE_UPLOAD_AUTH) {
+    if (!uploadTokenSecret()) {
+      req.resume();
+      return res.status(503).json({ ok: false, error: "Upload auth is not configured" });
+    }
+    account = accountFromUploadToken(req.headers["x-upload-token"]);
+    if (!account) {
+      req.resume();
+      return res.status(401).json({ ok: false, error: "Upload authorization required" });
+    }
+  } else {
+    account = requireAccount(req);
+  }
   const type = (req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
   const ext = R2_MIME_EXT[type];
   if (!ext) return res.status(415).json({ ok: false, error: "Unsupported type — images and videos only" });

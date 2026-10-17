@@ -10,7 +10,7 @@
 // Inside field is what the popup plays — e.g. a 15s cover ad + the real
 // video in the popup. No automatic thumbnail.
 import { toast } from "./toast.js";
-import { connectedAccount } from "./web3.js";
+import { connectedAccount, signer } from "./web3.js";
 import { profilePictures } from "./loadalladata.js";
 import { paintDrawField } from "./drawpreview.js";
 
@@ -78,6 +78,49 @@ function resetTurnstile() {
 
 mountTurnstile();
 
+// Off unless the public flag is exactly "1". The server flag is separate
+// and stays off by default, so a normal local upload does not ask the wallet.
+const REQUIRE_UPLOAD_AUTH = import.meta.env.VITE_REQUIRE_UPLOAD_AUTH === "1";
+let uploadGrant = null;
+
+function bytesToBase64(bytes) {
+  const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let binary = "";
+  for (let i = 0; i < arr.length; i += 1) binary += String.fromCharCode(arr[i]);
+  return btoa(binary);
+}
+
+async function uploadAuthToken() {
+  if (!REQUIRE_UPLOAD_AUTH) return "";
+  if (!connectedAccount || !signer) throw new Error("Connect wallet first");
+  if (uploadGrant && uploadGrant.account === connectedAccount && uploadGrant.exp > Date.now() + 15000) {
+    return uploadGrant.token;
+  }
+  const challengeRes = await fetch("/api/upload/challenge");
+  const challenge = await challengeRes.json().catch(() => null);
+  if (!challengeRes.ok || !challenge || typeof challenge.nonce !== "string") {
+    throw new Error((challenge && challenge.error) || "Could not start the upload check");
+  }
+  const signed = await signer.sign([new TextEncoder().encode(challenge.nonce)]);
+  const signatureBytes = signed && signed[0] && signed[0].signature;
+  if (!signatureBytes) throw new Error("Wallet did not sign the upload check");
+  const authRes = await fetch("/api/upload/auth", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      accountId: connectedAccount,
+      nonce: challenge.nonce,
+      signature: bytesToBase64(signatureBytes),
+    }),
+  });
+  const auth = await authRes.json().catch(() => null);
+  if (!authRes.ok || !auth || typeof auth.token !== "string") {
+    throw new Error((auth && auth.error) || "Upload was not authorized");
+  }
+  uploadGrant = { account: connectedAccount, token: auth.token, exp: Date.now() + 14 * 60 * 1000 };
+  return auth.token;
+}
+
 // A persistent pill in the toast container that reports upload progress —
 // the regular toasts auto-hide after 2.6 s, too short for a big file.
 function progressPill(label) {
@@ -130,17 +173,17 @@ function readVideoSeconds(localUrl) {
 }
 
 // POST the file to /api/upload with progress events (XHR — fetch has none).
-function uploadToR2(file, pill, baseLabel, seconds) {
+async function uploadToR2(file, pill, baseLabel, seconds) {
   const turnstile = currentTurnstileToken();
-  if (TURNSTILE_SITE_KEY && !turnstile) {
-    return Promise.reject(new Error("Complete the check first"));
-  }
+  if (TURNSTILE_SITE_KEY && !turnstile) throw new Error("Complete the check first");
+  const uploadToken = await uploadAuthToken();
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/upload");
     xhr.responseType = "json";
     if (Number.isInteger(seconds) && seconds > 0) xhr.setRequestHeader("X-Media-Duration", String(seconds));
     if (connectedAccount) xhr.setRequestHeader("X-Account", connectedAccount);
+    if (uploadToken) xhr.setRequestHeader("X-Upload-Token", uploadToken);
     if (turnstile) xhr.setRequestHeader("CF-Turnstile-Response", turnstile);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) pill.set(`${baseLabel} ${Math.round((e.loaded / e.total) * 100)}%`);
