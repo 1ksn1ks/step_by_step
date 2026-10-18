@@ -8,6 +8,16 @@ import {
   TransactionId,
   CustomFixedFee} from '@hashgraph/sdk';
 import { signer, dAppConnector } from './web3';
+import { toast } from './toast.js';
+import {
+  HCS_MAX_CHUNKS,
+  HCS_MESSAGE_MAX_BYTES,
+  HCS_TOO_LONG,
+  createChunkAssembler,
+  ingestMirrorRows,
+  openWatermark,
+} from './hcschunks.js';
+import { splitFrozenChunks } from './hcssplit.js';
 
 // The wallet connector's ids are @hiero-ledger/sdk objects. They fail
 // instanceof inside @hashgraph/sdk, and fromString then crashes on the
@@ -46,23 +56,64 @@ function freezeForConnectedAccount(transaction, nodeAddresses) {
   return transaction;
 }
 
+function formatMirrorMessage(item) {
+  return {
+    ...item.parsed,
+    payer: item.payer,
+    created: new Date(Number(item.consensus_timestamp) * 1000),
+    consensus_timestamp: item.consensus_timestamp,
+    sequence_number: item.sequence_number,
+  };
+}
+
 export async function sendMessage(topicId, message) {
-  
-    const transaction = new TopicMessageSubmitTransaction()
-      .setTopicId(TopicId.fromString(sdkId(topicId)))
-      .setMessage(message);
-  
+  const transaction = new TopicMessageSubmitTransaction()
+    .setTopicId(TopicId.fromString(sdkId(topicId)))
+    .setMessage(message)
+    .setMaxChunks(HCS_MAX_CHUNKS);
+
+  const size = transaction.getMessage() ? transaction.getMessage().length : 0;
+  if (size > HCS_MESSAGE_MAX_BYTES) {
+    toast.error(HCS_TOO_LONG);
+    throw new Error(HCS_TOO_LONG);
+  }
+
+  // One chunk stays on the wallet's single sign-and-execute path. The body
+  // is at most 1024 bytes, so the mirror row has no chunk_info.
+  if (transaction.getRequiredChunks() <= 1) {
     try {
       const txResponse = await transaction.executeWithSigner(signer);
       const receipt = await txResponse.getReceiptWithSigner(signer);
-  
-      const txId = receipt;
-  
-      console.log (txId)
+      console.log(receipt);
+      return receipt;
     } catch (err) {
       throw err;
     }
   }
+
+  // freezeWith writes chunk_info (initial transaction id, number, total) into
+  // each body. HashPack signs one body per approval and would copy that one
+  // signature onto every chunk, so each chunk is submitted on its own.
+  const nodeAddresses = await dAppConnector.getNodeAddresses();
+  freezeForConnectedAccount(transaction, nodeAddresses);
+  const parts = splitFrozenChunks(transaction);
+  if (parts.length !== transaction.getRequiredChunks()) {
+    throw new Error("Could not split the message into HCS chunks");
+  }
+
+  let receipt = null;
+  for (let i = 0; i < parts.length; i++) {
+    const notice = toast.hold(`Sending part ${i + 1} of ${parts.length}`);
+    try {
+      const txResponse = await parts[i].executeWithSigner(signer);
+      receipt = await txResponse.getReceiptWithSigner(signer);
+    } finally {
+      notice.done();
+    }
+  }
+  console.log(receipt);
+  return receipt;
+}
 
 export async function updateTopic({topicId:topicId , memo:memo, adminKey:adminKey, customFees:customFees}) {
   const transaction = new TopicUpdateTransaction()
@@ -162,7 +213,20 @@ export async function getMessages(
     : `${baseUrl}/api/v1/topics/${topicId}/messages?limit=100&order=asc`;
 
   const allMessages = [];
+  const rawRows = [];
+  const assembler = createChunkAssembler();
   let lastSequence = after;
+
+  const takePage = (messages) => {
+    rawRows.push(...messages);
+    for (const item of ingestMirrorRows(assembler, topicId, messages)) {
+      allMessages.push(formatMirrorMessage(item));
+    }
+    // This walk does not keep the chunk buffer after it returns. Hold the
+    // watermark before an unfinished group so the next read still has every
+    // chunk. A group that finishes inside this walk is safe to pass.
+    lastSequence = openWatermark(after, rawRows, assembler.pendingSequences(String(topicId)));
+  };
 
   try {
     while (url) {
@@ -171,25 +235,7 @@ export async function getMessages(
 
       const messages = data.messages || [];
       let nextLink = data.links?.next || null;
-
-      for (const msg of messages) {
-        const seq = Number(msg.sequence_number);
-        if (Number.isFinite(seq) && seq > lastSequence) lastSequence = seq;
-        try {
-          const decoded = Buffer.from(msg.message, 'base64').toString('utf-8');
-          const parsedMessage = JSON.parse(decoded);
-
-          allMessages.push({
-            ...parsedMessage,
-            payer: msg.payer_account_id,
-            created: new Date(Number(msg.consensus_timestamp) * 1000),
-            consensus_timestamp: msg.consensus_timestamp,
-            sequence_number: msg.sequence_number,
-          });
-        } catch (parseError) {
-          console.warn(`Skipping invalid message (sequence: ${msg.sequence_number}): ${parseError.message}`);
-        }
-      }
+      takePage(messages);
 
       if (nextLink) {
         url = `${baseUrl}${nextLink}`;
@@ -227,44 +273,31 @@ export async function subscribeToTopic(
   let timeoutId = null;
   const seenSequences = new Set();
   const historyMessages = [];
+  // Lives for this subscription, including across polls, so a chunk that
+  // arrives on the next tick still completes the message.
+  const assembler = createChunkAssembler();
 
   const baseUrl = `https://mainnet.mirrornode.hedera.com`;
 
   const processMessages = (messages, isHistory = false) => {
+    let maxSeq = lastSequence;
     for (const msg of messages || []) {
-      const seq = msg.sequence_number;
-      if (seenSequences.has(seq)) continue;
-
-      try {
-        const decoded = Buffer.from(msg.message, 'base64').toString('utf-8');
-        const parsedMessage = JSON.parse(decoded);
-
-        const formatted = {
-          ...parsedMessage,
-          payer: msg.payer_account_id,
-          created: new Date(Number(msg.consensus_timestamp) * 1000),
-          consensus_timestamp: msg.consensus_timestamp,
-          sequence_number: seq,
-        };
-
-        seenSequences.add(seq);
-
-        if (isHistory) {
-          historyMessages.push(formatted);
-        } else {
-          // Only for NEW live messages
-          if (typeof onMessageReceived === "function") {
-            onMessageReceived(formatted);
-          }
-        }
-
-        if (seq > lastSequence) {
-          lastSequence = seq;
-        }
-      } catch (err) {
-        console.warn("Skipping bad message:", err.message);
+      const seq = Number(msg.sequence_number);
+      if (Number.isFinite(seq) && seq > maxSeq) maxSeq = seq;
+    }
+    for (const item of ingestMirrorRows(assembler, topicId, messages)) {
+      if (seenSequences.has(item.sequence_number)) continue;
+      seenSequences.add(item.sequence_number);
+      const formatted = formatMirrorMessage(item);
+      if (isHistory) {
+        historyMessages.push(formatted);
+      } else if (typeof onMessageReceived === "function") {
+        onMessageReceived(formatted);
       }
     }
+    // The assembler keeps unfinished chunks. Later chunks have a higher
+    // sequence, so the next poll can start after this page.
+    if (maxSeq > lastSequence) lastSequence = maxSeq;
   };
 
   // Load history

@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { runHashinalTests } from "./hashinals-test.mjs";
 import { runFollowCountTests } from "./followcount-test.mjs";
+import { runHcsChunkTests } from "./hcschunks-test.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SERVER_DIR = path.join(ROOT, "server");
@@ -1028,6 +1029,12 @@ async function main() {
     pass("follower count cache");
   } catch (err) {
     fail("follower count cache", err && err.stack ? err.stack : String(err));
+  }
+  try {
+    await runHcsChunkTests();
+    pass("hcs chunk join");
+  } catch (err) {
+    fail("hcs chunk join", err && err.stack ? err.stack : String(err));
   }
   checkDeclaredNode();
   const serverNode = findServerNode();

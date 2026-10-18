@@ -592,6 +592,36 @@ html, body {
     word-wrap: break-word;
   }
 
+  .chat-msg-body {
+    display: block;
+  }
+
+  .chat-msg-body.is-clamped {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 6;
+    overflow: hidden;
+  }
+
+  .chat-msg-more {
+    display: block;
+    margin-top: 0.4dvh;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #22d3ee;
+    font: inherit;
+    font-size: clamp(0.75rem, 1.8dvh, 1rem);
+    line-height: 1.2;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .chat-msg-more:focus-visible {
+    outline: 1px solid #22d3ee;
+    outline-offset: 0.2dvh;
+  }
+
   .chat-msg-time {
     align-self: flex-end;
     margin-top: 0.05em;

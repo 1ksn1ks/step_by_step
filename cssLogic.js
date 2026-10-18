@@ -13,6 +13,7 @@ import { activeMarkerPopups } from './marker.js';
 import { scene } from './threejs.js'
 import { renderLoadedTopics } from './handleallmessages.js';
 import { toast } from './toast.js';
+import { HCS_MESSAGE_MAX_BYTES, HCS_SHOW_COUNTER_AFTER, utf8ByteLength } from './hcschunks.js';
 import { closeDrawAnchor } from './drawhere.js';
 import { closePressAnchor } from './poiinfo.js';
 
@@ -560,11 +561,26 @@ export function CloseALL() {
 
   // Enter doesn't insert a line break in the message inputs — line breaks
   // won't be supported in messages, so don't give users false hope
-  ["user-write-message", "user-write-message-encrypted-chat"].forEach((id) => {
+  [
+    ["user-write-message", "char-counter"],
+    ["user-write-message-encrypted-chat", "char-counter-encrypted-chat"],
+  ].forEach(([id, counterId]) => {
     const ta = document.getElementById(id);
+    const counter = document.getElementById(counterId);
     ta.addEventListener("keydown", (e) => {
       if (e.key === "Enter") e.preventDefault();
     });
+    const paintBytes = () => {
+      if (!counter) return;
+      const bytes = utf8ByteLength(ta.value);
+      if (bytes <= HCS_SHOW_COUNTER_AFTER) {
+        counter.hidden = true;
+        return;
+      }
+      counter.hidden = false;
+      counter.textContent = `${bytes} / ${HCS_MESSAGE_MAX_BYTES}`;
+    };
+    ta.addEventListener("input", paintBytes);
   });
 
   document.getElementById("topic-chat-btn").addEventListener("click", (event) => {

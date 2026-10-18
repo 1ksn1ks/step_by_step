@@ -83,6 +83,8 @@ function trimNewest(messages, limit) {
 }
 
 async function mirrorTail(topicId, after, collected, pending) {
+  // getMessages joins HCS chunk_info with the same hcschunks assembler the
+  // server uses, so a long message is one row here when the backend is down.
   const { getMessages: getMessagesMirror } = await import('./hedera');
   const mirrorResult = await getMessagesMirror(topicId, { afterSeq: after });
   const messages = collected.concat(mirrorResult.messages || [], pending);

@@ -27,6 +27,7 @@ import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
 import { startEarlyHashinals } from "./hashinals.js";
+import { createChunkAssembler } from "../hcschunks.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1188,12 +1189,23 @@ function sharePicture(topicId, createdISO, account) {
   };
 }
 
+// HCS chunks share chunk_info.initial_transaction_id. They stay in this
+// buffer across polls (last_seq still moves past them) until every chunk
+// has arrived, then one row is stored. Incomplete groups expire after
+// 10 minutes inside the assembler.
+const hcsChunks = createChunkAssembler();
+
 // Store one page of mirror messages; returns the stored rows so pending
 // sends can be confirmed against them. Every stored row is also pushed to
 // the topic's live stream subscribers. Profile-topic rows also update the
 // per-account user_settings view.
 const storePage = (topicId, msgs) => {
   const stored = [];
+  const ready = [];
+  for (const m of msgs) {
+    const next = hcsChunks.push(topicId, m);
+    if (next) ready.push(next);
+  }
   const transaction = (fn) => (...args) => {
     db.exec("BEGIN");
     try {
@@ -1224,7 +1236,7 @@ const storePage = (topicId, msgs) => {
       extractTopicIndex(topicId, m.payer_account_id, body, Number(m.consensus_timestamp) * 1000, m.sequence_number);
       stored.push({ payer: m.payer_account_id, body, seq: m.sequence_number, ts: m.consensus_timestamp });
     }
-  })(msgs);
+  })(ready);
   for (const r of stored) {
     let parsed;
     try {
@@ -1323,6 +1335,7 @@ function pollTopicLocked(topicId) {
 // was dropped or never landed on the mirror) — the stream is told too, so
 // viewers drop the ⏳ bubble.
 setInterval(() => {
+  hcsChunks.prune();
   const stale = q.listStalePending.all(Date.now() - PENDING_TTL_MS);
   for (const p of stale) {
     q.delPending.run(p.id);

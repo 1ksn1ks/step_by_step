@@ -17,6 +17,7 @@ import { connectedAccount, signer } from './web3';
 import { PrivateKey } from '@hashgraph/sdk';
 import { isValidUrl } from './ISVALIDURL.JS';
 import { toast } from './toast';
+import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, utf8ByteLength } from './hcschunks.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
 import { pendingChatImage, chatImageBusy, clearPendingChatImage } from './chatimage.js';
 import { stackedTopicRules } from './topicrules.js';
@@ -597,7 +598,11 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
    if (image) meesageobject.image = image;
  
    const meesage = JSON.stringify(meesageobject);
-   toast.info("Confirm in wallet 👛");
+   if (utf8ByteLength(meesage) > HCS_MESSAGE_MAX_BYTES) {
+     toast.error(HCS_TOO_LONG);
+     return;
+   }
+   if (utf8ByteLength(meesage) <= HCS_CHUNK_SIZE) toast.info("Confirm in wallet 👛");
    const reciept = await sendMessage(topicId, meesage);
    if (image) clearPendingChatImage("topic");
  
