@@ -30,6 +30,7 @@ import { toast } from './toast'
 import { videoSeconds } from './mediaduration.js'
 import { stackedTopicRules, smallestPolygonSize } from './topicrules.js'
 import { payerUsernameNode } from './payerlink.js'
+import { paintProfileAvatar } from './earlyhashinal.js'
 
 // A drawing counts toward the NFT allowance only when it is a real marker
 // or polygon. Likes, comments, deletes, and other messages do not.
@@ -1071,6 +1072,7 @@ export function createMarkerPopupHTML(data) {
     window.loadBio4PIC(payer);
   };
   profileSection.appendChild(profileImg);
+  paintProfileAvatar(profileImg, payer);
 
   const headerDiv = document.createElement('div');
   const h2 = document.createElement('h2');
@@ -1335,6 +1337,7 @@ function createPolygonPopupHTML(data) {
     window.loadBio4PIC(payer);
   };
   profileSection.appendChild(profileImg);
+  paintProfileAvatar(profileImg, payer);
 
   const headerDiv = document.createElement('div');
   const h2 = document.createElement('h2');

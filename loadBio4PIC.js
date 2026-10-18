@@ -6,6 +6,7 @@ import { CloseALL, OpenToggleToolbar } from './cssLogic';
 import { adjustTextareaHeight } from './adjusttextarea';
 import { fillTopicIds } from './topicidintext';
 import { payerUsernameNode } from './payerlink.js';
+import { paintProfileAvatar } from './earlyhashinal.js';
 
 const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const EMPTY_BIO = 'User has not set a bio yet. You can set yours by going to OPTIONS > TOOLBAR > EDIT > BIO';
@@ -99,6 +100,7 @@ export async function loadBio4PIC(payer) {
       }
 
       bubble.appendChild(img);
+      paintProfileAvatar(img, payer);
       bubble.appendChild(names);
       bubble.appendChild(followPersonControls(payer));
 

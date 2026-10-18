@@ -3,6 +3,7 @@
 import { connectedAccount } from "./web3.js";
 import { profilePictures, usernames, click2url } from "./loadalladata.js";
 import { payerUsernameNode, safeHttpUrl } from "./payerlink.js";
+import { paintProfileAvatar } from "./earlyhashinal.js";
 
 const DEFAULT_PIC = "https://kiloscribe.com/api/inscription-cdn/0.0.4819119";
 
@@ -226,7 +227,7 @@ function pickerColor(id, fallback) {
 // account id, and the username that opens that account's link.
 export function paintDrawProfile(root, account = connectedAccount || "") {
   if (!root) return;
-  const img = root.querySelector(".popup-profile-bubble > img");
+  const img = root.querySelector(".popup-profile-bubble > img, .popup-profile-bubble > .early-hashinal > img");
   const heading = root.querySelector(".popup-profile-bubble h2");
   if (!img || !heading) return;
 
@@ -269,12 +270,13 @@ export function paintDrawProfile(root, account = connectedAccount || "") {
     heading.appendChild(nameNode);
   }
   if (name && nameNode) nameNode.style.color = pickerColor("color-picker-popup-username", "#ff9933");
+  paintProfileAvatar(img, account);
 }
 
 function bindAccount(editorId) {
   const root = document.getElementById(editorId);
   if (!root) return;
-  const img = root.querySelector(".popup-profile-bubble > img");
+  const img = root.querySelector(".popup-profile-bubble > img, .popup-profile-bubble > .early-hashinal > img");
   if (img) {
     img.addEventListener("error", () => {
       const failed = img.getAttribute("src");

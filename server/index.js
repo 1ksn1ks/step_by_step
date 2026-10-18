@@ -26,6 +26,7 @@ import { hashtagsIn } from "../hashtag.js";
 import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
+import { startEarlyHashinals } from "./hashinals.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1628,6 +1629,9 @@ startBackupSchedule({
   dbPath: path.join(DATA_DIR, "data.db"),
 });
 
+// Public chain data, kept off SQLite. The handler below only reads memory.
+const earlyHashinals = startEarlyHashinals({ dataDir: DATA_DIR });
+
 const R2_MIME_EXT = {
   "video/mp4": ".mp4",
   "video/webm": ".webm",
@@ -2808,6 +2812,11 @@ app.get("/api/turn", publicPostLimit, async (req, res) => {
   } catch {
     if (!res.headersSent) res.status(502).json({ ok: false, iceServers: [] });
   }
+});
+
+app.get("/api/early-hashinals", publicPostLimit, (req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=300");
+  res.json(earlyHashinals.snapshot());
 });
 
 app.get("/api/health", (req, res) => {

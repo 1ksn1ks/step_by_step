@@ -14,6 +14,7 @@ import { scene } from "./threejs";
 // safe: both sides only touch the other's bindings inside functions.
 import { livePointCoords, livePointTitles } from './localnews';
 import { markerPopupNode } from './processallmessages.js';
+import { earlyHashinalNumber } from './earlyhashinal.js';
 import { watchMarkerTilt, forgetMarkerTilt } from './markertilt.js';
 import { fillMapTip } from './maptip.js';
 
@@ -278,6 +279,36 @@ function paintMarkerPicture(entry, url) {
   });
 }
 
+function paintMarkerHashinal(entry) {
+  if (!entry || entry.kind === 'cluster') return;
+  const face = entry.face;
+  const el = entry.el;
+  if (!face || !el) return;
+  const n = earlyHashinalNumber(entry.feature && entry.feature.payer);
+  if (!n) {
+    face.classList.remove('early-hashinal');
+    el.classList.remove('early-hashinal-holder');
+    if (el.dataset.ehTip) {
+      delete el.dataset.tip;
+      delete el.dataset.ehTip;
+      el.removeAttribute('title');
+      el.removeAttribute('aria-label');
+    }
+    return;
+  }
+  const tip = `Early Hashinal holder #${n}`;
+  face.classList.add('early-hashinal');
+  el.classList.add('early-hashinal-holder');
+  el.dataset.tip = tip;
+  el.dataset.ehTip = '1';
+  el.title = tip;
+  el.setAttribute('aria-label', tip);
+}
+
+document.addEventListener('early-hashinals', () => {
+  for (const entry of keptMarkers.values()) paintMarkerHashinal(entry);
+});
+
 function syncLiveFace(entry) {
   const twinKey = topicPointKey(entry.feature.geometry.coordinates);
   const live = livePointCoords.has(twinKey);
@@ -377,6 +408,7 @@ function createKeptMarker(cluster, key) {
     });
     syncLiveFace(entry);
     paintMarkerPicture(entry, markerPictureUrl(cluster.properties.imageUrl));
+    paintMarkerHashinal(entry);
   }
 
   entry.marker = new maplibregl.Marker({ element: el })
@@ -397,6 +429,7 @@ function refreshKeptMarker(entry, cluster) {
   }
   entry.feature = cluster;
   syncLiveFace(entry);
+  paintMarkerHashinal(entry);
   const pictureUrl = markerPictureUrl(cluster.properties.imageUrl);
   if (pictureUrl !== entry.pictureUrl) paintMarkerPicture(entry, pictureUrl);
 }

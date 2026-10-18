@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
+import { runHashinalTests } from "./hashinals-test.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SERVER_DIR = path.join(ROOT, "server");
@@ -154,7 +155,7 @@ function request(port, method, reqPath, { headers = {}, body = null, timeout = 1
           } catch {
             json = null;
           }
-          resolve({ status: res.statusCode, json, text });
+          resolve({ status: res.statusCode, json, text, headers: res.headers });
         });
       }
     );
@@ -248,6 +249,7 @@ function dummyEnv(port, dataDir, extra = {}) {
     REQUIRE_UPLOAD_AUTH: "",
     UPLOAD_TOKEN_SECRET: "",
     TRUST_CF_IP: "",
+    EARLY_HASHINALS: "0",
     ...extra,
   };
 }
@@ -1014,6 +1016,12 @@ async function checkUploadAuth(nodeBin) {
 }
 
 async function main() {
+  try {
+    await runHashinalTests();
+    pass("early hashinal list and owners");
+  } catch (err) {
+    fail("early hashinal list and owners", err && err.stack ? err.stack : String(err));
+  }
   checkDeclaredNode();
   const serverNode = findServerNode();
   pass(`node ${serverNode.version} is 22.16 or newer`);
@@ -1025,6 +1033,21 @@ async function main() {
   try {
     await waitForHealth(port, child);
     pass("server started");
+    const early = await request(port, "GET", "/api/early-hashinals");
+    const earlyCache = String((early.headers && early.headers["cache-control"]) || "");
+    if (
+      early.status === 200
+      && early.json
+      && early.json.owners
+      && typeof early.json.owners === "object"
+      && !Array.isArray(early.json.owners)
+      && early.json.updatedAt == null
+      && earlyCache.includes("max-age=300")
+    ) {
+      pass("early hashinals snapshot");
+    } else {
+      fail("early hashinals snapshot", `${early.status} ${earlyCache} ${early.text}`);
+    }
     insertHistory(dataDir);
     await checkHistory(port);
     await checkClient(serverNode.bin, port);
