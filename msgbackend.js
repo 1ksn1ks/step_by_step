@@ -318,7 +318,7 @@ export function startLiveTail(topicId, startSeq, onMessage, pollMs = 3000, initi
 // anything they missed (their signature dedupe absorbs duplicates).
 let streamSource = null;
 const STREAM_CLOSED = 2;
-const STREAM_REOPEN_MS = 530000;
+const STREAM_REOPEN_MS = 5000;
 const streamTopicRefs = new Map(); // topic_id -> refcount
 const streamHandlers = new Map();  // topic_id -> Set<handler>
 const streamReconnects = new Set();
@@ -359,8 +359,7 @@ function streamEnsure() {
     if (source.readyState !== STREAM_CLOSED) return;
     if (streamSource !== source) return;
     streamSource = null;
-    const jitter = Math.floor(Math.random() * 30000);
-    setTimeout(streamEnsure, STREAM_REOPEN_MS + jitter);
+    setTimeout(streamEnsure, STREAM_REOPEN_MS + Math.random() * 25000);
   };
 }
 
