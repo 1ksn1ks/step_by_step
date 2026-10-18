@@ -12,6 +12,7 @@ import { expandEncryptedChat, scheduleEncryptedChatLayout } from './cssLogic.js'
 import { payerUsernameNode } from './payerlink.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
 import { fillChatMessage, packChatPayload, unpackChatPayload, pendingChatImage, chatImageBusy, clearPendingChatImage } from './chatimage.js';
+import { watchFollowPrefetch } from './followtopic.js';
 import { 
   topicChatHeaderColor,
   headerFontSizeTopicChat,
@@ -163,6 +164,7 @@ async function appendEncryptedChatMessage(
         cursor: pointer;
       `;
       img.addEventListener('click', () => loadBio4PIC(payer));
+      watchFollowPrefetch(img, payer);
       currentGroupContainerEncrypted.appendChild(img);
 
       const contentWrapper = document.createElement('div');
@@ -864,6 +866,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
         cursor: pointer;
       `;
       img.addEventListener('click', () => loadBio4PIC(payer));
+      watchFollowPrefetch(img, payer);
       currentGroupDiv.appendChild(img);
 
       // Content wrapper

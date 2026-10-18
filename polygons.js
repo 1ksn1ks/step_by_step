@@ -13,6 +13,7 @@ import { closeDrawAnchor } from './drawhere';
 import { closePressAnchor } from './poiinfo';
 import { watchPolygonTilt, forgetPolygonTilt } from './polygontilt.js';
 import { fillMapTip } from './maptip.js';
+import { prefetchPersonFollow } from './followtopic.js';
 
 
 
@@ -886,6 +887,7 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
         });
   
         map.on('mouseenter', maskLayerId, (e) => {
+          prefetchPersonFollow(polygon.payer);
           map.getCanvas().style.cursor = 'pointer';
           showPolygonTitle(polygon, eventPoint(e), false);
         });
@@ -905,6 +907,7 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
         });
 
         map.on('touchstart', maskLayerId, (e) => {
+          prefetchPersonFollow(polygon.payer);
           showPolygonTitle(polygon, eventPoint(e), true);
         });
 

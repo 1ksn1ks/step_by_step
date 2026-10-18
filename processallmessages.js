@@ -13,7 +13,7 @@ import {updateRulesForModelNFTState} from './confirmnft'
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto';
 import { ringCenter, zoomForPolygon } from './polygonframe.js';
 import { profilePictures, usernames, click2url, profileTopics } from './loadalladata'
-import { confirmShare, unshareFromMyTopic, sharePin, followPersonControls } from './followtopic'
+import { confirmShare, unshareFromMyTopic, sharePin, followPersonControls, watchFollowPrefetch } from './followtopic'
 import { clearShareTopic, noteShare, shareState, shareMine, takeSharePin, takeUnsharePin } from './sharecount.js'
 import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
 import { openPreview } from './fullscreenmedia';
@@ -1071,6 +1071,7 @@ export function createMarkerPopupHTML(data) {
     event.stopPropagation();
     window.loadBio4PIC(payer);
   };
+  watchFollowPrefetch(profileImg, payer);
   profileSection.appendChild(profileImg);
   paintProfileAvatar(profileImg, payer);
 
@@ -1336,6 +1337,7 @@ function createPolygonPopupHTML(data) {
     event.stopPropagation();
     window.loadBio4PIC(payer);
   };
+  watchFollowPrefetch(profileImg, payer);
   profileSection.appendChild(profileImg);
   paintProfileAvatar(profileImg, payer);
 
@@ -2937,6 +2939,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
     img.alt = 'Profile photo';
     img.style.cssText = 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer;';
     img.addEventListener('click', () => window.loadBio4PIC(payer));
+    watchFollowPrefetch(img, payer);
     group.appendChild(img);
 
     const contentWrapper = document.createElement('div');
@@ -2996,6 +2999,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
       payerPic.alt = 'Profile photo';
       payerPic.style.cssText = 'width: 1.2em; height: 1.2em; border-radius: 1em; object-fit: cover; border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.35); cursor: pointer;';
       payerPic.addEventListener('click', () => window.loadBio4PIC(node.payer));
+      watchFollowPrefetch(payerPic, node.payer);
       whoRow.appendChild(payerPic);
       const payerLabel = document.createElement('a');
       payerLabel.href = `https://explore.hashpack.app/${encodeURIComponent(node.payer)}`;

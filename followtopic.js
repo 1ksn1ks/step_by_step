@@ -6,9 +6,35 @@ import { profileTopics } from './loadalladata';
 import { toast } from './toast';
 import { noteShare } from './sharecount.js';
 import { refreshFollowing } from './followsuggest.js';
+import { createFollowLoader, followerCountOrNull } from './followcount.js';
 
 const PROFILE_BIO_TOPIC = '0.0.9759201';
 const FOLLOW_TOPIC = '0.0.10923187';
+
+// Account ids and topic ids share the 0.0. shape, so they stay in two maps.
+const personCounts = createFollowLoader({
+  fetchCount: (followee, viewer) => userFollow(followee, viewer),
+});
+const topicCounts = createFollowLoader({
+  fetchCount: (topicId, viewer) => topicFollow(topicId, viewer),
+});
+
+// Starts the person-count read before the profile popup opens.
+export function prefetchPersonFollow(account) {
+  if (!account) return;
+  personCounts.load(account, connectedAccount || '').catch(() => {});
+}
+
+// One pair of listeners. A later account on the same element replaces the target.
+export function watchFollowPrefetch(el, account) {
+  if (!el || !account || el._followPrefetch === account) return;
+  el._followPrefetch = account;
+  if (el._followPrefetchBound) return;
+  el._followPrefetchBound = true;
+  const go = () => prefetchPersonFollow(el._followPrefetch);
+  el.addEventListener('pointerenter', go);
+  el.addEventListener('pointerdown', go);
+}
 
 export function sharePin(value) {
   if (Array.isArray(value) && value.length === 2 && !Array.isArray(value[0])) {
@@ -195,31 +221,38 @@ function countChip() {
   num.className = 'topic-follow-num';
   const roll = document.createElement('span');
   roll.className = 'topic-follow-num-roll';
-  roll.appendChild(countValue(formatCount(0)));
+  roll.appendChild(countValue(''));
   num.appendChild(roll);
   count.append(icon, num);
+  count.classList.add('is-loading');
+  count.title = 'Followers';
+  count.setAttribute('aria-label', 'Followers');
   return count;
 }
 
 // The visible chip shows the number. The label stays "N follower(s)".
+// A count that is still loading, or a failed read, is left as it is.
 export function paintFollowerCount(count, n) {
-  const label = followerLabel(n);
+  const value = followerCountOrNull(n);
+  if (value == null || !count) return;
+  count.classList.remove('is-loading');
+  const label = followerLabel(value);
   count.title = label;
   count.setAttribute('aria-label', label);
   const roll = count.querySelector('.topic-follow-num-roll');
   if (!roll) return;
   const prev = count._followers;
-  count._followers = n;
-  const text = formatCount(n);
+  count._followers = value;
+  const text = formatCount(value);
   const prevText = prev == null ? '' : formatCount(prev);
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (prev == null || prev === n || text === prevText || reduced) {
+  if (prev == null || prev === value || text === prevText || reduced) {
     roll.style.transition = 'none';
     roll.style.transform = 'none';
     roll.replaceChildren(countValue(text));
     return;
   }
-  const up = n > prev;
+  const up = value > prev;
   roll.style.transition = 'none';
   if (up) {
     roll.replaceChildren(countValue(prevText), countValue(text));
@@ -357,7 +390,9 @@ function watchWalletAccount() {
 
 // read uses the live wallet. isMine is checked again on every paint.
 // The button stays disabled only while the wallet prompt is open.
-function mountFollowControl(box, btn, count, read, isMine, send) {
+function mountFollowControl(box, btn, count, read, isMine, send, options) {
+  const known = options && options.known;
+  const remember = options && options.remember;
   let following = false;
   let inFlight = false;
   let settling = false;
@@ -365,7 +400,7 @@ function mountFollowControl(box, btn, count, read, isMine, send) {
   let refreshGen = 0;
 
   function paint(data) {
-    if (!data) return;
+    if (!data || followerCountOrNull(data.followers) == null) return;
     paintFollowerCount(count, data.followers);
     following = !!data.following;
     btn.hidden = !!isMine();
@@ -373,8 +408,14 @@ function mountFollowControl(box, btn, count, read, isMine, send) {
     paintFollowButton(btn, following);
   }
 
-  function refresh(options) {
-    const accountChange = !!(options && options.accountChange);
+  function paintKnown() {
+    if (typeof known !== 'function') return;
+    const hit = known();
+    if (hit) paint(hit);
+  }
+
+  function refresh(refreshOptions) {
+    const accountChange = !!(refreshOptions && refreshOptions.accountChange);
     btn.hidden = !!isMine();
     if (inFlight) return;
     if (settling && !accountChange) return;
@@ -383,15 +424,17 @@ function mountFollowControl(box, btn, count, read, isMine, send) {
       settling = false;
     }
     btn.disabled = false;
+    paintKnown();
     const token = ++refreshGen;
     read().then((data) => {
       if (token !== refreshGen || inFlight || settling) return;
       paint(data);
-    });
+    }).catch(() => {});
   }
 
   box._refreshFollow = refresh;
   watchWalletAccount();
+  paintKnown();
   // The popup open in this same turn reads once. A profile card has no popup event.
   queueMicrotask(() => {
     if (refreshGen === 0) refresh();
@@ -425,8 +468,16 @@ function mountFollowControl(box, btn, count, read, isMine, send) {
     }
     if (gen !== generation) return;
     const prev = count._followers;
-    const base = typeof prev === 'number' ? prev : 0;
-    paint({ followers: Math.max(0, base + (next ? 1 : -1)), following: next });
+    if (typeof prev === 'number') {
+      const nextCount = Math.max(0, prev + (next ? 1 : -1));
+      const guess = { followers: nextCount, following: next };
+      if (typeof remember === 'function') remember(guess);
+      paint(guess);
+    } else {
+      following = next;
+      btn.hidden = !!isMine();
+      paintFollowButton(btn, following);
+    }
     refreshFollowing();
     settling = true;
     try {
@@ -449,9 +500,13 @@ export function followControls(topicId, ownerAccount) {
     box,
     btn,
     count,
-    () => topicFollow(topicId, connectedAccount || ''),
+    () => topicCounts.load(topicId, connectedAccount || ''),
     () => !!(ownerAccount && connectedAccount && ownerAccount === connectedAccount),
     (next) => sendMessage(topicId, JSON.stringify(next ? { follow: { follow: '1' } } : { unfollow: { unfollow: '1' } })),
+    {
+      known: () => topicCounts.cached(topicId, connectedAccount || ''),
+      remember: (data) => topicCounts.remember(topicId, connectedAccount || '', data),
+    },
   );
   return box;
 }
@@ -469,9 +524,13 @@ export function followPersonControls(followeeAccount) {
     box,
     btn,
     count,
-    () => userFollow(followeeAccount, connectedAccount || ''),
+    () => personCounts.load(followeeAccount, connectedAccount || ''),
     () => !!(followeeAccount && connectedAccount && followeeAccount === connectedAccount),
     (next) => sendMessage(FOLLOW_TOPIC, JSON.stringify(next ? { follow: followeeAccount } : { unfollow: followeeAccount })),
+    {
+      known: () => personCounts.cached(followeeAccount, connectedAccount || ''),
+      remember: (data) => personCounts.remember(followeeAccount, connectedAccount || '', data),
+    },
   );
   return box;
 }

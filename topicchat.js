@@ -21,6 +21,7 @@ import { expandTopicChat, scheduleTopicChatLayout } from './cssLogic.js';
 import { payerUsernameNode } from './payerlink.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
 import { fillChatMessage } from './chatimage.js';
+import { watchFollowPrefetch } from './followtopic.js';
 
 
 export let allLoadedMessagesTopicChat = [];
@@ -133,6 +134,7 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
       img.dataset.payer = payer;
       img.className = 'profile-img-click';
       img.addEventListener('click', () => loadBio4PIC(payer));
+      watchFollowPrefetch(img, payer);
       currentGroupContainer.appendChild(img);
 
       // Content wrapper
@@ -601,6 +603,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
           cursor: pointer;
         `;
         img.addEventListener('click', () => loadBio4PIC(payer));
+        watchFollowPrefetch(img, payer);
         currentGroupDiv.appendChild(img);
   
         // Content wrapper (matches first function structure)

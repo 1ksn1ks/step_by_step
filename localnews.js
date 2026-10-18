@@ -13,6 +13,7 @@ import { applyAllStyles } from './loadprofilepopup.js';
 import { isTopicLayerActive } from './marker.js';
 import { watchMarkerTilt, forgetMarkerTilt } from './markertilt.js';
 import { geojson } from './letall.js';
+import { watchFollowPrefetch } from './followtopic.js';
 
 // Same key as marker.js topicPointKey — a live point matching a topic
 // point to 5 decimals is a duplicate of the topic layer: while the topic
@@ -214,6 +215,7 @@ function updateLocalClusters(force = true) {
       label.textContent = localList[j].title || 'Live marker';
       box.appendChild(label);
       el.appendChild(box);
+      watchFollowPrefetch(el, localList[j] && localList[j].payer);
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         openLocalPopup(j);

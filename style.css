@@ -2616,6 +2616,21 @@ html, body {
     line-height: calc(var(--u, 9.6px) * 1.15);
     font-variant-numeric: tabular-nums;
   }
+  .topic-follow-count.is-loading .topic-follow-num {
+    width: 1ch;
+  }
+  .topic-follow-count.is-loading .topic-follow-num-value {
+    width: 1ch;
+    color: transparent;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.32) 50%, rgba(255, 255, 255, 0.08) 100%);
+    background-size: 200% 100%;
+    animation: topic-follow-shimmer 1.1s linear infinite;
+  }
+  @keyframes topic-follow-shimmer {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
+  }
   .topic-follow:has(.topic-follow-btn.is-following) .topic-follow-count {
     color: #22D3EE;
     border-color: rgba(34, 211, 238, 0.35);
@@ -2730,6 +2745,10 @@ html, body {
     .topic-follow-num,
     .topic-follow-num-roll {
       transition: none !important;
+    }
+    .topic-follow-count.is-loading .topic-follow-num-value {
+      animation: none;
+      background: rgba(255, 255, 255, 0.16);
     }
   }
 

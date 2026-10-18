@@ -15,6 +15,7 @@ import { scene } from "./threejs";
 import { livePointCoords, livePointTitles } from './localnews';
 import { markerPopupNode } from './processallmessages.js';
 import { earlyHashinalNumber } from './earlyhashinal.js';
+import { prefetchPersonFollow } from './followtopic.js';
 import { watchMarkerTilt, forgetMarkerTilt } from './markertilt.js';
 import { fillMapTip } from './maptip.js';
 
@@ -156,6 +157,7 @@ map.on("movestart", () => {
 
 function bindMarkerTitle(el) {
   el.addEventListener("mouseenter", (event) => {
+    prefetchPersonFollow(el._markerPayer);
     if (markerCanHover()) showMarkerTitle(el, event.clientX, event.clientY);
   });
   el.addEventListener("mousemove", (event) => {
@@ -166,6 +168,7 @@ function bindMarkerTitle(el) {
   });
   el.addEventListener("contextmenu", (event) => event.preventDefault());
   el.addEventListener("touchstart", (event) => {
+    prefetchPersonFollow(el._markerPayer);
     const touch = event.touches && event.touches[0];
     const startX = touch ? touch.clientX : 0;
     const startY = touch ? touch.clientY : 0;
@@ -360,6 +363,7 @@ function createKeptMarker(cluster, key) {
     });
   } else {
     entry.feature = cluster;
+    el._markerPayer = cluster.payer || '';
     // The visual goes on an inner face element: the outer element is
     // MapLibre's marker element (positioned absolute + transform by
     // .maplibregl-marker) and must NEVER get a position of its own —
@@ -428,6 +432,7 @@ function refreshKeptMarker(entry, cluster) {
     return;
   }
   entry.feature = cluster;
+  entry.el._markerPayer = cluster.payer || '';
   syncLiveFace(entry);
   paintMarkerHashinal(entry);
   const pictureUrl = markerPictureUrl(cluster.properties.imageUrl);

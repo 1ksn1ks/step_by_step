@@ -117,12 +117,19 @@ export async function topicFollow(topicId, account) {
     if (!res.ok) return null;
     const data = await res.json();
     if (!data || !data.ok) return null;
-    return { followers: Number(data.followers) || 0, following: !!data.following };
+    return followCountPayload(data);
   } catch {
     return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+// A missing or unusable count is a failed read. Zero is a real count.
+function followCountPayload(data) {
+  const followers = Number(data.followers);
+  if (!Number.isFinite(followers) || followers < 0) return null;
+  return { followers, following: !!data.following };
 }
 
 // Read whether this account follows a person. Returns null when the
@@ -142,7 +149,7 @@ export async function userFollow(followee, account) {
     if (!res.ok) return null;
     const data = await res.json();
     if (!data || !data.ok) return null;
-    return { followers: Number(data.followers) || 0, following: !!data.following };
+    return followCountPayload(data);
   } catch {
     return null;
   } finally {

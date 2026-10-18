@@ -4,6 +4,7 @@ import { connectedAccount } from "./web3.js";
 import { profilePictures, usernames, click2url } from "./loadalladata.js";
 import { payerUsernameNode, safeHttpUrl } from "./payerlink.js";
 import { paintProfileAvatar } from "./earlyhashinal.js";
+import { watchFollowPrefetch } from "./followtopic.js";
 
 const DEFAULT_PIC = "https://kiloscribe.com/api/inscription-cdn/0.0.4819119";
 
@@ -271,6 +272,7 @@ export function paintDrawProfile(root, account = connectedAccount || "") {
   }
   if (name && nameNode) nameNode.style.color = pickerColor("color-picker-popup-username", "#ff9933");
   paintProfileAvatar(img, account);
+  watchFollowPrefetch(img, account);
 }
 
 function bindAccount(editorId) {
