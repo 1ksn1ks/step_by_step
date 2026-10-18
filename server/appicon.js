@@ -162,7 +162,7 @@ async function mapPool(items, limit, fn) {
   return out;
 }
 
-async function plotLayers(plot, owners) {
+export async function plotLayers(plot, owners) {
   const origin = Number(plot.origin);
   const w = Number(plot.w);
   const h = Number(plot.h);
@@ -187,64 +187,52 @@ async function plotLayers(plot, owners) {
   const sameFrame = frame.x === x && frame.y === y && frame.w === w && frame.h === h;
 
   if (!url) {
-    if (full) {
-      return [{
-        input: await sharp({
-          create: {
-            width: w * 10,
-            height: h * 10,
-            channels: 4,
-            background: { r: 26, g: 26, b: 26, alpha: 1 },
-          },
-        }).png().toBuffer(),
-        left: x * 10,
-        top: y * 10,
-      }];
-    }
-    const cell = await sharp({
+    const dark = sharp({
       create: {
-        width: 10,
-        height: 10,
+        width: w * 10,
+        height: h * 10,
         channels: 4,
         background: { r: 26, g: 26, b: 26, alpha: 1 },
       },
-    }).png().toBuffer();
-    return kept.map((spot) => ({ input: cell, left: spot.x * 10, top: spot.y * 10 }));
+    });
+    if (full) return [{ input: await dark.png().toBuffer(), left: x * 10, top: y * 10 }];
+    return [{ input: await maskKept(dark, x, y, w, h, kept), left: x * 10, top: y * 10 }];
   }
 
-  const fitted = await sharp(await fetchTile(url), { failOn: "none" })
-    .resize(frame.w * 10, frame.h * 10, { kernel: "nearest", fit: "fill" })
-    .png()
-    .toBuffer();
-
-  if (full && sameFrame) return [{ input: fitted, left: x * 10, top: y * 10 }];
-  if (full) {
-    return [{
-      input: await sharp(fitted).extract({
-        left: (x - frame.x) * 10,
-        top: (y - frame.y) * 10,
-        width: w * 10,
-        height: h * 10,
-      }).png().toBuffer(),
-      left: x * 10,
-      top: y * 10,
-    }];
-  }
-
-  const pieces = [];
-  for (const spot of kept) {
-    pieces.push({
-      input: await sharp(fitted).extract({
-        left: (spot.x - frame.x) * 10,
-        top: (spot.y - frame.y) * 10,
-        width: 10,
-        height: 10,
-      }).png().toBuffer(),
-      left: spot.x * 10,
-      top: spot.y * 10,
+  let fitted = sharp(await fetchTile(url), { failOn: "none" })
+    .resize(frame.w * 10, frame.h * 10, { kernel: "nearest", fit: "fill" });
+  if (full && sameFrame) return [{ input: await fitted.png().toBuffer(), left: x * 10, top: y * 10 }];
+  if (!sameFrame) {
+    fitted = fitted.extract({
+      left: (x - frame.x) * 10,
+      top: (y - frame.y) * 10,
+      width: w * 10,
+      height: h * 10,
     });
   }
-  return pieces;
+  if (full) return [{ input: await fitted.png().toBuffer(), left: x * 10, top: y * 10 }];
+  return [{ input: await maskKept(fitted, x, y, w, h, kept), left: x * 10, top: y * 10 }];
+}
+
+// One plot-sized image. Hidden cells are transparent, so a partial plot is
+// still a single layer and the kept cells stay on the same 10px grid.
+async function maskKept(base, originX, originY, w, h, kept) {
+  const width = w * 10;
+  const height = h * 10;
+  const mask = Buffer.alloc(width * height * 4);
+  for (const spot of kept) {
+    const ox = (spot.x - originX) * 10;
+    const oy = (spot.y - originY) * 10;
+    for (let row = 0; row < 10; row += 1) {
+      const start = ((oy + row) * width + ox) * 4;
+      mask.fill(255, start, start + 40);
+    }
+  }
+  return base.ensureAlpha().composite([{
+    input: mask,
+    raw: { width, height, channels: 4 },
+    blend: "dest-in",
+  }]).png().toBuffer();
 }
 
 async function snapshotPng() {
@@ -264,13 +252,18 @@ async function snapshotPng() {
       }
     })).flat();
 
+    const canvasPx = { width: 1000, height: 1000, channels: 4 };
     let canvas = await sharp({
       create: { width: 1000, height: 1000, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
-    }).png().toBuffer();
+    }).raw().toBuffer();
     for (let i = 0; i < layers.length; i += 40) {
-      canvas = await sharp(canvas).composite(layers.slice(i, i + 40)).png().toBuffer();
+      canvas = await sharp(canvas, { raw: canvasPx })
+        .composite(layers.slice(i, i + 40))
+        .raw()
+        .toBuffer();
     }
-    snapState = { hash, png: canvas, pending: null, pendingHash: "" };
+    const png = await sharp(canvas, { raw: canvasPx }).png().toBuffer();
+    snapState = { hash, png, pending: null, pendingHash: "" };
     return snapState;
   })().catch((err) => {
     snapState.pending = null;
