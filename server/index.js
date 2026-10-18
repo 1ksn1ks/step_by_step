@@ -79,10 +79,17 @@ const UPLOAD_MAX_CONCURRENT = envPositiveInt("UPLOAD_MAX_CONCURRENT", 4);
 const UPLOAD_MAX_CONCURRENT_PER_IP = envPositiveInt("UPLOAD_MAX_CONCURRENT_PER_IP", 2);
 // A body that stops sending is dropped instead of holding its slot.
 const UPLOAD_BODY_TIMEOUT_MS = envPositiveInt("UPLOAD_BODY_TIMEOUT_MS", 30000);
+// The whole request, including a slow video body. The idle timer above is
+// what stops a phone that stops sending. Ten minutes leaves room for a
+// large file on a slow link.
+const UPLOAD_REQUEST_TIMEOUT_MS = envPositiveInt("UPLOAD_REQUEST_TIMEOUT_MS", 600000);
 // Requests to /api/upload from one IP each minute, before Turnstile.
 const UPLOAD_REQUESTS_PER_MIN = envPositiveInt("UPLOAD_REQUESTS_PER_MIN", 30);
 // Writes and mirror polls that are open to any visitor.
 const PUBLIC_POST_RATE_LIMIT = envPositiveInt("PUBLIC_POST_RATE_LIMIT", 60);
+// EventSource reconnects are bursty. A 429 on this route closes the
+// browser stream, so it does not share the smaller public-post bucket.
+const STREAM_RATE_LIMIT = envPositiveInt("STREAM_RATE_LIMIT", 120);
 // Wallet-signed upload auth stays off until this is exactly "1".
 const REQUIRE_UPLOAD_AUTH = process.env.REQUIRE_UPLOAD_AUTH === "1";
 const UPLOAD_TOKEN_TTL_MS = 15 * 60 * 1000;
@@ -1521,6 +1528,29 @@ function publicPostLimit(req, res, next) {
   next();
 }
 
+const streamHits = new Map();
+
+function streamLimit(req, res, next) {
+  const now = Date.now();
+  if (streamHits.size > 4000) {
+    for (const [key, bucket] of streamHits) {
+      if (now >= bucket.reset) streamHits.delete(key);
+    }
+  }
+  const key = clientIp(req) + " " + req.path;
+  let bucket = streamHits.get(key);
+  if (!bucket || now >= bucket.reset) {
+    bucket = { reset: now + RATE_WINDOW_MS, count: 0 };
+    streamHits.set(key, bucket);
+  }
+  bucket.count += 1;
+  if (bucket.count > STREAM_RATE_LIMIT) {
+    res.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.reset - now) / 1000))));
+    return res.status(429).json({ ok: false, error: "rate limit" });
+  }
+  next();
+}
+
 // ── R2 media storage ────────────────────────────────────────────────────
 // Marker images/videos live on Cloudflare R2 (S3 API). The phone's bytes
 // stream straight into the bucket — nothing touches this disk. The
@@ -1894,11 +1924,16 @@ function issueUploadNonce() {
   return nonce;
 }
 
-function takeUploadNonce(nonce) {
+function uploadNonceLive(nonce) {
   if (typeof nonce !== "string" || nonce.length < 16 || nonce.length > 200) return false;
   const exp = uploadNonces.get(nonce);
-  uploadNonces.delete(nonce);
   return typeof exp === "number" && exp > Date.now();
+}
+
+function takeUploadNonce(nonce) {
+  const live = uploadNonceLive(nonce);
+  if (typeof nonce === "string") uploadNonces.delete(nonce);
+  return live;
 }
 
 function uploadTokenSecret() {
@@ -2084,8 +2119,11 @@ app.post("/api/upload/auth", publicPostLimit, async (req, res) => {
   }
   const signature = decodeSignature(signatureText);
   if (!signature) return res.status(400).json({ ok: false, error: "bad signature" });
-  // Reject a key list before spending the nonce, so that account can retry
-  // after the key changes. A bad signature still spends it.
+  // The nonce has to exist before the mirror lookup, so a missing check
+  // does not hit the mirror. It is spent only after that lookup: a key
+  // list can retry once the key changes, and a mirror failure can retry
+  // too. A bad signature still spends it.
+  if (!uploadNonceLive(nonce)) return res.status(401).json({ ok: false, error: "Upload check expired" });
   let pub;
   try {
     const key = await fetchAccountKey(accountId);
@@ -2118,7 +2156,10 @@ app.post("/api/upload", async (req, res) => {
   }
   const type = (req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
   const ext = R2_MIME_EXT[type];
-  if (!ext) return res.status(415).json({ ok: false, error: "Unsupported type — images and videos only" });
+  if (!ext) {
+    req.resume();
+    return res.status(415).json({ ok: false, error: "Unsupported type — images and videos only" });
+  }
   const isVideo = type.startsWith("video/");
   const max = isVideo ? R2_MAX_VIDEO : R2_MAX_IMAGE;
   const lengthHeader = req.headers["content-length"];
@@ -2164,6 +2205,7 @@ app.post("/api/upload", async (req, res) => {
     const body = await readUploadBody(req, max);
     if (!body.length) return res.status(400).json({ ok: false, error: "Empty file" });
     if (!magicMatches(type, body)) {
+      req.resume();
       return res.status(415).json({ ok: false, error: "File contents do not match the declared type" });
     }
     if (!takeUploadSlot(req, res, account, body.length)) return;
@@ -2728,7 +2770,7 @@ function broadcast(topicId, event) {
   for (const res of set) sseWrite(res, payload);
 }
 
-app.get("/api/stream", publicPostLimit, (req, res) => {
+app.get("/api/stream", streamLimit, (req, res) => {
   const topics = String(req.query.topics || "")
     .split(",")
     .map((t) => t.trim())
@@ -2829,7 +2871,9 @@ const server = app.listen(PORT, "0.0.0.0", () => {
   const serving = fs.existsSync(distDir) ? ", serving dist" : "";
   console.log(`topic backend on :${PORT} (mirror: ${MIRROR})${serving}`);
 });
-// The whole request, including a slow body. headersTimeout must stay above
-// requestTimeout or Node closes the socket on the shorter header timer.
-server.requestTimeout = 120000;
-server.headersTimeout = 121000;
+// A slow phone can spend minutes sending a video. The 30s idle body timer
+// drops a connection that stops. headersTimeout only covers the headers
+// and must stay at or under both 60s and requestTimeout (Node throws
+// ERR_OUT_OF_RANGE when the header timer is the longer one).
+server.requestTimeout = UPLOAD_REQUEST_TIMEOUT_MS;
+server.headersTimeout = Math.min(60000, UPLOAD_REQUEST_TIMEOUT_MS);

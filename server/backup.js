@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import zlib from "node:zlib";
-import { DatabaseSync, backup } from "node:sqlite";
+import * as sqlite from "node:sqlite";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -112,13 +112,24 @@ export function r2ClientFromEnv() {
   return { client, bucket };
 }
 
+// VACUUM INTO takes a SQL string. A quote in the path must not end it early.
+function sqlString(filePath) {
+  return String(filePath).replaceAll("'", "''");
+}
+
 // Hot snapshot. The destination is a new file. The live database is not copied.
+// node:sqlite's backup() exists on Node >= 22.16. Older 22.x can still start:
+// the namespace import does not crash, and VACUUM INTO writes the same file.
 export async function snapshotDatabase(dbPath, destPath) {
   if (!fs.existsSync(dbPath)) throw new Error("database file is missing");
   await fs.promises.rm(destPath, { force: true });
-  const source = new DatabaseSync(dbPath, { timeout: 10000 });
+  const source = new sqlite.DatabaseSync(dbPath, { timeout: 10000 });
   try {
-    await backup(source, destPath);
+    if (typeof sqlite.backup === "function") {
+      await sqlite.backup(source, destPath);
+    } else {
+      source.exec(`VACUUM INTO '${sqlString(destPath)}'`);
+    }
   } finally {
     source.close();
   }

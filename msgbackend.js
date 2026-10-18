@@ -180,39 +180,75 @@ export async function fetchFollowing(account) {
 // beforeSeq pages older history. The server ignores it when afterSeq is set,
 // and it never returns more than 1000 rows.
 // A timeout, network error, or HTTP error skips further calls for 30s.
+// A 429 does not: that request waits for Retry-After and tries once more.
 // A 200 with ready=false only means this topic is not backfilled.
 const BACKEND_COOLDOWN_MS = 30000;
+const BACKEND_RETRY_AFTER_CAP_MS = 60000;
 let backendDownUntil = 0;
+
+function retryAfterMs(res) {
+  const raw = res.headers && typeof res.headers.get === "function" ? res.headers.get("retry-after") : null;
+  const text = raw == null ? "" : String(raw).trim();
+  if (/^\d+(\.\d+)?$/.test(text)) {
+    return Math.min(BACKEND_RETRY_AFTER_CAP_MS, Math.max(0, Math.round(Number(text) * 1000)));
+  }
+  const when = Date.parse(text);
+  if (Number.isFinite(when)) {
+    return Math.min(BACKEND_RETRY_AFTER_CAP_MS, Math.max(0, when - Date.now()));
+  }
+  return 2000;
+}
+
+async function discardBody(res) {
+  try {
+    if (res.body && typeof res.body.cancel === "function") await res.body.cancel();
+  } catch {
+    /* the body is already closed */
+  }
+}
 
 export async function fetchMessagesBackend(topicId, limit = 1000, afterSeq = 0, beforeSeq = 0) {
   if (Date.now() < backendDownUntil) {
     return { messages: [], error: "backend unavailable", ready: false };
   }
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 6000);
-  try {
-    const after = Number(afterSeq) > 0 ? `&after_seq=${Math.floor(Number(afterSeq))}` : '';
-    const before = !after && Number(beforeSeq) > 0 ? `&before_seq=${Math.floor(Number(beforeSeq))}` : '';
-    const res = await fetch(
-      `${BACKEND_URL}/api/messages?topic=${encodeURIComponent(topicId)}&limit=${limit}${after}${before}`,
-      { signal: ctrl.signal }
-    );
-    if (!res.ok) {
+  let retried429 = false;
+  while (true) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 6000);
+    try {
+      const after = Number(afterSeq) > 0 ? `&after_seq=${Math.floor(Number(afterSeq))}` : '';
+      const before = !after && Number(beforeSeq) > 0 ? `&before_seq=${Math.floor(Number(beforeSeq))}` : '';
+      const res = await fetch(
+        `${BACKEND_URL}/api/messages?topic=${encodeURIComponent(topicId)}&limit=${limit}${after}${before}`,
+        { signal: ctrl.signal }
+      );
+      if (res.status === 429) {
+        clearTimeout(t);
+        await discardBody(res);
+        if (retried429) {
+          return { messages: [], error: "backend HTTP 429", ready: false };
+        }
+        retried429 = true;
+        await new Promise((resolve) => setTimeout(resolve, retryAfterMs(res)));
+        continue;
+      }
+      if (!res.ok) {
+        backendDownUntil = Date.now() + BACKEND_COOLDOWN_MS;
+        return { messages: [], error: "backend HTTP " + res.status, ready: false };
+      }
+      const data = await res.json();
+      return {
+        messages: data.messages || [],
+        error: "",
+        ready: !!data.ready,
+        views: data.views && typeof data.views === "object" && !Array.isArray(data.views) ? data.views : null,
+      };
+    } catch (e) {
       backendDownUntil = Date.now() + BACKEND_COOLDOWN_MS;
-      return { messages: [], error: "backend HTTP " + res.status, ready: false };
+      return { messages: [], error: e.message || String(e), ready: false };
+    } finally {
+      clearTimeout(t);
     }
-    const data = await res.json();
-    return {
-      messages: data.messages || [],
-      error: "",
-      ready: !!data.ready,
-      views: data.views && typeof data.views === "object" && !Array.isArray(data.views) ? data.views : null,
-    };
-  } catch (e) {
-    backendDownUntil = Date.now() + BACKEND_COOLDOWN_MS;
-    return { messages: [], error: e.message || String(e), ready: false };
-  } finally {
-    clearTimeout(t);
   }
 }
 
@@ -275,20 +311,25 @@ export function startLiveTail(topicId, startSeq, onMessage, pollMs = 3000, initi
 // ── Live stream (SSE) ──────────────────────────────────────────────────
 // ONE shared connection per app session. Chat panels subscribe per topic
 // (streamOnTopic) and the server pushes events the moment they happen —
-// no 3s polling. EventSource reconnects natively; on every (re)open the
-// registered callbacks fire so panels can re-fetch anything they missed
-// (their signature dedupe absorbs duplicates).
+// no 3s polling. A live stream reconnects on its own. A 429 (or any
+// response that is not the event stream) leaves the source CLOSED, and a
+// closed source never retries, so that case waits and opens a new one.
+// On every (re)open the registered callbacks fire so panels can re-fetch
+// anything they missed (their signature dedupe absorbs duplicates).
 let streamSource = null;
+const STREAM_CLOSED = 2;
+const STREAM_REOPEN_MS = 530000;
 const streamTopicRefs = new Map(); // topic_id -> refcount
 const streamHandlers = new Map();  // topic_id -> Set<handler>
 const streamReconnects = new Set();
 
 function streamEnsure() {
   if (streamSource || streamTopicRefs.size === 0) return;
-  streamSource = new EventSource(
+  const source = new EventSource(
     `${BACKEND_URL}/api/stream?topics=${[...streamTopicRefs.keys()].join(",")}`
   );
-  streamSource.onmessage = (e) => {
+  streamSource = source;
+  source.onmessage = (e) => {
     let evt;
     try {
       evt = JSON.parse(e.data);
@@ -305,7 +346,7 @@ function streamEnsure() {
       }
     }
   };
-  streamSource.onopen = () => {
+  source.onopen = () => {
     for (const fn of [...streamReconnects]) {
       try {
         fn();
@@ -314,7 +355,13 @@ function streamEnsure() {
       }
     }
   };
-  // onerror: EventSource retries on its own (server sends retry: 2000)
+  source.onerror = () => {
+    if (source.readyState !== STREAM_CLOSED) return;
+    if (streamSource !== source) return;
+    streamSource = null;
+    const jitter = Math.floor(Math.random() * 30000);
+    setTimeout(streamEnsure, STREAM_REOPEN_MS + jitter);
+  };
 }
 
 export function streamOnTopic(topicId, handler) {
@@ -334,8 +381,9 @@ export function streamOnTopic(topicId, handler) {
       streamTopicRefs.delete(topicId);
       // Reconnect with the reduced topic list (one cheap reopen)
       if (streamSource) {
-        streamSource.close();
+        const old = streamSource;
         streamSource = null;
+        old.close();
       }
       streamEnsure();
     } else {

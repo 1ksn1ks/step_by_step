@@ -38,12 +38,18 @@ function fail(name, detail) {
 function nodeInfo(bin) {
   try {
     const version = execFileSync(bin, ["-p", "process.versions.node"], { encoding: "utf8" }).trim();
-    const major = Number(version.split(".")[0]);
-    if (!Number.isInteger(major)) return null;
-    return { bin, version, major };
+    const parts = version.split(".");
+    const major = Number(parts[0]);
+    const minor = Number(parts[1]);
+    if (!Number.isInteger(major) || !Number.isInteger(minor)) return null;
+    return { bin, version, major, minor };
   } catch {
     return null;
   }
+}
+
+function nodeIs2216(info) {
+  return info.major > 22 || (info.major === 22 && info.minor >= 16);
 }
 
 function findServerNode() {
@@ -63,25 +69,50 @@ function findServerNode() {
   for (const home of homes) {
     if (!fs.existsSync(home)) continue;
     for (const entry of fs.readdirSync(home)) {
-      if (!/^v?22(\.|$)/.test(entry)) continue;
+      if (!/^v?\d+/.test(entry)) continue;
       add(path.join(home, entry, "node.exe"));
       add(path.join(home, entry, "installation", "node.exe"));
     }
   }
-  let node22 = null;
-  let fallback = null;
+  const exec = path.resolve(process.execPath);
+  let current = null;
+  let best = null;
   for (const bin of candidates) {
     const info = nodeInfo(bin);
-    if (!info || info.major < 22) continue;
-    if (info.major === 22) node22 = info;
-    else if (!fallback || info.major > fallback.major) fallback = info;
+    if (!info || !nodeIs2216(info)) continue;
+    if (path.resolve(bin) === exec) current = info;
+    if (!best || info.major > best.major || (info.major === best.major && info.minor > best.minor)) best = info;
   }
-  if (node22) return node22;
-  if (fallback) {
-    console.log(`node 22 binary not installed; using ${fallback.version}`);
-    return fallback;
+  if (current) return current;
+  if (best) return best;
+  throw new Error("Node >= 22.16 is required to start the security server");
+}
+
+function declaredNodeOk(value) {
+  const match = /^>=(\d+)\.(\d+)/.exec(String(value || "").trim());
+  if (!match) return false;
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  return major > 22 || (major === 22 && minor >= 16);
+}
+
+function checkDeclaredNode() {
+  const rootPkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+  const serverPkg = JSON.parse(fs.readFileSync(path.join(SERVER_DIR, "package.json"), "utf8"));
+  const rootEngine = rootPkg.engines && rootPkg.engines.node;
+  const serverEngine = serverPkg.engines && serverPkg.engines.node;
+  if (declaredNodeOk(rootEngine) && declaredNodeOk(serverEngine)) {
+    pass("engines require Node 22.16 or newer");
+  } else {
+    fail("engines require Node 22.16 or newer", `${rootEngine} / ${serverEngine}`);
   }
-  throw new Error("Node >= 22 is required to start the security server");
+  const nvmrc = fs.readFileSync(path.join(ROOT, ".nvmrc"), "utf8").trim();
+  const nvm = /^v?(\d+)\.(\d+)/.exec(nvmrc);
+  if (nvm && (Number(nvm[1]) > 22 || (Number(nvm[1]) === 22 && Number(nvm[2]) >= 16))) {
+    pass(`.nvmrc ${nvmrc} is 22.16 or newer`);
+  } else {
+    fail(".nvmrc is 22.16 or newer", nvmrc);
+  }
 }
 
 function freePort(start, end = start + 20) {
@@ -712,7 +743,9 @@ async function checkRefuse(nodeBin) {
 }
 
 async function main() {
+  checkDeclaredNode();
   const serverNode = findServerNode();
+  pass(`node ${serverNode.version} is 22.16 or newer`);
   console.log(`security server node ${serverNode.version} (${serverNode.bin})`);
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "sbs-security-"));
   const port = await freePort(8799);

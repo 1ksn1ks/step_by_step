@@ -182,7 +182,8 @@ async function loadTopic(topicId, { limit, ttl }) {
   }
 
   const soFar = mergeMessages(local.messages, incoming);
-  if (viaBackend && !error && confirmedCount(soFar) < limit) {
+  // Sequence 1 is the first message. Nothing older exists, so do not ask.
+  if (viaBackend && !error && confirmedCount(soFar) < limit && lowestSequence(soFar) !== 1) {
     const oldest = lowestSequence(soFar);
     const older = await fetchOlder(topicId, limit - confirmedCount(soFar), reached > 0 ? oldest : 0);
     incoming.push(...older.messages);

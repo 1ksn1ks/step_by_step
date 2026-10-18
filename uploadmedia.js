@@ -245,6 +245,7 @@ async function uploadToR2(file, pill, baseLabel, seconds, anchor) {
       if (e.lengthComputable) pill.set(`${baseLabel} ${Math.round((e.loaded / e.total) * 100)}%`);
     };
     xhr.onload = () => {
+      if (xhr.status === 401) uploadGrant = null;
       if (xhr.status === 200 && xhr.response && xhr.response.ok) resolve(xhr.response.url);
       else reject(new Error((xhr.response && xhr.response.error) || `upload failed (${xhr.status})`));
     };
