@@ -3494,6 +3494,37 @@ html, body {
     text-overflow: ellipsis;
   }
 
+  /* Upload steps that have to stay readable. Existing toasts are unchanged. */
+  .toast.toast-hold {
+    max-width: 78dvw;
+    font-size: clamp(0.75rem, 1.8dvh, 1.1rem);
+  }
+
+  .toast.toast-hold:has(.toast-connect) {
+    pointer-events: auto;
+  }
+
+  .toast-hold .toast-text {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    max-width: 68dvw;
+    line-height: 1.35;
+  }
+
+  .toast-hold .toast-connect {
+    flex: none;
+    margin-left: 1dvw;
+    padding: 0.45dvh 1.2dvw;
+    border-radius: 1dvh;
+    border: 0.15dvh solid rgba(34, 211, 238, 0.85);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: clamp(0.7rem, 1.6dvh, 1rem);
+    cursor: pointer;
+  }
+
   .toast-show {
     opacity: 1;
     transform: translateY(0) scale(1);

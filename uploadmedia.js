@@ -13,6 +13,7 @@ import { toast } from "./toast.js";
 import { connectedAccount, signer } from "./web3.js";
 import { profilePictures } from "./loadalladata.js";
 import { paintDrawField } from "./drawpreview.js";
+import { rememberGrant, withUploadAuth } from "./uploadgrant.js";
 
 const VIDEO_MAX = 100 * 1024 * 1024;
 const IMAGE_MAX = 20 * 1024 * 1024;
@@ -138,7 +139,63 @@ function ensureTurnstileToken(anchor) {
 // Off unless the public flag is exactly "1". The server flag is separate
 // and stays off by default, so a normal local upload does not ask the wallet.
 const REQUIRE_UPLOAD_AUTH = import.meta.env.VITE_REQUIRE_UPLOAD_AUTH === "1";
-let uploadGrant = null;
+const UPLOAD_FAILED = "Upload failed, please try again";
+const HASHPACK_WAIT = "Confirm in HashPack to start uploading. This is only needed once per day.";
+const HASHPACK_CANCEL = "Upload cancelled. Approve the HashPack request to upload.";
+const HASHPACK_TIMEOUT = "HashPack didn't respond. Open HashPack and try again.";
+const CONNECT_UPLOAD = "Connect your wallet to upload";
+const SIGN_WAIT_MS = 60000;
+const KEPT_UPLOAD_MESSAGES = new Set([
+  "Complete the check first",
+  "Check failed",
+  "Could not load the check",
+  "Open the upload panel first",
+  "Upload cancelled",
+  HASHPACK_CANCEL,
+  HASHPACK_TIMEOUT,
+  CONNECT_UPLOAD,
+  UPLOAD_FAILED,
+]);
+
+// sessionStorage for this tab. A wallet change is a different key, so the
+// previous account's token is not sent. A blocked store falls back to memory.
+const memoryGrants = new Map();
+const grantStorage = {
+  getItem(key) {
+    try {
+      if (typeof sessionStorage !== "undefined") {
+        const value = sessionStorage.getItem(key);
+        if (value != null) return value;
+      }
+    } catch {
+      /* private mode */
+    }
+    return memoryGrants.has(key) ? memoryGrants.get(key) : null;
+  },
+  setItem(key, value) {
+    try {
+      if (typeof sessionStorage !== "undefined") {
+        sessionStorage.setItem(key, value);
+        memoryGrants.delete(key);
+        return;
+      }
+    } catch {
+      /* fall through to memory */
+    }
+    memoryGrants.set(key, value);
+  },
+  removeItem(key) {
+    memoryGrants.delete(key);
+    try {
+      if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(key);
+    } catch {
+      /* already gone */
+    }
+  },
+};
+
+let connectHold = null;
+let signingPromise = null;
 
 function bytesToBase64(bytes) {
   const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
@@ -147,35 +204,130 @@ function bytesToBase64(bytes) {
   return btoa(binary);
 }
 
-async function uploadAuthToken() {
-  if (!REQUIRE_UPLOAD_AUTH) return "";
-  if (!connectedAccount || !signer) throw new Error("Connect wallet first");
-  if (uploadGrant && uploadGrant.account === connectedAccount && uploadGrant.exp > Date.now() + 15000) {
-    return uploadGrant.token;
+function uploadFace(err) {
+  if (err && err.serverError) return err.serverError;
+  if (err && KEPT_UPLOAD_MESSAGES.has(err.message)) return err.message;
+  return UPLOAD_FAILED;
+}
+
+function dismissConnectToast() {
+  if (!connectHold) return;
+  const current = connectHold;
+  connectHold = null;
+  current.done();
+}
+
+function showConnectToast() {
+  if (connectHold) return;
+  const connectBtn = document.getElementById("connect-wallet-btn");
+  let action = null;
+  if (connectBtn) {
+    action = document.createElement("button");
+    action.type = "button";
+    action.className = "toast-connect";
+    const label = (connectBtn.textContent || "").trim();
+    action.textContent = label || "Connect";
+    action.addEventListener("click", () => {
+      dismissConnectToast();
+      connectBtn.click();
+    });
   }
-  const challengeRes = await fetch("/api/upload/challenge");
-  const challenge = await challengeRes.json().catch(() => null);
-  if (!challengeRes.ok || !challenge || typeof challenge.nonce !== "string") {
-    throw new Error((challenge && challenge.error) || "Could not start the upload check");
+  connectHold = toast.hold(CONNECT_UPLOAD, { action, stay: !!connectBtn });
+  if (!connectBtn) connectHold = null;
+}
+
+function userRejected(err) {
+  if (!err) return false;
+  const code = err.code;
+  if (code === 4001 || code === "4001" || code === "USER_REJECTED" || code === "USER_REJECT") return true;
+  const message = String(err.message || err).toLowerCase();
+  return /reject|denied|cancel|closed|dismiss|declin/.test(message);
+}
+
+function failedUpload(message, code) {
+  const err = new Error(message);
+  if (code) err.code = code;
+  return err;
+}
+
+// One HashPack prompt at a time. A second upload waits on the same signature.
+function signUploadChallenge() {
+  if (!signingPromise) {
+    signingPromise = requestUploadGrant().finally(() => {
+      signingPromise = null;
+    });
   }
-  const signed = await signer.sign([new TextEncoder().encode(challenge.nonce)]);
-  const signatureBytes = signed && signed[0] && signed[0].signature;
-  if (!signatureBytes) throw new Error("Wallet did not sign the upload check");
-  const authRes = await fetch("/api/upload/auth", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      accountId: connectedAccount,
-      nonce: challenge.nonce,
-      signature: bytesToBase64(signatureBytes),
-    }),
-  });
-  const auth = await authRes.json().catch(() => null);
-  if (!authRes.ok || !auth || typeof auth.token !== "string") {
-    throw new Error((auth && auth.error) || "Upload was not authorized");
+  return signingPromise;
+}
+
+async function requestUploadGrant() {
+  if (!connectedAccount || !signer) {
+    showConnectToast();
+    const err = failedUpload(CONNECT_UPLOAD, "NO_WALLET");
+    err.shown = true;
+    throw err;
   }
-  uploadGrant = { account: connectedAccount, token: auth.token, exp: Date.now() + 14 * 60 * 1000 };
-  return auth.token;
+  let challenge;
+  try {
+    const challengeRes = await fetch("/api/upload/challenge");
+    challenge = await challengeRes.json().catch(() => null);
+    if (!challengeRes.ok || !challenge || typeof challenge.nonce !== "string") {
+      throw failedUpload(UPLOAD_FAILED);
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message === UPLOAD_FAILED) throw err;
+    throw failedUpload(UPLOAD_FAILED);
+  }
+  if (!connectedAccount || !signer) {
+    showConnectToast();
+    const err = failedUpload(CONNECT_UPLOAD, "NO_WALLET");
+    err.shown = true;
+    throw err;
+  }
+  const accountId = connectedAccount;
+  dismissConnectToast();
+  const hold = toast.hold(HASHPACK_WAIT);
+  let timer = null;
+  try {
+    const timeout = new Promise((resolve) => {
+      timer = setTimeout(() => resolve({ timeout: true }), SIGN_WAIT_MS);
+    });
+    const signedAttempt = signer.sign([new TextEncoder().encode(challenge.nonce)]).then(
+      (value) => ({ value }),
+      (err) => ({ err })
+    );
+    const outcome = await Promise.race([signedAttempt, timeout]);
+    if (outcome.timeout) throw failedUpload(HASHPACK_TIMEOUT, "SIGN_TIMEOUT");
+    if (outcome.err) {
+      if (userRejected(outcome.err)) throw failedUpload(HASHPACK_CANCEL, "SIGN_CANCELLED");
+      throw failedUpload(UPLOAD_FAILED);
+    }
+    const signatureBytes = outcome.value && outcome.value[0] && outcome.value[0].signature;
+    if (!signatureBytes || signatureBytes.length === 0) {
+      throw failedUpload(HASHPACK_CANCEL, "SIGN_CANCELLED");
+    }
+    const authRes = await fetch("/api/upload/auth", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        accountId,
+        nonce: challenge.nonce,
+        signature: bytesToBase64(signatureBytes),
+      }),
+    });
+    const auth = await authRes.json().catch(() => null);
+    if (!authRes.ok || !auth || typeof auth.token !== "string") throw failedUpload(UPLOAD_FAILED);
+    return rememberGrant(grantStorage, accountId, auth);
+  } catch (err) {
+    if (err && (err.code === "SIGN_TIMEOUT" || err.code === "SIGN_CANCELLED" || err.message === UPLOAD_FAILED)) {
+      throw err;
+    }
+    if (userRejected(err)) throw failedUpload(HASHPACK_CANCEL, "SIGN_CANCELLED");
+    throw failedUpload(UPLOAD_FAILED);
+  } finally {
+    if (timer) clearTimeout(timer);
+    hold.done();
+  }
 }
 
 // A persistent pill in the toast container that reports upload progress —
@@ -229,10 +381,10 @@ function readVideoSeconds(localUrl) {
   });
 }
 
-// POST the file to /api/upload with progress events (XHR — fetch has none).
-async function uploadToR2(file, pill, baseLabel, seconds, anchor) {
-  const turnstile = await ensureTurnstileToken(anchor);
-  const uploadToken = await uploadAuthToken();
+// The 0% pill appears only once the bytes start moving. Signature, wallet,
+// and Turnstile failures never leave it on screen.
+function sendUpload(file, baseLabel, seconds, turnstile, uploadToken) {
+  const pill = progressPill(`${baseLabel} 0%`);
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/upload");
@@ -245,15 +397,39 @@ async function uploadToR2(file, pill, baseLabel, seconds, anchor) {
       if (e.lengthComputable) pill.set(`${baseLabel} ${Math.round((e.loaded / e.total) * 100)}%`);
     };
     xhr.onload = () => {
-      if (xhr.status === 401) uploadGrant = null;
-      if (xhr.status === 200 && xhr.response && xhr.response.ok) resolve(xhr.response.url);
-      else reject(new Error((xhr.response && xhr.response.error) || `upload failed (${xhr.status})`));
+      if (xhr.status === 200 && xhr.response && xhr.response.ok && typeof xhr.response.url === "string") {
+        resolve(xhr.response.url);
+        return;
+      }
+      const serverError = xhr.response && typeof xhr.response.error === "string" ? xhr.response.error : "";
+      const err = new Error(xhr.status === 401 || !serverError ? UPLOAD_FAILED : serverError);
+      err.status = xhr.status;
+      if (serverError && xhr.status !== 401) err.serverError = serverError;
+      reject(err);
     };
     xhr.onerror = () => {
-      reject(new Error("network error — is the backend up?"));
+      reject(new Error(UPLOAD_FAILED));
     };
     xhr.send(file);
+  }).finally(() => {
+    pill.done();
   });
+}
+
+// POST the file to /api/upload with progress events (XHR — fetch has none).
+async function uploadToR2(file, baseLabel, seconds, anchor) {
+  const turnstile = await ensureTurnstileToken(anchor);
+  const send = (uploadToken) => sendUpload(file, baseLabel, seconds, turnstile, uploadToken);
+  const url = REQUIRE_UPLOAD_AUTH
+    ? await withUploadAuth({
+      account: connectedAccount,
+      storage: grantStorage,
+      sign: signUploadChallenge,
+      send,
+    })
+    : await send("");
+  dismissConnectToast();
+  return url;
 }
 
 // Fill a form field the same way user typing would — the inline oninput
@@ -354,10 +530,9 @@ async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg
   const previous = document.getElementById(targetFieldId)?.value || "";
   const localUrl = URL.createObjectURL(file);
   showFieldPreview(targetFieldId, localUrl, isVideo ? "video" : "image");
-  const pill = progressPill(`Uploading ${label} 0%`);
   try {
     const seconds = isVideo ? await readVideoSeconds(localUrl) : null;
-    const url = await uploadToR2(file, pill, `Uploading ${label}`, seconds, btn);
+    const url = await uploadToR2(file, `Uploading ${label}`, seconds, btn);
     fillField(targetFieldId, url);
     showFieldPreview(targetFieldId, url, isVideo ? "video" : "image");
     toast.success("Uploaded");
@@ -365,9 +540,8 @@ async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg
     fillField(targetFieldId, previous);
     if (/^https?:\/\//i.test(previous)) showFieldPreview(targetFieldId, previous);
     else hideFieldPreview(targetFieldId);
-    toast.error(err.message || "Upload failed");
+    if (!err || !err.shown) toast.error(uploadFace(err), { hold: true });
   } finally {
-    pill.done();
     uploading = false;
     btn.disabled = false;
     picker.value = "";
@@ -397,12 +571,7 @@ export async function uploadChatImage(file, anchor) {
     throw new Error("Only PNG, JPG, WebP, GIF");
   }
   if (file.size > IMAGE_MAX) throw new Error("Image is too large");
-  const pill = progressPill("Uploading image 0%");
-  try {
-    return await uploadToR2(file, pill, "Uploading image", null, anchor);
-  } finally {
-    pill.done();
-  }
+  return uploadToR2(file, "Uploading image", null, anchor);
 }
 
 function showSavedProfilePreview() {

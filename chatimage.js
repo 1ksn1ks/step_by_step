@@ -141,7 +141,10 @@ function bind(kind) {
     } catch (err) {
       if (mine !== s.gen) return;
       clearPendingChatImage(kind);
-      toast.error(err.message || "Upload failed");
+      if (!err || !err.shown) {
+        const message = (err && (err.serverError || err.message)) || "Upload failed, please try again";
+        toast.error(message, { hold: true });
+      }
     } finally {
       if (s.file) s.file.value = "";
       if (mine !== s.gen) return;

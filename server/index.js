@@ -25,6 +25,7 @@ import { profileTopicAction } from "./profiletopic.js";
 import { hashtagsIn } from "../hashtag.js";
 import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { startBackupSchedule } from "./backup.js";
+import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -92,7 +93,6 @@ const PUBLIC_POST_RATE_LIMIT = envPositiveInt("PUBLIC_POST_RATE_LIMIT", 60);
 const STREAM_RATE_LIMIT = envPositiveInt("STREAM_RATE_LIMIT", 120);
 // Wallet-signed upload auth stays off until this is exactly "1".
 const REQUIRE_UPLOAD_AUTH = process.env.REQUIRE_UPLOAD_AUTH === "1";
-const UPLOAD_TOKEN_TTL_MS = 15 * 60 * 1000;
 const UPLOAD_NONCE_TTL_MS = 5 * 60 * 1000;
 
 // ── SQLite (one file, disposable cache) ────────────────────────────────
@@ -1943,7 +1943,7 @@ function uploadTokenSecret() {
 // Fail closed. A missing or short secret must not issue tokens or accept
 // uploads while REQUIRE_UPLOAD_AUTH is on.
 function uploadAuthConfigured() {
-  return Buffer.byteLength(uploadTokenSecret(), "utf8") >= 32;
+  return uploadSecretOk(uploadTokenSecret());
 }
 
 if (REQUIRE_UPLOAD_AUTH && !uploadAuthConfigured()) {
@@ -1951,33 +1951,8 @@ if (REQUIRE_UPLOAD_AUTH && !uploadAuthConfigured()) {
   process.exit(1);
 }
 
-function issueUploadToken(accountId) {
-  const exp = Date.now() + UPLOAD_TOKEN_TTL_MS;
-  const body = Buffer.from(JSON.stringify({ accountId, exp })).toString("base64url");
-  const mac = crypto.createHmac("sha256", uploadTokenSecret()).update(body).digest("base64url");
-  return `${body}.${mac}`;
-}
-
-// Constant-time compare of the HMAC. A wrong length never reaches the compare.
 function accountFromUploadToken(header) {
-  if (!uploadAuthConfigured()) return null;
-  const secret = uploadTokenSecret();
-  const token = typeof header === "string" ? header.trim() : "";
-  const dot = token.lastIndexOf(".");
-  if (dot <= 0) return null;
-  const body = token.slice(0, dot);
-  const given = Buffer.from(token.slice(dot + 1));
-  const expected = Buffer.from(crypto.createHmac("sha256", secret).update(body).digest("base64url"));
-  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
-  let payload;
-  try {
-    payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
-  } catch {
-    return null;
-  }
-  if (!payload || !/^\d+\.\d+\.\d+$/.test(payload.accountId)) return null;
-  if (typeof payload.exp !== "number" || payload.exp < Date.now()) return null;
-  return payload.accountId;
+  return readUploadToken(header, uploadTokenSecret());
 }
 
 function decodeSignature(text) {
@@ -2135,7 +2110,8 @@ app.post("/api/upload/auth", publicPostLimit, async (req, res) => {
   if (!signatureMatchesKey(pub, nonce, signature)) {
     return res.status(401).json({ ok: false, error: "Upload check failed" });
   }
-  res.json({ ok: true, token: issueUploadToken(accountId), expiresIn: 900 });
+  const issued = issueUploadToken(accountId, uploadTokenSecret());
+  res.json({ ok: true, token: issued.token, exp: issued.exp, expiresIn: issued.expiresIn });
 });
 
 app.post("/api/upload", async (req, res) => {

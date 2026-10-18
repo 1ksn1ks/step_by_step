@@ -742,6 +742,277 @@ async function checkRefuse(nodeBin) {
   }
 }
 
+function memoryStorage() {
+  const map = new Map();
+  return {
+    getItem(key) {
+      return map.has(key) ? map.get(key) : null;
+    },
+    setItem(key, value) {
+      map.set(key, String(value));
+    },
+    removeItem(key) {
+      map.delete(key);
+    },
+  };
+}
+
+function authDenied() {
+  const err = new Error("Upload failed, please try again");
+  err.status = 401;
+  return err;
+}
+
+function freshGrant(account, token) {
+  return { account, token, exp: Date.now() + 60_000 };
+}
+
+async function checkUploadGrantUnit() {
+  const { readGrant, writeGrant, rememberGrant, withUploadAuth } = await import(
+    pathToFileURL(path.join(ROOT, "uploadgrant.js")).href
+  );
+  const { issueUploadToken, accountFromUploadToken, UPLOAD_TOKEN_TTL_MS, UPLOAD_TOKEN_TTL_SEC } = await import(
+    pathToFileURL(path.join(SERVER_DIR, "uploadtoken.js")).href
+  );
+  const secret = "upload-token-test-secret-32b-min";
+  const now = 1_800_000_000_000;
+  const issued = issueUploadToken("0.0.42", secret, now);
+  const live = accountFromUploadToken(issued.token, secret, issued.exp) === "0.0.42";
+  const ended = accountFromUploadToken(issued.token, secret, issued.exp + 1) === null;
+  const ttl = issued.expiresIn === UPLOAD_TOKEN_TTL_SEC && issued.exp === now + UPLOAD_TOKEN_TTL_MS;
+  if (live && ended && ttl) pass("upload token lasts 24 hours and expires on the next millisecond");
+  else fail("upload token lasts 24 hours and expires on the next millisecond", `live ${live} ended ${ended} ttl ${ttl}`);
+
+  const flipped = issued.token.slice(0, -1) + (issued.token.endsWith("a") ? "b" : "a");
+  const bound = accountFromUploadToken(issued.token, secret, now) === "0.0.42";
+  const tampered = accountFromUploadToken(flipped, secret, now) === null;
+  const unbound = accountFromUploadToken(issueUploadToken("not-an-account", secret, now).token, secret, now) === null;
+  const shortSecret = accountFromUploadToken(issued.token, "short", now) === null;
+  if (bound && tampered && unbound && shortSecret) pass("upload token is bound to the account");
+  else fail("upload token is bound to the account", `bound ${bound} tampered ${tampered} unbound ${unbound}`);
+
+  const remembered = rememberGrant(memoryStorage(), "0.0.5", { token: "server-token", exp: now + UPLOAD_TOKEN_TTL_MS, expiresIn: 10 }, now);
+  const fallback = rememberGrant(memoryStorage(), "0.0.5", { token: "fallback-token", exp: now - 1, expiresIn: UPLOAD_TOKEN_TTL_SEC }, now);
+  if (remembered.exp === now + UPLOAD_TOKEN_TTL_MS && fallback.exp === now + UPLOAD_TOKEN_TTL_SEC * 1000) {
+    pass("client keeps the server expiry");
+  } else fail("client keeps the server expiry", `remembered ${remembered.exp} fallback ${fallback.exp}`);
+
+  const reuseStore = memoryStorage();
+  let signs = 0;
+  let sent = "";
+  writeGrant(reuseStore, freshGrant("0.0.1", "stored-token"));
+  const reused = await withUploadAuth({
+    account: "0.0.1",
+    storage: reuseStore,
+    sign: async () => {
+      signs += 1;
+      return freshGrant("0.0.1", "new-token");
+    },
+    send: async (token) => {
+      sent = token;
+      return "ok";
+    },
+  });
+  if (reused === "ok" && signs === 0 && sent === "stored-token") pass("stored upload token is reused without a new signature");
+  else fail("stored upload token is reused without a new signature", `signs ${signs} sent ${sent}`);
+
+  const expiredStore = memoryStorage();
+  signs = 0;
+  sent = "";
+  writeGrant(expiredStore, { account: "0.0.1", token: "old-token", exp: Date.now() - 1000 });
+  await withUploadAuth({
+    account: "0.0.1",
+    storage: expiredStore,
+    sign: async () => {
+      signs += 1;
+      return freshGrant("0.0.1", "renewed-token");
+    },
+    send: async (token) => {
+      sent = token;
+      return "ok";
+    },
+  });
+  const near = memoryStorage();
+  writeGrant(near, { account: "0.0.1", token: "soon-token", exp: Date.now() + 15000 });
+  let nearSigns = 0;
+  await withUploadAuth({
+    account: "0.0.1",
+    storage: near,
+    sign: async () => {
+      nearSigns += 1;
+      return freshGrant("0.0.1", "near-new");
+    },
+    send: async () => "ok",
+  });
+  const boundary = memoryStorage();
+  const clock = 5_000_000;
+  writeGrant(boundary, { account: "0.0.1", token: "edge-token", exp: clock + 15000 });
+  const skewExpired = readGrant(boundary, "0.0.1", clock) === null;
+  writeGrant(boundary, { account: "0.0.1", token: "edge-token", exp: clock + 15001 });
+  const skewLive = readGrant(boundary, "0.0.1", clock);
+  const renewed = readGrant(expiredStore, "0.0.1");
+  if (
+    signs === 1 &&
+    sent === "renewed-token" &&
+    nearSigns === 1 &&
+    skewExpired &&
+    skewLive &&
+    skewLive.token === "edge-token" &&
+    renewed &&
+    renewed.token === "renewed-token"
+  ) {
+    pass("expired upload token asks for one new signature");
+  } else {
+    fail("expired upload token asks for one new signature", `signs ${signs} near ${nearSigns} skew ${skewExpired} sent ${sent}`);
+  }
+
+  const retryStore = memoryStorage();
+  signs = 0;
+  let sends = 0;
+  writeGrant(retryStore, freshGrant("0.0.7", "rejected-token"));
+  const retried = await withUploadAuth({
+    account: "0.0.7",
+    storage: retryStore,
+    sign: async () => {
+      signs += 1;
+      return freshGrant("0.0.7", "signed-token");
+    },
+    send: async (token) => {
+      sends += 1;
+      if (sends === 1) throw authDenied();
+      return token;
+    },
+  });
+  if (retried === "signed-token" && signs === 1 && sends === 2) pass("a 401 retries the upload once with a new signature");
+  else fail("a 401 retries the upload once with a new signature", `signs ${signs} sends ${sends} retried ${retried}`);
+
+  const stopStore = memoryStorage();
+  signs = 0;
+  sends = 0;
+  writeGrant(stopStore, freshGrant("0.0.7", "rejected-token"));
+  let stopped = false;
+  try {
+    await withUploadAuth({
+      account: "0.0.7",
+      storage: stopStore,
+      sign: async () => {
+        signs += 1;
+        return freshGrant("0.0.7", "signed-once");
+      },
+      send: async () => {
+        sends += 1;
+        throw authDenied();
+      },
+    });
+  } catch (err) {
+    stopped = !!(err && err.status === 401);
+  }
+  const cleared = readGrant(stopStore, "0.0.7") === null;
+  if (stopped && signs === 1 && sends === 2 && cleared) pass("a second 401 does not sign again");
+  else fail("a second 401 does not sign again", `stopped ${stopped} signs ${signs} sends ${sends} cleared ${cleared}`);
+
+  const missingStore = memoryStorage();
+  signs = 0;
+  sends = 0;
+  try {
+    await withUploadAuth({
+      account: "0.0.8",
+      storage: missingStore,
+      sign: async () => {
+        signs += 1;
+        return freshGrant("0.0.8", `signed-${signs}`);
+      },
+      send: async () => {
+        sends += 1;
+        throw authDenied();
+      },
+    });
+  } catch {
+    /* the second 401 is the stop */
+  }
+  if (signs === 2 && sends === 2) pass("a missing token signs once and retries a 401 once");
+  else fail("a missing token signs once and retries a 401 once", `signs ${signs} sends ${sends}`);
+
+  const split = memoryStorage();
+  writeGrant(split, freshGrant("0.0.1", "account-a"));
+  signs = 0;
+  sent = "";
+  await withUploadAuth({
+    account: "0.0.2",
+    storage: split,
+    sign: async () => {
+      signs += 1;
+      return freshGrant("0.0.2", "account-b");
+    },
+    send: async (token) => {
+      sent = token;
+      return "ok";
+    },
+  });
+  const kept = readGrant(split, "0.0.1");
+  if (signs === 1 && sent === "account-b" && kept && kept.token === "account-a") {
+    pass("another account does not reuse the upload token");
+  } else fail("another account does not reuse the upload token", `signs ${signs} sent ${sent}`);
+}
+
+function postAuthedUpload(port, token) {
+  const buf = Buffer.from("x");
+  const headers = {
+    "content-type": "image/png",
+    "content-length": String(buf.length),
+  };
+  if (token) headers["x-upload-token"] = token;
+  return request(port, "POST", "/api/upload", { headers, body: buf, timeout: 15000 });
+}
+
+async function checkUploadTokenHttp(nodeBin) {
+  const { issueUploadToken, UPLOAD_TOKEN_TTL_MS } = await import(
+    pathToFileURL(path.join(SERVER_DIR, "uploadtoken.js")).href
+  );
+  const secret = "upload-token-test-secret-32b-min";
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "sbs-upload-auth-"));
+  const port = await freePort(8810);
+  const child = spawnServer(nodeBin, port, dataDir, {
+    REQUIRE_UPLOAD_AUTH: "1",
+    UPLOAD_TOKEN_SECRET: secret,
+    TURNSTILE_SECRET_KEY: "",
+  });
+  try {
+    await waitForHealth(port, child);
+    const fresh = issueUploadToken("0.0.123", secret);
+    const first = await postAuthedUpload(port, fresh.token);
+    const second = await postAuthedUpload(port, fresh.token);
+    if (first.status === 415 && second.status === 415) pass("the same upload token is accepted twice");
+    else fail("the same upload token is accepted twice", `${first.status} then ${second.status}`);
+
+    const expired = issueUploadToken("0.0.123", secret, Date.now() - UPLOAD_TOKEN_TTL_MS - 5000);
+    const stale = await postAuthedUpload(port, expired.token);
+    const missing = await postAuthedUpload(port);
+    const flipped = fresh.token.slice(0, -1) + (fresh.token.endsWith("a") ? "b" : "a");
+    const bad = await postAuthedUpload(port, flipped);
+    if (stale.status === 401 && missing.status === 401 && bad.status === 401) {
+      pass("expired, missing, and tampered upload tokens are 401");
+    } else {
+      fail("expired, missing, and tampered upload tokens are 401", `${stale.status} ${missing.status} ${bad.status}`);
+    }
+  } catch (err) {
+    const log = child.log();
+    fail("upload token http", `${err && err.message ? err.message : err} ${log.slice(-400)}`);
+  } finally {
+    await stopChild(child);
+    removeDir(dataDir);
+  }
+}
+
+async function checkUploadAuth(nodeBin) {
+  try {
+    await checkUploadGrantUnit();
+  } catch (err) {
+    fail("upload grant unit", err && err.stack ? err.stack : String(err));
+  }
+  await checkUploadTokenHttp(nodeBin);
+}
+
 async function main() {
   checkDeclaredNode();
   const serverNode = findServerNode();
@@ -766,9 +1037,10 @@ async function main() {
   } finally {
     await stopChild(child);
     removeDir(dataDir);
-    agent.destroy();
   }
   await refuse;
+  await checkUploadAuth(serverNode.bin);
+  agent.destroy();
   if (failures.length) {
     console.error(`\n${failures.length} security check(s) failed`);
     process.exit(1);
