@@ -5132,8 +5132,8 @@ a.payer-link {
     flex: 1 1 auto;
     line-height: 1.35;
     /* Matches the card margin below, so each card's outer edge stays
-       on the popup frame. 0.5 + -0.5 and 0.4 + -0.4. */
-    padding: calc(var(--u) * 0.5) calc(var(--u) * 0.4) calc(var(--u) * 0.4) !important;
+       on the popup frame. 0.4 + -0.4 on every side. */
+    padding: calc(var(--u) * 0.4) !important;
   }
 
   .maplibregl-map .maplibregl-popup-content > .popup-sheet {
@@ -5156,8 +5156,8 @@ a.payer-link {
   .maplibregl-map .popup-sheet::after {
     content: '';
     z-index: -1;
-    /* Inner edge of the 0.3u border: 0.2u above the grid, 0.1u outside the sides and bottom. */
-    margin: calc(var(--u) * -0.5) calc(var(--u) * -0.4) calc(var(--u) * -0.4);
+    /* Inner edge of the 0.3u border is 0.1u outside the grid on every side. */
+    margin: calc(var(--u) * -0.4);
     align-self: stretch;
     justify-self: stretch;
     box-sizing: border-box;
@@ -5194,9 +5194,9 @@ a.payer-link {
   }
 
   /* The × is on the content, whose edge is the card's outer edge.
-     0.3u border + 0.2u top / 0.1u right. */
+     0.3u border + 0.1u on the top and the right. */
   .maplibregl-map .maplibregl-popup-close-button {
-    top: calc(var(--u) * 0.5) !important;
+    top: calc(var(--u) * 0.4) !important;
     right: calc(var(--u) * 0.4) !important;
   }
 
@@ -5332,10 +5332,13 @@ a.payer-link {
   .maplibregl-map .popup-sheet > .popup-footer-row {
     display: grid !important;
     grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
+    align-items: end !important;
     column-gap: calc(var(--u) * 0.7);
     align-self: end;
+    height: auto !important;
+    min-height: 0;
     margin: 0 !important;
+    padding: 0;
   }
 
   .maplibregl-map .popup-footer-meta {
@@ -5375,6 +5378,12 @@ a.payer-link {
     justify-self: end;
   }
 
+  .maplibregl-map .popup-footer-row .popup-top-topic,
+  .maplibregl-map .popup-footer-row .popup-views,
+  .maplibregl-map .popup-footer-row .popup-timestamp {
+    margin-bottom: 0;
+  }
+
   /* Same comments view as portrait, sized to the right card. The sheet
      isolates stacking, so this stays under the popup × on the content
      and still covers the hearts and the gear. */
@@ -5383,7 +5392,7 @@ a.payer-link {
     grid-column: 2;
     grid-row: 1 / -1;
     /* Same box as the right card border. */
-    top: calc(var(--u) * -0.5);
+    top: calc(var(--u) * -0.4);
     right: calc(var(--u) * -0.4);
     bottom: calc(var(--u) * -0.4);
     left: calc(var(--u) * -0.4);
@@ -6551,7 +6560,7 @@ a.payer-link {
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::after {
     content: '';
     grid-row: 1 / -1;
-    margin: calc(var(--u) * -0.5) calc(var(--u) * -0.4) calc(var(--u) * -0.4);
+    margin: calc(var(--u) * -0.4);
     align-self: stretch;
     justify-self: stretch;
     border-radius: calc(var(--u) * 2);
