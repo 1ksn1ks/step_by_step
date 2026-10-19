@@ -487,6 +487,7 @@ function ensurePopupPreview(slot) {
     commentsCount: 0,
     shareCount: 0,
     sharedByMe: false,
+    viewCount: 2,
   };
   const sheet = blockPreviewFollowFetch(() => markerPopupNode(
     { popupData: record },
@@ -495,6 +496,13 @@ function ensurePopupPreview(slot) {
   if (!sheet) return;
   dropPreviewPager(sheet);
   showPreviewFollowZero(sheet);
+  // No created time, so the view counter never asks the server.
+  // The pill still reads like a real popup.
+  const views = sheet.querySelector('.popup-views');
+  if (views) {
+    views.textContent = '2 views';
+    views.classList.add('is-shown');
+  }
   const popup = document.createElement('div');
   popup.className = 'maplibregl-popup';
   popup.style.pointerEvents = 'none';
@@ -521,12 +529,14 @@ function fitPopupPreview(retry) {
   const popup = slot && slot.querySelector(':scope > .maplibregl-popup');
   const card = document.getElementById('popup-settings-card');
   if (!slot || !popup || !card || slot.style.display === 'none') return;
-  // The portrait frame is short on a landscape screen, so the hearts
-  // would sit past the bottom. Grow the frame until they fit, then scale.
+  const landscape = landscapeMQ.matches;
   popup.style.removeProperty('height');
-  const content = popup.querySelector('.maplibregl-popup-content');
-  const extra = content ? content.scrollHeight - content.clientHeight : 0;
-  if (extra > 1) popup.style.setProperty('height', (popup.offsetHeight + extra) + 'px', 'important');
+  // Portrait only. The landscape sample is already the real popup size.
+  if (!landscape) {
+    const content = popup.querySelector('.maplibregl-popup-content');
+    const extra = content ? content.scrollHeight - content.clientHeight : 0;
+    if (extra > 1) popup.style.setProperty('height', (popup.offsetHeight + extra) + 'px', 'important');
+  }
   const naturalW = popup.offsetWidth;
   const naturalH = popup.offsetHeight;
   if (!naturalW || !naturalH) {
@@ -534,7 +544,6 @@ function fitPopupPreview(retry) {
     return;
   }
   const u = settingsUnit(card);
-  const landscape = landscapeMQ.matches;
   let availW;
   let availH;
   let shift = 0;
@@ -543,6 +552,15 @@ function fitPopupPreview(retry) {
     availW = slot.clientWidth;
     availH = slot.clientHeight + u * 0.1;
     shift = -u * 0.05;
+    let scale = Math.min(
+      naturalW ? availW / naturalW : 1,
+      naturalH ? availH / naturalH : 1
+    );
+    if (scale > 1 || ((naturalW - availW) <= 1 && (naturalH - availH) <= 1)) scale = 1;
+    popup.style.setProperty('--preview-scale', String(Math.max(0, scale)));
+    popup.style.setProperty('--preview-shift', shift + 'px');
+    popup.style.visibility = 'visible';
+    return;
   } else {
     const inset = u * 0.1;
     availW = Math.max(0, slot.clientWidth - inset * 2);

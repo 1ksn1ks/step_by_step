@@ -6275,6 +6275,36 @@ a.payer-link {
   min-height: 0 !important;
 }
 
+/* Landscape sample: the real post's --u, centred on the left card.
+   0.1u inset. Scale stays 1 unless the card is actually too small. */
+@media (orientation: landscape) {
+  #popup-settings-card #popup-settings-preview > .maplibregl-popup,
+  #popup-settings-card #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content,
+  #popup-settings-card #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content > .popup-sheet {
+    --popup-h: calc(100dvh - var(--popup-top) - var(--popup-bottom));
+    --popup-w: var(--popup-card);
+    --fit: 1;
+    --card: var(--popup-card);
+    --u: clamp(0.9dvh, min(calc(var(--popup-h) * 0.017), calc(var(--popup-w) * 0.0106)), 1.6dvh);
+  }
+
+  #popup-settings-card #popup-settings-preview > .maplibregl-popup {
+    width: 100% !important;
+    height: calc(100% + var(--u) * 0.1) !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    transform: translate(-50%, -50%) scale(var(--preview-scale, 1)) !important;
+  }
+
+  #popup-settings-card #popup-settings-preview > .maplibregl-popup .popup-body {
+    flex: 0 0 auto !important;
+    min-height: min-content !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
+
 /* ===== Following suggestions ===== */
 .follow-suggest {
   position: fixed;
