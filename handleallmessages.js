@@ -93,7 +93,7 @@ function toggleTopicBio(topicId, row, arrowBtn) {
   }
   const bioEl = document.createElement('div');
   bioEl.className = 'topic-bio-row';
-  bioEl.style.cssText = 'color: rgba(255,255,255,0.6); font-size: 1.6vh; line-height: 1.4; padding: 0.1em 0.2em 0.3em 1.4em; white-space: pre-wrap; word-break: break-word;';
+  bioEl.style.cssText = 'color: rgba(255,255,255,0.6); font-size: clamp(0.77rem, 0.72rem + 0.32vw, 0.98rem); line-height: 1.4; padding: 0.1em 0.2em 0.3em 1.4em; white-space: pre-wrap; word-break: break-word;';
   const raw = globalTopicBios[topicId];
   const bio = Array.isArray(raw) ? String(raw[0] || '') : (typeof raw === 'string' ? raw : '');
   if (bio) fillTopicIds(bioEl, bio);
@@ -155,7 +155,7 @@ export function renderLoadedTopics() {
 
     const arrowBtn = document.createElement('span');
     arrowBtn.textContent = '▸';
-    arrowBtn.style.cssText = 'cursor: pointer; font-size: 1.6vh;';
+    arrowBtn.style.cssText = 'cursor: pointer; font-size: clamp(0.77rem, 0.72rem + 0.32vw, 0.98rem);';
     arrowBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       toggleTopicBio(topicId, row, arrowBtn);
@@ -170,7 +170,7 @@ export function renderLoadedTopics() {
 
     const copyBtn = document.createElement('span');
     copyBtn.textContent = '📋';
-    copyBtn.style.cssText = 'cursor: pointer; font-size: 1.6vh;';
+    copyBtn.style.cssText = 'cursor: pointer; font-size: clamp(0.77rem, 0.72rem + 0.32vw, 0.98rem);';
     copyBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       try {

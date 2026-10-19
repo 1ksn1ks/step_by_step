@@ -1,3 +1,17 @@
+html {
+  font-size: 100%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+@supports (font: -apple-system-body) and (-webkit-touch-callout: none) {
+  html {
+    font: -apple-system-body;
+    font-family: revert;
+    font-weight: revert;
+    line-height: revert;
+    font-style: revert;
+  }
+}
 
 /* These stay registered as lengths. They must inherit: the fitter writes
    them on the page, and a popup that cannot inherit --popup-max-h
@@ -18,8 +32,9 @@ html, body {
     padding: 0;
     overflow: hidden;
     position: fixed;
-    width: 100vw;
+    width: 100%;
     height: 100vh;
+    height: 100dvh;
     top: 0;
     left: 0;
     background-color: #0a0a0a;
@@ -112,7 +127,7 @@ html, body {
     padding: 0.8vh 0.45vh;
     border-radius: 1.5vh;
     cursor: pointer;
-    font-size: 1.5vh;
+    font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);
     animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
@@ -125,7 +140,7 @@ html, body {
     padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     cursor: pointer;
-    font-size: 1.5vh;
+    font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);
     animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
@@ -178,7 +193,7 @@ html, body {
 
 .info-overlay-title {
   margin: 0;
-  font-size: 2.6vh;
+  font-size: clamp(0.97rem, 0.92rem + 0.52vw, 1.28rem);
   font-weight: 600;
   letter-spacing: 0.02em;
   text-align: center;
@@ -187,7 +202,7 @@ html, body {
 
 .info-overlay-subtitle {
   margin: 0.8vh 0 0;
-  font-size: 1.8vh;
+  font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
   text-align: center;
   color: rgba(230, 230, 245, 0.6);
 }
@@ -201,7 +216,7 @@ html, body {
 .info-overlay-list li {
   position: relative;
   padding: 0.55vh 0 0.55vh 2.8vh;
-  font-size: 1.9vh;
+  font-size: clamp(0.83rem, 0.78rem + 0.38vw, 1.07rem);
   line-height: 1.45;
   color: rgba(230, 230, 245, 0.85);
 }
@@ -233,10 +248,10 @@ html, body {
   border: none;
   padding: 1.3vh 2.25vh;
   border-radius: 999px;
-  font-size: 2vh;
+  font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
   font-weight: 600;
   cursor: pointer;
-  min-width: 180px;
+  min-width: clamp(8rem, 46%, 11.25rem);
 }
 
 .info-overlay-close-button-2 {
@@ -249,7 +264,7 @@ html, body {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  font-size: 2.4vh;
+  font-size: clamp(0.93rem, 0.88rem + 0.48vw, 1.22rem);
   color: rgba(255, 255, 255, 0.55);
   background: rgba(255, 255, 255, 0.08);
   cursor: pointer;
@@ -272,7 +287,7 @@ html, body {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  font-size: 2.4vh;
+  font-size: clamp(0.93rem, 0.88rem + 0.48vw, 1.22rem);
   color: rgba(255, 255, 255, 0.7);
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(34, 211, 238, 0.5);
@@ -341,7 +356,7 @@ html, body {
     padding: 0.8vh 0.45vh;
     border-radius: 1.5vh;
     cursor: pointer;
-    font-size: 1.5vh;
+    font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);
     display: none;
     margin-left: 0.3vh;
     animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -360,7 +375,7 @@ html, body {
     background-color: transparent; /* Make the button invisible */
     border: none;
     cursor: pointer;
-    font-size: 1.5vh;
+    font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);
   }
 
   .chat-topic-chat-container {
@@ -444,10 +459,10 @@ html, body {
     border-radius: 2vh;
     z-index: 1001;
     justify-content: space-around;
-    top: 10vh;
-    left: 1vw;
+    top: calc(10vh + env(safe-area-inset-top, 0px));
+    left: calc(1vw + env(safe-area-inset-left, 0px));
     transform: none;
-    width: 98vw;
+    width: calc(98vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
     padding-top: 1.4vh;
     padding-bottom: 0.8vh;
     padding-left: 0.63vh;
@@ -464,11 +479,11 @@ html, body {
     overflow-y: auto; /* Enable vertical scrolling */
     /* 100dvh - 20dvh: keeps the 10dvh top band and the 10dvh save-bar
        zone (button 5vh + bottom 2.5vh) free, dvh follows the URL bar */
-    max-height: calc(100dvh - 20dvh);
+    max-height: calc(100dvh - 20dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     touch-action: auto; /* Enable touch interactions */
     resize: none; /* Prevent manual resizing */
-    left: 1vw;
-    width: 98vw;
+    left: calc(1vw + env(safe-area-inset-left, 0px));
+    width: calc(98vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
     padding-top: 1.4vh;
     padding-bottom: 0.8vh;
     padding-left: 0.63vh;
@@ -486,9 +501,10 @@ html, body {
     border-radius: 1vh;
     overflow-y: auto; /* Enable vertical scrolling */
     max-height: 80vh; /* Limit the height to 80% of the viewport */
+    max-height: 80dvh;
     touch-action: auto; /* Enable touch interactions */
     resize: none; /* Prevent manual resizing */
-    width: 100vw;
+    width: 100%;
     padding-top: 1.4vh;
     padding-bottom: 0.8vh;
     padding-left: 0.63vh;
@@ -611,7 +627,7 @@ html, body {
     background: none;
     color: #22d3ee;
     font: inherit;
-    font-size: clamp(0.75rem, 1.8dvh, 1rem);
+    font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
     line-height: 1.2;
     cursor: pointer;
     text-align: left;
@@ -654,7 +670,7 @@ html, body {
     color: white;
     border: 0.1vh solid white;
     border-radius: 999px;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     box-sizing: border-box;
     margin-bottom: 0.5vh;
     height: 5vh;
@@ -669,7 +685,7 @@ html, body {
     color: white;
     border: 0.1vh solid white;
     border-radius: 999px;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     box-sizing: border-box;
     margin-bottom: 0.5vh;
     height: 5vh;
@@ -685,7 +701,7 @@ html, body {
     color: white;
     border: 0.1vh solid white;
     border-radius: 999px;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     box-sizing: border-box;
     margin-bottom: 0.5vh;
     margin-left: 0.45vh;
@@ -701,7 +717,7 @@ html, body {
     color: white;
     border: 0.1vh solid white;
     border-radius: 999px;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     box-sizing: border-box;
     margin-bottom: 0.5vh;
     height: 5vh;
@@ -753,7 +769,7 @@ html, body {
     height: auto;
     margin: 0;
     padding: 0.6vh;
-    font-size: 1.8vh;
+    font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
     line-height: 1;
     display: flex;
     align-items: center;
@@ -769,7 +785,7 @@ html, body {
     height: auto;
     margin: 0;
     padding: 0.6vh;
-    font-size: 1.8vh;
+    font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
     line-height: 1;
     display: flex;
     align-items: center;
@@ -800,7 +816,7 @@ html, body {
     height: 3vh;
     margin: 0;
     padding: 0;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     line-height: 1;
     color: white;
     background: transparent;
@@ -967,7 +983,7 @@ html, body {
     padding-left: 0.45vh;
     border: 0.1vh solid white;
     border-radius: 1vh;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     box-sizing: border-box;
     margin-bottom: 0.5vh;
     height: 5vh;
@@ -985,7 +1001,7 @@ html, body {
     height: 5vh;
     min-height: 5vh;
     max-height: 5vh;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     line-height: 2vh;
     padding-top: calc((5vh - 2px - 2vh) / 2);
     padding-bottom: calc((5vh - 2px - 2vh) / 2);
@@ -1044,7 +1060,7 @@ html, body {
   .draw-date-title {
     margin: 0 0 1.4vh;
     text-align: center;
-    font-size: 2.2vh;
+    font-size: clamp(0.89rem, 0.84rem + 0.44vw, 1.16rem);
     font-weight: 600;
     color: #fff;
   }
@@ -1064,7 +1080,7 @@ html, body {
     border: 1px solid rgba(255, 255, 255, 0.3);
     background: rgba(255, 255, 255, 0.08);
     color: #fff;
-    font-size: 2.4vh;
+    font-size: clamp(0.93rem, 0.88rem + 0.48vw, 1.22rem);
     line-height: 1;
     cursor: pointer;
   }
@@ -1072,7 +1088,7 @@ html, body {
   #draw-date-month {
     flex: 1;
     text-align: center;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     font-weight: 600;
     color: #fff;
   }
@@ -1092,7 +1108,7 @@ html, body {
     border: 1px solid rgba(255, 255, 255, 0.3);
     background: rgba(255, 255, 255, 0.08);
     color: #fff;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     line-height: 1;
     cursor: pointer;
   }
@@ -1103,7 +1119,7 @@ html, body {
     box-sizing: border-box;
     text-align: center;
     color: #fff;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     font-weight: 600;
     border-radius: 1vh;
     border: 1px solid rgba(255, 255, 255, 0.3);
@@ -1126,7 +1142,7 @@ html, body {
   .draw-date-weekdays {
     margin-bottom: 0.4vh;
     color: rgba(230, 230, 245, 0.55);
-    font-size: 1.4vh;
+    font-size: clamp(0.73rem, 0.68rem + 0.28vw, 0.92rem);
     text-align: center;
   }
 
@@ -1140,7 +1156,7 @@ html, body {
     border-radius: 1vh;
     background: transparent;
     color: #fff;
-    font-size: 1.7vh;
+    font-size: clamp(0.79rem, 0.74rem + 0.34vw, 1.01rem);
     cursor: pointer;
   }
 
@@ -1173,7 +1189,7 @@ html, body {
 
   .draw-date-time-label,
   .draw-date-colon {
-    font-size: 1.8vh;
+    font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
     color: rgba(230, 230, 245, 0.75);
   }
 
@@ -1192,7 +1208,7 @@ html, body {
     border: 1px solid rgba(255, 255, 255, 0.3);
     background: rgba(255, 255, 255, 0.08);
     color: #fff;
-    font-size: 1.8vh;
+    font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
     cursor: pointer;
   }
 
@@ -1202,7 +1218,7 @@ html, body {
     box-sizing: border-box;
     text-align: center;
     color: #fff;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     border-radius: 1vh;
     border: 1px solid rgba(255, 255, 255, 0.3);
     background: rgba(15, 15, 20, 0.45);
@@ -1211,7 +1227,7 @@ html, body {
   .draw-date-preview {
     margin-top: 1.2vh;
     text-align: center;
-    font-size: 1.8vh;
+    font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
     letter-spacing: 0.04em;
     color: rgba(230, 230, 245, 0.8);
   }
@@ -1225,7 +1241,7 @@ html, body {
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.94);
     color: #0b0b14;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     font-weight: 600;
     cursor: pointer;
   }
@@ -1261,7 +1277,7 @@ html, body {
     padding: 0.4vh 1vh;
     background: rgba(10, 10, 10, 0.78);
     color: #f07178;
-    font: 650 1.6vh/1 inherit;
+    font: 650 clamp(0.77rem, 0.72rem + 0.32vw, 0.98rem)/1 inherit;
     cursor: pointer;
   }
   
@@ -1293,7 +1309,7 @@ html, body {
                 inset 0 0 0.5vh rgba(34, 211, 238, 0.2);
     color: rgba(255, 255, 255, 0.88);
     font-family: inherit;
-    font-size: 1.7vh;
+    font-size: clamp(0.79rem, 0.74rem + 0.34vw, 1.01rem);
     font-weight: 600;
     line-height: 1;
     display: flex;
@@ -1323,7 +1339,7 @@ html, body {
     padding: 0.45vh 0.7vh;
     border: 0.1vh solid white;
     border-radius: 1vh;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     box-sizing: border-box;
     margin-bottom: 0.5vh;
     height: 5vh;
@@ -1361,7 +1377,7 @@ html, body {
     padding-right: 0.1em;
     padding-top: 0.1em;
     border-radius: 1vh;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     box-sizing: border-box;
     border: 1px solid rgba(255, 255, 255, 0.3);
     overflow: hidden; /* Hide scrollbars */
@@ -1381,7 +1397,7 @@ html, body {
     width: 100% !important;
     padding-left: 0.45vh;
     border-radius: 1vh;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     box-sizing: border-box;
     margin-bottom: 0.5vh;
     height: 5vh;
@@ -1411,7 +1427,7 @@ html, body {
     padding-left: 0.45vh;
     padding-right: 0.45vh;
     border-radius: 1vh;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     box-sizing: border-box;
     margin-bottom: 0.5vh;
     height: 5vh;
@@ -1438,7 +1454,7 @@ html, body {
     display: flex;
     flex-direction: column; /* Stack items vertically */
     align-items: flex-start;
-    font-size: 0.72vh;
+    font-size: clamp(0.59rem, 0.54rem + 0.14vw, 0.72rem);
     border-radius: 0.48vh;
     padding: 0 0.225vh 0;
   }
@@ -1450,7 +1466,7 @@ html, body {
     padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     cursor: pointer;
-    font-size: 1.5vh;
+    font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);
     margin-right: 0.5vh;
     animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
@@ -1463,7 +1479,7 @@ html, body {
     padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     cursor: pointer;
-    font-size: 1.5vh;
+    font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);
   }
   
   .account-info {
@@ -1475,7 +1491,7 @@ html, body {
     border: none;
     border-radius: 0.8vh;
     cursor: pointer;
-    font-size: 1.5vh;
+    font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);
   }
   
   #account-id {
@@ -1491,7 +1507,7 @@ html, body {
     padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     font-family: Arial, sans-serif;
-    font-size: 1.5vh;
+    font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);
     white-space: nowrap;
     margin-left: 0; /* 0.5 gap comes from the button's margin-right */
     align-self: center;
@@ -1509,7 +1525,7 @@ html, body {
     border-radius: 0.8vh;
     font-family: Arial, sans-serif;
     z-index: 1000;
-    font-size: 1.5vh;
+    font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);
     width: auto;
     pointer-events: none; /* Allow clicks to pass through */
   }
@@ -1522,7 +1538,7 @@ html, body {
     margin: 0.3vh;
     border-radius: 1vh;
     cursor: pointer;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     width: 6vh;
     height: 6vh;
     display: none;
@@ -1602,7 +1618,7 @@ html, body {
     margin: 0.3vh;
     border-radius: 50%;
     cursor: pointer;
-    font-size: 2.5vh;
+    font-size: clamp(0.95rem, 0.90rem + 0.50vw, 1.25rem);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1624,7 +1640,7 @@ html, body {
     padding: 0.8vh 0.45vh;
     border-radius: 0.8vh;
     cursor: pointer;
-    font-size: 1.5vh;
+    font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);
     display: none;
   }
 
@@ -1647,7 +1663,7 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.6vh;
+    font-size: clamp(0.77rem, 0.72rem + 0.32vw, 0.98rem);
     line-height: 1;
     z-index: 1005;
     background-color: rgba(10, 10, 18, 0.88);
@@ -1683,7 +1699,7 @@ html, body {
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 2vh;
     padding: 0.8vh 3.5vh 0.8vh 1.2vh; /* 0.25vh between text and × */
-    font-size: 1.5vh;
+    font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);
     font-family: Arial, sans-serif;
     outline: none;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -1700,7 +1716,7 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.8vh;
+    font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
     line-height: 1;
     background-color: rgba(10, 10, 18, 0.88);
     color: white;
@@ -1739,7 +1755,7 @@ html, body {
 
   .search-result-item {
     padding: 1vh 1.2vh;
-    font-size: 1.4vh;
+    font-size: clamp(0.73rem, 0.68rem + 0.28vw, 0.92rem);
     color: #e6e6f0;
     cursor: pointer;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -1835,11 +1851,15 @@ html, body {
      the fully open topic chat and E2EE chat. Content scrolls inside. */
   :root {
     --popup-top: 10vh;
-    --popup-left: 0px;
-    --popup-right: 0px;
-    --popup-bottom: 0.5dvh;
+    --popup-top: calc(10vh + env(safe-area-inset-top, 0px));
+    --popup-left: env(safe-area-inset-left, 0px);
+    --popup-right: env(safe-area-inset-right, 0px);
+    --popup-bottom: 0.5vh;
+    --popup-bottom: calc(0.5dvh + env(safe-area-inset-bottom, 0px));
     --popup-card: 100vw;
-    --popup-max-h: calc(100dvh - 10vh - 0.5dvh);
+    --popup-card: 100dvw;
+    --popup-max-h: calc(100vh - 10vh - 0.5vh);
+    --popup-max-h: calc(100dvh - 10vh - 0.5dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   }
 
   .maplibregl-popup {
@@ -1857,7 +1877,7 @@ html, body {
     /* --u is 1% of the card the way 1vh used to be on a phone, so the
        content box and every chip inside it scale together. */
     --card: var(--popup-card);
-    --u: calc(var(--card) * 0.024 * var(--fit));
+    --u: clamp(0.425rem, 0.4rem + 0.2vw, 0.55rem);
     --fit: 1;
     width: auto !important;
     max-width: none !important;
@@ -1903,7 +1923,7 @@ html, body {
     /* Same frame as a map popup. The dummy inside still sizes from 100cqi. */
     --card: var(--popup-card);
     --fit: 1;
-    --u: calc(var(--card) * 0.024 * var(--fit));
+    --u: clamp(0.425rem, 0.4rem + 0.2vw, 0.55rem);
     border: calc(var(--u) * 0.3) solid #ffffff;
     border-radius: calc(var(--u) * 2);
 }
@@ -2134,7 +2154,7 @@ html, body {
     position: relative;
     z-index: 1;
     color: rgba(255, 255, 255, 0.72);
-    font-size: 1.5vh;
+    font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);
     font-weight: 700;
     pointer-events: none;
 }
@@ -2176,7 +2196,7 @@ html, body {
     pointer-events: none !important;
 }
 .popup-settings-label {
-    font-size: 1.4vh;
+    font-size: clamp(0.73rem, 0.68rem + 0.28vw, 0.92rem);
     letter-spacing: 0.08em;
     opacity: 0.75;
     margin: 0.2vh 0 0.3vh;
@@ -2197,7 +2217,7 @@ html, body {
     min-height: 4.4vh;
     margin-bottom: 0;
     padding: 0.6vh 0.5vh;
-    font-size: 1.5vh;
+    font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);
     line-height: 1.15;
     text-align: center;
     white-space: normal;
@@ -2355,8 +2375,12 @@ html, body {
    is 0.6u, so -0.5u pulls the arrow circles out of that pad. */
 .popup-nav {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
+    row-gap: calc(var(--u) * 0.3);
+    min-width: 0;
+    max-width: 100%;
     position: relative;
     /* Sits on the profile. The side inset clears the content pad. */
     margin: 0 calc(var(--u) * -0.5) calc(var(--u) * 0.25);
@@ -2417,6 +2441,8 @@ html, body {
     display: flex;
     align-items: flex-start;
     justify-content: flex-start;
+    max-width: 100%;
+    min-width: 0;
     height: calc(var(--u) * 3.8);
     margin: calc(var(--u) * -0.2) 0 calc(var(--u) * 0.4) calc(var(--u) * -0.5);
   }
@@ -2433,6 +2459,8 @@ html, body {
     width: max-content;
     min-width: 40%;
     max-width: calc(100% - var(--u) * 10);
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
@@ -2477,6 +2505,8 @@ html, body {
   .popup-profile-bubble {
     display: flex;
     box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
     align-items: center;
     gap: calc(var(--u) * 0.9);
     margin-bottom: calc(var(--u) * 0.25);
@@ -2534,8 +2564,8 @@ html, body {
   }
 
   .popup-profile-bubble .topic-follow-btn {
-    width: calc(var(--u, 9.6px) * 4.2);
-    height: calc(var(--u, 9.6px) * 4.2);
+    width: calc(var(--u, 0.5rem) * 4.2);
+    height: calc(var(--u, 0.5rem) * 4.2);
     padding: 0;
   }
 
@@ -2659,18 +2689,18 @@ html, body {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: calc(var(--u, 9.6px) * 0.6);
+    gap: calc(var(--u, 0.5rem) * 0.6);
     flex-shrink: 0;
   }
 
   .topic-follow-count {
     display: inline-flex;
     align-items: center;
-    gap: calc(var(--u, 9.6px) * 0.4);
+    gap: calc(var(--u, 0.5rem) * 0.4);
     box-sizing: border-box;
     flex-shrink: 0;
     margin-left: auto;
-    padding: calc(var(--u, 9.6px) * 0.2) calc(var(--u, 9.6px) * 0.8);
+    padding: calc(var(--u, 0.5rem) * 0.2) calc(var(--u, 0.5rem) * 0.8);
     border-radius: 999px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     background: rgba(255, 255, 255, 0.06);
@@ -2679,31 +2709,31 @@ html, body {
     transition: color 200ms ease, background 200ms ease, border-color 200ms ease;
   }
   .topic-follow-count svg {
-    width: calc(var(--u, 9.6px) * 1.25);
-    height: calc(var(--u, 9.6px) * 1.25);
+    width: calc(var(--u, 0.5rem) * 1.25);
+    height: calc(var(--u, 0.5rem) * 1.25);
     flex: 0 0 auto;
     color: #8b93a7;
     transition: color 200ms ease;
   }
   .topic-follow-num {
     display: block;
-    height: calc(var(--u, 9.6px) * 1.15);
+    height: calc(var(--u, 0.5rem) * 1.15);
     overflow: hidden;
-    font-size: calc(var(--u, 9.6px) * 1.15);
+    font-size: calc(var(--u, 0.5rem) * 1.15);
     font-weight: 700;
-    line-height: calc(var(--u, 9.6px) * 1.15);
+    line-height: calc(var(--u, 0.5rem) * 1.15);
     font-variant-numeric: tabular-nums;
   }
   .topic-follow-num-roll {
     display: block;
-    font-size: calc(var(--u, 9.6px) * 1.15);
-    line-height: calc(var(--u, 9.6px) * 1.15);
+    font-size: calc(var(--u, 0.5rem) * 1.15);
+    line-height: calc(var(--u, 0.5rem) * 1.15);
   }
   .topic-follow-num-value {
     display: block;
-    height: calc(var(--u, 9.6px) * 1.15);
-    font-size: calc(var(--u, 9.6px) * 1.15);
-    line-height: calc(var(--u, 9.6px) * 1.15);
+    height: calc(var(--u, 0.5rem) * 1.15);
+    font-size: calc(var(--u, 0.5rem) * 1.15);
+    line-height: calc(var(--u, 0.5rem) * 1.15);
     font-variant-numeric: tabular-nums;
   }
   .topic-follow-count.is-loading .topic-follow-num {
@@ -2743,8 +2773,8 @@ html, body {
   .topic-follow-btn {
     appearance: none;
     box-sizing: border-box;
-    width: calc(var(--u, 9.6px) * 4.2);
-    height: calc(var(--u, 9.6px) * 4.2);
+    width: calc(var(--u, 0.5rem) * 4.2);
+    height: calc(var(--u, 0.5rem) * 4.2);
     padding: 0;
     flex: 0 0 auto;
     display: inline-flex;
@@ -2784,14 +2814,14 @@ html, body {
   }
   .topic-follow-glyph {
     position: relative;
-    width: calc(var(--u, 9.6px) * 2.1);
-    height: calc(var(--u, 9.6px) * 2.1);
+    width: calc(var(--u, 0.5rem) * 2.1);
+    height: calc(var(--u, 0.5rem) * 2.1);
   }
   .topic-follow-glyph svg {
     position: absolute;
     inset: 0;
-    width: calc(var(--u, 9.6px) * 2.1);
-    height: calc(var(--u, 9.6px) * 2.1);
+    width: calc(var(--u, 0.5rem) * 2.1);
+    height: calc(var(--u, 0.5rem) * 2.1);
     transition: transform 200ms ease, opacity 200ms ease;
   }
   .topic-follow-check,
@@ -2848,7 +2878,7 @@ html, body {
     align-items: flex-end;
     justify-content: flex-start;
     width: auto;
-    gap: calc(var(--u, 9.6px) * 0.6);
+    gap: calc(var(--u, 0.5rem) * 0.6);
     margin-top: 0.2vh;
   }
 
@@ -2860,7 +2890,7 @@ html, body {
     justify-content: flex-start;
     width: auto;
     margin: 0 0 0 auto;
-    gap: calc(var(--u, 9.6px) * 0.6);
+    gap: calc(var(--u, 0.5rem) * 0.6);
   }
 
   #loaded-topics .profile-connected-topic {
@@ -2914,7 +2944,7 @@ html, body {
 
   #loaded-profile-topic {
     flex: 0 0 auto;
-    font-size: 1.7vh;
+    font-size: clamp(0.79rem, 0.74rem + 0.34vw, 1.01rem);
     font-weight: 650;
     color: #22d3ee;
     text-align: left;
@@ -2942,7 +2972,7 @@ html, body {
     background: rgba(240, 113, 120, 0.14);
     color: #f07178;
     font-family: inherit;
-    font-size: 1.7vh;
+    font-size: clamp(0.79rem, 0.74rem + 0.34vw, 1.01rem);
     font-weight: 700;
     line-height: 1;
     display: flex;
@@ -2970,7 +3000,7 @@ html, body {
   }
 
   #edit-profile-key-note {
-    font-size: 1.5vh;
+    font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);
     color: #8d93a5;
     text-align: center;
     padding: 0.3vh 0 0.6vh;
@@ -3010,6 +3040,9 @@ html, body {
     color: rgba(255, 255, 255, 0.45);
     letter-spacing: 0.03em;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
     display: inline-block;
     padding: calc(var(--u) * 0.3) calc(var(--u) * 0.9);
     border-radius: 999px;
@@ -3386,7 +3419,7 @@ html, body {
     #add-topic-id,
     #remove-topic-id {
     height: 5vh; /* Adjust the height as needed */
-    font-size: 2vh; /* Adjust the font size for better readability */
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); /* Adjust the font size for better readability */
     border-radius: 999px; /* Add this line to make the buttons round */
   }
   
@@ -3430,6 +3463,7 @@ html, body {
     align-items: center;
     justify-content: center;
     height: 100vh;
+    height: 100dvh;
     background-color: #f0f0f0;
   }
   
@@ -3554,8 +3588,10 @@ html, body {
   #toast-container {
     position: fixed;
     bottom: 4vh;
+    bottom: calc(4dvh + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
+    max-width: calc(100% - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -3574,7 +3610,7 @@ html, body {
     border-radius: 18px;
     padding: 1.5vh 0.9vh;
     font-family: system-ui, sans-serif;
-    font-size: 1.8vh;
+    font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
     font-weight: 500;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
     animation: toastBorderPulse 1.3s ease-in-out infinite;
@@ -3608,7 +3644,7 @@ html, body {
   /* Upload steps that have to stay readable. Existing toasts are unchanged. */
   .toast.toast-hold {
     max-width: 78dvw;
-    font-size: clamp(0.75rem, 1.8dvh, 1.1rem);
+    font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
   }
 
   .toast.toast-hold:has(.toast-connect) {
@@ -3632,7 +3668,7 @@ html, body {
     background: transparent;
     color: inherit;
     font: inherit;
-    font-size: clamp(0.7rem, 1.6dvh, 1rem);
+    font-size: clamp(0.77rem, 0.72rem + 0.32vw, 0.98rem);
     cursor: pointer;
   }
 
@@ -3759,7 +3795,7 @@ html, body {
 
   .draw-here-btn {
     padding: 1vh 1.4vh;
-    font-size: 1.8vh;
+    font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
     color: white;
     background: rgba(15, 15, 20, 0.92);
     border: 0.06vh solid rgba(255, 255, 255, 0.25);
@@ -3836,7 +3872,7 @@ html, body {
                 inset 0 0 0.6vh rgba(34, 211, 238, 0.25);
     border-radius: 50%;
     color: white;
-    font-size: 2.4vh;
+    font-size: clamp(0.93rem, 0.88rem + 0.48vw, 1.22rem);
     line-height: 1;
     cursor: pointer;
     opacity: 0.8;
@@ -3848,26 +3884,26 @@ html, body {
     justify-content: center;
     align-items: center;
     gap: 1.4vh;
-    font-size: 6.2vh;
+    font-size: clamp(1.69rem, 1.64rem + 1.24vw, 2.36rem);
     line-height: 1.1;
     margin-bottom: 1.5vh;
   }
 
   .onboard-icon-join {
-    font-size: 2.4vh;
+    font-size: clamp(0.93rem, 0.88rem + 0.48vw, 1.22rem);
     font-weight: 700;
     color: rgba(255, 255, 255, 0.45);
   }
 
   .onboard-title {
-    font-size: 3vh;
+    font-size: clamp(1.05rem, 1.00rem + 0.60vw, 1.40rem);
     font-weight: 600;
     margin: 0 0 1vh;
     color: #22d3ee;
   }
 
   .onboard-body {
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     line-height: 1.5;
     opacity: 0.85;
     margin: 0 0 2.5vh;
@@ -3889,14 +3925,14 @@ html, body {
   }
 
   .onboard-row-name {
-    font-size: 1.9vh;
+    font-size: clamp(0.83rem, 0.78rem + 0.38vw, 1.07rem);
     font-weight: 700;
     color: white;
   }
 
   .onboard-row-note {
     margin-top: 0.25vh;
-    font-size: 1.7vh;
+    font-size: clamp(0.79rem, 0.74rem + 0.34vw, 1.01rem);
     line-height: 1.35;
     opacity: 0.8;
   }
@@ -3929,7 +3965,7 @@ html, body {
 
   .onboard-prev {
     padding: 1.4vh 3vh;
-    font-size: 2.2vh;
+    font-size: clamp(0.89rem, 0.84rem + 0.44vw, 1.16rem);
     font-weight: 600;
     color: white;
     background: rgba(255, 255, 255, 0.1);
@@ -3945,7 +3981,7 @@ html, body {
 
   .onboard-next {
     padding: 1.4vh 3.5vh;
-    font-size: 2.2vh;
+    font-size: clamp(0.89rem, 0.84rem + 0.44vw, 1.16rem);
     font-weight: 600;
     color: #0b0b12;
     background: #22d3ee;
@@ -4003,7 +4039,7 @@ html, body {
      still control colors/sizes inline; these only add glow, gradient,
      motion and titles) */
   .options-column-title {
-    font-size: 2.4vh;
+    font-size: clamp(0.93rem, 0.88rem + 0.48vw, 1.22rem);
     font-weight: 700;
     letter-spacing: 0.15em;
     color: #22d3ee;
@@ -4026,7 +4062,7 @@ html, body {
   }
 
   .profile-live-label {
-    font-size: 1.5vh;
+    font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: rgba(34, 211, 238, 0.85);
@@ -4124,7 +4160,7 @@ html, body {
   }
 
   .profile-circle-preview-label {
-    font-size: 1.4vh;
+    font-size: clamp(0.73rem, 0.68rem + 0.28vw, 0.92rem);
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.55);
@@ -4144,7 +4180,7 @@ html, body {
   }
 
   .profile-live-account {
-    font-size: 1.7vh;
+    font-size: clamp(0.79rem, 0.74rem + 0.34vw, 1.01rem);
     font-weight: 700;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -4153,7 +4189,7 @@ html, body {
 
   .profile-live-name {
     display: block;
-    font-size: 1.9vh;
+    font-size: clamp(0.83rem, 0.78rem + 0.38vw, 1.07rem);
     font-weight: 700;
     text-decoration: none;
     overflow: hidden;
@@ -4165,7 +4201,7 @@ html, body {
     align-self: stretch;
     width: 100%;
     box-sizing: border-box;
-    font-size: 1.7vh;
+    font-size: clamp(0.79rem, 0.74rem + 0.34vw, 1.01rem);
     color: white;
     white-space: pre-wrap;
     word-break: break-word;
@@ -4194,7 +4230,7 @@ html, body {
     background: rgba(255, 255, 255, 0.12);
     border: 1px solid rgba(255, 255, 255, 0.3);
     color: white;
-    font-size: 1.8vh;
+    font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
     font-weight: 600;
     line-height: 1;
     display: flex;
@@ -4218,7 +4254,7 @@ html, body {
     background: rgba(255, 255, 255, 0.12);
     border: 1px solid rgba(255, 255, 255, 0.3);
     color: white;
-    font-size: 1.8vh;
+    font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
     font-weight: 600;
     line-height: 1;
     display: flex;
@@ -4261,7 +4297,7 @@ html, body {
   }
 
   .mb-panel .mb-card-title {
-    font-size: 1.2vh;
+    font-size: clamp(0.69rem, 0.64rem + 0.24vw, 0.86rem);
     font-weight: 600;
     letter-spacing: 0.18em;
     text-transform: uppercase;
@@ -4277,7 +4313,7 @@ html, body {
   }
 
   .mb-panel .mb-row-label {
-    font-size: 1.6vh;
+    font-size: clamp(0.77rem, 0.72rem + 0.32vw, 0.98rem);
     white-space: nowrap;
   }
 
@@ -4320,7 +4356,7 @@ html, body {
   .mb-panel .mb-value-pill {
     min-width: 7vh;
     text-align: center;
-    font-size: 1.4vh;
+    font-size: clamp(0.73rem, 0.68rem + 0.28vw, 0.92rem);
     font-variant-numeric: tabular-nums;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.16);
@@ -4480,7 +4516,7 @@ html, body {
     width: 100%;
     margin-top: 0.4vh;
     padding: 1vh;
-    font-size: 1.6vh;
+    font-size: clamp(0.77rem, 0.72rem + 0.32vw, 0.98rem);
     font-weight: 600;
     color: white;
     background: rgba(255, 255, 255, 0.08);
@@ -4500,7 +4536,7 @@ html, body {
   }
 
   .load-section-label {
-    font-size: 1.2vh;
+    font-size: clamp(0.69rem, 0.64rem + 0.24vw, 0.86rem);
     letter-spacing: 0.2em;
     text-transform: uppercase;
     color: gray;
@@ -4583,7 +4619,7 @@ html, body {
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 1vh;
     padding: 0.4vh 0.8vh;
-    font-size: 2vh;
+    font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);
     outline: none;
   }
 
@@ -4597,7 +4633,7 @@ html, body {
     border: 0.05vh solid rgba(255, 255, 255, 0.35);
     border-radius: 999px;
     padding: 0.15vh 0.7vh;
-    font-size: 1.8vh;
+    font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
     cursor: pointer;
   }
 
@@ -4818,7 +4854,7 @@ html, body {
   z-index: 1;
 }
 .map-tip-title {
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 700;
   line-height: 1.25;
   text-align: center;
@@ -4835,7 +4871,7 @@ html, body {
   align-items: start;
 }
 .map-tip-k {
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -4848,13 +4884,13 @@ html, body {
   min-width: 0;
 }
 .map-tip-name {
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 650;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
 .map-tip-id {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 550;
   line-height: 1.25;
   color: rgba(255, 255, 255, 0.72);
@@ -4869,7 +4905,7 @@ html, body {
   z-index: 9600;
   max-width: min(72vw, 28rem);
   font-family: system-ui, sans-serif;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1.35;
   color: #fff;
@@ -4899,11 +4935,11 @@ a.payer-link {
   left: 50%;
   transform: translateX(-50%);
   margin-top: 2px;
-  max-width: 140px;
+  max-width: clamp(6rem, 36vw, 8.75rem);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   color: #fff;
   background: rgba(15, 23, 42, 0.85);
@@ -4937,7 +4973,7 @@ a.payer-link {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: #22d3ee;
   background: rgba(15, 23, 42, 0.85);
@@ -5028,23 +5064,22 @@ a.payer-link {
     right: auto !important;
     bottom: auto !important;
     transform: translate(-50%, -50%) !important;
-    width: min(96dvw, 170dvh) !important;
+    width: min(96dvw, 170dvh, 60rem) !important;
     height: min(94dvh, 96dvh) !important;
-    max-width: min(96dvw, 170dvh) !important;
-    max-height: min(94dvh, 96dvh) !important;
+    max-width: min(96dvw, 170dvh, 60rem, calc(100dvw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))) !important;
+    max-height: min(94dvh, 96dvh, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))) !important;
     margin: 0 !important;
     container-type: size;
     --fit: 1;
-    --card: min(96dvw, 170dvh);
-    /* The shell cannot query itself. This matches 2.4% of the card height
-       and stays at or under the portrait 2.4vw chip size. */
-    --u: clamp(1.1dvh, calc(min(94dvh, 96dvh) * 0.024), 2.4vw);
+    --card: min(96dvw, 170dvh, 60rem);
+    /* Same scale as portrait, so type follows the device text size. */
+    --u: clamp(0.425rem, 0.4rem + 0.2vw, 0.55rem);
   }
 
   .maplibregl-map .maplibregl-popup-content {
     --card: 100cqi;
     --fit: 1;
-    --u: clamp(1.1cqh, 2.4cqh, min(2.4cqi, 2.4vw));
+    --u: clamp(0.425rem, 0.4rem + 0.2vw, 0.55rem);
     height: 100% !important;
     max-height: 100% !important;
     min-height: 0;
@@ -5176,16 +5211,39 @@ a.payer-link {
     min-width: 0;
   }
 }
+
+/* Portrait tablets and desktops: cap the card and centre it.
+   Portrait phones stay on the full-bleed frame above. */
+@media (orientation: portrait) and (min-width: 600px) {
+  .maplibregl-map .maplibregl-popup {
+    left: 50% !important;
+    right: auto !important;
+    width: clamp(20rem, 70vw, 42rem) !important;
+    max-width: clamp(20rem, 70vw, 42rem) !important;
+    transform: translateX(-50%) !important;
+  }
+}
 /* Tap-to-fullscreen media overlay (fullscreenmedia.js) — gallery view:
    near-black stage, the media is the star, minimal chrome, calm entrance. */
 #media-fullscreen {
   position: fixed;
   top: 0;
+  right: 0;
+  bottom: 0;
   left: 0;
+  top: env(safe-area-inset-top, 0px);
+  right: env(safe-area-inset-right, 0px);
+  bottom: env(safe-area-inset-bottom, 0px);
+  left: env(safe-area-inset-left, 0px);
   z-index: 10500;
-  width: 100%;
-  height: 100vh;
-  height: 100dvh;
+  width: auto;
+  height: auto;
+  box-sizing: border-box;
+  padding:
+    env(safe-area-inset-top, 0px)
+    env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px)
+    env(safe-area-inset-left, 0px);
   background: rgba(3, 4, 8, 0.94);
   display: flex;
   align-items: center;
@@ -5225,7 +5283,7 @@ a.payer-link {
   border: 1px solid rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.10);
   color: rgba(255, 255, 255, 0.9);
-  font-size: 1.8vh;
+  font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
   line-height: 1;
   display: flex;
   align-items: center;
@@ -5288,8 +5346,7 @@ a.payer-link {
   padding: 0 0 1.4dvh;
   box-sizing: content-box;
   border-bottom: 1px solid var(--ps-divider);
-  font-size: clamp(12px, 1.8vh, 24px);
-  font-size: clamp(12px, 1.8dvh, 24px);
+  font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -5392,8 +5449,7 @@ a.payer-link {
   align-items: center;
   gap: 1vh;
   gap: 1dvh;
-  font-size: clamp(10px, 1.35vh, 17px);
-  font-size: clamp(10px, 1.35dvh, 17px);
+  font-size: clamp(0.72rem, 0.67rem + 0.27vw, 0.91rem);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -5415,8 +5471,7 @@ a.payer-link {
 #popup-settings-card .popup-settings-group-hint {
   margin: 0.6vh 0 0 2.9vh;
   margin: 0.6dvh 0 0 2.9dvh;   /* icon 1.9dvh + gap 1dvh: lines up under the title text */
-  font-size: clamp(11px, 1.45vh, 18px);
-  font-size: clamp(11px, 1.45dvh, 18px);
+  font-size: clamp(0.74rem, 0.69rem + 0.29vw, 0.94rem);
   line-height: 1.35;
   color: var(--ps-muted);
 }
@@ -5440,16 +5495,14 @@ a.payer-link {
   background: rgba(var(--ps-accent-rgb), 0.12);
   border: 1px solid rgba(var(--ps-accent-rgb), 0.40);
   color: var(--ps-accent);
-  font-size: clamp(9px, 1.2vh, 15px);
-  font-size: clamp(9px, 1.2dvh, 15px);
+  font-size: clamp(0.69rem, 0.64rem + 0.24vw, 0.86rem);
   font-weight: 700;
   line-height: 1;
 }
 
 /* Sub-labels inside the group (Order / Type / Video length): no dividers */
 #popup-settings-card .popup-settings-label {
-  font-size: clamp(10px, 1.3vh, 16px);
-  font-size: clamp(10px, 1.3dvh, 16px);
+  font-size: clamp(0.71rem, 0.66rem + 0.26vw, 0.89rem);
   font-weight: 500;
   letter-spacing: 0.02em;
   text-transform: none;
@@ -5500,8 +5553,7 @@ a.payer-link {
   border: 1px solid transparent;
   background: transparent;
   color: var(--ps-text);
-  font-size: clamp(12px, 1.7vh, 22px);
-  font-size: clamp(12px, 1.7dvh, 22px);
+  font-size: clamp(0.79rem, 0.74rem + 0.34vw, 1.01rem);
   font-weight: 500;
   line-height: 1;
   letter-spacing: 0.01em;
@@ -5566,8 +5618,7 @@ a.payer-link {
   #popup-settings-card #popup-settings-tools .toolbar-column-btns {
     padding: 0 0.8vw;
     padding: 0 0.8dvw;
-    font-size: clamp(11px, 1.55vh, 20px);
-    font-size: clamp(11px, 1.55dvh, 20px);
+    font-size: clamp(0.76rem, 0.71rem + 0.31vw, 0.97rem);
   }
 }
 
@@ -5585,8 +5636,7 @@ a.payer-link {
 #popup-settings-card #popup-column-2::before {
   content: "Colors";
   display: block;
-  font-size: clamp(10px, 1.3vh, 16px);
-  font-size: clamp(10px, 1.3dvh, 16px);
+  font-size: clamp(0.71rem, 0.66rem + 0.26vw, 0.89rem);
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -5618,8 +5668,7 @@ a.payer-link {
   border: 1px solid rgba(255, 255, 255, 0.16);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
   color: var(--ps-text);
-  font-size: clamp(12px, 1.6vh, 20px);
-  font-size: clamp(12px, 1.6dvh, 20px);
+  font-size: clamp(0.77rem, 0.72rem + 0.32vw, 0.98rem);
   font-weight: 500;
   line-height: 1;
   white-space: nowrap;
@@ -5655,8 +5704,7 @@ a.payer-link {
   display: inline-block;
   line-height: 3.8vh;
   line-height: 3.8dvh;
-  font-size: clamp(12px, 1.6vh, 20px) !important;    /* beats inline 1.5vh */
-  font-size: clamp(12px, 1.6dvh, 20px) !important;
+  font-size: clamp(0.77rem, 0.72rem + 0.32vw, 0.98rem) !important;    /* beats inline 1.5vh */
   font-weight: 500;
   color: var(--ps-text);
 }
@@ -5678,25 +5726,6 @@ a.payer-link {
 }
 #popup-settings-card #popup-column-container-3 input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
 #popup-settings-card #popup-column-container-3 input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 999px; }
-#popup-settings-card #popup-column-3-font > div { float: right; }
-#popup-settings-card #popup-font-size {
-  width: 8vh !important;
-  width: 8dvh !important;
-  height: 3.8vh !important;
-  height: 3.8dvh !important;
-  margin: 0 !important;
-  padding: 0 1.2vh !important;
-  padding: 0 1.2dvh !important;
-  box-sizing: border-box;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
-  font-family: Inter, system-ui, sans-serif;
-  font-size: clamp(12px, 1.6vh, 20px);
-  font-size: clamp(12px, 1.6dvh, 20px);
-  font-weight: 500;
-}
 #popup-settings-card #savepopup3 {
   display: flex;
   align-items: center;
@@ -5712,8 +5741,7 @@ a.payer-link {
   box-shadow: 0 0 1.6vh rgba(var(--ps-accent-rgb), 0.30), inset 0 0 0.9vh rgba(var(--ps-accent-rgb), 0.15);
   box-shadow: 0 0 1.6dvh rgba(var(--ps-accent-rgb), 0.30), inset 0 0 0.9dvh rgba(var(--ps-accent-rgb), 0.15);
   color: #ECFEFF;
-  font-size: clamp(13px, 1.8vh, 22px);
-  font-size: clamp(13px, 1.8dvh, 22px);
+  font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
   font-weight: 600;
   text-shadow: none !important;
   animation: none;
@@ -5823,15 +5851,13 @@ a.payer-link {
   white-space: nowrap;
 }
 .follow-suggest-primary {
-  font-size: 1.8vh;
-  font-size: 1.8dvh;
+  font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem);
   line-height: 1.15;
   color: #fff;
 }
 .follow-suggest-id,
 .follow-suggest-hint {
-  font-size: 1.4vh;
-  font-size: 1.4dvh;
+  font-size: clamp(0.73rem, 0.68rem + 0.28vw, 0.92rem);
   line-height: 1.15;
   color: rgba(255, 255, 255, 0.55);
 }

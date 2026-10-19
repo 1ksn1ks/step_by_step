@@ -33,9 +33,6 @@ export let usernameTopicChatColor = '#ff9933';
 export let textTopicChatColor = '#ffffff';
 export let innerContainerTopicChatColor = '#ffc107';
 export let topicChatHeaderColor = '#ffffff';
-export let textFontSizeTopicChat = 2;
-export let timestampFontSizeTopicChat = 1.25;
-export let headerFontSizeTopicChat = 2;
 
 export function setTopicChatAccidColor(color) {
   accidTopicChatColor = color;
@@ -51,15 +48,6 @@ export function setTopicChatInnerContainerColor(color) {
 }
 export function setTopicChatHeaderColor(color) {
   topicChatHeaderColor = color;
-}
-export function setTopicChatTextFontSize(size) {
-  textFontSizeTopicChat = size;
-}
-export function setTopicChatTimestampFontSize(size) {
-  timestampFontSizeTopicChat = size;
-}
-export function setTopicChatHeaderFontSize(size) {
-  headerFontSizeTopicChat = size;
 }
 
 export let storedMarkers = [];

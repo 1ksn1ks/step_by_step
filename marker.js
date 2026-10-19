@@ -71,18 +71,6 @@ export const index = new Supercluster({
     maxZoom: 11,
   });
 
-let currentMarkerSize = 5;
-
-export function setcurrentMarkerSize(a) {
-  currentMarkerSize = a;
-}
-
-// The live view (localnews.js) sizes its glowing ring to this same value so
-// it wraps a topic marker dot exactly when they share a spot.
-export function getCurrentMarkerSize() {
-  return currentMarkerSize;
-}
-
 // True when topic markers are both loaded (a topic was searched) and the
 // visibility toggle is on — the live layer needs this to tell "twin sits
 // behind a cluster bubble" (hide the live marker) from "no topic layer at
@@ -203,7 +191,7 @@ function markerFeatureKey(cluster) {
 }
 
 function applyMarkerBox(el, isCluster) {
-  const size = `${currentMarkerSize}vh`;
+  const size = "clamp(2.25rem, 5dvh, 3.25rem)";
   el.style.width = size;
   el.style.height = size;
   el.style.cursor = 'pointer';

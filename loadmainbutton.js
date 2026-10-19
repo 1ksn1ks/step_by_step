@@ -2,14 +2,11 @@ import { sendMessage } from "./msgbackend";
 import { getTopicData as getMessages } from "./topicdata";
 import { signer } from "./web3";
 import { toast } from "./toast";
+import { debounce } from "./debounce";
 
 const $ = (id) => document.getElementById(id);
 
 const els = {
-    font: $("Main-Button-Font-Size"),
-    fontPill: $("Main-Button-Font-Size-pill"),
-    walletFont: $("Wallet-Button-Font-Size"),
-    walletFontPill: $("Wallet-Button-Font-Size-pill"),
     colorDisconnect: $("disconnect-button-color"),
     colorMain: $("main-button-color"),
     swatchDisconnect: $("disconnect-button-color-swatch"),
@@ -18,22 +15,24 @@ const els = {
     previewMenu: $("mb-preview-menu"),
 };
 
-// The row (OPTIONS / TOPIC CHAT / E2EE CHAT) is anchored top: 6vh, so growing
-// buttons stretch it downward. Re-anchor it from the bottom using the
-// current button height, so any growth goes upward instead. Runs at module
-// load, while the buttons still have their CSS-default height.
+// The row (OPTIONS / TOPIC CHAT / E2EE CHAT) sits just under the 6dvh line.
+// Measure the button and pin the row from the bottom so it stays there when
+// the visible height changes. The top inset keeps it clear of the notch.
 const mainButtonsRow = $("main-buttons-row");
-const rowBtnHeightVh = Math.round(($("main-toggle-btn").offsetHeight / (window.innerHeight / 100)) * 100) / 100;
-// dvh follows the visible area (URL bar), so phones and desktops match
-mainButtonsRow.style.bottom = `calc(100dvh - 6dvh - ${rowBtnHeightVh}dvh)`;
+function anchorMainButtonsRow() {
+    const toggle = $("main-toggle-btn");
+    if (!mainButtonsRow || !toggle || !window.innerHeight) return;
+    const rowBtnHeightVh = Math.round((toggle.offsetHeight / (window.innerHeight / 100)) * 100) / 100;
+    mainButtonsRow.style.bottom = `calc(100dvh - 6dvh - ${rowBtnHeightVh}dvh - env(safe-area-inset-top, 0px))`;
+}
+anchorMainButtonsRow();
+window.addEventListener("resize", debounce(anchorMainButtonsRow, 100));
+window.addEventListener("orientationchange", debounce(anchorMainButtonsRow, 100));
 
-// The defaults are the values literally set in style.css (.menu_buttons /
-// #disconnect-wallet-btn): font-size 1.5vh, background rgba(15, 15, 20, 0.45).
-// Height and width are auto (content) in the CSS and are never applied, so a
-// bigger font grows the button in both directions.
+// The default is the background literally set in style.css (.menu_buttons /
+// #disconnect-wallet-btn): rgba(15, 15, 20, 0.45). Font size, height, and
+// width stay on the stylesheet.
 const CSS_DEFAULTS = {
-    font: 1.5,
-    walletFont: 1.5,
     color: "rgba(15, 15, 20, 0.45)",
 };
 
@@ -45,16 +44,12 @@ const isHex = (value) => /^#[0-9a-f]{6}$/i.test(value);
 
 function readControls() {
     return {
-        font: Math.min(parseFloat(els.font.value) || 2, 10),
-        walletFont: Math.min(parseFloat(els.walletFont.value) || 2, 10),
         colorDisconnect: colorState.disconnect,
         colorMain: colorState.main,
     };
 }
 
 function syncControls(values) {
-    els.font.value = values.font;
-    els.walletFont.value = values.walletFont;
     if (isHex(values.colorDisconnect)) els.colorDisconnect.value = values.colorDisconnect;
     if (isHex(values.colorMain)) els.colorMain.value = values.colorMain;
     colorState.disconnect = values.colorDisconnect;
@@ -63,38 +58,26 @@ function syncControls(values) {
     els.swatchMain.style.background = values.colorMain;
 }
 
-function updatePills() {
-    els.fontPill.textContent = `${els.font.value} vh`;
-    els.walletFontPill.textContent = `${els.walletFont.value} vh`;
-}
-
 function updatePreview() {
-    const { font, walletFont, colorDisconnect, colorMain } = readControls();
+    const { colorDisconnect, colorMain } = readControls();
     els.previewConnect.style.backgroundColor = colorDisconnect;
-    els.previewConnect.style.fontSize = walletFont + "vh";
     els.previewMenu.style.backgroundColor = colorMain;
-    els.previewMenu.style.fontSize = font + "vh";
 }
 
-// Height and width are never set here — they stay auto (content) from the CSS
 function updateMainButtonSettings() {
-    const { font, walletFont, colorDisconnect, colorMain } = readControls();
+    const { colorDisconnect, colorMain } = readControls();
     // All three wallet buttons (Wallet / Connect / Disconnect) share this class
     document.querySelectorAll(".connect-wallet-buttons").forEach((button) => {
         button.style.backgroundColor = colorDisconnect;
-        button.style.fontSize = walletFont + "vh";
     });
     document.querySelectorAll(".menu_buttons, .options-and-topic").forEach((button) => {
         button.style.backgroundColor = colorMain;
-        button.style.fontSize = font + "vh";
     });
-    updatePills();
     updatePreview();
 }
 
 // Panel starts on the CSS values; the real buttons are left untouched
-syncControls({ font: CSS_DEFAULTS.font, walletFont: CSS_DEFAULTS.walletFont, colorDisconnect: CSS_DEFAULTS.color, colorMain: CSS_DEFAULTS.color });
-updatePills();
+syncControls({ colorDisconnect: CSS_DEFAULTS.color, colorMain: CSS_DEFAULTS.color });
 updatePreview();
 
 document.getElementById("save-main-button").addEventListener("click", async (event) => {
@@ -107,7 +90,7 @@ document.getElementById("save-main-button").addEventListener("click", async (eve
         }
         const topicId = "0.0.9797981";
 
-        const { font, walletFont, colorDisconnect, colorMain } = readControls();
+        const { colorDisconnect, colorMain } = readControls();
 
         if (!colorDisconnect || !colorMain) {
             toast.error("Please fill in both color fields.");
@@ -116,9 +99,7 @@ document.getElementById("save-main-button").addEventListener("click", async (eve
         const messageData = {
             data: {
                 colorDisconnect: colorDisconnect,
-                colorMain: colorMain,
-                MainButtonFontSize: font,
-                WalletButtonFontSize: walletFont
+                colorMain: colorMain
             }
         };
 
@@ -154,23 +135,17 @@ export async function loadMainButtonSettings(a) {
 
         // Check if the last message has valid data
         if (lastMessage && lastMessage.data) {
-            // Saved MainButtonHeight / MainButtonWidth are not applied:
-            // height and width stay auto (content) from the CSS
-            const { colorDisconnect, colorMainButton, MainButtonFontSize, WalletButtonFontSize } = lastMessage.data;
-            // Old profiles have no WalletButtonFontSize — wallet buttons
-            // follow the main font, like the legacy single slider did
-            const walletFont = WalletButtonFontSize ?? MainButtonFontSize;
+            // Older messages may still carry MainButtonFontSize,
+            // WalletButtonFontSize, MainButtonHeight, and MainButtonWidth.
+            // Those sizes are ignored. colorMainButton is the saved main color.
+            const { colorDisconnect, colorMainButton } = lastMessage.data;
 
             accountObjectSettings.push({
                 colorDisconnect: colorDisconnect,
-                colorMainButton: colorMainButton,
-                MainButtonFontSize: MainButtonFontSize,
-                WalletButtonFontSize: walletFont
+                colorMainButton: colorMainButton
             });
 
             syncControls({
-                font: MainButtonFontSize,
-                walletFont: walletFont,
                 colorDisconnect: colorDisconnect,
                 colorMain: colorMainButton,
             });
@@ -190,14 +165,13 @@ export async function loadMainButtonSettings(a) {
     // from the buttons, so the CSS rules style them again
     document.getElementById("reset-main-button").addEventListener("click", (event) => {
         event.stopPropagation();
-        syncControls({ font: CSS_DEFAULTS.font, walletFont: CSS_DEFAULTS.walletFont, colorDisconnect: CSS_DEFAULTS.color, colorMain: CSS_DEFAULTS.color });
+        syncControls({ colorDisconnect: CSS_DEFAULTS.color, colorMain: CSS_DEFAULTS.color });
         document.querySelectorAll(".connect-wallet-buttons, .menu_buttons, .options-and-topic").forEach((button) => {
             button.style.removeProperty("background-color");
             button.style.removeProperty("height");
             button.style.removeProperty("width");
             button.style.removeProperty("font-size");
         });
-        updatePills();
         updatePreview();
         toast.info("Reset to defaults");
     });
@@ -212,5 +186,3 @@ export async function loadMainButtonSettings(a) {
         els.swatchMain.style.background = colorState.main;
         updateMainButtonSettings();
     });
-    document.getElementById("Main-Button-Font-Size").addEventListener("input", (event) => { updateMainButtonSettings(); });
-    document.getElementById("Wallet-Button-Font-Size").addEventListener("input", (event) => { updateMainButtonSettings(); });

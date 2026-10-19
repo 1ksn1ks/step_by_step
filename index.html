@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Meritocracy</title>
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#0a0a0a" />
@@ -91,8 +91,8 @@
       <div class="loader-content">
         <h3>Loading...</h3>
         <div class="spinner"></div>
-        <div id="loader-pct" style="font-family: Arial, sans-serif; font-size: 3.5vh; color: white; margin-top: 1.5vh; text-align: center;">0%</div>
-        <div id="loader-progress" style="font-family: Arial, sans-serif; font-size: 1.8vh; color: white; margin-top: 1vh; min-height: 2.2vh; text-align: center;"></div>
+        <div id="loader-pct" style="font-family: Arial, sans-serif; font-size: clamp(1.15rem, 1.10rem + 0.70vw, 1.55rem); color: white; margin-top: 1.5vh; text-align: center;">0%</div>
+        <div id="loader-progress" style="font-family: Arial, sans-serif; font-size: clamp(0.81rem, 0.76rem + 0.36vw, 1.04rem); color: white; margin-top: 1vh; min-height: 2.2vh; text-align: center;"></div>
       </div>
     </div>
 
@@ -113,7 +113,7 @@
 
       <div id="crosshair" style="display: none;"></div>
       
-      <div id="main-buttons-row" style="display: flex; position: fixed; left: 0; z-index: 1006;">
+      <div id="main-buttons-row" style="display: flex; position: fixed; left: env(safe-area-inset-left, 0px); z-index: 1006;">
         <button id="main-toggle-btn" class="options-and-topic" style="margin-left: 0.3vh;">OPTIONS
         </button>
         <button id="toggle-toolbar-btn-btn" class="options-and-topic" style="margin-left: 0.3vh; display: none;">TOOLBAR
@@ -283,7 +283,7 @@
               class="toolbar-column" onclick="event.stopPropagation();"
               oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'; document.getElementById('char-counter-bio').textContent = this.value.length + '/256';"
               ></textarea>
-              <div id="char-counter-bio" style="position: absolute; bottom: 5px; right: 10px; font-size: 2vh; color: #22d3ee;">0/256
+              <div id="char-counter-bio" style="position: absolute; bottom: 5px; right: 10px; font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); color: #22d3ee;">0/256
               </div>
             </div>
             <button class="toolbar-column-btns" id="button_for_bio">BIO
@@ -354,7 +354,7 @@
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
 
-          <label for="domain-time-left" style="font-size: 2vh;">1 USDC
+          <label for="domain-time-left" style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);">1 USDC
           (<span style="cursor: pointer; color: rgb(255, 255, 255); text-decoration: underline;"
           onclick="navigator.clipboard.writeText('0.0.456858')
           .then(() => window.toast && window.toast.success('Copied to clipboard'))
@@ -394,7 +394,7 @@
             oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
             <button id="paste-topic-btn" onclick="event.stopPropagation();"
-            style="position: absolute; top: 0.5vh; bottom: 0.5vh; right: 0.5vh; background: rgba(255, 255, 255, 0.12); color: white; border: 0.05vh solid rgba(255, 255, 255, 0.35); border-radius: 999px; padding: 0.15vh 0.7vh; font-size: 2.2vh; cursor: pointer;">📋</button>
+            style="position: absolute; top: 0.5vh; bottom: 0.5vh; right: 0.5vh; background: rgba(255, 255, 255, 0.12); color: white; border: 0.05vh solid rgba(255, 255, 255, 0.35); border-radius: 999px; padding: 0.15vh 0.7vh; font-size: clamp(0.89rem, 0.84rem + 0.44vw, 1.16rem); cursor: pointer;">📋</button>
           </div>
 
           <button id="toolbar-load" class="toolbar-column-btns">༼ つ ◕_◕༽つ━☆ﾟ.*･｡ﾟ Load
@@ -463,14 +463,14 @@
           ></textarea>
   
           <div id="encrypt-key-load-label" style="display: none;">
-            <label style="font-size: 2vh; padding: 0px;">Private key</label>
+            <label style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding: 0px;">Private key</label>
           </div>
           <textarea class="toolbar-column" type="text" id="encrypt-key-load" placeholder="Private key" style="display: none;"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
 
           <div id="change-key-load-label" style="display: none;">
-            <label style="font-size: 2vh; padding: 0px;">Password</label>
+            <label style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding: 0px;">Password</label>
           </div>
           <textarea class="toolbar-column" type="text" id="change-key-load" placeholder="Password" style="display: none;"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
@@ -513,12 +513,12 @@
         
       
           <div id="load-load-from-users-label" style="display: none;">
-            <label style="font-size: 2vh; padding: 0px;">Load From Users:
+            <label style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding: 0px;">Load From Users:
             </label>
           </div>
       
           <div id="load-block-from-users-label" style="display: none;">
-            <label style="font-size: 2vh; padding: 0px;">Block Users:
+            <label style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding: 0px;">Block Users:
             </label>
           </div>
       
@@ -603,13 +603,13 @@
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
       
-            <label for="public-key-label" style="font-size: 2vh; padding: 0px; user-select: text;">Created TopicID:
+            <label for="public-key-label" style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding: 0px; user-select: text;">Created TopicID:
             </label>
       
             <input class="toolbar-column" type="text" id="input-field-5" placeholder="Generated Topic ID"
             onclick="event.stopPropagation();" readonly/>
       
-            <!-- <label for="public-key-label" style="font-size: 2vh; padding: 0px;">Set fee for each message:</label>
+            <!-- <label for="public-key-label" style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding: 0px;">Set fee for each message:</label>
             <textarea
             class="toolbar-column"
             type="text"
@@ -656,7 +656,7 @@
         </div>
       
         <div id="new-keys-from-create" style="display: none;">
-            <label for="public-key-label" style="font-size: 2vh; padding: 0px;">Public Key:
+            <label for="public-key-label" style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding: 0px;">Public Key:
             </label>
             <textarea
             class="toolbar-column"
@@ -666,7 +666,7 @@
             onclick="event.stopPropagation();"
           ></textarea>
       
-          <label for="private-key-label" style="font-size: 2vh; padding: 0px;">Private Key:
+          <label for="private-key-label" style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding: 0px;">Private Key:
           </label>
       
           <textarea class="toolbar-column" id="generated-private-key" placeholder="Generated Private Key"
@@ -879,7 +879,7 @@
           <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-initial-xyz" placeholder="Domain/Topic ID"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
-          <label for="loaded-xyz-for-topic" style=" font-size: 2vh;padding: 0px;">Current XYZ:
+          <label for="loaded-xyz-for-topic" style=" font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);padding: 0px;">Current XYZ:
           </label>
           <div class="toolbar-column-loaded-rules" style="user-select: text; white-space: pre-wrap; word-break: break-word;" id="loaded-xyz-for-topic"
           onclick="event.stopPropagation();"></div>
@@ -972,7 +972,7 @@
       
       
           <div id="topic-rules-from-nft-utility" style="display: none;">
-            <label for="loaded-topics" style=" font-size: 2vh;padding: 0px;">Loaded Topic Rules:
+            <label for="loaded-topics" style=" font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);padding: 0px;">Loaded Topic Rules:
             </label>
             <div class="toolbar-column-loaded-rules" style="user-select: text;" id="loaded-topic-rules-for-utility" placeholder="Loaded Topic Rules"
             onclick="event.stopPropagation();"></div>
@@ -981,7 +981,7 @@
           </div>
       
           <div id="model-sharing-from-nft-utility-label" style="display: none;">
-          <label for="input-field-add-remove-NFT-for-model" style=" font-size: 2vh;padding: 0px;"> Model sharing:
+          <label for="input-field-add-remove-NFT-for-model" style=" font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);padding: 0px;"> Model sharing:
           </label>
         </div>
       
@@ -1002,7 +1002,7 @@
         </div>
       
         <div id="model-size-scale-factor-from-nft-utility" style="display: none;"> 
-          <label for="input-field-add-remove-scale-for-model" style=" font-size: 2vh;padding: 0px;">Model size scale factor:
+          <label for="input-field-add-remove-scale-for-model" style=" font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);padding: 0px;">Model size scale factor:
           </label>
           <textarea class="toolbar-column" type="text" id="input-field-add-remove-scale-for-model" placeholder="Size factor (must include only one NFT ID at a time)"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
@@ -1017,7 +1017,7 @@
         </div>
       
         <div id="topic-chat-from-nft-utility" style="display: none;">
-          <label for="input-field-add-remove-topic-chat" style=" font-size: 2vh;padding: 0px;">Topic Chat:
+          <label for="input-field-add-remove-topic-chat" style=" font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);padding: 0px;">Topic Chat:
           </label>
           <textarea class="toolbar-column" type="text" id="input-field-add-remove-topic-chat" placeholder="NFT ID (or IDs seperated by commas)"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
@@ -1032,7 +1032,7 @@
         </div>
 
         <div id="markers-from-nft-utility" style="display: none;">
-          <label for="input-field-topic-id-for-markers" style=" font-size: 2vh;padding: 0px;">For markers:
+          <label for="input-field-topic-id-for-markers" style=" font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);padding: 0px;">For markers:
           </label>
           <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-markers" placeholder="NFT ID (set to zero to allow all)"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
@@ -1049,7 +1049,7 @@
         </div>
 
         <div id="polygons-from-nft-utility" style="display: none;">
-          <label for="input-field-topic-id-for-polygons" style=" font-size: 2vh;padding: 0px;">For polygons:
+          <label for="input-field-topic-id-for-polygons" style=" font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);padding: 0px;">For polygons:
           </label>
           <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-polygons" placeholder="NFT ID (set to zero to allow all)"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
@@ -1124,7 +1124,7 @@
             <textarea class="toolbar-column" type="text" id="input-field-topic-id-bio" placeholder="Domain/Topic ID"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
-            <label for="loaded-bio-for-topic" style=" font-size: 2vh;padding: 0px;">Current bio:
+            <label for="loaded-bio-for-topic" style=" font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);padding: 0px;">Current bio:
             </label>
             <div class="toolbar-column-loaded-rules" style="user-select: text; white-space: pre-wrap; word-break: break-word;" id="loaded-bio-for-topic"
             onclick="event.stopPropagation();"></div>
@@ -1135,7 +1135,7 @@
               onclick="event.stopPropagation();"
               oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'; document.getElementById('char-counter-topic-bio').textContent = this.value.length + '/256';"
               ></textarea>
-              <div id="char-counter-topic-bio" style="position: absolute; bottom: 5px; right: 10px; font-size: 2vh; color: #22d3ee;">0/256
+              <div id="char-counter-topic-bio" style="position: absolute; bottom: 5px; right: 10px; font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); color: #22d3ee;">0/256
               </div>
             </div>
             <button class="toolbar-column-btns" id="button_for_topic_bio">BIO
@@ -1146,7 +1146,7 @@
             <textarea class="toolbar-column" type="text" id="input-field-topic-id" placeholder="Domain/Topic ID"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
-            <label for="loaded-memo-for-topic" style=" font-size: 2vh;padding: 0px;">Current memo:
+            <label for="loaded-memo-for-topic" style=" font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);padding: 0px;">Current memo:
             </label>
             <div class="toolbar-column-loaded-rules" style="user-select: text;" id="loaded-memo-for-topic"
             onclick="event.stopPropagation();"></div>
@@ -1166,7 +1166,7 @@
             <textarea class="toolbar-column" type="text" id="input-field-topic-id-fee" placeholder="Domain/Topic ID"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
-            <label for="loaded-memo-for-fee" style=" font-size: 2vh;padding: 0px;">Current memo:
+            <label for="loaded-memo-for-fee" style=" font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);padding: 0px;">Current memo:
             </label>
             <div class="toolbar-column-loaded-rules" style="user-select: text;" id="loaded-memo-for-fee"
             onclick="event.stopPropagation();"></div>
@@ -1195,7 +1195,7 @@
             <textarea class="toolbar-column" type="text" id="input-field-topic-id-name" placeholder="Domain/Topic ID"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
-            <label for="loaded-name-for-topic" style=" font-size: 2vh;padding: 0px;">Current name:
+            <label for="loaded-name-for-topic" style=" font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);padding: 0px;">Current name:
             </label>
             <div class="toolbar-column-loaded-rules" style="user-select: text; white-space: pre-wrap; word-break: break-word;" id="loaded-name-for-topic"
             onclick="event.stopPropagation();"></div>
@@ -1234,11 +1234,11 @@
 
           <div class="options-column-title">📚 STACK</div>
 
-          <label for="stack-topic-ids-topic" style="font-size: 2vh; padding: 0px;">Main Domain/Topic ID:
+          <label for="stack-topic-ids-topic" style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding: 0px;">Main Domain/Topic ID:
           <textarea class="toolbar-column" type="text" id="stack-topic-ids-topic" placeholder="Domain/Topic ID"
           click="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
-          <label for="loaded-stack-for-topic" style=" font-size: 2vh;padding: 0px;">Current topics:
+          <label for="loaded-stack-for-topic" style=" font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem);padding: 0px;">Current topics:
           </label>
           <div class="toolbar-column-loaded-rules" style="user-select: text; white-space: pre-wrap; word-break: break-word;" id="loaded-stack-for-topic"
           onclick="event.stopPropagation();"></div>
@@ -1322,7 +1322,7 @@
         </div>
       </div>
       
-      <div id="topic-chat-container" class="topic-chat-container" style="display: none; position: fixed; z-index: 9001; top: 0.5vh; bottom: 0.5vh; top: 0.5dvh; bottom: 0.5dvh; left: 0; right: 0;">
+      <div id="topic-chat-container" class="topic-chat-container" style="display: none; position: fixed; z-index: 9001; top: 0.5vh; bottom: 0.5vh; top: calc(0.5dvh + env(safe-area-inset-top, 0px)); bottom: calc(0.5dvh + env(safe-area-inset-bottom, 0px)); left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px);">
         <button class="panel-close-btn" id="close-topic-chat-btn">×</button>
         <button class="panel-help-btn" id="help-topic-chat-container">?</button>
         <div class="chat-topic-chat-container"  onclick="event.stopPropagation();">
@@ -1386,12 +1386,12 @@
       </div>
       
       <div id="load-load-from-users-label-from-topic-chat" style="display: none;">
-        <label style="font-size: 2vh; padding: 0px;">Load From Users:
+        <label style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding: 0px;">Load From Users:
         </label>
       </div>
       
       <div id="load-block-from-users-label-from-topic-chat" style="display: none;">
-        <label style="font-size: 2vh; padding: 0px;">Block Users:
+        <label style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding: 0px;">Block Users:
         </label>
       </div>
       
@@ -1458,7 +1458,7 @@
             onclick="event.stopPropagation();"
             oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
-            <div id="char-counter" hidden style="position: absolute; bottom: 1.5vh; right: 5.5vh; font-size: 2vh; color: #22d3ee;"></div>
+            <div id="char-counter" hidden style="position: absolute; bottom: 1.5vh; right: 5.5vh; font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); color: #22d3ee;"></div>
             <button type="button" id="topic-chat-image-btn" class="toolbar-column-btns submit-message-btn msg-image-btn">🖼</button>
             <input type="file" id="topic-chat-image-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
             <button id="post-msg" class="toolbar-column-btns submit-message-btn msg-send-btn">📨</button>
@@ -1486,7 +1486,7 @@
         </div>
       </div>
       
-      <div id="encrypted-chat-container" class="topic-chat-container" style="display: none; position: fixed; z-index: 9001; top: 0.5vh; bottom: 0.5vh; top: 0.5dvh; bottom: 0.5dvh; left: 0; right: 0;">
+      <div id="encrypted-chat-container" class="topic-chat-container" style="display: none; position: fixed; z-index: 9001; top: 0.5vh; bottom: 0.5vh; top: calc(0.5dvh + env(safe-area-inset-top, 0px)); bottom: calc(0.5dvh + env(safe-area-inset-bottom, 0px)); left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px);">
         <button class="panel-close-btn" id="close-encrypted-chat-btn">×</button>
         <button class="panel-help-btn" id="help-encrypted-chat-container">?</button>
         <div class="chat-topic-chat-container"  onclick="event.stopPropagation();">
@@ -1555,14 +1555,14 @@
         ></textarea>
 
         <div id="encrypted-chat-change-password-key-label" style="display: none;">
-          <label style="font-size: 2vh; padding: 0px;">Private key</label>
+          <label style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding: 0px;">Private key</label>
         </div>
         <textarea class="toolbar-column secret-entry" type="text" id="encrypted-chat-change-password-key" placeholder="Private key" spellcheck="false" autocomplete="off" autocapitalize="off" style="display: none;"
         onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
         ></textarea>
 
         <div id="encrypted-chat-new-password-key-label" style="display: none;">
-          <label style="font-size: 2vh; padding: 0px;">Password</label>
+          <label style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding: 0px;">Password</label>
         </div>
         <textarea class="toolbar-column secret-entry" type="text" id="encrypted-chat-new-password-key" placeholder="Password" spellcheck="false" autocomplete="off" autocapitalize="off" style="display: none;"
         onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
@@ -1605,12 +1605,12 @@
       
       
       <div id="load-load-from-users-label-from-encrypted-chat" style="display: none;">
-        <label style="font-size: 2vh; padding: 0px;">Load From Users:
+        <label style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding: 0px;">Load From Users:
         </label>
       </div>
       
       <div id="load-block-from-users-label-from-encrypted-chat" style="display: none;">
-        <label style="font-size: 2vh; padding: 0px;">Block Users:
+        <label style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding: 0px;">Block Users:
         </label>
       </div>
       
@@ -1679,7 +1679,7 @@
             onclick="event.stopPropagation();"
             oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
-            <div id="char-counter-encrypted-chat" hidden style="position: absolute; bottom: 1.5vh; right: 5.5vh; font-size: 2vh; color: #22d3ee;"></div>
+            <div id="char-counter-encrypted-chat" hidden style="position: absolute; bottom: 1.5vh; right: 5.5vh; font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); color: #22d3ee;"></div>
             <button type="button" id="encrypted-chat-image-btn" class="toolbar-column-btns submit-message-btn msg-image-btn">🖼</button>
             <input type="file" id="encrypted-chat-image-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
             <button id="post-msg-encrypted-chat" class="toolbar-column-btns submit-message-btn msg-send-btn">📨</button>
@@ -1694,8 +1694,6 @@
         <div class="toolbar-column" id="change-model-settings" style="display: none;">Model Settings
         </div>
         <div class="toolbar-column" id="change-crosshair-settings" style="display: none;">Crosshair Settings
-        </div>
-        <div class="toolbar-column" id="change-marker-options">Marker Options
         </div>
         <div class="toolbar-column" id="change-color-of-main-buttons">Main Buttons
         </div>
@@ -1713,33 +1711,33 @@
 
           <div class="mb-card">
             <div class="mb-row">
-              <span id="3d-model-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On</span>
+              <span id="3d-model-visibility-value" style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On</span>
               <button id="toggle-3d-model-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show 3D models
               </button>
-              <span id="3d-model-visibility-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On</span>
+              <span id="3d-model-visibility-value2" style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On</span>
             </div>
             <div class="mb-row">
-              <span id="marker-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+              <span id="marker-visibility-value" style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
               </span>
               <button id="toggle-marker-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show markers
               </button>
-              <span id="marker-visibility-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+              <span id="marker-visibility-value2" style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
               </span>
             </div>
             <div class="mb-row">
-              <span id="polygon-visibility-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+              <span id="polygon-visibility-value" style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
               </span>
               <button id="toggle-polygon-visibility" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Show polygons:
               </button>
-              <span id="polygon-visibility-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
+              <span id="polygon-visibility-value2" style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">On
               </span>
             </div>
             <div class="mb-row">
-              <span id="globe-mode-value" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Light
+              <span id="globe-mode-value" style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Light
               </span>
               <button id="toggle-globe-mode" class="toolbar-column-btns" style="color: white; text-shadow: 0 0 0.5vh black;">Globe mode:
               </button>
-              <span id="globe-mode-value2" style="font-size: 2vh; padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Light
+              <span id="globe-mode-value2" style="font-size: clamp(0.85rem, 0.80rem + 0.40vw, 1.10rem); padding-bottom: 0.5vh; color: white; text-shadow: 0 0 0.5vh black;">Light
               </span>
             </div>
           </div>
@@ -1896,7 +1894,7 @@
         </div>
       </div>
       
-      <div id="model-column-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
+      <div id="model-column-save" style="position: fixed; bottom: 2.5vh; bottom: calc(2.5dvh + env(safe-area-inset-bottom, 0px)); left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px); width: auto; z-index: 1002; max-height: 50vh; max-height: 50dvh; overflow-y: auto;">
         <div id="model-column-container-save" class="save-settings-toolbar-containers" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
       
           <div id="savesettings" class="toolbar-column-btns save-settings-btn" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save settings
@@ -1926,7 +1924,7 @@
           <div class="options-column-title">➕ CROSSHAIR</div>
 
           <div>
-            <label style="font-size: 1.5vh;">Crosshair Color:</label>
+            <label style="font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);">Crosshair Color:</label>
             <input type="color" id="crosshair-color" class="yourfov" value="#000000">
           </div>
       
@@ -1949,7 +1947,7 @@
         </div>
       </div>
       
-      <div id="crosshair-column-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
+      <div id="crosshair-column-save" style="position: fixed; bottom: 2.5vh; bottom: calc(2.5dvh + env(safe-area-inset-bottom, 0px)); left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px); width: auto; z-index: 1002; max-height: 50vh; max-height: 50dvh; overflow-y: auto;">
         <div id="crosshair-column-container-save" class="save-settings-toolbar-containers" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
       
           <div id="savecrosshair" class="toolbar-column-btns save-settings-btn" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save settings
@@ -2059,8 +2057,6 @@
           </div>
           <div id="popup-column-2-close" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">Close
           </div>
-          <div id="popup-column-2-font" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh; margin-left: 1vw;">Font
-          </div>
           </div>
           <div style="display: flex; align-items: center; padding-bottom: 1vh;" >
           <div id="popup-column-2-accid" class="toolbar-column-btns" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">AccID
@@ -2080,45 +2076,38 @@
         <div id="popup-column-container-3" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
       
           <div id="popup-column-3-border" style="display: none; align-items: center;">
-            <label style="font-size: 1.5vh;">Border:</label>
+            <label style="font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);">Border:</label>
             <input type="color" id="color-picker-popup-border" class="yourfov" value="#ffffff">
           </div>
       
           <div id="popup-column-3-number" style="display: none; align-items: center;">
-            <label style="font-size: 1.5vh;">Number:</label>
+            <label style="font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);">Number:</label>
             <input type="color" id="color-picker-popup-number" class="yourfov" value="#ffffff">
           </div>
       
           <div id="popup-column-3-close" style="display: none; align-items: center;">
-            <label style="font-size: 1.5vh;">Close:</label>
+            <label style="font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);">Close:</label>
             <input type="color" id="color-picker-popup-close" class="yourfov" value="#ffffff">
           </div>
       
           <div id="popup-column-3-accid" style="display: none; align-items: center;">
-            <label style="font-size: 1.5vh;">AccID:</label>
+            <label style="font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);">AccID:</label>
             <input type="color" id="color-picker-popup-accid" class="yourfov" value="#800080">
           </div>
       
           <div id="popup-column-3-username" style="display: none; align-items: center;">
-            <label style="font-size: 1.5vh;">Username:</label>
+            <label style="font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);">Username:</label>
             <input type="color" id="color-picker-popup-username" class="yourfov" value="#ff9933">
           </div>
       
           <div id="popup-column-3-titles" style="display: none; align-items: center;">
-            <label style="font-size: 1.5vh;">Title:</label>
+            <label style="font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);">Title:</label>
             <input type="color" id="color-picker-popup-titles" class="yourfov" value="#ffffff">
           </div>
       
           <div id="popup-column-3-text" style="display: none; align-items: center;">
-            <label style="font-size: 1.5vh;">Text:</label>
+            <label style="font-size: clamp(0.75rem, 0.70rem + 0.30vw, 0.95rem);">Text:</label>
             <input type="color" id="color-picker-popup-text" class="yourfov" value="#ffffff">
-          </div>
-      
-          <div id="popup-column-3-font" style="display: none; align-items: center;" >
-            <label style="font-size: 1.5vh;">Font:</label>
-            <div style="display: flex; align-items: center;">
-            <input type="number" id="popup-font-size" class="yourfov" style="margin-left: 1vw;" value='2' min="1" max="3" step="0.1"/>
-            </div>
           </div>
       
           <div></div>
@@ -2129,55 +2118,12 @@
       </div>
       </div>
 
-      <div id="marker-size-help-overlay" class="info-overlay">
-        <div class="info-overlay-inner" onclick="event.stopPropagation();">
-          <h3 class="info-overlay-title">Marker Size</h3>
-          <p class="info-overlay-subtitle">Adjust how markers look.</p>
-          <ul class="info-overlay-list">
-            <li>Set the size of all markers on the map.</li>
-          </ul>
-          <div class="info-overlay-actions">
-            <button class="info-overlay-close-button-1" onclick="document.getElementById('marker-size-help-overlay').style.display='none'">Got it</button>
-          </div>
-          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('marker-size-help-overlay').style.display='none'">×</div>
-        </div>
-      </div>
-
-      <div id="marker-options-column" class="toolbar-containers mb-panel" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
-        <button class="panel-help-btn" id="help-marker-options-column">?</button>
-        <div id="marker-options-column-container">
-
-          <div class="options-column-title">📍 MARKERS</div>
-
-          <div class="mb-card">
-            <div class="mb-card-title">Size</div>
-            <div class="mb-row">
-              <span class="mb-row-label">Marker Size</span>
-              <input type="range" id="marker-size" class="mb-slider" min="1" max="10" step="0.1" value="5"/>
-              <span class="mb-value-pill" id="marker-size-pill">5 vh</span>
-            </div>
-          </div>
-
-          <button id="reset-marker-size" class="mb-reset-btn">↺ Reset to defaults</button>
-
-        </div>
-      </div>
-      
-      <div id="marker-column-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
-        <div id="marker-column-container-save" class="save-settings-toolbar-containers" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
-      
-          <div id="save-marker-settings" class="toolbar-column-btns save-settings-btn" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save Settings
-          </div>
-      
-        </div>
-      </div>
-
       <div id="main-buttons-style-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
           <h3 class="info-overlay-title">Main Buttons Style</h3>
           <p class="info-overlay-subtitle">Style the main buttons.</p>
           <ul class="info-overlay-list">
-            <li>Change their height, width, font size, and colors.</li>
+            <li>Change their colors.</li>
           </ul>
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('main-buttons-style-help-overlay').style.display='none'">Got it</button>
@@ -2191,20 +2137,6 @@
         <div id="main-button-column-container">
 
           <div class="options-column-title">🔘 BUTTONS</div>
-
-          <div class="mb-card">
-            <div class="mb-card-title">Font Size</div>
-            <div class="mb-row">
-              <span class="mb-row-label">Main Buttons</span>
-              <input type="range" id="Main-Button-Font-Size" class="mb-slider" min="0.5" max="10" step="0.1" value="1.5"/>
-              <span class="mb-value-pill" id="Main-Button-Font-Size-pill">1.5 vh</span>
-            </div>
-            <div class="mb-row">
-              <span class="mb-row-label">Wallet</span>
-              <input type="range" id="Wallet-Button-Font-Size" class="mb-slider" min="0.5" max="10" step="0.1" value="1.5"/>
-              <span class="mb-value-pill" id="Wallet-Button-Font-Size-pill">1.5 vh</span>
-            </div>
-          </div>
 
           <div class="mb-card">
             <div class="mb-card-title">Colors</div>
@@ -2235,7 +2167,7 @@
         </div>
       </div>
 
-      <div id="main-button-column-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
+      <div id="main-button-column-save" style="position: fixed; bottom: 2.5vh; bottom: calc(2.5dvh + env(safe-area-inset-bottom, 0px)); left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px); width: auto; z-index: 1002; max-height: 50vh; max-height: 50dvh; overflow-y: auto;">
         <div id="main-button-column-container-save" class="save-settings-toolbar-containers" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
       
           <div id="save-main-button" class="toolbar-column-btns save-settings-btn" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save Settings
@@ -2249,7 +2181,7 @@
           <h3 class="info-overlay-title">Main Buttons — Advanced</h3>
           <p class="info-overlay-subtitle">Fine-tune inner buttons.</p>
           <ul class="info-overlay-list">
-            <li>Tune the buttons inside the main buttons: font size, height, width, colors.</li>
+            <li>Tune the buttons inside the main buttons: colors.</li>
           </ul>
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('main-buttons-advanced-style-help-overlay').style.display='none'">Got it</button>
@@ -2263,25 +2195,6 @@
         <div id="button-input-column-container">
 
           <div class="options-column-title">🎨 STYLES</div>
-
-          <div class="mb-card">
-            <div class="mb-card-title">Sizes</div>
-            <div class="mb-row">
-              <span class="mb-row-label">Font Size</span>
-              <input type="range" id="font-for-button-input" class="mb-slider" min="0.5" max="10" step="0.1" value="2"/>
-              <span class="mb-value-pill" id="font-for-button-input-pill">2 vh</span>
-            </div>
-            <div class="mb-row">
-              <span class="mb-row-label">Height</span>
-              <input type="range" id="Button-Input-Height" class="mb-slider" min="5" max="100" step="0.5" value="5"/>
-              <span class="mb-value-pill" id="Button-Input-Height-pill">5 vh</span>
-            </div>
-            <div class="mb-row">
-              <span class="mb-row-label">Width</span>
-              <input type="range" id="Button-Input-Width" class="mb-slider" min="10" max="100" step="1" value="100"/>
-              <span class="mb-value-pill" id="Button-Input-Width-pill">100 %</span>
-            </div>
-          </div>
 
           <div class="mb-card">
             <div class="mb-card-title">Colors</div>
@@ -2330,7 +2243,7 @@
         </div>
       </div>
       
-      <div id="button-input-column-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
+      <div id="button-input-column-save" style="position: fixed; bottom: 2.5vh; bottom: calc(2.5dvh + env(safe-area-inset-bottom, 0px)); left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px); width: auto; z-index: 1002; max-height: 50vh; max-height: 50dvh; overflow-y: auto;">
         <div id="button-input-column-container-save" class="save-settings-toolbar-containers" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
       
           <div id="save-button-button-input" class="toolbar-column-btns save-settings-btn" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save Settings
@@ -2344,7 +2257,7 @@
           <h3 class="info-overlay-title">Chat Style</h3>
           <p class="info-overlay-subtitle">Style the chat panels.</p>
           <ul class="info-overlay-list">
-            <li>Change font sizes (text, timestamps, headers) and colors for Topic Chat and E2EE Chat.</li>
+            <li>Change colors for Topic Chat and E2EE Chat.</li>
           </ul>
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('chat-style-help-overlay').style.display='none'">Got it</button>
@@ -2358,25 +2271,6 @@
         <div id="topic-chat-column-container">
 
           <div class="options-column-title">💬 CHAT</div>
-
-          <div class="mb-card">
-            <div class="mb-card-title">Font Size</div>
-            <div class="mb-row">
-              <span class="mb-row-label">Text</span>
-              <input type="range" id="text-font-size-topic-chat" class="mb-slider" min="0.5" max="10" step="0.1" value="2"/>
-              <span class="mb-value-pill" id="text-font-size-topic-chat-pill">2 vh</span>
-            </div>
-            <div class="mb-row">
-              <span class="mb-row-label">Timestamp</span>
-              <input type="range" id="timestamp-font-size-topic-chat" class="mb-slider" min="0.5" max="10" step="0.05" value="1.25"/>
-              <span class="mb-value-pill" id="timestamp-font-size-topic-chat-pill">1.25 vh</span>
-            </div>
-            <div class="mb-row">
-              <span class="mb-row-label">Header</span>
-              <input type="range" id="header-font-size-topic-chat" class="mb-slider" min="0.5" max="10" step="0.1" value="2"/>
-              <span class="mb-value-pill" id="header-font-size-topic-chat-pill">2 vh</span>
-            </div>
-          </div>
 
           <div class="mb-card">
             <div class="mb-card-title">Colors</div>
@@ -2425,7 +2319,7 @@
         </div>
       </div>
       
-      <div id="topic-chat-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
+      <div id="topic-chat-save" style="position: fixed; bottom: 2.5vh; bottom: calc(2.5dvh + env(safe-area-inset-bottom, 0px)); left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px); width: auto; z-index: 1002; max-height: 50vh; max-height: 50dvh; overflow-y: auto;">
         <div id="topic-chat-container-save" class="save-settings-toolbar-containers" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
       
           <div id="save-topic-chat-settings" class="toolbar-column-btns save-settings-btn" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save Settings

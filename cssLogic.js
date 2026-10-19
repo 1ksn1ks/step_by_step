@@ -157,7 +157,6 @@ export function CloseALL() {
     ["visibility-controls", "visibility-help-overlay"],
     ["model-column", "change-model-help-overlay"],
     ["crosshair-column", "crosshair-settings-help-overlay"],
-    ["marker-options-column", "marker-size-help-overlay"],
     ["main-button-column", "main-buttons-style-help-overlay"],
     ["button-input-column", "main-buttons-advanced-style-help-overlay"],
     ["topic-chat-column", "chat-style-help-overlay"],
@@ -191,7 +190,6 @@ export function CloseALL() {
     "rotation-controls",
     "model-column",
     "crosshair-column",
-    "marker-options-column",
     "main-button-column",
     "button-input-column",
     "topic-chat-column",
@@ -285,18 +283,6 @@ export function CloseALL() {
     OpenToggleYourFov();
   });
 
-  document.getElementById("change-marker-options").addEventListener("click", (event) => {
-    event.stopPropagation();
-    CloseALL();
-    document.getElementById("marker-options-column").style.display = "block";
-    document.getElementById("marker-options-column-container").style.display = "block";
-    document.getElementById("marker-column-save").style.display = "block";
-    document.getElementById("marker-column-container-save").style.display = "block";
-
-    OpenToggleYourFov();
-    removeUfoModel();
-  });
-  
   document.getElementById("change-color-of-main-buttons").addEventListener("click", (event) => {
     event.stopPropagation();
     CloseALL();
@@ -1027,7 +1013,6 @@ export function CloseALL() {
     document.getElementById("popup-column-3-username").style.display = "none";
     document.getElementById("popup-column-3-titles").style.display = "none";
     document.getElementById("popup-column-3-text").style.display = "none";
-    document.getElementById("popup-column-3-font").style.display = "none";
     removeUfoModel();
   };
   
@@ -1071,12 +1056,6 @@ export function CloseALL() {
     event.stopPropagation();
     closePopupColumn3options()
     document.getElementById("popup-column-3-text").style.display = "block";
-  });
-  
-  document.getElementById("popup-column-2-font").addEventListener("click", (event) => {
-    event.stopPropagation();
-    closePopupColumn3options()
-    document.getElementById("popup-column-3-font").style.display = "block";
   });
   
   

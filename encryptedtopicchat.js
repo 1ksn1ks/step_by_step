@@ -16,14 +16,12 @@ import { fillChatMessage, packChatPayload, unpackChatPayload, pendingChatImage, 
 import { watchFollowPrefetch } from './followtopic.js';
 import { 
   topicChatHeaderColor,
-  headerFontSizeTopicChat,
   accidTopicChatColor,
   innerContainerTopicChatColor,
   usernameTopicChatColor,
-  textFontSizeTopicChat,
   textTopicChatColor,
-  timestampFontSizeTopicChat,
  } from './letall';
+import { CHAT_HEADER_FONT, CHAT_TEXT_FONT, CHAT_TIME_FONT } from './chatfonts.js';
 
 export let allLoadedMessagesEncryptedChat = [];
 export let storedMessagesEncryptedChat = [];
@@ -180,7 +178,7 @@ async function appendEncryptedChatMessage(
         display: flex;
         align-items: center;
         border-color: ${topicChatHeaderColor};
-        font-size: ${headerFontSizeTopicChat}vh;
+        font-size: ${CHAT_HEADER_FONT};
       `;
 
       const accLink = document.createElement('a');
@@ -190,7 +188,7 @@ async function appendEncryptedChatMessage(
       accLink.style.cssText = `
         color: ${accidTopicChatColor};
         text-decoration: none;
-        font-size: ${headerFontSizeTopicChat}vh;
+        font-size: ${CHAT_HEADER_FONT};
       `;
       accLink.textContent = payerInfo;
       headerDiv.appendChild(accLink);
@@ -200,7 +198,7 @@ async function appendEncryptedChatMessage(
       const trimmedUsername = username.trim();
       if (trimmedUsername) {
         headerDiv.appendChild(payerUsernameNode(trimmedUsername, click2link, {
-          cssText: `color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;`
+          cssText: `color: ${usernameTopicChatColor}; font-size: ${CHAT_HEADER_FONT};`
         }));
       }
 
@@ -227,12 +225,12 @@ async function appendEncryptedChatMessage(
     `;
 
     const contentDiv = document.createElement('div');
-    contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
+    contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${CHAT_TEXT_FONT};`;
     contentDiv.className = 'chat-msg-text';
     fillChatMessage(contentDiv, parts.text, parts.image);
 
     const timeSpan = document.createElement('span');
-    timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
+    timeSpan.style.cssText = `font-size: ${CHAT_TIME_FONT}; color: gray;`;
     timeSpan.className = 'chat-msg-time';
     timeSpan.textContent = message.pending ? `⏳ ${timestamp}` : timestamp;
     if (message.pending) msgWrapper.dataset.sig = messageSig(message);
@@ -889,7 +887,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
         display: flex;
         align-items: center;
         border-color: ${topicChatHeaderColor};
-        font-size: ${headerFontSizeTopicChat}vh;
+        font-size: ${CHAT_HEADER_FONT};
       `;
 
       const accLink = document.createElement('a');
@@ -899,7 +897,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
       accLink.style.cssText = `
         color: ${accidTopicChatColor};
         text-decoration: none;
-        font-size: ${headerFontSizeTopicChat}vh;
+        font-size: ${CHAT_HEADER_FONT};
       `;
       accLink.textContent = payerInfo;
       headerDiv.appendChild(accLink);
@@ -910,7 +908,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
       const trimmedUsername = username.trim();
       if (trimmedUsername) {
         headerDiv.appendChild(payerUsernameNode(trimmedUsername, click2link, {
-          cssText: `color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;`
+          cssText: `color: ${usernameTopicChatColor}; font-size: ${CHAT_HEADER_FONT};`
         }));
       }
 
@@ -935,12 +933,12 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
     `;
 
     const contentDiv = document.createElement('div');
-    contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
+    contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${CHAT_TEXT_FONT};`;
     contentDiv.className = 'chat-msg-text';
     fillChatMessage(contentDiv, decryptedMessage, parsedMessage.image);
 
     const timeSpan = document.createElement('span');
-    timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
+    timeSpan.style.cssText = `font-size: ${CHAT_TIME_FONT}; color: gray;`;
     timeSpan.className = 'chat-msg-time';
     timeSpan.textContent = message.pending ? `⏳ ${timestamp}` : timestamp;
     if (message.pending) msgWrapper.dataset.sig = messageSig(message);

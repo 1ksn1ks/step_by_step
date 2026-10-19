@@ -6,12 +6,6 @@ import { toast } from "./toast";
 const $ = (id) => document.getElementById(id);
 
 const els = {
-    font: $("font-for-button-input"),
-    fontPill: $("font-for-button-input-pill"),
-    height: $("Button-Input-Height"),
-    heightPill: $("Button-Input-Height-pill"),
-    width: $("Button-Input-Width"),
-    widthPill: $("Button-Input-Width-pill"),
     previewInput: $("mb-preview-input"),
     previewButton: $("mb-preview-button"),
 };
@@ -25,14 +19,10 @@ const COLOR_FIELDS = [
     ["onhover", "onhover-button-color"],
 ];
 
-// The defaults are the values literally set in style.css
+// The defaults are the colors literally set in style.css
 // (.toolbar-column / .yourfov / .toolbar-column-btns):
-// font-size 2vh, height 5vh, width 100%,
 // border rgba(255, 255, 255, 0.3), font white, hover background rgba(255, 255, 255, 0.2).
 const CSS_DEFAULTS = {
-    font: 2,
-    height: 5,
-    width: 100,
     inputBorder: "rgba(255, 255, 255, 0.3)",
     inputFont: "#ffffff",
     buttonBorder: "rgba(255, 255, 255, 0.3)",
@@ -53,18 +43,10 @@ const colorState = {
 const isHex = (value) => /^#[0-9a-f]{6}$/i.test(value);
 
 function readControls() {
-    return {
-        font: Math.min(parseFloat(els.font.value) || 1.5, 10),
-        height: Math.min(parseFloat(els.height.value) || 3, 100),
-        width: Math.min(parseFloat(els.width.value) || 25, 100),
-        ...colorState,
-    };
+    return { ...colorState };
 }
 
 function syncControls(values) {
-    els.font.value = values.font;
-    els.height.value = values.height;
-    els.width.value = values.width;
     for (const [key, id] of COLOR_FIELDS) {
         const input = $(id);
         if (isHex(values[key])) input.value = values[key];
@@ -73,23 +55,12 @@ function syncControls(values) {
     }
 }
 
-function updatePills() {
-    els.fontPill.textContent = `${els.font.value} vh`;
-    els.heightPill.textContent = `${els.height.value} vh`;
-    els.widthPill.textContent = `${els.width.value} %`;
-}
-
 function updatePreview() {
-    const { font, height, width, inputBorder, inputFont, buttonBorder, buttonFont } = readControls();
+    const { inputBorder, inputFont, buttonBorder, buttonFont } = readControls();
     els.previewInput.style.borderColor = inputBorder;
     els.previewInput.style.color = inputFont;
-    els.previewInput.style.fontSize = font + "vh";
-    els.previewInput.style.height = height + "vh";
-    els.previewInput.style.width = width + "%";
     els.previewButton.style.borderColor = buttonBorder;
     els.previewButton.style.color = buttonFont;
-    els.previewButton.style.fontSize = font + "vh";
-    els.previewButton.style.height = height + "vh";
 }
 
 // The same selectors the legacy code styled
@@ -97,24 +68,18 @@ const INPUT_SELECTORS = ".toolbar-column, .yourfov";
 const BUTTON_SELECTORS = ".toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns, .pin-public-key-from-encrypted-chat";
 
 function updateButtonInputSettings() {
-    const { font, height, width, inputBorder, inputFont, buttonBorder, buttonFont } = readControls();
+    const { inputBorder, inputFont, buttonBorder, buttonFont } = readControls();
 
     document.querySelectorAll(INPUT_SELECTORS).forEach((button) => {
         button.style.borderColor = inputBorder;
-        button.style.fontSize = font + "vh";
         button.style.color = inputFont;
-        button.style.height = height + "vh";
-        button.style.width = width + "%";
     });
 
     document.querySelectorAll(BUTTON_SELECTORS).forEach((button) => {
         button.style.borderColor = buttonBorder;
-        button.style.fontSize = font + "vh";
         button.style.color = buttonFont;
-        button.style.height = height + "vh";
     });
 
-    updatePills();
     updatePreview();
 }
 
@@ -132,7 +97,6 @@ document.querySelectorAll(BUTTON_SELECTORS).forEach((button) => {
 
 // Panel starts on the CSS values; the real elements are left untouched
 syncControls(CSS_DEFAULTS);
-updatePills();
 updatePreview();
 
 document.getElementById("save-button-button-input").addEventListener("click", async (event) => {
@@ -145,7 +109,7 @@ document.getElementById("save-button-button-input").addEventListener("click", as
         }
         const topicId = "0.0.9798047";
 
-        const { font, height, width, ...colors } = readControls();
+        const colors = readControls();
 
         if (!colors.inputBorder || !colors.inputFont || !colors.buttonBorder || !colors.buttonFont || !colors.onhover) {
             toast.error("Please fill in all color fields.");
@@ -159,9 +123,6 @@ document.getElementById("save-button-button-input").addEventListener("click", as
                 ButtonBorderColor: colors.buttonBorder,
                 ButtonFontColor: colors.buttonFont,
                 OnhoverButtonColor: colors.onhover,
-                FontForButtonInput: font,
-                ButtonInputHeight: height,
-                ButtonInputWidth: width,
             }
         };
 
@@ -198,12 +159,12 @@ export async function loadButtonInputSettings(a) {
 
       // Check if the last message has valid data
       if (lastMessage && lastMessage.data) {
-          // Extract relevant data (an old saved RulesContainerColor or
-          // TransparencyButtonInput is ignored)
+          // Older messages may still carry FontForButtonInput,
+          // ButtonInputHeight, ButtonInputWidth, RulesContainerColor, or
+          // TransparencyButtonInput. Those are ignored.
           const { InputBorderColor, InputFontColor,
              ButtonBorderColor, ButtonFontColor,
-              OnhoverButtonColor, FontForButtonInput,
-               ButtonInputHeight, ButtonInputWidth } = lastMessage.data;
+              OnhoverButtonColor } = lastMessage.data;
 
           accountObjectSettings.push({
               InputBorderColor,
@@ -211,15 +172,9 @@ export async function loadButtonInputSettings(a) {
               ButtonBorderColor,
               ButtonFontColor,
               OnhoverButtonColor,
-              FontForButtonInput,
-              ButtonInputHeight,
-              ButtonInputWidth,
           });
 
           syncControls({
-              font: FontForButtonInput,
-              height: ButtonInputHeight,
-              width: ButtonInputWidth,
               inputBorder: InputBorderColor,
               inputFont: InputFontColor,
               buttonBorder: ButtonBorderColor,
@@ -250,7 +205,6 @@ export async function loadButtonInputSettings(a) {
           element.style.removeProperty("width");
           element.style.removeProperty("background-color");
       });
-      updatePills();
       updatePreview();
       toast.info("Reset to defaults");
   });
@@ -262,7 +216,3 @@ export async function loadButtonInputSettings(a) {
           updateButtonInputSettings();
       });
   }
-
-  ["font-for-button-input", "Button-Input-Height", "Button-Input-Width"].forEach((id) => {
-      $(id).addEventListener("input", () => { updateButtonInputSettings(); });
-  });

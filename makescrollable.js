@@ -310,5 +310,4 @@ export function makeScrollable(el) {
   makeScrollable(document.getElementById('main-button-column-container'));
   makeScrollable(document.getElementById('button-input-column-container'));
   makeScrollable(document.getElementById('topic-chat-column-container'));
-  makeScrollable(document.getElementById('marker-options-column-container'));
   makeScrollable(document.getElementById('visibility-controls-container'));
