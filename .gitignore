@@ -3,6 +3,9 @@
 server/.env
 certs/
 
+# Local context / saved chat history — stays on this machine only
+QWEN.md
+
 # Local message cache (the server recreates this from the mirror)
 server/data.db
 server/data.db-shm
