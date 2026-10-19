@@ -5016,6 +5016,166 @@ a.payer-link {
   .popup-media-expand:hover { transform: scale(1.08); filter: brightness(1.2); }
   .popup-media-expand:active { transform: scale(0.94); }
 }
+
+/* Landscape only: the same topic popup becomes a centred card with the
+   picture on the left and the profile column on the right. Portrait keeps
+   the full-bleed frame above. Draw, settings, and the comments modal are
+   outside .maplibregl-map, so they stay on that frame. */
+@media (orientation: landscape) {
+  .maplibregl-map .maplibregl-popup {
+    top: 50% !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: translate(-50%, -50%) !important;
+    width: min(96dvw, 170dvh) !important;
+    height: min(94dvh, 96dvh) !important;
+    max-width: min(96dvw, 170dvh) !important;
+    max-height: min(94dvh, 96dvh) !important;
+    margin: 0 !important;
+    container-type: size;
+    --fit: 1;
+    --card: min(96dvw, 170dvh);
+    /* The shell cannot query itself. This matches 2.4% of the card height
+       and stays at or under the portrait 2.4vw chip size. */
+    --u: clamp(1.1dvh, calc(min(94dvh, 96dvh) * 0.024), 2.4vw);
+  }
+
+  .maplibregl-map .maplibregl-popup-content {
+    --card: 100cqi;
+    --fit: 1;
+    --u: clamp(1.1cqh, 2.4cqh, min(2.4cqi, 2.4vw));
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0;
+    flex: 1 1 auto;
+    line-height: calc(var(--u) * 3);
+  }
+
+  .maplibregl-map .maplibregl-popup-content > .popup-sheet {
+    display: grid;
+    grid-template-columns: minmax(0, 55fr) minmax(0, 45fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+    column-gap: calc(var(--u) * 1.1);
+    row-gap: calc(var(--u) * 0.7);
+    flex: 1 1 auto;
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    overflow: visible;
+  }
+
+  .maplibregl-map .popup-body {
+    display: contents;
+  }
+
+  .maplibregl-map .popup-gap {
+    display: none;
+  }
+
+  .maplibregl-map .popup-top-row {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .maplibregl-map .popup-media-card,
+  .maplibregl-map .popup-media-card:has(video) {
+    grid-column: 1;
+    grid-row: 2 / -1;
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    min-width: 0;
+    min-height: 0;
+    aspect-ratio: auto;
+    margin: 0;
+    align-self: stretch;
+    justify-self: stretch;
+  }
+
+  .maplibregl-map .popup-media-card img,
+  .maplibregl-map .popup-media-card video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    object-fit: contain;
+  }
+
+  .maplibregl-map .popup-profile-bubble {
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+    max-width: 100%;
+    margin-bottom: 0;
+  }
+
+  .maplibregl-map .popup-profile-bubble > .topic-follow {
+    gap: 0.8cqh;
+  }
+
+  .maplibregl-map .popup-nav {
+    grid-column: 2;
+    grid-row: 3;
+    margin: 0;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .maplibregl-map .popup-nav > div {
+    min-width: 0;
+  }
+
+  .maplibregl-map .popup-body > div:not(.popup-media-card) {
+    grid-column: 2;
+    grid-row: 4;
+    min-width: 0;
+    min-height: 0;
+    align-self: stretch;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-body > div:not(.popup-media-card) {
+    grid-column: 1;
+    grid-row: 2 / -1;
+    align-self: center;
+    justify-self: stretch;
+    max-height: 100%;
+  }
+
+  .maplibregl-map .popup-text-bubble {
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-wrap: anywhere;
+  }
+
+  .maplibregl-map .popup-sheet > .popup-dock {
+    grid-column: 2;
+    margin: 0 !important;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .maplibregl-map .popup-sheet > .popup-dock:not(:has(.popup-top-topic)) {
+    grid-row: 5;
+  }
+
+  .maplibregl-map .popup-sheet > .popup-dock:has(.popup-top-topic) {
+    grid-row: 6;
+  }
+
+  .maplibregl-map .popup-dock .popup-top-topic {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
 /* Tap-to-fullscreen media overlay (fullscreenmedia.js) — gallery view:
    near-black stage, the media is the star, minimal chrome, calm entrance. */
 #media-fullscreen {
