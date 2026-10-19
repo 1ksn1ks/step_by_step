@@ -31,7 +31,13 @@ export function hashtagQuery(text) {
   return hashtagsIn(trimmed)[0] || "";
 }
 
+// Titles, names, and topic pills stay one line. A newline is a space.
+export function singleLineText(text) {
+  return String(text == null ? "" : text).replace(/\r\n/g, "\n").replace(/\n/g, " ");
+}
+
 // Posted title and message. Buttons stay out of the saved text.
+// Newlines stay in text nodes. The bubble's white-space shows them.
 export function paintHashtags(el, text) {
   const source = String(text || "");
   el.replaceChildren();

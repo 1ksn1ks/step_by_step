@@ -1,3 +1,5 @@
+import { isTyping } from './joystick.js';
+
 // One preview for every picture in the app (chat thumbnails, popup
 // pictures, and the next place that needs it). Call openPreview. Add the
 // next control in this file — callers only pass the source and options.
@@ -66,6 +68,7 @@ export function closePreview() {
 }
 
 function onKey(e) {
+  if (isTyping(e.target)) return;
   if (e.key === 'Escape') closePreview();
 }
 

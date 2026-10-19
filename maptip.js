@@ -6,7 +6,7 @@ import { usernames } from './loadalladata.js';
 import { globalLoadedTopicIdsWithNames } from './letall.js';
 
 function text(value) {
-  return String(value == null ? '' : value).trim();
+  return String(value == null ? '' : value).replace(/\r\n/g, '\n').replace(/\n/g, ' ').trim();
 }
 
 function topicNameFromList(topicId) {

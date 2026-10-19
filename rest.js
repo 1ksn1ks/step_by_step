@@ -17,9 +17,9 @@ import { connectedAccount, signer } from './web3';
 import { PrivateKey } from '@hashgraph/sdk';
 import { isValidUrl } from './ISVALIDURL.JS';
 import { toast } from './toast';
-import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, utf8ByteLength } from './hcschunks.js';
+import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, utf8ByteLength, normalizeMessageNewlines, clipMessage } from './hcschunks.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
-import { pendingChatImage, chatImageBusy, clearPendingChatImage } from './chatimage.js';
+import { pendingChatImage, chatImageBusy, clearPendingChatImage, topicChatWire } from './chatimage.js';
 import { stackedTopicRules } from './topicrules.js';
 import { adminsFromMemo, currentTopicBio, currentTopicName, currentStackedTopics, currentInitialXYZ } from './loadcurrenttopic.js';
 
@@ -566,7 +566,7 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
      toast.error("Connect wallet first");
      return;
    }
-   const newMessage = document.getElementById("user-write-message").value;
+   const newMessage = normalizeMessageNewlines(document.getElementById("user-write-message").value);
    if (chatImageBusy("topic")) {
      toast.error("Wait for the image to finish uploading");
      return;
@@ -592,12 +592,7 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
    return;
  }
  
-   const meesageobject = {
-     userMessage: newMessage
-   };
-   if (image) meesageobject.image = image;
- 
-   const meesage = JSON.stringify(meesageobject);
+   const meesage = topicChatWire(newMessage, image);
    if (utf8ByteLength(meesage) > HCS_MESSAGE_MAX_BYTES) {
      toast.error(HCS_TOO_LONG);
      return;
@@ -1345,12 +1340,12 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
        } else {
          topicId = userInput;
        }
-       const title = document.getElementById("input-field-2-1").value.slice(0, 20);
+       const title = document.getElementById("input-field-2-1").value.replace(/\r?\n/g, "").slice(0, 20);
        const imageurl = document.getElementById("input-field-image-marker").value;
        const coverimage = document.getElementById("input-field-coverimage-marker").value;
        const cleanUrl = imageurl.replace(/\?network=mainnet$/, "");
        const cleanCoverimage = coverimage.replace(/\?network=mainnet$/, "");
-       const msg = document.getElementById("input-field-2-2").value;
+       const msg = clipMessage(normalizeMessageNewlines(document.getElementById("input-field-2-2").value), 256);
        const cord = document.getElementById("input-field-2-3").value;
 
        if (!topicId || !cord) {
@@ -1435,12 +1430,12 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
       return;
     }
 
-    const title = document.getElementById("input-field-2-1").value.slice(0, 20);
+    const title = document.getElementById("input-field-2-1").value.replace(/\r?\n/g, "").slice(0, 20);
     const imageurl = document.getElementById("input-field-image-marker").value;
     const coverimage = document.getElementById("input-field-coverimage-marker").value;
     const cleanUrl = imageurl.replace(/\?network=mainnet$/, "");
     const cleanCoverimage = coverimage.replace(/\?network=mainnet$/, "");
-    const msg = document.getElementById("input-field-2-2").value;
+    const msg = clipMessage(normalizeMessageNewlines(document.getElementById("input-field-2-2").value), 256);
     const cord = document.getElementById("input-field-2-3").value;
 
     if (!topicId || !cord) {
@@ -1483,8 +1478,8 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
        } else {
          topicId = userInput;
        }
-       const title = document.getElementById("input-field-3-1").value.slice(0, 20);
-       const msg = document.getElementById("input-field-3-2").value;
+       const title = document.getElementById("input-field-3-1").value.replace(/\r?\n/g, "").slice(0, 20);
+       const msg = clipMessage(normalizeMessageNewlines(document.getElementById("input-field-3-2").value), 256);
        const imageurl = document.getElementById("input-field-image-polygon").value;
        const coverimage = document.getElementById("input-field-coverimage-polygon").value;
        const cord1 = document.getElementById("input-field-3-3").value; // TOP LEFT
@@ -1612,8 +1607,8 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
       return;
     }
 
-    const title = document.getElementById("input-field-3-1").value.slice(0, 20);
-    const msg = document.getElementById("input-field-3-2").value;
+    const title = document.getElementById("input-field-3-1").value.replace(/\r?\n/g, "").slice(0, 20);
+    const msg = clipMessage(normalizeMessageNewlines(document.getElementById("input-field-3-2").value), 256);
     const imageurl = document.getElementById("input-field-image-polygon").value;
     const coverimage = document.getElementById("input-field-coverimage-polygon").value;
     const cord1 = document.getElementById("input-field-3-3").value; // TOP LEFT

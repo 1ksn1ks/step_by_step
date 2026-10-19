@@ -8,7 +8,7 @@ import { connectedAccount, signer } from './web3';
 import { profilePictures, usernames, click2url, profileTopics } from './loadalladata';
 import { isHederaAccount } from './handleallmessages';
 import { toast } from './toast'
-import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, utf8ByteLength } from './hcschunks.js';
+import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, utf8ByteLength, normalizeMessageNewlines } from './hcschunks.js';
 import { expandEncryptedChat, scheduleEncryptedChatLayout } from './cssLogic.js';
 import { payerUsernameNode } from './payerlink.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
@@ -688,7 +688,7 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
       return;
     }
 
-    const message = document.getElementById("user-write-message-encrypted-chat").value;
+    const message = normalizeMessageNewlines(document.getElementById("user-write-message-encrypted-chat").value);
     if (chatImageBusy("e2ee")) {
       toast.error("Wait for the image to finish uploading");
       return;

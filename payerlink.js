@@ -108,7 +108,7 @@ export function payerUsernameNode(name, rawUrl, { className = '', cssText = '' }
   const el = document.createElement(url ? 'a' : 'span');
   if (className) el.className = className;
   if (cssText) el.style.cssText = cssText;
-  el.textContent = name;
+  el.textContent = String(name == null ? "" : name).replace(/\r\n/g, "\n").replace(/\n/g, " ");
   if (url) attachPayerLink(el, url);
   return el;
 }

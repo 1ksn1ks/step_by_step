@@ -1,6 +1,7 @@
 // The draw forms type the post on a popup instead of separate fields.
 // The hidden textareas stay, because submit still reads those.
 import { connectedAccount } from "./web3.js";
+import { clipMessage, messageLimitLength } from "./hcschunks.js";
 import { profilePictures, usernames, click2url } from "./loadalladata.js";
 import { payerUsernameNode, safeHttpUrl } from "./payerlink.js";
 import { paintProfileAvatar } from "./earlyhashinal.js";
@@ -140,14 +141,15 @@ function bindEditable(editorId, fieldId, singleLine) {
   if (!el || !field) return;
   const max = Number(el.dataset.max) || (singleLine ? 20 : 256);
   const countLeft = el.classList.contains("draw-popup-title") || el.classList.contains("draw-popup-text");
+  const used = (text) => singleLine ? text.length : messageLimitLength(text);
   const syncLeft = (text) => {
-    if (countLeft) el.dataset.left = String(Math.max(0, max - text.length));
+    if (countLeft) el.dataset.left = String(Math.max(0, max - used(text)));
   };
   const write = () => {
-    let text = plainText(el);
+    let text = plainText(el).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
     if (singleLine) text = text.replace(/\n/g, "");
-    if (text.length > max) {
-      text = text.slice(0, max);
+    if (used(text) > max) {
+      text = singleLine ? text.slice(0, max) : clipMessage(text, max);
       el.textContent = text;
       placeCaretEnd(el);
     }
@@ -170,12 +172,17 @@ function bindEditable(editorId, fieldId, singleLine) {
     write();
   });
   el.addEventListener("input", write);
+  const shown = () => {
+    let text = plainText(el).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    if (singleLine) text = text.replace(/\n/g, "");
+    return text;
+  };
   field.addEventListener("input", () => {
     if (document.activeElement === el) return;
     if (plainText(el) !== field.value) el.textContent = field.value;
-    syncLeft(plainText(el));
+    syncLeft(shown());
   });
-  syncLeft(plainText(el));
+  syncLeft(shown());
 }
 
 function bindUpload(triggerId, pickerId, fieldId, paint) {

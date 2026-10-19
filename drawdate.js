@@ -1,4 +1,5 @@
 import { adjustTextareaHeight } from './adjusttextarea.js';
+import { isTyping } from './joystick.js';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -259,6 +260,7 @@ picker.addEventListener('keyup', (event) => event.stopPropagation());
 function keepMapStill(event) {
   if (picker.style.display === 'none') return;
   if (picker.contains(event.target)) return;
+  if (isTyping(event.target)) return;
   event.stopPropagation();
   if (event.type === 'keydown' && event.key === 'Escape') closeDrawDatePicker();
 }

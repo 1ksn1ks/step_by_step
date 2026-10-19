@@ -25,6 +25,34 @@ export function utf8ByteLength(text) {
   return encoder.encode(text == null ? "" : String(text)).length;
 }
 
+// Stored text keeps real newline characters. Carriage returns become
+// one newline, runs of three or more collapse to a blank line, and
+// newlines at the ends are dropped. Spaces stay.
+export function normalizeMessageNewlines(text) {
+  const value = String(text == null ? "" : text).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  return value.replace(/\n{3,}/g, "\n\n").replace(/^\n+/, "").replace(/\n+$/, "");
+}
+
+// Posts, comments, and chat sit inside JSON. A newline is stored as the
+// two characters \ and n, so it counts as 2 toward a character cap.
+// Other characters stay 1, matching the old caps when there is no newline.
+export function messageLimitLength(text) {
+  const value = String(text == null ? "" : text);
+  let extra = 0;
+  for (let i = 0; i < value.length; i++) {
+    if (value.charCodeAt(i) === 10) extra += 1;
+  }
+  return value.length + extra;
+}
+
+export function clipMessage(text, max) {
+  const value = String(text == null ? "" : text);
+  if (messageLimitLength(value) <= max) return value;
+  let end = Math.min(value.length, max);
+  while (end > 0 && messageLimitLength(value.slice(0, end)) > max) end -= 1;
+  return value.slice(0, end);
+}
+
 function decodeBase64(value) {
   const clean = String(value || "").replace(/\s/g, "");
   return new Uint8Array(Buffer.from(clean, "base64"));

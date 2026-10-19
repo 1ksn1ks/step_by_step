@@ -103,16 +103,14 @@ export function handleMovement() {
     return element && window.getComputedStyle(element).display === "block";
   });
 
-  // Also block while typing in any input/textarea (search bar, popup
-  // comments/replies, etc.) so WASD/QE don't pan the map mid-keystroke.
-  const active = document.activeElement;
-  const isTyping = (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA"))
-    && active.id !== "speed-slider";
+  // Also block while typing (search, comments, draw editors, chat) so
+  // WASD/QE don't pan the map mid-keystroke. The speed slider stays live.
+  const typing = isTyping(document.activeElement);
 
   const panSpeed = 10 * getSpeedMultiplier();
   const zoomSpeed = 0.05 * getSpeedMultiplier();
 
-  if (!isBlocked && !isTyping) {
+  if (!isBlocked && !typing) {
     if (keys.w) {
       map.panBy([0, -panSpeed], { animate: false });
     }
@@ -150,10 +148,39 @@ export function handleMovement() {
   }
 }
 
+const TEXT_INPUT_TYPES = new Set(["text", "search", "email", "url", "tel", "password", "number"]);
+
+// True while the key should go to a text control. The speed slider is
+// the exception: it stays a movement control.
+export function isTyping(target) {
+  const el = target && target.nodeType === 1 ? target : target && target.parentElement;
+  if (!el || el.id === "speed-slider") return false;
+  const tag = el.tagName;
+  if (tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (tag === "INPUT") return TEXT_INPUT_TYPES.has(String(el.type || "text").toLowerCase());
+  if (el.isContentEditable) return true;
+  return !!(el.closest && el.closest('[contenteditable="true"]'));
+}
+
+function clearMovementKeys() {
+  keys.w = false;
+  keys.a = false;
+  keys.s = false;
+  keys.d = false;
+  keys.q = false;
+  keys.e = false;
+  keys.space = false;
+  keys.shift = false;
+  keys.r = false;
+  keys.f = false;
+}
+
+function typingNow(event) {
+  return isTyping(event && event.target) || isTyping(document.activeElement);
+}
+
 document.addEventListener("keydown", (event) => {
-  const activeElement = document.activeElement; // Get the currently focused element
-  const isInputField = activeElement.tagName === "INPUT" || activeElement.tagName === "TEXTAREA";
-  const isSpeedSlider = activeElement.id === "speed-slider"; // Check if the active element is the speed slider
+  if (typingNow(event)) return;
 
   switch (event.key.toLowerCase()) {
     case "w":
@@ -175,10 +202,8 @@ document.addEventListener("keydown", (event) => {
       keys.e = true;
       break;
     case " ":
-      if (!isInputField || isSpeedSlider) { // Allow spacebar if the active element is the speed slider
-        keys.shift = true;
-        event.preventDefault();
-      }
+      keys.shift = true;
+      event.preventDefault();
       break;
     case "shift":
       keys.space = true;
@@ -188,11 +213,12 @@ document.addEventListener("keydown", (event) => {
       break;
     case "f":
       keys.f = true;
-      case " ":
+      break;
   }
 });
 
 document.addEventListener("keyup", (event) => {
+  if (typingNow(event)) return;
   switch (event.key.toLowerCase()) {
     case "w":
       keys.w = false;
@@ -225,4 +251,8 @@ document.addEventListener("keyup", (event) => {
       keys.f = false;
       break;
   }
+});
+
+document.addEventListener("focusin", (event) => {
+  if (isTyping(event.target)) clearMovementKeys();
 });

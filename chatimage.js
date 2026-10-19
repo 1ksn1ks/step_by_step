@@ -4,6 +4,7 @@
 import { toast } from "./toast.js";
 import { uploadChatImage } from "./uploadmedia.js";
 import { openPreview } from "./fullscreenmedia.js";
+import { normalizeMessageNewlines, utf8ByteLength } from "./hcschunks.js";
 
 const CHAT_IMAGE_PREFIX = "\u001echat1\n";
 
@@ -50,6 +51,7 @@ export function clearPendingChatImage(kind) {
   }
   if (s.file) s.file.value = "";
   if (s.btn) s.btn.disabled = false;
+  notifyChatImage();
 }
 
 function safeHttpUrl(value) {
@@ -66,10 +68,29 @@ function safeHttpUrl(value) {
 // Plain text stays plain. An image message is prefixed so older text
 // messages are never parsed as JSON.
 export function packChatPayload(text, imageUrl) {
-  const body = text || "";
+  const body = normalizeMessageNewlines(text || "");
   const image = safeHttpUrl(imageUrl);
   if (!image) return body;
   return CHAT_IMAGE_PREFIX + JSON.stringify({ t: body, i: image });
+}
+
+// Topic chat is one JSON object. A newline in userMessage is the two
+// characters \ and n, so it costs 2 UTF-8 bytes. E2EE encrypts
+// packChatPayload: raw text (newline = 1 byte) until an image makes it JSON.
+export function topicChatWire(text, imageUrl) {
+  const payload = { userMessage: normalizeMessageNewlines(text) };
+  const image = safeHttpUrl(imageUrl);
+  if (image) payload.image = image;
+  return JSON.stringify(payload);
+}
+
+export function composerWireBytes(kind, text) {
+  if (kind === "topic") return utf8ByteLength(topicChatWire(text, pendingChatImage("topic")));
+  return utf8ByteLength(packChatPayload(text, pendingChatImage("e2ee")));
+}
+
+function notifyChatImage() {
+  document.dispatchEvent(new Event("chat-image-changed"));
 }
 
 export function unpackChatPayload(raw) {
@@ -171,6 +192,7 @@ function bind(kind) {
       }
       s.url = url;
       showPreview(s, s.url);
+      notifyChatImage();
       toast.success("Uploaded");
     } catch (err) {
       if (mine !== s.gen) return;

@@ -17,7 +17,9 @@ import { confirmShare, unshareFromMyTopic, sharePin, followPersonControls, watch
 import { clearShareTopic, noteShare, shareState, shareMine, takeSharePin, takeUnsharePin } from './sharecount.js'
 import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
 import { openPreview } from './fullscreenmedia';
-import { paintHashtags } from './hashtag.js';
+import { paintHashtags, singleLineText } from './hashtag.js';
+import { isTyping } from './joystick.js';
+import { normalizeMessageNewlines, clipMessage } from './hcschunks.js';
 import maplibregl from 'maplibre-gl';
 import { map } from './map';
 import { applyAllStyles } from './loadprofilepopup';
@@ -853,7 +855,8 @@ function bindPopupPager(container, goPrev, goNext) {
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-    const active = document.activeElement;
+    const active = event.target && event.target.nodeType === 1 ? event.target : document.activeElement;
+    if (isTyping(active) || isTyping(document.activeElement)) return;
     if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT' || active.isContentEditable)) return;
     if (document.getElementById('media-fullscreen')) return;
     const pager = latestPopupPager();
@@ -1044,7 +1047,7 @@ export function createMarkerPopupHTML(data) {
   const topicSpan = document.createElement('span');
   topicSpan.className = 'popup-top-topic';
   topicSpan.style.cssText = 'cursor: pointer; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis;';
-  topicSpan.textContent = `${topicId} ${loadedTopicName}`;
+  topicSpan.textContent = singleLineText(`${topicId} ${loadedTopicName}`);
 
   topicSpan.addEventListener("click", async () => {
     try {
@@ -1127,7 +1130,7 @@ export function createMarkerPopupHTML(data) {
   titleDiv.style.cssText = 'text-align: center; flex-grow: 1;';
   const titleStrong = document.createElement('strong');
   titleStrong.className = 'title_color popup-title-bubble';
-  paintHashtags(titleStrong, String(title || '').slice(0, 20));
+  paintHashtags(titleStrong, singleLineText(String(title || '').slice(0, 20)));
   titleDiv.appendChild(titleStrong);
   navSection.appendChild(titleDiv);
 
@@ -1314,7 +1317,7 @@ function createPolygonPopupHTML(data) {
   const topicSpan = document.createElement('span');
   topicSpan.className = 'popup-top-topic';
   topicSpan.style.cssText = 'cursor: pointer; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis;';
-  topicSpan.textContent = `${topicId} ${loadedTopicName}`;
+  topicSpan.textContent = singleLineText(`${topicId} ${loadedTopicName}`);
 
   topicSpan.addEventListener("click", async () => {
     try {
@@ -1394,7 +1397,7 @@ function createPolygonPopupHTML(data) {
   titleDiv.style.cssText = 'text-align: center; flex-grow: 1;';
   const titleStrong = document.createElement('strong');
   titleStrong.className = 'title_color popup-title-bubble';
-  paintHashtags(titleStrong, String(title || '').slice(0, 20));
+  paintHashtags(titleStrong, singleLineText(String(title || '').slice(0, 20)));
   titleDiv.appendChild(titleStrong);
   navSection.appendChild(titleDiv);
 
@@ -3209,7 +3212,12 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
   input.maxLength = 300;
   input.rows = 2;
   input.style.cssText = 'flex: 1; resize: none; font-size: calc(var(--u) * 1.4); padding: calc(var(--u) * 0.6) calc(var(--u) * 1); border-radius: calc(var(--u) * 1); border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08); color: white; outline: none;';
-  input.addEventListener('input', () => adjustTextareaHeight(input));
+  input.addEventListener('input', () => {
+    const soft = input.value.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const next = clipMessage(soft, 300);
+    if (next !== input.value) input.value = next;
+    adjustTextareaHeight(input);
+  });
   inputRow.appendChild(input);
 
   const sendBtn = document.createElement('span');
@@ -3478,7 +3486,7 @@ window.sendMarkerComment = async function(timestamp, topicId, input) {
     toast.error("Connect wallet first");
     return;
   }
-  const text = (input.value || '').trim().slice(0, 300);
+  const text = clipMessage(normalizeMessageNewlines(input && input.value).trim(), 300);
   if (!text) {
     toast.error("Comment is empty");
     return;
@@ -3498,7 +3506,7 @@ window.sendPolygonComment = async function(timestamp, topicId, input) {
     toast.error("Connect wallet first");
     return;
   }
-  const text = (input.value || '').trim().slice(0, 300);
+  const text = clipMessage(normalizeMessageNewlines(input && input.value).trim(), 300);
   if (!text) {
     toast.error("Comment is empty");
     return;
@@ -3518,7 +3526,7 @@ window.sendMarkerReply = async function(postTimestamp, parentId, topicId, input)
     toast.error("Connect wallet first");
     return;
   }
-  const text = (input.value || '').trim().slice(0, 300);
+  const text = clipMessage(normalizeMessageNewlines(input && input.value).trim(), 300);
   if (!text) {
     toast.error("Comment is empty");
     return;
@@ -3539,7 +3547,7 @@ window.sendPolygonReply = async function(postTimestamp, parentId, topicId, input
     toast.error("Connect wallet first");
     return;
   }
-  const text = (input.value || '').trim().slice(0, 300);
+  const text = clipMessage(normalizeMessageNewlines(input && input.value).trim(), 300);
   if (!text) {
     toast.error("Comment is empty");
     return;

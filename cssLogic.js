@@ -13,7 +13,8 @@ import { activeMarkerPopups } from './marker.js';
 import { scene } from './threejs.js'
 import { renderLoadedTopics } from './handleallmessages.js';
 import { toast } from './toast.js';
-import { HCS_MESSAGE_MAX_BYTES, HCS_SHOW_COUNTER_AFTER, utf8ByteLength } from './hcschunks.js';
+import { HCS_MESSAGE_MAX_BYTES, HCS_SHOW_COUNTER_AFTER } from './hcschunks.js';
+import { composerWireBytes } from './chatimage.js';
 import { closeDrawAnchor } from './drawhere.js';
 import { closePressAnchor } from './poiinfo.js';
 
@@ -559,20 +560,19 @@ export function CloseALL() {
     if (window.visualViewport) window.visualViewport.addEventListener("resize", refit);
   });
 
-  // Enter doesn't insert a line break in the message inputs — line breaks
-  // won't be supported in messages, so don't give users false hope
+  // Enter inserts a newline. Send stays on the button.
+  // Topic chat bytes are the JSON object that is submitted, so a newline
+  // costs 2 bytes. E2EE bytes are the plaintext that is encrypted: 1 byte
+  // per newline, or 2 once an image wraps the text in JSON.
   [
-    ["user-write-message", "char-counter"],
-    ["user-write-message-encrypted-chat", "char-counter-encrypted-chat"],
-  ].forEach(([id, counterId]) => {
+    ["user-write-message", "char-counter", "topic"],
+    ["user-write-message-encrypted-chat", "char-counter-encrypted-chat", "e2ee"],
+  ].forEach(([id, counterId, kind]) => {
     const ta = document.getElementById(id);
     const counter = document.getElementById(counterId);
-    ta.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") e.preventDefault();
-    });
     const paintBytes = () => {
       if (!counter) return;
-      const bytes = utf8ByteLength(ta.value);
+      const bytes = composerWireBytes(kind, ta.value);
       if (bytes <= HCS_SHOW_COUNTER_AFTER) {
         counter.hidden = true;
         return;
@@ -581,6 +581,7 @@ export function CloseALL() {
       counter.textContent = `${bytes} / ${HCS_MESSAGE_MAX_BYTES}`;
     };
     ta.addEventListener("input", paintBytes);
+    document.addEventListener("chat-image-changed", paintBytes);
   });
 
   document.getElementById("topic-chat-btn").addEventListener("click", (event) => {
