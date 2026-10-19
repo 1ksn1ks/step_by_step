@@ -3272,6 +3272,8 @@ function closeCommentsModal() {
   try {
     if (commentsModalSection) {
       const home = commentsModalSection._homeParent;
+      const homePopup = home && home.closest ? home.closest('.maplibregl-popup') : null;
+      if (homePopup) homePopup.classList.remove('comments-open');
       if (home && home.isConnected) {
         home.appendChild(commentsModalSection);
         watchProfileTree(home);
@@ -3377,6 +3379,10 @@ function commentsCloseButton(section) {
 }
 
 function showCommentsModal(section) {
+  const homePopup = section && section._homeParent && section._homeParent.closest
+    ? section._homeParent.closest('.maplibregl-popup')
+    : null;
+  if (homePopup) homePopup.classList.add('comments-open');
   const sheet = commentsInCardHost(section);
   paintCommentsSection(section);
   const wrapper = document.createElement('div');

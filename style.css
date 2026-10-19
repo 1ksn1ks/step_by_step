@@ -2705,6 +2705,12 @@ html, body {
     color: #f6e27a !important;
   }
 
+  /* Hide this popup's × while its comments are open. The back chevron stays. */
+  .maplibregl-popup:has(.comments-modal) > .maplibregl-popup-content > .maplibregl-popup-close-button:not(.comments-back-button),
+  .maplibregl-popup.comments-open > .maplibregl-popup-content > .maplibregl-popup-close-button:not(.comments-back-button) {
+    display: none !important;
+  }
+
   /* The back circle sits over the top of a fullscreen comments card.
      The list starts below it, so the first payer row stays clear. */
   .comments-modal:not(.comments-modal--in-card) .popup-comments {
@@ -6103,11 +6109,22 @@ a.payer-link {
     height: 100%;
     max-height: 100%;
     margin: 0;
-    padding: 0;
+    /* 1.7u matches the inner edge of the 2u card radius. 0.6u keeps the
+       groups, colour buttons, and Save, glows included, off the border. */
+    padding: calc(var(--u) * 0.6);
+    border-radius: calc(var(--u) * 1.7);
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
     background: transparent;
+  }
+
+  #popup-settings-side > *,
+  #popup-settings-side .popup-nav,
+  #popup-settings-side .popup-dock,
+  #popup-settings-side .popup-top-row {
+    margin-left: 0;
+    margin-right: 0;
   }
 
   /* Gear and the × sit on the right card's grid corner, not in the scroller. */
