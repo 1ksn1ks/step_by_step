@@ -4756,9 +4756,19 @@ html, body {
   pointer-events: none;
   transform-origin: center center;
 }
+.popup-profile-bubble > img,
+.popup-profile-bubble > .early-hashinal,
+.profile-live-bubble > .profile-live-pic,
+.profile-live-bubble > .early-hashinal {
+  transform-origin: center center;
+}
 @media (prefers-reduced-motion: reduce) {
   .marker-face,
-  .cluster-face { transform: none !important; }
+  .cluster-face,
+  .popup-profile-bubble > img,
+  .popup-profile-bubble > .early-hashinal,
+  .profile-live-bubble > .profile-live-pic,
+  .profile-live-bubble > .early-hashinal { transform: none !important; }
 }
 /* The live border, painted on a TOPIC face that has a live point at its
    exact spot (or whose live twin sits in a live cluster) — the border is

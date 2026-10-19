@@ -1,6 +1,7 @@
 // Gold-purple ring for accounts that hold one of the first 1000 Hashinals.
 // The fetch starts after the globe has drawn and never blocks a paint.
 import { map } from "./map.js";
+import { forgetTilt, watchProfilePicture } from "./markertilt.js";
 
 const REFRESH_MS = 15 * 60 * 1000;
 
@@ -44,18 +45,28 @@ function syncProfileRing(img) {
   const wrapped = !!(parent && parent.classList.contains("early-hashinal"));
   const bubble = img.closest(".popup-profile-bubble");
   // The profile pill wears the ring. Marker and list avatars keep theirs.
+  // The picture leans on its own. A wrapped avatar ring leans with it.
   if (bubble) {
-    if (wrapped) parent.replaceWith(img);
+    if (wrapped) {
+      forgetTilt(parent);
+      parent.replaceWith(img);
+    }
     syncPopupBubbleRing(bubble, n > 0);
+    watchProfilePicture(img);
     return;
   }
   if (!n) {
-    if (wrapped) parent.replaceWith(img);
+    if (wrapped) {
+      forgetTilt(parent);
+      parent.replaceWith(img);
+    }
+    watchProfilePicture(img);
     return;
   }
   let shell = wrapped ? parent : null;
   if (!shell) {
     if (!img.parentNode) return;
+    forgetTilt(img);
     shell = document.createElement("span");
     shell.className = "early-hashinal";
     img.replaceWith(shell);
@@ -73,6 +84,7 @@ function syncProfileRing(img) {
     glow.setAttribute("aria-hidden", "true");
     shell.insertBefore(glow, shell.firstChild);
   }
+  watchProfilePicture(img);
 }
 
 export function paintProfileAvatar(img, account) {

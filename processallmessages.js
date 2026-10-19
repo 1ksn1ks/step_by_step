@@ -31,6 +31,7 @@ import { videoSeconds } from './mediaduration.js'
 import { stackedTopicRules, smallestPolygonSize } from './topicrules.js'
 import { payerUsernameNode } from './payerlink.js'
 import { paintProfileAvatar } from './earlyhashinal.js'
+import { watchProfilePicture, watchProfileTree, forgetProfileTree } from './markertilt.js'
 
 // A drawing counts toward the NFT allowance only when it is a real marker
 // or polygon. Likes, comments, deletes, and other messages do not.
@@ -1077,6 +1078,7 @@ export function createMarkerPopupHTML(data) {
   watchFollowPrefetch(profileImg, payer);
   profileSection.appendChild(profileImg);
   paintProfileAvatar(profileImg, payer);
+  watchProfilePicture(profileImg);
 
   const headerDiv = document.createElement('div');
   const h2 = document.createElement('h2');
@@ -1346,6 +1348,7 @@ function createPolygonPopupHTML(data) {
   watchFollowPrefetch(profileImg, payer);
   profileSection.appendChild(profileImg);
   paintProfileAvatar(profileImg, payer);
+  watchProfilePicture(profileImg);
 
   const headerDiv = document.createElement('div');
   const h2 = document.createElement('h2');
@@ -1573,10 +1576,12 @@ function applyShareCard(properties, record) {
   // A closed popup is replaced so the next open shows the new counts.
   if (current && current.isConnected && commentsAreOpen(current)) return;
   bindWalk(record, properties.walkKey);
+  if (current) forgetProfileTree(current);
   const fresh = popupHTML(record);
   if (current && current.parentNode) {
     current.replaceWith(fresh);
     properties.message = fresh;
+    watchProfileTree(fresh);
     touchPopupPager(fresh);
     // The new card is a fresh set of elements. Username, account, title,
     // and number colors are painted onto the elements that are on screen,
@@ -3217,7 +3222,10 @@ function closeCommentsModal() {
   try {
     if (commentsModalSection) {
       const home = commentsModalSection._homeParent;
-      if (home && home.isConnected) home.appendChild(commentsModalSection);
+      if (home && home.isConnected) {
+        home.appendChild(commentsModalSection);
+        watchProfileTree(home);
+      }
       const saved = commentsModalSection._modalSaves;
       if (saved) {
         for (const [prop, val] of Object.entries(saved)) {
@@ -3326,6 +3334,7 @@ function showCommentsModal(section) {
     wrapper.className = 'comments-modal comments-modal--in-card';
     wrapper.appendChild(commentsCloseButton(section));
     wrapper.appendChild(section);
+    if (section._homeParent) watchProfileTree(section._homeParent);
     wrapper.addEventListener('click', (e) => e.stopPropagation());
     wrapper.addEventListener('pointerdown', (e) => e.stopPropagation());
     sheet.appendChild(wrapper);
@@ -3353,6 +3362,7 @@ function showCommentsModal(section) {
     card.appendChild(cardContent);
     wrapper.appendChild(card);
     document.body.appendChild(wrapper);
+    if (section._homeParent) watchProfileTree(section._homeParent);
   }
 
   commentsModal = wrapper;
@@ -3376,6 +3386,7 @@ function retargetCommentsModal() {
   if (wantInCard === isInCard) return;
   const saves = section._modalSaves;
   const bubble = section._bubbleInput;
+  forgetProfileTree(section);
   section.remove();
   commentsModal.remove();
   commentsModal = null;

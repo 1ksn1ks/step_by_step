@@ -4,6 +4,7 @@ import { connectedAccount } from "./web3.js";
 import { profilePictures, usernames, click2url } from "./loadalladata.js";
 import { payerUsernameNode, safeHttpUrl } from "./payerlink.js";
 import { paintProfileAvatar } from "./earlyhashinal.js";
+import { watchProfilePicture } from "./markertilt.js";
 import { syncPopupChrome } from "./loadprofilepopup.js";
 import { watchFollowPrefetch } from "./followtopic.js";
 
@@ -273,6 +274,7 @@ export function paintDrawProfile(root, account = connectedAccount || "") {
   }
   if (name && nameNode) nameNode.style.color = pickerColor("color-picker-popup-username", "#ffffff");
   paintProfileAvatar(img, account);
+  watchProfilePicture(img);
   watchFollowPrefetch(img, account);
   const sheet = root.querySelector(".popup-sheet");
   if (sheet) sheet.dataset.popupPayer = typeof account === "string" ? account : "";

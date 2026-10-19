@@ -1,4 +1,5 @@
 import maplibregl from 'maplibre-gl';
+import { forgetProfileTree, watchProfileTree } from './markertilt.js';
 
 // Animate popup close: play the shrink+fade (.closing class, popupOut keyframes
 // in style.css), then let MapLibre actually remove the popup.
@@ -6,14 +7,23 @@ const CLOSE_MS = 150;
 const originalClose = maplibregl.Popup.prototype.close;
 const originalRemove = maplibregl.Popup.prototype.remove;
 
+function releasePopupFaces(popup) {
+  const el = typeof popup.getElement === 'function' ? popup.getElement() : null;
+  if (el) forgetProfileTree(el);
+}
+
 function startClose(popup, original) {
   const el = typeof popup.getElement === 'function' ? popup.getElement() : null;
   const content = el ? el.querySelector('.maplibregl-popup-content') : null;
   if (content && !content.classList.contains('closing')) {
     content.classList.add('closing');
-    setTimeout(() => original.call(popup), CLOSE_MS);
+    setTimeout(() => {
+      releasePopupFaces(popup);
+      original.call(popup);
+    }, CLOSE_MS);
     return popup;
   }
+  releasePopupFaces(popup);
   original.call(popup);
   return popup;
 }
@@ -25,6 +35,21 @@ maplibregl.Popup.prototype.close = function () {
 maplibregl.Popup.prototype.remove = function () {
   return startClose(this, originalRemove);
 };
+
+// remove() is an instance arrow, so the prototype wrap above is not what
+// popup.remove() calls. Forget the picture, then run that arrow.
+const NativePopup = maplibregl.Popup;
+function Popup(options) {
+  const popup = new NativePopup(options);
+  const nativeRemove = popup.remove;
+  popup.remove = () => {
+    releasePopupFaces(popup);
+    return nativeRemove();
+  };
+  return popup;
+}
+Popup.prototype = NativePopup.prototype;
+maplibregl.Popup = Popup;
 
 // One frame for every map popup and for the popup settings card.
 // The top line is the toolbar (10vh), so the gap under OPTIONS / TOPIC
@@ -117,14 +142,21 @@ function fitIfOpen(popup) {
 
 const originalSetDOMContent = maplibregl.Popup.prototype.setDOMContent;
 maplibregl.Popup.prototype.setDOMContent = function (node) {
+  const el = typeof this.getElement === 'function' ? this.getElement() : null;
+  // Paging and a fresh card drop the picture that was showing.
+  if (el && node && node.nodeType === 1 && !el.contains(node)) forgetProfileTree(el);
   const result = originalSetDOMContent.call(this, node);
   fitIfOpen(this);
   // Cached cards are shown again through this call. Follow controls re-read.
   if (node && node.nodeType === 1) {
+    watchProfileTree(node);
     document.dispatchEvent(new CustomEvent('follow-popup-open', { detail: node }));
   }
   return result;
 };
+
+const settingsPreview = document.getElementById('popup-settings-preview');
+if (settingsPreview) watchProfileTree(settingsPreview);
 
 const originalAddTo = maplibregl.Popup.prototype.addTo;
 maplibregl.Popup.prototype.addTo = function (map) {

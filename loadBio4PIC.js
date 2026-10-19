@@ -7,6 +7,7 @@ import { adjustTextareaHeight } from './adjusttextarea';
 import { fillTopicIds } from './topicidintext';
 import { payerUsernameNode } from './payerlink.js';
 import { paintProfileAvatar } from './earlyhashinal.js';
+import { forgetProfileTree } from './markertilt.js';
 import { paintEarlyProfile } from './loadprofilepopup.js';
 
 const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
@@ -58,7 +59,10 @@ export async function loadBio4PIC(payer) {
       const list = document.getElementById("loaded-topics-list");
       if (list) list.style.display = "none";
       const previous = document.getElementById("loaded-bio-card");
-      if (previous) previous.remove();
+      if (previous) {
+        forgetProfileTree(previous);
+        previous.remove();
+      }
 
       const card = document.createElement('div');
       card.id = 'loaded-bio-card';
