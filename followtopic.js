@@ -165,11 +165,6 @@ export function formatCount(n) {
   return compactCount.format(n);
 }
 
-export function followerLabel(n) {
-  const exact = exactCount.format(n);
-  return Number(n) === 1 ? '1 follower' : exact + ' followers';
-}
-
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 function svgEl(name, attrs) {
@@ -225,20 +220,18 @@ function countChip() {
   num.appendChild(roll);
   count.append(icon, num);
   count.classList.add('is-loading');
-  count.title = 'Followers';
   count.setAttribute('aria-label', 'Followers');
   return count;
 }
 
-// The visible chip shows the number. The label stays "N follower(s)".
+// The chip shows the compact count. The aria-label is the exact number.
 // A count that is still loading, or a failed read, is left as it is.
 export function paintFollowerCount(count, n) {
   const value = followerCountOrNull(n);
   if (value == null || !count) return;
   count.classList.remove('is-loading');
-  const label = followerLabel(value);
-  count.title = label;
-  count.setAttribute('aria-label', label);
+  count.removeAttribute('title');
+  count.setAttribute('aria-label', exactCount.format(value));
   const roll = count.querySelector('.topic-follow-num-roll');
   if (!roll) return;
   const prev = count._followers;
