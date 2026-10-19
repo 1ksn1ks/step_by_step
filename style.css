@@ -6747,9 +6747,8 @@ a.payer-link {
 .maplibregl-popup.early-holder-popup > .maplibregl-popup-content {
   border-radius: calc(var(--u) * 1.7) !important;
   color: #f4f1ea !important;
-  font-size: calc(var(--u) * 2) !important;
-  /* Font size is a locked key for early holders. */
-  --popup-font-scale: 1 !important;
+  /* No font-size here: the Font setting is for eyesight, not theme,
+     so holder popups scale with it like any other popup. */
 }
 .maplibregl-popup.early-holder-popup .number,
 .maplibregl-popup.early-holder-popup .maplibregl-popup-close-button,

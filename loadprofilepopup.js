@@ -174,7 +174,8 @@ export function syncEarlyStyleEditor(account) {
     const n = earlyHashinalNumber(styleAccount);
     for (const id of STYLE_INPUTS) {
         const el = document.getElementById(id);
-        if (el) el.disabled = n > 0;
+        // Font size is an eyesight setting, never part of the locked theme.
+        if (el) el.disabled = n > 0 && id !== "popup-font-size";
     }
     const save = document.getElementById("savepopup3");
     if (save) {
