@@ -828,7 +828,7 @@ function bindPopupPager(container, goPrev, goNext) {
   let swipeY = null;
   container.addEventListener('pointerdown', (e) => {
     if (e.pointerType !== 'touch') return;
-    if (e.target.closest('.popup-media-card, .payer-link')) return;
+    if (e.target.closest('.popup-media-card, .payer-link, .comments-modal--in-card, textarea')) return;
     swipeX = e.clientX;
     swipeY = e.clientY;
   });
@@ -838,6 +838,7 @@ function bindPopupPager(container, goPrev, goNext) {
     const dy = e.clientY - swipeY;
     swipeX = swipeY = null;
     if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    closeCommentsForPage(container);
     if (dx < 0) goNext();
     else goPrev();
   });
@@ -859,6 +860,7 @@ function bindPopupPager(container, goPrev, goNext) {
     event.stopPropagation();
     const focused = document.activeElement;
     if (focused && focused.closest && focused.closest('.maplibregl-popup')) focused.blur();
+    closeCommentsForPage(pager.container);
     schedulePopupStep(event.key === 'ArrowLeft' ? -1 : 1);
   }, true);
 }
@@ -1543,16 +1545,18 @@ function popupHTML(record) {
 const landscapeMQ = window.matchMedia('(orientation: landscape)');
 let landscapeCommentsBound = false;
 
-function isInlineComments(section) {
-  return !!(landscapeMQ.matches && section && section.closest('.maplibregl-map'));
-}
-
 function commentsAreOpen(node) {
   if (!node || !node.querySelectorAll) return false;
+  // The open modal has moved the section out of the card (portrait) or
+  // covered the card with it (landscape). Either way the thread is live.
+  if (commentsModalSection) {
+    const home = commentsModalSection._homeParent;
+    if (home && (node === home || node.contains(home))) return true;
+    if (node.contains(commentsModalSection)) return true;
+  }
   const sections = node.querySelectorAll('[id^="marker-comments-"], [id^="polygon-comments-"]');
   for (const section of sections) {
     if (section.style.display !== 'none') return true;
-    if (!isInlineComments(section)) continue;
     if (section.contains(document.activeElement)) return true;
     const textarea = section.querySelector('textarea');
     if (textarea && textarea.value) return true;
@@ -3188,13 +3192,6 @@ let commentsModal = null;      // fullscreen wrapper (scrim + card)
 let commentsModalSection = null; // the comments section currently inside it
 
 function toggleCommentsBubble(open, sectionId) {
-  const section = document.getElementById(sectionId);
-  if (open && isInlineComments(section)) {
-    section.scrollIntoView({ block: 'nearest' });
-    const textarea = section.querySelector('textarea');
-    if (textarea) textarea.focus({ preventScroll: true });
-    return false;
-  }
   if (open) {
     openCommentsModal(sectionId);
     if (!(commentsModalSection && commentsModalSection.id === sectionId)) return false;
@@ -3204,6 +3201,14 @@ function toggleCommentsBubble(open, sectionId) {
   if (!commentsClosing && commentsModalSection && commentsModalSection.id === sectionId) {
     closeCommentsModal();
   }
+}
+
+function closeCommentsForPage(container) {
+  if (!commentsModal || !commentsModalSection || !container) return;
+  const home = commentsModalSection._homeParent;
+  const here = (home && container.contains(home)) || container.contains(commentsModal);
+  if (!here) return;
+  closeCommentsModal();
 }
 
 function closeCommentsModal() {
@@ -3241,66 +3246,36 @@ function closeCommentsModal() {
   }
 }
 
-if (!landscapeCommentsBound) {
-  landscapeCommentsBound = true;
-  landscapeMQ.addEventListener('change', () => {
-    if (!landscapeMQ.matches || !commentsModalSection) return;
-    const home = commentsModalSection._homeParent;
-    if (home && typeof home.closest === 'function' && home.closest('.maplibregl-map')) {
-      closeCommentsModal();
-    }
-  });
+// A map post in landscape hosts the same comments view over the right card.
+// Every other case (portrait, draw column, settings) stays a fullscreen modal.
+function commentsInCardHost(section) {
+  const anchor = section._homeParent && section._homeParent.isConnected
+    ? section._homeParent
+    : section;
+  if (!anchor || !landscapeMQ.matches || typeof anchor.closest !== 'function') return null;
+  if (!anchor.closest('.maplibregl-map')) return null;
+  const popup = anchor.closest('.maplibregl-popup');
+  if (!popup) return null;
+  return popup.querySelector('.popup-sheet');
 }
 
-function openCommentsModal(sectionId) {
-  if (commentsModal) closeCommentsModal();
-  const section = document.getElementById(sectionId);
-  if (!section) return;
-
-  // Fullscreen wrapper above the post popup: the wrapper's own z-index (5000)
-  // beats .maplibregl-popup's z-index:1000!important, so the modal stacks on
-  // top even though the card itself reuses the popup classes
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'position: fixed; inset: 0; z-index: 5000;';
-
-  const scrim = document.createElement('div');
-  scrim.style.cssText = 'position: absolute; inset: 0; background: rgba(0, 0, 0, 0.72);';
-  scrim.onclick = closeCommentsModal;
-  scrim.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
-  wrapper.appendChild(scrim);
-
-  // Card reuses the popup classes. It grows with the comments, then
-  // popupanim shrinks the whole card so it stays inside the screen.
-  const card = document.createElement('div');
-  card.className = 'maplibregl-popup';
-  const cardContent = document.createElement('div');
-  cardContent.className = 'maplibregl-popup-content';
-
-  const closeBtn = document.createElement('button');
-  closeBtn.className = 'maplibregl-popup-close-button';
-  closeBtn.textContent = '×';
-  closeBtn.onclick = (e) => {
-    e.stopPropagation();
-    closeCommentsModal();
-  };
-  cardContent.appendChild(closeBtn);
-
-  // Move the already-built (hidden) section into the modal so its state —
-  // comments, reply mode, reply target — carries over untouched
-  section._homeParent = section.parentElement;
-  section._modalSaves = {
-    display: section.style.display,
-    marginTop: section.style.marginTop,
-    padding: section.style.padding,
-    background: section.style.background,
-    border: section.style.border,
-    borderRadius: section.style.borderRadius,
-    backdropFilter: section.style.backdropFilter,
-    webkitBackdropFilter: section.style.webkitBackdropFilter
-  };
-  cardContent.appendChild(section);
+function paintCommentsSection(section) {
+  if (!section._homeParent || !section._homeParent.isConnected) {
+    if (section.parentElement) section._homeParent = section.parentElement;
+  }
+  if (!section._modalSaves) {
+    section._modalSaves = {
+      display: section.style.display,
+      marginTop: section.style.marginTop,
+      padding: section.style.padding,
+      background: section.style.background,
+      border: section.style.border,
+      borderRadius: section.style.borderRadius,
+      backdropFilter: section.style.backdropFilter,
+      webkitBackdropFilter: section.style.webkitBackdropFilter
+    };
+  }
   section.style.display = 'block';
-  // Neutralize the section's own glass card inside the modal's card
   section.style.marginTop = '0';
   section.style.padding = '0';
   section.style.background = 'transparent';
@@ -3308,10 +3283,55 @@ function openCommentsModal(sectionId) {
   section.style.borderRadius = '0';
   section.style.backdropFilter = 'none';
   section.style.webkitBackdropFilter = 'none';
+}
 
-  card.appendChild(cardContent);
-  wrapper.appendChild(card);
-  document.body.appendChild(wrapper);
+function commentsCloseButton() {
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'maplibregl-popup-close-button';
+  closeBtn.textContent = '×';
+  closeBtn.onclick = (e) => {
+    e.stopPropagation();
+    closeCommentsModal();
+  };
+  return closeBtn;
+}
+
+function showCommentsModal(section) {
+  const sheet = commentsInCardHost(section);
+  paintCommentsSection(section);
+  const wrapper = document.createElement('div');
+  if (sheet) {
+    wrapper.className = 'comments-modal comments-modal--in-card';
+    wrapper.appendChild(commentsCloseButton());
+    wrapper.appendChild(section);
+    wrapper.addEventListener('click', (e) => e.stopPropagation());
+    wrapper.addEventListener('pointerdown', (e) => e.stopPropagation());
+    sheet.appendChild(wrapper);
+  } else {
+    // Fullscreen wrapper above the post popup: the wrapper's own z-index (5000)
+    // beats .maplibregl-popup's z-index:1000!important, so the modal stacks on
+    // top even though the card itself reuses the popup classes
+    wrapper.className = 'comments-modal';
+    wrapper.style.cssText = 'position: fixed; inset: 0; z-index: 5000;';
+
+    const scrim = document.createElement('div');
+    scrim.style.cssText = 'position: absolute; inset: 0; background: rgba(0, 0, 0, 0.72);';
+    scrim.onclick = closeCommentsModal;
+    scrim.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
+    wrapper.appendChild(scrim);
+
+    // Card reuses the popup classes. It grows with the comments, then
+    // popupanim shrinks the whole card so it stays inside the screen.
+    const card = document.createElement('div');
+    card.className = 'maplibregl-popup';
+    const cardContent = document.createElement('div');
+    cardContent.className = 'maplibregl-popup-content';
+    cardContent.appendChild(commentsCloseButton());
+    cardContent.appendChild(section);
+    card.appendChild(cardContent);
+    wrapper.appendChild(card);
+    document.body.appendChild(wrapper);
+  }
 
   commentsModal = wrapper;
   commentsModalSection = section;
@@ -3319,6 +3339,49 @@ function openCommentsModal(sectionId) {
 
   const input = section.querySelector('textarea');
   if (input) setTimeout(() => input.focus(), 100);
+}
+
+function retargetCommentsModal() {
+  const section = commentsModalSection;
+  if (!section || !commentsModal) return;
+  const home = section._homeParent;
+  if (!home || !home.isConnected) {
+    closeCommentsModal();
+    return;
+  }
+  const wantInCard = !!(landscapeMQ.matches && home.closest('.maplibregl-map'));
+  const isInCard = commentsModal.classList.contains('comments-modal--in-card');
+  if (wantInCard === isInCard) return;
+  const saves = section._modalSaves;
+  const bubble = section._bubbleInput;
+  section.remove();
+  commentsModal.remove();
+  commentsModal = null;
+  section._homeParent = home;
+  section._modalSaves = saves;
+  section._bubbleInput = bubble;
+  showCommentsModal(section);
+}
+
+if (!landscapeCommentsBound) {
+  landscapeCommentsBound = true;
+  landscapeMQ.addEventListener('change', () => {
+    retargetCommentsModal();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !commentsModal) return;
+    if (document.getElementById('media-fullscreen')) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    closeCommentsModal();
+  }, true);
+}
+
+function openCommentsModal(sectionId) {
+  if (commentsModal) closeCommentsModal();
+  const section = document.getElementById(sectionId);
+  if (!section) return;
+  showCommentsModal(section);
 }
 
 window.openMarkerComments = function(timestamp, topicId) {

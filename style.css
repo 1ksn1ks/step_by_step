@@ -5047,8 +5047,9 @@ a.payer-link {
 
 /* Landscape only: the same topic popup keeps the portrait frame (toolbar
    line, full width, 0.5dvh bottom). The shell is clear so two sheet cards
-   show the map between them. Comments sit in the right card. Draw, settings,
-   and the comments modal are outside .maplibregl-map, so they stay one card. */
+   show the map between them. Comments stay hidden until 💬, then the same
+   comments view covers only the right card. Draw, settings, and a portrait
+   comments modal sit outside .maplibregl-map, so they stay one card. */
 @media (orientation: landscape) {
   .maplibregl-map .maplibregl-popup {
     top: var(--popup-top) !important;
@@ -5085,6 +5086,7 @@ a.payer-link {
   .maplibregl-map .maplibregl-popup-content > .popup-sheet {
     display: grid;
     isolation: isolate;
+    position: relative;
     grid-template-columns: minmax(0, 55fr) minmax(0, 45fr);
     grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
     column-gap: calc(var(--u) * 2.4);
@@ -5307,25 +5309,57 @@ a.payer-link {
     justify-self: end;
   }
 
-  .maplibregl-map .popup-sheet > .popup-comments {
+  /* Same comments view as portrait, sized to the right card. The sheet
+     isolates stacking, so this stays under the popup × on the content
+     and still covers the hearts and the gear. */
+  .maplibregl-map .comments-modal--in-card {
+    position: absolute;
+    grid-column: 2;
+    grid-row: 1 / -1;
+    inset: calc(var(--u) * -0.6);
+    z-index: 3;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: calc(var(--u) * 0.6);
+    border: calc(var(--u) * 0.3) solid var(--popup-border-color, #ffffff);
+    border-radius: calc(var(--u) * 2);
+    background-color: #0f0f14;
+    background-image: none;
+    overflow: hidden;
+    color: white;
+  }
+
+  .maplibregl-map .comments-modal--in-card > .maplibregl-popup-close-button {
+    top: calc(var(--u) * 1) !important;
+    right: calc(var(--u) * 4.7) !important;
+  }
+
+  .maplibregl-map .comments-modal--in-card > .popup-comments {
     display: flex !important;
     flex-direction: column;
-    grid-column: 2;
-    grid-row: 5;
+    flex: 1 1 auto;
     min-height: 0;
     min-width: 0;
     margin: 0 !important;
+    padding: calc(var(--u) * 4.6) 0 0 !important;
     overflow: hidden;
+    background: transparent !important;
+    border: none !important;
   }
 
-  .maplibregl-map .popup-sheet > .popup-comments > .comments-scroll {
+  .maplibregl-map .comments-modal--in-card > .popup-comments > .comments-scroll {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
+    touch-action: pan-y;
   }
 
-  .maplibregl-map .popup-sheet > .popup-comments > :not(.comments-scroll) {
+  .maplibregl-map .comments-modal--in-card > .popup-comments > :not(.comments-scroll) {
     flex: 0 0 auto;
   }
 }
