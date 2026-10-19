@@ -5036,9 +5036,9 @@ a.payer-link {
 }
 
 /* Landscape only: the same topic popup keeps the portrait frame (toolbar
-   line, full width, 0.5dvh bottom) and lays the picture on the left and
-   the profile column on the right. Draw, settings, and the comments modal
-   are outside .maplibregl-map, so they stay on that frame. */
+   line, full width, 0.5dvh bottom). The shell is clear so two sheet cards
+   show the map between them. Comments sit in the right card. Draw, settings,
+   and the comments modal are outside .maplibregl-map, so they stay one card. */
 @media (orientation: landscape) {
   .maplibregl-map .maplibregl-popup {
     top: var(--popup-top) !important;
@@ -5056,6 +5056,10 @@ a.payer-link {
     --fit: 1;
     --card: var(--popup-card);
     --u: clamp(0.9dvh, min(calc(var(--popup-h) * 0.017), calc(var(--popup-w) * 0.0106)), 1.6dvh);
+    border-width: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    clip-path: none !important;
   }
 
   .maplibregl-map .maplibregl-popup-content {
@@ -5065,19 +5069,45 @@ a.payer-link {
     min-height: 0;
     flex: 1 1 auto;
     line-height: 1.35;
+    padding: calc(var(--u) * 0.6) !important;
   }
 
   .maplibregl-map .maplibregl-popup-content > .popup-sheet {
     display: grid;
+    isolation: isolate;
     grid-template-columns: minmax(0, 55fr) minmax(0, 45fr);
-    grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
-    column-gap: calc(var(--u) * 1.2);
+    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
+    column-gap: calc(var(--u) * 2.4);
     row-gap: calc(var(--u) * 0.8);
     flex: 1 1 auto;
     height: 100%;
     min-height: 0;
     max-height: 100%;
     overflow: visible;
+  }
+
+  .maplibregl-map .popup-sheet::before,
+  .maplibregl-map .popup-sheet::after {
+    content: '';
+    z-index: -1;
+    margin: calc(var(--u) * -0.6);
+    align-self: stretch;
+    justify-self: stretch;
+    box-sizing: border-box;
+    border: calc(var(--u) * 0.3) solid var(--popup-border-color, #ffffff);
+    border-radius: calc(var(--u) * 2);
+    background-color: rgba(15, 15, 20, 0.90);
+    pointer-events: none;
+  }
+
+  .maplibregl-map .popup-sheet::before {
+    grid-column: 1;
+    grid-row: 1 / -1;
+  }
+
+  .maplibregl-map .popup-sheet::after {
+    grid-column: 2;
+    grid-row: 1 / -1;
   }
 
   .maplibregl-map .popup-body {
@@ -5089,7 +5119,7 @@ a.payer-link {
   }
 
   .maplibregl-map .popup-top-row {
-    grid-column: 1 / -1;
+    grid-column: 2;
     grid-row: 1;
     min-width: 0;
   }
@@ -5097,7 +5127,7 @@ a.payer-link {
   .maplibregl-map .popup-media-card,
   .maplibregl-map .popup-media-card:has(video) {
     grid-column: 1;
-    grid-row: 2 / -1;
+    grid-row: 1 / -1;
     box-sizing: border-box;
     width: 100%;
     height: 100%;
@@ -5148,6 +5178,7 @@ a.payer-link {
     min-width: 0;
     min-height: 0;
     align-self: stretch;
+    max-height: clamp(calc(var(--u) * 6), 22dvh, calc(var(--u) * 18));
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -5155,11 +5186,17 @@ a.payer-link {
 
   .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-body > div:not(.popup-media-card) {
     grid-column: 1;
-    grid-row: 2 / -1;
-    align-self: center;
-    justify-self: center;
+    grid-row: 1 / -1;
+    align-self: start;
+    justify-self: stretch;
+    width: 100%;
     max-height: 100%;
     overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-text-bubble {
+    width: 100%;
   }
 
   .maplibregl-map .popup-text-bubble {
@@ -5179,16 +5216,88 @@ a.payer-link {
   }
 
   .maplibregl-map .popup-sheet > .popup-dock:not(:has(.popup-top-topic)) {
-    grid-row: 5;
+    grid-row: 6;
   }
 
   .maplibregl-map .popup-sheet > .popup-dock:has(.popup-top-topic) {
-    grid-row: 6;
+    grid-row: 7;
   }
 
   .maplibregl-map .popup-dock .popup-top-topic {
     flex: 1 1 auto;
     min-width: 0;
+  }
+
+  .maplibregl-map .popup-sheet > .popup-comments {
+    display: flex !important;
+    flex-direction: column;
+    grid-column: 2;
+    grid-row: 5;
+    min-height: 0;
+    min-width: 0;
+    margin: 0 !important;
+    overflow: hidden;
+  }
+
+  .maplibregl-map .popup-sheet > .popup-comments > .comments-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .maplibregl-map .popup-sheet > .popup-comments > :not(.comments-scroll) {
+    flex: 0 0 auto;
+  }
+
+  .maplibregl-map .maplibregl-popup.early-holder-popup {
+    background-image: none !important;
+    animation: none;
+  }
+
+  .maplibregl-map .maplibregl-popup.early-holder-popup::before {
+    display: none;
+  }
+
+  .maplibregl-map .maplibregl-popup.early-holder-popup > .maplibregl-popup-content {
+    overflow: visible !important;
+  }
+
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::before,
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::after {
+    border-color: transparent;
+    background-color: transparent;
+    background-image:
+      linear-gradient(rgba(12, 12, 18, 0.94), rgba(12, 12, 18, 0.94)),
+      conic-gradient(from var(--eh-angle), #f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    animation: early-hashinal-angle 4s linear infinite;
+  }
+
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::before,
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::after {
+    content: '';
+    grid-row: 1 / -1;
+    margin: calc(var(--u) * -0.6);
+    align-self: stretch;
+    justify-self: stretch;
+    border-radius: calc(var(--u) * 2);
+    z-index: -2;
+    pointer-events: none;
+    box-shadow:
+      0 0 1.4dvh rgba(246, 226, 122, 0.55),
+      0 0 3dvh rgba(255, 74, 214, 0.32);
+    opacity: 0.7;
+    animation: early-holder-glow 2.6s ease-in-out infinite;
+  }
+
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::before {
+    grid-column: 1;
+  }
+
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::after {
+    grid-column: 2;
   }
 }
 /* Tap-to-fullscreen media overlay (fullscreenmedia.js) — gallery view:
@@ -6038,7 +6147,11 @@ a.payer-link {
   .marker-title-tip.early::before,
   .marker-title-tip.early > .marker-tip-spin::before,
   .popup-profile-bubble.early::before,
-  .popup-profile-bubble.early > .popup-early-spin::before {
+  .popup-profile-bubble.early > .popup-early-spin::before,
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::before,
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::after,
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::before,
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::after {
     animation-duration: 8s;
   }
 }

@@ -206,6 +206,7 @@ export function applyAllStyles() {
       const popupContents = document.querySelectorAll('.maplibregl-popup');
       popupContents.forEach(popup => {
           popup.style.borderColor = color;
+          popup.style.setProperty('--popup-border-color', color);
       });
     }
     document.getElementById('color-picker-popup-border').addEventListener('input', (event) => {updatePopupBorder();});

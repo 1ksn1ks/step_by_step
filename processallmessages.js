@@ -1536,11 +1536,22 @@ function popupHTML(record) {
     : createMarkerPopupHTML(record);
 }
 
+const landscapeMQ = window.matchMedia('(orientation: landscape)');
+let landscapeCommentsBound = false;
+
+function isInlineComments(section) {
+  return !!(landscapeMQ.matches && section && section.closest('.maplibregl-map'));
+}
+
 function commentsAreOpen(node) {
   if (!node || !node.querySelectorAll) return false;
   const sections = node.querySelectorAll('[id^="marker-comments-"], [id^="polygon-comments-"]');
   for (const section of sections) {
     if (section.style.display !== 'none') return true;
+    if (!isInlineComments(section)) continue;
+    if (section.contains(document.activeElement)) return true;
+    const textarea = section.querySelector('textarea');
+    if (textarea && textarea.value) return true;
   }
   return false;
 }
@@ -2909,6 +2920,7 @@ const countAllMessages = (nodes) => nodes.reduce((sum, n) => sum + 1 + (n.replie
 function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
   const section = document.createElement('div');
   section.id = id;
+  section.classList.add('popup-comments');
   section.style.cssText = 'display: none; margin-top: calc(var(--u) * 1); padding: calc(var(--u) * 1); border-radius: calc(var(--u) * 1.2); background: rgba(255, 255, 255, 0.10); border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.15); text-align: left;';
 
   const list = document.createElement('div');
@@ -3172,6 +3184,13 @@ let commentsModal = null;      // fullscreen wrapper (scrim + card)
 let commentsModalSection = null; // the comments section currently inside it
 
 function toggleCommentsBubble(open, sectionId) {
+  const section = document.getElementById(sectionId);
+  if (open && isInlineComments(section)) {
+    section.scrollIntoView({ block: 'nearest' });
+    const textarea = section.querySelector('textarea');
+    if (textarea) textarea.focus({ preventScroll: true });
+    return false;
+  }
   if (open) {
     openCommentsModal(sectionId);
     if (!(commentsModalSection && commentsModalSection.id === sectionId)) return false;
@@ -3216,6 +3235,17 @@ function closeCommentsModal() {
   } finally {
     commentsClosing = false;
   }
+}
+
+if (!landscapeCommentsBound) {
+  landscapeCommentsBound = true;
+  landscapeMQ.addEventListener('change', () => {
+    if (!landscapeMQ.matches || !commentsModalSection) return;
+    const home = commentsModalSection._homeParent;
+    if (home && typeof home.closest === 'function' && home.closest('.maplibregl-map')) {
+      closeCommentsModal();
+    }
+  });
 }
 
 function openCommentsModal(sectionId) {
