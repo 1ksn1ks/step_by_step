@@ -314,7 +314,18 @@ searchClearBtn.addEventListener('click', () => {
 
 // "45.81, 15.98" or "45.81 15.98" is lat, lng. If the first value only
 // fits as a longitude, the pair is read the other way round.
+// The 📋 copy button (map.js) writes "lng,lat" with 5 decimals and no
+// space, e.g. "15.98000,45.81000". That exact shape is read lng first.
+const COPIED_COORDS = /^(-?\d+\.\d{5}),(-?\d+\.\d{5})$/;
+
 function parseCoords(text) {
+  const copied = String(text).trim().match(COPIED_COORDS);
+  if (copied) {
+    const lng = Number(copied[1]);
+    const lat = Number(copied[2]);
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return { lat, lng };
+  }
   const m = String(text).trim().match(/^(-?\d+(?:\.\d+)?)\s*(?:,\s*|\s+)(-?\d+(?:\.\d+)?)$/);
   if (!m) return null;
   let lat = Number(m[1]);
@@ -324,11 +335,7 @@ function parseCoords(text) {
   return { lat, lng };
 }
 
-searchInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    const point = parseCoords(searchInput.value);
-    if (!point) return;
-    e.preventDefault();
+function flyToCoords(point) {
     clearTimeout(debounceTimer);
     closeResults();
     searchInput.blur();
@@ -337,6 +344,26 @@ searchInput.addEventListener('keydown', (e) => {
     activeMarkerPopups.forEach((popup) => popup.remove());
     // Same camera move as opening a marker link.
     animateMapTo(map, [point.lng, point.lat], MARKER_ZOOM);
+}
+
+// Pasting coordinates flies at once, the same as Enter.
+searchInput.addEventListener('paste', (e) => {
+  const text = (e.clipboardData || window.clipboardData)?.getData('text') || '';
+  const point = parseCoords(text);
+  if (!point) return;
+  e.preventDefault();
+  searchInput.value = text.trim();
+  searchInput.size = Math.max(searchInput.value.length + 1, 20);
+  searchClearBtn.style.display = 'flex';
+  flyToCoords(point);
+});
+
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const point = parseCoords(searchInput.value);
+    if (!point) return;
+    e.preventDefault();
+    flyToCoords(point);
     return;
   }
   if (e.key === 'Escape') {
