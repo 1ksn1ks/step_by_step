@@ -55,7 +55,7 @@ const isHex = (value) => /^#[0-9a-f]{6}$/i.test(value);
 function readControls() {
     return {
         font: Math.min(parseFloat(els.font.value) || 1.5, 10),
-        height: Math.min(parseFloat(els.height.value) || 3, 100),
+        height: Math.min(Math.max(parseFloat(els.height.value) || 5, 1), 10),
         width: Math.min(parseFloat(els.width.value) || 25, 100),
         ...colorState,
     };
@@ -204,6 +204,7 @@ export async function loadButtonInputSettings(a) {
              ButtonBorderColor, ButtonFontColor,
               OnhoverButtonColor, FontForButtonInput,
                ButtonInputHeight, ButtonInputWidth } = lastMessage.data;
+          const shownHeight = Math.min(Math.max(parseFloat(ButtonInputHeight) || 5, 1), 10);
 
           accountObjectSettings.push({
               InputBorderColor,
@@ -212,13 +213,13 @@ export async function loadButtonInputSettings(a) {
               ButtonFontColor,
               OnhoverButtonColor,
               FontForButtonInput,
-              ButtonInputHeight,
+              ButtonInputHeight: shownHeight,
               ButtonInputWidth,
           });
 
           syncControls({
               font: FontForButtonInput,
-              height: ButtonInputHeight,
+              height: shownHeight,
               width: ButtonInputWidth,
               inputBorder: InputBorderColor,
               inputFont: InputFontColor,
