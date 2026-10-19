@@ -4,6 +4,22 @@
 
 import { usernames } from './loadalladata.js';
 import { globalLoadedTopicIdsWithNames } from './letall.js';
+import { earlyHashinalNumber } from './earlyhashinal.js';
+
+// Early Hashinal holders get the locked popup theme (style.css
+// .early-holder-popup), not the viewer's popup colour pickers.
+const HASHINAL_TIP_COLORS = Object.freeze({
+  title: '#ffffff',
+  name: '#f6e27a',
+  id: '#e9d5ff',
+});
+
+function bubble(node) {
+  const wrap = document.createElement('div');
+  wrap.className = 'map-tip-bubble';
+  wrap.appendChild(node);
+  return wrap;
+}
 
 function text(value) {
   return String(value == null ? '' : value).replace(/\r\n/g, '\n').replace(/\n/g, ' ').trim();
@@ -76,19 +92,20 @@ export function fillMapTip(tip, source) {
   const card = readCard(source);
   tip.replaceChildren();
   if (!card) return false;
+  const hashinal = !!(card.payer && earlyHashinalNumber(card.payer));
   if (card.title) {
     const title = document.createElement('div');
     title.className = 'map-tip-title';
     title.textContent = card.title;
-    title.style.color = pickerColor('color-picker-popup-titles', '#ffffff');
-    tip.appendChild(title);
+    title.style.color = hashinal ? HASHINAL_TIP_COLORS.title : pickerColor('color-picker-popup-titles', '#ffffff');
+    tip.appendChild(bubble(title));
   }
-  const payerRow = line('By', card.username, card.payer, {
+  const payerRow = line('By', card.username, card.payer, hashinal ? HASHINAL_TIP_COLORS : {
     name: pickerColor('color-picker-popup-username', '#ffffff'),
     id: pickerColor('color-picker-popup-accid', '#ffffff'),
   });
-  if (payerRow) tip.appendChild(payerRow);
+  if (payerRow) tip.appendChild(bubble(payerRow));
   const topicRow = line('On', card.topicName, card.topicId);
-  if (topicRow) tip.appendChild(topicRow);
+  if (topicRow) tip.appendChild(bubble(topicRow));
   return tip.childElementCount > 0;
 }
