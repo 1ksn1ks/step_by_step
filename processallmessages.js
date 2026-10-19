@@ -413,17 +413,165 @@ function walkTarget(value) {
   return value;
 }
 
+const PREVIEW_PROFILE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23222833'/%3E%3Ccircle cx='32' cy='26' r='10' fill='%23c5cad6'/%3E%3Cellipse cx='32' cy='54' rx='16' ry='12' fill='%23c5cad6'/%3E%3C/svg%3E";
+
+function settingsUnit(card) {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;left:0;top:0;width:var(--u);height:0;padding:0;border:0;visibility:hidden;pointer-events:none;';
+  card.appendChild(probe);
+  const u = probe.getBoundingClientRect().width;
+  probe.remove();
+  return u || 0;
+}
+
+function showPreviewFollowZero(root) {
+  root.querySelectorAll('.topic-follow').forEach((box) => {
+    box._refreshFollow = () => {};
+    const count = box.querySelector('.topic-follow-count');
+    if (!count) return;
+    count.classList.remove('is-loading');
+    count.setAttribute('aria-label', '0 followers');
+    const value = count.querySelector('.topic-follow-num-value');
+    if (value) value.textContent = '0';
+  });
+}
+
+function dropPreviewPager(sheet) {
+  for (const entry of popupPagers) {
+    if (entry.container === sheet) popupPagers.delete(entry);
+  }
+}
+
+// The follow chip reads /api/user-follow on the next microtask, then once
+// more if that read fails. Answer both with a miss so the sample never
+// stores a count and never hits the network. The chip stays at 0.
+function blockPreviewFollowFetch(run) {
+  const native = window.fetch;
+  const wrapped = (input, init) => {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (String(url).indexOf('/api/user-follow') !== -1) {
+      return Promise.resolve(new Response('', { status: 404 }));
+    }
+    return native.call(window, input, init);
+  };
+  window.fetch = wrapped;
+  try {
+    return run();
+  } finally {
+    setTimeout(() => {
+      if (window.fetch === wrapped) window.fetch = native;
+      const slot = document.getElementById('popup-settings-preview');
+      const sheet = slot && slot.querySelector('.popup-sheet');
+      if (sheet) showPreviewFollowZero(sheet);
+    }, 0);
+  }
+}
+
+function ensurePopupPreview(slot) {
+  if (slot.querySelector(':scope > .maplibregl-popup')) return;
+  const account = '0.0.9779355';
+  const record = {
+    markernumber: 1,
+    topicId: '0.0.9609912',
+    loadedTopicName: 'Freedom',
+    profileUrl: PREVIEW_PROFILE,
+    payer: account,
+    payerInfo: account,
+    username: 'username',
+    title: 'message title',
+    msg: 'message text',
+    timestamp: '10/10/2026, 21:35',
+    likeCountMarker: 0,
+    likedByMe: false,
+    comments: [],
+    commentsCount: 0,
+    shareCount: 0,
+    sharedByMe: false,
+  };
+  const sheet = blockPreviewFollowFetch(() => markerPopupNode(
+    { popupData: record },
+    { payer: account, msgNumber: 1, topicId: record.topicId }
+  ));
+  if (!sheet) return;
+  dropPreviewPager(sheet);
+  showPreviewFollowZero(sheet);
+  const popup = document.createElement('div');
+  popup.className = 'maplibregl-popup';
+  popup.style.pointerEvents = 'none';
+  const content = document.createElement('div');
+  content.className = 'maplibregl-popup-content';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'maplibregl-popup-close-button';
+  close.tabIndex = -1;
+  close.setAttribute('aria-hidden', 'true');
+  close.textContent = '\u00d7';
+  content.append(close, sheet);
+  popup.appendChild(content);
+  slot.appendChild(popup);
+  applyAllStyles();
+}
+
+// The sample is a full portrait popup. Scale it uniformly into the slot.
+// Landscape already sits 0.1u inside the left card's side and bottom
+// borders, so the tight axis uses the slot itself. Portrait grows the
+// slot so the same 0.1u remains on every side.
+function fitPopupPreview(retry) {
+  const slot = document.getElementById('popup-settings-preview');
+  const popup = slot && slot.querySelector(':scope > .maplibregl-popup');
+  const card = document.getElementById('popup-settings-card');
+  if (!slot || !popup || !card || slot.style.display === 'none') return;
+  // The portrait frame is short on a landscape screen, so the hearts
+  // would sit past the bottom. Grow the frame until they fit, then scale.
+  popup.style.removeProperty('height');
+  const content = popup.querySelector('.maplibregl-popup-content');
+  const extra = content ? content.scrollHeight - content.clientHeight : 0;
+  if (extra > 1) popup.style.setProperty('height', (popup.offsetHeight + extra) + 'px', 'important');
+  const naturalW = popup.offsetWidth;
+  const naturalH = popup.offsetHeight;
+  if (!naturalW || !naturalH) {
+    if (!retry) requestAnimationFrame(() => fitPopupPreview(true));
+    return;
+  }
+  const u = settingsUnit(card);
+  const landscape = landscapeMQ.matches;
+  let availW;
+  let availH;
+  let shift = 0;
+  if (landscape) {
+    slot.style.height = '';
+    availW = slot.clientWidth;
+    availH = slot.clientHeight + u * 0.1;
+    shift = -u * 0.05;
+  } else {
+    const inset = u * 0.1;
+    availW = Math.max(0, slot.clientWidth - inset * 2);
+    const scaleW = naturalW ? availW / naturalW : 0;
+    slot.style.height = (naturalH * scaleW + inset * 2) + 'px';
+    availH = Math.max(0, slot.clientHeight - inset * 2);
+  }
+  const scale = Math.min(
+    naturalW ? availW / naturalW : 0,
+    naturalH ? availH / naturalH : 0
+  );
+  popup.style.setProperty('--preview-scale', String(Math.max(0, scale)));
+  popup.style.setProperty('--preview-shift', shift + 'px');
+  popup.style.visibility = 'visible';
+}
+
 function setPopupPreview(open) {
   const preview = document.getElementById('popup-settings-preview');
   const toggle = document.getElementById('popup-settings-preview-toggle');
   const colors = document.getElementById('popup-column-2');
   const pickers = document.getElementById('popup-column-container-3');
+  if (open && preview) ensurePopupPreview(preview);
   if (preview) preview.style.display = open ? 'flex' : 'none';
   if (toggle) toggle.textContent = open ? 'Hide preview' : 'Preview';
   // Border, Close, Font, and the other color buttons, plus Save popup,
   // only belong next to the sample. They stay hidden until Preview is open.
   if (colors) colors.style.display = open ? 'block' : 'none';
   if (pickers) pickers.style.display = open ? 'block' : 'none';
+  if (open) requestAnimationFrame(() => fitPopupPreview());
 }
 
 function paintPagerModes() {
@@ -1590,6 +1738,11 @@ function syncPopupSettingsOrientation() {
 if (!popupSettingsOrientationBound) {
   popupSettingsOrientationBound = true;
   landscapeMQ.addEventListener('change', syncPopupSettingsOrientation);
+  window.addEventListener('resize', () => {
+    const preview = document.getElementById('popup-settings-preview');
+    if (!preview || preview.style.display === 'none') return;
+    fitPopupPreview();
+  });
   placePopupSettingsPreview();
 }
 

@@ -141,7 +141,7 @@ export async function loadProfilePopup(a) {
 
 function payerOf(popup) {
     if (!popup) return "";
-    if (popup.id === "popup-settings-preview") return styleAccount;
+    if (popup.id === "popup-settings-preview" || (popup.closest && popup.closest("#popup-settings-preview"))) return styleAccount;
     const sheet = popup.querySelector(".popup-sheet");
     const id = sheet && sheet.dataset ? sheet.dataset.popupPayer : "";
     return typeof id === "string" ? id : "";

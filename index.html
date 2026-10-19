@@ -1999,55 +1999,8 @@
         </div>
       </div>
 
-      <!-- Dummy popup: same classes as the real one, so every picker change
-           shows up here instantly while the real popup stays hidden.
-           It stays behind the Preview button until that button is pressed. -->
-      <div id="popup-settings-preview" class="maplibregl-popup" style="display: none;">
-        <div class="maplibregl-popup-content">
-          <div class="popup-sheet">
-          <div class="popup-profile-bubble">
-            <img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23222833'/%3E%3Ccircle cx='32' cy='26' r='10' fill='%23c5cad6'/%3E%3Cellipse cx='32' cy='54' rx='16' ry='12' fill='%23c5cad6'/%3E%3C/svg%3E" style="width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);">
-            <div>
-              <h2>
-                <a class="payer-info" style="text-decoration: none;">0.0.9779355</a><br>
-                <a class="username" style="text-decoration: none;">username</a>
-              </h2>
-            </div>
-          </div>
-          <div class="popup-nav">
-            <span class="popup-icon-chip">←</span>
-            <div style="text-align: center; flex-grow: 1;">
-              <strong class="title_color popup-title-bubble">message title</strong>
-            </div>
-            <span class="popup-icon-chip">→</span>
-          </div>
-          <div class="popup-body" style="text-align: center;">
-            <p class="text_color popup-text-bubble">message text</p>
-          </div>
-          <div class="popup-gap"></div>
-          <div class="popup-dock" style="position: relative; height: calc(var(--u) * 6.2); line-height: 1; margin-top: calc(var(--u) * 0.4);">
-            <div style="position: absolute; top: calc(var(--u) * 0.15); left: 50%; transform: translateX(-50%); display: flex; align-items: flex-start; gap: calc(var(--u) * 0.5);">
-              <div class="heart-like">
-                <input type="checkbox" id="preview-heart-like" disabled>
-                <label for="preview-heart-like" data-count="0" data-next="1"><span></span></label>
-              </div>
-              <div class="heart-like comment-bubble">
-                <input type="checkbox" id="preview-comment-bubble" disabled>
-                <label for="preview-comment-bubble" data-count="0" data-next="0"><span></span></label>
-              </div>
-              <div class="heart-like share-bubble">
-                <input type="checkbox" id="preview-share-bubble" disabled>
-                <label for="preview-share-bubble" data-count="0" data-next="1"><span></span></label>
-              </div>
-            </div>
-          </div>
-          <div class="popup-dock" style="position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: 0; margin-left: calc(var(--u) * -0.5); margin-right: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);">
-            <span class="popup-top-topic" style="max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis;">0.0.9609912 Freedom</span>
-            <span class="popup-timestamp" style="margin-left: auto; flex-shrink: 0;">10/10/2026, 21:35</span>
-          </div>
-          </div>
-        </div>
-      </div>
+      <!-- Filled on the first Preview open with one real portrait popup. -->
+      <div id="popup-settings-preview" style="display: none;"></div>
       <div id="popup-column-2" style="display: none; width: 100%;">
         <div id="popup-column-container-2" onclick="event.stopPropagation();">
           <div style="top:10vh">

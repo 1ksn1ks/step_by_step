@@ -1857,8 +1857,8 @@ html, body {
     right: var(--popup-right) !important;
     bottom: var(--popup-bottom) !important;
     transform: none !important;
-    /* Not !important: the settings sample uses this class and hides
-       with an inline display until Preview is pressed. */
+    /* Not !important: an inline display:none can hide a popup.
+       The settings sample copies this class and scales inside its slot. */
     display: flex;
     flex-direction: column !important;
 
@@ -1910,7 +1910,7 @@ html, body {
     overscroll-behavior: contain;
     box-sizing: border-box !important;
     touch-action: pan-y;
-    /* Same frame as a map popup. The dummy inside still sizes from 100cqi. */
+    /* Same frame as a map popup. The sample keeps the portrait --u and is scaled to fit. */
     --card: var(--popup-card);
     --fit: 1;
     --u: calc(var(--card) * 0.024 * var(--fit));
@@ -5867,6 +5867,10 @@ a.payer-link {
 
 /* ---- Preview-open state: color chips, picker row, Save popup ---- */
 #popup-settings-card #popup-settings-preview {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  overflow: hidden;
   margin-top: 1.6vh;
   margin-top: 1.6dvh;
 }
@@ -6181,8 +6185,7 @@ a.payer-link {
     min-width: 0;
     min-height: 0;
     margin: 0 !important;
-    overflow-x: hidden !important;
-    overflow-y: auto !important;
+    overflow: visible !important;
     overscroll-behavior: contain;
     border-width: 0 !important;
     border-radius: 0 !important;
@@ -6192,30 +6195,15 @@ a.payer-link {
     box-shadow: none !important;
     clip-path: none !important;
     animation: none !important;
-    container-type: inline-size;
     z-index: auto !important;
-    /* Block, not flex: a tall sample grows the scroll height. Inline flex would lock it. */
+    /* Block, not flex: the scaled portrait popup is taken out of flow. */
     display: block !important;
-    /* The scrollport can move. The sample inside stays pointer-events: none. */
     pointer-events: auto !important;
     scrollbar-width: none;
   }
 
   #popup-settings-card #popup-settings-preview * {
     pointer-events: none !important;
-  }
-
-  #popup-settings-card #popup-settings-preview .maplibregl-popup-content,
-  #popup-settings-card #popup-settings-preview .popup-sheet {
-    --fit: 1;
-    --u: calc(100cqi * 0.024 * var(--fit));
-    height: auto !important;
-    max-height: none !important;
-    min-height: 0;
-    overflow: visible !important;
-    flex: none !important;
-    background: none !important;
-    background-image: none !important;
   }
 
   #popup-settings-card #popup-settings-tools .toolbar-column-btns,
@@ -6226,6 +6214,65 @@ a.payer-link {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+}
+
+/* Settings sample: a real portrait popup, scaled to the slot. It stays
+   outside .maplibregl-map, so the landscape two-card post rules miss it.
+   --u is the portrait one (2.4% of the popup width), not the card's 100cqi. */
+#popup-settings-card #popup-settings-preview > .maplibregl-popup {
+  position: absolute !important;
+  top: calc(50% + var(--preview-shift, 0px)) !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: var(--popup-card) !important;
+  height: var(--popup-max-h) !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  --card: var(--popup-card);
+  --fit: 1;
+  --u: calc(var(--card) * 0.024 * var(--fit));
+  transform: translate(-50%, -50%) scale(var(--preview-scale, 0.01)) !important;
+  transform-origin: center center;
+  visibility: hidden;
+  z-index: auto !important;
+  pointer-events: none !important;
+}
+#popup-settings-card #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  --card: var(--popup-card);
+  --fit: 1;
+  --u: calc(var(--card) * 0.024 * var(--fit));
+}
+#popup-settings-card #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content > .popup-sheet {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  --card: var(--popup-card);
+  --fit: 1;
+  --u: calc(var(--card) * 0.024 * var(--fit));
+}
+#popup-settings-card #popup-settings-preview > .maplibregl-popup .popup-body {
+  flex: 0 1 auto !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+#popup-settings-card #popup-settings-preview > .maplibregl-popup .popup-gap {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
 }
 
 /* ===== Following suggestions ===== */
