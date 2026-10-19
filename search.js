@@ -5,10 +5,10 @@ import { activePolygonPopups } from './polygons.js';
 import { showSearchPin, closeDrawAnchor } from './drawhere.js';
 import { fetchLocalMarkers } from './msgbackend.js';
 import { showLocalMarkers } from './localnews.js';
-import { cancelAnimateMapTo } from './animatemapto.js';
+import { cancelAnimateMapTo, animateMapTo } from './animatemapto.js';
 import { geojson, polygons } from './letall.js';
 import { hashtagQuery, hashtagsIn } from './hashtag.js';
-import { openLinkedPlace } from './openplace.js';
+import { openLinkedPlace, MARKER_ZOOM } from './openplace.js';
 import { ringCenter } from './polygonframe.js';
 
 const searchInput = document.getElementById('search-input');
@@ -312,7 +312,33 @@ searchClearBtn.addEventListener('click', () => {
   searchInput.focus();
 });
 
+// "45.81, 15.98" or "45.81 15.98" is lat, lng. If the first value only
+// fits as a longitude, the pair is read the other way round.
+function parseCoords(text) {
+  const m = String(text).trim().match(/^(-?\d+(?:\.\d+)?)\s*(?:,\s*|\s+)(-?\d+(?:\.\d+)?)$/);
+  if (!m) return null;
+  let lat = Number(m[1]);
+  let lng = Number(m[2]);
+  if (Math.abs(lat) > 90 && Math.abs(lat) <= 180 && Math.abs(lng) <= 90) [lat, lng] = [lng, lat];
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng };
+}
+
 searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const point = parseCoords(searchInput.value);
+    if (!point) return;
+    e.preventDefault();
+    clearTimeout(debounceTimer);
+    closeResults();
+    searchInput.blur();
+    showSearchPin(point);
+    activePolygonPopups.forEach((popup) => popup.remove());
+    activeMarkerPopups.forEach((popup) => popup.remove());
+    // Same camera move as opening a marker link.
+    animateMapTo(map, [point.lng, point.lat], MARKER_ZOOM);
+    return;
+  }
   if (e.key === 'Escape') {
     closeResults();
     searchInput.blur();

@@ -63,7 +63,7 @@ function findPolygon(place) {
 
 // A marker is a point, so it keeps one close zoom. Polygon zoom lives in
 // polygonframe.js and is shared with the popup number.
-const MARKER_ZOOM = 18;
+export const MARKER_ZOOM = 18;
 
 function hideModel() {
   if (currentUfoModelInGLTF) {
