@@ -5035,27 +5035,26 @@ a.payer-link {
   .popup-media-expand:active { transform: scale(0.94); }
 }
 
-/* Landscape only: the same topic popup becomes a centred card with the
-   picture on the left and the profile column on the right. Portrait keeps
-   the full-bleed frame above. Draw, settings, and the comments modal are
-   outside .maplibregl-map, so they stay on that frame. */
+/* Landscape only: the same topic popup keeps the portrait frame (toolbar
+   line, full width, 0.5dvh bottom) and lays the picture on the left and
+   the profile column on the right. Draw, settings, and the comments modal
+   are outside .maplibregl-map, so they stay on that frame. */
 @media (orientation: landscape) {
   .maplibregl-map .maplibregl-popup {
-    top: 50% !important;
-    left: 50% !important;
-    right: auto !important;
-    bottom: auto !important;
-    transform: translate(-50%, -50%) !important;
-    --popup-h: clamp(60dvh, 82dvh, 90dvh);
-    --popup-w: min(92dvw, calc(var(--popup-h) * 1.6));
-    width: var(--popup-w) !important;
-    max-width: var(--popup-w) !important;
-    height: var(--popup-h) !important;
-    max-height: var(--popup-h) !important;
-    margin: 0 !important;
+    top: var(--popup-top) !important;
+    left: var(--popup-left) !important;
+    right: var(--popup-right) !important;
+    bottom: var(--popup-bottom) !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    --popup-h: calc(100dvh - var(--popup-top) - var(--popup-bottom));
+    --popup-w: var(--popup-card);
     container-type: size;
     --fit: 1;
-    --card: var(--popup-w);
+    --card: var(--popup-card);
     --u: clamp(0.9dvh, min(calc(var(--popup-h) * 0.017), calc(var(--popup-w) * 0.0106)), 1.6dvh);
   }
 
