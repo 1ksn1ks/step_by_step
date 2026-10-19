@@ -4,12 +4,14 @@ import { pathToFileURL } from "node:url";
 import {
   AccountId,
   PrivateKey,
+  Timestamp,
   TopicMessageSubmitTransaction,
   TransactionId,
 } from "@hashgraph/sdk";
 import { proto } from "@hiero-ledger/proto";
 import {
   CHUNK_TTL_MS,
+  DONE_KEY_LIMIT,
   HCS_CHUNK_SIZE,
   HCS_MAX_CHUNKS,
   HCS_MESSAGE_MAX_BYTES,
@@ -17,7 +19,7 @@ import {
   ingestMirrorRows,
   openWatermark,
 } from "../hcschunks.js";
-import { splitFrozenChunks } from "../hcssplit.js";
+import { freezeOneHcsChunk, splitFrozenChunks } from "../hcssplit.js";
 import {
   decryptMessage,
   encryptMessage,
@@ -196,13 +198,16 @@ function testMirrorFallbackJoin() {
   assert.equal(openWatermark(0, all, assembler.pendingSequences(TOPIC)), all[all.length - 1].sequence_number);
 }
 
-function chunkBodies(transaction) {
+function decodeBodies(transaction) {
   const list = proto.TransactionList.decode(transaction.toBytes()).transactionList || [];
   return list.map((item) => {
     const signed = proto.SignedTransaction.decode(item.signedTransactionBytes);
-    const body = proto.TransactionBody.decode(signed.bodyBytes);
-    return body.consensusSubmitMessage;
+    return proto.TransactionBody.decode(signed.bodyBytes);
   });
+}
+
+function chunkBodies(transaction) {
+  return decodeBodies(transaction).map((body) => body.consensusSubmitMessage);
 }
 
 function testSdkChunksStayLinked() {
@@ -219,6 +224,23 @@ function testSdkChunksStayLinked() {
   tx.setNodeAccountIds([new AccountId(3)]);
   tx.setTransactionId(TransactionId.generate("0.0.9779355"));
   tx.freeze();
+  const frozen = decodeBodies(tx);
+  assert.equal(frozen.length, chunks);
+  frozen.sort((a, b) => Number(a.consensusSubmitMessage.chunkInfo.number) - Number(b.consensusSubmitMessage.chunkInfo.number));
+  const firstId = JSON.stringify(frozen[0].transactionID);
+  const sharedSeconds = frozen[0].transactionID.transactionValidStart.seconds.toString();
+  assert.equal(firstId, JSON.stringify(frozen[0].consensusSubmitMessage.chunkInfo.initialTransactionID));
+  for (const body of frozen) {
+    assert.equal(body.transactionID.transactionValidStart.seconds.toString(), sharedSeconds);
+    assert.equal(JSON.stringify(body.consensusSubmitMessage.chunkInfo.initialTransactionID), firstId);
+  }
+  const nanosOf = (value) => value != null && typeof value.toNumber === "function"
+    ? value.toNumber()
+    : Number(value);
+  assert.equal(
+    nanosOf(frozen[1].transactionID.transactionValidStart.nanos),
+    nanosOf(frozen[0].transactionID.transactionValidStart.nanos) + 1,
+  );
   const parts = splitFrozenChunks(tx);
   assert.equal(parts.length, chunks);
   const bodies = parts.map((part) => {
@@ -238,6 +260,139 @@ function testSdkChunksStayLinked() {
   assert.equal(joined.toString("utf8"), text);
 }
 
+function oneChunk(text, tx, payer, seq) {
+  return {
+    chunk_info: {
+      initial_transaction_id: tx,
+      number: 1,
+      total: 1,
+      scheduled: false,
+    },
+    message: Buffer.from(text).toString("base64"),
+    payer_account_id: payer,
+    sequence_number: seq,
+    consensus_timestamp: "1.000000001",
+    topic_id: TOPIC,
+  };
+}
+
+function testPayerMustMatchInitialAccount() {
+  const text = JSON.stringify({ userMessage: "P".repeat(1500) });
+  const rows = mirrorChunks(text, {
+    tx: "0.0.9779355-1700000006-000000006",
+    payer: "0.0.9779355",
+  });
+  const assembler = createChunkAssembler();
+  const spoof = { ...rows[0], payer_account_id: "0.0.1" };
+  assert.equal(assembler.push(TOPIC, spoof), null);
+  assert.equal(assembler.push(TOPIC, rows[1]), null);
+  const ready = assembler.push(TOPIC, rows[0]);
+  assert.equal(joinedText(ready), text);
+  assert.equal(ready.payer_account_id, "0.0.9779355");
+
+  const objectRows = rows.map((row, index) => ({
+    ...row,
+    sequence_number: 400 + index,
+    payer_account_id: "0.0.5",
+    chunk_info: {
+      ...row.chunk_info,
+      initial_transaction_id: {
+        account_id: "0.0.5",
+        transaction_valid_start: "1700000007.000000001",
+      },
+    },
+  }));
+  const objects = createChunkAssembler();
+  assert.equal(objects.push(TOPIC, { ...objectRows[0], payer_account_id: "0.0.9" }), null);
+  assert.equal(objects.push(TOPIC, objectRows[1]), null);
+  const joined = objects.push(TOPIC, objectRows[0]);
+  assert.equal(joinedText(joined), text);
+  assert.equal(joined.payer_account_id, "0.0.5");
+
+  const atForm = createChunkAssembler();
+  const atRows = mirrorChunks(text, {
+    tx: "0.0.8@1700000008.000000001",
+    payer: "0.0.8",
+    startSeq: 500,
+  });
+  assert.equal(atForm.push(TOPIC, { ...atRows[0], payer_account_id: "0.0.1" }), null);
+  assert.equal(atForm.push(TOPIC, atRows[0]), null);
+  assert.equal(joinedText(atForm.push(TOPIC, atRows[1])), text);
+}
+
+function testDoneSetIsBounded() {
+  const assembler = createChunkAssembler();
+  const base = 1_000_000;
+  for (let i = 0; i < DONE_KEY_LIMIT + 1; i += 1) {
+    const ready = assembler.push(
+      TOPIC,
+      oneChunk("x", `0.0.5-${1700000000 + i}-1`, "0.0.5", i + 1),
+      base + i,
+    );
+    assert.ok(ready);
+  }
+  const oldest = oneChunk("x", "0.0.5-1700000000-1", "0.0.5", 1);
+  assert.ok(assembler.push(TOPIC, oldest, base + DONE_KEY_LIMIT + 1));
+  const newest = oneChunk("x", `0.0.5-${1700000000 + DONE_KEY_LIMIT}-1`, "0.0.5", DONE_KEY_LIMIT + 1);
+  assert.equal(assembler.push(TOPIC, newest, base + DONE_KEY_LIMIT + 2), null);
+
+  const ttl = createChunkAssembler();
+  const row = oneChunk("y", "0.0.5-1800000000-1", "0.0.5", 9);
+  assert.ok(ttl.push(TOPIC, row, 10));
+  assert.equal(ttl.push(TOPIC, row, 10 + CHUNK_TTL_MS - 1), null);
+  assert.ok(ttl.push(TOPIC, row, 10 + CHUNK_TTL_MS));
+}
+
+function testFreshValidStartPerChunk() {
+  const text = "m".repeat(1022) + "😀" + "n".repeat(1400);
+  const bytes = Buffer.byteLength(text);
+  assert.ok(bytes > HCS_CHUNK_SIZE);
+  const chunks = Math.ceil(bytes / HCS_CHUNK_SIZE);
+  const account = "0.0.9779355";
+  const ids = [];
+  for (let number = 1; number <= chunks; number += 1) {
+    ids.push(TransactionId.withValidStart(
+      AccountId.fromString(account),
+      new Timestamp(1_700_000_000 + (number - 1) * 300, 10),
+    ));
+  }
+  const node = new AccountId(3);
+  const parts = ids.map((transactionId, index) => freezeOneHcsChunk({
+    topicId: TOPIC,
+    message: text,
+    nodeAccountId: node,
+    transactionId,
+    initialTransactionId: ids[0],
+    number: index + 1,
+    total: chunks,
+    maxChunks: HCS_MAX_CHUNKS,
+    chunkSize: HCS_CHUNK_SIZE,
+  }));
+  const bodies = parts.map((part) => {
+    const decoded = decodeBodies(part);
+    assert.equal(decoded.length, 1);
+    return decoded[0];
+  });
+  const initial = JSON.stringify(bodies[0].transactionID);
+  assert.equal(initial, JSON.stringify(bodies[0].consensusSubmitMessage.chunkInfo.initialTransactionID));
+  for (let index = 0; index < bodies.length; index += 1) {
+    const body = bodies[index];
+    const submit = body.consensusSubmitMessage;
+    assert.equal(JSON.stringify(submit.chunkInfo.initialTransactionID), initial);
+    assert.equal(Number(submit.chunkInfo.number), index + 1);
+    assert.equal(Number(submit.chunkInfo.total), chunks);
+    assert.equal(
+      body.transactionID.transactionValidStart.seconds.toString(),
+      String(1_700_000_000 + index * 300),
+    );
+    if (index > 0) {
+      assert.notEqual(JSON.stringify(body.transactionID), initial);
+    }
+  }
+  const joined = Buffer.concat(bodies.map((body) => Buffer.from(body.consensusSubmitMessage.message)));
+  assert.equal(joined.toString("utf8"), text);
+}
+
 export async function runHcsChunkTests() {
   testOutOfOrderJoin();
   testMissingChunkShowsNothing();
@@ -248,6 +403,9 @@ export async function runHcsChunkTests() {
   await testE2eeOverOneKilobyte();
   testMirrorFallbackJoin();
   testSdkChunksStayLinked();
+  testPayerMustMatchInitialAccount();
+  testDoneSetIsBounded();
+  testFreshValidStartPerChunk();
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

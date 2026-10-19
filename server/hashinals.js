@@ -12,6 +12,11 @@ export const LIST_FILE = "early-hashinals.json";
 export const OWNERS_FILE = "early-hashinal-owners.json";
 export const REQUEST_TIMEOUT_MS = 10000;
 export const OWNER_REFRESH_MS = 15 * 60 * 1000;
+export const LIST_RETRY_START_MS = 60 * 1000;
+export const LIST_RETRY_MAX_MS = 15 * 60 * 1000;
+// At this many wanted serials or fewer, read each NFT. More than this pages
+// upward from the lowest serial and stops at the highest.
+export const OWNER_DIRECT_MAX = 20;
 export const LAST_INSCRIPTION = 999;
 
 const PAGE_LIMIT = 100;
@@ -253,6 +258,39 @@ function nextLink(link, mirror) {
   return url.toString();
 }
 
+async function readMirror(url, deps, opts = {}) {
+  if (deps && typeof deps.mirrorFetch === "function") {
+    try {
+      return await deps.mirrorFetch(url);
+    } catch (err) {
+      const missing = opts.missing && err && typeof err.message === "string" && err.message.includes("404");
+      if (missing) return null;
+      throw err;
+    }
+  }
+  return fetchJson(url, deps, opts);
+}
+
+function noteOwner(nft, wanted, treasury, owners, seen) {
+  const serial = nft && nft.serial_number;
+  if (!Number.isInteger(serial) || !wanted.has(serial)) return false;
+  seen.add(serial);
+  if (nft.deleted === true) return true;
+  const account = typeof nft.account_id === "string" ? nft.account_id.trim() : "";
+  if (!ACCOUNT_ID.test(account) || account === treasury) return true;
+  const number = wanted.get(serial);
+  if (owners[account] == null || number < owners[account]) owners[account] = number;
+  return true;
+}
+
+function nftRangeUrl(mirror, tokenId, lowest) {
+  const url = new URL(`${mirror}/api/v1/tokens/${tokenId}/nfts`);
+  url.searchParams.set("limit", String(PAGE_LIMIT));
+  url.searchParams.set("order", "asc");
+  url.searchParams.set("serialnumber", `gte:${lowest}`);
+  return url.toString();
+}
+
 export async function ownerMapFor(records, deps) {
   const mirror = (deps && deps.mirror) || DEFAULT_MIRROR;
   const byToken = new Map();
@@ -269,33 +307,43 @@ export async function ownerMapFor(records, deps) {
   }
   const owners = {};
   for (const [tokenId, wanted] of byToken) {
-    const info = await fetchJson(`${mirror}/api/v1/tokens/${tokenId}`, deps);
+    const info = await readMirror(`${mirror}/api/v1/tokens/${tokenId}`, deps);
     const treasury = info && typeof info.treasury_account_id === "string"
       ? info.treasury_account_id.trim()
       : "";
     if (!ACCOUNT_ID.test(treasury)) throw new Error("token treasury missing");
     const seen = new Set();
+    const serials = [...wanted.keys()];
+    if (serials.length <= OWNER_DIRECT_MAX) {
+      for (const serial of serials) {
+        const nft = await readMirror(`${mirror}/api/v1/tokens/${tokenId}/nfts/${serial}`, deps, { missing: true });
+        if (!nft) continue;
+        noteOwner(nft, wanted, treasury, owners, seen);
+      }
+      continue;
+    }
+    const lowest = Math.min(...serials);
+    const highest = Math.max(...serials);
     const seenUrls = new Set();
-    let next = `${mirror}/api/v1/tokens/${tokenId}/nfts?limit=${PAGE_LIMIT}`;
+    let next = nftRangeUrl(mirror, tokenId, lowest);
     let pages = 0;
     while (next && seen.size < wanted.size) {
       if (seenUrls.has(next) || pages >= MAX_NFT_PAGES) throw new Error("nft page did not advance");
       seenUrls.add(next);
       pages += 1;
-      const page = await fetchJson(next, deps);
+      const page = await readMirror(next, deps);
       const nfts = page && Array.isArray(page.nfts) ? page.nfts : null;
       if (!nfts) throw new Error("bad nft page");
+      let pageMax = null;
       for (const nft of nfts) {
         const serial = nft && nft.serial_number;
-        if (!Number.isInteger(serial) || !wanted.has(serial)) continue;
-        seen.add(serial);
-        if (nft.deleted === true) continue;
-        const account = typeof nft.account_id === "string" ? nft.account_id.trim() : "";
-        if (!ACCOUNT_ID.test(account) || account === treasury) continue;
-        const number = wanted.get(serial);
-        if (owners[account] == null || number < owners[account]) owners[account] = number;
+        if (!Number.isInteger(serial)) continue;
+        if (pageMax == null || serial > pageMax) pageMax = serial;
+        if (serial > highest) continue;
+        noteOwner(nft, wanted, treasury, owners, seen);
       }
-      if (seen.size >= wanted.size) break;
+      if (nfts.length === 0 || seen.size >= wanted.size) break;
+      if (pageMax != null && pageMax >= highest) break;
       next = nextLink(page.links && page.links.next, mirror);
     }
   }
@@ -382,7 +430,12 @@ export function createEarlyHashinals(options = {}) {
     mirror: options.mirror || DEFAULT_MIRROR,
     timeoutMs: options.timeoutMs,
     warn: options.warn,
+    mirrorFetch: options.mirrorFetch,
   };
+  const setTimeoutImpl = options.setTimeout || setTimeout;
+  const clearTimeoutImpl = options.clearTimeout || clearTimeout;
+  const setIntervalImpl = options.setInterval || setInterval;
+  const clearIntervalImpl = options.clearInterval || clearInterval;
   const listPath = path.join(dataDir, LIST_FILE);
   const ownersPath = path.join(dataDir, OWNERS_FILE);
   const refreshMs = options.refreshMs || OWNER_REFRESH_MS;
@@ -392,6 +445,9 @@ export function createEarlyHashinals(options = {}) {
   let updatedAt = null;
   let pending = null;
   let timer = null;
+  let retryTimer = null;
+  let listRetryMs = LIST_RETRY_START_MS;
+  let life = 0;
 
   function snapshot() {
     return { owners: { ...owners }, updatedAt };
@@ -459,22 +515,37 @@ export function createEarlyHashinals(options = {}) {
     return gate;
   }
 
+  function arm(handle) {
+    if (handle && typeof handle.unref === "function") handle.unref();
+    return handle;
+  }
+
   async function boot() {
+    const generation = life;
     try {
       await ensureList();
     } catch {
       warnWith(deps, "early hashinal list was not built");
+      if (generation !== life) return;
+      const wait = listRetryMs;
+      listRetryMs = Math.min(LIST_RETRY_MAX_MS, listRetryMs * 2);
+      retryTimer = arm(setTimeoutImpl(() => {
+        retryTimer = null;
+        return boot().catch(() => warnWith(deps, "early hashinal list was not built"));
+      }, wait));
       return;
     }
+    if (generation !== life) return;
+    listRetryMs = LIST_RETRY_START_MS;
     try {
       await refreshOwners();
     } catch {
       warnWith(deps, "early hashinal owner refresh failed");
     }
-    timer = setInterval(() => {
+    if (generation !== life || timer) return;
+    timer = arm(setIntervalImpl(() => {
       refreshOwners().catch(() => warnWith(deps, "early hashinal owner refresh failed"));
-    }, refreshMs);
-    if (typeof timer.unref === "function") timer.unref();
+    }, refreshMs));
   }
 
   function start() {
@@ -483,8 +554,11 @@ export function createEarlyHashinals(options = {}) {
   }
 
   function stop() {
-    if (timer) clearInterval(timer);
+    life += 1;
+    if (timer) clearIntervalImpl(timer);
     timer = null;
+    if (retryTimer) clearTimeoutImpl(retryTimer);
+    retryTimer = null;
   }
 
   return {
@@ -492,6 +566,7 @@ export function createEarlyHashinals(options = {}) {
     load,
     start,
     stop,
+    boot,
     ensureList,
     refreshOwners,
     get inflight() {

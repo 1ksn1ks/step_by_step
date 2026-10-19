@@ -17,7 +17,17 @@ import {
   ingestMirrorRows,
   openWatermark,
 } from './hcschunks.js';
-import { splitFrozenChunks } from './hcssplit.js';
+import { freezeOneHcsChunk } from './hcssplit.js';
+
+// A multi-chunk failure stays up until the next send, so the "sent X of N"
+// line can be read after HashPack closes. A retry builds a new chunk-1 id.
+let heldChunkError = null;
+
+function clearHeldChunkError() {
+  if (!heldChunkError) return;
+  heldChunkError.done();
+  heldChunkError = null;
+}
 
 // The wallet connector's ids are @hiero-ledger/sdk objects. They fail
 // instanceof inside @hashgraph/sdk, and fromString then crashes on the
@@ -67,6 +77,7 @@ function formatMirrorMessage(item) {
 }
 
 export async function sendMessage(topicId, message) {
+  clearHeldChunkError();
   const transaction = new TopicMessageSubmitTransaction()
     .setTopicId(TopicId.fromString(sdkId(topicId)))
     .setMessage(message)
@@ -91,22 +102,43 @@ export async function sendMessage(topicId, message) {
     }
   }
 
-  // freezeWith writes chunk_info (initial transaction id, number, total) into
-  // each body. HashPack signs one body per approval and would copy that one
-  // signature onto every chunk, so each chunk is submitted on its own.
+  // Each wallet approval gets its own valid-start. Chunk 1's transaction id
+  // is still chunk_info.initial_transaction_id on every part. A retry of this
+  // function generates a new chunk-1 id and sends the whole message again.
+  const total = transaction.getRequiredChunks();
   const nodeAddresses = await dAppConnector.getNodeAddresses();
-  freezeForConnectedAccount(transaction, nodeAddresses);
-  const parts = splitFrozenChunks(transaction);
-  if (parts.length !== transaction.getRequiredChunks()) {
-    throw new Error("Could not split the message into HCS chunks");
-  }
+  const node = nodeAccountId(nodeAddresses);
+  const account = connectedAccountId();
+  const messageBytes = transaction.getMessage();
+  toast.info(`This message needs ${total} wallet approvals.`);
 
+  let initialTransactionId = null;
+  let sent = 0;
   let receipt = null;
-  for (let i = 0; i < parts.length; i++) {
-    const notice = toast.hold(`Sending part ${i + 1} of ${parts.length}`);
+  for (let number = 1; number <= total; number++) {
+    const transactionId = TransactionId.generate(account);
+    if (number === 1) initialTransactionId = transactionId;
+    const part = freezeOneHcsChunk({
+      topicId: sdkId(topicId),
+      message: messageBytes,
+      nodeAccountId: node,
+      transactionId,
+      initialTransactionId,
+      number,
+      total,
+      maxChunks: HCS_MAX_CHUNKS,
+    });
+    const notice = toast.hold(`Sending part ${number} of ${total}`);
     try {
-      const txResponse = await parts[i].executeWithSigner(signer);
+      const txResponse = await part.executeWithSigner(signer);
       receipt = await txResponse.getReceiptWithSigner(signer);
+      sent += 1;
+    } catch (err) {
+      heldChunkError = toast.error(
+        `Sent ${sent} of ${total} parts, so this message won't appear. Send it again to retry.`,
+        { hold: true, stay: true },
+      );
+      throw err;
     } finally {
       notice.done();
     }

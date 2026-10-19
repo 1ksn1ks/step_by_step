@@ -16,6 +16,7 @@ export const HCS_MAX_CHUNKS = 20;
 export const HCS_MESSAGE_MAX_BYTES = 18 * 1024;
 export const HCS_SHOW_COUNTER_AFTER = 1024;
 export const CHUNK_TTL_MS = 10 * 60 * 1000;
+export const DONE_KEY_LIMIT = 2000;
 export const HCS_TOO_LONG = "Message is too long. Keep it under 18 KB.";
 
 const encoder = new TextEncoder();
@@ -64,6 +65,25 @@ function groupKey(topicId, info) {
   return `${topicId}\0${idText}\0${nonce}\0${scheduled ? 1 : 0}`;
 }
 
+// Mirror ids are "0.0.x-seconds-nanos". An object id carries account_id.
+// The payer has to be that account; a different payer cannot complete the group.
+function accountFromInitial(id) {
+  if (typeof id === "string") {
+    const hyphen = id.indexOf("-");
+    const at = id.indexOf("@");
+    let end = -1;
+    if (hyphen > 0 && at > 0) end = Math.min(hyphen, at);
+    else if (hyphen > 0) end = hyphen;
+    else if (at > 0) end = at;
+    if (end <= 0) return "";
+    return id.slice(0, end).trim();
+  }
+  if (id && typeof id === "object" && typeof id.account_id === "string") {
+    return id.account_id.trim();
+  }
+  return "";
+}
+
 function concatParts(group) {
   let length = 0;
   const parts = [];
@@ -84,12 +104,32 @@ function concatParts(group) {
 
 export function createChunkAssembler({ ttlMs = CHUNK_TTL_MS } = {}) {
   const groups = new Map();
-  const done = new Set();
+  // key -> first time the group finished. Newest keys stay; Map order is
+  // oldest first. A finished key is forgotten after the TTL or past the cap
+  // so a long-running poller does not keep every message forever.
+  const done = new Map();
+
+  function pruneDone(now) {
+    for (const [key, at] of done) {
+      if (now - at >= ttlMs) done.delete(key);
+    }
+    while (done.size > DONE_KEY_LIMIT) {
+      const oldest = done.keys().next().value;
+      done.delete(oldest);
+    }
+  }
+
+  function rememberDone(key, now) {
+    if (done.has(key)) done.delete(key);
+    done.set(key, now);
+    pruneDone(now);
+  }
 
   function prune(now = Date.now()) {
     for (const [key, group] of groups) {
       if (now - group.seenAt >= ttlMs) groups.delete(key);
     }
+    pruneDone(now);
   }
 
   // One mirror row in. A plain row comes back as itself. A finished group
@@ -109,6 +149,8 @@ export function createChunkAssembler({ ttlMs = CHUNK_TTL_MS } = {}) {
 
     const key = groupKey(topicId, info);
     if (!key) return null;
+    const payer = typeof row.payer_account_id === "string" ? row.payer_account_id.trim() : "";
+    if (!payer || payer !== accountFromInitial(info.initial_transaction_id)) return null;
     if (done.has(key)) return null;
 
     let group = groups.get(key);
@@ -141,7 +183,7 @@ export function createChunkAssembler({ ttlMs = CHUNK_TTL_MS } = {}) {
 
     const joined = concatParts(group);
     groups.delete(key);
-    done.add(key);
+    rememberDone(key, now);
     if (!joined) return null;
     return {
       sequence_number: group.first.sequence_number,

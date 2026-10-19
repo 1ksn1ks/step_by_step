@@ -1643,7 +1643,9 @@ startBackupSchedule({
 });
 
 // Public chain data, kept off SQLite. The handler below only reads memory.
-const earlyHashinals = startEarlyHashinals({ dataDir: DATA_DIR });
+// Owner reads use the same paced mirrorFetch as chat, so a refresh waits
+// its turn instead of walking the mirror ahead of topic polls.
+const earlyHashinals = startEarlyHashinals({ dataDir: DATA_DIR, mirrorFetch });
 
 const R2_MIME_EXT = {
   "video/mp4": ".mp4",
