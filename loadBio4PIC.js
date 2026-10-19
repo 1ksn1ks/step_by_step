@@ -84,14 +84,14 @@ export async function loadBio4PIC(payer) {
       account.target = '_blank';
       account.rel = 'noopener noreferrer';
       account.textContent = payer;
-      account.style.color = colorOf('color-picker-popup-accid', '#800080');
+      account.style.color = colorOf('color-picker-popup-accid', '#ffffff');
       account.style.textDecoration = 'none';
       account.addEventListener('click', (event) => event.stopPropagation());
       names.appendChild(account);
 
       const name = textOf(usernames[payer] && usernames[payer].username).trim();
       const link = textOf(click2url[payer] && click2url[payer].click2url).trim();
-      const nameColor = colorOf('color-picker-popup-username', '#ff9933');
+      const nameColor = colorOf('color-picker-popup-username', '#ffffff');
       if (name) {
         const nameSlot = document.createElement('div');
         const nameEl = payerUsernameNode(name, link, { className: 'profile-live-name' });

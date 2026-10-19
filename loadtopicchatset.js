@@ -1,6 +1,8 @@
 import { sendMessage } from "./msgbackend";
 import { getTopicData as getMessages } from "./topicdata";
 import {
+    accidColorOrDefault,
+    usernameColorOrDefault,
     setTopicChatAccidColor,
     setTopicChatUsernameColor,
     setTopicChatTextColor,
@@ -42,8 +44,8 @@ const CSS_DEFAULTS = {
     textFont: 2,
     timestampFont: 1.25,
     headerFont: 2,
-    accid: "#800080",
-    username: "#ff9933",
+    accid: "#ffffff",
+    username: "#ffffff",
     text: "#ffffff",
     outer: "rgba(255, 255, 255, 0.3)",
 };
@@ -190,8 +192,8 @@ export async function loadTopicChatSettings(a) {
 
 
             accountObjectSettings.push({
-                accidTopicChatColor: accidTopicChatColor,
-                usernameTopicChatColor: usernameTopicChatColor,
+                accidTopicChatColor: accidColorOrDefault(accidTopicChatColor),
+                usernameTopicChatColor: usernameColorOrDefault(usernameTopicChatColor),
                 textTopicChatColor: textTopicChatColor,
                 textContainerTopicChatColor: textContainerTopicChatColor,
                 textFontSizeTopicChat: textFontSizeTopicChat,
@@ -203,8 +205,8 @@ export async function loadTopicChatSettings(a) {
                 textFont: textFontSizeTopicChat,
                 timestampFont: timestampFontSizeTopicChat,
                 headerFont: headerFontSizeTopicChat,
-                accid: accidTopicChatColor,
-                username: usernameTopicChatColor,
+                accid: accidColorOrDefault(accidTopicChatColor),
+                username: usernameColorOrDefault(usernameTopicChatColor),
                 text: textTopicChatColor,
                 outer: textContainerTopicChatColor,
             });

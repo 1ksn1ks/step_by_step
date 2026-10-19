@@ -244,7 +244,7 @@ export function paintDrawProfile(root, account = connectedAccount || "") {
     heading.prepend(idLink);
   }
   idLink.style.textDecoration = "none";
-  idLink.style.color = pickerColor("color-picker-popup-accid", "#800080");
+  idLink.style.color = pickerColor("color-picker-popup-accid", "#ffffff");
   if (account) {
     idLink.href = `https://explore.hashpack.app/${encodeURIComponent(account)}`;
     idLink.target = "_blank";
@@ -271,7 +271,7 @@ export function paintDrawProfile(root, account = connectedAccount || "") {
     nameNode = payerUsernameNode(name, link, { className: "username" });
     heading.appendChild(nameNode);
   }
-  if (name && nameNode) nameNode.style.color = pickerColor("color-picker-popup-username", "#ff9933");
+  if (name && nameNode) nameNode.style.color = pickerColor("color-picker-popup-username", "#ffffff");
   paintProfileAvatar(img, account);
   watchFollowPrefetch(img, account);
   const sheet = root.querySelector(".popup-sheet");

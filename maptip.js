@@ -84,8 +84,8 @@ export function fillMapTip(tip, source) {
     tip.appendChild(title);
   }
   const payerRow = line('By', card.username, card.payer, {
-    name: pickerColor('color-picker-popup-username', '#ff9933'),
-    id: pickerColor('color-picker-popup-accid', '#800080'),
+    name: pickerColor('color-picker-popup-username', '#ffffff'),
+    id: pickerColor('color-picker-popup-accid', '#ffffff'),
   });
   if (payerRow) tip.appendChild(payerRow);
   const topicRow = line('On', card.topicName, card.topicId);

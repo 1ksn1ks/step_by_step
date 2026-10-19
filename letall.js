@@ -28,8 +28,28 @@ export function setCurrentUfoModellInGLTF(newModel) {
 export let defaultModelUrl = 'https://kiloscribe.com/api/inscription-cdn/0.0.9742046'; // Replace with your actual default model URL
 
 
-export let accidTopicChatColor = '#800080';
-export let usernameTopicChatColor = '#ff9933';
+export let accidTopicChatColor = '#ffffff';
+export let usernameTopicChatColor = '#ffffff';
+
+// A saved copy of the previous shipped default is "not set".
+const LEGACY_ACCID_COLOR = '#800080';
+const LEGACY_USERNAME_COLOR = '#ff9933';
+
+function droppedLegacyColor(value, legacy) {
+  if (typeof value !== 'string') return '#ffffff';
+  const hex = value.trim().toLowerCase();
+  if (!hex || hex === legacy) return '#ffffff';
+  return value.trim();
+}
+
+export function accidColorOrDefault(value) {
+  return droppedLegacyColor(value, LEGACY_ACCID_COLOR);
+}
+
+export function usernameColorOrDefault(value) {
+  return droppedLegacyColor(value, LEGACY_USERNAME_COLOR);
+}
+
 export let textTopicChatColor = '#ffffff';
 export let innerContainerTopicChatColor = '#ffc107';
 export let topicChatHeaderColor = '#ffffff';

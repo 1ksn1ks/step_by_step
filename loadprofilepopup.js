@@ -7,6 +7,7 @@ import {
     EARLY_POPUP_CLASS,
     EARLY_PROFILE_CLASS,
 } from "./earlypopup.js";
+import { accidColorOrDefault, usernameColorOrDefault } from "./letall.js";
 
 const STYLE_INPUTS = [
     "color-picker-popup-border",
@@ -94,13 +95,15 @@ export async function loadProfilePopup(a) {
             if (lastMessage && lastMessage.data) {
                 // Extract relevant data and clamp to max 255
                 const { colorBorder, colorNumber, colorClose, colorUsername, colorAccid, colorText, colorTitles, popupFontSize } = lastMessage.data;
+                const shownAccid = accidColorOrDefault(colorAccid);
+                const shownUsername = usernameColorOrDefault(colorUsername);
     
                 accountObjectSettings.push({
                     colorBorder: colorBorder,
                     colorNumber: colorNumber,
                     colorClose: colorClose,
-                    colorUsername: colorUsername,
-                    colorAccid: colorAccid,
+                    colorUsername: shownUsername,
+                    colorAccid: shownAccid,
                     colorText: colorText,
                     colorTitles: colorTitles,
                     popupFontSize: popupFontSize
@@ -109,8 +112,8 @@ export async function loadProfilePopup(a) {
                 document.getElementById("color-picker-popup-border").value = colorBorder;
                 document.getElementById("color-picker-popup-number").value = colorNumber;
                 document.getElementById("color-picker-popup-close").value = colorClose;
-                document.getElementById("color-picker-popup-accid").value = colorAccid;
-                document.getElementById("color-picker-popup-username").value = colorUsername;
+                document.getElementById("color-picker-popup-accid").value = shownAccid;
+                document.getElementById("color-picker-popup-username").value = shownUsername;
                 document.getElementById("color-picker-popup-titles").value = colorTitles;
                 document.getElementById("color-picker-popup-text").value = colorText;
                 document.getElementById("popup-font-size").value = Math.min(Math.max(parseFloat(popupFontSize) || 1, 1), 3);
@@ -236,7 +239,7 @@ export function applyAllStyles() {
     
     function updatePopupAccid() {
       const color = document.getElementById('color-picker-popup-accid').value;
-      const popupAccids = document.querySelectorAll('.maplibregl-popup .payer-info');
+      const popupAccids = document.querySelectorAll('.maplibregl-popup .payer-info, .profile-live-account');
       popupAccids.forEach(accid => {
         accid.style.color = color;
       });
@@ -245,7 +248,7 @@ export function applyAllStyles() {
     
     function updatePopupUsername() {
       const color = document.getElementById('color-picker-popup-username').value;
-      const popupUsernames = document.querySelectorAll('.maplibregl-popup .username');
+      const popupUsernames = document.querySelectorAll('.maplibregl-popup .username, .profile-live-name');
       popupUsernames.forEach(username => {
         username.style.color = color;
       });

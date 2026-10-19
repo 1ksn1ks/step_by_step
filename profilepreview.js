@@ -63,11 +63,11 @@ function render() {
   if (circleEl && circleEl.getAttribute('src') !== nextPic) circleEl.src = nextPic;
 
   accountEl.textContent = connectedAccount || 'Not connected';
-  accountEl.style.color = colorOf('color-picker-popup-accid', '#800080');
+  accountEl.style.color = colorOf('color-picker-popup-accid', '#ffffff');
 
   const name = (draftUsername !== null ? draftUsername : savedUsername()).trim();
   const link = (draftLink !== null ? draftLink : savedLink()).trim();
-  const nameColor = colorOf('color-picker-popup-username', '#ff9933');
+  const nameColor = colorOf('color-picker-popup-username', '#ffffff');
   nameEl.replaceChildren();
   if (name) {
     const node = payerUsernameNode(name, link, { className: 'profile-live-name' });
