@@ -86,11 +86,45 @@ export function unpackChatPayload(raw) {
   }
 }
 
+const CHAT_CLAMP_CHARS = 400;
+const CHAT_CLAMP_LINES = 8;
+
+function textIsLong(text) {
+  if (text.length > CHAT_CLAMP_CHARS) return true;
+  let lines = 1;
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) === 10) {
+      lines += 1;
+      if (lines > CHAT_CLAMP_LINES) return true;
+    }
+  }
+  return false;
+}
+
 export function fillChatMessage(el, text, imageUrl) {
   const body = text == null ? "" : String(text);
   const src = safeHttpUrl(imageUrl);
   el.replaceChildren();
-  if (body) el.appendChild(document.createTextNode(body));
+  if (body) {
+    const textEl = document.createElement("span");
+    textEl.className = "chat-msg-body";
+    textEl.appendChild(document.createTextNode(body));
+    if (textIsLong(body)) textEl.classList.add("is-clamped");
+    el.appendChild(textEl);
+    if (textEl.classList.contains("is-clamped")) {
+      const more = document.createElement("button");
+      more.type = "button";
+      more.className = "chat-msg-more";
+      more.textContent = "Show more";
+      more.addEventListener("click", (event) => {
+        event.stopPropagation();
+        event.preventDefault();
+        const clamped = textEl.classList.toggle("is-clamped");
+        more.textContent = clamped ? "Show more" : "Show less";
+      });
+      el.appendChild(more);
+    }
+  }
   if (!src) return;
   if (body) el.appendChild(document.createElement("br"));
   const img = document.createElement("img");
@@ -129,7 +163,7 @@ function bind(kind) {
     s.btn.disabled = true;
     showPreview(s, s.objectUrl);
     try {
-      const url = await uploadChatImage(file);
+      const url = await uploadChatImage(file, s.btn);
       if (mine !== s.gen) return;
       if (s.objectUrl) {
         URL.revokeObjectURL(s.objectUrl);
@@ -141,7 +175,10 @@ function bind(kind) {
     } catch (err) {
       if (mine !== s.gen) return;
       clearPendingChatImage(kind);
-      toast.error(err.message || "Upload failed");
+      if (!err || !err.shown) {
+        const message = (err && (err.serverError || err.message)) || "Upload failed, please try again";
+        toast.error(message, { hold: true });
+      }
     } finally {
       if (s.file) s.file.value = "";
       if (mine !== s.gen) return;

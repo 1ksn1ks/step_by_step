@@ -1,11 +1,13 @@
 import { loadTopicBio, usernames, profilePictures, click2url, profileTopics } from './loadalladata';
-import { followControls } from './followtopic';
+import { followControls, followPersonControls } from './followtopic';
 import { activePolygonPopups } from './polygons';
 import { activeMarkerPopups } from './marker';
 import { CloseALL, OpenToggleToolbar } from './cssLogic';
 import { adjustTextareaHeight } from './adjusttextarea';
 import { fillTopicIds } from './topicidintext';
 import { payerUsernameNode } from './payerlink.js';
+import { paintProfileAvatar } from './earlyhashinal.js';
+import { paintEarlyProfile } from './loadprofilepopup.js';
 
 const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const EMPTY_BIO = 'User has not set a bio yet. You can set yours by going to OPTIONS > TOOLBAR > EDIT > BIO';
@@ -99,7 +101,9 @@ export async function loadBio4PIC(payer) {
       }
 
       bubble.appendChild(img);
+      paintProfileAvatar(img, payer);
       bubble.appendChild(names);
+      bubble.appendChild(followPersonControls(payer));
 
       const bioEl = document.createElement('div');
       bioEl.className = 'profile-live-bio';
@@ -110,6 +114,7 @@ export async function loadBio4PIC(payer) {
 
       card.appendChild(bubble);
       card.appendChild(bioEl);
+      paintEarlyProfile(card, payer);
       const home = profileTopics[payer];
       if (home) {
         const topicLine = document.createElement('div');

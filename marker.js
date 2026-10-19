@@ -14,6 +14,10 @@ import { scene } from "./threejs";
 // safe: both sides only touch the other's bindings inside functions.
 import { livePointCoords, livePointTitles } from './localnews';
 import { markerPopupNode } from './processallmessages.js';
+import { earlyHashinalNumber } from './earlyhashinal.js';
+import { prefetchPersonFollow } from './followtopic.js';
+import { watchMarkerTilt, forgetMarkerTilt } from './markertilt.js';
+import { fillMapTip } from './maptip.js';
 
 
 
@@ -99,13 +103,10 @@ function notifyTopicClustersUpdated() {
 
 let lastTopicSig = null;
 
-// Title pill just above the cursor, following it across the dot. A phone
-// has no hover: a short tap still opens the popup, and holding the dot
-// shows the title above the finger without opening it. Live twins already
-// wear a permanent label.
+// Title pill just above the cursor on a device that can hover. A phone tap
+// always opens the marker. Live twins already wear a permanent label.
 let markerTitleTip = null;
 let markerTitleHideTimer = 0;
-let markerHoldTimer = 0;
 
 function ensureMarkerTitleTip() {
   if (markerTitleTip) return markerTitleTip;
@@ -118,18 +119,47 @@ function ensureMarkerTitleTip() {
 
 function hideMarkerTitle() {
   clearTimeout(markerTitleHideTimer);
-  if (markerTitleTip) markerTitleTip.hidden = true;
+  if (!markerTitleTip) return;
+  markerTitleTip.hidden = true;
+  markerTitleTip._tipEl = null;
+  markerTitleTip.classList.remove("early");
+  const spin = markerTitleTip.querySelector(":scope > .marker-tip-spin");
+  if (spin) spin.remove();
 }
 
-function showMarkerTitle(title, x, y) {
-  const text = String(title || "").trim();
-  if (!text || !Number.isFinite(x) || !Number.isFinite(y)) {
+// Desktop hover only. The class tracks the marker payer, and the next
+// non-early marker takes it off. fillMapTip replaces the tip's children,
+// so the spinning border is put back after that fill.
+function syncMarkerTipEarly(tip, el) {
+  const early = !!(el && earlyHashinalNumber(el._markerPayer || ""));
+  tip.classList.toggle("early", early);
+  let spin = tip.querySelector(":scope > .marker-tip-spin");
+  if (!early) {
+    if (spin) spin.remove();
+    return;
+  }
+  if (spin) return;
+  spin = document.createElement("span");
+  spin.className = "marker-tip-spin";
+  spin.setAttribute("aria-hidden", "true");
+  tip.prepend(spin);
+}
+
+function showMarkerTitle(el, x, y) {
+  if (!el || !Number.isFinite(x) || !Number.isFinite(y)) {
     hideMarkerTitle();
     return;
   }
-  clearTimeout(markerTitleHideTimer);
   const tip = ensureMarkerTitleTip();
-  tip.textContent = text;
+  if (tip._tipEl !== el) {
+    if (!fillMapTip(tip, el._markerTip)) {
+      hideMarkerTitle();
+      return;
+    }
+    tip._tipEl = el;
+  }
+  syncMarkerTipEarly(tip, el);
+  clearTimeout(markerTitleHideTimer);
   tip.hidden = false;
   tip.style.left = `${x}px`;
   tip.style.top = `${y}px`;
@@ -140,57 +170,24 @@ function markerCanHover() {
 }
 
 map.on("movestart", () => {
-  clearTimeout(markerHoldTimer);
   hideMarkerTitle();
 });
 
 function bindMarkerTitle(el) {
   el.addEventListener("mouseenter", (event) => {
-    if (markerCanHover()) showMarkerTitle(el._markerTitle, event.clientX, event.clientY);
+    prefetchPersonFollow(el._markerPayer);
+    if (markerCanHover()) showMarkerTitle(el, event.clientX, event.clientY);
   });
   el.addEventListener("mousemove", (event) => {
-    if (markerCanHover()) showMarkerTitle(el._markerTitle, event.clientX, event.clientY);
+    if (markerCanHover()) showMarkerTitle(el, event.clientX, event.clientY);
   });
   el.addEventListener("mouseleave", () => {
     if (markerCanHover()) hideMarkerTitle();
   });
   el.addEventListener("contextmenu", (event) => event.preventDefault());
-  el.addEventListener("touchstart", (event) => {
-    const touch = event.touches && event.touches[0];
-    const startX = touch ? touch.clientX : 0;
-    const startY = touch ? touch.clientY : 0;
-    clearTimeout(markerHoldTimer);
-    markerHoldTimer = setTimeout(() => {
-      el.dataset.holdTitle = "1";
-      showMarkerTitle(el._markerTitle, startX, startY);
-    }, 450);
-    const cancelIfSlid = (moveEvent) => {
-      const moved = moveEvent.touches && moveEvent.touches[0];
-      if (!moved) return;
-      if (Math.hypot(moved.clientX - startX, moved.clientY - startY) > 12) {
-        clearTimeout(markerHoldTimer);
-        el.removeEventListener("touchmove", cancelIfSlid);
-      }
-    };
-    el.addEventListener("touchmove", cancelIfSlid, { passive: true });
-    const dropMove = () => el.removeEventListener("touchmove", cancelIfSlid);
-    el.addEventListener("touchend", dropMove, { once: true });
-    el.addEventListener("touchcancel", dropMove, { once: true });
+  el.addEventListener("touchstart", () => {
+    prefetchPersonFollow(el._markerPayer);
   }, { passive: true });
-  el.addEventListener("touchend", () => {
-    clearTimeout(markerHoldTimer);
-    if (el.dataset.holdTitle === "1") {
-      clearTimeout(markerTitleHideTimer);
-      markerTitleHideTimer = setTimeout(() => {
-        delete el.dataset.holdTitle;
-        hideMarkerTitle();
-      }, 1200);
-    }
-  });
-  el.addEventListener("touchcancel", () => {
-    clearTimeout(markerHoldTimer);
-    delete el.dataset.holdTitle;
-  });
 }
 
 // Dots that are still on screen stay. A cluster change only adds the
@@ -224,6 +221,7 @@ export function releaseTopicMarkers() {
   const hadPoints = unclusteredTopicPoints.size > 0;
   const hadMarkers = keptMarkers.size > 0;
   for (const entry of keptMarkers.values()) {
+    forgetMarkerTilt(entry.face);
     try { entry.marker.remove(); } catch { /* already gone */ }
   }
   keptMarkers.clear();
@@ -268,6 +266,41 @@ function paintMarkerPicture(entry, url) {
   });
 }
 
+function paintMarkerHashinal(entry) {
+  if (!entry || entry.kind === 'cluster') return;
+  const face = entry.face;
+  const el = entry.el;
+  if (!face || !el) return;
+  const n = earlyHashinalNumber(entry.feature && entry.feature.payer);
+  const spin = face.querySelector(':scope > .early-hashinal-spin');
+  el.classList.remove('early-hashinal-holder');
+  if (el.dataset.ehTip) {
+    delete el.dataset.tip;
+    delete el.dataset.ehTip;
+    el.removeAttribute('title');
+    el.removeAttribute('aria-label');
+  }
+  if (!n) {
+    face.classList.remove('early-hashinal');
+    if (spin) spin.remove();
+    return;
+  }
+  face.classList.add('early-hashinal');
+  if (!spin) {
+    const ring = document.createElement('span');
+    ring.className = 'early-hashinal-spin';
+    ring.setAttribute('aria-hidden', 'true');
+    face.insertBefore(ring, face.firstChild);
+  }
+}
+
+document.addEventListener('early-hashinals', () => {
+  for (const entry of keptMarkers.values()) paintMarkerHashinal(entry);
+  if (markerTitleTip && !markerTitleTip.hidden && markerTitleTip._tipEl) {
+    syncMarkerTipEarly(markerTitleTip, markerTitleTip._tipEl);
+  }
+});
+
 function syncLiveFace(entry) {
   const twinKey = topicPointKey(entry.feature.geometry.coordinates);
   const live = livePointCoords.has(twinKey);
@@ -284,9 +317,9 @@ function syncLiveFace(entry) {
   } else if (label) {
     label.remove();
   }
-  // A live label stays up, so the hover pill stays empty while it is showing.
-  entry.el._markerTitle = liveTitle ? '' : String(entry.feature.properties.title || '').trim();
-  if (entry.el._markerTitle && !entry.titleBound) {
+  // The live label stays under the dot. The hover card still names the post.
+  entry.el._markerTip = entry.feature;
+  if (!entry.titleBound) {
     bindMarkerTitle(entry.el);
     entry.titleBound = true;
   }
@@ -301,7 +334,14 @@ function createKeptMarker(cluster, key) {
 
   if (isCluster) {
     entry.cluster = cluster;
-    el.textContent = cluster.properties.point_count_abbreviated;
+    // The count sits on an inner face. The outer element is MapLibre's
+    // marker and keeps the transform that places the bubble.
+    const face = document.createElement('div');
+    face.className = 'cluster-face';
+    face.textContent = cluster.properties.point_count_abbreviated;
+    el.appendChild(face);
+    entry.face = face;
+    watchMarkerTilt(face);
     el.addEventListener('click', async (e) => {
       e.stopPropagation();
       const current = entry.cluster;
@@ -312,6 +352,7 @@ function createKeptMarker(cluster, key) {
     });
   } else {
     entry.feature = cluster;
+    el._markerPayer = cluster.payer || '';
     // The visual goes on an inner face element: the outer element is
     // MapLibre's marker element (positioned absolute + transform by
     // .maplibregl-marker) and must NEVER get a position of its own —
@@ -323,6 +364,7 @@ function createKeptMarker(cluster, key) {
     face.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
     el.appendChild(face);
     entry.face = face;
+    watchMarkerTilt(face);
     entry.pictureUrl = null;
     entry.pictureSeq = 0;
     entry.titleBound = false;
@@ -337,7 +379,6 @@ function createKeptMarker(cluster, key) {
     });
     el.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (el.dataset.holdTitle === '1') return;
       hideMarkerTitle();
       const current = entry.feature;
       const node = markerPopupNode(current.properties, current);
@@ -359,6 +400,7 @@ function createKeptMarker(cluster, key) {
     });
     syncLiveFace(entry);
     paintMarkerPicture(entry, markerPictureUrl(cluster.properties.imageUrl));
+    paintMarkerHashinal(entry);
   }
 
   entry.marker = new maplibregl.Marker({ element: el })
@@ -373,12 +415,14 @@ function refreshKeptMarker(entry, cluster) {
   placeKeptMarker(entry);
   if (entry.kind === 'cluster') {
     entry.cluster = cluster;
-    const count = cluster.properties.point_count_abbreviated;
-    if (entry.el.textContent !== String(count)) entry.el.textContent = count;
+    const count = String(cluster.properties.point_count_abbreviated);
+    if (entry.face && entry.face.textContent !== count) entry.face.textContent = count;
     return;
   }
   entry.feature = cluster;
+  entry.el._markerPayer = cluster.payer || '';
   syncLiveFace(entry);
+  paintMarkerHashinal(entry);
   const pictureUrl = markerPictureUrl(cluster.properties.imageUrl);
   if (pictureUrl !== entry.pictureUrl) paintMarkerPicture(entry, pictureUrl);
 }
@@ -422,7 +466,9 @@ export function updateClusters(force = true) {
     for (const cluster of clusters) wanted.set(markerFeatureKey(cluster), cluster);
     for (const key of [...keptMarkers.keys()]) {
       if (wanted.has(key)) continue;
-      keptMarkers.get(key).marker.remove();
+      const gone = keptMarkers.get(key);
+      forgetMarkerTilt(gone.face);
+      gone.marker.remove();
       keptMarkers.delete(key);
     }
 

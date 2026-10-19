@@ -2,8 +2,9 @@
 // plus the 1mhbar.com wall as it is right then. A change on that wall
 // shows up on the next install without a new deploy.
 //
-// The wall is rechecked every 20s (same pace as the snapshot page).
-// The drawn PNG is kept until that check sees a different wall.
+// The wall and its cell owners are rechecked every 20s (same pace as the
+// snapshot page). The drawn PNG is kept until that check sees a different
+// wall or a different owner map. A failed read keeps the last good copy.
 
 import fs from "fs";
 import path from "path";
@@ -14,6 +15,7 @@ import sharp from "sharp";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOON_PATH = path.join(__dirname, "..", "moon.jpg");
 const WALL_URL = "https://1mhbar.com/api/wall";
+const OWNERS_URL = "https://1mhbar.com/api/wall-owners";
 const WALL_ORIGIN = "https://1mhbar.com";
 const WALL_TTL_MS = 20_000;
 const TILE_LIMIT = 8_000_000;
@@ -25,7 +27,8 @@ export const APP_ICONS = {
   "apple-touch-icon.png": { size: 180, scale: 1 },
 };
 
-let wallState = { at: 0, hash: "", plots: null, pending: null };
+let wallState = { at: 0, plots: null, pending: null };
+let ownersState = { at: 0, owners: null, pending: null };
 let snapState = { hash: "", png: null, pending: null };
 const pngCache = new Map();
 const iconPending = new Map();
@@ -33,6 +36,44 @@ const iconPending = new Map();
 function cellOf(origin) {
   const serial = origin - 1;
   return { x: serial % 100, y: Math.floor(serial / 100) };
+}
+
+function serialAt(x, y) {
+  return y * 100 + x + 1;
+}
+
+// Hedera ids sometimes carry a checksum suffix. Compare the bare account.
+function bareAccount(id) {
+  return String(id ?? "").trim().replace(/-.*$/, "");
+}
+
+// Missing entry: the mirror has not said who holds the cell, so the picture stays.
+// An entry that is not this plot's owner was cleared or moved on.
+function cellKept(serial, owner, owners) {
+  if (!owners) return true;
+  const key = String(serial);
+  if (!Object.hasOwn(owners, key)) return true;
+  const current = owners[key];
+  if (typeof current !== "string") return true;
+  return bareAccount(current) === bareAccount(owner);
+}
+
+// frameOrigin / frameW / frameH is the rectangle the picture was fitted to.
+// Without a usable frame, the plot rectangle is that fit (today's behaviour).
+function frameRect(plot, x, y, w, h) {
+  const self = { x, y, w, h };
+  if (plot.frameOrigin == null || plot.frameW == null || plot.frameH == null) return self;
+  const frameOrigin = Number(plot.frameOrigin);
+  const frameW = Number(plot.frameW);
+  const frameH = Number(plot.frameH);
+  if (!Number.isInteger(frameOrigin) || !Number.isInteger(frameW) || !Number.isInteger(frameH)) return self;
+  if (frameW < 1 || frameH < 1) return self;
+  const frame = cellOf(frameOrigin);
+  if (frame.x < 0 || frame.y < 0 || frame.x + frameW > 100 || frame.y + frameH > 100) return self;
+  const left = (x - frame.x) * 10;
+  const top = (y - frame.y) * 10;
+  if (left < 0 || top < 0 || left + w * 10 > frameW * 10 || top + h * 10 > frameH * 10) return self;
+  return { x: frame.x, y: frame.y, w: frameW, h: frameH };
 }
 
 function imageUrl(img) {
@@ -53,8 +94,7 @@ async function fetchWall() {
       if (!res.ok) throw new Error("wall " + res.status);
       const data = await res.json();
       const plots = Array.isArray(data.plots) ? data.plots : [];
-      const hash = createHash("sha256").update(JSON.stringify(plots)).digest("hex").slice(0, 16);
-      wallState = { at: Date.now(), hash, plots, pending: null };
+      wallState = { at: Date.now(), plots, pending: null };
       return wallState;
     } catch (err) {
       wallState.pending = null;
@@ -63,6 +103,40 @@ async function fetchWall() {
     }
   })();
   return wallState.pending;
+}
+
+async function fetchOwners() {
+  const now = Date.now();
+  if (ownersState.owners && now - ownersState.at < WALL_TTL_MS) return ownersState;
+  if (ownersState.pending) return ownersState.pending;
+  ownersState.pending = (async () => {
+    try {
+      const res = await fetch(OWNERS_URL, { cache: "no-store", signal: AbortSignal.timeout(8000) });
+      if (!res.ok) throw new Error("owners " + res.status);
+      const data = await res.json();
+      const raw = data && typeof data.owners === "object" && data.owners && !Array.isArray(data.owners)
+        ? data.owners
+        : {};
+      const owners = {};
+      for (const [key, value] of Object.entries(raw)) {
+        if (typeof value === "string") owners[key] = value;
+      }
+      ownersState = { at: Date.now(), owners, pending: null };
+      return ownersState;
+    } catch {
+      ownersState.pending = null;
+      if (ownersState.owners) return ownersState;
+      return { at: 0, owners: {}, pending: null };
+    }
+  })();
+  return ownersState.pending;
+}
+
+function wallHash(plots, owners) {
+  return createHash("sha256")
+    .update(JSON.stringify({ plots, owners: owners || {} }))
+    .digest("hex")
+    .slice(0, 16);
 }
 
 async function fetchTile(url) {
@@ -88,49 +162,108 @@ async function mapPool(items, limit, fn) {
   return out;
 }
 
+export async function plotLayers(plot, owners) {
+  const origin = Number(plot.origin);
+  const w = Number(plot.w);
+  const h = Number(plot.h);
+  if (!Number.isInteger(origin) || !Number.isInteger(w) || !Number.isInteger(h)) return [];
+  if (w < 1 || h < 1) return [];
+  const { x, y } = cellOf(origin);
+  if (x < 0 || y < 0 || x + w > 100 || y + h > 100) return [];
+
+  const kept = [];
+  for (let dy = 0; dy < h; dy += 1) {
+    for (let dx = 0; dx < w; dx += 1) {
+      const cx = x + dx;
+      const cy = y + dy;
+      if (cellKept(serialAt(cx, cy), plot.owner, owners)) kept.push({ x: cx, y: cy });
+    }
+  }
+  if (kept.length === 0) return [];
+
+  const frame = frameRect(plot, x, y, w, h);
+  const url = imageUrl(plot.img);
+  const full = kept.length === w * h;
+  const sameFrame = frame.x === x && frame.y === y && frame.w === w && frame.h === h;
+
+  if (!url) {
+    const dark = sharp({
+      create: {
+        width: w * 10,
+        height: h * 10,
+        channels: 4,
+        background: { r: 26, g: 26, b: 26, alpha: 1 },
+      },
+    });
+    if (full) return [{ input: await dark.png().toBuffer(), left: x * 10, top: y * 10 }];
+    return [{ input: await maskKept(dark, x, y, w, h, kept), left: x * 10, top: y * 10 }];
+  }
+
+  let fitted = sharp(await fetchTile(url), { failOn: "none" })
+    .resize(frame.w * 10, frame.h * 10, { kernel: "nearest", fit: "fill" });
+  if (full && sameFrame) return [{ input: await fitted.png().toBuffer(), left: x * 10, top: y * 10 }];
+  if (!sameFrame) {
+    fitted = fitted.extract({
+      left: (x - frame.x) * 10,
+      top: (y - frame.y) * 10,
+      width: w * 10,
+      height: h * 10,
+    });
+  }
+  if (full) return [{ input: await fitted.png().toBuffer(), left: x * 10, top: y * 10 }];
+  return [{ input: await maskKept(fitted, x, y, w, h, kept), left: x * 10, top: y * 10 }];
+}
+
+// One plot-sized image. Hidden cells are transparent, so a partial plot is
+// still a single layer and the kept cells stay on the same 10px grid.
+async function maskKept(base, originX, originY, w, h, kept) {
+  const width = w * 10;
+  const height = h * 10;
+  const mask = Buffer.alloc(width * height * 4);
+  for (const spot of kept) {
+    const ox = (spot.x - originX) * 10;
+    const oy = (spot.y - originY) * 10;
+    for (let row = 0; row < 10; row += 1) {
+      const start = ((oy + row) * width + ox) * 4;
+      mask.fill(255, start, start + 40);
+    }
+  }
+  return base.ensureAlpha().composite([{
+    input: mask,
+    raw: { width, height, channels: 4 },
+    blend: "dest-in",
+  }]).png().toBuffer();
+}
+
 async function snapshotPng() {
-  const wall = await fetchWall();
-  if (snapState.hash === wall.hash && snapState.png) return snapState;
-  if (snapState.pending && snapState.pendingHash === wall.hash) return snapState.pending;
+  const [wall, owned] = await Promise.all([fetchWall(), fetchOwners()]);
+  const hash = wallHash(wall.plots, owned.owners);
+  if (snapState.hash === hash && snapState.png) return snapState;
+  if (snapState.pending && snapState.pendingHash === hash) return snapState.pending;
 
   const job = (async () => {
     const layers = (await mapPool(wall.plots, 6, async (plot) => {
-      const origin = Number(plot.origin);
-      const w = Number(plot.w);
-      const h = Number(plot.h);
-      if (!Number.isInteger(origin) || !Number.isInteger(w) || !Number.isInteger(h)) return null;
-      if (w < 1 || h < 1) return null;
-      const { x, y } = cellOf(origin);
-      if (x < 0 || y < 0 || x + w > 100 || y + h > 100) return null;
       const url = imageUrl(plot.img);
       try {
-        const input = url
-          ? await sharp(await fetchTile(url), { failOn: "none" })
-            .resize(w * 10, h * 10, { kernel: "nearest", fit: "fill" })
-            .png()
-            .toBuffer()
-          : await sharp({
-            create: {
-              width: w * 10,
-              height: h * 10,
-              channels: 4,
-              background: { r: 26, g: 26, b: 26, alpha: 1 },
-            },
-          }).png().toBuffer();
-        return { input, left: x * 10, top: y * 10 };
+        return await plotLayers(plot, owned.owners);
       } catch (err) {
         console.warn("app icon tile skipped", url || plot.origin, err.message);
-        return null;
+        return [];
       }
-    })).filter(Boolean);
+    })).flat();
 
+    const canvasPx = { width: 1000, height: 1000, channels: 4 };
     let canvas = await sharp({
       create: { width: 1000, height: 1000, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
-    }).png().toBuffer();
+    }).raw().toBuffer();
     for (let i = 0; i < layers.length; i += 40) {
-      canvas = await sharp(canvas).composite(layers.slice(i, i + 40)).png().toBuffer();
+      canvas = await sharp(canvas, { raw: canvasPx })
+        .composite(layers.slice(i, i + 40))
+        .raw()
+        .toBuffer();
     }
-    snapState = { hash: wall.hash, png: canvas, pending: null, pendingHash: "" };
+    const png = await sharp(canvas, { raw: canvasPx }).png().toBuffer();
+    snapState = { hash, png, pending: null, pendingHash: "" };
     return snapState;
   })().catch((err) => {
     snapState.pending = null;
@@ -139,7 +272,7 @@ async function snapshotPng() {
   });
 
   snapState.pending = job;
-  snapState.pendingHash = wall.hash;
+  snapState.pendingHash = hash;
   return job;
 }
 

@@ -297,8 +297,6 @@ export function makeScrollable(el) {
   makeScrollable(document.getElementById('stack-topic-ids-container'));
   makeScrollable(document.getElementById('input-field-3-2'));
   makeScrollable(document.getElementById('input-field-2-2'));
-  makeScrollable(document.getElementById('loaded-topic-rules-for-marker'));
-  makeScrollable(document.getElementById('loaded-topic-rules-for-polygon'));
   makeScrollable(document.getElementById('loaded-topic-rules-for-utility'));
   makeScrollable(document.getElementById('loaded-memo-for-topic'));
   makeScrollable(document.getElementById('loaded-memo-for-fee'));

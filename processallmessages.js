@@ -13,10 +13,11 @@ import {updateRulesForModelNFTState} from './confirmnft'
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto';
 import { ringCenter, zoomForPolygon } from './polygonframe.js';
 import { profilePictures, usernames, click2url, profileTopics } from './loadalladata'
-import { confirmShare, unshareFromMyTopic, sharePin } from './followtopic'
+import { confirmShare, unshareFromMyTopic, sharePin, followPersonControls, watchFollowPrefetch } from './followtopic'
 import { clearShareTopic, noteShare, shareState, shareMine, takeSharePin, takeUnsharePin } from './sharecount.js'
 import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
 import { openPreview } from './fullscreenmedia';
+import { paintHashtags } from './hashtag.js';
 import maplibregl from 'maplibre-gl';
 import { map } from './map';
 import { applyAllStyles } from './loadprofilepopup';
@@ -26,8 +27,10 @@ import { signer, connectedAccount } from './web3';
 import { refitPopups } from './popupanim';
 import { copyTextToClipboard } from './handleallmessages';
 import { toast } from './toast'
+import { videoSeconds } from './mediaduration.js'
 import { stackedTopicRules, smallestPolygonSize } from './topicrules.js'
 import { payerUsernameNode } from './payerlink.js'
+import { paintProfileAvatar } from './earlyhashinal.js'
 
 // A drawing counts toward the NFT allowance only when it is a real marker
 // or polygon. Likes, comments, deletes, and other messages do not.
@@ -366,6 +369,8 @@ async function showDrawingsAsApproved(ctx) {
 export let allLoadedMessages = [];
 
 const PAGER_MODE_KEY = 'meritocracy-pager-mode';
+const MEDIA_MODE_KEY = 'meritocracy-media-mode';
+const LENGTH_MODE_KEY = 'meritocracy-length-mode';
 let popupSettingsTarget = null;
 let popupSettingsBound = false;
 let popupDeleteBusy = false;
@@ -378,6 +383,26 @@ function pagerMode() {
     // A blocked store just keeps the default for this visit.
   }
   return 'account';
+}
+
+export function mediaMode() {
+  try {
+    const mode = localStorage.getItem(MEDIA_MODE_KEY);
+    if (mode === 'pictures' || mode === 'videos' || mode === 'both' || mode === 'all') return mode;
+  } catch {
+    // A blocked store just keeps the default for this visit.
+  }
+  return 'all';
+}
+
+export function lengthMode() {
+  try {
+    const mode = localStorage.getItem(LENGTH_MODE_KEY);
+    if (mode === 'under' || mode === 'mid' || mode === 'over' || mode === 'any') return mode;
+  } catch {
+    // A blocked store just keeps the default for this visit.
+  }
+  return 'any';
 }
 
 function walkTarget(value) {
@@ -402,6 +427,22 @@ function paintPagerModes() {
   const mode = pagerMode();
   for (const name of ['account', 'time', 'random']) {
     const btn = document.getElementById('popup-pager-' + name);
+    if (btn) btn.classList.toggle('is-on', name === mode);
+  }
+}
+
+function paintMediaModes() {
+  const mode = mediaMode();
+  for (const name of ['all', 'pictures', 'videos', 'both']) {
+    const btn = document.getElementById('popup-media-' + name);
+    if (btn) btn.classList.toggle('is-on', name === mode);
+  }
+}
+
+function paintLengthModes() {
+  const mode = lengthMode();
+  for (const name of ['any', 'under', 'mid', 'over']) {
+    const btn = document.getElementById('popup-length-' + name);
     if (btn) btn.classList.toggle('is-on', name === mode);
   }
 }
@@ -455,6 +496,22 @@ function bindPopupSettings() {
       paintPagerModes();
     });
   }
+  for (const mode of ['all', 'pictures', 'videos', 'both']) {
+    const btn = document.getElementById('popup-media-' + mode);
+    if (!btn) continue;
+    btn.addEventListener('click', () => {
+      try { localStorage.setItem(MEDIA_MODE_KEY, mode); } catch { /* keep it for this visit */ }
+      paintMediaModes();
+    });
+  }
+  for (const mode of ['any', 'under', 'mid', 'over']) {
+    const btn = document.getElementById('popup-length-' + mode);
+    if (!btn) continue;
+    btn.addEventListener('click', () => {
+      try { localStorage.setItem(LENGTH_MODE_KEY, mode); } catch { /* keep it for this visit */ }
+      paintLengthModes();
+    });
+  }
   const del = document.getElementById('popup-settings-delete');
   if (del) del.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -475,6 +532,8 @@ window.openPopupSettings = function(target) {
       popupSettingsTarget = walkTarget(target);
       setPopupPreview(false);
       paintPagerModes();
+      paintMediaModes();
+      paintLengthModes();
       paintDeleteButton();
       backdrop.style.display = "block";
       card.style.display = "block";
@@ -586,6 +645,16 @@ function isValidUrl(url) {
   } catch {
       return false;
   }
+}
+
+// Same video check the popup uses on the Image field. An array is the
+// first entry, the way a polygon popup reads image[0].
+const MEDIA_VIDEO = /\.(mp4|webm)(\?|#|$)/i;
+
+export function mediaKind(value) {
+  const url = Array.isArray(value) ? value[0] : value;
+  if (typeof url !== 'string' || !isValidUrl(url)) return 'none';
+  return MEDIA_VIDEO.test(url) ? 'video' : 'picture';
 }
 
 // Phone swipe and keyboard arrows share one pager. A mouse drag is a text
@@ -895,6 +964,8 @@ function appendShareFeature(features, ctx) {
     kind,
     share: { sharer, home: ctx.topicId },
   });
+  const sharedMedia = mediaKind(image);
+  const sharedSeconds = videoSeconds(image);
   takeSharePin(decisions, features, sharer + '|' + original + '|' + created, {
     topicId: ctx.topicId,
     // The original post's timestamp (share.created), not this share message's
@@ -905,8 +976,14 @@ function appendShareFeature(features, ctx) {
     shareKey: sharer + '|' + original + '|' + created,
     type: 'Feature',
     payer: sharer,
+    media: sharedMedia,
+    seconds: sharedSeconds,
+    shareOf: { topic: original, created },
     properties: {
       popupData: record,
+      media: sharedMedia,
+      seconds: sharedSeconds,
+      shareOf: { topic: original, created },
       // The dot wears the same face as the original post: its cover image,
       // else the original owner's picture — never the sharer's.
       imageUrl: isValidUrl(cover) ? cover : profileUrl,
@@ -950,6 +1027,7 @@ export function createMarkerPopupHTML(data) {
 
   const container = document.createElement('div');
   container.className = 'popup-sheet';
+  container.dataset.popupPayer = typeof payer === "string" ? payer : "";
   tagPopupView(container, topicId, created);
   const goPrevMarker = () => onPrev ? onPrev() : window.prevMsgFromPayerMarker(payer, markernumber, topicId);
   const goNextMarker = () => onNext ? onNext() : window.nextMsgFromPayerMarker(payer, markernumber, topicId);
@@ -994,7 +1072,9 @@ export function createMarkerPopupHTML(data) {
     event.stopPropagation();
     window.loadBio4PIC(payer);
   };
+  watchFollowPrefetch(profileImg, payer);
   profileSection.appendChild(profileImg);
+  paintProfileAvatar(profileImg, payer);
 
   const headerDiv = document.createElement('div');
   const h2 = document.createElement('h2');
@@ -1017,6 +1097,7 @@ export function createMarkerPopupHTML(data) {
 
   headerDiv.appendChild(h2);
   profileSection.appendChild(headerDiv);
+  profileSection.appendChild(followPersonControls(payer));
   container.appendChild(profileSection);
 
   // Content section. Image and text scroll. The arrow row stays under the name.
@@ -1041,7 +1122,7 @@ export function createMarkerPopupHTML(data) {
   titleDiv.style.cssText = 'text-align: center; flex-grow: 1;';
   const titleStrong = document.createElement('strong');
   titleStrong.className = 'title_color popup-title-bubble';
-  titleStrong.textContent = String(title || '').slice(0, 20);
+  paintHashtags(titleStrong, String(title || '').slice(0, 20));
   titleDiv.appendChild(titleStrong);
   navSection.appendChild(titleDiv);
 
@@ -1088,7 +1169,7 @@ export function createMarkerPopupHTML(data) {
   const msgDiv = document.createElement('div');
   const msgP = document.createElement('p');
   msgP.className = 'text_color popup-text-bubble';
-  msgP.textContent = msg;
+  paintHashtags(msgP, Array.isArray(msg) ? msg[0] : msg);
   msgDiv.appendChild(msgP);
   contentSection.appendChild(msgDiv);
 
@@ -1213,6 +1294,7 @@ function createPolygonPopupHTML(data) {
 
   const container = document.createElement('div');
   container.className = 'popup-sheet';
+  container.dataset.popupPayer = typeof payer === "string" ? payer : "";
   tagPopupView(container, topicId, created);
   const goPrevPolygon = () => onPrev ? onPrev() : window.prevMsgFromPayerPolygon(payer, polygonnumber, topicId);
   const goNextPolygon = () => onNext ? onNext() : window.nextMsgFromPayerPolygon(payer, polygonnumber, topicId);
@@ -1257,7 +1339,9 @@ function createPolygonPopupHTML(data) {
     event.stopPropagation();
     window.loadBio4PIC(payer);
   };
+  watchFollowPrefetch(profileImg, payer);
   profileSection.appendChild(profileImg);
+  paintProfileAvatar(profileImg, payer);
 
   const headerDiv = document.createElement('div');
   const h2 = document.createElement('h2');
@@ -1280,6 +1364,7 @@ function createPolygonPopupHTML(data) {
 
   headerDiv.appendChild(h2);
   profileSection.appendChild(headerDiv);
+  profileSection.appendChild(followPersonControls(payer));
   container.appendChild(profileSection);
 
   // Content section
@@ -1301,7 +1386,7 @@ function createPolygonPopupHTML(data) {
   titleDiv.style.cssText = 'text-align: center; flex-grow: 1;';
   const titleStrong = document.createElement('strong');
   titleStrong.className = 'title_color popup-title-bubble';
-  titleStrong.textContent = String(title || '').slice(0, 20);
+  paintHashtags(titleStrong, String(title || '').slice(0, 20));
   titleDiv.appendChild(titleStrong);
   navSection.appendChild(titleDiv);
 
@@ -1349,7 +1434,7 @@ function createPolygonPopupHTML(data) {
   const msgDiv = document.createElement('div');
   const msgP = document.createElement('p');
   msgP.className = 'text_color popup-text-bubble';
-  msgP.textContent = msg;
+  paintHashtags(msgP, Array.isArray(msg) ? msg[0] : msg);
   msgDiv.appendChild(msgP);
   contentSection.appendChild(msgDiv);
 
@@ -1462,6 +1547,8 @@ function commentsAreOpen(node) {
 
 function applyShareCard(properties, record) {
   properties._shareRecord = record;
+  properties.media = mediaKind(record && record.image);
+  properties.seconds = videoSeconds(record && record.image);
   const current = properties.message;
   // Leave the card alone while its comment thread is open on screen.
   // A closed popup is replaced so the next open shows the new counts.
@@ -2081,7 +2168,11 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       msgNumber: markernumber,
                       type: "Feature",
                       payer: message.payer,
+                      media: mediaKind(parsedMessage.marker.data.image),
+                      seconds: videoSeconds(parsedMessage.marker.data.image),
                       properties: {
+                        media: mediaKind(parsedMessage.marker.data.image),
+                        seconds: videoSeconds(parsedMessage.marker.data.image),
                         popupData: markerPopupData,
                         imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl,
                         title: String(parsedMessage.marker.data.title || "").slice(0, 20)
@@ -2159,6 +2250,8 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         msgNumber: polygonnumber,
                         id: `polygon-${message.payer}-${topicId}-${polygonnumber}`,
                         payer: message.payer,
+                        media: mediaKind(parsedMessage.polygon.data.image),
+                        seconds: videoSeconds(parsedMessage.polygon.data.image),
                         coordinates: [coordinates],
                         popupData: polygonPopupData,
                         title: String(parsedMessage.polygon.data.title || "").slice(0, 20),
@@ -2305,37 +2398,213 @@ function findAuthorPost(posts, walk) {
   return -1;
 }
 
+// The Image field only. Cover image and the profile picture are not media.
+// A share with an empty pointer uses the loaded original post's image.
+export function postMedia(item) {
+  if (!item) return 'none';
+  const own = (item.properties && item.properties.media) || item.media;
+  if (own === 'video' || own === 'picture') return own;
+  const link = (item.properties && item.properties.shareOf) || item.shareOf;
+  if (!link || !link.topic || !link.created) return 'none';
+  const created = messageCreated(link.created);
+  const topic = String(link.topic);
+  if (!created) return 'none';
+  const pools = postsFlat(storedMarkers).concat(postsFlat(storedPolygons));
+  for (const post of pools) {
+    if (post === item) continue;
+    if (String(post.msgNumber || '').startsWith('share-')) continue;
+    if (String(post.topicId) !== topic) continue;
+    if (messageCreated(post.created) !== created) continue;
+    const kind = (post.properties && post.properties.media) || post.media;
+    if (kind === 'video' || kind === 'picture') return kind;
+  }
+  return 'none';
+}
+
+function mediaMatches(item, mode) {
+  if (mode === 'all') return true;
+  const kind = postMedia(item);
+  if (mode === 'pictures') return kind === 'picture';
+  if (mode === 'videos') return kind === 'video';
+  return kind === 'picture' || kind === 'video';
+}
+
+function cleanSeconds(value) {
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+// Seconds live on the same object that decided the post is a video.
+// A pointer share with no image of its own uses the loaded original.
+function postSeconds(item) {
+  if (!item || postMedia(item) !== 'video') return null;
+  const props = item.properties;
+  const own = (props && props.media) || item.media;
+  if (own === 'video') {
+    if (props && props.media === 'video') return cleanSeconds(props.seconds);
+    return cleanSeconds(item.seconds);
+  }
+  const link = (props && props.shareOf) || item.shareOf;
+  if (!link || !link.topic || !link.created) return null;
+  const created = messageCreated(link.created);
+  const topic = String(link.topic);
+  if (!created) return null;
+  const pools = postsFlat(storedMarkers).concat(postsFlat(storedPolygons));
+  for (const post of pools) {
+    if (post === item) continue;
+    if (String(post.msgNumber || '').startsWith('share-')) continue;
+    if (String(post.topicId) !== topic) continue;
+    if (messageCreated(post.created) !== created) continue;
+    const kind = (post.properties && post.properties.media) || post.media;
+    if (kind !== 'video') continue;
+    if (post.properties && post.properties.media === 'video') return cleanSeconds(post.properties.seconds);
+    return cleanSeconds(post.seconds);
+  }
+  return null;
+}
+
+// Length only removes videos. Pictures and text stay with the Show choice.
+// A video whose filename has no length is visible only on Any.
+function lengthMatches(item, mode) {
+  if (mode === 'any') return true;
+  if (postMedia(item) !== 'video') return true;
+  const seconds = postSeconds(item);
+  if (seconds == null) return false;
+  if (mode === 'under') return seconds < 30;
+  if (mode === 'mid') return seconds >= 30 && seconds <= 120;
+  return seconds > 120;
+}
+
+// The open pin, found even when the arrow was the fallback with no walk.
+// Same account can be standing on a share, whose author post is the start.
+function openIndex(posts, payer, number, topicId, walk) {
+  if (number != null && topicId) {
+    const idx = findPin(posts, payer, number, topicId);
+    if (idx !== -1) return idx;
+  }
+  if (pagerMode() === 'account' && walk) return findAuthorPost(posts, walk);
+  return -1;
+}
+
+// One drawing is one created time, including the same post stored on
+// several topics. An empty time falls back to the pin identity.
+function createdKey(item) {
+  const created = messageCreated(item && item.created);
+  if (created) return created;
+  return String(item && item.payer) + '\0' + String(item && item.topicId) + '\0' + String(item && item.msgNumber);
+}
+
+// Keep the copy that is the open pin, so the step still finds where it started.
+function uniquePosts(posts, payer, number, topicId, walk) {
+  const list = posts || [];
+  const preferredAt = openIndex(list, payer, number, topicId, walk);
+  const preferred = preferredAt === -1 ? null : list[preferredAt];
+  const kept = new Map();
+  const keys = [];
+  for (const item of list) {
+    const key = createdKey(item);
+    if (!kept.has(key)) {
+      kept.set(key, item);
+      keys.push(key);
+      continue;
+    }
+    if (preferred && item === preferred) kept.set(key, item);
+  }
+  return keys.map((key) => kept.get(key));
+}
+
+// The open post stays in the list even when it does not match, so the step
+// can start there. Anything else has to match both Show and Length.
+function filterMedia(posts, payer, number, topicId, walk) {
+  const mode = mediaMode();
+  const length = lengthMode();
+  if (mode === 'all' && length === 'any') return posts;
+  const filtered = posts.filter((item) => mediaMatches(item, mode) && lengthMatches(item, length));
+  const openIdx = openIndex(posts, payer, number, topicId, walk);
+  if (openIdx === -1) return filtered;
+  const open = posts[openIdx];
+  if (!filtered.includes(open)) filtered.push(open);
+  return filtered;
+}
+
+function noMoreMediaLabel() {
+  const mode = mediaMode();
+  if (mode === 'pictures') return 'No more pictures';
+  if (mode === 'videos') return 'No more videos';
+  return 'No more pictures or videos';
+}
+
+function noteNoMoreMedia(posts, payer, number, topicId, walk) {
+  if (mediaMode() === 'all' || !posts || !posts.length) return;
+  const curIdx = openIndex(posts, payer, number, topicId, walk);
+  if (curIdx === -1) return;
+  const openKey = createdKey(posts[curIdx]);
+  for (let i = 0; i < posts.length; i++) {
+    if (i === curIdx || createdKey(posts[i]) === openKey) continue;
+    if (mediaMatches(posts[i], mediaMode()) && lengthMatches(posts[i], lengthMode())) return;
+  }
+  toast.info(noMoreMediaLabel());
+}
+
 // Same account wraps inside that one account. By time is one timeline of
 // every loaded post of this shape. Random picks another loaded post.
 // One post, or a post that is not in the list, stays put.
-function listForStep(pinGroups, pinPayer, walk) {
+export function listForStep(pinGroups, pinPayer, walk, payer, number, topicId) {
   const mode = pagerMode();
+  let posts;
   if (mode === 'account') {
     const author = (walk && walk.author) || pinPayer;
     const groups = walk && walk.kind === 'polygon' ? storedPolygons : pinGroups;
     if (!author) return [];
-    return postsFlat(groups).filter((item) => String(item.payer) === String(author)).sort(byTime);
+    posts = postsFlat(groups).filter((item) => String(item.payer) === String(author));
+  } else {
+    posts = postsFlat(pinGroups);
   }
-  return postsFlat(pinGroups).sort(byTime);
+  const who = payer == null ? pinPayer : payer;
+  return uniquePosts(filterMedia(posts, who, number, topicId, walk).sort(byTime), who, number, topicId, walk);
 }
 
-function stepPosts(posts, payer, number, topicId, direction, walk) {
+function takeStep(pinGroups, payer, number, topicId, direction, walk) {
+  const posts = listForStep(pinGroups, pinPayerFrom(payer, walk), walk, payer, number, topicId);
+  const next = stepPosts(posts, payer, number, topicId, direction, walk);
+  if (!next) noteNoMoreMedia(posts, payer, number, topicId, walk);
+  return next;
+}
+
+function pinPayerFrom(payer, walk) {
+  return (walk && walk.payer) || payer;
+}
+
+export function stepPosts(posts, payer, number, topicId, direction, walk) {
   if (!posts || posts.length < 2) return null;
   const mode = pagerMode();
   // The open pin wins when it is already in this list (your own post, or
   // your own share). A share of someone else's post is not in their list,
   // so the step starts at the original instead. If that original is not
   // loaded either, the arrows stay put.
-  let curIdx = findPin(posts, payer, number, topicId);
-  if (curIdx === -1 && mode === 'account' && walk) curIdx = findAuthorPost(posts, walk);
+  const curIdx = openIndex(posts, payer, number, topicId, walk);
   if (curIdx === -1) return null;
+  const open = posts[curIdx];
+  const openKey = createdKey(open);
   if (mode === 'random') {
-    let pick = Math.floor(Math.random() * (posts.length - 1));
-    if (pick >= curIdx) pick += 1;
-    return posts[pick];
+    const choices = [];
+    for (let i = 0; i < posts.length; i++) {
+      if (i === curIdx || createdKey(posts[i]) === openKey) continue;
+      if (!mediaMatches(posts[i], mediaMode()) || !lengthMatches(posts[i], lengthMode())) continue;
+      choices.push(posts[i]);
+    }
+    if (!choices.length) return null;
+    return choices[Math.floor(Math.random() * choices.length)];
   }
   const dir = direction < 0 ? -1 : 1;
-  return posts[(curIdx + dir + posts.length) % posts.length];
+  let idx = curIdx;
+  for (let n = 0; n < posts.length - 1; n++) {
+    idx = (idx + dir + posts.length) % posts.length;
+    const item = posts[idx];
+    if (createdKey(item) === openKey) continue;
+    if (!mediaMatches(item, mediaMode()) || !lengthMatches(item, lengthMode())) continue;
+    return item;
+  }
+  return null;
 }
 
 function showPost(item) {
@@ -2346,7 +2615,7 @@ function showPost(item) {
 
 window.nextMsgFromPayerMarker = function(payer, markerNumber, topicId, walk) {
   if (!payer || markerNumber == null || !topicId) return null;
-  const next = stepPosts(listForStep(storedMarkers, payer, walk), payer, markerNumber, topicId, 1, walk);
+  const next = takeStep(storedMarkers, payer, markerNumber, topicId, 1, walk);
   return next ? showPost(next) : null;
 };
 
@@ -2386,7 +2655,7 @@ function showMarker(m) {
 
 window.nextMsgFromPayerPolygon = function(payer, polygonNumber, topicId, walk) {
   if (!payer || polygonNumber == null || !topicId) return null;
-  const next = stepPosts(listForStep(storedPolygons, payer, walk), payer, polygonNumber, topicId, 1, walk);
+  const next = takeStep(storedPolygons, payer, polygonNumber, topicId, 1, walk);
   return next ? showPost(next) : null;
 };
 
@@ -2438,13 +2707,13 @@ function showPolygon(p) {
 
 window.prevMsgFromPayerMarker = function(payer, markerNumber, topicId, walk) {
   if (!payer || markerNumber == null || !topicId) return null;
-  const prev = stepPosts(listForStep(storedMarkers, payer, walk), payer, markerNumber, topicId, -1, walk);
+  const prev = takeStep(storedMarkers, payer, markerNumber, topicId, -1, walk);
   return prev ? showPost(prev) : null;
 };
 
 window.prevMsgFromPayerPolygon = function(payer, polygonNumber, topicId, walk) {
   if (!payer || polygonNumber == null || !topicId) return null;
-  const prev = stepPosts(listForStep(storedPolygons, payer, walk), payer, polygonNumber, topicId, -1, walk);
+  const prev = takeStep(storedPolygons, payer, polygonNumber, topicId, -1, walk);
   return prev ? showPost(prev) : null;
 };
 
@@ -2672,6 +2941,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
     img.alt = 'Profile photo';
     img.style.cssText = 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer;';
     img.addEventListener('click', () => window.loadBio4PIC(payer));
+    watchFollowPrefetch(img, payer);
     group.appendChild(img);
 
     const contentWrapper = document.createElement('div');
@@ -2731,6 +3001,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
       payerPic.alt = 'Profile photo';
       payerPic.style.cssText = 'width: 1.2em; height: 1.2em; border-radius: 1em; object-fit: cover; border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.35); cursor: pointer;';
       payerPic.addEventListener('click', () => window.loadBio4PIC(node.payer));
+      watchFollowPrefetch(payerPic, node.payer);
       whoRow.appendChild(payerPic);
       const payerLabel = document.createElement('a');
       payerLabel.href = `https://explore.hashpack.app/${encodeURIComponent(node.payer)}`;
@@ -3783,7 +4054,11 @@ if (rawResult && Array.isArray(rawResult)) {
                       msgNumber: markernumber,
                       type: "Feature",
                       payer: message.payer,
+                      media: mediaKind(parsedMessage.marker.data.image),
+                      seconds: videoSeconds(parsedMessage.marker.data.image),
                       properties: {
+                        media: mediaKind(parsedMessage.marker.data.image),
+                        seconds: videoSeconds(parsedMessage.marker.data.image),
                         popupData: markerPopupData,
                         imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl,
                         title: String(parsedMessage.marker.data.title || "").slice(0, 20)
@@ -3861,6 +4136,8 @@ if (rawResult && Array.isArray(rawResult)) {
                         msgNumber: polygonnumber,
                         id: `polygon-${message.payer}-${topicId}-${polygonnumber}`,
                         payer: message.payer,
+                        media: mediaKind(parsedMessage.polygon.data.image),
+                        seconds: videoSeconds(parsedMessage.polygon.data.image),
                         coordinates: [coordinates],
                         popupData: polygonPopupData,
                         title: String(parsedMessage.polygon.data.title || "").slice(0, 20),
@@ -4471,7 +4748,11 @@ if (rawResult && Array.isArray(rawResult)) {
                       msgNumber: markernumber,
                       type: "Feature",
                       payer: message.payer,
+                      media: mediaKind(parsedMessage.marker.data.image),
+                      seconds: videoSeconds(parsedMessage.marker.data.image),
                       properties: {
+                        media: mediaKind(parsedMessage.marker.data.image),
+                        seconds: videoSeconds(parsedMessage.marker.data.image),
                         popupData: markerPopupData,
                         imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl,
                         title: String(parsedMessage.marker.data.title || "").slice(0, 20)
@@ -4553,6 +4834,8 @@ if (rawResult && Array.isArray(rawResult)) {
                         msgNumber: polygonnumber,
                         id: `polygon-${message.payer}-${topicId}-${polygonnumber}`,
                         payer: message.payer,
+                        media: mediaKind(parsedMessage.polygon.data.image),
+                        seconds: videoSeconds(parsedMessage.polygon.data.image),
                         coordinates: [coordinates],
                         popupData: polygonPopupData,
                         title: String(parsedMessage.polygon.data.title || "").slice(0, 20),

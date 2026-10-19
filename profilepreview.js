@@ -3,6 +3,8 @@
 import { connectedAccount } from './web3.js';
 import { profilePictures, usernames, click2url, topicBio } from './loadalladata.js';
 import { payerUsernameNode } from './payerlink.js';
+import { paintEarlyProfile } from './loadprofilepopup.js';
+import { paintProfileAvatar } from './earlyhashinal.js';
 
 const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 
@@ -77,6 +79,8 @@ function render() {
   const hasBio = bio.trim().length > 0;
   bioEl.textContent = hasBio ? bio : 'No bio yet';
   bioEl.classList.toggle('is-empty', !hasBio);
+  paintProfileAvatar(picEl, connectedAccount || "");
+  paintEarlyProfile(picEl && picEl.closest(".profile-live-preview"), connectedAccount || "");
 }
 
 function useFallback(src) {

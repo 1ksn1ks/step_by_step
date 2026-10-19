@@ -4,79 +4,154 @@ import {
   PrivateKey,
   TopicCreateTransaction,
   TopicUpdateTransaction,
-  AccountId, 
+  AccountId,
+  TransactionId,
   CustomFixedFee} from '@hashgraph/sdk';
 import { signer, dAppConnector } from './web3';
+import { toast } from './toast.js';
+import {
+  HCS_MAX_CHUNKS,
+  HCS_MESSAGE_MAX_BYTES,
+  HCS_TOO_LONG,
+  createChunkAssembler,
+  ingestMirrorRows,
+  openWatermark,
+} from './hcschunks.js';
+import { freezeOneHcsChunk } from './hcssplit.js';
+
+// A multi-chunk failure stays up until the next send, so the "sent X of N"
+// line can be read after HashPack closes. A retry builds a new chunk-1 id.
+let heldChunkError = null;
+
+function clearHeldChunkError() {
+  if (!heldChunkError) return;
+  heldChunkError.done();
+  heldChunkError = null;
+}
+
+// The wallet connector's ids are @hiero-ledger/sdk objects. They fail
+// instanceof inside @hashgraph/sdk, and fromString then crashes on the
+// object. Keep every id a string, and freeze with this package's
+// TransactionId. freezeWithSigner would install the connector's id first,
+// and TopicCreateTransaction.freezeWith copies that payer into auto-renew.
+function sdkId(value) {
+  if (typeof value === 'string') return value;
+  if (value != null && typeof value.toString === 'function') {
+    const text = value.toString();
+    if (typeof text === 'string' && text !== '[object Object]') return text;
+  }
+  return value;
+}
+
+function connectedAccountId() {
+  const accountId = sdkId(signer.getAccountId());
+  if (typeof accountId !== 'string' || accountId === '') {
+    throw new Error('Connect wallet first');
+  }
+  return accountId;
+}
+
+function nodeAccountId(nodeAddresses) {
+  let node = '0.0.3';
+  if (nodeAddresses && nodeAddresses.length > 0) {
+    node = nodeAddresses[Math.floor(Math.random() * nodeAddresses.length)];
+  }
+  return AccountId.fromString(sdkId(node));
+}
+
+function freezeForConnectedAccount(transaction, nodeAddresses) {
+  transaction.setNodeAccountIds([nodeAccountId(nodeAddresses)]);
+  transaction.setTransactionId(TransactionId.generate(connectedAccountId()));
+  transaction.freeze();
+  return transaction;
+}
+
+function formatMirrorMessage(item) {
+  return {
+    ...item.parsed,
+    payer: item.payer,
+    created: new Date(Number(item.consensus_timestamp) * 1000),
+    consensus_timestamp: item.consensus_timestamp,
+    sequence_number: item.sequence_number,
+  };
+}
 
 export async function sendMessage(topicId, message) {
-  
-    const transaction = new TopicMessageSubmitTransaction()
-      .setTopicId(TopicId.fromString(topicId))
-      .setMessage(message);
-  
+  clearHeldChunkError();
+  const transaction = new TopicMessageSubmitTransaction()
+    .setTopicId(TopicId.fromString(sdkId(topicId)))
+    .setMessage(message)
+    .setMaxChunks(HCS_MAX_CHUNKS);
+
+  const size = transaction.getMessage() ? transaction.getMessage().length : 0;
+  if (size > HCS_MESSAGE_MAX_BYTES) {
+    toast.error(HCS_TOO_LONG);
+    throw new Error(HCS_TOO_LONG);
+  }
+
+  // One chunk stays on the wallet's single sign-and-execute path. The body
+  // is at most 1024 bytes, so the mirror row has no chunk_info.
+  if (transaction.getRequiredChunks() <= 1) {
     try {
       const txResponse = await transaction.executeWithSigner(signer);
       const receipt = await txResponse.getReceiptWithSigner(signer);
-  
-      const txId = receipt;
-  
-      console.log (txId)
+      console.log(receipt);
+      return receipt;
     } catch (err) {
       throw err;
     }
   }
 
-export async function updateTopic({topicId:topicId , memo:memo, adminKey:adminKey, customFees:customFees}) {
+  // Each wallet approval gets its own valid-start. Chunk 1's transaction id
+  // is still chunk_info.initial_transaction_id on every part. A retry of this
+  // function generates a new chunk-1 id and sends the whole message again.
+  const total = transaction.getRequiredChunks();
+  const nodeAddresses = await dAppConnector.getNodeAddresses();
+  const node = nodeAccountId(nodeAddresses);
+  const account = connectedAccountId();
+  const messageBytes = transaction.getMessage();
+  toast.info(`This message needs ${total} wallet approvals.`);
 
-    let transaction = new TopicUpdateTransaction()
-      .setTopicId(topicId)
-      .setTopicMemo(memo || '');
-
-      const nodeAddresses = await dAppConnector.getNodeAddresses();
-
-  
-  
-      if (adminKey) {
-        const adminPrivateKey = PrivateKey.fromStringED25519(adminKey);
-        const adminPublicKey = adminPrivateKey.publicKey;
-
-        transaction
-        .setAdminKey(adminPublicKey)
-        .setFeeScheduleKey(adminPublicKey);
-
-
-    
-        if (customFees) {
-          const hederaCustomFees = customFees.map(fee => {
-              const customFee = new CustomFixedFee()
-                  .setAmount(fee.amount)
-                  .setFeeCollectorAccountId(fee.collectorAccountId)
-                  .setDenominatingTokenId(fee.denominatingTokenId);
-              return customFee;
-          });
-          transaction.setCustomFees(hederaCustomFees);
-      }
-
-    let node;
-
-    if (nodeAddresses && nodeAddresses.length > 0) {
-      node = nodeAddresses[Math.floor(Math.random() * nodeAddresses.length)];
-    } else {
-      node = '0.0.3';
+  let initialTransactionId = null;
+  let sent = 0;
+  let receipt = null;
+  for (let number = 1; number <= total; number++) {
+    const transactionId = TransactionId.generate(account);
+    if (number === 1) initialTransactionId = transactionId;
+    const part = freezeOneHcsChunk({
+      topicId: sdkId(topicId),
+      message: messageBytes,
+      nodeAccountId: node,
+      transactionId,
+      initialTransactionId,
+      number,
+      total,
+      maxChunks: HCS_MAX_CHUNKS,
+    });
+    const notice = toast.hold(`Sending part ${number} of ${total}`);
+    try {
+      const txResponse = await part.executeWithSigner(signer);
+      receipt = await txResponse.getReceiptWithSigner(signer);
+      sent += 1;
+    } catch (err) {
+      heldChunkError = toast.error(
+        `Sent ${sent} of ${total} parts, so this message won't appear. Send it again to retry.`,
+        { hold: true, stay: true },
+      );
+      throw err;
+    } finally {
+      notice.done();
     }
-
-    transaction.setNodeAccountIds([AccountId.fromString(node)]);
-    transaction = await transaction.freezeWithSigner(signer);
-
-    await transaction.sign(adminPrivateKey);
   }
-      
-  await transaction.executeWithSigner(signer);
+  console.log(receipt);
+  return receipt;
 }
-  
 
-export async function createTopic({memo:memo, adminkey:adminKey}) {
-  let transaction = new TopicCreateTransaction().setTopicMemo(memo);
+export async function updateTopic({topicId:topicId , memo:memo, adminKey:adminKey, customFees:customFees}) {
+  const transaction = new TopicUpdateTransaction()
+    .setTopicId(sdkId(topicId))
+    .setTopicMemo(memo || '');
+
   const nodeAddresses = await dAppConnector.getNodeAddresses();
 
   if (adminKey) {
@@ -87,18 +162,46 @@ export async function createTopic({memo:memo, adminkey:adminKey}) {
       .setAdminKey(adminPublicKey)
       .setFeeScheduleKey(adminPublicKey);
 
-      let node;
+    if (customFees) {
+      const hederaCustomFees = customFees.map(fee => {
+        const customFee = new CustomFixedFee().setAmount(fee.amount);
+        const collector = sdkId(fee.collectorAccountId);
+        const token = sdkId(fee.denominatingTokenId);
+        if (collector) customFee.setFeeCollectorAccountId(collector);
+        if (token) customFee.setDenominatingTokenId(token);
+        return customFee;
+      });
+      transaction.setCustomFees(hederaCustomFees);
+    }
 
-      if (nodeAddresses && nodeAddresses.length > 0) {
-        node = nodeAddresses[Math.floor(Math.random() * nodeAddresses.length)];
-      } else {
-        node = '0.0.3';
-      }
+    // Update freeze does not copy the payer. Setting auto-renew here would
+    // change who pays renewal on every memo or fee update.
+    freezeForConnectedAccount(transaction, nodeAddresses);
+    await transaction.sign(adminPrivateKey);
+  }
 
-      
-    transaction.setNodeAccountIds([AccountId.fromString(node)]);
-    transaction = await transaction.freezeWithSigner(signer);
+  await transaction.executeWithSigner(signer);
+}
 
+export async function createTopic({memo:memo, adminkey:adminKey} = {}) {
+  const transaction = new TopicCreateTransaction().setTopicMemo(memo);
+  transaction.setAutoRenewAccountId(connectedAccountId());
+
+  const nodeAddresses = await dAppConnector.getNodeAddresses();
+  let adminPrivateKey;
+
+  if (adminKey) {
+    adminPrivateKey = PrivateKey.fromStringED25519(adminKey);
+    const adminPublicKey = adminPrivateKey.publicKey;
+
+    transaction
+      .setAdminKey(adminPublicKey)
+      .setFeeScheduleKey(adminPublicKey);
+  }
+
+  freezeForConnectedAccount(transaction, nodeAddresses);
+
+  if (adminPrivateKey) {
     await transaction.sign(adminPrivateKey);
   }
 
@@ -142,7 +245,20 @@ export async function getMessages(
     : `${baseUrl}/api/v1/topics/${topicId}/messages?limit=100&order=asc`;
 
   const allMessages = [];
+  const rawRows = [];
+  const assembler = createChunkAssembler();
   let lastSequence = after;
+
+  const takePage = (messages) => {
+    rawRows.push(...messages);
+    for (const item of ingestMirrorRows(assembler, topicId, messages)) {
+      allMessages.push(formatMirrorMessage(item));
+    }
+    // This walk does not keep the chunk buffer after it returns. Hold the
+    // watermark before an unfinished group so the next read still has every
+    // chunk. A group that finishes inside this walk is safe to pass.
+    lastSequence = openWatermark(after, rawRows, assembler.pendingSequences(String(topicId)));
+  };
 
   try {
     while (url) {
@@ -151,25 +267,7 @@ export async function getMessages(
 
       const messages = data.messages || [];
       let nextLink = data.links?.next || null;
-
-      for (const msg of messages) {
-        const seq = Number(msg.sequence_number);
-        if (Number.isFinite(seq) && seq > lastSequence) lastSequence = seq;
-        try {
-          const decoded = Buffer.from(msg.message, 'base64').toString('utf-8');
-          const parsedMessage = JSON.parse(decoded);
-
-          allMessages.push({
-            ...parsedMessage,
-            payer: msg.payer_account_id,
-            created: new Date(Number(msg.consensus_timestamp) * 1000),
-            consensus_timestamp: msg.consensus_timestamp,
-            sequence_number: msg.sequence_number,
-          });
-        } catch (parseError) {
-          console.warn(`Skipping invalid message (sequence: ${msg.sequence_number}): ${parseError.message}`);
-        }
-      }
+      takePage(messages);
 
       if (nextLink) {
         url = `${baseUrl}${nextLink}`;
@@ -207,44 +305,31 @@ export async function subscribeToTopic(
   let timeoutId = null;
   const seenSequences = new Set();
   const historyMessages = [];
+  // Lives for this subscription, including across polls, so a chunk that
+  // arrives on the next tick still completes the message.
+  const assembler = createChunkAssembler();
 
   const baseUrl = `https://mainnet.mirrornode.hedera.com`;
 
   const processMessages = (messages, isHistory = false) => {
+    let maxSeq = lastSequence;
     for (const msg of messages || []) {
-      const seq = msg.sequence_number;
-      if (seenSequences.has(seq)) continue;
-
-      try {
-        const decoded = Buffer.from(msg.message, 'base64').toString('utf-8');
-        const parsedMessage = JSON.parse(decoded);
-
-        const formatted = {
-          ...parsedMessage,
-          payer: msg.payer_account_id,
-          created: new Date(Number(msg.consensus_timestamp) * 1000),
-          consensus_timestamp: msg.consensus_timestamp,
-          sequence_number: seq,
-        };
-
-        seenSequences.add(seq);
-
-        if (isHistory) {
-          historyMessages.push(formatted);
-        } else {
-          // Only for NEW live messages
-          if (typeof onMessageReceived === "function") {
-            onMessageReceived(formatted);
-          }
-        }
-
-        if (seq > lastSequence) {
-          lastSequence = seq;
-        }
-      } catch (err) {
-        console.warn("Skipping bad message:", err.message);
+      const seq = Number(msg.sequence_number);
+      if (Number.isFinite(seq) && seq > maxSeq) maxSeq = seq;
+    }
+    for (const item of ingestMirrorRows(assembler, topicId, messages)) {
+      if (seenSequences.has(item.sequence_number)) continue;
+      seenSequences.add(item.sequence_number);
+      const formatted = formatMirrorMessage(item);
+      if (isHistory) {
+        historyMessages.push(formatted);
+      } else if (typeof onMessageReceived === "function") {
+        onMessageReceived(formatted);
       }
     }
+    // The assembler keeps unfinished chunks. Later chunks have a higher
+    // sequence, so the next poll can start after this page.
+    if (maxSeq > lastSequence) lastSequence = maxSeq;
   };
 
   // Load history

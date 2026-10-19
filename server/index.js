@@ -14,6 +14,7 @@
 
 import "dotenv/config";
 import express from "express";
+import crypto from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import fs from "fs";
 import path from "path";
@@ -21,6 +22,12 @@ import { fileURLToPath } from "url";
 import { S3Client, PutObjectCommand, PutBucketCorsCommand } from "@aws-sdk/client-s3";
 import { appIcon, APP_ICONS } from "./appicon.js";
 import { profileTopicAction } from "./profiletopic.js";
+import { hashtagsIn } from "../hashtag.js";
+import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
+import { startBackupSchedule } from "./backup.js";
+import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
+import { startEarlyHashinals } from "./hashinals.js";
+import { createChunkAssembler } from "../hcschunks.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -51,6 +58,44 @@ const PROFILE_TOPICS = {
   "0.0.9752486": "click",
   "0.0.9759201": "bio",
 };
+// One global topic for person follows. The body names the followee.
+// The mirror payer is the follower.
+const FOLLOW_TOPIC = "0.0.10923187";
+
+function envPositiveInt(name, fallback) {
+  const raw = process.env[name];
+  if (raw == null || String(raw).trim() === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) return fallback;
+  return n;
+}
+
+// Upload caps. Defaults match the previous fixed limits: 30 files an hour
+// and 500 MB a day for one account, 60 files an hour for one IP.
+const UPLOAD_PER_HOUR = envPositiveInt("UPLOAD_RATE_LIMIT_ACCOUNT", 30);
+const UPLOAD_PER_IP_HOUR = envPositiveInt("UPLOAD_RATE_LIMIT_IP", 60);
+const UPLOAD_BYTES_PER_DAY = envPositiveInt("UPLOAD_DAILY_MB_ACCOUNT", 500) * 1024 * 1024;
+// How many upload bodies may sit in memory at once. Extra requests get
+// 503 and Retry-After instead of growing without a bound.
+const UPLOAD_MAX_CONCURRENT = envPositiveInt("UPLOAD_MAX_CONCURRENT", 4);
+// One address cannot fill every slot by trickling a few bodies.
+const UPLOAD_MAX_CONCURRENT_PER_IP = envPositiveInt("UPLOAD_MAX_CONCURRENT_PER_IP", 2);
+// A body that stops sending is dropped instead of holding its slot.
+const UPLOAD_BODY_TIMEOUT_MS = envPositiveInt("UPLOAD_BODY_TIMEOUT_MS", 30000);
+// The whole request, including a slow video body. The idle timer above is
+// what stops a phone that stops sending. Ten minutes leaves room for a
+// large file on a slow link.
+const UPLOAD_REQUEST_TIMEOUT_MS = envPositiveInt("UPLOAD_REQUEST_TIMEOUT_MS", 600000);
+// Requests to /api/upload from one IP each minute, before Turnstile.
+const UPLOAD_REQUESTS_PER_MIN = envPositiveInt("UPLOAD_REQUESTS_PER_MIN", 30);
+// Writes and mirror polls that are open to any visitor.
+const PUBLIC_POST_RATE_LIMIT = envPositiveInt("PUBLIC_POST_RATE_LIMIT", 60);
+// EventSource reconnects are bursty. A 429 on this route closes the
+// browser stream, so it does not share the smaller public-post bucket.
+const STREAM_RATE_LIMIT = envPositiveInt("STREAM_RATE_LIMIT", 120);
+// Wallet-signed upload auth stays off until this is exactly "1".
+const REQUIRE_UPLOAD_AUTH = process.env.REQUIRE_UPLOAD_AUTH === "1";
+const UPLOAD_NONCE_TTL_MS = 5 * 60 * 1000;
 
 // ── SQLite (one file, disposable cache) ────────────────────────────────
 // DATA_DIR is the persistent disk on Railway. Mount a volume at /data and
@@ -168,6 +213,28 @@ db.exec(`
     payer    TEXT NOT NULL,
     PRIMARY KEY (topic_id, created, payer)
   );
+  -- One row per hashtag on a marker or polygon. tag is lowercase.
+  -- created is the post ISO time, the same key a delete already uses.
+  CREATE TABLE IF NOT EXISTS hashtags (
+    tag      TEXT NOT NULL,
+    topic_id TEXT NOT NULL,
+    seq      INTEGER NOT NULL,
+    kind     TEXT NOT NULL,
+    title    TEXT NOT NULL,
+    msg      TEXT NOT NULL,
+    payer    TEXT NOT NULL,
+    created  TEXT NOT NULL,
+    lng      REAL,
+    lat      REAL,
+    number   TEXT NOT NULL,
+    PRIMARY KEY (tag, topic_id, seq, kind)
+  );
+  CREATE TABLE IF NOT EXISTS user_follows (
+    follower TEXT NOT NULL,
+    followee TEXT NOT NULL,
+    PRIMARY KEY (follower, followee)
+  );
+  CREATE INDEX IF NOT EXISTS messages_payer ON messages(payer);
 `);
 // Migrations: columns added after earlier deployments created the tables
 // (CREATE TABLE IF NOT EXISTS won't add a column to an existing one).
@@ -188,6 +255,7 @@ db.exec("CREATE INDEX IF NOT EXISTS user_settings_revision ON user_settings(revi
 // nanosecond precision while the key only carries milliseconds, so the
 // index narrows the scan to a 1ms window that JS verifies exactly.
 db.exec("CREATE INDEX IF NOT EXISTS messages_ts ON messages(topic_id, ts)");
+db.exec("CREATE INDEX IF NOT EXISTS hashtags_tag ON hashtags(tag, created)");
 db.exec(`
   CREATE TABLE IF NOT EXISTS topic_follows (
     topic_id   TEXT NOT NULL,
@@ -206,6 +274,7 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS shares_created ON shares(topic_id, created);
 `);
+db.exec("CREATE INDEX IF NOT EXISTS topic_follows_account ON topic_follows(account_id)");
 // settings_generation stays for the life of this database file. A new file
 // (a rebuilt cache) gets a new id so phones drop their copy and take the
 // directory again. settings_revision counts writes, not message time.
@@ -237,6 +306,25 @@ const q = {
   insertMsg: db.prepare(`
     INSERT OR IGNORE INTO messages (topic_id, seq, ts, payer, body)
     VALUES (?, ?, ?, ?, ?)
+  `),
+  insertHashtag: db.prepare(`
+    INSERT OR REPLACE INTO hashtags
+      (tag, topic_id, seq, kind, title, msg, payer, created, lng, lat, number)
+    VALUES
+      (@tag, @topicId, @seq, @kind, @title, @msg, @payer, @created, @lng, @lat, @number)
+  `),
+  searchHashtags: db.prepare(`
+    SELECT kind, topic_id AS topicId, title, msg, payer, created, lng, lat, number
+    FROM hashtags
+    WHERE tag = ?
+      AND NOT EXISTS (
+        SELECT 1 FROM deleted_posts d
+        WHERE d.topic_id = hashtags.topic_id
+          AND d.created = hashtags.created
+          AND d.payer = hashtags.payer
+      )
+    ORDER BY created DESC
+    LIMIT 20
   `),
   countTopic: db.prepare("SELECT COUNT(*) AS n FROM messages WHERE topic_id = ?"),
   dropOld: db.prepare(`
@@ -342,6 +430,40 @@ const q = {
   getFollow: db.prepare(
     "SELECT account_id FROM topic_follows WHERE topic_id = ? AND account_id = ?"
   ),
+  followUser: db.prepare(
+    "INSERT OR IGNORE INTO user_follows (follower, followee) VALUES (?, ?)"
+  ),
+  unfollowUser: db.prepare(
+    "DELETE FROM user_follows WHERE follower = ? AND followee = ?"
+  ),
+  countUserFollowers: db.prepare(
+    "SELECT COUNT(*) AS n FROM user_follows WHERE followee = ?"
+  ),
+  getUserFollow: db.prepare(
+    "SELECT follower FROM user_follows WHERE follower = ? AND followee = ?"
+  ),
+  listUserFollowing: db.prepare(
+    "SELECT followee FROM user_follows WHERE follower = ? ORDER BY followee"
+  ),
+  listUserFollowingDetail: db.prepare(`
+    SELECT u.followee AS id,
+           COALESCE(s.username, '') AS username,
+           COALESCE(s.profile_pic, '') AS avatar
+    FROM user_follows u
+    LEFT JOIN user_settings s ON s.account_id = u.followee
+    WHERE u.follower = ?
+    ORDER BY u.followee
+    LIMIT 500
+  `),
+  listTopicFollowing: db.prepare(
+    "SELECT topic_id FROM topic_follows WHERE account_id = ? ORDER BY topic_id LIMIT 500"
+  ),
+  followingFeed: db.prepare(`
+    SELECT topic_id, seq, ts, payer, body FROM messages
+    WHERE payer IN (SELECT followee FROM user_follows WHERE follower = ?)
+    ORDER BY ts DESC, seq DESC
+    LIMIT ?
+  `),
   getUserSetting: db.prepare("SELECT * FROM user_settings WHERE account_id = ?"),
   bumpSettingsRevision: db.prepare(
     "UPDATE meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'settings_revision'"
@@ -587,6 +709,20 @@ function extractFollow(topicId, payer, body) {
   else if (data.unfollow) q.unfollowTopic.run(topicId, payer);
 }
 
+// Person follows live on one global topic. The body is the followee account.
+// The payer is the follower. A repeat of the same pair does not add a row.
+function extractUserFollow(payer, body) {
+  let data;
+  try {
+    data = JSON.parse(body);
+  } catch {
+    return;
+  }
+  if (!data || typeof data !== "object" || !isTopicId(payer)) return;
+  if (isTopicId(data.follow)) q.followUser.run(payer, data.follow);
+  else if (isTopicId(data.unfollow)) q.unfollowUser.run(payer, data.unfollow);
+}
+
 // One-time startup: if user_settings is empty but the profile topics already
 // have cached messages (stored before this feature existed), rebuild the view
 // from the local cache — no mirror requests needed.
@@ -603,6 +739,18 @@ function backfillUserSettings() {
   }
 }
 backfillUserSettings();
+
+// One-time startup: if user_follows is empty but the follow topic already
+// has cached messages, rebuild the pairs from the local cache. Oldest first,
+// so a later unfollow wins. Called once isTopicId exists.
+function backfillUserFollows() {
+  const { n } = db.prepare("SELECT COUNT(*) AS n FROM user_follows").get();
+  if (n > 0) return;
+  const rows = db
+    .prepare("SELECT payer, body FROM messages WHERE topic_id = ? ORDER BY seq ASC")
+    .all(FOLLOW_TOPIC);
+  for (const r of rows) extractUserFollow(r.payer, r.body);
+}
 
 // Rows saved before revisions existed get a number, oldest first, so a
 // phone can ask for everything newer than the number it has stored.
@@ -643,10 +791,76 @@ function formatMarkerKey(createdISO) {
   });
 }
 
+function postNumber(raw, created) {
+  if (raw == null || String(raw).trim() === "") return created;
+  if (!Number.isInteger(Number(raw))) return "";
+  return String(raw).trim();
+}
+
+function pointFromCord(kind, cord) {
+  if (typeof cord !== "string") return null;
+  if (kind === "marker") {
+    const parts = cord.split(",").map((part) => Number(part.trim()));
+    if (parts.length !== 2 || parts.some((n) => !Number.isFinite(n))) return null;
+    return parts;
+  }
+  const pairs = [...cord.matchAll(/\[(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\]/g)];
+  if (pairs.length < 3) return null;
+  let lng = 0;
+  let lat = 0;
+  for (const pair of pairs) {
+    lng += Number(pair[1]);
+    lat += Number(pair[2]);
+  }
+  return [lng / pairs.length, lat / pairs.length];
+}
+
+function textField(value) {
+  if (Array.isArray(value)) return String(value[0] || "");
+  return typeof value === "string" ? value : "";
+}
+
+// Title and message only. Comments are not posts, so a # in a comment
+// does not enter the search index.
+function indexHashtags(topicId, payer, data, tsMs, seq) {
+  if (!data || typeof data !== "object" || !payer) return;
+  const created = new Date(tsMs).toISOString();
+  const drawings = [
+    ["marker", data.marker && data.marker.data, "numberOfMarker"],
+    ["polygon", data.polygon && data.polygon.data, "numberOfPolygon"],
+  ];
+  for (const [kind, drawing, numberKey] of drawings) {
+    if (!drawing) continue;
+    const number = postNumber(drawing[numberKey], created);
+    if (!number) continue;
+    const title = textField(drawing.title).slice(0, 20);
+    const msg = textField(drawing.msg).slice(0, 256);
+    const tags = hashtagsIn(`${title} ${msg}`);
+    if (!tags.length) continue;
+    const point = pointFromCord(kind, drawing.cord);
+    if (!point) continue;
+    for (const tag of tags) {
+      q.insertHashtag.run({
+        tag,
+        topicId,
+        seq: Number(seq) || 0,
+        kind,
+        title,
+        msg,
+        payer,
+        created,
+        lng: point[0],
+        lat: point[1],
+        number,
+      });
+    }
+  }
+}
+
 // Same per-message work as extractUserSettings, but for the marker view:
 // index marker messages, keep per-payer latest reactions, store comments
 // and replies. storePage feeds rows oldest→newest.
-function extractTopicIndex(topicId, payer, body, tsMs) {
+function extractTopicIndex(topicId, payer, body, tsMs, seq) {
   let d;
   try {
     d = JSON.parse(body);
@@ -654,6 +868,7 @@ function extractTopicIndex(topicId, payer, body, tsMs) {
     return;
   }
   if (!d || typeof d !== "object") return;
+  indexHashtags(topicId, payer, d, tsMs, seq);
   const created = new Date(tsMs).toISOString();
 
   const m = d.marker && d.marker.data;
@@ -827,10 +1042,10 @@ function backfillDerived() {
   if (flag) return;
   for (const t of q.listTopics.all()) {
     const rows = db
-      .prepare("SELECT payer, body, ts FROM messages WHERE topic_id = ? ORDER BY seq ASC")
+      .prepare("SELECT payer, body, ts, seq FROM messages WHERE topic_id = ? ORDER BY seq ASC")
       .all(t.topic_id);
     for (const r of rows) {
-      extractTopicIndex(t.topic_id, r.payer, r.body, Number(r.ts) * 1000);
+      extractTopicIndex(t.topic_id, r.payer, r.body, Number(r.ts) * 1000, r.seq);
     }
   }
   db.prepare("INSERT INTO meta (key, value) VALUES ('derived_backfilled', '1')")
@@ -844,7 +1059,7 @@ function backfillShares() {
   const flag = db.prepare("SELECT value FROM meta WHERE key = 'shares_backfilled'").get();
   if (flag) return;
   const rows = db.prepare(
-    `SELECT topic_id, payer, body, ts FROM messages
+    `SELECT topic_id, payer, body, ts, seq FROM messages
      WHERE body LIKE '%sharePost%'
         OR body LIKE '%unsharePost%'
         OR body LIKE '%likePolygon%'
@@ -856,7 +1071,7 @@ function backfillShares() {
   ).all();
   for (const r of rows) {
     try {
-      extractTopicIndex(r.topic_id, r.payer, r.body, Number(r.ts) * 1000);
+      extractTopicIndex(r.topic_id, r.payer, r.body, Number(r.ts) * 1000, r.seq);
     } catch (err) {
       console.error("share backfill skipped", r.topic_id, err.message);
     }
@@ -887,6 +1102,26 @@ function backfillDeletes() {
     }
   }
   db.prepare("INSERT INTO meta (key, value) VALUES ('deletes_backfilled', '1')").run();
+}
+
+// Posts written before hashtags existed. Later messages index themselves.
+function backfillHashtags() {
+  const flag = db.prepare("SELECT value FROM meta WHERE key = 'hashtags_backfilled'").get();
+  if (flag) return;
+  const rows = db.prepare(
+    `SELECT topic_id, seq, payer, body, ts FROM messages
+     WHERE body LIKE '%#%'
+     ORDER BY topic_id ASC, seq ASC`
+  ).all();
+  for (const r of rows) {
+    try {
+      const body = JSON.parse(r.body);
+      indexHashtags(r.topic_id, r.payer, body, Number(r.ts) * 1000, r.seq);
+    } catch (err) {
+      console.error("hashtag backfill skipped", r.topic_id, err.message);
+    }
+  }
+  db.prepare("INSERT INTO meta (key, value) VALUES ('hashtags_backfilled', '1')").run();
 }
 // Note: called below, after the geo section (it queues reverse-geocodes).
 
@@ -954,12 +1189,23 @@ function sharePicture(topicId, createdISO, account) {
   };
 }
 
+// HCS chunks share chunk_info.initial_transaction_id. They stay in this
+// buffer across polls (last_seq still moves past them) until every chunk
+// has arrived, then one row is stored. Incomplete groups expire after
+// 10 minutes inside the assembler.
+const hcsChunks = createChunkAssembler();
+
 // Store one page of mirror messages; returns the stored rows so pending
 // sends can be confirmed against them. Every stored row is also pushed to
 // the topic's live stream subscribers. Profile-topic rows also update the
 // per-account user_settings view.
 const storePage = (topicId, msgs) => {
   const stored = [];
+  const ready = [];
+  for (const m of msgs) {
+    const next = hcsChunks.push(topicId, m);
+    if (next) ready.push(next);
+  }
   const transaction = (fn) => (...args) => {
     db.exec("BEGIN");
     try {
@@ -983,13 +1229,14 @@ const storePage = (topicId, msgs) => {
       try {
         extractUserSettings(topicId, m.payer_account_id, body, Number(m.consensus_timestamp) * 1000);
         extractFollow(topicId, m.payer_account_id, body);
+        if (topicId === FOLLOW_TOPIC) extractUserFollow(m.payer_account_id, body);
       } catch (err) {
         console.error("user settings skipped", topicId, m.sequence_number, err.message);
       }
-      extractTopicIndex(topicId, m.payer_account_id, body, Number(m.consensus_timestamp) * 1000);
+      extractTopicIndex(topicId, m.payer_account_id, body, Number(m.consensus_timestamp) * 1000, m.sequence_number);
       stored.push({ payer: m.payer_account_id, body, seq: m.sequence_number, ts: m.consensus_timestamp });
     }
-  })(msgs);
+  })(ready);
   for (const r of stored) {
     let parsed;
     try {
@@ -1088,6 +1335,7 @@ function pollTopicLocked(topicId) {
 // was dropped or never landed on the mirror) — the stream is told too, so
 // viewers drop the ⏳ bubble.
 setInterval(() => {
+  hcsChunks.prune();
   const stale = q.listStalePending.all(Date.now() - PENDING_TTL_MS);
   for (const p of stale) {
     q.delPending.run(p.id);
@@ -1118,6 +1366,7 @@ setInterval(async () => {
     // Profile-data topics always stay warm (they feed user_settings), so
     // refresh their last_active every tick to keep them out of TTL eviction.
     for (const id of Object.keys(PROFILE_TOPICS)) q.upsertTopic.run(id, now);
+    q.upsertTopic.run(FOLLOW_TOPIC, now);
     const active = q.listTopics
       .all()
       .filter((t) => now - t.last_active <= TRACK_TTL_MS)
@@ -1197,6 +1446,7 @@ async function geoWorker() {
 backfillDerived();
 backfillShares();
 backfillDeletes();
+backfillHashtags();
 
 // Discovered markers (storePage) queue geokeys without a /api/marker kick —
 // a periodic sweep keeps the queue draining.
@@ -1204,8 +1454,23 @@ setInterval(() => {
   if (geoQueue.size > 0) geoWorker();
 }, 5000);
 
+// How many reverse-proxy hops may set the client address. Railway in front
+// of this process is one hop. 0 keeps the socket address. A client-sent
+// forwarding header is never parsed here.
+function trustProxySetting() {
+  const raw = process.env.TRUST_PROXY;
+  if (raw == null || String(raw).trim() === "") return 1;
+  const text = String(raw).trim().toLowerCase();
+  if (text === "true") return true;
+  if (text === "false") return false;
+  const n = Number(text);
+  if (Number.isInteger(n) && n >= 0) return n;
+  return 1;
+}
+
 // ── API ─────────────────────────────────────────────────────────────────
 const app = express();
+app.set("trust proxy", trustProxySetting());
 app.use(express.json());
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -1214,6 +1479,91 @@ app.use((req, res, next) => {
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
 });
+
+// About 60 requests a minute for one IP on one path.
+const RATE_WINDOW_MS = 60 * 1000;
+const RATE_MAX = 60;
+const rateHits = new Map();
+
+// req.ip follows TRUST_PROXY. CF-Connecting-IP is read only when
+// TRUST_CF_IP=1, because that header is client-controlled unless the
+// edge in front of this process strips it.
+function clientIp(req) {
+  if (process.env.TRUST_CF_IP === "1") {
+    const cf = req.headers["cf-connecting-ip"];
+    if (typeof cf === "string" && cf.trim()) return cf.trim();
+  }
+  return req.ip || "unknown";
+}
+
+function rateLimit(req, res, next) {
+  const now = Date.now();
+  if (rateHits.size > 4000) {
+    for (const [key, bucket] of rateHits) {
+      if (now >= bucket.reset) rateHits.delete(key);
+    }
+  }
+  const key = clientIp(req) + " " + req.path;
+  let bucket = rateHits.get(key);
+  if (!bucket || now >= bucket.reset) {
+    bucket = { reset: now + RATE_WINDOW_MS, count: 0 };
+    rateHits.set(key, bucket);
+  }
+  bucket.count += 1;
+  if (bucket.count > RATE_MAX) {
+    res.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.reset - now) / 1000))));
+    return res.status(429).json({ ok: false, error: "rate limit" });
+  }
+  next();
+}
+
+// Same window as rateLimit, separate counter, so a busy chat poll does not
+// eat the follow/hashtag budget and the cap can be set on its own.
+const publicHits = new Map();
+
+function publicPostLimit(req, res, next) {
+  const now = Date.now();
+  if (publicHits.size > 4000) {
+    for (const [key, bucket] of publicHits) {
+      if (now >= bucket.reset) publicHits.delete(key);
+    }
+  }
+  const key = clientIp(req) + " " + req.path;
+  let bucket = publicHits.get(key);
+  if (!bucket || now >= bucket.reset) {
+    bucket = { reset: now + RATE_WINDOW_MS, count: 0 };
+    publicHits.set(key, bucket);
+  }
+  bucket.count += 1;
+  if (bucket.count > PUBLIC_POST_RATE_LIMIT) {
+    res.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.reset - now) / 1000))));
+    return res.status(429).json({ ok: false, error: "rate limit" });
+  }
+  next();
+}
+
+const streamHits = new Map();
+
+function streamLimit(req, res, next) {
+  const now = Date.now();
+  if (streamHits.size > 4000) {
+    for (const [key, bucket] of streamHits) {
+      if (now >= bucket.reset) streamHits.delete(key);
+    }
+  }
+  const key = clientIp(req) + " " + req.path;
+  let bucket = streamHits.get(key);
+  if (!bucket || now >= bucket.reset) {
+    bucket = { reset: now + RATE_WINDOW_MS, count: 0 };
+    streamHits.set(key, bucket);
+  }
+  bucket.count += 1;
+  if (bucket.count > STREAM_RATE_LIMIT) {
+    res.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.reset - now) / 1000))));
+    return res.status(429).json({ ok: false, error: "rate limit" });
+  }
+  next();
+}
 
 // ── R2 media storage ────────────────────────────────────────────────────
 // Marker images/videos live on Cloudflare R2 (S3 API). The phone's bytes
@@ -1240,11 +1590,24 @@ const r2 =
       })
     : null;
 
+function r2CorsOrigins() {
+  const raw = process.env.R2_CORS_ORIGINS;
+  if (raw == null || String(raw).trim() === "") return ["*"];
+  const origins = String(raw).split(",").map((part) => part.trim()).filter(Boolean);
+  return origins.length ? origins : ["*"];
+}
+
+function r2CorsDenied(err) {
+  const name = String((err && (err.name || err.Code)) || "");
+  const message = String((err && err.message) || "");
+  return name === "AccessDenied" || /access denied/i.test(message);
+}
+
 // The app reads covers cross-origin into canvases (gif decode, video →
 // canvas blit for the animated polygon covers) — without CORS the canvas
 // taints and every read throws. CORS is a BUCKET-level setting in S3/R2
 // (a CORS field on PutObject is silently ignored), so apply it on every
-// start — idempotent.
+// start — idempotent. A token that cannot write CORS must not stop the API.
 if (r2) {
   r2
     .send(
@@ -1253,18 +1616,36 @@ if (r2) {
         CORSConfiguration: {
           CORSRules: [
             {
-              AllowedOrigins: ["*"],
-              AllowedMethods: ["GET"],
+              AllowedOrigins: r2CorsOrigins(),
+              AllowedMethods: ["GET", "HEAD"],
               AllowedHeaders: ["*"],
-              MaxAgeSeconds: 3000,
+              MaxAgeSeconds: 3600,
             },
           ],
         },
       })
     )
     .then(() => console.log("R2 bucket CORS ensured"))
-    .catch((err) => console.error("R2 CORS setup failed:", err.message));
+    .catch((err) => {
+      if (r2CorsDenied(err)) {
+        console.warn("R2 CORS was not updated (Access Denied). Set the bucket CORS rule in the Cloudflare dashboard: methods GET and HEAD, AllowedHeaders *, MaxAgeSeconds 3600.");
+        return;
+      }
+      console.error("R2 CORS setup failed:", err.message);
+    });
 }
+
+// Nightly encrypted snapshot of data.db. No-op unless both backup env vars are set.
+startBackupSchedule({
+  r2,
+  bucket: R2_BUCKET,
+  dbPath: path.join(DATA_DIR, "data.db"),
+});
+
+// Public chain data, kept off SQLite. The handler below only reads memory.
+// Owner reads use the same paced mirrorFetch as chat, so a refresh waits
+// its turn instead of walking the mirror ahead of topic polls.
+const earlyHashinals = startEarlyHashinals({ dataDir: DATA_DIR, mirrorFetch });
 
 const R2_MIME_EXT = {
   "video/mp4": ".mp4",
@@ -1278,69 +1659,604 @@ const R2_MIME_EXT = {
 const R2_MAX_VIDEO = 100 * 1024 * 1024;
 const R2_MAX_IMAGE = 20 * 1024 * 1024;
 
+// In-memory upload caps. Nothing here is written to the database.
+// An entry stays for the rest of its day so the byte total still applies
+// after the rolling hour has gone quiet.
+const UPLOAD_HOUR_MS = 60 * 60 * 1000;
+const uploadsByAccount = new Map();
+const uploadsByIp = new Map();
+
+function uploadDay(now) {
+  return new Date(now).toISOString().slice(0, 10);
+}
+
+function recentUploads(times, now) {
+  const cutoff = now - UPLOAD_HOUR_MS;
+  let drop = 0;
+  while (drop < times.length && times[drop] <= cutoff) drop += 1;
+  if (drop > 0) times.splice(0, drop);
+  return times.length;
+}
+
+function uploadEntry(bucket, key, now) {
+  const day = uploadDay(now);
+  let entry = bucket.get(key);
+  if (!entry) {
+    entry = { times: [], day, bytes: 0 };
+    bucket.set(key, entry);
+    return entry;
+  }
+  if (entry.day !== day) {
+    entry.day = day;
+    entry.bytes = 0;
+  }
+  return entry;
+}
+
+// The connected wallet id, when the phone sent one. A missing or
+// malformed id is anonymous: the per-IP cap still applies.
+function requireAccount(req) {
+  const raw = req.headers["x-account"];
+  const account = typeof raw === "string" ? raw.trim() : "";
+  if (!/^\d+\.\d+\.\d+$/.test(account)) return null;
+  return account;
+}
+
+function takeUploadSlot(req, res, account, declared) {
+  const now = Date.now();
+  const ipEntry = uploadEntry(uploadsByIp, clientIp(req), now);
+  const accountEntry = account ? uploadEntry(uploadsByAccount, account, now) : null;
+  const declaredBytes = Number.isFinite(declared) && declared > 0 ? declared : 0;
+  const ipOver = recentUploads(ipEntry.times, now) >= UPLOAD_PER_IP_HOUR;
+  const accountOver = !!(accountEntry && (
+    recentUploads(accountEntry.times, now) >= UPLOAD_PER_HOUR ||
+    accountEntry.bytes + declaredBytes > UPLOAD_BYTES_PER_DAY
+  ));
+  if (ipOver || accountOver) {
+    req.resume();
+    res.status(429).json({ ok: false, error: "Upload limit reached, try again later" });
+    return false;
+  }
+  ipEntry.times.push(now);
+  ipEntry.day = uploadDay(now);
+  if (accountEntry) accountEntry.times.push(now);
+  return true;
+}
+
+function addUploadBytes(account, bytes) {
+  if (!account || !(bytes > 0)) return;
+  const entry = uploadsByAccount.get(account);
+  if (!entry) return;
+  const day = uploadDay(Date.now());
+  if (entry.day !== day) {
+    entry.day = day;
+    entry.bytes = 0;
+  }
+  entry.bytes += bytes;
+}
+
+function sweepUploadLimits() {
+  const now = Date.now();
+  const day = uploadDay(now);
+  for (const bucket of [uploadsByAccount, uploadsByIp]) {
+    for (const [key, entry] of bucket) {
+      recentUploads(entry.times, now);
+      if (entry.times.length === 0 && entry.day !== day) bucket.delete(key);
+    }
+  }
+}
+
+setInterval(sweepUploadLimits, UPLOAD_HOUR_MS);
+
+const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const JPEG_SIG = Buffer.from([0xff, 0xd8, 0xff]);
+const GIF87 = Buffer.from("GIF87a");
+const GIF89 = Buffer.from("GIF89a");
+const RIFF = Buffer.from("RIFF");
+const WEBP = Buffer.from("WEBP");
+const EBML = Buffer.from([0x1a, 0x45, 0xdf, 0xa3]);
+const FTYP = Buffer.from("ftyp");
+
+function hasBytes(buf, sig, offset = 0) {
+  if (buf.length < offset + sig.length) return false;
+  return buf.subarray(offset, offset + sig.length).equals(sig);
+}
+
+// Major brand plus compatible brands inside the first ftyp box.
+function isoBrands(buf) {
+  if (buf.length < 12 || !hasBytes(buf, FTYP, 4)) return null;
+  const size = buf.readUInt32BE(0);
+  const end = Math.min(buf.length, size >= 16 ? size : 16, 128);
+  const brands = [buf.subarray(8, 12).toString("latin1")];
+  for (let i = 16; i + 4 <= end; i += 4) brands.push(buf.subarray(i, i + 4).toString("latin1"));
+  return brands;
+}
+
+function isQuickTime(brands) {
+  return brands.some((brand) => brand === "qt  " || brand === "mov ");
+}
+
+// The declared Content-Type has to match the file header. A renamed HTML
+// page, or an MP4 labeled as a PNG, never reaches the bucket.
+function magicMatches(type, body) {
+  if (type === "image/png") return hasBytes(body, PNG_SIG);
+  if (type === "image/jpeg") return hasBytes(body, JPEG_SIG);
+  if (type === "image/gif") return hasBytes(body, GIF87) || hasBytes(body, GIF89);
+  if (type === "image/webp") return hasBytes(body, RIFF) && hasBytes(body, WEBP, 8);
+  if (type === "video/webm") {
+    if (!hasBytes(body, EBML)) return false;
+    return body.subarray(0, Math.min(body.length, 128)).toString("latin1").includes("webm");
+  }
+  if (type === "video/mp4" || type === "video/quicktime") {
+    const brands = isoBrands(body);
+    if (!brands) return false;
+    const quick = isQuickTime(brands);
+    return type === "video/quicktime" ? quick : !quick;
+  }
+  return false;
+}
+
+function tooBigMessage(isVideo) {
+  return `Too big — ${isVideo ? "100 MB video" : "20 MB image"} max`;
+}
+
+let uploadsInFlight = 0;
+const uploadsInFlightByIp = new Map();
+
+function beginUpload(req, res) {
+  const ip = clientIp(req) || "unknown";
+  const mine = uploadsInFlightByIp.get(ip) || 0;
+  if (mine >= UPLOAD_MAX_CONCURRENT_PER_IP || uploadsInFlight >= UPLOAD_MAX_CONCURRENT) {
+    res.setHeader("Retry-After", "5");
+    res.status(503).json({ ok: false, error: "Too many uploads, try again shortly" });
+    return false;
+  }
+  uploadsInFlight += 1;
+  uploadsInFlightByIp.set(ip, mine + 1);
+  return ip;
+}
+
+function finishUpload(ip) {
+  uploadsInFlight = Math.max(0, uploadsInFlight - 1);
+  if (!ip) return;
+  const mine = (uploadsInFlightByIp.get(ip) || 1) - 1;
+  if (mine <= 0) uploadsInFlightByIp.delete(ip);
+  else uploadsInFlightByIp.set(ip, mine);
+}
+
+// Separate from the hourly upload caps and from the public post limiter.
+// A rejected request does not take a concurrency slot or an hourly slot.
+const uploadRequestHits = new Map();
+
+function uploadRequestLimited(req, res) {
+  const now = Date.now();
+  if (uploadRequestHits.size > 4000) {
+    for (const [key, bucket] of uploadRequestHits) {
+      if (now >= bucket.reset) uploadRequestHits.delete(key);
+    }
+  }
+  const key = clientIp(req) || "unknown";
+  let bucket = uploadRequestHits.get(key);
+  if (!bucket || now >= bucket.reset) {
+    bucket = { reset: now + RATE_WINDOW_MS, count: 0 };
+    uploadRequestHits.set(key, bucket);
+  }
+  bucket.count += 1;
+  if (bucket.count > UPLOAD_REQUESTS_PER_MIN) {
+    res.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.reset - now) / 1000))));
+    res.status(429).json({ ok: false, error: "rate limit" });
+    return true;
+  }
+  return false;
+}
+
+// Off unless TURNSTILE_SECRET_KEY is set. A missing or rejected token is
+// 403 and does not use an upload slot. The test secret still requires a token.
+async function turnstileOk(req) {
+  const secret = process.env.TURNSTILE_SECRET_KEY;
+  if (!secret) return true;
+  const token = req.headers["cf-turnstile-response"];
+  if (typeof token !== "string" || !token.trim()) return false;
+  const form = new URLSearchParams({ secret, response: token.trim() });
+  const ip = clientIp(req);
+  if (ip && ip !== "unknown") form.set("remoteip", ip);
+  try {
+    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: form,
+      signal: AbortSignal.timeout(8000),
+    });
+    const data = await response.json();
+    return !!(data && data.success === true);
+  } catch {
+    return false;
+  }
+}
+
+function readUploadBody(req, max) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let received = 0;
+    let settled = false;
+    let timer = null;
+    const finish = (err, body) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      if (err) reject(err);
+      else resolve(body);
+    };
+    const armIdle = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        const err = new Error("idle");
+        err.code = 408;
+        // Leave the socket up so the handler can answer 408. Destroying
+        // it here drops the response on the floor.
+        finish(err);
+      }, UPLOAD_BODY_TIMEOUT_MS);
+    };
+    armIdle();
+    req.on("data", (chunk) => {
+      if (settled) return;
+      armIdle();
+      received += chunk.length;
+      if (received > max) {
+        const err = new Error("too big");
+        err.code = 413;
+        req.destroy();
+        finish(err);
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => finish(null, Buffer.concat(chunks)));
+    req.on("error", () => {
+      const err = new Error("aborted");
+      err.code = 400;
+      finish(err);
+    });
+  });
+}
+
 // The phone's file goes straight into R2 (buffered in memory while in
 // flight — capped below, nothing on disk); the response's url is the public
 // r2.pub link the marker's Image URL field stores. A Buffer body sidesteps
 // the SDK's stream-signing limits (flowing streams can't be hashed / need
 // Content-Length, and R2 resets the connection either way).
-app.post("/api/upload", (req, res) => {
+// Single-use nonces for the wallet signature. The value is the expiry time.
+const uploadNonces = new Map();
+
+function sweepUploadNonces(now) {
+  for (const [nonce, exp] of uploadNonces) {
+    if (exp <= now) uploadNonces.delete(nonce);
+  }
+}
+
+function issueUploadNonce() {
+  const now = Date.now();
+  if (uploadNonces.size > 5000) sweepUploadNonces(now);
+  if (uploadNonces.size > 5000) return null;
+  const nonce = crypto.randomBytes(32).toString("base64url");
+  uploadNonces.set(nonce, now + UPLOAD_NONCE_TTL_MS);
+  return nonce;
+}
+
+function uploadNonceLive(nonce) {
+  if (typeof nonce !== "string" || nonce.length < 16 || nonce.length > 200) return false;
+  const exp = uploadNonces.get(nonce);
+  return typeof exp === "number" && exp > Date.now();
+}
+
+function takeUploadNonce(nonce) {
+  const live = uploadNonceLive(nonce);
+  if (typeof nonce === "string") uploadNonces.delete(nonce);
+  return live;
+}
+
+function uploadTokenSecret() {
+  return process.env.UPLOAD_TOKEN_SECRET || "";
+}
+
+// Fail closed. A missing or short secret must not issue tokens or accept
+// uploads while REQUIRE_UPLOAD_AUTH is on.
+function uploadAuthConfigured() {
+  return uploadSecretOk(uploadTokenSecret());
+}
+
+if (REQUIRE_UPLOAD_AUTH && !uploadAuthConfigured()) {
+  console.error("REQUIRE_UPLOAD_AUTH is set, but UPLOAD_TOKEN_SECRET must be at least 32 bytes. Refusing to start.");
+  process.exit(1);
+}
+
+function accountFromUploadToken(header) {
+  return readUploadToken(header, uploadTokenSecret());
+}
+
+function decodeSignature(text) {
+  const trimmed = String(text || "").trim();
+  const asBase64 = Buffer.from(trimmed, "base64");
+  if (asBase64.length === 64) return asBase64;
+  if (/^[0-9a-fA-F]{128}$/.test(trimmed)) return Buffer.from(trimmed, "hex");
+  return null;
+}
+
+// A threshold account or a key list is one policy, not a pile of keys that
+// any single signature can satisfy. Those stay a 400. Only a single
+// ED25519 or ECDSA key on the account can authorize an upload.
+function accountKeyProblem(key) {
+  if (!key || typeof key !== "object") return "BAD_KEY";
+  if (
+    key._type === "ProtobufEncoded" ||
+    key._type === "KeyList" ||
+    key._type === "ThresholdKey" ||
+    Array.isArray(key.keys)
+  ) {
+    return "COMPOUND_KEY";
+  }
+  if (key._type !== "ED25519" && key._type !== "ECDSA_SECP256K1") return "BAD_KEY";
+  if (typeof key.key !== "string") return "BAD_KEY";
+  // The mirror returns the raw public key as hex, not base64.
+  if (key.key.length === 0 || key.key.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(key.key)) return "BAD_KEY";
+  return null;
+}
+
+function accountKeyError(code) {
+  const err = new Error(
+    code === "COMPOUND_KEY"
+      ? "Key lists and threshold keys cannot authorize uploads"
+      : "This account key cannot authorize uploads"
+  );
+  err.code = code;
+  return err;
+}
+
+async function fetchAccountKey(accountId) {
+  let data;
+  try {
+    const response = await fetch(`${MIRROR}/api/v1/accounts/${accountId}`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) {
+      const err = new Error("account lookup failed");
+      err.code = "LOOKUP";
+      throw err;
+    }
+    data = await response.json();
+  } catch (err) {
+    if (err && (err.code === "LOOKUP" || err.code === "COMPOUND_KEY" || err.code === "BAD_KEY")) throw err;
+    const wrapped = new Error("account lookup failed");
+    wrapped.code = "LOOKUP";
+    throw wrapped;
+  }
+  const problem = accountKeyProblem(data && data.key);
+  if (problem) throw accountKeyError(problem);
+  return data.key;
+}
+
+async function hederaPublicKeyClass() {
+  try {
+    const { PublicKey } = await import("@hashgraph/sdk");
+    return PublicKey;
+  } catch {
+    const missing = new Error("Hedera SDK is not installed");
+    missing.code = "NO_SDK";
+    throw missing;
+  }
+}
+
+function publicKeyFromMirror(PublicKey, key) {
+  const raw = Buffer.from(key.key, "hex");
+  try {
+    return key._type === "ED25519" ? PublicKey.fromBytesED25519(raw) : PublicKey.fromBytesECDSA(raw);
+  } catch {
+    throw accountKeyError("BAD_KEY");
+  }
+}
+
+// HIP-820 prefixes the text before the wallet signs it. A wallet that signs
+// the nonce on its own still matches the second buffer.
+function signedNonceBodies(nonce) {
+  return [
+    Buffer.from(`\x19Hedera Signed Message:\n${nonce.length}${nonce}`, "utf8"),
+    Buffer.from(nonce, "utf8"),
+  ];
+}
+
+function signatureMatchesKey(pub, nonce, signature) {
+  for (const message of signedNonceBodies(nonce)) {
+    try {
+      if (pub.verify(message, signature)) return true;
+    } catch {
+      /* this message did not verify */
+    }
+  }
+  return false;
+}
+
+function uploadAuthError(res, err) {
+  if (err && err.code === "COMPOUND_KEY") {
+    return res.status(400).json({ ok: false, error: "Key lists and threshold keys cannot authorize uploads" });
+  }
+  if (err && err.code === "BAD_KEY") {
+    return res.status(400).json({ ok: false, error: "This account key cannot authorize uploads" });
+  }
+  if (err && err.code === "NO_SDK") {
+    console.error("upload auth failed:", err.message);
+    return res.status(503).json({ ok: false, error: "Upload auth is not configured" });
+  }
+  if (!(err && err.code === "LOOKUP")) {
+    console.error("upload auth failed:", err && err.message ? err.message : "verify error");
+  }
+  return res.status(401).json({ ok: false, error: "Upload check failed" });
+}
+
+app.get("/api/upload/challenge", publicPostLimit, (req, res) => {
+  const nonce = issueUploadNonce();
+  if (!nonce) {
+    res.setHeader("Retry-After", "30");
+    return res.status(503).json({ ok: false, error: "Too many upload checks, try again shortly" });
+  }
+  res.json({ ok: true, nonce });
+});
+
+app.post("/api/upload/auth", publicPostLimit, async (req, res) => {
+  if (!uploadAuthConfigured()) {
+    return res.status(503).json({ ok: false, error: "Upload auth is not configured" });
+  }
+  const accountId = req.body && req.body.accountId;
+  const nonce = req.body && req.body.nonce;
+  const signatureText = req.body && req.body.signature;
+  if (typeof accountId !== "string" || !/^\d+\.\d+\.\d+$/.test(accountId)) {
+    return res.status(400).json({ ok: false, error: "bad account" });
+  }
+  const signature = decodeSignature(signatureText);
+  if (!signature) return res.status(400).json({ ok: false, error: "bad signature" });
+  // The nonce has to exist before the mirror lookup, so a missing check
+  // does not hit the mirror. It is spent only after that lookup: a key
+  // list can retry once the key changes, and a mirror failure can retry
+  // too. A bad signature still spends it.
+  if (!uploadNonceLive(nonce)) return res.status(401).json({ ok: false, error: "Upload check expired" });
+  let pub;
+  try {
+    const key = await fetchAccountKey(accountId);
+    pub = publicKeyFromMirror(await hederaPublicKeyClass(), key);
+  } catch (err) {
+    return uploadAuthError(res, err);
+  }
+  if (!takeUploadNonce(nonce)) return res.status(401).json({ ok: false, error: "Upload check expired" });
+  if (!signatureMatchesKey(pub, nonce, signature)) {
+    return res.status(401).json({ ok: false, error: "Upload check failed" });
+  }
+  const issued = issueUploadToken(accountId, uploadTokenSecret());
+  res.json({ ok: true, token: issued.token, exp: issued.exp, expiresIn: issued.expiresIn });
+});
+
+app.post("/api/upload", async (req, res) => {
   if (!r2) return res.status(503).json({ ok: false, error: "R2 not configured — set R2_* in server/.env" });
+  let account = null;
+  if (REQUIRE_UPLOAD_AUTH) {
+    if (!uploadAuthConfigured()) {
+      req.resume();
+      return res.status(503).json({ ok: false, error: "Upload auth is not configured" });
+    }
+    account = accountFromUploadToken(req.headers["x-upload-token"]);
+    if (!account) {
+      req.resume();
+      return res.status(401).json({ ok: false, error: "Upload authorization required" });
+    }
+  } else {
+    account = requireAccount(req);
+  }
   const type = (req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
   const ext = R2_MIME_EXT[type];
-  if (!ext) return res.status(415).json({ ok: false, error: "Unsupported type — images and videos only" });
+  if (!ext) {
+    req.resume();
+    return res.status(415).json({ ok: false, error: "Unsupported type — images and videos only" });
+  }
   const isVideo = type.startsWith("video/");
   const max = isVideo ? R2_MAX_VIDEO : R2_MAX_IMAGE;
-  const declared = Number(req.headers["content-length"] || 0);
-  if (declared > max) {
+  const lengthHeader = req.headers["content-length"];
+  const declared = lengthHeader == null || lengthHeader === "" ? null : Number(lengthHeader);
+  if (declared != null && (!Number.isFinite(declared) || declared < 0)) {
     req.resume();
-    return res.status(413).json({ ok: false, error: `Too big — ${isVideo ? "100 MB video" : "20 MB image"} max` });
+    return res.status(400).json({ ok: false, error: "Bad upload" });
   }
-  const chunks = [];
-  let received = 0;
-  let over = false;
-  req.on("data", (chunk) => {
-    if (over) return;
-    received += chunk.length;
-    if (received > max) {
-      // Crossed the cap mid-upload — send the 413, then drop the client.
-      over = true;
-      res.status(413).json({ ok: false, error: `Too big — ${isVideo ? "100 MB video" : "20 MB image"} max` });
-      res.on("finish", () => req.destroy());
-      return;
-    }
-    chunks.push(chunk);
+  if (declared === 0) {
+    req.resume();
+    return res.status(400).json({ ok: false, error: "Empty file" });
+  }
+  if (declared != null && declared > max) {
+    req.resume();
+    return res.status(413).json({ ok: false, error: tooBigMessage(isVideo) });
+  }
+  if (uploadRequestLimited(req, res)) {
+    req.resume();
+    return;
+  }
+  if (!(await turnstileOk(req))) {
+    req.resume();
+    return res.status(403).json({ ok: false, error: "Turnstile check failed" });
+  }
+  const uploadIp = beginUpload(req, res);
+  if (!uploadIp) {
+    req.resume();
+    return;
+  }
+  let released = false;
+  const releaseSlot = () => {
+    if (released) return;
+    released = true;
+    finishUpload(uploadIp);
+  };
+  // A dropped connection must free the slot even if the handler is still
+  // inside the body read. A finished body keeps the slot until finally.
+  req.on("aborted", releaseSlot);
+  req.on("close", () => {
+    if (req.aborted || !req.complete) releaseSlot();
   });
-  req.on("end", () => {
-    if (over) return;
-    const key = `markers/${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
-    r2
-      .send(
+  try {
+    const body = await readUploadBody(req, max);
+    if (!body.length) return res.status(400).json({ ok: false, error: "Empty file" });
+    if (!magicMatches(type, body)) {
+      req.resume();
+      return res.status(415).json({ ok: false, error: "File contents do not match the declared type" });
+    }
+    if (!takeUploadSlot(req, res, account, body.length)) return;
+    // New videos can carry their length in the object name. Images, and
+    // videos with no usable duration, keep the original key shape.
+    const seconds = isVideo
+      ? resolvedUploadSeconds(ext, req.headers["x-media-duration"], body)
+      : null;
+    const key = uploadObjectKey(ext, seconds, Date.now(), Math.random().toString(36).slice(2, 8));
+    try {
+      await r2.send(
         new PutObjectCommand({
           Bucket: R2_BUCKET,
           Key: key,
-          Body: Buffer.concat(chunks),
+          Body: body,
           ContentType: type,
+          // Each key is markers/<timestamp>-<random><ext> and is never overwritten.
+          CacheControl: "public, max-age=31536000, immutable",
           // CORS comes from the bucket-level rule set at startup above —
           // per-object CORS on PutObject does not exist in S3/R2.
         })
-      )
-      .then(() => {
-        res.json({ ok: true, url: `${R2_PUBLIC_BASE}/${key}`, type });
-      })
-      .catch((err) => {
-        console.error("R2 upload failed:", err.message);
-        res.status(502).json({ ok: false, error: "R2 upload failed" });
+      );
+    } catch (err) {
+      console.error("R2 upload failed:", err.message);
+      if (!res.headersSent) res.status(502).json({ ok: false, error: "R2 upload failed" });
+      return;
+    }
+    addUploadBytes(account, body.length);
+    res.json({ ok: true, url: `${R2_PUBLIC_BASE}/${key}`, type });
+  } catch (err) {
+    if (res.headersSent) return;
+    if (err && err.code === 413) return res.status(413).json({ ok: false, error: tooBigMessage(isVideo) });
+    if (err && err.code === 408) {
+      res.status(408).json({ ok: false, error: "Upload timed out" });
+      res.on("finish", () => {
+        if (!req.destroyed) req.destroy();
       });
-  });
-  req.on("error", () => {
-    if (!res.headersSent && !over) res.status(400).json({ ok: false, error: "upload aborted" });
-  });
+      return;
+    }
+    res.status(400).json({ ok: false, error: "upload aborted" });
+  } finally {
+    releaseSlot();
+  }
 });
 
 const isTopicId = (s) => typeof s === "string" && /^\d+\.\d+\.\d+$/.test(s);
+backfillUserFollows();
+
+function userFollowState(account, followee) {
+  const counted = q.countUserFollowers.get(followee);
+  const following = isTopicId(account) ? !!q.getUserFollow.get(account, followee) : false;
+  return { ok: true, followers: counted ? Number(counted.n) || 0 : 0, following };
+}
 
 // app: "people are viewing this topic now" (chat panel Load)
-app.post("/api/track", (req, res) => {
+app.post("/api/track", publicPostLimit, (req, res) => {
   const topic = req.body && req.body.topic;
   if (!isTopicId(topic)) return res.status(400).json({ ok: false, error: "bad topic" });
   q.upsertTopic.run(topic, Date.now());
@@ -1350,7 +2266,7 @@ app.post("/api/track", (req, res) => {
 // One view of one post. created is that message's ISO time. inc 1 adds a
 // view; inc 0 only reads. The phone adds one the first time that browser
 // opens the post. Later opens already have the number on the card.
-app.post("/api/popup-view", (req, res) => {
+app.post("/api/popup-view", publicPostLimit, (req, res) => {
   const topic = req.body && req.body.topic;
   const created = req.body && req.body.created;
   const inc = req.body && Number(req.body.inc) === 1 ? 1 : 0;
@@ -1440,7 +2356,7 @@ async function pullUntilPost(topic, created) {
 // The original post behind a shared pin. The pin carries the topic id and
 // the post's ISO time. This rebuilds the card: body, topic name, views,
 // hearts, comments, and how many accounts currently share it.
-app.get("/api/post", async (req, res) => {
+app.get("/api/post", publicPostLimit, async (req, res) => {
   const topic = req.query.topic;
   const created = req.query.created;
   const account = typeof req.query.account === "string" ? req.query.account : "";
@@ -1534,29 +2450,65 @@ app.get("/api/post", async (req, res) => {
   }
 });
 
-// One follower per account on a topic. follow 1 adds, follow 0 removes.
-// Omitting follow only reads. The same change is applied when the wallet
-// message lands, so a repeat does not add a second follower.
-app.post("/api/topic-follow", (req, res) => {
+// Read the follower count. A follow field in the body is ignored.
+// Rows change only when the mirror message is stored (extractFollow).
+app.post("/api/topic-follow", publicPostLimit, (req, res) => {
   const topic = req.body && req.body.topic;
   const account = req.body && req.body.account;
   if (!isTopicId(topic)) return res.status(400).json({ ok: false, error: "bad topic" });
-  const follow = req.body && req.body.follow;
-  const wants = follow === 1 || follow === 0 || follow === "1" || follow === "0";
-  if (wants) {
-    if (!isTopicId(account)) return res.status(400).json({ ok: false, error: "bad account" });
-    if (follow === 1 || follow === "1") q.followTopic.run(topic, account);
-    else q.unfollowTopic.run(topic, account);
-  }
   const counted = q.countFollowers.get(topic);
   const following = isTopicId(account) ? !!q.getFollow.get(topic, account) : false;
   res.json({ ok: true, followers: counted ? Number(counted.n) || 0 : 0, following });
 });
 
+// Read the person-follower count. A follow field in the body is ignored.
+// Rows change only when the mirror message on FOLLOW_TOPIC is stored
+// (extractUserFollow).
+app.get("/api/user-follow", rateLimit, (req, res) => {
+  const followee = req.query.followee;
+  if (!isTopicId(followee)) return res.status(400).json({ ok: false, error: "bad account" });
+  res.json(userFollowState(req.query.account, followee));
+});
+
+app.post("/api/user-follow", rateLimit, (req, res) => {
+  const account = req.body && req.body.account;
+  const followee = req.body && req.body.followee;
+  if (!isTopicId(followee)) return res.status(400).json({ ok: false, error: "bad account" });
+  res.json(userFollowState(account, followee));
+});
+
+app.get("/api/following", publicPostLimit, (req, res) => {
+  const account = req.query.account;
+  if (!isTopicId(account)) return res.status(400).json({ ok: false, error: "bad account" });
+  const following = q.listUserFollowing.all(account).map((row) => row.followee).slice(0, 500);
+  const accounts = q.listUserFollowingDetail.all(account).map((row) => ({
+    id: row.id,
+    username: row.username || "",
+    avatar: row.avatar || "",
+  }));
+  const topics = q.listTopicFollowing.all(account).map((row) => ({
+    id: row.topic_id,
+    name: topicNameFor(row.topic_id) || "",
+  }));
+  res.json({ ok: true, following, accounts, topics });
+});
+
+// Newest messages from accounts this person follows. Any tracked topic.
+app.get("/api/following-feed", rateLimit, (req, res) => {
+  const account = req.query.account;
+  if (!isTopicId(account)) return res.status(400).json({ ok: false, error: "bad account" });
+  const limit = Math.min(200, Math.max(1, Math.floor(Number(req.query.limit) || 50)));
+  const messages = q.followingFeed.all(account, limit).map((row) => ({
+    ...toAppMessage(row),
+    topic: row.topic_id,
+  }));
+  res.json({ ok: true, messages });
+});
+
 // app: "I just sent this message" (after the wallet confirms) → stored as
 // PENDING so every viewer sees it instantly; the poller — or a mirror row
 // that was already stored — confirms it. Unconfirmed rows expire in 10 min.
-app.post("/api/submit", (req, res) => {
+app.post("/api/submit", publicPostLimit, (req, res) => {
   const { topic, body, payer } = req.body || {};
   if (!isTopicId(topic) || typeof body !== "string" || !body || !isTopicId(payer)) {
     return res.status(400).json({ ok: false, error: "bad submit" });
@@ -1622,11 +2574,26 @@ function getTopicName(topicId) {
 // app: "a marker was just uploaded" → kept LIVE for 24h (re-upload of the
 // same topic+cord refreshes it), tagged with its country for the
 // search → local view. Topic history is untouched (separate table).
-app.post("/api/marker", (req, res) => {
+// The draw form is shorter. These caps stop an oversized API body.
+const MARKER_TITLE_MAX = 120;
+const MARKER_MSG_MAX = 2000;
+
+function markerTextError(value, max, tooLong) {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string") return "bad marker";
+  if (value.length > max) return tooLong;
+  return null;
+}
+
+app.post("/api/marker", publicPostLimit, (req, res) => {
   const { topic, cord, title, image, msg, payer, number } = req.body || {};
   if (!isTopicId(topic) || typeof cord !== "string") {
     return res.status(400).json({ ok: false, error: "bad marker" });
   }
+  const titleError = markerTextError(title, MARKER_TITLE_MAX, "title is too long");
+  if (titleError) return res.status(400).json({ ok: false, error: titleError });
+  const msgError = markerTextError(msg, MARKER_MSG_MAX, "message is too long");
+  if (msgError) return res.status(400).json({ ok: false, error: msgError });
   const parts = cord.split(",").map((s) => Number(s.trim()));
   if (parts.length !== 2 || parts.some((n) => !isFinite(n))) {
     return res.status(400).json({ ok: false, error: "bad cord" });
@@ -1655,7 +2622,7 @@ app.post("/api/marker", (req, res) => {
 
 // app: "show live markers in this country" (geographic search). Only the
 // 24h view — a marker here is still in its topic history regardless.
-app.get("/api/local", (req, res) => {
+app.get("/api/local", publicPostLimit, (req, res) => {
   const country = String(req.query.country || "").trim();
   if (!country) return res.json({ ok: true, markers: [] });
   const rows = q.listLiveByCountry.all(country, Date.now() - LIVE_TTL_MS);
@@ -1721,7 +2688,7 @@ function userSettingPayload(row) {
   };
 }
 
-app.get("/api/user-settings", (req, res) => {
+app.get("/api/user-settings", publicPostLimit, (req, res) => {
   const ready = Object.keys(PROFILE_TOPICS).every((id) => {
     const t = q.getTopic.get(id);
     return t && t.backfilled === 1;
@@ -1743,10 +2710,10 @@ app.get("/api/user-settings", (req, res) => {
 });
 
 // app: history (latest N below before_seq) or live tail (rows after after_seq)
-app.get("/api/messages", (req, res) => {
+app.get("/api/messages", publicPostLimit, (req, res) => {
   const topic = req.query.topic;
   if (!isTopicId(topic)) return res.json({ ready: false, messages: [] });
-  const limit = Math.min(50000, Math.max(1, Number(req.query.limit) || 100));
+  const limit = Math.min(1000, Math.max(1, Number(req.query.limit) || 100));
   const before = Math.max(0, Number(req.query.before_seq) || 0);
   const after = Math.max(0, Number(req.query.after_seq) || 0);
   const row = q.getTopic.get(topic);
@@ -1798,7 +2765,7 @@ function broadcast(topicId, event) {
   for (const res of set) sseWrite(res, payload);
 }
 
-app.get("/api/stream", (req, res) => {
+app.get("/api/stream", streamLimit, (req, res) => {
   const topics = String(req.query.topics || "")
     .split(",")
     .map((t) => t.trim())
@@ -1835,6 +2802,38 @@ setInterval(() => {
   }
 }, 25000);
 
+app.get("/api/hashtags", rateLimit, (req, res) => {
+  const tag = String(req.query.tag || "").trim().toLowerCase().replace(/^#/, "");
+  if (!/^[\p{L}_][\p{L}\p{N}_]{0,49}$/u.test(tag)) return res.json({ ok: true, posts: [] });
+  res.json({ ok: true, posts: q.searchHashtags.all(tag) });
+});
+
+// ICE servers for peer connections. The Metered key stays on the server.
+// METERED_TURN_URL is the credentials endpoint without the query string.
+app.get("/api/turn", publicPostLimit, async (req, res) => {
+  const key = process.env.METERED_API_KEY || "";
+  const base = String(process.env.METERED_TURN_URL || "").trim().replace(/\/+$/, "");
+  if (!key || !base) return res.status(503).json({ ok: false, iceServers: [] });
+  try {
+    const response = await fetch(`${base}?apiKey=${encodeURIComponent(key)}`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) return res.status(502).json({ ok: false, iceServers: [] });
+    const data = await response.json();
+    const iceServers = Array.isArray(data)
+      ? data
+      : (data && Array.isArray(data.iceServers) ? data.iceServers : []);
+    res.json({ ok: true, iceServers });
+  } catch {
+    if (!res.headersSent) res.status(502).json({ ok: false, iceServers: [] });
+  }
+});
+
+app.get("/api/early-hashinals", publicPostLimit, (req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=300");
+  res.json(earlyHashinals.snapshot());
+});
+
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, tracked: q.listTopics.all().length, mirror: MIRROR, streams: resTopics.size });
 });
@@ -1868,7 +2867,13 @@ if (fs.existsSync(distDir)) {
   });
 }
 
-app.listen(PORT, "0.0.0.0", () => {
+const server = app.listen(PORT, "0.0.0.0", () => {
   const serving = fs.existsSync(distDir) ? ", serving dist" : "";
   console.log(`topic backend on :${PORT} (mirror: ${MIRROR})${serving}`);
 });
+// A slow phone can spend minutes sending a video. The 30s idle body timer
+// drops a connection that stops. headersTimeout only covers the headers
+// and must stay at or under both 60s and requestTimeout (Node throws
+// ERR_OUT_OF_RANGE when the header timer is the longer one).
+server.requestTimeout = UPLOAD_REQUEST_TIMEOUT_MS;
+server.headersTimeout = Math.min(60000, UPLOAD_REQUEST_TIMEOUT_MS);

@@ -1,4 +1,6 @@
-import {getMessages, getTopicInfo } from './hedera'
+import { getTopicInfo } from './hedera'
+import { getTopicData as getMessages } from './topicdata'
+import { currentTopicName } from './loadcurrenttopic'
 import { loadTOPIC2PIC, usernames } from './loadalladata'
 import { activePolygonPopups} from './polygons';
 import { activeMarkerPopups } from './marker';
@@ -122,12 +124,10 @@ export async function loadTOPIC4PIC(payer) {
       const loadedTopicIdsWithNames = [];
 
       for (const topicId of loadedTopicsIds) {
-        const { loadedTopicName } = await getMessages(topicId);
-  
-        if (loadedTopicName !== undefined) {
-          const topicNamePart = loadedTopicName ? `-${loadedTopicName}` : '';
-          loadedTopicIdsWithNames.push(`${topicId}${topicNamePart}`);
-        }
+        const topicData = await getMessages(topicId);
+        const loadedTopicName = currentTopicName(topicData && topicData.messages, []);
+        const topicNamePart = loadedTopicName ? `-${loadedTopicName}` : '';
+        loadedTopicIdsWithNames.push(`${topicId}${topicNamePart}`);
       }
 
       let newglobalLoadedTopicIdsWithNames = globalLoadedTopicIdsWithNames

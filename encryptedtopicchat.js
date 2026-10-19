@@ -8,10 +8,12 @@ import { connectedAccount, signer } from './web3';
 import { profilePictures, usernames, click2url, profileTopics } from './loadalladata';
 import { isHederaAccount } from './handleallmessages';
 import { toast } from './toast'
+import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, utf8ByteLength } from './hcschunks.js';
 import { expandEncryptedChat, scheduleEncryptedChatLayout } from './cssLogic.js';
 import { payerUsernameNode } from './payerlink.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
 import { fillChatMessage, packChatPayload, unpackChatPayload, pendingChatImage, chatImageBusy, clearPendingChatImage } from './chatimage.js';
+import { watchFollowPrefetch } from './followtopic.js';
 import { 
   topicChatHeaderColor,
   headerFontSizeTopicChat,
@@ -163,6 +165,7 @@ async function appendEncryptedChatMessage(
         cursor: pointer;
       `;
       img.addEventListener('click', () => loadBio4PIC(payer));
+      watchFollowPrefetch(img, payer);
       currentGroupContainerEncrypted.appendChild(img);
 
       const contentWrapper = document.createElement('div');
@@ -703,7 +706,11 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
     
     const newMeesage = JSON.stringify(meesageobject);
     console.log('New Meesage:', newMeesage);
-    toast.info("Confirm in wallet 👛");
+    if (utf8ByteLength(newMeesage) > HCS_MESSAGE_MAX_BYTES) {
+      toast.error(HCS_TOO_LONG);
+      return;
+    }
+    if (utf8ByteLength(newMeesage) <= HCS_CHUNK_SIZE) toast.info("Confirm in wallet 👛");
     const reciept = await sendMessage(topicId, newMeesage);
     if (image) clearPendingChatImage("e2ee");
     console.log('Reciept:', reciept);
@@ -864,6 +871,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
         cursor: pointer;
       `;
       img.addEventListener('click', () => loadBio4PIC(payer));
+      watchFollowPrefetch(img, payer);
       currentGroupDiv.appendChild(img);
 
       // Content wrapper

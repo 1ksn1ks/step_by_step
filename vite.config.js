@@ -1,6 +1,6 @@
 // vite.config.js
 import fs from 'node:fs'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'  // ← Import here
 
 // Optional local HTTPS. WalletConnect accepts https or localhost.
@@ -37,7 +37,25 @@ function pwaHeaders() {
   }
 }
 
-export default defineConfig({
+// A VITE_ name is inlined into the browser bundle. Fail the build when one
+// looks like a server secret so an R2 key, token, or password cannot ship.
+function assertPublicViteEnv(names) {
+  const blocked = ['R2_', 'SECRET', 'ACCESS_KEY', 'PRIVATE', 'API_KEY', 'TOKEN', 'PASSWORD', 'ENCRYPTION_KEY']
+  for (const name of names) {
+    if (!name.startsWith('VITE_')) continue
+    const upper = name.toUpperCase()
+    if (blocked.some((part) => upper.includes(part))) {
+      throw new Error(`Refusing to build: ${name} looks like a secret and must not be exposed to the browser`)
+    }
+  }
+}
+
+export default defineConfig(({ command, mode }) => {
+  if (command === 'build') {
+    const fromFiles = loadEnv(mode, process.cwd(), 'VITE_')
+    assertPublicViteEnv(new Set([...Object.keys(fromFiles), ...Object.keys(process.env)]))
+  }
+  return {
   plugins: [
     pwaHeaders(),
     nodePolyfills({
@@ -81,5 +99,6 @@ export default defineConfig({
       '/icons/icon-512-maskable.png': { target: 'http://127.0.0.1:8787', changeOrigin: true },
       '/icons/apple-touch-icon.png': { target: 'http://127.0.0.1:8787', changeOrigin: true },
     }
+  }
   }
 })

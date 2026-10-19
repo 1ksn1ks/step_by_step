@@ -1,7 +1,9 @@
 import maplibregl from 'maplibre-gl';
 import Supercluster from 'supercluster';
 import { map } from './map';
-import { createMarkerPopupHTML } from './processallmessages.js';
+import { createMarkerPopupHTML, mediaMode, lengthMode } from './processallmessages.js';
+import { videoSeconds } from './mediaduration.js';
+import { toast } from './toast.js';
 import { fetchLocalMarkers } from './msgbackend.js';
 import { profilePictures, usernames, click2url } from './loadalladata.js';
 import { CloseALL, changePopupState } from './cssLogic.js';
@@ -9,7 +11,9 @@ import { closeDrawAnchor } from './drawhere.js';
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
 import { applyAllStyles } from './loadprofilepopup.js';
 import { isTopicLayerActive } from './marker.js';
+import { watchMarkerTilt, forgetMarkerTilt } from './markertilt.js';
 import { geojson } from './letall.js';
+import { watchFollowPrefetch } from './followtopic.js';
 
 // Same key as marker.js topicPointKey — a live point matching a topic
 // point to 5 decimals is a duplicate of the topic layer: while the topic
@@ -90,7 +94,11 @@ function isOnVisibleHemisphere(coords) {
 }
 
 export function clearLocalMarkers(silent = false) {
-  for (const m of localNodes) m.remove();
+  for (const m of localNodes) {
+    const node = m.getElement();
+    forgetMarkerTilt(node && node.querySelector(':scope > .cluster-face'));
+    m.remove();
+  }
   localNodes = [];
   if (localPopup) {
     localPopup.remove();
@@ -166,7 +174,11 @@ function updateLocalClusters(force = true) {
   if (!force && sig === lastLocalSig) return;
   lastLocalSig = sig;
 
-  for (const m of localNodes) m.remove();
+  for (const m of localNodes) {
+    const node = m.getElement();
+    forgetMarkerTilt(node && node.querySelector(':scope > .cluster-face'));
+    m.remove();
+  }
   localNodes = [];
 
   for (const cluster of clusters) {
@@ -174,7 +186,11 @@ function updateLocalClusters(force = true) {
     if (cluster.properties.cluster) {
       // Count bubble — tap zooms into the cluster (same as topic clusters)
       el.className = 'cluster-bubble';
-      el.textContent = cluster.properties.point_count_abbreviated;
+      const face = document.createElement('div');
+      face.className = 'cluster-face';
+      face.textContent = cluster.properties.point_count_abbreviated;
+      el.appendChild(face);
+      watchMarkerTilt(face);
       el.addEventListener('click', async (e) => {
         e.stopPropagation();
         const expansionZoom = (await index.getClusterExpansionZoom(cluster.id)) + 0.1;
@@ -199,6 +215,7 @@ function updateLocalClusters(force = true) {
       label.textContent = localList[j].title || 'Live marker';
       box.appendChild(label);
       el.appendChild(box);
+      watchFollowPrefetch(el, localList[j] && localList[j].payer);
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         openLocalPopup(j);
@@ -220,6 +237,66 @@ const viewportLocalUpdate = () => updateLocalClusters(false);
 document.addEventListener('topic-clusters-updated', () => {
   updateLocalClusters(false);
 });
+
+// Show / Video length, read from the same saved popup settings as topic posts.
+// An array image is its first entry, the same way videoSeconds reads it.
+function localMedia(m) {
+  const image = m && Array.isArray(m.image) ? m.image[0] : m && m.image;
+  if (image == null || image === '') return 'none';
+  if (/\.(mp4|webm)(\?|#|$)/i.test(String(image))) return 'video';
+  return 'picture';
+}
+
+function localMatches(m) {
+  const show = mediaMode();
+  const kind = localMedia(m);
+  if (show === 'pictures' && kind !== 'picture') return false;
+  if (show === 'videos' && kind !== 'video') return false;
+  if (show === 'both' && kind !== 'picture' && kind !== 'video') return false;
+  const length = lengthMode();
+  if (length === 'any' || kind !== 'video') return true;
+  const seconds = videoSeconds(m && m.image);
+  if (seconds == null) return false;
+  if (length === 'under') return seconds < 30;
+  if (length === 'mid') return seconds >= 30 && seconds <= 120;
+  return seconds > 120;
+}
+
+function createdStamp(value) {
+  if (value == null || value === '') return '';
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+}
+
+// Another copy of the post that is open: same time and same point.
+function sameLivePost(a, b) {
+  if (!a || !b) return false;
+  if (Number(a.lng) !== Number(b.lng) || Number(a.lat) !== Number(b.lat)) return false;
+  const left = createdStamp(a.created);
+  const right = createdStamp(b.created);
+  return left !== '' && left === right;
+}
+
+function localEndLabel() {
+  const mode = mediaMode();
+  if (mode === 'pictures') return 'No more pictures';
+  if (mode === 'videos') return 'No more videos';
+  return 'No more pictures or videos';
+}
+
+// Newest-first, no wrap. The open post can be text; the arrow lands on the
+// nearest item that matches Show and Video length.
+function step(direction) {
+  const dir = direction < 0 ? -1 : 1;
+  const open = localList[localIndex];
+  for (let j = localIndex + dir; j >= 0 && j < localList.length; j += dir) {
+    const item = localList[j];
+    if (!localMatches(item) || sameLivePost(item, open)) continue;
+    navigateLocal(j);
+    return;
+  }
+  if (mediaMode() !== 'all') toast.info(localEndLabel());
+}
 
 // Popup for the marker at localList[j] — the SAME popup the regular topic
 // markers use, but ◀️/▶️ walk THIS list instead of the topic's
@@ -248,8 +325,8 @@ function openLocalPopup(j) {
     comments: m.comments || [],
     coords: `${m.lng},${m.lat}`,
     viewCount: Number.isFinite(Number(m.views)) ? Number(m.views) : 0,
-    onPrev: () => { if (localIndex > 0) navigateLocal(localIndex - 1); },
-    onNext: () => { if (localIndex < localList.length - 1) navigateLocal(localIndex + 1); },
+    onPrev: () => step(-1),
+    onNext: () => step(1),
   });
 
   // Match the regular marker popup: close other panels and apply the theme.
