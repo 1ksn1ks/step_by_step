@@ -1247,8 +1247,10 @@ export function createMarkerPopupHTML(data) {
   // -0.5u cancels the content's side pad so the pills are not covered.
   const bottomLeftRow = document.createElement('div');
   bottomLeftRow.className = 'popup-dock';
+  bottomLeftRow.classList.add('popup-footer-row');
   bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: 0; margin-left: calc(var(--u) * -0.5); margin-right: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);';
   const metaRight = document.createElement('div');
+  metaRight.classList.add('popup-footer-meta');
   metaRight.style.cssText = 'margin-left: auto; display: flex; align-items: center; gap: calc(var(--u) * 0.45); flex-shrink: 0;';
   metaRight.append(viewsDiv, timestampDiv);
   bottomLeftRow.appendChild(topicSpan);
@@ -1505,8 +1507,10 @@ function createPolygonPopupHTML(data) {
   // Row 7 — topic id and name on the left, timestamp on the right.
   const bottomLeftRow = document.createElement('div');
   bottomLeftRow.className = 'popup-dock';
+  bottomLeftRow.classList.add('popup-footer-row');
   bottomLeftRow.style.cssText = 'position: relative; display: flex; align-items: center; gap: calc(var(--u) * 0.7); height: calc(var(--u) * 4); margin-top: 0; margin-left: calc(var(--u) * -0.5); margin-right: calc(var(--u) * -0.5); margin-bottom: calc(var(--u) * -0.3);';
   const metaRight = document.createElement('div');
+  metaRight.classList.add('popup-footer-meta');
   metaRight.style.cssText = 'margin-left: auto; display: flex; align-items: center; gap: calc(var(--u) * 0.45); flex-shrink: 0;';
   metaRight.append(viewsDiv, timestampDiv);
   bottomLeftRow.appendChild(topicSpan);

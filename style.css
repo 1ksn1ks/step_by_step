@@ -5223,9 +5223,50 @@ a.payer-link {
     grid-row: 7;
   }
 
-  .maplibregl-map .popup-dock .popup-top-topic {
-    flex: 1 1 auto;
+  .maplibregl-map .popup-sheet > .popup-footer-row {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: calc(var(--u) * 0.7);
+    align-self: end;
+    margin: 0 0 calc(var(--u) * -0.3) 0 !important;
+  }
+
+  .maplibregl-map .popup-footer-meta {
+    display: contents !important;
+  }
+
+  .maplibregl-map .popup-footer-row .popup-top-topic {
+    grid-column: 1;
+    justify-self: start;
+    width: auto;
+    max-width: clamp(calc(var(--u) * 10), 22dvw, calc(var(--u) * 30)) !important;
     min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .maplibregl-map .popup-footer-row .popup-views {
+    grid-column: 2;
+    justify-self: stretch;
+    text-align: center;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .maplibregl-map .popup-footer-row .popup-views:not(.is-shown) {
+    display: none;
+  }
+
+  .maplibregl-map .popup-footer-row .popup-views.is-shown {
+    display: block;
+  }
+
+  .maplibregl-map .popup-footer-row .popup-timestamp:not(.popup-views) {
+    grid-column: 3;
+    justify-self: end;
   }
 
   .maplibregl-map .popup-sheet > .popup-comments {
