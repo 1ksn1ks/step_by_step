@@ -5290,56 +5290,6 @@ a.payer-link {
   .maplibregl-map .popup-sheet > .popup-comments > :not(.comments-scroll) {
     flex: 0 0 auto;
   }
-
-  .maplibregl-map .maplibregl-popup.early-holder-popup {
-    background-image: none !important;
-    animation: none;
-  }
-
-  .maplibregl-map .maplibregl-popup.early-holder-popup::before {
-    display: none;
-  }
-
-  .maplibregl-map .maplibregl-popup.early-holder-popup > .maplibregl-popup-content {
-    overflow: visible !important;
-  }
-
-  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::before,
-  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::after {
-    border-color: transparent;
-    background-color: transparent;
-    background-image:
-      linear-gradient(rgba(12, 12, 18, 0.94), rgba(12, 12, 18, 0.94)),
-      conic-gradient(from var(--eh-angle), #f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a);
-    background-origin: border-box;
-    background-clip: padding-box, border-box;
-    animation: early-hashinal-angle 4s linear infinite;
-  }
-
-  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::before,
-  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::after {
-    content: '';
-    grid-row: 1 / -1;
-    margin: calc(var(--u) * -0.6);
-    align-self: stretch;
-    justify-self: stretch;
-    border-radius: calc(var(--u) * 2);
-    z-index: -2;
-    pointer-events: none;
-    box-shadow:
-      0 0 1.4dvh rgba(246, 226, 122, 0.55),
-      0 0 3dvh rgba(255, 74, 214, 0.32);
-    opacity: 0.7;
-    animation: early-holder-glow 2.6s ease-in-out infinite;
-  }
-
-  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::before {
-    grid-column: 1;
-  }
-
-  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::after {
-    grid-column: 2;
-  }
 }
 /* Tap-to-fullscreen media overlay (fullscreenmedia.js) — gallery view:
    near-black stage, the media is the star, minimal chrome, calm entrance. */
@@ -6194,5 +6144,62 @@ a.payer-link {
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::before,
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::after {
     animation-duration: 8s;
+  }
+}
+
+/* After the base early-holder rules so landscape can take the gradient
+   off the shell and put it on both cards. */
+@media (orientation: landscape) {
+  .maplibregl-map .maplibregl-popup.early-holder-popup {
+    background: transparent !important;
+    background-image: none !important;
+    border-width: 0 !important;
+    animation: none !important;
+    box-shadow: none !important;
+  }
+
+  .maplibregl-map .maplibregl-popup.early-holder-popup::before {
+    display: none !important;
+  }
+
+  .maplibregl-map .maplibregl-popup.early-holder-popup > .maplibregl-popup-content {
+    overflow: visible !important;
+  }
+
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::before,
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::after {
+    border-color: transparent;
+    background-color: transparent;
+    background-image:
+      linear-gradient(rgba(12, 12, 18, 0.94), rgba(12, 12, 18, 0.94)),
+      conic-gradient(from var(--eh-angle), #f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    animation: early-hashinal-angle 4s linear infinite;
+  }
+
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::before,
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::after {
+    content: '';
+    grid-row: 1 / -1;
+    margin: calc(var(--u) * -0.6);
+    align-self: stretch;
+    justify-self: stretch;
+    border-radius: calc(var(--u) * 2);
+    z-index: -2;
+    pointer-events: none;
+    box-shadow:
+      0 0 1.4dvh rgba(246, 226, 122, 0.55),
+      0 0 3dvh rgba(255, 74, 214, 0.32);
+    opacity: 0.7;
+    animation: early-holder-glow 2.6s ease-in-out infinite;
+  }
+
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::before {
+    grid-column: 1;
+  }
+
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::after {
+    grid-column: 2;
   }
 }
