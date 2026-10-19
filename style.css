@@ -2674,6 +2674,30 @@ html, body {
     transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
   }
 
+  /* Comments back. Same circle as the popup ×, on the top left. */
+  .maplibregl-popup-close-button.comments-back-button {
+    top: calc(var(--u) * 0.2) !important;
+    left: calc(var(--u) * 0.1) !important;
+    right: auto !important;
+  }
+
+  .comments-back-button svg {
+    width: calc(var(--u) * 1.7);
+    height: calc(var(--u) * 1.7);
+    display: block;
+    pointer-events: none;
+  }
+
+  .comments-back-button.is-early {
+    color: #f6e27a !important;
+  }
+
+  /* The back circle sits over the top of a fullscreen comments card.
+     The list starts below it, so the first payer row stays clear. */
+  .comments-modal:not(.comments-modal--in-card) .popup-comments {
+    padding-top: calc(var(--u) * 4.4) !important;
+  }
+
   .topic-follow {
     display: flex;
     flex-direction: column;
@@ -5336,9 +5360,10 @@ a.payer-link {
     color: white;
   }
 
-  .maplibregl-map .comments-modal--in-card > .maplibregl-popup-close-button {
+  .maplibregl-map .comments-modal--in-card > .comments-back-button {
     top: calc(var(--u) * 1) !important;
-    right: calc(var(--u) * 4.7) !important;
+    left: calc(var(--u) * 0.1) !important;
+    right: auto !important;
   }
 
   .maplibregl-map .comments-modal--in-card > .popup-comments {

@@ -3285,10 +3285,32 @@ function paintCommentsSection(section) {
   section.style.webkitBackdropFilter = 'none';
 }
 
-function commentsCloseButton() {
+function commentsBackChevron() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  // Ink sits on the viewBox centre. A text ‹ (U+2039) sits left of its em box.
+  path.setAttribute('d', 'M14.7 5.7 8.5 12l6.2 6.3');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', 'currentColor');
+  path.setAttribute('stroke-width', '2.4');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(path);
+  return svg;
+}
+
+function commentsCloseButton(section) {
   const closeBtn = document.createElement('button');
-  closeBtn.className = 'maplibregl-popup-close-button';
-  closeBtn.textContent = '×';
+  closeBtn.className = 'maplibregl-popup-close-button comments-back-button';
+  closeBtn.setAttribute('aria-label', 'Back');
+  closeBtn.title = 'Back';
+  const home = section && section._homeParent;
+  const popup = home && home.closest ? home.closest('.maplibregl-popup') : null;
+  if (popup && popup.classList.contains('early-holder-popup')) closeBtn.classList.add('is-early');
+  closeBtn.appendChild(commentsBackChevron());
   closeBtn.onclick = (e) => {
     e.stopPropagation();
     closeCommentsModal();
@@ -3302,7 +3324,7 @@ function showCommentsModal(section) {
   const wrapper = document.createElement('div');
   if (sheet) {
     wrapper.className = 'comments-modal comments-modal--in-card';
-    wrapper.appendChild(commentsCloseButton());
+    wrapper.appendChild(commentsCloseButton(section));
     wrapper.appendChild(section);
     wrapper.addEventListener('click', (e) => e.stopPropagation());
     wrapper.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -3326,7 +3348,7 @@ function showCommentsModal(section) {
     card.className = 'maplibregl-popup';
     const cardContent = document.createElement('div');
     cardContent.className = 'maplibregl-popup-content';
-    cardContent.appendChild(commentsCloseButton());
+    cardContent.appendChild(commentsCloseButton(section));
     cardContent.appendChild(section);
     card.appendChild(cardContent);
     wrapper.appendChild(card);
