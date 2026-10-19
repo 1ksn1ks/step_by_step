@@ -6,8 +6,6 @@ import { earlyHashinalNumber } from "./earlyhashinal.js";
 import {
     EARLY_POPUP_CLASS,
     EARLY_PROFILE_CLASS,
-    earlyBadgeLabel,
-    earlyLockNote,
 } from "./earlypopup.js";
 
 const STYLE_INPUTS = [
@@ -146,28 +144,16 @@ function payerOf(popup) {
     return typeof id === "string" ? id : "";
 }
 
-function ensureBadge(popup) {
-    const heading = popup.querySelector(".popup-profile-bubble h2");
-    if (!heading) return null;
-    let badge = heading.querySelector(":scope > .early-holder-badge");
-    if (!badge) {
-        badge = document.createElement("span");
-        badge.className = "early-holder-badge";
-        badge.hidden = true;
-        heading.appendChild(badge);
-    }
-    return badge;
+function dropEarlyBadges(root) {
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll(".early-holder-badge").forEach((node) => node.remove());
 }
 
 export function syncPopupChrome(popup) {
     if (!popup || !popup.classList) return;
-    const n = earlyHashinalNumber(payerOf(popup));
-    const locked = n > 0;
+    const locked = earlyHashinalNumber(payerOf(popup)) > 0;
     popup.classList.toggle(EARLY_POPUP_CLASS, locked);
-    const badge = ensureBadge(popup);
-    if (!badge) return;
-    badge.hidden = !locked;
-    badge.textContent = locked ? earlyBadgeLabel(n) : "";
+    dropEarlyBadges(popup);
 }
 
 export function paintEarlyProfile(card, account) {
@@ -176,29 +162,13 @@ export function paintEarlyProfile(card, account) {
     const n = earlyHashinalNumber(id);
     card.classList.toggle(EARLY_PROFILE_CLASS, n > 0);
     if (card.dataset) card.dataset.popupPayer = id;
-    const names = card.querySelector(".profile-live-names");
-    if (!names) return;
-    let badge = names.querySelector(":scope > .early-holder-badge");
-    if (!badge) {
-        badge = document.createElement("span");
-        badge.className = "early-holder-badge";
-        badge.hidden = true;
-        names.appendChild(badge);
-    }
-    badge.hidden = n <= 0;
-    badge.textContent = n > 0 ? earlyBadgeLabel(n) : "";
+    dropEarlyBadges(card);
 }
 
 export function syncEarlyStyleEditor(account) {
     if (typeof account === "string") styleAccount = account;
     else styleAccount = typeof connectedAccount === "string" ? connectedAccount : "";
     const n = earlyHashinalNumber(styleAccount);
-    const note = document.getElementById("early-popup-lock-note");
-    if (note) {
-        note.textContent = n > 0 ? earlyLockNote(n) : "";
-        note.hidden = n <= 0;
-        note.classList.toggle("is-on", n > 0);
-    }
     for (const id of STYLE_INPUTS) {
         const el = document.getElementById(id);
         if (el) el.disabled = n > 0;

@@ -33,16 +33,6 @@ function holderNumber(account, owners) {
   return n;
 }
 
-export function earlyBadgeLabel(number) {
-  if (!Number.isInteger(number) || number <= 0) return "";
-  return "Early Hashinal #" + number;
-}
-
-export function earlyLockNote(number) {
-  if (!Number.isInteger(number) || number <= 0) return "";
-  return "Locked by your Early Hashinal #" + number;
-}
-
 // saved is returned as the same value either way. Nothing here deletes it.
 // applied is the shared chrome while locked, and the saved style otherwise.
 export function resolvePopupStyle(account, owners, saved) {

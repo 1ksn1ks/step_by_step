@@ -1,10 +1,8 @@
-// Early Hashinal popup lock. No network and no DOM.
+// Popup style lock. No network and no DOM.
 import assert from "node:assert/strict";
 import {
   EARLY_POPUP_CHROME,
   LOCKED_STYLE_KEYS,
-  earlyBadgeLabel,
-  earlyLockNote,
   resolvePopupStyle,
 } from "../earlypopup.js";
 
@@ -37,8 +35,6 @@ function testEarlyHolderIgnoresSavedColors() {
     assert.equal(decision.applied[key], undefined);
     assert.equal(saved[key], SAVED[key]);
   }
-  assert.equal(earlyBadgeLabel(decision.number), "Early Hashinal #12");
-  assert.equal(earlyLockNote(decision.number), "Locked by your Early Hashinal #12");
 }
 
 function testHoldersShareOneChrome() {
@@ -59,8 +55,6 @@ function testProfileFieldsCannotLock() {
   assert.equal(decision.number, 0);
   assert.equal(decision.applied, saved);
   assert.equal(decision.saved, saved);
-  assert.equal(earlyBadgeLabel(0), "");
-  assert.equal(earlyLockNote(0), "");
 }
 
 function testDroppingTheHashinalRestoresSavedStyle() {

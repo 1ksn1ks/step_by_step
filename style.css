@@ -2480,7 +2480,7 @@ html, body {
     align-items: center;
     gap: calc(var(--u) * 0.9);
     margin-bottom: calc(var(--u) * 0.25);
-    padding: calc(var(--u) * 0.35) calc(var(--u) * 1.2) calc(var(--u) * 0.35) calc(var(--u) * 0.35);
+    padding: calc(var(--u) * 0.35) calc(var(--u) * 1.8) calc(var(--u) * 0.35) calc(var(--u) * 0.35);
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.07);
     border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.18);
@@ -2520,23 +2520,34 @@ html, body {
   }
 
   /* The icon sits on the right of the capsule. The count chip is under it.
-     The column fills the pill and centers, so the space above the button
-     matches the space below the count. */
+     The column fills the pill with equal end padding, so the space above
+     the button matches the space below the count. */
   .popup-profile-bubble > .topic-follow {
     align-self: stretch;
+    display: flex;
     flex: 0 0 auto;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    width: auto;
+    justify-content: space-between;
+    box-sizing: border-box;
+    width: max-content;
     margin: 0 0 0 auto;
-    gap: 0.5dvh;
+    padding-block: calc(var(--u) * 0.25);
+    gap: calc(var(--u) * 0.4);
   }
 
   .popup-profile-bubble .topic-follow-btn {
     width: calc(var(--u, 9.6px) * 4.2);
     height: calc(var(--u, 9.6px) * 4.2);
+    margin: 0;
+    align-self: center;
     padding: 0;
+  }
+
+  .popup-profile-bubble .topic-follow-count {
+    margin: 0;
+    align-self: stretch;
+    justify-content: center;
   }
 
   /* Early holder: the pill border is the ring. The mask stays on the
@@ -5028,36 +5039,34 @@ a.payer-link {
     right: auto !important;
     bottom: auto !important;
     transform: translate(-50%, -50%) !important;
-    width: min(96dvw, 170dvh) !important;
-    height: min(94dvh, 96dvh) !important;
-    max-width: min(96dvw, 170dvh) !important;
-    max-height: min(94dvh, 96dvh) !important;
+    --popup-h: clamp(60dvh, 82dvh, 90dvh);
+    --popup-w: min(92dvw, calc(var(--popup-h) * 1.6));
+    width: var(--popup-w) !important;
+    max-width: var(--popup-w) !important;
+    height: var(--popup-h) !important;
+    max-height: var(--popup-h) !important;
     margin: 0 !important;
     container-type: size;
     --fit: 1;
-    --card: min(96dvw, 170dvh);
-    /* The shell cannot query itself. This matches 2.4% of the card height
-       and stays at or under the portrait 2.4vw chip size. */
-    --u: clamp(1.1dvh, calc(min(94dvh, 96dvh) * 0.024), 2.4vw);
+    --card: var(--popup-w);
+    --u: clamp(0.9dvh, min(calc(var(--popup-h) * 0.017), calc(var(--popup-w) * 0.0106)), 1.6dvh);
   }
 
   .maplibregl-map .maplibregl-popup-content {
-    --card: 100cqi;
     --fit: 1;
-    --u: clamp(1.1cqh, 2.4cqh, min(2.4cqi, 2.4vw));
     height: 100% !important;
     max-height: 100% !important;
     min-height: 0;
     flex: 1 1 auto;
-    line-height: calc(var(--u) * 3);
+    line-height: 1.35;
   }
 
   .maplibregl-map .maplibregl-popup-content > .popup-sheet {
     display: grid;
     grid-template-columns: minmax(0, 55fr) minmax(0, 45fr);
     grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
-    column-gap: calc(var(--u) * 1.1);
-    row-gap: calc(var(--u) * 0.7);
+    column-gap: calc(var(--u) * 1.2);
+    row-gap: calc(var(--u) * 0.8);
     flex: 1 1 auto;
     height: 100%;
     min-height: 0;
@@ -5115,10 +5124,6 @@ a.payer-link {
     margin-bottom: 0;
   }
 
-  .maplibregl-map .popup-profile-bubble > .topic-follow {
-    gap: 0.8cqh;
-  }
-
   .maplibregl-map .popup-nav {
     grid-column: 2;
     grid-row: 3;
@@ -5146,14 +5151,18 @@ a.payer-link {
     grid-column: 1;
     grid-row: 2 / -1;
     align-self: center;
-    justify-self: stretch;
+    justify-self: center;
     max-height: 100%;
+    overflow-y: auto;
   }
 
   .maplibregl-map .popup-text-bubble {
+    width: fit-content;
     max-width: 100%;
     box-sizing: border-box;
     overflow-wrap: anywhere;
+    font-size: calc(var(--u) * 2);
+    line-height: 1.35;
   }
 
   .maplibregl-map .popup-sheet > .popup-dock {
@@ -5848,7 +5857,7 @@ a.payer-link {
   padding: 0 2dvw;
 }
 
-/* Early Hashinal ring. The popup border still turns --eh-angle. The avatar
+/* Holder ring. The popup border still turns --eh-angle. The avatar
    ring is a larger disc rotating inside a round clip: a masked pseudo-element
    does not animate on iOS Safari or Android Chrome. */
 @property --eh-angle {
@@ -5929,49 +5938,6 @@ a.payer-link {
 }
 .marker-face.early-hashinal::after {
   content: "";
-}
-.early-holder-badge {
-  display: inline-block;
-  box-sizing: border-box;
-  width: fit-content;
-  max-width: 100%;
-  margin-top: 0.25dvh;
-  padding: 0.12dvh 1.4dvw;
-  border: 1px solid rgba(246, 226, 122, 0.55);
-  border-radius: 999px;
-  background: rgba(12, 12, 18, 0.72);
-  color: #f6e27a;
-  font-size: clamp(0.62rem, 1.25dvh, 0.85rem);
-  font-weight: 700;
-  line-height: 1.3;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: middle;
-  pointer-events: none;
-}
-.popup-profile-bubble h2 .early-holder-badge,
-.profile-live-names > .early-holder-badge {
-  display: block;
-}
-.early-holder-badge[hidden] {
-  display: none !important;
-}
-.early-popup-lock-note {
-  display: none;
-  margin: 0 0 0.8dvh;
-  padding: 0 2dvw;
-  color: #f6e27a;
-  font-size: clamp(0.7rem, 1.5dvh, 0.95rem);
-  line-height: 1.35;
-  text-align: center;
-}
-.early-popup-lock-note.is-on {
-  display: block;
-}
-.early-popup-lock-note[hidden] {
-  display: none !important;
 }
 #popup-column-3 input:disabled {
   opacity: 0.5;

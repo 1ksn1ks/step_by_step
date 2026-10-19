@@ -1,4 +1,4 @@
-// Early Hashinals: the first 1000 inscriptions (inscription_number 0..999).
+// The first 1000 inscriptions (inscription_number 0..999).
 // The list is public chain data. It is rebuilt only when the file on the
 // data volume is missing or invalid, then owners are refreshed from the
 // mirror. Nothing here is written to SQLite.
