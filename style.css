@@ -5526,7 +5526,7 @@ a.payer-link {
 }
 
 /* Header: icon + title, trash left, close right */
-#popup-settings-card > .options-column-title {
+#popup-settings-card .options-column-title {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5550,7 +5550,7 @@ a.payer-link {
   text-shadow: 0 0 1.4dvh rgba(var(--ps-accent-rgb), 0.45);
   animation: none;
 }
-#popup-settings-card > .options-column-title::before {
+#popup-settings-card .options-column-title::before {
   content: "";
   width: 2.2vh;
   width: 2.2dvh;
@@ -5993,6 +5993,12 @@ a.payer-link {
   font-size: clamp(12px, 1.6dvh, 20px);
   font-weight: 500;
 }
+/* Portrait: the wrapper does not generate a box, so the card's flow
+   stays delete, title, tools, preview, colours, pickers. */
+#popup-settings-side {
+  display: contents;
+}
+
 #popup-settings-card #savepopup3 {
   display: flex;
   align-items: center;
@@ -6013,6 +6019,181 @@ a.payer-link {
   font-weight: 600;
   text-shadow: none !important;
   animation: none;
+}
+
+/* Landscape only: the same frame as the post popup, split into two cards.
+   Shell values match .maplibregl-map .maplibregl-popup in this file. */
+@media (orientation: landscape) {
+  #popup-settings-card {
+    --popup-h: calc(100dvh - var(--popup-top) - var(--popup-bottom));
+    --popup-w: var(--popup-card);
+    --fit: 1;
+    --card: var(--popup-card);
+    --u: clamp(0.9dvh, min(calc(var(--popup-h) * 0.017), calc(var(--popup-w) * 0.0106)), 1.6dvh);
+    display: grid !important;
+    grid-template-columns: minmax(0, 55fr) minmax(0, 45fr);
+    grid-template-rows: minmax(0, 1fr);
+    /* 0.4u of each card margin overlaps this gap, so the visible gap stays 1.2u. */
+    column-gap: calc(var(--u) * 2);
+    row-gap: calc(var(--u) * 0.8);
+    align-items: stretch;
+    /* Matches the card margin below, so each card's outer edge stays on the frame. */
+    padding: calc(var(--u) * 0.5) calc(var(--u) * 0.4) calc(var(--u) * 0.4);
+    border-width: 0;
+    border-radius: 0;
+    background: transparent;
+    background-color: transparent;
+    background-image: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  #popup-settings-card::before,
+  #popup-settings-card::after {
+    content: '';
+    z-index: -1;
+    /* Inner edge of the 0.3u border: 0.2u above the grid, 0.1u outside the sides and bottom. */
+    margin: calc(var(--u) * -0.5) calc(var(--u) * -0.4) calc(var(--u) * -0.4);
+    align-self: stretch;
+    justify-self: stretch;
+    box-sizing: border-box;
+    border: calc(var(--u) * 0.3) solid var(--popup-border-color, #ffffff);
+    border-radius: calc(var(--u) * 2);
+    background-color: rgba(15, 15, 20, 0.90);
+    pointer-events: none;
+    grid-row: 1 / -1;
+  }
+
+  #popup-settings-card::before {
+    grid-column: 1;
+  }
+
+  #popup-settings-card::after {
+    grid-column: 2;
+  }
+
+  #popup-settings-side {
+    display: block;
+    grid-column: 2;
+    grid-row: 1 / -1;
+    align-self: stretch;
+    justify-self: stretch;
+    box-sizing: border-box;
+    width: auto;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: transparent;
+  }
+
+  /* Gear and the × sit on the right card's grid corner, not in the scroller. */
+  #popup-settings-card #popup-settings-delete,
+  #popup-settings-card > .panel-close-btn {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    top: 0 !important;
+    z-index: 3;
+  }
+
+  #popup-settings-card #popup-settings-delete {
+    left: 0;
+    right: auto;
+  }
+
+  /* The × is on the content edge: 0.4u in from the frame, same as the post popup. */
+  #popup-settings-card > .panel-close-btn {
+    right: calc(var(--u) * 0.4) !important;
+    left: auto !important;
+  }
+
+  #popup-settings-card .options-column-title {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    box-sizing: border-box;
+    height: calc(5dvh + 1.4dvh);
+    margin: 0;
+    padding: 0 calc(5dvh + var(--u) * 0.4) 1.4dvh;
+    background-color: rgba(15, 15, 20, 0.90);
+  }
+
+  /* The sample always has the left card, so the toggle row stays hidden. */
+  #popup-settings-card .popup-settings-row:has(> #popup-settings-preview-toggle) {
+    display: none;
+  }
+
+  #popup-settings-card #popup-settings-preview {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    grid-column: 1;
+    grid-row: 1 / -1;
+    align-self: stretch;
+    justify-self: stretch;
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    min-width: 0;
+    min-height: 0;
+    margin: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    border-width: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    clip-path: none !important;
+    animation: none !important;
+    container-type: inline-size;
+    z-index: auto !important;
+    /* Block, not flex: a tall sample grows the scroll height. Inline flex would lock it. */
+    display: block !important;
+    /* The scrollport can move. The sample inside stays pointer-events: none. */
+    pointer-events: auto !important;
+    scrollbar-width: none;
+  }
+
+  #popup-settings-card #popup-settings-preview * {
+    pointer-events: none !important;
+  }
+
+  #popup-settings-card #popup-settings-preview .maplibregl-popup-content,
+  #popup-settings-card #popup-settings-preview .popup-sheet {
+    --fit: 1;
+    --u: calc(100cqi * 0.024 * var(--fit));
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0;
+    overflow: visible !important;
+    flex: none !important;
+    background: none !important;
+    background-image: none !important;
+  }
+
+  #popup-settings-card #popup-settings-tools .toolbar-column-btns,
+  #popup-settings-card #popup-column-container-2 .toolbar-column-btns {
+    font-size: clamp(10px, 1.45dvh, 18px);
+    padding-left: 0.35dvw !important;
+    padding-right: 0.35dvw !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 /* ===== Following suggestions ===== */

@@ -531,7 +531,8 @@ window.openPopupSettings = function(target) {
     } else {
       bindPopupSettings();
       popupSettingsTarget = walkTarget(target);
-      setPopupPreview(false);
+      placePopupSettingsPreview();
+      setPopupPreview(landscapeMQ.matches);
       paintPagerModes();
       paintMediaModes();
       paintLengthModes();
@@ -1547,6 +1548,47 @@ function popupHTML(record) {
 
 const landscapeMQ = window.matchMedia('(orientation: landscape)');
 let landscapeCommentsBound = false;
+let popupSettingsOrientationBound = false;
+
+// Portrait keeps the sample between the tools and the colour rows.
+// Landscape gives it the left card, outside the right-hand scroller.
+function placePopupSettingsPreview() {
+  const preview = document.getElementById('popup-settings-preview');
+  const card = document.getElementById('popup-settings-card');
+  const side = document.getElementById('popup-settings-side');
+  const tools = document.getElementById('popup-settings-tools');
+  const colors = document.getElementById('popup-column-2');
+  const del = document.getElementById('popup-settings-delete');
+  if (!preview || !card || !side || !tools) return;
+  if (landscapeMQ.matches) {
+    // Trash and the sample sit on the card, so the right column can scroll
+    // without taking them with it. The × is already a direct child.
+    if (del && del.parentElement !== card) card.insertBefore(del, side);
+    if (preview.parentElement !== card) card.insertBefore(preview, side);
+    return;
+  }
+  if (del && (del.parentElement !== side || side.firstElementChild !== del)) side.insertBefore(del, side.firstChild);
+  if (preview.parentElement === side && preview.previousElementSibling === tools) return;
+  if (colors && colors.parentElement === side) side.insertBefore(preview, colors);
+  else tools.after(preview);
+}
+
+function syncPopupSettingsOrientation() {
+  placePopupSettingsPreview();
+  const card = document.getElementById('popup-settings-card');
+  const open = !!(card && card.style.display === 'block');
+  if (landscapeMQ.matches) {
+    if (open) setPopupPreview(true);
+    return;
+  }
+  setPopupPreview(false);
+}
+
+if (!popupSettingsOrientationBound) {
+  popupSettingsOrientationBound = true;
+  landscapeMQ.addEventListener('change', syncPopupSettingsOrientation);
+  placePopupSettingsPreview();
+}
 
 function commentsAreOpen(node) {
   if (!node || !node.querySelectorAll) return false;

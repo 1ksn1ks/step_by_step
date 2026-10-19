@@ -216,6 +216,12 @@ export function applyAllStyles() {
           popup.style.borderColor = color;
           popup.style.setProperty('--popup-border-color', color);
       });
+      // Landscape settings cards read the same variable as a map popup.
+      const settings = document.getElementById('popup-settings-card');
+      if (settings) {
+          if (!color) settings.style.removeProperty('--popup-border-color');
+          else settings.style.setProperty('--popup-border-color', color);
+      }
     }
     document.getElementById('color-picker-popup-border').addEventListener('input', (event) => {updatePopupBorder();});
     
