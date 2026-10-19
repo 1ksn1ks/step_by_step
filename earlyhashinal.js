@@ -24,10 +24,31 @@ function ensureSpin(shell) {
   return spin;
 }
 
+function syncPopupBubbleRing(bubble, early) {
+  bubble.classList.toggle("early", early);
+  let spin = bubble.querySelector(":scope > .popup-early-spin");
+  if (!early) {
+    if (spin) spin.remove();
+    return;
+  }
+  if (spin) return;
+  spin = document.createElement("span");
+  spin.className = "popup-early-spin";
+  spin.setAttribute("aria-hidden", "true");
+  bubble.prepend(spin);
+}
+
 function syncProfileRing(img) {
   const n = earlyHashinalNumber(img.dataset.earlyAccount || "");
   const parent = img.parentElement;
   const wrapped = !!(parent && parent.classList.contains("early-hashinal"));
+  const bubble = img.closest(".popup-profile-bubble");
+  // The profile pill wears the ring. Marker and list avatars keep theirs.
+  if (bubble) {
+    if (wrapped) parent.replaceWith(img);
+    syncPopupBubbleRing(bubble, n > 0);
+    return;
+  }
   if (!n) {
     if (wrapped) parent.replaceWith(img);
     return;

@@ -122,6 +122,27 @@ function hideMarkerTitle() {
   if (!markerTitleTip) return;
   markerTitleTip.hidden = true;
   markerTitleTip._tipEl = null;
+  markerTitleTip.classList.remove("early");
+  const spin = markerTitleTip.querySelector(":scope > .marker-tip-spin");
+  if (spin) spin.remove();
+}
+
+// Desktop hover only. The class tracks the marker payer, and the next
+// non-early marker takes it off. fillMapTip replaces the tip's children,
+// so the spinning border is put back after that fill.
+function syncMarkerTipEarly(tip, el) {
+  const early = !!(el && earlyHashinalNumber(el._markerPayer || ""));
+  tip.classList.toggle("early", early);
+  let spin = tip.querySelector(":scope > .marker-tip-spin");
+  if (!early) {
+    if (spin) spin.remove();
+    return;
+  }
+  if (spin) return;
+  spin = document.createElement("span");
+  spin.className = "marker-tip-spin";
+  spin.setAttribute("aria-hidden", "true");
+  tip.prepend(spin);
 }
 
 function showMarkerTitle(el, x, y) {
@@ -137,6 +158,7 @@ function showMarkerTitle(el, x, y) {
     }
     tip._tipEl = el;
   }
+  syncMarkerTipEarly(tip, el);
   clearTimeout(markerTitleHideTimer);
   tip.hidden = false;
   tip.style.left = `${x}px`;
@@ -274,6 +296,9 @@ function paintMarkerHashinal(entry) {
 
 document.addEventListener('early-hashinals', () => {
   for (const entry of keptMarkers.values()) paintMarkerHashinal(entry);
+  if (markerTitleTip && !markerTitleTip.hidden && markerTitleTip._tipEl) {
+    syncMarkerTipEarly(markerTitleTip, markerTitleTip._tipEl);
+  }
 });
 
 function syncLiveFace(entry) {

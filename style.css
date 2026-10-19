@@ -2519,21 +2519,81 @@ html, body {
     flex-direction: column;
   }
 
-  /* The icon sits on the right of the capsule. The count chip is under it. */
+  /* The icon sits on the right of the capsule. The count chip is under it.
+     The column fills the pill and centers, so the space above the button
+     matches the space below the count. */
   .popup-profile-bubble > .topic-follow {
+    align-self: stretch;
     flex: 0 0 auto;
     flex-direction: column;
-    align-items: flex-end;
-    justify-content: flex-start;
+    align-items: center;
+    justify-content: center;
     width: auto;
     margin: 0 0 0 auto;
-    gap: calc(var(--u, 9.6px) * 0.6);
+    gap: 0.5dvh;
   }
 
   .popup-profile-bubble .topic-follow-btn {
     width: calc(var(--u, 9.6px) * 4.2);
     height: calc(var(--u, 9.6px) * 4.2);
     padding: 0;
+  }
+
+  /* Early holder: the pill border is the ring. The mask stays on the
+     wrapper so the conic disc can rotate on iOS Safari and Android Chrome.
+     Padding matches the existing border, so the ring does not cover the
+     avatar, the name, or the follow column. */
+  .popup-profile-bubble.early {
+    position: relative;
+    isolation: isolate;
+    border-color: transparent;
+    background-clip: padding-box;
+  }
+  .popup-profile-bubble.early::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: -1;
+    box-shadow:
+      0 0 0.7dvh rgba(246, 226, 122, 0.85),
+      0 0 1.6dvh rgba(255, 74, 214, 0.5);
+    animation: early-holder-glow 2.6s ease-in-out infinite;
+  }
+  .popup-profile-bubble.early > .popup-early-spin {
+    position: absolute;
+    inset: calc(var(--u) * -0.12);
+    border-radius: inherit;
+    padding: calc(var(--u) * 0.12);
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+    transform: translateZ(0);
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+  }
+  .popup-profile-bubble.early > .popup-early-spin::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 400%;
+    height: 0;
+    padding-bottom: 400%;
+    background: conic-gradient(#f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a);
+    transform: translate3d(-50%, -50%, 0);
+    animation: early-hashinal-spin 4s linear infinite;
+  }
+  .popup-profile-bubble.early > :not(.popup-early-spin) {
+    position: relative;
+    z-index: 1;
   }
 
   /* Title — its own pill, stretched to fill the row with a small gap
@@ -4703,6 +4763,60 @@ html, body {
 }
 .polygon-title-tip[hidden],
 .marker-title-tip[hidden] { display: none; }
+/* Early holder hover card. Same box as the normal tip. A conic disc rotates
+   inside a 1px ring clip (the mask is on the wrapper, not the rotating
+   layer) so the border stays on the GPU and the center stays dark glass. */
+.marker-title-tip.early {
+  background: rgba(12, 12, 18, 0.94);
+  border-color: transparent;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+.marker-title-tip.early::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  box-shadow:
+    0 0 0.7dvh rgba(246, 226, 122, 0.85),
+    0 0 1.6dvh rgba(255, 74, 214, 0.5);
+  animation: early-holder-glow 2.6s ease-in-out infinite;
+}
+.marker-title-tip.early > .marker-tip-spin {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+  transform: translateZ(0);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+.marker-title-tip.early > .marker-tip-spin::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 400%;
+  height: 0;
+  padding-bottom: 400%;
+  background: conic-gradient(#f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a);
+  transform: translate3d(-50%, -50%, 0);
+  animation: early-hashinal-spin 4s linear infinite;
+}
+.marker-title-tip.early > :not(.marker-tip-spin) {
+  position: relative;
+  z-index: 1;
+}
 .map-tip-title {
   font-size: 13px;
   font-weight: 700;
@@ -5788,7 +5902,11 @@ a.payer-link {
   .maplibregl-popup.early-holder-popup,
   .maplibregl-popup.early-holder-popup::before,
   .early-holder-card .profile-live-bubble,
-  .early-holder-card .profile-live-bubble::before {
+  .early-holder-card .profile-live-bubble::before,
+  .marker-title-tip.early::before,
+  .marker-title-tip.early > .marker-tip-spin::before,
+  .popup-profile-bubble.early::before,
+  .popup-profile-bubble.early > .popup-early-spin::before {
     animation-duration: 8s;
   }
 }
