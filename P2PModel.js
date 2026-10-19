@@ -19,6 +19,8 @@ const maxRetries = 3;
 let seenMessages = new Set();
 let coordinates = null;
 let heartbeatInterval = null;
+let reconnectTimer = null;
+let reconnectDelay = 2000;
 let gossipInterval = null;
 let peerListRequestInterval = null; // Interval for requesting peer list
 
@@ -91,7 +93,11 @@ export async function someFunction(accountId, topicId) {
 
 
     function startHeartbeat() {
-        setInterval(() => {
+        if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+        }
+        heartbeatInterval = setInterval(() => {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ action: 'heartbeat', peer_id: peerId }));
             }
@@ -111,16 +117,41 @@ export async function someFunction(accountId, topicId) {
     }
 
 
+    function scheduleReconnect() {
+        if (reconnectTimer) return;
+        const wait = reconnectDelay + Math.random() * 1000;
+        reconnectDelay = Math.min(reconnectDelay * 2, 60000);
+        reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            connectToBootstrapServer();
+        }, wait);
+    }
+
     function connectToBootstrapServer() {
-        ws = new WebSocket('allinhbar.com');
-        ws.onopen = () => {
+        let socket;
+        try {
+            socket = new WebSocket('wss://serverws-production.up.railway.app');
+        } catch (error) {
+            console.error('Failed to open signaling socket:', error);
+            scheduleReconnect();
+            return;
+        }
+        ws = socket;
+        socket.onopen = () => {
+            reconnectDelay = 2000;
             console.log('Connected to bootstrap server');
-            ws.send(JSON.stringify({ action: 'register', peer_id: peerId }));
+            socket.send(JSON.stringify({ action: 'register', peer_id: peerId }));
             startHeartbeat(); // Start sending heartbeats
         };
 
-        ws.onmessage = async (event) => {
-            const message = JSON.parse(event.data);
+        socket.onmessage = async (event) => {
+            let message;
+            try {
+                message = JSON.parse(event.data);
+            } catch (error) {
+                console.error('Bad signaling message:', error);
+                return;
+            }
             if (message.action === 'peer_list') {
                 const peers = message.peers;
                 globalPeers = peers; // Store the peers in the global array
@@ -133,6 +164,15 @@ export async function someFunction(accountId, topicId) {
             } else if (message.action === 'candidate') {
                 await handleCandidate(message.peer_id, message.data);
             }
+        };
+
+        socket.onerror = () => {
+            if (ws !== socket) return;
+            scheduleReconnect();
+        };
+        socket.onclose = () => {
+            if (ws !== socket) return;
+            scheduleReconnect();
         };
     }
 
@@ -459,6 +499,11 @@ async function cleanup() {
             heartbeatInterval = null;
             console.log('[Client] Cleared heartbeat interval');
         }
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+        }
+        reconnectDelay = 2000;
         if (gossipInterval) {
             clearInterval(gossipInterval);
             gossipInterval = null;
