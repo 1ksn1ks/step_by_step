@@ -5629,8 +5629,9 @@ a.payer-link {
   cursor: pointer;
 }
 #popup-settings-card #popup-settings-delete {
-  left: 1.4vw;
-  left: 1.4dvw;
+  left: auto;
+  right: 1.4vw;
+  right: 1.4dvw;
   background: rgba(248, 113, 113, 0.12);
   border: 1px solid rgba(248, 113, 113, 0.45);
   color: #FCA5A5;
@@ -5643,9 +5644,9 @@ a.payer-link {
   stroke-width: 2;
 }
 #popup-settings-card > .panel-close-btn {
-  right: 1.4vw !important;
-  right: 1.4dvw !important;
-  left: auto !important;
+  left: 1.4vw !important;
+  left: 1.4dvw !important;
+  right: auto !important;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.16);
   color: rgba(255, 255, 255, 0.85);
@@ -5660,6 +5661,22 @@ a.payer-link {
   background: currentColor;
   -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 6 6 18'/><path d='m6 6 12 12'/></svg>") center / contain no-repeat;
   mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 6 6 18'/><path d='m6 6 12 12'/></svg>") center / contain no-repeat;
+}
+/* Back variant: the comments chevron replaces the drawn x. */
+#popup-settings-card > .panel-close-btn.comments-back-button::before {
+  content: none;
+}
+#popup-settings-card > .panel-close-btn.comments-back-button svg {
+  width: 2.6vh;
+  width: 2.6dvh;
+  height: 2.6vh;
+  height: 2.6dvh;
+  display: block;
+  pointer-events: none;
+}
+/* Hide the post popup's own × while settings is open. */
+.maplibregl-popup.settings-open > .maplibregl-popup-content > .maplibregl-popup-close-button:not(.comments-back-button) {
+  display: none !important;
 }
 
 /* Prev / next group: one glass panel holding Order, Type and Video length */
@@ -6245,15 +6262,16 @@ a.payer-link {
     z-index: 3;
   }
 
+  /* Trash takes the old × spot: 0.4u in from the frame, same as the post popup. */
   #popup-settings-card #popup-settings-delete {
-    left: 0;
-    right: auto;
+    left: auto;
+    right: calc(var(--u) * 0.4);
   }
 
-  /* The × is on the content edge: 0.4u in from the frame, same as the post popup. */
+  /* The ‹ back sits on the left grid corner where the trash was. */
   #popup-settings-card > .panel-close-btn {
-    right: calc(var(--u) * 0.4) !important;
-    left: auto !important;
+    left: 0 !important;
+    right: auto !important;
   }
 
   #popup-settings-card .options-column-title {

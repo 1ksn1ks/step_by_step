@@ -631,6 +631,16 @@ function paintDeleteButton() {
   btn.title = label;
 }
 
+// The post popup hides its own × while settings is open, like comments-open.
+function syncSettingsOpen() {
+  const card = document.getElementById('popup-settings-card');
+  const open = !!(card && card.style.display === 'block');
+  document.querySelectorAll('.maplibregl-popup').forEach((popup) => {
+    if (card && card.contains(popup)) return;
+    popup.classList.toggle('settings-open', open);
+  });
+}
+
 function closePopupSettings() {
   const backdrop = document.getElementById('popup-settings-backdrop');
   const card = document.getElementById('popup-settings-card');
@@ -640,6 +650,7 @@ function closePopupSettings() {
   if (column) column.style.display = 'none';
   popupSettingsTarget = null;
   setPopupPreview(false);
+  syncSettingsOpen();
 }
 
 function bindPopupSettings() {
@@ -652,6 +663,22 @@ function bindPopupSettings() {
   // stay here, so a click inside the card stops there. The × still closes
   // because its own handler calls CloseALL.
   if (card) card.addEventListener('click', (event) => event.stopPropagation());
+  // The × becomes the comments ‹. A clone drops its CloseALL handler.
+  const oldClose = card && card.querySelector(':scope > .panel-close-btn');
+  if (oldClose) {
+    const back = oldClose.cloneNode(false);
+    back.classList.add('comments-back-button');
+    back.setAttribute('aria-label', 'Back');
+    back.title = 'Back';
+    back.appendChild(commentsBackChevron());
+    back.addEventListener('click', (event) => {
+      event.stopPropagation();
+      window.openPopupSettings();
+    });
+    oldClose.replaceWith(back);
+  }
+  // CloseALL also hides the card, so watch it to clear the popup mark.
+  if (card) new MutationObserver(syncSettingsOpen).observe(card, { attributes: true, attributeFilter: ['style'] });
   toggle.addEventListener('click', () => {
     const preview = document.getElementById('popup-settings-preview');
     if (!preview) return;
@@ -707,6 +734,7 @@ window.openPopupSettings = function(target) {
       paintDeleteButton();
       backdrop.style.display = "block";
       card.style.display = "block";
+      syncSettingsOpen();
       refitPopups();
       removeUfoModel();
     }
@@ -1744,6 +1772,7 @@ function placePopupSettingsPreview() {
 
 function syncPopupSettingsOrientation() {
   placePopupSettingsPreview();
+  syncSettingsOpen();
   const card = document.getElementById('popup-settings-card');
   const open = !!(card && card.style.display === 'block');
   if (landscapeMQ.matches) {
