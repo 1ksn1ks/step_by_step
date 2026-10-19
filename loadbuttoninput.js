@@ -108,6 +108,9 @@ function updateButtonInputSettings() {
     });
 
     document.querySelectorAll(BUTTON_SELECTORS).forEach((button) => {
+        // Popup settings paints its own pills. Inline color and height from
+        // this panel would stick over that card and change its size.
+        if (button.closest("#popup-settings-card")) return;
         button.style.borderColor = buttonBorder;
         button.style.fontSize = font + "vh";
         button.style.color = buttonFont;
@@ -121,6 +124,10 @@ function updateButtonInputSettings() {
 // Hover behavior: attached ONCE (the legacy code re-added these listeners
 // on every slider drag, stacking duplicates)
 document.querySelectorAll(BUTTON_SELECTORS).forEach((button) => {
+    // These listeners write inline background and color, then leave
+    // transparent + white behind on mouseout. That tone sticks on the
+    // popup settings pills, which have their own resting look.
+    if (button.closest("#popup-settings-card")) return;
     button.addEventListener("mouseover", () => {
         button.style.backgroundColor = colorState.onhover;
     });
