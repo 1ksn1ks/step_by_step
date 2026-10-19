@@ -2506,7 +2506,7 @@ html, body {
   .popup-profile-bubble h2 {
     margin: 0;
     min-width: 0;
-    font-size: calc(var(--u) * 1.8);
+    font-size: calc(var(--u) * 1.8 * var(--popup-font-scale, 1));
     line-height: 1.35;
     font-weight: 700;
     overflow: hidden;
@@ -5348,7 +5348,7 @@ a.payer-link {
     max-width: 100%;
     box-sizing: border-box;
     overflow-wrap: anywhere;
-    font-size: calc(var(--u) * 2);
+    font-size: calc(var(--u) * 2 * var(--popup-font-scale, 1));
     line-height: 1.35;
   }
 
@@ -6748,6 +6748,8 @@ a.payer-link {
   border-radius: calc(var(--u) * 1.7) !important;
   color: #f4f1ea !important;
   font-size: calc(var(--u) * 2) !important;
+  /* Font size is a locked key for early holders. */
+  --popup-font-scale: 1 !important;
 }
 .maplibregl-popup.early-holder-popup .number,
 .maplibregl-popup.early-holder-popup .maplibregl-popup-close-button,

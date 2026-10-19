@@ -285,6 +285,9 @@ export function applyAllStyles() {
         const popupTexts = document.querySelectorAll('.maplibregl-popup-content');
         popupTexts.forEach(text => {
             text.style.fontSize = `calc(var(--u) * ${popupFontSizeValue})`;
+            // 2 is the default size. Rules with their own --u size
+            // (landscape text, name) multiply by this scale.
+            text.style.setProperty('--popup-font-scale', String(popupFontSizeValue / 2));
         });
     }
     document.getElementById('popup-font-size').addEventListener('input', (event) => {updatePopupFontSize();});
