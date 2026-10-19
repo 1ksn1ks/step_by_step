@@ -4985,7 +4985,8 @@ a.payer-link {
   overflow: hidden;
   border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
   box-shadow: 0 calc(var(--u) * 1.2) calc(var(--u) * 3) rgba(0, 0, 0, 0.55), inset 0 0 0 calc(var(--u) * 0.12) rgba(255, 255, 255, 0.05);
-  background: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
+  background-color: #0b0d13;
+  background-image: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
   animation: popupMediaIn 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 /* Video: stretched to (nearly) the full popup width, same height as the square card. */
@@ -4993,6 +4994,8 @@ a.payer-link {
   width: 98%;
   aspect-ratio: auto;
   height: calc(var(--u) * 22);
+  background-color: #0b0d13;
+  background-image: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
 }
 .popup-media-card img,
 .popup-media-card video {
@@ -5001,6 +5004,13 @@ a.payer-link {
   display: block;
   object-fit: contain;
   border-radius: inherit;
+}
+/* Letterbox must be solid. Draw-column previews stay on the shared rule above. */
+.popup-media-card:not(.draw-popup-media) img,
+.popup-media-card:not(.draw-popup-media) video {
+  background-color: #0b0d13;
+  opacity: 1;
+  mix-blend-mode: normal;
 }
 /* ⤢ expand — hidden: tapping the picture already opens fullscreen */
 .popup-media-expand {
@@ -5139,6 +5149,8 @@ a.payer-link {
     margin: 0;
     align-self: stretch;
     justify-self: stretch;
+    background-color: #0b0d13;
+    background-image: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
   }
 
   .maplibregl-map .popup-media-card img,
@@ -5150,6 +5162,9 @@ a.payer-link {
     max-width: none;
     max-height: none;
     object-fit: contain;
+    background-color: #0b0d13;
+    opacity: 1;
+    mix-blend-mode: normal;
   }
 
   .maplibregl-map .popup-profile-bubble {
