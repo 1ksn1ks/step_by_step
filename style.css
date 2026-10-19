@@ -5107,7 +5107,9 @@ a.payer-link {
     min-height: 0;
     flex: 1 1 auto;
     line-height: 1.35;
-    padding: calc(var(--u) * 0.6) !important;
+    /* Matches the card margin below, so each card's outer edge stays
+       on the popup frame. 0.5 + -0.5 and 0.4 + -0.4. */
+    padding: calc(var(--u) * 0.5) calc(var(--u) * 0.4) calc(var(--u) * 0.4) !important;
   }
 
   .maplibregl-map .maplibregl-popup-content > .popup-sheet {
@@ -5116,7 +5118,8 @@ a.payer-link {
     position: relative;
     grid-template-columns: minmax(0, 55fr) minmax(0, 45fr);
     grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
-    column-gap: calc(var(--u) * 2.4);
+    /* 0.4u of each card margin overlaps this gap, so the visible gap stays 1.2u. */
+    column-gap: calc(var(--u) * 2);
     row-gap: calc(var(--u) * 0.8);
     flex: 1 1 auto;
     height: 100%;
@@ -5129,7 +5132,8 @@ a.payer-link {
   .maplibregl-map .popup-sheet::after {
     content: '';
     z-index: -1;
-    margin: calc(var(--u) * -0.6);
+    /* Inner edge of the 0.3u border: 0.2u above the grid, 0.1u outside the sides and bottom. */
+    margin: calc(var(--u) * -0.5) calc(var(--u) * -0.4) calc(var(--u) * -0.4);
     align-self: stretch;
     justify-self: stretch;
     box-sizing: border-box;
@@ -5160,13 +5164,16 @@ a.payer-link {
   .maplibregl-map .popup-top-row {
     grid-column: 2;
     grid-row: 1;
-    align-self: center;
-    margin: 0 0 0 calc(var(--u) * -0.5);
+    align-self: start;
+    margin: 0;
     min-width: 0;
   }
 
+  /* The × is on the content, whose edge is the card's outer edge.
+     0.3u border + 0.2u top / 0.1u right. */
   .maplibregl-map .maplibregl-popup-close-button {
-    top: calc(var(--u) * 1) !important;
+    top: calc(var(--u) * 0.5) !important;
+    right: calc(var(--u) * 0.4) !important;
   }
 
   .maplibregl-map .popup-media-card,
@@ -5237,16 +5244,24 @@ a.payer-link {
   .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-body > div:not(.popup-media-card) {
     grid-column: 1;
     grid-row: 1 / -1;
-    align-self: start;
+    align-self: stretch;
     justify-self: stretch;
+    display: flex;
+    flex-direction: column;
     width: 100%;
+    height: 100%;
+    min-height: 0;
     max-height: 100%;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    overflow: hidden;
   }
 
   .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-text-bubble {
     width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .maplibregl-map .popup-text-bubble {
@@ -5268,7 +5283,7 @@ a.payer-link {
   .maplibregl-map .popup-sheet > .popup-dock:not(:has(.popup-top-topic)) {
     grid-column: 2;
     grid-row: 1;
-    align-self: center;
+    align-self: start;
     justify-self: stretch;
     height: auto !important;
     min-height: calc(var(--u) * 4.6);
@@ -5279,9 +5294,9 @@ a.payer-link {
 
   .maplibregl-map .popup-sheet > .popup-dock:not(:has(.popup-top-topic)) > div {
     pointer-events: auto;
-    top: 50% !important;
+    /* Inline top 0.15u keeps the icons centred on the gear. Only the horizontal centre is forced. */
     left: 50% !important;
-    transform: translate(-50%, -50%) !important;
+    transform: translateX(-50%) !important;
     /* Shrink the gap before the buttons would come within 1u of the gear or the close. */
     gap: max(0px, min(calc(var(--u) * 0.5), calc(((100cqi - var(--u) * 1.2) * 0.45 - var(--u) * 20.48) / 2))) !important;
   }
@@ -5296,7 +5311,7 @@ a.payer-link {
     align-items: center;
     column-gap: calc(var(--u) * 0.7);
     align-self: end;
-    margin: 0 0 calc(var(--u) * -0.3) 0 !important;
+    margin: 0 !important;
   }
 
   .maplibregl-map .popup-footer-meta {
@@ -5343,7 +5358,11 @@ a.payer-link {
     position: absolute;
     grid-column: 2;
     grid-row: 1 / -1;
-    inset: calc(var(--u) * -0.6);
+    /* Same box as the right card border. */
+    top: calc(var(--u) * -0.5);
+    right: calc(var(--u) * -0.4);
+    bottom: calc(var(--u) * -0.4);
+    left: calc(var(--u) * -0.4);
     z-index: 3;
     box-sizing: border-box;
     display: flex;
@@ -5351,7 +5370,7 @@ a.payer-link {
     min-width: 0;
     min-height: 0;
     margin: 0;
-    padding: calc(var(--u) * 0.6);
+    padding: calc(var(--u) * 0.1);
     border: calc(var(--u) * 0.3) solid var(--popup-border-color, #ffffff);
     border-radius: calc(var(--u) * 2);
     background-color: #0f0f14;
@@ -5361,7 +5380,7 @@ a.payer-link {
   }
 
   .maplibregl-map .comments-modal--in-card > .comments-back-button {
-    top: calc(var(--u) * 1) !important;
+    top: calc(var(--u) * 0.2) !important;
     left: calc(var(--u) * 0.1) !important;
     right: auto !important;
   }
@@ -5373,7 +5392,7 @@ a.payer-link {
     min-height: 0;
     min-width: 0;
     margin: 0 !important;
-    padding: calc(var(--u) * 4.6) 0 0 !important;
+    padding: calc(var(--u) * 4.4) 0 0 !important;
     overflow: hidden;
     background: transparent !important;
     border: none !important;
@@ -6283,7 +6302,7 @@ a.payer-link {
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::after {
     content: '';
     grid-row: 1 / -1;
-    margin: calc(var(--u) * -0.6);
+    margin: calc(var(--u) * -0.5) calc(var(--u) * -0.4) calc(var(--u) * -0.4);
     align-self: stretch;
     justify-self: stretch;
     border-radius: calc(var(--u) * 2);
