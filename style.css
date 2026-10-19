@@ -6305,6 +6305,8 @@ a.payer-link {
     margin: 0;
     padding: 0 calc(5dvh + var(--u) * 0.4) 1.4dvh;
     background-color: rgba(15, 15, 20, 0.90);
+    /* The columns sit in their own bubbles, so the portrait divider goes. */
+    border-bottom: none;
   }
 
   /* The sample always has the left card, so the toggle row stays hidden. */
