@@ -6039,7 +6039,7 @@ a.payer-link {
 /* Landscape only: the same frame as the post popup, split into two cards.
    Shell values match .maplibregl-map .maplibregl-popup in this file. */
 @media (orientation: landscape) {
-  #popup-settings-card {
+  #popup-settings-card:not([style*="display: none"]) {
     --popup-h: calc(100dvh - var(--popup-top) - var(--popup-bottom));
     --popup-w: var(--popup-card);
     --fit: 1;
