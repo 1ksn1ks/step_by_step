@@ -36,40 +36,22 @@ maplibregl.Popup.prototype.remove = function () {
 const visualViewport = window.visualViewport;
 let scheduled = false;
 
-let safeProbe = null;
-function readSafeArea() {
-  if (!safeProbe) {
-    safeProbe = document.createElement("div");
-    safeProbe.style.cssText = "position:fixed;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px);padding-right:env(safe-area-inset-right,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);";
-    document.documentElement.appendChild(safeProbe);
-  }
-  const box = getComputedStyle(safeProbe);
-  return {
-    top: parseFloat(box.paddingTop) || 0,
-    right: parseFloat(box.paddingRight) || 0,
-    bottom: parseFloat(box.paddingBottom) || 0,
-    left: parseFloat(box.paddingLeft) || 0,
-  };
-}
-
 function fitPopupsToViewport() {
   const layoutH = window.innerHeight;
   const viewH = visualViewport ? visualViewport.height : layoutH;
   const viewW = visualViewport ? visualViewport.width : window.innerWidth;
   const offsetTop = visualViewport ? visualViewport.offsetTop : 0;
   const offsetLeft = visualViewport ? visualViewport.offsetLeft : 0;
-  const safe = readSafeArea();
   const root = document.documentElement.style;
   const keyboard = layoutH - viewH > 80 || offsetTop > 40;
-  // Same width the chat uses between the side insets. Chips scale from it.
-  const cardW = Math.max(80, viewW - offsetLeft - safe.left - safe.right);
-  root.setProperty('--popup-card', `${cardW}px`);
-  root.setProperty('--popup-left', `calc(${offsetLeft}px + env(safe-area-inset-left, 0px))`);
-  root.setProperty('--popup-right', 'env(safe-area-inset-right, 0px)');
+  // Same width the chat uses between left 0 and right 0. Chips scale from it.
+  root.setProperty('--popup-card', `${Math.max(80, viewW - offsetLeft)}px`);
+  root.setProperty('--popup-left', `${offsetLeft}px`);
+  root.setProperty('--popup-right', '0px');
   if (!keyboard) {
-    root.setProperty('--popup-top', 'calc(10vh + env(safe-area-inset-top, 0px))');
-    root.setProperty('--popup-bottom', 'calc(0.5dvh + env(safe-area-inset-bottom, 0px))');
-    root.setProperty('--popup-max-h', 'calc(100dvh - 10vh - 0.5dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))');
+    root.setProperty('--popup-top', '10vh');
+    root.setProperty('--popup-bottom', '0.5dvh');
+    root.setProperty('--popup-max-h', 'calc(100dvh - 10vh - 0.5dvh)');
     clearPopupFit();
     pinSettingsCard();
     return;
@@ -78,8 +60,8 @@ function fitPopupsToViewport() {
   // the visible height clear above the keyboard.
   const toolbarTop = layoutH * 0.1;
   const bottomInset = viewH * 0.005;
-  const top = Math.max(toolbarTop, offsetTop) + safe.top;
-  const bottom = Math.max(0, layoutH - (offsetTop + viewH) + bottomInset) + safe.bottom;
+  const top = Math.max(toolbarTop, offsetTop);
+  const bottom = Math.max(0, layoutH - (offsetTop + viewH) + bottomInset);
   root.setProperty('--popup-top', `${top}px`);
   root.setProperty('--popup-bottom', `${bottom}px`);
   root.setProperty('--popup-max-h', `${Math.max(80, offsetTop + viewH - top - bottomInset)}px`);

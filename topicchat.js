@@ -7,12 +7,14 @@ import { toast } from "./toast";
 import { profilePictures, usernames, click2url } from './loadalladata';
 import { 
   topicChatHeaderColor,
+  headerFontSizeTopicChat,
   accidTopicChatColor,
   innerContainerTopicChatColor,
   usernameTopicChatColor,
-  textTopicChatColor
+  textFontSizeTopicChat,
+  textTopicChatColor,
+  timestampFontSizeTopicChat
  } from './letall';
-import { CHAT_HEADER_FONT, CHAT_TEXT_FONT, CHAT_TIME_FONT } from './chatfonts.js';
 
  import { connectedAccount, signer } from './web3';
 import { expandTopicChat, scheduleTopicChatLayout } from './cssLogic.js';
@@ -145,12 +147,12 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
 
       const header = document.createElement('div');
       header.className = 'toolbar-group-messages-header';
-      header.style.cssText = `display: flex; align-items: center; border-color: ${topicChatHeaderColor}; font-size: ${CHAT_HEADER_FONT};`;
+      header.style.cssText = `display: flex; align-items: center; border-color: ${topicChatHeaderColor}; font-size: ${headerFontSizeTopicChat}vh;`;
 
       const payerLink = document.createElement('a');
       payerLink.href = `https://explore.hashpack.app/${payerInfo}`;
       payerLink.target = '_blank';
-      payerLink.style.cssText = `color: ${accidTopicChatColor}; text-decoration: none; font-size: ${CHAT_HEADER_FONT};`;
+      payerLink.style.cssText = `color: ${accidTopicChatColor}; text-decoration: none; font-size: ${headerFontSizeTopicChat}vh;`;
       payerLink.textContent = payerInfo;
       header.appendChild(payerLink);
 
@@ -158,7 +160,7 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
 
       if (username.trim()) {
         header.appendChild(payerUsernameNode(username.trim(), click2link, {
-          cssText: `color: ${usernameTopicChatColor}; font-size: ${CHAT_HEADER_FONT};`
+          cssText: `color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;`
         }));
       }
 
@@ -181,13 +183,13 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
     messageWrapper.style.cssText = `display: flex; flex-direction: column; justify-content: center; margin-top: 0.2em;`;
 
     const messageText = document.createElement('div');
-    messageText.style.cssText = `color: ${textTopicChatColor}; font-size: ${CHAT_TEXT_FONT};`;
+    messageText.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
     messageText.className = 'chat-msg-text';
     fillChatMessage(messageText, hasText ? String(userMessage) : '', parsedMessage.image);
     messageWrapper.appendChild(messageText);
 
     const timestampSpan = document.createElement('span');
-    timestampSpan.style.cssText = `font-size: ${CHAT_TIME_FONT}; color: gray;`;
+    timestampSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
     timestampSpan.className = 'chat-msg-time';
     timestampSpan.textContent = message.pending ? `⏳ ${timestamp}` : timestamp;
     messageWrapper.appendChild(timestampSpan);
@@ -619,7 +621,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
           display: flex;
           align-items: center;
           border-color: ${topicChatHeaderColor};
-          font-size: ${CHAT_HEADER_FONT};
+          font-size: ${headerFontSizeTopicChat}vh;
         `;
   
         const accLink = document.createElement('a');
@@ -629,7 +631,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         accLink.style.cssText = `
           color: ${accidTopicChatColor};
           text-decoration: none;
-          font-size: ${CHAT_HEADER_FONT};
+          font-size: ${headerFontSizeTopicChat}vh;
         `;
         accLink.textContent = payerInfo;
         headerDiv.appendChild(accLink);
@@ -641,7 +643,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         const trimmedUsername = username.trim();
         if (trimmedUsername) {
           headerDiv.appendChild(payerUsernameNode(trimmedUsername, click2link, {
-            cssText: `color: ${usernameTopicChatColor}; font-size: ${CHAT_HEADER_FONT};`
+            cssText: `color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;`
           }));
         }
   
@@ -666,12 +668,12 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
       `;
   
       const contentDiv = document.createElement('div');
-      contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${CHAT_TEXT_FONT};`;
+      contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
       contentDiv.className = 'chat-msg-text';
       fillChatMessage(contentDiv, hasText ? String(userMessage) : '', parsedMessage.image);
 
       const timeSpan = document.createElement('span');
-      timeSpan.style.cssText = `font-size: ${CHAT_TIME_FONT}; color: gray;`;
+      timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
       timeSpan.className = 'chat-msg-time';
       timeSpan.textContent = timestamp;
   

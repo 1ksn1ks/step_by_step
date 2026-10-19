@@ -18,6 +18,7 @@ const STYLE_INPUTS = [
     "color-picker-popup-username",
     "color-picker-popup-titles",
     "color-picker-popup-text",
+    "popup-font-size",
 ];
 
 let styleAccount = "";
@@ -40,6 +41,7 @@ document.getElementById("savepopup3").addEventListener("click", async (event) =>
                 const hexColorUsername = document.getElementById('color-picker-popup-username').value;
                 const hexColorTitles = document.getElementById('color-picker-popup-titles').value;
                 const hexColorText = document.getElementById('color-picker-popup-text').value;
+                const popupFontSize = Math.min(Math.max(parseFloat(document.getElementById("popup-font-size").value) || 1, 1), 3);
 
                 if (!hexColorBorder || !hexColorNumber || !hexColorClose || !hexColorAccid || !hexColorUsername || !hexColorTitles || !hexColorText) {
                     toast.error("Please fill in all color fields.");
@@ -54,7 +56,8 @@ document.getElementById("savepopup3").addEventListener("click", async (event) =>
                         colorUsername: hexColorUsername,
                         colorAccid: hexColorAccid,
                         colorText: hexColorText,
-                        colorTitles: hexColorTitles
+                        colorTitles: hexColorTitles,
+                        popupFontSize: popupFontSize
                     },
                 };
     
@@ -92,8 +95,7 @@ export async function loadProfilePopup(a) {
             // Check if the last message has valid data
             if (lastMessage && lastMessage.data) {
                 // Extract relevant data and clamp to max 255
-                // An older message may still carry popupFontSize. It is ignored.
-                const { colorBorder, colorNumber, colorClose, colorUsername, colorAccid, colorText, colorTitles } = lastMessage.data;
+                const { colorBorder, colorNumber, colorClose, colorUsername, colorAccid, colorText, colorTitles, popupFontSize } = lastMessage.data;
     
                 accountObjectSettings.push({
                     colorBorder: colorBorder,
@@ -102,7 +104,8 @@ export async function loadProfilePopup(a) {
                     colorUsername: colorUsername,
                     colorAccid: colorAccid,
                     colorText: colorText,
-                    colorTitles: colorTitles
+                    colorTitles: colorTitles,
+                    popupFontSize: popupFontSize
                 });
     
                 document.getElementById("color-picker-popup-border").value = colorBorder;
@@ -112,6 +115,7 @@ export async function loadProfilePopup(a) {
                 document.getElementById("color-picker-popup-username").value = colorUsername;
                 document.getElementById("color-picker-popup-titles").value = colorTitles;
                 document.getElementById("color-picker-popup-text").value = colorText;
+                document.getElementById("popup-font-size").value = Math.min(Math.max(parseFloat(popupFontSize) || 1, 1), 3);
     
                 updatePopupBorder();
                 updatePopupNumber();
@@ -120,6 +124,7 @@ export async function loadProfilePopup(a) {
                 updatePopupUsername();
                 updatePopupTitles();
                 updatePopupText();
+                updatePopupFontSize();
 
             }
     
@@ -223,6 +228,7 @@ export function applyAllStyles() {
         updatePopupUsername();
         updatePopupTitles();
         updatePopupText();
+        updatePopupFontSize();
     }
     
     function updatePopupBorder() {
@@ -287,3 +293,13 @@ export function applyAllStyles() {
       });
     }
     document.getElementById('color-picker-popup-text').addEventListener('input', (event) => {updatePopupText();});
+    
+    function updatePopupFontSize() {
+        const popupFontSize = document.getElementById("popup-font-size").value;
+        const popupFontSizeValue = Math.min(Math.max(parseFloat(popupFontSize) || 1, 1), 3);
+        const popupTexts = document.querySelectorAll('.maplibregl-popup-content');
+        popupTexts.forEach(text => {
+            text.style.fontSize = `calc(var(--u) * ${popupFontSizeValue})`;
+        });
+    }
+    document.getElementById('popup-font-size').addEventListener('input', (event) => {updatePopupFontSize();});

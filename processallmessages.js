@@ -7,7 +7,8 @@ import { activePolygonPopups, newActivePolygonPopups, addPolygonWithImageFill, d
 import { activeMarkerPopups, newActiveMarkerPopups, updateClusters, index } from './marker';
 import { removeUfoModel, changePopupState, closeTransientMapUI} from './cssLogic'
 import { polygons, geojson, storedMarkers, storedPolygons, storedMarkersFiltered, storedPolygonsFiltered, currentUfoModelInGLTF,  newExistingMarkers,  existingMarkers, newStoredMarkers, newStoredPolygons,
-  accidTopicChatColor, usernameTopicChatColor, textTopicChatColor, innerContainerTopicChatColor, topicChatHeaderColor } from './letall';
+  accidTopicChatColor, usernameTopicChatColor, textTopicChatColor, innerContainerTopicChatColor, topicChatHeaderColor,
+  textFontSizeTopicChat, timestampFontSizeTopicChat, headerFontSizeTopicChat } from './letall';
 import {updateRulesForModelNFTState} from './confirmnft'
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto';
 import { ringCenter, zoomForPolygon } from './polygonframe.js';
@@ -2948,7 +2949,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
 
     const header = document.createElement('div');
     header.className = 'toolbar-group-messages-header';
-    header.style.cssText = `display: flex; align-items: center; font-size: calc(var(--u) * 2);`;
+    header.style.cssText = `display: flex; align-items: center; font-size: calc(var(--u) * ${headerFontSizeTopicChat});`;
     const payerLink = document.createElement('a');
     payerLink.href = `https://explore.hashpack.app/${encodeURIComponent(payer)}`;
     payerLink.target = '_blank';
@@ -2993,7 +2994,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
       // Match the top-level comment header: acc id in the acc
       // color, username in the username color (was one same-color link before)
       const whoRow = document.createElement('div');
-      whoRow.style.cssText = `display: inline-flex; align-items: center; gap: 0.3em; padding: 0.025em 0.1em 0.025em 0.1em; border-radius: 0.4em; font-size: calc(var(--u) * 1);`;
+      whoRow.style.cssText = `display: inline-flex; align-items: center; gap: 0.3em; padding: 0.025em 0.1em 0.025em 0.1em; border-radius: 0.4em; font-size: calc(var(--u) * ${headerFontSizeTopicChat / 2});`;
       const payerPic = document.createElement('img');
       const picUrl = profilePictures[node.payer]?.url || defaultProfilePic;
       payerPic.src = isValidUrl(picUrl) ? picUrl : defaultProfilePic;
@@ -3021,7 +3022,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
 
     const messageText = document.createElement('div');
     messageText.className = 'chat-msg-text';
-    messageText.style.cssText = `font-size: calc(var(--u) * 2); color: ${textTopicChatColor}; white-space: pre-wrap; word-wrap: break-word;`;
+    messageText.style.cssText = `font-size: calc(var(--u) * ${textFontSizeTopicChat}); color: ${textTopicChatColor}; white-space: pre-wrap; word-wrap: break-word;`;
     messageText.textContent = node.text;
     wrapper.appendChild(messageText);
 
@@ -3088,7 +3089,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
 
     const timestampSpan = document.createElement('span');
     timestampSpan.className = 'chat-msg-time';
-    timestampSpan.style.cssText = `font-size: calc(var(--u) * 1.25); color: gray;`;
+    timestampSpan.style.cssText = `font-size: calc(var(--u) * 0.75); color: gray;`;
     timestampSpan.textContent = new Date(node.created).toLocaleString('en-US', {
       hour12: false,
       year: 'numeric',

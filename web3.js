@@ -15,6 +15,7 @@ import { loadProfilePopup, syncEarlyStyleEditor } from './loadprofilepopup';
 import { loadProfileObject } from './loadprofileobject';
 import { loadButtonInputSettings } from './loadbuttoninput';
 import { loadMainButtonSettings } from './loadmainbutton';
+import { loadMarkerSettings } from './loadmarkersett';
 import { confirmNFTFunction, ownsModelNFT, setOwnsModelNFT } from './confirmnft';
 import { handleAllMessages } from './handleallmessages';
 import {debounce} from './debounce'
@@ -55,6 +56,7 @@ async function init() {
       loadProfilePopup(accountId)
       loadButtonInputSettings(accountId)
       loadMainButtonSettings(accountId)
+      loadMarkerSettings(accountId)
       confirmNFTFunction(accountId).then(() => updateUI())
 
       const senderId = AccountId.fromString(connectedAccount);
@@ -122,6 +124,7 @@ async function connectWallet() {
       loadProfilePopup(accountId)
       loadButtonInputSettings(accountId)
       loadMainButtonSettings(accountId)
+      loadMarkerSettings(accountId)
       confirmNFTFunction(accountId).then(() => updateUI())
 
       const senderId = AccountId.fromString(connectedAccount);

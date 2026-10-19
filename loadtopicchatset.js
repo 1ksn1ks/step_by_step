@@ -3,7 +3,10 @@ import { getTopicData as getMessages } from "./topicdata";
 import {
     setTopicChatAccidColor,
     setTopicChatUsernameColor,
-    setTopicChatTextColor
+    setTopicChatTextColor,
+    setTopicChatTextFontSize,
+    setTopicChatTimestampFontSize,
+    setTopicChatHeaderFontSize
 } from './letall'
 import { signer } from "./web3";
 import { toast } from "./toast";
@@ -11,6 +14,12 @@ import { toast } from "./toast";
 const $ = (id) => document.getElementById(id);
 
 const els = {
+    textFont: $("text-font-size-topic-chat"),
+    textFontPill: $("text-font-size-topic-chat-pill"),
+    timestampFont: $("timestamp-font-size-topic-chat"),
+    timestampFontPill: $("timestamp-font-size-topic-chat-pill"),
+    headerFont: $("header-font-size-topic-chat"),
+    headerFontPill: $("header-font-size-topic-chat-pill"),
     previewAccid: $("mb-chat-preview-accid"),
     previewUsername: $("mb-chat-preview-username"),
     previewTime: $("mb-chat-preview-time"),
@@ -26,9 +35,13 @@ const COLOR_FIELDS = [
     ["outer", "text-container-topic-chat-color"],
 ];
 
-// Text colors from the letall.js render defaults. The outer container
-// border is the CSS glass border rgba(255, 255, 255, 0.3).
+// The defaults are the values the app really ships with:
+// fonts 2 / 1.25 / 2 and text colors from the letall.js render defaults,
+// outer container border from the CSS glass border rgba(255, 255, 255, 0.3).
 const CSS_DEFAULTS = {
+    textFont: 2,
+    timestampFont: 1.25,
+    headerFont: 2,
     accid: "#800080",
     username: "#ff9933",
     text: "#ffffff",
@@ -47,10 +60,18 @@ const colorState = {
 const isHex = (value) => /^#[0-9a-f]{6}$/i.test(value);
 
 function readControls() {
-    return { ...colorState };
+    return {
+        textFont: Math.min(parseFloat(els.textFont.value) || 1.5, 10),
+        timestampFont: Math.min(parseFloat(els.timestampFont.value) || 1.5, 10),
+        headerFont: Math.min(parseFloat(els.headerFont.value) || 0.5, 10),
+        ...colorState,
+    };
 }
 
 function syncControls(values) {
+    els.textFont.value = values.textFont;
+    els.timestampFont.value = values.timestampFont;
+    els.headerFont.value = values.headerFont;
     for (const [key, id] of COLOR_FIELDS) {
         const input = $(id);
         if (isHex(values[key])) input.value = values[key];
@@ -59,32 +80,47 @@ function syncControls(values) {
     }
 }
 
+function updatePills() {
+    els.textFontPill.textContent = `${els.textFont.value} vh`;
+    els.timestampFontPill.textContent = `${els.timestampFont.value} vh`;
+    els.headerFontPill.textContent = `${els.headerFont.value} vh`;
+}
+
 function updatePreview() {
-    const colors = readControls();
+    const { textFont, timestampFont, headerFont, ...colors } = readControls();
     els.previewAccid.style.color = colors.accid;
+    els.previewAccid.style.fontSize = headerFont + "vh";
     els.previewUsername.style.color = colors.username;
+    els.previewUsername.style.fontSize = headerFont + "vh";
+    els.previewTime.style.fontSize = timestampFont + "vh";
     els.previewMsg.style.color = colors.text;
+    els.previewMsg.style.fontSize = textFont + "vh";
     els.previewOuter.style.borderColor = colors.outer;
 }
 
 function updateTopicChatSettings() {
-    const colors = readControls();
+    const { textFont, timestampFont, headerFont, ...colors } = readControls();
 
     // Render-time values for new messages (topicchat.js reads these from letall)
     setTopicChatAccidColor(colors.accid);
     setTopicChatUsernameColor(colors.username);
     setTopicChatTextColor(colors.text);
+    setTopicChatTextFontSize(textFont);
+    setTopicChatTimestampFontSize(timestampFont);
+    setTopicChatHeaderFontSize(headerFont);
 
     // Live border color on the already-rendered chat container
     document.querySelectorAll(".chat-container").forEach((el) => {
         el.style.borderColor = colors.outer;
     });
 
+    updatePills();
     updatePreview();
 }
 
 // Panel starts on the default values; the real chat is left untouched
 syncControls(CSS_DEFAULTS);
+updatePills();
 updatePreview();
 
 document.getElementById("save-topic-chat-settings").addEventListener("click", async (event) => {
@@ -97,7 +133,7 @@ document.getElementById("save-topic-chat-settings").addEventListener("click", as
         }
         const topicId = "0.0.9798064";
 
-        const colors = readControls();
+        const { textFont, timestampFont, headerFont, ...colors } = readControls();
 
         if (!colors.accid || !colors.username || !colors.text || !colors.outer) {
             toast.error("Please fill in all color fields.");
@@ -110,6 +146,9 @@ document.getElementById("save-topic-chat-settings").addEventListener("click", as
                 usernameTopicChatColor: colors.username,
                 textTopicChatColor: colors.text,
                 textContainerTopicChatColor: colors.outer,
+                textFontSizeTopicChat: textFont,
+                timestampFontSizeTopicChat: timestampFont,
+                headerFontSizeTopicChat: headerFont,
             }
         };
 
@@ -145,11 +184,9 @@ export async function loadTopicChatSettings(a) {
 
         // Check if the last message has valid data
         if (lastMessage && lastMessage.data) {
-            // Older messages may still carry textFontSizeTopicChat,
-            // timestampFontSizeTopicChat, headerFontSizeTopicChat,
-            // innerContainerTopicChatColor, or topicChatHeaderColor.
-            // Those are ignored.
-            const { accidTopicChatColor, usernameTopicChatColor, textTopicChatColor, textContainerTopicChatColor } = lastMessage.data;
+            // Extract relevant data (old saved innerContainerTopicChatColor /
+            // topicChatHeaderColor are ignored)
+            const { accidTopicChatColor, usernameTopicChatColor, textTopicChatColor, textContainerTopicChatColor, textFontSizeTopicChat, timestampFontSizeTopicChat, headerFontSizeTopicChat } = lastMessage.data;
 
 
             accountObjectSettings.push({
@@ -157,9 +194,15 @@ export async function loadTopicChatSettings(a) {
                 usernameTopicChatColor: usernameTopicChatColor,
                 textTopicChatColor: textTopicChatColor,
                 textContainerTopicChatColor: textContainerTopicChatColor,
+                textFontSizeTopicChat: textFontSizeTopicChat,
+                timestampFontSizeTopicChat: timestampFontSizeTopicChat,
+                headerFontSizeTopicChat: headerFontSizeTopicChat,
             });
 
             syncControls({
+                textFont: textFontSizeTopicChat,
+                timestampFont: timestampFontSizeTopicChat,
+                headerFont: headerFontSizeTopicChat,
                 accid: accidTopicChatColor,
                 username: usernameTopicChatColor,
                 text: textTopicChatColor,
@@ -185,9 +228,13 @@ export async function loadTopicChatSettings(a) {
         setTopicChatAccidColor(CSS_DEFAULTS.accid);
         setTopicChatUsernameColor(CSS_DEFAULTS.username);
         setTopicChatTextColor(CSS_DEFAULTS.text);
+        setTopicChatTextFontSize(CSS_DEFAULTS.textFont);
+        setTopicChatTimestampFontSize(CSS_DEFAULTS.timestampFont);
+        setTopicChatHeaderFontSize(CSS_DEFAULTS.headerFont);
         document.querySelectorAll(".chat-container").forEach((el) => {
             el.style.removeProperty("border-color");
         });
+        updatePills();
         updatePreview();
         toast.info("Reset to defaults");
     });
@@ -199,3 +246,7 @@ export async function loadTopicChatSettings(a) {
             updateTopicChatSettings();
         });
     }
+
+    ["text-font-size-topic-chat", "timestamp-font-size-topic-chat", "header-font-size-topic-chat"].forEach((id) => {
+        $(id).addEventListener("input", () => { updateTopicChatSettings(); });
+    });
