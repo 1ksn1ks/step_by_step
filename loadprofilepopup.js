@@ -1,8 +1,27 @@
 import { sendMessage } from "./msgbackend";
 import { getTopicData as getMessages } from "./topicdata";
-import { signer } from "./web3";
+import { signer, connectedAccount } from "./web3";
 import { toast } from "./toast";
+import { earlyHashinalNumber } from "./earlyhashinal.js";
+import {
+    EARLY_POPUP_CLASS,
+    EARLY_PROFILE_CLASS,
+    earlyBadgeLabel,
+    earlyLockNote,
+} from "./earlypopup.js";
 
+const STYLE_INPUTS = [
+    "color-picker-popup-border",
+    "color-picker-popup-number",
+    "color-picker-popup-close",
+    "color-picker-popup-accid",
+    "color-picker-popup-username",
+    "color-picker-popup-titles",
+    "color-picker-popup-text",
+    "popup-font-size",
+];
+
+let styleAccount = "";
 
 document.getElementById("savepopup3").addEventListener("click", async (event) => {
     event.stopPropagation();
@@ -12,6 +31,7 @@ document.getElementById("savepopup3").addEventListener("click", async (event) =>
                     toast.error("Connect wallet first");
                     return;
                 }
+                if (earlyHashinalNumber(styleAccount) > 0) return;
                 const topicId = "0.0.9771374";
 
                 const hexColorBorder = document.getElementById('color-picker-popup-border').value;
@@ -57,6 +77,7 @@ document.getElementById("savepopup3").addEventListener("click", async (event) =>
           });
     
 export async function loadProfilePopup(a) {
+        styleAccount = typeof a === "string" ? a : "";
         const topicId = "0.0.9771374";
         const accountObjectSettings = []; // Initialize an empty array to store account Settings
         try {
@@ -112,10 +133,94 @@ export async function loadProfilePopup(a) {
         } catch (error) {
             console.log("Error in loadProfilePopup:", error);
             return [];
+        } finally {
+            syncEarlyStyleEditor(styleAccount);
         }
     }
-    
+
+function payerOf(popup) {
+    if (!popup) return "";
+    if (popup.id === "popup-settings-preview") return styleAccount;
+    const sheet = popup.querySelector(".popup-sheet");
+    const id = sheet && sheet.dataset ? sheet.dataset.popupPayer : "";
+    return typeof id === "string" ? id : "";
+}
+
+function ensureBadge(popup) {
+    const heading = popup.querySelector(".popup-profile-bubble h2");
+    if (!heading) return null;
+    let badge = heading.querySelector(":scope > .early-holder-badge");
+    if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "early-holder-badge";
+        badge.hidden = true;
+        heading.appendChild(badge);
+    }
+    return badge;
+}
+
+export function syncPopupChrome(popup) {
+    if (!popup || !popup.classList) return;
+    const n = earlyHashinalNumber(payerOf(popup));
+    const locked = n > 0;
+    popup.classList.toggle(EARLY_POPUP_CLASS, locked);
+    const badge = ensureBadge(popup);
+    if (!badge) return;
+    badge.hidden = !locked;
+    badge.textContent = locked ? earlyBadgeLabel(n) : "";
+}
+
+export function paintEarlyProfile(card, account) {
+    if (!card || !card.classList) return;
+    const id = typeof account === "string" ? account : "";
+    const n = earlyHashinalNumber(id);
+    card.classList.toggle(EARLY_PROFILE_CLASS, n > 0);
+    if (card.dataset) card.dataset.popupPayer = id;
+    const names = card.querySelector(".profile-live-names");
+    if (!names) return;
+    let badge = names.querySelector(":scope > .early-holder-badge");
+    if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "early-holder-badge";
+        badge.hidden = true;
+        names.appendChild(badge);
+    }
+    badge.hidden = n <= 0;
+    badge.textContent = n > 0 ? earlyBadgeLabel(n) : "";
+}
+
+export function syncEarlyStyleEditor(account) {
+    if (typeof account === "string") styleAccount = account;
+    else styleAccount = typeof connectedAccount === "string" ? connectedAccount : "";
+    const n = earlyHashinalNumber(styleAccount);
+    const note = document.getElementById("early-popup-lock-note");
+    if (note) {
+        note.textContent = n > 0 ? earlyLockNote(n) : "";
+        note.hidden = n <= 0;
+        note.classList.toggle("is-on", n > 0);
+    }
+    for (const id of STYLE_INPUTS) {
+        const el = document.getElementById(id);
+        if (el) el.disabled = n > 0;
+    }
+    const save = document.getElementById("savepopup3");
+    if (save) {
+        save.classList.toggle("is-locked", n > 0);
+        save.setAttribute("aria-disabled", n > 0 ? "true" : "false");
+    }
+    const live = document.getElementById("profile-live-preview");
+    if (live) paintEarlyProfile(live, styleAccount);
+    const bio = document.getElementById("loaded-bio-card");
+    if (bio) paintEarlyProfile(bio, bio.dataset.popupPayer || "");
+    applyAllStyles();
+}
+
+document.addEventListener("early-hashinals", () => {
+    syncEarlyStyleEditor();
+});
+
 export function applyAllStyles() {
+        document.querySelectorAll(".maplibregl-popup").forEach(syncPopupChrome);
         updatePopupBorder();
         updatePopupNumber();
         updatePopupClose();

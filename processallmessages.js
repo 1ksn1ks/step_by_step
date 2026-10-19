@@ -1027,6 +1027,7 @@ export function createMarkerPopupHTML(data) {
 
   const container = document.createElement('div');
   container.className = 'popup-sheet';
+  container.dataset.popupPayer = typeof payer === "string" ? payer : "";
   tagPopupView(container, topicId, created);
   const goPrevMarker = () => onPrev ? onPrev() : window.prevMsgFromPayerMarker(payer, markernumber, topicId);
   const goNextMarker = () => onNext ? onNext() : window.nextMsgFromPayerMarker(payer, markernumber, topicId);
@@ -1293,6 +1294,7 @@ function createPolygonPopupHTML(data) {
 
   const container = document.createElement('div');
   container.className = 'popup-sheet';
+  container.dataset.popupPayer = typeof payer === "string" ? payer : "";
   tagPopupView(container, topicId, created);
   const goPrevPolygon = () => onPrev ? onPrev() : window.prevMsgFromPayerPolygon(payer, polygonnumber, topicId);
   const goNextPolygon = () => onNext ? onNext() : window.nextMsgFromPayerPolygon(payer, polygonnumber, topicId);

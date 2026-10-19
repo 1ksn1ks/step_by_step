@@ -39,6 +39,13 @@ function syncProfileRing(img) {
   shell.dataset.tip = tip;
   shell.title = tip;
   shell.setAttribute("aria-label", tip);
+  let glow = shell.querySelector(":scope > .early-hashinal-glow");
+  if (!glow) {
+    glow = document.createElement("span");
+    glow.className = "early-hashinal-glow";
+    glow.setAttribute("aria-hidden", "true");
+    shell.insertBefore(glow, shell.firstChild);
+  }
 }
 
 export function paintProfileAvatar(img, account) {

@@ -11,7 +11,7 @@ import { LedgerId, AccountId } from '@hashgraph/sdk';
 
 import { loadProfileCrosshair } from './loadcrosshair';
 import { loadTopicChatSettings } from './loadtopicchatset';
-import { loadProfilePopup } from './loadprofilepopup';
+import { loadProfilePopup, syncEarlyStyleEditor } from './loadprofilepopup';
 import { loadProfileObject } from './loadprofileobject';
 import { loadButtonInputSettings } from './loadbuttoninput';
 import { loadMainButtonSettings } from './loadmainbutton';
@@ -157,10 +157,12 @@ async function disconnectWallet() {
     accountSpan.textContent = 'None';
     connectBtn.textContent = 'Connect';
     updateUI();
+    syncEarlyStyleEditor();
   } catch (err) {
     console.error('Disconnect error:', err);
     connectedAccount = null;
     updateUI();
+    syncEarlyStyleEditor();
   }
 }
 

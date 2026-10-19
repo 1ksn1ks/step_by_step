@@ -5574,7 +5574,20 @@ a.payer-link {
   padding: 0 2dvw;
 }
 
-/* Early Hashinal: a thin ring on the avatar that is already there. */
+/* Early Hashinal: one shared ring. The angle turns the gradient; opacity
+   breathes the glow. Both stay on the compositor aside from the gradient. */
+@property --eh-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes early-hashinal-angle {
+  to { --eh-angle: 360deg; }
+}
+@keyframes early-holder-glow {
+  0%, 100% { opacity: 0.42; }
+  50% { opacity: 1; }
+}
 .early-hashinal {
   position: relative;
   display: block;
@@ -5592,7 +5605,7 @@ a.payer-link {
   box-sizing: border-box;
   border-radius: inherit;
   padding: 0.28dvh;
-  background: conic-gradient(#f6e27a, #e879f9, #7c3aed, #f6e27a);
+  background: conic-gradient(from var(--eh-angle), #f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a);
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);
@@ -5601,12 +5614,24 @@ a.payer-link {
     linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);
   mask-composite: exclude;
-  animation: early-hashinal-spin 3.2s linear infinite;
+  animation: early-hashinal-angle 4s linear infinite;
   pointer-events: none;
   z-index: 2;
 }
-@keyframes early-hashinal-spin {
-  to { transform: rotate(1turn); }
+.early-hashinal-glow,
+.marker-face.early-hashinal::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  box-shadow:
+    0 0 0.7dvh rgba(246, 226, 122, 0.85),
+    0 0 1.6dvh rgba(255, 74, 214, 0.5);
+  animation: early-holder-glow 2.6s ease-in-out infinite;
+}
+.marker-face.early-hashinal::after {
+  content: "";
 }
 .early-hashinal::after,
 .marker.early-hashinal-holder::after {
@@ -5643,9 +5668,146 @@ a.payer-link {
 .marker.early-hashinal-holder:active::after {
   opacity: 1;
 }
+.early-holder-badge {
+  display: inline-block;
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 0.25dvh;
+  padding: 0.12dvh 1.4dvw;
+  border: 1px solid rgba(246, 226, 122, 0.55);
+  border-radius: 999px;
+  background: rgba(12, 12, 18, 0.72);
+  color: #f6e27a;
+  font-size: clamp(0.62rem, 1.25dvh, 0.85rem);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  pointer-events: none;
+}
+.popup-profile-bubble h2 .early-holder-badge,
+.profile-live-names > .early-holder-badge {
+  display: block;
+}
+.early-holder-badge[hidden] {
+  display: none !important;
+}
+.early-popup-lock-note {
+  display: none;
+  margin: 0 0 0.8dvh;
+  padding: 0 2dvw;
+  color: #f6e27a;
+  font-size: clamp(0.7rem, 1.5dvh, 0.95rem);
+  line-height: 1.35;
+  text-align: center;
+}
+.early-popup-lock-note.is-on {
+  display: block;
+}
+.early-popup-lock-note[hidden] {
+  display: none !important;
+}
+#popup-column-3 input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+#savepopup3.is-locked {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.maplibregl-popup.early-holder-popup {
+  border-color: transparent !important;
+  background-color: transparent !important;
+  background-image:
+    linear-gradient(rgba(12, 12, 18, 0.94), rgba(12, 12, 18, 0.94)),
+    conic-gradient(from var(--eh-angle), #f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a) !important;
+  background-origin: border-box !important;
+  background-clip: padding-box, border-box !important;
+  clip-path: none !important;
+  overflow: visible !important;
+  isolation: isolate;
+  animation: early-hashinal-angle 4s linear infinite;
+}
+.maplibregl-popup.early-holder-popup::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  box-shadow:
+    0 0 1.4dvh rgba(246, 226, 122, 0.55),
+    0 0 3dvh rgba(255, 74, 214, 0.32);
+  opacity: 0.7;
+  animation: early-holder-glow 2.6s ease-in-out infinite;
+}
+.maplibregl-popup.early-holder-popup > .maplibregl-popup-content {
+  border-radius: calc(var(--u) * 1.7) !important;
+  color: #f4f1ea !important;
+  font-size: calc(var(--u) * 2) !important;
+}
+.maplibregl-popup.early-holder-popup .number,
+.maplibregl-popup.early-holder-popup .maplibregl-popup-close-button,
+.maplibregl-popup.early-holder-popup .username {
+  color: #f6e27a !important;
+}
+.maplibregl-popup.early-holder-popup .payer-info {
+  color: #e9d5ff !important;
+}
+.maplibregl-popup.early-holder-popup .title_color {
+  color: #ffffff !important;
+}
+.early-holder-card .profile-live-bubble {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  border: 0.22dvh solid transparent;
+  background-color: transparent;
+  background-image:
+    linear-gradient(rgba(12, 12, 18, 0.94), rgba(12, 12, 18, 0.94)),
+    conic-gradient(from var(--eh-angle), #f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  animation: early-hashinal-angle 4s linear infinite;
+}
+.early-holder-card .profile-live-bubble::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  box-shadow:
+    0 0 1.2dvh rgba(246, 226, 122, 0.5),
+    0 0 2.4dvh rgba(255, 74, 214, 0.28);
+  opacity: 0.7;
+  animation: early-holder-glow 2.6s ease-in-out infinite;
+}
+.early-holder-card .profile-live-account {
+  color: #e9d5ff !important;
+}
+.early-holder-card .profile-live-name {
+  color: #f6e27a !important;
+}
 @media (prefers-reduced-motion: reduce) {
   .early-hashinal::before,
-  .marker-face.early-hashinal::before {
+  .marker-face.early-hashinal::before,
+  .early-hashinal-glow,
+  .marker-face.early-hashinal::after,
+  .maplibregl-popup.early-holder-popup,
+  .maplibregl-popup.early-holder-popup::before,
+  .early-holder-card .profile-live-bubble,
+  .early-holder-card .profile-live-bubble::before {
     animation: none;
+  }
+  .early-hashinal-glow,
+  .marker-face.early-hashinal::after,
+  .maplibregl-popup.early-holder-popup::before,
+  .early-holder-card .profile-live-bubble::before {
+    opacity: 0.85;
   }
 }

@@ -10,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { runHashinalTests } from "./hashinals-test.mjs";
+import { runEarlyPopupTests } from "./earlypopup-test.mjs";
 import { runFollowCountTests } from "./followcount-test.mjs";
 import { runHcsChunkTests } from "./hcschunks-test.mjs";
 
@@ -1023,6 +1024,12 @@ async function main() {
     pass("early hashinal list and owners");
   } catch (err) {
     fail("early hashinal list and owners", err && err.stack ? err.stack : String(err));
+  }
+  try {
+    await runEarlyPopupTests();
+    pass("early hashinal popup style");
+  } catch (err) {
+    fail("early hashinal popup style", err && err.stack ? err.stack : String(err));
   }
   try {
     await runFollowCountTests();
