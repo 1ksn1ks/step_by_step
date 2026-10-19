@@ -6288,12 +6288,30 @@ a.payer-link {
     --u: clamp(0.9dvh, min(calc(var(--popup-h) * 0.017), calc(var(--popup-w) * 0.0106)), 1.6dvh);
   }
 
+  #popup-settings-card #popup-settings-preview,
+  #popup-settings-card #popup-settings-preview > .maplibregl-popup {
+    border-width: 0 !important;
+    border-style: none !important;
+    border-color: transparent !important;
+    border-image: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+  }
+
   #popup-settings-card #popup-settings-preview > .maplibregl-popup {
     width: 100% !important;
     height: calc(100% + var(--u) * 0.1) !important;
     max-width: 100% !important;
     max-height: none !important;
     transform: translate(-50%, -50%) scale(var(--preview-scale, 1)) !important;
+    background-image: none !important;
+  }
+
+  #popup-settings-card #popup-settings-preview > .maplibregl-popup::before,
+  #popup-settings-card #popup-settings-preview > .maplibregl-popup::after {
+    border-width: 0 !important;
+    background-image: none !important;
+    box-shadow: none !important;
   }
 
   #popup-settings-card #popup-settings-preview > .maplibregl-popup .popup-body {
