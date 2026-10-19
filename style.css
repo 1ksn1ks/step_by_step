@@ -5574,8 +5574,9 @@ a.payer-link {
   padding: 0 2dvw;
 }
 
-/* Early Hashinal: one shared ring. The angle turns the gradient; opacity
-   breathes the glow. Both stay on the compositor aside from the gradient. */
+/* Early Hashinal ring. The popup border still turns --eh-angle. The avatar
+   ring is a larger disc rotating inside a round clip: a masked pseudo-element
+   does not animate on iOS Safari or Android Chrome. */
 @property --eh-angle {
   syntax: "<angle>";
   initial-value: 0deg;
@@ -5583,6 +5584,10 @@ a.payer-link {
 }
 @keyframes early-hashinal-angle {
   to { --eh-angle: 360deg; }
+}
+@keyframes early-hashinal-spin {
+  from { transform: translate3d(-50%, -50%, 0) rotate(0deg); }
+  to { transform: translate3d(-50%, -50%, 0) rotate(360deg); }
 }
 @keyframes early-holder-glow {
   0%, 100% { opacity: 0.42; }
@@ -5594,29 +5599,47 @@ a.payer-link {
   flex: 0 0 auto;
   width: fit-content;
   height: fit-content;
+  box-sizing: content-box;
+  padding: 0.28dvh;
   border-radius: 50%;
   line-height: 0;
 }
-.early-hashinal::before,
-.marker-face.early-hashinal::before {
-  content: "";
+.marker-face.early-hashinal {
+  box-sizing: border-box;
+  padding: 0.28dvh;
+}
+.early-hashinal > img,
+.marker-face.early-hashinal > img {
+  position: relative;
+  z-index: 3;
+  border-width: 0 !important;
+}
+.early-hashinal-spin {
   position: absolute;
   inset: 0;
-  box-sizing: border-box;
   border-radius: inherit;
-  padding: 0.28dvh;
-  background: conic-gradient(from var(--eh-angle), #f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a);
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-  animation: early-hashinal-angle 4s linear infinite;
+  overflow: hidden;
   pointer-events: none;
   z-index: 2;
+  transform: translateZ(0);
+}
+.early-hashinal-spin::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 180%;
+  height: 180%;
+  background: conic-gradient(#f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a);
+  transform: translate3d(-50%, -50%, 0);
+  animation: early-hashinal-spin 4s linear infinite;
+}
+.early-hashinal-spin::after {
+  content: "";
+  position: absolute;
+  inset: 0.28dvh;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.8);
 }
 .early-hashinal-glow,
 .marker-face.early-hashinal::after {
@@ -5632,41 +5655,6 @@ a.payer-link {
 }
 .marker-face.early-hashinal::after {
   content: "";
-}
-.early-hashinal::after,
-.marker.early-hashinal-holder::after {
-  content: attr(data-tip);
-  position: absolute;
-  left: 50%;
-  z-index: 6;
-  width: max-content;
-  max-width: 72dvw;
-  padding: 0.45dvh 1.4dvw;
-  border: 1px solid rgba(246, 226, 122, 0.45);
-  border-radius: 1.2dvh;
-  background: rgba(15, 15, 20, 0.92);
-  color: #fff;
-  font-size: clamp(0.7rem, 1.6dvh, 0.95rem);
-  line-height: 1.3;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-}
-.early-hashinal::after {
-  bottom: calc(100% + 0.5dvh);
-  transform: translateX(-50%);
-}
-.marker.early-hashinal-holder::after {
-  top: calc(100% + 0.5dvh);
-  transform: translateX(-50%);
-}
-.early-hashinal:hover::after,
-.early-hashinal:focus-within::after,
-.early-hashinal:active::after,
-.marker.early-hashinal-holder:hover::after,
-.marker.early-hashinal-holder:focus-within::after,
-.marker.early-hashinal-holder:active::after {
-  opacity: 1;
 }
 .early-holder-badge {
   display: inline-block;
@@ -5794,20 +5782,13 @@ a.payer-link {
   color: #f6e27a !important;
 }
 @media (prefers-reduced-motion: reduce) {
-  .early-hashinal::before,
-  .marker-face.early-hashinal::before,
+  .early-hashinal-spin::before,
   .early-hashinal-glow,
   .marker-face.early-hashinal::after,
   .maplibregl-popup.early-holder-popup,
   .maplibregl-popup.early-holder-popup::before,
   .early-holder-card .profile-live-bubble,
   .early-holder-card .profile-live-bubble::before {
-    animation: none;
-  }
-  .early-hashinal-glow,
-  .marker-face.early-hashinal::after,
-  .maplibregl-popup.early-holder-popup::before,
-  .early-holder-card .profile-live-bubble::before {
-    opacity: 0.85;
+    animation-duration: 8s;
   }
 }

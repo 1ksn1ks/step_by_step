@@ -103,13 +103,10 @@ function notifyTopicClustersUpdated() {
 
 let lastTopicSig = null;
 
-// Title pill just above the cursor, following it across the dot. A phone
-// has no hover: a short tap still opens the popup, and holding the dot
-// shows the title above the finger without opening it. Live twins already
-// wear a permanent label.
+// Title pill just above the cursor on a device that can hover. A phone tap
+// always opens the marker. Live twins already wear a permanent label.
 let markerTitleTip = null;
 let markerTitleHideTimer = 0;
-let markerHoldTimer = 0;
 
 function ensureMarkerTitleTip() {
   if (markerTitleTip) return markerTitleTip;
@@ -151,7 +148,6 @@ function markerCanHover() {
 }
 
 map.on("movestart", () => {
-  clearTimeout(markerHoldTimer);
   hideMarkerTitle();
 });
 
@@ -167,43 +163,9 @@ function bindMarkerTitle(el) {
     if (markerCanHover()) hideMarkerTitle();
   });
   el.addEventListener("contextmenu", (event) => event.preventDefault());
-  el.addEventListener("touchstart", (event) => {
+  el.addEventListener("touchstart", () => {
     prefetchPersonFollow(el._markerPayer);
-    const touch = event.touches && event.touches[0];
-    const startX = touch ? touch.clientX : 0;
-    const startY = touch ? touch.clientY : 0;
-    clearTimeout(markerHoldTimer);
-    markerHoldTimer = setTimeout(() => {
-      el.dataset.holdTitle = "1";
-      showMarkerTitle(el, startX, startY);
-    }, 450);
-    const cancelIfSlid = (moveEvent) => {
-      const moved = moveEvent.touches && moveEvent.touches[0];
-      if (!moved) return;
-      if (Math.hypot(moved.clientX - startX, moved.clientY - startY) > 12) {
-        clearTimeout(markerHoldTimer);
-        el.removeEventListener("touchmove", cancelIfSlid);
-      }
-    };
-    el.addEventListener("touchmove", cancelIfSlid, { passive: true });
-    const dropMove = () => el.removeEventListener("touchmove", cancelIfSlid);
-    el.addEventListener("touchend", dropMove, { once: true });
-    el.addEventListener("touchcancel", dropMove, { once: true });
   }, { passive: true });
-  el.addEventListener("touchend", () => {
-    clearTimeout(markerHoldTimer);
-    if (el.dataset.holdTitle === "1") {
-      clearTimeout(markerTitleHideTimer);
-      markerTitleHideTimer = setTimeout(() => {
-        delete el.dataset.holdTitle;
-        hideMarkerTitle();
-      }, 1200);
-    }
-  });
-  el.addEventListener("touchcancel", () => {
-    clearTimeout(markerHoldTimer);
-    delete el.dataset.holdTitle;
-  });
 }
 
 // Dots that are still on screen stay. A cluster change only adds the
@@ -288,24 +250,26 @@ function paintMarkerHashinal(entry) {
   const el = entry.el;
   if (!face || !el) return;
   const n = earlyHashinalNumber(entry.feature && entry.feature.payer);
+  const spin = face.querySelector(':scope > .early-hashinal-spin');
+  el.classList.remove('early-hashinal-holder');
+  if (el.dataset.ehTip) {
+    delete el.dataset.tip;
+    delete el.dataset.ehTip;
+    el.removeAttribute('title');
+    el.removeAttribute('aria-label');
+  }
   if (!n) {
     face.classList.remove('early-hashinal');
-    el.classList.remove('early-hashinal-holder');
-    if (el.dataset.ehTip) {
-      delete el.dataset.tip;
-      delete el.dataset.ehTip;
-      el.removeAttribute('title');
-      el.removeAttribute('aria-label');
-    }
+    if (spin) spin.remove();
     return;
   }
-  const tip = `Early Hashinal holder #${n}`;
   face.classList.add('early-hashinal');
-  el.classList.add('early-hashinal-holder');
-  el.dataset.tip = tip;
-  el.dataset.ehTip = '1';
-  el.title = tip;
-  el.setAttribute('aria-label', tip);
+  if (!spin) {
+    const ring = document.createElement('span');
+    ring.className = 'early-hashinal-spin';
+    ring.setAttribute('aria-hidden', 'true');
+    face.insertBefore(ring, face.firstChild);
+  }
 }
 
 document.addEventListener('early-hashinals', () => {
@@ -390,7 +354,6 @@ function createKeptMarker(cluster, key) {
     });
     el.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (el.dataset.holdTitle === '1') return;
       hideMarkerTitle();
       const current = entry.feature;
       const node = markerPopupNode(current.properties, current);

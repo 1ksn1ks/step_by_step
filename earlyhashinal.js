@@ -3,7 +3,6 @@
 import { map } from "./map.js";
 
 const REFRESH_MS = 15 * 60 * 1000;
-const TIP = "Early Hashinal holder #";
 
 let owners = new Map();
 let armed = false;
@@ -14,8 +13,15 @@ export function earlyHashinalNumber(account) {
   return Number.isInteger(n) && n > 0 ? n : 0;
 }
 
-function tipFor(n) {
-  return TIP + n;
+function ensureSpin(shell) {
+  let spin = shell.querySelector(":scope > .early-hashinal-spin");
+  if (!spin) {
+    spin = document.createElement("span");
+    spin.className = "early-hashinal-spin";
+    spin.setAttribute("aria-hidden", "true");
+    shell.insertBefore(spin, shell.firstChild);
+  }
+  return spin;
 }
 
 function syncProfileRing(img) {
@@ -26,19 +32,19 @@ function syncProfileRing(img) {
     if (wrapped) parent.replaceWith(img);
     return;
   }
-  const tip = tipFor(n);
   let shell = wrapped ? parent : null;
   if (!shell) {
     if (!img.parentNode) return;
     shell = document.createElement("span");
     shell.className = "early-hashinal";
-    shell.tabIndex = 0;
     img.replaceWith(shell);
     shell.appendChild(img);
   }
-  shell.dataset.tip = tip;
-  shell.title = tip;
-  shell.setAttribute("aria-label", tip);
+  delete shell.dataset.tip;
+  shell.removeAttribute("title");
+  shell.removeAttribute("aria-label");
+  shell.removeAttribute("tabindex");
+  ensureSpin(shell);
   let glow = shell.querySelector(":scope > .early-hashinal-glow");
   if (!glow) {
     glow = document.createElement("span");
