@@ -6422,6 +6422,23 @@ a.payer-link {
   min-height: 0 !important;
 }
 
+/* Portrait sample: fit to its content instead of the full popup height,
+   so the action row and footer show without scrolling. ~1u text gap. */
+@media (orientation: portrait) {
+  #popup-settings-card #popup-settings-preview > .maplibregl-popup,
+  #popup-settings-card #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content,
+  #popup-settings-card #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content > .popup-sheet {
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  #popup-settings-card #popup-settings-preview > .maplibregl-popup .popup-gap {
+    flex: 0 0 auto !important;
+    height: var(--u) !important;
+    min-height: var(--u) !important;
+  }
+}
+
 /* Landscape sample: the real post's --u, centred on the left card.
    0.1u inset. Scale stays 1 unless the card is actually too small. */
 @media (orientation: landscape) {
