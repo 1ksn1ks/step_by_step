@@ -6512,6 +6512,17 @@ a.payer-link {
 .maplibregl-map .maplibregl-popup .popup-text-bubble {
   padding: calc(var(--u) * 0.5 * var(--popup-font-scale, 1)) calc(var(--u) * 1.6 * var(--popup-font-scale, 1));
 }
+/* Title pill: same proportional spacing. Real popups and the sample. */
+.maplibregl-popup .popup-title-bubble,
+.maplibregl-popup .popup-title-bubble *,
+.maplibregl-map .maplibregl-popup .popup-title-bubble,
+.maplibregl-map .maplibregl-popup .popup-title-bubble * {
+  line-height: 1.3;
+}
+.maplibregl-popup .popup-title-bubble,
+.maplibregl-map .maplibregl-popup .popup-title-bubble {
+  padding: calc(var(--u) * 0.35 * var(--popup-font-scale, 1)) calc(var(--u) * 1.5 * var(--popup-font-scale, 1));
+}
 
 /* ===== Following suggestions ===== */
 .follow-suggest {
