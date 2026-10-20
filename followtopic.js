@@ -404,6 +404,8 @@ function mountFollowControl(box, btn, count, read, isMine, send, options) {
   let generation = 0;
   let refreshGen = 0;
 
+  const inPreview = () => !!box.closest('#popup-settings-preview');
+
   function paint(data) {
     if (!data || followerCountOrNull(data.followers) == null) return;
     paintFollowerCount(count, data.followers);
@@ -421,6 +423,8 @@ function mountFollowControl(box, btn, count, read, isMine, send, options) {
 
   function refresh(refreshOptions) {
     const accountChange = !!(refreshOptions && refreshOptions.accountChange);
+    // The settings sample stays at its fixed 0 and never asks the server.
+    if (inPreview()) return;
     btn.hidden = !!isMine();
     if (inFlight) return;
     if (settling && !accountChange) return;
@@ -437,7 +441,7 @@ function mountFollowControl(box, btn, count, read, isMine, send, options) {
       // a neutral dash. A miss is never painted as 0.
       for (const wait of [0, 1500, 3000]) {
         if (wait) await delay(wait);
-        if (stale()) return;
+        if (stale() || inPreview()) return;
         let data = null;
         try { data = await read(); } catch { data = null; }
         if (stale()) return;

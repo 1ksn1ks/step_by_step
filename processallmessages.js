@@ -442,31 +442,6 @@ function dropPreviewPager(sheet) {
   }
 }
 
-// The follow chip reads /api/user-follow on the next microtask, then once
-// more if that read fails. Answer both with a miss so the sample never
-// stores a count and never hits the network. The chip stays at 0.
-function blockPreviewFollowFetch(run) {
-  const native = window.fetch;
-  const wrapped = (input, init) => {
-    const url = typeof input === 'string' ? input : (input && input.url) || '';
-    if (String(url).indexOf('/api/user-follow') !== -1) {
-      return Promise.resolve(new Response('', { status: 404 }));
-    }
-    return native.call(window, input, init);
-  };
-  window.fetch = wrapped;
-  try {
-    return run();
-  } finally {
-    setTimeout(() => {
-      if (window.fetch === wrapped) window.fetch = native;
-      const slot = document.getElementById('popup-settings-preview');
-      const sheet = slot && slot.querySelector('.popup-sheet');
-      if (sheet) showPreviewFollowZero(sheet);
-    }, 0);
-  }
-}
-
 function ensurePopupPreview(slot) {
   if (slot.querySelector(':scope > .maplibregl-popup')) return;
   const account = '0.0.9779355';
@@ -489,10 +464,11 @@ function ensurePopupPreview(slot) {
     sharedByMe: false,
     viewCount: 2,
   };
-  const sheet = blockPreviewFollowFetch(() => markerPopupNode(
+  // The follow chip skips reads inside #popup-settings-preview (followtopic.js).
+  const sheet = markerPopupNode(
     { popupData: record },
     { payer: account, msgNumber: 1, topicId: record.topicId }
-  ));
+  );
   if (!sheet) return;
   dropPreviewPager(sheet);
   showPreviewFollowZero(sheet);
