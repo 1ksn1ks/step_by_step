@@ -274,6 +274,18 @@ export function paintFollowerCount(count, n) {
   setTimeout(settle, 260);
 }
 
+// The read failed every try. End the loading pill without inventing a count.
+function paintFollowerUnknown(count) {
+  count.classList.remove('is-loading');
+  count.title = "Couldn't load";
+  count.setAttribute('aria-label', "Followers couldn't load");
+  const roll = count.querySelector('.topic-follow-num-roll');
+  if (!roll) return;
+  roll.style.transition = 'none';
+  roll.style.transform = 'none';
+  roll.replaceChildren(countValue('\u2013'));
+}
+
 // Round icon button. The click handler that sends the follow stays on the caller.
 function followButton() {
   const btn = document.createElement('button');
@@ -419,10 +431,23 @@ function mountFollowControl(box, btn, count, read, isMine, send, options) {
     btn.disabled = false;
     paintKnown();
     const token = ++refreshGen;
-    read().then((data) => {
-      if (token !== refreshGen || inFlight || settling) return;
-      paint(data);
-    }).catch(() => {});
+    const stale = () => token !== refreshGen || inFlight || settling;
+    (async () => {
+      // A failed read retries twice, then the chip stops loading and shows
+      // a neutral dash. A miss is never painted as 0.
+      for (const wait of [0, 1500, 3000]) {
+        if (wait) await delay(wait);
+        if (stale()) return;
+        let data = null;
+        try { data = await read(); } catch { data = null; }
+        if (stale()) return;
+        if (data && followerCountOrNull(data.followers) != null) {
+          paint(data);
+          return;
+        }
+      }
+      if (count.classList.contains('is-loading')) paintFollowerUnknown(count);
+    })();
   }
 
   box._refreshFollow = refresh;
