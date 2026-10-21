@@ -84,6 +84,21 @@ export function closeTransientMapUI() {
   activeMarkerPopups.forEach((popup) => popup.remove());
 }
 
+// Panels wired as history layers (watchDisplayLayer in the block below) —
+// CloseALL reports them synchronously, so a layer that opens in the same
+// gesture (e.g. a marker popup after a marker tap) sees the close first.
+const HISTORY_PANELS = [
+  "toolbar", "Edit_Profile-column", "load-column", "create-column",
+  "draw-column", "utility-column", "memo-column", "domain-column",
+  "stack-topic-ids", "initial-xyz-column", "visibility-controls",
+  "rotation-controls", "model-column", "crosshair-column",
+  "marker-options-column", "main-button-column", "button-input-column",
+  "topic-chat-column",
+];
+const HISTORY_MEMO_SUBS = [
+  "update-bio-from-memo", "memo-from-memo", "fee-from-memo", "topic-name-from-memo",
+];
+
 export function CloseALL() {
     // Back/Forward: the chat panels close through here (their × button
     // and every map tap), so record which are open before hiding them.
@@ -92,6 +107,19 @@ export function CloseALL() {
     if (topicChatEl && topicChatEl.style.display === "flex") historyLayers.push("topicchat");
     const e2eeChatEl = document.getElementById("encrypted-chat-container");
     if (e2eeChatEl && e2eeChatEl.style.display === "flex") historyLayers.push("e2eechat");
+    // Memo sub-panels first: they sit on top of memo-column, and their
+    // display is not touched by the hide loops below (hidden parent only).
+    for (const subId of HISTORY_MEMO_SUBS) {
+      const el = document.getElementById(subId);
+      if (el && el.style.display !== "none") {
+        historyLayers.push(subId);
+        el.style.display = "none";
+      }
+    }
+    for (const panelId of HISTORY_PANELS) {
+      const el = document.getElementById(panelId);
+      if (el && el.style.display !== "none") historyLayers.push(panelId);
+    }
     everythinginsideoptionsbuttons.forEach(buttonId => {
       document.getElementById(buttonId).style.display = "none";
     });
@@ -217,6 +245,49 @@ export function CloseALL() {
         else window.layerClosedByUI(name);
       }).observe(overlay, { attributes: true, attributeFilter: ["style"] });
     });
+
+    // The toolbar menu, its sub-columns and the filter/visibility panels
+    // are layers too. Every close path (the auto × button, a map tap,
+    // opening another panel) ends in display:none, so one display watcher
+    // per panel is the single close funnel; Back closes one level at a
+    // time and Forward reopens by clicking the panel's own button (a
+    // hidden button still receives a programmatic click).
+    const panelLayer = (id, triggerId) => {
+      window.watchDisplayLayer(id, document.getElementById(id), {
+        open: () => document.getElementById(triggerId).click(),
+        close: () => CloseALL(),
+      });
+    };
+    panelLayer("toolbar", "toggle-toolbar-btn");
+    panelLayer("Edit_Profile-column", "Edit_Profile");
+    panelLayer("load-column", "Load_Everything");
+    panelLayer("create-column", "Create_New_Topic");
+    panelLayer("draw-column", "Draw_Marker_Polygon");
+    panelLayer("utility-column", "NFT-utility");
+    panelLayer("memo-column", "Change_Memo");
+    panelLayer("domain-column", "Domain");
+    panelLayer("stack-topic-ids", "Stack_topic_IDs");
+    panelLayer("initial-xyz-column", "Set_Initial_XYZ");
+    panelLayer("visibility-controls", "toggle-visibility-controls-btn");
+    panelLayer("rotation-controls", "toggle-your-fov-btn");
+    panelLayer("model-column", "change-model-settings");
+    panelLayer("crosshair-column", "change-crosshair-settings");
+    panelLayer("marker-options-column", "change-marker-options");
+    panelLayer("main-button-column", "change-color-of-main-buttons");
+    panelLayer("button-input-column", "change-button-input-settings");
+    panelLayer("topic-chat-column", "change-topic-chat-options");
+    // Memo sub-panels: the ✅/⛔ buttons are plain toggles — the watcher
+    // records the open, and closing through the ⛔ button drops the entry.
+    const memoSub = (id, triggerId) => {
+      window.watchDisplayLayer(id, document.getElementById(id), {
+        open: () => document.getElementById(triggerId).click(),
+        close: () => hideElements(id),
+      });
+    };
+    memoSub("update-bio-from-memo", "show-update-bio-from-memo");
+    memoSub("memo-from-memo", "show-memo-from-memo");
+    memoSub("fee-from-memo", "show-fee-from-memo");
+    memoSub("topic-name-from-memo", "show-topic-name-from-memo");
   }
 
   // × close button: top-right corner — the opposite side of the ? help button

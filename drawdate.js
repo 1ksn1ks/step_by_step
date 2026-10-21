@@ -266,3 +266,14 @@ function keepMapStill(event) {
 }
 document.addEventListener('keydown', keepMapStill, true);
 document.addEventListener('keyup', keepMapStill, true);
+
+// Back/Forward: the picker is a layer — ×, Use and Escape all end in
+// closeDrawDatePicker, so a display watcher is the single close funnel.
+// Forward does not reopen: it cannot cheaply restore which field the
+// picker was serving.
+if (window.watchDisplayLayer) {
+  window.watchDisplayLayer('drawdate', picker, {
+    open: () => {},
+    close: () => closeDrawDatePicker(),
+  });
+}

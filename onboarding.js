@@ -121,6 +121,9 @@ function closeOnboarding() {
   if (!overlay) return;
   const el = overlay;
   overlay = null;
+  // Back/Forward: the overlay is removed from the DOM (no display to
+  // watch), so its own close paths report it directly.
+  if (window.layerClosedByUI) window.layerClosedByUI("onboard");
   // Stop blocking the map instantly and stop the border pulse so nothing
   // keeps the card "alive" while it fades
   el.style.pointerEvents = 'none';
@@ -240,6 +243,7 @@ function build() {
   content.append(iconEl, titleEl, bodyEl, rowsEl, dotsEl, introNav, installNav);
   card.appendChild(content);
   document.body.appendChild(overlay);
+  if (window.layerOpened) window.layerOpened("onboard");
 
   scrim.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, easing: 'ease-out' });
   // Keep the centering transform in the keyframes, or the card pops off-center
@@ -263,6 +267,15 @@ function openedFromNotification() {
   } catch {
     return false;
   }
+}
+
+// Back closes the prompt; Forward has nothing cheap to bring back (it is
+// a one-time install prompt, not a restorable panel).
+if (window.defineLayer) {
+  window.defineLayer("onboard", {
+    open: () => {},
+    close: () => closeOnboarding(),
+  });
 }
 
 function start() {

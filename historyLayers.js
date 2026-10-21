@@ -36,6 +36,58 @@
   const idToState = new Map();
   let skipNextPop = false;
 
+  // A top-layer UI close schedules its history.back() one task late
+  // (pendingBack=1). If a new layer opens in the same gesture — the
+  // normal case, since every panel opener first runs CloseALL — the
+  // pending back is cancelled and the still-current entry (the closed
+  // layer's) is rewritten as the new layer's instead: pushState in the
+  // same task as a pending history.back() is clobbered by the browser.
+  let pendingBack = 0;
+  let pendingTimer = 0;
+  function deferBack() {
+    if (pendingBack) {
+      // A second top close in the same batch: the first back must not be
+      // lost — commit it now and defer this one.
+      clearTimeout(pendingTimer);
+      pendingBack = 0;
+      pendingTimer = 0;
+      skipNextPop = true;
+      history.back();
+    }
+    skipNextPop = true;
+    pendingBack = 1;
+    pendingTimer = setTimeout(() => {
+      pendingBack = 0;
+      pendingTimer = 0;
+      history.back();
+    }, 0);
+  }
+
+  // The pending back has not committed, so the browser's current entry is
+  // still the just-closed layer's. Rewrite it in place as this layer's
+  // entry — final history is identical to "back, then push", without the
+  // same-task pushState clobber.
+  function replaceTop(name, data) {
+    clearTimeout(pendingTimer);
+    pendingBack = 0;
+    pendingTimer = 0;
+    skipNextPop = false; // the cancelled back will never pop
+    const id = ++seq;
+    const state = { layer: name, id, ...(data || {}) };
+    const oldId = entries[position + 1];
+    if (oldId != null) {
+      idToLayer.delete(oldId);
+      idToState.delete(oldId);
+    }
+    entries.length = position + 1;
+    entries.push(id);
+    idToLayer.set(id, name);
+    idToState.set(id, state);
+    try { history.replaceState(state, ''); } catch (e) { /* keep going */ }
+    open.push(name);
+    position += 1;
+  }
+
   window.defineLayer = function (name, handlers) {
     registry.set(name, handlers);
   };
@@ -73,6 +125,11 @@
       }
       return;
     }
+    if (pendingBack) {
+      // Same gesture as the UI close above us — rewrite its entry.
+      replaceTop(name, data);
+      return;
+    }
     pushEntry(name, data);
   };
 
@@ -88,8 +145,26 @@
     open.splice(i, 1);
     if (i !== open.length) return; // was not the top layer
     position -= 1;
-    skipNextPop = true; // our own history.back() must not double-close
-    history.back();
+    deferBack(); // our own history.back() must not double-close
+  };
+
+  // Display watcher: for panels whose every open/close path lands on the
+  // element's own inline `display` (the app's CloseALL funnel, the auto ×
+  // buttons, map taps and toggle buttons all end in display:none). The
+  // style observer is then the single close funnel — no close path needs
+  // its own hook. `handlers` optionally registers the defineLayer entry
+  // (usually "click this panel's own open button" for Forward).
+  window.watchDisplayLayer = function (name, element, handlers) {
+    if (!element) return;
+    if (handlers) registry.set(name, handlers);
+    let open = element.style.display !== "none";
+    new MutationObserver(() => {
+      const now = element.style.display !== "none";
+      if (now === open) return;
+      open = now;
+      if (now) window.layerOpened(name);
+      else window.layerClosedByUI(name);
+    }).observe(element, { attributes: true, attributeFilter: ["style"] });
   };
 
   // A reload lands on a layer entry whose UI is gone. Drop the stale
