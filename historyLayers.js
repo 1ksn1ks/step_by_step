@@ -44,7 +44,10 @@
   // same task as a pending history.back() is clobbered by the browser.
   let pendingBack = 0;
   let pendingTimer = 0;
-  function deferBack() {
+  // Which layer's close scheduled the pending back — a child opener
+  // checks this to keep the parent's entry instead of rewriting it.
+  let pendingLayer = null;
+  function deferBack(layer) {
     if (pendingBack) {
       // A second top close in the same batch: the first back must not be
       // lost — commit it now and defer this one.
@@ -56,9 +59,11 @@
     }
     skipNextPop = true;
     pendingBack = 1;
+    pendingLayer = layer || null;
     pendingTimer = setTimeout(() => {
       pendingBack = 0;
       pendingTimer = 0;
+      pendingLayer = null;
       history.back();
     }, 0);
   }
@@ -71,6 +76,7 @@
     clearTimeout(pendingTimer);
     pendingBack = 0;
     pendingTimer = 0;
+    pendingLayer = null;
     skipNextPop = false; // the cancelled back will never pop
     const id = ++seq;
     const state = { layer: name, id, ...(data || {}) };
@@ -126,6 +132,21 @@
       return;
     }
     if (pendingBack) {
+      const parent = parents.get(name);
+      if (parent && parent === pendingLayer) {
+        // The pending back belongs to this layer's parent: the parent
+        // stays open — keep its entry, put it back on the stack, and
+        // push a fresh entry for the child on top of it.
+        clearTimeout(pendingTimer);
+        pendingBack = 0;
+        pendingTimer = 0;
+        pendingLayer = null;
+        skipNextPop = false; // the cancelled back will never pop
+        if (!open.includes(parent)) open.push(parent);
+        position += 1; // the parent's entry is the current one again
+        pushEntry(name, data);
+        return;
+      }
       // Same gesture as the UI close above us — rewrite its entry.
       replaceTop(name, data);
       return;
@@ -145,7 +166,7 @@
     open.splice(i, 1);
     if (i !== open.length) return; // was not the top layer
     position -= 1;
-    deferBack(); // our own history.back() must not double-close
+    deferBack(name); // our own history.back() must not double-close
   };
 
   // Display watcher: for panels whose every open/close path lands on the
@@ -154,9 +175,14 @@
   // style observer is then the single close funnel — no close path needs
   // its own hook. `handlers` optionally registers the defineLayer entry
   // (usually "click this panel's own open button" for Forward).
-  window.watchDisplayLayer = function (name, element, handlers) {
+  // Sub-layers (sub-columns, memo sub-pages): the name of the panel they
+  // sit inside, so Back can walk down one level instead of to the map.
+  const parents = new Map(); // name -> parent name
+
+  window.watchDisplayLayer = function (name, element, handlers, parent) {
     if (!element) return;
     if (handlers) registry.set(name, handlers);
+    if (parent) parents.set(name, parent);
     let open = element.style.display !== "none";
     new MutationObserver(() => {
       const now = element.style.display !== "none";
@@ -189,6 +215,7 @@
         const name = idToLayer.get(entries[i]);
         if (name && !open.includes(name)) {
           open.push(name);
+          position = i; // the entry being reopened is the current one
           const reg = registry.get(name);
           if (reg && typeof reg.open === 'function') reg.open(idToState.get(entries[i]) || state);
         }
@@ -199,6 +226,14 @@
       while (open.length && position > target) {
         position -= 1;
         const name = open.pop();
+        // A child's close re-shows its parent: keep the parent on the
+        // stack so the re-show refreshes the parent's entry instead of
+        // pushing a new one.
+        const parent = parents.get(name);
+        if (parent && idToLayer.get(entries[position]) === parent
+            && !open.includes(parent)) {
+          open.push(parent);
+        }
         const reg = registry.get(name);
         if (reg && typeof reg.close === 'function') reg.close();
       }

@@ -258,31 +258,49 @@ export function CloseALL() {
         close: () => CloseALL(),
       });
     };
+    // Sub-columns: Back hides the column and reopens its parent panel
+    // (clicking the parent's own open button) instead of CloseALL, so one
+    // Back step lands back on the toolbar / rotation controls.
+    const subColumn = (id, triggerId, parent, parentTriggerId, extraIds = []) => {
+      window.watchDisplayLayer(id, document.getElementById(id), {
+        open: () => document.getElementById(triggerId).click(),
+        close: () => {
+          hideElements(id, ...extraIds);
+          document.getElementById(parentTriggerId).click();
+        },
+      }, parent);
+    };
     panelLayer("toolbar", "toggle-toolbar-btn");
-    panelLayer("Edit_Profile-column", "Edit_Profile");
-    panelLayer("load-column", "Load_Everything");
-    panelLayer("create-column", "Create_New_Topic");
-    panelLayer("draw-column", "Draw_Marker_Polygon");
-    panelLayer("utility-column", "NFT-utility");
-    panelLayer("memo-column", "Change_Memo");
-    panelLayer("domain-column", "Domain");
-    panelLayer("stack-topic-ids", "Stack_topic_IDs");
-    panelLayer("initial-xyz-column", "Set_Initial_XYZ");
+    subColumn("Edit_Profile-column", "Edit_Profile", "toolbar", "toggle-toolbar-btn", ["Edit_Profile-column-container"]);
+    subColumn("load-column", "Load_Everything", "toolbar", "toggle-toolbar-btn", ["load-column-container"]);
+    subColumn("create-column", "Create_New_Topic", "toolbar", "toggle-toolbar-btn", ["create-column-container"]);
+    subColumn("draw-column", "Draw_Marker_Polygon", "toolbar", "toggle-toolbar-btn", ["draw-column-container"]);
+    subColumn("utility-column", "NFT-utility", "toolbar", "toggle-toolbar-btn", ["utility-column-container"]);
+    subColumn("memo-column", "Change_Memo", "toolbar", "toggle-toolbar-btn", ["memo-column-container"]);
+    subColumn("domain-column", "Domain", "toolbar", "toggle-toolbar-btn", ["domain-column-container"]);
+    subColumn("stack-topic-ids", "Stack_topic_IDs", "toolbar", "toggle-toolbar-btn", ["stack-topic-ids-container"]);
+    subColumn("initial-xyz-column", "Set_Initial_XYZ", "toolbar", "toggle-toolbar-btn", ["initial-xyz-column-container"]);
     panelLayer("visibility-controls", "toggle-visibility-controls-btn");
     panelLayer("rotation-controls", "toggle-your-fov-btn");
-    panelLayer("model-column", "change-model-settings");
-    panelLayer("crosshair-column", "change-crosshair-settings");
-    panelLayer("marker-options-column", "change-marker-options");
-    panelLayer("main-button-column", "change-color-of-main-buttons");
-    panelLayer("button-input-column", "change-button-input-settings");
-    panelLayer("topic-chat-column", "change-topic-chat-options");
+    subColumn("model-column", "change-model-settings", "rotation-controls", "toggle-your-fov-btn",
+      ["model-column-container", "model-column-save", "model-column-container-save"]);
+    subColumn("crosshair-column", "change-crosshair-settings", "rotation-controls", "toggle-your-fov-btn",
+      ["crosshair-column-container", "crosshair-column-save", "crosshair-column-container-save"]);
+    subColumn("marker-options-column", "change-marker-options", "rotation-controls", "toggle-your-fov-btn",
+      ["marker-options-column-container", "marker-column-save", "marker-column-container-save"]);
+    subColumn("main-button-column", "change-color-of-main-buttons", "rotation-controls", "toggle-your-fov-btn",
+      ["main-button-column-container", "main-button-column-save", "main-button-column-container-save"]);
+    subColumn("button-input-column", "change-button-input-settings", "rotation-controls", "toggle-your-fov-btn",
+      ["button-input-column-container", "button-input-column-save", "button-input-column-container-save"]);
+    subColumn("topic-chat-column", "change-topic-chat-options", "rotation-controls", "toggle-your-fov-btn",
+      ["topic-chat-column-container", "topic-chat-save", "topic-chat-container-save"]);
     // Memo sub-panels: the ✅/⛔ buttons are plain toggles — the watcher
     // records the open, and closing through the ⛔ button drops the entry.
     const memoSub = (id, triggerId) => {
       window.watchDisplayLayer(id, document.getElementById(id), {
         open: () => document.getElementById(triggerId).click(),
         close: () => hideElements(id),
-      });
+      }, "memo-column");
     };
     memoSub("update-bio-from-memo", "show-update-bio-from-memo");
     memoSub("memo-from-memo", "show-memo-from-memo");
