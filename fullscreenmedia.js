@@ -65,6 +65,8 @@ export function closePreview() {
   overlay.remove();
   overlay = null;
   document.removeEventListener('keydown', onKey);
+  // Back/Forward: the ×, the backdrop and Esc all end here.
+  layerClosedByUI('media');
 }
 
 function onKey(e) {
@@ -110,11 +112,20 @@ export function openPreview(src, options = {}) {
 
   document.body.appendChild(overlay);
   document.addEventListener('keydown', onKey);
+  // Back/Forward: the preview is a layer; Forward re-opens the same media.
+  layerOpened('media', { src, video });
 }
 
 // Older name. Same preview.
 export function openMediaFullscreen(src, isVideo = false) {
   openPreview(src, { video: !!isVideo });
+}
+
+if (window.defineLayer) {
+  window.defineLayer('media', {
+    open: (state) => openPreview(state && state.src, { video: state && state.video === true }),
+    close: () => closePreview(),
+  });
 }
 
 export function closeMediaFullscreen() {

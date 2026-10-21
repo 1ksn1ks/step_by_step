@@ -32,9 +32,11 @@ function closeResults() {
 
 // Hide the whole bar (results are closed first, typed text is kept)
 function closeSearchBar() {
+  const wasOpen = searchBar.style.display === 'block';
   closeResults();
   searchBar.style.display = 'none';
   searchInput.blur();
+  if (wasOpen) layerClosedByUI('search');
 }
 
 // 🔍 button: open the bar (below it, same height the topic chat opens) and
@@ -47,10 +49,20 @@ searchToggleBtn.addEventListener('click', (e) => {
     CloseALL();
     searchBar.style.display = 'block';
     searchInput.focus();
+    layerOpened('search', { query: searchInput.value });
   } else {
     closeSearchBar();
   }
 });
+
+// Back/Forward: the search bar is a layer; Forward re-opens the same
+// bar (typed text is kept), Back closes it through the normal funnel.
+if (window.defineLayer) {
+  window.defineLayer('search', {
+    open: () => searchToggleBtn.click(),
+    close: () => closeSearchBar(),
+  });
+}
 
 function showResults(results, query) {
   if (results.length === 0) {
@@ -297,6 +309,7 @@ document.addEventListener("hashtag-search", (event) => {
   if (!tag) return;
   closeDrawAnchor();
   searchBar.style.display = "block";
+  layerOpened('search', { query: tag });
   searchInput.value = `#${tag}`;
   searchInput.size = Math.max(tag.length + 2, 20);
   searchClearBtn.style.display = "flex";

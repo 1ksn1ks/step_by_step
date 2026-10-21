@@ -33,17 +33,33 @@ function clearDrawPreview() {
 }
 
 function cleanup() {
+  const wasOpen = pinEl !== null;
   clearDrawPreview();
   anchorOpen = false;
   awaitingSecondCorner = false;
   corner1 = null;
   pressLoc = null;
+  // Back/Forward: pin tap, outside tap, Escape and closeTransientMapUI
+  // all end here.
+  if (wasOpen) layerClosedByUI('drawpin');
 }
 
 // Top-bar buttons (OPTIONS / TOPIC CHAT / E2EE CHAT / 🔍) call this:
 // they stopPropagation, so the document tap-outside close never sees them
 export function closeDrawAnchor() {
   cleanup();
+}
+
+// Back/Forward: Forward re-drops the pin at its saved point.
+if (window.defineLayer) {
+  window.defineLayer('drawpin', {
+    open: (state) => {
+      if (state && Array.isArray(state.at) && state.at.length >= 2) {
+        showAnchor({ lng: state.at[0], lat: state.at[1] });
+      }
+    },
+    close: () => closeDrawAnchor(),
+  });
 }
 
 // Keeps the pin anchored to its map point while the camera moves
@@ -98,6 +114,8 @@ function showAnchor(loc) {
   pinEl.appendChild(polygonBtn);
   anchorOpen = true;
   onMapMove();
+  // Back/Forward: the pin is a layer; a re-tap replaces it in place.
+  layerOpened('drawpin', { at: [loc.lng, loc.lat] });
 }
 
 function startMarkerHere(loc) {

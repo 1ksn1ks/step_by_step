@@ -608,9 +608,17 @@ function paintDeleteButton() {
 }
 
 // The post popup hides its own × while settings is open, like comments-open.
+let settingsHistoryOpen = false;
 function syncSettingsOpen() {
   const card = document.getElementById('popup-settings-card');
   const open = !!(card && card.style.display === 'block');
+  // Back/Forward: every close path (‹, backdrop, CloseALL, a map tap)
+  // ends in display:none, so the transition out of open is the single
+  // history funnel. Opening reports itself in openPopupSettings.
+  if (open !== settingsHistoryOpen) {
+    settingsHistoryOpen = open;
+    if (!open) layerClosedByUI('popupsettings');
+  }
   document.querySelectorAll('.maplibregl-popup').forEach((popup) => {
     if (card && card.contains(popup)) return;
     popup.classList.toggle('settings-open', open);
@@ -710,12 +718,29 @@ window.openPopupSettings = function(target) {
       paintDeleteButton();
       backdrop.style.display = "block";
       card.style.display = "block";
+      // Back/Forward: the card is a layer on top of the post popup.
+      layerOpened('popupsettings', { target: popupSettingsTarget || {} });
       syncSettingsOpen();
       refitPopups();
       removeUfoModel();
     }
   });
 };
+// Back/Forward: the history close handler needs the same funnel the ‹ uses.
+window.closePopupSettings = closePopupSettings;
+
+if (window.defineLayer) {
+  window.defineLayer('comments', {
+    open: (state) => {
+      if (state && state.sectionId) openCommentsModal(state.sectionId);
+    },
+    close: () => closeCommentsModal(),
+  });
+  window.defineLayer('popupsettings', {
+    open: (state) => window.openPopupSettings(state && state.target && state.target.payer != null ? state.target : undefined),
+    close: () => closePopupSettings(),
+  });
+}
 
 function payerHasLike(actions, timestamp, type) {
   const row = actions && actions.get(timestamp);
@@ -3477,6 +3502,8 @@ function closeCommentsModal() {
       }
     }
     refitPopups();
+    // Back/Forward: ‹, scrim, Escape and paging all end here.
+    layerClosedByUI('comments');
   } finally {
     commentsClosing = false;
   }
@@ -3647,6 +3674,8 @@ function openCommentsModal(sectionId) {
   const section = document.getElementById(sectionId);
   if (!section) return;
   showCommentsModal(section);
+  // Back/Forward: the comments view is a layer above the post popup.
+  layerOpened('comments', { sectionId });
 }
 
 window.openMarkerComments = function(timestamp, topicId) {

@@ -78,6 +78,9 @@ export function closePressAnchor() {
   if (pressAnchor) {
     pressAnchor.remove();
     pressAnchor = null;
+    // Back/Forward: pin tap, outside tap, Escape and closeTransientMapUI
+    // all end here.
+    layerClosedByUI('presspin');
   }
   pressLoc = null;
 }
@@ -136,6 +139,20 @@ function showPressAnchor(lngLat) {
   anchor.style.top = p.y + 'px';
   document.body.appendChild(anchor);
   pressAnchor = anchor;
+  // Back/Forward: the pin is a layer at its saved point.
+  layerOpened('presspin', { at: [lngLat.lng, lngLat.lat] });
+}
+
+// Back/Forward: Forward re-drops the pin at its saved point.
+if (window.defineLayer) {
+  window.defineLayer('presspin', {
+    open: (state) => {
+      if (state && Array.isArray(state.at) && state.at.length >= 2) {
+        showPressAnchor({ lng: state.at[0], lat: state.at[1] });
+      }
+    },
+    close: () => closePressAnchor(),
+  });
 }
 
 // Tap anywhere outside the pin/buttons closes it — same as the draw pin.

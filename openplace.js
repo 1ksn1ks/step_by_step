@@ -153,6 +153,45 @@ export async function openLinkedPlace(href) {
   }
 }
 
+// Back/Forward (historyLayers.js): reopen a saved popup from its history
+// data — the same pipeline a deep link uses, without touching the URL.
+async function openStoredPlace(state) {
+  if (!state || !state.topic) return; // live markers with no topic cannot be reopened
+  await ensureTopic(state.topic);
+  const match = (obj) =>
+    sameId(obj.topicId, state.topic) &&
+    sameId(obj.payer, state.payer) &&
+    sameId(obj.created, state.created);
+  const feature = state.kind === 'polygon'
+    ? polygons.find(match)
+    : geojson.features.find((f) => f.properties && match(f.properties));
+  if (!feature) return;
+  const lngLat = state.kind === 'polygon'
+    ? ringCenter(feature)
+    : feature.geometry && feature.geometry.coordinates;
+  if (!lngLat) return;
+  const content = state.kind === 'polygon'
+    ? polygonPopupNode(feature)
+    : markerPopupNode(feature.properties, feature);
+  if (!content) return;
+  const zoom = state.kind === 'polygon' ? zoomForPolygon(feature) : MARKER_ZOOM;
+  const list = state.kind === 'polygon' ? activePolygonPopups : activeMarkerPopups;
+  showPopup(lngLat, content, list, zoom);
+}
+
+if (window.defineLayer) {
+  window.defineLayer('markerpopup', {
+    open: (state) => {
+      openStoredPlace(state).catch((err) => console.error('Reopen place failed:', err));
+    },
+    close: () => {
+      activePolygonPopups.forEach((popup) => popup.remove());
+      activeMarkerPopups.forEach((popup) => popup.remove());
+      changePopupState(false);
+    },
+  });
+}
+
 function arm() {
   const place = readPlace(window.location.href);
   if (!place) return;

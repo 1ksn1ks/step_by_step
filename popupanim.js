@@ -12,6 +12,25 @@ function releasePopupFaces(popup) {
   if (el) forgetProfileTree(el);
 }
 
+// Back/Forward (historyLayers.js): the minimum a card carries to reopen
+// the same post later — its topic, payer and timestamp, plus where the
+// popup is anchored.
+function popupLayerData(popup) {
+  const el = typeof popup.getElement === 'function' ? popup.getElement() : null;
+  const card = el && el.querySelector ? el.querySelector('.popup-sheet') : null;
+  const ds = card && card.dataset ? card.dataset : {};
+  const lngLat = typeof popup.getLngLat === 'function' ? popup.getLngLat() : null;
+  return {
+    kind: card && card.querySelector && card.querySelector('[id^="polygon-comments-"]')
+      ? 'polygon'
+      : 'marker',
+    topic: ds.viewTopic || '',
+    payer: ds.popupPayer || '',
+    created: ds.viewCreated || '',
+    at: lngLat ? [lngLat.lng, lngLat.lat] : null,
+  };
+}
+
 function startClose(popup, original) {
   const el = typeof popup.getElement === 'function' ? popup.getElement() : null;
   const content = el ? el.querySelector('.maplibregl-popup-content') : null;
@@ -44,8 +63,14 @@ function Popup(options) {
   const nativeRemove = popup.remove;
   popup.remove = () => {
     releasePopupFaces(popup);
+    if (window.layerPopupClosed) window.layerPopupClosed(popup);
     return nativeRemove();
   };
+  // Back/Forward (historyLayers.js): every popup close — the ×, a map
+  // tap, a bulk close — goes through this event.
+  popup.on('close', () => {
+    if (window.layerPopupClosed) window.layerPopupClosed(popup);
+  });
   return popup;
 }
 Popup.prototype = NativePopup.prototype;
@@ -152,6 +177,11 @@ maplibregl.Popup.prototype.setDOMContent = function (node) {
     watchProfileTree(node);
     document.dispatchEvent(new CustomEvent('follow-popup-open', { detail: node }));
   }
+  // Back/Forward: a card swapped into an already-open popup (paging,
+  // live-marker walk) refreshes the saved history data.
+  if (window.layerPopupOpened && this.isOpen && this.isOpen()) {
+    window.layerPopupOpened(this, popupLayerData(this));
+  }
   return result;
 };
 
@@ -162,6 +192,14 @@ const originalAddTo = maplibregl.Popup.prototype.addTo;
 maplibregl.Popup.prototype.addTo = function (map) {
   const result = originalAddTo.call(this, map);
   fitIfOpen(this);
+  // Back/Forward: report the open when the card was set before addTo
+  // (the setDOMContent hook covers the other order).
+  if (window.layerPopupOpened) {
+    const el = typeof this.getElement === 'function' ? this.getElement() : null;
+    if (el && el.querySelector && el.querySelector('.popup-sheet')) {
+      window.layerPopupOpened(this, popupLayerData(this));
+    }
+  }
   return result;
 };
 

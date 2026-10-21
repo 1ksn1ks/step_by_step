@@ -85,6 +85,13 @@ export function closeTransientMapUI() {
 }
 
 export function CloseALL() {
+    // Back/Forward: the chat panels close through here (their × button
+    // and every map tap), so record which are open before hiding them.
+    const historyLayers = [];
+    const topicChatEl = document.getElementById("topic-chat-container");
+    if (topicChatEl && topicChatEl.style.display === "flex") historyLayers.push("topicchat");
+    const e2eeChatEl = document.getElementById("encrypted-chat-container");
+    if (e2eeChatEl && e2eeChatEl.style.display === "flex") historyLayers.push("e2eechat");
     everythinginsideoptionsbuttons.forEach(buttonId => {
       document.getElementById(buttonId).style.display = "none";
     });
@@ -100,6 +107,7 @@ export function CloseALL() {
     everyoverlay.forEach(buttonId => {
       document.getElementById(buttonId).style.display = "none";
     });
+    for (const name of historyLayers) layerClosedByUI(name);
     document.getElementById("main-toggle-btn").style.display = "block";
     document.getElementById("topic-chat-btn").style.display = "block";
     document.getElementById("toggle-encrypted-chat-btn").style.display = "block";
@@ -179,6 +187,37 @@ export function CloseALL() {
       document.getElementById(overlayId).style.display = "block";
     });
   });
+
+  // Back/Forward: a help overlay is a layer of its own. Every open and
+  // close path (the ? button, its × / Got it, the backdrop, CloseALL)
+  // is a display change, so a style observer is the single funnel.
+  if (window.defineLayer) {
+    window.defineLayer("topicchat", {
+      open: () => document.getElementById("topic-chat-btn").click(),
+      close: () => CloseALL(),
+    });
+    window.defineLayer("e2eechat", {
+      open: () => document.getElementById("toggle-encrypted-chat-btn").click(),
+      close: () => CloseALL(),
+    });
+    PANEL_HELP.forEach(([, overlayId]) => {
+      const overlay = document.getElementById(overlayId);
+      if (!overlay) return;
+      const name = "overlay:" + overlayId;
+      window.defineLayer(name, {
+        open: () => { overlay.style.display = "block"; },
+        close: () => { overlay.style.display = "none"; },
+      });
+      let wasOpen = overlay.style.display === "block";
+      new MutationObserver(() => {
+        const isNowOpen = overlay.style.display === "block";
+        if (isNowOpen === wasOpen) return;
+        wasOpen = isNowOpen;
+        if (isNowOpen) window.layerOpened(name);
+        else window.layerClosedByUI(name);
+      }).observe(overlay, { attributes: true, attributeFilter: ["style"] });
+    });
+  }
 
   // × close button: top-right corner — the opposite side of the ? help button
   // — of the toolbar itself, every toolbar container, the visibility panel,
@@ -595,6 +634,7 @@ export function CloseALL() {
     topicChatPanel.style.height = "";
     topicChatPanel.style.maxHeight = "";
     topicChatPanel.style.display = "flex";
+    layerOpened("topicchat");
     document.getElementById("options-from-topic-chat").style.display = "none";
     document.getElementById("show-options-from-topic-chat").style.display = "block";
     document.getElementById("show-options-from-topic-chat-btn").style.display = "none";
@@ -982,6 +1022,7 @@ export function CloseALL() {
     encryptedChatPanel.style.height = "";
     encryptedChatPanel.style.maxHeight = "";
     encryptedChatPanel.style.display = "flex";
+    layerOpened("e2eechat");
     document.getElementById("options-from-encrypted-chat").style.display = "none";
     document.getElementById("show-options-from-encrypted-chat").style.display = "block";
     document.getElementById("show-options-from-encrypted-chat-btn").style.display = "none";
