@@ -179,17 +179,23 @@
   // sit inside, so Back can walk down one level instead of to the map.
   const parents = new Map(); // name -> parent name
 
+  // The open stack, not the element's last known display, is the authority
+  // on whether a layer still owns a history entry: a close path (or Back)
+  // can consume the entry while the display is still set, and a reopened
+  // stack entry can exist before the display catches up.
+  window.layerIsOpen = function (name) { return open.includes(name); };
+
   window.watchDisplayLayer = function (name, element, handlers, parent) {
     if (!element) return;
     if (handlers) registry.set(name, handlers);
     if (parent) parents.set(name, parent);
-    let open = element.style.display !== "none";
     new MutationObserver(() => {
       const now = element.style.display !== "none";
-      if (now === open) return;
-      open = now;
-      if (now) window.layerOpened(name);
-      else window.layerClosedByUI(name);
+      if (now) {
+        if (!window.layerIsOpen(name)) window.layerOpened(name);
+      } else if (window.layerIsOpen(name)) {
+        window.layerClosedByUI(name);
+      }
     }).observe(element, { attributes: true, attributeFilter: ["style"] });
   };
 
