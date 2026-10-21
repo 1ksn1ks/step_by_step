@@ -185,8 +185,16 @@ if (window.defineLayer) {
       openStoredPlace(state).catch((err) => console.error('Reopen place failed:', err));
     },
     close: () => {
-      activePolygonPopups.forEach((popup) => popup.remove());
-      activeMarkerPopups.forEach((popup) => popup.remove());
+      // A close Back started must not call layerClosedByUI again: mark
+      // each popup so its remove() is ignored by the shared watcher.
+      activePolygonPopups.forEach((popup) => {
+        popup._hlClosed = true;
+        popup.remove();
+      });
+      activeMarkerPopups.forEach((popup) => {
+        popup._hlClosed = true;
+        popup.remove();
+      });
       changePopupState(false);
     },
   });
