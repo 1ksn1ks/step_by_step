@@ -709,10 +709,11 @@ export function CloseALL() {
   // Topic chat bytes are the JSON object that is submitted, so a newline
   // costs 2 bytes. E2EE bytes are the plaintext that is encrypted: 1 byte
   // per newline, or 2 once an image wraps the text in JSON.
-  // Phone: a swipe that starts on the composer must not scroll the chat
-  // list, the panel, or the page. A field taller than its box still
-  // scrolls itself, and stops at the ends. A short field ignores the swipe.
-  // A long-press (text selection) is left to the browser.
+  // Phone: a swipe on the composer must not scroll the chat list, the
+  // panel, or the page. Direction is the latest move, not where the
+  // finger landed. A field taller than its box still scrolls itself,
+  // and stops at the ends. A short field ignores the swipe. A text
+  // selection is left to the browser.
   function composerRoom(el) {
     return el.scrollHeight - el.clientHeight;
   }
@@ -725,27 +726,26 @@ export function CloseALL() {
     el.style.overflowY = composerScrollable(el) ? "auto" : "hidden";
   }
   function containComposerTouch(el) {
-    let startY = 0;
-    let startX = 0;
-    let started = 0;
+    let prevY = 0;
+    let prevX = 0;
     syncComposerOverflow(el);
     el.addEventListener("input", () => syncComposerOverflow(el));
     el.addEventListener("touchstart", (event) => {
       const t = event.touches[0];
       if (!t) return;
       syncComposerOverflow(el);
-      startY = t.clientY;
-      startX = t.clientX;
-      started = performance.now();
+      prevY = t.clientY;
+      prevX = t.clientX;
     }, { passive: true });
     el.addEventListener("touchmove", (event) => {
       if (event.touches.length !== 1) return;
+      const t = event.touches[0];
+      const dy = t.clientY - prevY;
+      const dx = t.clientX - prevX;
+      prevY = t.clientY;
+      prevX = t.clientX;
       if (!event.cancelable) return;
       if (el.selectionStart !== el.selectionEnd) return;
-      if (performance.now() - started > 450) return;
-      const t = event.touches[0];
-      const dy = t.clientY - startY;
-      const dx = t.clientX - startX;
       if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 4) return;
       const atTop = el.scrollTop <= 0;
       const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
