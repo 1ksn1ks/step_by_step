@@ -81,11 +81,15 @@ function updatePills() {
 
 function updatePreview() {
     const { font, height, width, inputBorder, inputFont, buttonBorder, buttonFont } = readControls();
+    const column = els.previewInput.closest(".mb-preview-column");
     els.previewInput.style.borderColor = inputBorder;
     els.previewInput.style.color = inputFont;
     els.previewInput.style.fontSize = font + "vh";
     els.previewInput.style.height = height + "vh";
-    els.previewInput.style.width = width + "%";
+    els.previewInput.style.removeProperty("width");
+    column.style.width = width + "%";
+    column.style.marginLeft = "auto";
+    column.style.marginRight = "auto";
     els.previewButton.style.borderColor = buttonBorder;
     els.previewButton.style.color = buttonFont;
     els.previewButton.style.fontSize = font + "vh";
@@ -95,6 +99,40 @@ function updatePreview() {
 // The same selectors the legacy code styled
 const INPUT_SELECTORS = ".toolbar-column, .yourfov";
 const BUTTON_SELECTORS = ".toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns, .pin-public-key-from-encrypted-chat";
+// Panels that hold those fields, their buttons, and (when present) the save
+// bar under them. At 100% the CSS width stays: 98vw, centred with a 1vw inset.
+const CONTAINER_SELECTORS = ".toolbar, .rotation-controls, .toolbar-containers:not(.mb-panel)";
+
+function clearContainerBox(element) {
+    element.style.removeProperty("width");
+    element.style.removeProperty("margin-left");
+    element.style.removeProperty("margin-right");
+    element.style.removeProperty("left");
+    element.style.removeProperty("right");
+}
+
+function applyContainerWidth(widthPercent) {
+    const full = Number(widthPercent) === 100;
+    document.querySelectorAll(CONTAINER_SELECTORS).forEach((panel) => {
+        if (full) clearContainerBox(panel);
+        else {
+            panel.style.width = `calc(98dvw * ${widthPercent} / 100)`;
+            panel.style.left = "0";
+            panel.style.right = "0";
+            panel.style.marginLeft = "auto";
+            panel.style.marginRight = "auto";
+        }
+        const saveWrap = document.getElementById(panel.id + "-save");
+        const save = saveWrap && saveWrap.querySelector(".save-settings-toolbar-containers");
+        if (!save) return;
+        if (full) clearContainerBox(save);
+        else {
+            save.style.width = `calc(98dvw * ${widthPercent} / 100)`;
+            save.style.marginLeft = "auto";
+            save.style.marginRight = "auto";
+        }
+    });
+}
 
 function updateButtonInputSettings() {
     const { font, height, width, inputBorder, inputFont, buttonBorder, buttonFont } = readControls();
@@ -104,8 +142,9 @@ function updateButtonInputSettings() {
         button.style.fontSize = font + "vh";
         button.style.color = inputFont;
         button.style.height = height + "vh";
-        button.style.width = width + "%";
+        button.style.removeProperty("width");
     });
+    applyContainerWidth(width);
 
     document.querySelectorAll(BUTTON_SELECTORS).forEach((button) => {
         // Popup settings paints its own pills. Inline color and height from
@@ -258,6 +297,7 @@ export async function loadButtonInputSettings(a) {
           element.style.removeProperty("width");
           element.style.removeProperty("background-color");
       });
+      applyContainerWidth(100);
       updatePills();
       updatePreview();
       toast.info("Reset to defaults");
