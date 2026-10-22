@@ -851,6 +851,9 @@ html, body {
     height: auto;
     padding-bottom: 4vh; /* = button 3vh + its 1vh offset — smallest the box can start */
     padding-right: 0.45vh;
+    /* A swipe on the field stays inside it. Past the text, it does not
+       pull the chat panel or the page. */
+    overscroll-behavior: contain;
   }
 
   /* Keep typed text clear of the character counter (draw marker/polygon) */

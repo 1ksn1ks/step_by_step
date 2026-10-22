@@ -709,6 +709,52 @@ export function CloseALL() {
   // Topic chat bytes are the JSON object that is submitted, so a newline
   // costs 2 bytes. E2EE bytes are the plaintext that is encrypted: 1 byte
   // per newline, or 2 once an image wraps the text in JSON.
+  // Phone: a swipe that starts on the composer must not scroll the chat
+  // list, the panel, or the page. A field taller than its box still
+  // scrolls itself, and stops at the ends. A short field ignores the swipe.
+  // A long-press (text selection) is left to the browser.
+  function composerRoom(el) {
+    return el.scrollHeight - el.clientHeight;
+  }
+  // Border-box height set to scrollHeight still leaves the border
+  // (about 2px) as room. That is not a scrollable message.
+  function composerScrollable(el) {
+    return composerRoom(el) > 4;
+  }
+  function syncComposerOverflow(el) {
+    el.style.overflowY = composerScrollable(el) ? "auto" : "hidden";
+  }
+  function containComposerTouch(el) {
+    let startY = 0;
+    let startX = 0;
+    let started = 0;
+    syncComposerOverflow(el);
+    el.addEventListener("input", () => syncComposerOverflow(el));
+    el.addEventListener("touchstart", (event) => {
+      const t = event.touches[0];
+      if (!t) return;
+      syncComposerOverflow(el);
+      startY = t.clientY;
+      startX = t.clientX;
+      started = performance.now();
+    }, { passive: true });
+    el.addEventListener("touchmove", (event) => {
+      if (event.touches.length !== 1) return;
+      if (!event.cancelable) return;
+      if (el.selectionStart !== el.selectionEnd) return;
+      if (performance.now() - started > 450) return;
+      const t = event.touches[0];
+      const dy = t.clientY - startY;
+      const dx = t.clientX - startX;
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 4) return;
+      const atTop = el.scrollTop <= 0;
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+      if (!composerScrollable(el) || (atTop && dy > 0) || (atBottom && dy < 0)) {
+        event.preventDefault();
+      }
+    }, { passive: false });
+  }
+
   [
     ["user-write-message", "char-counter", "topic", "post-msg"],
     ["user-write-message-encrypted-chat", "char-counter-encrypted-chat", "e2ee", "post-msg-encrypted-chat"],
@@ -716,6 +762,7 @@ export function CloseALL() {
     const ta = document.getElementById(id);
     const counter = document.getElementById(counterId);
     const send = document.getElementById(sendId);
+    containComposerTouch(ta);
     const paintBytes = () => {
       if (!counter) return;
       const usage = formatHcsUsage(composerWireBytes(kind, ta.value));
