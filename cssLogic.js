@@ -270,7 +270,12 @@ export function CloseALL() {
         open: () => document.getElementById(triggerId).click(),
         close: () => {
           hideElements(id, ...extraIds);
-          document.getElementById(parentTriggerId).click();
+          // The startup Load panel has no toolbar entry under it. Back
+          // returns to the parent only when that parent is still the
+          // layer underneath (opened from the toolbar or settings).
+          if (window.layerIsOpen(parent)) {
+            document.getElementById(parentTriggerId).click();
+          }
         },
       }, parent);
     };

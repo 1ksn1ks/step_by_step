@@ -340,6 +340,17 @@
         if (window.layerIsOpen(alias)) window.layerClosedByUI(alias);
       }
     }).observe(element, { attributes: true, attributeFilter: ["style"] });
+
+    // The Load panel is shown from extracttopic while this file's callers
+    // are still importing, so the watcher misses that display change.
+    // A panel already inline-shown (block/flex, not an unset display)
+    // takes its entry here. Unset stays closed: the options button is
+    // display:none in CSS until a click sets flex.
+    const display = element.style.display;
+    if (display && display !== "none" && element.dataset.historyHold !== "1"
+        && !window.layerIsOpen(name)) {
+      window.layerOpened(name);
+    }
   };
 
   // A reload lands on a layer entry whose UI is gone. Drop the stale
