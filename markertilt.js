@@ -232,7 +232,18 @@ function frame(now) {
     const rotY = -state.nx * MAX_DEG;
     face.style.transformStyle = 'flat';
     face.style.willChange = 'transform';
-    face.style.transform = `perspective(${PERSPECTIVE_PX}px) translateY(${bobY.toFixed(2)}px) rotateX(${rotX.toFixed(3)}deg) rotateY(${rotY.toFixed(3)}deg)`;
+    // The moon keeps this same perspective zoom and the same ease, with no
+    // rotation. The near edge used to come forward by half * sin(angle);
+    // that distance is translateZ, so the disc grows through the same 480px
+    // perspective. Markers still rotate.
+    if (face.classList && face.classList.contains('moon-face')) {
+      const box = (host || face).getBoundingClientRect();
+      const half = Math.max(8, box.width / 2);
+      const zoomZ = half * Math.sin((Math.hypot(rotX, rotY) * Math.PI) / 180);
+      face.style.transform = `perspective(${PERSPECTIVE_PX}px) translateY(${bobY.toFixed(2)}px) translateZ(${zoomZ.toFixed(2)}px)`;
+    } else {
+      face.style.transform = `perspective(${PERSPECTIVE_PX}px) translateY(${bobY.toFixed(2)}px) rotateX(${rotX.toFixed(3)}deg) rotateY(${rotY.toFixed(3)}deg)`;
+    }
   }
 
   if ((busy || faceAtPointer()) && !reducedMotion() && !document.hidden) requestAnimationFrame(frame);
