@@ -23,6 +23,7 @@ import { openPreview } from './fullscreenmedia.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const BATCH = 20;
+const SCROLL_IDLE_MS = 250;
 const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -69,7 +70,7 @@ let shown = 0;
 let savedScroll = 0;
 let peek = false;
 let revealToken = 0;
-let scrollTicket = 0;
+let scrollIdle = 0;
 
 function svgIcon(parts) {
   const svg = document.createElementNS(SVG_NS, 'svg');
@@ -492,12 +493,31 @@ function syncCover() {
   document.documentElement.classList.toggle('feed-app', open);
 }
 
-function rememberScroll() {
+// savedScroll stays live. History is updated once the feed sits still,
+// and again right before the map opens or the feed closes.
+function writeScroll() {
   if (root.classList.contains('is-peek')) return;
-  savedScroll = scroller.scrollTop;
   if (!window.layerIsOpen || !window.layerIsOpen('feed')) return;
   if (window.layerIsOpen('markerpopup') || window.layerIsOpen('feedfly')) return;
   window.layerOpened('feed', { scroll: savedScroll });
+}
+
+function rememberScroll() {
+  if (scrollIdle) {
+    clearTimeout(scrollIdle);
+    scrollIdle = 0;
+  }
+  if (root.classList.contains('is-peek')) return;
+  savedScroll = scroller.scrollTop;
+  writeScroll();
+}
+
+function scheduleScrollWrite() {
+  if (scrollIdle) clearTimeout(scrollIdle);
+  scrollIdle = setTimeout(() => {
+    scrollIdle = 0;
+    writeScroll();
+  }, SCROLL_IDLE_MS);
 }
 
 function reveal() {
@@ -623,6 +643,7 @@ function applyFeed(on) {
   peek = false;
   revealToken += 1;
   root.classList.remove('is-peek');
+  rememberScroll();
   root.style.display = 'none';
   syncCover();
 }
@@ -699,11 +720,7 @@ scroller.addEventListener('scroll', () => {
   if (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < scroller.clientHeight * 0.6) {
     renderMore();
   }
-  if (scrollTicket) return;
-  scrollTicket = requestAnimationFrame(() => {
-    scrollTicket = 0;
-    rememberScroll();
-  });
+  scheduleScrollWrite();
 }, { passive: true });
 
 paintToggle(false);
