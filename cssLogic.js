@@ -100,6 +100,10 @@ const HISTORY_MEMO_SUBS = [
 ];
 
 export function CloseALL() {
+    // The bio only hides the popup it came from. A real close (×, map
+    // tap, another panel) drops that popup; Back restores it first, so
+    // this list is empty and the popup stays.
+    if (window.dismissBioPopups) window.dismissBioPopups();
     // Back/Forward: the chat panels close through here (their × button
     // and every map tap), so record which are open before hiding them.
     const historyLayers = [];

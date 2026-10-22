@@ -13,6 +13,61 @@ import { paintEarlyProfile } from './loadprofilepopup.js';
 const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const EMPTY_BIO = 'User has not set a bio yet. You can set yours by going to OPTIONS > TOOLBAR > EDIT > BIO';
 
+// Popups the open bio is covering. They stay in the map (and on the
+// history stack) so Back can show them again. × / map tap removes them.
+let hiddenPopupEls = [];
+// Set while loadBio4PIC is opening, so its own CloseALL does not drop
+// the popup it is about to cover.
+let suspendingDismiss = 0;
+// Bumped when a close wins, so an open still awaiting the bio bails
+// instead of showing the column after Back already put the popup back.
+let bioEpoch = 0;
+
+function popupElement(popup) {
+  if (!popup || typeof popup.getElement !== 'function') return null;
+  const el = popup.getElement();
+  return el && el.nodeType === 1 ? el : null;
+}
+
+function hidePopupsForBio() {
+  const seen = new Set(hiddenPopupEls);
+  for (const popup of [...activePolygonPopups, ...activeMarkerPopups]) {
+    const el = popupElement(popup);
+    if (!el || seen.has(el)) continue;
+    seen.add(el);
+    el.style.display = 'none';
+    hiddenPopupEls.push(el);
+  }
+}
+
+function restorePopupsForBio() {
+  for (const el of hiddenPopupEls) {
+    if (el && el.isConnected) el.style.removeProperty('display');
+  }
+  hiddenPopupEls = [];
+}
+
+function dismissBioPopups() {
+  if (suspendingDismiss || !hiddenPopupEls.length) return;
+  bioEpoch += 1;
+  hiddenPopupEls = [];
+  activePolygonPopups.slice().forEach((popup) => popup.remove());
+  activeMarkerPopups.slice().forEach((popup) => popup.remove());
+}
+window.dismissBioPopups = dismissBioPopups;
+
+// Same panel cleanup as the load column's × (CloseALL). That leaves
+// #load-column-container shown and #loaded-topics at its content height.
+// The load-column history close hides the container, and the next open
+// then measures the list at height 0 — an empty glowing strip.
+function closeBioPanel() {
+  bioEpoch += 1;
+  restorePopupsForBio();
+  const loadColumn = document.getElementById('load-column');
+  if (loadColumn) delete loadColumn.dataset.historyLayer;
+  CloseALL();
+}
+
 function textOf(value) {
   if (Array.isArray(value)) return String(value[0] || '');
   return typeof value === 'string' ? value : '';
@@ -34,19 +89,32 @@ function colorOf(id, fallback) {
 
 // Tap a PFP → show that user's bio in the Load box, same card as Edit Profile.
 export async function loadBio4PIC(payer) {
+  // Still inside the tap, before any await. A phone drops a history entry
+  // pushed after the gesture, and Back then leaves the site.
+  const epoch = ++bioEpoch;
+  if (window.layerOpened) window.layerOpened('userbio', { payer: String(payer || '') });
+  suspendingDismiss += 1;
   try {
       const accountTopicBio = await loadTopicBio();
+      if (epoch !== bioEpoch) return {};
       const bio = textOf(accountTopicBio[payer] && accountTopicBio[payer].topic_bio);
 
       // A document click closes every panel. When the bio is already cached,
       // this function continues before that click finishes and the panel would
       // be closed by the same tap. Wait until the tap is over, then open.
       await new Promise((resolve) => setTimeout(resolve, 0));
+      if (epoch !== bioEpoch) return {};
 
-      activePolygonPopups.forEach((popup) => popup.remove());
-      activeMarkerPopups.forEach((popup) => popup.remove());
+      // Cover the popup; don't remove it. Its history entry stays under
+      // this one, so Back closes the bio and the popup is still there.
       CloseALL();
+      if (epoch !== bioEpoch) return {};
+      hidePopupsForBio();
       const loadColumn = document.getElementById("load-column");
+      const container = document.getElementById("load-column-container");
+      if (container) container.style.display = "block";
+      loadColumn.dataset.historyLayer = "userbio";
+      if (loadColumn.style.display === "none") loadColumn.dataset.historyHold = "1";
       loadColumn.style.display = "block";
       OpenToggleToolbar();
       const inputarea = document.getElementById("input-field");
@@ -134,8 +202,27 @@ export async function loadBio4PIC(payer) {
 
   } catch (error) {
       console.log(`Error in loadBio4PIC for payer ${payer}:`, error);
+      const loadColumn = document.getElementById("load-column");
+      const shown = loadColumn && loadColumn.style.display !== "none" && document.getElementById("loaded-bio-card");
+      if (!shown && epoch === bioEpoch && window.layerIsOpen && window.layerIsOpen("userbio")) {
+        if (loadColumn) delete loadColumn.dataset.historyLayer;
+        restorePopupsForBio();
+        window.layerClosedByUI("userbio");
+      }
       return {};
+  } finally {
+      suspendingDismiss = Math.max(0, suspendingDismiss - 1);
   }
 }
 
 window.loadBio4PIC = loadBio4PIC;
+
+if (window.defineLayer) {
+  window.defineLayer("userbio", {
+    parent: "markerpopup",
+    open: (state) => {
+      if (state && state.payer) loadBio4PIC(state.payer);
+    },
+    close: () => closeBioPanel(),
+  });
+}

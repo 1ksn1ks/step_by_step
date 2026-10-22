@@ -96,6 +96,9 @@
 
   window.defineLayer = function (name, handlers) {
     registry.set(name, handlers);
+    // Optional parent: Back from this layer returns to that one (the bio
+    // sits on the marker popup) instead of leaving the page.
+    if (handlers && handlers.parent) parents.set(name, handlers.parent);
   };
 
   function pushEntry(name, data) {
@@ -317,11 +320,24 @@
     if (handlers) registry.set(name, handlers);
     if (parent) parents.set(name, parent);
     new MutationObserver(() => {
+      // One show of this element belongs to another layer (the bio uses
+      // the load column). Skip so the Load panel's own entry is not pushed.
+      if (element.dataset.historyHold === "1") {
+        delete element.dataset.historyHold;
+        return;
+      }
       const now = element.style.display !== "none";
       if (now) {
         if (!window.layerIsOpen(name)) window.layerOpened(name);
       } else if (window.layerIsOpen(name)) {
         window.layerClosedByUI(name);
+      }
+      // dataset.historyLayer names that other layer. Hiding the element
+      // (×, map tap, another panel) closes it the same way.
+      const alias = element.dataset.historyLayer;
+      if (!now && alias) {
+        delete element.dataset.historyLayer;
+        if (window.layerIsOpen(alias)) window.layerClosedByUI(alias);
       }
     }).observe(element, { attributes: true, attributeFilter: ["style"] });
   };
