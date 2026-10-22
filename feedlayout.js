@@ -67,6 +67,7 @@ document.body.appendChild(root);
 
 let posts = [];
 let shown = 0;
+let feedSig = '';
 let savedScroll = 0;
 let peek = false;
 let revealToken = 0;
@@ -242,6 +243,54 @@ function eachPolygon(fn) {
   }
 }
 
+function polygonKey(polygon) {
+  return `p:${polygon.topicId}:${polygon.payer}:${polygon.created}:${polygon.msgNumber}`;
+}
+
+const ringCenters = new Map();
+
+function centerOf(polygon) {
+  const key = polygonKey(polygon);
+  if (ringCenters.has(key)) return ringCenters.get(key);
+  const lngLat = ringCenter(polygon);
+  ringCenters.set(key, lngLat);
+  return lngLat;
+}
+
+function newer(newest, item) {
+  if (!item || item.created == null) return newest;
+  const t = stamp(item.created);
+  return t > newest ? t : newest;
+}
+
+// Counts plus the newest created time. The 2s sync skips collect when
+// this has not changed.
+function feedSignature() {
+  let markers = 0;
+  let polygonCount = 0;
+  let chats = 0;
+  let newest = 0;
+  const markerLists = storedMarkers.length ? storedMarkers : [geojson.features];
+  for (const list of markerLists) {
+    if (!Array.isArray(list)) continue;
+    markers += list.length;
+    for (const item of list) newest = newer(newest, item);
+  }
+  const polygonLists = storedPolygons.length ? storedPolygons : [polygons];
+  for (const list of polygonLists) {
+    if (!Array.isArray(list)) continue;
+    polygonCount += list.length;
+    for (const item of list) newest = newer(newest, item);
+  }
+  for (const entry of allLoadedMessages) {
+    const messages = entry && entry.uniqueMessages && entry.uniqueMessages.messages;
+    if (!Array.isArray(messages)) continue;
+    chats += messages.length;
+    for (const item of messages) newest = newer(newest, item);
+  }
+  return `${markers}:${polygonCount}:${chats}:${newest}`;
+}
+
 function collect() {
   const out = [];
   const seen = new Set();
@@ -264,10 +313,10 @@ function collect() {
   });
   eachPolygon((polygon) => {
     if (!polygon) return;
-    const lngLat = ringCenter(polygon);
+    const lngLat = centerOf(polygon);
     if (!lngLat) return;
     add({
-      key: `p:${polygon.topicId}:${polygon.payer}:${polygon.created}:${polygon.msgNumber}`,
+      key: polygonKey(polygon),
       kind: 'polygon',
       polygon,
       lngLat,
@@ -464,18 +513,27 @@ function ensureFilled() {
 }
 
 function sync(force) {
+  const sig = feedSignature();
+  if (!force && sig === feedSig) return;
   const next = collect();
   const sameHead = (!next.length && !posts.length) || (next[0] && posts[0] && next[0].key === posts[0].key);
   const sameTail = next.length === posts.length && sameHead && (
     !next.length || (next[next.length - 1] && posts[posts.length - 1] && next[next.length - 1].key === posts[posts.length - 1].key)
   );
-  if (!force && sameTail) return;
+  if (!force && sameTail) {
+    feedSig = sig;
+    return;
+  }
   const atTop = scroller.scrollTop < 2;
   if (!force && !atTop) {
-    if (sameHead) posts = next;
+    if (sameHead) {
+      posts = next;
+      feedSig = sig;
+    }
     return;
   }
   posts = next;
+  feedSig = sig;
   shown = 0;
   column.replaceChildren();
   ensureFilled();
@@ -585,7 +643,7 @@ function openMarkerFeature(feature) {
 
 function openPolygonFeature(polygon) {
   const node = polygonPopupNode(polygon);
-  const lngLat = ringCenter(polygon);
+  const lngLat = centerOf(polygon);
   if (!node || !lngLat) return false;
   activePolygonPopups.forEach((popup) => popup.remove());
   activeMarkerPopups.forEach((popup) => popup.remove());
