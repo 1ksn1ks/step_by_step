@@ -194,6 +194,9 @@ function cullStarsToSpace() {
 
 function animate(now) {
     requestAnimationFrame(animate);
+    // Feed mode covers the globe. Skip drawing and keyboard motion until
+    // the feed peeks or closes. The next frame resumes on its own.
+    if (document.documentElement.classList.contains('feed-app')) return;
     handleMovement();
   
     const center = map.getCenter();

@@ -7001,7 +7001,8 @@ a.payer-link {
 
 /* Feed layout. The button sits in the search / compass row.
    1px is the hairline those controls already use. Everything else
-   is dvh / dvw / dvmin / clamp. Map mode leaves this hidden. */
+   is dvh / dvw / dvmin / clamp. Map mode leaves this hidden.
+   An open feed is its own opaque screen. */
 #layout-mode-btn {
   appearance: none;
   position: fixed;
@@ -7042,9 +7043,10 @@ a.payer-link {
 #feed-layout {
   position: fixed;
   inset: 0;
-  z-index: 1004;
+  z-index: 8000;
   font-family: Inter, system-ui, sans-serif;
   color: #fff;
+  background: #0a0a12;
 }
 #feed-layout.is-peek {
   visibility: hidden;
@@ -7053,8 +7055,11 @@ a.payer-link {
 .feed-dim {
   position: absolute;
   inset: 0;
-  background: rgba(5, 8, 16, 0.62);
+  background: #0a0a12;
   pointer-events: none;
+}
+html.feed-app #layout-mode-btn {
+  z-index: 8100;
 }
 #feed-scroll {
   position: absolute;
@@ -7124,8 +7129,28 @@ a.payer-link {
   height: 1.8dvh;
   flex: 0 0 auto;
 }
-#feed-column .popup-profile-bubble .popup-timestamp {
-  margin-top: calc(var(--u) * 0.35);
+#feed-column .feed-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.2dvh;
+  margin-top: 0.7dvh;
+  min-width: 0;
+}
+#feed-column .feed-meta .feed-loc {
+  margin-top: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#feed-column .feed-loc-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+#feed-column .feed-meta .popup-timestamp {
+  flex: 0 0 auto;
+  margin: 0;
 }
 #layout-mode-btn:is(:hover, .is-hold) {
   background-color: var(--press-bg);

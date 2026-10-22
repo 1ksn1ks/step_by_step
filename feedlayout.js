@@ -367,10 +367,6 @@ function buildCard(post) {
     h2.appendChild(payerUsernameNode(trimmed, record.click2link, { className: 'username' }));
   }
   header.appendChild(h2);
-  const time = document.createElement('div');
-  time.className = 'popup-timestamp';
-  time.textContent = record.timestamp || clock(post.time);
-  header.appendChild(time);
   profile.appendChild(header);
   card.appendChild(profile);
   if (record.payer) paintProfileAvatar(img, record.payer);
@@ -406,17 +402,25 @@ function buildCard(post) {
     text.dataset.clamp = '1';
   }
 
+  const meta = document.createElement('div');
+  meta.className = 'feed-meta';
   const loc = document.createElement('button');
   loc.type = 'button';
   loc.className = 'feed-loc';
   loc.appendChild(pinIcon());
-  const where = post.place ? `${post.place} · ${coordLabel(post.lngLat)}` : coordLabel(post.lngLat);
-  loc.appendChild(document.createTextNode(where));
+  const whereText = document.createElement('span');
+  whereText.className = 'feed-loc-label';
+  whereText.textContent = post.place ? `${post.place} · ${coordLabel(post.lngLat)}` : coordLabel(post.lngLat);
+  loc.appendChild(whereText);
   loc.addEventListener('click', (event) => {
     event.stopPropagation();
     openOnMap(post);
   });
-  card.appendChild(loc);
+  const time = document.createElement('div');
+  time.className = 'popup-timestamp';
+  time.textContent = record.timestamp || clock(post.time);
+  meta.append(loc, time);
+  card.appendChild(meta);
   return card;
 }
 
@@ -480,6 +484,14 @@ function feedOn() {
   return root.style.display !== 'none';
 }
 
+// Opaque feed is its own screen. The class lifts the layout toggle above
+// that screen and tells the globe loop to skip frames. Peek and map mode
+// clear it so the map chrome comes back as it was.
+function syncCover() {
+  const open = root.style.display !== 'none' && !root.classList.contains('is-peek');
+  document.documentElement.classList.toggle('feed-app', open);
+}
+
 function rememberScroll() {
   if (root.classList.contains('is-peek')) return;
   savedScroll = scroller.scrollTop;
@@ -491,6 +503,7 @@ function rememberScroll() {
 function reveal() {
   peek = false;
   root.classList.remove('is-peek');
+  syncCover();
   const y = savedScroll;
   requestAnimationFrame(() => { scroller.scrollTop = y; });
 }
@@ -590,6 +603,7 @@ function openOnMap(post) {
   rememberScroll();
   peek = true;
   root.classList.add('is-peek');
+  syncCover();
   if (post.kind === 'marker' && post.feature && openMarkerFeature(post.feature)) return;
   if (post.kind === 'polygon' && post.polygon && openPolygonFeature(post.polygon)) return;
   flyOnly(post.lngLat);
@@ -602,6 +616,7 @@ function applyFeed(on) {
     peek = false;
     root.classList.remove('is-peek');
     root.style.display = 'block';
+    syncCover();
     sync(column.childElementCount === 0 || scroller.scrollTop < 2);
     return;
   }
@@ -609,6 +624,7 @@ function applyFeed(on) {
   revealToken += 1;
   root.classList.remove('is-peek');
   root.style.display = 'none';
+  syncCover();
 }
 
 if (window.defineLayer) {
@@ -617,6 +633,7 @@ if (window.defineLayer) {
     open: (state) => {
       peek = true;
       root.classList.add('is-peek');
+      syncCover();
       const y = Number(state && state.scroll);
       if (Number.isFinite(y)) savedScroll = y;
       if (state && state.lng != null && state.lat != null) {
@@ -652,6 +669,7 @@ if (window.layerPopupOpened) {
       peek = true;
       root.classList.add('is-peek');
       revealToken += 1;
+      syncCover();
     }
     return opened(popup, data);
   };
