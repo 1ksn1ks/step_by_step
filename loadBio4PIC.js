@@ -1,10 +1,10 @@
 import { loadTopicBio, usernames, profilePictures, click2url, profileTopics } from './loadalladata';
-import { followControls, followPersonControls } from './followtopic';
+import { followPersonControls } from './followtopic';
 import { activePolygonPopups } from './polygons';
 import { activeMarkerPopups } from './marker';
 import { CloseALL, OpenToggleToolbar } from './cssLogic';
 import { adjustTextareaHeight } from './adjusttextarea';
-import { fillTopicIds } from './topicidintext';
+import { fillTopicIds, useTopicId } from './topicidintext';
 import { payerUsernameNode } from './payerlink.js';
 import { paintProfileAvatar } from './earlyhashinal.js';
 import { forgetProfileTree } from './markertilt.js';
@@ -192,8 +192,11 @@ export async function loadBio4PIC(payer) {
         const topicLine = document.createElement('div');
         topicLine.className = 'profile-live-topic profile-connected-topic';
         topicLine.textContent = home;
+        topicLine.addEventListener('click', (event) => {
+          event.stopPropagation();
+          useTopicId(home);
+        });
         card.appendChild(topicLine);
-        card.appendChild(followControls(home, payer));
       }
       loaded_text_area.appendChild(card);
       adjustTextareaHeight(loaded_text_area);

@@ -275,6 +275,49 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS shares_created ON shares(topic_id, created);
 `);
 db.exec("CREATE INDEX IF NOT EXISTS topic_follows_account ON topic_follows(account_id)");
+// Latest explicit person-follow on 0.0.10923187. following 0 is an unfollow,
+// and that row still wins over a converted topic follow for the same pair.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_follow_explicit (
+    follower  TEXT NOT NULL,
+    followee  TEXT NOT NULL,
+    following INTEGER NOT NULL,
+    PRIMARY KEY (follower, followee)
+  );
+`);
+db.exec("CREATE INDEX IF NOT EXISTS user_follow_explicit_followee ON user_follow_explicit(followee)");
+db.exec("CREATE INDEX IF NOT EXISTS user_settings_topic ON user_settings(topic)");
+// Real person-follows win. A topic follow counts only when that topic is
+// someone's current profile topic and this pair has no explicit row.
+const effectiveFolloweesSql = `
+  SELECT followee FROM user_follow_explicit
+  WHERE follower = ? AND following = 1
+  UNION
+  SELECT s.account_id AS followee
+  FROM topic_follows t
+  JOIN user_settings s
+    ON s.topic = t.topic_id
+   AND IFNULL(s.topic, '') != ''
+  WHERE t.account_id = ?
+    AND NOT EXISTS (
+      SELECT 1 FROM user_follow_explicit e
+      WHERE e.follower = t.account_id AND e.followee = s.account_id
+    )
+`;
+const effectiveFollowersSql = `
+  SELECT follower FROM user_follow_explicit
+  WHERE followee = ? AND following = 1
+  UNION
+  SELECT t.account_id AS follower
+  FROM user_settings s
+  JOIN topic_follows t ON t.topic_id = s.topic
+  WHERE s.account_id = ?
+    AND IFNULL(s.topic, '') != ''
+    AND NOT EXISTS (
+      SELECT 1 FROM user_follow_explicit e
+      WHERE e.follower = t.account_id AND e.followee = s.account_id
+    )
+`;
 // settings_generation stays for the life of this database file. A new file
 // (a rebuilt cache) gets a new id so phones drop their copy and take the
 // directory again. settings_revision counts writes, not message time.
@@ -436,23 +479,27 @@ const q = {
   unfollowUser: db.prepare(
     "DELETE FROM user_follows WHERE follower = ? AND followee = ?"
   ),
+  setExplicitFollow: db.prepare(`
+    INSERT INTO user_follow_explicit (follower, followee, following) VALUES (?, ?, ?)
+    ON CONFLICT(follower, followee) DO UPDATE SET following = excluded.following
+  `),
   countUserFollowers: db.prepare(
-    "SELECT COUNT(*) AS n FROM user_follows WHERE followee = ?"
+    `SELECT COUNT(*) AS n FROM (${effectiveFollowersSql}) c`
   ),
   getUserFollow: db.prepare(
-    "SELECT follower FROM user_follows WHERE follower = ? AND followee = ?"
+    `SELECT 1 AS hit FROM (${effectiveFolloweesSql}) f WHERE f.followee = ? LIMIT 1`
   ),
   listUserFollowing: db.prepare(
-    "SELECT followee FROM user_follows WHERE follower = ? ORDER BY followee"
+    `SELECT followee FROM (${effectiveFolloweesSql}) f ORDER BY followee LIMIT 500`
   ),
   listUserFollowingDetail: db.prepare(`
-    SELECT u.followee AS id,
+    SELECT f.followee AS id,
            COALESCE(s.username, '') AS username,
-           COALESCE(s.profile_pic, '') AS avatar
-    FROM user_follows u
-    LEFT JOIN user_settings s ON s.account_id = u.followee
-    WHERE u.follower = ?
-    ORDER BY u.followee
+           COALESCE(s.profile_pic, '') AS avatar,
+           COALESCE(NULLIF(s.topic, ''), '') AS topic
+    FROM (${effectiveFolloweesSql}) f
+    LEFT JOIN user_settings s ON s.account_id = f.followee
+    ORDER BY f.followee
     LIMIT 500
   `),
   listTopicFollowing: db.prepare(
@@ -460,7 +507,7 @@ const q = {
   ),
   followingFeed: db.prepare(`
     SELECT topic_id, seq, ts, payer, body FROM messages
-    WHERE payer IN (SELECT followee FROM user_follows WHERE follower = ?)
+    WHERE payer IN (${effectiveFolloweesSql})
     ORDER BY ts DESC, seq DESC
     LIMIT ?
   `),
@@ -710,7 +757,8 @@ function extractFollow(topicId, payer, body) {
 }
 
 // Person follows live on one global topic. The body is the followee account.
-// The payer is the follower. A repeat of the same pair does not add a row.
+// The payer is the follower. The latest message for a pair wins, and an
+// explicit unfollow stays recorded so a converted topic follow cannot undo it.
 function extractUserFollow(payer, body) {
   let data;
   try {
@@ -719,8 +767,13 @@ function extractUserFollow(payer, body) {
     return;
   }
   if (!data || typeof data !== "object" || !isTopicId(payer)) return;
-  if (isTopicId(data.follow)) q.followUser.run(payer, data.follow);
-  else if (isTopicId(data.unfollow)) q.unfollowUser.run(payer, data.unfollow);
+  if (isTopicId(data.follow)) {
+    q.followUser.run(payer, data.follow);
+    q.setExplicitFollow.run(payer, data.follow, 1);
+  } else if (isTopicId(data.unfollow)) {
+    q.unfollowUser.run(payer, data.unfollow);
+    q.setExplicitFollow.run(payer, data.unfollow, 0);
+  }
 }
 
 // One-time startup: if user_settings is empty but the profile topics already
@@ -750,6 +803,29 @@ function backfillUserFollows() {
     .prepare("SELECT payer, body FROM messages WHERE topic_id = ? ORDER BY seq ASC")
     .all(FOLLOW_TOPIC);
   for (const r of rows) extractUserFollow(r.payer, r.body);
+}
+
+// Once, when this cache has no explicit rows yet: replay the follow topic
+// (oldest first) and keep any positive row whose message is no longer stored.
+function backfillExplicitFollows() {
+  const { n } = db.prepare("SELECT COUNT(*) AS n FROM user_follow_explicit").get();
+  if (n > 0) return;
+  const rows = db
+    .prepare("SELECT payer, body FROM messages WHERE topic_id = ? ORDER BY seq ASC")
+    .all(FOLLOW_TOPIC);
+  const seed = db.prepare(`
+    INSERT OR IGNORE INTO user_follow_explicit (follower, followee, following)
+    SELECT follower, followee, 1 FROM user_follows
+  `);
+  db.exec("BEGIN");
+  try {
+    for (const r of rows) extractUserFollow(r.payer, r.body);
+    seed.run();
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
 }
 
 // Rows saved before revisions existed get a number, oldest first, so a
@@ -2248,10 +2324,11 @@ app.post("/api/upload", async (req, res) => {
 
 const isTopicId = (s) => typeof s === "string" && /^\d+\.\d+\.\d+$/.test(s);
 backfillUserFollows();
+backfillExplicitFollows();
 
 function userFollowState(account, followee) {
-  const counted = q.countUserFollowers.get(followee);
-  const following = isTopicId(account) ? !!q.getUserFollow.get(account, followee) : false;
+  const counted = q.countUserFollowers.get(followee, followee);
+  const following = isTopicId(account) ? !!q.getUserFollow.get(account, account, followee) : false;
   return { ok: true, followers: counted ? Number(counted.n) || 0 : 0, following };
 }
 
@@ -2480,12 +2557,13 @@ app.post("/api/user-follow", rateLimit, (req, res) => {
 app.get("/api/following", publicPostLimit, (req, res) => {
   const account = req.query.account;
   if (!isTopicId(account)) return res.status(400).json({ ok: false, error: "bad account" });
-  const following = q.listUserFollowing.all(account).map((row) => row.followee).slice(0, 500);
-  const accounts = q.listUserFollowingDetail.all(account).map((row) => ({
+  const accounts = q.listUserFollowingDetail.all(account, account).map((row) => ({
     id: row.id,
     username: row.username || "",
     avatar: row.avatar || "",
+    topic: row.topic || "",
   }));
+  const following = accounts.map((row) => row.id);
   const topics = q.listTopicFollowing.all(account).map((row) => ({
     id: row.topic_id,
     name: topicNameFor(row.topic_id) || "",
@@ -2498,7 +2576,7 @@ app.get("/api/following-feed", rateLimit, (req, res) => {
   const account = req.query.account;
   if (!isTopicId(account)) return res.status(400).json({ ok: false, error: "bad account" });
   const limit = Math.min(200, Math.max(1, Math.floor(Number(req.query.limit) || 50)));
-  const messages = q.followingFeed.all(account, limit).map((row) => ({
+  const messages = q.followingFeed.all(account, account, limit).map((row) => ({
     ...toAppMessage(row),
     topic: row.topic_id,
   }));

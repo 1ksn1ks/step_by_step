@@ -1,6 +1,6 @@
 // A profile is connected to one topic. Shares are messages on that topic.
 // Followers of that topic are one row each, same idea as a view count.
-import { sendMessage, topicFollow, userFollow } from './msgbackend';
+import { sendMessage, userFollow } from './msgbackend';
 import { signer, connectedAccount } from './web3';
 import { profileTopics } from './loadalladata';
 import { toast } from './toast';
@@ -14,9 +14,6 @@ const FOLLOW_TOPIC = '0.0.10923187';
 // Account ids and topic ids share the 0.0. shape, so they stay in two maps.
 const personCounts = createFollowLoader({
   fetchCount: (followee, viewer) => userFollow(followee, viewer),
-});
-const topicCounts = createFollowLoader({
-  fetchCount: (topicId, viewer) => topicFollow(topicId, viewer),
 });
 
 // Starts the person-count read before the profile popup opens.
@@ -539,29 +536,6 @@ function mountFollowControl(box, btn, count, read, isMine, send, options) {
       if (gen === generation) settling = false;
     }
   });
-}
-
-// The count, plus Follow or Unfollow. Hidden on your own topic.
-export function followControls(topicId, ownerAccount) {
-  const box = document.createElement('div');
-  box.className = 'topic-follow';
-  if (!topicId) return box;
-  const count = countChip();
-  const btn = followButton();
-  box.append(btn, count);
-  mountFollowControl(
-    box,
-    btn,
-    count,
-    () => topicCounts.load(topicId, connectedAccount || ''),
-    () => !!(ownerAccount && connectedAccount && ownerAccount === connectedAccount),
-    (next) => sendMessage(topicId, JSON.stringify(next ? { follow: { follow: '1' } } : { unfollow: { unfollow: '1' } })),
-    {
-      known: () => topicCounts.cached(topicId, connectedAccount || ''),
-      remember: (data) => topicCounts.remember(topicId, connectedAccount || '', data),
-    },
-  );
-  return box;
 }
 
 // Same button for a person. Hidden on your own profile. The message names

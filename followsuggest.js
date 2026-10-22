@@ -104,7 +104,14 @@ function matches(query, ...fields) {
   return fields.some((field) => String(field || '').toLowerCase().includes(needle));
 }
 
-function buildItems(data, kinds, query) {
+function accountTopic(account, id) {
+  if (profileTopics[id]) return String(profileTopics[id]);
+  if (account && account.topic) return String(account.topic);
+  return '';
+}
+
+function buildItems(data, spec, query) {
+  const kinds = spec.kinds || [];
   const items = [];
   const wantTopics = kinds.indexOf('topics') !== -1;
   const wantAccounts = kinds.indexOf('accounts') !== -1;
@@ -118,27 +125,28 @@ function buildItems(data, kinds, query) {
     }
   }
   if (wantAccounts) {
-    const accountsOnly = !wantTopics;
     const accounts = [];
     for (const account of data.accounts || []) {
       if (!account || !account.id) continue;
       const id = String(account.id);
       const clientName = usernames[id] && usernames[id].username;
       const username = String(clientName || account.username || '');
-      if (!matches(query, username, id)) continue;
+      const topic = accountTopic(account, id);
+      if (!matches(query, username, id, topic)) continue;
       const clientPic = profilePictures[id] && profilePictures[id].url;
       const avatar = safeHttpUrl(clientPic) || safeHttpUrl(account.avatar) || DEFAULT_AVATAR;
-      const hasTopic = !!profileTopics[id];
+      const hasTopic = !!topic;
       accounts.push({
         kind: 'account',
         id,
         username,
         avatar,
+        topic,
         hasTopic,
-        dim: accountsOnly && !hasTopic,
+        dim: !!spec.dimMissing && !hasTopic,
       });
     }
-    if (accountsOnly) {
+    if (spec.dimMissing) {
       accounts.sort((a, b) => (a.hasTopic === b.hasTopic ? 0 : a.hasTopic ? -1 : 1));
     }
     for (const account of accounts) items.push(account);
@@ -391,7 +399,7 @@ function render() {
     hideList();
     return;
   }
-  rows = buildItems(data, openSpec.kinds, openInput.value || '');
+  rows = buildItems(data, openSpec, openInput.value || '');
   activeIndex = -1;
   if (!rows.length) {
     hideList();
@@ -430,7 +438,7 @@ function pick(index) {
   const submit = openSpec && openSpec.submit;
   if (!item || !input || !submit) return;
   picking = true;
-  input.value = item.id;
+  input.value = openSpec.fill === 'topic' && item.topic ? item.topic : item.id;
   input.dispatchEvent(new Event('input', { bubbles: true }));
   picking = false;
   close();
@@ -524,12 +532,14 @@ function arm(input) {
   input.spellcheck = false;
 }
 
-export function attachFollowSuggest(input, { kinds, submit } = {}) {
+export function attachFollowSuggest(input, { kinds, submit, fill, dimMissing } = {}) {
   if (!input || armed.has(input)) return;
   armed.add(input);
   const spec = {
     input,
     kinds: Array.isArray(kinds) ? kinds.slice() : [],
+    fill: fill === 'topic' ? 'topic' : 'account',
+    dimMissing: !!dimMissing,
     submit: typeof submit === 'function' ? submit : function () {},
     panel: document.getElementById(PANELS[input.id] || '') || null,
   };
@@ -557,9 +567,9 @@ function boot() {
   const load = document.getElementById('input-field');
   const topic = document.getElementById('topic-chat-topic-id');
   const e2ee = document.getElementById('encrypted-chat-topic-id');
-  if (load) attachFollowSuggest(load, { kinds: ['topics', 'accounts'], submit: submitLoad });
-  if (topic) attachFollowSuggest(topic, { kinds: ['topics'], submit: submitTopic });
-  if (e2ee) attachFollowSuggest(e2ee, { kinds: ['accounts'], submit: submitE2ee });
+  if (load) attachFollowSuggest(load, { kinds: ['accounts'], fill: 'topic', submit: submitLoad });
+  if (topic) attachFollowSuggest(topic, { kinds: ['accounts'], fill: 'topic', submit: submitTopic });
+  if (e2ee) attachFollowSuggest(e2ee, { kinds: ['accounts'], dimMissing: true, submit: submitE2ee });
   document.addEventListener('pointerdown', onDocPointer, true);
   document.addEventListener('profiles-loaded', () => {
     if (openInput && list && !list.hidden) render();
