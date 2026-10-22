@@ -13,7 +13,7 @@ import { activeMarkerPopups } from './marker.js';
 import { scene } from './threejs.js'
 import { renderLoadedTopics } from './handleallmessages.js';
 import { toast } from './toast.js';
-import { HCS_MESSAGE_MAX_BYTES, HCS_SHOW_COUNTER_AFTER } from './hcschunks.js';
+import { formatHcsUsage, HCS_TOO_LONG } from './hcschunks.js';
 import { composerWireBytes } from './chatimage.js';
 import { closeDrawAnchor } from './drawhere.js';
 import { closePressAnchor } from './poiinfo.js';
@@ -705,23 +705,34 @@ export function CloseALL() {
   // costs 2 bytes. E2EE bytes are the plaintext that is encrypted: 1 byte
   // per newline, or 2 once an image wraps the text in JSON.
   [
-    ["user-write-message", "char-counter", "topic"],
-    ["user-write-message-encrypted-chat", "char-counter-encrypted-chat", "e2ee"],
-  ].forEach(([id, counterId, kind]) => {
+    ["user-write-message", "char-counter", "topic", "post-msg"],
+    ["user-write-message-encrypted-chat", "char-counter-encrypted-chat", "e2ee", "post-msg-encrypted-chat"],
+  ].forEach(([id, counterId, kind, sendId]) => {
     const ta = document.getElementById(id);
     const counter = document.getElementById(counterId);
+    const send = document.getElementById(sendId);
     const paintBytes = () => {
       if (!counter) return;
-      const bytes = composerWireBytes(kind, ta.value);
-      if (bytes <= HCS_SHOW_COUNTER_AFTER) {
-        counter.hidden = true;
-        return;
-      }
+      const usage = formatHcsUsage(composerWireBytes(kind, ta.value));
       counter.hidden = false;
-      counter.textContent = `${bytes} / ${HCS_MESSAGE_MAX_BYTES}`;
+      counter.textContent = usage.text;
+      counter.classList.toggle("hcs-warn", usage.warn);
+      counter.classList.toggle("hcs-over", usage.over);
+      // A disabled control never receives the click, so the too-long toast
+      // could not show. The class blocks the send and keeps the click.
+      if (send) send.classList.toggle("hcs-send-blocked", usage.over);
     };
     ta.addEventListener("input", paintBytes);
     document.addEventListener("chat-image-changed", paintBytes);
+    paintBytes();
+    if (!send || send.dataset.hcsWatch) return;
+    send.dataset.hcsWatch = "1";
+    send.addEventListener("click", (event) => {
+      if (!send.classList.contains("hcs-send-blocked")) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      toast.error(HCS_TOO_LONG);
+    }, true);
   });
 
   document.getElementById("topic-chat-btn").addEventListener("click", (event) => {

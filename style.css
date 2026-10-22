@@ -2019,10 +2019,26 @@ html, body {
     bottom: calc(var(--u) * 0.35);
     font-size: 2vh;
     line-height: 1;
-    font-weight: 700;
-    color: #22d3ee;
     pointer-events: none;
     z-index: 1;
+}
+.hcs-byte-counter {
+    color: #22d3ee;
+}
+.hcs-byte-counter.hcs-warn {
+    color: #f5b942;
+}
+.hcs-byte-counter.hcs-over {
+    color: #ff5c5c;
+}
+#post-msg.hcs-send-blocked,
+#post-msg-encrypted-chat.hcs-send-blocked,
+#submit-button-Create_Marker.hcs-send-blocked,
+#submit-button-Create_encrypted-Marker.hcs-send-blocked,
+#submit-button-Create_Polygon.hcs-send-blocked,
+#submit-button-Create_encrypted-Polygon.hcs-send-blocked {
+    opacity: 0.45;
+    cursor: default;
 }
 #draw-column .draw-popup-title::after {
     content: attr(data-left);

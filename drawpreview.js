@@ -1,7 +1,8 @@
 // The draw forms type the post on a popup instead of separate fields.
 // The hidden textareas stay, because submit still reads those.
 import { connectedAccount } from "./web3.js";
-import { HCS_MESSAGE_MAX_BYTES, HCS_SHOW_COUNTER_AFTER, utf8ByteLength, normalizeMessageNewlines } from "./hcschunks.js";
+import { formatHcsUsage, HCS_TOO_LONG, utf8ByteLength, normalizeMessageNewlines } from "./hcschunks.js";
+import { toast } from "./toast.js";
 import { profilePictures, usernames, click2url } from "./loadalladata.js";
 import { payerUsernameNode, safeHttpUrl } from "./payerlink.js";
 import { paintProfileAvatar } from "./earlyhashinal.js";
@@ -190,25 +191,44 @@ function polygonWire() {
   });
 }
 
-function paintByteCounter(counterId, wire) {
+function paintByteCounter(counterId, wire, sendIds) {
   const counter = document.getElementById(counterId);
   if (!counter) return;
-  const bytes = utf8ByteLength(wire);
-  if (bytes <= HCS_SHOW_COUNTER_AFTER) {
-    counter.hidden = true;
-    counter.textContent = "";
-    return;
-  }
+  const usage = formatHcsUsage(utf8ByteLength(wire));
   counter.hidden = false;
-  counter.textContent = `${bytes} / ${HCS_MESSAGE_MAX_BYTES}`;
+  counter.textContent = usage.text;
+  counter.classList.toggle("hcs-warn", usage.warn);
+  counter.classList.toggle("hcs-over", usage.over);
+  for (const id of sendIds) {
+    const button = document.getElementById(id);
+    if (button) button.classList.toggle("hcs-send-blocked", usage.over);
+  }
 }
 
 function paintMarkerBytes() {
-  paintByteCounter("draw-marker-bytes", markerWire());
+  paintByteCounter("draw-marker-bytes", markerWire(), [
+    "submit-button-Create_Marker",
+    "submit-button-Create_encrypted-Marker",
+  ]);
 }
 
 function paintPolygonBytes() {
-  paintByteCounter("draw-polygon-bytes", polygonWire());
+  paintByteCounter("draw-polygon-bytes", polygonWire(), [
+    "submit-button-Create_Polygon",
+    "submit-button-Create_encrypted-Polygon",
+  ]);
+}
+
+function watchOverLimitSend(id) {
+  const button = document.getElementById(id);
+  if (!button || button.dataset.hcsWatch) return;
+  button.dataset.hcsWatch = "1";
+  button.addEventListener("click", (event) => {
+    if (!button.classList.contains("hcs-send-blocked")) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    toast.error(HCS_TOO_LONG);
+  }, true);
 }
 
 function bindEditable(editorId, fieldId, singleLine) {
@@ -405,6 +425,12 @@ for (const id of ["input-field-3-3", "input-field-3-5", "input-field-image-polyg
   const node = document.getElementById(id);
   if (node) node.addEventListener("input", paintPolygonBytes);
 }
+for (const id of [
+  "submit-button-Create_Marker",
+  "submit-button-Create_encrypted-Marker",
+  "submit-button-Create_Polygon",
+  "submit-button-Create_encrypted-Polygon",
+]) watchOverLimitSend(id);
 bindEditable("draw-marker-topic", "input-field-2-0", true);
 bindEditable("draw-polygon-topic", "input-field-3-0", true);
 bindUpload("draw-marker-media", "upload-media-marker-file", "input-field-image-marker", (url) => paintMedia("draw-marker-media", url, "image"));

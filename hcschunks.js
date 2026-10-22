@@ -25,6 +25,18 @@ export function utf8ByteLength(text) {
   return encoder.encode(text == null ? "" : String(text)).length;
 }
 
+// Live size of one 18 KB topic message. Under 1 KB the used size is whole
+// bytes. From 1 KB it is one decimal. A second chunk adds the wallet count.
+export function formatHcsUsage(bytes) {
+  const n = Math.max(0, Number(bytes) || 0);
+  const over = n > HCS_MESSAGE_MAX_BYTES;
+  const warn = !over && n > HCS_MESSAGE_MAX_BYTES * 0.9;
+  const used = n < HCS_CHUNK_SIZE ? `${n} B` : `${(n / HCS_CHUNK_SIZE).toFixed(1)} KB`;
+  let text = `${used} / 18 KB`;
+  if (n > HCS_CHUNK_SIZE) text += `  ${Math.ceil(n / HCS_CHUNK_SIZE)} approvals`;
+  return { text, warn, over };
+}
+
 // Stored text keeps real newline characters. Carriage returns become
 // one newline, runs of three or more collapse to a blank line, and
 // newlines at the ends are dropped. Spaces stay.
