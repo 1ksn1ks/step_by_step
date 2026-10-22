@@ -13,6 +13,7 @@
 // moon picture; clicking the moon opens 1mhbar.com. The moon's on-screen size
 // grows as you zoom out and shrinks as you zoom in.
 import { map } from './map.js';
+import { watchMarkerTilt, forgetMarkerTilt } from './markertilt.js';
 
 const MOON_RENDER_DIST = 3; // Earth radii (the real ~60 is a sub-pixel speck; 3 stays clearly in space)
 const MAP_FOV = 45; // the map's fov option (map.js leaves it at the engine default)
@@ -236,6 +237,20 @@ function bindMoonTouch() {
 }
 bindMoonTouch();
 
+// Same desktop query the marker title uses. A touch device never registers,
+// so the shared tilt loop has nothing to lean. The values, the ease, and
+// the settle-back live in markertilt.js.
+function bindMoonHover(face) {
+  const query = window.matchMedia('(hover: hover) and (pointer: fine)');
+  const sync = () => {
+    if (!face.isConnected) return;
+    if (query.matches) watchMarkerTilt(face);
+    else forgetMarkerTilt(face);
+  };
+  sync();
+  query.addEventListener('change', sync);
+}
+
 // Called every frame from the animate() loop in threejs.js.
 export function updateMoon() {
   const now = Date.now();
@@ -246,13 +261,19 @@ export function updateMoon() {
     if (stale) stale.remove();
     moonEl = document.createElement('div');
     moonEl.id = 'moon';
+    // The lean is the marker tilt, on an inner face. #moon keeps the
+    // placement transform updateMoon writes every frame, the same split
+    // as a marker box and its .marker-face.
+    const face = document.createElement('div');
+    face.className = 'moon-face';
     // The 1M $HBAR wall snapshot on top of the moon picture — styled in
     // style.css as the circle's inscribed square so the whole thing fits
     // without being cropped
     const wall = document.createElement('iframe');
     wall.src = 'https://1mhbar.com/snapshot';
     wall.title = '1M $HBAR wall';
-    moonEl.appendChild(wall);
+    face.appendChild(wall);
+    moonEl.appendChild(face);
     // Rendered INSIDE the map container (not #three-container) so it stacks
     // between the canvas and the popups: MapLibre appends popups to this same
     // container after the moon, so an open popup always paints over the moon.
@@ -261,6 +282,7 @@ export function updateMoon() {
     // and the wheel still reach the map; touches inside the disc are stopped
     // in bindMoonTouch before they get there.
     map.getContainer().appendChild(moonEl);
+    bindMoonHover(face);
   }
   if (!subLunar || now - subLunarAt >= 1000) {
     // The moon moves ~0.1°/min — a 1s cache is invisible and skips the trig

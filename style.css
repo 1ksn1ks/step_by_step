@@ -86,15 +86,24 @@ html, body {
     left: 0;
     width: 3.4vh;
     height: 3.4vh;
-    border-radius: 50%;
     /* pointer-events: none so a mouse drag or the scroll wheel over the moon
        still reaches the map. Touches do not: moon.js stops any touch inside
-       the disc before the map sees it, at every zoom. overflow clips the
-       embedded wall iframe to the circle. */
+       the disc before the map sees it, at every zoom. The face holds the
+       circle clip so a lean is not cut off by this box. */
     pointer-events: none;
-    overflow: hidden;
+    overflow: visible;
     /* Above the star canvas (1), under map popups (1000) and the chrome. */
     z-index: 2;
+  }
+  /* Same picture and circle as before. The marker tilt writes its transform
+     on this face; at rest it fills #moon, so size and placement stay put. */
+  #moon .moon-face {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    pointer-events: none;
+    overflow: hidden;
+    transform-origin: center center;
     background: #05070c url('./moon.jpg') center / 125% 120% no-repeat;
   }
   /* The wall snapshot — the circle's inscribed square (1/√2 ≈ 70.71%) so the
@@ -4812,6 +4821,7 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .marker-face,
   .cluster-face,
+  .moon-face,
   .popup-profile-bubble > img,
   .popup-profile-bubble > .early-hashinal,
   .profile-live-bubble > .profile-live-pic,

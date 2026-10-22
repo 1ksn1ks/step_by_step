@@ -68,7 +68,9 @@ function hostDepth(host) {
 // The watched face whose host contains the element under the pointer.
 // Marker and cluster hosts are the outer box, so this matches the old
 // .marker / .cluster-bubble lookup. A picture's host is the picture
-// itself, or the ring wrapped around it.
+// itself, or the ring wrapped around it. The moon stays pointer-events:none
+// so a drag still hits the map; its face is chosen by the same box when
+// the hit is the canvas. A finger never takes that path.
 function faceAtPointer() {
   if (!pointer) return null;
   const hit = document.elementFromPoint(pointer.x, pointer.y);
@@ -78,6 +80,21 @@ function faceAtPointer() {
   for (const face of faces) {
     const host = face._tilt && face._tilt.host;
     if (!host || !host.contains(hit)) continue;
+    const depth = hostDepth(host);
+    if (depth >= bestDepth) {
+      best = face;
+      bestDepth = depth;
+    }
+  }
+  if (best || touching) return best;
+  if (typeof hit.closest !== 'function' || !hit.closest('.maplibregl-canvas')) return null;
+  for (const face of faces) {
+    if (!face.classList || !face.classList.contains('moon-face')) continue;
+    const host = face._tilt && face._tilt.host;
+    if (!host || !host.isConnected) continue;
+    const box = host.getBoundingClientRect();
+    if (box.width < 1 || box.height < 1) continue;
+    if (pointer.x < box.left || pointer.x > box.right || pointer.y < box.top || pointer.y > box.bottom) continue;
     const depth = hostDepth(host);
     if (depth >= bestDepth) {
       best = face;
