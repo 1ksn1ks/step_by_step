@@ -270,6 +270,14 @@ export function CloseALL() {
         },
       }, parent);
     };
+    // OPTIONS opens SETTINGS / VISIBILITY / TOOLBAR together. One button's
+    // display is the layer: Back runs CloseALL, Forward clicks OPTIONS.
+    // A map tap, tapping OPTIONS's spot, or picking one of those buttons
+    // also runs CloseALL, so the entry is dropped with the other layers.
+    window.watchDisplayLayer("options-menu", document.getElementById("toggle-toolbar-btn"), {
+      open: () => document.getElementById("main-toggle-btn").click(),
+      close: () => CloseALL(),
+    });
     panelLayer("toolbar", "toggle-toolbar-btn");
     subColumn("Edit_Profile-column", "Edit_Profile", "toolbar", "toggle-toolbar-btn", ["Edit_Profile-column-container"]);
     subColumn("load-column", "Load_Everything", "toolbar", "toggle-toolbar-btn", ["load-column-container"]);
