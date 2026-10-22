@@ -157,16 +157,102 @@
   // Closed by the layer's own controls (×/‹, Escape, map tap). When it
   // is the top layer, history moves back so the entry does not pile up.
   // A layer that is not on top (a newer layer opened in the same
-  // gesture, e.g. the draw pin replacing a popup on a map tap) only
-  // drops its stack entry; its history entry is consumed later by Back
-  // as a no-op, or reopens on Forward.
+  // gesture, e.g. the draw pin replacing a popup) only drops its stack
+  // entry; that entry is consumed later by Back as a no-op, or reopens
+  // on Forward. A watched panel CloseALL already hid is the exception:
+  // its entry is pulled out from under the new top.
+  //
+  // A sub-column keeps its parent (toolbar, rotation-controls) on the
+  // stack with display:none so one Back can return to that panel.
+  // CloseALL hides that parent too. Once the closing gesture has
+  // finished — a same-turn re-show may have put the parent back on
+  // screen — drop every new top whose watched element is still
+  // display:none and schedule one more back for each. Checked one
+  // microtask late so the toolbar / settings button can show the parent
+  // before the sweep looks.
+  let sweepQueued = false;
+  function queueSweep() {
+    if (sweepQueued) return;
+    sweepQueued = true;
+    queueMicrotask(() => {
+      sweepQueued = false;
+      while (open.length) {
+        const under = open[open.length - 1];
+        const el = watched.get(under);
+        if (!el || el.style.display !== "none") break;
+        open.pop();
+        position -= 1;
+        deferBack(under);
+      }
+    });
+  }
+
+  // Map tap opens the draw pin, then CloseALL hides the sub-column.
+  // The column is not the top anymore, so its entry — and the hidden
+  // parent under it — would sit between the pin and the page. Step back
+  // over that run and push the pin again, so one Back closes the pin.
+  let rewind = 0;
+  let rewindState = null;
+  let exciseQueued = false;
+  function hiddenWatched(name) {
+    const el = watched.get(name);
+    return !!(el && el.style.display === "none");
+  }
+  function beginRewind(steps, state) {
+    rewind = steps;
+    rewindState = state;
+    skipNextPop = true;
+    history.back();
+  }
+  function queueExcise() {
+    if (exciseQueued) return;
+    exciseQueued = true;
+    queueMicrotask(() => {
+      exciseQueued = false;
+      if (!open.length || rewind) return;
+      const top = open[open.length - 1];
+      if (hiddenWatched(top)) return;
+      const keep = new Set();
+      for (const name of open) {
+        const parent = parents.get(name);
+        if (parent) keep.add(parent);
+      }
+      for (let n = open.length - 1; n >= 0; n--) {
+        if (open[n] === top) continue;
+        if (hiddenWatched(open[n]) && !keep.has(open[n])) open.splice(n, 1);
+      }
+      let drop = 0;
+      for (let i = position - 1; i >= 1; i--) {
+        const name = idToLayer.get(entries[i]);
+        if (!hiddenWatched(name) || keep.has(name)) break;
+        drop += 1;
+      }
+      if (!drop) return;
+      const state = idToState.get(entries[position]);
+      if (!state) return;
+      for (let i = position - drop; i < position; i++) {
+        idToLayer.delete(entries[i]);
+        idToState.delete(entries[i]);
+      }
+      entries.splice(position - drop, drop);
+      position -= drop;
+      beginRewind(drop + 1, state);
+    });
+  }
+
   window.layerClosedByUI = function (name) {
     const i = open.lastIndexOf(name);
     if (i < 0) return; // no history entry to consume
     open.splice(i, 1);
-    if (i !== open.length) return; // was not the top layer
+    if (i !== open.length) {
+      // Not the top (the draw pin already replaced it). Still drop a
+      // hidden watched parent this close left underneath that top.
+      queueExcise();
+      return;
+    }
     position -= 1;
     deferBack(name); // our own history.back() must not double-close
+    queueSweep();
   };
 
   // Display watcher: for panels whose every open/close path lands on the
@@ -178,6 +264,7 @@
   // Sub-layers (sub-columns, memo sub-pages): the name of the panel they
   // sit inside, so Back can walk down one level instead of to the map.
   const parents = new Map(); // name -> parent name
+  const watched = new Map(); // name -> element, for display-watched layers
 
   // The open stack, not the element's last known display, is the authority
   // on whether a layer still owns a history entry: a close path (or Back)
@@ -187,6 +274,7 @@
 
   window.watchDisplayLayer = function (name, element, handlers, parent) {
     if (!element) return;
+    watched.set(name, element);
     if (handlers) registry.set(name, handlers);
     if (parent) parents.set(name, parent);
     new MutationObserver(() => {
@@ -208,6 +296,19 @@
   window.addEventListener('popstate', () => {
     if (skipNextPop) {
       skipNextPop = false;
+      // Map-tap excise: walk back over the hidden panels, then push the
+      // real top (the pin) again. This is not a user Back.
+      if (rewind > 0) {
+        rewind -= 1;
+        if (rewind > 0) {
+          skipNextPop = true;
+          history.back();
+        } else if (rewindState) {
+          const state = rewindState;
+          rewindState = null;
+          try { history.pushState(state, ''); } catch (e) { /* keep going */ }
+        }
+      }
       return;
     }
     const state = history.state || {};
