@@ -308,6 +308,18 @@ function followButton() {
     ])),
   );
   btn.appendChild(glyph);
+  bindPressFeedback(btn);
+  return btn;
+}
+
+// Press feedback shared with the popup ×. Hover colours are CSS; this is the
+// hold and the pop, with one duration for both buttons.
+const PRESS_HOLD_MS = 450;
+const pressBound = new WeakSet();
+
+function bindPressFeedback(btn) {
+  if (!btn || pressBound.has(btn)) return;
+  pressBound.add(btn);
   let holdTimer = 0;
   const clearHold = () => {
     clearTimeout(holdTimer);
@@ -315,7 +327,7 @@ function followButton() {
   };
   btn.addEventListener('pointerdown', () => {
     clearTimeout(holdTimer);
-    holdTimer = setTimeout(() => btn.classList.add('is-hold'), 450);
+    holdTimer = setTimeout(() => btn.classList.add('is-hold'), PRESS_HOLD_MS);
   });
   btn.addEventListener('pointerup', clearHold);
   btn.addEventListener('pointerleave', clearHold);
@@ -327,8 +339,27 @@ function followButton() {
     btn.classList.add('is-pop');
   });
   btn.addEventListener('animationend', () => btn.classList.remove('is-pop'));
-  return btn;
 }
+
+function bindPopupClose(node) {
+  if (!node || node.nodeType !== 1) return;
+  if (node.classList.contains('maplibregl-popup-close-button')) bindPressFeedback(node.classList.contains('comments-back-button') ? null : node);
+  if (!node.querySelectorAll) return;
+  node.querySelectorAll('.maplibregl-popup-close-button:not(.comments-back-button)').forEach(bindPressFeedback);
+}
+
+function watchPopupCloses() {
+  const start = () => {
+    bindPopupClose(document.body);
+    new MutationObserver((records) => {
+      for (const record of records) record.addedNodes.forEach(bindPopupClose);
+    }).observe(document.body, { childList: true, subtree: true });
+  };
+  if (document.body) start();
+  else document.addEventListener('DOMContentLoaded', start);
+}
+
+watchPopupCloses();
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
