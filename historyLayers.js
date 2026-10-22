@@ -171,11 +171,18 @@
   // microtask late so the toolbar / settings button can show the parent
   // before the sweep looks.
   let sweepQueued = false;
+  function rewinding() {
+    return rewind > 0 || rewindState != null;
+  }
   function queueSweep() {
+    // A rewind is already walking history. A new sweep would back again
+    // over the same entries.
+    if (rewinding()) return;
     if (sweepQueued) return;
     sweepQueued = true;
     queueMicrotask(() => {
       sweepQueued = false;
+      if (rewinding()) return;
       while (open.length) {
         const under = open[open.length - 1];
         const el = watched.get(under);
@@ -193,23 +200,55 @@
   // over that run and push the pin again, so one Back closes the pin.
   let rewind = 0;
   let rewindState = null;
+  // A real Back that arrived while the rewind was walking. Played once
+  // after the pin is pushed back, so the press is not swallowed.
+  let heldBack = false;
+  let undoRewindPop = false;
+  let rewindTimer = 0;
   let exciseQueued = false;
   function hiddenWatched(name) {
     const el = watched.get(name);
     return !!(el && el.style.display === "none");
   }
+  // The next programmatic step waits a task. A user Back already queued
+  // is delivered first, while skipNextPop is still clear, and held until
+  // the pin is back.
+  function scheduleRewindBack() {
+    clearTimeout(rewindTimer);
+    rewindTimer = setTimeout(() => {
+      rewindTimer = 0;
+      if (!rewinding() || undoRewindPop) return;
+      skipNextPop = true;
+      history.back();
+    }, 0);
+  }
+  function finishRewind() {
+    clearTimeout(rewindTimer);
+    const state = rewindState;
+    rewind = 0;
+    rewindState = null;
+    if (state) {
+      try { history.pushState(state, ''); } catch (e) { /* keep going */ }
+    }
+    if (!heldBack) return;
+    heldBack = false;
+    // A later task, so the push above is not clobbered by this Back.
+    setTimeout(() => { history.back(); }, 0);
+  }
   function beginRewind(steps, state) {
     rewind = steps;
     rewindState = state;
-    skipNextPop = true;
-    history.back();
+    heldBack = false;
+    undoRewindPop = false;
+    scheduleRewindBack();
   }
   function queueExcise() {
+    if (rewinding()) return;
     if (exciseQueued) return;
     exciseQueued = true;
     queueMicrotask(() => {
       exciseQueued = false;
-      if (!open.length || rewind) return;
+      if (!open.length || rewinding()) return;
       const top = open[open.length - 1];
       if (hiddenWatched(top)) return;
       const keep = new Set();
@@ -296,20 +335,35 @@
   window.addEventListener('popstate', () => {
     if (skipNextPop) {
       skipNextPop = false;
+      if (undoRewindPop) {
+        // The forward that put a user Back back where the rewind left it.
+        undoRewindPop = false;
+        if (rewind > 0) scheduleRewindBack();
+        else if (rewindState) finishRewind();
+        return;
+      }
       // Map-tap excise: walk back over the hidden panels, then push the
       // real top (the pin) again. This is not a user Back.
-      if (rewind > 0) {
-        rewind -= 1;
-        if (rewind > 0) {
-          skipNextPop = true;
-          history.back();
-        } else if (rewindState) {
-          const state = rewindState;
-          rewindState = null;
-          try { history.pushState(state, ''); } catch (e) { /* keep going */ }
-        }
+      if (rewind > 0 || rewindState) {
+        if (rewind > 0) rewind -= 1;
+        if (rewind > 0) scheduleRewindBack();
+        else finishRewind();
       }
       return;
+    }
+    if (rewinding()) {
+      const landed = history.state || {};
+      const landedAt = landed.id != null ? entries.indexOf(landed.id) : 0;
+      // indexOf is -1 for an entry the rewind already dropped. That is a
+      // Back. A Forward still points at an entry ahead of position.
+      if (landedAt < position) {
+        heldBack = true;
+        clearTimeout(rewindTimer);
+        undoRewindPop = true;
+        skipNextPop = true;
+        history.forward();
+        return;
+      }
     }
     const state = history.state || {};
     // Entries this module created resolve to their position; anything

@@ -36,6 +36,7 @@ function restore(face) {
   state.nx = 0;
   state.ny = 0;
   state.bob = 0;
+  state.hover = 0;
   clearLean(face);
 }
 
@@ -45,7 +46,10 @@ function restoreAll() {
 
 function leaning(face) {
   const state = face._tilt;
-  return !!state && Math.hypot(state.nx, state.ny) >= 0.02;
+  if (!state) return false;
+  // The moon eases a hover amount instead of a lean. Same settle threshold.
+  if ((state.hover || 0) >= 0.02) return true;
+  return Math.hypot(state.nx, state.ny) >= 0.02;
 }
 
 function anyLeaning() {
@@ -191,6 +195,39 @@ function frame(now) {
     if (!state) continue;
     const host = (state.host && state.host.isConnected) ? state.host : face.parentElement;
     const isHot = face === hot && host && pointer;
+    // Moon zoom is one amount, 0 at rest and 1 anywhere on the disc. It
+    // uses the marker ease and the same 0.02 settle. translateZ at 1 is
+    // the old edge strength (half * sin of the 32° cap). No rotation.
+    if (face.classList && face.classList.contains('moon-face')) {
+      const target = isHot ? 1 : 0;
+      const prev = state.hover || 0;
+      if (!isHot && prev < 0.02) {
+        if (prev) {
+          state.hover = 0;
+          state.bob = 0;
+          clearLean(face);
+        }
+        continue;
+      }
+      state.hover = prev + (target - prev) * ease;
+      const bobY = isHot ? bob : 0;
+      if (state.hover < 0.02 && Math.abs(bobY) < 0.25) {
+        state.hover = 0;
+        state.bob = 0;
+        clearLean(face);
+        continue;
+      }
+      busy = true;
+      state.bob = bobY;
+      const box = (host || face).getBoundingClientRect();
+      const half = Math.max(8, box.width / 2);
+      const edgeZ = half * Math.sin((MAX_DEG * Math.PI) / 180);
+      const zoomZ = edgeZ * state.hover;
+      face.style.transformStyle = 'flat';
+      face.style.willChange = 'transform';
+      face.style.transform = `perspective(${PERSPECTIVE_PX}px) translateY(${bobY.toFixed(2)}px) translateZ(${zoomZ.toFixed(2)}px)`;
+      continue;
+    }
     let tx = 0;
     let ty = 0;
     if (isHot) {
@@ -232,18 +269,7 @@ function frame(now) {
     const rotY = -state.nx * MAX_DEG;
     face.style.transformStyle = 'flat';
     face.style.willChange = 'transform';
-    // The moon keeps this same perspective zoom and the same ease, with no
-    // rotation. The near edge used to come forward by half * sin(angle);
-    // that distance is translateZ, so the disc grows through the same 480px
-    // perspective. Markers still rotate.
-    if (face.classList && face.classList.contains('moon-face')) {
-      const box = (host || face).getBoundingClientRect();
-      const half = Math.max(8, box.width / 2);
-      const zoomZ = half * Math.sin((Math.hypot(rotX, rotY) * Math.PI) / 180);
-      face.style.transform = `perspective(${PERSPECTIVE_PX}px) translateY(${bobY.toFixed(2)}px) translateZ(${zoomZ.toFixed(2)}px)`;
-    } else {
-      face.style.transform = `perspective(${PERSPECTIVE_PX}px) translateY(${bobY.toFixed(2)}px) rotateX(${rotX.toFixed(3)}deg) rotateY(${rotY.toFixed(3)}deg)`;
-    }
+    face.style.transform = `perspective(${PERSPECTIVE_PX}px) translateY(${bobY.toFixed(2)}px) rotateX(${rotX.toFixed(3)}deg) rotateY(${rotY.toFixed(3)}deg)`;
   }
 
   if ((busy || faceAtPointer()) && !reducedMotion() && !document.hidden) requestAnimationFrame(frame);
