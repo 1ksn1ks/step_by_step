@@ -6696,7 +6696,7 @@ a.payer-link {
 }
 .marker-face.early-hashinal {
   box-sizing: border-box;
-  padding: 0.28dvh;
+  padding: 0.3dvmin;
 }
 .early-hashinal > img,
 .marker-face.early-hashinal > img {
@@ -6730,6 +6730,9 @@ a.payer-link {
   inset: 0.28dvh;
   border-radius: inherit;
   background: rgba(255, 255, 255, 0.8);
+}
+.marker-face.early-hashinal > .early-hashinal-spin::after {
+  inset: 0.3dvmin;
 }
 .early-hashinal-glow,
 .marker-face.early-hashinal::after {
