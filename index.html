@@ -749,7 +749,10 @@
                       <video muted playsinline loop autoplay hidden></video>
                       <button type="button" class="draw-popup-clear" hidden aria-label="Remove image">×</button>
                     </div>
-                    <div id="draw-marker-text" class="text_color popup-text-bubble draw-popup-text" contenteditable="true" role="textbox" aria-label="Message" data-placeholder="Message" data-max="256"></div>
+                    <div class="draw-text-wrap">
+                      <div id="draw-marker-text" class="text_color popup-text-bubble draw-popup-text" contenteditable="true" role="textbox" aria-label="Message" data-placeholder="Message"></div>
+                      <div id="draw-marker-bytes" class="draw-byte-counter" hidden></div>
+                    </div>
                   </div>
                   <div class="popup-gap"></div>
                   <div class="popup-dock draw-popup-topic-row">
@@ -768,7 +771,7 @@
               <button type="button" id="submit-button-Create_encrypted-Marker" class="toolbar-column-btns" title="Submit encrypted" aria-label="Submit encrypted">🔒 Submit encrypted</button>
             </div>
             <textarea id="input-field-2-1" maxlength="20" hidden></textarea>
-            <textarea id="input-field-2-2" maxlength="256" hidden></textarea>
+            <textarea id="input-field-2-2" hidden></textarea>
             <input type="hidden" id="input-field-coverimage-marker">
             <input type="hidden" id="input-field-image-marker">
             <div class="upload-preview" id="preview-coverimage-marker" hidden>
@@ -825,7 +828,10 @@
                       <video muted playsinline loop autoplay hidden></video>
                       <button type="button" class="draw-popup-clear" hidden aria-label="Remove image">×</button>
                     </div>
-                    <div id="draw-polygon-text" class="text_color popup-text-bubble draw-popup-text" contenteditable="true" role="textbox" aria-label="Message" data-placeholder="Message" data-max="256"></div>
+                    <div class="draw-text-wrap">
+                      <div id="draw-polygon-text" class="text_color popup-text-bubble draw-popup-text" contenteditable="true" role="textbox" aria-label="Message" data-placeholder="Message"></div>
+                      <div id="draw-polygon-bytes" class="draw-byte-counter" hidden></div>
+                    </div>
                   </div>
                   <div class="popup-gap"></div>
                   <div class="popup-dock draw-popup-topic-row">
@@ -847,7 +853,7 @@
               <button type="button" id="submit-button-Create_encrypted-Polygon" class="toolbar-column-btns" title="Submit encrypted" aria-label="Submit encrypted">🔒 Submit encrypted</button>
             </div>
             <textarea id="input-field-3-1" maxlength="20" hidden></textarea>
-            <textarea id="input-field-3-2" maxlength="256" hidden></textarea>
+            <textarea id="input-field-3-2" hidden></textarea>
             <input type="hidden" id="input-field-coverimage-polygon">
             <input type="hidden" id="input-field-image-polygon">
             <div class="upload-preview" id="preview-coverimage-polygon" hidden>

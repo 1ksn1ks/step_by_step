@@ -17,7 +17,7 @@ import { connectedAccount, signer } from './web3';
 import { PrivateKey } from '@hashgraph/sdk';
 import { isValidUrl } from './ISVALIDURL.JS';
 import { toast } from './toast';
-import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, utf8ByteLength, normalizeMessageNewlines, clipMessage } from './hcschunks.js';
+import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, utf8ByteLength, normalizeMessageNewlines } from './hcschunks.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
 import { pendingChatImage, chatImageBusy, clearPendingChatImage, topicChatWire } from './chatimage.js';
 import { stackedTopicRules } from './topicrules.js';
@@ -1345,7 +1345,7 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
        const coverimage = document.getElementById("input-field-coverimage-marker").value;
        const cleanUrl = imageurl.replace(/\?network=mainnet$/, "");
        const cleanCoverimage = coverimage.replace(/\?network=mainnet$/, "");
-       const msg = clipMessage(normalizeMessageNewlines(document.getElementById("input-field-2-2").value), 256);
+       const msg = normalizeMessageNewlines(document.getElementById("input-field-2-2").value);
        const cord = document.getElementById("input-field-2-3").value;
 
        if (!topicId || !cord) {
@@ -1355,8 +1355,12 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
  
        const messageObj = {marker: {data: {title: title, image: [cleanUrl], coverimage: [cleanCoverimage], msg: msg, cord: cord }}};
        const message = JSON.stringify(messageObj);
+       if (utf8ByteLength(message) > HCS_MESSAGE_MAX_BYTES) {
+         toast.error(HCS_TOO_LONG);
+         return;
+       }
 
-       toast.info("Confirm in wallet 👛");
+       if (utf8ByteLength(message) <= HCS_CHUNK_SIZE) toast.info("Confirm in wallet 👛");
        const receipt = await sendMessage(
          topicId,
          message
@@ -1435,7 +1439,7 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
     const coverimage = document.getElementById("input-field-coverimage-marker").value;
     const cleanUrl = imageurl.replace(/\?network=mainnet$/, "");
     const cleanCoverimage = coverimage.replace(/\?network=mainnet$/, "");
-    const msg = clipMessage(normalizeMessageNewlines(document.getElementById("input-field-2-2").value), 256);
+    const msg = normalizeMessageNewlines(document.getElementById("input-field-2-2").value);
     const cord = document.getElementById("input-field-2-3").value;
 
     if (!topicId || !cord) {
@@ -1445,14 +1449,22 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
 
     const messageObj = {marker: {data: {title: title, image: [cleanUrl], coverimage: [cleanCoverimage], msg: msg, cord: cord }}};
     const messageStringify = JSON.stringify(messageObj);
+    if (utf8ByteLength(messageStringify) > HCS_MESSAGE_MAX_BYTES) {
+      toast.error(HCS_TOO_LONG);
+      return;
+    }
 
     console.log(messageStringify)
 
     const encryptedMessage = await encryptMessage(messageStringify, PublicKey);
 
     const message = JSON.stringify(encryptedMessage);
+    if (utf8ByteLength(message) > HCS_MESSAGE_MAX_BYTES) {
+      toast.error(HCS_TOO_LONG);
+      return;
+    }
 
-    toast.info("Confirm in wallet 👛");
+    if (utf8ByteLength(message) <= HCS_CHUNK_SIZE) toast.info("Confirm in wallet 👛");
     const receipt = await sendMessage(topicId,message);
     console.log('Receipt:', receipt);
     reportMarker(topicId, cord, title, cleanUrl, msg, connectedAccount);
@@ -1479,7 +1491,7 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
          topicId = userInput;
        }
        const title = document.getElementById("input-field-3-1").value.replace(/\r?\n/g, "").slice(0, 20);
-       const msg = clipMessage(normalizeMessageNewlines(document.getElementById("input-field-3-2").value), 256);
+       const msg = normalizeMessageNewlines(document.getElementById("input-field-3-2").value);
        const imageurl = document.getElementById("input-field-image-polygon").value;
        const coverimage = document.getElementById("input-field-coverimage-polygon").value;
        const cord1 = document.getElementById("input-field-3-3").value; // TOP LEFT
@@ -1532,8 +1544,12 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
          }
        };
        const message = JSON.stringify(messageObj);
+       if (utf8ByteLength(message) > HCS_MESSAGE_MAX_BYTES) {
+         toast.error(HCS_TOO_LONG);
+         return;
+       }
  
-       toast.info("Confirm in wallet 👛");
+       if (utf8ByteLength(message) <= HCS_CHUNK_SIZE) toast.info("Confirm in wallet 👛");
        const receipt = await sendMessage(
          topicId,
          message
@@ -1608,7 +1624,7 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
     }
 
     const title = document.getElementById("input-field-3-1").value.replace(/\r?\n/g, "").slice(0, 20);
-    const msg = clipMessage(normalizeMessageNewlines(document.getElementById("input-field-3-2").value), 256);
+    const msg = normalizeMessageNewlines(document.getElementById("input-field-3-2").value);
     const imageurl = document.getElementById("input-field-image-polygon").value;
     const coverimage = document.getElementById("input-field-coverimage-polygon").value;
     const cord1 = document.getElementById("input-field-3-3").value; // TOP LEFT
@@ -1662,14 +1678,22 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
     };
 
     const messageStringify = JSON.stringify(messageObj);
+    if (utf8ByteLength(messageStringify) > HCS_MESSAGE_MAX_BYTES) {
+      toast.error(HCS_TOO_LONG);
+      return;
+    }
 
     console.log(messageStringify)
 
     const encryptedMessage = await encryptMessage(messageStringify, PublicKey);
 
     const message = JSON.stringify(encryptedMessage);
+    if (utf8ByteLength(message) > HCS_MESSAGE_MAX_BYTES) {
+      toast.error(HCS_TOO_LONG);
+      return;
+    }
 
-    toast.info("Confirm in wallet 👛");
+    if (utf8ByteLength(message) <= HCS_CHUNK_SIZE) toast.info("Confirm in wallet 👛");
     const receipt = await sendMessage(topicId,message);
     console.log('Receipt:', receipt);
   } catch (error) {

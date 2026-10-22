@@ -1,7 +1,7 @@
 // The draw forms type the post on a popup instead of separate fields.
 // The hidden textareas stay, because submit still reads those.
 import { connectedAccount } from "./web3.js";
-import { clipMessage, messageLimitLength } from "./hcschunks.js";
+import { HCS_MESSAGE_MAX_BYTES, HCS_SHOW_COUNTER_AFTER, utf8ByteLength, normalizeMessageNewlines } from "./hcschunks.js";
 import { profilePictures, usernames, click2url } from "./loadalladata.js";
 import { payerUsernameNode, safeHttpUrl } from "./payerlink.js";
 import { paintProfileAvatar } from "./earlyhashinal.js";
@@ -135,21 +135,101 @@ function placeCaretEnd(el) {
   selection.addRange(range);
 }
 
+function fieldValue(id) {
+  const el = document.getElementById(id);
+  return el ? el.value : "";
+}
+
+function cleanMedia(url) {
+  return String(url || "").replace(/\?network=mainnet$/, "");
+}
+
+// Same JSON rest.js submits for a regular marker, so the counter matches
+// the bytes that land on the topic.
+function markerWire() {
+  return JSON.stringify({
+    marker: {
+      data: {
+        title: fieldValue("input-field-2-1").replace(/\r?\n/g, "").slice(0, 20),
+        image: [cleanMedia(fieldValue("input-field-image-marker"))],
+        coverimage: [cleanMedia(fieldValue("input-field-coverimage-marker"))],
+        msg: normalizeMessageNewlines(fieldValue("input-field-2-2")),
+        cord: fieldValue("input-field-2-3"),
+      },
+    },
+  });
+}
+
+function polygonCord(cord1, cord3) {
+  const topLeft = String(cord1 || "").split(",").map(Number);
+  const bottomRight = String(cord3 || "").split(",").map(Number);
+  const formatted = [
+    topLeft,
+    [topLeft[0], bottomRight[1]],
+    bottomRight,
+    [bottomRight[0], topLeft[1]],
+  ];
+  const valid = formatted.every((cord) =>
+    Array.isArray(cord) && cord.length === 2 && cord.every((num) => !isNaN(num) && isFinite(num))
+  );
+  if (!valid) return "";
+  return formatted.map((cord) => `[${cord.join(",")}]`).join(", ");
+}
+
+function polygonWire() {
+  return JSON.stringify({
+    polygon: {
+      data: {
+        title: fieldValue("input-field-3-1").replace(/\r?\n/g, "").slice(0, 20),
+        image: [cleanMedia(fieldValue("input-field-image-polygon"))],
+        coverimage: [cleanMedia(fieldValue("input-field-coverimage-polygon"))],
+        msg: normalizeMessageNewlines(fieldValue("input-field-3-2")),
+        cord: polygonCord(fieldValue("input-field-3-3"), fieldValue("input-field-3-5")),
+      },
+    },
+  });
+}
+
+function paintByteCounter(counterId, wire) {
+  const counter = document.getElementById(counterId);
+  if (!counter) return;
+  const bytes = utf8ByteLength(wire);
+  if (bytes <= HCS_SHOW_COUNTER_AFTER) {
+    counter.hidden = true;
+    counter.textContent = "";
+    return;
+  }
+  counter.hidden = false;
+  counter.textContent = `${bytes} / ${HCS_MESSAGE_MAX_BYTES}`;
+}
+
+function paintMarkerBytes() {
+  paintByteCounter("draw-marker-bytes", markerWire());
+}
+
+function paintPolygonBytes() {
+  paintByteCounter("draw-polygon-bytes", polygonWire());
+}
+
 function bindEditable(editorId, fieldId, singleLine) {
   const el = document.getElementById(editorId);
   const field = document.getElementById(fieldId);
   if (!el || !field) return;
-  const max = Number(el.dataset.max) || (singleLine ? 20 : 256);
-  const countLeft = el.classList.contains("draw-popup-title") || el.classList.contains("draw-popup-text");
-  const used = (text) => singleLine ? text.length : messageLimitLength(text);
+  const max = Number(el.dataset.max);
+  const capped = Number.isFinite(max) && max > 0;
+  const countLeft = capped && el.classList.contains("draw-popup-title");
   const syncLeft = (text) => {
-    if (countLeft) el.dataset.left = String(Math.max(0, max - used(text)));
+    if (countLeft) el.dataset.left = String(Math.max(0, max - text.length));
+  };
+  const paintBytes = () => {
+    if (editorId === "draw-marker-text" || editorId === "draw-marker-title") paintMarkerBytes();
+    if (editorId === "draw-polygon-text" || editorId === "draw-polygon-title") paintPolygonBytes();
   };
   const write = () => {
     let text = plainText(el).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
     if (singleLine) text = text.replace(/\n/g, "");
-    if (used(text) > max) {
-      text = singleLine ? text.slice(0, max) : clipMessage(text, max);
+    if (capped && text.length > max) {
+      text = text.slice(0, max);
       el.textContent = text;
       placeCaretEnd(el);
     }
@@ -157,6 +237,7 @@ function bindEditable(editorId, fieldId, singleLine) {
     if (!text && el.childNodes.length) el.textContent = "";
     if (field.value !== text) field.value = text;
     syncLeft(text);
+    paintBytes();
   };
   el.addEventListener("keydown", (event) => {
     if (singleLine && event.key === "Enter") event.preventDefault();
@@ -181,8 +262,10 @@ function bindEditable(editorId, fieldId, singleLine) {
     if (document.activeElement === el) return;
     if (plainText(el) !== field.value) el.textContent = field.value;
     syncLeft(shown());
+    paintBytes();
   });
   syncLeft(shown());
+  paintBytes();
 }
 
 function bindUpload(triggerId, pickerId, fieldId, paint) {
@@ -314,6 +397,14 @@ bindEditable("draw-marker-title", "input-field-2-1", true);
 bindEditable("draw-marker-text", "input-field-2-2", false);
 bindEditable("draw-polygon-title", "input-field-3-1", true);
 bindEditable("draw-polygon-text", "input-field-3-2", false);
+for (const id of ["input-field-2-3", "input-field-image-marker", "input-field-coverimage-marker"]) {
+  const node = document.getElementById(id);
+  if (node) node.addEventListener("input", paintMarkerBytes);
+}
+for (const id of ["input-field-3-3", "input-field-3-5", "input-field-image-polygon", "input-field-coverimage-polygon"]) {
+  const node = document.getElementById(id);
+  if (node) node.addEventListener("input", paintPolygonBytes);
+}
 bindEditable("draw-marker-topic", "input-field-2-0", true);
 bindEditable("draw-polygon-topic", "input-field-3-0", true);
 bindUpload("draw-marker-media", "upload-media-marker-file", "input-field-image-marker", (url) => paintMedia("draw-marker-media", url, "image"));

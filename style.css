@@ -2002,13 +2002,29 @@ html, body {
     overflow-wrap: anywhere;
     text-align: center;
 }
-/* Remaining characters, bottom right. Absolute, so the title and message keep their height. */
+/* Remaining title characters, bottom right. Absolute, so the title keeps its height.
+   The message counter is the same byte counter topic chat uses, and it sits
+   on the wrap so a scrolling message does not carry it away. */
 #draw-column .draw-popup-title,
 #draw-column .draw-popup-text {
     position: relative;
 }
-#draw-column .draw-popup-title::after,
-#draw-column .draw-popup-text::after {
+#draw-column .draw-text-wrap {
+    position: relative;
+    max-width: 100%;
+}
+#draw-column .draw-byte-counter {
+    position: absolute;
+    right: calc(var(--u) * 2);
+    bottom: calc(var(--u) * 0.35);
+    font-size: 2vh;
+    line-height: 1;
+    font-weight: 700;
+    color: #22d3ee;
+    pointer-events: none;
+    z-index: 1;
+}
+#draw-column .draw-popup-title::after {
     content: attr(data-left);
     position: absolute;
     right: calc(var(--u) * 2);
@@ -2667,6 +2683,11 @@ html, body {
     box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.12);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+    /* Long post text scrolls inside the bubble. The popup frame stays put. */
+    max-height: clamp(calc(var(--u) * 6), 22dvh, calc(var(--u) * 18));
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   /* Glass × — same bubble height as the bottom .popup-icon-chip */
@@ -5352,10 +5373,7 @@ a.payer-link {
     min-width: 0;
     min-height: 0;
     align-self: stretch;
-    max-height: clamp(calc(var(--u) * 6), 22dvh, calc(var(--u) * 18));
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    overflow: visible;
   }
 
   .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-body > div:not(.popup-media-card) {
@@ -5377,6 +5395,7 @@ a.payer-link {
     flex: 1 1 auto;
     min-height: 0;
     margin: 0;
+    max-height: 100%;
     overflow-y: auto;
     overscroll-behavior: contain;
   }
