@@ -2870,6 +2870,7 @@ html, body {
   }
 
   .topic-follow-btn,
+  #layout-mode-btn,
   .maplibregl-popup-close-button:not(.comments-back-button) {
     --press-dur: 200ms;
     --press-ease: ease;
@@ -2921,6 +2922,7 @@ html, body {
      The popup × uses the same colours. A coarse pointer drops the hover
      and keeps .is-hold, which is the follow button's press. */
   .topic-follow-btn:not(.is-following):is(:hover, .is-hold),
+  #layout-mode-btn:is(:hover, .is-hold),
   .maplibregl-popup-close-button:not(.comments-back-button):is(:hover, .is-hold) {
     background-color: var(--press-bg);
     border-color: var(--press-border);
@@ -2934,6 +2936,7 @@ html, body {
     }
   }
   .topic-follow-btn.is-pop,
+  #layout-mode-btn.is-pop,
   .maplibregl-popup-close-button:not(.comments-back-button).is-pop {
     animation: topicFollowPop var(--press-dur) var(--press-ease);
   }
@@ -2993,6 +2996,7 @@ html, body {
       transform: none !important;
     }
     .topic-follow-btn.is-pop,
+    #layout-mode-btn.is-pop,
     .maplibregl-popup-close-button:not(.comments-back-button).is-pop {
       animation: none !important;
     }
@@ -6993,4 +6997,138 @@ a.payer-link {
     color: rgba(255, 255, 255, 0.88);
     margin: 0 0 1.4dvh 0.4dvw;
   }
+}
+
+/* Feed layout. The button sits in the search / compass row.
+   1px is the hairline those controls already use. Everything else
+   is dvh / dvw / dvmin / clamp. Map mode leaves this hidden. */
+#layout-mode-btn {
+  appearance: none;
+  position: fixed;
+  top: calc(5dvh + 1.25dvh);
+  right: calc(12dvh + 2.5dvh);
+  width: 3dvh;
+  height: 3dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1005;
+  padding: 0;
+  box-sizing: border-box;
+  background-color: rgba(10, 10, 18, 0.88);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color var(--press-dur, 200ms) var(--press-ease, ease), border-color var(--press-dur, 200ms) var(--press-ease, ease), color var(--press-dur, 200ms) var(--press-ease, ease);
+}
+#layout-mode-btn.is-feed {
+  color: #22D3EE;
+  border-color: #22D3EE;
+}
+#layout-mode-btn:focus-visible {
+  outline: 0.2dvh solid #22D3EE;
+  outline-offset: 0.2dvh;
+}
+#layout-mode-btn svg {
+  width: 1.6dvh;
+  height: 1.6dvh;
+  pointer-events: none;
+}
+#layout-mode-btn svg:not([hidden]) {
+  display: block;
+}
+#feed-layout {
+  position: fixed;
+  inset: 0;
+  z-index: 1004;
+  font-family: Inter, system-ui, sans-serif;
+  color: #fff;
+}
+#feed-layout.is-peek {
+  visibility: hidden;
+  pointer-events: none;
+}
+.feed-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 8, 16, 0.62);
+  pointer-events: none;
+}
+#feed-scroll {
+  position: absolute;
+  inset: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-user-select: text;
+  user-select: text;
+}
+#feed-column {
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 9dvh 1.5dvw 4dvh;
+  touch-action: pan-y;
+}
+@media (orientation: landscape) {
+  #feed-column {
+    width: clamp(40dvw, 46dvw, 46dvw);
+  }
+}
+#feed-column .feed-card {
+  --u: clamp(0.9dvh, 1.15dvmin, 1.5dvh);
+  box-sizing: border-box;
+  margin: 0 0 1.2dvh;
+  padding: calc(var(--u) * 0.9);
+  border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
+  border-radius: calc(var(--u) * 2);
+  background: rgba(15, 15, 20, 0.9);
+  color: #fff;
+  touch-action: pan-y;
+  -webkit-user-select: text;
+  user-select: text;
+}
+#feed-column .popup-text-bubble {
+  max-height: none;
+  overflow: visible;
+  text-align: left;
+}
+#feed-column .popup-text-bubble.is-clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+}
+#feed-column .feed-more,
+#feed-column .feed-loc {
+  display: flex;
+  align-items: center;
+  gap: 0.6dvh;
+  margin-top: 0.7dvh;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #22D3EE;
+  font-family: inherit;
+  font-size: clamp(1.3dvh, 1.5dvh, 1.8dvh);
+  line-height: 1.3;
+  cursor: pointer;
+  text-align: left;
+  touch-action: manipulation;
+}
+#feed-column .feed-loc svg {
+  width: 1.8dvh;
+  height: 1.8dvh;
+  flex: 0 0 auto;
+}
+#feed-column .popup-profile-bubble .popup-timestamp {
+  margin-top: calc(var(--u) * 0.35);
+}
+#layout-mode-btn:is(:hover, .is-hold) {
+  background-color: var(--press-bg);
+  border-color: var(--press-border);
+  color: var(--press-ink);
 }
