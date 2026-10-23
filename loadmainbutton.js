@@ -18,15 +18,6 @@ const els = {
     previewMenu: $("mb-preview-menu"),
 };
 
-// The row (OPTIONS / TOPIC CHAT / E2EE CHAT) is anchored top: 6vh, so growing
-// buttons stretch it downward. Re-anchor it from the bottom using the
-// current button height, so any growth goes upward instead. Runs at module
-// load, while the buttons still have their CSS-default height.
-const mainButtonsRow = $("main-buttons-row");
-const rowBtnHeightVh = Math.round(($("main-toggle-btn").offsetHeight / (window.innerHeight / 100)) * 100) / 100;
-// dvh follows the visible area (URL bar), so phones and desktops match
-mainButtonsRow.style.bottom = `calc(100dvh - 6dvh - ${rowBtnHeightVh}dvh)`;
-
 // The defaults are the values literally set in style.css (.menu_buttons /
 // #disconnect-wallet-btn): font-size 1.5vh, background rgba(15, 15, 20, 0.45).
 // Height and width are auto (content) in the CSS and are never applied, so a

@@ -1665,8 +1665,16 @@ html, body {
     display: flex;
     flex-direction: row;
     align-items: center;
+    height: 3vh;
     gap: 1vh;
     z-index: 1005;
+  }
+
+  /* Same band as the round buttons. Pills stay content-sized and centre in it. */
+  #main-buttons-row {
+    top: calc(5vh + 10px);
+    height: 3vh;
+    align-items: center;
   }
 
   #search-toggle-btn {
@@ -7139,13 +7147,16 @@ a.payer-link {
 #layout-mode-btn {
   appearance: none;
   flex: 0 0 auto;
+  align-self: center;
   width: 3vh;
   height: 3vh;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin: 0;
   padding: 0;
   box-sizing: border-box;
+  transform: none;
   font-size: 1.6vh;
   line-height: 1;
   background-color: rgba(10, 10, 18, 0.88);
