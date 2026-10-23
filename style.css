@@ -7193,9 +7193,79 @@ a.payer-link {
   outline: 0.2dvh solid #22D3EE;
   outline-offset: 0.2dvh;
 }
-#feed-scroll {
+#feed-tabs {
   position: absolute;
   top: clamp(5dvh, 6dvmin, 7dvh);
+  left: 0;
+  right: 0;
+  z-index: 2;
+  width: 100%;
+  height: clamp(4.2dvh, 4.8dvmin, 5.4dvh);
+  margin-inline: auto;
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  background: #0a0a12;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+}
+#feed-tabs .feed-tab {
+  appearance: none;
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(2.4dvmin, 2.8dvmin, 3.2dvmin);
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#feed-tabs .feed-tab[aria-selected="true"] {
+  color: #fff;
+  font-weight: 700;
+}
+#feed-tabs .feed-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: clamp(10dvmin, 14dvmin, 18dvmin);
+  height: clamp(0.35dvmin, 0.5dvmin, 0.65dvmin);
+  border-radius: clamp(0.3dvmin, 0.5dvmin, 0.6dvmin);
+  background: #22D3EE;
+  transform: translateX(-50%);
+}
+#feed-tabs .feed-tab:focus-visible {
+  outline: 0.2dvh solid #22D3EE;
+  outline-offset: -0.2dvh;
+}
+#feed-column .feed-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: clamp(28dvh, 36dvh, 42dvh);
+  margin: 0;
+  padding: 2dvmin 5dvw;
+  box-sizing: border-box;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(2.2dvmin, 2.6dvmin, 3dvmin);
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+}
+#feed-scroll {
+  position: absolute;
+  top: calc(clamp(5dvh, 6dvmin, 7dvh) + clamp(4.2dvh, 4.8dvmin, 5.4dvh));
   right: 0;
   bottom: 0;
   left: 0;
@@ -7215,7 +7285,8 @@ a.payer-link {
 }
 @media (orientation: landscape) {
   #feed-column,
-  #feed-toolbar {
+  #feed-toolbar,
+  #feed-tabs {
     width: clamp(40dvw, 46dvw, 46dvw);
   }
 }

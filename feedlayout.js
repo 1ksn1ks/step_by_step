@@ -5,7 +5,7 @@ import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
 import { currentUfoModelInGLTF, globalLoadedTopicIdsWithNames } from './letall.js';
 import { markerPopupNode, polygonPopupNode, mountPostReactions } from './processallmessages.js';
-import { BACKEND_URL, fetchMessagesBackend, streamOnTopic, messageSig } from './msgbackend.js';
+import { BACKEND_URL, fetchMessagesBackend, streamOnTopic, messageSig, fetchFollowing } from './msgbackend.js';
 import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
 import { initialTopicId } from './extracttopic.js';
 import { connectedAccount } from './web3.js';
@@ -59,6 +59,23 @@ pageSpin.setAttribute('aria-hidden', 'true');
 pageStatus.appendChild(pageSpin);
 scroller.append(column, pageStatus);
 
+const tabs = document.createElement('div');
+tabs.id = 'feed-tabs';
+tabs.setAttribute('role', 'tablist');
+const allTab = document.createElement('button');
+allTab.type = 'button';
+allTab.className = 'feed-tab';
+allTab.id = 'feed-tab-all';
+allTab.setAttribute('role', 'tab');
+allTab.textContent = 'All';
+const followTab = document.createElement('button');
+followTab.type = 'button';
+followTab.className = 'feed-tab';
+followTab.id = 'feed-tab-following';
+followTab.setAttribute('role', 'tab');
+followTab.textContent = 'Following';
+tabs.append(allTab, followTab);
+
 const toolbar = document.createElement('div');
 toolbar.id = 'feed-toolbar';
 const menuAnchor = document.createElement('div');
@@ -98,7 +115,7 @@ const tools = document.createElement('div');
 tools.className = 'feed-toolbar-slot';
 tools.append(topicBtn);
 toolbar.append(menuAnchor, tools);
-root.append(dim, toolbar, scroller, menuDim, menu);
+root.append(dim, toolbar, tabs, scroller, menuDim, menu);
 
 const btn = document.createElement('button');
 btn.id = 'layout-mode-btn';
@@ -132,6 +149,11 @@ if (searchBtn && searchBtn.parentNode) {
 document.body.appendChild(root);
 
 let posts = [];
+let shown = [];
+let feedTab = 'all';
+let tabToken = 0;
+let followState = 'idle';
+let followSet = null;
 let rangeStart = 0;
 let rangeEnd = 0;
 let loadedTopic = '';
@@ -830,6 +852,7 @@ function resetFeed(topic) {
   generation += 1;
   loadedTopic = topic;
   posts = [];
+  shown = [];
   rangeStart = 0;
   rangeEnd = 0;
   cursor = null;
@@ -986,6 +1009,7 @@ function markerPost(message, data) {
   });
   return keepPost({
     key: `m:${loadedTopic}:${payer}:${created}:${number}`,
+    payer,
     kind: 'marker',
     seq: Number(message.sequence_number) || 0,
     lngLat,
@@ -1035,6 +1059,7 @@ function polygonPost(message, data) {
   });
   return keepPost({
     key: `p:${loadedTopic}:${payer}:${created}:${number}`,
+    payer,
     kind: 'polygon',
     seq: Number(message.sequence_number) || 0,
     polygon,
@@ -1076,6 +1101,7 @@ function sharePost(message) {
   });
   return keepPost({
     key: `s:${payer}:${original}:${created}`,
+    payer,
     kind: 'marker',
     seq: Number(message.sequence_number) || 0,
     lngLat,
@@ -1102,6 +1128,7 @@ function chatPost(message) {
   const place = placeName(message.location) || placeName(message.place) || placeName(bag);
   return keepPost({
     key: `c:${loadedTopic}:${message.payer}:${message.sequence_number}:${message.created}`,
+    payer: message.payer || '',
     kind: 'chat',
     seq: Number(message.sequence_number) || 0,
     message,
@@ -1266,12 +1293,122 @@ async function fetchNewer(topic, after) {
   }));
 }
 
+function walletNow() {
+  const account = typeof connectedAccount === 'string' ? connectedAccount.trim() : '';
+  if (/^\d+\.\d+\.\d+$/.test(account) && account.length <= 40) return account;
+  return '';
+}
+
+function lane() {
+  return feedTab === 'following' ? shown : posts;
+}
+
+function takeFollowed(list) {
+  if (!followSet) return [];
+  const out = [];
+  for (const post of list) {
+    if (post && followSet.has(post.payer)) out.push(post);
+  }
+  return out;
+}
+
+function followBlocked() {
+  return feedTab === 'following' && followState !== 'ready';
+}
+
+function paintTabs() {
+  const all = feedTab !== 'following';
+  allTab.setAttribute('aria-selected', all ? 'true' : 'false');
+  followTab.setAttribute('aria-selected', all ? 'false' : 'true');
+  allTab.tabIndex = all ? 0 : -1;
+  followTab.tabIndex = all ? -1 : 0;
+}
+
+function paintEmpty() {
+  const old = column.querySelector('.feed-empty');
+  if (old) old.remove();
+  if (feedTab !== 'following') return;
+  const text = followState === 'nowallet'
+    ? 'Connect your wallet to see who you follow'
+    : followState === 'empty'
+      ? "You're not following anyone yet"
+      : '';
+  if (!text) return;
+  const note = document.createElement('p');
+  note.className = 'feed-empty';
+  note.textContent = text;
+  column.appendChild(note);
+}
+
+function rerenderLane() {
+  rangeStart = 0;
+  rangeEnd = 0;
+  savedScroll = 0;
+  scroller.scrollTop = 0;
+  clearViewWatch();
+  column.replaceChildren();
+  paintEmpty();
+  if (!followBlocked()) fillDown();
+}
+
+async function selectTab(next) {
+  if (next !== 'all' && next !== 'following') return;
+  if (next === feedTab) return;
+  const token = ++tabToken;
+  feedTab = next;
+  paintTabs();
+  if (next === 'all') {
+    rerenderLane();
+    return;
+  }
+  const account = walletNow();
+  if (!account) {
+    followState = 'nowallet';
+    followSet = null;
+    shown = [];
+    rerenderLane();
+    return;
+  }
+  followState = 'loading';
+  followSet = null;
+  shown = [];
+  rerenderLane();
+  const data = await fetchFollowing(account);
+  if (token !== tabToken || feedTab !== 'following') return;
+  if (!data) {
+    followState = 'offline';
+    followSet = null;
+    shown = [];
+    paintEmpty();
+    return;
+  }
+  const ids = [];
+  const accounts = Array.isArray(data.accounts) ? data.accounts : [];
+  for (const entry of accounts) {
+    const raw = typeof entry === 'string' ? entry : entry && entry.id;
+    const id = typeof raw === 'string' ? raw.trim() : '';
+    if (/^\d+\.\d+\.\d+$/.test(id)) ids.push(id);
+  }
+  if (!ids.length) {
+    followState = 'empty';
+    followSet = null;
+    shown = [];
+    rerenderLane();
+    return;
+  }
+  followSet = new Set(ids);
+  followState = 'ready';
+  shown = posts.filter((post) => followSet.has(post.payer));
+  rerenderLane();
+}
+
 function renderThrough(end) {
   if (end <= rangeEnd) return;
+  const list = lane();
   const frag = document.createDocumentFragment();
   const cards = [];
   for (let i = rangeEnd; i < end; i++) {
-    const card = buildCard(posts[i]);
+    const card = buildCard(list[i]);
     cards.push(card);
     frag.appendChild(card);
   }
@@ -1305,8 +1442,9 @@ function fillUp() {
   const prevHeight = scroller.scrollHeight;
   const frag = document.createDocumentFragment();
   const cards = [];
+  const list = lane();
   for (let i = rangeStart - add; i < rangeStart; i++) {
-    const card = buildCard(posts[i]);
+    const card = buildCard(list[i]);
     cards.push(card);
     frag.appendChild(card);
   }
@@ -1318,9 +1456,10 @@ function fillUp() {
 }
 
 function fillDown() {
-  if (!feedOn() || root.classList.contains('is-peek') || paging) return;
+  if (!feedOn() || root.classList.contains('is-peek') || paging || followBlocked()) return;
+  const list = lane();
   if (scroller.clientHeight < 1) {
-    if (rangeEnd < posts.length) renderThrough(Math.min(posts.length, rangeEnd + RENDER_CHUNK));
+    if (rangeEnd < list.length) renderThrough(Math.min(list.length, rangeEnd + RENDER_CHUNK));
     return;
   }
   let guard = 0;
@@ -1329,8 +1468,8 @@ function fillDown() {
     const room = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
     const short = scroller.scrollHeight <= scroller.clientHeight + 4;
     if (!short && room >= scroller.clientHeight * 2) return;
-    if (rangeEnd < posts.length) {
-      renderThrough(Math.min(posts.length, rangeEnd + RENDER_CHUNK));
+    if (rangeEnd < list.length) {
+      renderThrough(Math.min(list.length, rangeEnd + RENDER_CHUNK));
       trimAbove();
       continue;
     }
@@ -1341,17 +1480,20 @@ function fillDown() {
 
 function prependPosts(list) {
   if (!list.length) return;
+  const visible = feedTab === 'following' ? takeFollowed(list) : list;
+  posts.unshift(...list);
+  if (feedTab === 'following') shown.unshift(...visible);
+  if (!visible.length) return;
   const atTop = scroller.scrollTop < 2;
   const showingTop = rangeStart === 0;
-  posts.unshift(...list);
-  rangeStart += list.length;
-  rangeEnd += list.length;
+  rangeStart += visible.length;
+  rangeEnd += visible.length;
   if (!showingTop) return;
   const prevTop = scroller.scrollTop;
   const prevHeight = scroller.scrollHeight;
   const frag = document.createDocumentFragment();
   const cards = [];
-  for (const post of list) {
+  for (const post of visible) {
     const card = buildCard(post);
     cards.push(card);
     frag.appendChild(card);
@@ -1392,7 +1534,9 @@ async function loadOlder() {
     }
     cursor = { ts: nextTs, seq: nextSeq };
     if (page.done) exhausted = true;
-    posts.push(...ingest(messages));
+    const made = ingest(messages);
+    posts.push(...made);
+    if (feedTab === 'following') shown.push(...takeFollowed(made));
     ok = true;
   } catch (error) {
     console.warn('feed page failed', error);
@@ -1465,11 +1609,12 @@ function ensureTopic(opening) {
     }
     resetFeed(topic);
     bindStream(topic);
-    loadOlder();
+    if (followBlocked()) paintEmpty();
+    else loadOlder();
     return;
   }
   if (opening) catchUp();
-  if (!paging && !posts.length && !exhausted) loadOlder();
+  if (!followBlocked() && !paging && !posts.length && !exhausted) loadOlder();
 }
 
 function feedOn() {
@@ -1683,10 +1828,28 @@ function applyFeed(on) {
   writeMode(on ? 'feed' : 'map');
   if (!on) paintMenu(false);
   if (on) {
+    const opening = !feedOn();
     peek = false;
     root.classList.remove('is-peek');
     root.style.display = 'block';
     syncCover();
+    if (opening) {
+      const wasFollowing = feedTab !== 'all';
+      tabToken += 1;
+      feedTab = 'all';
+      paintTabs();
+      if (wasFollowing) {
+        const sameTopic = !!loadedTopic && topicNow() === loadedTopic;
+        shown = [];
+        rangeStart = 0;
+        rangeEnd = 0;
+        savedScroll = 0;
+        scroller.scrollTop = 0;
+        clearViewWatch();
+        column.replaceChildren();
+        if (sameTopic) fillDown();
+      }
+    }
     ensureTopic(true);
     return;
   }
@@ -1727,7 +1890,9 @@ if (window.defineLayer) {
 if (window.watchDisplayLayer) {
   window.watchDisplayLayer('feed', root, {
     open: (state) => {
+      const reopenAll = !feedOn() && feedTab !== 'all';
       applyFeed(true);
+      if (reopenAll) return;
       const y = Number(state && state.scroll);
       if (Number.isFinite(y)) {
         savedScroll = y;
@@ -1956,6 +2121,10 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') flushViewsNow();
 });
 window.addEventListener('pagehide', flushViewsNow);
+
+allTab.addEventListener('click', () => { selectTab('all'); });
+followTab.addEventListener('click', () => { selectTab('following'); });
+paintTabs();
 
 scroller.addEventListener('scroll', () => {
   if (root.classList.contains('is-peek')) return;
