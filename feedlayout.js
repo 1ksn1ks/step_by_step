@@ -9,6 +9,7 @@ import { BACKEND_URL, fetchMessagesBackend, streamOnTopic, messageSig, fetchFoll
 import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
 import { initialTopicId } from './extracttopic.js';
 import { connectedAccount } from './web3.js';
+import { toast } from './toast.js';
 import { activeMarkerPopups } from './marker.js';
 import { activePolygonPopups } from './polygons.js';
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
@@ -2501,21 +2502,64 @@ function ownPlace(post) {
   return typeof number !== 'string' || !number.startsWith('share-');
 }
 
+function walletOverlay() {
+  const host = document.querySelector('wcm-modal');
+  const rootNode = host && host.shadowRoot;
+  if (!rootNode) return null;
+  return rootNode.querySelector('.wcm-overlay');
+}
+
+function walletModalOpen() {
+  const overlay = walletOverlay();
+  if (!overlay || !overlay.classList.contains('wcm-active')) return false;
+  const box = overlay.getBoundingClientRect();
+  return box.width > 0 && box.height > 0;
+}
+
+// The connect sheet is position:fixed at z-index 89. The feed covers the
+// page at 8000, so a tap on + used to open it where nobody could see it
+// and leave placeBusy set until the sheet was dismissed.
+function liftWalletModal() {
+  const host = document.querySelector('wcm-modal');
+  if (host) {
+    host.style.position = 'relative';
+    host.style.zIndex = '9000';
+  }
+  const overlay = walletOverlay();
+  if (overlay) overlay.style.setProperty('z-index', '9000', 'important');
+}
+
+// 'ok' continues into placing. 'cancel' stays on the feed with no toast.
+// 'fail' is a real miss and the caller says why.
 function ensureWallet() {
-  if (walletNow()) return Promise.resolve(true);
+  if (walletNow()) return Promise.resolve('ok');
   const connect = document.getElementById('connect-wallet-btn');
-  if (!connect) return Promise.resolve(false);
-  if (!/connecting/i.test(connect.textContent || '')) connect.click();
+  if (!connect) return Promise.resolve('fail');
+  if (!walletModalOpen()) {
+    try { connect.click(); } catch (err) { return Promise.resolve('fail'); }
+  }
+  liftWalletModal();
   const started = Date.now();
+  let saw = false;
   return new Promise((resolve) => {
     const tick = () => {
       if (walletNow()) {
-        resolve(true);
+        resolve('ok');
         return;
       }
-      const connecting = /connecting/i.test(connect.textContent || '');
-      if ((!connecting && Date.now() - started >= 300) || Date.now() - started >= 120000) {
-        resolve(false);
+      liftWalletModal();
+      const open = walletModalOpen();
+      if (open) saw = true;
+      if (saw && !open) {
+        resolve('cancel');
+        return;
+      }
+      if (!open && Date.now() - started >= 4000) {
+        resolve('fail');
+        return;
+      }
+      if (Date.now() - started >= 120000) {
+        resolve('cancel');
         return;
       }
       setTimeout(tick, 200);
@@ -2541,14 +2585,24 @@ function restoreMapChrome() {
 // Peek keeps the feed history entry and leaves layoutMode as feed, so
 // Back can return to the feed.
 function beginPlace() {
-  if (!window.layerOpened) return;
+  if (!window.layerOpened) return false;
   placing = true;
   drawWasOpen = false;
   holdScroll();
   peek = true;
   root.classList.add('is-peek');
   syncCover();
-  window.layerOpened('feedplace');
+  try {
+    window.layerOpened('feedplace');
+  } catch (err) {
+    placing = false;
+    placeBusy = false;
+    peek = false;
+    root.classList.remove('is-peek');
+    syncCover();
+    throw err;
+  }
+  return root.classList.contains('is-peek');
 }
 
 // Hides a form this session opened, then drops feedplace. Callers reveal
@@ -2598,22 +2652,78 @@ function returnToFeed(sent) {
   reveal();
 }
 
+function closePlaceBlockers() {
+  if (searchOpen || (window.layerIsOpen && window.layerIsOpen('feedsearch'))) closeSearch();
+  if (!menu.hidden || (window.layerIsOpen && window.layerIsOpen('feedmenu'))) closeMenu();
+}
+
+function placeSurfaceOpen() {
+  return root.classList.contains('is-peek') || walletModalOpen();
+}
+
 async function startPost() {
-  if (placing || placeBusy) return;
-  if (!feedOn() || root.classList.contains('is-peek')) return;
-  if (window.layerIsTop && !window.layerIsTop('feed')) return;
+  if (placing || placeBusy) {
+    if (placeSurfaceOpen()) {
+      toast.info(root.classList.contains('is-peek') ? 'Already placing a post' : 'Finish connecting first');
+      return;
+    }
+    leavePlace();
+  }
+  if (!feedOn()) {
+    toast.info('Feed is closed');
+    return;
+  }
+  if (root.classList.contains('is-peek')) {
+    toast.info('Already placing a post');
+    return;
+  }
+  closePlaceBlockers();
+  if (window.layerIsTop && !window.layerIsTop('feed')) {
+    toast.info('Close this panel first');
+    return;
+  }
   const token = ++placeToken;
   placeBusy = true;
-  let ok = false;
+  let status = 'fail';
   try {
-    ok = await ensureWallet();
+    status = await ensureWallet();
+  } catch (err) {
+    status = 'fail';
   } finally {
     if (token === placeToken) placeBusy = false;
   }
-  if (token !== placeToken || !ok || placing) return;
-  if (!feedOn() || root.classList.contains('is-peek')) return;
-  if (window.layerIsTop && !window.layerIsTop('feed')) return;
-  beginPlace();
+  if (token !== placeToken) return;
+  if (status === 'cancel') return;
+  if (status !== 'ok') {
+    placing = false;
+    placeBusy = false;
+    toast.info("Couldn't open the wallet");
+    return;
+  }
+  if (!feedOn()) {
+    toast.info('Feed is closed');
+    return;
+  }
+  if (root.classList.contains('is-peek') || placing) return;
+  if (window.layerIsTop && !window.layerIsTop('feed')) {
+    toast.info('Close this panel first');
+    return;
+  }
+  try {
+    if (!beginPlace()) {
+      placing = false;
+      placeBusy = false;
+      toast.info("Couldn't open the map");
+    }
+  } catch (err) {
+    placing = false;
+    placeBusy = false;
+    if (root.classList.contains('is-peek')) {
+      root.classList.remove('is-peek');
+      syncCover();
+    }
+    toast.info("Couldn't open the map");
+  }
 }
 
 function applyFeed(on) {
@@ -3030,7 +3140,10 @@ if (window.defineLayer) {
       syncCover();
     },
     close: () => {
-      if (!placing) return;
+      if (!placing) {
+        placeBusy = false;
+        return;
+      }
       returnToFeed(false);
     },
   });
@@ -3108,6 +3221,14 @@ if (loadedList) {
 menuDim.addEventListener('click', (event) => {
   event.preventDefault();
   event.stopPropagation();
+  const box = postBtn.getBoundingClientRect();
+  const onPost = box.width > 0 && box.height > 0
+    && event.clientX >= box.left && event.clientX <= box.right
+    && event.clientY >= box.top && event.clientY <= box.bottom;
+  if (onPost) {
+    startPost();
+    return;
+  }
   closeMenu();
 });
 
