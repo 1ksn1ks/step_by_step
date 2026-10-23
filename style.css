@@ -7150,7 +7150,48 @@ a.payer-link {
   min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
+}
+#feed-topic-btn {
+  appearance: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.45dvmin;
+  margin: 0;
+  padding: 0.35dvmin 0.7dvmin;
+  border: 0;
+  background: none;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(2.2dvmin, 2.5dvmin, 2.8dvmin);
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#feed-topic-btn .feed-topic-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#feed-topic-btn svg {
+  width: clamp(1.8dvmin, 2.2dvmin, 2.6dvmin);
+  height: clamp(1.8dvmin, 2.2dvmin, 2.6dvmin);
+  flex: 0 0 auto;
+  display: block;
+  pointer-events: none;
+}
+#feed-topic-btn:is(:hover, :active, .is-hold) {
+  color: #22D3EE;
+}
+#feed-topic-btn:focus-visible {
+  outline: 0.2dvh solid #22D3EE;
+  outline-offset: 0.2dvh;
 }
 #feed-scroll {
   position: absolute;

@@ -3,7 +3,7 @@
 
 import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
-import { currentUfoModelInGLTF } from './letall.js';
+import { currentUfoModelInGLTF, globalLoadedTopicIdsWithNames } from './letall.js';
 import { markerPopupNode, polygonPopupNode, mountPostReactions } from './processallmessages.js';
 import { BACKEND_URL, fetchMessagesBackend, streamOnTopic, messageSig } from './msgbackend.js';
 import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
@@ -86,8 +86,17 @@ menuDim.className = 'feed-menu-dim';
 menuDim.hidden = true;
 menuDim.setAttribute('aria-label', 'Close menu');
 menuAnchor.append(menuBtn);
+const topicBtn = document.createElement('button');
+topicBtn.id = 'feed-topic-btn';
+topicBtn.type = 'button';
+const topicText = document.createElement('span');
+topicText.className = 'feed-topic-label';
+topicBtn.append(topicText, svgIcon([
+  ['path', { d: 'm6 9 6 6 6-6' }],
+]));
 const tools = document.createElement('div');
 tools.className = 'feed-toolbar-slot';
+tools.append(topicBtn);
 toolbar.append(menuAnchor, tools);
 root.append(dim, toolbar, scroller, menuDim, menu);
 
@@ -833,6 +842,7 @@ function resetFeed(topic) {
   column.replaceChildren();
   paintSpinner(false);
   savedScroll = 0;
+  scroller.scrollTop = 0;
 }
 
 function actionKey(bucket, stamp) {
@@ -1426,8 +1436,27 @@ function bindStream(topic) {
   streamOff = streamOnTopic(topic, onStream);
 }
 
+function topicTitle(topicId) {
+  const prefix = `${topicId} - `;
+  for (const entry of globalLoadedTopicIdsWithNames) {
+    const row = String(entry || '');
+    if (!row.startsWith(prefix)) continue;
+    const name = row.slice(prefix.length).trim();
+    if (name) return name;
+  }
+  return topicId || '';
+}
+
+function paintTopicTitle() {
+  const label = topicTitle(topicNow());
+  topicText.textContent = label;
+  topicBtn.title = label;
+  topicBtn.setAttribute('aria-label', label ? `Load ${label}` : 'Load topic');
+}
+
 function ensureTopic(opening) {
   const topic = topicNow();
+  paintTopicTitle();
   if (!topic) return;
   if (topic !== loadedTopic) {
     if (streamOff) {
@@ -1449,9 +1478,53 @@ function feedOn() {
 
 // Opaque feed is its own screen. The class tells the globe loop to skip
 // frames. Peek and map mode clear it so the map chrome comes back.
+function feedCovers() {
+  return root.style.display !== 'none' && !root.classList.contains('is-peek');
+}
+
 function syncCover() {
-  const open = root.style.display !== 'none' && !root.classList.contains('is-peek');
-  document.documentElement.classList.toggle('feed-app', open);
+  document.documentElement.classList.toggle('feed-app', feedCovers());
+  syncLoadOverFeed();
+}
+
+// The Load panel is painted at 1002, under the feed. Lift only an open
+// that started from the feed toolbar. A map open stays at 1002.
+let loadOverFeed = false;
+let loadLifted = false;
+
+function syncLoadOverFeed() {
+  const col = document.getElementById('load-column');
+  if (!col) return;
+  const shown = col.style.display === 'block';
+  if (loadOverFeed && shown && feedCovers()) {
+    if (col.style.zIndex !== '8800') col.style.zIndex = '8800';
+    loadLifted = true;
+    return;
+  }
+  if (loadLifted && col.style.zIndex === '8800') col.style.zIndex = '1002';
+  loadLifted = false;
+}
+
+function ensureLoadLayer() {
+  const col = document.getElementById('load-column');
+  if (!loadOverFeed || !feedCovers()) return;
+  if (!col || col.style.display !== 'block') return;
+  if (window.layerIsOpen && window.layerIsOpen('load-column')) return;
+  if (window.layerOpened) window.layerOpened('load-column');
+}
+
+function openLoadFromFeed() {
+  if (window.layerIsTop && !window.layerIsTop('feed')) return;
+  const trigger = document.getElementById('Load_Everything');
+  if (!trigger) return;
+  holdScroll();
+  loadOverFeed = true;
+  trigger.click();
+  syncLoadOverFeed();
+  ensureLoadLayer();
+  // CloseALL may already have queued a history.back that consumes the
+  // entry this click just pushed. Put it back once that back has run.
+  setTimeout(ensureLoadLayer, 0);
 }
 
 // savedScroll stays live. History is updated once the feed sits still,
@@ -1617,6 +1690,7 @@ function applyFeed(on) {
     ensureTopic(true);
     return;
   }
+  loadOverFeed = false;
   peek = false;
   revealToken += 1;
   root.classList.remove('is-peek');
@@ -1806,6 +1880,34 @@ menuBtn.addEventListener('click', (event) => {
   if (window.layerIsOpen && window.layerIsOpen('feedmenu')) closeMenu();
   else openMenu();
 });
+
+bindPress(topicBtn);
+topicBtn.addEventListener('click', (event) => {
+  event.stopPropagation();
+  openLoadFromFeed();
+});
+
+const loadColumn = document.getElementById('load-column');
+if (loadColumn) {
+  new MutationObserver(() => syncLoadOverFeed()).observe(loadColumn, {
+    attributes: true,
+    attributeFilter: ['style'],
+  });
+}
+
+const loadTrigger = document.getElementById('toolbar-load');
+if (loadTrigger) {
+  loadTrigger.addEventListener('click', () => {
+    if (!feedOn() || root.classList.contains('is-peek')) return;
+    ensureTopic(false);
+  });
+}
+
+window.addEventListener('topics-ready', paintTopicTitle);
+const loadedList = document.getElementById('loaded-topics-list');
+if (loadedList) {
+  new MutationObserver(() => paintTopicTitle()).observe(loadedList, { childList: true, subtree: true });
+}
 
 menuDim.addEventListener('click', (event) => {
   event.preventDefault();
