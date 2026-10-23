@@ -16,7 +16,7 @@ import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
 import { MARKER_ZOOM } from './openplace.js';
 import { ringCenter } from './polygonframe.js';
 import { CloseALL, changePopupState, popIsOpen } from './cssLogic.js';
-import { closeDrawAnchor } from './drawhere.js';
+import { closeDrawAnchor, openDrawColumn } from './drawhere.js';
 import { closePressAnchor } from './poiinfo.js';
 import { applyAllStyles } from './loadprofilepopup.js';
 import { scene } from './threejs.js';
@@ -2612,8 +2612,8 @@ function restoreMapChrome() {
   }
 }
 
-// Peek keeps the feed history entry and leaves layoutMode as feed, so
-// Back can return to the feed.
+// Peek keeps the feedplace entry and leaves layoutMode as feed, so Back
+// can close Draw and return to this scroll spot. The caller opens Draw.
 function beginPlace() {
   if (!window.layerOpened) return false;
   placing = true;
@@ -2744,15 +2744,27 @@ async function startPost() {
       placing = false;
       placeBusy = false;
       toast.info("Couldn't open the map");
+      return;
+    }
+    // Same panel as the toolbar Draw button. The pin path passes true.
+    if (!openDrawColumn(false)) {
+      leavePlace();
+      if (feedOn()) reveal();
+      toast.info("Couldn't open Draw");
     }
   } catch (err) {
-    placing = false;
-    placeBusy = false;
-    if (root.classList.contains('is-peek')) {
-      root.classList.remove('is-peek');
-      syncCover();
+    if (placing || (window.layerIsOpen && window.layerIsOpen('feedplace'))) {
+      leavePlace();
+      if (feedOn()) reveal();
+    } else {
+      placing = false;
+      placeBusy = false;
+      if (root.classList.contains('is-peek')) {
+        root.classList.remove('is-peek');
+        syncCover();
+      }
     }
-    toast.info("Couldn't open the map");
+    toast.info("Couldn't open Draw");
   }
 }
 

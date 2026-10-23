@@ -181,12 +181,16 @@ function handlePress(loc) {
   showAnchor(loc);
 }
 
-// Reuses the toolbar button so CloseALL / toolbar / UFO handling stay identical.
-// fromMap hides the Marker / Polygon switch: the pin already chose the shape.
-function openDrawColumn() {
+// The toolbar Draw button, so CloseALL / toolbar / UFO handling stay identical.
+// fromMap is the pin path: that tap already chose Marker or Polygon.
+export function openDrawColumn(fromMap = true) {
   const drawBtn = document.getElementById('Draw_Marker_Polygon');
-  drawBtn.dataset.fromMap = '1';
+  if (!drawBtn) return false;
+  if (fromMap) drawBtn.dataset.fromMap = '1';
+  else delete drawBtn.dataset.fromMap;
   drawBtn.click();
+  const col = document.getElementById('draw-column');
+  return !!(col && col.style.display !== 'none');
 }
 
 function showMarkerForm() {
