@@ -342,6 +342,7 @@ db.exec(`
     seen_at INTEGER NOT NULL,
     PRIMARY KEY (post_id, viewer)
   );
+  CREATE INDEX IF NOT EXISTS feed_views_seen_at ON feed_views(seen_at);
 `);
 
 const q = {
@@ -645,7 +646,26 @@ const q = {
   insertFeedView: db.prepare(
     "INSERT OR IGNORE INTO feed_views (post_id, viewer, seen_at) VALUES (?, ?, ?)"
   ),
+  pruneFeedViews: db.prepare("DELETE FROM feed_views WHERE seen_at < ?"),
+  msgByTopicSeq: db.prepare(
+    "SELECT ts, payer, body FROM messages WHERE topic_id = ? AND seq = ?"
+  ),
+  feedShareBodies: db.prepare(
+    "SELECT body FROM messages WHERE payer = ? AND instr(body, ?) > 0 AND instr(body, ?) > 0"
+  ),
 };
+
+// Rows older than 90 days are not part of the count. Once an hour.
+const FEED_VIEW_KEEP_MS = 90 * 24 * 60 * 60 * 1000;
+function pruneOldFeedViews() {
+  try {
+    q.pruneFeedViews.run(Date.now() - FEED_VIEW_KEEP_MS);
+  } catch (err) {
+    console.error("feed view prune failed", err.message);
+  }
+}
+pruneOldFeedViews();
+setInterval(pruneOldFeedViews, 60 * 60 * 1000);
 
 // Exactly the shape the app's getMessages() produces
 function toAppMessage(row) {
@@ -1619,7 +1639,10 @@ function publicPostLimit(req, res, next) {
       if (now >= bucket.reset) publicHits.delete(key);
     }
   }
-  const key = clientIp(req) + " " + req.path;
+  // GET and POST /api/views share a path. Separate buckets so a count
+  // read does not spend the write limit.
+  const route = req.path === "/api/views" ? req.method + " " + req.path : req.path;
+  const key = clientIp(req) + " " + route;
   let bucket = publicHits.get(key);
   if (!bucket || now >= bucket.reset) {
     bucket = { reset: now + RATE_WINDOW_MS, count: 0 };
@@ -2410,6 +2433,127 @@ function feedPostList(raw, max) {
   return ids;
 }
 
+// POST skips an id that is not a card key. One bad id does not reject the batch.
+function feedPostIds(raw, max) {
+  if (!Array.isArray(raw) || raw.length > max) return null;
+  const ids = [];
+  const seen = new Set();
+  for (const item of raw) {
+    const id = typeof item === "string" ? item.trim() : "";
+    if (!id || seen.has(id)) continue;
+    if (!isFeedPostId(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+// Same pieces feedlayout.js puts in a card key.
+const FEED_ISO = "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z";
+const FEED_ACCT = "\\d+\\.\\d+\\.\\d+";
+const FEED_DRAW_KEY = new RegExp(`^([mp]):(${FEED_ACCT}):(${FEED_ACCT}):(${FEED_ISO}):(.+)$`);
+const FEED_SHARE_KEY = new RegExp(`^s:(${FEED_ACCT}):(${FEED_ACCT}):(${FEED_ISO})$`);
+const FEED_CHAT_KEY = new RegExp(`^c:(${FEED_ACCT}):(${FEED_ACCT}):(\\d+):(${FEED_ISO})$`);
+
+function parseFeedCard(id) {
+  let match = FEED_DRAW_KEY.exec(id);
+  if (match) {
+    return { kind: match[1], topic: match[2], payer: match[3], created: match[4], number: match[5] };
+  }
+  match = FEED_SHARE_KEY.exec(id);
+  if (match) return { kind: "s", payer: match[1], topic: match[2], created: match[3] };
+  match = FEED_CHAT_KEY.exec(id);
+  if (match) {
+    return { kind: "c", topic: match[1], payer: match[2], seq: Number(match[3]), created: match[4] };
+  }
+  return null;
+}
+
+function messageIso(ts) {
+  return new Date(Number(ts) * 1000).toISOString();
+}
+
+// numberOfMarker / numberOfPolygon, or the ISO time when the phone sent none.
+function drawingNumber(raw, created) {
+  if (raw == null || String(raw).trim() === "") return created;
+  if (!Number.isInteger(Number(raw))) return null;
+  return String(raw);
+}
+
+function feedCardStored(id) {
+  const card = parseFeedCard(id);
+  if (!card) return false;
+  if (card.kind === "c") {
+    const row = q.msgByTopicSeq.get(card.topic, card.seq);
+    if (!row || row.payer !== card.payer || messageIso(row.ts) !== card.created) return false;
+    let body;
+    try { body = JSON.parse(row.body); } catch { return false; }
+    if (!body || typeof body !== "object" || body.marker || body.polygon || body.share) return false;
+    return !!(body.userMessage || body.image);
+  }
+  if (card.kind === "s") {
+    const rows = q.feedShareBodies.all(
+      card.payer,
+      `"topic":${JSON.stringify(card.topic)}`,
+      `"created":${JSON.stringify(card.created)}`
+    );
+    for (const row of rows) {
+      let body;
+      try { body = JSON.parse(row.body); } catch { continue; }
+      const share = body && body.share;
+      if (!share || typeof share !== "object") continue;
+      const topic = typeof share.topic === "string" ? share.topic.trim() : "";
+      if (topic !== card.topic) continue;
+      const when = typeof share.created === "string" ? new Date(share.created) : null;
+      if (when && !Number.isNaN(when.getTime()) && when.toISOString() === card.created) return true;
+    }
+    return false;
+  }
+  const ms = Date.parse(card.created);
+  if (!Number.isFinite(ms)) return false;
+  const rows = q.msgsInWindow.all(
+    card.topic,
+    (ms / 1000 - 0.000001).toFixed(9),
+    ((ms + 1) / 1000 + 0.000001).toFixed(9)
+  );
+  for (const row of rows) {
+    if (row.payer !== card.payer || messageIso(row.ts) !== card.created) continue;
+    let body;
+    try { body = JSON.parse(row.body); } catch { continue; }
+    const data = card.kind === "m"
+      ? body && body.marker && body.marker.data
+      : body && body.polygon && body.polygon.data;
+    if (!data || typeof data !== "object") continue;
+    const raw = card.kind === "m" ? data.numberOfMarker : data.numberOfPolygon;
+    if (drawingNumber(raw, card.created) === card.number) return true;
+  }
+  return false;
+}
+
+// One IP, about 300 viewer ids a day. A repeat id still counts. Past the
+// cap, new ids are ignored. Expired days drop out the same way publicHits does.
+const FEED_VIEWER_DAY_MS = 24 * 60 * 60 * 1000;
+const FEED_VIEWER_DAY_MAX = 300;
+const feedViewerDays = new Map();
+
+function feedViewerRoom(ip, viewer) {
+  const now = Date.now();
+  if (feedViewerDays.size > 4000) {
+    for (const [key, bucket] of feedViewerDays) {
+      if (now >= bucket.reset) feedViewerDays.delete(key);
+    }
+  }
+  let bucket = feedViewerDays.get(ip);
+  if (!bucket || now >= bucket.reset) {
+    bucket = { reset: now + FEED_VIEWER_DAY_MS, ids: new Set() };
+    feedViewerDays.set(ip, bucket);
+  }
+  if (bucket.ids.has(viewer)) return true;
+  if (bucket.ids.size >= FEED_VIEWER_DAY_MAX) return false;
+  bucket.ids.add(viewer);
+  return true;
+}
+
 function feedViewCounts(ids) {
   const counts = {};
   for (const id of ids) counts[id] = 0;
@@ -2437,16 +2581,23 @@ function storeFeedViews(viewer, ids) {
 }
 
 // A feed view. posts are card keys this viewer has already had on screen.
-// A repeat pair is ignored. counts includes a zero for every id sent.
+// An id that is not a stored message is skipped. A repeat pair is ignored.
+// counts includes a zero for every id that was kept.
 app.post("/api/views", publicPostLimit, (req, res) => {
   const viewer = req.body && req.body.viewer;
-  const posts = feedPostList(req.body && req.body.posts, FEED_VIEW_BATCH);
+  const posts = feedPostIds(req.body && req.body.posts, FEED_VIEW_BATCH);
   if (!isFeedViewer(viewer) || !posts) return res.status(400).json({ ok: false, error: "bad view" });
   if (!posts.length) return res.json({ ok: true, counts: {} });
-  try {
-    storeFeedViews(viewer, posts);
-  } catch {
-    return res.status(500).json({ ok: false, error: "view failed" });
+  const known = [];
+  for (const id of posts) {
+    if (feedCardStored(id)) known.push(id);
+  }
+  if (known.length && feedViewerRoom(clientIp(req), viewer)) {
+    try {
+      storeFeedViews(viewer, known);
+    } catch {
+      return res.status(500).json({ ok: false, error: "view failed" });
+    }
   }
   res.json({ ok: true, counts: feedViewCounts(posts) });
 });
