@@ -7239,6 +7239,47 @@ a.payer-link {
 #feed-search-close.is-pop {
   animation: topicFollowPop var(--press-dur, 200ms) var(--press-ease, ease);
 }
+#feed-post-btn {
+  --press-dur: 200ms;
+  --press-ease: ease;
+  --press-bg: #22D3EE;
+  --press-border: #22D3EE;
+  --press-ink: #083344;
+  appearance: none;
+  width: clamp(4.5dvmin, 5dvmin, 5.5dvmin);
+  height: clamp(4.5dvmin, 5dvmin, 5.5dvmin);
+  margin: 0 0 0 0.6dvmin;
+  padding: 0;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  background-color: rgba(10, 10, 18, 0.88);
+  color: #22D3EE;
+  border: 0.15dvh solid #22D3EE;
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#feed-post-btn svg {
+  width: calc(0.55 * clamp(4.5dvmin, 5dvmin, 5.5dvmin));
+  height: calc(0.55 * clamp(4.5dvmin, 5dvmin, 5.5dvmin));
+  display: block;
+  pointer-events: none;
+}
+#feed-post-btn:focus-visible {
+  outline: 0.2dvh solid #22D3EE;
+  outline-offset: 0.2dvh;
+}
+#feed-post-btn:is(:hover, .is-hold) {
+  background-color: var(--press-bg);
+  border-color: var(--press-border);
+  color: var(--press-ink);
+}
+#feed-post-btn.is-pop {
+  animation: topicFollowPop var(--press-dur, 200ms) var(--press-ease, ease);
+}
 #feed-search {
   flex: 1 1 auto;
   min-width: 0;
@@ -7251,7 +7292,8 @@ a.payer-link {
 }
 #feed-toolbar.is-search .feed-menu-anchor,
 #feed-toolbar.is-search .feed-toolbar-slot,
-#feed-toolbar.is-search #feed-search-btn {
+#feed-toolbar.is-search #feed-search-btn,
+#feed-toolbar.is-search #feed-post-btn {
   display: none;
 }
 #feed-search-input {
@@ -7280,7 +7322,8 @@ a.payer-link {
 }
 @media (prefers-reduced-motion: reduce) {
   #feed-search-btn.is-pop,
-  #feed-search-close.is-pop {
+  #feed-search-close.is-pop,
+  #feed-post-btn.is-pop {
     animation: none;
   }
 }

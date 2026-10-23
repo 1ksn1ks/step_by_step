@@ -14,7 +14,7 @@ import { activePolygonPopups } from './polygons.js';
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
 import { MARKER_ZOOM } from './openplace.js';
 import { ringCenter } from './polygonframe.js';
-import { CloseALL, changePopupState } from './cssLogic.js';
+import { CloseALL, changePopupState, popIsOpen } from './cssLogic.js';
 import { closeDrawAnchor } from './drawhere.js';
 import { closePressAnchor } from './poiinfo.js';
 import { applyAllStyles } from './loadprofilepopup.js';
@@ -124,6 +124,15 @@ searchBtnFeed.appendChild(svgIcon([
   ['circle', { cx: '11', cy: '11', r: '8' }],
   ['path', { d: 'm21 21-4.3-4.3' }],
 ]));
+const postBtn = document.createElement('button');
+postBtn.id = 'feed-post-btn';
+postBtn.type = 'button';
+postBtn.setAttribute('aria-label', 'New post');
+postBtn.title = 'New post';
+postBtn.appendChild(svgIcon([
+  ['path', { d: 'M5 12h14' }],
+  ['path', { d: 'M12 5v14' }],
+]));
 const searchBar = document.createElement('div');
 searchBar.id = 'feed-search';
 searchBar.hidden = true;
@@ -146,7 +155,7 @@ searchClose.appendChild(svgIcon([
   ['path', { d: 'm6 6 12 12' }],
 ]));
 searchBar.append(searchInput, searchClose);
-toolbar.append(menuAnchor, tools, searchBtnFeed, searchBar);
+toolbar.append(menuAnchor, tools, searchBtnFeed, postBtn, searchBar);
 root.append(dim, toolbar, tabs, scroller, menuDim, menu);
 
 const btn = document.createElement('button');
@@ -219,6 +228,10 @@ const deletedNumber = new Set();
 const droppedShares = new Set();
 let savedScroll = 0;
 let peek = false;
+let placing = false;
+let drawWasOpen = false;
+let placeToken = 0;
+let placeBusy = false;
 let revealToken = 0;
 let scrollIdle = 0;
 let viewObserver = null;
@@ -1681,6 +1694,7 @@ function onStream(event) {
   if (!event.message) return;
   const made = ingest([event.message]);
   if (made.length) prependPosts(made);
+  if (placing && made.some(ownPlace)) returnToFeed(true);
 }
 
 function bindStream(topic) {
@@ -2038,11 +2052,134 @@ function openSearch() {
   searchInput.focus({ preventScroll: true });
 }
 
+function ownPlace(post) {
+  const me = walletNow();
+  if (!me || !post || post.payer !== me) return false;
+  if (post.kind === 'polygon') return true;
+  if (post.kind !== 'marker' || !post.feature) return false;
+  const number = post.feature.msgNumber;
+  return typeof number !== 'string' || !number.startsWith('share-');
+}
+
+function ensureWallet() {
+  if (walletNow()) return Promise.resolve(true);
+  const connect = document.getElementById('connect-wallet-btn');
+  if (!connect) return Promise.resolve(false);
+  if (!/connecting/i.test(connect.textContent || '')) connect.click();
+  const started = Date.now();
+  return new Promise((resolve) => {
+    const tick = () => {
+      if (walletNow()) {
+        resolve(true);
+        return;
+      }
+      const connecting = /connecting/i.test(connect.textContent || '');
+      if ((!connecting && Date.now() - started >= 300) || Date.now() - started >= 120000) {
+        resolve(false);
+        return;
+      }
+      setTimeout(tick, 200);
+    };
+    setTimeout(tick, 200);
+  });
+}
+
+function restoreMapChrome() {
+  const main = document.getElementById('main-toggle-btn');
+  const toolbarBtn = document.getElementById('toggle-toolbar-btn-btn');
+  const fovBtn = document.getElementById('toggle-your-fov-btn-btn');
+  if (main) main.style.display = 'block';
+  if (toolbarBtn) toolbarBtn.style.display = 'none';
+  if (fovBtn) fovBtn.style.display = 'none';
+  const crosshair = document.getElementById('crosshair');
+  if (!popIsOpen && currentUfoModelInGLTF && crosshair) {
+    scene.add(currentUfoModelInGLTF);
+    crosshair.style.display = 'block';
+  }
+}
+
+// Peek keeps the feed history entry and leaves layoutMode as feed, so
+// Back can return to the feed.
+function beginPlace() {
+  if (!window.layerOpened) return;
+  placing = true;
+  drawWasOpen = false;
+  holdScroll();
+  peek = true;
+  root.classList.add('is-peek');
+  syncCover();
+  window.layerOpened('feedplace');
+}
+
+// Hides a form this session opened, then drops feedplace. Callers reveal
+// the feed themselves: a skipped popstate never runs the layer close.
+function leavePlace() {
+  placeToken += 1;
+  placeBusy = false;
+  const active = placing || (window.layerIsOpen && window.layerIsOpen('feedplace'));
+  if (!active) return;
+  const openedForm = drawWasOpen;
+  placing = false;
+  drawWasOpen = false;
+  if (openedForm) {
+    const col = document.getElementById('draw-column');
+    if (col && col.style.display !== 'none') {
+      col.style.display = 'none';
+      if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('draw-column')) {
+        window.layerClosedByUI('draw-column');
+      }
+    }
+    restoreMapChrome();
+  }
+  closeDrawAnchor();
+  if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedplace')) {
+    window.layerClosedByUI('feedplace');
+  }
+}
+
+function returnToFeed(sent) {
+  if (!placing && !(window.layerIsOpen && window.layerIsOpen('feedplace'))) return;
+  leavePlace();
+  if (!feedOn()) return;
+  if (sent) {
+    if (feedTab === 'following' && !(followSet && followSet.has(walletNow()))) {
+      feedTab = 'all';
+      paintTabs();
+    }
+    savedScroll = 0;
+    peek = false;
+    root.classList.remove('is-peek');
+    syncCover();
+    rerenderLane();
+    return;
+  }
+  reveal();
+}
+
+async function startPost() {
+  if (placing || placeBusy) return;
+  if (!feedOn() || root.classList.contains('is-peek')) return;
+  if (window.layerIsTop && !window.layerIsTop('feed')) return;
+  const token = ++placeToken;
+  placeBusy = true;
+  let ok = false;
+  try {
+    ok = await ensureWallet();
+  } finally {
+    if (token === placeToken) placeBusy = false;
+  }
+  if (token !== placeToken || !ok || placing) return;
+  if (!feedOn() || root.classList.contains('is-peek')) return;
+  if (window.layerIsTop && !window.layerIsTop('feed')) return;
+  beginPlace();
+}
+
 function applyFeed(on) {
   paintToggle(on);
   writeMode(on ? 'feed' : 'map');
   if (!on) {
     paintMenu(false);
+    leavePlace();
     const dropSearch = window.layerIsOpen && window.layerIsOpen('feedsearch');
     hideSearch();
     if (dropSearch && window.layerClosedByUI) window.layerClosedByUI('feedsearch');
@@ -2266,6 +2403,20 @@ if (window.defineLayer) {
     },
     close: () => closeSearch(),
   });
+  window.defineLayer('feedplace', {
+    parent: 'feed',
+    open: () => {
+      if (root.style.display === 'none') return;
+      placing = true;
+      peek = true;
+      root.classList.add('is-peek');
+      syncCover();
+    },
+    close: () => {
+      if (!placing) return;
+      returnToFeed(false);
+    },
+  });
 }
 
 bindPress(menuBtn);
@@ -2287,6 +2438,19 @@ if (loadColumn) {
     attributes: true,
     attributeFilter: ['style'],
   });
+}
+
+const drawColumn = document.getElementById('draw-column');
+if (drawColumn) {
+  new MutationObserver(() => {
+    const open = drawColumn.style.display === 'block';
+    if (open) {
+      if (placing) drawWasOpen = true;
+      return;
+    }
+    if (!placing || !drawWasOpen) return;
+    returnToFeed(false);
+  }).observe(drawColumn, { attributes: true, attributeFilter: ['style'] });
 }
 
 const loadTrigger = document.getElementById('toolbar-load');
@@ -2359,6 +2523,11 @@ bindPress(searchBtnFeed);
 searchBtnFeed.addEventListener('click', (event) => {
   event.stopPropagation();
   openSearch();
+});
+bindPress(postBtn);
+postBtn.addEventListener('click', (event) => {
+  event.stopPropagation();
+  startPost();
 });
 bindPress(searchClose);
 searchClose.addEventListener('click', (event) => {
