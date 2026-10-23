@@ -607,14 +607,55 @@ async function pullCounts() {
   }
 }
 
+// Half the card inside the scroller. The observer's rootMargin is wider
+// than this, so a view still waits until the card is actually on screen.
+function cardInView(card) {
+  const root = scroller.getBoundingClientRect();
+  const box = card.getBoundingClientRect();
+  const height = Math.max(0, Math.min(root.bottom, box.bottom) - Math.max(root.top, box.top));
+  const width = Math.max(0, Math.min(root.right, box.right) - Math.max(root.left, box.left));
+  const area = box.height * box.width;
+  return area > 0 && (height * width) / area >= 0.5;
+}
+
+function syncCardView(card) {
+  if (cardInView(card)) armView(card);
+  else disarmView(card);
+}
+
+function warmFeedVideo(card) {
+  const video = card.querySelector('.popup-media-card video');
+  if (!video || video.preload !== 'none' || !video.paused) return;
+  video.preload = 'metadata';
+}
+
+function syncVisibleViews() {
+  if (!viewObserver) return;
+  for (const card of column.children) {
+    if (card.classList && card.classList.contains('feed-card')) syncCardView(card);
+  }
+}
+
+function viewObserverOptions() {
+  const options = { root: scroller, rootMargin: '100dvh', threshold: 0 };
+  try {
+    const probe = new IntersectionObserver(() => {}, options);
+    probe.disconnect();
+    return options;
+  } catch {
+    options.rootMargin = Math.round(window.innerHeight) + 'px';
+    return options;
+  }
+}
+
 function ensureViewObserver() {
   if (viewObserver) return viewObserver;
   viewObserver = new IntersectionObserver((entries) => {
     for (const entry of entries) {
-      if (entry.intersectionRatio >= 0.5) armView(entry.target);
-      else disarmView(entry.target);
+      if (entry.isIntersecting) warmFeedVideo(entry.target);
+      syncCardView(entry.target);
     }
-  }, { root: scroller, threshold: 0.5 });
+  }, viewObserverOptions());
   return viewObserver;
 }
 
@@ -797,11 +838,13 @@ function buildCard(post) {
     media.className = 'popup-media-card';
     const video = isVideo(src);
     const node = video ? document.createElement('video') : document.createElement('img');
-    node.src = src;
     if (video) {
       node.controls = true;
       node.playsInline = true;
-      node.preload = 'metadata';
+      node.preload = 'none';
+      const poster = mediaOf(record.coverimage);
+      if (poster && !isVideo(poster)) node.poster = poster;
+      node.src = src;
       media.appendChild(node);
       coverFeedPlayer(media, () => {
         if (node.paused) node.play().catch(() => {});
@@ -810,6 +853,9 @@ function buildCard(post) {
     } else {
       node.alt = '';
       node.draggable = false;
+      node.loading = 'lazy';
+      node.decoding = 'async';
+      node.src = src;
       media.appendChild(node);
       coverFeedPlayer(media, () => {
         holdScroll();
@@ -2850,6 +2896,7 @@ scroller.addEventListener('scroll', () => {
   savedScroll = scroller.scrollTop;
   fillUp();
   fillDown();
+  syncVisibleViews();
   // A caption can still be waiting on layout when it is first built.
   requestAnimationFrame(clampPending);
   scheduleScrollWrite();
