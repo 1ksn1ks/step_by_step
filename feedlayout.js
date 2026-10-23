@@ -40,18 +40,28 @@ scroller.appendChild(column);
 
 const toolbar = document.createElement('div');
 toolbar.id = 'feed-toolbar';
-const back = document.createElement('button');
-back.id = 'feed-back-btn';
-back.type = 'button';
-back.setAttribute('aria-label', 'Back');
-back.title = 'Back';
-back.appendChild(svgIcon([
-  ['path', { d: 'm12 19-7-7 7-7' }],
-  ['path', { d: 'M19 12H5' }],
+const menuAnchor = document.createElement('div');
+menuAnchor.className = 'feed-menu-anchor';
+const menuBtn = document.createElement('button');
+menuBtn.id = 'feed-back-btn';
+menuBtn.type = 'button';
+menuBtn.setAttribute('aria-label', 'Menu');
+menuBtn.setAttribute('aria-haspopup', 'menu');
+menuBtn.setAttribute('aria-expanded', 'false');
+menuBtn.setAttribute('aria-controls', 'feed-menu');
+menuBtn.title = 'Menu';
+menuBtn.appendChild(svgIcon([
+  ['line', { x1: '4', x2: '20', y1: '12', y2: '12' }],
+  ['line', { x1: '4', x2: '20', y1: '6', y2: '6' }],
+  ['line', { x1: '4', x2: '20', y1: '18', y2: '18' }],
 ]));
+const menu = document.createElement('ul');
+menu.id = 'feed-menu';
+menu.hidden = true;
+menuAnchor.append(menuBtn, menu);
 const tools = document.createElement('div');
 tools.className = 'feed-toolbar-slot';
-toolbar.append(back, tools);
+toolbar.append(menuAnchor, tools);
 root.append(dim, toolbar, scroller);
 
 const btn = document.createElement('button');
@@ -64,11 +74,12 @@ const rowsIcon = svgIcon([
   ['path', { d: 'M21 9H3' }],
   ['path', { d: 'M21 15H3' }],
 ]);
-const globeIcon = svgIcon([
+const GLOBE_ICON = [
   ['circle', { cx: '12', cy: '12', r: '10' }],
   ['path', { d: 'M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20' }],
   ['path', { d: 'M2 12h20' }],
-]);
+];
+const globeIcon = svgIcon(GLOBE_ICON);
 const pinIcon = () => svgIcon([
   ['path', { d: 'M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0' }],
   ['circle', { cx: '12', cy: '10', r: '3' }],
@@ -766,6 +777,7 @@ function openOnMap(post) {
 function applyFeed(on) {
   paintToggle(on);
   writeMode(on ? 'feed' : 'map');
+  if (!on) paintMenu(false);
   if (on) {
     peek = false;
     root.classList.remove('is-peek');
@@ -845,13 +857,78 @@ btn.addEventListener('click', () => {
   applyFeed(!feedOn());
 });
 
-bindPress(back);
-back.addEventListener('click', (event) => {
-  event.stopPropagation();
-  // Same path as the phone Back key: pop the feed layer, which closes it.
+// One row per action. Later items are another entry in this list.
+const FEED_MENU = [
+  { label: 'Back to map', icon: GLOBE_ICON, run: backToMap },
+];
+
+function paintMenu(open) {
+  menu.hidden = !open;
+  menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+// Hides the list and, when this gesture closed it, drops its history
+// entry. A phone Back already popped that entry, so the history call
+// no-ops and the feed stays.
+function closeMenu() {
+  paintMenu(false);
+  if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedmenu')) {
+    window.layerClosedByUI('feedmenu');
+  }
+}
+
+function openMenu() {
+  if (window.layerIsTop && !window.layerIsTop('feed')) return;
+  paintMenu(true);
+  if (window.layerOpened) window.layerOpened('feedmenu');
+}
+
+function backToMap() {
+  // The menu sits on the feed. Two steps land where one phone Back
+  // lands when the menu is shut: the feed closes and the map returns.
+  if (window.layerIsOpen && window.layerIsOpen('feedmenu')) {
+    history.go(-2);
+    return;
+  }
   if (window.layerIsOpen && window.layerIsOpen('feed')) history.back();
+}
+
+for (const item of FEED_MENU) {
+  const row = document.createElement('li');
+  const choice = document.createElement('button');
+  choice.type = 'button';
+  choice.className = 'feed-menu-item';
+  choice.append(svgIcon(item.icon), document.createTextNode(item.label));
+  choice.addEventListener('click', (event) => {
+    event.stopPropagation();
+    item.run();
+  });
+  row.appendChild(choice);
+  menu.appendChild(row);
+}
+
+if (window.defineLayer) {
+  window.defineLayer('feedmenu', {
+    parent: 'feed',
+    open: () => paintMenu(true),
+    close: () => closeMenu(),
+  });
+}
+
+bindPress(menuBtn);
+menuBtn.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (window.layerIsOpen && window.layerIsOpen('feedmenu')) closeMenu();
+  else openMenu();
 });
 
+root.addEventListener('click', (event) => {
+  if (!menu.hidden && !menu.contains(event.target) && !menuBtn.contains(event.target)) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeMenu();
+  }
+}, true);
 root.addEventListener('click', (event) => event.stopPropagation());
 
 scroller.addEventListener('scroll', () => {
