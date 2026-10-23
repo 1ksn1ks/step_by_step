@@ -751,16 +751,66 @@ function payerHasLike(actions, timestamp, type) {
 
 let heartLikeSeq = 0;
 
-function createHeartLike({ count, liked, mini, className, onToggle }) {
+const reactionViews = new Map();
+
+function reactionNodes(key) {
+  if (!key || !document.querySelectorAll) return [];
+  const escaped = window.CSS && CSS.escape ? CSS.escape(key) : String(key).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return document.querySelectorAll(`[data-sync="${escaped}"]`);
+}
+
+function savedHeart(key, count, liked) {
   const total = Number(count) || 0;
+  const saved = key ? reactionViews.get(key) : null;
+  if (!saved || saved.comment) return { total, liked: !!liked };
+  if (!!liked === !!saved.liked && total === saved.total) {
+    reactionViews.delete(key);
+    return { total, liked: !!liked };
+  }
+  return { total: saved.total, liked: !!saved.liked };
+}
+
+function applyHeartView(node, total, liked) {
+  const input = node.querySelector('input');
+  const label = node.querySelector('label');
+  if (!input || !label) return;
   const base = liked ? Math.max(0, total - 1) : total;
+  label.dataset.count = String(base);
+  label.dataset.next = String(base + 1);
+  input.checked = !!liked;
+}
+
+function publishHeart(key, total, liked) {
+  if (!key) return;
+  reactionViews.set(key, { total, liked: !!liked });
+  reactionNodes(key).forEach((node) => applyHeartView(node, total, !!liked));
+}
+
+function publishComment(key, count) {
+  const total = Number(count) || 0;
+  if (!key) return;
+  reactionViews.set(key, { total, comment: true });
+  reactionNodes(key).forEach((node) => {
+    const label = node.querySelector('label');
+    if (!label) return;
+    label.dataset.count = String(total);
+    label.dataset.next = String(total);
+  });
+}
+
+function createHeartLike({ count, liked, mini, className, onToggle, syncKey }) {
+  const view = savedHeart(syncKey, count, liked);
+  const total = view.total;
+  const on = view.liked;
+  const base = on ? Math.max(0, total - 1) : total;
   const root = document.createElement('div');
   root.className = mini ? 'heart-like heart-like-mini' : 'heart-like';
   if (className) root.className += ' ' + className;
+  if (syncKey) root.dataset.sync = syncKey;
   const input = document.createElement('input');
   input.type = 'checkbox';
   input.id = `heart-like-${++heartLikeSeq}`;
-  input.checked = !!liked;
+  input.checked = on;
   const label = document.createElement('label');
   label.htmlFor = input.id;
   label.dataset.count = String(base);
@@ -782,6 +832,9 @@ function createHeartLike({ count, liked, mini, className, onToggle }) {
       if (!ok) {
         input.checked = !wantLike;
         root.classList.remove('is-pop', 'is-down');
+      } else if (syncKey) {
+        const baseNow = Number(label.dataset.count) || 0;
+        publishHeart(syncKey, wantLike ? baseNow + 1 : baseNow, wantLike);
       }
     } catch {
       input.checked = !wantLike;
@@ -795,10 +848,11 @@ function createHeartLike({ count, liked, mini, className, onToggle }) {
 let commentBubbleInput = null;
 let commentsClosing = false;
 
-function createCommentBubble({ count, mini, onToggle }) {
+function createCommentBubble({ count, mini, onToggle, syncKey }) {
   const total = Number(count) || 0;
   const root = document.createElement('div');
   root.className = mini ? 'heart-like heart-like-mini comment-bubble' : 'heart-like comment-bubble';
+  if (syncKey) root.dataset.sync = syncKey;
   const input = document.createElement('input');
   input.type = 'checkbox';
   input.id = `comment-bubble-${++heartLikeSeq}`;
@@ -828,13 +882,126 @@ function createCommentBubble({ count, mini, onToggle }) {
   return root;
 }
 
-function createShareBubble({ count, shared, onToggle }) {
+function createShareBubble({ count, shared, onToggle, syncKey }) {
   return createHeartLike({
     count,
     liked: shared,
     className: 'share-bubble',
     onToggle,
+    syncKey,
   });
+}
+
+function reactionHost() {
+  let host = document.getElementById('post-reaction-host');
+  if (host) return host;
+  host = document.createElement('div');
+  host.id = 'post-reaction-host';
+  host.hidden = true;
+  document.body.appendChild(host);
+  return host;
+}
+
+function ensurePostComments(data, kind, id, comments) {
+  const existing = document.getElementById(id);
+  if (existing) return existing;
+  const polygon = kind === 'polygon';
+  const section = buildCommentsSection(
+    id,
+    comments,
+    (input) => polygon
+      ? window.sendPolygonComment(data.timestamp, data.topicId, input)
+      : window.sendMarkerComment(data.timestamp, data.topicId, input),
+    (parentId, input) => polygon
+      ? window.sendPolygonReply(data.timestamp, parentId, data.topicId, input)
+      : window.sendMarkerReply(data.timestamp, parentId, data.topicId, input),
+    data.topicId,
+    polygon ? 'polygon' : 'marker',
+  );
+  reactionHost().appendChild(section);
+  return section;
+}
+
+function adoptComments(section, host) {
+  if (!section || !host || section.closest('.comments-modal')) return;
+  // The popup sheet is still detached when the card is built, so it is not
+  // inside .maplibregl-popup yet. A feed card is never a .popup-sheet.
+  const hostInPopup = host.closest && host.closest('.maplibregl-popup');
+  const hostIsMapSheet = !!(host.classList && host.classList.contains('popup-sheet') && !(host.closest && host.closest('#feed-layout')));
+  if (hostInPopup || hostIsMapSheet) {
+    if (section.closest('#feed-layout') || section.closest('.maplibregl-popup')) return;
+    host.appendChild(section);
+    section._homeParent = host;
+    delete section._park;
+    return;
+  }
+  if (section.closest('.maplibregl-popup')) return;
+  host.appendChild(section);
+  section._park = host;
+  section._homeParent = host;
+}
+
+// Same heart, comment, and share controls the marker and polygon popups use.
+export function mountPostReactions(cluster, data, kind, home) {
+  const polygon = kind === 'polygon';
+  const timestamp = data && data.timestamp;
+  const topicId = data && data.topicId;
+  if (!cluster || !timestamp || !topicId) return null;
+  const sync = (polygon ? 'polygon|' : 'marker|') + topicId + '|' + timestamp;
+  const comments = Array.isArray(data.comments) ? data.comments : [];
+  const commentsId = (polygon ? 'polygon-comments-' : 'marker-comments-') + topicId + '-' + timestamp;
+  const commentCount = Number.isFinite(data.commentsCount) ? data.commentsCount : countAllMessages(comments);
+  cluster.appendChild(createHeartLike({
+    count: polygon ? data.likeCountPolygon : data.likeCountMarker,
+    liked: data.likedByMe,
+    syncKey: 'like|' + sync,
+    onToggle: (wantLike) => polygon
+      ? window.likePolygon(timestamp, topicId, !wantLike)
+      : window.likeMarker(timestamp, topicId, !wantLike),
+  }));
+  const bubble = createCommentBubble({
+    count: commentCount,
+    syncKey: 'comment|' + sync,
+    onToggle: (open) => {
+      let section = document.getElementById(commentsId);
+      if (open && !section) {
+        section = ensurePostComments(data, polygon ? 'polygon' : 'marker', commentsId, comments);
+        if (home && section) adoptComments(section, home);
+      }
+      if (section) {
+        section._bubbleInput = bubble.querySelector('input');
+        section._openerAnchor = bubble.closest('.popup-sheet') || bubble.closest('#feed-layout');
+      }
+      return toggleCommentsBubble(open, commentsId);
+    },
+  });
+  cluster.appendChild(bubble);
+  publishComment('comment|' + sync, commentCount);
+  const shareSource = {
+    kind: polygon ? 'polygon' : 'marker',
+    topicId,
+    created: data.created,
+    payer: data.payer,
+    coords: polygon ? data.coordinates : data.coords,
+    number: polygon ? data.polygonnumber : data.markernumber,
+    timestamp,
+  };
+  const shareStateNow = shownShareState(data, topicId, timestamp);
+  cluster.appendChild(createShareBubble({
+    count: shareStateNow.count,
+    shared: shareStateNow.mine,
+    syncKey: 'share|' + sync,
+    onToggle: async (wantShare) => {
+      if (wantShare) return confirmShare(shareSource);
+      const ok = await unshareFromMyTopic(shareSource);
+      if (ok) dropSharePin(shareSource);
+      return ok;
+    },
+  }));
+  const section = ensurePostComments(data, polygon ? 'polygon' : 'marker', commentsId, comments);
+  if (section && !section._bubbleInput) section._bubbleInput = bubble.querySelector('input');
+  if (home && section) adoptComments(section, home);
+  return section;
 }
 
 function isValidUrl(url) {
@@ -1401,40 +1568,7 @@ export function createMarkerPopupHTML(data) {
 
   const likeDislikeDiv = document.createElement('div');
   likeDislikeDiv.style.cssText = 'position: absolute; top: calc(var(--u) * 0.15); left: 50%; transform: translateX(-50%); display: flex; align-items: flex-start; gap: calc(var(--u) * 0.5);';
-  likeDislikeDiv.appendChild(createHeartLike({
-    count: likeCountMarker,
-    liked: likedByMe,
-    onToggle: (wantLike) => window.likeMarker(timestamp, topicId, !wantLike),
-  }));
-
-  const markerCommentsId = `marker-comments-${topicId}-${timestamp}`;
-  likeDislikeDiv.appendChild(createCommentBubble({
-    count: Number.isFinite(commentsCount) ? commentsCount : countAllMessages(comments),
-    onToggle: (open) => toggleCommentsBubble(open, markerCommentsId),
-  }));
-  // The pin stores the topic and the post time. The card is filled later
-  // from the phone cache and then from the server.
-  const markerShare = {
-    kind: 'marker',
-    topicId,
-    created,
-    payer,
-    coords,
-    number: markernumber,
-    timestamp,
-  };
-  const markerShareState = shownShareState(data, topicId, timestamp);
-  likeDislikeDiv.appendChild(createShareBubble({
-    count: markerShareState.count,
-    shared: markerShareState.mine,
-    onToggle: async (wantShare) => {
-      if (wantShare) return confirmShare(markerShare);
-      const ok = await unshareFromMyTopic(markerShare);
-      if (ok) dropSharePin(markerShare);
-      return ok;
-    },
-  }));
-
+  const markerComments = mountPostReactions(likeDislikeDiv, data, 'marker');
   bottomRow.appendChild(likeDislikeDiv);
 
   // Settings (row 7)
@@ -1463,9 +1597,7 @@ export function createMarkerPopupHTML(data) {
   container.appendChild(bottomLeftRow);
 
   // Comments (below the bottom row, hidden until 💬 is pressed)
-  const markerComments = buildCommentsSection(markerCommentsId, comments, (input) => window.sendMarkerComment(timestamp, topicId, input), (parentId, input) => window.sendMarkerReply(timestamp, parentId, topicId, input), topicId, 'marker');
-  markerComments._bubbleInput = likeDislikeDiv.querySelector('.comment-bubble input');
-  container.appendChild(markerComments);
+  if (markerComments) adoptComments(markerComments, container);
 
   return container;
 }
@@ -1665,38 +1797,7 @@ function createPolygonPopupHTML(data) {
 
   const likeDislikeDiv = document.createElement('div');
   likeDislikeDiv.style.cssText = 'position: absolute; top: calc(var(--u) * 0.15); left: 50%; transform: translateX(-50%); display: flex; align-items: flex-start; gap: calc(var(--u) * 0.5);';
-  likeDislikeDiv.appendChild(createHeartLike({
-    count: likeCountPolygon,
-    liked: likedByMe,
-    onToggle: (wantLike) => window.likePolygon(timestamp, topicId, !wantLike),
-  }));
-
-  const polygonCommentsId = `polygon-comments-${topicId}-${timestamp}`;
-  likeDislikeDiv.appendChild(createCommentBubble({
-    count: Number.isFinite(commentsCount) ? commentsCount : countAllMessages(comments),
-    onToggle: (open) => toggleCommentsBubble(open, polygonCommentsId),
-  }));
-  const polygonShare = {
-    kind: 'polygon',
-    topicId,
-    created,
-    payer,
-    coords: coordinates,
-    number: polygonnumber,
-    timestamp,
-  };
-  const polygonShareState = shownShareState(data, topicId, timestamp);
-  likeDislikeDiv.appendChild(createShareBubble({
-    count: polygonShareState.count,
-    shared: polygonShareState.mine,
-    onToggle: async (wantShare) => {
-      if (wantShare) return confirmShare(polygonShare);
-      const ok = await unshareFromMyTopic(polygonShare);
-      if (ok) dropSharePin(polygonShare);
-      return ok;
-    },
-  }));
-
+  const polygonComments = mountPostReactions(likeDislikeDiv, data, 'polygon');
   bottomRow.appendChild(likeDislikeDiv);
 
   // Settings (row 7)
@@ -1724,9 +1825,7 @@ function createPolygonPopupHTML(data) {
   container.appendChild(bottomLeftRow);
 
   // Comments (below the bottom row, hidden until 💬 is pressed)
-  const polygonComments = buildCommentsSection(polygonCommentsId, comments, (input) => window.sendPolygonComment(timestamp, topicId, input), (parentId, input) => window.sendPolygonReply(timestamp, parentId, topicId, input), topicId, 'polygon');
-  polygonComments._bubbleInput = likeDislikeDiv.querySelector('.comment-bubble input');
-  container.appendChild(polygonComments);
+  if (polygonComments) adoptComments(polygonComments, container);
 
   return container;
 }
@@ -3473,11 +3572,16 @@ function closeCommentsModal() {
   try {
     if (commentsModalSection) {
       const home = commentsModalSection._homeParent;
+      const park = commentsModalSection._park;
+      const opener = commentsModalSection._openerAnchor;
       const homePopup = home && home.closest ? home.closest('.maplibregl-popup') : null;
+      const openerPopup = opener && opener.closest ? opener.closest('.maplibregl-popup') : null;
       if (homePopup) homePopup.classList.remove('comments-open');
-      if (home && home.isConnected) {
-        home.appendChild(commentsModalSection);
-        watchProfileTree(home);
+      if (openerPopup) openerPopup.classList.remove('comments-open');
+      const back = park && park.isConnected ? park : home;
+      if (back && back.isConnected) {
+        back.appendChild(commentsModalSection);
+        watchProfileTree(back);
       }
       const saved = commentsModalSection._modalSaves;
       if (saved) {
@@ -3512,9 +3616,10 @@ function closeCommentsModal() {
 // A map post in landscape hosts the same comments view over the right card.
 // Every other case (portrait, draw column, settings) stays a fullscreen modal.
 function commentsInCardHost(section) {
-  const anchor = section._homeParent && section._homeParent.isConnected
-    ? section._homeParent
-    : section;
+  const opener = section._openerAnchor;
+  const anchor = opener && opener.isConnected
+    ? opener
+    : (section._homeParent && section._homeParent.isConnected ? section._homeParent : section);
   if (!anchor || !landscapeMQ.matches || typeof anchor.closest !== 'function') return null;
   if (!anchor.closest('.maplibregl-map')) return null;
   const popup = anchor.closest('.maplibregl-popup');
@@ -3587,6 +3692,8 @@ function showCommentsModal(section) {
     : null;
   if (homePopup) homePopup.classList.add('comments-open');
   const sheet = commentsInCardHost(section);
+  const sheetPopup = sheet && sheet.closest ? sheet.closest('.maplibregl-popup') : null;
+  if (sheetPopup) sheetPopup.classList.add('comments-open');
   paintCommentsSection(section);
   const wrapper = document.createElement('div');
   if (sheet) {
@@ -3602,7 +3709,10 @@ function showCommentsModal(section) {
     // beats .maplibregl-popup's z-index:1000!important, so the modal stacks on
     // top even though the card itself reuses the popup classes
     wrapper.className = 'comments-modal';
-    wrapper.style.cssText = 'position: fixed; inset: 0; z-index: 5000;';
+    const overFeed = (section._openerAnchor && section._openerAnchor.closest && section._openerAnchor.closest('#feed-layout'))
+      || (section._park && section._park.closest && section._park.closest('#feed-layout'))
+      || (section.closest && section.closest('#feed-layout'));
+    wrapper.style.cssText = `position: fixed; inset: 0; z-index: ${overFeed ? 8800 : 5000};`;
 
     const scrim = document.createElement('div');
     scrim.style.cssText = 'position: absolute; inset: 0; background: rgba(0, 0, 0, 0.72);';
@@ -3636,11 +3746,13 @@ function retargetCommentsModal() {
   const section = commentsModalSection;
   if (!section || !commentsModal) return;
   const home = section._homeParent;
-  if (!home || !home.isConnected) {
+  const opener = section._openerAnchor;
+  const anchor = opener && opener.isConnected ? opener : home;
+  if (!anchor || !anchor.isConnected) {
     closeCommentsModal();
     return;
   }
-  const wantInCard = !!(landscapeMQ.matches && home.closest('.maplibregl-map'));
+  const wantInCard = !!(landscapeMQ.matches && anchor.closest && anchor.closest('.maplibregl-map'));
   const isInCard = commentsModal.classList.contains('comments-modal--in-card');
   if (wantInCard === isInCard) return;
   const saves = section._modalSaves;

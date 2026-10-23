@@ -4,7 +4,7 @@
 import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
 import { geojson, polygons, storedMarkers, storedPolygons, currentUfoModelInGLTF } from './letall.js';
-import { allLoadedMessages, markerPopupNode, polygonPopupNode } from './processallmessages.js';
+import { allLoadedMessages, markerPopupNode, polygonPopupNode, mountPostReactions } from './processallmessages.js';
 import { activeMarkerPopups } from './marker.js';
 import { activePolygonPopups } from './polygons.js';
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
@@ -486,6 +486,13 @@ function buildCard(post) {
     card.appendChild(media);
   } else if (text) {
     card.appendChild(text);
+  }
+
+  if ((post.kind === 'marker' || post.kind === 'polygon') && record.topicId && record.timestamp) {
+    const actions = document.createElement('div');
+    actions.className = 'feed-actions';
+    mountPostReactions(actions, record, post.kind, card);
+    card.appendChild(actions);
   }
 
   const meta = document.createElement('div');
