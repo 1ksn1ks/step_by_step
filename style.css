@@ -2984,12 +2984,21 @@ html, body {
     transform: none;
   }
   .topic-follow-btn:not(.is-following):hover .topic-follow-plus,
-  .topic-follow-btn:not(.is-following).is-hold .topic-follow-plus {
+  .topic-follow-btn:not(.is-following).is-hold .topic-follow-plus,
+  #feed-back-btn:is(:hover, .is-hold) .topic-follow-plus,
+  #feed-back-btn[aria-expanded="true"] .topic-follow-plus,
+  #feed-search-btn:not([aria-expanded="true"]):is(:hover, .is-hold) .topic-follow-plus,
+  #feed-search-btn[aria-expanded="true"] .topic-follow-plus,
+  #feed-search-btn[aria-expanded="true"] .topic-follow-check {
     opacity: 0;
     transform: rotate(40deg) scale(0.6);
   }
   .topic-follow-btn:not(.is-following):hover .topic-follow-check,
-  .topic-follow-btn:not(.is-following).is-hold .topic-follow-check {
+  .topic-follow-btn:not(.is-following).is-hold .topic-follow-check,
+  #feed-back-btn:is(:hover, .is-hold) .topic-follow-check,
+  #feed-back-btn[aria-expanded="true"] .topic-follow-check,
+  #feed-search-btn:not([aria-expanded="true"]):is(:hover, .is-hold) .topic-follow-check,
+  #feed-search-btn[aria-expanded="true"] .topic-follow-minus {
     opacity: 1;
     transform: none;
   }
@@ -7158,6 +7167,11 @@ html.feed-app appkit-modal {
   display: block;
   pointer-events: none;
 }
+#feed-back-btn .topic-follow-glyph,
+#feed-search-btn .topic-follow-glyph {
+  width: calc(0.55 * clamp(4.5dvmin, 5dvmin, 5.5dvmin));
+  height: calc(0.55 * clamp(4.5dvmin, 5dvmin, 5.5dvmin));
+}
 .feed-toolbar-slot {
   flex: 1 1 auto;
   min-width: 0;
@@ -7251,6 +7265,7 @@ html.feed-app appkit-modal {
   border-radius: 50%;
   cursor: pointer;
   touch-action: manipulation;
+  transition: background-color var(--press-dur) var(--press-ease), border-color var(--press-dur) var(--press-ease), color var(--press-dur) var(--press-ease);
 }
 #feed-search-btn svg,
 #feed-search-close svg {
@@ -7296,12 +7311,17 @@ html.feed-app appkit-modal {
   border-radius: 50%;
   cursor: pointer;
   touch-action: manipulation;
+  transition: background-color var(--press-dur) var(--press-ease), border-color var(--press-dur) var(--press-ease), color var(--press-dur) var(--press-ease);
 }
 #feed-post-btn svg {
   width: calc(0.55 * clamp(4.5dvmin, 5dvmin, 5.5dvmin));
   height: calc(0.55 * clamp(4.5dvmin, 5dvmin, 5.5dvmin));
   display: block;
   pointer-events: none;
+  transition: transform var(--press-dur) var(--press-ease);
+}
+#feed-post-btn:is(:hover, .is-hold) svg {
+  transform: rotate(90deg);
 }
 #feed-post-btn:focus-visible {
   outline: 0.2dvh solid #22D3EE;
@@ -7327,8 +7347,8 @@ html.feed-app appkit-modal {
 }
 #feed-toolbar.is-search .feed-menu-anchor,
 #feed-toolbar.is-search .feed-toolbar-slot,
-#feed-toolbar.is-search #feed-search-btn,
-#feed-toolbar.is-search #feed-post-btn {
+#feed-toolbar.is-search #feed-post-btn,
+#feed-toolbar.is-search #feed-search-close {
   display: none;
 }
 #feed-search-input {
@@ -8026,6 +8046,16 @@ html.feed-app appkit-modal {
   display: block;
   pointer-events: none;
 }
+#feed-menu .feed-settings svg {
+  transition: transform 900ms ease-in-out;
+}
+#feed-menu .feed-settings:is(:hover, .is-hold) svg,
+#feed-menu .feed-settings.is-spin svg {
+  transform: rotate(720deg);
+}
+#feed-menu .feed-settings.is-spin.is-again svg {
+  transform: rotate(1440deg);
+}
 #feed-menu .feed-menu-item:is(:hover, :active, .is-hold) {
   color: #22D3EE;
   background: rgba(34, 211, 238, 0.12);
@@ -8371,8 +8401,71 @@ html.feed-app appkit-modal {
     transition: none;
   }
 }
+@media (hover: none), (pointer: coarse) {
+  #feed-back-btn:hover:not(.is-hold),
+  #feed-search-btn:hover:not(.is-hold),
+  #feed-search-close:hover:not(.is-hold) {
+    background-color: rgba(10, 10, 18, 0.88);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #fff;
+  }
+  #feed-post-btn:hover:not(.is-hold) {
+    background-color: rgba(10, 10, 18, 0.88);
+    border-color: #22D3EE;
+    color: #22D3EE;
+  }
+  #feed-back-btn:hover:not(.is-hold):not([aria-expanded="true"]) .topic-follow-plus,
+  #feed-search-btn:hover:not(.is-hold):not([aria-expanded="true"]) .topic-follow-plus {
+    opacity: 1;
+    transform: none;
+  }
+  #feed-back-btn:hover:not(.is-hold):not([aria-expanded="true"]) .topic-follow-check,
+  #feed-search-btn:hover:not(.is-hold):not([aria-expanded="true"]) .topic-follow-check {
+    opacity: 0;
+    transform: rotate(-40deg) scale(0.6);
+  }
+  #feed-post-btn:hover:not(.is-hold) svg {
+    transform: none;
+  }
+  #feed-menu .feed-settings:hover:not(.is-hold):not(.is-spin) svg {
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #feed-back-btn .topic-follow-glyph svg,
+  #feed-search-btn .topic-follow-glyph svg,
+  #feed-post-btn svg,
+  #feed-menu .feed-settings svg {
+    transition: none !important;
+  }
+  #feed-back-btn:not([aria-expanded="true"]) .topic-follow-plus,
+  #feed-search-btn:not([aria-expanded="true"]) .topic-follow-plus {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  #feed-back-btn:not([aria-expanded="true"]) .topic-follow-check,
+  #feed-search-btn:not([aria-expanded="true"]) .topic-follow-check,
+  #feed-search-btn:not([aria-expanded="true"]) .topic-follow-minus {
+    opacity: 0 !important;
+    transform: none !important;
+  }
+  #feed-back-btn[aria-expanded="true"] .topic-follow-glyph svg,
+  #feed-search-btn[aria-expanded="true"] .topic-follow-glyph svg,
+  #feed-post-btn svg,
+  #feed-menu .feed-settings svg {
+    transform: none !important;
+    animation: none !important;
+  }
+  #feed-back-btn.is-pop,
+  #feed-search-btn.is-pop,
+  #feed-search-close.is-pop,
+  #feed-post-btn.is-pop {
+    animation: none !important;
+  }
+}
 #feed-back-btn:is(:hover, .is-hold) {
   background-color: var(--press-bg);
   border-color: var(--press-border);
   color: var(--press-ink);
 }
+
