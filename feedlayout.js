@@ -451,6 +451,7 @@ function buildCard(post) {
       node.style.cursor = 'zoom-in';
       node.addEventListener('click', (event) => {
         event.stopPropagation();
+        holdScroll();
         openPreview(src);
       });
     }
@@ -571,7 +572,20 @@ function writeScroll() {
   if (root.classList.contains('is-peek')) return;
   if (!window.layerIsOpen || !window.layerIsOpen('feed')) return;
   if (window.layerIsOpen('markerpopup') || window.layerIsOpen('feedfly')) return;
+  // A layer opened on top of the feed in the idle window. Pushing feed
+  // again would sit above that layer, so Back would close the feed first.
+  if (!window.layerIsTop || !window.layerIsTop('feed')) return;
   window.layerOpened('feed', { scroll: savedScroll });
+}
+
+// The next card action opens another layer. Keep the scroll the feed is
+// on, and drop the pending idle write so it cannot land above that layer.
+function holdScroll() {
+  savedScroll = scroller.scrollTop;
+  if (scrollIdle) {
+    clearTimeout(scrollIdle);
+    scrollIdle = 0;
+  }
 }
 
 function rememberScroll() {
@@ -635,6 +649,7 @@ function openMarkerFeature(feature) {
   const node = markerPopupNode(feature.properties, feature);
   const lngLat = feature.geometry && feature.geometry.coordinates;
   if (!node || !lngLat) return false;
+  holdScroll();
   activePolygonPopups.forEach((popup) => popup.remove());
   activeMarkerPopups.forEach((popup) => popup.remove());
   CloseALL();
@@ -659,6 +674,7 @@ function openPolygonFeature(polygon) {
   const node = polygonPopupNode(polygon);
   const lngLat = centerOf(polygon);
   if (!node || !lngLat) return false;
+  holdScroll();
   activePolygonPopups.forEach((popup) => popup.remove());
   activeMarkerPopups.forEach((popup) => popup.remove());
   CloseALL();

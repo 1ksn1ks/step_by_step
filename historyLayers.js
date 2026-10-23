@@ -313,6 +313,7 @@
   // can consume the entry while the display is still set, and a reopened
   // stack entry can exist before the display catches up.
   window.layerIsOpen = function (name) { return open.includes(name); };
+  window.layerIsTop = (name) => open[open.length - 1] === name;
 
   window.watchDisplayLayer = function (name, element, handlers, parent) {
     if (!element) return;
