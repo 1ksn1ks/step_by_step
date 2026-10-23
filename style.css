@@ -5281,7 +5281,8 @@ a.payer-link {
     padding: calc(var(--u) * 0.4) !important;
   }
 
-  .maplibregl-map .maplibregl-popup-content > .popup-sheet {
+  .maplibregl-map .maplibregl-popup-content > .popup-sheet,
+  #feed-column .popup-sheet {
     display: grid;
     isolation: isolate;
     position: relative;
@@ -5322,7 +5323,8 @@ a.payer-link {
     grid-row: 1 / -1;
   }
 
-  .maplibregl-map .popup-body {
+  .maplibregl-map .popup-body,
+  #feed-column .popup-body {
     display: contents;
   }
 
@@ -5346,7 +5348,9 @@ a.payer-link {
   }
 
   .maplibregl-map .popup-media-card,
-  .maplibregl-map .popup-media-card:has(video) {
+  .maplibregl-map .popup-media-card:has(video),
+  #feed-column .popup-sheet .popup-media-card,
+  #feed-column .popup-sheet .popup-media-card:has(video) {
     grid-column: 1;
     grid-row: 1 / -1;
     box-sizing: border-box;
@@ -5365,7 +5369,9 @@ a.payer-link {
   }
 
   .maplibregl-map .popup-media-card img,
-  .maplibregl-map .popup-media-card video {
+  .maplibregl-map .popup-media-card video,
+  #feed-column .popup-sheet .popup-media-card img,
+  #feed-column .popup-sheet .popup-media-card video {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -5407,7 +5413,8 @@ a.payer-link {
     overflow: visible;
   }
 
-  .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-body > div:not(.popup-media-card) {
+  .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-body > div:not(.popup-media-card),
+  #feed-column .popup-sheet .popup-body > div:not(.popup-media-card) {
     grid-column: 1;
     grid-row: 1 / -1;
     align-self: stretch;
@@ -5421,7 +5428,9 @@ a.payer-link {
     overflow: hidden;
   }
 
-  .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-text-bubble {
+  .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-text-bubble,
+  #feed-column .popup-sheet .popup-text-bubble {
+    box-sizing: border-box;
     width: 100%;
     flex: 1 1 auto;
     min-height: 0;
@@ -5429,6 +5438,30 @@ a.payer-link {
     max-height: 100%;
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+
+  /* Feed header and location sit outside this sheet. Text uses the right
+     column. The sheet stays as tall as the media cap. */
+  #feed-column .popup-sheet {
+    width: 100%;
+    height: clamp(30dvh, 40dvh, 45dvh);
+    max-height: clamp(30dvh, 40dvh, 45dvh);
+  }
+
+  #feed-column .popup-sheet .popup-body > div:not(.popup-media-card) {
+    grid-column: 2;
+    min-width: 0;
+  }
+
+  #feed-column .popup-sheet .popup-text-bubble.is-clamped {
+    display: block;
+    -webkit-line-clamp: unset;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  #feed-column .popup-sheet .feed-more {
+    display: none;
   }
 
   .maplibregl-map .popup-text-bubble {

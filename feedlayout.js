@@ -440,9 +440,10 @@ function buildCard(post) {
   card.appendChild(profile);
   if (record.payer) paintProfileAvatar(img, record.payer);
 
+  let media = null;
   const src = mediaOf(record.image);
   if (src) {
-    const media = document.createElement('div');
+    media = document.createElement('div');
     media.className = 'popup-media-card';
     const node = isVideo(src) ? document.createElement('video') : document.createElement('img');
     node.src = src;
@@ -460,16 +461,31 @@ function buildCard(post) {
       });
     }
     media.appendChild(node);
-    card.appendChild(media);
   }
 
+  let text = null;
   const body = textOf(record.msg);
   if (body) {
-    const text = document.createElement('p');
+    text = document.createElement('p');
     text.className = 'text_color popup-text-bubble';
     paintHashtags(text, body);
-    card.appendChild(text);
     text.dataset.clamp = '1';
+  }
+
+  if (media && text) {
+    const sheet = document.createElement('div');
+    sheet.className = 'popup-sheet';
+    const section = document.createElement('div');
+    section.className = 'popup-body';
+    const msgDiv = document.createElement('div');
+    msgDiv.appendChild(text);
+    section.append(media, msgDiv);
+    sheet.appendChild(section);
+    card.appendChild(sheet);
+  } else if (media) {
+    card.appendChild(media);
+  } else if (text) {
+    card.appendChild(text);
   }
 
   const meta = document.createElement('div');
