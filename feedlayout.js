@@ -558,6 +558,30 @@ function viewChip(key) {
   return chip;
 }
 
+// The comment count hangs to the right of the icon. This spacer is the same
+// text, so share stays one gap past the count and the icon stays centred.
+function commentCountSpace(comment) {
+  const space = document.createElement('span');
+  space.className = 'feed-comment-count-space';
+  space.setAttribute('aria-hidden', 'true');
+  const label = comment.querySelector('label');
+  const input = comment.querySelector('input');
+  const paint = () => {
+    if (!label) return;
+    const shown = input && input.checked ? label.dataset.next : label.dataset.count;
+    space.textContent = shown || '0';
+  };
+  paint();
+  if (label) {
+    new MutationObserver(paint).observe(label, {
+      attributes: true,
+      attributeFilter: ['data-count', 'data-next'],
+    });
+  }
+  if (input) input.addEventListener('change', paint);
+  return space;
+}
+
 function paintCardCount(card) {
   const num = viewTotals.get(card.dataset.key);
   if (num == null) return;
@@ -889,6 +913,12 @@ function buildCard(post) {
 
   const meta = document.createElement('div');
   meta.className = 'feed-meta';
+  const left = document.createElement('div');
+  left.className = 'feed-meta-left';
+  const mid = document.createElement('div');
+  mid.className = 'feed-meta-mid';
+  const right = document.createElement('div');
+  right.className = 'feed-meta-right';
   const loc = document.createElement('button');
   loc.type = 'button';
   loc.className = 'feed-loc';
@@ -914,12 +944,21 @@ function buildCard(post) {
     if (!feedActIdle(event)) return;
     openOnMap(post);
   });
-  const actions = document.createElement('div');
-  actions.className = 'feed-actions';
+  left.appendChild(loc);
   if ((post.kind === 'marker' || post.kind === 'polygon') && record.topicId && record.timestamp) {
+    const actions = document.createElement('div');
     mountPostReactions(actions, record, post.kind, card);
+    const heart = actions.querySelector('.heart-like:not(.comment-bubble):not(.share-bubble)');
+    const comment = actions.querySelector('.comment-bubble');
+    const share = actions.querySelector('.share-bubble');
+    if (heart) left.appendChild(heart);
+    if (comment) {
+      mid.appendChild(comment);
+      right.appendChild(commentCountSpace(comment));
+    }
+    if (share) right.appendChild(share);
   }
-  actions.appendChild(viewChip(post.key));
+  right.appendChild(viewChip(post.key));
   const time = document.createElement('div');
   time.className = 'popup-timestamp';
   const fullTime = document.createElement('span');
@@ -929,7 +968,8 @@ function buildCard(post) {
   briefTime.className = 'feed-time-short';
   briefTime.textContent = shortClock(post.time) || fullTime.textContent;
   time.append(fullTime, briefTime);
-  meta.append(loc, actions, time);
+  right.appendChild(time);
+  meta.append(left, mid, right);
   card.appendChild(meta);
   return card;
 }
