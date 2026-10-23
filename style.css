@@ -7186,11 +7186,33 @@ html.feed-app appkit-modal {
   cursor: pointer;
   touch-action: manipulation;
 }
-#feed-topic-btn .feed-topic-label {
+#feed-topic-btn .feed-topic-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.12dvmin;
+}
+#feed-topic-btn .feed-topic-label,
+#feed-topic-btn .feed-topic-id {
+  max-width: 100%;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
+}
+#feed-topic-btn .feed-topic-id {
+  color: rgba(255, 255, 255, 0.45);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(1.35dvmin, 1.55dvmin, 1.75dvmin);
+  font-weight: 500;
+  line-height: 1.1;
+}
+#feed-topic-btn .feed-topic-id[hidden] {
+  display: none;
 }
 #feed-topic-btn svg {
   width: clamp(1.8dvmin, 2.2dvmin, 2.6dvmin);

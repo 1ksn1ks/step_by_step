@@ -126,9 +126,15 @@ menuAnchor.append(menuBtn);
 const topicBtn = document.createElement('button');
 topicBtn.id = 'feed-topic-btn';
 topicBtn.type = 'button';
+const topicCopy = document.createElement('span');
+topicCopy.className = 'feed-topic-copy';
 const topicText = document.createElement('span');
 topicText.className = 'feed-topic-label';
-topicBtn.append(topicText, svgIcon([
+const topicIdLine = document.createElement('span');
+topicIdLine.className = 'feed-topic-id';
+topicIdLine.hidden = true;
+topicCopy.append(topicText, topicIdLine);
+topicBtn.append(topicCopy, svgIcon([
   ['path', { d: 'm6 9 6 6 6-6' }],
 ]));
 const tools = document.createElement('div');
@@ -2171,22 +2177,28 @@ function bindStream(topic) {
   streamOff = streamOnTopic(topic, onStream);
 }
 
-function topicTitle(topicId) {
+function topicName(topicId) {
   const prefix = `${topicId} - `;
   for (const entry of globalLoadedTopicIdsWithNames) {
     const row = String(entry || '');
     if (!row.startsWith(prefix)) continue;
     const name = row.slice(prefix.length).trim();
-    if (name) return name;
+    if (name && name !== topicId) return name;
   }
-  return topicId || '';
+  return '';
 }
 
 function paintTopicTitle() {
-  const label = topicTitle(topicNow());
+  const topic = topicNow();
+  const name = topicName(topic);
+  const label = name || topic || '';
   topicText.textContent = label;
-  topicBtn.title = label;
-  topicBtn.setAttribute('aria-label', label ? `Load ${label}` : 'Load topic');
+  const showId = !!(name && topic);
+  topicIdLine.hidden = !showId;
+  topicIdLine.textContent = showId ? topic : '';
+  const spoken = showId ? `${name}, ${topic}` : label;
+  topicBtn.title = spoken;
+  topicBtn.setAttribute('aria-label', spoken ? `Load ${spoken}` : 'Load topic');
 }
 
 function ensureTopic(opening) {
