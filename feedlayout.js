@@ -4,7 +4,7 @@
 import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
 import { currentUfoModelInGLTF, globalLoadedTopicIdsWithNames } from './letall.js';
-import { markerPopupNode, polygonPopupNode, mountPostReactions } from './processallmessages.js';
+import { markerPopupNode, polygonPopupNode, mountPostReactions, buildPopupProfile } from './processallmessages.js';
 import { BACKEND_URL, fetchMessagesBackend, streamOnTopic, messageSig, fetchFollowing } from './msgbackend.js';
 import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
 import { initialTopicId } from './extracttopic.js';
@@ -20,9 +20,9 @@ import { closePressAnchor } from './poiinfo.js';
 import { applyAllStyles } from './loadprofilepopup.js';
 import { scene } from './threejs.js';
 import { profilePictures, usernames, click2url } from './loadalladata.js';
-import { payerUsernameNode } from './payerlink.js';
 import { paintHashtags } from './hashtag.js';
-import { paintProfileAvatar } from './earlyhashinal.js';
+import { earlyHashinalNumber } from './earlyhashinal.js';
+import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { openPreview } from './fullscreenmedia.js';
 
 const LAYOUT_KEY = 'layoutMode';
@@ -683,41 +683,35 @@ function clearViewWatch() {
   viewTimers.clear();
 }
 
+function paintFeedHashinal(card) {
+  const payer = card && card.dataset ? card.dataset.payer || '' : '';
+  card.classList.toggle(EARLY_POPUP_CLASS, earlyHashinalNumber(payer) > 0);
+}
+
+document.addEventListener('early-hashinals', () => {
+  for (const card of column.children) {
+    if (card.classList && card.classList.contains('feed-card')) paintFeedHashinal(card);
+  }
+});
+
 function buildCard(post) {
   const record = recordFor(post) || {};
   const card = document.createElement('article');
   card.className = 'feed-card';
   card.dataset.key = post.key;
 
-  const profile = document.createElement('div');
-  profile.className = 'popup-profile-bubble';
-  const img = document.createElement('img');
-  img.src = record.profileUrl || DEFAULT_PIC;
-  img.alt = 'Profile photo';
-  img.style.cssText = 'box-sizing: border-box; width: clamp(7dvmin, 8dvmin, 9dvmin); height: clamp(7dvmin, 8dvmin, 9dvmin); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
-  profile.appendChild(img);
-  const header = document.createElement('div');
-  const h2 = document.createElement('h2');
-  const payerLink = document.createElement('a');
-  payerLink.href = `https://explore.hashpack.app/${encodeURIComponent(record.payerInfo || '')}`;
-  payerLink.target = '_blank';
-  payerLink.rel = 'noopener noreferrer';
-  payerLink.className = 'payer-info';
-  payerLink.style.textDecoration = 'none';
-  payerLink.textContent = record.payerInfo || 'Anonymous';
-  h2.appendChild(payerLink);
-  const trimmed = String(record.username || '').trim();
-  if (trimmed) {
-    h2.appendChild(document.createElement('br'));
-    h2.appendChild(payerUsernameNode(trimmed, record.click2link, { className: 'username' }));
-  }
-  header.appendChild(h2);
-  profile.appendChild(header);
+  const payer = record.payer || '';
+  card.dataset.payer = payer;
+  const profile = buildPopupProfile({
+    profileUrl: record.profileUrl || DEFAULT_PIC,
+    payer,
+    payerInfo: record.payerInfo || 'Anonymous',
+    username: record.username || '',
+    click2link: record.click2link || '',
+  });
   card.appendChild(profile);
-  if (record.payer) {
-    const payer = record.payer;
-    img.style.cursor = 'pointer';
-    h2.style.cursor = 'pointer';
+  paintFeedHashinal(card);
+  if (payer) {
     // Capture runs before the Hashpack and click2url anchors. preventDefault
     // keeps those links from navigating. stopPropagation keeps this tap from
     // reaching the document click that closes every panel.
@@ -729,10 +723,8 @@ function buildCard(post) {
       holdScroll();
       if (window.loadBio4PIC) window.loadBio4PIC(payer);
     }, true);
-    paintProfileAvatar(img, payer);
-    // The picture already leans toward the pointer. Aim that lean at the
-    // pill so the name gets the same hover and press as the picture.
-    if (img._tilt) img._tilt.host = profile;
+    const img = profile.querySelector('img');
+    if (img && img._tilt) img._tilt.host = profile;
   }
 
   let media = null;

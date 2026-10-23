@@ -1370,6 +1370,50 @@ function appendShareFeature(features, ctx) {
 
 // Helper function to create marker popup HTML using DOM
 // (exported so the 24h local-news markers reuse the exact same popup)
+// The marker and polygon popups, and the feed card, share this header.
+// Account on the first line, display name on the second, follow on the right.
+export function buildPopupProfile({ profileUrl, payer, payerInfo, username, click2link }) {
+  const profileSection = document.createElement('div');
+  profileSection.className = 'popup-profile-bubble';
+
+  const profileImg = document.createElement('img');
+  profileImg.src = profileUrl;
+  profileImg.alt = 'Profile photo';
+  profileImg.style.cssText = 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; cursor: pointer; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
+  profileImg.onclick = (event) => {
+    event.stopPropagation();
+    window.loadBio4PIC(payer);
+  };
+  watchFollowPrefetch(profileImg, payer);
+  profileSection.appendChild(profileImg);
+  paintProfileAvatar(profileImg, payer);
+  watchProfilePicture(profileImg);
+
+  const headerDiv = document.createElement('div');
+  const h2 = document.createElement('h2');
+
+  const payerLink = document.createElement('a');
+  payerLink.href = `https://explore.hashpack.app/${encodeURIComponent(payerInfo)}`;
+  payerLink.target = '_blank';
+  payerLink.rel = 'noopener noreferrer';
+  payerLink.className = 'payer-info';
+  payerLink.style.textDecoration = 'none';
+  payerLink.textContent = payerInfo;
+  h2.appendChild(payerLink);
+
+  h2.appendChild(document.createElement('br'));
+
+  const trimmedUsername = String(username || '').trim();
+  if (trimmedUsername) {
+    h2.appendChild(payerUsernameNode(trimmedUsername, click2link, { className: 'username' }));
+  }
+
+  headerDiv.appendChild(h2);
+  profileSection.appendChild(headerDiv);
+  profileSection.appendChild(followPersonControls(payer));
+  return profileSection;
+}
+
 export function createMarkerPopupHTML(data) {
   const {
     markernumber,
@@ -1432,46 +1476,7 @@ export function createMarkerPopupHTML(data) {
 
   container.appendChild(topHeader);
 
-  // Profile section
-  const profileSection = document.createElement('div');
-  profileSection.className = 'popup-profile-bubble';
-
-  const profileImg = document.createElement('img');
-  profileImg.src = profileUrl;
-  profileImg.alt = 'Profile photo';
-  profileImg.style.cssText = 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; cursor: pointer; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
-  profileImg.onclick = (event) => {
-    event.stopPropagation();
-    window.loadBio4PIC(payer);
-  };
-  watchFollowPrefetch(profileImg, payer);
-  profileSection.appendChild(profileImg);
-  paintProfileAvatar(profileImg, payer);
-  watchProfilePicture(profileImg);
-
-  const headerDiv = document.createElement('div');
-  const h2 = document.createElement('h2');
-
-  const payerLink = document.createElement('a');
-  payerLink.href = `https://explore.hashpack.app/${encodeURIComponent(payerInfo)}`;
-  payerLink.target = '_blank';
-  payerLink.rel = 'noopener noreferrer';
-  payerLink.className = 'payer-info';
-  payerLink.style.textDecoration = 'none';
-  payerLink.textContent = payerInfo;
-  h2.appendChild(payerLink);
-
-  h2.appendChild(document.createElement('br'));
-
-  const trimmedUsername = username.trim();
-  if (trimmedUsername) {
-    h2.appendChild(payerUsernameNode(trimmedUsername, click2link, { className: 'username' }));
-  }
-
-  headerDiv.appendChild(h2);
-  profileSection.appendChild(headerDiv);
-  profileSection.appendChild(followPersonControls(payer));
-  container.appendChild(profileSection);
+  container.appendChild(buildPopupProfile({ profileUrl, payer, payerInfo, username, click2link }));
 
   // Content section. Image and text scroll. The arrow row stays under the name.
   const contentSection = document.createElement('div');
@@ -1667,46 +1672,7 @@ function createPolygonPopupHTML(data) {
 
   container.appendChild(topHeader);
 
-  // Profile section
-  const profileSection = document.createElement('div');
-  profileSection.className = 'popup-profile-bubble';
-
-  const profileImg = document.createElement('img');
-  profileImg.src = profileUrl;
-  profileImg.alt = 'Profile photo';
-  profileImg.style.cssText = 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; cursor: pointer; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
-  profileImg.onclick = (event) => {
-    event.stopPropagation();
-    window.loadBio4PIC(payer);
-  };
-  watchFollowPrefetch(profileImg, payer);
-  profileSection.appendChild(profileImg);
-  paintProfileAvatar(profileImg, payer);
-  watchProfilePicture(profileImg);
-
-  const headerDiv = document.createElement('div');
-  const h2 = document.createElement('h2');
-
-  const payerLink = document.createElement('a');
-  payerLink.href = `https://explore.hashpack.app/${encodeURIComponent(payerInfo)}`;
-  payerLink.target = '_blank';
-  payerLink.rel = 'noopener noreferrer';
-  payerLink.className = 'payer-info';
-  payerLink.style.textDecoration = 'none';
-  payerLink.textContent = payerInfo;
-  h2.appendChild(payerLink);
-
-  h2.appendChild(document.createElement('br'));
-
-  const trimmedUsername = username.trim();
-  if (trimmedUsername) {
-    h2.appendChild(payerUsernameNode(trimmedUsername, click2link, { className: 'username' }));
-  }
-
-  headerDiv.appendChild(h2);
-  profileSection.appendChild(headerDiv);
-  profileSection.appendChild(followPersonControls(payer));
-  container.appendChild(profileSection);
+  container.appendChild(buildPopupProfile({ profileUrl, payer, payerInfo, username, click2link }));
 
   // Content section
   const contentSection = document.createElement('div');

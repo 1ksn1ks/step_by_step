@@ -6955,6 +6955,8 @@ a.payer-link {
   .marker-title-tip.early > .marker-tip-spin::before,
   .popup-profile-bubble.early::before,
   .popup-profile-bubble.early > .popup-early-spin::before,
+  #feed-column .feed-card.early-holder-popup,
+  #feed-column .feed-card.early-holder-popup::before,
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::before,
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::after,
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::before,
@@ -7438,15 +7440,51 @@ a.payer-link {
   user-select: text;
 }
 #feed-column .popup-profile-bubble {
-  width: fit-content;
+  --u: clamp(1dvmin, 1.15dvmin, 1.3dvmin);
+  box-sizing: border-box;
+  width: 100%;
   max-width: 100%;
-  gap: 0.7dvmin;
-  margin-bottom: 0.35dvmin;
-  padding: 0.3dvmin 0.9dvmin 0.3dvmin 0.3dvmin;
 }
-#feed-column .popup-profile-bubble h2 {
-  font-size: clamp(2.6dvmin, 3dvmin, 3.4dvmin);
-  line-height: 1.15;
+#feed-column .feed-card.early-holder-popup {
+  position: relative;
+  border-color: transparent !important;
+  border-width: calc(var(--u) * 0.3);
+  background-color: transparent !important;
+  background-image:
+    linear-gradient(rgba(12, 12, 18, 0.94), rgba(12, 12, 18, 0.94)),
+    conic-gradient(from var(--eh-angle), #f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a) !important;
+  background-origin: border-box !important;
+  background-clip: padding-box, border-box !important;
+  clip-path: none !important;
+  overflow: visible !important;
+  isolation: isolate;
+  color: #f4f1ea;
+  animation: early-hashinal-angle 4s linear infinite;
+}
+#feed-column .feed-card.early-holder-popup::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  box-shadow:
+    0 0 1.4dvh rgba(246, 226, 122, 0.55),
+    0 0 3dvh rgba(255, 74, 214, 0.32);
+  opacity: 0.7;
+  animation: early-holder-glow 2.6s ease-in-out infinite;
+}
+#feed-column .feed-card.early-holder-popup .username {
+  color: #f6e27a !important;
+}
+#feed-column .feed-card.early-holder-popup .payer-info {
+  color: #e9d5ff !important;
+}
+#feed-column .feed-card.early-holder-popup .title_color {
+  color: #ffffff !important;
+}
+#feed-column .feed-card.early-holder-popup .text_color {
+  color: #f4f1ea !important;
 }
 #feed-column .popup-media-card,
 #feed-column .popup-media-card:has(video) {
