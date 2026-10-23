@@ -224,6 +224,7 @@ function paintAskYes() {
 
 function hideAsk() {
   ask.hidden = true;
+  disconnectBtn.focus({ preventScroll: true });
 }
 
 function closeAsk() {
@@ -246,6 +247,7 @@ function showAsk(push) {
   askAccount.textContent = id;
   paintAskYes();
   ask.hidden = false;
+  askCancel.focus({ preventScroll: true });
   if (!push) return;
   ensureAskLayer();
   // A history back already queued by another panel can consume the entry
@@ -259,10 +261,22 @@ function openAsk() {
 }
 
 function onAskKey(event) {
-  if (ask.hidden || event.key !== 'Escape') return;
+  if (ask.hidden) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    closeAsk();
+    return;
+  }
+  // The dimmer is also a button. Tab stays on Cancel and Disconnect.
+  if (event.key !== 'Tab') return;
   event.preventDefault();
   event.stopPropagation();
-  closeAsk();
+  if (event.shiftKey) {
+    (document.activeElement === askYes ? askCancel : askYes).focus({ preventScroll: true });
+    return;
+  }
+  (document.activeElement === askCancel ? askYes : askCancel).focus({ preventScroll: true });
 }
 
 askDim.addEventListener('click', (event) => {
