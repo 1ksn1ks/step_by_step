@@ -2951,7 +2951,22 @@ function openTopicChat() {
   openOverFeed(() => clickId('topic-chat-btn'));
 }
 
-function openE2ee() {
+async function openE2ee() {
+  if (!walletNow()) {
+    holdScroll();
+    closeMenu();
+    let status = 'fail';
+    try {
+      status = await ensureWallet();
+    } catch (err) {
+      status = 'fail';
+    }
+    if (status === 'cancel') return;
+    if (status !== 'ok') {
+      toast.info("Couldn't open the wallet");
+      return;
+    }
+  }
   openOverFeed(() => clickId('toggle-encrypted-chat-btn'));
 }
 
@@ -3061,7 +3076,7 @@ const MENU_ROWS = [
   { label: 'Connect wallet', icon: WALLET_ICON, run: openConnect, wallet: 'off' },
   { label: 'My profile', icon: USER_ICON, run: openOwnProfile, wallet: 'on' },
   { label: 'Topic chat', icon: CHAT_ICON, run: openTopicChat },
-  { label: 'E2EE chat', icon: LOCK_ICON, run: openE2ee, wallet: 'on' },
+  { label: 'E2EE chat', icon: LOCK_ICON, run: openE2ee },
   { label: 'Settings', icon: SETTINGS_ICON, run: openSettings },
   { rule: true, wallet: 'on' },
   { label: 'Disconnect', icon: LOGOUT_ICON, run: openDisconnect, wallet: 'on', danger: true },
