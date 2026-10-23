@@ -267,6 +267,8 @@ let placeBusy = false;
 let revealToken = 0;
 let scrollIdle = 0;
 let viewObserver = null;
+let scrollFrameQueued = false;
+const viewIntersecting = new Set();
 let viewFlushTimer = 0;
 let viewCountTimer = 0;
 let looseViewer = '';
@@ -689,9 +691,23 @@ function warmFeedVideo(card) {
 
 function syncVisibleViews() {
   if (!viewObserver) return;
-  for (const card of column.children) {
-    if (card.classList && card.classList.contains('feed-card')) syncCardView(card);
+  for (const card of viewIntersecting) {
+    if (!card.isConnected) {
+      viewIntersecting.delete(card);
+      continue;
+    }
+    syncCardView(card);
   }
+}
+
+function scheduleScrollFrame() {
+  if (scrollFrameQueued) return;
+  scrollFrameQueued = true;
+  requestAnimationFrame(() => {
+    scrollFrameQueued = false;
+    syncVisibleViews();
+    clampPending();
+  });
 }
 
 function viewObserverOptions() {
@@ -710,7 +726,10 @@ function ensureViewObserver() {
   if (viewObserver) return viewObserver;
   viewObserver = new IntersectionObserver((entries) => {
     for (const entry of entries) {
-      if (entry.isIntersecting) warmFeedVideo(entry.target);
+      if (entry.isIntersecting) {
+        viewIntersecting.add(entry.target);
+        warmFeedVideo(entry.target);
+      } else viewIntersecting.delete(entry.target);
       syncCardView(entry.target);
     }
   }, viewObserverOptions());
@@ -822,11 +841,13 @@ function watchCard(card) {
 
 function forgetCard(card) {
   if (viewObserver) viewObserver.unobserve(card);
+  viewIntersecting.delete(card);
   disarmView(card);
 }
 
 function clearViewWatch() {
   if (viewObserver) viewObserver.disconnect();
+  viewIntersecting.clear();
   for (const timer of viewTimers.values()) clearTimeout(timer);
   viewTimers.clear();
 }
@@ -3413,9 +3434,8 @@ scroller.addEventListener('scroll', (event) => {
   fillUp();
   fillDown();
   revealParked();
-  syncVisibleViews();
-  // A caption can still be waiting on layout when it is first built.
-  requestAnimationFrame(clampPending);
+  // Captions can still be waiting on layout when a card is first built.
+  scheduleScrollFrame();
   scheduleScrollWrite();
 }, { passive: true });
 
