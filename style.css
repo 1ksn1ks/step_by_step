@@ -7550,6 +7550,87 @@ a.payer-link {
   font-weight: 500;
   line-height: 1;
 }
+#disconnect-ask {
+  position: fixed;
+  inset: 0;
+  z-index: 9900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: clamp(3dvmin, 4dvmin, 5dvmin);
+  font-family: Inter, system-ui, sans-serif;
+}
+#disconnect-ask[hidden] {
+  display: none;
+}
+.disconnect-ask-dim {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.62);
+  cursor: pointer;
+}
+.disconnect-ask-card {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  width: clamp(52dvmin, 62dvmin, 68dvmin);
+  margin: 0;
+  padding: clamp(1.6dvmin, 2dvmin, 2.4dvmin);
+  background: rgba(10, 10, 18, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: clamp(1.4dvmin, 1.8dvmin, 2.2dvmin);
+  color: #fff;
+}
+.disconnect-ask-title {
+  margin: 0 0 clamp(0.6dvmin, 0.8dvmin, 1dvmin);
+  color: #e6e6f0;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(2.8dvmin, 3.2dvmin, 3.6dvmin);
+  font-weight: 700;
+  line-height: 1.2;
+}
+.disconnect-ask-account {
+  margin: 0 0 clamp(1.4dvmin, 1.8dvmin, 2.2dvmin);
+  color: rgba(255, 255, 255, 0.62);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(2.2dvmin, 2.5dvmin, 2.8dvmin);
+  font-weight: 500;
+  line-height: 1.3;
+  word-break: break-all;
+}
+.disconnect-ask-row {
+  display: flex;
+  align-items: stretch;
+  gap: clamp(1dvmin, 1.2dvmin, 1.6dvmin);
+}
+.disconnect-ask-cancel,
+.disconnect-ask-yes {
+  appearance: none;
+  flex: 1 1 auto;
+  margin: 0;
+  padding: clamp(1.1dvmin, 1.4dvmin, 1.7dvmin) clamp(1dvmin, 1.2dvmin, 1.5dvmin);
+  border-radius: clamp(1dvmin, 1.3dvmin, 1.6dvmin);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(2.2dvmin, 2.5dvmin, 2.8dvmin);
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.disconnect-ask-cancel {
+  background: rgba(10, 10, 18, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #e6e6f0;
+}
+.disconnect-ask-yes {
+  background: #f07178;
+  border: 0;
+  color: #2a0c0e;
+}
 #feed-back-btn:is(:hover, .is-hold) {
   background-color: var(--press-bg);
   border-color: var(--press-border);
