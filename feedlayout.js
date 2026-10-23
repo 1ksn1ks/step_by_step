@@ -76,6 +76,9 @@ followTab.id = 'feed-tab-following';
 followTab.setAttribute('role', 'tab');
 followTab.textContent = 'Following';
 tabs.append(allTab, followTab);
+const tabRuler = document.createElement('div');
+tabRuler.id = 'feed-tab-ruler';
+tabRuler.setAttribute('aria-hidden', 'true');
 
 const newPill = document.createElement('button');
 newPill.id = 'feed-new-posts';
@@ -173,7 +176,7 @@ searchClose.appendChild(svgIcon([
 ]));
 searchBar.append(searchInput, searchClose);
 toolbar.append(menuAnchor, tools, searchBtnFeed, postBtn, searchBar);
-root.append(dim, toolbar, tabs, newPill, scroller, menuDim, menu);
+root.append(dim, toolbar, tabs, tabRuler, newPill, scroller, menuDim, menu);
 
 const btn = document.createElement('button');
 btn.id = 'layout-mode-btn';
@@ -250,6 +253,12 @@ const deletedStamp = new Set();
 const deletedNumber = new Set();
 const droppedShares = new Set();
 let savedScroll = 0;
+let tabShown = true;
+let tabLastY = 0;
+let tabDownFrom = 0;
+let tabHidePx = 0;
+let tabHideReady = false;
+let tabTrackHold = false;
 let peek = false;
 let placing = false;
 let drawWasOpen = false;
@@ -1668,6 +1677,7 @@ async function selectTab(next) {
   const token = ++tabToken;
   feedTab = next;
   paintTabs();
+  showFeedTabs();
   if (next === 'all') {
     if (searchQuery) rerenderLane({ keepHeld: true });
     else restoreTabView();
@@ -2723,10 +2733,12 @@ function applyFeed(on) {
     if (dropSearch && window.layerClosedByUI) window.layerClosedByUI('feedsearch');
   }
   if (on) {
+    showFeedTabs();
     const opening = !feedOn();
     peek = false;
     root.classList.remove('is-peek');
     root.style.display = 'block';
+    measureTabHide();
     syncCover();
     if (opening) {
       const wasFollowing = feedTab !== 'all';
@@ -3319,8 +3331,82 @@ searchInput.addEventListener('keydown', (event) => {
   event.preventDefault();
 });
 
-scroller.addEventListener('scroll', () => {
+function measureTabHide() {
+  const h = tabRuler.getBoundingClientRect().height;
+  if (h > 0) {
+    tabHidePx = h;
+    tabHideReady = true;
+    return;
+  }
+  if (!tabHideReady) tabHidePx = window.innerHeight * 0.02;
+}
+
+function showFeedTabs() {
+  tabDownFrom = scroller.scrollTop;
+  if (tabShown) return;
+  tabShown = true;
+  tabs.classList.remove('is-away');
+}
+
+function hideFeedTabs() {
+  if (!tabShown) return;
+  tabShown = false;
+  tabs.classList.add('is-away');
+}
+
+function trackFeedTabs(trusted) {
+  if (!tabHideReady) measureTabHide();
+  const y = scroller.scrollTop;
+  if (y < 2) {
+    showFeedTabs();
+    tabLastY = y;
+    return;
+  }
+  if (!trusted) {
+    tabLastY = y;
+    tabDownFrom = y;
+    return;
+  }
+  const delta = y - tabLastY;
+  tabLastY = y;
+  if (delta < 0) {
+    showFeedTabs();
+    return;
+  }
+  if (delta > 0 && tabShown && y - tabDownFrom >= (tabHidePx || window.innerHeight * 0.02)) hideFeedTabs();
+}
+
+const scrollTopOf = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+Object.defineProperty(scroller, 'scrollTop', {
+  configurable: true,
+  enumerable: true,
+  get() { return scrollTopOf.get.call(this); },
+  set(value) {
+    const before = scrollTopOf.get.call(this);
+    tabTrackHold = true;
+    scrollTopOf.set.call(this, value);
+    if (scrollTopOf.get.call(this) === before) tabTrackHold = false;
+  },
+});
+const scrollToNative = scroller.scrollTo;
+scroller.scrollTo = function (arg, y) {
+  const before = scrollTopOf.get.call(this);
+  tabTrackHold = true;
+  const result = scrollToNative.call(this, arg, y);
+  const top = arg && typeof arg === 'object' ? arg.top : arg;
+  if (typeof top === 'number' && scrollTopOf.get.call(this) === before && top === before) tabTrackHold = false;
+  return result;
+};
+
+tabs.addEventListener('focusin', () => showFeedTabs());
+window.addEventListener('resize', measureTabHide);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', measureTabHide);
+
+scroller.addEventListener('scroll', (event) => {
+  const hold = tabTrackHold;
+  if (hold) tabTrackHold = false;
   if (root.classList.contains('is-peek')) return;
+  trackFeedTabs(event.isTrusted && !hold);
   savedScroll = scroller.scrollTop;
   fillUp();
   fillDown();

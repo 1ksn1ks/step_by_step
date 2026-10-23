@@ -7345,7 +7345,7 @@ html.feed-app appkit-modal {
   top: clamp(5dvh, 6dvmin, 7dvh);
   left: 0;
   right: 0;
-  z-index: 2;
+  z-index: 1;
   width: 100%;
   height: clamp(4.2dvh, 4.8dvmin, 5.4dvh);
   margin-inline: auto;
@@ -7354,6 +7354,23 @@ html.feed-app appkit-modal {
   align-items: stretch;
   background: #0a0a12;
   border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+  transform: translateY(0);
+  transition: transform 200ms ease;
+}
+#feed-tabs.is-away {
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+#feed-tab-ruler {
+  position: absolute;
+  width: 0;
+  height: 2dvh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
 }
 #feed-tabs .feed-tab {
   appearance: none;
@@ -8302,7 +8319,8 @@ html.feed-app appkit-modal {
   outline-offset: 0.2dvh;
 }
 @media (prefers-reduced-motion: reduce) {
-  #feed-new-posts {
+  #feed-new-posts,
+  #feed-tabs {
     transition: none;
   }
 }
