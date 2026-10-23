@@ -314,7 +314,7 @@ function followButton() {
 const PRESS_HOLD_MS = 450;
 const pressBound = new WeakSet();
 
-function bindPressFeedback(btn) {
+export function bindPressFeedback(btn) {
   if (!btn || pressBound.has(btn)) return;
   pressBound.add(btn);
   let holdTimer = 0;
@@ -338,11 +338,44 @@ function bindPressFeedback(btn) {
   btn.addEventListener('animationend', () => btn.classList.remove('is-pop'));
 }
 
+// Resting × cross-fades into a circled ×. Same stacked glyphs as Follow.
+function closeGlyph() {
+  const glyph = document.createElement('span');
+  glyph.className = 'topic-follow-glyph';
+  glyph.setAttribute('aria-hidden', 'true');
+  const circled = followIcon('topic-follow-check', [
+    svgEl('circle', { cx: '12', cy: '12', r: '10' }),
+    svgEl('path', { d: 'm15 9-6 6' }),
+    svgEl('path', { d: 'm9 9 6 6' }),
+  ]);
+  circled.setAttribute('stroke-width', '2.5');
+  glyph.append(
+    followIcon('topic-follow-plus', [
+      svgEl('path', { d: 'M18 6 6 18' }),
+      svgEl('path', { d: 'm6 6 12 12' }),
+    ]),
+    circled,
+  );
+  return glyph;
+}
+
+function mountCloseGlyph(btn) {
+  if (!btn || btn.classList.contains('comments-back-button')) return;
+  if (btn.querySelector('.topic-follow-glyph')) return;
+  btn.textContent = '';
+  btn.appendChild(closeGlyph());
+}
+
 function bindPopupClose(node) {
   if (!node || node.nodeType !== 1) return;
-  if (node.classList.contains('maplibregl-popup-close-button')) bindPressFeedback(node.classList.contains('comments-back-button') ? null : node);
+  const paint = (btn) => {
+    if (!btn || btn.classList.contains('comments-back-button')) return;
+    mountCloseGlyph(btn);
+    bindPressFeedback(btn);
+  };
+  if (node.classList.contains('maplibregl-popup-close-button')) paint(node);
   if (!node.querySelectorAll) return;
-  node.querySelectorAll('.maplibregl-popup-close-button:not(.comments-back-button)').forEach(bindPressFeedback);
+  node.querySelectorAll('.maplibregl-popup-close-button:not(.comments-back-button)').forEach(paint);
 }
 
 function watchPopupCloses() {

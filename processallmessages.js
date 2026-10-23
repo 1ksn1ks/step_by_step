@@ -13,7 +13,7 @@ import {updateRulesForModelNFTState} from './confirmnft'
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto';
 import { ringCenter, zoomForPolygon } from './polygonframe.js';
 import { profilePictures, usernames, click2url, profileTopics } from './loadalladata'
-import { confirmShare, unshareFromMyTopic, sharePin, followPersonControls, watchFollowPrefetch } from './followtopic'
+import { confirmShare, unshareFromMyTopic, sharePin, followPersonControls, watchFollowPrefetch, bindPressFeedback } from './followtopic'
 import { clearShareTopic, noteShare, shareState, shareMine, takeSharePin, takeUnsharePin } from './sharecount.js'
 import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
 import { openPreview } from './fullscreenmedia';
@@ -1414,6 +1414,71 @@ export function buildPopupProfile({ profileUrl, payer, payerInfo, username, clic
   return profileSection;
 }
 
+const POPUP_GEAR = [
+  ['path', { d: 'M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915' }],
+  ['circle', { cx: '12', cy: '12', r: '3' }],
+];
+
+function popupGearIcon() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const [name, attrs] of POPUP_GEAR) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', name);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+    svg.appendChild(node);
+  }
+  return svg;
+}
+
+// Hover spins in CSS. A tap spins once more, then the settings card opens.
+function popupSettingsGear(walk) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'popup-icon-chip popup-settings-gear';
+  btn.setAttribute('aria-label', 'Settings');
+  btn.title = 'Settings';
+  btn.appendChild(popupGearIcon());
+  bindPressFeedback(btn);
+  btn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (btn.classList.contains('is-spin')) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      window.openPopupSettings(walk);
+      return;
+    }
+    const icon = btn.querySelector('svg');
+    const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    if (fine && (btn.matches(':hover') || btn.classList.contains('is-hold'))) btn.classList.add('is-again');
+    btn.classList.add('is-spin');
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (icon) icon.removeEventListener('transitionend', onEnd);
+      window.openPopupSettings(walk);
+      if (icon) icon.style.transition = 'none';
+      btn.classList.remove('is-spin', 'is-again');
+      if (icon) {
+        void icon.offsetWidth;
+        icon.style.transition = '';
+      }
+    };
+    const onEnd = (event) => {
+      if (event.target !== icon || event.propertyName !== 'transform') return;
+      finish();
+    };
+    if (icon) icon.addEventListener('transitionend', onEnd);
+    setTimeout(finish, 1100);
+  });
+  return btn;
+}
+
 export function createMarkerPopupHTML(data) {
   const {
     markernumber,
@@ -1580,14 +1645,7 @@ export function createMarkerPopupHTML(data) {
   bottomRow.appendChild(likeDislikeDiv);
 
   // Settings (row 7)
-  const settingsSpan = document.createElement('span');
-  settingsSpan.className = 'popup-icon-chip';
-  settingsSpan.textContent = '⚙️';
-  settingsSpan.onclick = (event) => {
-    event.stopPropagation();
-    window.openPopupSettings(data.walk);
-  };
-  topHeader.appendChild(settingsSpan);
+  topHeader.appendChild(popupSettingsGear(data.walk));
   // Row 7 — topic id and name on the left, timestamp on the right.
   // -0.5u cancels the content's side pad so the pills are not covered.
   const bottomLeftRow = document.createElement('div');
@@ -1770,14 +1828,7 @@ function createPolygonPopupHTML(data) {
   bottomRow.appendChild(likeDislikeDiv);
 
   // Settings (row 7)
-  const settingsSpan = document.createElement('span');
-  settingsSpan.className = 'popup-icon-chip';
-  settingsSpan.textContent = '⚙️';
-  settingsSpan.onclick = (event) => {
-    event.stopPropagation();
-    window.openPopupSettings(data.walk);
-  };
-  topHeader.appendChild(settingsSpan);
+  topHeader.appendChild(popupSettingsGear(data.walk));
   // Row 7 — topic id and name on the left, timestamp on the right.
   const bottomLeftRow = document.createElement('div');
   bottomLeftRow.className = 'popup-dock';

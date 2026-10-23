@@ -111,13 +111,10 @@ menuBtn.setAttribute('aria-haspopup', 'menu');
 menuBtn.setAttribute('aria-expanded', 'false');
 menuBtn.setAttribute('aria-controls', 'feed-menu');
 menuBtn.title = 'Menu';
-menuBtn.appendChild(pressGlyph([
+menuBtn.appendChild(svgIcon([
   ['line', { x1: '4', x2: '20', y1: '12', y2: '12' }],
   ['line', { x1: '4', x2: '20', y1: '6', y2: '6' }],
   ['line', { x1: '4', x2: '20', y1: '18', y2: '18' }],
-], [
-  ['path', { d: 'M18 6 6 18' }],
-  ['path', { d: 'm6 6 12 12' }],
 ]));
 const menu = document.createElement('ul');
 menu.id = 'feed-menu';
@@ -152,15 +149,9 @@ searchBtnFeed.type = 'button';
 searchBtnFeed.setAttribute('aria-label', 'Search');
 searchBtnFeed.setAttribute('aria-expanded', 'false');
 searchBtnFeed.title = 'Search';
-searchBtnFeed.appendChild(pressGlyph([
+searchBtnFeed.appendChild(svgIcon([
   ['circle', { cx: '11', cy: '11', r: '8' }],
   ['path', { d: 'm21 21-4.3-4.3' }],
-], [
-  ['path', { d: 'M5 12h14' }],
-  ['path', { d: 'm12 5 7 7-7 7' }],
-], [
-  ['path', { d: 'M18 6 6 18' }],
-  ['path', { d: 'm6 6 12 12' }],
 ]));
 const postBtn = document.createElement('button');
 postBtn.id = 'feed-post-btn';
@@ -315,24 +306,6 @@ function svgIcon(parts) {
     svg.appendChild(node);
   }
   return svg;
-}
-
-// Two stacked glyphs, same classes as the follow button, so the press
-// rules cross-fade them. The third glyph is the open-state icon.
-function pressGlyph(rest, next, open) {
-  const glyph = document.createElement('span');
-  glyph.className = 'topic-follow-glyph';
-  const from = svgIcon(rest);
-  from.classList.add('topic-follow-plus');
-  const to = svgIcon(next);
-  to.classList.add('topic-follow-check');
-  glyph.append(from, to);
-  if (open) {
-    const held = svgIcon(open);
-    held.classList.add('topic-follow-minus');
-    glyph.appendChild(held);
-  }
-  return glyph;
 }
 
 function savedMode() {
@@ -2466,10 +2439,6 @@ function paintSearch(open) {
   toolbar.classList.toggle('is-search', open);
   searchBar.hidden = !open;
   searchBtnFeed.setAttribute('aria-expanded', open ? 'true' : 'false');
-  searchBtnFeed.setAttribute('aria-label', open ? 'Close search' : 'Search');
-  searchBtnFeed.title = open ? 'Close search' : 'Search';
-  if (open) toolbar.appendChild(searchBtnFeed);
-  else toolbar.insertBefore(searchBtnFeed, postBtn);
 }
 
 function pinWindow() {
@@ -3121,8 +3090,6 @@ function paintMenu(open) {
     if (token !== menuToken) return;
     menu.hidden = true;
     menuDim.hidden = true;
-    const gear = menu.querySelector('.feed-settings');
-    if (gear) gear.classList.remove('is-spin', 'is-again');
   };
   if (motionOff() || menu.hidden) {
     finish();
@@ -3175,7 +3142,7 @@ const MENU_ROWS = [
   { label: 'My profile', icon: USER_ICON, run: openOwnProfile, wallet: 'on' },
   { label: 'Topic chat', icon: CHAT_ICON, run: openTopicChat },
   { label: 'E2EE chat', icon: LOCK_ICON, run: openE2ee },
-  { label: 'Settings', icon: SETTINGS_ICON, run: openSettings, settings: true },
+  { label: 'Settings', icon: SETTINGS_ICON, run: openSettings },
   { rule: true, wallet: 'on' },
   { label: 'Disconnect', icon: LOGOUT_ICON, run: openDisconnect, wallet: 'on', danger: true },
 ];
@@ -3202,39 +3169,10 @@ for (const item of MENU_ROWS) {
   const choice = document.createElement('button');
   choice.type = 'button';
   choice.className = item.danger ? 'feed-menu-item is-danger' : 'feed-menu-item';
-  if (item.settings) choice.classList.add('feed-settings');
   choice.append(svgIcon(item.icon), document.createTextNode(item.label));
   choice.addEventListener('click', (event) => {
     event.stopPropagation();
-    if (!item.settings) {
-      item.run();
-      return;
-    }
-    if (choice.classList.contains('is-spin')) return;
-    if (motionOff()) {
-      item.run();
-      return;
-    }
-    const icon = choice.querySelector('svg');
-    const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-    if (fine && (choice.matches(':hover') || choice.classList.contains('is-hold'))) {
-      choice.classList.add('is-again');
-    }
-    choice.classList.add('is-spin');
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      icon.removeEventListener('transitionend', onEnd);
-      if (!menu.classList.contains('is-open')) return;
-      item.run();
-    };
-    const onEnd = (event) => {
-      if (event.target !== icon || event.propertyName !== 'transform') return;
-      finish();
-    };
-    icon.addEventListener('transitionend', onEnd);
-    setTimeout(finish, 1100);
+    item.run();
   });
   bindPress(choice);
   row.appendChild(choice);
@@ -3420,8 +3358,7 @@ paintTabs();
 bindPress(searchBtnFeed);
 searchBtnFeed.addEventListener('click', (event) => {
   event.stopPropagation();
-  if (searchOpen) closeSearch();
-  else openSearch();
+  openSearch();
 });
 bindPress(postBtn);
 postBtn.addEventListener('click', (event) => {

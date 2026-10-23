@@ -2751,6 +2751,11 @@ html, body {
   .maplibregl-popup-close-button:not(.comments-back-button) {
     transition: background-color var(--press-dur) var(--press-ease), border-color var(--press-dur) var(--press-ease), color var(--press-dur) var(--press-ease);
   }
+  .maplibregl-popup-close-button:not(.comments-back-button) .topic-follow-glyph,
+  .maplibregl-popup-close-button:not(.comments-back-button) .topic-follow-glyph svg {
+    width: calc(var(--u) * 2.2);
+    height: calc(var(--u) * 2.2);
+  }
 
   /* Comments back. Same circle as the popup ×, on the top left. */
   .maplibregl-popup-close-button.comments-back-button {
@@ -2942,6 +2947,25 @@ html, body {
       border-color: var(--rest-border);
       color: var(--rest-ink);
     }
+    .maplibregl-popup-close-button:not(.comments-back-button):hover:not(.is-hold) .topic-follow-plus {
+      opacity: 1;
+      transform: none;
+    }
+    .maplibregl-popup-close-button:not(.comments-back-button):hover:not(.is-hold) .topic-follow-check {
+      opacity: 0;
+      transform: rotate(-40deg) scale(0.6);
+    }
+    .popup-icon-chip.popup-settings-gear:hover:not(.is-hold) {
+      background: var(--rest-bg);
+      background-color: var(--rest-bg);
+      border-color: var(--rest-border);
+      color: var(--rest-ink);
+      transform: none;
+      filter: none;
+    }
+    .popup-icon-chip.popup-settings-gear:hover:not(.is-hold):not(.is-spin) svg {
+      transform: none;
+    }
   }
   .topic-follow-btn.is-pop,
   #feed-back-btn.is-pop,
@@ -2985,20 +3009,13 @@ html, body {
   }
   .topic-follow-btn:not(.is-following):hover .topic-follow-plus,
   .topic-follow-btn:not(.is-following).is-hold .topic-follow-plus,
-  #feed-back-btn:is(:hover, .is-hold) .topic-follow-plus,
-  #feed-back-btn[aria-expanded="true"] .topic-follow-plus,
-  #feed-search-btn:not([aria-expanded="true"]):is(:hover, .is-hold) .topic-follow-plus,
-  #feed-search-btn[aria-expanded="true"] .topic-follow-plus,
-  #feed-search-btn[aria-expanded="true"] .topic-follow-check {
+  .maplibregl-popup-close-button:not(.comments-back-button):is(:hover, .is-hold) .topic-follow-plus {
     opacity: 0;
     transform: rotate(40deg) scale(0.6);
   }
   .topic-follow-btn:not(.is-following):hover .topic-follow-check,
   .topic-follow-btn:not(.is-following).is-hold .topic-follow-check,
-  #feed-back-btn:is(:hover, .is-hold) .topic-follow-check,
-  #feed-back-btn[aria-expanded="true"] .topic-follow-check,
-  #feed-search-btn:not([aria-expanded="true"]):is(:hover, .is-hold) .topic-follow-check,
-  #feed-search-btn[aria-expanded="true"] .topic-follow-minus {
+  .maplibregl-popup-close-button:not(.comments-back-button):is(:hover, .is-hold) .topic-follow-check {
     opacity: 1;
     transform: none;
   }
@@ -3008,13 +3025,24 @@ html, body {
     100% { transform: scale(1); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .topic-follow-btn .topic-follow-glyph svg {
+    .topic-follow-btn .topic-follow-glyph svg,
+    .maplibregl-popup-close-button:not(.comments-back-button) .topic-follow-glyph svg,
+    .popup-icon-chip.popup-settings-gear svg {
       transition: none !important;
+      transform: none !important;
+      animation: none !important;
+    }
+    .maplibregl-popup-close-button:not(.comments-back-button) .topic-follow-plus {
+      opacity: 1 !important;
+    }
+    .maplibregl-popup-close-button:not(.comments-back-button) .topic-follow-check {
+      opacity: 0 !important;
       transform: none !important;
     }
     .topic-follow-btn.is-pop,
     #feed-back-btn.is-pop,
-    .maplibregl-popup-close-button:not(.comments-back-button).is-pop {
+    .maplibregl-popup-close-button:not(.comments-back-button).is-pop,
+    .popup-icon-chip.popup-settings-gear.is-pop {
       animation: none !important;
     }
     .topic-follow-count,
@@ -3224,6 +3252,58 @@ html, body {
       background: rgba(255, 255, 255, 0.16);
     }
     .maplibregl-popup-close-button.comments-back-button:active { transform: scale(0.92); }
+    .popup-icon-chip.popup-settings-gear:hover,
+    .popup-icon-chip.popup-settings-gear:active {
+      transform: none;
+      filter: none;
+    }
+  }
+
+  /* Popup settings gear. Same cyan press and pop as the ×. The icon
+     spins while the pointer is on it, and once more as the panel opens. */
+  .popup-icon-chip.popup-settings-gear {
+    appearance: none;
+    margin: 0;
+    font: inherit;
+    --press-dur: 200ms;
+    --press-ease: ease;
+    --press-bg: #22D3EE;
+    --press-border: #22D3EE;
+    --press-ink: #083344;
+    --rest-bg: rgba(255, 255, 255, 0.10);
+    --rest-border: rgba(255, 255, 255, 0.22);
+    --rest-ink: #fff;
+    color: var(--rest-ink);
+    background: var(--rest-bg);
+    border-color: var(--rest-border);
+    transition: background-color var(--press-dur) var(--press-ease), border-color var(--press-dur) var(--press-ease), color var(--press-dur) var(--press-ease);
+  }
+  .popup-icon-chip.popup-settings-gear svg {
+    width: calc(var(--u) * 2.2);
+    height: calc(var(--u) * 2.2);
+    display: block;
+    pointer-events: none;
+    transition: transform 900ms ease-in-out;
+  }
+  .popup-icon-chip.popup-settings-gear:is(:hover, .is-hold),
+  .popup-icon-chip.popup-settings-gear.is-spin {
+    background-color: var(--press-bg);
+    border-color: var(--press-border);
+    color: var(--press-ink);
+  }
+  .popup-icon-chip.popup-settings-gear:is(:hover, .is-hold) svg,
+  .popup-icon-chip.popup-settings-gear.is-spin svg {
+    transform: rotate(720deg);
+  }
+  .popup-icon-chip.popup-settings-gear.is-spin.is-again svg {
+    transform: rotate(1440deg);
+  }
+  .popup-icon-chip.popup-settings-gear.is-pop {
+    animation: topicFollowPop var(--press-dur) var(--press-ease);
+  }
+  .popup-icon-chip.popup-settings-gear:focus-visible {
+    outline: calc(var(--u) * 0.12) solid #22D3EE;
+    outline-offset: calc(var(--u) * 0.12);
   }
 
   /* Heart like (josetxu pen). --h is local so it does not replace popup --u.
@@ -7189,11 +7269,6 @@ html.feed-app appkit-modal {
   display: block;
   pointer-events: none;
 }
-#feed-back-btn .topic-follow-glyph,
-#feed-search-btn .topic-follow-glyph {
-  width: calc(var(--fu) * 2.2);
-  height: calc(var(--fu) * 2.2);
-}
 .feed-toolbar-slot {
   flex: 1 1 auto;
   min-width: 0;
@@ -7344,10 +7419,6 @@ html.feed-app appkit-modal {
   height: calc(var(--fu) * 2.2);
   display: block;
   pointer-events: none;
-  transition: transform var(--press-dur) var(--press-ease);
-}
-#feed-post-btn:is(:hover, .is-hold) svg {
-  transform: rotate(90deg);
 }
 #feed-post-btn:focus-visible {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
@@ -7374,7 +7445,7 @@ html.feed-app appkit-modal {
 #feed-toolbar.is-search .feed-menu-anchor,
 #feed-toolbar.is-search .feed-toolbar-slot,
 #feed-toolbar.is-search #feed-post-btn,
-#feed-toolbar.is-search #feed-search-close {
+#feed-toolbar.is-search #feed-search-btn {
   display: none;
 }
 #feed-search-input {
@@ -8081,16 +8152,6 @@ html.feed-app appkit-modal {
   display: block;
   pointer-events: none;
 }
-#feed-menu .feed-settings svg {
-  transition: transform 900ms ease-in-out;
-}
-#feed-menu .feed-settings:is(:hover, .is-hold) svg,
-#feed-menu .feed-settings.is-spin svg {
-  transform: rotate(720deg);
-}
-#feed-menu .feed-settings.is-spin.is-again svg {
-  transform: rotate(1440deg);
-}
 #feed-menu .feed-menu-item:is(:hover, :active, .is-hold) {
   color: #22D3EE;
   background: rgba(34, 211, 238, 0.12);
@@ -8458,48 +8519,8 @@ html.feed-app appkit-modal {
     border-color: #22D3EE;
     color: #22D3EE;
   }
-  #feed-back-btn:hover:not(.is-hold):not([aria-expanded="true"]) .topic-follow-plus,
-  #feed-search-btn:hover:not(.is-hold):not([aria-expanded="true"]) .topic-follow-plus {
-    opacity: 1;
-    transform: none;
-  }
-  #feed-back-btn:hover:not(.is-hold):not([aria-expanded="true"]) .topic-follow-check,
-  #feed-search-btn:hover:not(.is-hold):not([aria-expanded="true"]) .topic-follow-check {
-    opacity: 0;
-    transform: rotate(-40deg) scale(0.6);
-  }
-  #feed-post-btn:hover:not(.is-hold) svg {
-    transform: none;
-  }
-  #feed-menu .feed-settings:hover:not(.is-hold):not(.is-spin) svg {
-    transform: none;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
-  #feed-back-btn .topic-follow-glyph svg,
-  #feed-search-btn .topic-follow-glyph svg,
-  #feed-post-btn svg,
-  #feed-menu .feed-settings svg {
-    transition: none !important;
-  }
-  #feed-back-btn:not([aria-expanded="true"]) .topic-follow-plus,
-  #feed-search-btn:not([aria-expanded="true"]) .topic-follow-plus {
-    opacity: 1 !important;
-    transform: none !important;
-  }
-  #feed-back-btn:not([aria-expanded="true"]) .topic-follow-check,
-  #feed-search-btn:not([aria-expanded="true"]) .topic-follow-check,
-  #feed-search-btn:not([aria-expanded="true"]) .topic-follow-minus {
-    opacity: 0 !important;
-    transform: none !important;
-  }
-  #feed-back-btn[aria-expanded="true"] .topic-follow-glyph svg,
-  #feed-search-btn[aria-expanded="true"] .topic-follow-glyph svg,
-  #feed-post-btn svg,
-  #feed-menu .feed-settings svg {
-    transform: none !important;
-    animation: none !important;
-  }
   #feed-back-btn.is-pop,
   #feed-search-btn.is-pop,
   #feed-search-close.is-pop,
