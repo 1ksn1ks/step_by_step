@@ -400,13 +400,32 @@ function isVideo(url) {
   return /\.(mp4|webm)(\?|#|$)/i.test(url);
 }
 
-// 10dvmin. clientX is CSS pixels, and 1dvmin is 1% of the shorter viewport side.
-function feedTapLimit() {
-  return Math.min(window.innerWidth, window.innerHeight) * 0.1;
+// 1dvmin. clientX is CSS pixels, and 1dvmin is 1% of the shorter viewport side.
+function feedDragLimit() {
+  return Math.min(window.innerWidth, window.innerHeight) * 0.01;
+}
+
+function feedSelectionEmpty() {
+  const sel = window.getSelection && window.getSelection();
+  return !sel || !String(sel).length;
+}
+
+let feedPress = null;
+column.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0) return;
+  feedPress = { x: event.clientX, y: event.clientY };
+});
+
+function feedActIdle(event) {
+  if (!feedSelectionEmpty()) return false;
+  if (!feedPress) return true;
+  const dx = event.clientX - feedPress.x;
+  const dy = event.clientY - feedPress.y;
+  return Math.hypot(dx, dy) < feedDragLimit();
 }
 
 // Sits over a photo, video, or embed. Move and wheel listeners stay off this
-// node so a drag still scrolls the feed. A finger that stays inside 10dvmin plays.
+// node so a drag still scrolls the feed. A finger that stays inside 1dvmin plays.
 function coverFeedPlayer(media, onTap) {
   const hit = document.createElement('div');
   hit.className = 'feed-media-hit';
@@ -421,7 +440,7 @@ function coverFeedPlayer(media, onTap) {
     if (!from || from.id !== event.pointerId) return;
     const dx = event.clientX - from.x;
     const dy = event.clientY - from.y;
-    if (Math.hypot(dx, dy) >= feedTapLimit()) return;
+    if (Math.hypot(dx, dy) >= feedDragLimit() || !feedSelectionEmpty()) return;
     onTap();
   });
   hit.addEventListener('pointercancel', () => {
@@ -763,6 +782,7 @@ function buildCard(post) {
       if (!hit || !profile.contains(hit)) return;
       event.preventDefault();
       event.stopPropagation();
+      if (!feedActIdle(event)) return;
       holdScroll();
       if (window.loadBio4PIC) window.loadBio4PIC(payer);
     }, true);
@@ -847,6 +867,7 @@ function buildCard(post) {
   loc.appendChild(whereText);
   loc.addEventListener('click', (event) => {
     event.stopPropagation();
+    if (!feedActIdle(event)) return;
     openOnMap(post);
   });
   const actions = document.createElement('div');
@@ -2777,6 +2798,13 @@ document.addEventListener('keydown', (event) => {
   closeMenu();
 }, true);
 
+column.addEventListener('click', (event) => {
+  const tag = event.target && event.target.closest && event.target.closest('.post-hashtag');
+  if (!tag || !column.contains(tag)) return;
+  if (feedActIdle(event)) return;
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
 root.addEventListener('click', (event) => event.stopPropagation());
 
 document.addEventListener('visibilitychange', () => {

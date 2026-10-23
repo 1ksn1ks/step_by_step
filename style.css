@@ -7550,6 +7550,29 @@ a.payer-link {
   touch-action: pan-y;
   cursor: pointer;
 }
+#feed-column .popup-media-card,
+#feed-column .popup-media-card *,
+#feed-column .feed-media-hit {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+/* Feed captions, titles, and names only. The app-wide * rule is user-select: none. */
+#feed-column .popup-text-bubble,
+#feed-column .popup-text-bubble *,
+#feed-column .popup-title-bubble,
+#feed-column .popup-title-bubble *,
+#feed-column .popup-profile-bubble h2,
+#feed-column .popup-profile-bubble h2 * {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+  -webkit-user-drag: none;
+}
 #feed-column .popup-text-bubble {
   max-height: none;
   overflow: visible;
@@ -8120,6 +8143,25 @@ a.payer-link {
   overflow-y: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;
+}
+.comments-modal--feed .comments-scroll,
+.comments-modal--feed .comments-scroll * {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+  -webkit-user-drag: none;
+  touch-action: pan-y;
+}
+.comments-modal--feed .comments-scroll img,
+.comments-modal--feed .comments-scroll button,
+.comments-modal--feed .comments-scroll button * {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 .comments-modal--feed > .popup-comments > :not(.comments-scroll) {
   flex: 0 0 auto;
