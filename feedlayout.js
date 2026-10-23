@@ -194,7 +194,10 @@ searchClose.appendChild(svgIcon([
 ]));
 searchBar.append(searchInput, searchClose);
 toolbar.append(menuAnchor, tools, searchBtnFeed, postBtn, searchBar);
-root.append(dim, toolbar, tabs, tabRuler, newPill, scroller, menuDim, menu);
+const frame = document.createElement('div');
+frame.id = 'feed-frame';
+frame.append(toolbar, tabs, tabRuler, newPill, scroller);
+root.append(dim, frame, menuDim, menu);
 
 const btn = document.createElement('button');
 btn.id = 'layout-mode-btn';
