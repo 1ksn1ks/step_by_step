@@ -456,11 +456,13 @@ function feedActIdle(event) {
   return Math.hypot(dx, dy) < feedDragLimit();
 }
 
-// Sits over a photo, video, or embed. Move and wheel listeners stay off this
-// node so a drag still scrolls the feed. A finger that stays inside 1dvmin plays.
+// Sits over a photo, or over a video above the native control strip.
+// Move and wheel listeners stay off this node so a drag still scrolls the feed.
+// A finger that stays inside 1dvmin plays or pauses.
 function coverFeedPlayer(media, onTap) {
   const hit = document.createElement('div');
   hit.className = 'feed-media-hit';
+  if (media.querySelector('video')) hit.classList.add('is-video');
   let start = null;
   hit.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;

@@ -7565,6 +7565,9 @@ html.feed-app appkit-modal {
 #feed-column .popup-media-card object {
   pointer-events: none;
 }
+#feed-column .popup-media-card video {
+  pointer-events: auto;
+}
 #feed-column .popup-media-card:not(:has(video)) .feed-media-hit {
   cursor: zoom-in;
 }
@@ -7575,6 +7578,9 @@ html.feed-app appkit-modal {
   background: transparent;
   touch-action: pan-y;
   cursor: pointer;
+}
+#feed-column .feed-media-hit.is-video {
+  bottom: 7dvh;
 }
 #feed-column .popup-media-card,
 #feed-column .popup-media-card *,
