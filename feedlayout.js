@@ -76,8 +76,12 @@ const pinIcon = () => svgIcon([
 btn.append(rowsIcon, globeIcon);
 
 const searchBtn = document.getElementById('search-toggle-btn');
-if (searchBtn && searchBtn.parentNode) searchBtn.parentNode.insertBefore(btn, searchBtn);
-else document.body.appendChild(btn);
+if (searchBtn && searchBtn.parentNode) {
+  const row = document.createElement('div');
+  row.id = 'map-corner-buttons';
+  searchBtn.parentNode.insertBefore(row, searchBtn);
+  row.append(btn, searchBtn);
+} else document.body.appendChild(btn);
 document.body.appendChild(root);
 
 let posts = [];
@@ -795,7 +799,6 @@ if (window.layerPopupClosed) {
   };
 }
 
-bindPress(btn);
 btn.addEventListener('click', () => {
   applyFeed(!feedOn());
 });
