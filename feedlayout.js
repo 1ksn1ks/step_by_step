@@ -418,7 +418,7 @@ function buildCard(post) {
   const img = document.createElement('img');
   img.src = record.profileUrl || DEFAULT_PIC;
   img.alt = 'Profile photo';
-  img.style.cssText = 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
+  img.style.cssText = 'box-sizing: border-box; width: clamp(7dvmin, 8dvmin, 9dvmin); height: clamp(7dvmin, 8dvmin, 9dvmin); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
   profile.appendChild(img);
   const header = document.createElement('div');
   const h2 = document.createElement('h2');
