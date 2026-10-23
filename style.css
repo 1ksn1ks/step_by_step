@@ -7099,6 +7099,15 @@ a.payer-link {
   visibility: hidden;
   pointer-events: none;
 }
+/* Wallet hosts stay above this screen. Map mode does not set feed-app,
+   so the component keeps the z-index it ships with. The overlay lives in
+   the shadow root; the host's stacking context carries it. */
+html.feed-app wcm-modal,
+html.feed-app w3m-modal,
+html.feed-app appkit-modal {
+  position: relative;
+  z-index: 9100;
+}
 .feed-dim {
   position: absolute;
   inset: 0;

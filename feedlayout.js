@@ -2516,19 +2516,6 @@ function walletModalOpen() {
   return box.width > 0 && box.height > 0;
 }
 
-// The connect sheet is position:fixed at z-index 89. The feed covers the
-// page at 8000, so a tap on + used to open it where nobody could see it
-// and leave placeBusy set until the sheet was dismissed.
-function liftWalletModal() {
-  const host = document.querySelector('wcm-modal');
-  if (host) {
-    host.style.position = 'relative';
-    host.style.zIndex = '9000';
-  }
-  const overlay = walletOverlay();
-  if (overlay) overlay.style.setProperty('z-index', '9000', 'important');
-}
-
 // 'ok' continues into placing. 'cancel' stays on the feed with no toast.
 // 'fail' is a real miss and the caller says why.
 function ensureWallet() {
@@ -2538,7 +2525,6 @@ function ensureWallet() {
   if (!walletModalOpen()) {
     try { connect.click(); } catch (err) { return Promise.resolve('fail'); }
   }
-  liftWalletModal();
   const started = Date.now();
   let saw = false;
   return new Promise((resolve) => {
@@ -2547,7 +2533,6 @@ function ensureWallet() {
         resolve('ok');
         return;
       }
-      liftWalletModal();
       const open = walletModalOpen();
       if (open) saw = true;
       if (saw && !open) {
