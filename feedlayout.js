@@ -79,11 +79,17 @@ menuBtn.appendChild(svgIcon([
 const menu = document.createElement('ul');
 menu.id = 'feed-menu';
 menu.hidden = true;
-menuAnchor.append(menuBtn, menu);
+menu.setAttribute('role', 'menu');
+const menuDim = document.createElement('button');
+menuDim.type = 'button';
+menuDim.className = 'feed-menu-dim';
+menuDim.hidden = true;
+menuDim.setAttribute('aria-label', 'Close menu');
+menuAnchor.append(menuBtn);
 const tools = document.createElement('div');
 tools.className = 'feed-toolbar-slot';
 toolbar.append(menuAnchor, tools);
-root.append(dim, toolbar, scroller);
+root.append(dim, toolbar, scroller, menuDim, menu);
 
 const btn = document.createElement('button');
 btn.id = 'layout-mode-btn';
@@ -1691,12 +1697,61 @@ const FEED_MENU = [
   { label: 'Back to map', icon: GLOBE_ICON, run: backToMap },
 ];
 
-function paintMenu(open) {
-  menu.hidden = !open;
-  menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+// A later open or close bumps this so a finishing slide cannot hide
+// the drawer the user just reopened.
+let menuToken = 0;
+
+function motionOff() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-// Hides the list and, when this gesture closed it, drops its history
+function paintMenu(open) {
+  menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open && !menu.hidden && menu.classList.contains('is-open')) return;
+  const token = ++menuToken;
+  if (open) {
+    menu.hidden = false;
+    menuDim.hidden = false;
+    if (motionOff()) {
+      menu.classList.add('is-open');
+      menuDim.classList.add('is-open');
+      return;
+    }
+    menu.classList.remove('is-open');
+    menuDim.classList.remove('is-open');
+    void menu.offsetWidth;
+    if (token !== menuToken) return;
+    menu.classList.add('is-open');
+    menuDim.classList.add('is-open');
+    return;
+  }
+  menu.classList.remove('is-open');
+  menuDim.classList.remove('is-open');
+  const finish = () => {
+    if (token !== menuToken) return;
+    menu.hidden = true;
+    menuDim.hidden = true;
+  };
+  if (motionOff() || menu.hidden) {
+    finish();
+    return;
+  }
+  let settled = false;
+  const end = () => {
+    if (settled) return;
+    settled = true;
+    menu.removeEventListener('transitionend', onEnd);
+    finish();
+  };
+  const onEnd = (event) => {
+    if (event.target !== menu || event.propertyName !== 'transform') return;
+    end();
+  };
+  menu.addEventListener('transitionend', onEnd);
+  setTimeout(end, 280);
+}
+
+// Hides the drawer and, when this gesture closed it, drops its history
 // entry. A phone Back already popped that entry, so the history call
 // no-ops and the feed stays.
 function closeMenu() {
@@ -1732,6 +1787,7 @@ for (const item of FEED_MENU) {
     event.stopPropagation();
     item.run();
   });
+  bindPress(choice);
   row.appendChild(choice);
   menu.appendChild(row);
 }
@@ -1751,13 +1807,47 @@ menuBtn.addEventListener('click', (event) => {
   else openMenu();
 });
 
-root.addEventListener('click', (event) => {
-  if (!menu.hidden && !menu.contains(event.target) && !menuBtn.contains(event.target)) {
-    event.preventDefault();
-    event.stopPropagation();
-    closeMenu();
-  }
+menuDim.addEventListener('click', (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  closeMenu();
+});
+
+let menuSwipe = null;
+function endMenuSwipe(event) {
+  if (!menuSwipe || event.pointerId !== menuSwipe.id) return;
+  const dx = event.clientX - menuSwipe.x;
+  const dy = event.clientY - menuSwipe.y;
+  const cancelled = event.type === 'pointercancel';
+  menuSwipe = null;
+  document.removeEventListener('pointerup', endMenuSwipe);
+  document.removeEventListener('pointercancel', endMenuSwipe);
+  if (cancelled) return;
+  const limit = menu.getBoundingClientRect().width * 0.18;
+  if (dx >= -limit || dx >= -Math.abs(dy)) return;
+  const eat = (click) => {
+    click.preventDefault();
+    click.stopPropagation();
+  };
+  menu.addEventListener('click', eat, true);
+  setTimeout(() => menu.removeEventListener('click', eat, true), 0);
+  closeMenu();
+}
+menu.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0 || menuSwipe) return;
+  menuSwipe = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  document.addEventListener('pointerup', endMenuSwipe);
+  document.addEventListener('pointercancel', endMenuSwipe);
+});
+
+document.addEventListener('keydown', (event) => {
+  if (menu.hidden || event.key !== 'Escape') return;
+  if (window.layerIsTop && !window.layerIsTop('feedmenu')) return;
+  event.preventDefault();
+  event.stopPropagation();
+  closeMenu();
 }, true);
+
 root.addEventListener('click', (event) => event.stopPropagation());
 
 document.addEventListener('visibilitychange', () => {
