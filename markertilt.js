@@ -236,17 +236,35 @@ function frame(now) {
       let height = box.height;
       let midX = box.left + width / 2;
       let midY = box.top + height / 2;
-      // Marker hosts are the outer box and are not transformed. A picture
-      // is its own host, so a lean would inflate the box it is measured from.
-      if (host === face && face.style.transform) {
-        if (face.offsetWidth) width = face.offsetWidth;
-        if (face.offsetHeight) height = face.offsetHeight;
-        midY -= state.bob || 0;
+      // A feed picture is its own host. Read its box with the lean cleared
+      // so the centre stays the circle, including after scroll.
+      const feedPic = host === face && face.closest && face.closest('#feed-column');
+      if (feedPic) {
+        const lean = face.style.transform;
+        if (lean) face.style.transform = '';
+        const own = face.getBoundingClientRect();
+        if (lean) face.style.transform = lean;
+        width = own.width;
+        height = own.height;
+        midX = own.left + own.width / 2;
+        midY = own.top + own.height / 2;
+        const halfW = width / 2 || 1;
+        const halfH = height / 2 || 1;
+        tx = clamp((pointer.x - midX) / halfW, -1, 1);
+        ty = clamp((pointer.y - midY) / halfH, -1, 1);
+      } else {
+        // Marker hosts are the outer box and are not transformed. A picture
+        // is its own host, so a lean would inflate the box it is measured from.
+        if (host === face && face.style.transform) {
+          if (face.offsetWidth) width = face.offsetWidth;
+          if (face.offsetHeight) height = face.offsetHeight;
+          midY -= state.bob || 0;
+        }
+        const halfW = Math.max(8, width / 2);
+        const halfH = Math.max(8, height / 2);
+        tx = clamp((pointer.x - midX) / halfW, -1, 1);
+        ty = clamp((pointer.y - midY) / halfH, -1, 1);
       }
-      const halfW = Math.max(8, width / 2);
-      const halfH = Math.max(8, height / 2);
-      tx = clamp((pointer.x - midX) / halfW, -1, 1);
-      ty = clamp((pointer.y - midY) / halfH, -1, 1);
     } else if (!leaning(face)) {
       continue;
     }

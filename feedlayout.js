@@ -827,8 +827,6 @@ function buildCard(post) {
       holdScroll();
       if (window.loadBio4PIC) window.loadBio4PIC(payer);
     }, true);
-    const img = profile.querySelector('img');
-    if (img && img._tilt) img._tilt.host = profile;
   }
 
   let media = null;
