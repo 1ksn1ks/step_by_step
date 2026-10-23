@@ -76,6 +76,22 @@ followTab.setAttribute('role', 'tab');
 followTab.textContent = 'Following';
 tabs.append(allTab, followTab);
 
+const newPill = document.createElement('button');
+newPill.id = 'feed-new-posts';
+newPill.type = 'button';
+newPill.hidden = true;
+newPill.setAttribute('aria-label', 'New posts');
+newPill.appendChild(svgIcon([
+  ['path', { d: 'm5 12 7-7 7 7' }],
+  ['path', { d: 'M12 19V5' }],
+]));
+const newFaces = document.createElement('span');
+newFaces.className = 'feed-new-faces';
+const newLabel = document.createElement('span');
+newLabel.className = 'feed-new-label';
+newLabel.textContent = 'posted';
+newPill.append(newFaces, newLabel);
+
 const toolbar = document.createElement('div');
 toolbar.id = 'feed-toolbar';
 const menuAnchor = document.createElement('div');
@@ -156,7 +172,7 @@ searchClose.appendChild(svgIcon([
 ]));
 searchBar.append(searchInput, searchClose);
 toolbar.append(menuAnchor, tools, searchBtnFeed, postBtn, searchBar);
-root.append(dim, toolbar, tabs, scroller, menuDim, menu);
+root.append(dim, toolbar, tabs, newPill, scroller, menuDim, menu);
 
 const btn = document.createElement('button');
 btn.id = 'layout-mode-btn';
@@ -205,6 +221,12 @@ let followState = 'idle';
 let followSet = null;
 let rangeStart = 0;
 let rangeEnd = 0;
+const held = { all: [], following: [] };
+const tabScroll = { all: 0, following: 0 };
+const tabRange = {
+  all: { start: 0, end: 0 },
+  following: { start: 0, end: 0 },
+};
 let loadedTopic = '';
 let cursor = null;
 let exhausted = false;
@@ -1101,6 +1123,7 @@ function resetFeed(topic) {
   paintSpinner(false);
   savedScroll = 0;
   scroller.scrollTop = 0;
+  resetQueues();
 }
 
 function actionKey(bucket, stamp) {
@@ -1609,7 +1632,12 @@ function paintEmpty() {
   column.appendChild(note);
 }
 
-function rerenderLane() {
+function rerenderLane(opts) {
+  if (!opts || !opts.keepHeld) {
+    held[feedTab] = [];
+    tabScroll[feedTab] = 0;
+    tabRange[feedTab] = { start: 0, end: 0 };
+  }
   if (searchQuery) syncFound();
   rangeStart = 0;
   rangeEnd = 0;
@@ -1620,11 +1648,16 @@ function rerenderLane() {
   paintEmpty();
   if (!followBlocked()) fillDown();
   else paintEmpty();
+  paintNewPill();
 }
 
 async function selectTab(next) {
   if (next !== 'all' && next !== 'following') return;
   if (next === feedTab) return;
+  if (searchQuery && searchPinned) {
+    tabScroll[feedTab] = pinScroll;
+    tabRange[feedTab] = { start: pinStart, end: pinEnd };
+  } else saveTabView();
   if (searchQuery) {
     searchPinned = true;
     pinScroll = 0;
@@ -1635,7 +1668,8 @@ async function selectTab(next) {
   feedTab = next;
   paintTabs();
   if (next === 'all') {
-    rerenderLane();
+    if (searchQuery) rerenderLane({ keepHeld: true });
+    else restoreTabView();
     return;
   }
   const account = walletNow();
@@ -1647,9 +1681,16 @@ async function selectTab(next) {
     return;
   }
   followState = 'loading';
-  followSet = null;
-  shown = [];
-  rerenderLane();
+  clearViewWatch();
+  column.replaceChildren();
+  rangeStart = 0;
+  rangeEnd = 0;
+  if (!searchQuery) {
+    scroller.scrollTop = 0;
+    savedScroll = 0;
+  }
+  paintEmpty();
+  paintNewPill();
   const data = await fetchFollowing(account);
   if (token !== tabToken || feedTab !== 'following') return;
   if (!data) {
@@ -1657,6 +1698,7 @@ async function selectTab(next) {
     followSet = null;
     shown = [];
     paintEmpty();
+    paintNewPill();
     return;
   }
   const ids = [];
@@ -1676,7 +1718,9 @@ async function selectTab(next) {
   followSet = new Set(ids);
   followState = 'ready';
   shown = posts.filter((post) => followSet.has(post.payer));
-  rerenderLane();
+  alignHeld('following');
+  if (searchQuery) rerenderLane({ keepHeld: true });
+  else restoreTabView();
 }
 
 function renderThrough(end) {
@@ -1715,8 +1759,8 @@ function trimAbove() {
 }
 
 function fillUp() {
-  if (paging || scroller.scrollTop > scroller.clientHeight || rangeStart === 0) return;
-  const add = Math.min(RENDER_CHUNK, rangeStart);
+  if (paging || scroller.scrollTop > scroller.clientHeight || rangeStart <= laneFloor()) return;
+  const add = Math.min(RENDER_CHUNK, rangeStart - laneFloor());
   const prevTop = scroller.scrollTop;
   const prevHeight = scroller.scrollHeight;
   const frag = document.createDocumentFragment();
@@ -1765,40 +1809,254 @@ function fillDown() {
   }
 }
 
-function prependPosts(list) {
-  if (!list.length) return;
-  const visible = feedTab === 'following' ? takeFollowed(list) : list;
-  posts.unshift(...list);
-  if (feedTab === 'following') shown.unshift(...visible);
-  shiftPin(visible.length);
-  let incoming = visible;
-  if (searchQuery) {
-    incoming = [];
-    for (const post of visible) if (hitQuery(post)) incoming.push(post);
-    found.unshift(...incoming);
+function laneFloor() {
+  return searchQuery ? 0 : held[feedTab].length;
+}
+
+function tabIsAtTop(tab) {
+  if (held[tab].length) return false;
+  if (tab === feedTab && searchQuery) {
+    const start = searchPinned ? pinStart : 0;
+    const scroll = searchPinned ? pinScroll : 0;
+    return start === 0 && scroll < 2;
   }
+  if (tab === feedTab) return rangeStart === 0 && scroller.scrollTop < 2;
+  return tabRange[tab].start === 0 && tabScroll[tab] < 2;
+}
+
+function saveTabView() {
+  if (searchQuery) return;
+  tabScroll[feedTab] = scroller.scrollTop;
+  tabRange[feedTab] = { start: rangeStart, end: rangeEnd };
+}
+
+function resetQueues() {
+  held.all = [];
+  held.following = [];
+  tabScroll.all = 0;
+  tabScroll.following = 0;
+  tabRange.all = { start: 0, end: 0 };
+  tabRange.following = { start: 0, end: 0 };
+  paintNewPill();
+}
+
+function faceUrl(post) {
+  const payer = post && post.payer;
+  const pic = payer && profilePictures[payer] && profilePictures[payer].url;
+  if (typeof pic === 'string' && pic) return pic;
+  const record = recordFor(post);
+  if (record && typeof record.profileUrl === 'string' && record.profileUrl) return record.profileUrl;
+  return DEFAULT_PIC;
+}
+
+function paintNewFaces(list) {
+  const urls = [];
+  const seen = new Set();
+  for (const post of list) {
+    const payer = post && post.payer ? post.payer : '';
+    if (seen.has(payer)) continue;
+    seen.add(payer);
+    urls.push(faceUrl(post));
+    if (urls.length === 3) break;
+  }
+  newFaces.replaceChildren();
+  for (const url of urls) {
+    const img = document.createElement('img');
+    img.className = 'feed-new-face';
+    img.alt = '';
+    img.decoding = 'async';
+    img.src = url;
+    newFaces.appendChild(img);
+  }
+}
+
+function paintNewPill() {
+  const show = feedOn() && !root.classList.contains('is-peek') && !searchQuery && held[feedTab].length > 0;
+  if (!show) {
+    newPill.hidden = true;
+    newPill.classList.remove('is-in');
+    return;
+  }
+  paintNewFaces(held[feedTab]);
+  const fresh = newPill.hidden;
+  newPill.hidden = false;
+  if (!fresh) return;
+  newPill.classList.remove('is-in');
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (!newPill.hidden) newPill.classList.add('is-in');
+    });
+  });
+}
+
+// Posts that arrive below the top stay out of that tab's window. held[tab]
+// is the newest prefix of that tab's lane, in the same order as the lane.
+function noteHeld(tab, batch) {
+  if (!batch.length || tabIsAtTop(tab)) return false;
+  held[tab].unshift(...batch);
+  tabRange[tab].start += batch.length;
+  tabRange[tab].end += batch.length;
+  if (tab === feedTab && !searchQuery) {
+    rangeStart += batch.length;
+    rangeEnd += batch.length;
+  }
+  return true;
+}
+
+function alignHeld(tab) {
+  const list = tab === 'following' ? shown : posts;
+  const next = [];
+  for (let i = 0; i < held[tab].length && i < list.length; i++) {
+    if (list[i] !== held[tab][i]) break;
+    next.push(list[i]);
+  }
+  held[tab] = next;
+}
+
+function mountIncoming(incoming, searchLane) {
   if (!incoming.length) return;
   const atTop = scroller.scrollTop < 2;
   const showingTop = rangeStart === 0;
+  const prevTop = scroller.scrollTop;
+  const prevHeight = scroller.scrollHeight;
   rangeStart += incoming.length;
   rangeEnd += incoming.length;
   if (!showingTop) return;
-  const prevTop = scroller.scrollTop;
-  const prevHeight = scroller.scrollHeight;
   const frag = document.createDocumentFragment();
   const cards = [];
+  const note = column.querySelector('.feed-empty');
+  if (note) note.remove();
   for (const post of incoming) {
     const card = buildCard(post);
     cards.push(card);
     frag.appendChild(card);
   }
   column.prepend(frag);
-  rangeStart = 0;
+  rangeStart = searchLane ? 0 : rangeStart - incoming.length;
   const delta = scroller.scrollHeight - prevHeight;
   scroller.scrollTop = atTop ? 0 : prevTop + delta;
   for (const card of cards) watchCard(card);
   requestAnimationFrame(clampPending);
   trimAbove();
+}
+
+function prependPosts(list) {
+  if (!list.length) return;
+  const followed = takeFollowed(list);
+  posts.unshift(...list);
+  if (followSet) shown.unshift(...followed);
+  shiftPin(feedTab === 'following' ? followed.length : list.length);
+  let searchIncoming = [];
+  if (searchQuery) {
+    const pool = feedTab === 'following' ? followed : list;
+    for (const post of pool) if (hitQuery(post)) searchIncoming.push(post);
+    if (searchIncoming.length) found.unshift(...searchIncoming);
+  }
+  const heldAll = noteHeld('all', list);
+  const heldFollow = followSet ? noteHeld('following', followed) : false;
+  if (searchQuery) mountIncoming(searchIncoming, true);
+  else if (feedTab === 'following') {
+    if (!heldFollow) mountIncoming(followed, false);
+  } else if (!heldAll) mountIncoming(list, false);
+  paintNewPill();
+}
+
+function scrollMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+}
+
+function prependAbove(count) {
+  const n = Math.min(count, rangeStart, lane().length);
+  if (n <= 0) return;
+  const list = lane();
+  const prevTop = scroller.scrollTop;
+  const prevHeight = scroller.scrollHeight;
+  const frag = document.createDocumentFragment();
+  const cards = [];
+  const note = column.querySelector('.feed-empty');
+  if (note) note.remove();
+  for (let i = 0; i < n; i++) {
+    const card = buildCard(list[i]);
+    cards.push(card);
+    frag.appendChild(card);
+  }
+  column.prepend(frag);
+  rangeStart -= n;
+  scroller.scrollTop = prevTop + (scroller.scrollHeight - prevHeight);
+  for (const card of cards) watchCard(card);
+  requestAnimationFrame(clampPending);
+}
+
+function revealParked() {
+  if (searchQuery || root.classList.contains('is-peek')) return;
+  const tab = feedTab;
+  const n = held[tab].length;
+  if (!n || scroller.scrollTop >= 2 || rangeStart !== n) return;
+  held[tab] = [];
+  prependAbove(n);
+  scroller.scrollTop = 0;
+  savedScroll = 0;
+  tabScroll[tab] = 0;
+  tabRange[tab] = { start: 0, end: rangeEnd };
+  paintNewPill();
+}
+
+function goToFreshPosts() {
+  const tab = feedTab;
+  if (!held[tab].length && scroller.scrollTop < 2) {
+    paintNewPill();
+    return;
+  }
+  held[tab] = [];
+  paintNewPill();
+  if (searchQuery) {
+    scroller.scrollTo({ top: 0, behavior: scrollMotion() });
+    return;
+  }
+  if (rangeStart > 0 && rangeStart <= 60) prependAbove(rangeStart);
+  else if (rangeStart > 60) {
+    clearViewWatch();
+    column.replaceChildren();
+    rangeStart = 0;
+    rangeEnd = 0;
+    const end = Math.min(lane().length, RENDER_CHUNK);
+    if (end) renderThrough(end);
+    paintEmpty();
+    scroller.scrollTop = Math.min(scroller.clientHeight * 0.65, scroller.scrollHeight);
+  }
+  tabScroll[tab] = 0;
+  tabRange[tab] = { start: rangeStart, end: rangeEnd };
+  savedScroll = 0;
+  scroller.scrollTo({ top: 0, behavior: scrollMotion() });
+}
+
+function restoreTabView() {
+  const tab = feedTab;
+  alignHeld(tab);
+  const list = lane();
+  let start = tabRange[tab].start;
+  const floor = held[tab].length;
+  if (start < floor) start = floor;
+  if (start > list.length) start = list.length;
+  let end = tabRange[tab].end;
+  if (end < start) end = start;
+  if (end > list.length) end = list.length;
+  if (end === start) end = Math.min(list.length, start + RENDER_CHUNK);
+  rangeStart = start;
+  rangeEnd = start;
+  clearViewWatch();
+  column.replaceChildren();
+  if (end > start) renderThrough(end);
+  paintEmpty();
+  scroller.scrollTop = tabScroll[tab];
+  savedScroll = scroller.scrollTop;
+  tabRange[tab] = { start: rangeStart, end: rangeEnd };
+  paintNewPill();
+  if (!followBlocked()) {
+    fillDown();
+    fillUp();
+  }
+  revealParked();
 }
 
 async function loadOlder() {
@@ -2019,6 +2277,7 @@ function reveal() {
   syncCover();
   const y = savedScroll;
   requestAnimationFrame(() => { scroller.scrollTop = y; });
+  paintNewPill();
 }
 
 function revealSoon() {
@@ -2169,6 +2428,8 @@ function restorePin() {
   if (!followBlocked()) fillDown();
   scroller.scrollTop = y;
   savedScroll = y;
+  paintNewPill();
+  revealParked();
 }
 
 function applyQuery(raw) {
@@ -2329,6 +2590,8 @@ function returnToFeed(sent) {
     peek = false;
     root.classList.remove('is-peek');
     syncCover();
+    held.all = [];
+    held.following = [];
     rerenderLane();
     return;
   }
@@ -2395,6 +2658,7 @@ function applyFeed(on) {
   revealToken += 1;
   root.classList.remove('is-peek');
   rememberScroll();
+  resetQueues();
   root.style.display = 'none';
   syncCover();
   if (streamOff) {
@@ -2898,6 +3162,11 @@ window.addEventListener('pagehide', flushViewsNow);
 
 allTab.addEventListener('click', () => { selectTab('all'); });
 followTab.addEventListener('click', () => { selectTab('following'); });
+bindPress(newPill);
+newPill.addEventListener('click', (event) => {
+  event.stopPropagation();
+  goToFreshPosts();
+});
 paintTabs();
 
 bindPress(searchBtnFeed);
@@ -2934,6 +3203,7 @@ scroller.addEventListener('scroll', () => {
   savedScroll = scroller.scrollTop;
   fillUp();
   fillDown();
+  revealParked();
   syncVisibleViews();
   // A caption can still be waiting on layout when it is first built.
   requestAnimationFrame(clampPending);
