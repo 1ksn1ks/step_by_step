@@ -2871,6 +2871,7 @@ html, body {
 
   .topic-follow-btn,
   #layout-mode-btn,
+  #feed-back-btn,
   .maplibregl-popup-close-button:not(.comments-back-button) {
     --press-dur: 200ms;
     --press-ease: ease;
@@ -2923,6 +2924,7 @@ html, body {
      and keeps .is-hold, which is the follow button's press. */
   .topic-follow-btn:not(.is-following):is(:hover, .is-hold),
   #layout-mode-btn:is(:hover, .is-hold),
+  #feed-back-btn:is(:hover, .is-hold),
   .maplibregl-popup-close-button:not(.comments-back-button):is(:hover, .is-hold) {
     background-color: var(--press-bg);
     border-color: var(--press-border);
@@ -2937,6 +2939,7 @@ html, body {
   }
   .topic-follow-btn.is-pop,
   #layout-mode-btn.is-pop,
+  #feed-back-btn.is-pop,
   .maplibregl-popup-close-button:not(.comments-back-button).is-pop {
     animation: topicFollowPop var(--press-dur) var(--press-ease);
   }
@@ -2997,6 +3000,7 @@ html, body {
     }
     .topic-follow-btn.is-pop,
     #layout-mode-btn.is-pop,
+    #feed-back-btn.is-pop,
     .maplibregl-popup-close-button:not(.comments-back-button).is-pop {
       animation: none !important;
     }
@@ -7025,8 +7029,7 @@ a.payer-link {
   transition: background-color var(--press-dur, 200ms) var(--press-ease, ease), border-color var(--press-dur, 200ms) var(--press-ease, ease), color var(--press-dur, 200ms) var(--press-ease, ease);
 }
 #layout-mode-btn.is-feed {
-  color: #22D3EE;
-  border-color: #22D3EE;
+  display: none;
 }
 #layout-mode-btn:focus-visible {
   outline: 0.2dvh solid #22D3EE;
@@ -7058,12 +7061,63 @@ a.payer-link {
   background: #0a0a12;
   pointer-events: none;
 }
-html.feed-app #layout-mode-btn {
-  z-index: 8100;
+#feed-toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  width: 100%;
+  height: clamp(6dvh, 7dvh, 8dvh);
+  margin-inline: auto;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding: 0 1.5dvw;
+  background: #0a0a12;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+}
+#feed-back-btn {
+  appearance: none;
+  width: 4.2dvh;
+  height: 4.2dvh;
+  padding: 0;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  background-color: rgba(10, 10, 18, 0.88);
+  color: #fff;
+  border: 0.15dvh solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color var(--press-dur, 200ms) var(--press-ease, ease), border-color var(--press-dur, 200ms) var(--press-ease, ease), color var(--press-dur, 200ms) var(--press-ease, ease);
+}
+#feed-back-btn:focus-visible {
+  outline: 0.2dvh solid #22D3EE;
+  outline-offset: 0.2dvh;
+}
+#feed-back-btn svg {
+  width: 2.2dvh;
+  height: 2.2dvh;
+  display: block;
+  pointer-events: none;
+}
+.feed-toolbar-slot {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 #feed-scroll {
   position: absolute;
-  inset: 0;
+  top: clamp(6dvh, 7dvh, 8dvh);
+  right: 0;
+  bottom: 0;
+  left: 0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -7075,11 +7129,12 @@ html.feed-app #layout-mode-btn {
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
-  padding: 9dvh 1.5dvw 4dvh;
+  padding: 1.2dvh 1.5dvw 4dvh;
   touch-action: pan-y;
 }
 @media (orientation: landscape) {
-  #feed-column {
+  #feed-column,
+  #feed-toolbar {
     width: clamp(40dvw, 46dvw, 46dvw);
   }
 }
@@ -7152,7 +7207,8 @@ html.feed-app #layout-mode-btn {
   flex: 0 0 auto;
   margin: 0;
 }
-#layout-mode-btn:is(:hover, .is-hold) {
+#layout-mode-btn:is(:hover, .is-hold),
+#feed-back-btn:is(:hover, .is-hold) {
   background-color: var(--press-bg);
   border-color: var(--press-border);
   color: var(--press-ink);

@@ -37,7 +37,22 @@ scroller.id = 'feed-scroll';
 const column = document.createElement('div');
 column.id = 'feed-column';
 scroller.appendChild(column);
-root.append(dim, scroller);
+
+const toolbar = document.createElement('div');
+toolbar.id = 'feed-toolbar';
+const back = document.createElement('button');
+back.id = 'feed-back-btn';
+back.type = 'button';
+back.setAttribute('aria-label', 'Back');
+back.title = 'Back';
+back.appendChild(svgIcon([
+  ['path', { d: 'm12 19-7-7 7-7' }],
+  ['path', { d: 'M19 12H5' }],
+]));
+const tools = document.createElement('div');
+tools.className = 'feed-toolbar-slot';
+toolbar.append(back, tools);
+root.append(dim, toolbar, scroller);
 
 const btn = document.createElement('button');
 btn.id = 'layout-mode-btn';
@@ -543,9 +558,8 @@ function feedOn() {
   return root.style.display !== 'none';
 }
 
-// Opaque feed is its own screen. The class lifts the layout toggle above
-// that screen and tells the globe loop to skip frames. Peek and map mode
-// clear it so the map chrome comes back as it was.
+// Opaque feed is its own screen. The class tells the globe loop to skip
+// frames. Peek and map mode clear it so the map chrome comes back.
 function syncCover() {
   const open = root.style.display !== 'none' && !root.classList.contains('is-peek');
   document.documentElement.classList.toggle('feed-app', open);
@@ -768,6 +782,13 @@ if (window.layerPopupClosed) {
 bindPress(btn);
 btn.addEventListener('click', () => {
   applyFeed(!feedOn());
+});
+
+bindPress(back);
+back.addEventListener('click', (event) => {
+  event.stopPropagation();
+  // Same path as the phone Back key: pop the feed layer, which closes it.
+  if (window.layerIsOpen && window.layerIsOpen('feed')) history.back();
 });
 
 root.addEventListener('click', (event) => event.stopPropagation());
