@@ -264,7 +264,7 @@ export function applyAllStyles() {
     
     function updatePopupTitles() {
       const color = document.getElementById('color-picker-popup-titles').value;
-      const popupTitles = document.querySelectorAll('.maplibregl-popup .title_color');
+      const popupTitles = document.querySelectorAll('.maplibregl-popup .title_color, #feed-column .title_color');
       popupTitles.forEach(title => {
         title.style.color = color;
       });

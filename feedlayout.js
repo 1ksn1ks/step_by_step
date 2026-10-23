@@ -20,7 +20,7 @@ import { closePressAnchor } from './poiinfo.js';
 import { applyAllStyles } from './loadprofilepopup.js';
 import { scene } from './threejs.js';
 import { profilePictures, usernames, click2url } from './loadalladata.js';
-import { paintHashtags } from './hashtag.js';
+import { paintHashtags, singleLineText } from './hashtag.js';
 import { earlyHashinalNumber } from './earlyhashinal.js';
 import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { openPreview } from './fullscreenmedia.js';
@@ -724,6 +724,17 @@ document.addEventListener('early-hashinals', () => {
   }
 });
 
+function feedTitle(record) {
+  const raw = singleLineText(String(record && record.title || '').slice(0, 20));
+  if (!raw.trim()) return null;
+  const title = document.createElement('strong');
+  title.className = 'title_color popup-title-bubble';
+  paintHashtags(title, raw);
+  const picker = document.getElementById('color-picker-popup-titles');
+  if (picker && picker.value) title.style.color = picker.value;
+  return title;
+}
+
 function buildCard(post) {
   const record = recordFor(post) || {};
   const card = document.createElement('article');
@@ -741,6 +752,8 @@ function buildCard(post) {
   });
   card.appendChild(profile);
   paintFeedHashinal(card);
+  const title = feedTitle(record);
+  if (title) card.appendChild(title);
   if (payer) {
     // Capture runs before the Hashpack and click2url anchors. preventDefault
     // keeps those links from navigating. stopPropagation keeps this tap from
