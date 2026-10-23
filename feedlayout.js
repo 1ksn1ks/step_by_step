@@ -2179,6 +2179,7 @@ function applyFeed(on) {
   writeMode(on ? 'feed' : 'map');
   if (!on) {
     paintMenu(false);
+    dropOptions();
     leavePlace();
     const dropSearch = window.layerIsOpen && window.layerIsOpen('feedsearch');
     hideSearch();
@@ -2288,10 +2289,153 @@ btn.addEventListener('click', () => {
   applyFeed(!feedOn());
 });
 
-// One row per action. Later items are another entry in this list.
-const FEED_MENU = [
-  { label: 'Back to map', icon: GLOBE_ICON, run: backToMap },
+const USER_ICON = [
+  ['path', { d: 'M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2' }],
+  ['circle', { cx: '12', cy: '7', r: '4' }],
 ];
+const CHAT_ICON = [
+  ['path', { d: 'M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719' }],
+];
+const LOCK_ICON = [
+  ['rect', { width: '18', height: '11', x: '3', y: '11', rx: '2', ry: '2' }],
+  ['path', { d: 'M7 11V7a5 5 0 0 1 10 0v4' }],
+];
+const SETTINGS_ICON = [
+  ['path', { d: 'M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915' }],
+  ['circle', { cx: '12', cy: '12', r: '3' }],
+];
+const LOGOUT_ICON = [
+  ['path', { d: 'm16 17 5-5-5-5' }],
+  ['path', { d: 'M21 12H9' }],
+  ['path', { d: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4' }],
+];
+const WALLET_ICON = [
+  ['path', { d: 'M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1' }],
+  ['path', { d: 'M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4' }],
+];
+
+// Panels Options can open. They are painted under the feed, so a drawer
+// open lifts them while that Options session is up.
+const OPTION_PANELS = [
+  'menu-buttons-group',
+  'toolbar',
+  'visibility-controls',
+  'rotation-controls',
+  'Edit_Profile-column',
+  'load-column',
+  'create-column',
+  'draw-column',
+  'utility-column',
+  'memo-column',
+  'domain-column',
+  'stack-topic-ids',
+  'initial-xyz-column',
+  'model-column',
+  'model-column-save',
+  'crosshair-column',
+  'crosshair-column-save',
+  'popup-settings-backdrop',
+  'popup-settings-card',
+  'main-button-column',
+  'main-button-column-save',
+  'marker-options-column',
+  'marker-column-save',
+  'button-input-column',
+  'button-input-column-save',
+  'topic-chat-column',
+  'topic-chat-save',
+  'edit-profile-help-overlay',
+  'load-options-help-overlay',
+  'create-topic-help-overlay',
+  'map-draw-help-overlay',
+  'model-sharing-rules-help-overlay',
+  'edit-topic-rules-help-overlay',
+  'domain-help-overlay',
+  'stack-topic-ids-help-overlay',
+  'topic-chat-help-overlay',
+  'e2ee-chat-help-overlay',
+  'change-model-help-overlay',
+  'crosshair-settings-help-overlay',
+  'marker-size-help-overlay',
+  'main-buttons-style-help-overlay',
+  'main-buttons-advanced-style-help-overlay',
+  'chat-style-help-overlay',
+  'visibility-help-overlay',
+];
+let optionsOverFeed = false;
+const optionLifted = new Map();
+
+function liftOptionEl(el) {
+  if (!el) return;
+  if (!optionLifted.has(el)) optionLifted.set(el, el.style.zIndex);
+  if (el.style.zIndex !== '8800') el.style.zIndex = '8800';
+}
+
+function liftOptions() {
+  if (!optionsOverFeed || !feedCovers()) return;
+  for (const id of OPTION_PANELS) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    if (id !== 'menu-buttons-group' && el.style.display === 'none') continue;
+    liftOptionEl(el);
+  }
+}
+
+function dropOptions() {
+  optionsOverFeed = false;
+  for (const [el, prev] of optionLifted) {
+    if (prev) el.style.zIndex = prev;
+    else el.style.removeProperty('z-index');
+  }
+  optionLifted.clear();
+}
+
+function clickId(id) {
+  const el = document.getElementById(id);
+  if (el) el.click();
+}
+
+// Close the drawer first so the feature replaces that history entry.
+// One Back then returns to the feed.
+function openOverFeed(run) {
+  holdScroll();
+  closeMenu();
+  run();
+}
+
+function openOwnProfile() {
+  const account = walletNow();
+  if (!account || typeof window.loadBio4PIC !== 'function') return;
+  openOverFeed(() => window.loadBio4PIC(account));
+}
+
+function openTopicChat() {
+  openOverFeed(() => clickId('topic-chat-btn'));
+}
+
+function openE2ee() {
+  openOverFeed(() => clickId('toggle-encrypted-chat-btn'));
+}
+
+function openSettings() {
+  openOverFeed(() => {
+    optionsOverFeed = true;
+    clickId('main-toggle-btn');
+    liftOptions();
+  });
+}
+
+function openDisconnect() {
+  openOverFeed(() => clickId('disconnect-wallet-btn'));
+}
+
+function openConnect() {
+  openOverFeed(() => {
+    const connect = document.getElementById('connect-wallet-btn');
+    if (!connect) return;
+    if (!/connecting/i.test(connect.textContent || '')) connect.click();
+  });
+}
 
 // A later open or close bumps this so a finishing slide cannot hide
 // the drawer the user just reopened.
@@ -2303,6 +2447,7 @@ function motionOff() {
 
 function paintMenu(open) {
   menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) paintWalletRows();
   if (open && !menu.hidden && menu.classList.contains('is-open')) return;
   const token = ++menuToken;
   if (open) {
@@ -2373,11 +2518,39 @@ function backToMap() {
   if (window.layerIsOpen && window.layerIsOpen('feed')) history.back();
 }
 
-for (const item of FEED_MENU) {
+const MENU_ROWS = [
+  { label: 'Back to map', icon: GLOBE_ICON, run: backToMap },
+  { label: 'Connect wallet', icon: WALLET_ICON, run: openConnect, wallet: 'off' },
+  { label: 'My profile', icon: USER_ICON, run: openOwnProfile, wallet: 'on' },
+  { label: 'Topic chat', icon: CHAT_ICON, run: openTopicChat },
+  { label: 'E2EE chat', icon: LOCK_ICON, run: openE2ee, wallet: 'on' },
+  { label: 'Settings', icon: SETTINGS_ICON, run: openSettings },
+  { rule: true, wallet: 'on' },
+  { label: 'Disconnect', icon: LOGOUT_ICON, run: openDisconnect, wallet: 'on', danger: true },
+];
+
+const walletRows = [];
+
+function paintWalletRows() {
+  const on = !!walletNow();
+  for (const row of walletRows) row.hidden = on ? row.dataset.wallet !== 'on' : row.dataset.wallet !== 'off';
+}
+
+for (const item of MENU_ROWS) {
   const row = document.createElement('li');
+  if (item.wallet) {
+    row.dataset.wallet = item.wallet;
+    walletRows.push(row);
+  }
+  if (item.rule) {
+    row.className = 'feed-menu-rule';
+    row.setAttribute('role', 'separator');
+    menu.appendChild(row);
+    continue;
+  }
   const choice = document.createElement('button');
   choice.type = 'button';
-  choice.className = 'feed-menu-item';
+  choice.className = item.danger ? 'feed-menu-item is-danger' : 'feed-menu-item';
   choice.append(svgIcon(item.icon), document.createTextNode(item.label));
   choice.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -2387,6 +2560,7 @@ for (const item of FEED_MENU) {
   row.appendChild(choice);
   menu.appendChild(row);
 }
+paintWalletRows();
 
 if (window.defineLayer) {
   window.defineLayer('feedmenu', {
@@ -2438,6 +2612,27 @@ if (loadColumn) {
     attributes: true,
     attributeFilter: ['style'],
   });
+}
+
+const optionTrigger = document.getElementById('toggle-toolbar-btn');
+if (optionTrigger) {
+  new MutationObserver(() => {
+    if (!optionsOverFeed) return;
+    if (optionTrigger.style.display === 'none') {
+      dropOptions();
+      return;
+    }
+    liftOptions();
+  }).observe(optionTrigger, { attributes: true, attributeFilter: ['style'] });
+}
+for (const id of OPTION_PANELS) {
+  if (id === 'menu-buttons-group') continue;
+  const panel = document.getElementById(id);
+  if (!panel) continue;
+  new MutationObserver(() => {
+    if (!optionsOverFeed || !feedCovers() || panel.style.display === 'none') return;
+    liftOptionEl(panel);
+  }).observe(panel, { attributes: true, attributeFilter: ['style'] });
 }
 
 const drawColumn = document.getElementById('draw-column');

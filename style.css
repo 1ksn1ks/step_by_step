@@ -7791,6 +7791,22 @@ a.payer-link {
   outline: 0.2dvh solid #22D3EE;
   outline-offset: 0.2dvh;
 }
+#feed-menu li[hidden] {
+  display: none;
+}
+#feed-menu .feed-menu-rule {
+  flex: 0 0 auto;
+  height: 1px;
+  margin: auto 1.4dvmin 0.4dvmin;
+  background: rgba(255, 255, 255, 0.22);
+}
+#feed-menu .feed-menu-item.is-danger {
+  color: #f07178;
+}
+#feed-menu .feed-menu-item.is-danger:is(:hover, :active, .is-hold) {
+  color: #f07178;
+  background: rgba(240, 113, 120, 0.14);
+}
 #feed-page-status {
   display: flex;
   justify-content: center;
