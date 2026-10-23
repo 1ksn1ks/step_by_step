@@ -438,7 +438,26 @@ function buildCard(post) {
   header.appendChild(h2);
   profile.appendChild(header);
   card.appendChild(profile);
-  if (record.payer) paintProfileAvatar(img, record.payer);
+  if (record.payer) {
+    const payer = record.payer;
+    img.style.cursor = 'pointer';
+    h2.style.cursor = 'pointer';
+    // Capture runs before the Hashpack and click2url anchors. preventDefault
+    // keeps those links from navigating. stopPropagation keeps this tap from
+    // reaching the document click that closes every panel.
+    profile.addEventListener('click', (event) => {
+      const hit = event.target && event.target.closest && event.target.closest('img, h2');
+      if (!hit || !profile.contains(hit)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      holdScroll();
+      if (window.loadBio4PIC) window.loadBio4PIC(payer);
+    }, true);
+    paintProfileAvatar(img, payer);
+    // The picture already leans toward the pointer. Aim that lean at the
+    // pill so the name gets the same hover and press as the picture.
+    if (img._tilt) img._tilt.host = profile;
+  }
 
   let media = null;
   const src = mediaOf(record.image);

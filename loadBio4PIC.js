@@ -60,11 +60,33 @@ window.dismissBioPopups = dismissBioPopups;
 // #load-column-container shown and #loaded-topics at its content height.
 // The load-column history close hides the container, and the next open
 // then measures the list at height 0 — an empty glowing strip.
+// The feed covers the page at z-index 8000. This panel is painted at 1002,
+// so a bio opened from a card would sit under the feed. Lift only that
+// open. A map bio stays at 1002.
+const BIO_OVER_FEED_Z = '8800';
+
+function feedCoversPage() {
+  const feed = document.getElementById('feed-layout');
+  return !!(feed && feed.style.display !== 'none' && !feed.classList.contains('is-peek'));
+}
+
+function liftBioOverFeed(loadColumn) {
+  if (!loadColumn) return;
+  if (feedCoversPage()) loadColumn.style.zIndex = BIO_OVER_FEED_Z;
+  else if (loadColumn.style.zIndex === BIO_OVER_FEED_Z) loadColumn.style.zIndex = '1002';
+}
+
+function dropBioOverFeed(loadColumn) {
+  if (!loadColumn || loadColumn.style.zIndex !== BIO_OVER_FEED_Z) return;
+  loadColumn.style.zIndex = '1002';
+}
+
 function closeBioPanel() {
   bioEpoch += 1;
   restorePopupsForBio();
   const loadColumn = document.getElementById('load-column');
   if (loadColumn) delete loadColumn.dataset.historyLayer;
+  dropBioOverFeed(loadColumn);
   CloseALL();
 }
 
@@ -115,6 +137,7 @@ export async function loadBio4PIC(payer) {
       if (container) container.style.display = "block";
       loadColumn.dataset.historyLayer = "userbio";
       if (loadColumn.style.display === "none") loadColumn.dataset.historyHold = "1";
+      liftBioOverFeed(loadColumn);
       loadColumn.style.display = "block";
       OpenToggleToolbar();
       const inputarea = document.getElementById("input-field");
@@ -209,6 +232,7 @@ export async function loadBio4PIC(payer) {
       const shown = loadColumn && loadColumn.style.display !== "none" && document.getElementById("loaded-bio-card");
       if (!shown && epoch === bioEpoch && window.layerIsOpen && window.layerIsOpen("userbio")) {
         if (loadColumn) delete loadColumn.dataset.historyLayer;
+        dropBioOverFeed(loadColumn);
         restorePopupsForBio();
         window.layerClosedByUI("userbio");
       }
