@@ -373,6 +373,18 @@ function clock(value) {
   });
 }
 
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function shortClock(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const now = new Date();
+  if (date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate()) {
+    return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
+  }
+  return date.getDate() + ' ' + SHORT_MONTHS[date.getMonth()];
+}
+
 function textOf(msg) {
   if (Array.isArray(msg)) return msg[0] == null ? '' : String(msg[0]);
   return msg == null ? '' : String(msg);
@@ -771,14 +783,6 @@ function buildCard(post) {
     card.appendChild(text);
   }
 
-  const actions = document.createElement('div');
-  actions.className = 'feed-actions';
-  if ((post.kind === 'marker' || post.kind === 'polygon') && record.topicId && record.timestamp) {
-    mountPostReactions(actions, record, post.kind, card);
-  }
-  actions.appendChild(viewChip(post.key));
-  card.appendChild(actions);
-
   const meta = document.createElement('div');
   meta.className = 'feed-meta';
   const loc = document.createElement('button');
@@ -787,16 +791,40 @@ function buildCard(post) {
   loc.appendChild(pinIcon());
   const whereText = document.createElement('span');
   whereText.className = 'feed-loc-label';
-  whereText.textContent = post.place ? `${post.place} · ${coordLabel(post.lngLat)}` : coordLabel(post.lngLat);
+  if (post.place) {
+    const place = document.createElement('span');
+    place.className = 'feed-loc-place';
+    place.textContent = post.place;
+    const sep = document.createElement('span');
+    sep.className = 'feed-loc-sep';
+    sep.textContent = ' · ';
+    whereText.append(place, sep);
+  }
+  const coords = document.createElement('span');
+  coords.className = 'feed-loc-coords';
+  coords.textContent = coordLabel(post.lngLat);
+  whereText.appendChild(coords);
   loc.appendChild(whereText);
   loc.addEventListener('click', (event) => {
     event.stopPropagation();
     openOnMap(post);
   });
+  const actions = document.createElement('div');
+  actions.className = 'feed-actions';
+  if ((post.kind === 'marker' || post.kind === 'polygon') && record.topicId && record.timestamp) {
+    mountPostReactions(actions, record, post.kind, card);
+  }
+  actions.appendChild(viewChip(post.key));
   const time = document.createElement('div');
   time.className = 'popup-timestamp';
-  time.textContent = record.timestamp || clock(post.time);
-  meta.append(loc, time);
+  const fullTime = document.createElement('span');
+  fullTime.className = 'feed-time-full';
+  fullTime.textContent = record.timestamp || clock(post.time);
+  const briefTime = document.createElement('span');
+  briefTime.className = 'feed-time-short';
+  briefTime.textContent = shortClock(post.time) || fullTime.textContent;
+  time.append(fullTime, briefTime);
+  meta.append(loc, actions, time);
   card.appendChild(meta);
   return card;
 }
@@ -1815,6 +1843,8 @@ function holdScroll() {
     scrollIdle = 0;
   }
 }
+
+window.holdFeedScroll = holdScroll;
 
 function rememberScroll() {
   if (scrollIdle) {

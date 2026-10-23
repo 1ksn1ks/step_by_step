@@ -2778,7 +2778,7 @@ html, body {
 
   /* The back circle sits over the top of a fullscreen comments card.
      The list starts below it, so the first payer row stays clear. */
-  .comments-modal:not(.comments-modal--in-card) .popup-comments {
+  .comments-modal:not(.comments-modal--in-card):not(.comments-modal--feed) .popup-comments {
     padding-top: calc(var(--u) * 4.4) !important;
   }
 
@@ -7502,27 +7502,46 @@ a.payer-link {
   flex: 0 0 auto;
 }
 #feed-column .feed-meta {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 1.2dvh;
+  column-gap: clamp(0.6dvmin, 0.9dvmin, 1.2dvmin);
   margin-top: 0.7dvh;
   min-width: 0;
 }
 #feed-column .feed-meta .feed-loc {
   margin-top: 0;
-  flex: 1 1 auto;
+  justify-self: start;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
+  overflow: hidden;
 }
 #feed-column .feed-loc-label {
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
 #feed-column .feed-meta .popup-timestamp {
-  flex: 0 0 auto;
+  justify-self: end;
   margin: 0;
+  min-width: 0;
+  white-space: nowrap;
+}
+#feed-column .feed-time-short {
+  display: none;
+}
+@media (max-width: 110dvmin), (max-height: 50dvw) {
+  #feed-column .feed-loc-place,
+  #feed-column .feed-loc-sep,
+  #feed-column .feed-time-full {
+    display: none;
+  }
+  #feed-column .feed-time-short {
+    display: inline;
+  }
 }
 /* Feed action row only. Map popups keep the glass heart, the count below it,
    and red / cyan / green. Here the same controls sit in an X-style row. */
@@ -7532,10 +7551,11 @@ a.payer-link {
   --feed-action-hover: #67e8f9;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
+  justify-self: center;
   flex-wrap: nowrap;
   gap: clamp(1.4dvmin, 2dvmin, 2.6dvmin);
-  margin-top: clamp(0.8dvmin, 1.2dvmin, 1.6dvmin);
+  margin-top: 0;
   min-width: 0;
 }
 #feed-column .feed-actions .heart-like {
@@ -7928,6 +7948,96 @@ a.payer-link {
   background: #f07178;
   border: 0;
   color: #2a0c0e;
+}
+.comments-modal.comments-modal--feed {
+  --u: clamp(0.9dvh, 1.15dvmin, 1.5dvh);
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 8800;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100dvw;
+  height: 100dvh;
+  margin: 0;
+  background: #0a0a12;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+}
+.comments-modal--feed .feed-comments-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: clamp(1dvmin, 1.4dvmin, 1.8dvmin);
+  box-sizing: border-box;
+  height: clamp(5dvh, 6dvmin, 7dvh);
+  margin: 0;
+  padding: 0 clamp(1.2dvmin, 1.6dvmin, 2dvmin);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+}
+.comments-modal--feed .feed-comments-back {
+  appearance: none;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: clamp(4.5dvmin, 5dvmin, 5.5dvmin);
+  height: clamp(4.5dvmin, 5dvmin, 5.5dvmin);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.comments-modal--feed .feed-comments-back svg {
+  width: calc(0.55 * clamp(4.5dvmin, 5dvmin, 5.5dvmin));
+  height: calc(0.55 * clamp(4.5dvmin, 5dvmin, 5.5dvmin));
+  display: block;
+  pointer-events: none;
+}
+.comments-modal--feed .feed-comments-back:is(:hover, :active) {
+  color: #22D3EE;
+}
+.comments-modal--feed .feed-comments-title {
+  margin: 0;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(2.6dvmin, 3dvmin, 3.4dvmin);
+  font-weight: 700;
+  line-height: 1.2;
+}
+.comments-modal--feed > .popup-comments {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 0 !important;
+  padding: 0 clamp(1.2dvmin, 1.6dvmin, 2dvmin) clamp(1.2dvmin, 1.6dvmin, 2dvmin) !important;
+  overflow: hidden;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+.comments-modal--feed > .popup-comments > .comments-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-bottom: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+.comments-modal--feed > .popup-comments > :not(.comments-scroll) {
+  flex: 0 0 auto;
+}
+.comments-modal--feed > .popup-comments > :last-child {
+  padding-top: clamp(0.8dvmin, 1dvmin, 1.4dvmin);
+  border-top: 1px solid rgba(255, 255, 255, 0.22);
 }
 #feed-back-btn:is(:hover, .is-hold) {
   background-color: var(--press-bg);

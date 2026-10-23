@@ -963,6 +963,9 @@ export function mountPostReactions(cluster, data, kind, home) {
     count: commentCount,
     syncKey: 'comment|' + sync,
     onToggle: (open) => {
+      if (open && bubble.closest('#feed-layout') && typeof window.holdFeedScroll === 'function') {
+        window.holdFeedScroll();
+      }
       let section = document.getElementById(commentsId);
       if (open && !section) {
         section = ensurePostComments(data, polygon ? 'polygon' : 'marker', commentsId, comments);
@@ -3653,6 +3656,31 @@ function paintCommentsSection(section) {
   section.style.webkitBackdropFilter = 'none';
 }
 
+function commentsFromFeed(section) {
+  const opener = section && section._openerAnchor;
+  if (!opener || !opener.closest) return false;
+  if (opener.closest('.maplibregl-map')) return false;
+  return !!opener.closest('#feed-layout');
+}
+
+function feedCommentsBackIcon() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  for (const d of ['m12 19-7-7 7-7', 'M19 12H5']) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+  }
+  return svg;
+}
+
 function commentsBackChevron() {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
@@ -3695,8 +3723,30 @@ function showCommentsModal(section) {
   const sheetPopup = sheet && sheet.closest ? sheet.closest('.maplibregl-popup') : null;
   if (sheetPopup) sheetPopup.classList.add('comments-open');
   paintCommentsSection(section);
+  const fromFeed = commentsFromFeed(section);
   const wrapper = document.createElement('div');
-  if (sheet) {
+  if (fromFeed) {
+    wrapper.className = 'comments-modal comments-modal--feed';
+    const bar = document.createElement('div');
+    bar.className = 'feed-comments-bar';
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'feed-comments-back';
+    back.setAttribute('aria-label', 'Back');
+    back.appendChild(feedCommentsBackIcon());
+    back.onclick = (e) => {
+      e.stopPropagation();
+      closeCommentsModal();
+    };
+    const title = document.createElement('div');
+    title.className = 'feed-comments-title';
+    title.textContent = 'Comments';
+    bar.append(back, title);
+    wrapper.append(bar, section);
+    wrapper.addEventListener('click', (e) => e.stopPropagation());
+    wrapper.addEventListener('pointerdown', (e) => e.stopPropagation());
+    document.body.appendChild(wrapper);
+  } else if (sheet) {
     wrapper.className = 'comments-modal comments-modal--in-card';
     wrapper.appendChild(commentsCloseButton(section));
     wrapper.appendChild(section);
@@ -3739,7 +3789,7 @@ function showCommentsModal(section) {
   refitPopups();
 
   const input = section.querySelector('textarea');
-  if (input) setTimeout(() => input.focus(), 100);
+  if (input) setTimeout(() => input.focus(fromFeed ? { preventScroll: true } : undefined), 100);
 }
 
 function retargetCommentsModal() {
