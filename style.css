@@ -7509,6 +7509,23 @@ a.payer-link {
   outline: 0.2dvh solid #22D3EE;
   outline-offset: 0.2dvh;
 }
+#feed-page-status {
+  display: flex;
+  justify-content: center;
+  padding: 1.2dvmin 0 2dvmin;
+}
+#feed-page-status[hidden] {
+  display: none;
+}
+.feed-page-spin {
+  width: clamp(2.4dvmin, 3dvmin, 3.6dvmin);
+  height: clamp(2.4dvmin, 3dvmin, 3.6dvmin);
+  box-sizing: border-box;
+  border: 0.35dvmin solid rgba(255, 255, 255, 0.22);
+  border-top-color: #22D3EE;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
 #feed-back-btn:is(:hover, .is-hold) {
   background-color: var(--press-bg);
   border-color: var(--press-border);

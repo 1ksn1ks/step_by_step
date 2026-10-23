@@ -3,8 +3,12 @@
 
 import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
-import { geojson, polygons, storedMarkers, storedPolygons, currentUfoModelInGLTF } from './letall.js';
-import { allLoadedMessages, markerPopupNode, polygonPopupNode, mountPostReactions } from './processallmessages.js';
+import { currentUfoModelInGLTF } from './letall.js';
+import { markerPopupNode, polygonPopupNode, mountPostReactions } from './processallmessages.js';
+import { fetchMessagesBackend, streamOnTopic, messageSig } from './msgbackend.js';
+import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
+import { initialTopicId } from './extracttopic.js';
+import { connectedAccount } from './web3.js';
 import { activeMarkerPopups } from './marker.js';
 import { activePolygonPopups } from './polygons.js';
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
@@ -22,8 +26,11 @@ import { paintProfileAvatar } from './earlyhashinal.js';
 import { openPreview } from './fullscreenmedia.js';
 
 const LAYOUT_KEY = 'layoutMode';
-const BATCH = 20;
+const PAGE = 2030;
+const CARD_CAP = 200;
+const RENDER_CHUNK = 30;
 const SCROLL_IDLE_MS = 250;
+const MIRROR = 'https://mainnet.mirrornode.hedera.com';
 const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -36,7 +43,16 @@ const scroller = document.createElement('div');
 scroller.id = 'feed-scroll';
 const column = document.createElement('div');
 column.id = 'feed-column';
-scroller.appendChild(column);
+const pageStatus = document.createElement('div');
+pageStatus.id = 'feed-page-status';
+pageStatus.hidden = true;
+pageStatus.setAttribute('role', 'status');
+pageStatus.setAttribute('aria-label', 'Loading posts');
+const pageSpin = document.createElement('span');
+pageSpin.className = 'feed-page-spin';
+pageSpin.setAttribute('aria-hidden', 'true');
+pageStatus.appendChild(pageSpin);
+scroller.append(column, pageStatus);
 
 const toolbar = document.createElement('div');
 toolbar.id = 'feed-toolbar';
@@ -96,8 +112,29 @@ if (searchBtn && searchBtn.parentNode) {
 document.body.appendChild(root);
 
 let posts = [];
-let shown = 0;
-let feedSig = '';
+let rangeStart = 0;
+let rangeEnd = 0;
+let loadedTopic = '';
+let cursor = null;
+let exhausted = false;
+let paging = false;
+let generation = 0;
+let highSeq = 0;
+let streamOff = null;
+let assembler = null;
+const seenSeq = new Set();
+const seenSig = new Set();
+const seenPost = new Set();
+const actions = new Map();
+const likeCounts = new Map();
+const markerComments = new Map();
+const polygonComments = new Map();
+const markerReplies = new Map();
+const polygonReplies = new Map();
+const deletedCreated = new Set();
+const deletedStamp = new Set();
+const deletedNumber = new Set();
+const droppedShares = new Set();
 let savedScroll = 0;
 let peek = false;
 let revealToken = 0;
@@ -257,126 +294,13 @@ function coordLabel(lngLat) {
   return `${n(lat)}, ${n(lng)}`;
 }
 
-function eachMarker(fn) {
-  const lists = storedMarkers.length ? storedMarkers : [geojson.features];
-  for (const list of lists) {
-    if (!Array.isArray(list)) continue;
-    for (const feature of list) fn(feature);
-  }
-}
-
-function eachPolygon(fn) {
-  const lists = storedPolygons.length ? storedPolygons : [polygons];
-  for (const list of lists) {
-    if (!Array.isArray(list)) continue;
-    for (const polygon of list) fn(polygon);
-  }
-}
-
-function polygonKey(polygon) {
-  return `p:${polygon.topicId}:${polygon.payer}:${polygon.created}:${polygon.msgNumber}`;
-}
-
 const ringCenters = new Map();
 
 function centerOf(polygon) {
-  const key = polygonKey(polygon);
-  if (ringCenters.has(key)) return ringCenters.get(key);
+  if (ringCenters.has(polygon)) return ringCenters.get(polygon);
   const lngLat = ringCenter(polygon);
-  ringCenters.set(key, lngLat);
+  ringCenters.set(polygon, lngLat);
   return lngLat;
-}
-
-function newer(newest, item) {
-  if (!item || item.created == null) return newest;
-  const t = stamp(item.created);
-  return t > newest ? t : newest;
-}
-
-// Counts plus the newest created time. The 2s sync skips collect when
-// this has not changed.
-function feedSignature() {
-  let markers = 0;
-  let polygonCount = 0;
-  let chats = 0;
-  let newest = 0;
-  const markerLists = storedMarkers.length ? storedMarkers : [geojson.features];
-  for (const list of markerLists) {
-    if (!Array.isArray(list)) continue;
-    markers += list.length;
-    for (const item of list) newest = newer(newest, item);
-  }
-  const polygonLists = storedPolygons.length ? storedPolygons : [polygons];
-  for (const list of polygonLists) {
-    if (!Array.isArray(list)) continue;
-    polygonCount += list.length;
-    for (const item of list) newest = newer(newest, item);
-  }
-  for (const entry of allLoadedMessages) {
-    const messages = entry && entry.uniqueMessages && entry.uniqueMessages.messages;
-    if (!Array.isArray(messages)) continue;
-    chats += messages.length;
-    for (const item of messages) newest = newer(newest, item);
-  }
-  return `${markers}:${polygonCount}:${chats}:${newest}`;
-}
-
-function collect() {
-  const out = [];
-  const seen = new Set();
-  const add = (post) => {
-    if (!post || !post.key || seen.has(post.key) || !post.lngLat) return;
-    seen.add(post.key);
-    out.push(post);
-  };
-  eachMarker((feature) => {
-    if (!feature || !feature.geometry) return;
-    const lngLat = pointFrom(feature.geometry.coordinates);
-    if (!lngLat) return;
-    add({
-      key: `m:${feature.topicId}:${feature.payer}:${feature.created}:${feature.msgNumber}`,
-      kind: 'marker',
-      feature,
-      lngLat,
-      time: stamp(feature.created),
-    });
-  });
-  eachPolygon((polygon) => {
-    if (!polygon) return;
-    const lngLat = centerOf(polygon);
-    if (!lngLat) return;
-    add({
-      key: polygonKey(polygon),
-      kind: 'polygon',
-      polygon,
-      lngLat,
-      time: stamp(polygon.created),
-    });
-  });
-  for (const entry of allLoadedMessages) {
-    const messages = entry && entry.uniqueMessages && entry.uniqueMessages.messages;
-    if (!Array.isArray(messages)) continue;
-    for (const message of messages) {
-      if (!message || message.marker || message.polygon) continue;
-      if (!message.userMessage && !message.image) continue;
-      const bag = message.location || message.place || message;
-      const lngLat = pointFrom(message.location) || pointFrom(message.place) || pointFrom(message.coords) || pointFrom(message.cord)
-        || asPoint(message.lng ?? message.lon ?? message.longitude, message.lat ?? message.latitude);
-      if (!lngLat) continue;
-      const place = placeName(message.location) || placeName(message.place) || placeName(bag);
-      add({
-        key: `c:${entry.topicId}:${message.payer}:${message.sequence_number}:${message.created}`,
-        kind: 'chat',
-        message,
-        topicId: entry.topicId,
-        lngLat,
-        place,
-        time: stamp(message.created),
-      });
-    }
-  }
-  out.sort((a, b) => b.time - a.time);
-  return out;
 }
 
 function readRecord(data) {
@@ -567,49 +491,690 @@ function clampPending() {
   });
 }
 
-function renderMore() {
-  const slice = posts.slice(shown, shown + BATCH);
-  if (!slice.length) return;
+function topicNow() {
+  const input = document.getElementById('input-field');
+  const value = input && input.value.trim();
+  if (value && /^\d+\.\d+\.\d+$/.test(value)) return value;
+  return /^\d+\.\d+\.\d+$/.test(initialTopicId) ? initialTopicId : '';
+}
+
+function cmpTs(a, b) {
+  const left = String(a || '').split('.');
+  const right = String(b || '').split('.');
+  const as = left[0].padStart(12, '0') + (left[1] || '').padEnd(9, '0');
+  const bs = right[0].padStart(12, '0') + (right[1] || '').padEnd(9, '0');
+  if (as === bs) return 0;
+  return as < bs ? -1 : 1;
+}
+
+function cmpMessage(a, b) {
+  const ts = cmpTs(a && a.consensus_timestamp, b && b.consensus_timestamp);
+  if (ts) return ts;
+  return (Number(a && a.sequence_number) || 0) - (Number(b && b.sequence_number) || 0);
+}
+
+function createdIso(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString();
+}
+
+function profileOf(payer) {
+  const pic = payer && profilePictures[payer] && profilePictures[payer].url;
+  const name = payer && usernames[payer] && usernames[payer].username;
+  const link = payer && click2url[payer] && click2url[payer].click2url;
+  return {
+    profileUrl: typeof pic === 'string' && pic ? pic : DEFAULT_PIC,
+    payer: payer || '',
+    payerInfo: payer || 'Anonymous',
+    username: name ? ` ${name}` : '',
+    click2link: link ? ` ${link}` : '',
+  };
+}
+
+function shapeNumber(value, created) {
+  if (value == null || String(value).trim() === '') return created || '';
+  if (!Number.isInteger(Number(value))) return null;
+  return value;
+}
+
+function ringFrom(cord) {
+  if (Array.isArray(cord) && cord.length > 2 && Array.isArray(cord[0])) return cord;
+  if (typeof cord !== 'string') return null;
+  if (!/^\[-?\d+\.?\d*,\s*-?\d+\.?\d*\](,\s*\[-?\d+\.?\d*,\s*-?\d+\.?\d*\])*$/.test(cord)) return null;
+  try {
+    const ring = JSON.parse(`[${cord}]`);
+    return Array.isArray(ring) && ring.length > 2 ? ring : null;
+  } catch {
+    return null;
+  }
+}
+
+function paintSpinner(on) {
+  pageStatus.hidden = !on;
+}
+
+function clearMaps() {
+  seenSeq.clear();
+  seenSig.clear();
+  seenPost.clear();
+  actions.clear();
+  likeCounts.clear();
+  markerComments.clear();
+  polygonComments.clear();
+  markerReplies.clear();
+  polygonReplies.clear();
+  deletedCreated.clear();
+  deletedStamp.clear();
+  deletedNumber.clear();
+  droppedShares.clear();
+  ringCenters.clear();
+}
+
+function resetFeed(topic) {
+  generation += 1;
+  loadedTopic = topic;
+  posts = [];
+  rangeStart = 0;
+  rangeEnd = 0;
+  cursor = null;
+  exhausted = false;
+  paging = false;
+  highSeq = 0;
+  assembler = createChunkAssembler();
+  clearMaps();
+  column.replaceChildren();
+  paintSpinner(false);
+  savedScroll = 0;
+}
+
+function actionKey(bucket, stamp) {
+  return `${bucket}|${stamp}`;
+}
+
+function setAction(bucket, stamp, payer, type, at) {
+  const key = actionKey(bucket, stamp);
+  if (!actions.has(key)) actions.set(key, new Map());
+  const row = actions.get(key);
+  const prev = row.get(payer);
+  if (prev && cmpTs(prev.at, at) > 0) return;
+  if (prev && prev.type === 'like') likeCounts.set(key, (likeCounts.get(key) || 0) - 1);
+  row.set(payer, { type, at });
+  if (type === 'like') likeCounts.set(key, (likeCounts.get(key) || 0) + 1);
+}
+
+function pushList(map, key, item) {
+  if (!map.has(key)) map.set(key, []);
+  map.get(key).push(item);
+}
+
+function noteDelete(payer, data) {
+  if (!payer || !data) return;
+  const created = createdIso(data.deleteMarkerCreated || data.deletePolygonCreated);
+  const stampLabel = data.deleteMarkerTimestamp || data.deletePolygonTimestamp;
+  const number = data.deleteMarkerNumber != null ? data.deleteMarkerNumber : data.deletePolygonNumber;
+  if (created) deletedCreated.add(`${payer}|${created}`);
+  if (stampLabel != null && String(stampLabel).trim() !== '') deletedStamp.add(`${payer}|${stampLabel}`);
+  if (number != null && String(number).trim() !== '') deletedNumber.add(`${payer}|${number}`);
+}
+
+function noteMessage(message) {
+  const payer = message.payer || '';
+  const at = String(message.consensus_timestamp || message.created || '');
+  noteDelete(payer, message.marker && message.marker.data);
+  noteDelete(payer, message.polygon && message.polygon.data);
+  const fields = [
+    ['likeMarker', 'marker', 'like'],
+    ['dislikeMarker', 'marker', 'dislike'],
+    ['likePolygon', 'polygon', 'like'],
+    ['dislikePolygon', 'polygon', 'dislike'],
+    ['unlikeMarker', 'marker', 'unlike'],
+    ['unlikePolygon', 'polygon', 'unlike'],
+  ];
+  for (const [field, bucket, type] of fields) {
+    const body = message[field];
+    if (!body || !body.timestamp || !payer) continue;
+    setAction(bucket, String(body.timestamp), payer, type, at);
+  }
+  const created = createdIso(message.created);
+  if (message.commentMarker && message.commentMarker.timestamp && payer) {
+    pushList(markerComments, String(message.commentMarker.timestamp), {
+      payer,
+      text: String(message.commentMarker.text || '').slice(0, 300),
+      created,
+    });
+  }
+  if (message.commentPolygon && message.commentPolygon.timestamp && payer) {
+    pushList(polygonComments, String(message.commentPolygon.timestamp), {
+      payer,
+      text: String(message.commentPolygon.text || '').slice(0, 300),
+      created,
+    });
+  }
+  if (message.replyMarker && message.replyMarker.parentId && payer) {
+    pushList(markerReplies, String(message.replyMarker.parentId), {
+      payer,
+      text: String(message.replyMarker.text || '').slice(0, 300),
+      created,
+    });
+  }
+  if (message.replyPolygon && message.replyPolygon.parentId && payer) {
+    pushList(polygonReplies, String(message.replyPolygon.parentId), {
+      payer,
+      text: String(message.replyPolygon.text || '').slice(0, 300),
+      created,
+    });
+  }
+  const unshare = message.unshare;
+  if (unshare && typeof unshare === 'object') {
+    const topic = typeof unshare.topic === 'string' ? unshare.topic.trim() : '';
+    const when = createdIso(unshare.created);
+    if (payer && /^\d+\.\d+\.\d+$/.test(topic) && when) droppedShares.add(`${payer}|${topic}|${when}`);
+  }
+}
+
+function commentsFor(bucket, stamp) {
+  const list = bucket === 'polygon' ? polygonComments : markerComments;
+  const replies = bucket === 'polygon' ? polygonReplies : markerReplies;
+  return (list.get(stamp) || []).map((comment) => ({
+    ...comment,
+    replies: (replies.get(comment.created) || []).slice(),
+  }));
+}
+
+function liked(bucket, stamp) {
+  const row = actions.get(actionKey(bucket, stamp));
+  const mine = row && connectedAccount && row.get(connectedAccount);
+  return !!(mine && mine.type === 'like');
+}
+
+function likeTotal(bucket, stamp) {
+  return likeCounts.get(actionKey(bucket, stamp)) || 0;
+}
+
+function gone(payer, number, created, stampLabel) {
+  if (created && deletedCreated.has(`${payer}|${created}`)) return true;
+  if (stampLabel && deletedStamp.has(`${payer}|${stampLabel}`)) return true;
+  if (number != null && String(number) !== '' && deletedNumber.has(`${payer}|${number}`)) return true;
+  return false;
+}
+
+function keepPost(post) {
+  if (!post || !post.key || seenPost.has(post.key) || !post.lngLat) return null;
+  seenPost.add(post.key);
+  return post;
+}
+
+function markerPost(message, data) {
+  const payer = message.payer || '';
+  const created = createdIso(message.created);
+  const number = shapeNumber(data.numberOfMarker, created);
+  const lngLat = number == null ? null : pointFrom(data.cord);
+  const stampLabel = clock(message.created);
+  if (!lngLat || gone(payer, number, created, stampLabel)) return null;
+  const record = () => ({
+    markernumber: number,
+    topicId: loadedTopic,
+    ...profileOf(payer),
+    title: data.title,
+    image: data.image,
+    coverimage: data.coverimage,
+    msg: data.msg,
+    timestamp: stampLabel,
+    created,
+    likeCountMarker: likeTotal('marker', stampLabel),
+    likedByMe: liked('marker', stampLabel),
+    comments: commentsFor('marker', stampLabel),
+    coords: lngLat,
+  });
+  return keepPost({
+    key: `m:${loadedTopic}:${payer}:${created}:${number}`,
+    kind: 'marker',
+    seq: Number(message.sequence_number) || 0,
+    lngLat,
+    time: stamp(message.created),
+    feature: {
+      topicId: loadedTopic,
+      created: message.created,
+      msgNumber: number,
+      type: 'Feature',
+      payer,
+      properties: { popupData: record },
+      geometry: { type: 'Point', coordinates: lngLat },
+    },
+  });
+}
+
+function polygonPost(message, data) {
+  const payer = message.payer || '';
+  const created = createdIso(message.created);
+  const number = shapeNumber(data.numberOfPolygon, created);
+  const ring = number == null ? null : ringFrom(data.cord);
+  const stampLabel = clock(message.created);
+  if (!ring || gone(payer, number, created, stampLabel)) return null;
+  const polygon = {
+    topicId: loadedTopic,
+    created: message.created,
+    msgNumber: number,
+    payer,
+    coordinates: [ring],
+  };
+  const lngLat = centerOf(polygon);
+  if (!lngLat) return null;
+  polygon.popupData = () => ({
+    polygonnumber: number,
+    topicId: loadedTopic,
+    ...profileOf(payer),
+    title: data.title,
+    image: data.image,
+    coverimage: data.coverimage,
+    msg: data.msg,
+    timestamp: stampLabel,
+    created,
+    likeCountPolygon: likeTotal('polygon', stampLabel),
+    likedByMe: liked('polygon', stampLabel),
+    comments: commentsFor('polygon', stampLabel),
+    coordinates: ring,
+  });
+  return keepPost({
+    key: `p:${loadedTopic}:${payer}:${created}:${number}`,
+    kind: 'polygon',
+    seq: Number(message.sequence_number) || 0,
+    polygon,
+    lngLat,
+    time: stamp(message.created),
+  });
+}
+
+function sharePost(message) {
+  const share = message.share;
+  if (!share || typeof share !== 'object') return null;
+  const payer = message.payer || '';
+  const original = typeof share.topic === 'string' ? share.topic.trim() : '';
+  const created = createdIso(share.created);
+  const lngLat = pointFrom(share.pin || share.coords);
+  if (!payer || !/^\d+\.\d+\.\d+$/.test(original) || !created || !lngLat) return null;
+  if (droppedShares.has(`${payer}|${original}|${created}`)) return null;
+  const author = typeof share.payer === 'string' ? share.payer : '';
+  const stampLabel = clock(created);
+  const number = share.number == null ? '' : share.number;
+  const record = () => ({
+    markernumber: number,
+    polygonnumber: number,
+    topicId: original,
+    ...profileOf(author),
+    title: share.title,
+    image: share.image,
+    coverimage: share.cover,
+    msg: share.msg,
+    timestamp: stampLabel,
+    created,
+    likeCountMarker: likeTotal('marker', stampLabel),
+    likeCountPolygon: likeTotal('polygon', stampLabel),
+    likedByMe: false,
+    comments: [],
+    coords: lngLat,
+    coordinates: lngLat,
+    share: { sharer: payer, home: loadedTopic },
+  });
+  return keepPost({
+    key: `s:${payer}:${original}:${created}`,
+    kind: 'marker',
+    seq: Number(message.sequence_number) || 0,
+    lngLat,
+    time: stamp(message.created),
+    feature: {
+      topicId: loadedTopic,
+      created,
+      msgNumber: `share-${created}-${payer}`,
+      type: 'Feature',
+      payer,
+      properties: { popupData: record },
+      geometry: { type: 'Point', coordinates: lngLat },
+    },
+  });
+}
+
+function chatPost(message) {
+  if (message.marker || message.polygon || message.share) return null;
+  if (!message.userMessage && !message.image) return null;
+  const bag = message.location || message.place || message;
+  const lngLat = pointFrom(message.location) || pointFrom(message.place) || pointFrom(message.coords) || pointFrom(message.cord)
+    || asPoint(message.lng ?? message.lon ?? message.longitude, message.lat ?? message.latitude);
+  if (!lngLat) return null;
+  const place = placeName(message.location) || placeName(message.place) || placeName(bag);
+  return keepPost({
+    key: `c:${loadedTopic}:${message.payer}:${message.sequence_number}:${message.created}`,
+    kind: 'chat',
+    seq: Number(message.sequence_number) || 0,
+    message,
+    topicId: loadedTopic,
+    lngLat,
+    place,
+    time: stamp(message.created),
+  });
+}
+
+function postsFrom(message) {
+  const out = [];
+  const marker = message.marker && message.marker.data;
+  const polygon = message.polygon && message.polygon.data;
+  if (marker) {
+    const post = markerPost(message, marker);
+    if (post) out.push(post);
+  }
+  if (polygon) {
+    const post = polygonPost(message, polygon);
+    if (post) out.push(post);
+  }
+  const shared = sharePost(message);
+  if (shared) out.push(shared);
+  const chat = chatPost(message);
+  if (chat) out.push(chat);
+  return out;
+}
+
+function accept(message) {
+  if (!message || typeof message !== 'object') return false;
+  const seq = Number(message.sequence_number);
+  if (seq > 0 && seenSeq.has(seq)) return false;
+  const signature = messageSig(message);
+  if (seenSig.has(signature)) {
+    if (seq > 0) seenSeq.add(seq);
+    if (seq > highSeq) highSeq = seq;
+    return false;
+  }
+  if (seq > 0) {
+    seenSeq.add(seq);
+    if (seq > highSeq) highSeq = seq;
+  }
+  seenSig.add(signature);
+  return true;
+}
+
+function ingest(messages) {
+  const fresh = [];
+  for (const message of messages || []) {
+    if (accept(message)) fresh.push(message);
+  }
+  fresh.sort(cmpMessage);
+  for (const message of fresh) noteMessage(message);
+  const made = [];
+  for (let i = fresh.length - 1; i >= 0; i--) made.push(...postsFrom(fresh[i]));
+  return made;
+}
+
+async function fetchBackend(topic, before) {
+  const out = [];
+  const seen = new Set();
+  let beforeSeq = before && before.seq ? before.seq : 0;
+  let short = false;
+  while (out.length < PAGE) {
+    const ask = Math.min(1000, PAGE - out.length);
+    const page = await fetchMessagesBackend(topic, ask, 0, beforeSeq);
+    if (!page.ready) return null;
+    const confirmed = (page.messages || []).filter((message) => Number(message.sequence_number) > 0);
+    if (!confirmed.length) {
+      short = true;
+      break;
+    }
+    confirmed.sort(cmpMessage);
+    for (let i = confirmed.length - 1; i >= 0 && out.length < PAGE; i--) {
+      const seq = Number(confirmed[i].sequence_number);
+      if (seen.has(seq)) continue;
+      seen.add(seq);
+      out.push(confirmed[i]);
+    }
+    if (confirmed.length < ask) {
+      short = true;
+      break;
+    }
+    const oldestSeq = Number(confirmed[0].sequence_number);
+    if (!oldestSeq || (beforeSeq && oldestSeq >= beforeSeq)) {
+      short = true;
+      break;
+    }
+    beforeSeq = oldestSeq;
+  }
+  out.sort((a, b) => cmpMessage(b, a));
+  return { messages: out, done: short || out.length < PAGE };
+}
+
+async function fetchMirror(topic, before) {
+  const out = [];
+  const seen = new Set();
+  let beforeTs = before && before.ts ? String(before.ts) : '';
+  let short = false;
+  for (let guard = 0; guard < 40 && out.length < PAGE; guard++) {
+    const ask = Math.min(100, PAGE - out.length);
+    let url = `${MIRROR}/api/v1/topics/${topic}/messages?limit=${ask}&order=desc`;
+    if (beforeTs) url += `&timestamp=lt:${encodeURIComponent(beforeTs)}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`mirror HTTP ${response.status}`);
+    const data = await response.json();
+    const raw = data.messages || [];
+    if (!raw.length) {
+      short = true;
+      break;
+    }
+    const parsed = ingestMirrorRows(assembler, topic, raw).map((item) => ({
+      ...item.parsed,
+      payer: item.payer,
+      created: new Date(Number(item.consensus_timestamp) * 1000).toISOString(),
+      consensus_timestamp: String(item.consensus_timestamp),
+      sequence_number: item.sequence_number,
+    }));
+    parsed.sort((a, b) => cmpMessage(b, a));
+    for (const message of parsed) {
+      if (out.length >= PAGE) break;
+      const seq = Number(message.sequence_number);
+      if (seq > 0 && seen.has(seq)) continue;
+      if (before && before.ts && cmpTs(message.consensus_timestamp, before.ts) >= 0) continue;
+      if (seq > 0) seen.add(seq);
+      out.push(message);
+    }
+    const oldestRaw = String(raw[raw.length - 1].consensus_timestamp || '');
+    if (!oldestRaw || (beforeTs && cmpTs(oldestRaw, beforeTs) >= 0)) {
+      short = true;
+      break;
+    }
+    beforeTs = oldestRaw;
+    if (raw.length < ask) {
+      short = true;
+      break;
+    }
+  }
+  out.sort((a, b) => cmpMessage(b, a));
+  return { messages: out, done: short || out.length < PAGE };
+}
+
+async function fetchPage(topic, before) {
+  const cached = await fetchBackend(topic, before);
+  if (cached) return cached;
+  return fetchMirror(topic, before);
+}
+
+async function fetchNewer(topic, after) {
+  const page = await fetchMessagesBackend(topic, 100, after, 0);
+  if (page.ready) return (page.messages || []).filter((message) => Number(message.sequence_number) > after);
+  const response = await fetch(`${MIRROR}/api/v1/topics/${topic}/messages?limit=100&order=asc&sequencenumber=gt:${after}`);
+  if (!response.ok) return [];
+  const data = await response.json();
+  return ingestMirrorRows(assembler, topic, data.messages || []).map((item) => ({
+    ...item.parsed,
+    payer: item.payer,
+    created: new Date(Number(item.consensus_timestamp) * 1000).toISOString(),
+    consensus_timestamp: String(item.consensus_timestamp),
+    sequence_number: item.sequence_number,
+  }));
+}
+
+function renderThrough(end) {
+  if (end <= rangeEnd) return;
   const frag = document.createDocumentFragment();
-  for (const post of slice) frag.appendChild(buildCard(post));
+  for (let i = rangeEnd; i < end; i++) frag.appendChild(buildCard(posts[i]));
   column.appendChild(frag);
-  shown += slice.length;
+  rangeEnd = end;
   requestAnimationFrame(clampPending);
 }
 
-function ensureFilled() {
-  let guard = 0;
-  while (guard < 5 && shown < posts.length && scroller.scrollHeight <= scroller.clientHeight + 4) {
-    renderMore();
-    guard += 1;
+function trimAbove() {
+  const viewTop = scroller.getBoundingClientRect().top;
+  const far = viewTop - scroller.clientHeight;
+  while (rangeEnd - rangeStart > CARD_CAP) {
+    const first = column.firstElementChild;
+    if (!first || !first.classList.contains('feed-card')) break;
+    const rect = first.getBoundingClientRect();
+    if (rect.bottom > far) break;
+    const next = first.nextElementSibling;
+    const drop = next && next.classList.contains('feed-card') ? next.offsetTop - first.offsetTop : first.offsetHeight;
+    first.remove();
+    rangeStart += 1;
+    scroller.scrollTop = Math.max(0, scroller.scrollTop - drop);
   }
 }
 
-function sync(force) {
-  const sig = feedSignature();
-  if (!force && sig === feedSig) return;
-  const next = collect();
-  const sameHead = (!next.length && !posts.length) || (next[0] && posts[0] && next[0].key === posts[0].key);
-  const sameTail = next.length === posts.length && sameHead && (
-    !next.length || (next[next.length - 1] && posts[posts.length - 1] && next[next.length - 1].key === posts[posts.length - 1].key)
-  );
-  if (!force && sameTail) {
-    feedSig = sig;
+function fillUp() {
+  if (paging || scroller.scrollTop > scroller.clientHeight || rangeStart === 0) return;
+  const add = Math.min(RENDER_CHUNK, rangeStart);
+  const prevTop = scroller.scrollTop;
+  const prevHeight = scroller.scrollHeight;
+  const frag = document.createDocumentFragment();
+  for (let i = rangeStart - add; i < rangeStart; i++) frag.appendChild(buildCard(posts[i]));
+  column.prepend(frag);
+  rangeStart -= add;
+  scroller.scrollTop = prevTop + (scroller.scrollHeight - prevHeight);
+  requestAnimationFrame(clampPending);
+}
+
+function fillDown() {
+  if (!feedOn() || root.classList.contains('is-peek') || paging) return;
+  if (scroller.clientHeight < 1) {
+    if (rangeEnd < posts.length) renderThrough(Math.min(posts.length, rangeEnd + RENDER_CHUNK));
     return;
   }
-  const atTop = scroller.scrollTop < 2;
-  if (!force && !atTop) {
-    if (sameHead) {
-      posts = next;
-      feedSig = sig;
+  let guard = 0;
+  while (guard < 12) {
+    guard += 1;
+    const room = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+    const short = scroller.scrollHeight <= scroller.clientHeight + 4;
+    if (!short && room >= scroller.clientHeight * 2) return;
+    if (rangeEnd < posts.length) {
+      renderThrough(Math.min(posts.length, rangeEnd + RENDER_CHUNK));
+      trimAbove();
+      continue;
     }
+    if (!exhausted) loadOlder();
     return;
   }
-  posts = next;
-  feedSig = sig;
-  shown = 0;
-  column.replaceChildren();
-  ensureFilled();
+}
+
+function prependPosts(list) {
+  if (!list.length) return;
+  const atTop = scroller.scrollTop < 2;
+  const showingTop = rangeStart === 0;
+  posts.unshift(...list);
+  rangeStart += list.length;
+  rangeEnd += list.length;
+  if (!showingTop) return;
+  const prevTop = scroller.scrollTop;
+  const prevHeight = scroller.scrollHeight;
+  const frag = document.createDocumentFragment();
+  for (const post of list) frag.appendChild(buildCard(post));
+  column.prepend(frag);
+  rangeStart = 0;
+  const delta = scroller.scrollHeight - prevHeight;
+  scroller.scrollTop = atTop ? 0 : prevTop + delta;
+  requestAnimationFrame(clampPending);
+  trimAbove();
+}
+
+async function loadOlder() {
+  if (paging || exhausted) return;
+  const topic = loadedTopic;
+  if (!topic) return;
+  const gen = generation;
+  paging = true;
+  paintSpinner(true);
+  let ok = false;
+  try {
+    const page = await fetchPage(topic, cursor);
+    if (gen !== generation) return;
+    const messages = page.messages || [];
+    if (!messages.length) {
+      exhausted = true;
+      ok = true;
+      return;
+    }
+    const oldest = messages[messages.length - 1];
+    const nextTs = String(oldest.consensus_timestamp || '');
+    const nextSeq = Number(oldest.sequence_number) || 0;
+    if (cursor && nextTs === String(cursor.ts)) {
+      exhausted = true;
+      ok = true;
+      return;
+    }
+    cursor = { ts: nextTs, seq: nextSeq };
+    if (page.done) exhausted = true;
+    posts.push(...ingest(messages));
+    ok = true;
+  } catch (error) {
+    console.warn('feed page failed', error);
+  } finally {
+    if (gen === generation) {
+      paging = false;
+      paintSpinner(false);
+    }
+  }
+  if (ok && gen === generation) fillDown();
+}
+
+async function catchUp() {
+  if (!loadedTopic || !highSeq || paging) return;
+  const topic = loadedTopic;
+  const gen = generation;
+  const after = highSeq;
+  paging = true;
+  try {
+    const rows = await fetchNewer(topic, after);
+    if (gen !== generation) return;
+    const made = ingest(rows);
+    if (made.length) prependPosts(made);
+  } catch (error) {
+    console.warn('feed catch-up failed', error);
+  } finally {
+    if (gen === generation) paging = false;
+  }
+}
+
+function onStream(event) {
+  if (!feedOn() || !event || event.topic !== loadedTopic) return;
+  if (event.type !== 'message' && event.type !== 'pending') return;
+  if (!event.message) return;
+  const made = ingest([event.message]);
+  if (made.length) prependPosts(made);
+}
+
+function bindStream(topic) {
+  if (streamOff) streamOff();
+  streamOff = streamOnTopic(topic, onStream);
+}
+
+function ensureTopic(opening) {
+  const topic = topicNow();
+  if (!topic) return;
+  if (topic !== loadedTopic) {
+    if (streamOff) {
+      streamOff();
+      streamOff = null;
+    }
+    resetFeed(topic);
+    bindStream(topic);
+    loadOlder();
+    return;
+  }
+  if (opening) catchUp();
+  if (!paging && !posts.length && !exhausted) loadOlder();
 }
 
 function feedOn() {
@@ -783,7 +1348,7 @@ function applyFeed(on) {
     root.classList.remove('is-peek');
     root.style.display = 'block';
     syncCover();
-    sync(column.childElementCount === 0 || scroller.scrollTop < 2);
+    ensureTopic(true);
     return;
   }
   peek = false;
@@ -792,6 +1357,10 @@ function applyFeed(on) {
   rememberScroll();
   root.style.display = 'none';
   syncCover();
+  if (streamOff) {
+    streamOff();
+    streamOff = null;
+  }
 }
 
 if (window.defineLayer) {
@@ -934,9 +1503,8 @@ root.addEventListener('click', (event) => event.stopPropagation());
 scroller.addEventListener('scroll', () => {
   if (root.classList.contains('is-peek')) return;
   savedScroll = scroller.scrollTop;
-  if (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < scroller.clientHeight * 0.6) {
-    renderMore();
-  }
+  fillUp();
+  fillDown();
   scheduleScrollWrite();
 }, { passive: true });
 
@@ -945,5 +1513,5 @@ if (savedMode() === 'feed') applyFeed(true);
 
 setInterval(() => {
   if (!feedOn() || root.classList.contains('is-peek')) return;
-  sync(false);
+  ensureTopic(false);
 }, 2000);
