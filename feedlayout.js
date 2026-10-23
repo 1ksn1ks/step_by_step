@@ -75,7 +75,10 @@ followTab.className = 'feed-tab';
 followTab.id = 'feed-tab-following';
 followTab.setAttribute('role', 'tab');
 followTab.textContent = 'Following';
-tabs.append(allTab, followTab);
+const tabSlide = document.createElement('div');
+tabSlide.className = 'feed-tabs-slide';
+tabSlide.append(allTab, followTab);
+tabs.append(tabSlide);
 const tabRuler = document.createElement('div');
 tabRuler.id = 'feed-tab-ruler';
 tabRuler.setAttribute('aria-hidden', 'true');
@@ -2780,11 +2783,11 @@ function applyFeed(on) {
     if (dropSearch && window.layerClosedByUI) window.layerClosedByUI('feedsearch');
   }
   if (on) {
-    showFeedTabs();
     const opening = !feedOn();
     peek = false;
     root.classList.remove('is-peek');
     root.style.display = 'block';
+    showFeedTabs();
     measureTabHide();
     syncCover();
     if (opening) {
@@ -3388,16 +3391,40 @@ function measureTabHide() {
   if (!tabHideReady) tabHidePx = window.innerHeight * 0.02;
 }
 
+let tabFollow = 0;
+
+// The row's height and the scroller top move together. Keep the post that
+// was under the finger by shifting scrollTop by that same change.
+function followTabTop() {
+  if (tabFollow) cancelAnimationFrame(tabFollow);
+  let last = scroller.getBoundingClientRect().top;
+  const started = performance.now();
+  const tick = () => {
+    const top = scroller.getBoundingClientRect().top;
+    const delta = top - last;
+    last = top;
+    if (delta) {
+      const cur = scrollTopOf.get.call(scroller);
+      scroller.scrollTop = Math.max(0, cur + delta);
+    }
+    if (performance.now() - started < 320) tabFollow = requestAnimationFrame(tick);
+    else tabFollow = 0;
+  };
+  tabFollow = requestAnimationFrame(tick);
+}
+
 function showFeedTabs() {
   tabDownFrom = scroller.scrollTop;
   if (tabShown) return;
   tabShown = true;
+  followTabTop();
   tabs.classList.remove('is-away');
 }
 
 function hideFeedTabs() {
   if (!tabShown) return;
   tabShown = false;
+  followTabTop();
   tabs.classList.add('is-away');
 }
 
@@ -3420,7 +3447,11 @@ function trackFeedTabs(trusted) {
     showFeedTabs();
     return;
   }
-  if (delta > 0 && tabShown && y - tabDownFrom >= (tabHidePx || window.innerHeight * 0.02)) hideFeedTabs();
+  if (delta > 0 && tabShown && y - tabDownFrom >= (tabHidePx || window.innerHeight * 0.02)) {
+    const row = tabs.getBoundingClientRect().height;
+    if (row > 1 && y < row + 2) return;
+    hideFeedTabs();
+  }
 }
 
 const scrollTopOf = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
