@@ -114,7 +114,39 @@ topicBtn.append(topicText, svgIcon([
 const tools = document.createElement('div');
 tools.className = 'feed-toolbar-slot';
 tools.append(topicBtn);
-toolbar.append(menuAnchor, tools);
+const searchBtnFeed = document.createElement('button');
+searchBtnFeed.id = 'feed-search-btn';
+searchBtnFeed.type = 'button';
+searchBtnFeed.setAttribute('aria-label', 'Search');
+searchBtnFeed.setAttribute('aria-expanded', 'false');
+searchBtnFeed.title = 'Search';
+searchBtnFeed.appendChild(svgIcon([
+  ['circle', { cx: '11', cy: '11', r: '8' }],
+  ['path', { d: 'm21 21-4.3-4.3' }],
+]));
+const searchBar = document.createElement('div');
+searchBar.id = 'feed-search';
+searchBar.hidden = true;
+const searchInput = document.createElement('input');
+searchInput.id = 'feed-search-input';
+searchInput.type = 'text';
+searchInput.setAttribute('aria-label', 'Search posts');
+searchInput.placeholder = 'Search';
+searchInput.autocomplete = 'off';
+searchInput.autocapitalize = 'off';
+searchInput.spellcheck = false;
+searchInput.enterKeyHint = 'search';
+const searchClose = document.createElement('button');
+searchClose.id = 'feed-search-close';
+searchClose.type = 'button';
+searchClose.setAttribute('aria-label', 'Close search');
+searchClose.title = 'Close search';
+searchClose.appendChild(svgIcon([
+  ['path', { d: 'M18 6 6 18' }],
+  ['path', { d: 'm6 6 12 12' }],
+]));
+searchBar.append(searchInput, searchClose);
+toolbar.append(menuAnchor, tools, searchBtnFeed, searchBar);
 root.append(dim, toolbar, tabs, scroller, menuDim, menu);
 
 const btn = document.createElement('button');
@@ -150,6 +182,14 @@ document.body.appendChild(root);
 
 let posts = [];
 let shown = [];
+let found = [];
+let searchQuery = '';
+let searchOpen = false;
+let searchTimer = 0;
+let searchPinned = false;
+let pinScroll = 0;
+let pinStart = 0;
+let pinEnd = 0;
 let feedTab = 'all';
 let tabToken = 0;
 let followState = 'idle';
@@ -853,6 +893,11 @@ function resetFeed(topic) {
   loadedTopic = topic;
   posts = [];
   shown = [];
+  found = [];
+  searchPinned = false;
+  pinScroll = 0;
+  pinStart = 0;
+  pinEnd = 0;
   rangeStart = 0;
   rangeEnd = 0;
   cursor = null;
@@ -1300,7 +1345,36 @@ function walletNow() {
 }
 
 function lane() {
+  if (searchQuery) return found;
   return feedTab === 'following' ? shown : posts;
+}
+
+function tabPosts() {
+  return feedTab === 'following' ? shown : posts;
+}
+
+function hitQuery(post) {
+  if (!searchQuery || !post) return false;
+  const record = recordFor(post) || {};
+  const parts = [textOf(record.msg), record.title, record.username, record.payer, record.payerInfo, post.payer];
+  for (const part of parts) {
+    if (part != null && String(part).toLowerCase().includes(searchQuery)) return true;
+  }
+  return false;
+}
+
+function syncFound() {
+  found = [];
+  if (!searchQuery) return;
+  for (const post of tabPosts()) {
+    if (hitQuery(post)) found.push(post);
+  }
+}
+
+function shiftPin(count) {
+  if (!searchPinned || !count) return;
+  pinStart += count;
+  pinEnd += count;
 }
 
 function takeFollowed(list) {
@@ -1324,15 +1398,20 @@ function paintTabs() {
   followTab.tabIndex = all ? -1 : 0;
 }
 
+function searchMiss() {
+  if (!searchQuery || paging) return false;
+  if (feedTab === 'following' && followState === 'loading') return false;
+  if (followBlocked()) return true;
+  return exhausted;
+}
+
 function paintEmpty() {
   const old = column.querySelector('.feed-empty');
   if (old) old.remove();
-  if (feedTab !== 'following') return;
-  const text = followState === 'nowallet'
-    ? 'Connect your wallet to see who you follow'
-    : followState === 'empty'
-      ? "You're not following anyone yet"
-      : '';
+  let text = '';
+  if (searchQuery && found.length === 0 && searchMiss()) text = 'No posts found';
+  else if (!searchQuery && feedTab === 'following' && followState === 'nowallet') text = 'Connect your wallet to see who you follow';
+  else if (!searchQuery && feedTab === 'following' && followState === 'empty') text = "You're not following anyone yet";
   if (!text) return;
   const note = document.createElement('p');
   note.className = 'feed-empty';
@@ -1341,6 +1420,7 @@ function paintEmpty() {
 }
 
 function rerenderLane() {
+  if (searchQuery) syncFound();
   rangeStart = 0;
   rangeEnd = 0;
   savedScroll = 0;
@@ -1349,11 +1429,18 @@ function rerenderLane() {
   column.replaceChildren();
   paintEmpty();
   if (!followBlocked()) fillDown();
+  else paintEmpty();
 }
 
 async function selectTab(next) {
   if (next !== 'all' && next !== 'following') return;
   if (next === feedTab) return;
+  if (searchQuery) {
+    searchPinned = true;
+    pinScroll = 0;
+    pinStart = 0;
+    pinEnd = 0;
+  }
   const token = ++tabToken;
   feedTab = next;
   paintTabs();
@@ -1404,6 +1491,8 @@ async function selectTab(next) {
 
 function renderThrough(end) {
   if (end <= rangeEnd) return;
+  const note = column.querySelector('.feed-empty');
+  if (note) note.remove();
   const list = lane();
   const frag = document.createDocumentFragment();
   const cards = [];
@@ -1456,7 +1545,11 @@ function fillUp() {
 }
 
 function fillDown() {
-  if (!feedOn() || root.classList.contains('is-peek') || paging || followBlocked()) return;
+  if (!feedOn() || root.classList.contains('is-peek') || paging) return;
+  if (followBlocked()) {
+    if (searchQuery) paintEmpty();
+    return;
+  }
   const list = lane();
   if (scroller.clientHeight < 1) {
     if (rangeEnd < list.length) renderThrough(Math.min(list.length, rangeEnd + RENDER_CHUNK));
@@ -1467,13 +1560,17 @@ function fillDown() {
     guard += 1;
     const room = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
     const short = scroller.scrollHeight <= scroller.clientHeight + 4;
-    if (!short && room >= scroller.clientHeight * 2) return;
+    if (!short && room >= scroller.clientHeight * 2) {
+      paintEmpty();
+      return;
+    }
     if (rangeEnd < list.length) {
       renderThrough(Math.min(list.length, rangeEnd + RENDER_CHUNK));
       trimAbove();
       continue;
     }
     if (!exhausted) loadOlder();
+    else paintEmpty();
     return;
   }
 }
@@ -1483,17 +1580,24 @@ function prependPosts(list) {
   const visible = feedTab === 'following' ? takeFollowed(list) : list;
   posts.unshift(...list);
   if (feedTab === 'following') shown.unshift(...visible);
-  if (!visible.length) return;
+  shiftPin(visible.length);
+  let incoming = visible;
+  if (searchQuery) {
+    incoming = [];
+    for (const post of visible) if (hitQuery(post)) incoming.push(post);
+    found.unshift(...incoming);
+  }
+  if (!incoming.length) return;
   const atTop = scroller.scrollTop < 2;
   const showingTop = rangeStart === 0;
-  rangeStart += visible.length;
-  rangeEnd += visible.length;
+  rangeStart += incoming.length;
+  rangeEnd += incoming.length;
   if (!showingTop) return;
   const prevTop = scroller.scrollTop;
   const prevHeight = scroller.scrollHeight;
   const frag = document.createDocumentFragment();
   const cards = [];
-  for (const post of visible) {
+  for (const post of incoming) {
     const card = buildCard(post);
     cards.push(card);
     frag.appendChild(card);
@@ -1536,7 +1640,11 @@ async function loadOlder() {
     if (page.done) exhausted = true;
     const made = ingest(messages);
     posts.push(...made);
-    if (feedTab === 'following') shown.push(...takeFollowed(made));
+    const added = feedTab === 'following' ? takeFollowed(made) : made;
+    if (feedTab === 'following') shown.push(...added);
+    if (searchQuery) {
+      for (const post of added) if (hitQuery(post)) found.push(post);
+    }
     ok = true;
   } catch (error) {
     console.warn('feed page failed', error);
@@ -1823,10 +1931,122 @@ function openOnMap(post) {
   flyOnly(post.lngLat);
 }
 
+function paintSearch(open) {
+  toolbar.classList.toggle('is-search', open);
+  searchBar.hidden = !open;
+  searchBtnFeed.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function pinWindow() {
+  if (searchPinned) return;
+  searchPinned = true;
+  pinScroll = scroller.scrollTop;
+  pinStart = rangeStart;
+  pinEnd = rangeEnd;
+}
+
+function showQueryResults() {
+  syncFound();
+  rangeStart = 0;
+  rangeEnd = 0;
+  clearViewWatch();
+  column.replaceChildren();
+  scroller.scrollTop = 0;
+  paintEmpty();
+  if (!followBlocked()) fillDown();
+  else paintEmpty();
+}
+
+function restorePin() {
+  const start = Math.min(pinStart, tabPosts().length);
+  const end = Math.min(Math.max(pinEnd, start), tabPosts().length);
+  const y = pinScroll;
+  searchPinned = false;
+  pinStart = 0;
+  pinEnd = 0;
+  pinScroll = 0;
+  clearViewWatch();
+  column.replaceChildren();
+  rangeStart = start;
+  rangeEnd = start;
+  if (end > start) renderThrough(end);
+  paintEmpty();
+  scroller.scrollTop = y;
+  savedScroll = y;
+  if (!followBlocked()) fillDown();
+  scroller.scrollTop = y;
+  savedScroll = y;
+}
+
+function applyQuery(raw) {
+  const next = String(raw || '').trim().toLowerCase();
+  if (next === searchQuery) return;
+  if (!next) {
+    searchQuery = '';
+    found = [];
+    if (searchPinned) restorePin();
+    else paintEmpty();
+    return;
+  }
+  pinWindow();
+  searchQuery = next;
+  showQueryResults();
+}
+
+function hideSearch() {
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+    searchTimer = 0;
+  }
+  searchOpen = false;
+  searchQuery = '';
+  found = [];
+  searchPinned = false;
+  pinScroll = 0;
+  pinStart = 0;
+  pinEnd = 0;
+  searchInput.value = '';
+  paintSearch(false);
+}
+
+function closeSearch() {
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+    searchTimer = 0;
+  }
+  const pinned = searchPinned;
+  searchOpen = false;
+  searchQuery = '';
+  found = [];
+  searchInput.value = '';
+  paintSearch(false);
+  if (pinned) restorePin();
+  else paintEmpty();
+  if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedsearch')) {
+    window.layerClosedByUI('feedsearch');
+  }
+}
+
+function openSearch() {
+  if (searchOpen) return;
+  if (!feedOn() || root.classList.contains('is-peek')) return;
+  if (window.layerIsTop && !window.layerIsTop('feed')) return;
+  holdScroll();
+  searchOpen = true;
+  paintSearch(true);
+  if (window.layerOpened) window.layerOpened('feedsearch');
+  searchInput.focus({ preventScroll: true });
+}
+
 function applyFeed(on) {
   paintToggle(on);
   writeMode(on ? 'feed' : 'map');
-  if (!on) paintMenu(false);
+  if (!on) {
+    paintMenu(false);
+    const dropSearch = window.layerIsOpen && window.layerIsOpen('feedsearch');
+    hideSearch();
+    if (dropSearch && window.layerClosedByUI) window.layerClosedByUI('feedsearch');
+  }
   if (on) {
     const opening = !feedOn();
     peek = false;
@@ -2037,6 +2257,15 @@ if (window.defineLayer) {
     open: () => paintMenu(true),
     close: () => closeMenu(),
   });
+  window.defineLayer('feedsearch', {
+    parent: 'feed',
+    open: () => {
+      searchOpen = true;
+      paintSearch(true);
+      searchInput.focus({ preventScroll: true });
+    },
+    close: () => closeSearch(),
+  });
 }
 
 bindPress(menuBtn);
@@ -2125,6 +2354,30 @@ window.addEventListener('pagehide', flushViewsNow);
 allTab.addEventListener('click', () => { selectTab('all'); });
 followTab.addEventListener('click', () => { selectTab('following'); });
 paintTabs();
+
+bindPress(searchBtnFeed);
+searchBtnFeed.addEventListener('click', (event) => {
+  event.stopPropagation();
+  openSearch();
+});
+bindPress(searchClose);
+searchClose.addEventListener('click', (event) => {
+  event.stopPropagation();
+  closeSearch();
+});
+searchInput.addEventListener('input', () => {
+  if (searchTimer) clearTimeout(searchTimer);
+  const value = searchInput.value;
+  searchTimer = setTimeout(() => {
+    searchTimer = 0;
+    if (!searchOpen) return;
+    applyQuery(value);
+  }, 250);
+});
+searchInput.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+});
 
 scroller.addEventListener('scroll', () => {
   if (root.classList.contains('is-peek')) return;

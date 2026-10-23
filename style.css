@@ -7193,6 +7193,97 @@ a.payer-link {
   outline: 0.2dvh solid #22D3EE;
   outline-offset: 0.2dvh;
 }
+#feed-search-btn,
+#feed-search-close {
+  --press-dur: 200ms;
+  --press-ease: ease;
+  --press-bg: #22D3EE;
+  --press-border: #22D3EE;
+  --press-ink: #083344;
+  appearance: none;
+  width: clamp(4.5dvmin, 5dvmin, 5.5dvmin);
+  height: clamp(4.5dvmin, 5dvmin, 5.5dvmin);
+  margin: 0 0 0 0.6dvmin;
+  padding: 0;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  background-color: rgba(10, 10, 18, 0.88);
+  color: #fff;
+  border: 0.15dvh solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#feed-search-btn svg,
+#feed-search-close svg {
+  width: calc(0.55 * clamp(4.5dvmin, 5dvmin, 5.5dvmin));
+  height: calc(0.55 * clamp(4.5dvmin, 5dvmin, 5.5dvmin));
+  display: block;
+  pointer-events: none;
+}
+#feed-search-btn:focus-visible,
+#feed-search-close:focus-visible {
+  outline: 0.2dvh solid #22D3EE;
+  outline-offset: 0.2dvh;
+}
+#feed-search-btn:is(:hover, .is-hold),
+#feed-search-close:is(:hover, .is-hold) {
+  background-color: var(--press-bg);
+  border-color: var(--press-border);
+  color: var(--press-ink);
+}
+#feed-search-btn.is-pop,
+#feed-search-close.is-pop {
+  animation: topicFollowPop var(--press-dur, 200ms) var(--press-ease, ease);
+}
+#feed-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.7dvmin;
+}
+#feed-search[hidden] {
+  display: none;
+}
+#feed-toolbar.is-search .feed-menu-anchor,
+#feed-toolbar.is-search .feed-toolbar-slot,
+#feed-toolbar.is-search #feed-search-btn {
+  display: none;
+}
+#feed-search-input {
+  appearance: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: clamp(4.2dvmin, 4.8dvmin, 5.2dvmin);
+  margin: 0;
+  padding: 0 1.1dvmin;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: clamp(2dvmin, 2.4dvmin, 2.8dvmin);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(2.4dvmin, 2.8dvmin, 3.2dvmin);
+  font-weight: 500;
+  line-height: 1.2;
+}
+#feed-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+#feed-search-input:focus-visible {
+  outline: 0.2dvh solid #22D3EE;
+  outline-offset: 0.15dvh;
+}
+@media (prefers-reduced-motion: reduce) {
+  #feed-search-btn.is-pop,
+  #feed-search-close.is-pop {
+    animation: none;
+  }
+}
 #feed-tabs {
   position: absolute;
   top: clamp(5dvh, 6dvmin, 7dvh);
