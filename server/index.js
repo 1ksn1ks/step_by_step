@@ -653,6 +653,10 @@ const q = {
   feedShareBodies: db.prepare(
     "SELECT body FROM messages WHERE payer = ? AND instr(body, ?) > 0 AND instr(body, ?) > 0"
   ),
+  // New shares store the post ISO. Old rows leave created empty.
+  feedShareByCreated: db.prepare(
+    "SELECT 1 AS hit FROM shares WHERE topic_id = ? AND payer = ? AND created = ? AND created != '' LIMIT 1"
+  ),
 };
 
 // Rows older than 90 days are not part of the count. Once an hour.
@@ -2480,6 +2484,43 @@ function drawingNumber(raw, created) {
   return String(raw);
 }
 
+// A share id is stable. Remember the lookup so a scrolling feed does not
+// hit the messages table again for a few minutes.
+const FEED_SHARE_CACHE_MS = 5 * 60 * 1000;
+const feedShareCache = new Map();
+
+function rememberFeedShare(id, ok) {
+  const now = Date.now();
+  if (feedShareCache.size > 4000) {
+    for (const [key, row] of feedShareCache) {
+      if (now >= row.until) feedShareCache.delete(key);
+    }
+  }
+  feedShareCache.set(id, { ok, until: now + FEED_SHARE_CACHE_MS });
+  return ok;
+}
+
+// Old share rows leave created empty, so the table cannot name the post.
+// The pin message still carries topic and created.
+function feedShareInMessages(card) {
+  const rows = q.feedShareBodies.all(
+    card.payer,
+    `"topic":${JSON.stringify(card.topic)}`,
+    `"created":${JSON.stringify(card.created)}`
+  );
+  for (const row of rows) {
+    let body;
+    try { body = JSON.parse(row.body); } catch { continue; }
+    const share = body && body.share;
+    if (!share || typeof share !== "object") continue;
+    const topic = typeof share.topic === "string" ? share.topic.trim() : "";
+    if (topic !== card.topic) continue;
+    const when = typeof share.created === "string" ? new Date(share.created) : null;
+    if (when && !Number.isNaN(when.getTime()) && when.toISOString() === card.created) return true;
+  }
+  return false;
+}
+
 function feedCardStored(id) {
   const card = parseFeedCard(id);
   if (!card) return false;
@@ -2492,22 +2533,11 @@ function feedCardStored(id) {
     return !!(body.userMessage || body.image);
   }
   if (card.kind === "s") {
-    const rows = q.feedShareBodies.all(
-      card.payer,
-      `"topic":${JSON.stringify(card.topic)}`,
-      `"created":${JSON.stringify(card.created)}`
-    );
-    for (const row of rows) {
-      let body;
-      try { body = JSON.parse(row.body); } catch { continue; }
-      const share = body && body.share;
-      if (!share || typeof share !== "object") continue;
-      const topic = typeof share.topic === "string" ? share.topic.trim() : "";
-      if (topic !== card.topic) continue;
-      const when = typeof share.created === "string" ? new Date(share.created) : null;
-      if (when && !Number.isNaN(when.getTime()) && when.toISOString() === card.created) return true;
-    }
-    return false;
+    const cached = feedShareCache.get(id);
+    if (cached && Date.now() < cached.until) return cached.ok;
+    const hit = q.feedShareByCreated.get(card.topic, card.payer, card.created);
+    const ok = !!hit || feedShareInMessages(card);
+    return rememberFeedShare(id, ok);
   }
   const ms = Date.parse(card.created);
   if (!Number.isFinite(ms)) return false;
