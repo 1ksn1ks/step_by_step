@@ -5,7 +5,7 @@ import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
 import { currentUfoModelInGLTF } from './letall.js';
 import { markerPopupNode, polygonPopupNode, mountPostReactions } from './processallmessages.js';
-import { fetchMessagesBackend, streamOnTopic, messageSig } from './msgbackend.js';
+import { BACKEND_URL, fetchMessagesBackend, streamOnTopic, messageSig } from './msgbackend.js';
 import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
 import { initialTopicId } from './extracttopic.js';
 import { connectedAccount } from './web3.js';
@@ -30,6 +30,11 @@ const PAGE = 2030;
 const CARD_CAP = 200;
 const RENDER_CHUNK = 30;
 const SCROLL_IDLE_MS = 250;
+const VIEW_DWELL_MS = 1000;
+const VIEW_FLUSH_MS = 10000;
+const VIEW_POST_BATCH = 50;
+const VIEW_GET_BATCH = 40;
+const VIEWER_KEY = 'feedViewerId';
 const MIRROR = 'https://mainnet.mirrornode.hedera.com';
 const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -139,6 +144,16 @@ let savedScroll = 0;
 let peek = false;
 let revealToken = 0;
 let scrollIdle = 0;
+let viewObserver = null;
+let viewFlushTimer = 0;
+let viewCountTimer = 0;
+let looseViewer = '';
+const viewTimers = new Map();
+const viewPending = [];
+const viewHold = new Set();
+const viewSent = new Set();
+const viewTotals = new Map();
+const viewCountWanted = [];
 
 function svgIcon(parts) {
   const svg = document.createElementNS(SVG_NS, 'svg');
@@ -342,6 +357,230 @@ function recordFor(post) {
   return chatRecord(post);
 }
 
+function isViewerUuid(value) {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+function anonViewer() {
+  try {
+    let id = localStorage.getItem(VIEWER_KEY);
+    if (!isViewerUuid(id)) {
+      id = crypto.randomUUID();
+      localStorage.setItem(VIEWER_KEY, id);
+    }
+    return id;
+  } catch {
+    if (!isViewerUuid(looseViewer)) {
+      try { looseViewer = crypto.randomUUID(); } catch { looseViewer = ''; }
+    }
+    return looseViewer;
+  }
+}
+
+// The id is read when the view joins the batch, so a wallet connect while
+// that batch is waiting does not rewrite rows already queued.
+function viewerNow() {
+  const account = typeof connectedAccount === 'string' ? connectedAccount.trim() : '';
+  if (/^\d+\.\d+\.\d+$/.test(account) && account.length <= 40) return account;
+  return anonViewer();
+}
+
+function viewLabel(num) {
+  return num === 1 ? '1 view' : `${num} views`;
+}
+
+function viewChip(key) {
+  const chip = document.createElement('span');
+  chip.className = 'feed-views';
+  chip.appendChild(svgIcon([
+    ['line', { x1: '18', x2: '18', y1: '20', y2: '10' }],
+    ['line', { x1: '12', x2: '12', y1: '20', y2: '4' }],
+    ['line', { x1: '6', x2: '6', y1: '20', y2: '14' }],
+  ]));
+  const count = document.createElement('span');
+  count.className = 'feed-view-count';
+  const known = viewTotals.get(key);
+  const num = known == null ? 0 : known;
+  count.textContent = String(num);
+  chip.setAttribute('aria-label', viewLabel(num));
+  chip.appendChild(count);
+  return chip;
+}
+
+function paintCardCount(card) {
+  const num = viewTotals.get(card.dataset.key);
+  if (num == null) return;
+  const node = card.querySelector('.feed-view-count');
+  if (!node) return;
+  node.textContent = String(num);
+  if (node.parentElement) node.parentElement.setAttribute('aria-label', viewLabel(num));
+}
+
+function paintCounts(counts) {
+  if (!counts || typeof counts !== 'object') return;
+  for (const [id, raw] of Object.entries(counts)) {
+    const num = Number(raw);
+    if (!Number.isFinite(num) || num < 0) continue;
+    viewTotals.set(id, num);
+  }
+  for (const card of column.children) {
+    if (card.classList && card.classList.contains('feed-card')) paintCardCount(card);
+  }
+}
+
+function wantCount(key) {
+  if (!key || viewTotals.has(key)) return;
+  viewCountWanted.push(key);
+  if (!viewCountTimer) viewCountTimer = setTimeout(pullCounts, 60);
+}
+
+async function pullCounts() {
+  viewCountTimer = 0;
+  const ids = [];
+  const seen = new Set();
+  while (viewCountWanted.length && ids.length < VIEW_GET_BATCH) {
+    const id = viewCountWanted.shift();
+    if (!id || seen.has(id) || viewTotals.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  if (viewCountWanted.length && !viewCountTimer) viewCountTimer = setTimeout(pullCounts, 60);
+  if (!ids.length) return;
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/views?ids=${ids.map(encodeURIComponent).join(',')}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    paintCounts(data && data.counts);
+  } catch {
+    /* the next cards ask again */
+  }
+}
+
+function ensureViewObserver() {
+  if (viewObserver) return viewObserver;
+  viewObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.intersectionRatio >= 0.5) armView(entry.target);
+      else disarmView(entry.target);
+    }
+  }, { root: scroller, threshold: 0.5 });
+  return viewObserver;
+}
+
+function armView(card) {
+  const key = card.dataset.key;
+  if (!key || viewSent.has(key) || viewHold.has(key) || viewTimers.has(card)) return;
+  const timer = setTimeout(() => {
+    viewTimers.delete(card);
+    if (!card.isConnected) return;
+    enqueueView(key, viewerNow());
+  }, VIEW_DWELL_MS);
+  viewTimers.set(card, timer);
+}
+
+function disarmView(card) {
+  const timer = viewTimers.get(card);
+  if (!timer) return;
+  clearTimeout(timer);
+  viewTimers.delete(card);
+}
+
+function enqueueView(key, viewer) {
+  if (!key || !viewer || viewSent.has(key) || viewHold.has(key)) return;
+  viewHold.add(key);
+  viewPending.push({ id: key, viewer });
+  armViewFlush();
+}
+
+function armViewFlush() {
+  if (viewFlushTimer) return;
+  viewFlushTimer = setTimeout(() => {
+    viewFlushTimer = 0;
+    flushViews(false);
+  }, VIEW_FLUSH_MS);
+}
+
+function flushViewsNow() {
+  if (viewFlushTimer) {
+    clearTimeout(viewFlushTimer);
+    viewFlushTimer = 0;
+  }
+  flushViews(true);
+}
+
+function flushViews(keepalive) {
+  if (!viewPending.length) return;
+  const take = keepalive ? viewPending.length : VIEW_POST_BATCH;
+  const batch = viewPending.splice(0, take);
+  const groups = new Map();
+  for (const item of batch) {
+    let list = groups.get(item.viewer);
+    if (!list) groups.set(item.viewer, list = []);
+    if (!list.includes(item.id)) list.push(item.id);
+  }
+  for (const [viewer, ids] of groups) {
+    for (let i = 0; i < ids.length; i += VIEW_POST_BATCH) postViews(viewer, ids.slice(i, i + VIEW_POST_BATCH), keepalive);
+  }
+  if (!keepalive && viewPending.length) armViewFlush();
+}
+
+async function postViews(viewer, ids, keepalive) {
+  let ok = false;
+  let drop = false;
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/views`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ viewer, posts: ids }),
+      keepalive: !!keepalive,
+    });
+    if (res.status === 400) {
+      drop = true;
+    } else if (res.ok) {
+      const data = await res.json();
+      for (const id of ids) {
+        viewHold.delete(id);
+        viewSent.add(id);
+      }
+      paintCounts(data && data.counts);
+      ok = true;
+    }
+  } catch {
+    ok = false;
+  }
+  if (drop) {
+    for (const id of ids) viewHold.delete(id);
+    return;
+  }
+  if (ok) return;
+  let back = false;
+  for (const id of ids) {
+    if (viewSent.has(id) || viewPending.some((item) => item.id === id)) continue;
+    viewPending.push({ id, viewer });
+    back = true;
+  }
+  if (back) armViewFlush();
+}
+
+function watchCard(card) {
+  const key = card.dataset.key;
+  if (!key) return;
+  ensureViewObserver().observe(card);
+  if (viewTotals.has(key)) paintCardCount(card);
+  else wantCount(key);
+}
+
+function forgetCard(card) {
+  if (viewObserver) viewObserver.unobserve(card);
+  disarmView(card);
+}
+
+function clearViewWatch() {
+  if (viewObserver) viewObserver.disconnect();
+  for (const timer of viewTimers.values()) clearTimeout(timer);
+  viewTimers.clear();
+}
+
 function buildCard(post) {
   const record = recordFor(post) || {};
   const card = document.createElement('article');
@@ -442,12 +681,13 @@ function buildCard(post) {
     card.appendChild(text);
   }
 
+  const actions = document.createElement('div');
+  actions.className = 'feed-actions';
   if ((post.kind === 'marker' || post.kind === 'polygon') && record.topicId && record.timestamp) {
-    const actions = document.createElement('div');
-    actions.className = 'feed-actions';
     mountPostReactions(actions, record, post.kind, card);
-    card.appendChild(actions);
   }
+  actions.appendChild(viewChip(post.key));
+  card.appendChild(actions);
 
   const meta = document.createElement('div');
   meta.className = 'feed-meta';
@@ -583,6 +823,7 @@ function resetFeed(topic) {
   highSeq = 0;
   assembler = createChunkAssembler();
   clearMaps();
+  clearViewWatch();
   column.replaceChildren();
   paintSpinner(false);
   savedScroll = 0;
@@ -1012,9 +1253,15 @@ async function fetchNewer(topic, after) {
 function renderThrough(end) {
   if (end <= rangeEnd) return;
   const frag = document.createDocumentFragment();
-  for (let i = rangeEnd; i < end; i++) frag.appendChild(buildCard(posts[i]));
+  const cards = [];
+  for (let i = rangeEnd; i < end; i++) {
+    const card = buildCard(posts[i]);
+    cards.push(card);
+    frag.appendChild(card);
+  }
   column.appendChild(frag);
   rangeEnd = end;
+  for (const card of cards) watchCard(card);
   requestAnimationFrame(clampPending);
 }
 
@@ -1028,6 +1275,7 @@ function trimAbove() {
     if (rect.bottom > far) break;
     const next = first.nextElementSibling;
     const drop = next && next.classList.contains('feed-card') ? next.offsetTop - first.offsetTop : first.offsetHeight;
+    forgetCard(first);
     first.remove();
     rangeStart += 1;
     scroller.scrollTop = Math.max(0, scroller.scrollTop - drop);
@@ -1040,10 +1288,16 @@ function fillUp() {
   const prevTop = scroller.scrollTop;
   const prevHeight = scroller.scrollHeight;
   const frag = document.createDocumentFragment();
-  for (let i = rangeStart - add; i < rangeStart; i++) frag.appendChild(buildCard(posts[i]));
+  const cards = [];
+  for (let i = rangeStart - add; i < rangeStart; i++) {
+    const card = buildCard(posts[i]);
+    cards.push(card);
+    frag.appendChild(card);
+  }
   column.prepend(frag);
   rangeStart -= add;
   scroller.scrollTop = prevTop + (scroller.scrollHeight - prevHeight);
+  for (const card of cards) watchCard(card);
   requestAnimationFrame(clampPending);
 }
 
@@ -1080,11 +1334,17 @@ function prependPosts(list) {
   const prevTop = scroller.scrollTop;
   const prevHeight = scroller.scrollHeight;
   const frag = document.createDocumentFragment();
-  for (const post of list) frag.appendChild(buildCard(post));
+  const cards = [];
+  for (const post of list) {
+    const card = buildCard(post);
+    cards.push(card);
+    frag.appendChild(card);
+  }
   column.prepend(frag);
   rangeStart = 0;
   const delta = scroller.scrollHeight - prevHeight;
   scroller.scrollTop = atTop ? 0 : prevTop + delta;
+  for (const card of cards) watchCard(card);
   requestAnimationFrame(clampPending);
   trimAbove();
 }
@@ -1499,6 +1759,11 @@ root.addEventListener('click', (event) => {
   }
 }, true);
 root.addEventListener('click', (event) => event.stopPropagation());
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushViewsNow();
+});
+window.addEventListener('pagehide', flushViewsNow);
 
 scroller.addEventListener('scroll', () => {
   if (root.classList.contains('is-peek')) return;

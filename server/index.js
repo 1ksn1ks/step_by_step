@@ -332,6 +332,18 @@ const effectiveFollowersSql = `
   }
 }
 
+// One row per person per feed card. post_id is the card key. viewer is the
+// connected account, or a random id the browser kept. Not on-chain, and not
+// popup_views: that counter has no viewer and counts map-popup opens.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS feed_views (
+    post_id TEXT NOT NULL,
+    viewer  TEXT NOT NULL,
+    seen_at INTEGER NOT NULL,
+    PRIMARY KEY (post_id, viewer)
+  );
+`);
+
 const q = {
   getTopic: db.prepare("SELECT * FROM topics WHERE topic_id = ?"),
   upsertTopic: db.prepare(`
@@ -630,6 +642,9 @@ const q = {
     WHERE topic_id = ? AND payer = ? AND (created = ? OR stamp = ?)
     LIMIT 1
   `),
+  insertFeedView: db.prepare(
+    "INSERT OR IGNORE INTO feed_views (post_id, viewer, seen_at) VALUES (?, ?, ?)"
+  ),
 };
 
 // Exactly the shape the app's getMessages() produces
@@ -2363,6 +2378,86 @@ app.post("/api/popup-view", publicPostLimit, (req, res) => {
   }
   const row = q.bumpPopupView.get(topic, created);
   res.json({ ok: true, views: row ? row.views : 1 });
+});
+
+// Feed card keys: m|p|c|s, then topic, account, ISO time, and a number.
+const FEED_POST_ID = /^[mpcs]:[A-Za-z0-9:._-]+$/;
+const FEED_VIEWER_ACCOUNT = /^\d+\.\d+\.\d+$/;
+const FEED_VIEWER_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const FEED_VIEW_BATCH = 80;
+
+function isFeedPostId(s) {
+  return typeof s === "string" && s.length >= 3 && s.length <= 200 && FEED_POST_ID.test(s);
+}
+
+function isFeedViewer(s) {
+  if (typeof s !== "string" || s.length > 40) return false;
+  return FEED_VIEWER_ACCOUNT.test(s) || FEED_VIEWER_UUID.test(s);
+}
+
+function feedPostList(raw, max) {
+  if (!Array.isArray(raw) || raw.length > max) return null;
+  const ids = [];
+  const seen = new Set();
+  for (const item of raw) {
+    const id = typeof item === "string" ? item.trim() : "";
+    if (!id) continue;
+    if (!isFeedPostId(id)) return null;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+function feedViewCounts(ids) {
+  const counts = {};
+  for (const id of ids) counts[id] = 0;
+  if (!ids.length) return counts;
+  const marks = ids.map(() => "?").join(",");
+  const rows = db.prepare(
+    `SELECT post_id, COUNT(*) AS n FROM feed_views WHERE post_id IN (${marks}) GROUP BY post_id`
+  ).all(...ids);
+  for (const row of rows) {
+    if (Object.prototype.hasOwnProperty.call(counts, row.post_id)) counts[row.post_id] = Number(row.n) || 0;
+  }
+  return counts;
+}
+
+function storeFeedViews(viewer, ids) {
+  const now = Date.now();
+  db.exec("BEGIN");
+  try {
+    for (const id of ids) q.insertFeedView.run(id, viewer, now);
+    db.exec("COMMIT");
+  } catch (err) {
+    try { db.exec("ROLLBACK"); } catch { /* already closed */ }
+    throw err;
+  }
+}
+
+// A feed view. posts are card keys this viewer has already had on screen.
+// A repeat pair is ignored. counts includes a zero for every id sent.
+app.post("/api/views", publicPostLimit, (req, res) => {
+  const viewer = req.body && req.body.viewer;
+  const posts = feedPostList(req.body && req.body.posts, FEED_VIEW_BATCH);
+  if (!isFeedViewer(viewer) || !posts) return res.status(400).json({ ok: false, error: "bad view" });
+  if (!posts.length) return res.json({ ok: true, counts: {} });
+  try {
+    storeFeedViews(viewer, posts);
+  } catch {
+    return res.status(500).json({ ok: false, error: "view failed" });
+  }
+  res.json({ ok: true, counts: feedViewCounts(posts) });
+});
+
+// Counts for the cards on screen. ids is a comma-separated list of card keys.
+app.get("/api/views", publicPostLimit, (req, res) => {
+  const raw = req.query.ids;
+  if (typeof raw !== "string" || raw.length > 16000) return res.status(400).json({ ok: false, error: "bad view" });
+  const posts = feedPostList(raw.split(","), 50);
+  if (!posts || !posts.length) return res.status(400).json({ ok: false, error: "bad view" });
+  res.json({ ok: true, counts: feedViewCounts(posts) });
 });
 
 // Topic names resolve from changeName messages (a scan of the topic).
