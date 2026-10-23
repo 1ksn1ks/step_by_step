@@ -400,6 +400,36 @@ function isVideo(url) {
   return /\.(mp4|webm)(\?|#|$)/i.test(url);
 }
 
+// 10dvmin. clientX is CSS pixels, and 1dvmin is 1% of the shorter viewport side.
+function feedTapLimit() {
+  return Math.min(window.innerWidth, window.innerHeight) * 0.1;
+}
+
+// Sits over a photo, video, or embed. Move and wheel listeners stay off this
+// node so a drag still scrolls the feed. A finger that stays inside 10dvmin plays.
+function coverFeedPlayer(media, onTap) {
+  const hit = document.createElement('div');
+  hit.className = 'feed-media-hit';
+  let start = null;
+  hit.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    start = { x: event.clientX, y: event.clientY, id: event.pointerId };
+  });
+  hit.addEventListener('pointerup', (event) => {
+    const from = start;
+    start = null;
+    if (!from || from.id !== event.pointerId) return;
+    const dx = event.clientX - from.x;
+    const dy = event.clientY - from.y;
+    if (Math.hypot(dx, dy) >= feedTapLimit()) return;
+    onTap();
+  });
+  hit.addEventListener('pointercancel', () => {
+    start = null;
+  });
+  media.appendChild(hit);
+}
+
 function coordLabel(lngLat) {
   const lat = Number(lngLat[1]);
   const lng = Number(lngLat[0]);
@@ -732,22 +762,27 @@ function buildCard(post) {
   if (src) {
     media = document.createElement('div');
     media.className = 'popup-media-card';
-    const node = isVideo(src) ? document.createElement('video') : document.createElement('img');
+    const video = isVideo(src);
+    const node = video ? document.createElement('video') : document.createElement('img');
     node.src = src;
-    if (isVideo(src)) {
+    if (video) {
       node.controls = true;
       node.playsInline = true;
       node.preload = 'metadata';
+      media.appendChild(node);
+      coverFeedPlayer(media, () => {
+        if (node.paused) node.play().catch(() => {});
+        else node.pause();
+      });
     } else {
       node.alt = '';
-      node.style.cursor = 'zoom-in';
-      node.addEventListener('click', (event) => {
-        event.stopPropagation();
+      node.draggable = false;
+      media.appendChild(node);
+      coverFeedPlayer(media, () => {
         holdScroll();
         openPreview(src);
       });
     }
-    media.appendChild(node);
   }
 
   let text = null;
@@ -824,10 +859,14 @@ function buildCard(post) {
 function clampPending() {
   column.querySelectorAll('.popup-text-bubble[data-clamp="1"]').forEach((text) => {
     delete text.dataset.clamp;
-    const full = text.scrollHeight;
-    const line = parseFloat(getComputedStyle(text).lineHeight) || 0;
-    if (!line || full <= line * 6 + 1) return;
+    text.classList.remove('is-clamped');
+    const full = text.getBoundingClientRect().height;
     text.classList.add('is-clamped');
+    const clipped = text.getBoundingClientRect().height;
+    if (!(full > clipped + 1)) {
+      text.classList.remove('is-clamped');
+      return;
+    }
     const more = document.createElement('button');
     more.type = 'button';
     more.className = 'feed-more';
@@ -2770,6 +2809,8 @@ scroller.addEventListener('scroll', () => {
   savedScroll = scroller.scrollTop;
   fillUp();
   fillDown();
+  // A caption can still be waiting on layout when it is first built.
+  requestAnimationFrame(clampPending);
   scheduleScrollWrite();
 }, { passive: true });
 

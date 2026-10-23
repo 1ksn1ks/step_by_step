@@ -5413,8 +5413,7 @@ a.payer-link {
     overflow: visible;
   }
 
-  .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-body > div:not(.popup-media-card),
-  #feed-column .popup-sheet .popup-body > div:not(.popup-media-card) {
+  .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-body > div:not(.popup-media-card) {
     grid-column: 1;
     grid-row: 1 / -1;
     align-self: stretch;
@@ -5428,8 +5427,7 @@ a.payer-link {
     overflow: hidden;
   }
 
-  .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-text-bubble,
-  #feed-column .popup-sheet .popup-text-bubble {
+  .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-text-bubble {
     box-sizing: border-box;
     width: 100%;
     flex: 1 1 auto;
@@ -5441,27 +5439,31 @@ a.payer-link {
   }
 
   /* Feed header and location sit outside this sheet. Text uses the right
-     column. The sheet stays as tall as the media cap. */
+     column and grows the card, so the feed scrolls it. Show more stays. */
   #feed-column .popup-sheet {
     width: 100%;
+    height: auto;
+    max-height: none;
+    align-items: start;
+  }
+
+  #feed-column .popup-sheet .popup-media-card,
+  #feed-column .popup-sheet .popup-media-card:has(video),
+  #feed-column .popup-sheet .popup-media-card:has(iframe),
+  #feed-column .popup-sheet .popup-media-card:has(embed) {
     height: clamp(30dvh, 40dvh, 45dvh);
     max-height: clamp(30dvh, 40dvh, 45dvh);
+    align-self: start;
   }
 
   #feed-column .popup-sheet .popup-body > div:not(.popup-media-card) {
     grid-column: 2;
-    min-width: 0;
-  }
-
-  #feed-column .popup-sheet .popup-text-bubble.is-clamped {
-    display: block;
-    -webkit-line-clamp: unset;
-    overflow-x: hidden;
-    overflow-y: auto;
-  }
-
-  #feed-column .popup-sheet .feed-more {
-    display: none;
+    grid-row: 1;
+    align-self: start;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
   }
 
   .maplibregl-map .popup-text-bubble {
@@ -7412,6 +7414,11 @@ a.payer-link {
   -webkit-user-select: text;
   user-select: text;
 }
+/* The global * rule sets touch-action: none. One none between the finger
+   and this scroller (the card sheet, a caption, a profile) cancels pan-y. */
+#feed-scroll * {
+  touch-action: pan-y;
+}
 #feed-column {
   width: 100%;
   margin: 0 auto;
@@ -7486,32 +7493,69 @@ a.payer-link {
 #feed-column .feed-card.early-holder-popup .text_color {
   color: #f4f1ea !important;
 }
+#feed-column .popup-body {
+  overflow: visible;
+  overscroll-behavior: auto;
+  max-height: none;
+}
 #feed-column .popup-media-card,
-#feed-column .popup-media-card:has(video) {
+#feed-column .popup-media-card:has(video),
+#feed-column .popup-media-card:has(iframe),
+#feed-column .popup-media-card:has(embed) {
   width: fit-content;
   max-width: 100%;
   height: auto;
   aspect-ratio: auto;
   margin: 0.35dvmin auto 0;
+  overflow: clip;
+  touch-action: pan-y;
 }
 #feed-column .popup-media-card img,
-#feed-column .popup-media-card video {
+#feed-column .popup-media-card video,
+#feed-column .popup-media-card iframe,
+#feed-column .popup-media-card embed,
+#feed-column .popup-media-card object {
   width: auto;
   height: auto;
   max-width: 100%;
   max-height: clamp(30dvh, 40dvh, 45dvh);
   object-fit: contain;
+  touch-action: pan-y;
+}
+#feed-column .popup-media-card img {
+  -webkit-user-drag: none;
+}
+#feed-column .popup-media-card img,
+#feed-column .popup-media-card video,
+#feed-column .popup-media-card iframe,
+#feed-column .popup-media-card embed,
+#feed-column .popup-media-card object {
+  pointer-events: none;
+}
+#feed-column .popup-media-card:not(:has(video)) .feed-media-hit {
+  cursor: zoom-in;
+}
+#feed-column .feed-media-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: transparent;
+  touch-action: pan-y;
+  cursor: pointer;
 }
 #feed-column .popup-text-bubble {
   max-height: none;
   overflow: visible;
+  overscroll-behavior: auto;
+  line-height: 1.35;
   text-align: left;
 }
 #feed-column .popup-text-bubble.is-clamped {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 6;
-  overflow: hidden;
+  overflow: clip;
+  overscroll-behavior: auto;
 }
 #feed-column .feed-more,
 #feed-column .feed-loc {
