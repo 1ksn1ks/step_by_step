@@ -31,9 +31,6 @@ const FEED_SETTING = {
   tab: 'feed-setting-tab',
   autoplay: 'feed-setting-autoplay',
   data: 'feed-setting-data',
-  density: 'feed-setting-density',
-  fresh: 'feed-setting-fresh',
-  location: 'feed-setting-location',
   zoom: 'feed-setting-zoom',
 };
 const FEED_ZOOM_MIN = 0.8;
@@ -43,9 +40,6 @@ const feedPrefs = {
   tab: 'all',
   autoplay: false,
   dataSaver: false,
-  density: 'comfortable',
-  fresh: 'pill',
-  location: true,
   zoom: 1,
 };
 let settingsOpen = false;
@@ -56,15 +50,11 @@ function readFeedPrefs() {
     if (tab === 'all' || tab === 'following') feedPrefs.tab = tab;
     feedPrefs.autoplay = localStorage.getItem(FEED_SETTING.autoplay) === 'on';
     feedPrefs.dataSaver = localStorage.getItem(FEED_SETTING.data) === 'on';
-    const density = localStorage.getItem(FEED_SETTING.density);
-    if (density === 'compact' || density === 'comfortable') feedPrefs.density = density;
-    const fresh = localStorage.getItem(FEED_SETTING.fresh);
-    if (fresh === 'pill' || fresh === 'jump') feedPrefs.fresh = fresh;
-    const location = localStorage.getItem(FEED_SETTING.location);
-    if (location === 'on') feedPrefs.location = true;
-    if (location === 'off') feedPrefs.location = false;
     const zoom = localStorage.getItem(FEED_SETTING.zoom);
     if (zoom != null) feedPrefs.zoom = clampFeedZoom(zoom);
+    localStorage.removeItem('feed-setting-density');
+    localStorage.removeItem('feed-setting-fresh');
+    localStorage.removeItem('feed-setting-location');
   } catch {
     /* private mode */
   }
@@ -654,7 +644,6 @@ function queuePlaces() {
 
 async function flushPlaces() {
   placeQueued = false;
-  if (!feedPrefs.location) return;
   const keys = [];
   for (const key of placeKeys) {
     const hit = placeCache.get(key);
@@ -713,7 +702,7 @@ async function flushPlaces() {
 }
 
 function wantPlace(card) {
-  if (!feedPrefs.location || !card || !card.querySelector) return;
+  if (!card || !card.querySelector) return;
   const coords = card.querySelector('.feed-loc-coords');
   if (!coords || !coords.dataset.geokey) return;
   if (coords.dataset.place === 'ready' || coords.dataset.place === 'fail') return;
@@ -2218,11 +2207,6 @@ function paintNewFaces(list) {
 }
 
 function paintNewPill() {
-  if (feedPrefs.fresh === 'jump') {
-    newPill.hidden = true;
-    newPill.classList.remove('is-in');
-    return;
-  }
   const show = feedOn() && !root.classList.contains('is-peek') && !searchQuery && held[feedTab].length > 0;
   if (!show) {
     newPill.hidden = true;
@@ -2310,11 +2294,7 @@ function prependPosts(list) {
   else if (feedTab === 'following') {
     if (!heldFollow) mountIncoming(followed, false);
   } else if (!heldAll) mountIncoming(list, false);
-  const jump = !searchQuery && feedPrefs.fresh === 'jump' && (
-    (feedTab === 'following' && heldFollow) || (feedTab !== 'following' && heldAll)
-  );
-  if (jump) goToFreshPosts();
-  else paintNewPill();
+  paintNewPill();
 }
 
 function scrollMotion() {
@@ -3382,13 +3362,9 @@ function setFeedZoom(next) {
 
 function applyFeedChrome() {
   applyFeedZoom();
-  root.classList.toggle('is-compact', feedPrefs.density === 'compact');
-  root.classList.toggle('is-loc-off', !feedPrefs.location);
-  if (feedPrefs.location) {
-    for (const card of viewIntersecting) wantPlace(card);
-  }
-  if (feedPrefs.fresh === 'jump' && feedOn() && !searchQuery && held[feedTab].length) goToFreshPosts();
-  else paintNewPill();
+  root.classList.remove('is-compact', 'is-loc-off');
+  for (const card of viewIntersecting) wantPlace(card);
+  paintNewPill();
   syncFeedVideos();
 }
 
@@ -3556,31 +3532,7 @@ function settingsZoom() {
 
 const zoomSection = settingsSection('Zoom');
 zoomSection.appendChild(settingsZoom());
-const densitySection = settingsSection('Density');
-densitySection.appendChild(settingsRadios('Density', [
-  { value: 'compact', label: 'Compact' },
-  { value: 'comfortable', label: 'Comfortable' },
-], () => feedPrefs.density, (value) => {
-  feedPrefs.density = value;
-  writeFeedSetting(FEED_SETTING.density, value);
-  applyFeedChrome();
-}));
-const freshSection = settingsSection('New posts');
-freshSection.appendChild(settingsRadios('New posts', [
-  { value: 'pill', label: 'Show pill' },
-  { value: 'jump', label: 'Jump to top' },
-], () => feedPrefs.fresh, (value) => {
-  feedPrefs.fresh = value;
-  writeFeedSetting(FEED_SETTING.fresh, value);
-  applyFeedChrome();
-}));
-const privacySection = settingsSection('Privacy');
-privacySection.appendChild(settingsSwitch('Show location on cards', () => feedPrefs.location, (on) => {
-  feedPrefs.location = on;
-  writeFeedSetting(FEED_SETTING.location, on ? 'on' : 'off');
-  applyFeedChrome();
-}));
-settingsBody.append(tabSection, mediaSection, zoomSection, densitySection, freshSection, privacySection);
+settingsBody.append(tabSection, mediaSection, zoomSection);
 settings.append(settingsBar, settingsBody);
 root.appendChild(settings);
 

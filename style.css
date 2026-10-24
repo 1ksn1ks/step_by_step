@@ -7695,14 +7695,6 @@ html.feed-app appkit-modal {
   padding: calc(var(--fu) * 4.4) calc(var(--fu) * 1) calc(var(--fu) * 2);
   touch-action: pan-y;
 }
-/* Compact keeps the same card proportions and leaves the tab overlap alone. */
-#feed-layout.is-compact #feed-column {
-  --fu: calc(var(--feed-unit) * 0.82);
-  padding-top: calc(var(--feed-unit) * 4.4);
-}
-#feed-layout.is-loc-off #feed-column .feed-loc {
-  display: none;
-}
 @media (orientation: landscape) {
   #feed-layout,
   .comments-modal.comments-modal--feed {
