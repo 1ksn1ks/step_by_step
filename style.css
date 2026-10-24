@@ -7318,6 +7318,7 @@ a.payer-link {
 }
 #feed-frame > #feed-toolbar,
 #feed-frame > #feed-tabs,
+#feed-frame > #feed-profile-banner,
 #feed-frame > #feed-menu {
   --feed-zoom: 1;
   --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi));
@@ -7669,6 +7670,105 @@ html.feed-app appkit-modal {
 #feed-tabs .feed-tab:focus-visible {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * -0.12);
+}
+#feed-profile-banner {
+  --feed-banner-y: 0px;
+  position: absolute;
+  top: calc(var(--fu) * 10);
+  left: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--fu) * 0.7);
+  box-sizing: border-box;
+  width: 100%;
+  height: calc(var(--fu) * 6.4);
+  margin: 0;
+  padding: 0 calc(var(--fu) * 0.9);
+  border: 0;
+  border-bottom: 1px solid rgba(34, 211, 238, 0.72);
+  background: #0a0a12;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  transform: translateY(var(--feed-banner-y, 0px));
+  transition: none;
+}
+#feed-profile-banner[hidden] {
+  display: none;
+}
+#feed-profile-banner:focus-visible {
+  outline: calc(var(--fu) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--fu) * -0.2);
+}
+#feed-profile-banner-back,
+.feed-profile-banner-back {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--fu) * 2.2);
+  height: calc(var(--fu) * 2.2);
+  color: #22D3EE;
+}
+.feed-profile-banner-back svg {
+  width: calc(var(--fu) * 2);
+  height: calc(var(--fu) * 2);
+  display: block;
+  pointer-events: none;
+}
+.feed-profile-banner-pic {
+  flex: 0 0 auto;
+  width: calc(var(--fu) * 4.2);
+  height: calc(var(--fu) * 4.2);
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+}
+.feed-profile-banner-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(var(--fu) * 0.08);
+  pointer-events: none;
+}
+.feed-profile-banner-name,
+.feed-profile-banner-handle,
+.feed-profile-banner-bio {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.feed-profile-banner-name {
+  color: #fff;
+  font-size: calc(var(--fu) * 1.55);
+  font-weight: 700;
+  line-height: 1.15;
+}
+.feed-profile-banner-handle {
+  color: #22D3EE;
+  font-size: calc(var(--fu) * 1.2);
+  font-weight: 600;
+  line-height: 1.15;
+}
+.feed-profile-banner-bio {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: calc(var(--fu) * 1.2);
+  font-weight: 500;
+  line-height: 1.15;
+}
+.feed-profile-banner-bio[hidden] {
+  display: none;
+}
+#feed-frame.is-profile-feed #feed-column {
+  padding-top: calc(var(--feed-chrome) * 10.8);
 }
 #feed-column .feed-empty {
   display: flex;
@@ -9524,6 +9624,207 @@ html.feed-app appkit-modal {
   background: rgba(10, 10, 18, 0.9) !important;
   color: #22D3EE !important;
   font-size: 0 !important;
+}
+#feed-profile {
+  --feed-zoom: 1;
+  --u: var(--fu);
+  --feed-unit: calc(min(100dvw, var(--feed-col-width)) * 0.024);
+  --fu: var(--feed-unit);
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: min(100dvw, var(--feed-col-width));
+  margin: 0;
+  background: #0a0a12;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  transform: translateX(-50%);
+  container-type: inline-size;
+  container-name: feedprofile;
+}
+#feed-profile > * {
+  --feed-zoom: 1;
+  --u: var(--fu);
+  --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi));
+  --fu: var(--feed-unit);
+}
+#feed-profile[hidden] {
+  display: none;
+}
+#feed-profile .feed-profile-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--fu) * 1.2);
+  box-sizing: border-box;
+  padding: calc(var(--fu) * 1.3) calc(var(--fu) * 1.2) calc(var(--fu) * 1.6 + env(safe-area-inset-bottom));
+  background: #0a0a12;
+}
+#feed-profile .feed-profile-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--fu) * 0.9);
+  box-sizing: border-box;
+  padding: calc(var(--fu) * 1.1);
+  border: 1px solid rgba(34, 211, 238, 0.72);
+  border-radius: calc(var(--fu) * 1.8);
+  background: rgba(255, 255, 255, 0.06);
+}
+#feed-profile .feed-profile-pic-slot {
+  flex: 0 0 auto;
+  width: calc(var(--fu) * 7.2);
+  height: calc(var(--fu) * 7.2);
+}
+#feed-profile .feed-profile-pic,
+#feed-profile .feed-profile-pic-slot .early-hashinal {
+  width: calc(var(--fu) * 7.2);
+  height: calc(var(--fu) * 7.2);
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  box-sizing: border-box;
+}
+#feed-profile .feed-profile-pic-slot .early-hashinal > img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+#feed-profile .feed-profile-pic-slot .early-hashinal {
+  padding: calc(var(--fu) * 0.18);
+}
+#feed-profile .feed-profile-names {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(var(--fu) * 0.2);
+}
+#feed-profile .feed-profile-name,
+#feed-profile .feed-profile-name-slot {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--fu) * 2);
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#feed-profile a.feed-profile-name {
+  color: #fff;
+  text-decoration: none;
+}
+#feed-profile .feed-profile-handle,
+#feed-profile .feed-profile-value {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: #22D3EE;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--fu) * 1.35);
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: left;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#feed-profile .feed-profile-follow {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+#feed-profile .feed-profile-bio {
+  flex: 1 0 100%;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.88);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--fu) * 1.5);
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+#feed-profile .feed-profile-bio.is-empty {
+  color: rgba(255, 255, 255, 0.45);
+}
+#feed-profile .feed-profile-topic {
+  color: #22D3EE;
+  cursor: pointer;
+}
+#feed-profile .feed-profile-sections {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--fu) * 0.7);
+}
+#feed-profile .feed-profile-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(var(--fu) * 0.25);
+  box-sizing: border-box;
+  min-width: 0;
+  padding: calc(var(--fu) * 0.9) calc(var(--fu) * 1.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: calc(var(--fu) * 1.4);
+  background: rgba(255, 255, 255, 0.06);
+}
+#feed-profile .feed-profile-kicker {
+  color: rgba(255, 255, 255, 0.45);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--fu) * 1.15);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+#feed-profile button.feed-profile-value {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+#feed-profile-load {
+  appearance: none;
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: calc(var(--fu) * 4.8);
+  margin-top: auto;
+  padding: 0 calc(var(--fu) * 1.4);
+  box-sizing: border-box;
+  border: 0;
+  border-radius: calc(var(--fu) * 2.4);
+  background: #22D3EE;
+  color: #083344;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--fu) * 1.7);
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#feed-profile-load:focus-visible,
+#feed-profile .feed-profile-handle:focus-visible,
+#feed-profile .feed-profile-value:focus-visible {
+  outline: calc(var(--fu) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--fu) * 0.12);
+}
+#feed-profile-load:is(:hover, :active, .is-hold) {
+  filter: brightness(1.06);
 }
 @media (orientation: landscape) {
   .comments-modal.comments-modal--feed {

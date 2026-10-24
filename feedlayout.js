@@ -20,9 +20,12 @@ import { closeDrawAnchor, openDrawColumn } from './drawhere.js';
 import { closePressAnchor } from './poiinfo.js';
 import { applyAllStyles } from './loadprofilepopup.js';
 import { scene } from './threejs.js';
-import { profilePictures, usernames, click2url } from './loadalladata.js';
+import { profilePictures, usernames, click2url, loadTopicBio, profileTopics } from './loadalladata.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
-import { earlyHashinalNumber } from './earlyhashinal.js';
+import { earlyHashinalNumber, paintProfileAvatar } from './earlyhashinal.js';
+import { followPersonControls } from './followtopic.js';
+import { fillTopicIds, useTopicId } from './topicidintext.js';
+import { payerUsernameNode } from './payerlink.js';
 import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { openPreview } from './fullscreenmedia.js';
 
@@ -234,9 +237,32 @@ searchClose.appendChild(svgIcon([
 ]));
 searchBar.append(searchInput, searchClose);
 toolbar.append(menuAnchor, tools, searchBtnFeed, postBtn, searchBar);
+const profileBanner = document.createElement('button');
+profileBanner.id = 'feed-profile-banner';
+profileBanner.type = 'button';
+profileBanner.hidden = true;
+profileBanner.setAttribute('aria-label', 'Back to profile');
+const bannerBack = document.createElement('span');
+bannerBack.className = 'feed-profile-banner-back';
+bannerBack.appendChild(svgIcon([
+  ['path', { d: 'm15 18-6-6 6-6' }],
+]));
+const bannerPic = document.createElement('img');
+bannerPic.className = 'feed-profile-banner-pic';
+bannerPic.alt = '';
+const bannerCopy = document.createElement('span');
+bannerCopy.className = 'feed-profile-banner-copy';
+const bannerName = document.createElement('span');
+bannerName.className = 'feed-profile-banner-name';
+const bannerHandle = document.createElement('span');
+bannerHandle.className = 'feed-profile-banner-handle';
+const bannerBio = document.createElement('span');
+bannerBio.className = 'feed-profile-banner-bio';
+bannerCopy.append(bannerName, bannerHandle, bannerBio);
+profileBanner.append(bannerBack, bannerPic, bannerCopy);
 const frame = document.createElement('div');
 frame.id = 'feed-frame';
-frame.append(toolbar, tabs, tabRuler, newPill, scroller, menuDim, menu);
+frame.append(toolbar, tabs, tabRuler, profileBanner, newPill, scroller, menuDim, menu);
 root.append(dim, frame);
 
 const btn = document.createElement('button');
@@ -269,6 +295,73 @@ if (searchBtn && searchBtn.parentNode) {
   row.append(btn, searchBtn);
 } else document.body.appendChild(btn);
 document.body.appendChild(root);
+
+const profilePage = document.createElement('div');
+profilePage.id = 'feed-profile';
+profilePage.hidden = true;
+profilePage.setAttribute('role', 'dialog');
+profilePage.setAttribute('aria-modal', 'true');
+profilePage.setAttribute('aria-label', 'Profile');
+const profileBar = document.createElement('div');
+profileBar.className = 'feed-chat-bar';
+const profileBack = document.createElement('button');
+profileBack.type = 'button';
+profileBack.className = 'feed-chat-back';
+profileBack.setAttribute('aria-label', 'Back');
+profileBack.appendChild(svgIcon([
+  ['path', { d: 'm12 19-7-7 7-7' }],
+  ['path', { d: 'M19 12H5' }],
+]));
+const profileTitle = document.createElement('h2');
+profileTitle.className = 'feed-chat-title';
+profileTitle.textContent = 'Profile';
+const profileActions = document.createElement('div');
+profileActions.className = 'feed-chat-actions';
+const profileEdit = document.createElement('button');
+profileEdit.type = 'button';
+profileEdit.id = 'feed-profile-edit';
+profileEdit.className = 'feed-chat-icon';
+profileEdit.hidden = true;
+profileEdit.setAttribute('aria-label', 'Edit profile');
+profileEdit.title = 'Edit profile';
+profileEdit.appendChild(svgIcon([
+  ['path', { d: 'M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z' }],
+  ['path', { d: 'm15 5 4 4' }],
+]));
+profileEdit.querySelector('svg').classList.add('feed-chat-glyph');
+profileActions.appendChild(profileEdit);
+profileBar.append(profileBack, profileTitle, profileActions);
+const profileBody = document.createElement('div');
+profileBody.className = 'feed-profile-body';
+const profileIdentity = document.createElement('div');
+profileIdentity.className = 'feed-profile-identity';
+const profilePicSlot = document.createElement('div');
+profilePicSlot.className = 'feed-profile-pic-slot';
+const profileNames = document.createElement('div');
+profileNames.className = 'feed-profile-names';
+const profileName = document.createElement('div');
+profileName.className = 'feed-profile-name-slot';
+const profileHandle = document.createElement('a');
+profileHandle.className = 'feed-profile-handle';
+profileHandle.target = '_blank';
+profileHandle.rel = 'noopener noreferrer';
+profileNames.append(profileName, profileHandle);
+const profileFollow = document.createElement('div');
+profileFollow.className = 'feed-profile-follow';
+const profileBio = document.createElement('div');
+profileBio.className = 'feed-profile-bio';
+profileIdentity.append(profilePicSlot, profileNames, profileFollow, profileBio);
+const profileSections = document.createElement('div');
+profileSections.className = 'feed-profile-sections';
+const profileLoad = document.createElement('button');
+profileLoad.type = 'button';
+profileLoad.id = 'feed-profile-load';
+profileLoad.textContent = 'Load posts';
+profileBody.append(profileIdentity, profileSections, profileLoad);
+profilePage.append(profileBar, profileBody);
+profilePage.addEventListener('click', (event) => event.stopPropagation());
+profilePage.addEventListener('pointerdown', (event) => event.stopPropagation());
+root.appendChild(profilePage);
 
 let posts = [];
 let shown = [];
@@ -318,6 +411,14 @@ let tabLastY = 0;
 let tabOffset = 0;
 let tabHidePx = 0;
 let tabPending = 0;
+let profilePayer = '';
+let profileFilter = '';
+let profileEpoch = 0;
+let profileView = null;
+let profileShift = { all: 0, following: 0 };
+let profileEditLift = false;
+let bannerOffset = 0;
+let bannerHidePx = 0;
 let tabTrackHold = false;
 let tabFollowQueued = false;
 let tabEndTimer = 0;
@@ -1513,6 +1614,10 @@ function buildCard(post) {
   const title = feedTitle(record);
   if (title) card.appendChild(title);
   if (payer) {
+    // The shared popup photo opens the map bio panel. This card uses the
+    // feed account page instead, so that handler does not stay on it.
+    const profilePhoto = profile.querySelector('img');
+    if (profilePhoto) profilePhoto.onclick = null;
     // Capture runs before the Hashpack and click2url anchors. preventDefault
     // keeps those links from navigating. stopPropagation keeps this tap from
     // reaching the document click that closes every panel.
@@ -1523,7 +1628,7 @@ function buildCard(post) {
       event.stopPropagation();
       if (!feedActIdle(event)) return;
       holdScroll();
-      if (window.loadBio4PIC) window.loadBio4PIC(payer);
+      openFeedProfile(payer);
     }, true);
   }
 
@@ -2226,9 +2331,28 @@ function walletNow() {
   return '';
 }
 
+function postBy(post, payer) {
+  if (!post || !payer) return false;
+  const number = post.feature && post.feature.msgNumber;
+  if (typeof number === 'string' && number.startsWith('share-')) {
+    const record = recordFor(post);
+    return !!(record && record.payer === payer);
+  }
+  return post.payer === payer;
+}
+
+function profileLane(list) {
+  if (!profileFilter) return list;
+  const out = [];
+  for (const post of list) {
+    if (postBy(post, profileFilter)) out.push(post);
+  }
+  return out;
+}
+
 function lane() {
   if (searchQuery) return found;
-  return feedTab === 'following' ? shown : posts;
+  return profileLane(feedTab === 'following' ? shown : posts);
 }
 
 function tabPosts() {
@@ -2248,7 +2372,7 @@ function hitQuery(post) {
 function syncFound() {
   found = [];
   if (!searchQuery) return;
-  for (const post of tabPosts()) {
+  for (const post of profileLane(tabPosts())) {
     if (hitQuery(post)) found.push(post);
   }
 }
@@ -2294,6 +2418,7 @@ function paintEmpty() {
   if (searchQuery && found.length === 0 && searchMiss()) text = 'No posts found';
   else if (!searchQuery && feedTab === 'following' && followState === 'nowallet') text = 'Connect your wallet to see who you follow';
   else if (!searchQuery && feedTab === 'following' && followState === 'empty') text = "You're not following anyone yet";
+  else if (!searchQuery && profileFilter && lane().length === 0 && exhausted && !paging && !followBlocked()) text = 'No posts yet';
   if (!text) return;
   const note = document.createElement('p');
   note.className = 'feed-empty';
@@ -2302,7 +2427,7 @@ function paintEmpty() {
 }
 
 function rerenderLane(opts) {
-  if (!opts || !opts.keepHeld) {
+  if (!profileFilter && (!opts || !opts.keepHeld)) {
     held[feedTab] = [];
     tabScroll[feedTab] = 0;
     tabRange[feedTab] = { start: 0, end: 0 };
@@ -2312,6 +2437,10 @@ function rerenderLane(opts) {
   rangeEnd = 0;
   savedScroll = 0;
   setFeedScroll(0);
+  if (profileFilter) {
+    showFeedTabs();
+    writeBannerOffset(0);
+  }
   clearViewWatch();
   column.replaceChildren();
   paintEmpty();
@@ -2323,22 +2452,25 @@ function rerenderLane(opts) {
 async function selectTab(next) {
   if (next !== 'all' && next !== 'following') return;
   if (next === feedTab) return;
-  if (searchQuery && searchPinned) {
-    tabScroll[feedTab] = pinScroll;
-    tabRange[feedTab] = { start: pinStart, end: pinEnd };
-  } else saveTabView();
-  if (searchQuery) {
-    searchPinned = true;
-    pinScroll = 0;
-    pinStart = 0;
-    pinEnd = 0;
+  if (!profileFilter) {
+    if (searchQuery && searchPinned) {
+      tabScroll[feedTab] = pinScroll;
+      tabRange[feedTab] = { start: pinStart, end: pinEnd };
+    } else saveTabView();
+    if (searchQuery) {
+      searchPinned = true;
+      pinScroll = 0;
+      pinStart = 0;
+      pinEnd = 0;
+    }
   }
   const token = ++tabToken;
   feedTab = next;
   paintTabs();
   showFeedTabs();
+  if (profileFilter) writeBannerOffset(0);
   if (next === 'all') {
-    if (searchQuery) rerenderLane({ keepHeld: true });
+    if (searchQuery || profileFilter) rerenderLane({ keepHeld: true });
     else restoreTabView();
     return;
   }
@@ -2389,7 +2521,7 @@ async function selectTab(next) {
   followState = 'ready';
   shown = posts.filter((post) => followSet.has(post.payer));
   alignHeld('following');
-  if (searchQuery) rerenderLane({ keepHeld: true });
+  if (searchQuery || profileFilter) rerenderLane({ keepHeld: true });
   else restoreTabView();
 }
 
@@ -2480,10 +2612,18 @@ function fillDown() {
 }
 
 function laneFloor() {
+  if (profileFilter) return 0;
   return searchQuery ? 0 : held[feedTab].length;
 }
 
 function tabIsAtTop(tab) {
+  if (profileFilter && profileView) {
+    if (tab !== feedTab) {
+      if (held[tab].length) return false;
+      return tabRange[tab].start === 0 && tabScroll[tab] < 2;
+    }
+    return profileView.start === 0 && profileView.scroll < 2;
+  }
   if (held[tab].length) return false;
   if (tab === feedTab && searchQuery) {
     const start = searchPinned ? pinStart : 0;
@@ -2541,7 +2681,7 @@ function paintNewFaces(list) {
 }
 
 function paintNewPill() {
-  const show = feedOn() && !root.classList.contains('is-peek') && !searchQuery && held[feedTab].length > 0;
+  const show = feedOn() && !profileFilter && !root.classList.contains('is-peek') && !searchQuery && held[feedTab].length > 0;
   if (!show) {
     newPill.hidden = true;
     newPill.classList.remove('is-in');
@@ -2566,7 +2706,7 @@ function noteHeld(tab, batch) {
   held[tab].unshift(...batch);
   tabRange[tab].start += batch.length;
   tabRange[tab].end += batch.length;
-  if (tab === feedTab && !searchQuery) {
+  if (tab === feedTab && !searchQuery && !profileFilter) {
     rangeStart += batch.length;
     rangeEnd += batch.length;
   }
@@ -2615,15 +2755,26 @@ function prependPosts(list) {
   const followed = takeFollowed(list);
   posts.unshift(...list);
   if (followSet) shown.unshift(...followed);
-  shiftPin(feedTab === 'following' ? followed.length : list.length);
+  if (profileFilter) {
+    profileShift.all += list.length;
+    profileShift.following += followed.length;
+  }
+  const tabBatch = feedTab === 'following' ? followed : list;
+  const visible = profileFilter ? profileLane(tabBatch) : tabBatch;
+  if (!profileFilter) shiftPin(tabBatch.length);
   let searchIncoming = [];
   if (searchQuery) {
-    const pool = feedTab === 'following' ? followed : list;
-    for (const post of pool) if (hitQuery(post)) searchIncoming.push(post);
+    for (const post of visible) if (hitQuery(post)) searchIncoming.push(post);
     if (searchIncoming.length) found.unshift(...searchIncoming);
   }
   const heldAll = noteHeld('all', list);
   const heldFollow = followSet ? noteHeld('following', followed) : false;
+  if (profileFilter) {
+    if (searchQuery) mountIncoming(searchIncoming, true);
+    else mountIncoming(visible, false);
+    paintNewPill();
+    return;
+  }
   if (searchQuery) mountIncoming(searchIncoming, true);
   else if (feedTab === 'following') {
     if (!heldFollow) mountIncoming(followed, false);
@@ -2658,7 +2809,7 @@ function prependAbove(count) {
 }
 
 function revealParked() {
-  if (searchQuery || root.classList.contains('is-peek')) return;
+  if (profileFilter || searchQuery || root.classList.contains('is-peek')) return;
   const tab = feedTab;
   const n = held[tab].length;
   if (!n || scroller.scrollTop >= 2 || rangeStart !== n) return;
@@ -2672,6 +2823,7 @@ function revealParked() {
 }
 
 function goToFreshPosts() {
+  if (profileFilter) return;
   const tab = feedTab;
   if (!held[tab].length && scroller.scrollTop < 2) {
     paintNewPill();
@@ -3095,6 +3247,14 @@ function showQueryResults() {
 }
 
 function restorePin() {
+  if (profileFilter) {
+    searchPinned = false;
+    pinStart = 0;
+    pinEnd = 0;
+    pinScroll = 0;
+    rerenderLane({ keepHeld: true });
+    return;
+  }
   const start = Math.min(pinStart, tabPosts().length);
   const end = Math.min(Math.max(pinEnd, start), tabPosts().length);
   const y = pinScroll;
@@ -3447,6 +3607,7 @@ function applyFeed(on) {
     if (dropSearch && window.layerClosedByUI) window.layerClosedByUI('feedsearch');
     if (settingsOpen || (window.layerIsOpen && window.layerIsOpen('feedsettings'))) closeFeedSettings();
     if (feedChatKind || (window.layerIsOpen && window.layerIsOpen('feedchat'))) closeFeedChat();
+    dismissFeedProfile();
   }
   if (on) {
     const opening = !feedOn();
@@ -3661,9 +3822,356 @@ function openOverFeed(run) {
 
 function openOwnProfile() {
   const account = walletNow();
-  if (!account || typeof window.loadBio4PIC !== 'function') return;
-  openOverFeed(() => window.loadBio4PIC(account));
+  if (!account) return;
+  openFeedProfile(account);
 }
+
+function httpUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+    return url.href;
+  } catch {
+    return '';
+  }
+}
+
+function profilePicUrl(payer) {
+  const raw = profilePictures[payer] && profilePictures[payer].url;
+  return httpUrl(raw) || DEFAULT_PIC;
+}
+
+function profileDisplayName(payer) {
+  const name = textOf(usernames[payer] && usernames[payer].username).trim();
+  return name || 'Anonymous';
+}
+
+function profileBioText(row) {
+  const bio = textOf(row && row.topic_bio).trim();
+  return bio;
+}
+
+function syncProfileOwn() {
+  profileEdit.hidden = !profilePayer || profilePage.hidden || walletNow() !== profilePayer;
+}
+
+function showProfilePage() {
+  profilePage.hidden = false;
+  syncProfileOwn();
+}
+
+function hideProfilePage() {
+  profilePage.hidden = true;
+  profileEdit.hidden = true;
+}
+
+function hideProfileBanner() {
+  profileBanner.hidden = true;
+  bannerHidePx = 0;
+  bannerOffset = 0;
+  profileBanner.style.removeProperty('pointer-events');
+}
+
+function showProfileBanner() {
+  profileBanner.hidden = false;
+  refreshBannerHeight();
+  writeBannerOffset(0);
+  requestAnimationFrame(refreshBannerHeight);
+}
+
+function paintProfileBanner(payer) {
+  const name = profileDisplayName(payer);
+  const handle = payer;
+  bannerPic.src = profilePicUrl(payer);
+  bannerName.textContent = name;
+  bannerHandle.textContent = handle;
+  const bioEl = profileBio.textContent || '';
+  const bio = bioEl === 'No bio yet' ? '' : bioEl;
+  bannerBio.hidden = !bio;
+  bannerBio.textContent = bio;
+  profileBanner.setAttribute('aria-label', 'Back to profile, ' + name);
+}
+
+function mountProfilePic(payer) {
+  profilePicSlot.replaceChildren();
+  const img = document.createElement('img');
+  img.className = 'feed-profile-pic';
+  img.alt = '';
+  img.decoding = 'async';
+  img.src = profilePicUrl(payer);
+  img.addEventListener('error', () => {
+    if (img.src !== DEFAULT_PIC) img.src = DEFAULT_PIC;
+  });
+  profilePicSlot.appendChild(img);
+  paintProfileAvatar(img, payer);
+}
+
+function paintProfileBio(bio) {
+  const text = String(bio || '').trim();
+  profileBio.classList.toggle('is-empty', !text);
+  if (!text) {
+    profileBio.textContent = 'No bio yet';
+  } else {
+    fillTopicIds(profileBio, text, 'feed-profile-topic');
+  }
+  if (profileFilter && profileFilter === profilePayer) paintProfileBanner(profilePayer);
+}
+
+function profileField(kicker, valueNode) {
+  const row = document.createElement('div');
+  row.className = 'feed-profile-row';
+  const label = document.createElement('span');
+  label.className = 'feed-profile-kicker';
+  label.textContent = kicker;
+  row.append(label, valueNode);
+  return row;
+}
+
+function fillProfileSections(payer) {
+  profileSections.replaceChildren();
+  const account = document.createElement('a');
+  account.className = 'feed-profile-value';
+  account.href = 'https://explore.hashpack.app/' + encodeURIComponent(payer);
+  account.target = '_blank';
+  account.rel = 'noopener noreferrer';
+  account.textContent = payer;
+  account.addEventListener('click', (event) => event.stopPropagation());
+  profileSections.appendChild(profileField('Account', account));
+  const link = textOf(click2url[payer] && click2url[payer].click2url).trim();
+  const href = httpUrl(link);
+  if (href) {
+    const anchor = document.createElement('a');
+    anchor.className = 'feed-profile-value';
+    anchor.href = href;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    anchor.textContent = href;
+    anchor.addEventListener('click', (event) => event.stopPropagation());
+    profileSections.appendChild(profileField('Link', anchor));
+  }
+  const home = profileTopics[payer];
+  if (home) {
+    const topic = document.createElement('button');
+    topic.type = 'button';
+    topic.className = 'feed-profile-value feed-profile-topic';
+    topic.textContent = String(home);
+    topic.addEventListener('click', (event) => {
+      event.stopPropagation();
+      useTopicId(String(home));
+    });
+    profileSections.appendChild(profileField('Topic', topic));
+  }
+}
+
+function paintFeedProfile(payer) {
+  const id = String(payer || '').trim();
+  if (!/^\d+\.\d+\.\d+$/.test(id)) return;
+  const epoch = ++profileEpoch;
+  profilePayer = id;
+  showProfilePage();
+  const name = profileDisplayName(id);
+  const link = textOf(click2url[id] && click2url[id].click2url).trim();
+  profileName.replaceChildren(payerUsernameNode(name, link, { className: 'feed-profile-name' }));
+  profileHandle.href = 'https://explore.hashpack.app/' + encodeURIComponent(id);
+  profileHandle.textContent = id;
+  mountProfilePic(id);
+  profileFollow.replaceChildren(followPersonControls(id));
+  paintProfileBio('');
+  fillProfileSections(id);
+  profileBody.scrollTop = 0;
+  profileBack.focus({ preventScroll: true });
+  loadTopicBio().then((all) => {
+    if (epoch !== profileEpoch || profilePayer !== id) return;
+    paintProfileBio(profileBioText(all && all[id]));
+    fillProfileSections(id);
+  }).catch(() => {});
+}
+
+function openFeedProfile(payer) {
+  const id = String(payer || '').trim();
+  if (!/^\d+\.\d+\.\d+$/.test(id)) return;
+  if (!feedCovers()) {
+    if (window.loadBio4PIC) window.loadBio4PIC(id);
+    return;
+  }
+  holdScroll();
+  closeMenu();
+  if (profileFilter) clearProfileFilter();
+  paintFeedProfile(id);
+  if (window.layerIsOpen && window.layerIsOpen('feedprofile')) {
+    if (window.layerOpened) window.layerOpened('feedprofile', { payer: id });
+    return;
+  }
+  if (window.layerOpened) window.layerOpened('feedprofile', { payer: id });
+}
+
+function refreshBannerHeight() {
+  if (profileBanner.hidden) {
+    bannerHidePx = 0;
+    return;
+  }
+  const h = profileBanner.getBoundingClientRect().height;
+  if (h > 1) bannerHidePx = h;
+  writeBannerOffset(bannerOffset);
+}
+
+function writeBannerOffset(y) {
+  const limit = bannerHidePx > 1 ? bannerHidePx : 0;
+  const next = limit > 1 ? Math.max(-limit, Math.min(0, y)) : 0;
+  bannerOffset = next;
+  profileBanner.style.setProperty('--feed-banner-y', next.toFixed(2) + 'px');
+  if (profileBanner.hidden) return;
+  if (next <= -limit + 0.5 && limit > 1) profileBanner.style.pointerEvents = 'none';
+  else profileBanner.style.removeProperty('pointer-events');
+}
+
+function enterProfileFilter(payer) {
+  if (profileFilter === payer) {
+    frame.classList.add('is-profile-feed');
+    paintProfileBanner(payer);
+    showProfileBanner();
+    return;
+  }
+  profileShift = { all: 0, following: 0 };
+  profileView = {
+    scroll: scroller.scrollTop,
+    start: rangeStart,
+    end: rangeEnd,
+    pinned: searchPinned,
+    pinScroll,
+    pinStart,
+    pinEnd,
+  };
+  profileFilter = payer;
+  frame.classList.add('is-profile-feed');
+  paintProfileBanner(payer);
+  showProfileBanner();
+  rerenderLane({ keepHeld: true });
+  writeBannerOffset(0);
+  showFeedTabs();
+}
+
+function clearProfileFilter() {
+  if (!profileFilter && !profileView) {
+    frame.classList.remove('is-profile-feed');
+    hideProfileBanner();
+    writeBannerOffset(0);
+    return;
+  }
+  const saved = profileView;
+  const shift = saved ? (feedTab === 'following' ? profileShift.following : profileShift.all) : 0;
+  profileFilter = '';
+  profileView = null;
+  profileShift = { all: 0, following: 0 };
+  frame.classList.remove('is-profile-feed');
+  hideProfileBanner();
+  writeBannerOffset(0);
+  if (!saved) {
+    if (searchQuery) syncFound();
+    return;
+  }
+  if (searchPinned && !(saved.pinStart === 0 && saved.pinScroll < 2)) {
+    pinStart += shift;
+    pinEnd += shift;
+  }
+  if (searchQuery) {
+    syncFound();
+    showQueryResults();
+    showFeedTabs();
+    return;
+  }
+  const list = lane();
+  const wasTop = saved.start === 0 && saved.scroll < 2;
+  const start = wasTop ? 0 : Math.min(list.length, saved.start + shift);
+  let end = wasTop ? Math.min(list.length, RENDER_CHUNK) : Math.min(list.length, Math.max(saved.end + shift, start));
+  if (end < start) end = start;
+  rangeStart = start;
+  rangeEnd = start;
+  clearViewWatch();
+  column.replaceChildren();
+  if (end > start) renderThrough(end);
+  paintEmpty();
+  setFeedScroll(wasTop ? 0 : saved.scroll);
+  savedScroll = scroller.scrollTop;
+  showFeedTabs();
+  if (!followBlocked()) {
+    fillDown();
+    fillUp();
+  }
+  paintNewPill();
+}
+
+function backToProfileAccount() {
+  if (!profilePayer) {
+    hideProfilePage();
+    clearProfileFilter();
+    return;
+  }
+  showProfilePage();
+  clearProfileFilter();
+  profileBack.focus({ preventScroll: true });
+}
+
+function loadProfilePosts() {
+  const payer = profilePayer;
+  if (!payer) return;
+  enterProfileFilter(payer);
+  hideProfilePage();
+}
+
+function closeFeedProfile() {
+  hideProfilePage();
+  profilePayer = '';
+  profileEpoch += 1;
+  clearProfileFilter();
+  if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedprofile')) {
+    window.layerClosedByUI('feedprofile');
+  }
+}
+
+function dismissFeedProfile() {
+  if (profilePage.hidden && !profileFilter && !(window.layerIsOpen && window.layerIsOpen('feedprofile'))) return;
+  hideProfilePage();
+  profilePayer = '';
+  profileEpoch += 1;
+  clearProfileFilter();
+  if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedprofile')) {
+    window.layerClosedByUI('feedprofile');
+  }
+}
+
+function openProfileEdit() {
+  const trigger = document.getElementById('Edit_Profile');
+  if (!trigger) return;
+  profileEditLift = true;
+  trigger.click();
+  const column = document.getElementById('Edit_Profile-column');
+  if (column && column.style.display !== 'none' && column.style.zIndex !== '8800') column.style.zIndex = '8800';
+}
+
+bindPress(profileBack);
+profileBack.addEventListener('click', (event) => {
+  event.stopPropagation();
+  closeFeedProfile();
+});
+bindPress(profileEdit);
+profileEdit.addEventListener('click', (event) => {
+  event.stopPropagation();
+  openProfileEdit();
+});
+bindPress(profileLoad);
+profileLoad.addEventListener('click', (event) => {
+  event.stopPropagation();
+  loadProfilePosts();
+});
+profileBanner.addEventListener('click', (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  backToProfileAccount();
+});
+bannerPic.addEventListener('error', () => {
+  if (bannerPic.src !== DEFAULT_PIC) bannerPic.src = DEFAULT_PIC;
+});
 
 function openTopicChat() {
   openFeedChat('topic');
@@ -4459,6 +4967,7 @@ function watchWalletRows() {
     if (now === last) return;
     last = now;
     paintWalletRows();
+    syncProfileOwn();
   };
   new MutationObserver(sync).observe(account, { childList: true, characterData: true, subtree: true });
 }
@@ -4505,6 +5014,33 @@ if (window.defineLayer) {
     parent: 'feed',
     open: (state) => paintFeedChat(state && state.kind),
     close: () => hideFeedChatPanel(),
+  });
+  window.defineLayer('feedprofile', {
+    parent: 'feed',
+    open: (state) => {
+      const payer = state && state.payer;
+      if (payer) paintFeedProfile(payer);
+    },
+    // Phone Back while their posts are showing returns to the account
+    // page. The entry is already gone, so the page is pushed again
+    // after this pop finishes. Back from the account page leaves.
+    close: () => {
+      if (profileFilter && profilePayer) {
+        const payer = profilePayer;
+        backToProfileAccount();
+        setTimeout(() => {
+          if (profilePayer !== payer || profileFilter) return;
+          if (window.layerIsOpen && window.layerIsOpen('feedprofile')) return;
+          if (!feedCovers()) return;
+          if (window.layerOpened) window.layerOpened('feedprofile', { payer });
+        }, 0);
+        return;
+      }
+      hideProfilePage();
+      profilePayer = '';
+      profileEpoch += 1;
+      clearProfileFilter();
+    },
   });
   window.defineLayer('feedsearch', {
     parent: 'feed',
@@ -4553,6 +5089,26 @@ if (loadColumn) {
     attributes: true,
     attributeFilter: ['style'],
   });
+}
+
+const editProfileColumn = document.getElementById('Edit_Profile-column');
+if (editProfileColumn) {
+  new MutationObserver(() => {
+    const shown = editProfileColumn.style.display !== 'none';
+    if (shown && profileEditLift && editProfileColumn.style.zIndex !== '8800') editProfileColumn.style.zIndex = '8800';
+    if (!shown && editProfileColumn.style.zIndex === '8800') {
+      editProfileColumn.style.zIndex = '1002';
+      profileEditLift = false;
+    }
+  }).observe(editProfileColumn, { attributes: true, attributeFilter: ['style'] });
+}
+const editProfileHelp = document.getElementById('edit-profile-help-overlay');
+if (editProfileHelp) {
+  new MutationObserver(() => {
+    const shown = editProfileHelp.style.display !== 'none';
+    if (shown && profileEditLift && editProfileHelp.style.zIndex !== '8801') editProfileHelp.style.zIndex = '8801';
+    if (!shown && editProfileHelp.style.zIndex === '8801') editProfileHelp.style.zIndex = '1003';
+  }).observe(editProfileHelp, { attributes: true, attributeFilter: ['style'] });
 }
 
 const optionTrigger = document.getElementById('toggle-toolbar-btn');
@@ -4646,6 +5202,18 @@ menu.addEventListener('pointerdown', (event) => {
 
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
+  if (profileFilter && profilePayer && (!window.layerIsTop || window.layerIsTop('feedprofile'))) {
+    event.preventDefault();
+    event.stopPropagation();
+    backToProfileAccount();
+    return;
+  }
+  if (!profilePage.hidden && (!window.layerIsTop || window.layerIsTop('feedprofile'))) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeFeedProfile();
+    return;
+  }
   if (!settings.hidden && (!window.layerIsTop || window.layerIsTop('feedsettings'))) {
     event.preventDefault();
     event.stopPropagation();
@@ -4758,6 +5326,7 @@ function showFeedTabs() {
 function measureTabHide() {
   refreshTabRowHeight();
   writeTabOffset(tabOffset);
+  if (profileFilter) refreshBannerHeight();
 }
 
 function queueTabFollow() {
@@ -4779,9 +5348,11 @@ function applyTabFollow() {
   tabs.classList.remove('is-settle');
   if (scroller.scrollTop < 2) {
     writeTabOffset(0);
+    if (profileFilter) writeBannerOffset(0);
     return;
   }
   writeTabOffset(tabOffset - delta);
+  if (profileFilter) writeBannerOffset(bannerOffset - delta);
 }
 
 // Scrolling has stopped, including a fling. A partial hide stays where
@@ -4791,7 +5362,10 @@ function finishTabGlide() {
   if (root.classList.contains('is-peek')) return;
   tabs.classList.remove('is-settle');
   if (tabFollowQueued) return;
-  if (scroller.scrollTop < 2) writeTabOffset(0);
+  if (scroller.scrollTop < 2) {
+    writeTabOffset(0);
+    if (profileFilter) writeBannerOffset(0);
+  }
 }
 
 // Browsers without scrollend get this instead. Each scroll frame resets
@@ -4833,7 +5407,10 @@ scroller.addEventListener('scroll', (event) => {
   const y = scroller.scrollTop;
   if (hold || !event.isTrusted) {
     tabLastY = y;
-    if (y < 2) showFeedTabs();
+    if (y < 2) {
+      showFeedTabs();
+      if (profileFilter) writeBannerOffset(0);
+    }
   } else {
     // Hold this delta until the frame. A script scroll only moves tabLastY.
     tabPending += y - tabLastY;
