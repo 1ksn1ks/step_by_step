@@ -3727,8 +3727,9 @@ function paintFeedZoom() {
 
 function applyFeedZoom() {
   const value = feedPrefs.zoom.toFixed(2);
-  root.style.setProperty('--feed-zoom', value);
-  document.documentElement.style.setProperty('--feed-zoom', value);
+  scroller.style.setProperty('--feed-zoom', value);
+  root.style.removeProperty('--feed-zoom');
+  document.documentElement.style.removeProperty('--feed-zoom');
   paintFeedZoom();
 }
 
@@ -4094,6 +4095,10 @@ feedChatBack.addEventListener('click', (event) => {
 function paintFeedSettings(open) {
   settingsOpen = open;
   settings.hidden = !open;
+  zoomBar.hidden = open;
+  zoomBar.inert = open;
+  if (open) zoomBar.setAttribute('aria-hidden', 'true');
+  else zoomBar.removeAttribute('aria-hidden');
   if (open) {
     for (const paint of settingsPaints) paint();
     settingsBack.focus({ preventScroll: true });

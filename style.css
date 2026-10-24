@@ -7282,7 +7282,7 @@ a.payer-link {
 #feed-layout {
   --feed-zoom: 1;
   --feed-col-width: 100dvw;
-  --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024 * var(--feed-zoom));
+  --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
   position: fixed;
   inset: 0;
   z-index: 8000;
@@ -7308,7 +7308,7 @@ a.payer-link {
   container-name: feed;
 }
 #feed-frame > * {
-  --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi) * var(--feed-zoom));
+  --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi));
   --fu: var(--feed-unit);
 }
 #feed-layout.is-peek {
@@ -7606,6 +7606,9 @@ html.feed-app appkit-modal {
 #feed-zoom * {
   touch-action: pan-x;
 }
+#feed-zoom[hidden] {
+  display: none;
+}
 #feed-zoom-range {
   appearance: none;
   -webkit-appearance: none;
@@ -7756,6 +7759,7 @@ html.feed-app appkit-modal {
   text-align: center;
 }
 #feed-scroll {
+  --feed-chrome: var(--fu);
   position: absolute;
   top: calc(var(--fu) * (5.6 + 3.4));
   right: 0;
@@ -7774,11 +7778,18 @@ html.feed-app appkit-modal {
 #feed-scroll * {
   touch-action: pan-y;
 }
+/* Zoom lives on the posts. The scroller's own top stays on the chrome unit
+   captured above, and the tab clearance does too, so the bars do not jump. */
+#feed-scroll > * {
+  --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi) * var(--feed-zoom, 1));
+  --fu: var(--feed-unit);
+  font-size: calc(var(--fu) * 1.9);
+}
 #feed-column {
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
-  padding: calc(var(--fu) * 4.4) calc(var(--fu) * 1) calc(var(--fu) * 2);
+  padding: calc(var(--feed-chrome) * 4.4) calc(var(--fu) * 1) calc(var(--fu) * 2);
   touch-action: pan-y;
 }
 @media (orientation: landscape) {
@@ -8404,6 +8415,9 @@ html.feed-app appkit-modal {
   background: rgba(240, 113, 120, 0.14);
 }
 #feed-settings {
+  --feed-zoom: 1;
+  --feed-unit: calc(min(100dvw, var(--feed-col-width)) * 0.024);
+  --fu: var(--feed-unit);
   position: absolute;
   top: 0;
   bottom: 0;
@@ -8424,7 +8438,8 @@ html.feed-app appkit-modal {
   container-name: feedsettings;
 }
 #feed-settings > * {
-  --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi) * var(--feed-zoom));
+  --feed-zoom: 1;
+  --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi));
   --fu: var(--feed-unit);
 }
 #feed-settings[hidden] {
@@ -8709,8 +8724,9 @@ html.feed-app appkit-modal {
   color: #2a0c0e;
 }
 .comments-modal.comments-modal--feed {
+  --feed-zoom: 1;
   --feed-col-width: 100dvw;
-  --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024 * var(--feed-zoom, 1));
+  --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
   --u: calc(var(--fu) * 0.95);
   position: fixed;
   top: 0;
@@ -8731,7 +8747,8 @@ html.feed-app appkit-modal {
   container-name: feed;
 }
 .comments-modal.comments-modal--feed > * {
-  --fu: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi) * var(--feed-zoom, 1));
+  --feed-zoom: 1;
+  --fu: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi));
 }
 .comments-modal--feed .feed-comments-bar {
   flex: 0 0 auto;
@@ -8937,6 +8954,9 @@ html.feed-app appkit-modal {
   }
 }
 #feed-chat {
+  --feed-zoom: 1;
+  --feed-unit: calc(min(100dvw, var(--feed-col-width)) * 0.024);
+  --fu: var(--feed-unit);
   position: absolute;
   top: 0;
   bottom: 0;
@@ -8955,7 +8975,8 @@ html.feed-app appkit-modal {
   container-name: feedchat;
 }
 #feed-chat > * {
-  --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi) * var(--feed-zoom));
+  --feed-zoom: 1;
+  --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi));
   --fu: var(--feed-unit);
 }
 #feed-chat[hidden] {
