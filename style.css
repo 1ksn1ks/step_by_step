@@ -7816,6 +7816,11 @@ html.feed-app appkit-modal {
   background: none;
   background-image: none;
 }
+#feed-column .feed-card > .popup-media-card {
+  margin-inline: auto;
+  align-self: center;
+  justify-self: center;
+}
 #feed-column .popup-media-card img,
 #feed-column .popup-media-card video,
 #feed-column .popup-media-card iframe,
