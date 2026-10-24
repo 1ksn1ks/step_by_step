@@ -2484,19 +2484,26 @@ function drawingNumber(raw, created) {
   return String(raw);
 }
 
-// A share id is stable. Remember the lookup so a scrolling feed does not
-// hit the messages table again for a few minutes.
-const FEED_SHARE_CACHE_MS = 5 * 60 * 1000;
+// A share id is stable. A hit stays for a few minutes so a scrolling feed
+// does not read the messages table again. A miss is short, so a share that
+// arrives just after the lookup is not stuck as absent. The map is capped:
+// the oldest id leaves when a new one would pass 5000.
+const FEED_SHARE_HIT_MS = 5 * 60 * 1000;
+const FEED_SHARE_MISS_MS = 30 * 1000;
+const FEED_SHARE_CACHE_MAX = 5000;
 const feedShareCache = new Map();
 
 function rememberFeedShare(id, ok) {
-  const now = Date.now();
-  if (feedShareCache.size > 4000) {
-    for (const [key, row] of feedShareCache) {
-      if (now >= row.until) feedShareCache.delete(key);
-    }
+  if (feedShareCache.has(id)) feedShareCache.delete(id);
+  while (feedShareCache.size >= FEED_SHARE_CACHE_MAX) {
+    const oldest = feedShareCache.keys().next().value;
+    if (oldest === undefined) break;
+    feedShareCache.delete(oldest);
   }
-  feedShareCache.set(id, { ok, until: now + FEED_SHARE_CACHE_MS });
+  feedShareCache.set(id, {
+    ok,
+    until: Date.now() + (ok ? FEED_SHARE_HIT_MS : FEED_SHARE_MISS_MS),
+  });
   return ok;
 }
 
@@ -2534,7 +2541,12 @@ function feedCardStored(id) {
   }
   if (card.kind === "s") {
     const cached = feedShareCache.get(id);
-    if (cached && Date.now() < cached.until) return cached.ok;
+    if (cached && Date.now() < cached.until) {
+      feedShareCache.delete(id);
+      feedShareCache.set(id, cached);
+      return cached.ok;
+    }
+    if (cached) feedShareCache.delete(id);
     const hit = q.feedShareByCreated.get(card.topic, card.payer, card.created);
     const ok = !!hit || feedShareInMessages(card);
     return rememberFeedShare(id, ok);
