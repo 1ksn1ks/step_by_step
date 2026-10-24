@@ -243,6 +243,8 @@ for (const migration of [
   "ALTER TABLE live_markers ADD COLUMN number TEXT",
   "ALTER TABLE user_settings ADD COLUMN revision INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE user_settings ADD COLUMN topic TEXT",
+  "ALTER TABLE geo_cache ADD COLUMN city TEXT",
+  "ALTER TABLE geo_cache ADD COLUMN country_code TEXT",
 ]) {
   try {
     db.exec(migration);
@@ -443,10 +445,13 @@ const q = {
   `),
   deleteStaleLive: db.prepare("DELETE FROM live_markers WHERE last_seen < ?"),
   liveByGeokey: db.prepare("UPDATE live_markers SET country = ? WHERE geokey = ?"),
-  getGeoCache: db.prepare("SELECT country FROM geo_cache WHERE geokey = ?"),
+  getGeoCache: db.prepare("SELECT country, city, country_code FROM geo_cache WHERE geokey = ?"),
   setGeoCache: db.prepare(`
-    INSERT INTO geo_cache (geokey, country) VALUES (?, ?)
-    ON CONFLICT(geokey) DO UPDATE SET country = excluded.country
+    INSERT INTO geo_cache (geokey, country, city, country_code) VALUES (?, ?, ?, ?)
+    ON CONFLICT(geokey) DO UPDATE SET
+      country = excluded.country,
+      city = excluded.city,
+      country_code = excluded.country_code
   `),
   // per-account settings — one row per user, latest valid value per field.
   // Each statement upserts ONLY its own column, so the other settings a
@@ -1518,20 +1523,40 @@ function geoKeyFor(lng, lat) {
   return Math.round(lng / GEO_GRID) + ":" + Math.round(lat / GEO_GRID);
 }
 
-async function resolveCountry(lng, lat) {
+const placeMiss = new Set();
+
+function shortCity(city) {
+  return String(city || "").replace(/^City of\s+/i, "").trim();
+}
+
+// city/town/village, then country. An empty city means the lookup finished
+// and only the country was named. Null city means this cell is not done.
+// miss: Nominatim has no place there (ocean). A thrown lookup stays uncached.
+async function resolvePlace(lng, lat) {
   try {
-    // accept-language=en: country names in English so they match the
-    // app's search results (also forced to English) regardless of locale.
+    // accept-language=en: names in English so they match search, regardless
+    // of the phone's locale.
     const res = await fetch(
-      `${NOMINATIM}/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=en`,
+      `${NOMINATIM}/reverse?format=jsonv2&addressdetails=1&lat=${lat}&lon=${lng}&accept-language=en`,
       { headers: { "User-Agent": GEO_UA, Accept: "application/json" } }
     );
     if (!res.ok) return null;
     const data = await res.json();
-    return (data && data.address && data.address.country) || null;
+    const address = data && data.address;
+    if (!address || !address.country) return { miss: true };
+    const code = String(address.country_code || "").trim().toUpperCase();
+    return {
+      country: address.country,
+      city: shortCity(address.city || address.town || address.village || ""),
+      code: /^[A-Z]{2}$/.test(code) ? code : "",
+    };
   } catch {
     return null;
   }
+}
+
+function placeReady(row) {
+  return !!(row && row.country && row.city != null);
 }
 
 async function geoWorker() {
@@ -1540,15 +1565,19 @@ async function geoWorker() {
   while (geoQueue.size > 0) {
     const geokey = geoQueue.values().next().value;
     geoQueue.delete(geokey);
-    const [glng, glat] = geokey.split(":").map(Number); // cell corner
-    let country = (q.getGeoCache.get(geokey) || {}).country || null;
-    if (!country) {
-      country = await resolveCountry(glng * GEO_GRID, glat * GEO_GRID);
-      await sleep(1000); // Nominatim policy: ~1 request/second
+    if (placeMiss.has(geokey)) continue;
+    const row = q.getGeoCache.get(geokey) || null;
+    if (placeReady(row)) {
+      q.liveByGeokey.run(row.country, geokey);
+      continue;
     }
-    if (country) {
-      q.setGeoCache.run(geokey, country);
-      q.liveByGeokey.run(country, geokey);
+    const [glng, glat] = geokey.split(":").map(Number); // cell corner
+    const place = await resolvePlace(glng * GEO_GRID, glat * GEO_GRID);
+    await sleep(1000); // Nominatim policy: ~1 request/second
+    if (place && place.miss) placeMiss.add(geokey);
+    else if (place && place.country) {
+      q.setGeoCache.run(geokey, place.country, place.city || "", place.code || "");
+      q.liveByGeokey.run(place.country, geokey);
     }
     // no country (ocean / API hiccup) → row stays unresolved; a later
     // report for the same cell re-queues it and retries
@@ -3198,6 +3227,44 @@ app.get("/api/turn", publicPostLimit, async (req, res) => {
 app.get("/api/early-hashinals", publicPostLimit, (req, res) => {
   res.setHeader("Cache-Control", "public, max-age=300");
   res.json(earlyHashinals.snapshot());
+});
+
+// Feed cards ask for a city and country. The cell is the same GEO_GRID key
+// the live-marker queue uses, so one neighbourhood is one Nominatim call.
+app.get("/api/place", publicPostLimit, (req, res) => {
+  const raw = String(req.query.keys || "");
+  const keys = [];
+  for (const part of raw.split(",")) {
+    const key = part.trim();
+    if (!keys.includes(key)) keys.push(key);
+    if (keys.length >= 20) break;
+  }
+  const places = [];
+  let queued = false;
+  for (const key of keys) {
+    if (!/^-?\d+:-?\d+$/.test(key)) continue;
+    const [glng, glat] = key.split(":").map(Number);
+    if (Math.abs(glng * GEO_GRID) > 180 || Math.abs(glat * GEO_GRID) > 90) continue;
+    if (placeMiss.has(key)) {
+      places.push({ geokey: key, city: "", country: "", country_code: "" });
+      continue;
+    }
+    const row = q.getGeoCache.get(key);
+    if (placeReady(row)) {
+      places.push({
+        geokey: key,
+        city: shortCity(row.city),
+        country: row.country,
+        country_code: row.country_code || "",
+      });
+    } else {
+      geoQueue.add(key);
+      queued = true;
+      places.push({ geokey: key, pending: true });
+    }
+  }
+  if (queued) geoWorker();
+  res.json({ ok: true, places });
 });
 
 app.get("/api/health", (req, res) => {

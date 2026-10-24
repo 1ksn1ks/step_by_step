@@ -7968,6 +7968,27 @@ html.feed-app appkit-modal {
   white-space: nowrap;
   min-width: 0;
 }
+#feed-column .feed-loc-where,
+#feed-column .feed-loc-city,
+#feed-column .feed-loc-country {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+#feed-column .feed-loc-where {
+  gap: calc(var(--fu) * 0.7);
+  max-width: 100%;
+}
+#feed-column .feed-loc-city,
+#feed-column .feed-loc-country {
+  gap: calc(var(--fu) * 0.28);
+}
+#feed-column .feed-loc-emoji {
+  flex: 0 0 auto;
+}
+#feed-column .feed-loc-coords.is-fallback {
+  color: rgba(255, 255, 255, 0.45);
+}
 #feed-column .feed-meta .popup-timestamp {
   margin: 0 0 0 auto;
   flex: 0 1 auto;

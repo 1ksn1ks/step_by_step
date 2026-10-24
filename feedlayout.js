@@ -556,6 +556,168 @@ function coordLabel(lngLat) {
   return `${n(lat)}, ${n(lng)}`;
 }
 
+// Same cell as the server GEO_GRID. One neighbourhood is one place lookup.
+const PLACE_GRID = 0.1;
+const placeCache = new Map();
+const placeKeys = new Set();
+let placeQueued = false;
+
+function placeKey(lngLat) {
+  const lng = Number(lngLat && lngLat[0]);
+  const lat = Number(lngLat && lngLat[1]);
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return '';
+  return Math.round(lng / PLACE_GRID) + ':' + Math.round(lat / PLACE_GRID);
+}
+
+function flagEmoji(code) {
+  const iso = String(code || '').toUpperCase();
+  if (!/^[A-Z]{2}$/.test(iso)) return '';
+  const base = 0x1F1E6;
+  return String.fromCodePoint(base + iso.charCodeAt(0) - 65, base + iso.charCodeAt(1) - 65);
+}
+
+function placePart(className, emoji, name) {
+  const el = document.createElement('span');
+  el.className = className;
+  if (emoji) {
+    const mark = document.createElement('span');
+    mark.className = 'feed-loc-emoji';
+    mark.setAttribute('aria-hidden', 'true');
+    mark.textContent = emoji;
+    el.appendChild(mark);
+  }
+  el.appendChild(document.createTextNode(name));
+  return el;
+}
+
+function showPlace(coords, hit) {
+  const label = coords.parentElement;
+  if (!label) return;
+  const city = String(hit.city || '').trim();
+  const country = String(hit.country || '').trim();
+  if (!city && !country) {
+    coords.hidden = false;
+    coords.classList.add('is-fallback');
+    coords.dataset.place = 'fail';
+    const stale = label.querySelector('.feed-loc-where');
+    if (stale) stale.remove();
+    return;
+  }
+  let where = label.querySelector('.feed-loc-where');
+  if (!where) {
+    where = document.createElement('span');
+    where.className = 'feed-loc-where';
+    coords.before(where);
+  }
+  where.replaceChildren();
+  if (city) where.appendChild(placePart('feed-loc-city', '🏙', city));
+  if (country) where.appendChild(placePart('feed-loc-country', flagEmoji(hit.code), country));
+  coords.hidden = true;
+  coords.dataset.place = 'ready';
+}
+
+function applyCachedPlaces() {
+  column.querySelectorAll('.feed-loc-coords').forEach((coords) => {
+    const key = coords.dataset.geokey;
+    if (!key || coords.dataset.place === 'ready') return;
+    const hit = placeCache.get(key);
+    if (!hit) return;
+    if (hit.state === 'ready') showPlace(coords, hit);
+    else if (hit.state === 'fail') {
+      coords.hidden = false;
+      coords.classList.add('is-fallback');
+      coords.dataset.place = 'fail';
+    }
+  });
+}
+
+function queuePlaces() {
+  if (placeQueued) return;
+  placeQueued = true;
+  setTimeout(flushPlaces, 60);
+}
+
+async function flushPlaces() {
+  placeQueued = false;
+  if (!feedPrefs.location) return;
+  const keys = [];
+  for (const key of placeKeys) {
+    const hit = placeCache.get(key);
+    if (hit && (hit.state === 'ready' || hit.state === 'fail')) {
+      placeKeys.delete(key);
+      continue;
+    }
+    keys.push(key);
+    if (keys.length >= 20) break;
+  }
+  for (const key of keys) placeKeys.delete(key);
+  if (placeKeys.size) queuePlaces();
+  if (!keys.length) return;
+  for (const key of keys) {
+    const hit = placeCache.get(key) || { state: 'wait', tries: 0 };
+    hit.state = 'wait';
+    hit.tries = (hit.tries || 0) + 1;
+    placeCache.set(key, hit);
+  }
+  let pending = false;
+  let failed = false;
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/place?keys=${encodeURIComponent(keys.join(','))}`);
+    if (!res.ok) throw new Error('place');
+    const data = await res.json();
+    const rows = data && Array.isArray(data.places) ? data.places : [];
+    for (const row of rows) {
+      if (!row || !row.geokey) continue;
+      if (row.pending) {
+        pending = true;
+        continue;
+      }
+      placeCache.set(row.geokey, {
+        state: 'ready',
+        city: row.city || '',
+        country: row.country || '',
+        code: row.country_code || '',
+      });
+    }
+  } catch {
+    failed = true;
+  }
+  for (const key of keys) {
+    const hit = placeCache.get(key);
+    if (!hit || hit.state !== 'wait') continue;
+    const giveUp = failed ? hit.tries >= 3 : hit.tries >= 15;
+    if (giveUp) hit.state = 'fail';
+    else if (pending || failed) placeKeys.add(key);
+    else hit.state = 'fail';
+  }
+  applyCachedPlaces();
+  if (placeKeys.size) {
+    placeQueued = true;
+    setTimeout(flushPlaces, failed ? 1500 : 1200);
+  }
+}
+
+function wantPlace(card) {
+  if (!feedPrefs.location || !card || !card.querySelector) return;
+  const coords = card.querySelector('.feed-loc-coords');
+  if (!coords || !coords.dataset.geokey) return;
+  if (coords.dataset.place === 'ready' || coords.dataset.place === 'fail') return;
+  const key = coords.dataset.geokey;
+  const hit = placeCache.get(key);
+  if (hit && hit.state === 'ready') {
+    showPlace(coords, hit);
+    return;
+  }
+  if (hit && hit.state === 'fail') {
+    coords.hidden = false;
+    coords.classList.add('is-fallback');
+    coords.dataset.place = 'fail';
+    return;
+  }
+  placeKeys.add(key);
+  queuePlaces();
+}
+
 const ringCenters = new Map();
 
 function centerOf(polygon) {
@@ -847,6 +1009,7 @@ function ensureViewObserver() {
       if (entry.isIntersecting) {
         viewIntersecting.add(entry.target);
         warmFeedVideo(entry.target);
+        wantPlace(entry.target);
       } else {
         viewIntersecting.delete(entry.target);
         syncFeedVideo(entry.target);
@@ -1123,7 +1286,8 @@ function buildCard(post) {
     whereText.append(place, sep);
   }
   const coords = document.createElement('span');
-  coords.className = 'feed-loc-coords';
+  coords.className = 'feed-loc-coords is-fallback';
+  coords.dataset.geokey = placeKey(post.lngLat);
   coords.textContent = coordLabel(post.lngLat);
   whereText.appendChild(coords);
   loc.appendChild(whereText);
@@ -3188,6 +3352,9 @@ async function openE2ee() {
 function applyFeedChrome() {
   root.classList.toggle('is-compact', feedPrefs.density === 'compact');
   root.classList.toggle('is-loc-off', !feedPrefs.location);
+  if (feedPrefs.location) {
+    for (const card of viewIntersecting) wantPlace(card);
+  }
   if (feedPrefs.fresh === 'jump' && feedOn() && !searchQuery && held[feedTab].length) goToFreshPosts();
   else paintNewPill();
   syncFeedVideos();
