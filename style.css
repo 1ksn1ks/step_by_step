@@ -7707,6 +7707,10 @@ html.feed-app appkit-modal {
   .comments-modal.comments-modal--feed {
     --feed-col-width: clamp(40dvw, 46dvw, 46dvw);
   }
+  /* Clip the drawer to the column so the slide does not cross the gutters. */
+  #feed-frame {
+    overflow: hidden;
+  }
 }
 #feed-column .feed-card {
   --u: calc(var(--fu) * 0.58);
@@ -8208,7 +8212,7 @@ html.feed-app appkit-modal {
 #feed-menu {
   position: absolute;
   top: 0;
-  left: max(0dvw, calc((100dvw - min(100dvw, var(--feed-col-width))) / 2));
+  left: 0;
   z-index: 4;
   display: flex;
   flex-direction: column;
