@@ -27,7 +27,7 @@ import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
 import { startEarlyHashinals } from "./hashinals.js";
-import { lookupFeedPlace, parseFeedGeoKey, shortCity } from "./feedplace.js";
+import { feedGeoKey, lookupFeedPlace, parseFeedGeoKey, shortCity } from "./feedplace.js";
 import { createChunkAssembler } from "../hcschunks.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -246,6 +246,7 @@ for (const migration of [
   "ALTER TABLE user_settings ADD COLUMN topic TEXT",
   "ALTER TABLE geo_cache ADD COLUMN city TEXT",
   "ALTER TABLE geo_cache ADD COLUMN country_code TEXT",
+  "ALTER TABLE geo_cache ADD COLUMN miss INTEGER NOT NULL DEFAULT 0",
 ]) {
   try {
     db.exec(migration);
@@ -446,13 +447,14 @@ const q = {
   `),
   deleteStaleLive: db.prepare("DELETE FROM live_markers WHERE last_seen < ?"),
   liveByGeokey: db.prepare("UPDATE live_markers SET country = ? WHERE geokey = ?"),
-  getGeoCache: db.prepare("SELECT country, city, country_code FROM geo_cache WHERE geokey = ?"),
+  getGeoCache: db.prepare("SELECT country, city, country_code, miss FROM geo_cache WHERE geokey = ?"),
   setGeoCache: db.prepare(`
-    INSERT INTO geo_cache (geokey, country, city, country_code) VALUES (?, ?, ?, ?)
+    INSERT INTO geo_cache (geokey, country, city, country_code, miss) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(geokey) DO UPDATE SET
       country = excluded.country,
       city = excluded.city,
-      country_code = excluded.country_code
+      country_code = excluded.country_code,
+      miss = excluded.miss
   `),
   // per-account settings — one row per user, latest valid value per field.
   // Each statement upserts ONLY its own column, so the other settings a
@@ -663,6 +665,20 @@ const q = {
   feedShareByCreated: db.prepare(
     "SELECT 1 AS hit FROM shares WHERE topic_id = ? AND payer = ? AND created = ? AND created != '' LIMIT 1"
   ),
+  // Stamp changes when a message is inserted or dropped, so the feed-cell
+  // set below is rebuilt only then.
+  feedPostStamp: db.prepare(
+    "SELECT COUNT(*) AS n, IFNULL(MAX(rowid), 0) AS top FROM messages"
+  ),
+  feedLocatedBodies: db.prepare(`
+    SELECT body FROM messages
+    WHERE instr(body, '"cord"') > 0
+       OR instr(body, '"pin"') > 0
+       OR instr(body, '"coords"') > 0
+       OR instr(body, '"location"') > 0
+       OR instr(body, '"longitude"') > 0
+       OR instr(body, '"latitude"') > 0
+  `),
 };
 
 // Rows older than 90 days are not part of the count. Once an hour.
@@ -918,6 +934,33 @@ function postNumber(raw, created) {
   return String(raw).trim();
 }
 
+function finitePoint(lng, lat) {
+  const x = Number(lng);
+  const y = Number(lat);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  if (Math.abs(x) > 180 || Math.abs(y) > 90) return null;
+  return [x, y];
+}
+
+// Same point shapes feedlayout.js accepts on a share pin or a chat location.
+function pointFromValue(value) {
+  if (Array.isArray(value) && value.length >= 2) return finitePoint(value[0], value[1]);
+  if (typeof value === "string") {
+    const parts = value.split(",");
+    if (parts.length >= 2) return finitePoint(parts[0], parts[1]);
+  }
+  if (value && typeof value === "object") {
+    const named = finitePoint(
+      value.lng ?? value.lon ?? value.longitude,
+      value.lat ?? value.latitude
+    );
+    if (named) return named;
+    if (value.coords) return pointFromValue(value.coords);
+    if (value.cord) return pointFromValue(value.cord);
+  }
+  return null;
+}
+
 function pointFromCord(kind, cord) {
   if (typeof cord !== "string") return null;
   if (kind === "marker") {
@@ -1011,7 +1054,8 @@ function extractTopicIndex(topicId, payer, body, tsMs, seq) {
       if (parts.length === 2 && parts.every((n) => isFinite(n))) {
       const [lng, lat] = parts;
       const geokey = geoKeyFor(lng, lat);
-      const cached = (q.getGeoCache.get(geokey) || {}).country || null;
+      const found = storedCountry(geokey);
+      const cached = found.country;
       q.upsertLive.run({
         topic: topicId,
         cord: m.cord,
@@ -1026,7 +1070,7 @@ function extractTopicIndex(topicId, payer, body, tsMs, seq) {
         number: numberKey,
         last_seen: tsMs,
       });
-        if (!cached) geoQueue.add(geokey);
+        if (!found.known) enqueueGeo(geokey);
       }
     }
   }
@@ -1517,8 +1561,19 @@ setInterval(async () => {
 // GEO_GRID cell; the resolved country is cached by that cell, so many
 // markers in one neighbourhood cost a single reverse-geocode. The queue is
 // paced to Nominatim's ~1 request/second policy.
+const GEO_QUEUE_MAX = 500;
 const geoQueue = new Set(); // geokeys awaiting a reverse-geocode
 let geoBusy = false;
+
+// False once the queue is at the cap. A key already waiting still counts
+// as queued. Callers that answer /api/place turn a false into a finished
+// miss so the client does not keep the cell pending.
+function enqueueGeo(geokey) {
+  if (geoQueue.has(geokey)) return true;
+  if (geoQueue.size >= GEO_QUEUE_MAX) return false;
+  geoQueue.add(geokey);
+  return true;
+}
 
 function geoKeyFor(lng, lat) {
   return Math.round(lng / GEO_GRID) + ":" + Math.round(lat / GEO_GRID);
@@ -1541,12 +1596,31 @@ function cellCenter(geokey) {
 function rememberPlace(geokey, place) {
   const city = shortCity(place.city);
   const code = place.code || "";
-  q.setGeoCache.run(geokey, place.country, city, code);
+  q.setGeoCache.run(geokey, place.country, city, code, 0);
   q.liveByGeokey.run(place.country, geokey);
   return city;
 }
 
 const placeMiss = new Set();
+
+// A Nominatim row with no country. country stays '' because the column is
+// NOT NULL. miss is what makes a restart skip the lookup. The Set is only
+// a hot cache of those rows.
+function rememberMiss(geokey) {
+  placeMiss.add(geokey);
+  q.setGeoCache.run(geokey, "", "", "", 1);
+}
+
+function storedCountry(geokey) {
+  if (placeMiss.has(geokey)) return { known: true, country: null };
+  const row = q.getGeoCache.get(geokey);
+  if (row && Number(row.miss) === 1) {
+    placeMiss.add(geokey);
+    return { known: true, country: null };
+  }
+  if (row && row.country) return { known: true, country: row.country };
+  return { known: false, country: null };
+}
 
 // city/town/village, then country. An empty city means the lookup finished
 // and only the country was named. Null city means this cell is not done.
@@ -1586,10 +1660,17 @@ async function geoWorker() {
     geoQueue.delete(geokey);
     if (placeMiss.has(geokey)) continue;
     const row = q.getGeoCache.get(geokey) || null;
+    if (row && Number(row.miss) === 1) {
+      placeMiss.add(geokey);
+      continue;
+    }
     if (placeReady(row)) {
       q.liveByGeokey.run(row.country, geokey);
       continue;
     }
+    // Feed cells are the "f" keys. An empty cell must not spend a Nominatim
+    // request. Live-marker keys are not feed cells and stay on this queue.
+    if (parseFeedGeoKey(geokey) && !feedPostCellsNow().has(geokey)) continue;
     const cell = cellCenter(geokey);
     if (!cell) continue;
     const offline = lookupFeedPlace(cell[0], cell[1]);
@@ -1599,13 +1680,13 @@ async function geoWorker() {
     }
     const place = await resolvePlace(cell[0], cell[1]);
     await sleep(1000); // Nominatim policy: ~1 request/second
-    if (place && place.miss) placeMiss.add(geokey);
+    if (place && place.miss) rememberMiss(geokey);
     else if (place && place.country) {
-      q.setGeoCache.run(geokey, place.country, place.city || "", place.code || "");
+      q.setGeoCache.run(geokey, place.country, place.city || "", place.code || "", 0);
       q.liveByGeokey.run(place.country, geokey);
     }
-    // no country (ocean / API hiccup) → row stays unresolved; a later
-    // report for the same cell re-queues it and retries
+    // A thrown lookup or a non-OK response stays unresolved. A later report
+    // re-queues that cell. A real miss is already stored by rememberMiss.
   }
   geoBusy = false;
 }
@@ -3020,7 +3101,8 @@ app.post("/api/marker", publicPostLimit, (req, res) => {
   }
   const [lng, lat] = parts;
   const geokey = geoKeyFor(lng, lat);
-  const cached = (q.getGeoCache.get(geokey) || {}).country || null;
+  const found = storedCountry(geokey);
+  const cached = found.country;
   q.upsertLive.run({
     topic, cord, geokey, lng, lat,
     country: cached,
@@ -3035,7 +3117,7 @@ app.post("/api/marker", publicPostLimit, (req, res) => {
   // cached — the /api/local view can then attach the topic name.
   q.upsertTopic.run(topic, Date.now());
   fetchTopicMemo(topic);
-  if (!cached) geoQueue.add(geokey);
+  if (!found.known) enqueueGeo(geokey);
   geoWorker();
   res.json({ ok: true });
 });
@@ -3254,10 +3336,79 @@ app.get("/api/early-hashinals", publicPostLimit, (req, res) => {
   res.json(earlyHashinals.snapshot());
 });
 
+// Finished place with nothing to show. Same object /api/place already
+// returns for a Nominatim miss: no pending flag, so the client stops.
+function placeNone(geokey) {
+  return { geokey, city: "", country: "", country_code: "" };
+}
+
+// Points of one stored message that the feed can turn into a card.
+// Marker and polygon numbers follow drawingNumber, the same rule
+// feedCardStored uses. Shares need the topic and created that rule
+// accepts. Chat needs user text or an image and no drawing.
+function pointsOfStoredFeedPost(body) {
+  const points = [];
+  if (!body || typeof body !== "object") return points;
+  const drawings = [
+    ["marker", body.marker && body.marker.data, "numberOfMarker"],
+    ["polygon", body.polygon && body.polygon.data, "numberOfPolygon"],
+  ];
+  for (const [kind, drawing, numberKey] of drawings) {
+    if (!drawing || typeof drawing !== "object") continue;
+    if (drawingNumber(drawing[numberKey], "x") == null) continue;
+    const point = pointFromCord(kind, drawing.cord);
+    const hit = point && finitePoint(point[0], point[1]);
+    if (hit) points.push(hit);
+  }
+  const share = body.share;
+  if (share && typeof share === "object") {
+    const topic = typeof share.topic === "string" ? share.topic.trim() : "";
+    const when = typeof share.created === "string" ? new Date(share.created) : null;
+    if (/^\d+\.\d+\.\d+$/.test(topic) && when && !Number.isNaN(when.getTime())) {
+      const point = pointFromValue(share.pin != null ? share.pin : share.coords);
+      if (point) points.push(point);
+    }
+  }
+  if (!body.marker && !body.polygon && !body.share && (body.userMessage || body.image)) {
+    const point = pointFromValue(body.location)
+      || pointFromValue(body.place)
+      || pointFromValue(body.coords)
+      || pointFromValue(body.cord)
+      || finitePoint(
+        body.lng ?? body.lon ?? body.longitude,
+        body.lat ?? body.latitude
+      );
+    if (point) points.push(point);
+  }
+  return points;
+}
+
+// Feed cells that hold at least one stored post. Rebuilt when messages
+// are inserted or dropped. /api/place uses this the way /api/views uses
+// feedCardStored: a key the client invented is not a stored post.
+let feedPostCells = null;
+let feedPostCellToken = "";
+
+function feedPostCellsNow() {
+  const stamp = q.feedPostStamp.get();
+  const token = `${Number(stamp && stamp.n) || 0}:${Number(stamp && stamp.top) || 0}`;
+  if (feedPostCells && feedPostCellToken === token) return feedPostCells;
+  const cells = new Set();
+  for (const row of q.feedLocatedBodies.all()) {
+    let body;
+    try { body = JSON.parse(row.body); } catch { continue; }
+    for (const point of pointsOfStoredFeedPost(body)) cells.add(feedGeoKey(point[0], point[1]));
+  }
+  feedPostCells = cells;
+  feedPostCellToken = token;
+  return cells;
+}
+
 // Feed cards ask for a city and country. Keys are the feedplace.js cell
 // ("f" + rounded lng + ":" + rounded lat on a 0.5 deg grid). A listed city
 // is answered from the offline set and written into geo_cache. Nominatim
-// runs only when that lookup has no city, through the 1 req/s queue.
+// runs only when that lookup has no city, a stored feed post sits in the
+// cell, and the 1 req/s queue still has room.
 app.get("/api/place", publicPostLimit, (req, res) => {
   const raw = String(req.query.keys || "");
   const keys = [];
@@ -3268,13 +3419,10 @@ app.get("/api/place", publicPostLimit, (req, res) => {
   }
   const places = [];
   let queued = false;
+  const posted = feedPostCellsNow();
   for (const key of keys) {
     const cell = parseFeedGeoKey(key);
     if (!cell) continue;
-    if (placeMiss.has(key)) {
-      places.push({ geokey: key, city: "", country: "", country_code: "" });
-      continue;
-    }
     const row = q.getGeoCache.get(key);
     if (placeReady(row)) {
       places.push({
@@ -3296,7 +3444,19 @@ app.get("/api/place", publicPostLimit, (req, res) => {
       });
       continue;
     }
-    geoQueue.add(key);
+    if (placeMiss.has(key) || (row && Number(row.miss) === 1)) {
+      if (row && Number(row.miss) === 1) placeMiss.add(key);
+      places.push(placeNone(key));
+      continue;
+    }
+    if (!posted.has(key)) {
+      places.push(placeNone(key));
+      continue;
+    }
+    if (!enqueueGeo(key)) {
+      places.push(placeNone(key));
+      continue;
+    }
     queued = true;
     places.push({ geokey: key, pending: true });
   }
