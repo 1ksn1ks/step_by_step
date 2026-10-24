@@ -7886,7 +7886,7 @@ html.feed-app appkit-modal {
   height: calc(var(--fu) * 1.6);
   flex: 0 0 auto;
 }
-#feed-column .feed-meta {
+#feed-column .feed-actions {
   --feed-action: #777;
   --feed-action-on: #22D3EE;
   --feed-action-hover: #67e8f9;
@@ -7898,26 +7898,49 @@ html.feed-app appkit-modal {
   margin-top: calc(var(--fu) * 0.8);
   min-width: 0;
 }
-#feed-column .feed-meta-left,
-#feed-column .feed-meta-right {
+#feed-column .feed-actions-left,
+#feed-column .feed-actions-right {
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
   gap: var(--feed-action-gap);
   min-width: 0;
 }
-#feed-column .feed-meta-left {
-  justify-content: space-between;
+#feed-column .feed-actions-left {
+  justify-content: flex-end;
 }
-#feed-column .feed-meta-right {
+#feed-column .feed-actions-right {
   justify-content: flex-start;
 }
-#feed-column .feed-meta-mid {
+#feed-column .feed-actions-mid {
   position: relative;
   z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+#feed-column .feed-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--fu) * 1.1);
+  margin-top: calc(var(--fu) * 0.55);
+  min-width: 0;
+}
+#feed-column .feed-meta-left,
+#feed-column .feed-meta-right {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+#feed-column .feed-meta-left {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+#feed-column .feed-meta-right {
+  flex: 0 1 auto;
+  justify-content: flex-end;
 }
 #feed-column .feed-meta .feed-loc {
   margin-top: 0;
@@ -7970,14 +7993,14 @@ html.feed-app appkit-modal {
 
 /* Feed action row only. Map popups keep the glass heart, the count below it,
    and red / cyan / green. Here the same controls sit in an X-style row. */
-#feed-column .feed-meta .heart-like {
+#feed-column .feed-actions .heart-like {
   --h: calc(var(--fu) * 0.26);
   display: flex;
   align-items: center;
   width: auto;
   height: auto;
 }
-#feed-column .feed-meta .heart-like label {
+#feed-column .feed-actions .heart-like label {
   position: relative;
   inset: auto;
   display: flex;
@@ -7990,7 +8013,7 @@ html.feed-app appkit-modal {
   box-shadow: none;
   border-radius: 0;
 }
-#feed-column .feed-meta .heart-like label:before {
+#feed-column .feed-actions .heart-like label:before {
   content: attr(data-count);
   position: static;
   order: 1;
@@ -8015,23 +8038,23 @@ html.feed-app appkit-modal {
   pointer-events: auto;
   z-index: auto;
 }
-#feed-column .feed-meta-mid .heart-like.comment-bubble label:before {
+#feed-column .feed-actions-mid .heart-like.comment-bubble label:before {
   position: absolute;
   left: calc(100% + var(--fu) * 0.4);
   top: 50%;
   transform: translateY(-50%);
   white-space: nowrap;
 }
-#feed-column .feed-meta .heart-like input:checked + label:before {
+#feed-column .feed-actions .heart-like input:checked + label:before {
   content: attr(data-next);
   color: var(--feed-action-on);
   background: none;
 }
-#feed-column .feed-meta .heart-like.is-pop label:before,
-#feed-column .feed-meta .heart-like.is-down label:before {
+#feed-column .feed-actions .heart-like.is-pop label:before,
+#feed-column .feed-actions .heart-like.is-down label:before {
   animation: none;
 }
-#feed-column .feed-meta .heart-like label span {
+#feed-column .feed-actions .heart-like label span {
   order: 0;
   position: relative;
   flex: 0 0 auto;
@@ -8044,7 +8067,7 @@ html.feed-app appkit-modal {
   -webkit-mask-image: none;
   mask-image: none;
 }
-#feed-column .feed-meta .heart-like label span:before {
+#feed-column .feed-actions .heart-like label span:before {
   content: "";
   position: absolute;
   inset: 16%;
@@ -8066,65 +8089,65 @@ html.feed-app appkit-modal {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z'/%3E%3C/svg%3E");
 }
-#feed-column .feed-meta .heart-like label span:after {
+#feed-column .feed-actions .heart-like label span:after {
   content: none;
 }
-#feed-column .feed-meta .heart-like:not(.comment-bubble):not(.share-bubble) input:checked + label span:before,
-#feed-column .feed-meta .heart-like:not(.comment-bubble):not(.share-bubble).is-pop label span:before {
+#feed-column .feed-actions .heart-like:not(.comment-bubble):not(.share-bubble) input:checked + label span:before,
+#feed-column .feed-actions .heart-like:not(.comment-bubble):not(.share-bubble).is-pop label span:before {
   background-color: var(--feed-action-on);
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' stroke='black' stroke-width='2' stroke-linejoin='round' d='M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' stroke='black' stroke-width='2' stroke-linejoin='round' d='M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z'/%3E%3C/svg%3E");
 }
-#feed-column .feed-meta .comment-bubble label span:before {
+#feed-column .feed-actions .comment-bubble label span:before {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7.9 20A9 9 0 1 0 4 16.1L2 22Z'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7.9 20A9 9 0 1 0 4 16.1L2 22Z'/%3E%3C/svg%3E");
 }
-#feed-column .feed-meta .share-bubble label span:before {
+#feed-column .feed-actions .share-bubble label span:before {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='18' cy='5' r='3'/%3E%3Ccircle cx='6' cy='12' r='3'/%3E%3Ccircle cx='18' cy='19' r='3'/%3E%3Cpath d='M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='18' cy='5' r='3'/%3E%3Ccircle cx='6' cy='12' r='3'/%3E%3Ccircle cx='18' cy='19' r='3'/%3E%3Cpath d='M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98'/%3E%3C/svg%3E");
 }
-#feed-column .feed-meta .heart-like.comment-bubble input:checked + label span:before,
-#feed-column .feed-meta .heart-like.share-bubble input:checked + label span:before,
-#feed-column .feed-meta .heart-like.comment-bubble.is-pop label span:before,
-#feed-column .feed-meta .heart-like.share-bubble.is-pop label span:before,
-#feed-column .feed-meta .heart-like input:checked + label span:before {
+#feed-column .feed-actions .heart-like.comment-bubble input:checked + label span:before,
+#feed-column .feed-actions .heart-like.share-bubble input:checked + label span:before,
+#feed-column .feed-actions .heart-like.comment-bubble.is-pop label span:before,
+#feed-column .feed-actions .heart-like.share-bubble.is-pop label span:before,
+#feed-column .feed-actions .heart-like input:checked + label span:before {
   background-color: var(--feed-action-on);
 }
-#feed-column .feed-meta .heart-like.share-bubble label span,
-#feed-column .feed-meta .heart-like.share-bubble input:checked + label span,
-#feed-column .feed-meta .heart-like.share-bubble.is-pop label span,
-#feed-column .feed-meta .heart-like.share-bubble:hover label span,
-#feed-column .feed-meta .heart-like.share-bubble:hover input:checked + label span {
+#feed-column .feed-actions .heart-like.share-bubble label span,
+#feed-column .feed-actions .heart-like.share-bubble input:checked + label span,
+#feed-column .feed-actions .heart-like.share-bubble.is-pop label span,
+#feed-column .feed-actions .heart-like.share-bubble:hover label span,
+#feed-column .feed-actions .heart-like.share-bubble:hover input:checked + label span {
   background: rgba(255, 255, 255, 0.10);
   background-color: rgba(255, 255, 255, 0.10);
   -webkit-mask-image: none;
   mask-image: none;
 }
-#feed-column .feed-meta .heart-like.is-pop label:after,
-#feed-column .feed-meta .comment-bubble.is-pop label:after,
-#feed-column .feed-meta .share-bubble.is-pop label:after {
+#feed-column .feed-actions .heart-like.is-pop label:after,
+#feed-column .feed-actions .comment-bubble.is-pop label:after,
+#feed-column .feed-actions .share-bubble.is-pop label:after {
   --bg: #22D3EE;
   left: calc(var(--h) * 5);
   top: 50%;
 }
-#feed-column .feed-meta .heart-like label:after {
+#feed-column .feed-actions .heart-like label:after {
   left: calc(var(--h) * 5);
   top: 50%;
 }
 @media (pointer: fine) {
-  #feed-column .feed-meta .heart-like:hover label span,
-  #feed-column .feed-meta .heart-like.share-bubble:hover label span {
+  #feed-column .feed-actions .heart-like:hover label span,
+  #feed-column .feed-actions .heart-like.share-bubble:hover label span {
     background: rgba(255, 255, 255, 0.16);
     background-color: rgba(255, 255, 255, 0.16);
   }
-  #feed-column .feed-meta .heart-like:hover label span:before,
-  #feed-column .feed-meta .heart-like.comment-bubble:hover label span:before,
-  #feed-column .feed-meta .heart-like.share-bubble:hover label span:before {
+  #feed-column .feed-actions .heart-like:hover label span:before,
+  #feed-column .feed-actions .heart-like.comment-bubble:hover label span:before,
+  #feed-column .feed-actions .heart-like.share-bubble:hover label span:before {
     background-color: var(--feed-action-hover);
   }
-  #feed-column .feed-meta .heart-like:hover input:checked + label span:before,
-  #feed-column .feed-meta .heart-like.comment-bubble:hover input:checked + label span:before,
-  #feed-column .feed-meta .heart-like.share-bubble:hover input:checked + label span:before {
+  #feed-column .feed-actions .heart-like:hover input:checked + label span:before,
+  #feed-column .feed-actions .heart-like.comment-bubble:hover input:checked + label span:before,
+  #feed-column .feed-actions .heart-like.share-bubble:hover input:checked + label span:before {
     background-color: var(--feed-action-on);
   }
 }

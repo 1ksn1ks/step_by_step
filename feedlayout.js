@@ -978,12 +978,18 @@ function buildCard(post) {
     card.appendChild(text);
   }
 
+  const actions = document.createElement('div');
+  actions.className = 'feed-actions';
+  const actionLeft = document.createElement('div');
+  actionLeft.className = 'feed-actions-left';
+  const actionMid = document.createElement('div');
+  actionMid.className = 'feed-actions-mid';
+  const actionRight = document.createElement('div');
+  actionRight.className = 'feed-actions-right';
   const meta = document.createElement('div');
   meta.className = 'feed-meta';
   const left = document.createElement('div');
   left.className = 'feed-meta-left';
-  const mid = document.createElement('div');
-  mid.className = 'feed-meta-mid';
   const right = document.createElement('div');
   right.className = 'feed-meta-right';
   const loc = document.createElement('button');
@@ -1013,19 +1019,20 @@ function buildCard(post) {
   });
   left.appendChild(loc);
   if ((post.kind === 'marker' || post.kind === 'polygon') && record.topicId && record.timestamp) {
-    const actions = document.createElement('div');
-    mountPostReactions(actions, record, post.kind, card);
-    const heart = actions.querySelector('.heart-like:not(.comment-bubble):not(.share-bubble)');
-    const comment = actions.querySelector('.comment-bubble');
-    const share = actions.querySelector('.share-bubble');
-    if (heart) left.appendChild(heart);
+    const cluster = document.createElement('div');
+    mountPostReactions(cluster, record, post.kind, card);
+    const heart = cluster.querySelector('.heart-like:not(.comment-bubble):not(.share-bubble)');
+    const comment = cluster.querySelector('.comment-bubble');
+    const share = cluster.querySelector('.share-bubble');
+    if (heart) actionLeft.appendChild(heart);
     if (comment) {
-      mid.appendChild(comment);
-      right.appendChild(commentCountSpace(comment));
+      actionMid.appendChild(comment);
+      actionRight.appendChild(commentCountSpace(comment));
     }
-    if (share) right.appendChild(share);
+    if (share) actionRight.appendChild(share);
   }
-  right.appendChild(viewChip(post.key));
+  actionRight.appendChild(viewChip(post.key));
+  actions.append(actionLeft, actionMid, actionRight);
   const time = document.createElement('div');
   time.className = 'popup-timestamp';
   const fullTime = document.createElement('span');
@@ -1036,8 +1043,8 @@ function buildCard(post) {
   briefTime.textContent = shortClock(post.time) || fullTime.textContent;
   time.append(fullTime, briefTime);
   right.appendChild(time);
-  meta.append(left, mid, right);
-  card.appendChild(meta);
+  meta.append(left, right);
+  card.append(actions, meta);
   return card;
 }
 
