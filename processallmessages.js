@@ -1481,7 +1481,8 @@ function popupNavArrow(kind, onStep) {
 }
 
 // Hover and press spin in CSS. A tap spins once more. The card opens on
-// the click; the spin is only visual and never gates the open.
+// the click; the spin is only visual and never gates the open. If the
+// transform transition never ends, the same reset runs once after 1100ms.
 function popupSettingsGear(walk) {
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -1501,16 +1502,24 @@ function popupSettingsGear(walk) {
     btn.classList.add('is-spin');
     if (!icon) return;
     spinning = true;
-    const reset = (end) => {
-      if (end.target !== icon || end.propertyName !== 'transform') return;
-      icon.removeEventListener('transitionend', reset);
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      icon.removeEventListener('transitionend', onEnd);
       spinning = false;
       icon.style.transition = 'none';
       btn.classList.remove('is-spin', 'is-again');
       void icon.offsetWidth;
       icon.style.transition = '';
     };
-    icon.addEventListener('transitionend', reset);
+    const onEnd = (end) => {
+      if (end.target !== icon || end.propertyName !== 'transform') return;
+      finish();
+    };
+    const timer = setTimeout(finish, 1100);
+    icon.addEventListener('transitionend', onEnd);
   });
   return btn;
 }
