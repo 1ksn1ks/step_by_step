@@ -18,6 +18,7 @@ import { earlyHashinalNumber } from './earlyhashinal.js';
 import { prefetchPersonFollow } from './followtopic.js';
 import { watchMarkerTilt, forgetMarkerTilt } from './markertilt.js';
 import { fillMapTip } from './maptip.js';
+import { isPointerOnGlobe } from './onglobe.js';
 
 
 
@@ -145,11 +146,27 @@ function syncMarkerTipEarly(tip, el) {
   tip.prepend(spin);
 }
 
+function markerLngLat(el) {
+  const coords = el && el._markerTip && el._markerTip.geometry && el._markerTip.geometry.coordinates;
+  return coords || null;
+}
+
+function markerCanvasPoint(x, y) {
+  const rect = map.getCanvas().getBoundingClientRect();
+  return { x: x - rect.left, y: y - rect.top };
+}
+
 function showMarkerTitle(el, x, y) {
   if (!el || !Number.isFinite(x) || !Number.isFinite(y)) {
     hideMarkerTitle();
     return;
   }
+  if (!isPointerOnGlobe(markerCanvasPoint(x, y), markerLngLat(el))) {
+    hideMarkerTitle();
+    el.style.cursor = '';
+    return;
+  }
+  el.style.cursor = 'pointer';
   const tip = ensureMarkerTitleTip();
   if (tip._tipEl !== el) {
     if (!fillMapTip(tip, el._markerTip)) {
@@ -175,10 +192,20 @@ map.on("movestart", () => {
 
 function bindMarkerTitle(el) {
   el.addEventListener("mouseenter", (event) => {
+    if (!isPointerOnGlobe(markerCanvasPoint(event.clientX, event.clientY), markerLngLat(el))) {
+      hideMarkerTitle();
+      el.style.cursor = '';
+      return;
+    }
     prefetchPersonFollow(el._markerPayer);
     if (markerCanHover()) showMarkerTitle(el, event.clientX, event.clientY);
   });
   el.addEventListener("mousemove", (event) => {
+    if (!isPointerOnGlobe(markerCanvasPoint(event.clientX, event.clientY), markerLngLat(el))) {
+      hideMarkerTitle();
+      el.style.cursor = '';
+      return;
+    }
     if (markerCanHover()) showMarkerTitle(el, event.clientX, event.clientY);
   });
   el.addEventListener("mouseleave", () => {

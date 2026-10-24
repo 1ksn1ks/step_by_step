@@ -1,3 +1,5 @@
+import { isPointerOnGlobe } from './onglobe.js';
+
 // Subtle tilt for the polygon picture under the pointer. The image is
 // a quad of geographic corners. Those corners move a few screen pixels
 // so that one picture leans. Other polygons stay on their saved corners.
@@ -118,7 +120,7 @@ function resolvePick() {
   if (!mapRef || !event) return;
   pointer = event.point || null;
   const ids = maskIds();
-  if (!ids.length || !pointer) {
+  if (!ids.length || !pointer || !isPointerOnGlobe(pointer)) {
     activeId = null;
     return;
   }
@@ -135,7 +137,7 @@ function resolvePick() {
   const layerId = hits[0].layer && hits[0].layer.id;
   activeId = null;
   for (const quad of quads.values()) {
-    if (quad.maskLayerId === layerId) {
+    if (quad.maskLayerId === layerId && isPointerOnGlobe(pointer, quad.coordinates)) {
       activeId = quad.sourceId;
       return;
     }

@@ -14,6 +14,7 @@ import { closePressAnchor } from './poiinfo';
 import { watchPolygonTilt, forgetPolygonTilt } from './polygontilt.js';
 import { fillMapTip } from './maptip.js';
 import { prefetchPersonFollow } from './followtopic.js';
+import { isPointerOnGlobe } from './onglobe.js';
 
 
 
@@ -51,9 +52,26 @@ function hidePolygonTitle() {
   polygonTitleTip._tipSource = null;
 }
 
+function polygonRing(polygon) {
+  return polygon && polygon.coordinates && polygon.coordinates[0];
+}
+
+function polygonHoverOnGlobe(e, polygon) {
+  if (isPointerOnGlobe(e && e.point, polygonRing(polygon))) return true;
+  hidePolygonTitle();
+  map.getCanvas().style.cursor = '';
+  return false;
+}
+
 function showPolygonTitle(polygon, point, fromTouch) {
   if (!polygon || !point) {
     hidePolygonTitle();
+    return;
+  }
+  const rect = map.getCanvas().getBoundingClientRect();
+  if (!isPointerOnGlobe({ x: point.x - rect.left, y: point.y - rect.top }, polygonRing(polygon))) {
+    hidePolygonTitle();
+    map.getCanvas().style.cursor = '';
     return;
   }
   const tip = ensurePolygonTitleTip();
@@ -887,12 +905,15 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
         });
   
         map.on('mouseenter', maskLayerId, (e) => {
+          if (!polygonHoverOnGlobe(e, polygon)) return;
           prefetchPersonFollow(polygon.payer);
           map.getCanvas().style.cursor = 'pointer';
           showPolygonTitle(polygon, eventPoint(e), false);
         });
 
         map.on('mousemove', maskLayerId, (e) => {
+          if (!polygonHoverOnGlobe(e, polygon)) return;
+          map.getCanvas().style.cursor = 'pointer';
           showPolygonTitle(polygon, eventPoint(e), false);
         });
 
@@ -907,6 +928,7 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
         });
 
         map.on('touchstart', maskLayerId, (e) => {
+          if (!polygonHoverOnGlobe(e, polygon)) return;
           prefetchPersonFollow(polygon.payer);
           showPolygonTitle(polygon, eventPoint(e), true);
         });
