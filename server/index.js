@@ -27,6 +27,7 @@ import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
 import { startEarlyHashinals } from "./hashinals.js";
+import { lookupFeedPlace, parseFeedGeoKey } from "./feedplace.js";
 import { createChunkAssembler } from "../hcschunks.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1523,6 +1524,28 @@ function geoKeyFor(lng, lat) {
   return Math.round(lng / GEO_GRID) + ":" + Math.round(lat / GEO_GRID);
 }
 
+// Live-marker keys are "lngCell:latCell" on GEO_GRID. Feed keys are the
+// "f" + cell form from feedplace.js (0.5 deg). Both store a lng/lat pair
+// for the centre of that cell.
+function cellCenter(geokey) {
+  const feed = parseFeedGeoKey(geokey);
+  if (feed) return [feed.lng, feed.lat];
+  if (!/^-?\d+:-?\d+$/.test(geokey)) return null;
+  const [glng, glat] = geokey.split(":").map(Number);
+  const lng = glng * GEO_GRID;
+  const lat = glat * GEO_GRID;
+  if (Math.abs(lng) > 180 || Math.abs(lat) > 90) return null;
+  return [lng, lat];
+}
+
+function rememberPlace(geokey, place) {
+  const city = shortCity(place.city);
+  const code = place.code || "";
+  q.setGeoCache.run(geokey, place.country, city, code);
+  q.liveByGeokey.run(place.country, geokey);
+  return city;
+}
+
 const placeMiss = new Set();
 
 function shortCity(city) {
@@ -1571,8 +1594,14 @@ async function geoWorker() {
       q.liveByGeokey.run(row.country, geokey);
       continue;
     }
-    const [glng, glat] = geokey.split(":").map(Number); // cell corner
-    const place = await resolvePlace(glng * GEO_GRID, glat * GEO_GRID);
+    const cell = cellCenter(geokey);
+    if (!cell) continue;
+    const offline = lookupFeedPlace(cell[0], cell[1]);
+    if (offline && offline.city) {
+      rememberPlace(geokey, offline);
+      continue;
+    }
+    const place = await resolvePlace(cell[0], cell[1]);
     await sleep(1000); // Nominatim policy: ~1 request/second
     if (place && place.miss) placeMiss.add(geokey);
     else if (place && place.country) {
@@ -3229,8 +3258,10 @@ app.get("/api/early-hashinals", publicPostLimit, (req, res) => {
   res.json(earlyHashinals.snapshot());
 });
 
-// Feed cards ask for a city and country. The cell is the same GEO_GRID key
-// the live-marker queue uses, so one neighbourhood is one Nominatim call.
+// Feed cards ask for a city and country. Keys are the feedplace.js cell
+// ("f" + rounded lng + ":" + rounded lat on a 0.5 deg grid). A listed city
+// is answered from the offline set and written into geo_cache. Nominatim
+// runs only when that lookup has no city, through the 1 req/s queue.
 app.get("/api/place", publicPostLimit, (req, res) => {
   const raw = String(req.query.keys || "");
   const keys = [];
@@ -3242,9 +3273,8 @@ app.get("/api/place", publicPostLimit, (req, res) => {
   const places = [];
   let queued = false;
   for (const key of keys) {
-    if (!/^-?\d+:-?\d+$/.test(key)) continue;
-    const [glng, glat] = key.split(":").map(Number);
-    if (Math.abs(glng * GEO_GRID) > 180 || Math.abs(glat * GEO_GRID) > 90) continue;
+    const cell = parseFeedGeoKey(key);
+    if (!cell) continue;
     if (placeMiss.has(key)) {
       places.push({ geokey: key, city: "", country: "", country_code: "" });
       continue;
@@ -3257,11 +3287,22 @@ app.get("/api/place", publicPostLimit, (req, res) => {
         country: row.country,
         country_code: row.country_code || "",
       });
-    } else {
-      geoQueue.add(key);
-      queued = true;
-      places.push({ geokey: key, pending: true });
+      continue;
     }
+    const offline = lookupFeedPlace(cell.lng, cell.lat);
+    if (offline && offline.city) {
+      const city = rememberPlace(key, offline);
+      places.push({
+        geokey: key,
+        city,
+        country: offline.country,
+        country_code: offline.code || "",
+      });
+      continue;
+    }
+    geoQueue.add(key);
+    queued = true;
+    places.push({ geokey: key, pending: true });
   }
   if (queued) geoWorker();
   res.json({ ok: true, places });

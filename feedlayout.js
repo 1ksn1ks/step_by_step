@@ -561,18 +561,68 @@ function coordLabel(lngLat) {
   return `${n(lat)}, ${n(lng)}`;
 }
 
-// Same cell as the server GEO_GRID. One neighbourhood is one place lookup.
-const PLACE_GRID = 0.1;
+// Feed place cell. Coarser than the live-marker GEO_GRID (0.1 deg).
+// Key: "f" + Math.round(lng / 0.5) + ":" + Math.round(lat / 0.5)
+// Example: longitude 13.4, latitude 52.5 is "f27:105".
+// server/feedplace.js parses the same string. 0.5 deg is about 55 km.
+const PLACE_GRID = 0.5;
+const PLACE_STORE = 'feed-places-v1';
+const PLACE_STORE_MAX = 2500;
 const placeCache = new Map();
 const placeKeys = new Set();
 let placeQueued = false;
+let placeStoreTimer = 0;
 
 function placeKey(lngLat) {
   const lng = Number(lngLat && lngLat[0]);
   const lat = Number(lngLat && lngLat[1]);
   if (!Number.isFinite(lng) || !Number.isFinite(lat)) return '';
-  return Math.round(lng / PLACE_GRID) + ':' + Math.round(lat / PLACE_GRID);
+  return 'f' + Math.round(lng / PLACE_GRID) + ':' + Math.round(lat / PLACE_GRID);
 }
+
+function loadPlaceStore() {
+  try {
+    const raw = localStorage.getItem(PLACE_STORE);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object') return;
+    for (const [key, row] of Object.entries(data)) {
+      if (!/^f-?\d+:-?\d+$/.test(key) || !row || typeof row !== 'object') continue;
+      placeCache.set(key, {
+        state: 'ready',
+        city: String(row.city || ''),
+        country: String(row.country || ''),
+        code: String(row.code || ''),
+      });
+    }
+  } catch {
+    /* private mode or a bad value */
+  }
+}
+
+function savePlaceStore() {
+  if (placeStoreTimer) return;
+  placeStoreTimer = setTimeout(() => {
+    placeStoreTimer = 0;
+    try {
+      const ready = [];
+      for (const [key, hit] of placeCache) {
+        if (!hit || hit.state !== 'ready') continue;
+        ready.push([key, {
+          city: hit.city || '',
+          country: hit.country || '',
+          code: hit.code || '',
+        }]);
+      }
+      const kept = ready.length > PLACE_STORE_MAX ? ready.slice(ready.length - PLACE_STORE_MAX) : ready;
+      localStorage.setItem(PLACE_STORE, JSON.stringify(Object.fromEntries(kept)));
+    } catch {
+      /* quota or private mode */
+    }
+  }, 200);
+}
+
+loadPlaceStore();
 
 function flagEmoji(code) {
   const iso = String(code || '').toUpperCase();
@@ -665,6 +715,7 @@ async function flushPlaces() {
   }
   let pending = false;
   let failed = false;
+  let learned = false;
   try {
     const res = await fetch(`${BACKEND_URL}/api/place?keys=${encodeURIComponent(keys.join(','))}`);
     if (!res.ok) throw new Error('place');
@@ -682,10 +733,12 @@ async function flushPlaces() {
         country: row.country || '',
         code: row.country_code || '',
       });
+      learned = true;
     }
   } catch {
     failed = true;
   }
+  if (learned) savePlaceStore();
   for (const key of keys) {
     const hit = placeCache.get(key);
     if (!hit || hit.state !== 'wait') continue;
