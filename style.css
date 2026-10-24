@@ -7286,6 +7286,7 @@ a.payer-link {
    ancestor, so the unit is redeclared on the children where 2.4cqi is
    this column. Old browsers keep the fallback above. */
 #feed-frame {
+  --feed-tab-y: 0px;
   position: absolute;
   top: 0;
   right: 0;
@@ -7588,19 +7589,18 @@ html.feed-app appkit-modal {
   background: #0a0a12;
   border-bottom: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
   opacity: 1;
-  transform: translateY(0);
-  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1), opacity 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateY(var(--feed-tab-y, 0px));
+  transition: none;
+}
+#feed-tabs.is-settle {
+  transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .feed-tabs-slide {
   display: flex;
   align-items: stretch;
   height: calc(var(--fu) * 4.4);
 }
-#feed-tabs.is-away {
-  opacity: 0;
-  transform: translateY(-100%);
-  pointer-events: none;
-}
+
 #feed-tab-ruler {
   position: absolute;
   width: 0;
@@ -8533,11 +8533,8 @@ html.feed-app appkit-modal {
   touch-action: manipulation;
   opacity: 0;
   box-shadow: 0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.28);
-  transform: translateX(-50%) translateY(calc(var(--fu) * -1.4));
-  transition: opacity 300ms cubic-bezier(0.22, 1, 0.36, 1), transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-#feed-tabs.is-away ~ #feed-new-posts {
-  transform: translateX(-50%) translateY(calc(var(--fu) * -1.4 - var(--fu) * 4.4));
+  transform: translateX(-50%) translateY(calc(var(--fu) * -1.4 + var(--feed-tab-y, 0px)));
+  transition: opacity 220ms ease;
 }
 #feed-new-posts[hidden] {
   display: none;
@@ -8545,10 +8542,10 @@ html.feed-app appkit-modal {
 #feed-new-posts.is-in {
   opacity: 1;
   pointer-events: auto;
-  transform: translateX(-50%) translateY(0);
+  transform: translateX(-50%) translateY(var(--feed-tab-y, 0px));
 }
-#feed-tabs.is-away ~ #feed-new-posts.is-in {
-  transform: translateX(-50%) translateY(calc(var(--fu) * -4.4));
+#feed-tabs.is-settle ~ #feed-new-posts {
+  transition: opacity 220ms ease, transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 #feed-new-posts svg {
   width: calc(var(--fu) * 1.7);
@@ -8592,9 +8589,13 @@ html.feed-app appkit-modal {
   outline-offset: calc(var(--fu) * 0.12);
 }
 @media (prefers-reduced-motion: reduce) {
-  #feed-new-posts,
-  #feed-tabs {
+  #feed-new-posts {
     transition-duration: 50ms;
+  }
+  #feed-tabs,
+  #feed-tabs.is-settle,
+  #feed-tabs.is-settle ~ #feed-new-posts {
+    transition: none;
   }
 }
 @media (hover: none), (pointer: coarse) {

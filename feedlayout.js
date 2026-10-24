@@ -265,12 +265,15 @@ const deletedStamp = new Set();
 const deletedNumber = new Set();
 const droppedShares = new Set();
 let savedScroll = 0;
-let tabShown = true;
 let tabLastY = 0;
-let tabDownFrom = 0;
+let tabOffset = 0;
 let tabHidePx = 0;
-let tabHideReady = false;
+let tabDir = 0;
+let tabPending = 0;
 let tabTrackHold = false;
+let tabFollowQueued = false;
+let tabSettleTimer = 0;
+let tabSettleGen = 0;
 let peek = false;
 let placing = false;
 let drawWasOpen = false;
@@ -3430,14 +3433,131 @@ searchInput.addEventListener('keydown', (event) => {
   event.preventDefault();
 });
 
+function tabRowHeight() {
+  const h = tabs.getBoundingClientRect().height;
+  if (h > 1) tabHidePx = h;
+  return tabHidePx > 1 ? tabHidePx : 0;
+}
+
+function cancelTabSettle() {
+  tabSettleGen += 1;
+  if (tabSettleTimer) {
+    clearTimeout(tabSettleTimer);
+    tabSettleTimer = 0;
+  }
+  tabs.classList.remove('is-settle');
+}
+
+function readVisualOffset() {
+  const tr = getComputedStyle(tabs).transform;
+  if (!tr || tr === 'none') return 0;
+  const m3 = tr.match(/matrix3d\(([^)]+)\)/);
+  if (m3) {
+    const ty = parseFloat(m3[1].split(',')[13]);
+    return Number.isFinite(ty) ? ty : tabOffset;
+  }
+  const m = tr.match(/matrix\(([^)]+)\)/);
+  if (!m) return tabOffset;
+  const ty = parseFloat(m[1].split(',')[5]);
+  return Number.isFinite(ty) ? ty : tabOffset;
+}
+
+function pinVisualOffset() {
+  if (!tabs.classList.contains('is-settle')) return;
+  tabOffset = readVisualOffset();
+  tabs.classList.remove('is-settle');
+  frame.style.setProperty('--feed-tab-y', tabOffset.toFixed(2) + 'px');
+}
+
+function writeTabOffset(y, settle) {
+  const limit = tabRowHeight();
+  const next = limit > 1 ? Math.max(-limit, Math.min(0, y)) : 0;
+  tabOffset = next;
+  frame.style.setProperty('--feed-tab-y', next.toFixed(2) + 'px');
+  tabs.classList.toggle('is-settle', !!settle);
+  if (next <= -limit + 0.5 && limit > 1) tabs.style.pointerEvents = 'none';
+  else tabs.style.removeProperty('pointer-events');
+}
+
+function showFeedTabs() {
+  cancelTabSettle();
+  tabDir = 0;
+  tabPending = 0;
+  tabLastY = scroller.scrollTop;
+  writeTabOffset(0, false);
+}
+
 function measureTabHide() {
-  const h = tabRuler.getBoundingClientRect().height;
-  if (h > 0) {
-    tabHidePx = h;
-    tabHideReady = true;
+  pinVisualOffset();
+  writeTabOffset(tabOffset, false);
+}
+
+function queueTabFollow() {
+  if (tabFollowQueued) return;
+  tabFollowQueued = true;
+  requestAnimationFrame(applyTabFollow);
+}
+
+function applyTabFollow() {
+  tabFollowQueued = false;
+  tabSettleGen += 1;
+  if (root.classList.contains('is-peek')) {
+    tabPending = 0;
     return;
   }
-  if (!tabHideReady) tabHidePx = window.innerHeight * 0.02;
+  const delta = tabPending;
+  tabPending = 0;
+  pinVisualOffset();
+  if (tabSettleTimer) {
+    clearTimeout(tabSettleTimer);
+    tabSettleTimer = 0;
+  }
+  const y = scroller.scrollTop;
+  if (y < 2) {
+    tabDir = 0;
+    writeTabOffset(0, false);
+    return;
+  }
+  if (delta > 0.5) tabDir = 1;
+  else if (delta < -0.5) tabDir = -1;
+  writeTabOffset(tabOffset - delta, false);
+  armTabSettle();
+}
+
+function armTabSettle() {
+  if (tabSettleTimer) clearTimeout(tabSettleTimer);
+  tabSettleTimer = setTimeout(settleTabs, 80);
+}
+
+function settleTabs() {
+  tabSettleTimer = 0;
+  if (root.classList.contains('is-peek')) return;
+  const y = scroller.scrollTop;
+  tabLastY = y;
+  if (y < 2) {
+    writeTabOffset(0, false);
+    return;
+  }
+  const h = tabRowHeight();
+  if (!(h > 1) || tabOffset >= -0.5 || tabOffset <= -h + 0.5) return;
+  const target = tabDir < 0 ? 0 : -h;
+  if (motionOff()) {
+    writeTabOffset(target, false);
+    return;
+  }
+  const gen = ++tabSettleGen;
+  tabs.classList.remove('is-settle');
+  frame.style.setProperty('--feed-tab-y', tabOffset.toFixed(2) + 'px');
+  void tabs.offsetWidth;
+  tabs.classList.add('is-settle');
+  frame.style.setProperty('--feed-tab-y', target.toFixed(2) + 'px');
+  tabOffset = target;
+  if (target <= -h + 0.5) tabs.style.pointerEvents = 'none';
+  else tabs.style.removeProperty('pointer-events');
+  setTimeout(() => {
+    if (gen !== tabSettleGen) return;
+    tabs.classList.remove('is-settle');
+  }, 130);
 }
 
 // Script scrolls must not count as a finger moving the row.
@@ -3456,45 +3576,6 @@ function feedScrollTo(options) {
   if (typeof top === 'number' && scroller.scrollTop === before && top === before) tabTrackHold = false;
 }
 
-function showFeedTabs() {
-  tabDownFrom = scroller.scrollTop;
-  if (tabShown) return;
-  tabShown = true;
-  tabs.classList.remove('is-away');
-}
-
-function hideFeedTabs() {
-  if (!tabShown) return;
-  tabShown = false;
-  tabs.classList.add('is-away');
-}
-
-function trackFeedTabs(trusted) {
-  if (!tabHideReady) measureTabHide();
-  const y = scroller.scrollTop;
-  if (y < 2) {
-    showFeedTabs();
-    tabLastY = y;
-    return;
-  }
-  if (!trusted) {
-    tabLastY = y;
-    tabDownFrom = y;
-    return;
-  }
-  const delta = y - tabLastY;
-  tabLastY = y;
-  if (delta < 0) {
-    showFeedTabs();
-    return;
-  }
-  if (delta > 0 && tabShown && y - tabDownFrom >= (tabHidePx || window.innerHeight * 0.02)) {
-    const row = tabs.getBoundingClientRect().height;
-    if (row > 1 && y < row + 2) return;
-    hideFeedTabs();
-  }
-}
-
 tabs.addEventListener('focusin', () => showFeedTabs());
 window.addEventListener('resize', measureTabHide);
 if (window.visualViewport) window.visualViewport.addEventListener('resize', measureTabHide);
@@ -3503,8 +3584,17 @@ scroller.addEventListener('scroll', (event) => {
   const hold = tabTrackHold;
   if (hold) tabTrackHold = false;
   if (root.classList.contains('is-peek')) return;
-  trackFeedTabs(event.isTrusted && !hold);
-  savedScroll = scroller.scrollTop;
+  const y = scroller.scrollTop;
+  if (hold || !event.isTrusted) {
+    tabLastY = y;
+    if (y < 2) showFeedTabs();
+  } else {
+    // Hold this delta until the frame. A script scroll only moves tabLastY.
+    tabPending += y - tabLastY;
+    tabLastY = y;
+    queueTabFollow();
+  }
+  savedScroll = y;
   fillUp();
   fillDown();
   revealParked();
