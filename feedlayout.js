@@ -14,7 +14,7 @@ import { activeMarkerPopups } from './marker.js';
 import { activePolygonPopups } from './polygons.js';
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
 import { MARKER_ZOOM } from './openplace.js';
-import { ringCenter } from './polygonframe.js';
+import { ringCenter, zoomForPolygon } from './polygonframe.js';
 import { CloseALL, changePopupState, popIsOpen, expandTopicChat, expandEncryptedChat } from './cssLogic.js';
 import { closeDrawAnchor, openDrawColumn } from './drawhere.js';
 import { closePressAnchor } from './poiinfo.js';
@@ -2697,23 +2697,31 @@ function openPolygonFeature(polygon) {
   activePolygonPopups.push(popup);
   popup.setLngLat(lngLat).setDOMContent(node).addTo(map);
   cancelAnimateMapTo();
-  animateMapTo(map, lngLat, MARKER_ZOOM);
+  animateMapTo(map, lngLat, zoomForPolygon(polygon));
   applyAllStyles();
   changePopupState(true);
   hideModel();
   return true;
 }
 
-function flyOnly(lngLat) {
+function flyZoom(post) {
+  const polygon = post && post.kind === 'polygon' ? post.polygon : null;
+  const ring = polygon && Array.isArray(polygon.coordinates) ? polygon.coordinates[0] : null;
+  if (Array.isArray(ring) && ring.length >= 2) return zoomForPolygon(polygon);
+  return MARKER_ZOOM;
+}
+
+function flyOnly(lngLat, zoom = MARKER_ZOOM) {
   if (window.layerOpened) {
     window.layerOpened('feedfly', {
       lng: lngLat[0],
       lat: lngLat[1],
+      zoom,
       scroll: savedScroll,
     });
   }
   cancelAnimateMapTo();
-  animateMapTo(map, lngLat, MARKER_ZOOM);
+  animateMapTo(map, lngLat, zoom);
 }
 
 function openOnMap(post) {
@@ -2723,7 +2731,7 @@ function openOnMap(post) {
   syncCover();
   if (post.kind === 'marker' && post.feature && openMarkerFeature(post.feature)) return;
   if (post.kind === 'polygon' && post.polygon && openPolygonFeature(post.polygon)) return;
-  flyOnly(post.lngLat);
+  flyOnly(post.lngLat, flyZoom(post));
 }
 
 function paintSearch(open) {
@@ -3147,7 +3155,8 @@ if (window.defineLayer) {
       if (Number.isFinite(y)) savedScroll = y;
       if (state && state.lng != null && state.lat != null) {
         cancelAnimateMapTo();
-        animateMapTo(map, [Number(state.lng), Number(state.lat)], MARKER_ZOOM);
+        const zoom = Number(state.zoom);
+        animateMapTo(map, [Number(state.lng), Number(state.lat)], Number.isFinite(zoom) ? zoom : MARKER_ZOOM);
       }
     },
     close: () => {
