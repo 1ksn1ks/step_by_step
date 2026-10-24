@@ -7286,7 +7286,6 @@ a.payer-link {
    ancestor, so the unit is redeclared on the children where 2.4cqi is
    this column. Old browsers keep the fallback above. */
 #feed-frame {
-  --feed-tab-y: 0px;
   position: absolute;
   top: 0;
   right: 0;
@@ -7577,6 +7576,7 @@ html.feed-app appkit-modal {
   }
 }
 #feed-tabs {
+  --feed-tab-y: 0px;
   position: absolute;
   top: calc(var(--fu) * 5.6);
   left: 0;
@@ -8699,6 +8699,7 @@ html.feed-app appkit-modal {
   border-top: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
 }
 #feed-new-posts {
+  --feed-tab-y: 0px;
   position: absolute;
   z-index: 3;
   top: calc(var(--fu) * 10.8);

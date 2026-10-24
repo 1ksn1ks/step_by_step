@@ -3734,10 +3734,18 @@ searchInput.addEventListener('keydown', (event) => {
   event.preventDefault();
 });
 
-function tabRowHeight() {
+function refreshTabRowHeight() {
   const h = tabs.getBoundingClientRect().height;
   if (h > 1) tabHidePx = h;
+}
+
+function tabRowHeight() {
   return tabHidePx > 1 ? tabHidePx : 0;
+}
+
+function setTabY(value) {
+  tabs.style.setProperty('--feed-tab-y', value);
+  newPill.style.setProperty('--feed-tab-y', value);
 }
 
 function cancelTabSettle() {
@@ -3767,14 +3775,14 @@ function pinVisualOffset() {
   if (!tabs.classList.contains('is-settle')) return;
   tabOffset = readVisualOffset();
   tabs.classList.remove('is-settle');
-  frame.style.setProperty('--feed-tab-y', tabOffset.toFixed(2) + 'px');
+  setTabY(tabOffset.toFixed(2) + 'px');
 }
 
 function writeTabOffset(y, settle) {
   const limit = tabRowHeight();
   const next = limit > 1 ? Math.max(-limit, Math.min(0, y)) : 0;
   tabOffset = next;
-  frame.style.setProperty('--feed-tab-y', next.toFixed(2) + 'px');
+  setTabY(next.toFixed(2) + 'px');
   tabs.classList.toggle('is-settle', !!settle);
   if (next <= -limit + 0.5 && limit > 1) tabs.style.pointerEvents = 'none';
   else tabs.style.removeProperty('pointer-events');
@@ -3789,6 +3797,7 @@ function showFeedTabs() {
 }
 
 function measureTabHide() {
+  refreshTabRowHeight();
   pinVisualOffset();
   writeTabOffset(tabOffset, false);
 }
@@ -3848,10 +3857,10 @@ function settleTabs() {
   }
   const gen = ++tabSettleGen;
   tabs.classList.remove('is-settle');
-  frame.style.setProperty('--feed-tab-y', tabOffset.toFixed(2) + 'px');
+  setTabY(tabOffset.toFixed(2) + 'px');
   void tabs.offsetWidth;
   tabs.classList.add('is-settle');
-  frame.style.setProperty('--feed-tab-y', target.toFixed(2) + 'px');
+  setTabY(target.toFixed(2) + 'px');
   tabOffset = target;
   if (target <= -h + 0.5) tabs.style.pointerEvents = 'none';
   else tabs.style.removeProperty('pointer-events');
@@ -3880,6 +3889,10 @@ function feedScrollTo(options) {
 tabs.addEventListener('focusin', () => showFeedTabs());
 window.addEventListener('resize', measureTabHide);
 if (window.visualViewport) window.visualViewport.addEventListener('resize', measureTabHide);
+if (document.fonts) {
+  document.fonts.ready.then(() => measureTabHide());
+  document.fonts.addEventListener('loadingdone', measureTabHide);
+}
 
 scroller.addEventListener('scroll', (event) => {
   const hold = tabTrackHold;
