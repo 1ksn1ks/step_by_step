@@ -7342,7 +7342,7 @@ html.feed-app appkit-modal {
   top: 0;
   left: 0;
   right: 0;
-  z-index: 2;
+  z-index: 3;
   width: 100%;
   height: calc(var(--fu) * 5.6);
   margin-inline: auto;
@@ -7597,7 +7597,7 @@ html.feed-app appkit-modal {
   top: calc(var(--fu) * 5.6);
   left: 0;
   right: 0;
-  z-index: 1;
+  z-index: 2;
   width: 100%;
   height: calc(var(--fu) * 4.4);
   margin-inline: auto;
@@ -7684,6 +7684,8 @@ html.feed-app appkit-modal {
 #feed-scroll {
   --feed-chrome: var(--fu);
   position: absolute;
+  z-index: 0;
+  isolation: isolate;
   top: calc(var(--fu) * 5.6);
   right: 0;
   bottom: 0;
@@ -8071,6 +8073,7 @@ html.feed-app appkit-modal {
   align-items: center;
   width: auto;
   height: auto;
+  z-index: auto;
 }
 #feed-column .feed-actions .heart-like label {
   position: relative;
@@ -8129,6 +8132,7 @@ html.feed-app appkit-modal {
 #feed-column .feed-actions .heart-like label span {
   order: 0;
   position: relative;
+  z-index: auto;
   flex: 0 0 auto;
   width: calc(var(--h) * 10);
   height: calc(var(--h) * 10);
@@ -8610,6 +8614,7 @@ html.feed-app appkit-modal {
   --h: calc(var(--fu) * 0.26);
   display: flex;
   align-items: center;
+  z-index: auto;
   gap: calc(var(--fu) * 0.4);
   height: calc(var(--h) * 10);
   margin: 0;
