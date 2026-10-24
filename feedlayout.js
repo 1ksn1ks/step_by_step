@@ -2567,17 +2567,24 @@ function walletModalOpen() {
   return box.width > 0 && box.height > 0;
 }
 
+// web3.js writes "Connecting..." before openModal. That label, or the sheet,
+// means the connect flow is still starting and must not be treated as a miss.
+function connectPending() {
+  const connect = document.getElementById('connect-wallet-btn');
+  return !!(connect && /connecting/i.test(connect.textContent || ''));
+}
+
 // 'ok' continues into placing. 'cancel' stays on the feed with no toast.
 // 'fail' is a real miss and the caller says why.
 function ensureWallet() {
   if (walletNow()) return Promise.resolve('ok');
   const connect = document.getElementById('connect-wallet-btn');
   if (!connect) return Promise.resolve('fail');
-  if (!walletModalOpen()) {
+  if (!walletModalOpen() && !connectPending()) {
     try { connect.click(); } catch (err) { return Promise.resolve('fail'); }
   }
   const started = Date.now();
-  let saw = false;
+  let sawSheet = false;
   return new Promise((resolve) => {
     const tick = () => {
       if (walletNow()) {
@@ -2585,12 +2592,15 @@ function ensureWallet() {
         return;
       }
       const open = walletModalOpen();
-      if (open) saw = true;
-      if (saw && !open) {
+      const connecting = connectPending();
+      if (open) sawSheet = true;
+      // The overlay can drop while openModal is still resolving. Stay pending
+      // until the label clears so a late account still resolves 'ok'.
+      if (sawSheet && !open && !connecting) {
         resolve('cancel');
         return;
       }
-      if (!open && Date.now() - started >= 4000) {
+      if (!sawSheet && !open && !connecting && Date.now() - started >= 4000) {
         resolve('fail');
         return;
       }
