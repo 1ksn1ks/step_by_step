@@ -7,6 +7,18 @@ import { map } from './map.js';
 
 const DEG = Math.PI / 180;
 
+// Unit steps around the pointer. Diagonals stay one inset long.
+const INSET_STEPS = [
+  [1, 0],
+  [Math.SQRT1_2, Math.SQRT1_2],
+  [0, 1],
+  [-Math.SQRT1_2, Math.SQRT1_2],
+  [-1, 0],
+  [-Math.SQRT1_2, -Math.SQRT1_2],
+  [0, -1],
+  [Math.SQRT1_2, -Math.SQRT1_2],
+];
+
 let insetEl = null;
 let cached = null;
 
@@ -72,7 +84,7 @@ function limbRadius(center) {
   let lo = 0;
   let hi = 64;
   while (onSurface({ x: center.x + hi, y: center.y }) && hi < 1e7) hi *= 2;
-  // Silhouette is far off screen. The inset disc does not apply.
+  // Silhouette is far off screen. The limb inset does not apply.
   if (onSurface({ x: center.x + hi, y: center.y })) return Infinity;
   for (let i = 0; i < 18; i++) {
     const mid = (lo + hi) / 2;
@@ -185,7 +197,9 @@ function facesCamera(lngLat, state) {
 
 // point is a canvas pixel ({x, y}), the same space as a map event point.
 // lngLat is optional: one {lng, lat} / [lng, lat], or a ring of those.
-// Off the globe, or on the far side, this is false. Flat view is always true.
+// Off the globe, inside the 0.5dvmin limb inset, or on the far side, this is
+// false. Flat view is always true. The inset is eight ray tests, so it follows
+// the silhouette at any pitch or bearing.
 export function isPointerOnGlobe(point, lngLat) {
   if (!renderingGlobe()) return true;
   if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return true;
@@ -194,10 +208,9 @@ export function isPointerOnGlobe(point, lngLat) {
   if (!onSurface(point)) return false;
   if (state.radius === Infinity) return facesCamera(lngLat, state);
   const inset = insetPx();
-  const limit = state.radius > inset * 2 ? state.radius - inset : state.radius * 0.98;
-  if (!(limit > 0)) return false;
-  const dx = point.x - state.center.x;
-  const dy = point.y - state.center.y;
-  if (dx * dx + dy * dy > limit * limit) return false;
+  for (let i = 0; i < INSET_STEPS.length; i++) {
+    const step = INSET_STEPS[i];
+    if (!onSurface({ x: point.x + step[0] * inset, y: point.y + step[1] * inset })) return false;
+  }
   return facesCamera(lngLat, state);
 }
