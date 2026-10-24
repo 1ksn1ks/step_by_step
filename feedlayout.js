@@ -34,7 +34,11 @@ const FEED_SETTING = {
   density: 'feed-setting-density',
   fresh: 'feed-setting-fresh',
   location: 'feed-setting-location',
+  zoom: 'feed-setting-zoom',
 };
+const FEED_ZOOM_MIN = 0.8;
+const FEED_ZOOM_MAX = 1.3;
+const FEED_ZOOM_STEP = 0.1;
 const feedPrefs = {
   tab: 'all',
   autoplay: false,
@@ -42,6 +46,7 @@ const feedPrefs = {
   density: 'comfortable',
   fresh: 'pill',
   location: true,
+  zoom: 1,
 };
 let settingsOpen = false;
 
@@ -58,9 +63,19 @@ function readFeedPrefs() {
     const location = localStorage.getItem(FEED_SETTING.location);
     if (location === 'on') feedPrefs.location = true;
     if (location === 'off') feedPrefs.location = false;
+    const zoom = localStorage.getItem(FEED_SETTING.zoom);
+    if (zoom != null) feedPrefs.zoom = clampFeedZoom(zoom);
   } catch {
     /* private mode */
   }
+}
+
+function clampFeedZoom(value) {
+  const n = Math.round(Number(value) * 10) / 10;
+  if (!Number.isFinite(n)) return 1;
+  if (n < FEED_ZOOM_MIN) return FEED_ZOOM_MIN;
+  if (n > FEED_ZOOM_MAX) return FEED_ZOOM_MAX;
+  return n;
 }
 
 function writeFeedSetting(key, value) {
@@ -3349,7 +3364,23 @@ async function openE2ee() {
   openOverFeed(() => clickId('toggle-encrypted-chat-btn'));
 }
 
+function applyFeedZoom() {
+  const value = feedPrefs.zoom.toFixed(1);
+  root.style.setProperty('--feed-zoom', value);
+  document.documentElement.style.setProperty('--feed-zoom', value);
+}
+
+function setFeedZoom(next) {
+  const zoom = clampFeedZoom(next);
+  if (zoom === feedPrefs.zoom) return;
+  feedPrefs.zoom = zoom;
+  writeFeedSetting(FEED_SETTING.zoom, zoom.toFixed(1));
+  applyFeedZoom();
+  measureTabHide();
+}
+
 function applyFeedChrome() {
+  applyFeedZoom();
   root.classList.toggle('is-compact', feedPrefs.density === 'compact');
   root.classList.toggle('is-loc-off', !feedPrefs.location);
   if (feedPrefs.location) {
@@ -3478,6 +3509,52 @@ mediaSection.append(
     syncFeedVideos();
   }),
 );
+function settingsZoom() {
+  const row = document.createElement('div');
+  row.className = 'feed-settings-zoom';
+  row.setAttribute('role', 'group');
+  row.setAttribute('aria-label', 'Zoom');
+  const outBtn = document.createElement('button');
+  outBtn.type = 'button';
+  outBtn.id = 'feed-zoom-out';
+  outBtn.className = 'feed-settings-zoom-btn';
+  outBtn.setAttribute('aria-label', 'Zoom out');
+  outBtn.textContent = '\u2212';
+  const level = document.createElement('span');
+  level.id = 'feed-zoom-level';
+  level.className = 'feed-settings-zoom-level';
+  level.setAttribute('aria-live', 'polite');
+  const inBtn = document.createElement('button');
+  inBtn.type = 'button';
+  inBtn.id = 'feed-zoom-in';
+  inBtn.className = 'feed-settings-zoom-btn';
+  inBtn.setAttribute('aria-label', 'Zoom in');
+  inBtn.textContent = '+';
+  const paint = () => {
+    level.textContent = Math.round(feedPrefs.zoom * 100) + '%';
+    outBtn.disabled = feedPrefs.zoom <= FEED_ZOOM_MIN;
+    inBtn.disabled = feedPrefs.zoom >= FEED_ZOOM_MAX;
+  };
+  outBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setFeedZoom(feedPrefs.zoom - FEED_ZOOM_STEP);
+    paint();
+  });
+  inBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setFeedZoom(feedPrefs.zoom + FEED_ZOOM_STEP);
+    paint();
+  });
+  bindPress(outBtn);
+  bindPress(inBtn);
+  row.append(outBtn, level, inBtn);
+  paint();
+  settingsPaints.push(paint);
+  return row;
+}
+
+const zoomSection = settingsSection('Zoom');
+zoomSection.appendChild(settingsZoom());
 const densitySection = settingsSection('Density');
 densitySection.appendChild(settingsRadios('Density', [
   { value: 'compact', label: 'Compact' },
@@ -3502,7 +3579,7 @@ privacySection.appendChild(settingsSwitch('Show location on cards', () => feedPr
   writeFeedSetting(FEED_SETTING.location, on ? 'on' : 'off');
   applyFeedChrome();
 }));
-settingsBody.append(tabSection, mediaSection, densitySection, freshSection, privacySection);
+settingsBody.append(tabSection, mediaSection, zoomSection, densitySection, freshSection, privacySection);
 settings.append(settingsBar, settingsBody);
 root.appendChild(settings);
 
