@@ -1582,7 +1582,7 @@ function buildCard(post) {
     section.className = 'popup-body';
     const msgDiv = document.createElement('div');
     msgDiv.appendChild(text);
-    section.append(media, msgDiv);
+    section.append(msgDiv, media);
     sheet.appendChild(section);
     card.appendChild(sheet);
   } else if (media) {
@@ -1658,7 +1658,10 @@ function buildCard(post) {
   time.append(fullTime, briefTime);
   right.appendChild(time);
   meta.append(left, right);
-  card.append(actions, meta);
+  const foot = document.createElement('div');
+  foot.className = 'feed-foot';
+  foot.append(actions, meta);
+  card.appendChild(foot);
   return card;
 }
 
