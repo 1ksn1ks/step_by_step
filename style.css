@@ -7587,8 +7587,9 @@ html.feed-app appkit-modal {
   overflow: hidden;
   background: #0a0a12;
   border-bottom: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
+  opacity: 1;
   transform: translateY(0);
-  transition: transform 200ms ease;
+  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1), opacity 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .feed-tabs-slide {
   display: flex;
@@ -7596,6 +7597,7 @@ html.feed-app appkit-modal {
   height: calc(var(--fu) * 4.4);
 }
 #feed-tabs.is-away {
+  opacity: 0;
   transform: translateY(-100%);
   pointer-events: none;
 }
@@ -8532,10 +8534,10 @@ html.feed-app appkit-modal {
   opacity: 0;
   box-shadow: 0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.28);
   transform: translateX(-50%) translateY(calc(var(--fu) * -1.4));
-  transition: opacity 220ms ease, transform 220ms ease, top 200ms ease;
+  transition: opacity 300ms cubic-bezier(0.22, 1, 0.36, 1), transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 #feed-tabs.is-away ~ #feed-new-posts {
-  top: calc(var(--fu) * 6.4);
+  transform: translateX(-50%) translateY(calc(var(--fu) * -1.4 - var(--fu) * 4.4));
 }
 #feed-new-posts[hidden] {
   display: none;
@@ -8544,6 +8546,9 @@ html.feed-app appkit-modal {
   opacity: 1;
   pointer-events: auto;
   transform: translateX(-50%) translateY(0);
+}
+#feed-tabs.is-away ~ #feed-new-posts.is-in {
+  transform: translateX(-50%) translateY(calc(var(--fu) * -4.4));
 }
 #feed-new-posts svg {
   width: calc(var(--fu) * 1.7);
@@ -8589,7 +8594,7 @@ html.feed-app appkit-modal {
 @media (prefers-reduced-motion: reduce) {
   #feed-new-posts,
   #feed-tabs {
-    transition: none;
+    transition-duration: 50ms;
   }
 }
 @media (hover: none), (pointer: coarse) {
