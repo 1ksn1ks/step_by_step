@@ -15,7 +15,7 @@ import { activePolygonPopups } from './polygons.js';
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
 import { MARKER_ZOOM } from './openplace.js';
 import { ringCenter } from './polygonframe.js';
-import { CloseALL, changePopupState, popIsOpen } from './cssLogic.js';
+import { CloseALL, changePopupState, popIsOpen, expandTopicChat, expandEncryptedChat } from './cssLogic.js';
 import { closeDrawAnchor, openDrawColumn } from './drawhere.js';
 import { closePressAnchor } from './poiinfo.js';
 import { applyAllStyles } from './loadprofilepopup.js';
@@ -3124,6 +3124,7 @@ function applyFeed(on) {
     hideSearch();
     if (dropSearch && window.layerClosedByUI) window.layerClosedByUI('feedsearch');
     if (settingsOpen || (window.layerIsOpen && window.layerIsOpen('feedsettings'))) closeFeedSettings();
+    if (feedChatKind || (window.layerIsOpen && window.layerIsOpen('feedchat'))) closeFeedChat();
   }
   if (on) {
     const opening = !feedOn();
@@ -3342,7 +3343,7 @@ function openOwnProfile() {
 }
 
 function openTopicChat() {
-  openOverFeed(() => clickId('topic-chat-btn'));
+  openFeedChat('topic');
 }
 
 async function openE2ee() {
@@ -3361,7 +3362,7 @@ async function openE2ee() {
       return;
     }
   }
-  openOverFeed(() => clickId('toggle-encrypted-chat-btn'));
+  openFeedChat('e2ee');
 }
 
 function applyFeedZoom() {
@@ -3583,6 +3584,226 @@ settingsBody.append(tabSection, mediaSection, zoomSection, densitySection, fresh
 settings.append(settingsBar, settingsBody);
 root.appendChild(settings);
 
+const FEED_CHATS = {
+  topic: {
+    id: 'topic-chat-container',
+    title: 'Topic chat',
+    expand: expandTopicChat,
+  },
+  e2ee: {
+    id: 'encrypted-chat-container',
+    title: 'E2EE chat',
+    expand: expandEncryptedChat,
+  },
+};
+const FEED_CHAT_ICONS = [
+  ['post-msg', [
+    ['path', { d: 'M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z' }],
+    ['path', { d: 'm21.854 2.147-10.94 10.939' }],
+  ]],
+  ['post-msg-encrypted-chat', [
+    ['path', { d: 'M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z' }],
+    ['path', { d: 'm21.854 2.147-10.94 10.939' }],
+  ]],
+  ['topic-chat-image-btn', [
+    ['rect', { width: '18', height: '18', x: '3', y: '3', rx: '2', ry: '2' }],
+    ['circle', { cx: '9', cy: '9', r: '2' }],
+    ['path', { d: 'm21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21' }],
+  ]],
+  ['encrypted-chat-image-btn', [
+    ['rect', { width: '18', height: '18', x: '3', y: '3', rx: '2', ry: '2' }],
+    ['circle', { cx: '9', cy: '9', r: '2' }],
+    ['path', { d: 'm21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21' }],
+  ]],
+  ['go-to-top-msgs', [
+    ['path', { d: 'm18 15-6-6-6 6' }],
+  ]],
+  ['go-to-bottom-msgs', [
+    ['path', { d: 'm6 9 6 6 6-6' }],
+  ]],
+  ['go-to-top-msgs-encrypted-chat', [
+    ['path', { d: 'm18 15-6-6-6 6' }],
+  ]],
+  ['go-to-bottom-msgs-encrypted-chat', [
+    ['path', { d: 'm6 9 6 6 6-6' }],
+  ]],
+  ['show-options-from-topic-chat', [
+    ['line', { x1: '21', x2: '14', y1: '4', y2: '4' }],
+    ['line', { x1: '10', x2: '3', y1: '4', y2: '4' }],
+    ['line', { x1: '21', x2: '12', y1: '12', y2: '12' }],
+    ['line', { x1: '8', x2: '3', y1: '12', y2: '12' }],
+    ['line', { x1: '14', x2: '14', y1: '2', y2: '6' }],
+    ['line', { x1: '8', x2: '8', y1: '10', y2: '14' }],
+  ]],
+  ['show-options-from-topic-chat-btn', [
+    ['line', { x1: '21', x2: '14', y1: '4', y2: '4' }],
+    ['line', { x1: '10', x2: '3', y1: '4', y2: '4' }],
+    ['line', { x1: '21', x2: '12', y1: '12', y2: '12' }],
+    ['line', { x1: '8', x2: '3', y1: '12', y2: '12' }],
+    ['line', { x1: '14', x2: '14', y1: '2', y2: '6' }],
+    ['line', { x1: '8', x2: '8', y1: '10', y2: '14' }],
+  ]],
+  ['show-options-from-encrypted-chat', [
+    ['line', { x1: '21', x2: '14', y1: '4', y2: '4' }],
+    ['line', { x1: '10', x2: '3', y1: '4', y2: '4' }],
+    ['line', { x1: '21', x2: '12', y1: '12', y2: '12' }],
+    ['line', { x1: '8', x2: '3', y1: '12', y2: '12' }],
+    ['line', { x1: '14', x2: '14', y1: '2', y2: '6' }],
+    ['line', { x1: '8', x2: '8', y1: '10', y2: '14' }],
+  ]],
+  ['show-options-from-encrypted-chat-btn', [
+    ['line', { x1: '21', x2: '14', y1: '4', y2: '4' }],
+    ['line', { x1: '10', x2: '3', y1: '4', y2: '4' }],
+    ['line', { x1: '21', x2: '12', y1: '12', y2: '12' }],
+    ['line', { x1: '8', x2: '3', y1: '12', y2: '12' }],
+    ['line', { x1: '14', x2: '14', y1: '2', y2: '6' }],
+    ['line', { x1: '8', x2: '8', y1: '10', y2: '14' }],
+  ]],
+];
+
+const feedChat = document.createElement('div');
+feedChat.id = 'feed-chat';
+feedChat.hidden = true;
+feedChat.setAttribute('role', 'dialog');
+feedChat.setAttribute('aria-modal', 'true');
+feedChat.setAttribute('aria-label', 'Chat');
+const feedChatBar = document.createElement('div');
+feedChatBar.className = 'feed-chat-bar';
+const feedChatBack = document.createElement('button');
+feedChatBack.type = 'button';
+feedChatBack.className = 'feed-chat-back';
+feedChatBack.setAttribute('aria-label', 'Back');
+feedChatBack.appendChild(svgIcon([
+  ['path', { d: 'm12 19-7-7 7-7' }],
+  ['path', { d: 'M19 12H5' }],
+]));
+const feedChatTitle = document.createElement('h2');
+feedChatTitle.className = 'feed-chat-title';
+feedChatTitle.textContent = 'Chat';
+feedChatBar.append(feedChatBack, feedChatTitle);
+const feedChatBody = document.createElement('div');
+feedChatBody.className = 'feed-chat-body';
+feedChat.append(feedChatBar, feedChatBody);
+feedChat.addEventListener('click', (event) => event.stopPropagation());
+feedChat.addEventListener('pointerdown', (event) => event.stopPropagation());
+root.appendChild(feedChat);
+
+let feedChatKind = '';
+let feedChatHome = null;
+let feedChatWatch = null;
+let feedChatLive = false;
+
+function dressFeedChatIcons(on) {
+  for (const [id, icon] of FEED_CHAT_ICONS) {
+    const btn = document.getElementById(id);
+    if (!btn) continue;
+    const old = btn.querySelector('svg.feed-chat-glyph');
+    if (old) old.remove();
+    if (!on) continue;
+    const glyph = svgIcon(icon);
+    glyph.classList.add('feed-chat-glyph');
+    btn.appendChild(glyph);
+  }
+}
+
+function restoreFeedChat() {
+  if (!feedChatHome) return;
+  const home = feedChatHome;
+  feedChatHome = null;
+  const panel = document.getElementById(home.id);
+  if (!panel) return;
+  panel.classList.remove('is-feed-shell');
+  if (home.style == null) panel.removeAttribute('style');
+  else panel.setAttribute('style', home.style);
+  if (home.parent) home.parent.insertBefore(panel, home.next);
+}
+
+function parkFeedChat(kind) {
+  const spec = FEED_CHATS[kind];
+  const panel = document.getElementById(spec.id);
+  if (!panel) return;
+  if (panel.parentNode !== feedChatBody) {
+    feedChatHome = {
+      id: spec.id,
+      parent: panel.parentNode,
+      next: panel.nextSibling,
+      style: panel.getAttribute('style'),
+    };
+    feedChatBody.appendChild(panel);
+  }
+  panel.classList.add('is-feed-shell');
+  panel.classList.remove('topic-chat-compact', 'topic-chat-fit', 'topic-chat-capped');
+  panel.style.display = 'flex';
+  if (feedChatWatch) feedChatWatch.disconnect();
+  feedChatWatch = new MutationObserver(() => {
+    if (!feedChatLive) return;
+    if (panel.style.display === 'none') closeFeedChat();
+  });
+  feedChatWatch.observe(panel, { attributes: true, attributeFilter: ['style'] });
+  requestAnimationFrame(() => {
+    if (feedChatKind !== kind) return;
+    spec.expand();
+  });
+}
+
+function paintFeedChat(kind) {
+  const spec = FEED_CHATS[kind];
+  if (!spec) {
+    hideFeedChatPanel();
+    return;
+  }
+  if (feedChatKind && feedChatKind !== kind) {
+    feedChatLive = false;
+    if (feedChatWatch) {
+      feedChatWatch.disconnect();
+      feedChatWatch = null;
+    }
+    restoreFeedChat();
+  }
+  feedChatKind = kind;
+  feedChatLive = true;
+  feedChatTitle.textContent = spec.title;
+  feedChat.setAttribute('aria-label', spec.title);
+  feedChat.hidden = false;
+  dressFeedChatIcons(true);
+  parkFeedChat(kind);
+  feedChatBack.focus({ preventScroll: true });
+}
+
+function hideFeedChatPanel() {
+  feedChatLive = false;
+  if (feedChatWatch) {
+    feedChatWatch.disconnect();
+    feedChatWatch = null;
+  }
+  feedChat.hidden = true;
+  restoreFeedChat();
+  dressFeedChatIcons(false);
+  feedChatKind = '';
+}
+
+function closeFeedChat() {
+  hideFeedChatPanel();
+  if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedchat')) {
+    window.layerClosedByUI('feedchat');
+  }
+}
+
+function openFeedChat(kind) {
+  if (!feedOn() || root.classList.contains('is-peek')) return;
+  if (!FEED_CHATS[kind]) return;
+  openOverFeed(() => {
+    paintFeedChat(kind);
+    if (window.layerOpened) window.layerOpened('feedchat', { kind });
+  });
+}
+
+bindPress(feedChatBack);
+feedChatBack.addEventListener('click', (event) => {
+  event.stopPropagation();
+  closeFeedChat();
+});
+
 function paintFeedSettings(open) {
   settingsOpen = open;
   settings.hidden = !open;
@@ -3789,6 +4010,11 @@ if (window.defineLayer) {
     parent: 'feed',
     open: () => paintFeedSettings(true),
     close: () => closeFeedSettings(),
+  });
+  window.defineLayer('feedchat', {
+    parent: 'feed',
+    open: (state) => paintFeedChat(state && state.kind),
+    close: () => hideFeedChatPanel(),
   });
   window.defineLayer('feedsearch', {
     parent: 'feed',
