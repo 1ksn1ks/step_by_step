@@ -10,6 +10,7 @@ import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
 import { initialTopicId } from './extracttopic.js';
 import { connectedAccount } from './web3.js';
 import { toast } from './toast.js';
+import { handleAllMessages } from './handleallmessages.js';
 import { activeMarkerPopups } from './marker.js';
 import { activePolygonPopups } from './polygons.js';
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
@@ -2437,7 +2438,7 @@ function rerenderLane(opts) {
   rangeEnd = 0;
   savedScroll = 0;
   setFeedScroll(0);
-  if (profileFilter) {
+  if (profileFilter || bannerTracks()) {
     showFeedTabs();
     writeBannerOffset(0);
   }
@@ -2468,7 +2469,7 @@ async function selectTab(next) {
   feedTab = next;
   paintTabs();
   showFeedTabs();
-  if (profileFilter) writeBannerOffset(0);
+  if (profileFilter || bannerTracks()) writeBannerOffset(0);
   if (next === 'all') {
     if (searchQuery || profileFilter) rerenderLane({ keepHeld: true });
     else restoreTabView();
@@ -3996,7 +3997,7 @@ function openFeedProfile(payer) {
   }
   holdScroll();
   closeMenu();
-  if (profileFilter) clearProfileFilter();
+  if (profileFilter || bannerTracks()) clearProfileFilter();
   paintFeedProfile(id);
   if (window.layerIsOpen && window.layerIsOpen('feedprofile')) {
     if (window.layerOpened) window.layerOpened('feedprofile', { payer: id });
@@ -4013,6 +4014,10 @@ function refreshBannerHeight() {
   const h = profileBanner.getBoundingClientRect().height;
   if (h > 1) bannerHidePx = h;
   writeBannerOffset(bannerOffset);
+}
+
+function bannerTracks() {
+  return !profileBanner.hidden;
 }
 
 function writeBannerOffset(y) {
@@ -4112,11 +4117,57 @@ function backToProfileAccount() {
   profileBack.focus({ preventScroll: true });
 }
 
-function loadProfilePosts() {
+let profileLoadBusy = false;
+
+function connectedTopic(payer) {
+  const topic = String(profileTopics[payer] || '').trim();
+  return /^\d+\.\d+\.\d+$/.test(topic) ? topic : '';
+}
+
+function showLoadedProfileFeed(payer) {
+  frame.classList.add('is-profile-feed');
+  paintProfileBanner(payer);
+  showProfileBanner();
+  setFeedScroll(0);
+  showFeedTabs();
+  writeBannerOffset(0);
+}
+
+// Same Load as the toolbar button: handleAllMessages reads #input-field
+// and fetches the topic. The feed then reads that field. No second loader.
+async function loadProfilePosts() {
   const payer = profilePayer;
-  if (!payer) return;
-  enterProfileFilter(payer);
+  if (!payer || profileLoadBusy) return;
+  const topic = connectedTopic(payer);
+  if (!topic) {
+    toast.error('No topic connected');
+    return;
+  }
+  const field = document.getElementById('input-field');
+  if (!field) return;
+  const epoch = profileEpoch;
+  profileLoadBusy = true;
+  profileLoad.disabled = true;
+  profileLoad.textContent = 'Loading…';
+  field.value = topic;
+  let loaded = null;
+  try {
+    loaded = await handleAllMessages();
+  } catch (error) {
+    console.warn('profile topic load failed', error);
+  } finally {
+    profileLoadBusy = false;
+    profileLoad.disabled = false;
+    profileLoad.textContent = 'Load posts';
+  }
+  if (epoch !== profileEpoch || profilePayer !== payer) return;
+  if (!loaded) {
+    toast.error('Could not load topic');
+    return;
+  }
+  ensureTopic(false);
   hideProfilePage();
+  showLoadedProfileFeed(payer);
 }
 
 function closeFeedProfile() {
@@ -4130,7 +4181,7 @@ function closeFeedProfile() {
 }
 
 function dismissFeedProfile() {
-  if (profilePage.hidden && !profileFilter && !(window.layerIsOpen && window.layerIsOpen('feedprofile'))) return;
+  if (profilePage.hidden && !profileFilter && !bannerTracks() && !(window.layerIsOpen && window.layerIsOpen('feedprofile'))) return;
   hideProfilePage();
   profilePayer = '';
   profileEpoch += 1;
@@ -5025,11 +5076,11 @@ if (window.defineLayer) {
     // page. The entry is already gone, so the page is pushed again
     // after this pop finishes. Back from the account page leaves.
     close: () => {
-      if (profileFilter && profilePayer) {
+      if (bannerTracks() && profilePayer) {
         const payer = profilePayer;
         backToProfileAccount();
         setTimeout(() => {
-          if (profilePayer !== payer || profileFilter) return;
+          if (profilePayer !== payer || bannerTracks()) return;
           if (window.layerIsOpen && window.layerIsOpen('feedprofile')) return;
           if (!feedCovers()) return;
           if (window.layerOpened) window.layerOpened('feedprofile', { payer });
@@ -5202,7 +5253,7 @@ menu.addEventListener('pointerdown', (event) => {
 
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
-  if (profileFilter && profilePayer && (!window.layerIsTop || window.layerIsTop('feedprofile'))) {
+  if (bannerTracks() && profilePayer && (!window.layerIsTop || window.layerIsTop('feedprofile'))) {
     event.preventDefault();
     event.stopPropagation();
     backToProfileAccount();
@@ -5326,7 +5377,7 @@ function showFeedTabs() {
 function measureTabHide() {
   refreshTabRowHeight();
   writeTabOffset(tabOffset);
-  if (profileFilter) refreshBannerHeight();
+  if (bannerTracks()) refreshBannerHeight();
 }
 
 function queueTabFollow() {
@@ -5348,11 +5399,11 @@ function applyTabFollow() {
   tabs.classList.remove('is-settle');
   if (scroller.scrollTop < 2) {
     writeTabOffset(0);
-    if (profileFilter) writeBannerOffset(0);
+    if (bannerTracks()) writeBannerOffset(0);
     return;
   }
   writeTabOffset(tabOffset - delta);
-  if (profileFilter) writeBannerOffset(bannerOffset - delta);
+  if (bannerTracks()) writeBannerOffset(bannerOffset - delta);
 }
 
 // Scrolling has stopped, including a fling. A partial hide stays where
@@ -5364,7 +5415,7 @@ function finishTabGlide() {
   if (tabFollowQueued) return;
   if (scroller.scrollTop < 2) {
     writeTabOffset(0);
-    if (profileFilter) writeBannerOffset(0);
+    if (bannerTracks()) writeBannerOffset(0);
   }
 }
 
@@ -5409,7 +5460,7 @@ scroller.addEventListener('scroll', (event) => {
     tabLastY = y;
     if (y < 2) {
       showFeedTabs();
-      if (profileFilter) writeBannerOffset(0);
+      if (bannerTracks()) writeBannerOffset(0);
     }
   } else {
     // Hold this delta until the frame. A script scroll only moves tabLastY.
