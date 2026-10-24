@@ -2974,6 +2974,22 @@ html, body {
     .popup-icon-chip.popup-settings-gear:hover:not(.is-hold):not(.is-spin) svg {
       transform: none;
     }
+    .popup-icon-chip.popup-nav-arrow:hover:not(.is-hold) {
+      background: var(--rest-bg);
+      background-color: var(--rest-bg);
+      border-color: var(--rest-border);
+      color: var(--rest-ink);
+      transform: none;
+      filter: none;
+    }
+    .popup-icon-chip.popup-nav-arrow:hover:not(.is-hold) .popup-arrow-rest {
+      opacity: 1;
+      transform: none;
+    }
+    .popup-icon-chip.popup-nav-arrow:hover:not(.is-hold) .popup-arrow-press {
+      opacity: 0;
+      transform: rotate(-40deg) scale(0.6);
+    }
   }
   .topic-follow-btn.is-pop,
   #feed-back-btn.is-pop,
@@ -3035,10 +3051,17 @@ html, body {
   @media (prefers-reduced-motion: reduce) {
     .topic-follow-btn .topic-follow-glyph svg,
     .maplibregl-popup-close-button:not(.comments-back-button) .topic-follow-glyph svg,
-    .popup-icon-chip.popup-settings-gear svg {
+    .popup-icon-chip.popup-settings-gear svg,
+    .popup-nav-arrow .popup-arrow-glyph svg {
       transition: none !important;
       transform: none !important;
       animation: none !important;
+    }
+    .popup-nav-arrow .popup-arrow-rest {
+      opacity: 1 !important;
+    }
+    .popup-nav-arrow .popup-arrow-press {
+      opacity: 0 !important;
     }
     .maplibregl-popup-close-button:not(.comments-back-button) .topic-follow-plus {
       opacity: 1 !important;
@@ -3050,7 +3073,8 @@ html, body {
     .topic-follow-btn.is-pop,
     #feed-back-btn.is-pop,
     .maplibregl-popup-close-button:not(.comments-back-button).is-pop,
-    .popup-icon-chip.popup-settings-gear.is-pop {
+    .popup-icon-chip.popup-settings-gear.is-pop,
+    .popup-icon-chip.popup-nav-arrow.is-pop {
       animation: none !important;
     }
     .topic-follow-count,
@@ -3261,7 +3285,9 @@ html, body {
     }
     .maplibregl-popup-close-button.comments-back-button:active { transform: scale(0.92); }
     .popup-icon-chip.popup-settings-gear:hover,
-    .popup-icon-chip.popup-settings-gear:active {
+    .popup-icon-chip.popup-settings-gear:active,
+    .popup-icon-chip.popup-nav-arrow:hover,
+    .popup-icon-chip.popup-nav-arrow:active {
       transform: none;
       filter: none;
     }
@@ -3310,6 +3336,64 @@ html, body {
     animation: topicFollowPop var(--press-dur) var(--press-ease);
   }
   .popup-icon-chip.popup-settings-gear:focus-visible {
+    outline: calc(var(--u) * 0.12) solid #22D3EE;
+    outline-offset: calc(var(--u) * 0.12);
+  }
+
+  /* Popup prev/next. Same cyan press and pop as the × and the gear.
+     Hover and press swap the arrow for a chevron. The step is not delayed. */
+  .popup-icon-chip.popup-nav-arrow {
+    appearance: none;
+    margin: 0;
+    font: inherit;
+    --press-dur: 200ms;
+    --press-ease: ease;
+    --press-bg: #22D3EE;
+    --press-border: #22D3EE;
+    --press-ink: #083344;
+    --rest-bg: rgba(255, 255, 255, 0.10);
+    --rest-border: rgba(255, 255, 255, 0.22);
+    --rest-ink: #fff;
+    color: var(--rest-ink);
+    background: var(--rest-bg);
+    border-color: var(--rest-border);
+    transition: background-color var(--press-dur) var(--press-ease), border-color var(--press-dur) var(--press-ease), color var(--press-dur) var(--press-ease);
+  }
+  .popup-nav-arrow .popup-arrow-glyph {
+    position: relative;
+    width: calc(var(--u) * 2.2);
+    height: calc(var(--u) * 2.2);
+  }
+  .popup-nav-arrow .popup-arrow-glyph svg {
+    position: absolute;
+    inset: 0;
+    width: calc(var(--u) * 2.2);
+    height: calc(var(--u) * 2.2);
+    display: block;
+    pointer-events: none;
+    transition: transform var(--press-dur) var(--press-ease), opacity var(--press-dur) var(--press-ease);
+  }
+  .popup-nav-arrow .popup-arrow-press {
+    opacity: 0;
+    transform: rotate(-40deg) scale(0.6);
+  }
+  .popup-icon-chip.popup-nav-arrow:is(:hover, .is-hold) {
+    background-color: var(--press-bg);
+    border-color: var(--press-border);
+    color: var(--press-ink);
+  }
+  .popup-icon-chip.popup-nav-arrow:is(:hover, .is-hold) .popup-arrow-rest {
+    opacity: 0;
+    transform: rotate(40deg) scale(0.6);
+  }
+  .popup-icon-chip.popup-nav-arrow:is(:hover, .is-hold) .popup-arrow-press {
+    opacity: 1;
+    transform: none;
+  }
+  .popup-icon-chip.popup-nav-arrow.is-pop {
+    animation: topicFollowPop var(--press-dur) var(--press-ease);
+  }
+  .popup-icon-chip.popup-nav-arrow:focus-visible {
     outline: calc(var(--u) * 0.12) solid #22D3EE;
     outline-offset: calc(var(--u) * 0.12);
   }

@@ -1419,7 +1419,7 @@ const POPUP_GEAR = [
   ['circle', { cx: '12', cy: '12', r: '3' }],
 ];
 
-function popupGearIcon() {
+function popupStrokeIcon(className, parts) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
   svg.setAttribute('fill', 'none');
@@ -1428,12 +1428,56 @@ function popupGearIcon() {
   svg.setAttribute('stroke-linecap', 'round');
   svg.setAttribute('stroke-linejoin', 'round');
   svg.setAttribute('aria-hidden', 'true');
-  for (const [name, attrs] of POPUP_GEAR) {
+  if (className) svg.classList.add(className);
+  for (const [name, attrs] of parts) {
     const node = document.createElementNS('http://www.w3.org/2000/svg', name);
     for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
     svg.appendChild(node);
   }
   return svg;
+}
+
+function popupGearIcon() {
+  return popupStrokeIcon('', POPUP_GEAR);
+}
+
+const POPUP_ARROW_LEFT = [
+  ['path', { d: 'M19 12H5' }],
+  ['path', { d: 'm12 19-7-7 7-7' }],
+];
+const POPUP_ARROW_RIGHT = [
+  ['path', { d: 'M5 12h14' }],
+  ['path', { d: 'm12 5 7 7-7 7' }],
+];
+const POPUP_CHEVRON_LEFT = [
+  ['path', { d: 'm15 18-6-6 6-6' }],
+];
+const POPUP_CHEVRON_RIGHT = [
+  ['path', { d: 'm9 18 6-6-6-6' }],
+];
+
+// Same press as the × and the gear. The arrow morphs in CSS. The step
+// runs on the click and does not wait for the morph.
+function popupNavArrow(kind, onStep) {
+  const prev = kind === 'prev';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'popup-icon-chip popup-nav-arrow ' + (prev ? 'is-prev' : 'is-next');
+  btn.setAttribute('aria-label', prev ? 'Previous' : 'Next');
+  btn.title = prev ? 'Previous' : 'Next';
+  const glyph = document.createElement('span');
+  glyph.className = 'popup-arrow-glyph';
+  glyph.setAttribute('aria-hidden', 'true');
+  glyph.append(
+    popupStrokeIcon('popup-arrow-rest', prev ? POPUP_ARROW_LEFT : POPUP_ARROW_RIGHT),
+    popupStrokeIcon('popup-arrow-press', prev ? POPUP_CHEVRON_LEFT : POPUP_CHEVRON_RIGHT),
+  );
+  btn.appendChild(glyph);
+  bindPressFeedback(btn);
+  btn.addEventListener('click', () => {
+    if (typeof onStep === 'function') onStep();
+  });
+  return btn;
 }
 
 // Hover and press spin in CSS. A tap spins once more. The card opens on
@@ -1545,13 +1589,7 @@ export function createMarkerPopupHTML(data) {
   const navSection = document.createElement('div');
   navSection.className = 'popup-nav';
 
-  const prevSpan = document.createElement('span');
-  prevSpan.className = 'popup-icon-chip';
-  prevSpan.textContent = '←';
-  prevSpan.onclick = onPrev
-    ? () => onPrev()
-    : () => window.prevMsgFromPayerMarker(payer, markernumber, topicId);
-  navSection.appendChild(prevSpan);
+  navSection.appendChild(popupNavArrow('prev', goPrevMarker));
 
   const titleDiv = document.createElement('div');
   titleDiv.style.cssText = 'text-align: center; flex-grow: 1;';
@@ -1561,13 +1599,7 @@ export function createMarkerPopupHTML(data) {
   titleDiv.appendChild(titleStrong);
   navSection.appendChild(titleDiv);
 
-  const nextSpan = document.createElement('span');
-  nextSpan.className = 'popup-icon-chip';
-  nextSpan.textContent = '→';
-  nextSpan.onclick = onNext
-    ? () => onNext()
-    : () => window.nextMsgFromPayerMarker(payer, markernumber, topicId);
-  navSection.appendChild(nextSpan);
+  navSection.appendChild(popupNavArrow('next', goNextMarker));
 
   // Image — or video when the user pasted a .mp4/.webm URL into the Image
   // field (the dot still shows the Cover Image still, so no video ever loads
@@ -1733,11 +1765,7 @@ function createPolygonPopupHTML(data) {
   const navSection = document.createElement('div');
   navSection.className = 'popup-nav';
 
-  const prevSpan = document.createElement('span');
-  prevSpan.className = 'popup-icon-chip';
-  prevSpan.textContent = '←';
-  prevSpan.onclick = goPrevPolygon;
-  navSection.appendChild(prevSpan);
+  navSection.appendChild(popupNavArrow('prev', goPrevPolygon));
 
   const titleDiv = document.createElement('div');
   titleDiv.style.cssText = 'text-align: center; flex-grow: 1;';
@@ -1747,11 +1775,7 @@ function createPolygonPopupHTML(data) {
   titleDiv.appendChild(titleStrong);
   navSection.appendChild(titleDiv);
 
-  const nextSpan = document.createElement('span');
-  nextSpan.className = 'popup-icon-chip';
-  nextSpan.textContent = '→';
-  nextSpan.onclick = goNextPolygon;
-  navSection.appendChild(nextSpan);
+  navSection.appendChild(popupNavArrow('next', goNextPolygon));
   container.appendChild(navSection);
 
   // Image — or video when the Inside image URL field holds a .mp4/.webm
