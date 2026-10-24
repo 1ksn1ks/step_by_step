@@ -2739,6 +2739,8 @@ async function startPost() {
   placeBusy = true;
   let status = 'fail';
   try {
+    // One note as the sheet opens. Success and cancel stay quiet.
+    if (!walletNow() && !walletModalOpen() && !connectPending()) toast.info('Connect wallet');
     status = await ensureWallet();
   } catch (err) {
     status = 'fail';
@@ -3064,12 +3066,22 @@ function openDisconnect() {
   openOverFeed(() => clickId('disconnect-wallet-btn'));
 }
 
-function openConnect() {
-  openOverFeed(() => {
-    const connect = document.getElementById('connect-wallet-btn');
-    if (!connect) return;
-    if (!/connecting/i.test(connect.textContent || '')) connect.click();
-  });
+// The drawer sits on the feed, and #connect-wallet-btn is under that screen.
+// Close the drawer first, let its deferred history.back() land, then open
+// the sheet the same way the plus button does. Success and cancel both
+// stay on the feed.
+async function openConnect() {
+  holdScroll();
+  closeMenu();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  let status = 'fail';
+  try {
+    status = await ensureWallet();
+  } catch (err) {
+    status = 'fail';
+  }
+  if (status === 'ok' || status === 'cancel') return;
+  toast.info("Couldn't open the wallet");
 }
 
 // A later open or close bumps this so a finishing slide cannot hide
@@ -3171,6 +3183,22 @@ function paintWalletRows() {
   for (const row of walletRows) row.hidden = on ? row.dataset.wallet !== 'on' : row.dataset.wallet !== 'off';
 }
 
+// web3.js writes #account-id on connect and disconnect. Repaint so a
+// connect that finishes after the drawer was painted cannot leave
+// "Connect wallet" showing.
+function watchWalletRows() {
+  const account = document.getElementById('account-id');
+  if (!account) return;
+  let last = walletNow();
+  const sync = () => {
+    const now = walletNow();
+    if (now === last) return;
+    last = now;
+    paintWalletRows();
+  };
+  new MutationObserver(sync).observe(account, { childList: true, characterData: true, subtree: true });
+}
+
 for (const item of MENU_ROWS) {
   const row = document.createElement('li');
   if (item.wallet) {
@@ -3196,6 +3224,7 @@ for (const item of MENU_ROWS) {
   menu.appendChild(row);
 }
 paintWalletRows();
+watchWalletRows();
 
 if (window.defineLayer) {
   window.defineLayer('feedmenu', {
