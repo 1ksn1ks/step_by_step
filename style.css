@@ -7311,6 +7311,13 @@ a.payer-link {
   --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi));
   --fu: var(--feed-unit);
 }
+#feed-frame > #feed-toolbar,
+#feed-frame > #feed-tabs,
+#feed-frame > #feed-menu {
+  --feed-zoom: 1;
+  --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi));
+  --fu: var(--feed-unit);
+}
 #feed-layout.is-peek {
   visibility: hidden;
   pointer-events: none;
@@ -7584,94 +7591,10 @@ html.feed-app appkit-modal {
     animation: none;
   }
 }
-#feed-zoom {
-  position: absolute;
-  top: calc(var(--fu) * 5.6);
-  left: 0;
-  right: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: calc(var(--fu) * 0.8);
-  box-sizing: border-box;
-  height: calc(var(--fu) * 3.4);
-  margin: 0;
-  padding: 0 calc(var(--fu) * 1.1);
-  background: rgba(10, 10, 18, 0.9);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(1.2dvh);
-  -webkit-backdrop-filter: blur(1.2dvh);
-  touch-action: pan-x;
-}
-#feed-zoom * {
-  touch-action: pan-x;
-}
-#feed-zoom[hidden] {
-  display: none;
-}
-#feed-zoom-range {
-  appearance: none;
-  -webkit-appearance: none;
-  flex: 1 1 auto;
-  min-width: 0;
-  height: calc(var(--fu) * 2.2);
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-  touch-action: pan-x;
-  accent-color: #22D3EE;
-}
-#feed-zoom-range:focus-visible {
-  outline: calc(var(--fu) * 0.12) solid #22D3EE;
-  outline-offset: calc(var(--fu) * 0.12);
-}
-#feed-zoom-range::-webkit-slider-runnable-track {
-  height: calc(var(--fu) * 0.36);
-  border-radius: calc(var(--fu) * 1);
-  background: linear-gradient(to right, #22D3EE var(--feed-zoom-fill, 50%), rgba(255, 255, 255, 0.18) var(--feed-zoom-fill, 50%));
-}
-#feed-zoom-range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: calc(var(--fu) * 1.7);
-  height: calc(var(--fu) * 1.7);
-  margin-top: calc(var(--fu) * -0.67);
-  border: 0;
-  border-radius: 50%;
-  background: #22D3EE;
-  cursor: pointer;
-}
-#feed-zoom-range::-moz-range-track {
-  height: calc(var(--fu) * 0.36);
-  border: 0;
-  border-radius: calc(var(--fu) * 1);
-  background: linear-gradient(to right, #22D3EE var(--feed-zoom-fill, 50%), rgba(255, 255, 255, 0.18) var(--feed-zoom-fill, 50%));
-}
-#feed-zoom-range::-moz-range-thumb {
-  width: calc(var(--fu) * 1.7);
-  height: calc(var(--fu) * 1.7);
-  border: 0;
-  border-radius: 50%;
-  background: #22D3EE;
-  cursor: pointer;
-}
-#feed-zoom-level {
-  flex: 0 0 auto;
-  min-width: calc(var(--fu) * 4.6);
-  margin: 0;
-  color: #22D3EE;
-  font-family: Inter, system-ui, sans-serif;
-  font-size: calc(var(--fu) * 1.45);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  text-align: right;
-}
 #feed-tabs {
   --feed-tab-y: 0px;
   position: absolute;
-  top: calc(var(--fu) * (5.6 + 3.4));
+  top: calc(var(--fu) * 5.6);
   left: 0;
   right: 0;
   z-index: 1;
@@ -7761,7 +7684,7 @@ html.feed-app appkit-modal {
 #feed-scroll {
   --feed-chrome: var(--fu);
   position: absolute;
-  top: calc(var(--fu) * (5.6 + 3.4));
+  top: calc(var(--fu) * 5.6);
   right: 0;
   bottom: 0;
   left: 0;
@@ -8517,6 +8440,72 @@ html.feed-app appkit-modal {
   font-weight: 600;
   line-height: 1.2;
 }
+.feed-settings-zoom {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--fu) * 0.8);
+  min-width: 0;
+  touch-action: pan-x;
+}
+.feed-settings-zoom-range {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: calc(var(--fu) * 2.2);
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-x;
+  accent-color: #22D3EE;
+}
+.feed-settings-zoom-range:focus-visible {
+  outline: calc(var(--fu) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--fu) * 0.12);
+}
+.feed-settings-zoom-range::-webkit-slider-runnable-track {
+  height: calc(var(--fu) * 0.36);
+  border-radius: calc(var(--fu) * 1);
+  background: linear-gradient(to right, #22D3EE var(--feed-zoom-fill, 50%), rgba(255, 255, 255, 0.18) var(--feed-zoom-fill, 50%));
+}
+.feed-settings-zoom-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: calc(var(--fu) * 1.7);
+  height: calc(var(--fu) * 1.7);
+  margin-top: calc(var(--fu) * -0.67);
+  border: 0;
+  border-radius: 50%;
+  background: #22D3EE;
+  cursor: pointer;
+}
+.feed-settings-zoom-range::-moz-range-track {
+  height: calc(var(--fu) * 0.36);
+  border: 0;
+  border-radius: calc(var(--fu) * 1);
+  background: linear-gradient(to right, #22D3EE var(--feed-zoom-fill, 50%), rgba(255, 255, 255, 0.18) var(--feed-zoom-fill, 50%));
+}
+.feed-settings-zoom-range::-moz-range-thumb {
+  width: calc(var(--fu) * 1.7);
+  height: calc(var(--fu) * 1.7);
+  border: 0;
+  border-radius: 50%;
+  background: #22D3EE;
+  cursor: pointer;
+}
+.feed-settings-zoom-level {
+  flex: 0 0 auto;
+  min-width: calc(var(--fu) * 4.6);
+  margin: 0;
+  color: #22D3EE;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--fu) * 1.45);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: right;
+}
 .feed-settings-radios {
   display: flex;
   gap: calc(var(--fu) * 0.6);
@@ -8847,7 +8836,7 @@ html.feed-app appkit-modal {
   --feed-tab-y: 0px;
   position: absolute;
   z-index: 3;
-  top: calc(var(--fu) * (10.8 + 3.4));
+  top: calc(var(--fu) * 10.8);
   left: 50%;
   display: flex;
   align-items: center;

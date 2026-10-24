@@ -358,25 +358,6 @@ function svgIcon(parts) {
   return svg;
 }
 
-const zoomBar = document.createElement('div');
-zoomBar.id = 'feed-zoom';
-const zoomRange = document.createElement('input');
-zoomRange.id = 'feed-zoom-range';
-zoomRange.type = 'range';
-zoomRange.min = '50';
-zoomRange.max = '150';
-zoomRange.step = '1';
-zoomRange.value = String(Math.round(feedPrefs.zoom * 100));
-zoomRange.setAttribute('aria-label', 'Zoom');
-const zoomLevel = document.createElement('span');
-zoomLevel.id = 'feed-zoom-level';
-zoomLevel.setAttribute('aria-live', 'polite');
-zoomBar.append(zoomRange, zoomLevel);
-frame.insertBefore(zoomBar, tabs);
-zoomRange.addEventListener('input', () => {
-  setFeedZoom(Number(zoomRange.value) / 100);
-});
-
 function savedMode() {
   try {
     return localStorage.getItem(LAYOUT_KEY) === 'feed' ? 'feed' : 'map';
@@ -3717,7 +3698,11 @@ async function openE2ee() {
   openFeedChat('e2ee');
 }
 
+let zoomRange = null;
+let zoomLevel = null;
+
 function paintFeedZoom() {
+  if (!zoomRange || !zoomLevel) return;
   const pct = Math.round(feedPrefs.zoom * 100);
   const fill = ((feedPrefs.zoom - FEED_ZOOM_MIN) / (FEED_ZOOM_MAX - FEED_ZOOM_MIN)) * 100;
   zoomRange.value = String(pct);
@@ -3847,6 +3832,29 @@ function settingsSwitch(label, get, set) {
   return button;
 }
 
+function settingsZoom() {
+  const row = document.createElement('div');
+  row.className = 'feed-settings-zoom';
+  zoomRange = document.createElement('input');
+  zoomRange.type = 'range';
+  zoomRange.className = 'feed-settings-zoom-range';
+  zoomRange.min = '50';
+  zoomRange.max = '150';
+  zoomRange.step = '1';
+  zoomRange.value = String(Math.round(feedPrefs.zoom * 100));
+  zoomRange.setAttribute('aria-label', 'Zoom');
+  zoomLevel = document.createElement('span');
+  zoomLevel.className = 'feed-settings-zoom-level';
+  zoomLevel.setAttribute('aria-live', 'polite');
+  row.append(zoomRange, zoomLevel);
+  zoomRange.addEventListener('input', () => {
+    setFeedZoom(Number(zoomRange.value) / 100);
+  });
+  settingsPaints.push(paintFeedZoom);
+  paintFeedZoom();
+  return row;
+}
+
 const tabSection = settingsSection('Default tab');
 tabSection.appendChild(settingsRadios('Default tab', [
   { value: 'all', label: 'All' },
@@ -3868,7 +3876,9 @@ mediaSection.append(
     syncFeedVideos();
   }),
 );
-settingsBody.append(tabSection, mediaSection);
+const zoomSection = settingsSection('Zoom');
+zoomSection.appendChild(settingsZoom());
+settingsBody.append(tabSection, mediaSection, zoomSection);
 settings.append(settingsBar, settingsBody);
 root.appendChild(settings);
 
@@ -4095,10 +4105,6 @@ feedChatBack.addEventListener('click', (event) => {
 function paintFeedSettings(open) {
   settingsOpen = open;
   settings.hidden = !open;
-  zoomBar.hidden = open;
-  zoomBar.inert = open;
-  if (open) zoomBar.setAttribute('aria-hidden', 'true');
-  else zoomBar.removeAttribute('aria-hidden');
   if (open) {
     for (const paint of settingsPaints) paint();
     settingsBack.focus({ preventScroll: true });
