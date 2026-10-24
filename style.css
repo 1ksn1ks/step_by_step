@@ -7711,33 +7711,12 @@ html.feed-app appkit-modal {
   user-select: text;
 }
 #feed-column .popup-profile-bubble {
-  --u: calc(var(--fu) * 0.58);
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
+}
+#feed-column .popup-title-bubble {
   border-radius: calc(var(--fu) * 20);
-}
-#feed-column .popup-profile-bubble h2 {
-  font-size: calc(var(--fu) * 1.7);
-}
-#feed-column .popup-profile-bubble .payer-info {
-  font-size: calc(var(--fu) * 1.35);
-}
-#feed-column .popup-title-bubble,
-#feed-column .topic-follow-count,
-#feed-column .topic-follow-btn {
-  border-radius: calc(var(--fu) * 20);
-}
-#feed-column .topic-follow-btn {
-  border-width: calc(var(--fu) * 0.08);
-  box-shadow: inset 0 calc(var(--fu) * 0.08) 0 rgba(255, 255, 255, 0.18);
-}
-#feed-column .topic-follow-btn:focus-visible {
-  outline: calc(var(--fu) * 0.12) solid #22D3EE;
-  outline-offset: calc(var(--fu) * 0.12);
-}
-#feed-column .topic-follow-count {
-  border-width: calc(var(--fu) * 0.08);
 }
 #feed-column .feed-card.early-holder-popup {
   position: relative;
