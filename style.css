@@ -5529,9 +5529,7 @@ a.payer-link {
   }
 
   .maplibregl-map .popup-media-card,
-  .maplibregl-map .popup-media-card:has(video),
-  #feed-column .popup-sheet .popup-media-card,
-  #feed-column .popup-sheet .popup-media-card:has(video) {
+  .maplibregl-map .popup-media-card:has(video) {
     grid-column: 1;
     grid-row: 1 / -1;
     box-sizing: border-box;
@@ -5550,9 +5548,7 @@ a.payer-link {
   }
 
   .maplibregl-map .popup-media-card img,
-  .maplibregl-map .popup-media-card video,
-  #feed-column .popup-sheet .popup-media-card img,
-  #feed-column .popup-sheet .popup-media-card video {
+  .maplibregl-map .popup-media-card video {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -5632,9 +5628,21 @@ a.payer-link {
   #feed-column .popup-sheet .popup-media-card:has(video),
   #feed-column .popup-sheet .popup-media-card:has(iframe),
   #feed-column .popup-sheet .popup-media-card:has(embed) {
-    height: calc(var(--fu) * 36);
-    max-height: calc(var(--fu) * 36);
+    grid-column: 1;
+    grid-row: 1;
     align-self: start;
+    justify-self: start;
+    box-sizing: border-box;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: none;
+    min-width: 0;
+    min-height: 0;
+    aspect-ratio: auto;
+    margin: 0;
+    background: none;
+    background-image: none;
   }
 
   #feed-column .popup-sheet .popup-body > div:not(.popup-media-card) {
@@ -7786,21 +7794,30 @@ html.feed-app appkit-modal {
   width: fit-content;
   max-width: 100%;
   height: auto;
+  max-height: none;
   aspect-ratio: auto;
-  margin: calc(var(--fu) * 0.4) auto 0;
+  margin: calc(var(--fu) * 0.4) 0 0;
   overflow: clip;
   touch-action: pan-y;
+  align-self: start;
+  justify-self: start;
+  background: none;
+  background-image: none;
 }
 #feed-column .popup-media-card img,
 #feed-column .popup-media-card video,
 #feed-column .popup-media-card iframe,
 #feed-column .popup-media-card embed,
 #feed-column .popup-media-card object {
+  position: static;
+  inset: auto;
+  display: block;
   width: auto;
   height: auto;
   max-width: 100%;
-  max-height: calc(var(--fu) * 36);
+  max-height: 50dvh;
   object-fit: contain;
+  background: none;
   touch-action: pan-y;
 }
 #feed-column .popup-media-card img {
