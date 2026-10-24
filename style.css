@@ -7503,22 +7503,17 @@ html.feed-app appkit-modal {
   overflow: hidden;
   background: #0a0a12;
   border-bottom: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
-  transition: height 200ms ease;
+  transform: translateY(0);
+  transition: transform 200ms ease;
 }
 .feed-tabs-slide {
   display: flex;
   align-items: stretch;
   height: calc(var(--fu) * 4.4);
-  transform: translateY(0);
-  transition: transform 200ms ease;
 }
 #feed-tabs.is-away {
-  height: 0;
-  border-bottom-width: 0;
-  pointer-events: none;
-}
-#feed-tabs.is-away .feed-tabs-slide {
   transform: translateY(-100%);
+  pointer-events: none;
 }
 #feed-tab-ruler {
   position: absolute;
@@ -7588,7 +7583,7 @@ html.feed-app appkit-modal {
 }
 #feed-scroll {
   position: absolute;
-  top: calc(var(--fu) * 10);
+  top: calc(var(--fu) * 5.6);
   right: 0;
   bottom: 0;
   left: 0;
@@ -7599,10 +7594,6 @@ html.feed-app appkit-modal {
   touch-action: pan-y;
   -webkit-user-select: text;
   user-select: text;
-  transition: top 200ms ease;
-}
-#feed-tabs.is-away ~ #feed-scroll {
-  top: calc(var(--fu) * 5.6);
 }
 /* The global * rule sets touch-action: none. One none between the finger
    and this scroller (the card sheet, a caption, a profile) cancels pan-y. */
@@ -7613,7 +7604,7 @@ html.feed-app appkit-modal {
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
-  padding: calc(var(--fu) * 0.7) calc(var(--fu) * 1) calc(var(--fu) * 2);
+  padding: calc(var(--fu) * 4.4) calc(var(--fu) * 1) calc(var(--fu) * 2);
   touch-action: pan-y;
 }
 @media (orientation: landscape) {
@@ -8511,9 +8502,7 @@ html.feed-app appkit-modal {
 }
 @media (prefers-reduced-motion: reduce) {
   #feed-new-posts,
-  #feed-tabs,
-  .feed-tabs-slide,
-  #feed-scroll {
+  #feed-tabs {
     transition: none;
   }
 }

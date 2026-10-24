@@ -1167,7 +1167,7 @@ function resetFeed(topic) {
   column.replaceChildren();
   paintSpinner(false);
   savedScroll = 0;
-  scroller.scrollTop = 0;
+  setFeedScroll(0);
   resetQueues();
 }
 
@@ -1687,7 +1687,7 @@ function rerenderLane(opts) {
   rangeStart = 0;
   rangeEnd = 0;
   savedScroll = 0;
-  scroller.scrollTop = 0;
+  setFeedScroll(0);
   clearViewWatch();
   column.replaceChildren();
   paintEmpty();
@@ -1732,7 +1732,7 @@ async function selectTab(next) {
   rangeStart = 0;
   rangeEnd = 0;
   if (!searchQuery) {
-    scroller.scrollTop = 0;
+    setFeedScroll(0);
     savedScroll = 0;
   }
   paintEmpty();
@@ -1800,7 +1800,7 @@ function trimAbove() {
     forgetCard(first);
     first.remove();
     rangeStart += 1;
-    scroller.scrollTop = Math.max(0, scroller.scrollTop - drop);
+    setFeedScroll(Math.max(0, scroller.scrollTop - drop));
   }
 }
 
@@ -1819,7 +1819,7 @@ function fillUp() {
   }
   column.prepend(frag);
   rangeStart -= add;
-  scroller.scrollTop = prevTop + (scroller.scrollHeight - prevHeight);
+  setFeedScroll(prevTop + (scroller.scrollHeight - prevHeight));
   for (const card of cards) watchCard(card);
   requestAnimationFrame(clampPending);
 }
@@ -1980,7 +1980,7 @@ function mountIncoming(incoming, searchLane) {
   column.prepend(frag);
   rangeStart = searchLane ? 0 : rangeStart - incoming.length;
   const delta = scroller.scrollHeight - prevHeight;
-  scroller.scrollTop = atTop ? 0 : prevTop + delta;
+  setFeedScroll(atTop ? 0 : prevTop + delta);
   for (const card of cards) watchCard(card);
   requestAnimationFrame(clampPending);
   trimAbove();
@@ -2028,7 +2028,7 @@ function prependAbove(count) {
   }
   column.prepend(frag);
   rangeStart -= n;
-  scroller.scrollTop = prevTop + (scroller.scrollHeight - prevHeight);
+  setFeedScroll(prevTop + (scroller.scrollHeight - prevHeight));
   for (const card of cards) watchCard(card);
   requestAnimationFrame(clampPending);
 }
@@ -2040,7 +2040,7 @@ function revealParked() {
   if (!n || scroller.scrollTop >= 2 || rangeStart !== n) return;
   held[tab] = [];
   prependAbove(n);
-  scroller.scrollTop = 0;
+  setFeedScroll(0);
   savedScroll = 0;
   tabScroll[tab] = 0;
   tabRange[tab] = { start: 0, end: rangeEnd };
@@ -2056,7 +2056,7 @@ function goToFreshPosts() {
   held[tab] = [];
   paintNewPill();
   if (searchQuery) {
-    scroller.scrollTo({ top: 0, behavior: scrollMotion() });
+    feedScrollTo({ top: 0, behavior: scrollMotion() });
     return;
   }
   if (rangeStart > 0 && rangeStart <= 60) prependAbove(rangeStart);
@@ -2068,12 +2068,12 @@ function goToFreshPosts() {
     const end = Math.min(lane().length, RENDER_CHUNK);
     if (end) renderThrough(end);
     paintEmpty();
-    scroller.scrollTop = Math.min(scroller.clientHeight * 0.65, scroller.scrollHeight);
+    setFeedScroll(Math.min(scroller.clientHeight * 0.65, scroller.scrollHeight));
   }
   tabScroll[tab] = 0;
   tabRange[tab] = { start: rangeStart, end: rangeEnd };
   savedScroll = 0;
-  scroller.scrollTo({ top: 0, behavior: scrollMotion() });
+  feedScrollTo({ top: 0, behavior: scrollMotion() });
 }
 
 function restoreTabView() {
@@ -2094,7 +2094,7 @@ function restoreTabView() {
   column.replaceChildren();
   if (end > start) renderThrough(end);
   paintEmpty();
-  scroller.scrollTop = tabScroll[tab];
+  setFeedScroll(tabScroll[tab]);
   savedScroll = scroller.scrollTop;
   tabRange[tab] = { start: rangeStart, end: rangeEnd };
   paintNewPill();
@@ -2328,7 +2328,7 @@ function reveal() {
   root.classList.remove('is-peek');
   syncCover();
   const y = savedScroll;
-  requestAnimationFrame(() => { scroller.scrollTop = y; });
+  requestAnimationFrame(() => { setFeedScroll(y); });
   paintNewPill();
 }
 
@@ -2455,7 +2455,7 @@ function showQueryResults() {
   rangeEnd = 0;
   clearViewWatch();
   column.replaceChildren();
-  scroller.scrollTop = 0;
+  setFeedScroll(0);
   paintEmpty();
   if (!followBlocked()) fillDown();
   else paintEmpty();
@@ -2475,10 +2475,10 @@ function restorePin() {
   rangeEnd = start;
   if (end > start) renderThrough(end);
   paintEmpty();
-  scroller.scrollTop = y;
+  setFeedScroll(y);
   savedScroll = y;
   if (!followBlocked()) fillDown();
-  scroller.scrollTop = y;
+  setFeedScroll(y);
   savedScroll = y;
   paintNewPill();
   revealParked();
@@ -2814,7 +2814,7 @@ function applyFeed(on) {
         rangeStart = 0;
         rangeEnd = 0;
         savedScroll = 0;
-        scroller.scrollTop = 0;
+        setFeedScroll(0);
         clearViewWatch();
         column.replaceChildren();
         if (sameTopic) fillDown();
@@ -2867,7 +2867,7 @@ if (window.watchDisplayLayer) {
       const y = Number(state && state.scroll);
       if (Number.isFinite(y)) {
         savedScroll = y;
-        requestAnimationFrame(() => { scroller.scrollTop = y; });
+        requestAnimationFrame(() => { setFeedScroll(y); });
       }
     },
     close: () => applyFeed(false),
@@ -3404,40 +3404,32 @@ function measureTabHide() {
   if (!tabHideReady) tabHidePx = window.innerHeight * 0.02;
 }
 
-let tabFollow = 0;
+// Script scrolls must not count as a finger moving the row.
+function setFeedScroll(value) {
+  const before = scroller.scrollTop;
+  tabTrackHold = true;
+  scroller.scrollTop = value;
+  if (scroller.scrollTop === before) tabTrackHold = false;
+}
 
-// The row's height and the scroller top move together. Keep the post that
-// was under the finger by shifting scrollTop by that same change.
-function followTabTop() {
-  if (tabFollow) cancelAnimationFrame(tabFollow);
-  let last = scroller.getBoundingClientRect().top;
-  const started = performance.now();
-  const tick = () => {
-    const top = scroller.getBoundingClientRect().top;
-    const delta = top - last;
-    last = top;
-    if (delta) {
-      const cur = scrollTopOf.get.call(scroller);
-      scroller.scrollTop = Math.max(0, cur + delta);
-    }
-    if (performance.now() - started < 320) tabFollow = requestAnimationFrame(tick);
-    else tabFollow = 0;
-  };
-  tabFollow = requestAnimationFrame(tick);
+function feedScrollTo(options) {
+  const before = scroller.scrollTop;
+  tabTrackHold = true;
+  scroller.scrollTo(options);
+  const top = options && typeof options === 'object' ? options.top : options;
+  if (typeof top === 'number' && scroller.scrollTop === before && top === before) tabTrackHold = false;
 }
 
 function showFeedTabs() {
   tabDownFrom = scroller.scrollTop;
   if (tabShown) return;
   tabShown = true;
-  followTabTop();
   tabs.classList.remove('is-away');
 }
 
 function hideFeedTabs() {
   if (!tabShown) return;
   tabShown = false;
-  followTabTop();
   tabs.classList.add('is-away');
 }
 
@@ -3466,28 +3458,6 @@ function trackFeedTabs(trusted) {
     hideFeedTabs();
   }
 }
-
-const scrollTopOf = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
-Object.defineProperty(scroller, 'scrollTop', {
-  configurable: true,
-  enumerable: true,
-  get() { return scrollTopOf.get.call(this); },
-  set(value) {
-    const before = scrollTopOf.get.call(this);
-    tabTrackHold = true;
-    scrollTopOf.set.call(this, value);
-    if (scrollTopOf.get.call(this) === before) tabTrackHold = false;
-  },
-});
-const scrollToNative = scroller.scrollTo;
-scroller.scrollTo = function (arg, y) {
-  const before = scrollTopOf.get.call(this);
-  tabTrackHold = true;
-  const result = scrollToNative.call(this, arg, y);
-  const top = arg && typeof arg === 'object' ? arg.top : arg;
-  if (typeof top === 'number' && scrollTopOf.get.call(this) === before && top === before) tabTrackHold = false;
-  return result;
-};
 
 tabs.addEventListener('focusin', () => showFeedTabs());
 window.addEventListener('resize', measureTabHide);
