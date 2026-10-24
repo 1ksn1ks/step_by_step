@@ -318,12 +318,10 @@ let savedScroll = 0;
 let tabLastY = 0;
 let tabOffset = 0;
 let tabHidePx = 0;
-let tabDir = 0;
 let tabPending = 0;
 let tabTrackHold = false;
 let tabFollowQueued = false;
-let tabSettleTimer = 0;
-let tabSettleGen = 0;
+let tabEndTimer = 0;
 let peek = false;
 let placing = false;
 let drawWasOpen = false;
@@ -4255,58 +4253,33 @@ function setTabY(value) {
   newPill.style.setProperty('--feed-tab-y', value);
 }
 
-function cancelTabSettle() {
-  tabSettleGen += 1;
-  if (tabSettleTimer) {
-    clearTimeout(tabSettleTimer);
-    tabSettleTimer = 0;
+function cancelTabFinish() {
+  if (tabEndTimer) {
+    clearTimeout(tabEndTimer);
+    tabEndTimer = 0;
   }
   tabs.classList.remove('is-settle');
 }
 
-function readVisualOffset() {
-  const tr = getComputedStyle(tabs).transform;
-  if (!tr || tr === 'none') return 0;
-  const m3 = tr.match(/matrix3d\(([^)]+)\)/);
-  if (m3) {
-    const ty = parseFloat(m3[1].split(',')[13]);
-    return Number.isFinite(ty) ? ty : tabOffset;
-  }
-  const m = tr.match(/matrix\(([^)]+)\)/);
-  if (!m) return tabOffset;
-  const ty = parseFloat(m[1].split(',')[5]);
-  return Number.isFinite(ty) ? ty : tabOffset;
-}
-
-function pinVisualOffset() {
-  if (!tabs.classList.contains('is-settle')) return;
-  tabOffset = readVisualOffset();
-  tabs.classList.remove('is-settle');
-  setTabY(tabOffset.toFixed(2) + 'px');
-}
-
-function writeTabOffset(y, settle) {
+function writeTabOffset(y) {
   const limit = tabRowHeight();
   const next = limit > 1 ? Math.max(-limit, Math.min(0, y)) : 0;
   tabOffset = next;
   setTabY(next.toFixed(2) + 'px');
-  tabs.classList.toggle('is-settle', !!settle);
   if (next <= -limit + 0.5 && limit > 1) tabs.style.pointerEvents = 'none';
   else tabs.style.removeProperty('pointer-events');
 }
 
 function showFeedTabs() {
-  cancelTabSettle();
-  tabDir = 0;
+  cancelTabFinish();
   tabPending = 0;
   tabLastY = scroller.scrollTop;
-  writeTabOffset(0, false);
+  writeTabOffset(0);
 }
 
 function measureTabHide() {
   refreshTabRowHeight();
-  pinVisualOffset();
-  writeTabOffset(tabOffset, false);
+  writeTabOffset(tabOffset);
 }
 
 function queueTabFollow() {
@@ -4317,64 +4290,38 @@ function queueTabFollow() {
 
 function applyTabFollow() {
   tabFollowQueued = false;
-  tabSettleGen += 1;
   if (root.classList.contains('is-peek')) {
     tabPending = 0;
     return;
   }
   const delta = tabPending;
   tabPending = 0;
-  pinVisualOffset();
-  if (tabSettleTimer) {
-    clearTimeout(tabSettleTimer);
-    tabSettleTimer = 0;
-  }
-  const y = scroller.scrollTop;
-  if (y < 2) {
-    tabDir = 0;
-    writeTabOffset(0, false);
-    return;
-  }
-  if (delta > 0.5) tabDir = 1;
-  else if (delta < -0.5) tabDir = -1;
-  writeTabOffset(tabOffset - delta, false);
-  armTabSettle();
-}
-
-function armTabSettle() {
-  if (tabSettleTimer) clearTimeout(tabSettleTimer);
-  tabSettleTimer = setTimeout(settleTabs, 80);
-}
-
-function settleTabs() {
-  tabSettleTimer = 0;
-  if (root.classList.contains('is-peek')) return;
-  const y = scroller.scrollTop;
-  tabLastY = y;
-  if (y < 2) {
-    writeTabOffset(0, false);
-    return;
-  }
-  const h = tabRowHeight();
-  if (!(h > 1) || tabOffset >= -0.5 || tabOffset <= -h + 0.5) return;
-  const target = tabDir < 0 ? 0 : -h;
-  if (motionOff()) {
-    writeTabOffset(target, false);
-    return;
-  }
-  const gen = ++tabSettleGen;
+  // The offset stays in JS. Reading the composited transform mid-glide
+  // forces layout and makes the row hitch behind the scroll.
   tabs.classList.remove('is-settle');
-  setTabY(tabOffset.toFixed(2) + 'px');
-  void tabs.offsetWidth;
-  tabs.classList.add('is-settle');
-  setTabY(target.toFixed(2) + 'px');
-  tabOffset = target;
-  if (target <= -h + 0.5) tabs.style.pointerEvents = 'none';
-  else tabs.style.removeProperty('pointer-events');
-  setTimeout(() => {
-    if (gen !== tabSettleGen) return;
-    tabs.classList.remove('is-settle');
-  }, 130);
+  if (scroller.scrollTop < 2) {
+    writeTabOffset(0);
+    return;
+  }
+  writeTabOffset(tabOffset - delta);
+}
+
+// Scrolling has stopped, including a fling. A partial hide stays where
+// the gesture left it; the next drag continues from that offset.
+function finishTabGlide() {
+  tabEndTimer = 0;
+  if (root.classList.contains('is-peek')) return;
+  tabs.classList.remove('is-settle');
+  if (tabFollowQueued) return;
+  if (scroller.scrollTop < 2) writeTabOffset(0);
+}
+
+// Browsers without scrollend get this instead. Each scroll frame resets
+// it, so it cannot run while a fling is still emitting events.
+function armTabFinish() {
+  if ('onscrollend' in scroller) return;
+  if (tabEndTimer) clearTimeout(tabEndTimer);
+  tabEndTimer = setTimeout(finishTabGlide, 140);
 }
 
 // Script scrolls must not count as a finger moving the row.
@@ -4414,6 +4361,7 @@ scroller.addEventListener('scroll', (event) => {
     tabPending += y - tabLastY;
     tabLastY = y;
     queueTabFollow();
+    armTabFinish();
   }
   savedScroll = y;
   fillUp();
@@ -4422,6 +4370,11 @@ scroller.addEventListener('scroll', (event) => {
   // Captions can still be waiting on layout when a card is first built.
   scheduleScrollFrame();
   scheduleScrollWrite();
+}, { passive: true });
+
+scroller.addEventListener('scrollend', () => {
+  cancelTabFinish();
+  finishTabGlide();
 }, { passive: true });
 
 paintToggle(false);
