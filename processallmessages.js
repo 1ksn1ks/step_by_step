@@ -1436,7 +1436,8 @@ function popupGearIcon() {
   return svg;
 }
 
-// Hover spins in CSS. A tap spins once more, then the settings card opens.
+// Hover and press spin in CSS. A tap spins once more. The card opens on
+// the click; the spin is only visual and never gates the open.
 function popupSettingsGear(walk) {
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -1445,36 +1446,27 @@ function popupSettingsGear(walk) {
   btn.title = 'Settings';
   btn.appendChild(popupGearIcon());
   bindPressFeedback(btn);
+  let spinning = false;
   btn.addEventListener('click', (event) => {
     event.stopPropagation();
-    if (btn.classList.contains('is-spin')) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      window.openPopupSettings(walk);
-      return;
-    }
+    window.openPopupSettings(walk);
+    if (spinning || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const icon = btn.querySelector('svg');
     const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
     if (fine && (btn.matches(':hover') || btn.classList.contains('is-hold'))) btn.classList.add('is-again');
     btn.classList.add('is-spin');
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      if (icon) icon.removeEventListener('transitionend', onEnd);
-      window.openPopupSettings(walk);
-      if (icon) icon.style.transition = 'none';
+    if (!icon) return;
+    spinning = true;
+    const reset = (end) => {
+      if (end.target !== icon || end.propertyName !== 'transform') return;
+      icon.removeEventListener('transitionend', reset);
+      spinning = false;
+      icon.style.transition = 'none';
       btn.classList.remove('is-spin', 'is-again');
-      if (icon) {
-        void icon.offsetWidth;
-        icon.style.transition = '';
-      }
+      void icon.offsetWidth;
+      icon.style.transition = '';
     };
-    const onEnd = (event) => {
-      if (event.target !== icon || event.propertyName !== 'transform') return;
-      finish();
-    };
-    if (icon) icon.addEventListener('transitionend', onEnd);
-    setTimeout(finish, 1100);
+    icon.addEventListener('transitionend', reset);
   });
   return btn;
 }
