@@ -2708,6 +2708,8 @@ function connectPending() {
 
 // 'ok' continues into placing. 'cancel' stays on the feed with no toast.
 // 'fail' is a real miss and the caller says why.
+// "Connecting..." stays pending, but a sheet that has been closed for ~1.5s
+// is a cancel even if that label is still showing. The whole wait fails at ~90s.
 function ensureWallet() {
   if (walletNow()) return Promise.resolve('ok');
   const connect = document.getElementById('connect-wallet-btn');
@@ -2716,7 +2718,8 @@ function ensureWallet() {
     try { connect.click(); } catch (err) { return Promise.resolve('fail'); }
   }
   const started = Date.now();
-  let sawSheet = false;
+  let sawSheet = walletModalOpen();
+  let closedAt = 0;
   return new Promise((resolve) => {
     const tick = () => {
       if (walletNow()) {
@@ -2725,10 +2728,20 @@ function ensureWallet() {
       }
       const open = walletModalOpen();
       const connecting = connectPending();
-      if (open) sawSheet = true;
+      if (open) {
+        sawSheet = true;
+        closedAt = 0;
+      } else if (sawSheet && !closedAt) {
+        closedAt = Date.now();
+      }
       // The overlay can drop while openModal is still resolving. Stay pending
       // until the label clears so a late account still resolves 'ok'.
       if (sawSheet && !open && !connecting) {
+        resolve('cancel');
+        return;
+      }
+      // The label can stay "Connecting..." after the sheet has gone.
+      if (sawSheet && !open && closedAt && Date.now() - closedAt >= 1500) {
         resolve('cancel');
         return;
       }
@@ -2736,8 +2749,8 @@ function ensureWallet() {
         resolve('fail');
         return;
       }
-      if (Date.now() - started >= 120000) {
-        resolve('cancel');
+      if (Date.now() - started >= 90000) {
+        resolve('fail');
         return;
       }
       setTimeout(tick, 200);
@@ -2873,7 +2886,10 @@ async function startPost() {
     if (token === placeToken) placeBusy = false;
   }
   if (token !== placeToken) return;
-  if (status === 'cancel') return;
+  if (status === 'cancel') {
+    placeBusy = false;
+    return;
+  }
   if (status !== 'ok') {
     placing = false;
     placeBusy = false;
@@ -3360,12 +3376,19 @@ async function openConnect() {
   holdScroll();
   closeMenu();
   await new Promise((resolve) => setTimeout(resolve, 0));
+  // Own the busy flag only when the plus button does not already hold it.
+  const token = placeBusy ? 0 : ++placeToken;
+  if (token) placeBusy = true;
   let status = 'fail';
   try {
     status = await ensureWallet();
   } catch (err) {
     status = 'fail';
+  } finally {
+    if (token && token === placeToken) placeBusy = false;
   }
+  if (token && token !== placeToken) return;
+  if (token) placeBusy = false;
   if (status === 'ok' || status === 'cancel') return;
   toast.info("Couldn't open the wallet");
 }
