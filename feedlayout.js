@@ -628,30 +628,11 @@ function flagEmoji(code) {
   return String.fromCodePoint(base + iso.charCodeAt(0) - 65, base + iso.charCodeAt(1) - 65);
 }
 
-// Same leading-prefix and 28-character rules as server/feedplace.js shortCity().
-const CITY_LEAD = /^(?:city|municipality|town|borough|county|university|district|village|commune|canton|parish|region|province) of\s+|^(?:heroica ciudad|ciudad aut[oó]noma|ciudad|villa) de\s+|^delegaci[oó]n(?: de)?\s+|^freguesia (?:do|da|de)\s+|^universit(?:ä|ae)ts- und hansestadt\s+|^freie und hansestadt\s+|^hansestadt\s+|^landeshauptstadt\s+/i;
-
-function shortCity(city) {
-  let name = String(city || '').replace(/\s+/g, ' ').trim();
-  let prev = '';
-  while (name && name !== prev) {
-    prev = name;
-    name = name.replace(CITY_LEAD, '').trim();
-  }
-  if (name.length <= 28) return name;
-  let end = 28;
-  if (name.charAt(28) !== ' ') {
-    const space = name.lastIndexOf(' ', 28);
-    if (space >= 16) end = space;
-  }
-  return name.slice(0, end).replace(/[\s,./\-–—]+$/u, '') + '…';
-}
-
 function normPlaceName(value) {
   return String(value || '').toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim();
 }
 
-// code + names. A cached row may still store the long country; the card shows the code.
+// code + names. The first name is the label. A cached row may still store a long country.
 const COUNTRY_ALIASES = `
 AD Andorra
 AE United Arab Emirates|UAE
@@ -907,10 +888,14 @@ ZM Zambia
 ZW Zimbabwe
 `;
 const countryCodeByName = new Map();
+const countryNameByCode = new Map();
 for (const line of COUNTRY_ALIASES.trim().split('\n')) {
   const code = line.slice(0, 2).toUpperCase();
   if (!/^[A-Z]{2}$/.test(code)) continue;
-  for (const name of line.slice(3).split('|')) {
+  const names = line.slice(3).split('|');
+  const label = names[0] ? names[0].trim() : '';
+  if (label) countryNameByCode.set(code, label);
+  for (const name of names) {
     const key = normPlaceName(name);
     if (key) countryCodeByName.set(key, code);
   }
@@ -932,16 +917,19 @@ function placePart(className, emoji, name) {
     mark.textContent = emoji;
     el.appendChild(mark);
   }
-  el.appendChild(document.createTextNode(name));
+  const text = document.createElement('span');
+  text.className = 'feed-loc-name';
+  text.textContent = name;
+  el.appendChild(text);
   return el;
 }
 
 function showPlace(coords, hit) {
   const label = coords.parentElement;
   if (!label) return;
-  const city = shortCity(hit && hit.city);
   const code = placeCountryCode(hit);
-  if (!city && !code) {
+  const name = code ? (countryNameByCode.get(code) || '') : '';
+  if (!name) {
     coords.hidden = false;
     coords.classList.add('is-fallback');
     coords.dataset.place = 'fail';
@@ -956,8 +944,7 @@ function showPlace(coords, hit) {
     coords.before(where);
   }
   where.replaceChildren();
-  if (city) where.appendChild(placePart('feed-loc-city', '', city));
-  if (code) where.appendChild(placePart('feed-loc-country', flagEmoji(code), code));
+  where.appendChild(placePart('feed-loc-country', flagEmoji(code), name));
   coords.hidden = true;
   coords.dataset.place = 'ready';
 }
