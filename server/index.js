@@ -27,7 +27,7 @@ import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
 import { startEarlyHashinals } from "./hashinals.js";
-import { lookupFeedPlace, parseFeedGeoKey } from "./feedplace.js";
+import { lookupFeedPlace, parseFeedGeoKey, shortCity } from "./feedplace.js";
 import { createChunkAssembler } from "../hcschunks.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1547,10 +1547,6 @@ function rememberPlace(geokey, place) {
 }
 
 const placeMiss = new Set();
-
-function shortCity(city) {
-  return String(city || "").replace(/^City of\s+/i, "").trim();
-}
 
 // city/town/village, then country. An empty city means the lookup finished
 // and only the country was named. Null city means this cell is not done.

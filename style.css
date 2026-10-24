@@ -8054,9 +8054,10 @@ html.feed-app appkit-modal {
   overflow: hidden;
 }
 #feed-column .feed-loc-label {
+  display: flex;
+  align-items: center;
   flex: 1 1 auto;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
@@ -8068,12 +8069,26 @@ html.feed-app appkit-modal {
   min-width: 0;
 }
 #feed-column .feed-loc-where {
+  flex: 1 1 auto;
   gap: calc(var(--fu) * 0.7);
   max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
 }
 #feed-column .feed-loc-city,
 #feed-column .feed-loc-country {
   gap: calc(var(--fu) * 0.28);
+}
+#feed-column .feed-loc-city {
+  display: block;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#feed-column .feed-loc-country {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 #feed-column .feed-loc-emoji {
   flex: 0 0 auto;

@@ -19,6 +19,26 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const FEED_PLACE_GRID = 0.5;
 const REACH_KM = 100;
 
+// Leading administrative words, not part of the name a card should show.
+// feedlayout.js shortCity() keeps the same pattern.
+const CITY_LEAD = /^(?:city|municipality|town|borough|county|university|district|village|commune|canton|parish|region|province) of\s+|^(?:heroica ciudad|ciudad aut[oó]noma|ciudad|villa) de\s+|^delegaci[oó]n(?: de)?\s+|^freguesia (?:do|da|de)\s+|^universit(?:ä|ae)ts- und hansestadt\s+|^freie und hansestadt\s+|^hansestadt\s+|^landeshauptstadt\s+/i;
+
+export function shortCity(city) {
+  let name = String(city || "").replace(/\s+/g, " ").trim();
+  let prev = "";
+  while (name && name !== prev) {
+    prev = name;
+    name = name.replace(CITY_LEAD, "").trim();
+  }
+  if (name.length <= 28) return name;
+  let end = 28;
+  if (name.charAt(28) !== " ") {
+    const space = name.lastIndexOf(" ", 28);
+    if (space >= 16) end = space;
+  }
+  return name.slice(0, end).replace(/[\s,./\-–—]+$/u, "") + "…";
+}
+
 const data = JSON.parse(fs.readFileSync(path.join(__dirname, "feed-cities.json"), "utf8"));
 const countries = data.countries || {};
 const buckets = new Map();

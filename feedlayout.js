@@ -647,6 +647,300 @@ function flagEmoji(code) {
   return String.fromCodePoint(base + iso.charCodeAt(0) - 65, base + iso.charCodeAt(1) - 65);
 }
 
+// Same leading-prefix and 28-character rules as server/feedplace.js shortCity().
+const CITY_LEAD = /^(?:city|municipality|town|borough|county|university|district|village|commune|canton|parish|region|province) of\s+|^(?:heroica ciudad|ciudad aut[oó]noma|ciudad|villa) de\s+|^delegaci[oó]n(?: de)?\s+|^freguesia (?:do|da|de)\s+|^universit(?:ä|ae)ts- und hansestadt\s+|^freie und hansestadt\s+|^hansestadt\s+|^landeshauptstadt\s+/i;
+
+function shortCity(city) {
+  let name = String(city || '').replace(/\s+/g, ' ').trim();
+  let prev = '';
+  while (name && name !== prev) {
+    prev = name;
+    name = name.replace(CITY_LEAD, '').trim();
+  }
+  if (name.length <= 28) return name;
+  let end = 28;
+  if (name.charAt(28) !== ' ') {
+    const space = name.lastIndexOf(' ', 28);
+    if (space >= 16) end = space;
+  }
+  return name.slice(0, end).replace(/[\s,./\-–—]+$/u, '') + '…';
+}
+
+function normPlaceName(value) {
+  return String(value || '').toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim();
+}
+
+// code + names. A cached row may still store the long country; the card shows the code.
+const COUNTRY_ALIASES = `
+AD Andorra
+AE United Arab Emirates|UAE
+AF Afghanistan
+AG Antigua and Barbuda
+AI Anguilla
+AL Albania
+AM Armenia
+AN Netherlands Antilles
+AO Angola
+AQ Antarctica
+AR Argentina
+AS American Samoa
+AT Austria
+AU Australia
+AW Aruba
+AX Aland Islands
+AZ Azerbaijan
+BA Bosnia and Herzegovina
+BB Barbados
+BD Bangladesh
+BE Belgium
+BF Burkina Faso
+BG Bulgaria
+BH Bahrain
+BI Burundi
+BJ Benin
+BL Saint Barthelemy
+BM Bermuda
+BN Brunei
+BO Bolivia|Plurinational State of Bolivia
+BQ Bonaire, Saint Eustatius and Saba
+BR Brazil
+BS Bahamas
+BT Bhutan
+BV Bouvet Island
+BW Botswana
+BY Belarus
+BZ Belize
+CA Canada
+CC Cocos Islands
+CD Democratic Republic of the Congo|DR Congo|DRC|Democratic Republic of Congo
+CF Central African Republic
+CG Republic of the Congo|Congo-Brazzaville
+CH Switzerland
+CI Ivory Coast|Cote d'Ivoire
+CK Cook Islands
+CL Chile
+CM Cameroon
+CN China
+CO Colombia
+CR Costa Rica
+CS Serbia and Montenegro
+CU Cuba
+CV Cabo Verde|Cape Verde
+CW Curacao
+CX Christmas Island
+CY Cyprus
+CZ Czechia|Czech Republic
+DE Germany
+DJ Djibouti
+DK Denmark
+DM Dominica
+DO Dominican Republic
+DZ Algeria
+EC Ecuador
+EE Estonia
+EG Egypt
+EH Western Sahara
+ER Eritrea
+ES Spain
+ET Ethiopia
+FI Finland
+FJ Fiji
+FK Falkland Islands
+FM Micronesia
+FO Faroe Islands
+FR France
+GA Gabon
+GB United Kingdom|United Kingdom of Great Britain and Northern Ireland|Great Britain|UK
+GD Grenada
+GE Georgia
+GF French Guiana
+GG Guernsey
+GH Ghana
+GI Gibraltar
+GL Greenland
+GM Gambia
+GN Guinea
+GP Guadeloupe
+GQ Equatorial Guinea
+GR Greece
+GS South Georgia and the South Sandwich Islands
+GT Guatemala
+GU Guam
+GW Guinea-Bissau
+GY Guyana
+HK Hong Kong
+HM Heard Island and McDonald Islands
+HN Honduras
+HR Croatia
+HT Haiti
+HU Hungary
+ID Indonesia
+IE Ireland
+IL Israel
+IM Isle of Man
+IN India
+IO British Indian Ocean Territory
+IQ Iraq
+IR Iran|Islamic Republic of Iran
+IS Iceland
+IT Italy
+JE Jersey
+JM Jamaica
+JO Jordan
+JP Japan
+KE Kenya
+KG Kyrgyzstan
+KH Cambodia
+KI Kiribati
+KM Comoros
+KN Saint Kitts and Nevis
+KP North Korea|Democratic People's Republic of Korea
+KR South Korea|Republic of Korea|Korea, Republic of
+KW Kuwait
+KY Cayman Islands
+KZ Kazakhstan
+LA Laos|Lao People's Democratic Republic
+LB Lebanon
+LC Saint Lucia
+LI Liechtenstein
+LK Sri Lanka
+LR Liberia
+LS Lesotho
+LT Lithuania
+LU Luxembourg
+LV Latvia
+LY Libya
+MA Morocco
+MC Monaco
+MD Moldova
+ME Montenegro
+MF Saint Martin
+MG Madagascar
+MH Marshall Islands
+MK North Macedonia|Macedonia
+ML Mali
+MM Myanmar|Burma
+MN Mongolia
+MO Macao
+MP Northern Mariana Islands
+MQ Martinique
+MR Mauritania
+MS Montserrat
+MT Malta
+MU Mauritius
+MV Maldives
+MW Malawi
+MX Mexico
+MY Malaysia
+MZ Mozambique
+NA Namibia
+NC New Caledonia
+NE Niger
+NF Norfolk Island
+NG Nigeria
+NI Nicaragua
+NL The Netherlands|Netherlands
+NO Norway
+NP Nepal
+NR Nauru
+NU Niue
+NZ New Zealand
+OM Oman
+PA Panama
+PE Peru
+PF French Polynesia
+PG Papua New Guinea
+PH Philippines
+PK Pakistan
+PL Poland
+PM Saint Pierre and Miquelon
+PN Pitcairn
+PR Puerto Rico
+PS Palestinian Territory|Palestine
+PT Portugal
+PW Palau
+PY Paraguay
+QA Qatar
+RE Reunion
+RO Romania
+RS Serbia
+RU Russia|Russian Federation
+RW Rwanda
+SA Saudi Arabia
+SB Solomon Islands
+SC Seychelles
+SD Sudan
+SE Sweden
+SG Singapore
+SH Saint Helena
+SI Slovenia
+SJ Svalbard and Jan Mayen
+SK Slovakia
+SL Sierra Leone
+SM San Marino
+SN Senegal
+SO Somalia
+SR Suriname
+SS South Sudan
+ST Sao Tome and Principe
+SV El Salvador
+SX Sint Maarten
+SY Syria|Syrian Arab Republic
+SZ Eswatini|Swaziland
+TC Turks and Caicos Islands
+TD Chad
+TF French Southern Territories
+TG Togo
+TH Thailand
+TJ Tajikistan
+TK Tokelau
+TL Timor Leste|East Timor
+TM Turkmenistan
+TN Tunisia
+TO Tonga
+TR Turkey
+TT Trinidad and Tobago
+TV Tuvalu
+TW Taiwan
+TZ Tanzania|United Republic of Tanzania
+UA Ukraine
+UG Uganda
+UM United States Minor Outlying Islands
+US United States|United States of America|USA
+UY Uruguay
+UZ Uzbekistan
+VA Vatican|Vatican City
+VC Saint Vincent and the Grenadines
+VE Venezuela|Bolivarian Republic of Venezuela
+VG British Virgin Islands
+VI U.S. Virgin Islands
+VN Vietnam
+VU Vanuatu
+WF Wallis and Futuna
+WS Samoa
+XK Kosovo
+YE Yemen
+YT Mayotte
+ZA South Africa
+ZM Zambia
+ZW Zimbabwe
+`;
+const countryCodeByName = new Map();
+for (const line of COUNTRY_ALIASES.trim().split('\n')) {
+  const code = line.slice(0, 2).toUpperCase();
+  if (!/^[A-Z]{2}$/.test(code)) continue;
+  for (const name of line.slice(3).split('|')) {
+    const key = normPlaceName(name);
+    if (key) countryCodeByName.set(key, code);
+  }
+}
+
+function placeCountryCode(hit) {
+  const raw = String(hit && hit.code || '').trim().toUpperCase();
+  if (/^[A-Z]{2}$/.test(raw)) return raw;
+  return countryCodeByName.get(normPlaceName(hit && hit.country)) || '';
+}
+
 function placePart(className, emoji, name) {
   const el = document.createElement('span');
   el.className = className;
@@ -664,9 +958,9 @@ function placePart(className, emoji, name) {
 function showPlace(coords, hit) {
   const label = coords.parentElement;
   if (!label) return;
-  const city = String(hit.city || '').trim();
-  const country = String(hit.country || '').trim();
-  if (!city && !country) {
+  const city = shortCity(hit && hit.city);
+  const code = placeCountryCode(hit);
+  if (!city && !code) {
     coords.hidden = false;
     coords.classList.add('is-fallback');
     coords.dataset.place = 'fail';
@@ -681,8 +975,8 @@ function showPlace(coords, hit) {
     coords.before(where);
   }
   where.replaceChildren();
-  if (city) where.appendChild(placePart('feed-loc-city', '🏙', city));
-  if (country) where.appendChild(placePart('feed-loc-country', flagEmoji(hit.code), country));
+  if (city) where.appendChild(placePart('feed-loc-city', '', city));
+  if (code) where.appendChild(placePart('feed-loc-country', flagEmoji(code), code));
   coords.hidden = true;
   coords.dataset.place = 'ready';
 }
