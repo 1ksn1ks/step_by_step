@@ -8979,13 +8979,69 @@ html.feed-app appkit-modal {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: calc(var(--fu) * 1.1);
+  gap: calc(var(--fu) * 0.4);
   box-sizing: border-box;
-  height: calc(var(--fu) * 5.6);
+  min-height: calc(var(--fu) * 5.6);
   margin: 0;
-  padding: 0 calc(var(--fu) * 1.2);
+  padding: env(safe-area-inset-top) calc(var(--fu) * 0.6) 0 calc(var(--fu) * 0.8);
   border-bottom: 1px solid rgba(255, 255, 255, 0.22);
   background: #0a0a12;
+}
+.feed-chat-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--fu) * 0.15);
+  margin-left: auto;
+}
+.feed-chat-actions > .feed-chat-icon,
+.feed-chat-actions > button {
+  appearance: none;
+  position: relative;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: calc(var(--fu) * 4.2) !important;
+  height: calc(var(--fu) * 4.2) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  color: #fff !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  box-shadow: none !important;
+  animation: none !important;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.feed-chat-actions > .feed-chat-icon {
+  display: inline-flex;
+}
+.feed-chat-actions > .feed-chat-icon[hidden] {
+  display: none;
+}
+.feed-chat-actions .feed-chat-glyph {
+  width: calc(var(--fu) * 2);
+  height: calc(var(--fu) * 2);
+  display: block;
+  margin: auto;
+  pointer-events: none;
+}
+.feed-chat-actions > button:not(.feed-chat-icon) .feed-chat-glyph {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.feed-chat-actions > button:is(:hover, :active, .is-hold, .is-on) {
+  color: #22D3EE !important;
+}
+.feed-chat-actions > button:focus-visible {
+  outline: calc(var(--fu) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--fu) * 0.08);
 }
 .feed-chat-back {
   appearance: none;
@@ -9018,12 +9074,17 @@ html.feed-app appkit-modal {
   outline-offset: calc(var(--fu) * 0.12);
 }
 .feed-chat-title {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
   color: #fff;
   font-family: Inter, system-ui, sans-serif;
   font-size: calc(var(--fu) * 2.1);
   font-weight: 700;
   line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .feed-chat-body {
   flex: 1 1 auto;
@@ -9040,9 +9101,12 @@ html.feed-app appkit-modal {
   bottom: auto !important;
   left: auto !important;
   z-index: 1 !important;
+  display: flex !important;
+  flex-direction: column;
   flex: 1 1 auto;
   width: 100% !important;
   height: 100% !important;
+  min-height: 0;
   max-height: none !important;
   margin: 0 !important;
   padding: 0 !important;
@@ -9069,17 +9133,131 @@ html.feed-app appkit-modal {
   display: none !important;
 }
 #feed-chat .is-feed-shell .chat-topic-chat-container {
+  position: relative;
   flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
-  gap: calc(var(--fu) * 0.7);
-  padding: calc(var(--fu) * 0.9) calc(var(--fu) * 0.9) calc(var(--fu) * 0.7);
+  gap: 0;
+  padding: 0;
+  background: #0a0a12;
+  overflow: hidden;
+}
+#feed-chat .is-feed-shell .feed-chat-room {
+  order: 1;
+  position: relative;
+  z-index: 7;
+  flex: 0 0 auto;
+  display: flex !important;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: calc(var(--fu) * 0.55);
+  box-sizing: border-box;
+  min-height: calc(var(--fu) * 4.6);
+  margin: 0;
+  padding: calc(var(--fu) * 0.45) calc(var(--fu) * 0.8);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
   background: #0a0a12;
 }
-#feed-chat .is-feed-shell .chat-topic-chat-container > div[style*="display: flex"],
-#feed-chat .is-feed-shell .chat-topic-chat-container > div[style*="display:flex"] {
-  flex-wrap: wrap;
-  gap: calc(var(--fu) * 0.5);
+#feed-chat .is-feed-shell .feed-chat-room > div {
+  display: flex;
+  flex: 0 0 auto;
   align-items: center;
+}
+#feed-chat .is-feed-shell .loaded-topics-controls {
+  order: 2;
+  position: relative;
+  z-index: 7;
+  display: none !important;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: calc(var(--fu) * 0.45);
+  box-sizing: border-box;
+  margin: 0 !important;
+  padding: calc(var(--fu) * 0.45) calc(var(--fu) * 0.8);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+  background: #0a0a12;
+}
+#feed-chat .is-feed-shell.is-search .loaded-topics-controls {
+  display: flex !important;
+}
+#feed-chat .is-feed-shell .chat-messages-wrap {
+  order: 3;
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column;
+  min-height: 0;
+  background: transparent;
+}
+#feed-chat .is-feed-shell #encrypted-chat-chat-container {
+  order: 4;
+  flex: 0 0 auto;
+  display: block !important;
+  margin: 0 !important;
+  background: #0a0a12;
+}
+#feed-chat .is-feed-shell .feed-chat-compose {
+  order: 4;
+  position: relative;
+  z-index: 7;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: calc(var(--fu) * 0.5);
+  box-sizing: border-box;
+  margin: 0 !important;
+  padding: calc(var(--fu) * 0.6) calc(var(--fu) * 0.7) calc(var(--fu) * 0.6 + env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(255, 255, 255, 0.22);
+  background: #0a0a12;
+}
+#feed-chat .is-feed-shell .feed-chat-sheet {
+  display: none;
+  position: absolute;
+  z-index: 8;
+  top: calc(var(--fu) * 5.1);
+  right: calc(var(--fu) * 0.8);
+  left: calc(var(--fu) * 0.8);
+  flex-direction: column;
+  gap: calc(var(--fu) * 0.55);
+  box-sizing: border-box;
+  max-height: calc(100% - var(--fu) * 13);
+  margin: 0;
+  padding: calc(var(--fu) * 0.8);
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: calc(var(--fu) * 1.4);
+  background: #0a0a12;
+}
+#feed-chat .is-feed-shell.is-search .feed-chat-sheet {
+  top: calc(var(--fu) * 10.2);
+}
+#feed-chat .is-feed-shell .feed-chat-sheet:has(> :not([style*="display: none"]):not([style*="display:none"])) {
+  display: flex;
+}
+#feed-chat .is-feed-shell .feed-chat-sheet div[style*="display: flex"],
+#feed-chat .is-feed-shell .feed-chat-sheet div[style*="display:flex"] {
+  flex-wrap: wrap;
+  gap: calc(var(--fu) * 0.4);
+}
+#feed-chat .is-feed-shell .feed-chat-gate {
+  display: none;
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: calc(var(--fu) * 2);
+  background: rgba(10, 10, 18, 0.94);
+}
+#feed-chat .is-feed-shell.is-locked .feed-chat-gate {
+  display: flex;
+}
+#feed-chat .is-feed-shell.is-locked .feed-chat-gate:has(#encrypted-chat-private-key-container[style*="display: none"]),
+#feed-chat .is-feed-shell.is-locked .feed-chat-gate:has(#encrypted-chat-private-key-container[style*="display:none"]) {
+  display: none;
 }
 #feed-chat .is-feed-shell .toolbar-column,
 #feed-chat .is-feed-shell .loaded-topics-search {
@@ -9090,26 +9268,46 @@ html.feed-app appkit-modal {
   margin: 0 !important;
   padding: calc(var(--fu) * 0.7) calc(var(--fu) * 0.9);
   border: 1px solid rgba(255, 255, 255, 0.22) !important;
-  border-radius: calc(var(--fu) * 1.2) !important;
-  background: rgba(15, 15, 20, 0.9) !important;
+  border-radius: calc(var(--fu) * 2) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
   color: #fff !important;
   font-family: Inter, system-ui, sans-serif !important;
   font-size: calc(var(--fu) * 1.55) !important;
   line-height: 1.3;
   box-shadow: none !important;
+  resize: none;
 }
-#feed-chat .is-feed-shell #topic-chat-topic-id,
-#feed-chat .is-feed-shell #encrypted-chat-topic-id,
-#feed-chat .is-feed-shell #encrypted-chat-private-key,
+#feed-chat .is-feed-shell .feed-chat-room .toolbar-column {
+  flex: 1 1 auto;
+  width: auto !important;
+  height: calc(var(--fu) * 3.6) !important;
+  min-height: calc(var(--fu) * 3.6) !important;
+  max-height: calc(var(--fu) * 3.6) !important;
+  overflow: auto;
+}
 #feed-chat .is-feed-shell .loaded-topics-search {
-  flex: 1 1 calc(var(--fu) * 12);
+  flex: 1 1 auto;
   min-width: 0;
+}
+#feed-chat .is-feed-shell .feed-chat-gate .toolbar-column {
+  width: min(100%, calc(var(--fu) * 32)) !important;
+  height: calc(var(--fu) * 5.2) !important;
+  min-height: calc(var(--fu) * 5.2) !important;
+  max-height: calc(var(--fu) * 8) !important;
+}
+#feed-chat .is-feed-shell .feed-chat-sheet .toolbar-column {
+  width: 100% !important;
+  flex: 1 1 auto;
 }
 #feed-chat .is-feed-shell #user-write-message,
 #feed-chat .is-feed-shell #user-write-message-encrypted-chat {
-  width: 100% !important;
-  padding-right: calc(var(--fu) * 5.4) !important;
-  padding-left: calc(var(--fu) * 5.4) !important;
+  order: 2;
+  flex: 1 1 auto;
+  width: auto !important;
+  min-width: 0;
+  min-height: calc(var(--fu) * 4.2);
+  max-height: calc(var(--fu) * 12) !important;
+  padding: calc(var(--fu) * 0.85) calc(var(--fu) * 1.1) !important;
 }
 #feed-chat .is-feed-shell label {
   font-family: Inter, system-ui, sans-serif !important;
@@ -9123,45 +9321,39 @@ html.feed-app appkit-modal {
 #feed-chat .is-feed-shell .loaded-topics-sort {
   width: auto !important;
   height: auto !important;
-  min-height: calc(var(--fu) * 3.8);
+  min-height: calc(var(--fu) * 3.6);
   margin: 0 !important;
-  padding: calc(var(--fu) * 0.7) calc(var(--fu) * 1);
+  padding: calc(var(--fu) * 0.65) calc(var(--fu) * 1);
   border: 1px solid rgba(255, 255, 255, 0.22) !important;
-  border-radius: calc(var(--fu) * 1.2) !important;
-  background: rgba(10, 10, 18, 0.55) !important;
+  border-radius: calc(var(--fu) * 2) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
   color: #fff !important;
   font-family: Inter, system-ui, sans-serif !important;
-  font-size: calc(var(--fu) * 1.45) !important;
+  font-size: calc(var(--fu) * 1.4) !important;
   font-weight: 600;
   line-height: 1.2;
   box-shadow: none !important;
 }
+#feed-chat .is-feed-shell .feed-chat-sheet .toolbar-column-btns,
+#feed-chat .is-feed-shell .feed-chat-sheet .toolbar-column-first-settings-btns,
+#feed-chat .is-feed-shell .feed-chat-sheet .toolbar-column-settings-btns,
+#feed-chat .is-feed-shell .feed-chat-sheet .pin-public-key-from-encrypted-chat {
+  flex: 1 1 auto;
+}
 #feed-chat .is-feed-shell #load-msgs-from,
 #feed-chat .is-feed-shell #load-msgs-from-encrypted-chat {
+  border-radius: calc(var(--fu) * 2) !important;
   background: #22D3EE !important;
   border-color: #22D3EE !important;
   color: #083344 !important;
 }
-#feed-chat .is-feed-shell #options-from-topic-chat,
-#feed-chat .is-feed-shell #options-from-encrypted-chat,
-#feed-chat .is-feed-shell #time-from-topic-chat,
-#feed-chat .is-feed-shell #time-from-encrypted-chat,
-#feed-chat .is-feed-shell #time-from-topic-chat-filter,
-#feed-chat .is-feed-shell #time-from-encrypted-chat-filter {
-  box-sizing: border-box;
-  padding: calc(var(--fu) * 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: calc(var(--fu) * 1.2);
-  background: rgba(15, 15, 20, 0.72);
-}
-#feed-chat .is-feed-shell .chat-messages-wrap {
-  flex: 1 1 auto;
-  min-height: 0;
-}
 #feed-chat .is-feed-shell .chat-container {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 1 1 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
   margin: 0 !important;
+  overflow-y: auto;
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
@@ -9172,36 +9364,55 @@ html.feed-app appkit-modal {
 #feed-chat .is-feed-shell .chat-container * {
   font-family: Inter, system-ui, sans-serif;
 }
+#feed-chat .is-feed-shell .chat-attach-preview {
+  order: 0;
+  flex: 1 0 100%;
+}
+#feed-chat .is-feed-shell .chat-attach-preview[hidden] {
+  display: none !important;
+}
 #feed-chat .is-feed-shell .hcs-byte-counter {
-  right: calc(var(--fu) * 5) !important;
-  bottom: calc(var(--fu) * 0.55) !important;
+  order: 3;
+  position: static !important;
+  right: auto !important;
+  bottom: auto !important;
+  flex: 0 0 auto;
+  align-self: center;
+  margin: 0;
   font-family: Inter, system-ui, sans-serif !important;
   font-size: calc(var(--fu) * 1.15) !important;
+  line-height: 1;
+  white-space: nowrap;
   color: rgba(255, 255, 255, 0.55);
 }
-#feed-chat .is-feed-shell .msg-send-btn,
-#feed-chat .is-feed-shell .msg-image-btn {
-  width: calc(var(--fu) * 3.8) !important;
-  height: calc(var(--fu) * 3.8) !important;
+#feed-chat .is-feed-shell .msg-image-btn,
+#feed-chat .is-feed-shell .msg-send-btn {
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  flex: 0 0 auto;
+  width: calc(var(--fu) * 4) !important;
+  height: calc(var(--fu) * 4) !important;
   margin: 0 !important;
   padding: 0 !important;
   border-radius: 50% !important;
   font-size: 0 !important;
   line-height: 0 !important;
   box-shadow: none !important;
-  bottom: calc(var(--fu) * 0.65) !important;
-}
-#feed-chat .is-feed-shell .msg-send-btn {
-  right: calc(var(--fu) * 0.65) !important;
-  background: #22D3EE !important;
-  border: 0 !important;
-  color: #083344 !important;
 }
 #feed-chat .is-feed-shell .msg-image-btn {
-  left: calc(var(--fu) * 0.65) !important;
+  order: 1;
   background: rgba(10, 10, 18, 0.88) !important;
   border: 1px solid #22D3EE !important;
   color: #22D3EE !important;
+}
+#feed-chat .is-feed-shell .msg-send-btn {
+  order: 4;
+  background: #22D3EE !important;
+  border: 0 !important;
+  color: #083344 !important;
 }
 #feed-chat .is-feed-shell .feed-chat-glyph {
   width: calc(var(--fu) * 1.8);
@@ -9213,6 +9424,7 @@ html.feed-app appkit-modal {
 #feed-chat .is-feed-shell #go-to-bottom-msgs,
 #feed-chat .is-feed-shell #go-to-top-msgs-encrypted-chat,
 #feed-chat .is-feed-shell #go-to-bottom-msgs-encrypted-chat {
+  position: absolute !important;
   width: calc(var(--fu) * 3.6) !important;
   height: calc(var(--fu) * 3.6) !important;
   border: 1px solid rgba(255, 255, 255, 0.22) !important;

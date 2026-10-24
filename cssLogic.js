@@ -612,6 +612,12 @@ export function CloseALL() {
     const container = messages.closest(".topic-chat-container");
     if (!container || getComputedStyle(container).display === "none") return;
     if (container.classList.contains("topic-chat-compact")) return;
+    // The feed shell is a flex column. A pixel height here pins the list
+    // and lets the options form eat the thread.
+    if (container.classList.contains("is-feed-shell")) {
+      if (messages.style.height) messages.style.height = "";
+      return;
+    }
     const wrap = messages.parentElement;      // .chat-messages-wrap
     const inner = wrap.parentElement;         // .chat-topic-chat-container
     const span = (el) => {

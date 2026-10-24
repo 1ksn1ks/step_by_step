@@ -3998,7 +3998,29 @@ feedChatBack.appendChild(svgIcon([
 const feedChatTitle = document.createElement('h2');
 feedChatTitle.className = 'feed-chat-title';
 feedChatTitle.textContent = 'Chat';
-feedChatBar.append(feedChatBack, feedChatTitle);
+const feedChatActions = document.createElement('div');
+feedChatActions.className = 'feed-chat-actions';
+const feedChatSearch = document.createElement('button');
+feedChatSearch.type = 'button';
+feedChatSearch.className = 'feed-chat-icon';
+feedChatSearch.setAttribute('aria-label', 'Search');
+feedChatSearch.appendChild(svgIcon([
+  ['circle', { cx: '11', cy: '11', r: '8' }],
+  ['path', { d: 'm21 21-4.3-4.3' }],
+]));
+feedChatSearch.querySelector('svg').classList.add('feed-chat-glyph');
+const feedChatUnlock = document.createElement('button');
+feedChatUnlock.type = 'button';
+feedChatUnlock.className = 'feed-chat-icon';
+feedChatUnlock.hidden = true;
+feedChatUnlock.setAttribute('aria-label', 'Unlock');
+feedChatUnlock.appendChild(svgIcon([
+  ['path', { d: 'M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z' }],
+  ['circle', { cx: '16.5', cy: '7.5', r: '.5', fill: 'currentColor' }],
+]));
+feedChatUnlock.querySelector('svg').classList.add('feed-chat-glyph');
+feedChatActions.append(feedChatSearch, feedChatUnlock);
+feedChatBar.append(feedChatBack, feedChatTitle, feedChatActions);
 const feedChatBody = document.createElement('div');
 feedChatBody.className = 'feed-chat-body';
 feedChat.append(feedChatBar, feedChatBody);
@@ -4010,6 +4032,112 @@ let feedChatKind = '';
 let feedChatHome = null;
 let feedChatWatch = null;
 let feedChatLive = false;
+let feedChatPlaced = [];
+
+const FEED_CHAT_SHEETS = {
+  topic: [
+    'options-from-topic-chat',
+    'time-from-topic-chat',
+    'time-from-topic-chat-filter',
+    'load-load-from-users-label-from-topic-chat',
+    'load-block-from-users-label-from-topic-chat',
+    'load-msgs-from-ids-from-topic-chat',
+    'load-blocks-from-ids-from-topic-chat',
+    'load-load-from-users-from-topic-chat',
+    'load-block-from-users-from-topic-chat',
+  ],
+  e2ee: [
+    'options-from-encrypted-chat',
+    'encrypted-chat-public-key',
+    'encrypted-chat-change-password-key-label',
+    'encrypted-chat-change-password-key',
+    'encrypted-chat-new-password-key-label',
+    'encrypted-chat-new-password-key',
+    'pin-public-key-from-encrypted-chat',
+    'change-password-encrypted-chat',
+    'set-password-encrypted-chat',
+    'time-from-encrypted-chat',
+    'time-from-encrypted-chat-filter',
+    'load-load-from-users-label-from-encrypted-chat',
+    'load-block-from-users-label-from-encrypted-chat',
+    'load-msgs-from-ids-from-encrypted-chat',
+    'load-blocks-from-ids-from-encrypted-chat',
+    'load-load-from-users-from-encrypted-chat',
+    'load-block-from-users-from-encrypted-chat',
+  ],
+};
+
+function placeFeedNode(node, parent) {
+  if (!node || !parent || node.parentNode === parent) return;
+  feedChatPlaced.push({ node, parent: node.parentNode, next: node.nextSibling });
+  parent.appendChild(node);
+}
+
+function unplaceFeedChat() {
+  for (let i = feedChatPlaced.length - 1; i >= 0; i -= 1) {
+    const spot = feedChatPlaced[i];
+    if (!spot.parent) continue;
+    if (spot.next && spot.next.parentNode === spot.parent) spot.parent.insertBefore(spot.node, spot.next);
+    else spot.parent.appendChild(spot.node);
+  }
+  feedChatPlaced = [];
+}
+
+function primeFeedOptionPair(openId, closeId, panelId) {
+  const open = document.getElementById(openId);
+  const close = document.getElementById(closeId);
+  const panel = document.getElementById(panelId);
+  const shown = panel && panel.style.display !== 'none';
+  if (open) open.style.display = shown ? 'none' : 'block';
+  if (close) close.style.display = shown ? 'block' : 'none';
+}
+
+function clearFeedMessenger(panel) {
+  unplaceFeedChat();
+  feedChatSearch.classList.remove('is-on');
+  feedChatUnlock.classList.remove('is-on');
+  feedChatUnlock.hidden = true;
+  if (!panel) return;
+  panel.classList.remove('is-search', 'is-locked');
+  panel.querySelectorAll('.feed-chat-room').forEach((el) => el.classList.remove('feed-chat-room'));
+  panel.querySelectorAll('.feed-chat-compose').forEach((el) => el.classList.remove('feed-chat-compose'));
+  panel.querySelectorAll('.feed-chat-sheet, .feed-chat-gate').forEach((el) => {
+    const parent = el.parentNode;
+    while (el.firstChild) parent.insertBefore(el.firstChild, el);
+    el.remove();
+  });
+}
+
+function mountFeedMessenger(panel, kind) {
+  if (panel.querySelector('.feed-chat-sheet')) return;
+  const inner = panel.querySelector('.chat-topic-chat-container');
+  if (!inner) return;
+  const topic = document.getElementById(kind === 'e2ee' ? 'encrypted-chat-topic-id' : 'topic-chat-topic-id');
+  if (topic && topic.parentElement) topic.parentElement.classList.add('feed-chat-room');
+  const field = document.getElementById(kind === 'e2ee' ? 'user-write-message-encrypted-chat' : 'user-write-message');
+  if (field && field.parentElement) field.parentElement.classList.add('feed-chat-compose');
+  const openId = kind === 'e2ee' ? 'show-options-from-encrypted-chat' : 'show-options-from-topic-chat';
+  const closeId = kind === 'e2ee' ? 'show-options-from-encrypted-chat-btn' : 'show-options-from-topic-chat-btn';
+  const optionsId = kind === 'e2ee' ? 'options-from-encrypted-chat' : 'options-from-topic-chat';
+  primeFeedOptionPair(openId, closeId, optionsId);
+  placeFeedNode(document.getElementById(openId), feedChatActions);
+  placeFeedNode(document.getElementById(closeId), feedChatActions);
+  const sheet = document.createElement('div');
+  sheet.className = 'feed-chat-sheet';
+  inner.appendChild(sheet);
+  for (const id of FEED_CHAT_SHEETS[kind]) placeFeedNode(document.getElementById(id), sheet);
+  feedChatUnlock.hidden = kind !== 'e2ee';
+  if (kind !== 'e2ee') return;
+  const gate = document.createElement('div');
+  gate.className = 'feed-chat-gate';
+  const wrap = inner.querySelector('.chat-messages-wrap');
+  (wrap || inner).appendChild(gate);
+  placeFeedNode(document.getElementById('encrypted-chat-private-key-container'), gate);
+  const key = document.getElementById('encrypted-chat-private-key');
+  const locked = !key || !key.value.trim();
+  panel.classList.toggle('is-locked', locked);
+  feedChatUnlock.classList.toggle('is-on', locked);
+}
 
 function dressFeedChatIcons(on) {
   for (const [id, icon] of FEED_CHAT_ICONS) {
@@ -4029,6 +4157,8 @@ function restoreFeedChat() {
   const home = feedChatHome;
   feedChatHome = null;
   const panel = document.getElementById(home.id);
+  if (panel) clearFeedMessenger(panel);
+  else clearFeedMessenger(null);
   if (!panel) return;
   panel.classList.remove('is-feed-shell');
   if (home.style == null) panel.removeAttribute('style');
@@ -4050,7 +4180,10 @@ function parkFeedChat(kind) {
     feedChatBody.appendChild(panel);
   }
   panel.classList.add('is-feed-shell');
-  panel.classList.remove('topic-chat-compact', 'topic-chat-fit', 'topic-chat-capped');
+  panel.classList.remove('topic-chat-compact', 'topic-chat-fit', 'topic-chat-capped', 'is-search');
+  feedChatSearch.classList.remove('is-on');
+  feedChatSearch.setAttribute('aria-pressed', 'false');
+  mountFeedMessenger(panel, kind);
   panel.style.display = 'flex';
   if (feedChatWatch) feedChatWatch.disconnect();
   feedChatWatch = new MutationObserver(() => {
@@ -4120,6 +4253,42 @@ bindPress(feedChatBack);
 feedChatBack.addEventListener('click', (event) => {
   event.stopPropagation();
   closeFeedChat();
+});
+
+feedChatSearch.addEventListener('click', (event) => {
+  event.stopPropagation();
+  const panel = feedChatBody.querySelector('.is-feed-shell');
+  if (!panel) return;
+  panel.classList.toggle('is-search');
+  const on = panel.classList.contains('is-search');
+  feedChatSearch.classList.toggle('is-on', on);
+  feedChatSearch.setAttribute('aria-pressed', on ? 'true' : 'false');
+  if (!on) return;
+  const input = panel.querySelector('.loaded-topics-search');
+  if (input) input.focus();
+});
+
+feedChatUnlock.addEventListener('click', (event) => {
+  event.stopPropagation();
+  const panel = document.getElementById('encrypted-chat-container');
+  if (!panel || !panel.classList.contains('is-feed-shell')) return;
+  panel.classList.toggle('is-locked');
+  const on = panel.classList.contains('is-locked');
+  feedChatUnlock.classList.toggle('is-on', on);
+  feedChatUnlock.setAttribute('aria-pressed', on ? 'true' : 'false');
+  if (!on) return;
+  const key = document.getElementById('encrypted-chat-private-key');
+  if (key) key.focus();
+});
+
+document.getElementById('load-msgs-from-encrypted-chat').addEventListener('click', () => {
+  if (!feedChatLive) return;
+  const key = document.getElementById('encrypted-chat-private-key');
+  const panel = document.getElementById('encrypted-chat-container');
+  if (!panel || !key || !key.value.trim()) return;
+  panel.classList.remove('is-locked');
+  feedChatUnlock.classList.remove('is-on');
+  feedChatUnlock.setAttribute('aria-pressed', 'false');
 });
 
 function paintFeedSettings(open) {
