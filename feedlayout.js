@@ -27,6 +27,51 @@ import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { openPreview } from './fullscreenmedia.js';
 
 const LAYOUT_KEY = 'layoutMode';
+const FEED_SETTING = {
+  tab: 'feed-setting-tab',
+  autoplay: 'feed-setting-autoplay',
+  data: 'feed-setting-data',
+  density: 'feed-setting-density',
+  fresh: 'feed-setting-fresh',
+  location: 'feed-setting-location',
+};
+const feedPrefs = {
+  tab: 'all',
+  autoplay: false,
+  dataSaver: false,
+  density: 'comfortable',
+  fresh: 'pill',
+  location: true,
+};
+let settingsOpen = false;
+
+function readFeedPrefs() {
+  try {
+    const tab = localStorage.getItem(FEED_SETTING.tab);
+    if (tab === 'all' || tab === 'following') feedPrefs.tab = tab;
+    feedPrefs.autoplay = localStorage.getItem(FEED_SETTING.autoplay) === 'on';
+    feedPrefs.dataSaver = localStorage.getItem(FEED_SETTING.data) === 'on';
+    const density = localStorage.getItem(FEED_SETTING.density);
+    if (density === 'compact' || density === 'comfortable') feedPrefs.density = density;
+    const fresh = localStorage.getItem(FEED_SETTING.fresh);
+    if (fresh === 'pill' || fresh === 'jump') feedPrefs.fresh = fresh;
+    const location = localStorage.getItem(FEED_SETTING.location);
+    if (location === 'on') feedPrefs.location = true;
+    if (location === 'off') feedPrefs.location = false;
+  } catch {
+    /* private mode */
+  }
+}
+
+function writeFeedSetting(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* private mode */
+  }
+}
+
+readFeedPrefs();
 const PAGE = 2030;
 const CARD_CAP = 200;
 const RENDER_CHUNK = 30;
@@ -704,6 +749,63 @@ function warmFeedVideo(card) {
   video.preload = 'metadata';
 }
 
+function linkInfo() {
+  return navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
+}
+
+// null means the browser has no Network Information API.
+function connectionConstrained() {
+  const net = linkInfo();
+  if (!net) return null;
+  if (net.saveData) return true;
+  if (net.type === 'cellular') return true;
+  const kind = net.effectiveType;
+  if (kind === 'slow-2g' || kind === '2g') return true;
+  return false;
+}
+
+function autoplayAllowed() {
+  if (!feedPrefs.autoplay) return false;
+  if (!feedPrefs.dataSaver) return true;
+  const constrained = connectionConstrained();
+  if (constrained == null) return false;
+  return !constrained;
+}
+
+function startFeedVideo(video) {
+  video.playsInline = true;
+  if (video.preload === 'none') video.preload = 'metadata';
+  if (video.dataset.feedAuto !== '1') video.muted = true;
+  video.dataset.feedAuto = '1';
+  if (!video.paused) return;
+  const started = video.play();
+  if (started && typeof started.catch === 'function') {
+    started.catch(() => {
+      video.muted = true;
+      video.play().catch(() => {});
+    });
+  }
+}
+
+function syncFeedVideo(card) {
+  const video = card.querySelector('.popup-media-card video');
+  if (!video) return;
+  const allow = autoplayAllowed() && !settingsOpen && cardInView(card) && feedCovers();
+  if (allow && video.dataset.feedHold !== '1') {
+    startFeedVideo(video);
+    return;
+  }
+  if (!allow && video.dataset.feedAuto === '1') {
+    delete video.dataset.feedHold;
+    delete video.dataset.feedAuto;
+    if (!video.paused) video.pause();
+  }
+}
+
+function syncFeedVideos() {
+  for (const card of column.querySelectorAll('.feed-card')) syncFeedVideo(card);
+}
+
 function syncVisibleViews() {
   if (!viewObserver) return;
   for (const card of viewIntersecting) {
@@ -712,6 +814,7 @@ function syncVisibleViews() {
       continue;
     }
     syncCardView(card);
+    syncFeedVideo(card);
   }
 }
 
@@ -744,7 +847,10 @@ function ensureViewObserver() {
       if (entry.isIntersecting) {
         viewIntersecting.add(entry.target);
         warmFeedVideo(entry.target);
-      } else viewIntersecting.delete(entry.target);
+      } else {
+        viewIntersecting.delete(entry.target);
+        syncFeedVideo(entry.target);
+      }
       syncCardView(entry.target);
     }
   }, viewObserverOptions());
@@ -939,8 +1045,14 @@ function buildCard(post) {
       node.src = src;
       media.appendChild(node);
       coverFeedPlayer(media, () => {
-        if (node.paused) node.play().catch(() => {});
-        else node.pause();
+        if (node.paused) {
+          delete node.dataset.feedHold;
+          const started = node.play();
+          if (started && typeof started.catch === 'function') started.catch(() => {});
+        } else {
+          node.dataset.feedHold = '1';
+          node.pause();
+        }
       });
     } else {
       node.alt = '';
@@ -1927,6 +2039,11 @@ function paintNewFaces(list) {
 }
 
 function paintNewPill() {
+  if (feedPrefs.fresh === 'jump') {
+    newPill.hidden = true;
+    newPill.classList.remove('is-in');
+    return;
+  }
   const show = feedOn() && !root.classList.contains('is-peek') && !searchQuery && held[feedTab].length > 0;
   if (!show) {
     newPill.hidden = true;
@@ -2014,7 +2131,11 @@ function prependPosts(list) {
   else if (feedTab === 'following') {
     if (!heldFollow) mountIncoming(followed, false);
   } else if (!heldAll) mountIncoming(list, false);
-  paintNewPill();
+  const jump = !searchQuery && feedPrefs.fresh === 'jump' && (
+    (feedTab === 'following' && heldFollow) || (feedTab !== 'following' && heldAll)
+  );
+  if (jump) goToFreshPosts();
+  else paintNewPill();
 }
 
 function scrollMotion() {
@@ -2249,6 +2370,7 @@ function feedCovers() {
 function syncCover() {
   document.documentElement.classList.toggle('feed-app', feedCovers());
   syncLoadOverFeed();
+  syncFeedVideos();
 }
 
 // The Load panel is painted at 1002, under the feed. Lift only an open
@@ -2806,6 +2928,7 @@ function applyFeed(on) {
     const dropSearch = window.layerIsOpen && window.layerIsOpen('feedsearch');
     hideSearch();
     if (dropSearch && window.layerClosedByUI) window.layerClosedByUI('feedsearch');
+    if (settingsOpen || (window.layerIsOpen && window.layerIsOpen('feedsettings'))) closeFeedSettings();
   }
   if (on) {
     const opening = !feedOn();
@@ -2815,24 +2938,12 @@ function applyFeed(on) {
     showFeedTabs();
     measureTabHide();
     syncCover();
-    if (opening) {
-      const wasFollowing = feedTab !== 'all';
-      tabToken += 1;
-      feedTab = 'all';
-      paintTabs();
-      if (wasFollowing) {
-        const sameTopic = !!loadedTopic && topicNow() === loadedTopic;
-        shown = [];
-        rangeStart = 0;
-        rangeEnd = 0;
-        savedScroll = 0;
-        setFeedScroll(0);
-        clearViewWatch();
-        column.replaceChildren();
-        if (sameTopic) fillDown();
-      }
-    }
+    applyFeedChrome();
     ensureTopic(true);
+    if (opening) {
+      const want = feedPrefs.tab === 'following' ? 'following' : 'all';
+      if (feedTab !== want) selectTab(want);
+    }
     return;
   }
   loadOverFeed = false;
@@ -2873,9 +2984,10 @@ if (window.defineLayer) {
 if (window.watchDisplayLayer) {
   window.watchDisplayLayer('feed', root, {
     open: (state) => {
-      const reopenAll = !feedOn() && feedTab !== 'all';
+      const beforeTab = feedTab;
+      const wasOff = !feedOn();
       applyFeed(true);
-      if (reopenAll) return;
+      if (wasOff && beforeTab !== feedTab) return;
       const y = Number(state && state.scroll);
       if (Number.isFinite(y)) {
         savedScroll = y;
@@ -3057,11 +3169,182 @@ async function openE2ee() {
   openOverFeed(() => clickId('toggle-encrypted-chat-btn'));
 }
 
-function openSettings() {
+function applyFeedChrome() {
+  root.classList.toggle('is-compact', feedPrefs.density === 'compact');
+  root.classList.toggle('is-loc-off', !feedPrefs.location);
+  if (feedPrefs.fresh === 'jump' && feedOn() && !searchQuery && held[feedTab].length) goToFreshPosts();
+  else paintNewPill();
+  syncFeedVideos();
+}
+
+const settingsPaints = [];
+const settings = document.createElement('div');
+settings.id = 'feed-settings';
+settings.hidden = true;
+settings.setAttribute('role', 'dialog');
+settings.setAttribute('aria-modal', 'true');
+settings.setAttribute('aria-label', 'Settings');
+const settingsBar = document.createElement('div');
+settingsBar.className = 'feed-settings-bar';
+const settingsBack = document.createElement('button');
+settingsBack.type = 'button';
+settingsBack.className = 'feed-settings-back';
+settingsBack.setAttribute('aria-label', 'Back');
+settingsBack.appendChild(svgIcon([
+  ['path', { d: 'm12 19-7-7 7-7' }],
+  ['path', { d: 'M19 12H5' }],
+]));
+const settingsTitle = document.createElement('h2');
+settingsTitle.className = 'feed-settings-title';
+settingsTitle.textContent = 'Settings';
+settingsBar.append(settingsBack, settingsTitle);
+const settingsBody = document.createElement('div');
+settingsBody.className = 'feed-settings-body';
+
+function settingsSection(title) {
+  const section = document.createElement('section');
+  section.className = 'feed-settings-section';
+  const label = document.createElement('h3');
+  label.className = 'feed-settings-label';
+  label.textContent = title;
+  section.appendChild(label);
+  return section;
+}
+
+function settingsRadios(name, options, get, set) {
+  const group = document.createElement('div');
+  group.className = 'feed-settings-radios';
+  group.setAttribute('role', 'radiogroup');
+  group.setAttribute('aria-label', name);
+  const buttons = [];
+  const paint = () => {
+    const value = get();
+    for (const button of buttons) {
+      const on = button.dataset.value === value;
+      button.classList.toggle('is-on', on);
+      button.setAttribute('aria-checked', on ? 'true' : 'false');
+    }
+  };
+  for (const option of options) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'feed-settings-choice';
+    button.dataset.value = option.value;
+    button.setAttribute('role', 'radio');
+    button.textContent = option.label;
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (get() === option.value) return;
+      set(option.value);
+      paint();
+    });
+    bindPress(button);
+    buttons.push(button);
+    group.appendChild(button);
+  }
+  paint();
+  settingsPaints.push(paint);
+  return group;
+}
+
+function settingsSwitch(label, get, set) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'feed-settings-switch';
+  button.setAttribute('role', 'switch');
+  const text = document.createElement('span');
+  text.textContent = label;
+  const ui = document.createElement('span');
+  ui.className = 'feed-settings-switch-ui';
+  ui.setAttribute('aria-hidden', 'true');
+  button.append(text, ui);
+  const paint = () => {
+    const on = !!get();
+    button.classList.toggle('is-on', on);
+    button.setAttribute('aria-checked', on ? 'true' : 'false');
+  };
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    set(!get());
+    paint();
+  });
+  bindPress(button);
+  paint();
+  settingsPaints.push(paint);
+  return button;
+}
+
+const tabSection = settingsSection('Default tab');
+tabSection.appendChild(settingsRadios('Default tab', [
+  { value: 'all', label: 'All' },
+  { value: 'following', label: 'Following' },
+], () => feedPrefs.tab, (value) => {
+  feedPrefs.tab = value;
+  writeFeedSetting(FEED_SETTING.tab, value);
+}));
+const mediaSection = settingsSection('Media');
+mediaSection.append(
+  settingsSwitch('Autoplay videos', () => feedPrefs.autoplay, (on) => {
+    feedPrefs.autoplay = on;
+    writeFeedSetting(FEED_SETTING.autoplay, on ? 'on' : 'off');
+    syncFeedVideos();
+  }),
+  settingsSwitch('Data saver', () => feedPrefs.dataSaver, (on) => {
+    feedPrefs.dataSaver = on;
+    writeFeedSetting(FEED_SETTING.data, on ? 'on' : 'off');
+    syncFeedVideos();
+  }),
+);
+const densitySection = settingsSection('Density');
+densitySection.appendChild(settingsRadios('Density', [
+  { value: 'compact', label: 'Compact' },
+  { value: 'comfortable', label: 'Comfortable' },
+], () => feedPrefs.density, (value) => {
+  feedPrefs.density = value;
+  writeFeedSetting(FEED_SETTING.density, value);
+  applyFeedChrome();
+}));
+const freshSection = settingsSection('New posts');
+freshSection.appendChild(settingsRadios('New posts', [
+  { value: 'pill', label: 'Show pill' },
+  { value: 'jump', label: 'Jump to top' },
+], () => feedPrefs.fresh, (value) => {
+  feedPrefs.fresh = value;
+  writeFeedSetting(FEED_SETTING.fresh, value);
+  applyFeedChrome();
+}));
+const privacySection = settingsSection('Privacy');
+privacySection.appendChild(settingsSwitch('Show location on cards', () => feedPrefs.location, (on) => {
+  feedPrefs.location = on;
+  writeFeedSetting(FEED_SETTING.location, on ? 'on' : 'off');
+  applyFeedChrome();
+}));
+settingsBody.append(tabSection, mediaSection, densitySection, freshSection, privacySection);
+settings.append(settingsBar, settingsBody);
+root.appendChild(settings);
+
+function paintFeedSettings(open) {
+  settingsOpen = open;
+  settings.hidden = !open;
+  if (open) {
+    for (const paint of settingsPaints) paint();
+    settingsBack.focus({ preventScroll: true });
+  }
+  syncFeedVideos();
+}
+
+function closeFeedSettings() {
+  paintFeedSettings(false);
+  if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedsettings')) {
+    window.layerClosedByUI('feedsettings');
+  }
+}
+
+function openFeedSettings() {
+  if (!feedOn() || root.classList.contains('is-peek')) return;
   openOverFeed(() => {
-    optionsOverFeed = true;
-    clickId('main-toggle-btn');
-    liftOptions();
+    paintFeedSettings(true);
+    if (window.layerOpened) window.layerOpened('feedsettings');
   });
 }
 
@@ -3174,7 +3457,7 @@ const MENU_ROWS = [
   { label: 'My profile', icon: USER_ICON, run: openOwnProfile, wallet: 'on' },
   { label: 'Topic chat', icon: CHAT_ICON, run: openTopicChat },
   { label: 'E2EE chat', icon: LOCK_ICON, run: openE2ee },
-  { label: 'Settings', icon: SETTINGS_ICON, run: openSettings },
+  { label: 'Settings', icon: SETTINGS_ICON, run: openFeedSettings },
   { rule: true, wallet: 'on' },
   { label: 'Disconnect', icon: LOGOUT_ICON, run: openDisconnect, wallet: 'on', danger: true },
 ];
@@ -3234,6 +3517,11 @@ if (window.defineLayer) {
     parent: 'feed',
     open: () => paintMenu(true),
     close: () => closeMenu(),
+  });
+  window.defineLayer('feedsettings', {
+    parent: 'feed',
+    open: () => paintFeedSettings(true),
+    close: () => closeFeedSettings(),
   });
   window.defineLayer('feedsearch', {
     parent: 'feed',
@@ -3374,12 +3662,25 @@ menu.addEventListener('pointerdown', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
-  if (menu.hidden || event.key !== 'Escape') return;
+  if (event.key !== 'Escape') return;
+  if (!settings.hidden && (!window.layerIsTop || window.layerIsTop('feedsettings'))) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeFeedSettings();
+    return;
+  }
+  if (menu.hidden) return;
   if (window.layerIsTop && !window.layerIsTop('feedmenu')) return;
   event.preventDefault();
   event.stopPropagation();
   closeMenu();
 }, true);
+bindPress(settingsBack);
+settingsBack.addEventListener('click', (event) => {
+  event.stopPropagation();
+  closeFeedSettings();
+});
+settings.addEventListener('click', (event) => event.stopPropagation());
 
 column.addEventListener('click', (event) => {
   const tag = event.target && event.target.closest && event.target.closest('.post-hashtag');
@@ -3604,7 +3905,12 @@ scroller.addEventListener('scroll', (event) => {
 }, { passive: true });
 
 paintToggle(false);
+applyFeedChrome();
 if (savedMode() === 'feed') applyFeed(true);
+const feedLink = linkInfo();
+if (feedLink && typeof feedLink.addEventListener === 'function') {
+  feedLink.addEventListener('change', syncFeedVideos);
+}
 
 setInterval(() => {
   if (!feedOn() || root.classList.contains('is-peek')) return;
