@@ -3694,6 +3694,7 @@ function paintFeedZoom() {
   const fill = ((feedPrefs.zoom - FEED_ZOOM_MIN) / (FEED_ZOOM_MAX - FEED_ZOOM_MIN)) * 100;
   zoomRange.value = String(pct);
   zoomLevel.textContent = pct + '%';
+  zoomRange.setAttribute('aria-valuetext', pct + '%');
   zoomRange.style.setProperty('--feed-zoom-fill', fill.toFixed(2) + '%');
 }
 
@@ -3709,9 +3710,41 @@ function setFeedZoom(next) {
   const zoom = clampFeedZoom(next);
   if (zoom === feedPrefs.zoom) return;
   feedPrefs.zoom = zoom;
-  writeFeedSetting(FEED_SETTING.zoom, zoom.toFixed(2));
   applyFeedZoom();
   measureTabHide();
+}
+
+// A drag emits many input events in one frame. Keep the latest percent
+// and write --feed-zoom once on the next frame. localStorage waits for
+// the range change event, which fires when the pointer is released.
+let zoomFrame = 0;
+let zoomHeld = null;
+
+function flushFeedZoom() {
+  zoomFrame = 0;
+  const next = zoomHeld;
+  zoomHeld = null;
+  if (next == null) return;
+  setFeedZoom(next);
+}
+
+function queueFeedZoom(next) {
+  zoomHeld = next;
+  if (zoomFrame) return;
+  zoomFrame = requestAnimationFrame(flushFeedZoom);
+}
+
+function storeFeedZoom() {
+  if (zoomFrame) {
+    cancelAnimationFrame(zoomFrame);
+    zoomFrame = 0;
+  }
+  if (zoomHeld != null) {
+    const next = zoomHeld;
+    zoomHeld = null;
+    setFeedZoom(next);
+  }
+  writeFeedSetting(FEED_SETTING.zoom, feedPrefs.zoom.toFixed(2));
 }
 
 function applyFeedChrome() {
@@ -3832,11 +3865,11 @@ function settingsZoom() {
   zoomRange.setAttribute('aria-label', 'Zoom');
   zoomLevel = document.createElement('span');
   zoomLevel.className = 'feed-settings-zoom-level';
-  zoomLevel.setAttribute('aria-live', 'polite');
   row.append(zoomRange, zoomLevel);
   zoomRange.addEventListener('input', () => {
-    setFeedZoom(Number(zoomRange.value) / 100);
+    queueFeedZoom(Number(zoomRange.value) / 100);
   });
+  zoomRange.addEventListener('change', storeFeedZoom);
   settingsPaints.push(paintFeedZoom);
   paintFeedZoom();
   return row;
