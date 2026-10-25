@@ -3611,10 +3611,213 @@ function closeCommentsForPage(container) {
   closeCommentsModal();
 }
 
-function closeCommentsModal() {
-  if (!commentsModal || commentsClosing) return;
+const FEED_FLIP_MS = 320;
+const FEED_FLIP_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
+let feedFlip = null;
+let feedFlipSkip = false;
+
+function feedMotionReduced() {
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+
+function feedCommentCard(section) {
+  const input = section && section._bubbleInput;
+  const fromInput = input && input.closest ? input.closest('.feed-card') : null;
+  if (fromInput && fromInput.isConnected) return fromInput;
+  const home = section && section._homeParent;
+  if (home && home.classList && home.classList.contains('feed-card') && home.isConnected) return home;
+  return null;
+}
+
+// visual is where the card should appear; layout is its untransformed box.
+function feedFlipDelta(visual, layout) {
+  const sx = layout.width > 0 ? visual.width / layout.width : 1;
+  const sy = layout.height > 0 ? visual.height / layout.height : 1;
+  const dx = visual.left - layout.left;
+  const dy = visual.top - layout.top;
+  return `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+}
+
+function clearFeedCardMotion(card) {
+  if (!card) return;
+  card.style.transition = '';
+  card.style.transform = '';
+  card.style.transformOrigin = '';
+  card.style.margin = '';
+  card.style.willChange = '';
+}
+
+function cancelFeedFlipTimer(flip) {
+  if (!flip) return;
+  flip.gen = (flip.gen || 0) + 1;
+  flip.opening = false;
+  flip.closing = false;
+  if (flip.timer) {
+    clearTimeout(flip.timer);
+    flip.timer = 0;
+  }
+  if (flip.onEnd && flip.card) flip.card.removeEventListener('transitionend', flip.onEnd);
+  flip.onEnd = null;
+}
+
+function rememberFeedFlip(card) {
+  const scroller = document.getElementById('feed-scroll');
+  const first = card.getBoundingClientRect();
+  const parent = card.parentElement;
+  const next = card.nextSibling;
+  const hold = document.createElement('div');
+  hold.className = 'feed-card-flip-hold';
+  hold.setAttribute('aria-hidden', 'true');
+  hold.style.height = card.offsetHeight + 'px';
+  hold.style.margin = getComputedStyle(card).margin;
+  parent.insertBefore(hold, card);
+  return {
+    card,
+    hold,
+    parent,
+    next,
+    scroller,
+    scrollTop: scroller ? scroller.scrollTop : 0,
+    first,
+    restored: false,
+    opening: false,
+    closing: false,
+    gen: 0,
+    timer: 0,
+    onEnd: null,
+  };
+}
+
+function restoreFeedCard(flip) {
+  if (!flip || flip.restored) return;
+  flip.restored = true;
+  cancelFeedFlipTimer(flip);
+  const card = flip.card;
+  if (card) clearFeedCardMotion(card);
+  const hold = flip.hold;
+  if (card && hold && hold.isConnected && hold.parentElement) {
+    hold.parentElement.insertBefore(card, hold);
+    hold.remove();
+  } else if (card && flip.parent && flip.parent.isConnected) {
+    const next = flip.next && flip.next.parentElement === flip.parent ? flip.next : null;
+    flip.parent.insertBefore(card, next);
+  } else if (card) {
+    const column = document.getElementById('feed-column');
+    if (column) column.appendChild(card);
+  }
+  flip.hold = null;
+}
+
+function restoreFeedScroll(flip) {
+  const scroller = flip && (flip.scroller || document.getElementById('feed-scroll'));
+  if (!scroller || !scroller.isConnected || !flip) return;
+  if (Math.abs(scroller.scrollTop - flip.scrollTop) > 1) scroller.scrollTop = flip.scrollTop;
+}
+
+function armFeedFlip(card, transform, gen, done) {
+  const flip = feedFlip;
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    if (flip && flip.onEnd) {
+      card.removeEventListener('transitionend', flip.onEnd);
+      flip.onEnd = null;
+    }
+    if (flip && flip.timer) {
+      clearTimeout(flip.timer);
+      flip.timer = 0;
+    }
+    if (done) done();
+  };
+  const onEnd = (event) => {
+    if (event.target !== card || event.propertyName !== 'transform') return;
+    if (!flip || flip.gen !== gen) return;
+    finish();
+  };
+  if (flip) {
+    flip.onEnd = onEnd;
+    flip.timer = setTimeout(() => {
+      if (!flip || flip.gen !== gen) return;
+      finish();
+    }, FEED_FLIP_MS + 90);
+  }
+  card.addEventListener('transitionend', onEnd);
+  card.style.willChange = 'transform';
+  card.style.transition = `transform ${FEED_FLIP_MS}ms ${FEED_FLIP_EASE}`;
+  card.style.transform = transform;
+}
+
+function startFeedFlipOpen(wrapper, flip) {
+  const card = flip.card;
+  if (!card || !card.isConnected) return;
+  const gen = (flip.gen || 0) + 1;
+  flip.gen = gen;
+  const last = card.getBoundingClientRect();
+  card.style.transformOrigin = 'top left';
+  card.style.transition = 'none';
+  card.style.willChange = 'transform';
+  card.style.transform = feedFlipDelta(flip.first, last);
+  flip.opening = true;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (flip.gen !== gen || !flip.opening || !card.isConnected) return;
+      wrapper.classList.add('is-flip-show');
+      armFeedFlip(card, 'none', gen, () => {
+        if (flip.gen !== gen || !flip.opening) return;
+        flip.opening = false;
+        card.style.transition = '';
+        card.style.transform = '';
+        card.style.transformOrigin = '';
+        card.style.willChange = '';
+        wrapper.classList.remove('is-flip', 'is-flip-show');
+      });
+    });
+  });
+}
+
+function startFeedFlipClose(wrapper, flip, done) {
+  const card = flip.card;
+  cancelFeedFlipTimer(flip);
+  const gen = flip.gen;
+  flip.closing = true;
+  wrapper.classList.remove('is-flip-show');
+  wrapper.classList.add('is-flip-out');
+  if (!card || !card.isConnected) {
+    done();
+    return;
+  }
+  const visual = card.getBoundingClientRect();
+  card.style.transition = 'none';
+  card.style.transform = 'none';
+  card.style.transformOrigin = 'top left';
+  const layout = card.getBoundingClientRect();
+  card.style.transform = feedFlipDelta(visual, layout);
+  restoreFeedScroll(flip);
+  const hold = flip.hold;
+  const dest = hold && hold.isConnected ? hold.getBoundingClientRect() : flip.first;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (flip.gen !== gen || !flip.closing || !card.isConnected) return;
+      void card.offsetWidth;
+      armFeedFlip(card, feedFlipDelta(dest, layout), gen, () => {
+        if (flip.gen !== gen || !flip.closing) return;
+        flip.closing = false;
+        done();
+      });
+    });
+  });
+}
+
+function teardownCommentsModal() {
+  if (!commentsModal && !commentsModalSection) {
+    commentsClosing = false;
+    feedFlip = null;
+    return;
+  }
   commentsClosing = true;
   try {
+    if (feedFlip) restoreFeedCard(feedFlip);
     if (commentsModalSection) {
       const home = commentsModalSection._homeParent;
       const park = commentsModalSection._park;
@@ -3637,7 +3840,7 @@ function closeCommentsModal() {
       }
     }
     const input = commentBubbleInput;
-    commentsModal.remove();
+    if (commentsModal) commentsModal.remove();
     commentsModal = null;
     commentsModalSection = null;
     commentBubbleInput = null;
@@ -3655,7 +3858,30 @@ function closeCommentsModal() {
     layerClosedByUI('comments');
   } finally {
     commentsClosing = false;
+    feedFlip = null;
   }
+}
+
+function closeCommentsModal() {
+  if (!commentsModal) return;
+  if (commentsClosing && !feedFlipSkip) return;
+  const modal = commentsModal;
+  const fromFeed = modal.classList.contains('comments-modal--feed');
+  const flip = feedFlip;
+  const animate = fromFeed && flip && flip.card && flip.card.isConnected && !flip.restored
+    && !feedFlipSkip && !feedMotionReduced();
+  if (animate) {
+    commentsClosing = true;
+    startFeedFlipClose(modal, flip, () => {
+      teardownCommentsModal();
+    });
+    return;
+  }
+  if (flip) {
+    cancelFeedFlipTimer(flip);
+    restoreFeedCard(flip);
+  }
+  teardownCommentsModal();
 }
 
 // A map post in landscape hosts the same comments view over the right card.
@@ -3764,9 +3990,12 @@ function showCommentsModal(section) {
   const sheet = commentsInCardHost(section);
   const sheetPopup = sheet && sheet.closest ? sheet.closest('.maplibregl-popup') : null;
   if (sheetPopup) sheetPopup.classList.add('comments-open');
-  paintCommentsSection(section);
   const fromFeed = commentsFromFeed(section);
+  const sourceCard = fromFeed ? feedCommentCard(section) : null;
+  const flip = sourceCard ? rememberFeedFlip(sourceCard) : null;
+  paintCommentsSection(section);
   const wrapper = document.createElement('div');
+  let pendingFlip = null;
   if (fromFeed) {
     wrapper.className = 'comments-modal comments-modal--feed';
     const bar = document.createElement('div');
@@ -3784,10 +4013,20 @@ function showCommentsModal(section) {
     title.className = 'feed-comments-title';
     title.textContent = 'Comments';
     bar.append(back, title);
-    wrapper.append(bar, section);
+    const stage = document.createElement('div');
+    stage.className = 'feed-comments-stage';
+    const animateFlip = !!(flip && !feedMotionReduced());
+    if (animateFlip) wrapper.classList.add('is-flip');
+    wrapper.append(bar, stage, section);
     wrapper.addEventListener('click', (e) => e.stopPropagation());
     wrapper.addEventListener('pointerdown', (e) => e.stopPropagation());
     document.body.appendChild(wrapper);
+    if (flip) {
+      flip.card.style.margin = '0';
+      stage.appendChild(flip.card);
+      feedFlip = flip;
+      if (animateFlip) pendingFlip = { wrapper, flip };
+    }
   } else if (sheet) {
     wrapper.className = 'comments-modal comments-modal--in-card';
     wrapper.appendChild(commentsCloseButton(section));
@@ -3829,6 +4068,7 @@ function showCommentsModal(section) {
   commentsModal = wrapper;
   commentsModalSection = section;
   refitPopups();
+  if (pendingFlip) startFeedFlipOpen(pendingFlip.wrapper, pendingFlip.flip);
 
   const input = section.querySelector('textarea');
   if (input) setTimeout(() => input.focus(fromFeed ? { preventScroll: true } : undefined), 100);
@@ -3874,7 +4114,11 @@ if (!landscapeCommentsBound) {
 }
 
 function openCommentsModal(sectionId) {
-  if (commentsModal) closeCommentsModal();
+  if (commentsModal) {
+    feedFlipSkip = true;
+    try { closeCommentsModal(); }
+    finally { feedFlipSkip = false; }
+  }
   const section = document.getElementById(sectionId);
   if (!section) return;
   showCommentsModal(section);

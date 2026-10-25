@@ -5476,7 +5476,7 @@ a.payer-link {
   }
 
   .maplibregl-map .maplibregl-popup-content > .popup-sheet,
-  #feed-column .popup-sheet {
+  :is(#feed-column, .feed-comments-stage) .popup-sheet {
     display: grid;
     isolation: isolate;
     position: relative;
@@ -5518,7 +5518,7 @@ a.payer-link {
   }
 
   .maplibregl-map .popup-body,
-  #feed-column .popup-body {
+  :is(#feed-column, .feed-comments-stage) .popup-body {
     display: contents;
   }
 
@@ -5632,7 +5632,7 @@ a.payer-link {
   }
 
   /* Feed message column. The map sheet stays the two-card grid above. */
-  #feed-column .popup-sheet {
+  :is(#feed-column, .feed-comments-stage) .popup-sheet {
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -5645,10 +5645,10 @@ a.payer-link {
     row-gap: 0;
   }
 
-  #feed-column .popup-sheet .popup-media-card,
-  #feed-column .popup-sheet .popup-media-card:has(video),
-  #feed-column .popup-sheet .popup-media-card:has(iframe),
-  #feed-column .popup-sheet .popup-media-card:has(embed) {
+  :is(#feed-column, .feed-comments-stage) .popup-sheet .popup-media-card,
+  :is(#feed-column, .feed-comments-stage) .popup-sheet .popup-media-card:has(video),
+  :is(#feed-column, .feed-comments-stage) .popup-sheet .popup-media-card:has(iframe),
+  :is(#feed-column, .feed-comments-stage) .popup-sheet .popup-media-card:has(embed) {
     grid-column: 1;
     grid-row: 1;
     align-self: start;
@@ -5666,7 +5666,7 @@ a.payer-link {
     background-image: none;
   }
 
-  #feed-column .popup-sheet .popup-body > div:not(.popup-media-card) {
+  :is(#feed-column, .feed-comments-stage) .popup-sheet .popup-body > div:not(.popup-media-card) {
     grid-column: 2;
     grid-row: 1;
     align-self: start;
@@ -7167,8 +7167,8 @@ a.payer-link {
   .marker-title-tip.early > .marker-tip-spin::before,
   .popup-profile-bubble.early::before,
   .popup-profile-bubble.early > .popup-early-spin::before,
-  #feed-column .feed-card.early-holder-popup,
-  #feed-column .feed-card.early-holder-popup::before,
+  :is(#feed-column, .feed-comments-stage) .feed-card.early-holder-popup,
+  :is(#feed-column, .feed-comments-stage) .feed-card.early-holder-popup::before,
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::before,
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::after,
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::before,
@@ -7828,7 +7828,7 @@ html.feed-app appkit-modal {
 #feed-frame.is-profile-feed #feed-column {
   padding-top: calc(var(--feed-chrome) * 10.8 + var(--feed-chrome));
 }
-#feed-column .feed-empty {
+:is(#feed-column, .feed-comments-stage) .feed-empty {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -7890,7 +7890,7 @@ html.feed-app appkit-modal {
     overflow: hidden;
   }
 }
-#feed-column .feed-card {
+:is(#feed-column, .feed-comments-stage) .feed-card {
   --u: calc(var(--fu) * 0.58);
   display: flex;
   flex-direction: column;
@@ -7913,13 +7913,13 @@ html.feed-app appkit-modal {
   -webkit-user-select: text;
   user-select: text;
 }
-#feed-column .popup-profile-bubble {
+:is(#feed-column, .feed-comments-stage) .popup-profile-bubble {
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
   margin-bottom: 0;
 }
-#feed-column .popup-profile-bubble h2 {
+:is(#feed-column, .feed-comments-stage) .popup-profile-bubble h2 {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -7929,21 +7929,21 @@ html.feed-app appkit-modal {
   font-weight: 700;
   line-height: 1.25;
 }
-#feed-column .popup-profile-bubble h2 br {
+:is(#feed-column, .feed-comments-stage) .popup-profile-bubble h2 br {
   display: none;
 }
-#feed-column .popup-profile-bubble .username {
+:is(#feed-column, .feed-comments-stage) .popup-profile-bubble .username {
   order: -1;
   color: #fff;
   font-weight: 700;
 }
-#feed-column .popup-profile-bubble .payer-info {
+:is(#feed-column, .feed-comments-stage) .popup-profile-bubble .payer-info {
   order: 1;
   color: rgba(255, 255, 255, 0.55);
   font-size: calc(var(--fu) * 1.4);
   font-weight: 500;
 }
-#feed-column .feed-card.early-holder-popup {
+:is(#feed-column, .feed-comments-stage) .feed-card.early-holder-popup {
   position: relative;
   border-color: transparent !important;
   border-width: calc(var(--u) * 0.3);
@@ -7960,7 +7960,7 @@ html.feed-app appkit-modal {
   color: #f4f1ea;
   animation: early-hashinal-angle 4s linear infinite;
 }
-#feed-column .feed-card.early-holder-popup::before {
+:is(#feed-column, .feed-comments-stage) .feed-card.early-holder-popup::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -7973,16 +7973,16 @@ html.feed-app appkit-modal {
   opacity: 0.7;
   animation: early-holder-glow 2.6s ease-in-out infinite;
 }
-#feed-column .feed-card.early-holder-popup .username {
+:is(#feed-column, .feed-comments-stage) .feed-card.early-holder-popup .username {
   color: #f6e27a !important;
 }
-#feed-column .feed-card.early-holder-popup .payer-info {
+:is(#feed-column, .feed-comments-stage) .feed-card.early-holder-popup .payer-info {
   color: #e9d5ff !important;
 }
-#feed-column .feed-card.early-holder-popup .title_color {
+:is(#feed-column, .feed-comments-stage) .feed-card.early-holder-popup .title_color {
   color: #ffffff !important;
 }
-#feed-column .popup-title-bubble {
+:is(#feed-column, .feed-comments-stage) .popup-title-bubble {
   display: block;
   width: auto;
   max-width: 100%;
@@ -7999,13 +7999,13 @@ html.feed-app appkit-modal {
   line-height: 1.35;
   text-align: left;
 }
-#feed-column .popup-title-bubble:empty::before {
+:is(#feed-column, .feed-comments-stage) .popup-title-bubble:empty::before {
   content: none;
 }
-#feed-column .feed-card.early-holder-popup .text_color {
+:is(#feed-column, .feed-comments-stage) .feed-card.early-holder-popup .text_color {
   color: #f4f1ea !important;
 }
-#feed-column .popup-body {
+:is(#feed-column, .feed-comments-stage) .popup-body {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -8015,10 +8015,10 @@ html.feed-app appkit-modal {
   max-height: none;
   min-height: 0;
 }
-#feed-column .popup-media-card,
-#feed-column .popup-media-card:has(video),
-#feed-column .popup-media-card:has(iframe),
-#feed-column .popup-media-card:has(embed) {
+:is(#feed-column, .feed-comments-stage) .popup-media-card,
+:is(#feed-column, .feed-comments-stage) .popup-media-card:has(video),
+:is(#feed-column, .feed-comments-stage) .popup-media-card:has(iframe),
+:is(#feed-column, .feed-comments-stage) .popup-media-card:has(embed) {
   width: fit-content;
   max-width: 100%;
   height: auto;
@@ -8036,16 +8036,16 @@ html.feed-app appkit-modal {
   background: none;
   background-image: none;
 }
-#feed-column .feed-card > .popup-media-card {
+:is(#feed-column, .feed-comments-stage) .feed-card > .popup-media-card {
   margin-inline: auto;
   align-self: center;
   justify-self: center;
 }
-#feed-column .popup-media-card img,
-#feed-column .popup-media-card video,
-#feed-column .popup-media-card iframe,
-#feed-column .popup-media-card embed,
-#feed-column .popup-media-card object {
+:is(#feed-column, .feed-comments-stage) .popup-media-card img,
+:is(#feed-column, .feed-comments-stage) .popup-media-card video,
+:is(#feed-column, .feed-comments-stage) .popup-media-card iframe,
+:is(#feed-column, .feed-comments-stage) .popup-media-card embed,
+:is(#feed-column, .feed-comments-stage) .popup-media-card object {
   position: static;
   inset: auto;
   display: block;
@@ -8057,23 +8057,23 @@ html.feed-app appkit-modal {
   background: none;
   touch-action: pan-y;
 }
-#feed-column .popup-media-card img {
+:is(#feed-column, .feed-comments-stage) .popup-media-card img {
   -webkit-user-drag: none;
 }
-#feed-column .popup-media-card img,
-#feed-column .popup-media-card video,
-#feed-column .popup-media-card iframe,
-#feed-column .popup-media-card embed,
-#feed-column .popup-media-card object {
+:is(#feed-column, .feed-comments-stage) .popup-media-card img,
+:is(#feed-column, .feed-comments-stage) .popup-media-card video,
+:is(#feed-column, .feed-comments-stage) .popup-media-card iframe,
+:is(#feed-column, .feed-comments-stage) .popup-media-card embed,
+:is(#feed-column, .feed-comments-stage) .popup-media-card object {
   pointer-events: none;
 }
-#feed-column .popup-media-card video {
+:is(#feed-column, .feed-comments-stage) .popup-media-card video {
   pointer-events: auto;
 }
-#feed-column .popup-media-card:not(:has(video)) .feed-media-hit {
+:is(#feed-column, .feed-comments-stage) .popup-media-card:not(:has(video)) .feed-media-hit {
   cursor: zoom-in;
 }
-#feed-column .feed-media-hit {
+:is(#feed-column, .feed-comments-stage) .feed-media-hit {
   position: absolute;
   inset: 0;
   z-index: 2;
@@ -8081,12 +8081,12 @@ html.feed-app appkit-modal {
   touch-action: pan-y;
   cursor: pointer;
 }
-#feed-column .feed-media-hit.is-video {
+:is(#feed-column, .feed-comments-stage) .feed-media-hit.is-video {
   bottom: calc(var(--fu) * 6);
 }
-#feed-column .popup-media-card,
-#feed-column .popup-media-card *,
-#feed-column .feed-media-hit {
+:is(#feed-column, .feed-comments-stage) .popup-media-card,
+:is(#feed-column, .feed-comments-stage) .popup-media-card *,
+:is(#feed-column, .feed-comments-stage) .feed-media-hit {
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
@@ -8094,12 +8094,12 @@ html.feed-app appkit-modal {
   -webkit-touch-callout: none;
 }
 /* Feed captions, titles, and names only. The app-wide * rule is user-select: none. */
-#feed-column .popup-text-bubble,
-#feed-column .popup-text-bubble *,
-#feed-column .popup-title-bubble,
-#feed-column .popup-title-bubble *,
-#feed-column .popup-profile-bubble h2,
-#feed-column .popup-profile-bubble h2 * {
+:is(#feed-column, .feed-comments-stage) .popup-text-bubble,
+:is(#feed-column, .feed-comments-stage) .popup-text-bubble *,
+:is(#feed-column, .feed-comments-stage) .popup-title-bubble,
+:is(#feed-column, .feed-comments-stage) .popup-title-bubble *,
+:is(#feed-column, .feed-comments-stage) .popup-profile-bubble h2,
+:is(#feed-column, .feed-comments-stage) .popup-profile-bubble h2 * {
   -webkit-user-select: text;
   -moz-user-select: text;
   -ms-user-select: text;
@@ -8107,7 +8107,7 @@ html.feed-app appkit-modal {
   -webkit-touch-callout: default;
   -webkit-user-drag: none;
 }
-#feed-column .popup-text-bubble {
+:is(#feed-column, .feed-comments-stage) .popup-text-bubble {
   width: auto;
   max-width: 100%;
   margin: 0;
@@ -8126,15 +8126,15 @@ html.feed-app appkit-modal {
   line-height: 1.5;
   text-align: left;
 }
-#feed-column .popup-text-bubble.is-clamped {
+:is(#feed-column, .feed-comments-stage) .popup-text-bubble.is-clamped {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 6;
   overflow: clip;
   overscroll-behavior: auto;
 }
-#feed-column .feed-more,
-#feed-column .feed-loc {
+:is(#feed-column, .feed-comments-stage) .feed-more,
+:is(#feed-column, .feed-comments-stage) .feed-loc {
   display: flex;
   align-items: center;
   gap: calc(var(--fu) * 0.45);
@@ -8150,16 +8150,16 @@ html.feed-app appkit-modal {
   text-align: left;
   touch-action: manipulation;
 }
-#feed-column .feed-loc,
-#feed-column .feed-meta .popup-timestamp {
+:is(#feed-column, .feed-comments-stage) .feed-loc,
+:is(#feed-column, .feed-comments-stage) .feed-meta .popup-timestamp {
   font-size: calc(var(--fu) * 1.5);
 }
-#feed-column .feed-loc svg {
+:is(#feed-column, .feed-comments-stage) .feed-loc svg {
   width: calc(var(--fu) * 1.6);
   height: calc(var(--fu) * 1.6);
   flex: 0 0 auto;
 }
-#feed-column .feed-foot {
+:is(#feed-column, .feed-comments-stage) .feed-foot {
   display: flex;
   flex-direction: column;
   gap: calc(var(--fu) * 0.4);
@@ -8167,7 +8167,7 @@ html.feed-app appkit-modal {
   padding-top: calc(var(--fu) * 0.7);
   border-top: 1px solid rgba(34, 211, 238, 0.28);
 }
-#feed-column .feed-actions {
+:is(#feed-column, .feed-comments-stage) .feed-actions {
   --feed-action: #777;
   --feed-action-on: #22D3EE;
   --feed-action-hover: #67e8f9;
@@ -8179,28 +8179,28 @@ html.feed-app appkit-modal {
   margin-top: 0;
   min-width: 0;
 }
-#feed-column .feed-actions-left,
-#feed-column .feed-actions-right {
+:is(#feed-column, .feed-comments-stage) .feed-actions-left,
+:is(#feed-column, .feed-comments-stage) .feed-actions-right {
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
   gap: var(--feed-action-gap);
   min-width: 0;
 }
-#feed-column .feed-actions-left {
+:is(#feed-column, .feed-comments-stage) .feed-actions-left {
   justify-content: flex-end;
 }
-#feed-column .feed-actions-right {
+:is(#feed-column, .feed-comments-stage) .feed-actions-right {
   justify-content: flex-start;
 }
-#feed-column .feed-actions-mid {
+:is(#feed-column, .feed-comments-stage) .feed-actions-mid {
   position: relative;
   z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-#feed-column .feed-meta {
+:is(#feed-column, .feed-comments-stage) .feed-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -8208,22 +8208,22 @@ html.feed-app appkit-modal {
   margin-top: 0;
   min-width: 0;
 }
-#feed-column .feed-meta-left,
-#feed-column .feed-meta-right {
+:is(#feed-column, .feed-comments-stage) .feed-meta-left,
+:is(#feed-column, .feed-comments-stage) .feed-meta-right {
   display: flex;
   align-items: center;
   min-width: 0;
 }
-#feed-column .feed-meta-left {
+:is(#feed-column, .feed-comments-stage) .feed-meta-left {
   flex: 1 1 auto;
   justify-content: flex-start;
   overflow: hidden;
 }
-#feed-column .feed-meta-right {
+:is(#feed-column, .feed-comments-stage) .feed-meta-right {
   flex: 0 1 auto;
   justify-content: flex-end;
 }
-#feed-column .feed-meta .feed-loc {
+:is(#feed-column, .feed-comments-stage) .feed-meta .feed-loc {
   margin-top: 0;
   color: rgba(255, 255, 255, 0.55);
   flex: 1 1 auto;
@@ -8232,7 +8232,7 @@ html.feed-app appkit-modal {
   min-width: 0;
   overflow: hidden;
 }
-#feed-column .feed-loc-label {
+:is(#feed-column, .feed-comments-stage) .feed-loc-label {
   display: flex;
   align-items: center;
   flex: 1 1 auto;
@@ -8240,33 +8240,33 @@ html.feed-app appkit-modal {
   white-space: nowrap;
   min-width: 0;
 }
-#feed-column .feed-loc-where,
-#feed-column .feed-loc-country {
+:is(#feed-column, .feed-comments-stage) .feed-loc-where,
+:is(#feed-column, .feed-comments-stage) .feed-loc-country {
   display: inline-flex;
   align-items: center;
   min-width: 0;
 }
-#feed-column .feed-loc-where {
+:is(#feed-column, .feed-comments-stage) .feed-loc-where {
   flex: 1 1 auto;
   max-width: 100%;
   overflow: hidden;
   white-space: nowrap;
 }
-#feed-column .feed-loc-country {
+:is(#feed-column, .feed-comments-stage) .feed-loc-country {
   flex: 1 1 auto;
   gap: calc(var(--fu) * 0.28);
   overflow: hidden;
 }
-#feed-column .feed-loc-name {
+:is(#feed-column, .feed-comments-stage) .feed-loc-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
-#feed-column .feed-loc-emoji {
+:is(#feed-column, .feed-comments-stage) .feed-loc-emoji {
   flex: 0 0 auto;
 }
-#feed-column .feed-loc-flag {
+:is(#feed-column, .feed-comments-stage) .feed-loc-flag {
   width: 1.15em;
   height: auto;
   aspect-ratio: 4/3;
@@ -8277,15 +8277,15 @@ html.feed-app appkit-modal {
   vertical-align: -0.1em;
   margin-right: 0.35em;
 }
-#feed-column .feed-loc:has(.feed-loc-where) > svg,
-#feed-column .feed-loc-place,
-#feed-column .feed-loc-sep {
+:is(#feed-column, .feed-comments-stage) .feed-loc:has(.feed-loc-where) > svg,
+:is(#feed-column, .feed-comments-stage) .feed-loc-place,
+:is(#feed-column, .feed-comments-stage) .feed-loc-sep {
   display: none;
 }
-#feed-column .feed-loc-coords.is-fallback {
+:is(#feed-column, .feed-comments-stage) .feed-loc-coords.is-fallback {
   color: rgba(255, 255, 255, 0.45);
 }
-#feed-column .feed-meta .popup-timestamp {
+:is(#feed-column, .feed-comments-stage) .feed-meta .popup-timestamp {
   margin: 0 0 0 auto;
   padding: 0;
   border: 0;
@@ -8300,7 +8300,7 @@ html.feed-app appkit-modal {
   overflow: hidden;
   white-space: nowrap;
 }
-#feed-column .feed-comment-count-space {
+:is(#feed-column, .feed-comments-stage) .feed-comment-count-space {
   visibility: hidden;
   flex: 0 0 auto;
   margin-left: calc(var(--fu) * 0.4 - var(--feed-action-gap));
@@ -8311,24 +8311,24 @@ html.feed-app appkit-modal {
   white-space: nowrap;
   pointer-events: none;
 }
-#feed-column .feed-time-full,
-#feed-column .feed-time-short {
+:is(#feed-column, .feed-comments-stage) .feed-time-full,
+:is(#feed-column, .feed-comments-stage) .feed-time-short {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: bottom;
   white-space: nowrap;
 }
-#feed-column .feed-time-full {
+:is(#feed-column, .feed-comments-stage) .feed-time-full {
   display: inline-block;
 }
-#feed-column .feed-time-short {
+:is(#feed-column, .feed-comments-stage) .feed-time-short {
   display: none;
 }
 
 /* Feed action row only. Map popups keep the glass heart, the count below it,
    and red / cyan / green. Here the same controls sit in an X-style row. */
-#feed-column .feed-actions .heart-like {
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like {
   --h: calc(var(--fu) * 0.26);
   display: flex;
   align-items: center;
@@ -8336,7 +8336,7 @@ html.feed-app appkit-modal {
   height: auto;
   z-index: auto;
 }
-#feed-column .feed-actions .heart-like label {
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like label {
   position: relative;
   inset: auto;
   display: flex;
@@ -8349,7 +8349,7 @@ html.feed-app appkit-modal {
   box-shadow: none;
   border-radius: 0;
 }
-#feed-column .feed-actions .heart-like label:before {
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like label:before {
   content: attr(data-count);
   position: static;
   order: 1;
@@ -8374,23 +8374,23 @@ html.feed-app appkit-modal {
   pointer-events: auto;
   z-index: auto;
 }
-#feed-column .feed-actions-mid .heart-like.comment-bubble label:before {
+:is(#feed-column, .feed-comments-stage) .feed-actions-mid .heart-like.comment-bubble label:before {
   position: absolute;
   left: calc(100% + var(--fu) * 0.4);
   top: 50%;
   transform: translateY(-50%);
   white-space: nowrap;
 }
-#feed-column .feed-actions .heart-like input:checked + label:before {
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like input:checked + label:before {
   content: attr(data-next);
   color: var(--feed-action-on);
   background: none;
 }
-#feed-column .feed-actions .heart-like.is-pop label:before,
-#feed-column .feed-actions .heart-like.is-down label:before {
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.is-pop label:before,
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.is-down label:before {
   animation: none;
 }
-#feed-column .feed-actions .heart-like label span {
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like label span {
   order: 0;
   position: relative;
   z-index: auto;
@@ -8404,7 +8404,7 @@ html.feed-app appkit-modal {
   -webkit-mask-image: none;
   mask-image: none;
 }
-#feed-column .feed-actions .heart-like label span:before {
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like label span:before {
   content: "";
   position: absolute;
   inset: 16%;
@@ -8426,65 +8426,65 @@ html.feed-app appkit-modal {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z'/%3E%3C/svg%3E");
 }
-#feed-column .feed-actions .heart-like label span:after {
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like label span:after {
   content: none;
 }
-#feed-column .feed-actions .heart-like:not(.comment-bubble):not(.share-bubble) input:checked + label span:before,
-#feed-column .feed-actions .heart-like:not(.comment-bubble):not(.share-bubble).is-pop label span:before {
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like:not(.comment-bubble):not(.share-bubble) input:checked + label span:before,
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like:not(.comment-bubble):not(.share-bubble).is-pop label span:before {
   background-color: var(--feed-action-on);
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' stroke='black' stroke-width='2' stroke-linejoin='round' d='M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' stroke='black' stroke-width='2' stroke-linejoin='round' d='M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z'/%3E%3C/svg%3E");
 }
-#feed-column .feed-actions .comment-bubble label span:before {
+:is(#feed-column, .feed-comments-stage) .feed-actions .comment-bubble label span:before {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7.9 20A9 9 0 1 0 4 16.1L2 22Z'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7.9 20A9 9 0 1 0 4 16.1L2 22Z'/%3E%3C/svg%3E");
 }
-#feed-column .feed-actions .share-bubble label span:before {
+:is(#feed-column, .feed-comments-stage) .feed-actions .share-bubble label span:before {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='18' cy='5' r='3'/%3E%3Ccircle cx='6' cy='12' r='3'/%3E%3Ccircle cx='18' cy='19' r='3'/%3E%3Cpath d='M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='18' cy='5' r='3'/%3E%3Ccircle cx='6' cy='12' r='3'/%3E%3Ccircle cx='18' cy='19' r='3'/%3E%3Cpath d='M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98'/%3E%3C/svg%3E");
 }
-#feed-column .feed-actions .heart-like.comment-bubble input:checked + label span:before,
-#feed-column .feed-actions .heart-like.share-bubble input:checked + label span:before,
-#feed-column .feed-actions .heart-like.comment-bubble.is-pop label span:before,
-#feed-column .feed-actions .heart-like.share-bubble.is-pop label span:before,
-#feed-column .feed-actions .heart-like input:checked + label span:before {
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.comment-bubble input:checked + label span:before,
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.share-bubble input:checked + label span:before,
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.comment-bubble.is-pop label span:before,
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.share-bubble.is-pop label span:before,
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like input:checked + label span:before {
   background-color: var(--feed-action-on);
 }
-#feed-column .feed-actions .heart-like.share-bubble label span,
-#feed-column .feed-actions .heart-like.share-bubble input:checked + label span,
-#feed-column .feed-actions .heart-like.share-bubble.is-pop label span,
-#feed-column .feed-actions .heart-like.share-bubble:hover label span,
-#feed-column .feed-actions .heart-like.share-bubble:hover input:checked + label span {
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.share-bubble label span,
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.share-bubble input:checked + label span,
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.share-bubble.is-pop label span,
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.share-bubble:hover label span,
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.share-bubble:hover input:checked + label span {
   background: rgba(255, 255, 255, 0.10);
   background-color: rgba(255, 255, 255, 0.10);
   -webkit-mask-image: none;
   mask-image: none;
 }
-#feed-column .feed-actions .heart-like.is-pop label:after,
-#feed-column .feed-actions .comment-bubble.is-pop label:after,
-#feed-column .feed-actions .share-bubble.is-pop label:after {
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.is-pop label:after,
+:is(#feed-column, .feed-comments-stage) .feed-actions .comment-bubble.is-pop label:after,
+:is(#feed-column, .feed-comments-stage) .feed-actions .share-bubble.is-pop label:after {
   --bg: #22D3EE;
   left: calc(var(--h) * 5);
   top: 50%;
 }
-#feed-column .feed-actions .heart-like label:after {
+:is(#feed-column, .feed-comments-stage) .feed-actions .heart-like label:after {
   left: calc(var(--h) * 5);
   top: 50%;
 }
 @media (pointer: fine) {
-  #feed-column .feed-actions .heart-like:hover label span,
-  #feed-column .feed-actions .heart-like.share-bubble:hover label span {
+  :is(#feed-column, .feed-comments-stage) .feed-actions .heart-like:hover label span,
+  :is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.share-bubble:hover label span {
     background: rgba(255, 255, 255, 0.16);
     background-color: rgba(255, 255, 255, 0.16);
   }
-  #feed-column .feed-actions .heart-like:hover label span:before,
-  #feed-column .feed-actions .heart-like.comment-bubble:hover label span:before,
-  #feed-column .feed-actions .heart-like.share-bubble:hover label span:before {
+  :is(#feed-column, .feed-comments-stage) .feed-actions .heart-like:hover label span:before,
+  :is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.comment-bubble:hover label span:before,
+  :is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.share-bubble:hover label span:before {
     background-color: var(--feed-action-hover);
   }
-  #feed-column .feed-actions .heart-like:hover input:checked + label span:before,
-  #feed-column .feed-actions .heart-like.comment-bubble:hover input:checked + label span:before,
-  #feed-column .feed-actions .heart-like.share-bubble:hover input:checked + label span:before {
+  :is(#feed-column, .feed-comments-stage) .feed-actions .heart-like:hover input:checked + label span:before,
+  :is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.comment-bubble:hover input:checked + label span:before,
+  :is(#feed-column, .feed-comments-stage) .feed-actions .heart-like.share-bubble:hover input:checked + label span:before {
     background-color: var(--feed-action-on);
   }
 }
@@ -8871,7 +8871,7 @@ html.feed-app appkit-modal {
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
-#feed-column .feed-views {
+:is(#feed-column, .feed-comments-stage) .feed-views {
   --h: calc(var(--fu) * 0.26);
   display: flex;
   align-items: center;
@@ -8883,13 +8883,13 @@ html.feed-app appkit-modal {
   pointer-events: none;
   user-select: none;
 }
-#feed-column .feed-views svg {
+:is(#feed-column, .feed-comments-stage) .feed-views svg {
   width: calc(var(--h) * 6.8);
   height: calc(var(--h) * 6.8);
   flex: 0 0 auto;
   display: block;
 }
-#feed-column .feed-view-count {
+:is(#feed-column, .feed-comments-stage) .feed-view-count {
   color: rgba(255, 255, 255, 0.72);
   font-family: Inter, system-ui, sans-serif;
   font-size: calc(var(--fu) * 1.6);
@@ -9005,6 +9005,8 @@ html.feed-app appkit-modal {
   --fu: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi));
 }
 .comments-modal--feed .feed-comments-bar {
+  position: relative;
+  z-index: 3;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -9014,6 +9016,7 @@ html.feed-app appkit-modal {
   margin: 0;
   padding: 0 calc(var(--fu) * 1.2);
   border-bottom: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
+  background: #0a0a12;
 }
 .comments-modal--feed .feed-comments-back {
   appearance: none;
@@ -9096,6 +9099,50 @@ html.feed-app appkit-modal {
 .comments-modal--feed > .popup-comments > :last-child {
   padding-top: calc(var(--fu) * 0.9);
   border-top: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
+}
+.comments-modal--feed .feed-comments-stage {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-height: 58dvh;
+  box-sizing: border-box;
+  padding: calc(var(--fu) * 1.1) calc(var(--fu) * 1) 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.comments-modal--feed.is-flip .feed-comments-stage,
+.comments-modal--feed.is-flip-out .feed-comments-stage {
+  max-height: none;
+  overflow: visible;
+}
+:is(#feed-column, .feed-comments-stage) .feed-card-flip-hold {
+  pointer-events: none;
+  visibility: hidden;
+}
+.comments-modal--feed.is-flip > .popup-comments {
+  opacity: 0;
+  transform: translateY(1.6dvh);
+  pointer-events: none;
+  transition:
+    opacity 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.comments-modal--feed.is-flip.is-flip-show > .popup-comments {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.comments-modal--feed.is-flip-out {
+  background: transparent;
+  pointer-events: none;
+}
+.comments-modal--feed.is-flip-out .feed-comments-bar,
+.comments-modal--feed.is-flip-out > .popup-comments {
+  opacity: 0;
+  transform: none;
+  pointer-events: none;
+  transition: opacity 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 #feed-new-posts {
   --feed-tab-y: 0px;
