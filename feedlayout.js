@@ -707,6 +707,97 @@ let packCountries = null;
 let packRows = null;
 let placePackReady = false;
 let placePackStarted = false;
+const OCEAN_PACK_KEY = 'oceans-pack-v1';
+let oceanFeatures = null;
+let oceanPackReady = false;
+let oceanPackStarted = false;
+
+function pointInOceanRing(lng, lat, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0];
+    const yi = ring[i][1];
+    const xj = ring[j][0];
+    const yj = ring[j][1];
+    if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / ((yj - yi) || 1e-300) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function adoptOceanPack(data) {
+  if (!data || data.v !== 1 || !Array.isArray(data.features)) return false;
+  const list = [];
+  for (const feature of data.features) {
+    const name = String(feature && feature.name || '').trim();
+    const rings = feature && feature.rings;
+    if (!name || !Array.isArray(rings) || !rings.length) continue;
+    const clean = [];
+    for (const ring of rings) {
+      if (!Array.isArray(ring) || ring.length < 4) continue;
+      clean.push(ring);
+    }
+    if (clean.length) list.push({ name, rings: clean });
+  }
+  if (!list.length) return false;
+  oceanFeatures = list;
+  oceanPackReady = true;
+  return true;
+}
+
+function oceanNameFromKey(key) {
+  if (!oceanFeatures) return '';
+  const match = /^f(-?\d+):(-?\d+)$/.exec(key);
+  if (!match) return '';
+  const lng = Number(match[1]) * PLACE_GRID;
+  const lat = Number(match[2]) * PLACE_GRID;
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return '';
+  for (const feature of oceanFeatures) {
+    for (const ring of feature.rings) {
+      if (pointInOceanRing(lng, lat, ring)) return feature.name;
+    }
+  }
+  return '';
+}
+
+function rememberOceanPack(text) {
+  try { localStorage.setItem(OCEAN_PACK_KEY, text); } catch { /* quota */ }
+}
+
+async function fetchOceanPack() {
+  try {
+    const res = await fetch('/oceans.json');
+    if (!res.ok) return;
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { return; }
+    if (!adoptOceanPack(data)) return;
+    rememberOceanPack(text);
+    refreshPlaceCards();
+  } catch {
+    /* offline */
+  }
+}
+
+function ensureOceanPack() {
+  if (oceanPackReady || oceanPackStarted) return;
+  oceanPackStarted = true;
+  let cached = '';
+  try { cached = localStorage.getItem(OCEAN_PACK_KEY) || ''; } catch { cached = ''; }
+  setTimeout(() => {
+    if (cached) {
+      try {
+        if (adoptOceanPack(JSON.parse(cached))) {
+          refreshPlaceCards();
+          return;
+        }
+      } catch { /* bad cache */ }
+      try { localStorage.removeItem(OCEAN_PACK_KEY); } catch { /* ignore */ }
+    }
+    fetchOceanPack();
+  }, 0);
+}
 
 function placeKey(lngLat) {
   const lng = Number(lngLat && lngLat[0]);
@@ -818,6 +909,7 @@ async function fetchPlacePack() {
 }
 
 function ensurePlacePack() {
+  ensureOceanPack();
   if (placePackReady || placePackStarted) return;
   placePackStarted = true;
   let cached = '';
@@ -1176,6 +1268,21 @@ function showPlace(coords, hit) {
   coords.dataset.place = 'ready';
 }
 
+function showOcean(coords, name) {
+  const label = coords.parentElement;
+  if (!label || !name) return;
+  let where = label.querySelector('.feed-loc-where');
+  if (!where) {
+    where = document.createElement('span');
+    where.className = 'feed-loc-where';
+    coords.before(where);
+  }
+  where.replaceChildren();
+  where.appendChild(placePart('feed-loc-country', '🌊', name));
+  coords.hidden = true;
+  coords.dataset.place = 'ready';
+}
+
 function wantPlace(card) {
   if (!card || !card.querySelector) return;
   const coords = card.querySelector('.feed-loc-coords');
@@ -1183,13 +1290,23 @@ function wantPlace(card) {
   if (coords.dataset.place === 'ready' || coords.dataset.place === 'fail') return;
   if (!placePackReady) return;
   const hit = packCountry(coords.dataset.geokey);
-  if (!hit) {
-    coords.hidden = false;
-    coords.classList.add('is-fallback');
-    coords.dataset.place = 'fail';
+  if (hit) {
+    showPlace(coords, hit);
     return;
   }
-  showPlace(coords, hit);
+  // Pack miss is land-or-ocean. Only name water from the ocean polys.
+  if (!oceanPackReady) {
+    ensureOceanPack();
+    return;
+  }
+  const ocean = oceanNameFromKey(coords.dataset.geokey);
+  if (ocean) {
+    showOcean(coords, ocean);
+    return;
+  }
+  coords.hidden = false;
+  coords.classList.add('is-fallback');
+  coords.dataset.place = 'fail';
 }
 
 const ringCenters = new Map();
