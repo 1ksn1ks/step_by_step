@@ -2902,7 +2902,6 @@ html, body {
 
   .topic-follow-btn,
   #feed-back-btn,
-  #feed-map-back,
   .maplibregl-popup-close-button:not(.comments-back-button) {
     --press-dur: 200ms;
     --press-ease: ease;
@@ -2955,7 +2954,6 @@ html, body {
      and keeps .is-hold, which is the follow button's press. */
   .topic-follow-btn:not(.is-following):is(:hover, .is-hold),
   #feed-back-btn:is(:hover, .is-hold),
-  #feed-map-back:is(:hover, .is-hold),
   .maplibregl-popup-close-button:not(.comments-back-button):is(:hover, .is-hold) {
     background-color: var(--press-bg);
     border-color: var(--press-border);
@@ -3005,7 +3003,6 @@ html, body {
   }
   .topic-follow-btn.is-pop,
   #feed-back-btn.is-pop,
-  #feed-map-back.is-pop,
   .maplibregl-popup-close-button:not(.comments-back-button).is-pop {
     animation: topicFollowPop var(--press-dur) var(--press-ease);
   }
@@ -7284,6 +7281,11 @@ a.payer-link {
   visibility: hidden;
   pointer-events: none;
 }
+/* After feed peek  the map is bare  show the same feed button again. */
+#layout-mode-btn.is-feed.is-peek-return {
+  visibility: visible;
+  pointer-events: auto;
+}
 #layout-mode-btn:hover {
   background-color: rgba(30, 30, 42, 0.94);
   border-color: rgba(255, 255, 255, 0.45);
@@ -7400,48 +7402,6 @@ html.feed-app appkit-modal {
 #feed-back-btn svg {
   width: calc(var(--fu) * 2.2);
   height: calc(var(--fu) * 2.2);
-  display: block;
-  pointer-events: none;
-}
-/* Lives in #map-corner-buttons, immediately left of Search. */
-#feed-map-back {
-  --press-dur: 200ms;
-  --press-ease: ease;
-  --press-bg: #22D3EE;
-  --press-border: #22D3EE;
-  --press-ink: #083344;
-  appearance: none;
-  flex: 0 0 auto;
-  align-self: center;
-  width: 3vh;
-  height: 3vh;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  background-color: rgba(10, 10, 18, 0.88);
-  color: #22D3EE;
-  border: 1px solid rgba(34, 211, 238, 0.55);
-  border-radius: 50%;
-  box-shadow: inset 0 0.15dvh 0 rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(1.2dvh);
-  -webkit-backdrop-filter: blur(1.2dvh);
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: background-color var(--press-dur) var(--press-ease), border-color var(--press-dur) var(--press-ease), color var(--press-dur) var(--press-ease);
-}
-#feed-map-back[hidden] {
-  display: none;
-}
-#feed-map-back:focus-visible {
-  outline: 0.15dvh solid #22D3EE;
-  outline-offset: 0.15dvh;
-}
-#feed-map-back svg {
-  width: 1.6vh;
-  height: 1.6vh;
   display: block;
   pointer-events: none;
 }
@@ -9954,8 +9914,7 @@ html.feed-app appkit-modal {
     --feed-col-width: clamp(40dvw, 46dvw, 46dvw);
   }
 }
-#feed-back-btn:is(:hover, .is-hold),
-#feed-map-back:is(:hover, .is-hold) {
+#feed-back-btn:is(:hover, .is-hold) {
   background-color: var(--press-bg);
   border-color: var(--press-border);
   color: var(--press-ink);

@@ -509,34 +509,8 @@ function bindPress(button) {
   button.addEventListener('animationend', () => button.classList.remove('is-pop'));
 }
 
-// On the bare map after a feed peek. The feed column is visibility:hidden
-// while is-peek, so this control lives outside #feed-layout.
-const feedMapBack = document.createElement('button');
-feedMapBack.id = 'feed-map-back';
-feedMapBack.type = 'button';
-feedMapBack.hidden = true;
-feedMapBack.setAttribute('aria-label', 'Back to Feed');
-feedMapBack.title = 'Feed';
-feedMapBack.appendChild(svgIcon([
-  ['path', { d: 'm15 18-6-6 6-6' }],
-]));
-bindPress(feedMapBack);
-feedMapBack.addEventListener('click', () => {
-  if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedfly')) {
-    window.layerClosedByUI('feedfly');
-  }
-  reveal();
-});
-const mapCorner = document.getElementById('map-corner-buttons');
-const mapSearch = document.getElementById('search-toggle-btn');
-if (mapCorner && mapSearch && mapSearch.parentNode === mapCorner) {
-  mapCorner.insertBefore(feedMapBack, mapSearch);
-} else if (mapCorner) {
-  mapCorner.appendChild(feedMapBack);
-} else {
-  document.body.appendChild(feedMapBack);
-}
-
+// Bare map after feed peek : show the usual #layout-mode-btn again
+// (it stays .is-feed / rows icon; CSS only unhides it).
 function mapPopupOpen() {
   const map = document.querySelector('.maplibregl-map');
   if (!map) return false;
@@ -557,7 +531,7 @@ function feedMapIsBare() {
 }
 
 function syncFeedMapBack() {
-  feedMapBack.hidden = !feedMapIsBare();
+  btn.classList.toggle('is-peek-return', feedMapIsBare());
 }
 
 function syncFeedMapBackSoon() {
@@ -3817,6 +3791,13 @@ if (window.layerPopupClosed) {
 }
 
 btn.addEventListener('click', () => {
+  if (feedOn() && root.classList.contains('is-peek')) {
+    if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedfly')) {
+      window.layerClosedByUI('feedfly');
+    }
+    reveal();
+    return;
+  }
   applyFeed(!feedOn());
 });
 
