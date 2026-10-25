@@ -16,7 +16,7 @@ import { activePolygonPopups } from './polygons.js';
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
 import { MARKER_ZOOM } from './openplace.js';
 import { ringCenter, zoomForPolygon } from './polygonframe.js';
-import { CloseALL, changePopupState, popIsOpen, expandTopicChat, expandEncryptedChat } from './cssLogic.js';
+import { CloseALL, changePopupState, popIsOpen, expandTopicChat, expandEncryptedChat, withE2eeWebNotice } from './cssLogic.js';
 import { closeDrawAnchor, openDrawColumn } from './drawhere.js';
 import { closePressAnchor } from './poiinfo.js';
 import { applyAllStyles } from './loadprofilepopup.js';
@@ -4440,9 +4440,9 @@ function openTopicChat() {
 }
 
 function openE2ee() {
-  // Unlock/read is local (password  decrypt on device). Wallet is only
-  // needed later to send or change the on-chain key wrap.
-  openFeedChat('e2ee');
+  // Unlock/read is local. Wallet only needed later to send / change wrap.
+  closeMenu();
+  withE2eeWebNotice(() => openFeedChat('e2ee'));
 }
 
 let zoomRange = null;
@@ -4888,8 +4888,7 @@ function mountFeedMessenger(panel, kind) {
   for (const id of FEED_CHAT_SHEETS[kind]) placeFeedNode(document.getElementById(id), sheet);
   feedChatUnlock.hidden = kind !== 'e2ee';
   if (kind !== 'e2ee') return;
-  // Keep the unlock field in the chat column (above topic/Load), not a
-  // centered full-screen gate over the messages.
+  // Unlock field under the header (with gap), not a centered gate.
   const keyBox = document.getElementById('encrypted-chat-private-key-container');
   const topicRow = topic && topic.parentElement;
   if (keyBox && topicRow && topicRow.parentNode) {
@@ -4898,10 +4897,11 @@ function mountFeedMessenger(panel, kind) {
       feedChatPlaced.push({ node: keyBox, parent: keyBox.parentNode, next: keyBox.nextSibling });
     }
   }
-  if (keyBox) keyBox.style.display = 'block';
+  // Drop an inline display from the map panel so the feed lock class owns it.
+  if (keyBox) keyBox.style.display = '';
   const key = document.getElementById('encrypted-chat-private-key');
   const locked = !key || !key.value.trim();
-  panel.classList.remove('is-locked');
+  panel.classList.toggle('is-locked', locked);
   feedChatUnlock.classList.toggle('is-on', locked);
   feedChatUnlock.setAttribute('aria-pressed', locked ? 'true' : 'false');
 }
@@ -5070,8 +5070,9 @@ feedChatUnlock.addEventListener('click', (event) => {
   const keyBox = document.getElementById('encrypted-chat-private-key-container');
   const key = document.getElementById('encrypted-chat-private-key');
   if (!keyBox || !key) return;
-  const show = keyBox.style.display === 'none';
-  keyBox.style.display = show ? 'block' : 'none';
+  keyBox.style.display = '';
+  const show = !panel.classList.contains('is-locked');
+  panel.classList.toggle('is-locked', show);
   feedChatUnlock.classList.toggle('is-on', show);
   feedChatUnlock.setAttribute('aria-pressed', show ? 'true' : 'false');
   if (show) key.focus();
@@ -5084,7 +5085,7 @@ document.getElementById('load-msgs-from-encrypted-chat').addEventListener('click
   const panel = document.getElementById('encrypted-chat-container');
   if (!panel || !key || !key.value.trim()) return;
   panel.classList.remove('is-locked');
-  if (keyBox) keyBox.style.display = 'none';
+  if (keyBox) keyBox.style.display = '';
   feedChatUnlock.classList.remove('is-on');
   feedChatUnlock.setAttribute('aria-pressed', 'false');
 });

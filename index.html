@@ -1473,6 +1473,22 @@
         </div>
       </div>
 
+      <div id="e2ee-web-notice-overlay" class="info-overlay" style="display:none;z-index:9600;">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+          <h3 class="info-overlay-title">Encrypted chat</h3>
+          <p class="info-overlay-subtitle">Unlock happens on your device  not on our servers.</p>
+          <ul class="info-overlay-list">
+            <li>In the browser, your password unlocks messages locally on this phone or computer. We never store that password or the topic key in our database.</li>
+            <li>A normal web tab cant lock secrets the way a phone OS can. For stronger protection, use the dedicated E2EE chat app from the <b>App Store</b> / <b>Play Store</b> when you want that extra layer  same topics, tighter device lock.</li>
+            <li>You can keep using chat here anytime; the store app is just the more protected option.</li>
+          </ul>
+          <div class="info-overlay-actions">
+            <button type="button" class="info-overlay-close-button-1" data-e2ee-web-continue>Continue</button>
+          </div>
+          <div class="info-overlay-close-button-2 info-overlay-x" data-e2ee-web-dismiss role="button" tabindex="0">×</div>
+        </div>
+      </div>
+
       <div id="e2ee-chat-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
           <h3 class="info-overlay-title">E2EE Chat</h3>
@@ -1499,10 +1515,15 @@
 
         <div class="options-column-title">🔒 E2EE CHAT</div>
 
-        <div id="encrypted-chat-private-key-container">
-          <textarea class="toolbar-column secret-entry" type="text" id="encrypted-chat-private-key" placeholder="Unlock with Private Key / password" spellcheck="false" autocomplete="off" autocapitalize="off"
+        <div id="encrypted-chat-private-key-container" class="secret-entry-row">
+          <textarea class="toolbar-column secret-entry" id="encrypted-chat-private-key" placeholder="Unlock with password" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
+          <button type="button" id="encrypted-chat-private-key-reveal" class="secret-entry-btn" aria-label="Show password" aria-pressed="false" title="Show">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="secret-eye-on" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="secret-eye-off" aria-hidden="true" hidden><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-4.86"/><path d="m2 2 20 20"/></svg>
+          </button>
+          <button type="button" id="encrypted-chat-private-key-clear" class="secret-entry-btn secret-entry-clear" aria-label="Clear" title="Clear"></button>
         </div>
 
           <div style="display: flex; align-items: center;">

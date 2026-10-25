@@ -69,6 +69,57 @@ export function OpenToggleToolbar() {
     document.getElementById("toggle-encrypted-chat-btn").style.display = "block";
   }
   
+export function withE2eeWebNotice(then) {
+  const overlay = document.getElementById("e2ee-web-notice-overlay");
+  const run = typeof then === "function" ? then : () => {};
+  if (!overlay) {
+    run();
+    return;
+  }
+  overlay.style.display = "block";
+  const finish = () => {
+    overlay.style.display = "none";
+    cont?.removeEventListener("click", finish);
+    dismiss?.removeEventListener("click", finish);
+    run();
+  };
+  const cont = overlay.querySelector("[data-e2ee-web-continue]");
+  const dismiss = overlay.querySelector("[data-e2ee-web-dismiss]");
+  cont?.addEventListener("click", finish);
+  dismiss?.addEventListener("click", finish);
+}
+
+function wireE2eeUnlockField() {
+  const field = document.getElementById("encrypted-chat-private-key");
+  const clearBtn = document.getElementById("encrypted-chat-private-key-clear");
+  const revealBtn = document.getElementById("encrypted-chat-private-key-reveal");
+  if (!field) return;
+  if (clearBtn && !clearBtn.dataset.wired) {
+    clearBtn.dataset.wired = "1";
+    clearBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      field.value = "";
+      field.style.height = "";
+      field.focus();
+    });
+  }
+  if (revealBtn && !revealBtn.dataset.wired) {
+    revealBtn.dataset.wired = "1";
+    const eyeOn = revealBtn.querySelector(".secret-eye-on");
+    const eyeOff = revealBtn.querySelector(".secret-eye-off");
+    revealBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const show = !field.classList.contains("is-revealed");
+      field.classList.toggle("is-revealed", show);
+      revealBtn.setAttribute("aria-pressed", show ? "true" : "false");
+      revealBtn.setAttribute("aria-label", show ? "Hide password" : "Show password");
+      revealBtn.title = show ? "Hide" : "Show";
+      if (eyeOn) eyeOn.hidden = show;
+      if (eyeOff) eyeOff.hidden = !show;
+    });
+  }
+}
+
 export let popIsOpen = false;
 export function changePopupState(a){
   popIsOpen = a
@@ -145,7 +196,7 @@ export function CloseALL() {
     document.getElementById("toggle-encrypted-chat-btn").style.display = "block";
     document.getElementById("toggle-toolbar-btn-btn").style.display = "none";
     document.getElementById("toggle-your-fov-btn-btn").style.display = "none";
-    document.getElementById("encrypted-chat-private-key-container").style.display = "block";
+    document.getElementById("encrypted-chat-private-key-container").style.display = "flex";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
     document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
@@ -160,6 +211,7 @@ export function CloseALL() {
   
   // Backdrop press closes only that overlay — letting it bubble to the
   // document handlers would also run CloseALL / close the draw pin
+  wireE2eeUnlockField();
   document.querySelectorAll('.info-overlay').forEach(overlay => {
     overlay.addEventListener('click', (e) => {
       if (e.target !== overlay) return;
@@ -994,7 +1046,7 @@ export function CloseALL() {
     showAllShowButtonsFromEncryptedChatOptions()
     // a Pin/Change/Set password mode may have hidden these — Block/Time/From
     // are the "load messages" context, so the normal inputs come back
-    document.getElementById("encrypted-chat-private-key-container").style.display = "block";
+    document.getElementById("encrypted-chat-private-key-container").style.display = "flex";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
     document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
@@ -1017,7 +1069,7 @@ export function CloseALL() {
     showAllShowButtonsFromEncryptedChatOptions()
     // a Pin/Change/Set password mode may have hidden these — Block/Time/From
     // are the "load messages" context, so the normal inputs come back
-    document.getElementById("encrypted-chat-private-key-container").style.display = "block";
+    document.getElementById("encrypted-chat-private-key-container").style.display = "flex";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
     document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
@@ -1041,7 +1093,7 @@ export function CloseALL() {
     showAllShowButtonsFromEncryptedChatOptions()
     // a Pin/Change/Set password mode may have hidden these — Block/Time/From
     // are the "load messages" context, so the normal inputs come back
-    document.getElementById("encrypted-chat-private-key-container").style.display = "block";
+    document.getElementById("encrypted-chat-private-key-container").style.display = "flex";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
     document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
@@ -1084,7 +1136,7 @@ export function CloseALL() {
     document.getElementById("show-pin-public-key-from-encrypted-chat").style.display = "block";
     document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
-    document.getElementById("encrypted-chat-private-key-container").style.display = "block";
+    document.getElementById("encrypted-chat-private-key-container").style.display = "flex";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
     setE2eeMessagesVisible(true);
   });
@@ -1138,7 +1190,7 @@ export function CloseALL() {
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
     // the public-key field belongs to Pin mode only
     document.getElementById("encrypted-chat-public-key").style.display = "none";
-    document.getElementById("encrypted-chat-private-key-container").style.display = "block";
+    document.getElementById("encrypted-chat-private-key-container").style.display = "flex";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
     setE2eeMessagesVisible(true);
   });
@@ -1167,7 +1219,7 @@ export function CloseALL() {
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
     // the public-key field belongs to Pin mode only
     document.getElementById("encrypted-chat-public-key").style.display = "none";
-    document.getElementById("encrypted-chat-private-key-container").style.display = "block";
+    document.getElementById("encrypted-chat-private-key-container").style.display = "flex";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
     setE2eeMessagesVisible(true);
   });
@@ -1181,27 +1233,29 @@ export function CloseALL() {
   
   document.getElementById("toggle-encrypted-chat-btn").addEventListener("click", (event) => {
     event.stopPropagation();
-    CloseALL();
-    closeDrawAnchor();
-    activePolygonPopups.forEach((popup) => popup.remove());
-    activeMarkerPopups.forEach((popup) => popup.remove());
-    hideAllShowButtonsFromEncryptedChat()
-    const encryptedChatPanel = document.getElementById("encrypted-chat-container");
-    encryptedChatPanel.classList.add("topic-chat-compact");
-    encryptedChatPanel.classList.remove("topic-chat-fit", "topic-chat-capped");
-    encryptedChatPanel.style.height = "";
-    encryptedChatPanel.style.maxHeight = "";
-    encryptedChatPanel.style.display = "flex";
-    layerOpened("e2eechat");
-    document.getElementById("options-from-encrypted-chat").style.display = "none";
-    document.getElementById("show-options-from-encrypted-chat").style.display = "block";
-    document.getElementById("show-options-from-encrypted-chat-btn").style.display = "none";
-    const encryptedChatList = document.getElementById("messages-from-encrypted-chat");
-    encryptedChatList.style.height = "";
-    encryptedChatList.style.overflowY = "";
-    setE2eeMessagesVisible(true);
+    withE2eeWebNotice(() => {
+      CloseALL();
+      closeDrawAnchor();
+      activePolygonPopups.forEach((popup) => popup.remove());
+      activeMarkerPopups.forEach((popup) => popup.remove());
+      hideAllShowButtonsFromEncryptedChat()
+      const encryptedChatPanel = document.getElementById("encrypted-chat-container");
+      encryptedChatPanel.classList.add("topic-chat-compact");
+      encryptedChatPanel.classList.remove("topic-chat-fit", "topic-chat-capped");
+      encryptedChatPanel.style.height = "";
+      encryptedChatPanel.style.maxHeight = "";
+      encryptedChatPanel.style.display = "flex";
+      layerOpened("e2eechat");
+      document.getElementById("options-from-encrypted-chat").style.display = "none";
+      document.getElementById("show-options-from-encrypted-chat").style.display = "block";
+      document.getElementById("show-options-from-encrypted-chat-btn").style.display = "none";
+      const encryptedChatList = document.getElementById("messages-from-encrypted-chat");
+      encryptedChatList.style.height = "";
+      encryptedChatList.style.overflowY = "";
+      setE2eeMessagesVisible(true);
 
-    removeUfoModel();
+      removeUfoModel();
+    });
   });
   
   document.getElementById("show-options-from-encrypted-chat").addEventListener("click", (event) => {
@@ -1218,7 +1272,7 @@ export function CloseALL() {
     document.getElementById("show-options-from-encrypted-chat").style.display = "block";
     document.getElementById("go-to-top-msgs-encrypted-chat").style.display = "flex";
     document.getElementById("go-to-bottom-msgs-encrypted-chat").style.display = "flex";
-    document.getElementById("encrypted-chat-private-key-container").style.display = "block";
+    document.getElementById("encrypted-chat-private-key-container").style.display = "flex";
     document.getElementById("encrypted-chat-chat-container").style.display = "block";
     setE2eeMessagesVisible(true);
   

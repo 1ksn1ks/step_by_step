@@ -405,6 +405,56 @@ html, body {
     -webkit-text-security: disc;
     text-security: disc;
   }
+  .secret-entry.is-revealed {
+    -webkit-text-security: none;
+    text-security: none;
+  }
+  .secret-entry-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6vh;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .secret-entry-row .secret-entry {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .secret-entry-btn {
+    appearance: none;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 4.2vh;
+    height: 4.2vh;
+    margin: 0;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 1.2vh;
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    font-size: 2.2vh;
+    line-height: 1;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .secret-entry-btn svg {
+    width: 2vh;
+    height: 2vh;
+    display: block;
+  }
+  .secret-entry-btn:is(:hover, :active, .is-hold) {
+    color: #22D3EE;
+    border-color: rgba(34, 211, 238, 0.45);
+  }
+  .secret-entry-btn[aria-pressed="true"] {
+    color: #22D3EE;
+  }
+  .secret-entry-clear::before {
+    content: "×";
+  }
 
   #messages-from-topic-chat,
   #messages-from-encrypted-chat {
@@ -9512,16 +9562,43 @@ html.feed-app appkit-modal {
 #feed-chat .is-feed-shell .feed-chat-gate {
   display: none;
 }
+/* Same kind of air as toolbar  All/Following: not flush to the bar or the topic row */
+#feed-chat .is-feed-shell .chat-topic-chat-container {
+  gap: 0;
+  padding-top: calc(var(--fu) * 0.8);
+}
 #feed-chat .is-feed-shell #encrypted-chat-private-key-container {
-  display: block;
-  width: 100%;
+  order: 0;
+  position: relative;
+  z-index: 7;
+  flex: 0 0 auto;
+  display: none;
+  width: auto;
   box-sizing: border-box;
-  padding: 0 0 calc(var(--fu) * 0.6);
+  margin: 0 calc(var(--fu) * 0.8) calc(var(--fu) * 0.8);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+#feed-chat .is-feed-shell.is-locked #encrypted-chat-private-key-container {
+  display: flex;
 }
 #feed-chat .is-feed-shell #encrypted-chat-private-key {
   width: 100% !important;
   min-height: calc(var(--fu) * 4.2) !important;
   max-height: calc(var(--fu) * 10) !important;
+}
+#feed-chat .is-feed-shell .secret-entry-btn {
+  width: calc(var(--fu) * 4.2);
+  height: calc(var(--fu) * 4.2);
+  border-radius: calc(var(--fu) * 1.2);
+}
+#feed-chat .is-feed-shell .secret-entry-btn svg {
+  width: calc(var(--fu) * 2);
+  height: calc(var(--fu) * 2);
+}
+#feed-chat .is-feed-shell .feed-chat-room {
+  margin-top: 0;
 }
 #feed-chat .is-feed-shell .toolbar-column,
 #feed-chat .is-feed-shell .loaded-topics-search {
