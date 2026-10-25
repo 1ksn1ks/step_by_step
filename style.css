@@ -9987,3 +9987,188 @@ html.feed-app appkit-modal {
   color: var(--press-ink);
 }
 
+/* Feed Load is a full shell. Map #load-column keeps the floating panel. */
+#feed-chat #load-column.is-feed-shell {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  z-index: 1 !important;
+  display: flex !important;
+  flex-direction: column;
+  flex: 1 1 auto;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #0a0a12 !important;
+  box-shadow: none !important;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  overflow: hidden;
+  animation: none !important;
+  transform: none !important;
+}
+#feed-chat #load-column.is-feed-shell .panel-help-btn,
+#feed-chat #load-column.is-feed-shell .options-column-title {
+  display: none !important;
+}
+#feed-chat #load-column.is-feed-shell #load-column-container {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: calc(var(--fu) * 0.8);
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: calc(var(--fu) * 0.8);
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y !important;
+  background: transparent;
+}
+#feed-chat #load-column.is-feed-shell .load-section-label {
+  margin: 0;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--fu) * 1.15);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+#feed-chat #load-column.is-feed-shell #load-column-container > div[style*="position: relative"],
+#feed-chat #load-column.is-feed-shell #load-column-container > div[style*="position:relative"] {
+  position: relative;
+  width: 100%;
+}
+#feed-chat #load-column.is-feed-shell #input-field {
+  width: 100% !important;
+  min-height: calc(var(--fu) * 4.4) !important;
+  padding-right: calc(var(--fu) * 4.8) !important;
+}
+#feed-chat #load-column.is-feed-shell #paste-topic-btn {
+  position: absolute !important;
+  top: 50% !important;
+  right: calc(var(--fu) * 0.4) !important;
+  bottom: auto !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: calc(var(--fu) * 3.4) !important;
+  height: calc(var(--fu) * 3.4) !important;
+  margin: 0;
+  padding: 0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #fff !important;
+  font-size: calc(var(--fu) * 1.45) !important;
+  line-height: 1;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+#feed-chat #load-column.is-feed-shell #toolbar-load {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 100% !important;
+  height: auto !important;
+  min-height: calc(var(--fu) * 4.4);
+  margin: 0 !important;
+  padding: 0 calc(var(--fu) * 1.4) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: #22D3EE !important;
+  color: #083344 !important;
+  font-family: Inter, system-ui, sans-serif !important;
+  font-size: 0 !important;
+  font-weight: 700;
+  box-shadow: 0 0 calc(var(--fu) * 1.2) rgba(34, 211, 238, 0.45);
+}
+#feed-chat #load-column.is-feed-shell #toolbar-load::after {
+  content: "Load";
+  color: #083344;
+  font-size: calc(var(--fu) * 1.6);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+#feed-chat #load-column.is-feed-shell #loaded-topics {
+  flex: 0 0 auto;
+  width: 100% !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#feed-chat #load-column.is-feed-shell .loaded-topics-controls {
+  display: flex !important;
+  position: static;
+  order: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: calc(var(--fu) * 0.45);
+  margin: 0 0 calc(var(--fu) * 0.55) !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent;
+}
+#feed-chat #load-column.is-feed-shell .loaded-topics-sort {
+  border-radius: 999px !important;
+  min-height: calc(var(--fu) * 3.4);
+}
+#feed-chat #load-column.is-feed-shell .loaded-topics-sort.active {
+  border-color: rgba(34, 211, 238, 0.75) !important;
+  color: #22D3EE !important;
+  box-shadow: 0 0 calc(var(--fu) * 0.8) rgba(34, 211, 238, 0.35);
+}
+#feed-chat #load-column.is-feed-shell #loaded-topics-list {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--fu) * 0.4);
+}
+#feed-chat #load-column.is-feed-shell #loaded-topics-list > div:has(> span) {
+  min-height: calc(var(--fu) * 4.4);
+  margin: 0;
+  padding: calc(var(--fu) * 0.7) calc(var(--fu) * 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: calc(var(--fu) * 1.4);
+  background: rgba(255, 255, 255, 0.06);
+  gap: calc(var(--fu) * 0.55) !important;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--fu) * 1.45);
+  line-height: 1.35;
+}
+#feed-chat #load-column.is-feed-shell #loaded-topics-list > div > span:first-child,
+#feed-chat #load-column.is-feed-shell #loaded-topics-list > div > span:last-child {
+  flex: 0 0 auto;
+  color: #22D3EE;
+  font-size: calc(var(--fu) * 1.6);
+}
+#feed-chat #load-column.is-feed-shell #load-column-container > div[style*="display: flex"],
+#feed-chat #load-column.is-feed-shell #load-column-container > div[style*="display:flex"],
+#feed-chat #load-column.is-feed-shell #options-from-load > div {
+  flex-wrap: wrap;
+  gap: calc(var(--fu) * 0.45);
+}
+#feed-chat #load-column.is-feed-shell #options-from-load[style*="display: block"],
+#feed-chat #load-column.is-feed-shell #options-from-load[style*="display:block"] {
+  display: flex !important;
+  flex-direction: column;
+  gap: calc(var(--fu) * 0.45);
+}
+

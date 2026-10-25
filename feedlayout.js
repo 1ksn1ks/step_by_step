@@ -16,7 +16,7 @@ import { activePolygonPopups } from './polygons.js';
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
 import { MARKER_ZOOM } from './openplace.js';
 import { ringCenter, zoomForPolygon } from './polygonframe.js';
-import { CloseALL, changePopupState, popIsOpen, expandTopicChat, expandEncryptedChat, withE2eeWebNotice } from './cssLogic.js';
+import { CloseALL, changePopupState, popIsOpen, expandTopicChat, expandEncryptedChat, withE2eeWebNotice, prepareLoadColumnForFeed } from './cssLogic.js';
 import { closeDrawAnchor, openDrawColumn } from './drawhere.js';
 import { closePressAnchor } from './poiinfo.js';
 import { applyAllStyles } from './loadprofilepopup.js';
@@ -3166,48 +3166,11 @@ function feedCovers() {
 
 function syncCover() {
   document.documentElement.classList.toggle('feed-app', feedCovers());
-  syncLoadOverFeed();
   syncFeedVideos();
 }
 
-// The Load panel is painted at 1002, under the feed. Lift only an open
-// that started from the feed toolbar. A map open stays at 1002.
-let loadOverFeed = false;
-let loadLifted = false;
-
-function syncLoadOverFeed() {
-  const col = document.getElementById('load-column');
-  if (!col) return;
-  const shown = col.style.display === 'block';
-  if (loadOverFeed && shown && feedCovers()) {
-    if (col.style.zIndex !== '8800') col.style.zIndex = '8800';
-    loadLifted = true;
-    return;
-  }
-  if (loadLifted && col.style.zIndex === '8800') col.style.zIndex = '1002';
-  loadLifted = false;
-}
-
-function ensureLoadLayer() {
-  const col = document.getElementById('load-column');
-  if (!loadOverFeed || !feedCovers()) return;
-  if (!col || col.style.display !== 'block') return;
-  if (window.layerIsOpen && window.layerIsOpen('load-column')) return;
-  if (window.layerOpened) window.layerOpened('load-column');
-}
-
 function openLoadFromFeed() {
-  if (window.layerIsTop && !window.layerIsTop('feed')) return;
-  const trigger = document.getElementById('Load_Everything');
-  if (!trigger) return;
-  holdScroll();
-  loadOverFeed = true;
-  trigger.click();
-  syncLoadOverFeed();
-  ensureLoadLayer();
-  // CloseALL may already have queued a history.back that consumes the
-  // entry this click just pushed. Put it back once that back has run.
-  setTimeout(ensureLoadLayer, 0);
+  openFeedChat('load');
 }
 
 // savedScroll stays live. History is updated once the feed sits still,
@@ -3814,7 +3777,6 @@ function applyFeed(on) {
     syncFeedMapBack();
     return;
   }
-  loadOverFeed = false;
   peek = false;
   revealToken += 1;
   root.classList.remove('is-peek');
@@ -4673,6 +4635,11 @@ const FEED_CHATS = {
     title: 'E2EE chat',
     expand: expandEncryptedChat,
   },
+  load: {
+    id: 'load-column',
+    title: 'Load',
+    expand: prepareLoadColumnForFeed,
+  },
 };
 const FEED_CHAT_ICONS = [
   ['post-msg', [
@@ -4855,6 +4822,8 @@ function primeFeedOptionPair(openId, closeId, panelId) {
 function clearFeedMessenger(panel) {
   unplaceFeedChat();
   feedChatSearch.classList.remove('is-on');
+  feedChatSearch.hidden = false;
+  feedChatSearch.setAttribute('aria-pressed', 'false');
   feedChatUnlock.classList.remove('is-on');
   feedChatUnlock.hidden = true;
   if (!panel) return;
@@ -4869,6 +4838,15 @@ function clearFeedMessenger(panel) {
 }
 
 function mountFeedMessenger(panel, kind) {
+  if (kind === 'load') {
+    feedChatSearch.hidden = true;
+    feedChatUnlock.hidden = true;
+    feedChatUnlock.classList.remove('is-on');
+    const box = document.getElementById('load-column-container');
+    if (box) box.style.display = 'block';
+    return;
+  }
+  feedChatSearch.hidden = false;
   if (panel.querySelector('.feed-chat-sheet')) return;
   const inner = panel.querySelector('.chat-topic-chat-container');
   if (!inner) return;
@@ -4921,28 +4899,28 @@ function dressFeedChatIcons(on) {
 
 const feedScrollHeight = new WeakMap();
 
-function feedChatList(panel) {
-  if (!panel) return null;
-  return panel.querySelector('#messages-from-topic-chat, #messages-from-encrypted-chat');
+function feedChatScrollers(panel) {
+  if (!panel) return [];
+  return [...panel.querySelectorAll('#messages-from-topic-chat, #messages-from-encrypted-chat, #load-column-container, #loaded-topics')];
 }
 
 // The map scroller fights native fling. Inside the feed shell the list is
 // not over the map, so that layer comes off until the panel goes back.
 function pauseFeedChatScroll(panel) {
-  const list = feedChatList(panel);
-  if (!list) return;
-  feedScrollHeight.set(list, list.style.height || '');
-  if (list.style.height) list.style.height = '';
-  if (typeof list.pauseSmoothScroll === 'function') list.pauseSmoothScroll();
+  for (const list of feedChatScrollers(panel)) {
+    feedScrollHeight.set(list, list.style.height || '');
+    if (list.style.height) list.style.height = '';
+    if (typeof list.pauseSmoothScroll === 'function') list.pauseSmoothScroll();
+  }
 }
 
 function resumeFeedChatScroll(panel) {
-  const list = feedChatList(panel);
-  if (!list) return;
-  if (typeof list.resumeSmoothScroll === 'function') list.resumeSmoothScroll();
-  if (!feedScrollHeight.has(list)) return;
-  list.style.height = feedScrollHeight.get(list);
-  feedScrollHeight.delete(list);
+  for (const list of feedChatScrollers(panel)) {
+    if (typeof list.resumeSmoothScroll === 'function') list.resumeSmoothScroll();
+    if (!feedScrollHeight.has(list)) continue;
+    list.style.height = feedScrollHeight.get(list);
+    feedScrollHeight.delete(list);
+  }
 }
 
 function restoreFeedChat() {
@@ -4955,6 +4933,9 @@ function restoreFeedChat() {
   if (!panel) return;
   panel.classList.remove('is-feed-shell');
   resumeFeedChatScroll(panel);
+  // The map Load watcher treats any display other than none as its own
+  // history entry. The feed shell owns that entry instead.
+  if (panel.id === 'load-column') panel.dataset.historyHold = '1';
   if (home.style == null) panel.removeAttribute('style');
   else panel.setAttribute('style', home.style);
   if (home.parent) home.parent.insertBefore(panel, home.next);
@@ -4979,6 +4960,7 @@ function parkFeedChat(kind) {
   feedChatSearch.classList.remove('is-on');
   feedChatSearch.setAttribute('aria-pressed', 'false');
   mountFeedMessenger(panel, kind);
+  if (kind === 'load') panel.dataset.historyHold = '1';
   panel.style.display = 'flex';
   if (feedChatWatch) feedChatWatch.disconnect();
   feedChatWatch = new MutationObserver(() => {
@@ -5370,14 +5352,6 @@ topicBtn.addEventListener('click', (event) => {
   event.stopPropagation();
   openLoadFromFeed();
 });
-
-const loadColumn = document.getElementById('load-column');
-if (loadColumn) {
-  new MutationObserver(() => syncLoadOverFeed()).observe(loadColumn, {
-    attributes: true,
-    attributeFilter: ['style'],
-  });
-}
 
 const editProfileColumn = document.getElementById('Edit_Profile-column');
 if (editProfileColumn) {

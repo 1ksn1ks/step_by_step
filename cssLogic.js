@@ -1901,6 +1901,18 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     element.style.display = "none";
   });
   }
+
+  // Feed shell setup. The map Load button still runs CloseALL itself.
+  export function prepareLoadColumnForFeed() {
+    loadColumnsEverything();
+    loadColumnsHideOptionsload();
+    document.getElementById("show-options-from-load").style.display = "block";
+    document.getElementById("hide-options-from-load").style.display = "none";
+    document.getElementById("load-column-container").style.display = "block";
+    const loaded = document.getElementById("loaded-topics");
+    renderLoadedTopics();
+    adjustTextareaHeight(loaded);
+  }
   
   document.getElementById("show-time-from-users-load-column").addEventListener("click", (event) => {
     loadColumnsEverything();
