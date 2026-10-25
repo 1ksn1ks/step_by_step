@@ -9511,21 +9511,17 @@ html.feed-app appkit-modal {
 }
 #feed-chat .is-feed-shell .feed-chat-gate {
   display: none;
-  position: absolute;
-  z-index: 5;
-  inset: 0;
-  align-items: center;
-  justify-content: center;
+}
+#feed-chat .is-feed-shell #encrypted-chat-private-key-container {
+  display: block;
+  width: 100%;
   box-sizing: border-box;
-  padding: calc(var(--fu) * 2);
-  background: rgba(10, 10, 18, 0.94);
+  padding: 0 0 calc(var(--fu) * 0.6);
 }
-#feed-chat .is-feed-shell.is-locked .feed-chat-gate {
-  display: flex;
-}
-#feed-chat .is-feed-shell.is-locked .feed-chat-gate:has(#encrypted-chat-private-key-container[style*="display: none"]),
-#feed-chat .is-feed-shell.is-locked .feed-chat-gate:has(#encrypted-chat-private-key-container[style*="display:none"]) {
-  display: none;
+#feed-chat .is-feed-shell #encrypted-chat-private-key {
+  width: 100% !important;
+  min-height: calc(var(--fu) * 4.2) !important;
+  max-height: calc(var(--fu) * 10) !important;
 }
 #feed-chat .is-feed-shell .toolbar-column,
 #feed-chat .is-feed-shell .loaded-topics-search {
@@ -9556,12 +9552,6 @@ html.feed-app appkit-modal {
 #feed-chat .is-feed-shell .loaded-topics-search {
   flex: 1 1 auto;
   min-width: 0;
-}
-#feed-chat .is-feed-shell .feed-chat-gate .toolbar-column {
-  width: min(100%, calc(var(--fu) * 32)) !important;
-  height: calc(var(--fu) * 5.2) !important;
-  min-height: calc(var(--fu) * 5.2) !important;
-  max-height: calc(var(--fu) * 8) !important;
 }
 #feed-chat .is-feed-shell .feed-chat-sheet .toolbar-column {
   width: 100% !important;
