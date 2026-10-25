@@ -527,7 +527,15 @@ feedMapBack.addEventListener('click', () => {
   }
   reveal();
 });
-document.body.appendChild(feedMapBack);
+const mapCorner = document.getElementById('map-corner-buttons');
+const mapSearch = document.getElementById('search-toggle-btn');
+if (mapCorner && mapSearch && mapSearch.parentNode === mapCorner) {
+  mapCorner.insertBefore(feedMapBack, mapSearch);
+} else if (mapCorner) {
+  mapCorner.appendChild(feedMapBack);
+} else {
+  document.body.appendChild(feedMapBack);
+}
 
 function mapPopupOpen() {
   const map = document.querySelector('.maplibregl-map');
