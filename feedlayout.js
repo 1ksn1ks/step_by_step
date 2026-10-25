@@ -405,7 +405,6 @@ const markerReplies = new Map();
 const polygonReplies = new Map();
 const deletedCreated = new Set();
 const deletedStamp = new Set();
-const deletedNumber = new Set();
 const droppedShares = new Set();
 let savedScroll = 0;
 let tabLastY = 0;
@@ -1926,7 +1925,6 @@ function clearMaps() {
   polygonReplies.clear();
   deletedCreated.clear();
   deletedStamp.clear();
-  deletedNumber.clear();
   droppedShares.clear();
   ringCenters.clear();
 }
@@ -1979,12 +1977,11 @@ function pushList(map, key, item) {
 
 function noteDelete(payer, data) {
   if (!payer || !data) return;
+  // Number deletes are legacy noise. Only created + timestamp name a post.
   const created = createdIso(data.deleteMarkerCreated || data.deletePolygonCreated);
   const stampLabel = data.deleteMarkerTimestamp || data.deletePolygonTimestamp;
-  const number = data.deleteMarkerNumber != null ? data.deleteMarkerNumber : data.deletePolygonNumber;
   if (created) deletedCreated.add(`${payer}|${created}`);
   if (stampLabel != null && String(stampLabel).trim() !== '') deletedStamp.add(`${payer}|${stampLabel}`);
-  if (number != null && String(number).trim() !== '') deletedNumber.add(`${payer}|${number}`);
 }
 
 function noteMessage(message) {
@@ -2064,7 +2061,6 @@ function likeTotal(bucket, stamp) {
 function gone(payer, number, created, stampLabel) {
   if (created && deletedCreated.has(`${payer}|${created}`)) return true;
   if (stampLabel && deletedStamp.has(`${payer}|${stampLabel}`)) return true;
-  if (number != null && String(number) !== '' && deletedNumber.has(`${payer}|${number}`)) return true;
   return false;
 }
 

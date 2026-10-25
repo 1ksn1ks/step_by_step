@@ -1084,17 +1084,15 @@ function messageCreated(value) {
   return date.toISOString();
 }
 
-// A delete names the post's time. Older deletes still name the marker or
-// polygon number, and those posts stay hidden. The number list also keeps
-// one drawing from being added twice.
+// A delete names the post's created time or timestamp. A legacy number
+// delete does not hide a later reuse of that slot. The number list still
+// keeps one live drawing from being added twice.
 function rememberShapeDelete(owner, numbersKey, data) {
   if (!owner || !data) return;
   const marker = numbersKey === 'numberOfMarker';
-  const numberKey = marker ? 'deleteMarkerNumber' : 'deletePolygonNumber';
+  // Number deletes are legacy. Only created + timestamp hide a post.
   const createdKey = marker ? 'deleteMarkerCreated' : 'deletePolygonCreated';
   const stampKey = marker ? 'deleteMarkerTimestamp' : 'deletePolygonTimestamp';
-  const rawNumber = data[numberKey];
-  if (rawNumber != null && String(rawNumber).trim() !== '') owner[numbersKey].push(rawNumber);
   if (!owner.deletedCreated) owner.deletedCreated = new Set();
   if (!owner.deletedTimestamp) owner.deletedTimestamp = new Set();
   const created = messageCreated(data[createdKey]);
@@ -2527,8 +2525,8 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                 rememberShapeDelete(markerOwner, 'numberOfMarker', parsedMessage.marker.data);
 
                 // A stored whole number keeps dedup. No number is a new post.
-                // A delete matches the post's time, and an older delete still
-                // matches the number it named.
+                // A delete matches the post's created time or timestamp.
+                // A legacy number delete does not claim the slot.
                 // The envelope time is the consensus timestamp. A decrypted body
                 // does not carry it, and that time is what a delete names.
                 const postCreated = (message && message.created) || parsedMessage.created;
@@ -4838,8 +4836,8 @@ if (rawResult && Array.isArray(rawResult)) {
                 rememberShapeDelete(markerOwner, 'numberOfMarker', parsedMessage.marker.data);
 
                 // A stored whole number keeps dedup. No number is a new post.
-                // A delete matches the post's time, and an older delete still
-                // matches the number it named.
+                // A delete matches the post's created time or timestamp.
+                // A legacy number delete does not claim the slot.
                 // The envelope time is the consensus timestamp. A decrypted body
                 // does not carry it, and that time is what a delete names.
                 const postCreated = (message && message.created) || parsedMessage.created;
@@ -5530,8 +5528,8 @@ if (rawResult && Array.isArray(rawResult)) {
                 rememberShapeDelete(markerOwner, 'numberOfMarker', parsedMessage.marker.data);
 
                 // A stored whole number keeps dedup. No number is a new post.
-                // A delete matches the post's time, and an older delete still
-                // matches the number it named.
+                // A delete matches the post's created time or timestamp.
+                // A legacy number delete does not claim the slot.
                 // The envelope time is the consensus timestamp. A decrypted body
                 // does not carry it, and that time is what a delete names.
                 const postCreated = (message && message.created) || parsedMessage.created;
