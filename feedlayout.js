@@ -662,17 +662,19 @@ function coordLabel(lngLat) {
   return `${n(lat)}, ${n(lng)}`;
 }
 
-// Feed place cell. Coarser than the live-marker GEO_GRID (0.1 deg).
-// Key: "f" + Math.round(lng / 0.5) + ":" + Math.round(lat / 0.5)
-// Example: longitude 13.4, latitude 52.5 is "f27:105".
-// server/feedplace.js parses the same string. 0.5 deg is about 55 km.
-const PLACE_GRID = 0.5;
-const PLACE_STORE = 'feed-places-v1';
-const PLACE_STORE_MAX = 2500;
-const placeCache = new Map();
-const placeKeys = new Set();
-let placeQueued = false;
-let placeStoreTimer = 0;
+// Feed place cell. Finer than the live-marker GEO_GRID (0.1 deg).
+// Key: "f" + Math.round(lng / 0.05) + ":" + Math.round(lat / 0.05)
+// Example: longitude 13.4, latitude 52.5 is "f268:1050".
+// server/feedplace.js and place-pack.json use the same string.
+// 0.05 deg is about 5.5 km. The old 0.5° cache (feed-places-v1) is ignored.
+const PLACE_GRID = 0.05;
+const PLACE_PACK_KEY = 'place-pack-v1';
+const PLACE_PACK_V = 1;
+
+let packCountries = null;
+let packRows = null;
+let placePackReady = false;
+let placePackStarted = false;
 
 function placeKey(lngLat) {
   const lng = Number(lngLat && lngLat[0]);
@@ -681,49 +683,130 @@ function placeKey(lngLat) {
   return 'f' + Math.round(lng / PLACE_GRID) + ':' + Math.round(lat / PLACE_GRID);
 }
 
-function loadPlaceStore() {
-  try {
-    const raw = localStorage.getItem(PLACE_STORE);
-    if (!raw) return;
-    const data = JSON.parse(raw);
-    if (!data || typeof data !== 'object') return;
-    for (const [key, row] of Object.entries(data)) {
-      if (!/^f-?\d+:-?\d+$/.test(key) || !row || typeof row !== 'object') continue;
-      placeCache.set(key, {
-        state: 'ready',
-        city: String(row.city || ''),
-        country: String(row.country || ''),
-        code: String(row.code || ''),
-      });
+function adoptPlacePack(text) {
+  let data;
+  try { data = JSON.parse(text); } catch { return false; }
+  if (!data || data.v !== PLACE_PACK_V || data.grid !== PLACE_GRID) return false;
+  if (!data.countries || typeof data.countries !== 'object' || !Array.isArray(data.rows)) return false;
+  const countries = {};
+  for (const [code, name] of Object.entries(data.countries)) {
+    const label = String(name || '').trim();
+    if (!/^[A-Z]{2}$/.test(code) || !label) continue;
+    countries[code] = label;
+  }
+  const rows = new Map();
+  for (const row of data.rows) {
+    if (!Array.isArray(row) || row.length < 4) continue;
+    rows.set(row[0], row);
+  }
+  packCountries = countries;
+  packRows = rows;
+  placePackReady = true;
+  return true;
+}
+
+function packCountry(key) {
+  if (!packRows) return null;
+  const match = /^f(-?\d+):(-?\d+)$/.exec(key);
+  if (!match) return null;
+  const lng = Number(match[1]);
+  const lat = Number(match[2]);
+  const row = packRows.get(lat);
+  if (!row) return null;
+  for (let i = 1; i < row.length; i += 3) {
+    const start = row[i];
+    if (lng < start) return null;
+    if (lng < start + row[i + 1]) {
+      const country = packCountries[row[i + 2]];
+      if (!country) return null;
+      return { code: row[i + 2], country };
     }
+  }
+  return null;
+}
+
+function rememberPlacePack(text) {
+  try {
+    localStorage.setItem(PLACE_PACK_KEY, text);
+    return;
   } catch {
-    /* private mode or a bad value */
+    /* quota — the IndexedDB copy is the fallback */
+  }
+  try {
+    const open = indexedDB.open('place-pack', 1);
+    open.onupgradeneeded = () => open.result.createObjectStore('pack');
+    open.onsuccess = () => {
+      const db = open.result;
+      const tx = db.transaction('pack', 'readwrite');
+      tx.objectStore('pack').put(text, PLACE_PACK_KEY);
+      tx.oncomplete = () => db.close();
+      tx.onerror = () => db.close();
+    };
+  } catch {
+    /* private mode */
   }
 }
 
-function savePlaceStore() {
-  if (placeStoreTimer) return;
-  placeStoreTimer = setTimeout(() => {
-    placeStoreTimer = 0;
-    try {
-      const ready = [];
-      for (const [key, hit] of placeCache) {
-        if (!hit || hit.state !== 'ready') continue;
-        ready.push([key, {
-          city: hit.city || '',
-          country: hit.country || '',
-          code: hit.code || '',
-        }]);
-      }
-      const kept = ready.length > PLACE_STORE_MAX ? ready.slice(ready.length - PLACE_STORE_MAX) : ready;
-      localStorage.setItem(PLACE_STORE, JSON.stringify(Object.fromEntries(kept)));
-    } catch {
-      /* quota or private mode */
-    }
-  }, 200);
+function readPlacePackIdb() {
+  return new Promise((resolve) => {
+    let open;
+    try { open = indexedDB.open('place-pack', 1); } catch { resolve(''); return; }
+    open.onupgradeneeded = () => open.result.createObjectStore('pack');
+    open.onerror = () => resolve('');
+    open.onsuccess = () => {
+      const db = open.result;
+      if (!db.objectStoreNames.contains('pack')) { db.close(); resolve(''); return; }
+      const tx = db.transaction('pack', 'readonly');
+      const req = tx.objectStore('pack').get(PLACE_PACK_KEY);
+      req.onsuccess = () => { db.close(); resolve(typeof req.result === 'string' ? req.result : ''); };
+      req.onerror = () => { db.close(); resolve(''); };
+    };
+  });
 }
 
-loadPlaceStore();
+function refreshPlaceCards() {
+  column.querySelectorAll('.feed-loc-coords').forEach((coords) => {
+    if (coords.dataset.place === 'ready') return;
+    const card = coords.closest('.feed-card');
+    if (card) wantPlace(card);
+  });
+}
+
+async function fetchPlacePack() {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/place-pack`);
+    if (!res.ok) return;
+    const text = await res.text();
+    if (!adoptPlacePack(text)) return;
+    rememberPlacePack(text);
+    refreshPlaceCards();
+  } catch {
+    /* offline — coordinates stay, and feed labels do not call /api/place */
+  }
+}
+
+function ensurePlacePack() {
+  if (placePackReady || placePackStarted) return;
+  placePackStarted = true;
+  let cached = '';
+  try { cached = localStorage.getItem(PLACE_PACK_KEY) || ''; } catch { cached = ''; }
+  setTimeout(() => {
+    if (cached && adoptPlacePack(cached)) {
+      refreshPlaceCards();
+      return;
+    }
+    if (cached) {
+      try { localStorage.removeItem(PLACE_PACK_KEY); } catch { /* ignore */ }
+    }
+    readPlacePackIdb().then((text) => {
+      if (text && adoptPlacePack(text)) {
+        refreshPlaceCards();
+        return;
+      }
+      fetchPlacePack();
+    });
+  }, 0);
+}
 
 function flagEmoji(code) {
   const iso = String(code || '').toUpperCase();
@@ -1032,7 +1115,7 @@ function showPlace(coords, hit) {
   const label = coords.parentElement;
   if (!label) return;
   const code = placeCountryCode(hit);
-  const name = code ? (countryNameByCode.get(code) || '') : '';
+  const name = code ? (countryNameByCode.get(code) || String(hit.country || '').trim()) : '';
   if (!name) {
     coords.hidden = false;
     coords.classList.add('is-fallback');
@@ -1053,108 +1136,20 @@ function showPlace(coords, hit) {
   coords.dataset.place = 'ready';
 }
 
-function applyCachedPlaces() {
-  column.querySelectorAll('.feed-loc-coords').forEach((coords) => {
-    const key = coords.dataset.geokey;
-    if (!key || coords.dataset.place === 'ready') return;
-    const hit = placeCache.get(key);
-    if (!hit) return;
-    if (hit.state === 'ready') showPlace(coords, hit);
-    else if (hit.state === 'fail') {
-      coords.hidden = false;
-      coords.classList.add('is-fallback');
-      coords.dataset.place = 'fail';
-    }
-  });
-}
-
-function queuePlaces() {
-  if (placeQueued) return;
-  placeQueued = true;
-  setTimeout(flushPlaces, 60);
-}
-
-async function flushPlaces() {
-  placeQueued = false;
-  const keys = [];
-  for (const key of placeKeys) {
-    const hit = placeCache.get(key);
-    if (hit && (hit.state === 'ready' || hit.state === 'fail')) {
-      placeKeys.delete(key);
-      continue;
-    }
-    keys.push(key);
-    if (keys.length >= 20) break;
-  }
-  for (const key of keys) placeKeys.delete(key);
-  if (placeKeys.size) queuePlaces();
-  if (!keys.length) return;
-  for (const key of keys) {
-    const hit = placeCache.get(key) || { state: 'wait', tries: 0 };
-    hit.state = 'wait';
-    hit.tries = (hit.tries || 0) + 1;
-    placeCache.set(key, hit);
-  }
-  let pending = false;
-  let failed = false;
-  let learned = false;
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/place?keys=${encodeURIComponent(keys.join(','))}`);
-    if (!res.ok) throw new Error('place');
-    const data = await res.json();
-    const rows = data && Array.isArray(data.places) ? data.places : [];
-    for (const row of rows) {
-      if (!row || !row.geokey) continue;
-      if (row.pending) {
-        pending = true;
-        continue;
-      }
-      placeCache.set(row.geokey, {
-        state: 'ready',
-        city: row.city || '',
-        country: row.country || '',
-        code: row.country_code || '',
-      });
-      learned = true;
-    }
-  } catch {
-    failed = true;
-  }
-  if (learned) savePlaceStore();
-  for (const key of keys) {
-    const hit = placeCache.get(key);
-    if (!hit || hit.state !== 'wait') continue;
-    const giveUp = failed ? hit.tries >= 3 : hit.tries >= 15;
-    if (giveUp) hit.state = 'fail';
-    else if (pending || failed) placeKeys.add(key);
-    else hit.state = 'fail';
-  }
-  applyCachedPlaces();
-  if (placeKeys.size) {
-    placeQueued = true;
-    setTimeout(flushPlaces, failed ? 1500 : 1200);
-  }
-}
-
 function wantPlace(card) {
   if (!card || !card.querySelector) return;
   const coords = card.querySelector('.feed-loc-coords');
   if (!coords || !coords.dataset.geokey) return;
   if (coords.dataset.place === 'ready' || coords.dataset.place === 'fail') return;
-  const key = coords.dataset.geokey;
-  const hit = placeCache.get(key);
-  if (hit && hit.state === 'ready') {
-    showPlace(coords, hit);
-    return;
-  }
-  if (hit && hit.state === 'fail') {
+  if (!placePackReady) return;
+  const hit = packCountry(coords.dataset.geokey);
+  if (!hit) {
     coords.hidden = false;
     coords.classList.add('is-fallback');
     coords.dataset.place = 'fail';
     return;
   }
-  placeKeys.add(key);
-  queuePlaces();
+  showPlace(coords, hit);
 }
 
 const ringCenters = new Map();
@@ -3649,6 +3644,7 @@ function applyFeed(on) {
     peek = false;
     root.classList.remove('is-peek');
     root.style.display = 'block';
+    ensurePlacePack();
     showFeedTabs();
     measureTabHide();
     syncCover();

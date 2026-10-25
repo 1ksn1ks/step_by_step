@@ -27,7 +27,7 @@ import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
 import { startEarlyHashinals } from "./hashinals.js";
-import { feedGeoKey, lookupFeedPlace, parseFeedGeoKey, shortCity } from "./feedplace.js";
+import { feedGeoKey, lookupFeedPlace, parseFeedGeoKey, placePackBuffers, shortCity } from "./feedplace.js";
 import { createChunkAssembler } from "../hcschunks.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1580,7 +1580,7 @@ function geoKeyFor(lng, lat) {
 }
 
 // Live-marker keys are "lngCell:latCell" on GEO_GRID. Feed keys are the
-// "f" + cell form from feedplace.js (0.5 deg). Both store a lng/lat pair
+// "f" + cell form from feedplace.js (0.05 deg). Both store a lng/lat pair
 // for the centre of that cell.
 function cellCenter(geokey) {
   const feed = parseFeedGeoKey(geokey);
@@ -3404,8 +3404,23 @@ function feedPostCellsNow() {
   return cells;
 }
 
+// Country pack for feed labels. Long cache; the body is versioned (v, grid).
+app.get("/api/place-pack", (req, res) => {
+  const pack = placePackBuffers();
+  if (!pack) return res.status(404).json({ ok: false });
+  res.setHeader("Cache-Control", "public, max-age=604800");
+  res.setHeader("Vary", "Accept-Encoding");
+  const gzip = /gzip/i.test(String(req.headers["accept-encoding"] || ""));
+  if (gzip) {
+    res.setHeader("Content-Encoding", "gzip");
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    return res.send(pack.gzip);
+  }
+  res.type("json").send(pack.raw);
+});
+
 // Feed cards ask for a city and country. Keys are the feedplace.js cell
-// ("f" + rounded lng + ":" + rounded lat on a 0.5 deg grid). A listed city
+// ("f" + rounded lng + ":" + rounded lat on a 0.05 deg grid). A listed city
 // is answered from the offline set and written into geo_cache. Nominatim
 // runs only when that lookup has no city, a stored feed post sits in the
 // cell, and the 1 req/s queue still has room.

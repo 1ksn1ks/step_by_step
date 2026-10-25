@@ -1,22 +1,27 @@
 // Offline city and country for feed place labels.
 //
-// Feed cells are coarser than live-marker GEO_GRID (0.1 deg, about 11 km).
-// Key: "f" + Math.round(lng / 0.5) + ":" + Math.round(lat / 0.5)
-// Example: longitude 13.4, latitude 52.5 is "f27:105".
+// Feed cells are finer than the live-marker GEO_GRID (0.1 deg, about 11 km).
+// Key: "f" + Math.round(lng / 0.05) + ":" + Math.round(lat / 0.05)
+// Example: longitude 13.4, latitude 52.5 is "f268:1050".
 // feedlayout.js placeKey() builds the same string. /api/place stores it in
 // geo_cache. The leading "f" keeps a feed cell distinct from a live-marker
 // key, which is an unprefixed "lngCell:latCell" on the 0.1 deg grid.
+//
+// place-pack.json is the device pack: country names plus every 0.05° cell
+// within 100 km of a listed city, mapped to that nearest city's country.
+// Feed cards read the pack and do not ask /api/place.
 //
 // City names are GeoNames places with population over 15,000 (CC-BY 4.0).
 // https://www.geonames.org/
 
 import fs from "fs";
 import path from "path";
+import zlib from "zlib";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const FEED_PLACE_GRID = 0.5;
+export const FEED_PLACE_GRID = 0.05;
 const REACH_KM = 100;
 
 // Leading administrative words, not part of the name a card should show.
@@ -122,4 +127,18 @@ export function lookupFeedPlace(lng, lat) {
   const country = countries[code];
   if (!country) return null;
   return { city: best[2], country, code };
+}
+
+// Gzip once. The pack is static, so the first /api/place-pack pays for it.
+let packCache = null;
+
+export function placePackBuffers() {
+  if (packCache) return packCache;
+  try {
+    const raw = fs.readFileSync(path.join(__dirname, "place-pack.json"));
+    packCache = { raw, gzip: zlib.gzipSync(raw, { level: 9 }) };
+    return packCache;
+  } catch {
+    return null;
+  }
 }
