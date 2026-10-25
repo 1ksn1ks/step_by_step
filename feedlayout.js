@@ -510,6 +510,57 @@ function bindPress(button) {
   button.addEventListener('animationend', () => button.classList.remove('is-pop'));
 }
 
+// On the bare map after a feed peek. The feed column is visibility:hidden
+// while is-peek, so this control lives outside #feed-layout.
+const feedMapBack = document.createElement('button');
+feedMapBack.id = 'feed-map-back';
+feedMapBack.type = 'button';
+feedMapBack.hidden = true;
+feedMapBack.setAttribute('aria-label', 'Back to Feed');
+feedMapBack.title = 'Feed';
+feedMapBack.appendChild(svgIcon([
+  ['path', { d: 'm15 18-6-6 6-6' }],
+]));
+bindPress(feedMapBack);
+feedMapBack.addEventListener('click', () => {
+  if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedfly')) {
+    window.layerClosedByUI('feedfly');
+  }
+  reveal();
+});
+document.body.appendChild(feedMapBack);
+
+function mapPopupOpen() {
+  const map = document.querySelector('.maplibregl-map');
+  if (!map) return false;
+  return [...map.querySelectorAll('.maplibregl-popup')].some((el) => {
+    const style = getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
+}
+
+function feedMapIsBare() {
+  if (!feedOn() || !root.classList.contains('is-peek')) return false;
+  if (placing || (window.layerIsOpen && window.layerIsOpen('feedplace'))) return false;
+  if (window.layerIsOpen && window.layerIsOpen('markerpopup')) return false;
+  if (mapPopupOpen()) return false;
+  return true;
+}
+
+function syncFeedMapBack() {
+  feedMapBack.hidden = !feedMapIsBare();
+}
+
+function syncFeedMapBackSoon() {
+  syncFeedMapBack();
+  requestAnimationFrame(() => {
+    syncFeedMapBack();
+    setTimeout(syncFeedMapBack, 0);
+  });
+}
+
 function finite(n) {
   const v = Number(n);
   return Number.isFinite(v) ? v : null;
@@ -3110,6 +3161,7 @@ function reveal() {
   peek = false;
   root.classList.remove('is-peek');
   syncCover();
+  syncFeedMapBack();
   const y = savedScroll;
   requestAnimationFrame(() => { setFeedScroll(y); });
   paintNewPill();
@@ -3214,6 +3266,7 @@ function flyOnly(lngLat, zoom = MARKER_ZOOM) {
   }
   cancelAnimateMapTo();
   animateMapTo(map, lngLat, zoom);
+  syncFeedMapBackSoon();
 }
 
 function mountFeedMapBack(popup) {
@@ -3534,6 +3587,7 @@ function returnToFeed(sent) {
     peek = false;
     root.classList.remove('is-peek');
     syncCover();
+    syncFeedMapBack();
     held.all = [];
     held.following = [];
     rerenderLane();
@@ -3662,6 +3716,7 @@ function applyFeed(on) {
       const want = feedPrefs.tab === 'following' ? 'following' : 'all';
       if (feedTab !== want) selectTab(want);
     }
+    syncFeedMapBack();
     return;
   }
   loadOverFeed = false;
@@ -3676,6 +3731,7 @@ function applyFeed(on) {
     streamOff();
     streamOff = null;
   }
+  syncFeedMapBack();
 }
 
 if (window.defineLayer) {
@@ -3692,6 +3748,7 @@ if (window.defineLayer) {
         const zoom = Number(state.zoom);
         animateMapTo(map, [Number(state.lng), Number(state.lat)], Number.isFinite(zoom) ? zoom : MARKER_ZOOM);
       }
+      syncFeedMapBackSoon();
     },
     close: () => {
       if (root.style.display === 'none') return;
@@ -3732,6 +3789,7 @@ if (window.layerPopupOpened) {
     }
     const result = opened(popup, data);
     if (popup && popup.openedFromFeed) mountFeedMapBack(popup);
+    syncFeedMapBackSoon();
     return result;
   };
 }
@@ -3739,10 +3797,17 @@ if (window.layerPopupOpened) {
 if (window.layerPopupClosed) {
   const closed = window.layerPopupClosed;
   window.layerPopupClosed = function (popup) {
-    // × stays on the map. Back, and history Back, return to the feed.
-    const backToFeed = !!(popup && popup.openedFromFeed && (popup.returnToFeed || popup._hlClosed));
+    // × stays on the map in peek. The popup's own Back sets returnToFeed.
+    // History Back marks _hlClosed before remove; the × only gets that
+    // flag afterwards, when the history entry is consumed.
+    const fromFeed = !!(popup && popup.openedFromFeed);
+    const explicitBack = !!(popup && popup.returnToFeed);
+    if (fromFeed && popup && !explicitBack && !popup._hlClosed) popup._feedX = true;
+    const historyBack = !!(popup && popup._hlClosed && !popup._feedX);
+    const backToFeed = fromFeed && (explicitBack || historyBack);
     const result = closed(popup);
     if (backToFeed) revealSoon();
+    else syncFeedMapBackSoon();
     return result;
   };
 }
