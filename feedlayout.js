@@ -424,6 +424,8 @@ let tabTrackHold = false;
 let tabFollowQueued = false;
 let tabEndTimer = 0;
 let peek = false;
+// Set for the popup that openOnMap is about to add. Map opens leave it false.
+let feedPopupHandoff = false;
 let placing = false;
 let drawWasOpen = false;
 let placeToken = 0;
@@ -3211,13 +3213,45 @@ function flyOnly(lngLat, zoom = MARKER_ZOOM) {
   animateMapTo(map, lngLat, zoom);
 }
 
+function mountFeedMapBack(popup) {
+  const el = popup && typeof popup.getElement === 'function' ? popup.getElement() : null;
+  const content = el && el.querySelector('.maplibregl-popup-content');
+  if (!content || content.querySelector('.feed-map-back')) return;
+  const back = document.createElement('button');
+  back.type = 'button';
+  back.className = 'maplibregl-popup-close-button feed-map-back';
+  back.setAttribute('aria-label', 'Back');
+  back.title = 'Back';
+  back.appendChild(svgIcon([
+    ['path', { d: 'm12 19-7-7 7-7' }],
+    ['path', { d: 'M19 12H5' }],
+  ]));
+  back.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    popup.returnToFeed = true;
+    popup.remove();
+  });
+  const close = content.querySelector('.maplibregl-popup-close-button:not(.feed-map-back)');
+  if (close) content.insertBefore(back, close);
+  else content.appendChild(back);
+}
+
 function openOnMap(post) {
   rememberScroll();
   peek = true;
   root.classList.add('is-peek');
   syncCover();
-  if (post.kind === 'marker' && post.feature && openMarkerFeature(post.feature)) return;
-  if (post.kind === 'polygon' && post.polygon && openPolygonFeature(post.polygon)) return;
+  if (post.kind === 'marker' && post.feature) {
+    feedPopupHandoff = true;
+    if (openMarkerFeature(post.feature)) return;
+    feedPopupHandoff = false;
+  }
+  if (post.kind === 'polygon' && post.polygon) {
+    feedPopupHandoff = true;
+    if (openPolygonFeature(post.polygon)) return;
+    feedPopupHandoff = false;
+  }
   flyOnly(post.lngLat, flyZoom(post));
 }
 
@@ -3682,23 +3716,29 @@ if (window.watchDisplayLayer) {
 if (window.layerPopupOpened) {
   const opened = window.layerPopupOpened;
   window.layerPopupOpened = function (popup, data) {
+    if (feedPopupHandoff && popup) {
+      popup.openedFromFeed = true;
+      feedPopupHandoff = false;
+    }
     if (feedOn() && window.layerIsOpen && window.layerIsOpen('feed')) {
       peek = true;
       root.classList.add('is-peek');
       revealToken += 1;
       syncCover();
     }
-    return opened(popup, data);
+    const result = opened(popup, data);
+    if (popup && popup.openedFromFeed) mountFeedMapBack(popup);
+    return result;
   };
 }
 
 if (window.layerPopupClosed) {
   const closed = window.layerPopupClosed;
   window.layerPopupClosed = function (popup) {
-    const fromFeed = peek && feedOn();
-    const already = popup && popup._hlClosed;
+    // × stays on the map. Back, and history Back, return to the feed.
+    const backToFeed = !!(popup && popup.openedFromFeed && (popup.returnToFeed || popup._hlClosed));
     const result = closed(popup);
-    if (fromFeed && (already || popup)) revealSoon();
+    if (backToFeed) revealSoon();
     return result;
   };
 }

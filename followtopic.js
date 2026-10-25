@@ -360,7 +360,7 @@ function closeGlyph() {
 }
 
 function mountCloseGlyph(btn) {
-  if (!btn || btn.classList.contains('comments-back-button')) return;
+  if (!btn || btn.classList.contains('comments-back-button') || btn.classList.contains('feed-map-back')) return;
   if (btn.querySelector('.topic-follow-glyph')) return;
   btn.textContent = '';
   btn.appendChild(closeGlyph());

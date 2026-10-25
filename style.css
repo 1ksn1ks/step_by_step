@@ -2754,6 +2754,16 @@ html, body {
     z-index: 2;
     transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
   }
+  /* Same circle as the ×, one button-width to its left. Feed opens only. */
+  .maplibregl-popup-close-button.feed-map-back {
+    right: calc(var(--u) * 4.54) !important;
+  }
+  .maplibregl-popup-close-button.feed-map-back svg {
+    width: calc(var(--u) * 2.2);
+    height: calc(var(--u) * 2.2);
+    display: block;
+    pointer-events: none;
+  }
 
   /* Same press timing as the follow button. The back chevron keeps its own scale. */
   .maplibregl-popup-close-button:not(.comments-back-button) {
@@ -5526,6 +5536,9 @@ a.payer-link {
   .maplibregl-map .maplibregl-popup-close-button {
     top: calc(var(--u) * 0.4) !important;
     right: calc(var(--u) * 0.4) !important;
+  }
+  .maplibregl-map .maplibregl-popup-close-button.feed-map-back {
+    right: calc(var(--u) * 4.84) !important;
   }
 
   .maplibregl-map .popup-media-card,
