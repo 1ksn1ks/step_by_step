@@ -3500,6 +3500,8 @@ if (fs.existsSync(distDir)) {
       } else if (base === "manifest.webmanifest") {
         res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
         res.setHeader("Cache-Control", "no-cache");
+      } else if (filePath.includes(`${path.sep}flags${path.sep}`)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
       }
     }
   }));

@@ -808,11 +808,17 @@ function ensurePlacePack() {
   }, 0);
 }
 
-function flagEmoji(code) {
-  const iso = String(code || '').toUpperCase();
-  if (!/^[A-Z]{2}$/.test(iso)) return '';
-  const base = 0x1F1E6;
-  return String.fromCodePoint(base + iso.charCodeAt(0) - 65, base + iso.charCodeAt(1) - 65);
+function flagImg(code) {
+  if (!/^[A-Z]{2}$/.test(code)) return null;
+  const img = document.createElement('img');
+  img.className = 'feed-loc-flag';
+  img.src = `/flags/w20/${code.toLowerCase()}.png`;
+  img.alt = '';
+  img.setAttribute('aria-hidden', 'true');
+  img.loading = 'lazy';
+  img.decoding = 'async';
+  img.onerror = () => { img.hidden = true; };
+  return img;
 }
 
 function normPlaceName(value) {
@@ -1094,15 +1100,17 @@ function placeCountryCode(hit) {
   return countryCodeByName.get(normPlaceName(hit && hit.country)) || '';
 }
 
-function placePart(className, emoji, name) {
+function placePart(className, mark, name) {
   const el = document.createElement('span');
   el.className = className;
-  if (emoji) {
-    const mark = document.createElement('span');
-    mark.className = 'feed-loc-emoji';
-    mark.setAttribute('aria-hidden', 'true');
-    mark.textContent = emoji;
+  if (mark instanceof HTMLElement) {
     el.appendChild(mark);
+  } else if (mark) {
+    const emoji = document.createElement('span');
+    emoji.className = 'feed-loc-emoji';
+    emoji.setAttribute('aria-hidden', 'true');
+    emoji.textContent = mark;
+    el.appendChild(emoji);
   }
   const text = document.createElement('span');
   text.className = 'feed-loc-name';
@@ -1131,7 +1139,7 @@ function showPlace(coords, hit) {
     coords.before(where);
   }
   where.replaceChildren();
-  where.appendChild(placePart('feed-loc-country', flagEmoji(code), name));
+  where.appendChild(placePart('feed-loc-country', flagImg(code), name));
   coords.hidden = true;
   coords.dataset.place = 'ready';
 }

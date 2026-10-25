@@ -8221,6 +8221,17 @@ html.feed-app appkit-modal {
 #feed-column .feed-loc-emoji {
   flex: 0 0 auto;
 }
+#feed-column .feed-loc-flag {
+  width: 1.15em;
+  height: auto;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  border-radius: 0.15em;
+  flex: 0 0 auto;
+  display: inline-block;
+  vertical-align: -0.1em;
+  margin-right: 0.35em;
+}
 #feed-column .feed-loc:has(.feed-loc-where) > svg,
 #feed-column .feed-loc-place,
 #feed-column .feed-loc-sep {
