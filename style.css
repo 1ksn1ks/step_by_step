@@ -7768,7 +7768,7 @@ html.feed-app appkit-modal {
   display: none;
 }
 #feed-frame.is-profile-feed #feed-column {
-  padding-top: calc(var(--feed-chrome) * 10.8);
+  padding-top: calc(var(--feed-chrome) * 10.8 + var(--feed-chrome));
 }
 #feed-column .feed-empty {
   display: flex;
@@ -7819,7 +7819,7 @@ html.feed-app appkit-modal {
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
-  padding: calc(var(--feed-chrome) * 4.4) calc(var(--fu) * 1) calc(var(--fu) * 2);
+  padding: calc(var(--feed-chrome) * 4.4 + var(--feed-chrome)) calc(var(--fu) * 1) calc(var(--fu) * 2);
   touch-action: pan-y;
 }
 @media (orientation: landscape) {
