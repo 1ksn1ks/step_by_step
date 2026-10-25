@@ -9552,13 +9552,18 @@ html.feed-app appkit-modal {
   border-color: #22D3EE !important;
   color: #083344 !important;
 }
-#feed-chat .is-feed-shell .chat-container {
+#feed-chat .is-feed-shell #messages-from-topic-chat,
+#feed-chat .is-feed-shell #messages-from-encrypted-chat {
   flex: 1 1 auto !important;
   height: auto !important;
   min-height: 0 !important;
   max-height: none !important;
   margin: 0 !important;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y !important;
+  transition: none;
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
@@ -9566,8 +9571,10 @@ html.feed-app appkit-modal {
   font-family: Inter, system-ui, sans-serif !important;
   font-size: calc(var(--fu) * 1.55) !important;
 }
-#feed-chat .is-feed-shell .chat-container * {
+#feed-chat .is-feed-shell #messages-from-topic-chat *,
+#feed-chat .is-feed-shell #messages-from-encrypted-chat * {
   font-family: Inter, system-ui, sans-serif;
+  touch-action: pan-y !important;
 }
 #feed-chat .is-feed-shell .chat-attach-preview {
   order: 0;

@@ -215,41 +215,40 @@ export function makeScrollable(el) {
   };
 
   // ==================== TOUCH ====================
-  el.addEventListener('touchstart', e => {
+  const onTouchStart = (e) => {
     const t = e.touches[0];
     startX = t.clientX;
     start(e, t.clientY, true);
-  }, { passive: true });
+  };
 
-  el.addEventListener('touchmove', e => {
+  const onTouchMove = (e) => {
     move(e, true);
     // Only a locked vertical drag blocks the browser (pan/refresh);
     // anything else keeps native behavior
     if (axis === 'v' && isDragging) e.preventDefault();
-  }, { passive: false });
+  };
 
-  el.addEventListener('touchend', e => end(e, true));
-  el.addEventListener('touchcancel', cleanup);
+  const onTouchEnd = (e) => end(e, true);
 
   // ==================== MOUSE ====================
   const onMouseMove = e => move(e, false);
   const onMouseUp = e => end(e, false);
 
-  el.addEventListener('mousedown', e => {
+  const onMouseDown = (e) => {
     startX = e.clientX;
     start(e, e.clientY, false);
     if (!startedOnControl) {
       document.addEventListener('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
     }
-  });
+  };
 
-  el.addEventListener('mouseleave', () => {
+  const onMouseLeave = () => {
     if (isDragging || mouseDownTarget) cleanup();
-  });
+  };
 
   // ==================== WHEEL ====================
-  el.addEventListener('wheel', e => {
+  const onWheel = (e) => {
     const delta = e.deltaY;
     const atTop = el.scrollTop <= BUFFER && delta < 0;
     const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - BUFFER && delta > 0;
@@ -276,11 +275,43 @@ export function makeScrollable(el) {
       e.preventDefault();
       e.stopPropagation();
     }
-  }, { passive: false });
+  };
+
+  // Map panels keep these listeners. The feed shell removes them so the
+  // list can use native momentum; a non-passive touchmove would still
+  // keep the scroll on the main thread.
+  let armed = false;
+  const arm = () => {
+    if (armed) return;
+    armed = true;
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd);
+    el.addEventListener('touchcancel', cleanup);
+    el.addEventListener('mousedown', onMouseDown);
+    el.addEventListener('mouseleave', onMouseLeave);
+    el.addEventListener('wheel', onWheel, { passive: false });
+  };
+  const disarm = () => {
+    if (!armed) return;
+    armed = false;
+    stopMotion();
+    cleanup();
+    el.removeEventListener('touchstart', onTouchStart);
+    el.removeEventListener('touchmove', onTouchMove);
+    el.removeEventListener('touchend', onTouchEnd);
+    el.removeEventListener('touchcancel', cleanup);
+    el.removeEventListener('mousedown', onMouseDown);
+    el.removeEventListener('mouseleave', onMouseLeave);
+    el.removeEventListener('wheel', onWheel);
+  };
+  el.pauseSmoothScroll = disarm;
+  el.resumeSmoothScroll = arm;
 
   // Initial state
   target = el.scrollTop;
   enableSelection();
+  arm();
 }
 
   makeScrollable(document.getElementById('messages-from-topic-chat'));  // inner container

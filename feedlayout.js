@@ -4754,6 +4754,32 @@ function dressFeedChatIcons(on) {
   }
 }
 
+const feedScrollHeight = new WeakMap();
+
+function feedChatList(panel) {
+  if (!panel) return null;
+  return panel.querySelector('#messages-from-topic-chat, #messages-from-encrypted-chat');
+}
+
+// The map scroller fights native fling. Inside the feed shell the list is
+// not over the map, so that layer comes off until the panel goes back.
+function pauseFeedChatScroll(panel) {
+  const list = feedChatList(panel);
+  if (!list) return;
+  feedScrollHeight.set(list, list.style.height || '');
+  if (list.style.height) list.style.height = '';
+  if (typeof list.pauseSmoothScroll === 'function') list.pauseSmoothScroll();
+}
+
+function resumeFeedChatScroll(panel) {
+  const list = feedChatList(panel);
+  if (!list) return;
+  if (typeof list.resumeSmoothScroll === 'function') list.resumeSmoothScroll();
+  if (!feedScrollHeight.has(list)) return;
+  list.style.height = feedScrollHeight.get(list);
+  feedScrollHeight.delete(list);
+}
+
 function restoreFeedChat() {
   if (!feedChatHome) return;
   const home = feedChatHome;
@@ -4763,6 +4789,7 @@ function restoreFeedChat() {
   else clearFeedMessenger(null);
   if (!panel) return;
   panel.classList.remove('is-feed-shell');
+  resumeFeedChatScroll(panel);
   if (home.style == null) panel.removeAttribute('style');
   else panel.setAttribute('style', home.style);
   if (home.parent) home.parent.insertBefore(panel, home.next);
@@ -4782,6 +4809,7 @@ function parkFeedChat(kind) {
     feedChatBody.appendChild(panel);
   }
   panel.classList.add('is-feed-shell');
+  pauseFeedChatScroll(panel);
   panel.classList.remove('topic-chat-compact', 'topic-chat-fit', 'topic-chat-capped', 'is-search');
   feedChatSearch.classList.remove('is-on');
   feedChatSearch.setAttribute('aria-pressed', 'false');

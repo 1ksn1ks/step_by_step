@@ -50,7 +50,7 @@ document.getElementById('go-to-top-msgs').addEventListener('click', function() {
       topicChatGoToBottom.classList.remove('go-to-bottom-visible');
     }, 2000);
   }
-  topicChatMessages.addEventListener('scroll', updateTopicChatArrows);
+  topicChatMessages.addEventListener('scroll', updateTopicChatArrows, { passive: true });
 
 document.getElementById('go-to-bottom-msgs').addEventListener('click', function() {
     const container = document.getElementById('messages-from-topic-chat');

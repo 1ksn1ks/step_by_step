@@ -615,7 +615,7 @@ function updateE2eeArrows() {
     e2eeGoToBottom.classList.remove('go-to-bottom-visible');
   }, 2000);
 }
-e2eeMessages.addEventListener('scroll', updateE2eeArrows);
+e2eeMessages.addEventListener('scroll', updateE2eeArrows, { passive: true });
 
 document.getElementById('go-to-bottom-msgs-encrypted-chat').addEventListener('click', function() {
   const container = document.getElementById('messages-from-encrypted-chat');
