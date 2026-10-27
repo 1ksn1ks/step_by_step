@@ -68,15 +68,11 @@ let layerActive = false; // moveend listener attached
 // while the original message is still backfilling.
 function formatTimestamp(created, lastSeenMs) {
   const d = created ? new Date(created) : new Date(lastSeenMs);
-  return d.toLocaleString('en-US', {
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
+  const pad = (n) => String(n).padStart(2, '0');
+  return (
+    pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + String(d.getFullYear()).slice(-2) +
+    ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+  );
 }
 
 // True when [lng, lat] is on the visible side of the globe (same test as

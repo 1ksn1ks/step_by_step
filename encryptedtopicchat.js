@@ -8,7 +8,7 @@ import { connectedAccount, signer } from './web3';
 import { profilePictures, usernames, click2url, profileTopics } from './loadalladata';
 import { isHederaAccount } from './handleallmessages';
 import { toast } from './toast'
-import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, utf8ByteLength, normalizeMessageNewlines } from './hcschunks.js';
+import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, formatHcsUsage, utf8ByteLength, normalizeMessageNewlines } from './hcschunks.js';
 import { expandEncryptedChat, scheduleEncryptedChatLayout } from './cssLogic.js';
 import { payerUsernameNode } from './payerlink.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
@@ -27,6 +27,286 @@ import {
 
 export let allLoadedMessagesEncryptedChat = [];
 export let storedMessagesEncryptedChat = [];
+
+// ── E2EE message edits ──────────────────────────────────────────────
+// HCS is immutable, so an edit is a new message that points at the
+// original bubble (editEncryptedMessage.created) and carries the new text
+// re-encrypted with the topic key. Only the original payer's own edits
+// count; the latest edit wins. The on-chain payload is ciphertext, so a
+// client without the topic key cannot read the edit either. The same ISO
+// created the bubble renders from names it, so a fresh reload that
+// replays history shows the edited text too.
+const e2eeEditsByCreated = new Map(); // `${payer}|${createdIso}` → { text, image, at }
+
+function e2eeCreatedIso(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+}
+
+function e2eeEditFor(payer, created) {
+  const iso = e2eeCreatedIso(created);
+  return payer && iso ? e2eeEditsByCreated.get(`${payer}|${iso}`) || null : null;
+}
+
+// Returns the stored edit when this one is the latest seen, else null.
+// `data` is the editEncryptedMessage body; `envelope` is the edit's own
+// created (consensus timestamp of the new message, or now() when applied
+// locally); `PrivateKey` is the topic key used to decrypt the new text.
+export async function rememberE2eeEdit(payer, data, envelope, PrivateKey) {
+  if (!payer || !data || !data.created || !PrivateKey) return null;
+  const created = e2eeCreatedIso(data.created);
+  if (!created) return null;
+  let parts;
+  try {
+    const decryptedRaw = await decryptMessage(data.encryptedMessage, PrivateKey);
+    parts = unpackChatPayload(decryptedRaw);
+  } catch {
+    return null; // no key for this topic / malformed ciphertext: reject
+  }
+  const text = typeof parts.text === 'string' ? parts.text : '';
+  const image = data.image ? String(data.image) : (parts.image || '');
+  if (!text && !image) return null;
+  const at = e2eeCreatedIso(envelope) || '';
+  // An edit that names a bubble from its own future is malformed noise.
+  if (created && at && at <= created) return null;
+  const key = `${payer}|${created}`;
+  const prev = e2eeEditsByCreated.get(key);
+  // A pending edit (no consensus time yet) never replaces a known one.
+  if (!at && prev) return null;
+  // Latest wins: an older edit arriving late never replaces a newer one.
+  if (prev && prev.at && at && at < prev.at) return null;
+  const entry = { text, image, at };
+  e2eeEditsByCreated.set(key, entry);
+  applyE2eeEditToDom(payer, created, entry);
+  return entry;
+}
+
+// A live edit rewrites the text of the on-screen bubbles and adds the
+// small "edited" mark next to the timestamp.
+function applyE2eeEditToDom(payer, created, entry) {
+  const iso = e2eeCreatedIso(created);
+  if (!iso) return;
+  const containers = document.querySelectorAll(
+    `#messages-from-encrypted-chat [data-chat-payer="${payer}"][data-chat-created="${iso}"]`
+  );
+  for (const container of containers) {
+    const text = container.querySelector('.chat-msg-text');
+    if (text) fillChatMessage(text, entry.text, entry.image);
+    addE2eeEditedMark(container.querySelector('.chat-msg-time'));
+  }
+}
+
+function addE2eeEditedMark(timeEl) {
+  if (!timeEl || timeEl.querySelector('.chat-edited-mark')) return;
+  const mark = document.createElement('span');
+  mark.className = 'chat-edited-mark';
+  mark.textContent = 'edited';
+  timeEl.appendChild(mark);
+}
+
+// Tag a rendered bubble so a later live edit can find it, and give own
+// confirmed bubbles the discreet edit control.
+function annotateE2eeBubble(wrapper, payer, createdIso, isPending) {
+  if (!wrapper) return;
+  if (createdIso) {
+    wrapper.dataset.chatPayer = payer;
+    wrapper.dataset.chatCreated = createdIso;
+  }
+  if (createdIso && !isPending && payer && payer === connectedAccount) {
+    addE2eeEditButton(wrapper, payer, createdIso);
+  }
+}
+
+function addE2eeEditButton(wrapper, payer, createdIso) {
+  if (wrapper.querySelector('.chat-edit-btn')) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'chat-edit-btn';
+  btn.textContent = 'edit';
+  btn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    openE2eeChatEdit(payer, createdIso);
+  });
+  wrapper.appendChild(btn);
+}
+
+// ── Edit composer ───────────────────────────────────────────────────
+// Same pattern as the post edit: prefill the composer with the text that
+// is on screen, confirm in the wallet, and apply locally the moment it
+// sends.
+let e2eeChatEditTarget = null; // { payer, created, topicId, image, stamp }
+let e2eeChatEditBusy = false;
+
+function resolveE2eeEditTopicId() {
+  const userInput = document.getElementById('encrypted-chat-topic-id').value.trim();
+  if (!userInput) return '';
+  const domainEntry = loadedDomains.find(entry => entry.domain === userInput.toLowerCase());
+  return (domainEntry && domainEntry.lastMessage) ? domainEntry.lastMessage.topic : userInput;
+}
+
+// The display stamp the bubble renders from its created ISO — the same
+// expression the timestamp span uses.
+function e2eeChatStamp(createdIso) {
+  return new Date(createdIso).toLocaleString('en-US', {
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+}
+
+// crypto_box_seal is fixed length (48 bytes overhead + message) and
+// to_base64 is unpadded (2 bytes → 3 chars, 1 byte → 2 chars), so the
+// outgoing JSON size is known before encrypting — the counter runs
+// without a crypto round-trip.
+const E2EE_SEAL_BYTES = 48;
+function b64Len(bytes) {
+  const mod = bytes % 3;
+  return Math.floor(bytes / 3) * 4 + (mod === 1 ? 2 : mod === 2 ? 3 : 0);
+}
+function e2eeChatEditOutgoing(newText) {
+  const target = e2eeChatEditTarget;
+  const sealedBytes = E2EE_SEAL_BYTES + utf8ByteLength(packChatPayload(newText, ''));
+  const data = {
+    created: target.created,
+    timestamp: target.stamp,
+    encryptedMessage: { ciphertext: 'x'.repeat(b64Len(sealedBytes)) }
+  };
+  if (target.image) data.image = target.image;
+  return JSON.stringify({ editEncryptedMessage: data });
+}
+
+function paintE2eeChatEditBytes() {
+  const counter = document.getElementById('e2ee-chat-edit-bytes');
+  const save = document.getElementById('e2ee-chat-edit-save');
+  const text = document.getElementById('e2ee-chat-edit-text');
+  if (!counter || !text || !e2eeChatEditTarget) return;
+  const usage = formatHcsUsage(utf8ByteLength(e2eeChatEditOutgoing(text.value)));
+  counter.textContent = usage.text;
+  counter.classList.toggle('hcs-warn', usage.warn);
+  counter.classList.toggle('hcs-over', usage.over);
+  if (save) save.classList.toggle('hcs-send-blocked', usage.over);
+}
+
+const e2eeChatComposeControls = ['user-write-message-encrypted-chat', 'char-counter-encrypted-chat', 'encrypted-chat-image-btn', 'post-msg-encrypted-chat'];
+function setE2eeChatEditing(on) {
+  const box = document.getElementById('e2ee-chat-editbox');
+  if (!box) return;
+  for (const id of e2eeChatComposeControls) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = on ? 'none' : '';
+  }
+  box.style.display = on ? 'block' : 'none';
+}
+
+function openE2eeChatEdit(payer, created) {
+  const createdIso = e2eeCreatedIso(created);
+  if (!createdIso || payer !== connectedAccount) return;
+  const topicId = resolveE2eeEditTopicId();
+  if (!topicId) {
+    toast.error('Please enter a Topic ID or domain.');
+    return;
+  }
+  const container = document.querySelector(
+    `#messages-from-encrypted-chat [data-chat-payer="${payer}"][data-chat-created="${createdIso}"]`
+  );
+  const currentText = container
+    ? (container.querySelector('.chat-msg-body')?.textContent || '')
+    : '';
+  const imgEl = container && container.querySelector('.chat-msg-image');
+  e2eeChatEditTarget = {
+    payer,
+    created: createdIso,
+    topicId,
+    image: imgEl ? (imgEl.getAttribute('src') || '') : '',
+    stamp: e2eeChatStamp(createdIso),
+  };
+  const text = document.getElementById('e2ee-chat-edit-text');
+  if (text) text.value = currentText;
+  setE2eeChatEditing(true);
+  paintE2eeChatEditBytes();
+  if (text) text.focus();
+}
+
+function closeE2eeChatEdit() {
+  setE2eeChatEditing(false);
+  e2eeChatEditTarget = null;
+}
+
+async function saveE2eeChatEdit() {
+  if (e2eeChatEditBusy || !e2eeChatEditTarget) return;
+  if (!signer || !connectedAccount) {
+    toast.error('Connect wallet first');
+    return;
+  }
+  const save = document.getElementById('e2ee-chat-edit-save');
+  if (save && save.classList.contains('hcs-send-blocked')) {
+    toast.error(HCS_TOO_LONG);
+    return;
+  }
+  const target = e2eeChatEditTarget;
+  // Same key discovery as a normal E2EE send: the admin-pinned public key.
+  let PublicKey;
+  try {
+    const topicInfo = await getTopicInfo(target.topicId);
+    const topicAdmin = (topicInfo.memo || "").split(',').map(part => part.trim()).filter(part => part.startsWith('0.0.'));
+    const result = await getTopicData(target.topicId);
+    const messages = result.messages || [];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const parsedMessage = typeof messages[i] === 'string' ? JSON.parse(messages[i]) : messages[i];
+      if (parsedMessage.publicKey && (topicAdmin.length === 0 || topicAdmin.includes(messages[i].payer))) {
+        PublicKey = parsePublicKey(parsedMessage.publicKey);
+        break;
+      }
+    }
+  } catch (error) {
+    console.error('e2ee edit key lookup failed', error);
+    toast.error('No public key found for this topic.');
+    return;
+  }
+  if (!PublicKey) {
+    toast.error('No public key found for this topic. The admin must pin one first.');
+    return;
+  }
+  const text = document.getElementById('e2ee-chat-edit-text');
+  e2eeChatEditBusy = true;
+  try {
+    // Encrypt before build: plaintext never enters the HCS JSON.
+    const encryptedMessage = await encryptMessage(packChatPayload(text ? text.value : '', ''), PublicKey);
+    const data = {
+      created: target.created,
+      timestamp: target.stamp,
+      encryptedMessage
+    };
+    if (target.image) data.image = target.image;
+    const outgoing = JSON.stringify({ editEncryptedMessage: data });
+    if (utf8ByteLength(outgoing) > HCS_MESSAGE_MAX_BYTES) {
+      toast.error(HCS_TOO_LONG);
+      return;
+    }
+    toast.info('Confirm in wallet 👛');
+    await sendMessage(target.topicId, outgoing);
+    // Apply locally right away; the topic stream confirms the same edit.
+    await rememberE2eeEdit(target.payer, data, new Date().toISOString(), window.currentEncryptedPrivateKey);
+    closeE2eeChatEdit();
+    toast.success('Saved');
+  } catch (error) {
+    console.error('e2ee chat edit failed', error);
+    toast.error('Edit was not saved');
+  } finally {
+    e2eeChatEditBusy = false;
+  }
+}
+
+const e2eeChatEditSave = document.getElementById('e2ee-chat-edit-save');
+if (e2eeChatEditSave) e2eeChatEditSave.addEventListener('click', saveE2eeChatEdit);
+const e2eeChatEditCancel = document.getElementById('e2ee-chat-edit-cancel');
+if (e2eeChatEditCancel) e2eeChatEditCancel.addEventListener('click', closeE2eeChatEdit);
+const e2eeChatEditText = document.getElementById('e2ee-chat-edit-text');
+if (e2eeChatEditText) e2eeChatEditText.addEventListener('input', paintE2eeChatEditBytes);
 
 // Helper function to check valid URL
 function isValidUrl(string) {
@@ -93,6 +373,18 @@ async function appendEncryptedChatMessage(
   try {
     let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
     const payer = parsedMessage.payer || 'Unknown';
+
+    // An edit is a directive, not a bubble: remember it (and rewrite the
+    // open bubble) but never render a second bubble for it.
+    if (parsedMessage.editEncryptedMessage) {
+      await rememberE2eeEdit(
+        payer,
+        parsedMessage.editEncryptedMessage,
+        (message && message.created) || parsedMessage.created,
+        PrivateKey
+      );
+      return;
+    }
 
     // NFT check
     let payerHasNFT = loadedNFTsForTopicChat.length === 0;
@@ -226,19 +518,27 @@ async function appendEncryptedChatMessage(
       margin-top: 0.2em;
     `;
 
+    // An edit names this bubble by created and carries the latest text; it
+    // never changes the media, so the image stays the original's.
+    const editHit = e2eeEditFor(payer, parsedMessage.created);
+    const displayText = editHit ? editHit.text : parts.text;
+    const displayImage = editHit ? editHit.image : parts.image;
+
     const contentDiv = document.createElement('div');
     contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
     contentDiv.className = 'chat-msg-text';
-    fillChatMessage(contentDiv, parts.text, parts.image);
+    fillChatMessage(contentDiv, displayText, displayImage);
 
     const timeSpan = document.createElement('span');
     timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
     timeSpan.className = 'chat-msg-time';
     timeSpan.textContent = message.pending ? `⏳ ${timestamp}` : timestamp;
+    if (editHit) addE2eeEditedMark(timeSpan);
     if (message.pending) msgWrapper.dataset.sig = messageSig(message);
 
     msgWrapper.appendChild(contentDiv);
     msgWrapper.appendChild(timeSpan);
+    annotateE2eeBubble(msgWrapper, payer, e2eeCreatedIso(parsedMessage.created), !!message.pending);
     currentMessagesGroupDivEncrypted.appendChild(msgWrapper);
 
     // messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -250,15 +550,17 @@ async function appendEncryptedChatMessage(
   }
 }
 
-// Pending-bubble housekeeping (driven by the live stream events)
+// Pending-bubble housekeeping (driven by the live stream events).
+// Returns the bubble so the caller can re-tag it with its consensus time.
 function clearPendingMarker(container, sig) {
   for (const el of container.querySelectorAll('[data-sig]')) {
     if (el.dataset.sig !== sig) continue;
     delete el.dataset.sig;
     const t = el.querySelector('.chat-msg-time');
     if (t) t.textContent = t.textContent.replace('⏳ ', '');
-    break;
+    return el;
   }
+  return null;
 }
 function removePendingBubble(container, sig) {
   for (const el of container.querySelectorAll('[data-sig]')) {
@@ -537,7 +839,9 @@ async function loadMessagesFromEncryptedChat() {
           if (seen.has(sig)) {
             if (pendingSigs.has(sig)) {
               pendingSigs.delete(sig);
-              clearPendingMarker(messagesContainer, sig);
+              // Pending → confirmed: re-tag with the consensus time and
+              // give own bubbles the edit control.
+              annotateE2eeBubble(clearPendingMarker(messagesContainer, sig), m.payer, e2eeCreatedIso(m.created), false);
             }
             return;
           }
@@ -546,7 +850,7 @@ async function loadMessagesFromEncryptedChat() {
         } else if (evt.type === "confirmed") {
           if (pendingSigs.has(sig)) {
             pendingSigs.delete(sig);
-            clearPendingMarker(messagesContainer, sig);
+            annotateE2eeBubble(clearPendingMarker(messagesContainer, sig), m.payer, e2eeCreatedIso(m.created), false);
           }
         } else if (evt.type === "expired") {
           if (pendingSigs.has(sig)) {
@@ -934,19 +1238,25 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
       margin-top: 0.2em;
     `;
 
+    // An edit names this row by created and carries the latest text; the
+    // media stays the original's.
+    const editHit = e2eeEditFor(payer, parsedMessage.created);
+
     const contentDiv = document.createElement('div');
     contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
     contentDiv.className = 'chat-msg-text';
-    fillChatMessage(contentDiv, decryptedMessage, parsedMessage.image);
+    fillChatMessage(contentDiv, editHit ? editHit.text : decryptedMessage, editHit ? editHit.image : parsedMessage.image);
 
     const timeSpan = document.createElement('span');
     timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
     timeSpan.className = 'chat-msg-time';
     timeSpan.textContent = message.pending ? `⏳ ${timestamp}` : timestamp;
+    if (editHit) addE2eeEditedMark(timeSpan);
     if (message.pending) msgWrapper.dataset.sig = messageSig(message);
 
     msgWrapper.appendChild(contentDiv);
     msgWrapper.appendChild(timeSpan);
+    annotateE2eeBubble(msgWrapper, payer, e2eeCreatedIso(parsedMessage.created), false);
     currentMessagesGroupDiv.appendChild(msgWrapper);
 
     previousPayer = payer;

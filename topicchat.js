@@ -22,10 +22,226 @@ import { payerUsernameNode } from './payerlink.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
 import { fillChatMessage } from './chatimage.js';
 import { watchFollowPrefetch } from './followtopic.js';
+import { formatHcsUsage, utf8ByteLength, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, normalizeMessageNewlines } from './hcschunks.js';
 
 
 export let allLoadedMessagesTopicChat = [];
 export let storedMessages = [];
+
+// ── Chat message edits ──────────────────────────────────────────────
+// HCS messages are immutable, so an edit is a new message that points at
+// the original bubble (editUserMessage.created) and carries the new text
+// plus the original image. Only the original payer's own edits count; the
+// latest edit wins. The same ISO created the bubble renders from names it,
+// so a fresh reload that replays history shows the edited text too.
+const chatEditsByCreated = new Map(); // `${payer}|${createdIso}` → { userMessage, image, at }
+
+function chatCreatedIso(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+}
+
+function chatEditFor(payer, created) {
+  const iso = chatCreatedIso(created);
+  return payer && iso ? chatEditsByCreated.get(`${payer}|${iso}`) || null : null;
+}
+
+// Returns the stored edit when this one is the latest seen, else null.
+// `data` is the editUserMessage body; `envelope` is the edit's own created
+// (consensus timestamp of the new message, or now() when applied locally).
+export function rememberChatEdit(payer, data, envelope) {
+  if (!payer || !data || !data.created) return null;
+  const created = chatCreatedIso(data.created);
+  if (!created) return null;
+  let userMessage = data.userMessage;
+  if (Array.isArray(userMessage)) userMessage = userMessage[0];
+  userMessage = typeof userMessage === 'string' ? userMessage : userMessage == null ? '' : String(userMessage);
+  const image = data.image ? String(data.image) : '';
+  if (!userMessage && !image) return null;
+  const at = chatCreatedIso(envelope) || '';
+  // An edit that names a bubble from its own future is malformed noise.
+  if (created && at && at <= created) return null;
+  const key = `${payer}|${created}`;
+  const prev = chatEditsByCreated.get(key);
+  // A pending edit (no consensus time yet) never replaces a known one.
+  if (!at && prev) return null;
+  // Latest wins: an older edit arriving late never replaces a newer one.
+  if (prev && prev.at && at && at < prev.at) return null;
+  const entry = { userMessage, image, at };
+  chatEditsByCreated.set(key, entry);
+  applyChatEditToDom(payer, created, entry);
+  return entry;
+}
+
+// A live edit rewrites the text and image of the on-screen bubble and adds
+// the small "edited" mark next to its timestamp.
+function applyChatEditToDom(payer, created, entry) {
+  const iso = chatCreatedIso(created);
+  if (!iso) return;
+  const containers = document.querySelectorAll(
+    `#messages-from-topic-chat [data-chat-payer="${payer}"][data-chat-created="${iso}"]`
+  );
+  for (const container of containers) {
+    const text = container.querySelector('.chat-msg-text');
+    if (text) fillChatMessage(text, entry.userMessage, entry.image);
+    addChatEditedMark(container.querySelector('.chat-msg-time'));
+  }
+}
+
+function addChatEditedMark(timeEl) {
+  if (!timeEl || timeEl.querySelector('.chat-edited-mark')) return;
+  const mark = document.createElement('span');
+  mark.className = 'chat-edited-mark';
+  mark.textContent = 'edited';
+  timeEl.appendChild(mark);
+}
+
+// Tag a rendered bubble so a later live edit can find it, and give own
+// confirmed bubbles the discreet edit control.
+function annotateBubble(wrapper, payer, createdIso, isPending) {
+  if (!wrapper) return;
+  if (createdIso) {
+    wrapper.dataset.chatPayer = payer;
+    wrapper.dataset.chatCreated = createdIso;
+  }
+  if (createdIso && !isPending && payer && payer === connectedAccount) {
+    addChatEditButton(wrapper, payer, createdIso);
+  }
+}
+
+function addChatEditButton(wrapper, payer, createdIso) {
+  if (wrapper.querySelector('.chat-edit-btn')) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'chat-edit-btn';
+  btn.textContent = 'edit';
+  btn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    openTopicChatEdit(payer, createdIso);
+  });
+  wrapper.appendChild(btn);
+}
+
+// ── Edit composer ───────────────────────────────────────────────────
+// Same pattern as the post edit: prefill the composer with the text that is
+// on screen, confirm in the wallet, and apply locally the moment it sends.
+let topicChatEditTarget = null; // { payer, created, topicId, image }
+let topicChatEditBusy = false;
+
+function resolveTopicChatId() {
+  const userInput = document.getElementById('topic-chat-topic-id').value.toLowerCase();
+  const domainEntry = loadedDomains.find(entry => entry.domain === userInput);
+  if (domainEntry && domainEntry.lastMessage) return domainEntry.lastMessage.topic;
+  return userInput;
+}
+
+// An edit never changes the media: it carries the original image so the
+// edited state is self-contained.
+function topicChatEditPayload(newText) {
+  const target = topicChatEditTarget;
+  const data = { created: target.created };
+  data.userMessage = normalizeMessageNewlines(newText || '');
+  if (target.image) data.image = target.image;
+  return { editUserMessage: data };
+}
+
+function paintTopicChatEditBytes() {
+  const counter = document.getElementById('topic-chat-edit-bytes');
+  const save = document.getElementById('topic-chat-edit-save');
+  const text = document.getElementById('topic-chat-edit-text');
+  if (!counter || !text || !topicChatEditTarget) return;
+  const usage = formatHcsUsage(utf8ByteLength(JSON.stringify(topicChatEditPayload(text.value))));
+  counter.textContent = usage.text;
+  counter.classList.toggle('hcs-warn', usage.warn);
+  counter.classList.toggle('hcs-over', usage.over);
+  if (save) save.classList.toggle('hcs-send-blocked', usage.over);
+}
+
+const topicChatComposeControls = ['user-write-message', 'char-counter', 'topic-chat-image-btn', 'post-msg'];
+function setTopicChatEditing(on) {
+  const box = document.getElementById('topic-chat-editbox');
+  if (!box) return;
+  for (const id of topicChatComposeControls) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = on ? 'none' : '';
+  }
+  box.style.display = on ? 'block' : 'none';
+}
+
+function openTopicChatEdit(payer, created) {
+  const createdIso = chatCreatedIso(created);
+  if (!createdIso || payer !== connectedAccount) return;
+  const topicId = resolveTopicChatId();
+  if (!topicId) {
+    toast.error('Please enter a Topic ID or domain.');
+    return;
+  }
+  const container = document.querySelector(
+    `#messages-from-topic-chat [data-chat-payer="${payer}"][data-chat-created="${createdIso}"]`
+  );
+  const currentText = container
+    ? (container.querySelector('.chat-msg-body')?.textContent || '')
+    : '';
+  const imgEl = container && container.querySelector('.chat-msg-image');
+  topicChatEditTarget = {
+    payer,
+    created: createdIso,
+    topicId,
+    image: imgEl ? (imgEl.getAttribute('src') || '') : '',
+  };
+  const text = document.getElementById('topic-chat-edit-text');
+  if (text) text.value = currentText;
+  setTopicChatEditing(true);
+  paintTopicChatEditBytes();
+  if (text) text.focus();
+}
+
+function closeTopicChatEdit() {
+  setTopicChatEditing(false);
+  topicChatEditTarget = null;
+}
+
+async function saveTopicChatEdit() {
+  if (topicChatEditBusy || !topicChatEditTarget) return;
+  if (!signer || !connectedAccount) {
+    toast.error('Connect wallet first');
+    return;
+  }
+  const save = document.getElementById('topic-chat-edit-save');
+  if (save && save.classList.contains('hcs-send-blocked')) {
+    toast.error(HCS_TOO_LONG);
+    return;
+  }
+  const text = document.getElementById('topic-chat-edit-text');
+  const target = topicChatEditTarget;
+  const payload = topicChatEditPayload(text ? text.value : '');
+  const outgoing = JSON.stringify(payload);
+  if (utf8ByteLength(outgoing) > HCS_MESSAGE_MAX_BYTES) {
+    toast.error(HCS_TOO_LONG);
+    return;
+  }
+  topicChatEditBusy = true;
+  try {
+    toast.info('Confirm in wallet 👛');
+    await sendMessage(target.topicId, outgoing);
+    // Apply locally right away; the topic stream confirms the same edit.
+    rememberChatEdit(target.payer, payload.editUserMessage, new Date().toISOString());
+    closeTopicChatEdit();
+    toast.success('Saved');
+  } catch (error) {
+    console.error('topic chat edit failed', error);
+    toast.error('Edit was not saved');
+  } finally {
+    topicChatEditBusy = false;
+  }
+}
+
+const topicChatEditSave = document.getElementById('topic-chat-edit-save');
+if (topicChatEditSave) topicChatEditSave.addEventListener('click', saveTopicChatEdit);
+const topicChatEditCancel = document.getElementById('topic-chat-edit-cancel');
+if (topicChatEditCancel) topicChatEditCancel.addEventListener('click', closeTopicChatEdit);
+const topicChatEditText = document.getElementById('topic-chat-edit-text');
+if (topicChatEditText) topicChatEditText.addEventListener('input', paintTopicChatEditBytes);
 
 document.getElementById('go-to-top-msgs').addEventListener('click', function() {
     const container = document.getElementById('messages-from-topic-chat');
@@ -80,6 +296,13 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
   try {
     let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
     const payer = parsedMessage.payer || 'Unknown';
+
+    // An edit is a directive, not a bubble: remember it (and rewrite the
+    // open bubble) but never render a second bubble for it.
+    if (parsedMessage.editUserMessage) {
+      rememberChatEdit(payer, parsedMessage.editUserMessage, (message && message.created) || parsedMessage.created);
+      return;
+    }
 
     // NFT check
     let payerHasNFT = loadedNFTsForTopicChat.length === 0;
@@ -182,18 +405,26 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
     const messageWrapper = document.createElement('div');
     messageWrapper.style.cssText = `display: flex; flex-direction: column; justify-content: center; margin-top: 0.2em;`;
 
+    // An edit names this bubble by created and carries the latest text; it
+    // never changes the media, so the image stays the original's.
+    const editHit = chatEditFor(payer, parsedMessage.created);
+    const displayText = editHit ? editHit.userMessage : (hasText ? String(userMessage) : '');
+    const displayImage = editHit ? editHit.image : parsedMessage.image;
+
     const messageText = document.createElement('div');
     messageText.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
     messageText.className = 'chat-msg-text';
-    fillChatMessage(messageText, hasText ? String(userMessage) : '', parsedMessage.image);
+    fillChatMessage(messageText, displayText, displayImage);
     messageWrapper.appendChild(messageText);
 
     const timestampSpan = document.createElement('span');
     timestampSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
     timestampSpan.className = 'chat-msg-time';
     timestampSpan.textContent = message.pending ? `⏳ ${timestamp}` : timestamp;
+    if (editHit) addChatEditedMark(timestampSpan);
     messageWrapper.appendChild(timestampSpan);
     if (message.pending) messageWrapper.dataset.sig = messageSig(message);
+    annotateBubble(messageWrapper, payer, chatCreatedIso(parsedMessage.created), !!message.pending);
 
     currentMessagesGroupDiv.appendChild(messageWrapper);
 
@@ -332,7 +563,8 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
       await appendTopicChatMessage(newMsg, messagesContainer, topicAdmin, loadedNFTsForTopicChat);
     };
     let rawResult;
-    // A pending bubble became canonical: clear its ⏳ marker
+    // A pending bubble became canonical: clear its ⏳ marker, then tag the
+    // bubble and give it the edit control (a pending row has no created yet).
     const onConfirm = (m) => {
       const sig = messageSig(m);
       for (const el of messagesContainer.querySelectorAll('[data-sig]')) {
@@ -340,6 +572,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         delete el.dataset.sig;
         const t = el.querySelector('.chat-msg-time');
         if (t) t.textContent = t.textContent.replace('⏳ ', '');
+        annotateBubble(el, m.payer, chatCreatedIso(m.created), false);
         break;
       }
     };
@@ -658,6 +891,12 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         fragment.appendChild(currentGroupDiv);
       }
   
+      // An edit names this bubble by created; show the latest text and keep
+      // the original image.
+      const editHit = chatEditFor(payer, parsedMessage.created);
+      const displayText = editHit ? editHit.userMessage : (hasText ? String(userMessage) : '');
+      const displayImage = editHit ? editHit.image : parsedMessage.image;
+
       // Message content
       const msgWrapper = document.createElement('div');
       msgWrapper.style.cssText = `
@@ -666,21 +905,23 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         justify-content: center;
         margin-top: 0.2em;
       `;
-  
+
       const contentDiv = document.createElement('div');
       contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
       contentDiv.className = 'chat-msg-text';
-      fillChatMessage(contentDiv, hasText ? String(userMessage) : '', parsedMessage.image);
+      fillChatMessage(contentDiv, displayText, displayImage);
 
       const timeSpan = document.createElement('span');
       timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
       timeSpan.className = 'chat-msg-time';
       timeSpan.textContent = timestamp;
-  
+      if (editHit) addChatEditedMark(timeSpan);
+
       msgWrapper.appendChild(contentDiv);
       msgWrapper.appendChild(timeSpan);
+      annotateBubble(msgWrapper, payer, chatCreatedIso(parsedMessage.created), false);
       currentMessagesGroupDiv.appendChild(msgWrapper);
-  
+
       previousPayer = payer;
     });
   

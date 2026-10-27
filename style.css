@@ -696,6 +696,124 @@ html, body {
     letter-spacing: 0.03em;
   }
 
+  /* The "edited" mark sits next to the timestamp, like the post popups. */
+  .chat-edited-mark {
+    font-size: 0.7em;
+    letter-spacing: 0.05em;
+    color: rgba(255, 255, 255, 0.45);
+    white-space: nowrap;
+    margin-left: 0.4em;
+  }
+
+  /* Discreet edit control on own confirmed bubbles, under the timestamp. */
+  .chat-edit-btn {
+    align-self: flex-end;
+    margin: 0.1em 0.2em 0 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: rgba(255, 255, 255, 0.4);
+    font: inherit;
+    font-size: 0.72em;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+  }
+  .chat-edit-btn:hover {
+    color: #22d3ee;
+  }
+  .chat-edit-btn:focus-visible {
+    outline: 1px solid #22d3ee;
+    outline-offset: 0.1dvh;
+  }
+
+  /* Edit composer: swaps into the send row while editing an own message. */
+  #topic-chat-editbox {
+    display: none;
+    padding: 0.6vh 0 0.4vh;
+    text-align: left;
+  }
+  #topic-chat-edit-label {
+    font-size: 1.5vh;
+    opacity: 0.6;
+    margin-bottom: 0.5vh;
+  }
+  #topic-chat-edit-text {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 7vh;
+    max-height: 30vh;
+    overflow: auto;
+    resize: none;
+    padding: 1.2vh 1.4vh;
+    border-radius: 1vh;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(15, 15, 20, 0.55);
+    color: #fff;
+    font-family: inherit;
+    font-size: 1.8vh;
+    line-height: 1.4;
+  }
+  #topic-chat-edit-text:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+  #topic-chat-edit-bytes {
+    margin: 0.6vh 0;
+  }
+  #topic-chat-edit-actions {
+    display: flex;
+    gap: 0.6vh;
+  }
+  #topic-chat-edit-actions .toolbar-column-btns {
+    flex: 1;
+    width: auto;
+  }
+
+  /* E2EE edit composer: same swap-into-the-send-row pattern. */
+  #e2ee-chat-editbox {
+    display: none;
+    padding: 0.6vh 0 0.4vh;
+    text-align: left;
+  }
+  #e2ee-chat-edit-label {
+    font-size: 1.5vh;
+    opacity: 0.6;
+    margin-bottom: 0.5vh;
+  }
+  #e2ee-chat-edit-text {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 7vh;
+    max-height: 30vh;
+    overflow: auto;
+    resize: none;
+    padding: 1.2vh 1.4vh;
+    border-radius: 1vh;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(15, 15, 20, 0.55);
+    color: #fff;
+    font-family: inherit;
+    font-size: 1.8vh;
+    line-height: 1.4;
+  }
+  #e2ee-chat-edit-text:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+  #e2ee-chat-edit-bytes {
+    margin: 0.6vh 0;
+  }
+  #e2ee-chat-edit-actions {
+    display: flex;
+    gap: 0.6vh;
+  }
+  #e2ee-chat-edit-actions .toolbar-column-btns {
+    flex: 1;
+    width: auto;
+  }
+
   /* Centered loading / empty states */
   .chat-state {
     display: flex !important;
@@ -2105,7 +2223,10 @@ html, body {
 #submit-button-Create_Marker.hcs-send-blocked,
 #submit-button-Create_encrypted-Marker.hcs-send-blocked,
 #submit-button-Create_Polygon.hcs-send-blocked,
-#submit-button-Create_encrypted-Polygon.hcs-send-blocked {
+#submit-button-Create_encrypted-Polygon.hcs-send-blocked,
+#popup-settings-edit-save.hcs-send-blocked,
+#topic-chat-edit-save.hcs-send-blocked,
+#e2ee-chat-edit-save.hcs-send-blocked {
     opacity: 0.45;
     cursor: default;
 }
@@ -2367,6 +2488,114 @@ html, body {
 }
 #popup-settings-card #popup-settings-delete:active {
     transform: scale(0.94);
+}
+/* Edit: the same round glass button as the trash, one seat to its left. */
+#popup-settings-card #popup-settings-edit {
+    position: absolute;
+    top: 1.4vh;
+    top: 1.4dvh;
+    right: calc(1.4vw + 5vh + 0.7vw);
+    right: calc(1.4dvw + 5dvh + 0.7dvw);
+    left: auto;
+    z-index: 11;
+    box-sizing: border-box;
+    width: 5vh;
+    width: 5dvh;
+    height: 5vh;
+    height: 5dvh;
+    min-width: 5vh;
+    min-width: 5dvh;
+    min-height: 5vh;
+    min-height: 5dvh;
+    margin: 0;
+    padding: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: rgba(255, 255, 255, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex: none;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 0.5vh 1.4vh rgba(0, 0, 0, 0.35);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 0.5dvh 1.4dvh rgba(0, 0, 0, 0.35);
+}
+#popup-settings-card #popup-settings-edit svg {
+    width: 2.2vh;
+    width: 2.2dvh;
+    height: 2.2vh;
+    height: 2.2dvh;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+#popup-settings-card #popup-settings-edit:hover {
+    transform: scale(1.08);
+    filter: brightness(1.15);
+}
+#popup-settings-card #popup-settings-edit:active {
+    transform: scale(0.94);
+}
+@media (orientation: landscape) {
+    /* Same corner as the trash, shifted one button to the left. */
+    #popup-settings-card #popup-settings-edit {
+        top: 0 !important;
+        right: calc(5dvh + var(--u) * 0.8);
+        z-index: 3;
+    }
+}
+
+/* The edit composer reuses the glass of the in-popup comment box. */
+#popup-settings-editbox {
+    margin: 1.4vh 0;
+    padding: 1.2vh 1.4vh;
+    border-radius: 1.2vh;
+    background: rgba(255, 255, 255, 0.10);
+    border: 0.1vh solid rgba(255, 255, 255, 0.15);
+    text-align: left;
+}
+#popup-settings-edit-text {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 8vh;
+    resize: none;
+    margin: 0 0 0.8vh;
+    padding: 1.2vh 1.4vh;
+    border-radius: 1vh;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(15, 15, 20, 0.55);
+    color: #fff;
+    font-family: inherit;
+    font-size: 1.8vh;
+    line-height: 1.4;
+}
+#popup-settings-edit-text:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.4);
+}
+#popup-settings-edit-bytes {
+    margin-bottom: 0.8vh;
+}
+
+/* The "edited" mark sits next to the timestamp in feed cards and popups. */
+.popup-edited-mark,
+.feed-edited-mark {
+    font-size: 0.7em;
+    letter-spacing: 0.05em;
+    color: rgba(255, 255, 255, 0.45);
+    white-space: nowrap;
+}
+.popup-edited-mark {
+    margin-left: 0.6vh;
+}
+.feed-edited-mark {
+    margin: 0 0.35em;
 }
 
 @keyframes popupIn {

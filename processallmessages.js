@@ -19,7 +19,7 @@ import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
 import { openPreview } from './fullscreenmedia';
 import { paintHashtags, singleLineText } from './hashtag.js';
 import { isTyping } from './joystick.js';
-import { normalizeMessageNewlines, clipMessage } from './hcschunks.js';
+import { normalizeMessageNewlines, clipMessage, formatHcsUsage, utf8ByteLength, HCS_TOO_LONG } from './hcschunks.js';
 import maplibregl from 'maplibre-gl';
 import { map } from './map';
 import { applyAllStyles } from './loadprofilepopup';
@@ -607,6 +607,117 @@ function paintDeleteButton() {
   btn.title = label;
 }
 
+// ── Popup edit ───────────────────────────────────────────────────────────
+// The edit composer reuses this card: same payer gate as the trash, never
+// for shares, and it names the post with the created ISO + timestamp label
+// delete already uses.
+let popupEditBusy = false;
+
+function hideEditComposer() {
+  const box = document.getElementById('popup-settings-editbox');
+  if (box) box.style.display = 'none';
+}
+
+function paintEditButton() {
+  const btn = document.getElementById('popup-settings-edit');
+  if (!btn) return;
+  const walk = popupSettingsTarget;
+  const mine = !!(walk && signer && connectedAccount && walk.payer === connectedAccount && !walk.share);
+  const named = !!(walk && ((walk.created && String(walk.created).trim() !== '')
+    || (walk.authorCreated && String(walk.authorCreated).trim() !== '')));
+  if (!mine || !named) {
+    hideEditComposer();
+    btn.style.display = 'none';
+    return;
+  }
+  btn.style.display = 'flex';
+}
+
+// The edit names the post, not its slot: same shape as the delete payload.
+function editPayload(walk, msg) {
+  const created = messageCreated(walk.created || walk.authorCreated);
+  const stamp = walk.timestamp ? String(walk.timestamp) : '';
+  const fields = { msg };
+  const polygon = walk.shape === 'polygon' || walk.kind === 'polygon';
+  if (polygon) {
+    if (created) fields.editPolygonCreated = created;
+    if (stamp) fields.editPolygonTimestamp = stamp;
+  } else {
+    if (created) fields.editMarkerCreated = created;
+    if (stamp) fields.editMarkerTimestamp = stamp;
+  }
+  return polygon
+    ? { polygon: { data: fields } }
+    : { marker: { data: fields } };
+}
+
+function paintEditBytes() {
+  const counter = document.getElementById('popup-settings-edit-bytes');
+  const save = document.getElementById('popup-settings-edit-save');
+  const text = document.getElementById('popup-settings-edit-text');
+  const walk = popupSettingsTarget;
+  if (!counter || !text || !walk) return;
+  const usage = formatHcsUsage(utf8ByteLength(JSON.stringify(editPayload(walk, text.value))));
+  counter.textContent = usage.text;
+  counter.classList.toggle('hcs-warn', usage.warn);
+  counter.classList.toggle('hcs-over', usage.over);
+  if (save) save.classList.toggle('hcs-send-blocked', usage.over);
+}
+
+function openEditComposer() {
+  const walk = popupSettingsTarget;
+  if (!walk || walk.share || !signer || !connectedAccount || walk.payer !== connectedAccount) return;
+  const box = document.getElementById('popup-settings-editbox');
+  const text = document.getElementById('popup-settings-edit-text');
+  if (!box || !text) return;
+  const created = messageCreated(walk.created || walk.authorCreated);
+  if (!created) return;
+  // Prefill from the open post card, so the composer shows what is on screen.
+  let current = '';
+  const shown = document.querySelector(
+    `.popup-sheet[data-popup-payer="${walk.payer}"][data-view-created="${created}"] p.popup-text-bubble`
+  );
+  if (shown) current = shown.textContent;
+  text.value = current;
+  hideEditComposer();
+  box.style.display = 'block';
+  paintEditBytes();
+}
+
+async function savePopupEdit() {
+  if (popupEditBusy) return;
+  const walk = popupSettingsTarget;
+  if (!walk || walk.share || !signer || !connectedAccount || walk.payer !== connectedAccount) return;
+  const text = document.getElementById('popup-settings-edit-text');
+  const save = document.getElementById('popup-settings-edit-save');
+  if (!text) return;
+  if (save && save.classList.contains('hcs-send-blocked')) {
+    toast.error(HCS_TOO_LONG);
+    return;
+  }
+  const created = messageCreated(walk.created || walk.authorCreated);
+  const stamp = walk.timestamp ? String(walk.timestamp) : '';
+  if ((!created && !stamp) || !walk.topicId) {
+    toast.error('This post cannot be edited');
+    return;
+  }
+  const body = editPayload(walk, text.value);
+  popupEditBusy = true;
+  try {
+    toast.info('Confirm in wallet 👛');
+    await sendMessage(walk.topicId, JSON.stringify(body));
+    toast.success('Saved');
+    // Apply locally right away; the topic stream confirms the same edit.
+    rememberShapeEdit(connectedAccount, (body.marker || body.polygon).data, new Date().toISOString());
+    hideEditComposer();
+  } catch (error) {
+    console.error('popup edit failed', error);
+    toast.error('Edit was not saved');
+  } finally {
+    popupEditBusy = false;
+  }
+}
+
 // The post popup hides its own × while settings is open, like comments-open.
 let settingsHistoryOpen = false;
 function syncSettingsOpen() {
@@ -634,6 +745,7 @@ function closePopupSettings() {
   if (column) column.style.display = 'none';
   popupSettingsTarget = null;
   setPopupPreview(false);
+  hideEditComposer();
   syncSettingsOpen();
 }
 
@@ -697,6 +809,18 @@ function bindPopupSettings() {
     event.stopPropagation();
     deletePopupTarget();
   });
+  const edit = document.getElementById('popup-settings-edit');
+  if (edit) edit.addEventListener('click', (event) => {
+    event.stopPropagation();
+    openEditComposer();
+  });
+  const editText = document.getElementById('popup-settings-edit-text');
+  if (editText) editText.addEventListener('input', () => paintEditBytes());
+  const editSave = document.getElementById('popup-settings-edit-save');
+  if (editSave) editSave.addEventListener('click', (event) => {
+    event.stopPropagation();
+    savePopupEdit();
+  });
 }
 
 window.openPopupSettings = function(target) {
@@ -716,6 +840,8 @@ window.openPopupSettings = function(target) {
       paintMediaModes();
       paintLengthModes();
       paintDeleteButton();
+      hideEditComposer();
+      paintEditButton();
       backdrop.style.display = "block";
       card.style.display = "block";
       // Back/Forward: the card is a layer on top of the post popup.
@@ -1109,6 +1235,88 @@ function postWasDeleted(owner, numbersKey, slot, created, timestamp) {
   if (iso && owner.deletedCreated && owner.deletedCreated.has(iso)) return true;
   if (timestamp && owner.deletedTimestamp && owner.deletedTimestamp.has(String(timestamp))) return true;
   return false;
+}
+
+// ── Shape edits ──────────────────────────────────────────────────────────
+// HCS messages are immutable, so an edit is a new message that points at
+// the original (editMarkerCreated / editMarkerTimestamp) and carries the
+// new body text (msg). Only the original payer's own edits count, and the
+// latest edit wins. The same created + stamp labels delete uses name the
+// post, so a fresh reload that replays history shows the edited text too.
+const shapeEditsByCreated = new Map(); // `${payer}|${createdIso}` → { msg, at }
+const shapeEditsByStamp = new Map();   // `${payer}|${stampLabel}`  → { msg, at }
+
+export function shapeEditFor(payer, created, stamp) {
+  if (!payer) return null;
+  const iso = messageCreated(created);
+  if (iso) {
+    const hit = shapeEditsByCreated.get(`${payer}|${iso}`);
+    if (hit) return hit;
+  }
+  if (stamp != null && String(stamp).trim() !== '') {
+    return shapeEditsByStamp.get(`${payer}|${String(stamp)}`) || null;
+  }
+  return null;
+}
+
+function editedMsg(fallback, payer, created, stamp) {
+  const hit = shapeEditFor(payer, created, stamp);
+  return hit ? hit.msg : fallback;
+}
+
+function hasShapeEdit(payer, created, stamp) {
+  return !!shapeEditFor(payer, created, stamp);
+}
+
+// Returns the stored edit when this one is the latest seen, else null.
+export function rememberShapeEdit(payer, data, envelope) {
+  if (!payer || !data) return null;
+  const created = messageCreated(data.editMarkerCreated || data.editPolygonCreated);
+  const stamp = data.editMarkerTimestamp || data.editPolygonTimestamp;
+  if (!created && (stamp == null || String(stamp).trim() === '')) return null;
+  let msg = data.msg;
+  if (Array.isArray(msg)) msg = msg[0];
+  if (typeof msg !== 'string') return null;
+  const at = messageCreated(envelope) || '';
+  // An edit that names a post from its own future is malformed noise.
+  if (created && at && at <= created) return null;
+  const slots = [];
+  if (created) slots.push([shapeEditsByCreated, `${payer}|${created}`]);
+  if (stamp != null && String(stamp).trim() !== '') slots.push([shapeEditsByStamp, `${payer}|${String(stamp)}`]);
+  // Latest wins: an older edit arriving late never replaces a newer one.
+  let newestAt = '';
+  for (const [map, key] of slots) {
+    const prev = map.get(key);
+    if (prev && prev.at && (!newestAt || prev.at > newestAt)) newestAt = prev.at;
+  }
+  if (newestAt && at && at < newestAt) return null;
+  const entry = { msg, at };
+  for (const [map, key] of slots) map.set(key, entry);
+  applyShapeEditToDom(payer, created, stamp, msg);
+  return entry;
+}
+
+// A live edit rewrites the text of every open post popup for the target
+// post and adds the small "edited" mark next to its timestamp.
+export function applyShapeEditToDom(payer, created, stamp, msg) {
+  if (!payer || typeof msg !== 'string') return;
+  const iso = messageCreated(created);
+  if (!iso) return;
+  const containers = document.querySelectorAll(
+    `.popup-sheet[data-popup-payer="${payer}"][data-view-created="${iso}"]`
+  );
+  for (const container of containers) {
+    const text = container.querySelector('p.popup-text-bubble');
+    if (text) paintHashtags(text, msg);
+    const stamps = [...container.querySelectorAll('.popup-timestamp')];
+    const ts = stamps.find((el) => !el.classList.contains('popup-views'));
+    if (ts && !ts.querySelector('.popup-edited-mark')) {
+      const mark = document.createElement('span');
+      mark.className = 'popup-edited-mark';
+      mark.textContent = 'edited';
+      ts.appendChild(mark);
+    }
+  }
 }
 
 const POPUP_VIEWS_KEY = 'meritocracy-popup-views';
@@ -1669,6 +1877,12 @@ export function createMarkerPopupHTML(data) {
   timestampDiv.className = 'popup-timestamp';
   timestampDiv.style.cssText = 'flex-shrink: 0;';
   timestampDiv.textContent = timestamp;
+  if (data.edited) {
+    const editedMark = document.createElement('span');
+    editedMark.className = 'popup-edited-mark';
+    editedMark.textContent = 'edited';
+    timestampDiv.appendChild(editedMark);
+  }
 
   const likeDislikeDiv = document.createElement('div');
   likeDislikeDiv.style.cssText = 'position: absolute; top: calc(var(--u) * 0.15); left: 50%; transform: translateX(-50%); display: flex; align-items: flex-start; gap: calc(var(--u) * 0.5);';
@@ -1844,6 +2058,12 @@ function createPolygonPopupHTML(data) {
   timestampDiv.className = 'popup-timestamp';
   timestampDiv.style.cssText = 'flex-shrink: 0;';
   timestampDiv.textContent = timestamp;
+  if (data.edited) {
+    const editedMark = document.createElement('span');
+    editedMark.className = 'popup-edited-mark';
+    editedMark.textContent = 'edited';
+    timestampDiv.appendChild(editedMark);
+  }
 
   const likeDislikeDiv = document.createElement('div');
   likeDislikeDiv.style.cssText = 'position: absolute; top: calc(var(--u) * 0.15); left: 50%; transform: translateX(-50%); display: flex; align-items: flex-start; gap: calc(var(--u) * 0.5);';
@@ -1899,14 +2119,17 @@ function placePopupSettingsPreview() {
   const tools = document.getElementById('popup-settings-tools');
   const colors = document.getElementById('popup-column-2');
   const del = document.getElementById('popup-settings-delete');
+  const edit = document.getElementById('popup-settings-edit');
   if (!preview || !card || !side || !tools) return;
   if (landscapeMQ.matches) {
-    // Trash and the sample sit on the card, so the right column can scroll
-    // without taking them with it. The × is already a direct child.
+    // Trash, pencil, and the sample sit on the card, so the right column
+    // can scroll without taking them with it. The × is already a direct child.
+    if (edit && edit.parentElement !== card) card.insertBefore(edit, side);
     if (del && del.parentElement !== card) card.insertBefore(del, side);
     if (preview.parentElement !== card) card.insertBefore(preview, side);
     return;
   }
+  if (edit && edit.parentElement !== side) side.insertBefore(edit, side.firstChild);
   if (del && (del.parentElement !== side || side.firstElementChild !== del)) side.insertBefore(del, side.firstChild);
   if (preview.parentElement === side && preview.previousElementSibling === tools) return;
   if (colors && colors.parentElement === side) side.insertBefore(preview, colors);
@@ -2523,6 +2746,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                 }
 
                 rememberShapeDelete(markerOwner, 'numberOfMarker', parsedMessage.marker.data);
+                rememberShapeEdit(message.payer, parsedMessage.marker.data, (message && message.created) || parsedMessage.created);
 
                 // A stored whole number keeps dedup. No number is a new post.
                 // A delete matches the post's created time or timestamp.
@@ -2560,7 +2784,8 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       title: parsedMessage.marker.data.title,
                       image: parsedMessage.marker.data.image,
                       coverimage: parsedMessage.marker.data.coverimage,
-                      msg: parsedMessage.marker.data.msg,
+                      msg: editedMsg(parsedMessage.marker.data.msg, message.payer, messageCreated(postCreated), timestamp),
+                      edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                       timestamp,
                       created: messageCreated(postCreated),
                       likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
@@ -2608,6 +2833,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                 const legacyPolygonNumber = legacyShapeNumber(parsedMessage.polygon.data.numberOfPolygon);
 
                 rememberShapeDelete(polygonOwner, 'numberOfPolygon', parsedMessage.polygon.data);
+                rememberShapeEdit(message.payer, parsedMessage.polygon.data, (message && message.created) || parsedMessage.created);
 
                 const postCreated = (message && message.created) || parsedMessage.created;
                 const polygonnumber = legacyPolygonNumber == null
@@ -2642,7 +2868,8 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         title: parsedMessage.polygon.data.title,
                         image: parsedMessage.polygon.data.image,
                         coverimage: parsedMessage.polygon.data.coverimage,
-                        msg: parsedMessage.polygon.data.msg,
+                        msg: editedMsg(parsedMessage.polygon.data.msg, message.payer, messageCreated(postCreated), timestamp),
+                        edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                         timestamp,
                         created: messageCreated(postCreated),
                         likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
@@ -4834,6 +5061,7 @@ if (rawResult && Array.isArray(rawResult)) {
                 }
 
                 rememberShapeDelete(markerOwner, 'numberOfMarker', parsedMessage.marker.data);
+                rememberShapeEdit(message.payer, parsedMessage.marker.data, (message && message.created) || parsedMessage.created);
 
                 // A stored whole number keeps dedup. No number is a new post.
                 // A delete matches the post's created time or timestamp.
@@ -4871,7 +5099,8 @@ if (rawResult && Array.isArray(rawResult)) {
                       title: parsedMessage.marker.data.title,
                       image: parsedMessage.marker.data.image,
                       coverimage: parsedMessage.marker.data.coverimage,
-                      msg: parsedMessage.marker.data.msg,
+                      msg: editedMsg(parsedMessage.marker.data.msg, message.payer, messageCreated(postCreated), timestamp),
+                      edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                       timestamp,
                       created: messageCreated(postCreated),
                       likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
@@ -4919,6 +5148,7 @@ if (rawResult && Array.isArray(rawResult)) {
                 const legacyPolygonNumber = legacyShapeNumber(parsedMessage.polygon.data.numberOfPolygon);
 
                 rememberShapeDelete(polygonOwner, 'numberOfPolygon', parsedMessage.polygon.data);
+                rememberShapeEdit(message.payer, parsedMessage.polygon.data, (message && message.created) || parsedMessage.created);
 
                 const postCreated = (message && message.created) || parsedMessage.created;
                 const polygonnumber = legacyPolygonNumber == null
@@ -4953,7 +5183,8 @@ if (rawResult && Array.isArray(rawResult)) {
                         title: parsedMessage.polygon.data.title,
                         image: parsedMessage.polygon.data.image,
                         coverimage: parsedMessage.polygon.data.coverimage,
-                        msg: parsedMessage.polygon.data.msg,
+                        msg: editedMsg(parsedMessage.polygon.data.msg, message.payer, messageCreated(postCreated), timestamp),
+                        edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                         timestamp,
                         created: messageCreated(postCreated),
                         likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
@@ -5526,6 +5757,7 @@ if (rawResult && Array.isArray(rawResult)) {
                 }
 
                 rememberShapeDelete(markerOwner, 'numberOfMarker', parsedMessage.marker.data);
+                rememberShapeEdit(message.payer, parsedMessage.marker.data, (message && message.created) || parsedMessage.created);
 
                 // A stored whole number keeps dedup. No number is a new post.
                 // A delete matches the post's created time or timestamp.
@@ -5563,7 +5795,8 @@ if (rawResult && Array.isArray(rawResult)) {
                       title: parsedMessage.marker.data.title,
                       image: parsedMessage.marker.data.image,
                       coverimage: parsedMessage.marker.data.coverimage,
-                      msg: parsedMessage.marker.data.msg,
+                      msg: editedMsg(parsedMessage.marker.data.msg, message.payer, messageCreated(postCreated), timestamp),
+                      edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                       timestamp,
                       created: messageCreated(postCreated),
                       likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
@@ -5614,6 +5847,7 @@ if (rawResult && Array.isArray(rawResult)) {
                 const legacyPolygonNumber = legacyShapeNumber(parsedMessage.polygon.data.numberOfPolygon);
 
                 rememberShapeDelete(polygonOwner, 'numberOfPolygon', parsedMessage.polygon.data);
+                rememberShapeEdit(message.payer, parsedMessage.polygon.data, (message && message.created) || parsedMessage.created);
 
                 const postCreated = (message && message.created) || parsedMessage.created;
                 const polygonnumber = legacyPolygonNumber == null
@@ -5648,7 +5882,8 @@ if (rawResult && Array.isArray(rawResult)) {
                         title: parsedMessage.polygon.data.title,
                         image: parsedMessage.polygon.data.image,
                         coverimage: parsedMessage.polygon.data.coverimage,
-                        msg: parsedMessage.polygon.data.msg,
+                        msg: editedMsg(parsedMessage.polygon.data.msg, message.payer, messageCreated(postCreated), timestamp),
+                        edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                         timestamp,
                         created: messageCreated(postCreated),
                         likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,

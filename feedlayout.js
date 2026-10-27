@@ -4,7 +4,7 @@
 import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
 import { currentUfoModelInGLTF, globalLoadedTopicIdsWithNames } from './letall.js';
-import { markerPopupNode, polygonPopupNode, mountPostReactions, buildPopupProfile } from './processallmessages.js';
+import { markerPopupNode, polygonPopupNode, mountPostReactions, buildPopupProfile, rememberShapeEdit, shapeEditFor } from './processallmessages.js';
 import { BACKEND_URL, fetchMessagesBackend, streamOnTopic, messageSig, fetchFollowing } from './msgbackend.js';
 import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
 import { initialTopicId } from './extracttopic.js';
@@ -594,15 +594,11 @@ function stamp(value) {
 function clock(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString('en-US', {
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+  const pad = (n) => String(n).padStart(2, '0');
+  return (
+    pad(date.getDate()) + '/' + pad(date.getMonth() + 1) + '/' + String(date.getFullYear()).slice(-2) +
+    ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes())
+  );
 }
 
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1916,6 +1912,12 @@ function buildCard(post) {
   briefTime.className = 'feed-time-short';
   briefTime.textContent = shortClock(post.time) || fullTime.textContent;
   time.append(fullTime, briefTime);
+  if (record.edited) {
+    const editedMark = document.createElement('span');
+    editedMark.className = 'feed-edited-mark';
+    editedMark.textContent = 'edited';
+    fullTime.after(editedMark);
+  }
   right.appendChild(time);
   meta.append(left, right);
   const foot = document.createElement('div');
@@ -2083,11 +2085,55 @@ function noteDelete(payer, data) {
   if (stampLabel != null && String(stampLabel).trim() !== '') deletedStamp.add(`${payer}|${stampLabel}`);
 }
 
+// An edit names the post the same way a delete does and carries the new
+// body text. Remembering it also rewrites the open map popups; the feed
+// cards for the post are patched here.
+function noteEdit(payer, data, created) {
+  if (!payer || !data) return;
+  const namesPost = data.editMarkerCreated || data.editMarkerTimestamp
+    || data.editPolygonCreated || data.editPolygonTimestamp;
+  if (!namesPost) return;
+  const hit = rememberShapeEdit(payer, data, created);
+  if (!hit) return;
+  const iso = createdIso(data.editMarkerCreated || data.editPolygonCreated);
+  patchFeedCardsForEdit(payer, iso, hit.msg);
+}
+
+// The record builders read the edit map lazily, so a card rebuilt after an
+// edit shows the new text on its own. This rewrites the cards on screen.
+function patchFeedCardsForEdit(payer, iso, msg) {
+  if (!iso) return;
+  const keys = new Set();
+  for (const post of posts) {
+    if (post.payer !== payer) continue;
+    const created = post.kind === 'marker'
+      ? post.feature && post.feature.created
+      : post.polygon && post.polygon.created;
+    if (createdIso(created) !== iso) continue;
+    keys.add(post.key);
+  }
+  if (!keys.size) return;
+  for (const card of column.querySelectorAll('.feed-card')) {
+    if (!keys.has(card.dataset.key)) continue;
+    const text = card.querySelector('p.popup-text-bubble');
+    if (text) paintHashtags(text, msg);
+    const full = card.querySelector('.feed-time-full');
+    if (full && !full.parentElement.querySelector('.feed-edited-mark')) {
+      const mark = document.createElement('span');
+      mark.className = 'feed-edited-mark';
+      mark.textContent = 'edited';
+      full.after(mark);
+    }
+  }
+}
+
 function noteMessage(message) {
   const payer = message.payer || '';
   const at = String(message.consensus_timestamp || message.created || '');
   noteDelete(payer, message.marker && message.marker.data);
   noteDelete(payer, message.polygon && message.polygon.data);
+  noteEdit(payer, message.marker && message.marker.data, message.created);
+  noteEdit(payer, message.polygon && message.polygon.data, message.created);
   const fields = [
     ['likeMarker', 'marker', 'like'],
     ['dislikeMarker', 'marker', 'dislike'],
@@ -2176,21 +2222,25 @@ function markerPost(message, data) {
   const lngLat = number == null ? null : pointFrom(data.cord);
   const stampLabel = clock(message.created);
   if (!lngLat || gone(payer, number, created, stampLabel)) return null;
-  const record = () => ({
-    markernumber: number,
-    topicId: loadedTopic,
-    ...profileOf(payer),
-    title: data.title,
-    image: data.image,
-    coverimage: data.coverimage,
-    msg: data.msg,
-    timestamp: stampLabel,
-    created,
-    likeCountMarker: likeTotal('marker', stampLabel),
-    likedByMe: liked('marker', stampLabel),
-    comments: commentsFor('marker', stampLabel),
-    coords: lngLat,
-  });
+  const record = () => {
+    const edit = shapeEditFor(payer, created, stampLabel);
+    return {
+      markernumber: number,
+      topicId: loadedTopic,
+      ...profileOf(payer),
+      title: data.title,
+      image: data.image,
+      coverimage: data.coverimage,
+      msg: edit ? edit.msg : data.msg,
+      edited: !!edit,
+      timestamp: stampLabel,
+      created,
+      likeCountMarker: likeTotal('marker', stampLabel),
+      likedByMe: liked('marker', stampLabel),
+      comments: commentsFor('marker', stampLabel),
+      coords: lngLat,
+    };
+  };
   return keepPost({
     key: `m:${loadedTopic}:${payer}:${created}:${number}`,
     payer,
@@ -2226,21 +2276,25 @@ function polygonPost(message, data) {
   };
   const lngLat = centerOf(polygon);
   if (!lngLat) return null;
-  polygon.popupData = () => ({
-    polygonnumber: number,
-    topicId: loadedTopic,
-    ...profileOf(payer),
-    title: data.title,
-    image: data.image,
-    coverimage: data.coverimage,
-    msg: data.msg,
-    timestamp: stampLabel,
-    created,
-    likeCountPolygon: likeTotal('polygon', stampLabel),
-    likedByMe: liked('polygon', stampLabel),
-    comments: commentsFor('polygon', stampLabel),
-    coordinates: ring,
-  });
+  polygon.popupData = () => {
+    const edit = shapeEditFor(payer, created, stampLabel);
+    return {
+      polygonnumber: number,
+      topicId: loadedTopic,
+      ...profileOf(payer),
+      title: data.title,
+      image: data.image,
+      coverimage: data.coverimage,
+      msg: edit ? edit.msg : data.msg,
+      edited: !!edit,
+      timestamp: stampLabel,
+      created,
+      likeCountPolygon: likeTotal('polygon', stampLabel),
+      likedByMe: liked('polygon', stampLabel),
+      comments: commentsFor('polygon', stampLabel),
+      coordinates: ring,
+    };
+  };
   return keepPost({
     key: `p:${loadedTopic}:${payer}:${created}:${number}`,
     payer,

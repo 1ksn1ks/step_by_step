@@ -1451,6 +1451,17 @@
               <img id="topic-chat-image-preview-img" alt="">
               <button type="button" id="topic-chat-image-clear" class="chat-attach-clear">×</button>
             </div>
+            <div id="topic-chat-editbox">
+              <div id="topic-chat-edit-label">Edit message</div>
+              <textarea id="topic-chat-edit-text" rows="3" placeholder="Message text"
+              onclick="event.stopPropagation();"
+              oninput="this.style.height='';this.style.height=this.scrollHeight+'px';"></textarea>
+              <div id="topic-chat-edit-bytes" class="hcs-byte-counter">0 B / 18 KB</div>
+              <div id="topic-chat-edit-actions">
+                <div id="topic-chat-edit-cancel" class="toolbar-column-btns">Cancel</div>
+                <div id="topic-chat-edit-save" class="toolbar-column-btns">Save</div>
+              </div>
+            </div>
             <textarea
             class="toolbar-column"
             type="text"
@@ -1692,6 +1703,17 @@
             <div id="encrypted-chat-image-preview" class="chat-attach-preview" hidden>
               <img id="encrypted-chat-image-preview-img" alt="">
               <button type="button" id="encrypted-chat-image-clear" class="chat-attach-clear">×</button>
+            </div>
+            <div id="e2ee-chat-editbox">
+              <div id="e2ee-chat-edit-label">Edit message</div>
+              <textarea id="e2ee-chat-edit-text" rows="3" placeholder="Message text"
+              onclick="event.stopPropagation();"
+              oninput="this.style.height='';this.style.height=this.scrollHeight+'px';"></textarea>
+              <div id="e2ee-chat-edit-bytes" class="hcs-byte-counter">0 B / 18 KB</div>
+              <div id="e2ee-chat-edit-actions">
+                <div id="e2ee-chat-edit-cancel" class="toolbar-column-btns">Cancel</div>
+                <div id="e2ee-chat-edit-save" class="toolbar-column-btns">Save</div>
+              </div>
             </div>
             <textarea
             class="toolbar-column"
@@ -1989,10 +2011,20 @@
 
       <div id="popup-settings-card" style="display: none; z-index: 1003;">
         <div id="popup-settings-side">
+        <button type="button" id="popup-settings-edit" aria-label="Edit" title="Edit" style="display: none;">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        </button>
         <button type="button" id="popup-settings-delete" aria-label="Delete" title="Delete" style="display: none;">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
         </button>
         <div class="options-column-title">Popup</div>
+
+      <div id="popup-settings-editbox" style="display: none;">
+        <div class="popup-settings-label">Edit text</div>
+        <textarea id="popup-settings-edit-text" rows="3" placeholder="Message text"></textarea>
+        <div id="popup-settings-edit-bytes" class="draw-byte-counter hcs-byte-counter">0 B / 18 KB</div>
+        <div class="popup-settings-row"><div id="popup-settings-edit-save" class="toolbar-column-btns">Save</div></div>
+      </div>
 
       <div id="popup-settings-tools" onclick="event.stopPropagation();">
         <div class="popup-settings-group" role="group" aria-labelledby="popup-settings-group-title">

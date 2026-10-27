@@ -372,9 +372,17 @@ function streamEnsure() {
 
 export function streamOnTopic(topicId, handler) {
   if (!topicId || !/^\d+\.\d+\.\d+$/.test(topicId)) return () => {};
+  const isNewTopic = !streamTopicRefs.has(topicId);
   streamTopicRefs.set(topicId, (streamTopicRefs.get(topicId) || 0) + 1);
   if (!streamHandlers.has(topicId)) streamHandlers.set(topicId, new Set());
   streamHandlers.get(topicId).add(handler);
+  if (isNewTopic && streamSource) {
+    // A live EventSource can't grow its topic list: one cheap reopen with
+    // the full list (same pattern as when a topic is dropped).
+    const old = streamSource;
+    streamSource = null;
+    old.close();
+  }
   streamEnsure();
   return () => {
     const set = streamHandlers.get(topicId);
