@@ -657,7 +657,9 @@ function paintEditBytes() {
   const text = document.getElementById('popup-settings-edit-text');
   const walk = popupSettingsTarget;
   if (!counter || !text || !walk) return;
-  const usage = formatHcsUsage(utf8ByteLength(JSON.stringify(editPayload(walk, text.value))));
+  // Same cleaning savePopupEdit sends, so the counter matches the payload.
+  const cleaned = normalizeMessageNewlines(text.value).trim();
+  const usage = formatHcsUsage(utf8ByteLength(JSON.stringify(editPayload(walk, cleaned))));
   counter.textContent = usage.text;
   counter.classList.toggle('hcs-warn', usage.warn);
   counter.classList.toggle('hcs-over', usage.over);
@@ -691,6 +693,11 @@ async function savePopupEdit() {
   const text = document.getElementById('popup-settings-edit-text');
   const save = document.getElementById('popup-settings-edit-save');
   if (!text) return;
+  const cleaned = normalizeMessageNewlines(text.value).trim();
+  if (!cleaned) {
+    toast.error('Text is empty');
+    return;
+  }
   if (save && save.classList.contains('hcs-send-blocked')) {
     toast.error(HCS_TOO_LONG);
     return;
@@ -701,7 +708,7 @@ async function savePopupEdit() {
     toast.error('This post cannot be edited');
     return;
   }
-  const body = editPayload(walk, text.value);
+  const body = editPayload(walk, cleaned);
   popupEditBusy = true;
   try {
     toast.info('Confirm in wallet 👛');

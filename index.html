@@ -1453,13 +1453,13 @@
             </div>
             <div id="topic-chat-editbox">
               <div id="topic-chat-edit-label">Edit message</div>
-              <textarea id="topic-chat-edit-text" rows="3" placeholder="Message text"
+              <textarea id="topic-chat-edit-text" aria-label="Edit message" rows="3" placeholder="Message text"
               onclick="event.stopPropagation();"
               oninput="this.style.height='';this.style.height=this.scrollHeight+'px';"></textarea>
               <div id="topic-chat-edit-bytes" class="hcs-byte-counter">0 B / 18 KB</div>
               <div id="topic-chat-edit-actions">
                 <div id="topic-chat-edit-cancel" class="toolbar-column-btns">Cancel</div>
-                <div id="topic-chat-edit-save" class="toolbar-column-btns">Save</div>
+                <button type="button" id="topic-chat-edit-save" class="toolbar-column-btns">Save</button>
               </div>
             </div>
             <textarea
@@ -1706,13 +1706,13 @@
             </div>
             <div id="e2ee-chat-editbox">
               <div id="e2ee-chat-edit-label">Edit message</div>
-              <textarea id="e2ee-chat-edit-text" rows="3" placeholder="Message text"
+              <textarea id="e2ee-chat-edit-text" aria-label="Edit message" rows="3" placeholder="Message text"
               onclick="event.stopPropagation();"
               oninput="this.style.height='';this.style.height=this.scrollHeight+'px';"></textarea>
               <div id="e2ee-chat-edit-bytes" class="hcs-byte-counter">0 B / 18 KB</div>
               <div id="e2ee-chat-edit-actions">
                 <div id="e2ee-chat-edit-cancel" class="toolbar-column-btns">Cancel</div>
-                <div id="e2ee-chat-edit-save" class="toolbar-column-btns">Save</div>
+                <button type="button" id="e2ee-chat-edit-save" class="toolbar-column-btns">Save</button>
               </div>
             </div>
             <textarea
@@ -2021,9 +2021,9 @@
 
       <div id="popup-settings-editbox" style="display: none;">
         <div class="popup-settings-label">Edit text</div>
-        <textarea id="popup-settings-edit-text" rows="3" placeholder="Message text"></textarea>
+        <textarea id="popup-settings-edit-text" aria-label="Edit message" rows="3" placeholder="Message text"></textarea>
         <div id="popup-settings-edit-bytes" class="draw-byte-counter hcs-byte-counter">0 B / 18 KB</div>
-        <div class="popup-settings-row"><div id="popup-settings-edit-save" class="toolbar-column-btns">Save</div></div>
+        <div class="popup-settings-row"><button type="button" id="popup-settings-edit-save" class="toolbar-column-btns">Save</button></div>
       </div>
 
       <div id="popup-settings-tools" onclick="event.stopPropagation();">
