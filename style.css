@@ -814,11 +814,13 @@ html, body {
     width: auto;
   }
 
-  /* The edit Save buttons are real <button>s now — neutralize the UA
-     button defaults (padding, own font, centered text) so they render
+  /* The edit Save/Cancel buttons are real <button>s now — neutralize the
+     UA button defaults (padding, own font, centered text) so they render
      exactly like the .toolbar-column-btns divs they replaced. */
   #topic-chat-edit-save,
+  #topic-chat-edit-cancel,
   #e2ee-chat-edit-save,
+  #e2ee-chat-edit-cancel,
   #popup-settings-edit-save {
     padding: 0;
     font-family: inherit;
@@ -3543,13 +3545,36 @@ html, body {
     transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
   }
 
-  /* Timestamp — same glass bubble as the other pills */
+  /* Views — same chip markup as the feed (bar-chart icon + numeric count),
+     sized to the popup. Hidden until the count is known. */
   .popup-views {
     display: none;
+    gap: calc(var(--u) * 0.4);
+    align-items: center;
+    color: #777;
+    pointer-events: none;
+    user-select: none;
   }
 
-  .popup-timestamp.popup-views.is-shown {
-    display: inline-block;
+  .popup-views.is-shown {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .popup-views svg {
+    width: calc(var(--u) * 1.8);
+    height: calc(var(--u) * 1.8);
+    flex: 0 0 auto;
+    display: block;
+  }
+
+  .popup-views .feed-view-count {
+    color: rgba(255, 255, 255, 0.72);
+    font-family: Inter, system-ui, sans-serif;
+    font-size: calc(var(--u) * 1.05);
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
   }
 
   .popup-timestamp {
@@ -3713,6 +3738,45 @@ html, body {
 
   .heart-like-mini {
     --h: calc(var(--u) * 0.22);
+  }
+
+  /* Copy link — same glass disc as the heart, sits right before it in the
+     reaction cluster (and stays a small glass bubble in the feed action
+     row, via the override further down). */
+  .copy-link {
+    --h: calc(var(--u) * 0.38);
+    width: calc(var(--h) * 10);
+    height: calc(var(--h) * 10);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 2;
+    box-sizing: border-box;
+    padding: 0;
+    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.10);
+    box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.35);
+    border-radius: 999px;
+    color: #777;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
+  }
+
+  .copy-link svg {
+    width: calc(var(--h) * 6.2);
+    height: calc(var(--h) * 6.2);
+    flex: 0 0 auto;
+    display: block;
+  }
+
+  .copy-link:hover {
+    transform: scale(1.08);
+  }
+
+  .copy-link:active {
+    transform: scale(0.94);
   }
 
   .heart-like input {
@@ -6034,10 +6098,7 @@ a.payer-link {
   .maplibregl-map .popup-footer-row .popup-views {
     grid-column: 2;
     justify-self: stretch;
-    text-align: center;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .maplibregl-map .popup-footer-row .popup-views:not(.is-shown) {
@@ -6045,7 +6106,8 @@ a.payer-link {
   }
 
   .maplibregl-map .popup-footer-row .popup-views.is-shown {
-    display: block;
+    display: flex;
+    justify-content: center;
   }
 
   .maplibregl-map .popup-footer-row .popup-timestamp:not(.popup-views) {
@@ -8334,6 +8396,11 @@ html.feed-app appkit-modal {
 :is(#feed-column, .feed-comments-stage) .feed-media-hit.is-video {
   bottom: calc(var(--fu) * 6);
 }
+/* Lazy media: a pending slot (bytes not started yet) keeps a box so the
+   card doesn't jump when the picture arrives */
+:is(#feed-column, .feed-comments-stage) .popup-media-card:has(.media-pending) {
+  min-height: 16dvh;
+}
 :is(#feed-column, .feed-comments-stage) .popup-media-card,
 :is(#feed-column, .feed-comments-stage) .popup-media-card *,
 :is(#feed-column, .feed-comments-stage) .feed-media-hit {
@@ -8472,6 +8539,8 @@ html.feed-app appkit-modal {
 :is(#feed-column, .feed-comments-stage) .feed-meta-right {
   flex: 0 1 auto;
   justify-content: flex-end;
+  /* Views chip + timestamp now share this side */
+  gap: calc(var(--fu) * 0.8);
 }
 :is(#feed-column, .feed-comments-stage) .feed-meta .feed-loc {
   margin-top: 0;
@@ -8585,6 +8654,33 @@ html.feed-app appkit-modal {
   width: auto;
   height: auto;
   z-index: auto;
+}
+/* The link stays a small glass bubble in the feed row (like the popup),
+   sitting just left of the heart. */
+:is(#feed-column, .feed-comments-stage) .feed-actions .copy-link {
+  --h: calc(var(--fu) * 0.30);
+  width: calc(var(--h) * 10);
+  height: calc(var(--h) * 10);
+  padding: 0;
+  border: calc(var(--fu) * 0.12) solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 calc(var(--fu) * 0.15) 0 rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  color: var(--feed-action, #777);
+  position: static;
+  z-index: auto;
+}
+:is(#feed-column, .feed-comments-stage) .feed-actions .copy-link svg {
+  width: calc(var(--fu) * 1.9);
+  height: calc(var(--fu) * 1.9);
+}
+:is(#feed-column, .feed-comments-stage) .feed-actions .copy-link:hover {
+  transform: scale(1.08);
+  color: var(--feed-action-hover, #67e8f9);
+  background: rgba(255, 255, 255, 0.16);
+}
+:is(#feed-column, .feed-comments-stage) .feed-actions .copy-link:active {
+  transform: scale(0.94);
 }
 :is(#feed-column, .feed-comments-stage) .feed-actions .heart-like label {
   position: relative;

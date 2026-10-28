@@ -27,6 +27,18 @@ const MARKER_COVER_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "im
 // Polygon cover: everything — gif/video animate in the map via the
 // updateImage pump in polygons.js (the 15s cover ad case).
 const POLYGON_COVER_TYPES = MEDIA_TYPES;
+// Cover stills are the only uploads shrunk before they reach R2: the map
+// fill (createResizedImage in polygons.js) caps textures at 512, so a
+// multi-MP phone photo would only cost bandwidth. Inside/popup media,
+// profile pictures, chat images, gif/video covers, and hand-typed remote
+// URLs all keep full quality.
+const COVER_FIELD_IDS = new Set([
+  "input-field-coverimage-marker",
+  "input-field-coverimage-polygon",
+]);
+const COVER_SHRINK_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const COVER_MAX_EDGE = 512;
+const COVER_JPEG_QUALITY = 0.85;
 
 let uploading = false;
 
@@ -512,6 +524,83 @@ function hideFieldPreview(fieldId) {
   paintDrawField(fieldId, "");
 }
 
+// Shrink one cover still to COVER_MAX_EDGE on the long edge and re-encode
+// it as JPEG. Never upscales, and any decode/encode problem falls back to
+// the original file so the draw is never blocked.
+async function shrinkCoverImage(file) {
+  const encode = (source, tw, th) => new Promise((resolve, reject) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = tw;
+    canvas.height = th;
+    canvas.getContext("2d").drawImage(source, 0, 0, tw, th);
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("encode failed"))),
+      "image/jpeg",
+      COVER_JPEG_QUALITY
+    );
+  });
+  const name = (blob) => {
+    const base = String(file.name || "cover").replace(/\.[a-z0-9]+$/i, "");
+    return new File([blob], `${base}.jpg`, { type: "image/jpeg", lastModified: file.lastModified });
+  };
+  if (typeof createImageBitmap !== "function") {
+    // Old engines: load through <img> and draw, like polygons.js.
+    try {
+      const url = URL.createObjectURL(file);
+      const img = await new Promise((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error("decode failed"));
+        el.src = url;
+      });
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      URL.revokeObjectURL(url);
+      if (!w || !h || Math.max(w, h) <= COVER_MAX_EDGE) return file;
+      const scale = COVER_MAX_EDGE / Math.max(w, h);
+      return name(await encode(img, Math.max(1, Math.round(w * scale)), Math.max(1, Math.round(h * scale))));
+    } catch {
+      return file;
+    }
+  }
+  let native = null;
+  let scaled = null;
+  try {
+    // Decode once for the native size — a small cover uploads untouched.
+    native = await createImageBitmap(file);
+    const w = native.width;
+    const h = native.height;
+    if (!w || !h || Math.max(w, h) <= COVER_MAX_EDGE) return file;
+    const scale = COVER_MAX_EDGE / Math.max(w, h);
+    const tw = Math.max(1, Math.round(w * scale));
+    const th = Math.max(1, Math.round(h * scale));
+    // Prefer the downscale during decode; engines that ignore the resize
+    // options (or return a different size) fall back to the native bitmap.
+    // The re-encode is always a canvas draw — ImageBitmap.convertToBlob is
+    // missing in some Chromium builds.
+    try {
+      scaled = await createImageBitmap(file, {
+        resizeWidth: tw,
+        resizeHeight: th,
+        resizeQuality: "high",
+      });
+    } catch {
+      scaled = null;
+    }
+    if (scaled && (scaled.width !== tw || scaled.height !== th)) {
+      scaled.close();
+      scaled = null;
+    }
+    const blob = await encode(scaled || native, tw, th);
+    return name(blob);
+  } catch {
+    return file;
+  } finally {
+    if (native) native.close();
+    if (scaled) scaled.close();
+  }
+}
+
 async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg) {
   if (uploading) return;
   if (!allowedTypes.has(file.type)) {
@@ -526,6 +615,10 @@ async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg
   }
   uploading = true;
   btn.disabled = true;
+  // Cover stills only: the map texture is 512, so R2 stores the small JPEG.
+  if (COVER_FIELD_IDS.has(targetFieldId) && !isVideo && COVER_SHRINK_TYPES.has(file.type)) {
+    file = await shrinkCoverImage(file);
+  }
   const label = isVideo ? "video" : "image";
   const previous = document.getElementById(targetFieldId)?.value || "";
   const localUrl = URL.createObjectURL(file);

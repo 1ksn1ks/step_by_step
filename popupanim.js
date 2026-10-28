@@ -1,5 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import { forgetProfileTree, watchProfileTree } from './markertilt.js';
+import { forceDisplayEligibility } from './displayimage.js';
 
 // Animate popup close: play the shrink+fade (.closing class, popupOut keyframes
 // in style.css), then let MapLibre actually remove the popup.
@@ -176,6 +177,9 @@ maplibregl.Popup.prototype.setDOMContent = function (node) {
   if (node && node.nodeType === 1) {
     watchProfileTree(node);
     document.dispatchEvent(new CustomEvent('follow-popup-open', { detail: node }));
+    // Lazy media: the card just painted — a still slot the observer never
+    // reported for (0×0 at build, detached, or an open it missed) starts now.
+    node.querySelectorAll('.media-pending').forEach((m) => forceDisplayEligibility(m));
   }
   // Back/Forward: a card swapped into an already-open popup (paging,
   // live-marker walk) refreshes the saved history data.
@@ -194,11 +198,13 @@ maplibregl.Popup.prototype.addTo = function (map) {
   fitIfOpen(this);
   // Back/Forward: report the open when the card was set before addTo
   // (the setDOMContent hook covers the other order).
-  if (window.layerPopupOpened) {
-    const el = typeof this.getElement === 'function' ? this.getElement() : null;
-    if (el && el.querySelector && el.querySelector('.popup-sheet')) {
+  const el = typeof this.getElement === 'function' ? this.getElement() : null;
+  if (el && el.querySelector) {
+    if (window.layerPopupOpened && el.querySelector('.popup-sheet')) {
       window.layerPopupOpened(this, popupLayerData(this));
     }
+    // Lazy media, set-before-addTo order: the card is connected now.
+    el.querySelectorAll('.media-pending').forEach((m) => forceDisplayEligibility(m));
   }
   return result;
 };

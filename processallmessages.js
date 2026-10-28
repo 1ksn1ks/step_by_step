@@ -17,9 +17,10 @@ import { confirmShare, unshareFromMyTopic, sharePin, followPersonControls, watch
 import { clearShareTopic, noteShare, shareState, shareMine, takeSharePin, takeUnsharePin } from './sharecount.js'
 import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
 import { openPreview } from './fullscreenmedia';
+import { attachDisplayImage } from './displayimage';
 import { paintHashtags, singleLineText } from './hashtag.js';
 import { isTyping } from './joystick.js';
-import { normalizeMessageNewlines, clipMessage, formatHcsUsage, utf8ByteLength, HCS_TOO_LONG } from './hcschunks.js';
+import { normalizeMessageNewlines, clipMessage, formatHcsUsage, utf8ByteLength, HCS_TOO_LONG, HCS_MESSAGE_MAX_BYTES } from './hcschunks.js';
 import maplibregl from 'maplibre-gl';
 import { map } from './map';
 import { applyAllStyles } from './loadprofilepopup';
@@ -30,6 +31,7 @@ import { refitPopups } from './popupanim';
 import { copyTextToClipboard } from './handleallmessages';
 import { toast } from './toast'
 import { videoSeconds } from './mediaduration.js'
+import { placeUrl } from './placeurl.js';
 import { stackedTopicRules, smallestPolygonSize } from './topicrules.js'
 import { payerUsernameNode } from './payerlink.js'
 import { paintProfileAvatar } from './earlyhashinal.js'
@@ -476,7 +478,7 @@ function ensurePopupPreview(slot) {
   // The pill still reads like a real popup.
   const views = sheet.querySelector('.popup-views');
   if (views) {
-    views.textContent = '2 views';
+    setViewsCount(views, 2);
     views.classList.add('is-shown');
   }
   const popup = document.createElement('div');
@@ -612,10 +614,50 @@ function paintDeleteButton() {
 // for shares, and it names the post with the created ISO + timestamp label
 // delete already uses.
 let popupEditBusy = false;
+// The composer's key state: undefined = resolving (counter shows the inner
+// size for now), null = public topic, key = E2EE (counter shows the seal).
+let popupEditKey = null;
 
 function hideEditComposer() {
   const box = document.getElementById('popup-settings-editbox');
   if (box) box.style.display = 'none';
+}
+
+// An E2EE topic (admin-pinned public key) takes the edit inside the seal
+// the same way its create does — the new text never lands on the topic in
+// the clear. The lookup is the shared one: cached per topic (5-minute
+// TTL, dropped on a fresh pin), the same source the encrypted create and
+// the E2EE chat use.
+//   key (Uint8Array) — the topic is E2EE
+//   null             — a public topic (no admin pin)
+//   throws           — the lookup itself failed; the caller must NOT fall
+//                      back to a plaintext edit (that is the leak).
+async function resolvePopupEditKey(topicId) {
+  // Dynamic on purpose: a static import here would add a
+  // processallmessages → encryptedtopicchat → chatimage → uploadmedia →
+  // drawpreview → web3 edge while web3 is still initializing, and
+  // drawpreview's top-level bindAccount() reads connectedAccount → TDZ on
+  // every fresh load. By the time a composer opens, the graph is fully
+  // evaluated, so the runtime import is safe and adds no static edge.
+  const { cachedE2eeKey, setCachedE2eeKey, lookupE2eePublicKey } = await import('./encryptedtopicchat.js');
+  const cached = cachedE2eeKey(topicId);
+  if (cached) return cached.key;
+  const lookedUp = await lookupE2eePublicKey(topicId);
+  if (lookedUp.key) {
+    setCachedE2eeKey(topicId, lookedUp.key, lookedUp.keyCreated);
+    return lookedUp.key;
+  }
+  return null;
+}
+
+// crypto_box_seal is a fixed 48-byte overhead and to_base64 is unpadded,
+// so the sealed outgoing size is known before encrypting — the counter
+// runs without a crypto round-trip (same trick as the E2EE chat edit).
+function sealedEditOutgoing(body) {
+  const bytes = 48 + utf8ByteLength(JSON.stringify(body));
+  const mod = bytes % 3;
+  const b64 = Math.floor(bytes / 3) * 4 + (mod === 1 ? 2 : mod === 2 ? 3 : 0);
+  return JSON.stringify({ ciphertext: 'x'.repeat(b64) });
 }
 
 function paintEditButton() {
@@ -659,7 +701,11 @@ function paintEditBytes() {
   if (!counter || !text || !walk) return;
   // Same cleaning savePopupEdit sends, so the counter matches the payload.
   const cleaned = normalizeMessageNewlines(text.value).trim();
-  const usage = formatHcsUsage(utf8ByteLength(JSON.stringify(editPayload(walk, cleaned))));
+  const body = editPayload(walk, cleaned);
+  // E2EE topic: the outgoing message is the SEAL — the counter must show
+  // what actually goes on the topic, not only the inner edit JSON.
+  const outgoing = popupEditKey ? sealedEditOutgoing(body) : JSON.stringify(body);
+  const usage = formatHcsUsage(utf8ByteLength(outgoing));
   counter.textContent = usage.text;
   counter.classList.toggle('hcs-warn', usage.warn);
   counter.classList.toggle('hcs-over', usage.over);
@@ -683,7 +729,19 @@ function openEditComposer() {
   text.value = current;
   hideEditComposer();
   box.style.display = 'block';
+  // Is this an E2EE topic? Resolve in the background — the counter re-paints
+  // with the sealed size once the admin pin is known (or stays plain).
+  popupEditKey = undefined;
   paintEditBytes();
+  if (walk.topicId) {
+    resolvePopupEditKey(walk.topicId).then((key) => {
+      if (popupSettingsTarget !== walk) return;
+      popupEditKey = key;
+      paintEditBytes();
+    }).catch(() => {
+      // Stays "resolving" — save re-resolves and refuses on failure.
+    });
+  }
 }
 
 async function savePopupEdit() {
@@ -711,8 +769,30 @@ async function savePopupEdit() {
   const body = editPayload(walk, cleaned);
   popupEditBusy = true;
   try {
-    toast.info('Confirm in wallet 👛');
-    await sendMessage(walk.topicId, JSON.stringify(body));
+    // E2EE topic: the edit rides inside the seal, the same way the create
+    // does — the new text must not land on the topic in the clear. A
+    // failed lookup aborts; it must never fall back to plaintext.
+    let key = null;
+    try {
+      key = await resolvePopupEditKey(walk.topicId);
+    } catch (error) {
+      console.error('popup edit key lookup failed', error);
+      toast.error('Could not check the topic key — edit not sent');
+      return;
+    }
+    if (key) {
+      const outgoing = JSON.stringify(await encryptMessage(JSON.stringify(body), key));
+      if (utf8ByteLength(outgoing) > HCS_MESSAGE_MAX_BYTES) {
+        toast.error(HCS_TOO_LONG);
+        return;
+      }
+      toast.info('Confirm in wallet 👛');
+      await sendMessage(walk.topicId, outgoing);
+    } else {
+      // Public topic — the existing plaintext path, unchanged.
+      toast.info('Confirm in wallet 👛');
+      await sendMessage(walk.topicId, JSON.stringify(body));
+    }
     toast.success('Saved');
     // Apply locally right away; the topic stream confirms the same edit.
     rememberShapeEdit(connectedAccount, (body.marker || body.polygon).data, new Date().toISOString());
@@ -1074,6 +1154,37 @@ function adoptComments(section, host) {
   section._homeParent = host;
 }
 
+// Copies the same deep link the notifications "Open on the map" uses:
+// place, payer, n, and at name the original place (for a shared pin, the
+// original place's payer and stored pin — the same data the share uses).
+const COPY_LINK_ICON = [
+  ['path', { d: 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71' }],
+  ['path', { d: 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71' }],
+];
+
+function createCopyLink(source) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'copy-link';
+  button.setAttribute('aria-label', 'Copy link');
+  button.title = 'Copy link';
+  button.appendChild(popupStrokeIcon('', COPY_LINK_ICON));
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const url = placeUrl({
+      kind: source.kind === 'polygon' ? 'polygon' : 'marker',
+      topicId: source.topicId,
+      payer: source.payer,
+      number: source.number,
+      cord: source.coords,
+    });
+    copyTextToClipboard(url)
+      .then(() => toast.success('Link copied'))
+      .catch(() => toast.error('Could not copy the link'));
+  });
+  return button;
+}
+
 // Same heart, comment, and share controls the marker and polygon popups use.
 export function mountPostReactions(cluster, data, kind, home) {
   const polygon = kind === 'polygon';
@@ -1084,6 +1195,17 @@ export function mountPostReactions(cluster, data, kind, home) {
   const comments = Array.isArray(data.comments) ? data.comments : [];
   const commentsId = (polygon ? 'polygon-comments-' : 'marker-comments-') + topicId + '-' + timestamp;
   const commentCount = Number.isFinite(data.commentsCount) ? data.commentsCount : countAllMessages(comments);
+  const shareSource = {
+    kind: polygon ? 'polygon' : 'marker',
+    topicId,
+    created: data.created,
+    payer: data.payer,
+    coords: polygon ? data.coordinates : data.coords,
+    number: polygon ? data.polygonnumber : data.markernumber,
+    timestamp,
+  };
+  // Copy-link → heart → comment → share in every cluster.
+  cluster.appendChild(createCopyLink(shareSource));
   cluster.appendChild(createHeartLike({
     count: polygon ? data.likeCountPolygon : data.likeCountMarker,
     liked: data.likedByMe,
@@ -1113,15 +1235,6 @@ export function mountPostReactions(cluster, data, kind, home) {
   });
   cluster.appendChild(bubble);
   publishComment('comment|' + sync, commentCount);
-  const shareSource = {
-    kind: polygon ? 'polygon' : 'marker',
-    topicId,
-    created: data.created,
-    payer: data.payer,
-    coords: polygon ? data.coordinates : data.coords,
-    number: polygon ? data.polygonnumber : data.markernumber,
-    timestamp,
-  };
   const shareStateNow = shownShareState(data, topicId, timestamp);
   cluster.appendChild(createShareBubble({
     count: shareStateNow.count,
@@ -1364,6 +1477,34 @@ function viewLabel(n) {
   return n === 1 ? '1 view' : n + ' views';
 }
 
+// Feed chip and popup views share one markup: bar-chart icon + numeric
+// count (.feed-view-count). Updates go through setViewsCount so neither
+// path wipes the icon by writing textContent on the chip root.
+const VIEWS_BARS = [
+  ['line', { x1: '18', x2: '18', y1: '20', y2: '10' }],
+  ['line', { x1: '12', x2: '12', y1: '20', y2: '4' }],
+  ['line', { x1: '6', x2: '6', y1: '20', y2: '14' }],
+];
+
+export function viewsChip(num) {
+  const chip = document.createElement('span');
+  chip.className = 'feed-views';
+  chip.appendChild(popupStrokeIcon('', VIEWS_BARS));
+  const count = document.createElement('span');
+  count.className = 'feed-view-count';
+  count.textContent = String(num);
+  chip.setAttribute('aria-label', viewLabel(num));
+  chip.appendChild(count);
+  return chip;
+}
+
+export function setViewsCount(chip, num) {
+  if (!chip) return;
+  const count = chip.querySelector('.feed-view-count');
+  if (count) count.textContent = String(num);
+  chip.setAttribute('aria-label', viewLabel(num));
+}
+
 // The number is written while the card is built, with the time and the
 // title. The first open from this browser adds one. Later opens keep that
 // number. Nothing is fetched just to fill the pill in afterwards.
@@ -1394,14 +1535,14 @@ function paintPopupView(el, topicId, created, fallback) {
         document.querySelectorAll(
           `[data-view-topic="${topicId}"][data-view-created="${iso}"] .popup-views`
         ).forEach((node) => {
-          node.textContent = viewLabel(views);
+          setViewsCount(node, views);
           node.classList.add('is-shown');
         });
       });
       popupViewInflight.set(key, job);
     }
   }
-  el.textContent = viewLabel(shown);
+  setViewsCount(el, shown);
   el.classList.add('is-shown');
 }
 
@@ -1831,8 +1972,10 @@ export function createMarkerPopupHTML(data) {
     imageDiv.className = 'popup-media-card'; // glass media card (style.css)
     const isVideo = /\.(mp4|webm)(\?|#|$)/i.test(image);
     const media = isVideo ? document.createElement('video') : document.createElement('img');
-    media.src = image;
+    // Video: the popup is open when this is built, so it is already
+    // eligible. Still: no src until attachDisplayImage paints it.
     if (isVideo) {
+      media.src = image;
       media.controls = true;
       media.playsInline = true; // iOS: play inline, no full-screen takeover
       media.preload = 'metadata'; // opening the popup costs a few KB, not the file
@@ -1849,6 +1992,9 @@ export function createMarkerPopupHTML(data) {
         openPreview(image);
       });
       imageDiv.appendChild(chip);
+      // The popup shows a downscaled blob once visible; tap and chip open
+      // the original full-res URL above.
+      attachDisplayImage(media, image);
     }
     imageDiv.appendChild(media);
     contentSection.appendChild(imageDiv);
@@ -1876,9 +2022,9 @@ export function createMarkerPopupHTML(data) {
   bottomRow.className = 'popup-dock';
   bottomRow.style.cssText = 'position: relative; height: calc(var(--u) * 6.2); line-height: 1; margin-top: calc(var(--u) * 0.4); overflow: visible;';
 
-  // Timestamp (row 7, right side)
-  const viewsDiv = document.createElement('div');
-  viewsDiv.className = 'popup-timestamp popup-views';
+  // Timestamp (row 7, right side). Views use the shared feed-chip markup.
+  const viewsDiv = viewsChip(0);
+  viewsDiv.classList.add('popup-views');
   paintPopupView(viewsDiv, topicId, created, Number.isFinite(viewCount) ? viewCount : null);
   const timestampDiv = document.createElement('div');
   timestampDiv.className = 'popup-timestamp';
@@ -2016,8 +2162,10 @@ function createPolygonPopupHTML(data) {
     imageDiv.className = 'popup-media-card'; // glass media card (style.css)
     const isVideo = /\.(mp4|webm)(\?|#|$)/i.test(popupImageUrl);
     const media = isVideo ? document.createElement('video') : document.createElement('img');
-    media.src = popupImageUrl;
+    // Same as the marker popup: the video is eligible the moment the
+    // popup is open; the still waits for attachDisplayImage.
     if (isVideo) {
+      media.src = popupImageUrl;
       media.controls = true;
       media.playsInline = true; // iOS: play inline, no full-screen takeover
       media.preload = 'metadata'; // opening the popup costs a few KB, not the file
@@ -2034,6 +2182,8 @@ function createPolygonPopupHTML(data) {
         openPreview(popupImageUrl);
       });
       imageDiv.appendChild(chip);
+      // Same as the marker popup: small bitmap on screen, full-res tap.
+      attachDisplayImage(media, popupImageUrl);
     }
     imageDiv.appendChild(media);
     contentSection.appendChild(imageDiv);
@@ -2057,9 +2207,9 @@ function createPolygonPopupHTML(data) {
   bottomRow.className = 'popup-dock';
   bottomRow.style.cssText = 'position: relative; height: calc(var(--u) * 6.2); line-height: 1; margin-top: calc(var(--u) * 0.4); overflow: visible;';
 
-  // Timestamp (row 7, right side)
-  const viewsDiv = document.createElement('div');
-  viewsDiv.className = 'popup-timestamp popup-views';
+  // Timestamp (row 7, right side). Views use the shared feed-chip markup.
+  const viewsDiv = viewsChip(0);
+  viewsDiv.classList.add('popup-views');
   paintPopupView(viewsDiv, topicId, created, Number.isFinite(viewCount) ? viewCount : null);
   const timestampDiv = document.createElement('div');
   timestampDiv.className = 'popup-timestamp';

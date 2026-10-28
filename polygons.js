@@ -194,6 +194,11 @@ function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackU
 // second. Texture caps: video 512² JPEG q0.8 @ ~30 fps; gif composited at
 // native res, uploaded capped at 512.
 const mediaCovers = new Map(); // sourceId → cover state
+// Covers not eligible yet: a still image, or a gif's first frame. The
+// bytes do not move until the polygon is on screen — the same in-view
+// test as the animated pump, checked on moveend/zoomend and by the 1s
+// timer (visPass). Until then the source shows the black placeholder.
+const pendingCovers = new Map(); // sourceId → { url, corners, kind }
 const gifPlayers = new Map(); // gif url → shared decoder/canvas
 const gifBytes = new Map(); // gif url → Promise<ArrayBuffer>
 const gifDecoded = new Map(); // gif url → Promise<decoded|null>
@@ -408,6 +413,11 @@ export function dropPolygonCover(polygonId) {
   forgetPolygonTilt(polygonId);
   const cov = mediaCovers.get(polygonId + '-source');
   if (cov) detachCover(cov);
+  const pending = pendingCovers.get(polygonId + '-source');
+  if (pending) {
+    pending.dead = true; // an in-flight fetch must not apply after the drop
+    pendingCovers.delete(polygonId + '-source');
+  }
   addedLayers.delete(polygonId + '-mask-layer');
 }
 
@@ -543,13 +553,26 @@ function makeGifPlayer(url, gif) {
 // Re-check every cover against ONE camera snapshot; drop covers whose
 // source was removed. Runs on moveend/zoomend and every second.
 function visPass() {
-  if (mediaCovers.size === 0) { stopVisTimer(); return; }
+  if (mediaCovers.size === 0 && pendingCovers.size === 0) { stopVisTimer(); return; }
   for (const sid of [...mediaCovers.keys()]) {
     if (!map.getSource(sid)) detachCover(mediaCovers.get(sid));
   }
-  if (mediaCovers.size === 0) { stopVisTimer(); return; }
+  for (const sid of [...pendingCovers.keys()]) {
+    if (!map.getSource(sid)) {
+      const cov = pendingCovers.get(sid);
+      if (cov) cov.dead = true;
+      pendingCovers.delete(sid);
+    }
+  }
+  if (mediaCovers.size === 0 && pendingCovers.size === 0) { stopVisTimer(); return; }
   const st = cameraState();
   for (const cov of mediaCovers.values()) cov.inView = coverInView(cov.corners, st);
+  for (const [sid, cov] of [...pendingCovers]) {
+    if (coverInView(cov.corners, st)) {
+      pendingCovers.delete(sid);
+      startPendingCover(sid, cov); // its bytes start now
+    }
+  }
   ensurePump(); // a cover may have just entered view
 }
 
@@ -558,13 +581,57 @@ function stopVisTimer() {
 }
 
 function ensureVisTimer() {
-  if (visTimer || mediaCovers.size === 0) return;
+  if (visTimer || (mediaCovers.size === 0 && pendingCovers.size === 0)) return;
   visTimer = setInterval(visPass, 1000);
 }
 
-// Register an animated cover. The gif still is painted separately
-// (paintGifStill) so a phone that never starts the pump still shows the
-// picture. Decoding and the <video> wait until the polygon is in view.
+// Queue a cover that must wait for view: a still (the whole image) or a
+// gif's first frame. In view at queue time → begin now; otherwise the
+// visPass checks it on every camera change and every second.
+function queueCoverLoad(sourceId, url, corners, kind = 'still') {
+  const old = pendingCovers.get(sourceId);
+  if (old) old.dead = true; // its in-flight fetch must not apply anymore
+  pendingCovers.delete(sourceId);
+  const cov = { url, corners, kind };
+  if (coverInView(corners, cameraState())) {
+    startPendingCover(sourceId, cov);
+    return;
+  }
+  pendingCovers.set(sourceId, cov);
+  ensureVisTimer();
+}
+
+async function startPendingCover(sourceId, cov) {
+  if (cov.kind === 'gif') {
+    if (map.getSource(sourceId)) paintGifStill(sourceId, cov.url);
+    return;
+  }
+  try {
+    const url = await createResizedImage(cov.url, 512, 512, COVER_FALLBACK);
+    // Liveness by flag, not by map lookup: BOTH callers remove the
+    // pendingCovers entry before the fetch starts (queueCoverLoad's
+    // in-view branch never adds it; visPass deletes it first), so a
+    // lookup here always reads "dropped" and the still never left its
+    // placeholder.
+    if (cov.dead) return;
+    if (pendingCovers.get(sourceId) === cov) pendingCovers.delete(sourceId);
+    const src = map.getSource(sourceId);
+    if (!src || typeof src.updateImage !== 'function') return;
+    try {
+      src.updateImage({ url });
+    } catch {
+      /* the black placeholder stays */
+    }
+  } catch {
+    cov.dead = true; // stop the 1s timer from retrying a dead URL
+    if (pendingCovers.get(sourceId) === cov) pendingCovers.delete(sourceId);
+    /* a failed cover keeps the placeholder — the polygon itself is fine */
+  }
+}
+
+// Register an animated cover. The gif first frame is queued separately
+// (queueCoverLoad) so neither it nor the decode wait for anything but
+// the polygon actually being on screen.
 function registerCover(sourceId, layerId, kind, url, corners) {
   // A topic reload re-adds the same sourceId — drop the previous load's
   // entry (and its orphaned hidden <video>, if any) and start fresh, so a
@@ -782,8 +849,7 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
       let sourceInit;
       if (kind === 'gif') {
         // Placeholder until the shared still (or the animation) replaces it.
-        // The still is not gated on the in-view test, so a phone whose
-        // canvas size disagrees with the window still shows the picture.
+        // The still waits for the in-view test like everything else below.
         sourceInit = { type: 'image', url: blackDataUrl(), coordinates: sourceCoordinates };
       } else if (kind === 'video') {
         // Image sources need a `url` (a `data` property is rejected by this
@@ -791,13 +857,14 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
         // placeholder until the first frame is blitted.
         sourceInit = { type: 'image', url: blackDataUrl(), coordinates: sourceCoordinates };
       } else {
-        const resizedImageUrl = await createResizedImage(coverUrl, 512, 512, COVER_FALLBACK);
-        sourceInit = { type: 'image', url: resizedImageUrl, coordinates: sourceCoordinates };
+        // A still cover downloads only once this polygon is on screen
+        // (queueCoverLoad) — a topic full of covers must not mean a topic
+        // full of downloads.
+        sourceInit = { type: 'image', url: blackDataUrl(), coordinates: sourceCoordinates };
       }
 
       // Now safe to add source and layers since style is loaded
       map.addSource(sourceId, sourceInit);
-      if (kind === 'gif') paintGifStill(sourceId, coverUrl);
   
       map.addLayer({
         id: layerId,
@@ -946,6 +1013,10 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
         // actually enters view (see registerCover / visPass above).
         if (kind === 'gif' || kind === 'video') {
           registerCover(sourceId, layerId, kind, coverUrl, sourceCoordinates);
+        }
+        // First frame (gif) and still covers: the bytes wait for view.
+        if (kind === 'gif' || kind === null) {
+          queueCoverLoad(sourceId, coverUrl, sourceCoordinates, kind === 'gif' ? 'gif' : 'still');
         }
         watchPolygonTilt(map, sourceId, layerId, maskLayerId, sourceCoordinates);
       }

@@ -4,7 +4,7 @@
 import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
 import { currentUfoModelInGLTF, globalLoadedTopicIdsWithNames } from './letall.js';
-import { markerPopupNode, polygonPopupNode, mountPostReactions, buildPopupProfile, rememberShapeEdit, shapeEditFor } from './processallmessages.js';
+import { markerPopupNode, polygonPopupNode, mountPostReactions, buildPopupProfile, rememberShapeEdit, shapeEditFor, viewsChip as sharedViewsChip, setViewsCount } from './processallmessages.js';
 import { BACKEND_URL, fetchMessagesBackend, streamOnTopic, messageSig, fetchFollowing } from './msgbackend.js';
 import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
 import { initialTopicId } from './extracttopic.js';
@@ -29,6 +29,7 @@ import { fillTopicIds, useTopicId } from './topicidintext.js';
 import { payerUsernameNode } from './payerlink.js';
 import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { openPreview } from './fullscreenmedia.js';
+import { attachDisplayImage } from './displayimage.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -1381,26 +1382,11 @@ function viewerNow() {
   return anonViewer();
 }
 
-function viewLabel(num) {
-  return num === 1 ? '1 view' : `${num} views`;
-}
-
+// Shared with the map popup (processallmessages.viewsChip) so the chip and
+// its update path stay one markup.
 function viewChip(key) {
-  const chip = document.createElement('span');
-  chip.className = 'feed-views';
-  chip.appendChild(svgIcon([
-    ['line', { x1: '18', x2: '18', y1: '20', y2: '10' }],
-    ['line', { x1: '12', x2: '12', y1: '20', y2: '4' }],
-    ['line', { x1: '6', x2: '6', y1: '20', y2: '14' }],
-  ]));
-  const count = document.createElement('span');
-  count.className = 'feed-view-count';
   const known = viewTotals.get(key);
-  const num = known == null ? 0 : known;
-  count.textContent = String(num);
-  chip.setAttribute('aria-label', viewLabel(num));
-  chip.appendChild(count);
-  return chip;
+  return sharedViewsChip(known == null ? 0 : known);
 }
 
 // The comment count hangs to the right of the icon. This spacer is the same
@@ -1432,8 +1418,7 @@ function paintCardCount(card) {
   if (num == null) return;
   const node = card.querySelector('.feed-view-count');
   if (!node) return;
-  node.textContent = String(num);
-  if (node.parentElement) node.parentElement.setAttribute('aria-label', viewLabel(num));
+  setViewsCount(node.parentElement, num);
 }
 
 function paintCounts(counts) {
@@ -1795,9 +1780,11 @@ function buildCard(post) {
       node.playsInline = true;
       node.preload = 'none';
       const poster = mediaOf(record.coverimage);
-      if (poster && !isVideo(poster)) node.poster = poster;
-      node.src = src;
       media.appendChild(node);
+      // No src/poster until the slot is on screen — attachDisplayImage
+      // starts the download (and the cover) at eligibility; the tap
+      // below opens the original full-res URL.
+      attachDisplayImage(node, src, poster && !isVideo(poster) ? poster : '');
       coverFeedPlayer(media, () => {
         if (node.paused) {
           delete node.dataset.feedHold;
@@ -1811,10 +1798,11 @@ function buildCard(post) {
     } else {
       node.alt = '';
       node.draggable = false;
-      node.loading = 'lazy';
-      node.decoding = 'async';
-      node.src = src;
       media.appendChild(node);
+      // No src until the slot is on screen — then the card shows a
+      // downscaled blob; the tap below opens the original full-res URL
+      // (gif/video skip the downscale but start at the same gate).
+      attachDisplayImage(node, src);
       coverFeedPlayer(media, () => {
         holdScroll();
         openPreview(src);
@@ -1892,8 +1880,11 @@ function buildCard(post) {
     const cluster = document.createElement('div');
     mountPostReactions(cluster, record, post.kind, card);
     const heart = cluster.querySelector('.heart-like:not(.comment-bubble):not(.share-bubble)');
+    const copyLink = cluster.querySelector('.copy-link');
     const comment = cluster.querySelector('.comment-bubble');
     const share = cluster.querySelector('.share-bubble');
+    // Copy-link first: [link][heart] on the left, comment mid, share right.
+    if (copyLink) actionLeft.appendChild(copyLink);
     if (heart) actionLeft.appendChild(heart);
     if (comment) {
       actionMid.appendChild(comment);
@@ -1901,7 +1892,6 @@ function buildCard(post) {
     }
     if (share) actionRight.appendChild(share);
   }
-  actionRight.appendChild(viewChip(post.key));
   actions.append(actionLeft, actionMid, actionRight);
   const time = document.createElement('div');
   time.className = 'popup-timestamp';
@@ -1918,7 +1908,8 @@ function buildCard(post) {
     editedMark.textContent = 'edited';
     fullTime.after(editedMark);
   }
-  right.appendChild(time);
+  // Views sit next to the timestamp, popup order: views, then time.
+  right.append(viewChip(post.key), time);
   meta.append(left, right);
   const foot = document.createElement('div');
   foot.className = 'feed-foot';

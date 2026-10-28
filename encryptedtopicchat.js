@@ -224,7 +224,9 @@ function openE2eeChatEdit(payer, created) {
     payer,
     created: createdIso,
     topicId,
-    image: imgEl ? (imgEl.getAttribute('src') || '') : '',
+    // fullSrc is the original URL; the displayed src is a session blob
+    // once the lazy downscale has painted (a blob on-chain is dead).
+    image: imgEl ? (imgEl.dataset.fullSrc || imgEl.getAttribute('src') || '') : '',
     stamp: e2eeChatStamp(createdIso),
   };
   const text = document.getElementById('e2ee-chat-edit-text');
@@ -239,18 +241,47 @@ function closeE2eeChatEdit() {
   e2eeChatEditTarget = null;
 }
 
-// ── Admin-pinned public key, cached per topic for the session ─────────
+// ── Admin-pinned public key, cached per topic ────────────────────────
 // Both the normal send and saveE2eeChatEdit resolve the topic's public
 // key by scanning history for the admin's {publicKey} message. The key
-// rarely changes, so cache it per topicId: one lookup, then reuse. A
-// fresh pin (below) or a failed encrypt from a bad cached key drops the
-// entry and forces a re-lookup.
-const e2eePublicKeysByTopic = new Map(); // topicId → 32-byte public key
+// rarely changes, so cache it per topicId: one lookup, then reuse.
+//
+// The hazard is a rotation from another device: encrypting to a stale
+// but still valid key never fails, so a failed encrypt (below) is not
+// enough. Entries therefore expire after a few minutes, and every admin
+// {publicKey} message that arrives in loaded or streamed history drops
+// the entry when it is newer than the one the cache was built from. A
+// fresh local pin drops it too.
+const E2EE_KEY_TTL_MS = 5 * 60 * 1000;
+export const e2eePublicKeysByTopic = new Map(); // topicId → { key, at, created }
+
+export function setCachedE2eeKey(topicId, key, created) {
+  e2eePublicKeysByTopic.set(topicId, { key, at: Date.now(), created: created || null });
+}
+
+// The entry, or null when absent or expired — an expired entry is
+// dropped so the next send re-looks-up the current pin.
+export function cachedE2eeKey(topicId) {
+  const entry = e2eePublicKeysByTopic.get(topicId);
+  if (!entry) return null;
+  if (Date.now() - entry.at >= E2EE_KEY_TTL_MS) {
+    e2eePublicKeysByTopic.delete(topicId);
+    return null;
+  }
+  return entry;
+}
+
+function e2eeKeyStamp(value) {
+  const t = Date.parse(value);
+  return Number.isNaN(t) ? -1 : t;
+}
 
 // Newest-first scan for the admin's {publicKey} message. Returns
-// { key, result }: key is null until the admin pins one; result is the
-// fetched topic data, for callers that also want to refresh with it.
-async function lookupE2eePublicKey(topicId) {
+// { key, result, keyCreated }: key is null until the admin pins one;
+// result is the fetched topic data, for callers that also want to
+// refresh with it; keyCreated stamps the pin message so a newer pin
+// arriving later is recognisable.
+export async function lookupE2eePublicKey(topicId) {
   const topicInfo = await getTopicInfo(topicId);
   const topicAdmin = (topicInfo.memo || "").split(',').map(part => part.trim()).filter(part => part.startsWith('0.0.'));
   const result = await getTopicData(topicId);
@@ -259,7 +290,7 @@ async function lookupE2eePublicKey(topicId) {
     const message = messages[i];
     const parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
     if (parsedMessage.publicKey && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-      return { key: parsePublicKey(parsedMessage.publicKey), result };
+      return { key: parsePublicKey(parsedMessage.publicKey), result, keyCreated: (message && message.created) || parsedMessage.created || null };
     }
   }
   return { key: null, result };
@@ -278,11 +309,14 @@ async function saveE2eeChatEdit() {
   }
   const target = e2eeChatEditTarget;
   // Same key discovery as a normal E2EE send: the admin-pinned public key,
-  // cached per topic for the session (e2eePublicKeysByTopic above).
-  let PublicKey = e2eePublicKeysByTopic.get(target.topicId);
+  // cached per topic with a short lifetime (e2eePublicKeysByTopic above).
+  const cached = cachedE2eeKey(target.topicId);
+  let PublicKey = cached ? cached.key : null;
   if (!PublicKey) {
     try {
-      PublicKey = (await lookupE2eePublicKey(target.topicId)).key;
+      const lookedUp = await lookupE2eePublicKey(target.topicId);
+      PublicKey = lookedUp.key;
+      if (PublicKey) setCachedE2eeKey(target.topicId, PublicKey, lookedUp.keyCreated);
     } catch (error) {
       console.error('e2ee edit key lookup failed', error);
       toast.error('No public key found for this topic.');
@@ -292,7 +326,6 @@ async function saveE2eeChatEdit() {
       toast.error('No public key found for this topic. The admin must pin one first.');
       return;
     }
-    e2eePublicKeysByTopic.set(target.topicId, PublicKey);
   }
   const text = document.getElementById('e2ee-chat-edit-text');
   e2eeChatEditBusy = true;
@@ -307,12 +340,13 @@ async function saveE2eeChatEdit() {
       // A bad cached key would fail every encrypt — drop it and look the
       // pin up once more.
       e2eePublicKeysByTopic.delete(target.topicId);
-      PublicKey = (await lookupE2eePublicKey(target.topicId)).key;
+      const lookedUp = await lookupE2eePublicKey(target.topicId);
+      PublicKey = lookedUp.key;
       if (!PublicKey) {
         toast.error('No public key found for this topic. The admin must pin one first.');
         return;
       }
-      e2eePublicKeysByTopic.set(target.topicId, PublicKey);
+      setCachedE2eeKey(target.topicId, PublicKey, lookedUp.keyCreated);
       encryptedMessage = await encryptMessage(payload, PublicKey);
     }
     const data = {
@@ -401,16 +435,32 @@ let previousPayerEncryptedChat = null;
 let currentGroupContainerEncrypted = null;
 let currentMessagesGroupDivEncrypted = null;
 
-async function appendEncryptedChatMessage(
+export async function appendEncryptedChatMessage(
   message,
   messagesContainer,
   topicAdmin,
   loadedNFTsForTopicChat,
-  PrivateKey
+  PrivateKey,
+  topicId
 ) {
   try {
     let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
     const payer = parsedMessage.payer || 'Unknown';
+
+    // An admin pin is a directive, not a bubble — and a rotation signal:
+    // a pin newer than the one behind the cached key makes that key
+    // stale, and encrypting to a stale key never fails, so drop it here.
+    if (topicId && parsedMessage.publicKey) {
+      const pinPayer = (message && message.payer) || parsedMessage.payer;
+      if (topicAdmin.length === 0 || topicAdmin.includes(pinPayer)) {
+        const entry = e2eePublicKeysByTopic.get(topicId);
+        const created = (message && message.created) || parsedMessage.created || null;
+        if (entry && (!entry.created || e2eeKeyStamp(created) > e2eeKeyStamp(entry.created))) {
+          e2eePublicKeysByTopic.delete(topicId);
+        }
+      }
+      return;
+    }
 
     // An edit is a directive, not a bubble: remember it (and rewrite the
     // open bubble) but never render a second bubble for it.
@@ -770,7 +820,8 @@ async function loadMessagesFromEncryptedChat() {
             messagesContainer,
             topicAdmin,
             window.currentLoadedNFTsEncrypted || [],
-            window.currentEncryptedPrivateKey
+            window.currentEncryptedPrivateKey,
+            topicId
           );
         }
       });
@@ -847,7 +898,8 @@ async function loadMessagesFromEncryptedChat() {
         messagesContainer,
         topicAdmin,
         loadedNFTsForTopicChat,
-        PrivateKey
+        PrivateKey,
+        topicId
       );
     }
 
@@ -863,7 +915,8 @@ async function loadMessagesFromEncryptedChat() {
           messagesContainer,
           topicAdmin,
           window.currentLoadedNFTsEncrypted || [],
-          PrivateKey
+          PrivateKey,
+          topicId
         );
       const handleStream = (evt) => {
         const m = evt.message;
@@ -979,9 +1032,11 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
     let topicId = resolved.topicId;
 
     const messagesContainer = document.getElementById("messages-from-encrypted-chat");
-    // Admin-pinned public key, cached per topic for the session (shared
-    // with the edit path) — only a cache miss fetches and scans.
-    let PublicKey = e2eePublicKeysByTopic.get(topicId);
+    // Admin-pinned public key, cached per topic with a short lifetime
+    // (shared with the edit path) — only a miss or an expired entry
+    // fetches and scans.
+    const cached = cachedE2eeKey(topicId);
+    let PublicKey = cached ? cached.key : null;
     if (!PublicKey) {
       try {
         const lookedUp = await lookupE2eePublicKey(topicId);
@@ -991,13 +1046,13 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
         // keeps the mirror: it scans full history for the admin's key
         // message.)
         allLoadedMessagesEncryptedChat = [lookedUp.result];
+        if (PublicKey) setCachedE2eeKey(topicId, PublicKey, lookedUp.keyCreated);
       } catch (error) {
         createEmptyStateMessage(messagesContainer, 'No public key found');
         adjustTextareaHeight(messagesContainer);
         console.error("Error getting public key:", error);
         return;
       }
-      if (PublicKey) e2eePublicKeysByTopic.set(topicId, PublicKey);
       adjustTextareaHeight(messagesContainer);
     }
 
@@ -1024,12 +1079,13 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
       // A bad cached key would fail every encrypt — drop it and look the
       // pin up once more.
       e2eePublicKeysByTopic.delete(topicId);
-      PublicKey = (await lookupE2eePublicKey(topicId)).key;
+      const lookedUp = await lookupE2eePublicKey(topicId);
+      PublicKey = lookedUp.key;
       if (!PublicKey) {
         toast.error("No public key found for this topic. The admin must pin one first.");
         return;
       }
-      e2eePublicKeysByTopic.set(topicId, PublicKey);
+      setCachedE2eeKey(topicId, PublicKey, lookedUp.keyCreated);
       encryptedMessage = await encryptMessage(payload, PublicKey);
     }
 

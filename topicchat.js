@@ -187,7 +187,9 @@ function openTopicChatEdit(payer, created) {
     payer,
     created: createdIso,
     topicId,
-    image: imgEl ? (imgEl.getAttribute('src') || '') : '',
+    // fullSrc is the original URL; the displayed src is a session blob
+    // once the lazy downscale has painted (a blob on-chain is dead).
+    image: imgEl ? (imgEl.dataset.fullSrc || imgEl.getAttribute('src') || '') : '',
   };
   const text = document.getElementById('topic-chat-edit-text');
   if (text) text.value = currentText;
