@@ -89,24 +89,34 @@ export function withE2eeWebNotice(then) {
   dismiss?.addEventListener("click", finish);
 }
 
+function syncE2eeClear(field, clearBtn) {
+  const hasText = field.value.length > 0;
+  if (clearBtn) clearBtn.hidden = !hasText;
+  const wrap = field.closest(".secret-entry-field");
+  if (wrap) wrap.classList.toggle("has-text", hasText);
+}
+
 function wireE2eeUnlockField() {
   const field = document.getElementById("encrypted-chat-private-key");
   const clearBtn = document.getElementById("encrypted-chat-private-key-clear");
   const revealBtn = document.getElementById("encrypted-chat-private-key-reveal");
   if (!field) return;
+  syncE2eeClear(field, clearBtn);
+  if (!field.dataset.clearWired) {
+    field.dataset.clearWired = "1";
+    field.addEventListener("input", () => syncE2eeClear(field, clearBtn));
+  }
   if (clearBtn && !clearBtn.dataset.wired) {
     clearBtn.dataset.wired = "1";
     clearBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       field.value = "";
-      field.style.height = "";
+      syncE2eeClear(field, clearBtn);
       field.focus();
     });
   }
   if (revealBtn && !revealBtn.dataset.wired) {
     revealBtn.dataset.wired = "1";
-    const eyeOn = revealBtn.querySelector(".secret-eye-on");
-    const eyeOff = revealBtn.querySelector(".secret-eye-off");
     revealBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       const show = !field.classList.contains("is-revealed");
@@ -114,8 +124,6 @@ function wireE2eeUnlockField() {
       revealBtn.setAttribute("aria-pressed", show ? "true" : "false");
       revealBtn.setAttribute("aria-label", show ? "Hide password" : "Show password");
       revealBtn.title = show ? "Hide" : "Show";
-      if (eyeOn) eyeOn.hidden = show;
-      if (eyeOff) eyeOff.hidden = !show;
     });
   }
 }

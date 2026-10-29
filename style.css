@@ -409,51 +409,133 @@ html, body {
     -webkit-text-security: none;
     text-security: none;
   }
+  /* 44px is the tap-target floor. 5.5dvh equals that floor on an 800px-tall phone. */
+  #encrypted-chat-container {
+    --e2ee-head-h: max(44px, 5.5dvh);
+    --e2ee-head-gap: clamp(0.6dvh, 1.2dvw, 1.2dvh);
+    --e2ee-head-radius: 1dvh;
+  }
   .secret-entry-row {
     display: flex;
-    align-items: flex-start;
-    gap: 0.6vh;
+    align-items: stretch;
     width: 100%;
     box-sizing: border-box;
+    margin: 0 0 0.5dvh;
   }
-  .secret-entry-row .secret-entry {
+  .secret-entry-field {
+    position: relative;
     flex: 1 1 auto;
+    width: 100%;
     min-width: 0;
+    height: var(--e2ee-head-h);
   }
-  .secret-entry-btn {
+  #encrypted-chat-container .secret-entry-field > #encrypted-chat-private-key {
+    display: block;
+    width: 100%;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 var(--e2ee-head-h) 0 1.2dvh !important;
+    border-radius: var(--e2ee-head-radius) !important;
+    line-height: normal;
+    overflow: hidden;
+  }
+  #encrypted-chat-container .secret-entry-field.has-text > #encrypted-chat-private-key {
+    padding-right: calc(var(--e2ee-head-h) * 2) !important;
+  }
+  .secret-entry-field .secret-entry-btn {
     appearance: none;
-    flex: 0 0 auto;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
-    width: 4.2vh;
-    height: 4.2vh;
+    width: var(--e2ee-head-h);
+    min-width: 44px;
+    height: auto;
     margin: 0;
     padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    border-radius: 1.2vh;
-    background: rgba(255, 255, 255, 0.06);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
     color: #fff;
-    font-size: 2.2vh;
+    font-size: 2.2dvh;
     line-height: 1;
     cursor: pointer;
     touch-action: manipulation;
   }
-  .secret-entry-btn svg {
-    width: 2vh;
-    height: 2vh;
+  .secret-entry-field #encrypted-chat-private-key-reveal {
+    right: 0;
+  }
+  .secret-entry-field #encrypted-chat-private-key-clear {
+    right: var(--e2ee-head-h);
+  }
+  .secret-entry-field .secret-entry-clear[hidden] {
+    display: none !important;
+  }
+  .secret-entry-field .secret-entry-btn svg {
+    width: 2.4dvh;
+    height: 2.4dvh;
+    display: none;
+    pointer-events: none;
+  }
+  .secret-entry-field .secret-entry-btn:not([aria-pressed="true"]) .secret-eye-on,
+  .secret-entry-field .secret-entry-btn[aria-pressed="true"] .secret-eye-off {
     display: block;
   }
-  .secret-entry-btn:is(:hover, :active, .is-hold) {
+  .secret-entry-field .secret-entry-btn:is(:hover, :active, .is-hold),
+  .secret-entry-field .secret-entry-btn[aria-pressed="true"] {
     color: #22D3EE;
-    border-color: rgba(34, 211, 238, 0.45);
-  }
-  .secret-entry-btn[aria-pressed="true"] {
-    color: #22D3EE;
+    background: transparent;
   }
   .secret-entry-clear::before {
-    content: "×";
+    content: "✕";
+  }
+  .e2ee-load-row {
+    display: flex;
+    align-items: center;
+    gap: var(--e2ee-head-gap);
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 0.5dvh;
+  }
+  #encrypted-chat-container .e2ee-load-row > #encrypted-chat-topic-id {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto !important;
+    height: var(--e2ee-head-h) !important;
+    min-height: var(--e2ee-head-h) !important;
+    max-height: var(--e2ee-head-h) !important;
+    margin: 0 !important;
+    padding: 0 1.2dvh !important;
+    border-radius: var(--e2ee-head-radius) !important;
+    line-height: normal;
+  }
+  #encrypted-chat-container .e2ee-load-row > #load-msgs-from-encrypted-chat {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto !important;
+    height: var(--e2ee-head-h) !important;
+    min-height: var(--e2ee-head-h) !important;
+    max-height: var(--e2ee-head-h) !important;
+    margin: 0 !important;
+    padding: 0 1.6dvh !important;
+    border-radius: var(--e2ee-head-radius) !important;
+    line-height: 1;
+  }
+  #encrypted-chat-container .chat-topic-chat-container > #show-options-from-encrypted-chat,
+  #encrypted-chat-container .chat-topic-chat-container > #show-options-from-encrypted-chat-btn {
+    align-self: flex-start;
+    width: 20vw;
+    height: var(--e2ee-head-h) !important;
+    min-height: 44px;
+    margin: 0 0 0.5dvh;
   }
 
   #messages-from-topic-chat,
@@ -10181,17 +10263,29 @@ html.feed-app appkit-modal {
 }
 #feed-chat .is-feed-shell #encrypted-chat-private-key {
   width: 100% !important;
-  min-height: calc(var(--fu) * 4.2) !important;
-  max-height: calc(var(--fu) * 10) !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  border-radius: calc(var(--fu) * 2) !important;
 }
-#feed-chat .is-feed-shell .secret-entry-btn {
-  width: calc(var(--fu) * 4.2);
-  height: calc(var(--fu) * 4.2);
-  border-radius: calc(var(--fu) * 1.2);
+#feed-chat .is-feed-shell .e2ee-load-row > #encrypted-chat-topic-id {
+  border-radius: calc(var(--fu) * 2) !important;
 }
-#feed-chat .is-feed-shell .secret-entry-btn svg {
-  width: calc(var(--fu) * 2);
-  height: calc(var(--fu) * 2);
+#feed-chat .is-feed-shell .secret-entry-field {
+  height: var(--e2ee-head-h);
+}
+#feed-chat .is-feed-shell .secret-entry-field .secret-entry-btn {
+  width: var(--e2ee-head-h);
+  min-width: 44px;
+  height: 100%;
+  min-height: 44px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+#feed-chat .is-feed-shell .secret-entry-field .secret-entry-btn svg {
+  width: 2.4dvh;
+  height: 2.4dvh;
 }
 #feed-chat .is-feed-shell .feed-chat-room {
   margin-top: 0;
@@ -10217,10 +10311,10 @@ html.feed-app appkit-modal {
 #feed-chat .is-feed-shell .feed-chat-room .toolbar-column {
   flex: 1 1 auto;
   width: auto !important;
-  height: calc(var(--fu) * 3.6) !important;
-  min-height: calc(var(--fu) * 3.6) !important;
-  max-height: calc(var(--fu) * 3.6) !important;
-  overflow: auto;
+  height: var(--e2ee-head-h) !important;
+  min-height: var(--e2ee-head-h) !important;
+  max-height: var(--e2ee-head-h) !important;
+  overflow: hidden;
 }
 #feed-chat .is-feed-shell .loaded-topics-search {
   flex: 1 1 auto;
@@ -10277,6 +10371,13 @@ html.feed-app appkit-modal {
   background: #22D3EE !important;
   border-color: #22D3EE !important;
   color: #083344 !important;
+}
+#feed-chat .is-feed-shell .e2ee-load-row > #load-msgs-from-encrypted-chat {
+  height: var(--e2ee-head-h) !important;
+  min-height: var(--e2ee-head-h) !important;
+  max-height: var(--e2ee-head-h) !important;
+  padding: 0 1.6dvh !important;
+  border-radius: calc(var(--fu) * 2) !important;
 }
 #feed-chat .is-feed-shell #messages-from-topic-chat,
 #feed-chat .is-feed-shell #messages-from-encrypted-chat {

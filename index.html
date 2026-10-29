@@ -1527,32 +1527,22 @@
         <div class="options-column-title">🔒 E2EE CHAT</div>
 
         <div id="encrypted-chat-private-key-container" class="secret-entry-row">
-          <textarea class="toolbar-column secret-entry" id="encrypted-chat-private-key" placeholder="Unlock with password" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
-          <button type="button" id="encrypted-chat-private-key-reveal" class="secret-entry-btn" aria-label="Show password" aria-pressed="false" title="Show">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="secret-eye-on" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="secret-eye-off" aria-hidden="true" hidden><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-4.86"/><path d="m2 2 20 20"/></svg>
-          </button>
-          <button type="button" id="encrypted-chat-private-key-clear" class="secret-entry-btn secret-entry-clear" aria-label="Clear" title="Clear"></button>
+          <div class="secret-entry-field">
+            <input type="text" class="toolbar-column secret-entry" id="encrypted-chat-private-key" placeholder="Unlock with password" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" onclick="event.stopPropagation();">
+            <button type="button" id="encrypted-chat-private-key-clear" class="secret-entry-btn secret-entry-clear" aria-label="Clear" title="Clear" hidden></button>
+            <button type="button" id="encrypted-chat-private-key-reveal" class="secret-entry-btn" aria-label="Show password" aria-pressed="false" title="Show">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="secret-eye-on" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="secret-eye-off" aria-hidden="true"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-4.86"/><path d="m2 2 20 20"/></svg>
+            </button>
+          </div>
         </div>
 
-          <div style="display: flex; align-items: center;">
-      
-            <textarea class="toolbar-column" type="text" id="encrypted-chat-topic-id" placeholder="Domain / Topic ID / Payer ID"
-            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
-      
-            <div style="display: flex; align-items: center;">
-              <button id="load-msgs-from-encrypted-chat" class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Load
-              </button>
-              <button id="show-options-from-encrypted-chat" class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Options ✅
-              </button>
-              <button id="show-options-from-encrypted-chat-btn" display: none; class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Options ⛔
-              </button>
-           </div> 
-
+          <div class="e2ee-load-row">
+            <input type="text" class="toolbar-column" id="encrypted-chat-topic-id" placeholder="Domain / Topic ID / Payer ID" spellcheck="false" autocomplete="off" autocapitalize="off" onclick="event.stopPropagation();">
+            <button id="load-msgs-from-encrypted-chat" class="toolbar-column-btns">Load</button>
           </div>
+          <button id="show-options-from-encrypted-chat" class="toolbar-column-btns">Options ✅</button>
+          <button id="show-options-from-encrypted-chat-btn" class="toolbar-column-btns" style="display: none;">Options ⛔</button>
       
           <div id="options-from-encrypted-chat" style="display: none;">
       
