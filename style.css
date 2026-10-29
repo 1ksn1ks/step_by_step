@@ -11297,6 +11297,18 @@ html.drawer-page .info-overlay {
     animation: none !important;
   }
 }
+/* Map drawer hosts the same chat page on the body. The feed column is hidden. */
+#feed-chat.is-map-chat {
+  position: fixed;
+  z-index: 8700;
+  height: 100dvh;
+  --feed-col-width: 100dvw;
+}
+@media (orientation: landscape) {
+  #feed-chat.is-map-chat {
+    --feed-col-width: clamp(40dvw, 46dvw, 46dvw);
+  }
+}
 #feed-chat {
   --feed-zoom: 1;
   --feed-unit: calc(min(100dvw, var(--feed-col-width)) * 0.024);

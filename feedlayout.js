@@ -5095,6 +5095,49 @@ function parkFeedChat(kind) {
   });
 }
 
+// The chat page lives in the feed column. On the map the column is
+// hidden, so the same page is fixed on the body and slides over the drawer.
+function placeFeedChatForMap(on) {
+  if (!on) {
+    feedChat.classList.remove('is-map-chat');
+    if (feedChat.parentNode !== root) root.appendChild(feedChat);
+    return;
+  }
+  if (feedChat.parentNode !== document.body) document.body.appendChild(feedChat);
+  feedChat.classList.add('is-map-chat');
+}
+
+// dvh does not shrink for the keyboard. Pin the open page to the visible
+// viewport so the composer stays above it, on the map and in the feed.
+function fitFeedChatFrame() {
+  if (feedChat.hidden) {
+    feedChat.style.removeProperty('top');
+    feedChat.style.removeProperty('height');
+    feedChat.style.removeProperty('bottom');
+    return;
+  }
+  const view = window.visualViewport;
+  const layoutH = window.innerHeight;
+  const viewH = view ? view.height : layoutH;
+  const offsetTop = view ? view.offsetTop : 0;
+  const keyboard = layoutH - viewH > 80 || offsetTop > 40;
+  if (!keyboard) {
+    feedChat.style.removeProperty('top');
+    feedChat.style.removeProperty('height');
+    feedChat.style.removeProperty('bottom');
+    return;
+  }
+  feedChat.style.top = `${offsetTop}px`;
+  feedChat.style.bottom = 'auto';
+  feedChat.style.height = `${Math.max(80, viewH)}px`;
+}
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', fitFeedChatFrame);
+  window.visualViewport.addEventListener('scroll', fitFeedChatFrame);
+}
+window.addEventListener('resize', fitFeedChatFrame);
+
 function paintFeedChat(kind) {
   const spec = FEED_CHATS[kind];
   feedChatLeaveGen += 1;
@@ -5114,6 +5157,7 @@ function paintFeedChat(kind) {
   feedChatLive = true;
   feedChatTitle.textContent = spec.title;
   feedChat.setAttribute('aria-label', spec.title);
+  placeFeedChatForMap(!feedCovers());
   if (!beginFeedCover(feedChat)) {
     delete feedChat.dataset.navLeaving;
     feedChat.classList.remove('nav-off', 'nav-prep', 'nav-cover');
@@ -5121,6 +5165,7 @@ function paintFeedChat(kind) {
   }
   dressFeedChatIcons(true);
   parkFeedChat(kind);
+  fitFeedChatFrame();
   feedChatBack.focus({ preventScroll: true, focusVisible: false });
 }
 
@@ -5139,13 +5184,14 @@ function hideFeedChatPanel() {
   const leaveGen = ++feedChatLeaveGen;
   const covered = feedChat.classList.contains('nav-cover');
   concealCover(feedChat);
-  if (!covered) restoreFeedChat();
-  else {
-    afterNav(feedChat, () => {
-      if (leaveGen !== feedChatLeaveGen) return;
-      restoreFeedChat();
-    });
-  }
+  const releaseChat = () => {
+    if (leaveGen !== feedChatLeaveGen) return;
+    restoreFeedChat();
+    placeFeedChatForMap(false);
+    fitFeedChatFrame();
+  };
+  if (!covered) releaseChat();
+  else afterNav(feedChat, releaseChat);
   dressFeedChatIcons(false);
   feedChatKind = '';
 }
@@ -5161,14 +5207,18 @@ function closeFeedChat() {
 }
 
 function openFeedChat(kind, source) {
-  if (!feedOn() || root.classList.contains('is-peek')) return;
+  if (root.classList.contains('is-peek')) return;
   if (!FEED_CHATS[kind]) return;
+  // The map drawer opens this same page. The feed column stays hidden.
+  const onMap = !feedCovers();
+  if (!onMap && !feedOn()) return;
   const item = kind === 'e2ee' ? 'E2EE chat' : kind === 'topic' ? 'Topic chat' : '';
   if (source === 'drawer' && item && coverFromDrawer(item)) {
     paintFeedChat(kind);
     if (window.layerOpened) window.layerOpened('feedchat', drawerState({ kind }));
     return;
   }
+  if (onMap) return;
   openOverFeed(() => {
     paintFeedChat(kind);
     if (window.layerOpened) window.layerOpened('feedchat', { kind });
@@ -5526,23 +5576,7 @@ function openMapOptions() {
   if (button) button.click();
 }
 
-function openMapTopic() {
-  const fromDrawer = !!(window.layerIsTop && window.layerIsTop('feedmenu'));
-  if (fromDrawer && navBusy()) return;
-  if (fromDrawer) coverFromDrawer('Topic chat');
-  const button = document.getElementById('topic-chat-btn');
-  if (button) button.click();
-}
 
-function openMapE2ee() {
-  const fromDrawer = !!(window.layerIsTop && window.layerIsTop('feedmenu'));
-  if (fromDrawer && navBusy()) return;
-  if (fromDrawer) coverFromDrawer('E2EE chat');
-  const button = document.getElementById('toggle-encrypted-chat-btn');
-  if (!button) return;
-  if (fromDrawer) button.dataset.fromDrawer = '1';
-  button.click();
-}
 
 function goToFeed() {
   dropDrawerHistory();
@@ -5574,8 +5608,8 @@ const DRAWER_ORDER = [
     run: { feed: backToMap, map: goToFeed },
   },
   { label: 'My profile', icon: USER_ICON, run: openOwnProfile, wallet: 'on' },
-  { label: 'Topic chat', icon: CHAT_ICON, run: { feed: openTopicChat, map: openMapTopic } },
-  { label: 'E2EE chat', icon: LOCK_ICON, run: { feed: openE2ee, map: openMapE2ee } },
+  { label: 'Topic chat', icon: CHAT_ICON, run: openTopicChat },
+  { label: 'E2EE chat', icon: LOCK_ICON, run: openE2ee },
   { label: 'Settings', icon: SETTINGS_ICON, run: { feed: openFeedSettings, map: () => openDrawerPanel('rotation-controls') } },
   { label: 'Visibility', icon: EYE_ICON, mode: 'map', run: () => openDrawerPanel('visibility-controls') },
   { label: 'Toolbar', icon: TOOLS_ICON, mode: 'map', run: () => openDrawerPanel('toolbar') },
@@ -6200,8 +6234,8 @@ function makeDrawerShell() {
   return { id: '', el, body, title, back };
 }
 
-// Map pages opened from the drawer (profile, topic chat, E2EE) are the
-// same push as a drawer sub-page. Their own code only flips display.
+// Map profile and Load, opened from the drawer, use the same push as a
+// drawer sub-page. Topic chat and E2EE use the shared #feed-chat page.
 function coverEligible(el) {
   if (!el || menu.dataset.cover !== '1') return false;
   if (el.classList.contains('in-drawer') || el.classList.contains('is-feed-shell')) return false;
