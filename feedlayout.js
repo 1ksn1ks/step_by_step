@@ -5932,6 +5932,40 @@ function showShellPanel(shell) {
   showForDrawer(panel);
 }
 
+// Back reveals the parent shell. CloseALL has hidden that panel, and the
+// child column may still be shown on the map. Put the parent back in this
+// shell and hide the child without letting the display watcher push or pop.
+function restoreRevealedPanel(reveal, leaving) {
+  const id = drawerStack[drawerStack.length - 1];
+  if (!reveal || !id) return;
+  drawerRenderLock = true;
+  const prevBody = drawerPageBody;
+  try {
+    drawerPageBody = reveal.body;
+    const panel = document.getElementById(id);
+    if (panel) {
+      showForDrawer(panel);
+      if (!reveal.body.contains(panel)) hostDrawer(panel);
+    }
+    const childId = leaving && leaving.id;
+    if (childId && childId !== id) {
+      const child = document.getElementById(childId);
+      if (child) unhostDrawer(child, true);
+      for (const extraId of DRAWER_EXTRAS[childId] || []) {
+        const extra = document.getElementById(extraId);
+        if (!extra || extra === child) continue;
+        if (drawerHosted.has(extra) || extra.classList.contains('in-drawer') || panelShown(extra)) {
+          unhostDrawer(extra, true);
+        }
+      }
+    }
+    paintGroupDividers(reveal.body);
+  } finally {
+    drawerPageBody = prevBody;
+    queueMicrotask(() => { drawerRenderLock = false; });
+  }
+}
+
 // Back returns focus to the row that opened the page we left.
 function focusDrawerOpener(leftId) {
   const parent = drawerShells[drawerShells.length - 1];
@@ -6038,7 +6072,7 @@ function mountDrawerBack() {
   else if (reveal) {
     reveal.el.classList.remove('is-under', 'is-leave');
     reveal.el.classList.add('is-front');
-    showShellPanel(reveal);
+    restoreRevealedPanel(reveal, leaving);
   }
   void leaving.el.offsetWidth;
   releaseMotion(leaving.el);
@@ -6091,6 +6125,7 @@ function drawerBack() {
 function drawerPageClose(level) {
   if (drawerStack.length < level) return;
   drawerStack.length = level - 1;
+  // Same parent restore as the header back. mountDrawerBack shows it.
   mountDrawerBack();
   finishDrawerBack();
 }
@@ -6260,7 +6295,10 @@ function watchDrawerPanel(id, el) {
       return;
     }
     if (id !== top || panelShown(el)) return;
-    const childOpen = kids.some((kid) => panelShown(document.getElementById(kid)));
+    // CloseALL hides this parent while its child page is opening. Keep the
+    // hosted page; Back shows the panel again.
+    const owned = DRAWER_CHILDREN[id] || [];
+    const childOpen = owned.some((kid) => drawerStack.includes(kid) || panelShown(document.getElementById(kid)));
     if (!childOpen) drawerBack();
   }).observe(el, { attributes: true, attributeFilter: ['style'] });
 }
