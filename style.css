@@ -4024,12 +4024,12 @@ html, body {
     appearance: none;
     box-sizing: border-box;
     width: 100%;
-    min-height: 5.2dvh;
+    min-height: max(44px, 5.5dvh);
     margin: 0;
     padding: 1dvh min(3.4dvw, 2.2dvh);
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: min(3dvw, 1.6dvh);
     border: 0;
     background: transparent;
@@ -4056,12 +4056,24 @@ html, body {
     flex: 1 1 auto;
     min-width: 0;
   }
+  .post-menu-donate {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.2dvh;
+  }
   .post-menu-donate .donate-amount {
-    flex: 0 1 auto;
+    display: block;
+    max-width: 100%;
     min-width: 0;
-    color: rgba(255, 255, 255, 0.78);
-    font-variant-numeric: tabular-nums;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 1.35dvh;
+    font-weight: 500;
+    line-height: 1.2;
+    color: rgba(255, 255, 255, 0.55);
+    font-variant-numeric: tabular-nums;
   }
   .post-menu-donate .donate-amount[hidden] {
     display: none;
@@ -5189,48 +5201,187 @@ html, body {
     inset: 0;
     z-index: 9800;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.45);
-    padding: 4dvh 4dvw;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(1.6dvh);
+    -webkit-backdrop-filter: blur(1.6dvh);
+    padding: 0;
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   }
 
   #donate-sheet[hidden] {
     display: none;
   }
 
+  .donate-card,
+  .donate-card button,
+  .donate-card input,
+  .donate-card a {
+    font-family: inherit;
+  }
+
   .donate-card {
-    width: min(86dvw, 46dvh);
+    width: 100%;
+    max-height: 92dvh;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: 1.4dvh;
-    padding: 2.4dvh 4dvw;
-    border-radius: 2.2dvh;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    background: rgba(15, 15, 20, 0.92);
-    box-shadow: inset 0 0.4dvh 0 rgba(255, 255, 255, 0.08), 0 1.2dvh 3dvh rgba(0, 0, 0, 0.45);
+    gap: 1.6dvh;
+    margin: 0;
+    overflow: auto;
+    padding: 1.6dvh 4dvw calc(2.2dvh + env(safe-area-inset-bottom, 0px));
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 2.4dvh 2.4dvh 0 0;
+    background: rgb(15, 15, 20);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 -1.2dvh 3dvh rgba(0, 0, 0, 0.45);
     color: #fff;
+    animation: donate-sheet-up 0.28s ease;
+  }
+
+  @keyframes donate-sheet-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  @keyframes donate-pop {
+    from { transform: translateY(1.2dvh); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+
+  @media (min-width: 100dvh) {
+    #donate-sheet {
+      align-items: center;
+      padding: 4dvh 4dvw;
+    }
+
+    .donate-card {
+      width: min(86dvw, 52dvh);
+      border-radius: 2.2dvh;
+      animation-name: donate-pop;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .donate-card {
+      animation: none;
+    }
+  }
+
+  .donate-head {
+    display: flex;
+    align-items: center;
+    gap: 1.4dvh;
+    min-width: 0;
+  }
+
+  .donate-avatar {
+    width: max(44px, 5.5dvh);
+    height: max(44px, 5.5dvh);
+    flex: 0 0 auto;
+    border-radius: 50%;
+    object-fit: cover;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+  }
+
+  .donate-who {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .donate-title {
     margin: 0;
-    font-size: 2.2dvh;
+    font-size: 2.1dvh;
     font-weight: 700;
     line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .donate-label {
+  .donate-account {
+    margin: 0.25dvh 0 0;
+    font-size: 1.4dvh;
+    line-height: 1.2;
+    color: rgba(255, 255, 255, 0.55);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .donate-account[hidden] {
+    display: none;
+  }
+
+  .donate-x {
+    appearance: none;
+    flex: 0 0 auto;
+    width: max(44px, 5.5dvh);
+    height: max(44px, 5.5dvh);
+    margin: 0;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 2.8dvh;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .donate-x:hover,
+  .donate-x:focus-visible {
+    background: rgba(255, 255, 255, 0.1);
+    outline: none;
+  }
+
+  .donate-form {
     display: flex;
     flex-direction: column;
-    gap: 0.6dvh;
-    font-size: 1.5dvh;
-    color: rgba(255, 255, 255, 0.72);
+    gap: 1.2dvh;
+    min-width: 0;
+  }
+
+  .donate-form[hidden],
+  .donate-done[hidden] {
+    display: none;
+  }
+
+  .donate-chips {
+    display: flex;
+    gap: 1dvh;
+  }
+
+  .donate-chip {
+    appearance: none;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: max(44px, 5.5dvh);
+    margin: 0;
+    padding: 0 0.6dvh;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    font-size: 1.7dvh;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .donate-chip[aria-pressed="true"] {
+    background: #22D3EE;
+    border-color: #22D3EE;
+    color: #083344;
   }
 
   .donate-input {
     width: 100%;
     box-sizing: border-box;
+    min-height: max(44px, 5.5dvh);
     border-radius: 1.4dvh;
     border: 1px solid rgba(255, 255, 255, 0.22);
     background: rgba(255, 255, 255, 0.08);
@@ -5238,9 +5389,46 @@ html, body {
     font: inherit;
     font-size: 2dvh;
     padding: 1.2dvh 2.4dvw;
+    appearance: none;
   }
 
-  .donate-bytes,
+  .donate-input::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .donate-input:focus {
+    outline: 2px solid #22D3EE;
+    outline-offset: 0;
+    border-color: #22D3EE;
+  }
+
+  .donate-memo-field {
+    position: relative;
+    display: block;
+    min-width: 0;
+  }
+
+  .donate-memo-field .donate-input {
+    padding-inline-end: 14dvh;
+  }
+
+  .donate-bytes {
+    position: absolute;
+    right: 1.6dvh;
+    top: 50%;
+    transform: translateY(-50%);
+    margin: 0;
+    font-size: 1.25dvh;
+    line-height: 1;
+    color: rgba(255, 255, 255, 0.5);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .donate-bytes.is-over {
+    color: #fda4af;
+  }
+
   .donate-memo {
     margin: 0;
     font-size: 1.4dvh;
@@ -5250,27 +5438,69 @@ html, body {
     word-break: break-word;
   }
 
-  .donate-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 2dvw;
+  .donate-error {
+    margin: 0;
+    min-height: 1.6dvh;
+    font-size: 1.45dvh;
+    line-height: 1.3;
+    color: #fda4af;
   }
 
-  .donate-cancel,
+  .donate-error[hidden] {
+    display: none;
+  }
+
   .donate-send {
+    appearance: none;
+    width: 100%;
+    min-height: max(44px, 6dvh);
+    margin: 0;
+    padding: 1dvh 3dvw;
+    border: 0;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    background: rgba(255, 255, 255, 0.10);
-    color: #fff;
+    background: #22D3EE;
+    color: #083344;
     font: inherit;
-    font-size: 1.7dvh;
-    padding: 1dvh 3.2dvw;
+    font-size: 1.9dvh;
+    font-weight: 700;
     cursor: pointer;
   }
 
-  .donate-send {
-    background: rgba(34, 211, 238, 0.22);
-    border-color: rgba(34, 211, 238, 0.55);
+  .donate-send:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  .donate-send:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+
+  .donate-done {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1dvh;
+    padding: 0.4dvh 0 1dvh;
+  }
+
+  .donate-sent {
+    margin: 0;
+    font-size: 2.2dvh;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  .donate-hash {
+    color: #22D3EE;
+    font-size: 1.7dvh;
+    line-height: 1.3;
+    text-decoration: none;
+  }
+
+  .donate-hash:hover,
+  .donate-hash:focus-visible {
+    text-decoration: underline;
   }
 
   .profile-live-bio {

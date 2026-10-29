@@ -6,11 +6,13 @@ import { BACKEND_URL } from './msgbackend.js';
 import { connectedAccount } from './web3.js';
 import { sendHbarDonation } from './hedera.js';
 import { toast } from './toast.js';
+import { profilePictures, usernames } from './loadalladata.js';
 import {
   bareAccount,
   formatDonationAmount,
   formatHbar,
   hbarToTinybar,
+  mirrorTxPath,
   normalizeConsensusTs,
   utf8ByteLength,
   MEMO_MAX_BYTES,
@@ -30,6 +32,12 @@ let sheetTs = '';
 let sheetAccount = '';
 let sheetBusy = false;
 let sheetSent = false;
+let sheetOpenId = 0;
+let sheetCloseTimer = 0;
+
+const DEFAULT_AVATAR = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+const PRESETS = ['1', '5', '10', '25'];
+const SENT_CLOSE_MS = 2000;
 
 function coinIcon() {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -54,8 +62,11 @@ function paintPill(pill, total) {
   const amount = pill.querySelector('.donate-amount');
   if (amount) amount.textContent = shown;
   if (pill.classList.contains('post-menu-donate')) {
-    if (amount) amount.hidden = shown === '';
-    pill.setAttribute('aria-label', shown ? `Donate HBAR ${shown}` : 'Donate HBAR');
+    if (amount) {
+      amount.textContent = shown ? `${shown} ℏ donated` : '';
+      amount.hidden = shown === '';
+    }
+    pill.setAttribute('aria-label', shown ? `Donate HBAR, ${shown} ℏ donated` : 'Donate HBAR');
     return;
   }
   pill.classList.toggle('has-total', shown !== '');
@@ -195,6 +206,107 @@ function memoLine(text) {
   return line;
 }
 
+function httpPicture(value) {
+  try {
+    const url = new URL(String(value || ''));
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+    return url.href;
+  } catch {
+    return '';
+  }
+}
+
+function recipientAvatar(account) {
+  const raw = profilePictures[account] && profilePictures[account].url;
+  return httpPicture(raw) || DEFAULT_AVATAR;
+}
+
+function recipientLabel(account) {
+  const name = usernames[account] && usernames[account].username;
+  const text = typeof name === 'string' ? name.trim() : '';
+  return text || account;
+}
+
+function sheetPart(selector) {
+  return sheet ? sheet.querySelector(selector) : null;
+}
+
+function showError(text) {
+  const error = sheetPart('.donate-error');
+  if (!error) return;
+  error.textContent = text || '';
+  error.hidden = !text;
+}
+
+function lockFields(locked) {
+  if (!sheet) return;
+  sheet.querySelectorAll('#donate-amount, #donate-memo, .donate-chip').forEach((el) => {
+    el.disabled = locked;
+  });
+}
+
+function paintSend() {
+  if (!sheet || sheetBusy || sheetSent) return;
+  const amount = sheetPart('#donate-amount');
+  const memo = sheetPart('#donate-memo');
+  const send = sheetPart('.donate-send');
+  const bytes = sheetPart('.donate-bytes');
+  const raw = amount ? amount.value.trim() : '';
+  const tiny = hbarToTinybar(raw);
+  const count = utf8ByteLength(memo ? memo.value : '');
+  const over = count > MEMO_MAX_BYTES;
+  if (bytes) {
+    bytes.textContent = `${count}/${MEMO_MAX_BYTES} bytes`;
+    bytes.classList.toggle('is-over', over);
+  }
+  sheet.querySelectorAll('.donate-chip').forEach((chip) => {
+    chip.setAttribute('aria-pressed', raw === chip.dataset.hbar ? 'true' : 'false');
+  });
+  let message = '';
+  if (over) message = 'Memo is too long';
+  else if (raw !== '' && tiny == null) message = `Enter at least ${formatDonationAmount('0.1')} HBAR`;
+  showError(message);
+  const ok = tiny != null && !over;
+  if (send) {
+    send.disabled = !ok;
+    send.textContent = ok ? `Donate ${formatDonationAmount(formatHbar(tiny))} HBAR` : 'Donate';
+  }
+  lockFields(false);
+}
+
+function scheduleClose() {
+  const openId = sheetOpenId;
+  if (sheetCloseTimer) clearTimeout(sheetCloseTimer);
+  sheetCloseTimer = setTimeout(() => {
+    sheetCloseTimer = 0;
+    if (openId !== sheetOpenId || !sheet || sheet.hidden || sheetBusy) return;
+    closeSheet();
+  }, SENT_CLOSE_MS);
+}
+
+function showSent(tiny, txId) {
+  const form = sheetPart('.donate-form');
+  const done = sheetPart('.donate-done');
+  const sent = sheetPart('.donate-sent');
+  const link = sheetPart('.donate-hash');
+  const label = formatDonationAmount(formatHbar(tiny));
+  if (sent) sent.textContent = `Sent ${label} HBAR`;
+  const path = mirrorTxPath(txId);
+  if (link) {
+    if (path) {
+      link.href = `https://hashscan.io/mainnet/transaction/${path}`;
+      link.hidden = false;
+    } else {
+      link.hidden = true;
+      link.removeAttribute('href');
+    }
+  }
+  if (form) form.hidden = true;
+  if (done) done.hidden = false;
+  sheetSent = true;
+  scheduleClose();
+}
+
 function ensureSheet() {
   if (sheet) return sheet;
   const root = document.createElement('div');
@@ -202,54 +314,107 @@ function ensureSheet() {
   root.hidden = true;
   const card = document.createElement('form');
   card.className = 'donate-card';
+  card.noValidate = true;
   card.setAttribute('role', 'dialog');
-  card.setAttribute('aria-label', 'Donate HBAR');
+  card.setAttribute('aria-modal', 'true');
+  card.setAttribute('aria-labelledby', 'donate-title');
+
+  const head = document.createElement('div');
+  head.className = 'donate-head';
+  const avatar = document.createElement('img');
+  avatar.className = 'donate-avatar';
+  avatar.alt = '';
+  avatar.addEventListener('error', () => {
+    if (!avatar.src.endsWith('/0.0.4819119')) avatar.src = DEFAULT_AVATAR;
+  });
+  const who = document.createElement('div');
+  who.className = 'donate-who';
   const title = document.createElement('h2');
+  title.id = 'donate-title';
   title.className = 'donate-title';
-  title.textContent = 'Donate HBAR';
-  const amountLabel = document.createElement('label');
-  amountLabel.className = 'donate-label';
-  amountLabel.textContent = 'Amount';
+  title.textContent = 'Donate';
+  const accountLine = document.createElement('p');
+  accountLine.className = 'donate-account';
+  accountLine.hidden = true;
+  who.append(title, accountLine);
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'donate-x';
+  cancel.setAttribute('aria-label', 'Cancel');
+  cancel.textContent = '×';
+  head.append(avatar, who, cancel);
+
+  const form = document.createElement('div');
+  form.className = 'donate-form';
+  const chips = document.createElement('div');
+  chips.className = 'donate-chips';
+  chips.setAttribute('role', 'group');
+  chips.setAttribute('aria-label', 'HBAR amount');
   const amount = document.createElement('input');
   amount.id = 'donate-amount';
   amount.className = 'donate-input';
   amount.inputMode = 'decimal';
   amount.autocomplete = 'off';
   amount.spellcheck = false;
-  amount.placeholder = formatDonationAmount('0.1');
-  amountLabel.appendChild(amount);
-  const memoLabel = document.createElement('label');
-  memoLabel.className = 'donate-label';
-  memoLabel.textContent = 'Memo';
+  amount.placeholder = 'Custom';
+  amount.setAttribute('aria-label', 'Custom amount');
+  const memoField = document.createElement('div');
+  memoField.className = 'donate-memo-field';
   const memo = document.createElement('input');
   memo.id = 'donate-memo';
   memo.className = 'donate-input';
   memo.autocomplete = 'off';
   memo.spellcheck = false;
-  memo.placeholder = 'Optional';
-  memoLabel.appendChild(memo);
-  const bytes = document.createElement('p');
+  memo.placeholder = 'Memo';
+  memo.setAttribute('aria-label', 'Memo');
+  const bytes = document.createElement('span');
   bytes.className = 'donate-bytes';
-  bytes.textContent = '0/100';
-  const echo = memoLine('');
-  const actions = document.createElement('div');
-  actions.className = 'donate-actions';
-  const cancel = document.createElement('button');
-  cancel.type = 'button';
-  cancel.className = 'donate-cancel';
-  cancel.textContent = 'Cancel';
+  bytes.textContent = `0/${MEMO_MAX_BYTES} bytes`;
+  memoField.append(memo, bytes);
+  const error = document.createElement('p');
+  error.className = 'donate-error';
+  error.setAttribute('role', 'alert');
+  error.hidden = true;
   const send = document.createElement('button');
   send.type = 'submit';
   send.className = 'donate-send';
   send.textContent = 'Donate';
-  actions.append(cancel, send);
-  card.append(title, amountLabel, memoLabel, bytes, echo, actions);
+  send.disabled = true;
+  form.append(chips, amount, memoField, error, send);
+
+  const done = document.createElement('div');
+  done.className = 'donate-done';
+  done.hidden = true;
+  const sent = document.createElement('p');
+  sent.className = 'donate-sent';
+  const link = document.createElement('a');
+  link.className = 'donate-hash';
+  link.target = '_blank';
+  link.rel = 'noopener';
+  link.textContent = 'View on HashScan';
+  done.append(sent, link);
+
+  for (const preset of PRESETS) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'donate-chip';
+    chip.dataset.hbar = preset;
+    chip.textContent = preset;
+    chip.setAttribute('aria-label', `${preset} HBAR`);
+    chip.setAttribute('aria-pressed', 'false');
+    chip.addEventListener('click', () => {
+      if (sheetBusy || sheetSent) return;
+      amount.value = preset;
+      paintSend();
+      amount.focus({ preventScroll: true });
+    });
+    chips.appendChild(chip);
+  }
+
+  card.append(head, form, done);
   root.appendChild(card);
-  memo.addEventListener('input', () => {
-    const text = memo.value;
-    echo.textContent = text;
-    bytes.textContent = `${utf8ByteLength(text)}/${MEMO_MAX_BYTES}`;
-  });
+  amount.addEventListener('input', paintSend);
+  memo.addEventListener('input', paintSend);
   cancel.addEventListener('click', (event) => {
     event.preventDefault();
     closeSheet();
@@ -263,6 +428,14 @@ function ensureSheet() {
     if (event.target === root) closeSheet();
   });
   card.addEventListener('click', (event) => event.stopPropagation());
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !sheet || sheet.hidden) return;
+    if (sheetBusy) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    closeSheet();
+  }, true);
   document.body.appendChild(root);
   sheet = root;
   return root;
@@ -270,6 +443,10 @@ function ensureSheet() {
 
 function closeSheet() {
   if (!sheet || sheetBusy) return;
+  if (sheetCloseTimer) {
+    clearTimeout(sheetCloseTimer);
+    sheetCloseTimer = 0;
+  }
   sheet.hidden = true;
   sheetTopic = '';
   sheetTs = '';
@@ -278,25 +455,40 @@ function closeSheet() {
 }
 
 function showSheet(topicId, ts, account) {
+  if (sheetBusy) return;
   const root = ensureSheet();
+  if (sheetCloseTimer) {
+    clearTimeout(sheetCloseTimer);
+    sheetCloseTimer = 0;
+  }
+  sheetOpenId += 1;
   sheetTopic = topicId;
   sheetTs = ts;
   sheetAccount = account;
+  sheetSent = false;
   const amount = root.querySelector('#donate-amount');
   const memo = root.querySelector('#donate-memo');
-  const echo = root.querySelector('.donate-memo');
-  const bytes = root.querySelector('.donate-bytes');
-  const send = root.querySelector('.donate-send');
+  const form = root.querySelector('.donate-form');
+  const done = root.querySelector('.donate-done');
   const title = root.querySelector('.donate-title');
-  sheetSent = false;
-  if (title) title.textContent = 'Donate HBAR';
+  const accountLine = root.querySelector('.donate-account');
+  const avatar = root.querySelector('.donate-avatar');
+  const name = recipientLabel(account);
   if (amount) amount.value = '';
   if (memo) memo.value = '';
-  if (echo) echo.textContent = '';
-  if (bytes) bytes.textContent = `0/${MEMO_MAX_BYTES}`;
-  if (send) send.textContent = 'Donate';
+  if (form) form.hidden = false;
+  if (done) done.hidden = true;
+  if (title) title.textContent = `Donate to ${name}`;
+  if (accountLine) {
+    const showId = name !== account;
+    accountLine.textContent = showId ? account : '';
+    accountLine.hidden = !showId;
+  }
+  if (avatar) avatar.src = recipientAvatar(account);
+  lockFields(false);
+  paintSend();
   root.hidden = false;
-  if (amount) amount.focus();
+  if (amount) amount.focus({ preventScroll: true });
 }
 
 async function resolveTimestamp(pill) {
@@ -368,26 +560,26 @@ async function submitDonation() {
   const amountInput = sheet.querySelector('#donate-amount');
   const memoInput = sheet.querySelector('#donate-memo');
   const send = sheet.querySelector('.donate-send');
-  const echo = sheet.querySelector('.donate-memo');
-  const title = sheet.querySelector('.donate-title');
   const tiny = hbarToTinybar(amountInput ? amountInput.value : '');
-  if (tiny == null) {
-    toast.info(`Enter at least ${formatDonationAmount('0.1')} HBAR`);
-    return;
-  }
   const memo = memoInput ? memoInput.value : '';
-  if (utf8ByteLength(memo) > MEMO_MAX_BYTES) {
-    toast.info('Memo is too long');
+  if (tiny == null || utf8ByteLength(memo) > MEMO_MAX_BYTES) {
+    paintSend();
     return;
   }
   sheetBusy = true;
-  if (send) send.textContent = 'Sending…';
+  showError('');
+  lockFields(true);
+  if (send) {
+    send.disabled = true;
+    send.textContent = 'Sending…';
+  }
   const topicId = sheetTopic;
   const ts = sheetTs;
   const account = sheetAccount;
+  let failure = '';
   try {
     const txId = await sendHbarDonation({ toAccountId: account, tinybar: tiny.toString(), memo });
-    if (send) send.textContent = 'Checking…';
+    if (send && sheet && !sheet.hidden) send.textContent = 'Checking…';
     const res = await fetch(BACKEND_URL + '/api/donations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -395,20 +587,19 @@ async function submitDonation() {
     });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data || !data.ok) {
-      toast.error(donationError(data && data.error));
+      failure = donationError(data && data.error);
       return;
     }
     paintPills(topicId, ts, data.total);
-    if (title) title.textContent = 'Sent';
-    if (echo) echo.textContent = data.memo ? String(data.memo) : 'Sent';
-    sheetSent = true;
-    if (send) send.textContent = 'Close';
-    toast.success('Donation sent');
+    showSent(tiny, txId);
   } catch {
-    toast.error("Couldn't send the donation");
+    failure = "Couldn't send the donation";
   } finally {
     sheetBusy = false;
-    if (send && sheet && !sheet.hidden && !sheetSent) send.textContent = 'Donate';
+    if (!sheetSent) {
+      paintSend();
+      if (failure) showError(failure);
+    }
   }
 }
 
@@ -435,3 +626,5 @@ export function mountMemoLine(parent, text) {
   parent.appendChild(line);
   return line;
 }
+
+if (typeof document !== 'undefined' && document.body) ensureSheet();
