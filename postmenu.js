@@ -3,6 +3,7 @@
 
 import { connectedAccount } from './web3.js';
 import { bindDonationTarget, openDonation } from './donations.js';
+import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { bindPressFeedback } from './followtopic.js';
 
 const DOTS = [
@@ -34,6 +35,7 @@ function menuItem(className, label) {
   button.className = 'post-menu-item ' + className;
   button.setAttribute('role', 'menuitem');
   button.textContent = label;
+  bindPressFeedback(button);
   return button;
 }
 
@@ -82,6 +84,7 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
   const pop = document.createElement('div');
   pop.id = id;
   pop.className = 'post-menu-pop';
+  pop.dataset.style = 'glass';
   pop.setAttribute('role', 'menu');
   pop.setAttribute('aria-label', 'Post');
   pop.hidden = true;
@@ -172,9 +175,16 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
     if (options && options.focus) btn.focus();
   }
 
+  function paintChrome() {
+    const host = root.closest('.' + EARLY_POPUP_CLASS);
+    pop.dataset.style = host ? 'hashinals' : 'glass';
+    pop.style.fontFamily = host ? (getComputedStyle(host).fontFamily || '') : '';
+  }
+
   function open() {
     if (openPanel && openPanel !== panel) openPanel.close();
     syncItems();
+    paintChrome();
     pop.hidden = false;
     pop.style.visibility = 'hidden';
     document.body.appendChild(pop);

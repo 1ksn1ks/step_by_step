@@ -3593,6 +3593,7 @@ html, body {
     #feed-back-btn.is-pop,
     .maplibregl-popup-close-button:not(.comments-back-button).is-pop,
     .post-menu-btn.is-pop,
+    .post-menu-item.is-pop,
     .popup-icon-chip.popup-settings-gear.is-pop,
     .popup-icon-chip.popup-nav-arrow.is-pop {
       animation: none !important;
@@ -4045,22 +4046,69 @@ html, body {
     outline: 2px solid #22D3EE;
     outline-offset: 2px;
   }
+  /* Glass is the default. A style only sets the five tokens.
+     --menu-border is a paint: a flat gradient, or the Hashinals conic ring. */
   .post-menu-pop {
+    --menu-bg: rgba(16, 16, 24, 0.78);
+    --menu-border: linear-gradient(rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.22));
+    --menu-item-hover: rgba(255, 255, 255, 0.12);
+    --menu-item-text: #fff;
+    --menu-accent: rgba(255, 255, 255, 0.55);
+    --press-dur: 200ms;
+    --press-ease: ease;
     position: fixed;
     z-index: 9600;
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4dvh;
     min-width: clamp(18dvh, 42dvw, 32dvh);
     max-width: min(calc(100dvw - 4dvw), 46dvh);
     margin: 0;
-    padding: 0.6dvh 0;
-    border: 1px solid rgba(255, 255, 255, 0.22);
+    padding: 0.75dvh;
+    border: 1px solid transparent;
     border-radius: 1.6dvh;
-    background: rgba(16, 16, 24, 0.78);
+    background-color: transparent;
+    background-image:
+      linear-gradient(var(--menu-bg), var(--menu-bg)),
+      var(--menu-border);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
     backdrop-filter: blur(1.8dvh) saturate(140%);
     -webkit-backdrop-filter: blur(1.8dvh) saturate(140%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1.2dvh 3dvh rgba(0, 0, 0, 0.45);
-    color: #fff;
+    box-shadow: 0 1.2dvh 3dvh rgba(0, 0, 0, 0.45);
+    color: var(--menu-item-text);
     font-family: Inter, system-ui, sans-serif;
+  }
+  .post-menu-pop[hidden] {
+    display: none;
+  }
+  .post-menu-pop[data-style="hashinals"] {
+    --menu-bg: rgba(12, 12, 18, 0.94);
+    --menu-border: conic-gradient(from var(--eh-angle), #f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a);
+    --menu-item-hover: rgba(255, 255, 255, 0.12);
+    --menu-item-text: #f4f1ea;
+    --menu-accent: #e9d5ff;
+    border-width: calc(var(--u, 9.6px) * 0.3);
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    isolation: isolate;
+    overflow: visible;
+    animation: early-hashinal-angle 4s linear infinite;
+  }
+  .post-menu-pop[data-style="hashinals"]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: -1;
+    box-shadow:
+      0 0 1.4dvh rgba(246, 226, 122, 0.55),
+      0 0 3dvh rgba(255, 74, 214, 0.32);
+    opacity: 0.7;
+    animation: early-holder-glow 2.6s ease-in-out infinite;
   }
   .post-menu-item {
     appearance: none;
@@ -4074,25 +4122,42 @@ html, body {
     justify-content: flex-start;
     gap: min(3dvw, 1.6dvh);
     border: 0;
+    border-radius: 999px;
     background: transparent;
-    color: inherit;
+    color: var(--menu-item-text);
     font: inherit;
     font-size: clamp(1.5dvh, 3.8dvw, 2.1dvh);
     line-height: 1.2;
     text-align: left;
     cursor: pointer;
+    transition: transform var(--press-dur) var(--press-ease), background-color var(--press-dur) var(--press-ease);
   }
   .post-menu-item[hidden] {
     display: none;
   }
-  .post-menu-item:hover,
+  @media (hover: hover) and (pointer: fine) {
+    .post-menu-item:hover:not(:disabled) {
+      background-color: var(--menu-item-hover);
+    }
+  }
   .post-menu-item:focus-visible {
-    background: rgba(255, 255, 255, 0.12);
-    outline: none;
+    outline: 2px solid #22D3EE;
+    outline-offset: 2px;
+  }
+  .post-menu-item:active:not(:disabled) {
+    background-color: var(--menu-item-hover);
+    transform: scale(0.94);
+  }
+  .post-menu-item.is-pop {
+    animation: topicFollowPop var(--press-dur) var(--press-ease);
   }
   .post-menu-item:disabled {
     opacity: 0.45;
     cursor: default;
+  }
+  .post-menu-item:disabled:active {
+    background-color: transparent;
+    transform: none;
   }
   .post-menu-label {
     flex: 1 1 auto;
@@ -4114,11 +4179,25 @@ html, body {
     font-size: 1.35dvh;
     font-weight: 500;
     line-height: 1.2;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--menu-accent);
     font-variant-numeric: tabular-nums;
   }
   .post-menu-donate .donate-amount[hidden] {
     display: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .post-menu-pop[data-style="hashinals"],
+    .post-menu-pop[data-style="hashinals"]::before {
+      animation-duration: 8s;
+    }
+    .post-menu-item,
+    .post-menu-item:active:not(:disabled) {
+      transition: none;
+      transform: none;
+    }
+    .post-menu-item.is-pop {
+      animation: none !important;
+    }
   }
 
   .heart-like input {
