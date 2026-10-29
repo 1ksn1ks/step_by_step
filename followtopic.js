@@ -7,6 +7,7 @@ import { toast } from './toast';
 import { noteShare } from './sharecount.js';
 import { refreshFollowing } from './followsuggest.js';
 import { createFollowLoader, followerCountOrNull } from './followcount.js';
+import { bareAccount } from './donationmath';
 
 const PROFILE_BIO_TOPIC = '0.0.9759201';
 const FOLLOW_TOPIC = '0.0.10923187';
@@ -20,6 +21,18 @@ const personCounts = createFollowLoader({
 export function prefetchPersonFollow(account) {
   if (!account) return;
   personCounts.load(account, connectedAccount || '').catch(() => {});
+}
+
+export function cachedPersonFollow(account) {
+  const id = String(account || '').trim();
+  if (!id) return null;
+  return personCounts.cached(id, connectedAccount || '');
+}
+
+export function readPersonFollow(account) {
+  const id = String(account || '').trim();
+  if (!id) return Promise.resolve(null);
+  return personCounts.load(id, connectedAccount || '').catch(() => null);
 }
 
 // One pair of listeners. A later account on the same element replaces the target.
@@ -459,6 +472,7 @@ function watchWalletAccount() {
 function mountFollowControl(box, btn, count, read, isMine, send, options) {
   const known = options && options.known;
   const remember = options && options.remember;
+  const buttonOnly = !!(options && options.buttonOnly);
   let following = false;
   let inFlight = false;
   let settling = false;
@@ -467,13 +481,31 @@ function mountFollowControl(box, btn, count, read, isMine, send, options) {
 
   const inPreview = () => !!box.closest('#popup-settings-preview');
 
+  function syncOwn() {
+    const mine = !!isMine();
+    btn.hidden = mine;
+    if (buttonOnly) box.hidden = mine;
+  }
+
+  function publishCount(followers) {
+    if (!buttonOnly) return;
+    const value = followerCountOrNull(followers);
+    if (value == null) return;
+    box._followers = value;
+    box.dispatchEvent(new CustomEvent('profile-follow-count', {
+      bubbles: true,
+      detail: { account: box.dataset.followee || '', followers: value },
+    }));
+  }
+
   function paint(data) {
     if (!data || followerCountOrNull(data.followers) == null) return;
-    paintFollowerCount(count, data.followers);
+    if (count) paintFollowerCount(count, data.followers);
     following = !!data.following;
-    btn.hidden = !!isMine();
+    syncOwn();
     btn.disabled = inFlight;
     paintFollowButton(btn, following);
+    publishCount(data.followers);
   }
 
   function paintKnown() {
@@ -486,7 +518,7 @@ function mountFollowControl(box, btn, count, read, isMine, send, options) {
     const accountChange = !!(refreshOptions && refreshOptions.accountChange);
     // The settings sample stays at its fixed 0 and never asks the server.
     if (inPreview()) return;
-    btn.hidden = !!isMine();
+    syncOwn();
     if (inFlight) return;
     if (settling && !accountChange) return;
     if (settling && accountChange) {
@@ -511,12 +543,13 @@ function mountFollowControl(box, btn, count, read, isMine, send, options) {
           return;
         }
       }
-      if (count.classList.contains('is-loading')) paintFollowerUnknown(count);
+      if (count && count.classList.contains('is-loading')) paintFollowerUnknown(count);
     })();
   }
 
   box._refreshFollow = refresh;
   watchWalletAccount();
+  syncOwn();
   paintKnown();
   // The popup open in this same turn reads once. A profile card has no popup event.
   queueMicrotask(() => {
@@ -527,7 +560,7 @@ function mountFollowControl(box, btn, count, read, isMine, send, options) {
     event.stopPropagation();
     if (inFlight || btn.disabled) return;
     if (isMine()) {
-      btn.hidden = true;
+      syncOwn();
       return;
     }
     if (!signer || !connectedAccount) {
@@ -550,7 +583,7 @@ function mountFollowControl(box, btn, count, read, isMine, send, options) {
       btn.disabled = false;
     }
     if (gen !== generation) return;
-    const prev = count._followers;
+    const prev = count && typeof count._followers === 'number' ? count._followers : box._followers;
     if (typeof prev === 'number') {
       const nextCount = Math.max(0, prev + (next ? 1 : -1));
       const guess = { followers: nextCount, following: next };
@@ -558,7 +591,7 @@ function mountFollowControl(box, btn, count, read, isMine, send, options) {
       paint(guess);
     } else {
       following = next;
-      btn.hidden = !!isMine();
+      syncOwn();
       paintFollowButton(btn, following);
     }
     refreshFollowing();
@@ -573,23 +606,32 @@ function mountFollowControl(box, btn, count, read, isMine, send, options) {
 
 // Same button for a person. Hidden on your own profile. The message names
 // only the followee. The wallet account is the follower.
-export function followPersonControls(followeeAccount) {
+// buttonOnly skips the count chip. Profiles paint that count in the stats row.
+export function followPersonControls(followeeAccount, options) {
   const box = document.createElement('div');
   box.className = 'topic-follow';
   if (!followeeAccount) return box;
-  const count = countChip();
+  const buttonOnly = !!(options && options.buttonOnly);
+  const count = buttonOnly ? null : countChip();
   const btn = followButton();
-  box.append(btn, count);
+  if (count) box.append(btn, count);
+  else box.append(btn);
+  box.dataset.followee = String(followeeAccount);
   mountFollowControl(
     box,
     btn,
     count,
     () => personCounts.load(followeeAccount, connectedAccount || ''),
-    () => !!(followeeAccount && connectedAccount && followeeAccount === connectedAccount),
+    () => {
+      const me = bareAccount(connectedAccount);
+      const them = bareAccount(followeeAccount);
+      return !!(me && them && me === them);
+    },
     (next) => sendMessage(FOLLOW_TOPIC, JSON.stringify(next ? { follow: followeeAccount } : { unfollow: followeeAccount })),
     {
       known: () => personCounts.cached(followeeAccount, connectedAccount || ''),
       remember: (data) => personCounts.remember(followeeAccount, connectedAccount || '', data),
+      buttonOnly,
     },
   );
   return box;

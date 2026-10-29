@@ -2,6 +2,7 @@
 // Follow, donate, and copy link stay the actions they already were.
 
 import { connectedAccount } from './web3.js';
+import { bareAccount } from './donationmath.js';
 import { bindDonationTarget, openDonation } from './donations.js';
 import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { bindPressFeedback } from './followtopic.js';
@@ -108,8 +109,9 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
 
   function isOwn() {
     if (followBtn && followBtn.hidden) return true;
-    const me = typeof connectedAccount === 'string' ? connectedAccount : '';
-    return !!(payer && me && payer === me);
+    const me = bareAccount(connectedAccount);
+    const them = bareAccount(payer);
+    return !!(me && them && me === them);
   }
 
   function syncItems() {
