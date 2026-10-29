@@ -53,6 +53,11 @@ function paintPill(pill, total) {
   const shown = Number.isFinite(n) && n > 0 ? formatDonationAmount(n) : '';
   const amount = pill.querySelector('.donate-amount');
   if (amount) amount.textContent = shown;
+  if (pill.classList.contains('post-menu-donate')) {
+    if (amount) amount.hidden = shown === '';
+    pill.setAttribute('aria-label', shown ? `Donate HBAR ${shown}` : 'Donate HBAR');
+    return;
+  }
   pill.classList.toggle('has-total', shown !== '');
   const label = shown ? `Donate ${shown} HBAR` : 'Donate';
   pill.setAttribute('aria-label', label);
@@ -61,7 +66,7 @@ function paintPill(pill, total) {
 
 function paintPills(topicId, ts, total) {
   const key = topicId + '|' + ts;
-  document.querySelectorAll('.donate-pill').forEach((pill) => {
+  document.querySelectorAll('.donate-pill, .post-menu-donate').forEach((pill) => {
     const pillKey = (pill.dataset.topic || '') + '|' + (pill.dataset.ts || '');
     if (pillKey !== key) return;
     paintPill(pill, total);
@@ -144,20 +149,32 @@ function queuePill(pill) {
 
 export function noteVisibleDonation(root) {
   if (!root || !root.querySelectorAll) return;
-  root.querySelectorAll('.donate-pill').forEach(queuePill);
+  root.querySelectorAll('.donate-pill, .post-menu-donate').forEach(queuePill);
 }
 
-export function createDonatePill(data) {
+// The post menu and the old pill share one identity: topic plus the
+// consensus time, or the ISO time until that time is known.
+export function bindDonationTarget(el, data) {
   const topicId = bareAccount(data && data.topicId);
   const ts = normalizeConsensusTs(data && data.consensusTimestamp);
   const created = typeof (data && data.created) === 'string' ? data.created : '';
-  if (!topicId || (!ts && !created)) return null;
+  if (!el || !topicId || (!ts && !created)) return false;
+  el.dataset.topic = topicId;
+  if (ts) el.dataset.ts = ts;
+  else delete el.dataset.ts;
+  if (created) el.dataset.created = created;
+  return true;
+}
+
+export function openDonation(el) {
+  return openDonate(el);
+}
+
+export function createDonatePill(data) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'donate-pill';
-  button.dataset.topic = topicId;
-  if (ts) button.dataset.ts = ts;
-  if (created) button.dataset.created = created;
+  if (!bindDonationTarget(button, data)) return null;
   button.appendChild(coinIcon());
   const amount = document.createElement('span');
   amount.className = 'donate-amount';

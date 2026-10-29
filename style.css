@@ -2882,11 +2882,11 @@ html, body {
     flex-direction: column;
   }
 
-  /* The icon sits on the right of the capsule. The count chip is under it.
-     The column stays the button's width and lines up on the right, so a
-     wider count grows left and the space above the button matches the
-     space below the count. */
+  /* The menu sits on the right of the capsule, where Follow used to be.
+     The count chip stays under it. The real follow button is only the
+     menu's click target, so it takes no space. */
   .popup-profile-bubble > .topic-follow {
+    position: relative;
     align-self: stretch;
     display: flex;
     flex: 0 0 auto;
@@ -2901,6 +2901,20 @@ html, body {
     padding-block: calc(var(--u) * 0.25);
     gap: calc(var(--u) * 0.4);
     overflow: visible;
+  }
+
+  .popup-profile-bubble > .topic-follow > .topic-follow-btn.is-menu-source {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+    pointer-events: none;
   }
 
   .popup-profile-bubble .topic-follow-btn {
@@ -2918,57 +2932,6 @@ html, body {
     display: flex;
     justify-content: center;
     white-space: nowrap;
-  }
-
-  /* Donate sits on the same row as Follow, same height and gap. The
-     follower count stays on the line under them. */
-  .popup-profile-bubble > .topic-follow:has(.donate-pill) {
-    display: grid;
-    grid-template-columns: auto minmax(0, auto);
-    align-content: space-between;
-    align-items: center;
-    justify-content: end;
-    width: auto;
-    min-width: calc(var(--u, 9.6px) * 4.2);
-    max-width: min(46dvw, 100%);
-  }
-
-  .popup-profile-bubble > .topic-follow:has(.donate-pill) > .topic-follow-count {
-    grid-column: 1 / -1;
-    justify-content: flex-end;
-    justify-self: end;
-    min-width: 0;
-    max-width: 100%;
-  }
-
-  .popup-profile-bubble > .topic-follow > .donate-pill {
-    --h: calc(var(--u, 9.6px) * 0.42);
-    height: calc(var(--u, 9.6px) * 4.2);
-    min-width: calc(var(--u, 9.6px) * 4.2);
-    max-width: 100%;
-    margin: 0;
-    padding: 0;
-    border-radius: 50%;
-    position: static;
-    z-index: auto;
-  }
-
-  .popup-profile-bubble > .topic-follow > .donate-pill.has-total {
-    width: auto;
-    min-width: 0;
-    max-width: 40dvw;
-    padding: 0 calc(var(--u, 9.6px) * 0.7);
-    border-radius: 999px;
-    overflow: hidden;
-  }
-
-  .popup-profile-bubble > .topic-follow > .donate-pill svg {
-    width: calc(var(--u, 9.6px) * 2.1);
-    height: calc(var(--u, 9.6px) * 2.1);
-  }
-
-  .popup-profile-bubble > .topic-follow > .donate-pill .donate-amount {
-    font-size: calc(var(--u, 9.6px) * 1.25);
   }
 
   /* Early holder: the pill border is the ring. The mask stays on the
@@ -3883,6 +3846,103 @@ html, body {
 
   .donate-pill:active {
     transform: scale(0.94);
+  }
+
+  /* Post menu. Same glass disc as Follow, in that disc's place. The list
+     is fixed to the viewport so a card or popup cannot clip it. */
+  .post-menu-btn {
+    appearance: none;
+    box-sizing: border-box;
+    width: calc(var(--u, 9.6px) * 4.2);
+    height: calc(var(--u, 9.6px) * 4.2);
+    margin: 0;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.10);
+    color: #fff;
+    border-radius: 50%;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u, 9.6px) * 0.4) calc(var(--u, 9.6px) * 1) rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+  }
+  .post-menu-btn svg {
+    width: calc(var(--u, 9.6px) * 2.2);
+    height: calc(var(--u, 9.6px) * 2.2);
+    display: block;
+  }
+  .post-menu-btn:hover,
+  .post-menu-btn[aria-expanded="true"] {
+    background: rgba(255, 255, 255, 0.16);
+  }
+  .post-menu-btn:focus-visible {
+    outline: 2px solid #22D3EE;
+    outline-offset: 2px;
+  }
+  .post-menu-pop {
+    position: fixed;
+    z-index: 9600;
+    box-sizing: border-box;
+    min-width: clamp(18dvh, 42dvw, 32dvh);
+    max-width: min(calc(100dvw - 4dvw), 46dvh);
+    margin: 0;
+    padding: 0.6dvh 0;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 1.6dvh;
+    background: rgba(16, 16, 24, 0.78);
+    backdrop-filter: blur(1.8dvh) saturate(140%);
+    -webkit-backdrop-filter: blur(1.8dvh) saturate(140%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1.2dvh 3dvh rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font-family: Inter, system-ui, sans-serif;
+  }
+  .post-menu-item {
+    appearance: none;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 5.2dvh;
+    margin: 0;
+    padding: 1dvh min(3.4dvw, 2.2dvh);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: min(3dvw, 1.6dvh);
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: clamp(1.5dvh, 3.8dvw, 2.1dvh);
+    line-height: 1.2;
+    text-align: left;
+    cursor: pointer;
+  }
+  .post-menu-item[hidden] {
+    display: none;
+  }
+  .post-menu-item:hover,
+  .post-menu-item:focus-visible {
+    background: rgba(255, 255, 255, 0.12);
+    outline: none;
+  }
+  .post-menu-item:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .post-menu-label {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .post-menu-donate .donate-amount {
+    flex: 0 1 auto;
+    min-width: 0;
+    color: rgba(255, 255, 255, 0.78);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .post-menu-donate .donate-amount[hidden] {
+    display: none;
   }
 
   .heart-like input {

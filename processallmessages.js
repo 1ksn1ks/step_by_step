@@ -27,7 +27,8 @@ import { scene } from './threejs'
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium'
 import { signer, connectedAccount } from './web3';
 import { consensusOf } from './donationmath.js';
-import { createDonatePill, noteVisibleDonation } from './donations.js';
+import { noteVisibleDonation } from './donations.js';
+import { createPostMenu } from './postmenu.js';
 import { refitPopups } from './popupanim';
 import { copyTextToClipboard } from './handleallmessages';
 import { toast } from './toast'
@@ -1163,6 +1164,35 @@ const COPY_LINK_ICON = [
   ['path', { d: 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71' }],
 ];
 
+function copyPostLink(source) {
+  const url = placeUrl({
+    kind: source && source.kind === 'polygon' ? 'polygon' : 'marker',
+    topicId: source && source.topicId,
+    payer: source && source.payer,
+    number: source && source.number,
+    cord: source && source.coords,
+  });
+  copyTextToClipboard(url)
+    .then(() => toast.success('Link copied'))
+    .catch(() => toast.error('Could not copy the link'));
+}
+
+function copySourceOf(data, payer, copyKind) {
+  const coords = data && (data.coordinates || data.coords);
+  const ring = Array.isArray(coords) && Array.isArray(coords[0]);
+  const kind = copyKind === 'polygon' || (data && data.kind === 'polygon') || ring ? 'polygon' : 'marker';
+  const number = kind === 'polygon'
+    ? (data && data.polygonnumber != null ? data.polygonnumber : data && data.markernumber)
+    : (data && data.markernumber != null ? data.markernumber : data && data.polygonnumber);
+  return {
+    kind,
+    topicId: data && data.topicId,
+    payer: (data && data.payer) || payer,
+    number,
+    coords: kind === 'polygon' ? ((data && data.coordinates) || coords) : ((data && data.coords) || coords),
+  };
+}
+
 function createCopyLink(source) {
   const button = document.createElement('button');
   button.type = 'button';
@@ -1172,16 +1202,7 @@ function createCopyLink(source) {
   button.appendChild(popupStrokeIcon('', COPY_LINK_ICON));
   button.addEventListener('click', (event) => {
     event.stopPropagation();
-    const url = placeUrl({
-      kind: source.kind === 'polygon' ? 'polygon' : 'marker',
-      topicId: source.topicId,
-      payer: source.payer,
-      number: source.number,
-      cord: source.coords,
-    });
-    copyTextToClipboard(url)
-      .then(() => toast.success('Link copied'))
-      .catch(() => toast.error('Could not copy the link'));
+    copyPostLink(source);
   });
   return button;
 }
@@ -1726,8 +1747,9 @@ function appendShareFeature(features, ctx) {
 // Helper function to create marker popup HTML using DOM
 // (exported so the 24h local-news markers reuse the exact same popup)
 // The marker and polygon popups, and the feed card, share this header.
-// Account on the first line, display name on the second, follow on the right.
-export function buildPopupProfile({ profileUrl, payer, payerInfo, username, click2link, donation }) {
+// Account on the first line, display name on the second, the post menu
+// on the right where Follow used to sit.
+export function buildPopupProfile({ profileUrl, payer, payerInfo, username, click2link, donation, copyKind }) {
   const profileSection = document.createElement('div');
   profileSection.className = 'popup-profile-bubble';
 
@@ -1766,12 +1788,20 @@ export function buildPopupProfile({ profileUrl, payer, payerInfo, username, clic
   headerDiv.appendChild(h2);
   profileSection.appendChild(headerDiv);
   const follow = followPersonControls(payer);
-  const donate = createDonatePill(donation);
-  if (donate) {
-    const followBtn = follow.querySelector('.topic-follow-btn');
-    if (followBtn) followBtn.after(donate);
-    else follow.appendChild(donate);
+  const followBtn = follow.querySelector('.topic-follow-btn');
+  if (followBtn) {
+    followBtn.classList.add('is-menu-source');
+    followBtn.tabIndex = -1;
+    followBtn.setAttribute('aria-hidden', 'true');
   }
+  const menu = createPostMenu({
+    followBtn,
+    payer,
+    donation,
+    onCopy: () => copyPostLink(copySourceOf(donation, payer, copyKind)),
+  });
+  if (followBtn) followBtn.before(menu);
+  else follow.appendChild(menu);
   profileSection.appendChild(follow);
   return profileSection;
 }
@@ -1948,7 +1978,7 @@ export function createMarkerPopupHTML(data) {
 
   container.appendChild(topHeader);
 
-  container.appendChild(buildPopupProfile({ profileUrl, payer, payerInfo, username, click2link, donation: data }));
+  container.appendChild(buildPopupProfile({ profileUrl, payer, payerInfo, username, click2link, donation: data, copyKind: 'marker' }));
 
   // Content section. Image and text scroll. The arrow row stays under the name.
   const contentSection = document.createElement('div');
@@ -2135,7 +2165,7 @@ function createPolygonPopupHTML(data) {
 
   container.appendChild(topHeader);
 
-  container.appendChild(buildPopupProfile({ profileUrl, payer, payerInfo, username, click2link, donation: data }));
+  container.appendChild(buildPopupProfile({ profileUrl, payer, payerInfo, username, click2link, donation: data, copyKind: 'polygon' }));
 
   // Content section
   const contentSection = document.createElement('div');

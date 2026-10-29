@@ -1749,6 +1749,7 @@ function buildCard(post) {
     username: record.username || '',
     click2link: record.click2link || '',
     donation: record,
+    copyKind: post.kind,
   });
   card.appendChild(profile);
   paintFeedHashinal(card);
