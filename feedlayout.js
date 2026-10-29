@@ -4707,24 +4707,6 @@ const FEED_CHATS = {
   },
 };
 const FEED_CHAT_ICONS = [
-  ['post-msg', [
-    ['path', { d: 'M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z' }],
-    ['path', { d: 'm21.854 2.147-10.94 10.939' }],
-  ]],
-  ['post-msg-encrypted-chat', [
-    ['path', { d: 'M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z' }],
-    ['path', { d: 'm21.854 2.147-10.94 10.939' }],
-  ]],
-  ['topic-chat-image-btn', [
-    ['rect', { width: '18', height: '18', x: '3', y: '3', rx: '2', ry: '2' }],
-    ['circle', { cx: '9', cy: '9', r: '2' }],
-    ['path', { d: 'm21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21' }],
-  ]],
-  ['encrypted-chat-image-btn', [
-    ['rect', { width: '18', height: '18', x: '3', y: '3', rx: '2', ry: '2' }],
-    ['circle', { cx: '9', cy: '9', r: '2' }],
-    ['path', { d: 'm21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21' }],
-  ]],
   ['go-to-top-msgs', [
     ['path', { d: 'm18 15-6-6-6 6' }],
   ]],
@@ -4918,7 +4900,8 @@ function mountFeedMessenger(panel, kind) {
   const topic = document.getElementById(kind === 'e2ee' ? 'encrypted-chat-topic-id' : 'topic-chat-topic-id');
   if (topic && topic.parentElement) topic.parentElement.classList.add('feed-chat-room');
   const field = document.getElementById(kind === 'e2ee' ? 'user-write-message-encrypted-chat' : 'user-write-message');
-  if (field && field.parentElement) field.parentElement.classList.add('feed-chat-compose');
+  const compose = field && field.closest('.chat-compose');
+  if (compose) compose.classList.add('feed-chat-compose');
   const openId = kind === 'e2ee' ? 'show-options-from-encrypted-chat' : 'show-options-from-topic-chat';
   const closeId = kind === 'e2ee' ? 'show-options-from-encrypted-chat-btn' : 'show-options-from-topic-chat-btn';
   const optionsId = kind === 'e2ee' ? 'options-from-encrypted-chat' : 'options-from-topic-chat';

@@ -15,6 +15,7 @@ import { renderLoadedTopics } from './handleallmessages.js';
 import { toast } from './toast.js';
 import { formatHcsUsage, HCS_TOO_LONG } from './hcschunks.js';
 import { composerWireBytes } from './chatimage.js';
+import { fitChatComposer } from './chatcomposer.js';
 import { closeDrawAnchor } from './drawhere.js';
 import { closePressAnchor } from './poiinfo.js';
 
@@ -725,6 +726,10 @@ export function CloseALL() {
       container.style.maxHeight = "";
       messages.style.overflowY = "";
       fitChatMessages(messagesId);
+      const composeField = document.getElementById(containerId === "encrypted-chat-container"
+        ? "user-write-message-encrypted-chat"
+        : "user-write-message");
+      fitChatComposer(composeField);
     } finally {
       requestAnimationFrame(() => { chatLayoutLock.delete(containerId); });
     }
@@ -847,9 +852,13 @@ export function CloseALL() {
       // could not show. The class blocks the send and keeps the click.
       if (send) send.classList.toggle("hcs-send-blocked", usage.over);
     };
-    ta.addEventListener("input", paintBytes);
+    ta.addEventListener("input", () => {
+      fitChatComposer(ta);
+      paintBytes();
+    });
     document.addEventListener("chat-image-changed", paintBytes);
     paintBytes();
+    fitChatComposer(ta);
     if (!send || send.dataset.hcsWatch) return;
     send.dataset.hcsWatch = "1";
     send.addEventListener("click", (event) => {

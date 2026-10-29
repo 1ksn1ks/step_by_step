@@ -10,6 +10,7 @@ import { isHederaAccount } from './handleallmessages';
 import { toast } from './toast'
 import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, formatHcsUsage, utf8ByteLength, normalizeMessageNewlines } from './hcschunks.js';
 import { expandEncryptedChat, scheduleEncryptedChatLayout } from './cssLogic.js';
+import { fitChatComposer } from './chatcomposer.js';
 import { payerUsernameNode } from './payerlink.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
 import { fillChatMessage, packChatPayload, unpackChatPayload, pendingChatImage, chatImageBusy, clearPendingChatImage } from './chatimage.js';
@@ -187,17 +188,7 @@ function e2eeChatCompose() {
 }
 
 function fitE2eeComposer(field) {
-  if (!field) return;
-  const editing = !!field.closest('.chat-compose')?.classList.contains('is-editing');
-  // The feed stylesheet locks height with !important. Edit mode has to
-  // win that so the field can grow, then let it go when editing ends.
-  if (!editing) {
-    field.style.height = '';
-    field.style.height = field.scrollHeight + 'px';
-    return;
-  }
-  field.style.setProperty('height', '0px', 'important');
-  field.style.setProperty('height', field.scrollHeight + 'px', 'important');
+  fitChatComposer(field);
 }
 
 function clearE2eeChatEditMark() {

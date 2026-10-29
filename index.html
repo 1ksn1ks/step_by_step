@@ -1437,7 +1437,7 @@
             <button id="go-to-bottom-msgs" class="toolbar-column-btns">⬇</button>
           </div>
       
-          <div class="chat-compose" style="position: relative;">
+          <div class="chat-compose">
             <div id="topic-chat-image-preview" class="chat-attach-preview" hidden>
               <img id="topic-chat-image-preview-img" alt="">
               <button type="button" id="topic-chat-image-clear" class="chat-attach-clear">×</button>
@@ -1450,23 +1450,17 @@
               </span>
               <button type="button" id="topic-chat-edit-cancel" class="chat-edit-bar-x" aria-label="Cancel edit">✕</button>
             </div>
-            <textarea
-            class="toolbar-column"
-            type="text"
-            id="user-write-message"
-            placeholder="Message"
-            rows="1"
-            style="
-            max-height: 50dvh;
-            overflow: auto;
-            "
-            onclick="event.stopPropagation();"
-            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
-            <div id="char-counter" class="hcs-byte-counter">0 B / 18 KB</div>
-            <button type="button" id="topic-chat-image-btn" class="toolbar-column-btns submit-message-btn msg-image-btn">🖼</button>
+            <div class="chat-compose-row">
+              <button type="button" id="topic-chat-image-btn" class="msg-image-btn" aria-label="Add image">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+              </button>
+              <div class="chat-compose-field">
+                <textarea class="toolbar-column" id="user-write-message" placeholder="Message" rows="1" onclick="event.stopPropagation();"></textarea>
+                <div id="char-counter" class="hcs-byte-counter">0 B / 18 KB</div>
+              </div>
+              <button type="button" id="post-msg" class="msg-send-btn" aria-label="Send"><span class="msg-send-mark" aria-hidden="true"><svg class="msg-send-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg></span><span class="msg-check-mark" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span></button>
+            </div>
             <input type="file" id="topic-chat-image-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
-            <button type="button" id="post-msg" class="toolbar-column-btns submit-message-btn msg-send-btn" aria-label="Send"><span class="msg-send-mark" aria-hidden="true">📨</span><span class="msg-check-mark" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></button>
           </div>
 
         </div>
@@ -1677,7 +1671,7 @@
       
           <div id="encrypted-chat-chat-container">
       
-          <div class="chat-compose" style="position: relative;">
+          <div class="chat-compose">
             <div id="encrypted-chat-image-preview" class="chat-attach-preview" hidden>
               <img id="encrypted-chat-image-preview-img" alt="">
               <button type="button" id="encrypted-chat-image-clear" class="chat-attach-clear">×</button>
@@ -1690,23 +1684,17 @@
               </span>
               <button type="button" id="e2ee-chat-edit-cancel" class="chat-edit-bar-x" aria-label="Cancel edit">✕</button>
             </div>
-            <textarea
-            class="toolbar-column"
-            type="text"
-            id="user-write-message-encrypted-chat"
-            placeholder="Message"
-            rows="1"
-            style="
-            max-height: 50dvh;
-            overflow: auto;
-            "
-            onclick="event.stopPropagation();"
-            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
-            <div id="char-counter-encrypted-chat" class="hcs-byte-counter">0 B / 18 KB</div>
-            <button type="button" id="encrypted-chat-image-btn" class="toolbar-column-btns submit-message-btn msg-image-btn">🖼</button>
+            <div class="chat-compose-row">
+              <button type="button" id="encrypted-chat-image-btn" class="msg-image-btn" aria-label="Add image">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+              </button>
+              <div class="chat-compose-field">
+                <textarea class="toolbar-column" id="user-write-message-encrypted-chat" placeholder="Message" rows="1" onclick="event.stopPropagation();"></textarea>
+                <div id="char-counter-encrypted-chat" class="hcs-byte-counter">0 B / 18 KB</div>
+              </div>
+              <button type="button" id="post-msg-encrypted-chat" class="msg-send-btn" aria-label="Send"><span class="msg-send-mark" aria-hidden="true"><svg class="msg-send-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg></span><span class="msg-check-mark" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span></button>
+            </div>
             <input type="file" id="encrypted-chat-image-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
-            <button type="button" id="post-msg-encrypted-chat" class="toolbar-column-btns submit-message-btn msg-send-btn" aria-label="Send"><span class="msg-send-mark" aria-hidden="true">📨</span><span class="msg-check-mark" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></button>
           </div>
         </div>
 

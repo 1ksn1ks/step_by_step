@@ -417,6 +417,10 @@ html, body {
     --e2ee-head-h: max(44px, 5.5dvh);
     --e2ee-head-gap: clamp(0.6dvh, 1.2dvw, 1.2dvh);
     --e2ee-head-radius: 1dvh;
+    --compose-size: max(44px, 5.5dvh);
+    --compose-gap: clamp(0.6dvh, 1.2dvw, 1.2dvh);
+    --compose-pad: var(--compose-gap);
+    --compose-line: 2.2dvh;
   }
   .secret-entry-row {
     display: flex;
@@ -899,11 +903,10 @@ html, body {
   .chat-edit-bar-x {
     appearance: none;
     flex: 0 0 auto;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: max(44px, 5.5dvh);
-    height: max(44px, 5.5dvh);
+    display: grid;
+    place-items: center;
+    width: var(--compose-size, max(44px, 5.5dvh));
+    height: var(--compose-size, max(44px, 5.5dvh));
     min-width: 44px;
     min-height: 44px;
     margin: 0;
@@ -913,69 +916,40 @@ html, body {
     background: transparent;
     color: #fff;
     font-size: 2.2dvh;
-    line-height: 1;
+    line-height: 0;
     cursor: pointer;
     touch-action: manipulation;
   }
   .chat-edit-bar-x:is(:hover, :active) {
     color: #22D3EE;
   }
-  .msg-send-mark,
-  .msg-check-mark {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+  .chat-compose .msg-send-mark,
+  .chat-compose .msg-check-mark {
+    grid-area: 1 / 1;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    line-height: 0;
   }
-  .msg-check-mark {
+  .chat-compose .msg-check-mark {
     display: none;
-  }
-  .msg-check-mark svg {
-    width: 2.4dvh;
-    height: 2.4dvh;
-    display: block;
   }
   .chat-compose.is-editing .msg-send-mark {
     display: none;
   }
   .chat-compose.is-editing .msg-check-mark {
-    display: inline-flex;
+    display: grid;
   }
   .chat-compose.is-editing .msg-image-btn,
   .chat-compose.is-editing .chat-attach-preview {
     display: none !important;
   }
-  .chat-compose.is-editing .msg-send-btn {
-    width: max(44px, 5.5dvh);
-    height: max(44px, 5.5dvh);
-    min-width: 44px;
-    min-height: 44px;
-    padding: 0;
-    border-radius: 999px;
-    border-color: #22D3EE;
-    background: #22D3EE;
-    color: #083344;
-  }
-  .chat-compose.is-editing .msg-send-btn:disabled {
+  .chat-compose .msg-send-btn:disabled {
     opacity: 0.38;
     cursor: default;
-  }
-  .chat-compose.is-editing #user-write-message,
-  .chat-compose.is-editing #user-write-message-encrypted-chat {
-    width: 100%;
-    max-height: calc(5 * 2.6dvh + max(44px, 5.5dvh) + 2dvh) !important;
-    padding-bottom: calc(max(44px, 5.5dvh) + 1.2dvh) !important;
-  }
-  .chat-compose.is-editing > .hcs-byte-counter {
-    right: calc(max(44px, 5.5dvh) + 1.4dvh) !important;
-    bottom: 1.2dvh !important;
-    font-size: 1.45dvh !important;
-    line-height: 1;
-    pointer-events: none;
-    z-index: 2;
-  }
-  .chat-compose.is-editing > .hcs-byte-counter.hcs-warn,
-  .chat-compose.is-editing > .hcs-byte-counter.hcs-over {
-    color: #ff5c5c;
   }
 
   #popup-settings-edit-save {
@@ -1098,50 +1072,121 @@ html, body {
                 inset 0 0 0.8vh rgba(34, 211, 238, 0.3);
   }
 
-  /* Map skin: image and send sit inside the field, on the reserved
-     bottom row. 44px is the tap-target floor. The feed shell
-     (.is-feed-shell) keeps its own placement and must not inherit
-     this min-width. */
-  #topic-chat-container:not(.is-feed-shell) .chat-compose > .msg-send-btn,
-  #topic-chat-container:not(.is-feed-shell) .chat-compose > .msg-image-btn,
-  #encrypted-chat-container:not(.is-feed-shell) .chat-compose > .msg-send-btn,
-  #encrypted-chat-container:not(.is-feed-shell) .chat-compose > .msg-image-btn {
-    position: absolute;
-    bottom: 0.6dvh;
-    width: max(44px, 5.5dvh);
-    height: max(44px, 5.5dvh);
+  /* Shared composer for topic and E2EE, on the map and in the feed.
+     The map panel frame stays; only this row is the same in all four. */
+  #topic-chat-container .chat-compose,
+  #encrypted-chat-container .chat-compose {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--compose-gap);
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0;
+    padding: 0.5dvh var(--compose-pad) 0.6dvh;
+  }
+  #topic-chat-container .chat-compose-row,
+  #encrypted-chat-container .chat-compose-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--compose-gap);
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  #topic-chat-container .chat-compose-row.is-grown,
+  #encrypted-chat-container .chat-compose-row.is-grown {
+    align-items: flex-end;
+  }
+  #topic-chat-container .chat-compose-field,
+  #encrypted-chat-container .chat-compose-field {
+    display: contents;
+  }
+  #topic-chat-container .chat-compose .chat-attach-preview,
+  #encrypted-chat-container .chat-compose .chat-attach-preview,
+  #topic-chat-container .chat-compose .chat-edit-bar,
+  #encrypted-chat-container .chat-compose .chat-edit-bar {
+    width: 100%;
+    margin: 0;
+    box-sizing: border-box;
+  }
+  #topic-chat-container .chat-compose .msg-image-btn,
+  #topic-chat-container .chat-compose .msg-send-btn,
+  #encrypted-chat-container .chat-compose .msg-image-btn,
+  #encrypted-chat-container .chat-compose .msg-send-btn {
+    appearance: none;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    width: var(--compose-size);
+    height: var(--compose-size);
     min-width: 44px;
     min-height: 44px;
     margin: 0;
     padding: 0;
-    font-size: 2.2dvh;
-    line-height: 1;
+    border-radius: 50%;
+    font-size: 0;
+    line-height: 0;
+    box-shadow: none;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #topic-chat-container .chat-compose .msg-image-btn svg,
+  #topic-chat-container .chat-compose .msg-send-btn svg,
+  #encrypted-chat-container .chat-compose .msg-image-btn svg,
+  #encrypted-chat-container .chat-compose .msg-send-btn svg {
+    display: block;
+    width: calc(var(--compose-size) * 0.45);
+    height: calc(var(--compose-size) * 0.45);
+    margin: 0;
+    pointer-events: none;
+  }
+  /* The paper plane's artwork sits up and to the right of its box. */
+  #topic-chat-container .chat-compose .msg-send-icon,
+  #encrypted-chat-container .chat-compose .msg-send-icon {
+    transform: translate(-2px, 2px);
+  }
+  #topic-chat-container .chat-compose .msg-image-btn,
+  #encrypted-chat-container .chat-compose .msg-image-btn {
+    background: transparent;
+    border: 1px solid #22D3EE;
+    color: #22D3EE;
+  }
+  #topic-chat-container .chat-compose .msg-send-btn,
+  #encrypted-chat-container .chat-compose .msg-send-btn {
+    background: #22D3EE;
+    border: 1px solid #22D3EE;
+    color: #083344;
+  }
+  #topic-chat-container .chat-compose .msg-image-btn:is(:hover, :active),
+  #encrypted-chat-container .chat-compose .msg-image-btn:is(:hover, :active) {
+    background: rgba(34, 211, 238, 0.12);
+  }
+  #topic-chat-container .chat-compose .msg-image-btn:focus-visible,
+  #topic-chat-container .chat-compose .msg-send-btn:focus-visible,
+  #encrypted-chat-container .chat-compose .msg-image-btn:focus-visible,
+  #encrypted-chat-container .chat-compose .msg-send-btn:focus-visible,
+  #topic-chat-container .chat-edit-bar-x:focus-visible,
+  #encrypted-chat-container .chat-edit-bar-x:focus-visible {
+    outline: 2px solid #22D3EE;
+    outline-offset: 2px;
+  }
+  #topic-chat-container .chat-compose .hcs-byte-counter,
+  #encrypted-chat-container .chat-compose .hcs-byte-counter {
+    position: static;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 2;
-  }
-
-  #topic-chat-container:not(.is-feed-shell) .chat-compose > .msg-send-btn,
-  #encrypted-chat-container:not(.is-feed-shell) .chat-compose > .msg-send-btn {
-    right: 0.6dvh;
-    left: auto;
-  }
-
-  #topic-chat-container:not(.is-feed-shell) .chat-compose > .msg-image-btn,
-  #encrypted-chat-container:not(.is-feed-shell) .chat-compose > .msg-image-btn {
-    left: 0.6dvh;
-    right: auto;
-  }
-
-  /* Byte counter: small and muted in the corner, red near the limit. */
-  #topic-chat-container:not(.is-feed-shell) .chat-compose > .hcs-byte-counter,
-  #encrypted-chat-container:not(.is-feed-shell) .chat-compose > .hcs-byte-counter {
-    position: absolute;
-    right: calc(max(44px, 5.5dvh) + 1.2dvh);
-    bottom: calc(0.6dvh + (max(44px, 5.5dvh) - 1.35dvh) / 2);
+    height: var(--compose-size);
     margin: 0;
-    max-width: calc(100% - (max(44px, 5.5dvh) * 2) - 2.8dvh);
+    max-width: 28dvw;
     overflow: hidden;
     font-family: inherit;
     font-size: 1.35dvh;
@@ -1150,14 +1195,30 @@ html, body {
     text-overflow: ellipsis;
     color: rgba(255, 255, 255, 0.5);
     pointer-events: none;
-    z-index: 2;
   }
-
-  #topic-chat-container:not(.is-feed-shell) .chat-compose > .hcs-byte-counter.hcs-warn,
-  #topic-chat-container:not(.is-feed-shell) .chat-compose > .hcs-byte-counter.hcs-over,
-  #encrypted-chat-container:not(.is-feed-shell) .chat-compose > .hcs-byte-counter.hcs-warn,
-  #encrypted-chat-container:not(.is-feed-shell) .chat-compose > .hcs-byte-counter.hcs-over {
+  #topic-chat-container .chat-compose .hcs-byte-counter.hcs-warn,
+  #topic-chat-container .chat-compose .hcs-byte-counter.hcs-over,
+  #encrypted-chat-container .chat-compose .hcs-byte-counter.hcs-warn,
+  #encrypted-chat-container .chat-compose .hcs-byte-counter.hcs-over {
     color: #ff5c5c;
+  }
+  @media (max-width: 360px) {
+    #topic-chat-container .chat-compose-field,
+    #encrypted-chat-container .chat-compose-field {
+      display: block;
+      position: relative;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    #topic-chat-container .chat-compose .hcs-byte-counter,
+    #encrypted-chat-container .chat-compose .hcs-byte-counter {
+      position: absolute;
+      right: 1.2dvh;
+      bottom: 0.45dvh;
+      height: auto;
+      max-width: 34dvw;
+      z-index: 1;
+    }
   }
 
   /* One family for every field in the map panel. The panel itself does
@@ -1218,19 +1279,42 @@ html, body {
     margin-top: 0.5vh;
   }
 
-  /* Keep typed text clear of the in-field image, send, and counter
-     (bottom row only — text uses the full width above that row).
-     height:auto lets the empty field sit at its natural height (line +
-     reserved button row) so delete-all shrinks it back to the initial size */
-  #user-write-message,
-  #user-write-message-encrypted-chat {
-    height: auto;
-    padding-bottom: calc(max(44px, 5.5dvh) + 0.9dvh);
-    padding-right: 1.2dvh;
+  /* One line, then it grows to about five. The buttons match this height. */
+  #topic-chat-container .chat-compose textarea.toolbar-column,
+  #encrypted-chat-container .chat-compose textarea.toolbar-column {
+    flex: 1 1 auto;
+    width: auto !important;
+    min-width: 0;
+    height: var(--compose-size) !important;
+    min-height: var(--compose-size) !important;
+    max-height: calc(var(--compose-size) + (var(--compose-line) * 4)) !important;
+    margin: 0 !important;
+    padding-top: calc((var(--compose-size) - var(--compose-line) - 2px) / 2) !important;
+    padding-bottom: calc((var(--compose-size) - var(--compose-line) - 2px) / 2) !important;
+    padding-left: 1.4dvh !important;
+    padding-right: 1.4dvh !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    border-radius: 999px !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    box-shadow: none !important;
+    color: #fff !important;
     font-family: inherit;
-    /* A swipe on the field stays inside it. Past the text, it does not
-       pull the chat panel or the page. */
+    font-size: 2dvh !important;
+    line-height: var(--compose-line) !important;
+    box-sizing: border-box;
+    resize: none;
+    overflow-x: hidden;
+    overflow-y: hidden;
     overscroll-behavior: contain;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  @media (max-width: 360px) {
+    #topic-chat-container .chat-compose textarea.toolbar-column,
+    #encrypted-chat-container .chat-compose textarea.toolbar-column {
+      width: 100% !important;
+      padding-right: 36dvw !important;
+    }
   }
 
   /* Keep typed text clear of the character counter (draw marker/polygon) */
@@ -10564,17 +10648,11 @@ html.feed-app appkit-modal {
 }
 #feed-chat .is-feed-shell .feed-chat-compose {
   order: 4;
-  position: relative;
   z-index: 7;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: calc(var(--fu) * 0.5);
-  box-sizing: border-box;
   margin: 0 !important;
-  padding: calc(var(--fu) * 0.6) calc(var(--fu) * 0.7) calc(var(--fu) * 0.6 + env(safe-area-inset-bottom));
   border-top: 1px solid rgba(255, 255, 255, 0.22);
   background: #0a0a12;
+  padding-bottom: calc(0.6dvh + env(safe-area-inset-bottom));
 }
 #feed-chat .is-feed-shell .feed-chat-sheet {
   display: none;
@@ -10699,16 +10777,6 @@ html.feed-app appkit-modal {
   width: 100% !important;
   flex: 1 1 auto;
 }
-#feed-chat .is-feed-shell #user-write-message,
-#feed-chat .is-feed-shell #user-write-message-encrypted-chat {
-  order: 2;
-  flex: 1 1 auto;
-  width: auto !important;
-  min-width: 0;
-  min-height: calc(var(--fu) * 4.2);
-  max-height: calc(var(--fu) * 12) !important;
-  padding: calc(var(--fu) * 0.85) calc(var(--fu) * 1.1) !important;
-}
 #feed-chat .is-feed-shell label {
   font-family: Inter, system-ui, sans-serif !important;
   font-size: calc(var(--fu) * 1.4) !important;
@@ -10779,101 +10847,6 @@ html.feed-app appkit-modal {
 #feed-chat .is-feed-shell #messages-from-encrypted-chat * {
   font-family: Inter, system-ui, sans-serif;
   touch-action: pan-y !important;
-}
-#feed-chat .is-feed-shell .chat-attach-preview {
-  order: 0;
-  flex: 1 0 100%;
-}
-#feed-chat .is-feed-shell .chat-attach-preview[hidden] {
-  display: none !important;
-}
-#feed-chat .is-feed-shell .hcs-byte-counter {
-  order: 3;
-  position: static !important;
-  right: auto !important;
-  bottom: auto !important;
-  flex: 0 0 auto;
-  align-self: center;
-  margin: 0;
-  font-family: Inter, system-ui, sans-serif !important;
-  font-size: calc(var(--fu) * 1.15) !important;
-  line-height: 1;
-  white-space: nowrap;
-  color: rgba(255, 255, 255, 0.55);
-}
-#feed-chat .is-feed-shell .msg-image-btn,
-#feed-chat .is-feed-shell .msg-send-btn {
-  position: static !important;
-  top: auto !important;
-  right: auto !important;
-  bottom: auto !important;
-  left: auto !important;
-  flex: 0 0 auto;
-  width: calc(var(--fu) * 4) !important;
-  height: calc(var(--fu) * 4) !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border-radius: 50% !important;
-  font-size: 0 !important;
-  line-height: 0 !important;
-  box-shadow: none !important;
-}
-#feed-chat .is-feed-shell .msg-image-btn {
-  order: 1;
-  background: rgba(10, 10, 18, 0.88) !important;
-  border: 1px solid #22D3EE !important;
-  color: #22D3EE !important;
-}
-#feed-chat .is-feed-shell .msg-send-btn {
-  order: 4;
-  background: #22D3EE !important;
-  border: 0 !important;
-  color: #083344 !important;
-}
-#feed-chat .is-feed-shell .chat-edit-bar {
-  order: -1;
-  flex: 1 0 100%;
-  margin: 0 0 calc(var(--fu) * 0.45);
-  border-radius: calc(var(--fu) * 1.4);
-  background: rgba(255, 255, 255, 0.06);
-}
-#feed-chat .is-feed-shell .chat-compose.is-editing .msg-send-btn {
-  width: max(44px, 5.5dvh) !important;
-  height: max(44px, 5.5dvh) !important;
-  min-width: 44px;
-  min-height: 44px;
-}
-#feed-chat .is-feed-shell .chat-compose.is-editing .msg-send-btn .feed-chat-glyph {
-  display: none !important;
-}
-#feed-chat .is-feed-shell .chat-compose.is-editing .msg-check-mark {
-  display: inline-flex !important;
-}
-#feed-chat .is-feed-shell .chat-compose.is-editing .msg-check-mark svg {
-  width: calc(var(--fu) * 2);
-  height: calc(var(--fu) * 2);
-}
-#feed-chat .is-feed-shell .chat-compose.is-editing #user-write-message,
-#feed-chat .is-feed-shell .chat-compose.is-editing #user-write-message-encrypted-chat {
-  max-height: calc(var(--fu) * 14) !important;
-  padding-bottom: calc(var(--fu) * 3.1) !important;
-  padding-right: calc(var(--fu) * 1.1) !important;
-}
-#feed-chat .is-feed-shell .chat-compose.is-editing > .hcs-byte-counter {
-  position: absolute !important;
-  right: calc(max(44px, 5.5dvh) + var(--fu) * 1.35) !important;
-  bottom: calc(var(--fu) * 1.05) !important;
-  max-width: calc(100% - max(44px, 5.5dvh) - var(--fu) * 2.4);
-  margin: 0;
-  overflow: hidden;
-  font-size: calc(var(--fu) * 1.05) !important;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  color: #22d3ee !important;
-}
-#feed-chat .is-feed-shell .chat-compose.is-editing > .hcs-byte-counter.hcs-warn,
-#feed-chat .is-feed-shell .chat-compose.is-editing > .hcs-byte-counter.hcs-over {
-  color: #ff5c5c !important;
 }
 #feed-chat .is-feed-shell .feed-chat-glyph {
   width: calc(var(--fu) * 1.8);

@@ -18,6 +18,7 @@ import {
 
  import { connectedAccount, signer } from './web3';
 import { expandTopicChat, scheduleTopicChatLayout } from './cssLogic.js';
+import { fitChatComposer } from './chatcomposer.js';
 import { payerUsernameNode } from './payerlink.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
 import { fillChatMessage } from './chatimage.js';
@@ -151,17 +152,7 @@ function topicChatCompose() {
 }
 
 function fitTopicComposer(field) {
-  if (!field) return;
-  const editing = !!field.closest('.chat-compose')?.classList.contains('is-editing');
-  // The feed stylesheet locks height with !important. Edit mode has to
-  // win that so the field can grow, then let it go when editing ends.
-  if (!editing) {
-    field.style.height = '';
-    field.style.height = field.scrollHeight + 'px';
-    return;
-  }
-  field.style.setProperty('height', '0px', 'important');
-  field.style.setProperty('height', field.scrollHeight + 'px', 'important');
+  fitChatComposer(field);
 }
 
 function clearTopicChatEditMark() {
