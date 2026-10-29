@@ -4004,6 +4004,16 @@ const NORTH_ICON = [
   ['path', { d: 'M12 3 17.5 12H6.5Z', fill: 'currentColor', stroke: 'none' }],
   ['path', { d: 'M12 21 6.5 12h11Z', fill: 'currentColor', stroke: 'none', opacity: '0.45' }],
 ];
+const EYE_ICON = [
+  ['path', { d: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z' }],
+  ['circle', { cx: '12', cy: '12', r: '3' }],
+];
+const TOOLS_ICON = [
+  ['rect', { x: '3', y: '3', width: '7', height: '7', rx: '1' }],
+  ['rect', { x: '14', y: '3', width: '7', height: '7', rx: '1' }],
+  ['rect', { x: '14', y: '14', width: '7', height: '7', rx: '1' }],
+  ['rect', { x: '3', y: '14', width: '7', height: '7', rx: '1' }],
+];
 
 // Panels Options can open. They are painted under the feed, so a drawer
 // open lifts them while that Options session is up.
@@ -4057,7 +4067,7 @@ let optionsOverFeed = false;
 const optionLifted = new Map();
 
 function liftOptionEl(el) {
-  if (!el) return;
+  if (!el || el.classList.contains('in-drawer')) return;
   if (!optionLifted.has(el)) optionLifted.set(el, el.style.zIndex);
   if (el.style.zIndex !== '8800') el.style.zIndex = '8800';
 }
@@ -5248,13 +5258,21 @@ async function openConnect() {
 let menuToken = 0;
 let drawerItem = '';
 let suppressDrawerRestore = false;
+let drawerStack = [];
+let drawerPageToken = 0;
+let drawerRenderLock = false;
+let drawerPage = null;
+let drawerPageBody = null;
+let drawerPageTitle = null;
+let drawerPageBack = null;
+const drawerHosted = new Map();
 
 function motionOff() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
 function markMenuItem(label) {
-  const buttons = menu.querySelectorAll('.feed-menu-item');
+  const buttons = menu.querySelectorAll(':scope > li > .feed-menu-item');
   for (const button of buttons) {
     const on = !!label && button.dataset.item === label;
     button.classList.toggle('is-current', on);
@@ -5353,6 +5371,7 @@ function paintMenu(open) {
 // entry. A phone Back already popped that entry, so the history call
 // no-ops and the feed stays.
 function closeMenu() {
+  dropDrawerHistory();
   drawerItem = '';
   paintMenu(false);
   if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedmenu')) {
@@ -5427,6 +5446,7 @@ function openMapE2ee() {
 }
 
 function goToFeed() {
+  dropDrawerHistory();
   drawerItem = '';
   paintMenu(false);
   if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedmenu')) {
@@ -5458,7 +5478,16 @@ const DRAWER_ORDER = [
   { label: 'My profile', icon: USER_ICON, run: openOwnProfile, wallet: 'on' },
   { label: 'Topic chat', icon: CHAT_ICON, run: { feed: openTopicChat, map: openMapTopic } },
   { label: 'E2EE chat', icon: LOCK_ICON, run: { feed: openE2ee, map: openMapE2ee } },
-  { label: 'Settings', icon: SETTINGS_ICON, run: { feed: openFeedSettings, map: openMapOptions } },
+  {
+    label: 'Settings',
+    icon: SETTINGS_ICON,
+    run: openDrawerSettings,
+    pages: [
+      { id: 'rotation-controls', label: 'Settings', icon: SETTINGS_ICON },
+      { id: 'visibility-controls', label: 'Visibility', icon: EYE_ICON },
+      { id: 'toolbar', label: 'Toolbar', icon: TOOLS_ICON },
+    ],
+  },
   {
     kind: 'tools',
     feed: [],
@@ -5565,6 +5594,323 @@ for (const entry of DRAWER_ORDER) {
   appendDrawerItem(entry);
 }
 
+// Settings slides inside the drawer. One overlay, one history level per
+// page. Panels are the existing nodes, parked here while the page is open.
+const DRAWER_PAGE_LEVELS = 4;
+const DRAWER_CHILDREN = {
+  toolbar: [
+    'Edit_Profile-column', 'load-column', 'create-column', 'draw-column',
+    'utility-column', 'memo-column', 'domain-column', 'stack-topic-ids',
+    'initial-xyz-column',
+  ],
+  'rotation-controls': [
+    'model-column', 'crosshair-column', 'marker-options-column',
+    'main-button-column', 'button-input-column', 'topic-chat-column',
+  ],
+};
+const DRAWER_EXTRAS = {
+  'model-column': ['model-column-save'],
+  'crosshair-column': ['crosshair-column-save'],
+  'marker-options-column': ['marker-column-save'],
+  'main-button-column': ['main-button-column-save'],
+  'button-input-column': ['button-input-column-save'],
+  'topic-chat-column': ['topic-chat-save'],
+};
+
+function settingsPages() {
+  const entry = DRAWER_ORDER.find((item) => item.label === 'Settings');
+  return (entry && entry.pages) || [];
+}
+
+function panelShown(el) {
+  if (!el) return false;
+  const display = el.style.display;
+  return display !== '' && display !== 'none';
+}
+
+function drawerPageName(level) {
+  return 'drawerpage:' + level;
+}
+
+function hideForDrawer(el) {
+  if (!el || el.style.display === 'none') return;
+  el.dataset.historyHold = '1';
+  el.style.display = 'none';
+}
+
+function showForDrawer(el) {
+  if (!el || panelShown(el)) return;
+  el.dataset.historyHold = '1';
+  el.style.display = 'block';
+}
+
+function hostDrawer(el) {
+  if (!el || drawerHosted.has(el) || el.classList.contains('in-drawer')) return;
+  drawerHosted.set(el, { parent: el.parentNode, next: el.nextSibling });
+  el.classList.add('in-drawer');
+  drawerPageBody.appendChild(el);
+}
+
+function unhostDrawer(el, hide) {
+  const spot = drawerHosted.get(el);
+  drawerHosted.delete(el);
+  el.classList.remove('in-drawer');
+  if (hide) hideForDrawer(el);
+  if (!spot || !spot.parent || !spot.parent.isConnected) return;
+  const next = spot.next && spot.next.parentNode === spot.parent ? spot.next : null;
+  spot.parent.insertBefore(el, next);
+}
+
+function unhostDrawerAll(keep) {
+  for (const el of [...drawerHosted.keys()]) {
+    if (keep && keep.has(el)) continue;
+    unhostDrawer(el, true);
+  }
+}
+
+function drawerPageLabel(id) {
+  if (id === 'settings') return 'Settings';
+  const spec = settingsPages().find((item) => item.id === id);
+  if (spec) return spec.label;
+  const el = document.getElementById(id);
+  const heading = el && el.querySelector('.options-column-title');
+  if (heading) {
+    const text = heading.textContent.replace(/\s+/g, ' ').trim().replace(/^[^A-Za-z0-9]+/, '').trim();
+    if (text) return text;
+  }
+  return 'Settings';
+}
+
+function markSettingsRow(id) {
+  if (!drawerPageBody) return;
+  const buttons = drawerPageBody.querySelectorAll('.feed-menu-item');
+  for (const button of buttons) {
+    const on = !!id && button.dataset.panel === id;
+    button.classList.toggle('is-current', on);
+    if (on) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  }
+}
+
+function fillSettingsList() {
+  const list = document.createElement('ul');
+  list.className = 'feed-menu-page-list';
+  for (const spec of settingsPages()) {
+    const row = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'feed-menu-item';
+    button.dataset.panel = spec.id;
+    button.append(svgIcon(spec.icon), document.createTextNode(spec.label));
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      pushDrawer(spec.id);
+    });
+    bindPress(button);
+    row.appendChild(button);
+    list.appendChild(row);
+  }
+  drawerPageBody.appendChild(list);
+}
+
+function fillDrawerPanel(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  showForDrawer(el);
+  hostDrawer(el);
+  for (const extraId of DRAWER_EXTRAS[id] || []) {
+    const extra = document.getElementById(extraId);
+    if (!extra || !panelShown(extra) || el.contains(extra)) continue;
+    hostDrawer(extra);
+  }
+}
+
+function renderDrawer(slide) {
+  if (!drawerPage) return;
+  drawerRenderLock = true;
+  try {
+    const top = drawerStack[drawerStack.length - 1] || '';
+    document.documentElement.classList.toggle('drawer-page', !!top);
+    if (!top) {
+      menu.classList.remove('is-page');
+      const token = ++drawerPageToken;
+      const wait = motionOff() ? 0 : 250;
+      setTimeout(() => {
+        if (token !== drawerPageToken || drawerStack.length) return;
+        unhostDrawerAll();
+        drawerPageBody.replaceChildren();
+        drawerPage.hidden = true;
+      }, wait);
+      return;
+    }
+    drawerPageToken += 1;
+    const keep = new Set();
+    if (top !== 'settings') {
+      const el = document.getElementById(top);
+      if (el) keep.add(el);
+      for (const extraId of DRAWER_EXTRAS[top] || []) {
+        const extra = document.getElementById(extraId);
+        if (extra && panelShown(extra) && !(el && el.contains(extra))) keep.add(extra);
+      }
+    }
+    unhostDrawerAll(keep);
+    drawerPage.hidden = false;
+    drawerPageTitle.textContent = drawerPageLabel(top);
+    drawerPage.setAttribute('aria-label', drawerPageTitle.textContent);
+    const kept = [...drawerPageBody.children].filter((node) => node.classList.contains('in-drawer'));
+    drawerPageBody.replaceChildren(...kept);
+    if (top === 'settings') fillSettingsList();
+    else fillDrawerPanel(top);
+    menu.scrollTop = 0;
+    if (slide) {
+      menu.classList.remove('is-page');
+      void drawerPage.offsetWidth;
+    }
+    menu.classList.add('is-page');
+    drawerPageBack.focus({ preventScroll: true });
+  } finally {
+    drawerRenderLock = false;
+  }
+}
+
+function pushDrawer(id) {
+  if (!id || drawerStack[drawerStack.length - 1] === id) return;
+  if (drawerStack.length >= DRAWER_PAGE_LEVELS) return;
+  drawerStack.push(id);
+  renderDrawer(true);
+  if (window.layerOpened) {
+    window.layerOpened(drawerPageName(drawerStack.length), { stack: drawerStack.slice() });
+  }
+}
+
+function finishDrawerBack(leaving) {
+  if (!drawerStack.length) markMenuItem('Settings');
+  else if (drawerStack[drawerStack.length - 1] === 'settings') markSettingsRow(leaving);
+}
+
+function drawerBack() {
+  if (!drawerStack.length) return;
+  const name = drawerPageName(drawerStack.length);
+  const leaving = drawerStack.pop();
+  renderDrawer(false);
+  finishDrawerBack(leaving);
+  if (window.layerIsTop && window.layerIsTop(name)) window.layerClosedByUI(name);
+}
+
+function drawerPageClose(level) {
+  if (drawerStack.length < level) return;
+  const leaving = drawerStack[level - 1];
+  drawerStack.length = level - 1;
+  renderDrawer(false);
+  finishDrawerBack(leaving);
+}
+
+function openDrawerSettings() {
+  if (!window.layerIsTop || !window.layerIsTop('feedmenu')) return;
+  if (drawerStack.length) return;
+  pushDrawer('settings');
+}
+
+function dropDrawerHistory() {
+  while (drawerStack.length) {
+    const name = drawerPageName(drawerStack.length);
+    drawerStack.pop();
+    if (window.layerIsTop && window.layerIsTop(name)) window.layerClosedByUI(name);
+  }
+  drawerPageToken += 1;
+  unhostDrawerAll();
+  document.documentElement.classList.remove('drawer-page');
+  menu.classList.remove('is-page');
+  if (!drawerPage) return;
+  drawerPageBody.replaceChildren();
+  drawerPage.hidden = true;
+}
+
+drawerPage = document.createElement('li');
+drawerPage.className = 'feed-menu-page';
+drawerPage.hidden = true;
+drawerPage.setAttribute('role', 'presentation');
+const drawerPageBar = document.createElement('div');
+drawerPageBar.className = 'feed-menu-page-bar';
+drawerPageBack = document.createElement('button');
+drawerPageBack.type = 'button';
+drawerPageBack.className = 'feed-menu-page-back';
+drawerPageBack.setAttribute('aria-label', 'Back');
+drawerPageBack.appendChild(svgIcon([
+  ['path', { d: 'm12 19-7-7 7-7' }],
+  ['path', { d: 'M19 12H5' }],
+]));
+drawerPageTitle = document.createElement('span');
+drawerPageTitle.className = 'feed-menu-page-title';
+drawerPageBar.append(drawerPageBack, drawerPageTitle);
+drawerPageBody = document.createElement('div');
+drawerPageBody.className = 'feed-menu-page-body';
+drawerPage.append(drawerPageBar, drawerPageBody);
+drawerPage.addEventListener('click', (event) => event.stopPropagation());
+drawerPageBack.addEventListener('click', (event) => {
+  event.stopPropagation();
+  drawerBack();
+});
+bindPress(drawerPageBack);
+menu.appendChild(drawerPage);
+
+// Only the panel whose display just changed. A column already on the map
+// (the startup Load panel) must not be pulled in just because its parent opened.
+function watchDrawerPanel(id, el) {
+  new MutationObserver(() => {
+    if (drawerRenderLock || !drawerStack.length) return;
+    const top = drawerStack[drawerStack.length - 1];
+    if (top === 'settings') return;
+    const kids = DRAWER_CHILDREN[top] || [];
+    if (kids.includes(id) && panelShown(el)) {
+      pushDrawer(id);
+      return;
+    }
+    if (id !== top || panelShown(el)) return;
+    const childOpen = kids.some((kid) => panelShown(document.getElementById(kid)));
+    if (!childOpen) drawerBack();
+  }).observe(el, { attributes: true, attributeFilter: ['style'] });
+}
+
+const drawerWatchIds = ['rotation-controls', 'visibility-controls', 'toolbar'];
+for (const ids of Object.values(DRAWER_CHILDREN)) drawerWatchIds.push(...ids);
+for (const id of drawerWatchIds) {
+  const el = document.getElementById(id);
+  if (el) watchDrawerPanel(id, el);
+}
+
+// Move a child into the drawer before its click handler shows it, and
+// hold its own history layer so the drawer page stays the one Back step.
+document.addEventListener('click', (event) => {
+  if (drawerStack.length < 2 || !menu.contains(event.target)) return;
+  const top = drawerStack[drawerStack.length - 1];
+  const kids = DRAWER_CHILDREN[top] || [];
+  if (!kids.length) return;
+  const parked = [];
+  const park = (id, hold) => {
+    const el = document.getElementById(id);
+    if (!el || panelShown(el) || el.classList.contains('in-drawer')) return;
+    if (hold) el.dataset.historyHold = '1';
+    hostDrawer(el);
+    parked.push(el);
+  };
+  for (const id of kids) {
+    park(id, true);
+    for (const extraId of DRAWER_EXTRAS[id] || []) park(extraId, false);
+  }
+  if (!parked.length) return;
+  setTimeout(() => {
+    for (const el of parked) {
+      if (panelShown(el)) {
+        delete el.dataset.historyHold;
+        continue;
+      }
+      delete el.dataset.historyHold;
+      if (drawerHosted.has(el) && !drawerStack.includes(el.id)) unhostDrawer(el, false);
+    }
+  }, 0);
+}, true);
+
 function paintMapAccount() {
   const id = walletNow();
   const label = document.getElementById('account-id');
@@ -5582,7 +5928,7 @@ function paintMenuRows() {
   for (const slot of viewChoices) paintChoice(slot.choice, slot.spec, mapMode);
   const tools = mapMode ? mapToolCount : feedToolCount;
   for (const row of menu.children) {
-    if (!row.dataset) continue;
+    if (!row.dataset || row.classList.contains('feed-menu-page')) continue;
     if (row.dataset.tools) {
       row.hidden = tools === 0;
       continue;
@@ -5630,6 +5976,21 @@ if (window.defineLayer) {
     },
     close: () => closeMenu(),
   });
+  for (let level = 1; level <= DRAWER_PAGE_LEVELS; level += 1) {
+    window.defineLayer(drawerPageName(level), {
+      parent: level === 1 ? 'feedmenu' : drawerPageName(level - 1),
+      open: (state) => {
+        const stack = state && Array.isArray(state.stack) ? state.stack : [];
+        drawerStack = stack.slice(0, level);
+        if (menu.hidden) {
+          placeMenuForMap(!feedCovers());
+          paintMenu(true);
+        }
+        renderDrawer(false);
+      },
+      close: () => drawerPageClose(level),
+    });
+  }
   window.defineLayer('feedsettings', {
     parent: 'feed',
     open: (state) => {
@@ -5710,13 +6071,13 @@ if (window.defineLayer) {
 bindPress(menuBtn);
 menuBtn.addEventListener('click', (event) => {
   event.stopPropagation();
-  if (window.layerIsTop && window.layerIsTop('feedmenu')) closeMenu();
+  if (drawerStack.length || (window.layerIsTop && window.layerIsTop('feedmenu'))) closeMenu();
   else openMenu();
 });
 bindPress(mapMenuBtn);
 mapMenuBtn.addEventListener('click', (event) => {
   event.stopPropagation();
-  if (window.layerIsTop && window.layerIsTop('feedmenu')) closeMenu();
+  if (drawerStack.length || (window.layerIsTop && window.layerIsTop('feedmenu'))) closeMenu();
   else openMapMenu();
 });
 
@@ -5856,6 +6217,12 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (menu.hidden) return;
+  if (drawerStack.length) {
+    event.preventDefault();
+    event.stopPropagation();
+    drawerBack();
+    return;
+  }
   if (window.layerIsTop && !window.layerIsTop('feedmenu')) return;
   event.preventDefault();
   event.stopPropagation();

@@ -2228,8 +2228,22 @@ html, body {
     right: auto;
     top: auto;
   }
-  #menu-buttons-group {
-    top: calc(0.9dvh + var(--map-pill) + 1.2dvh) !important;
+  /* Settings, Visibility and Toolbar stay in the document so the drawer
+     can show those panels. They are not part of the map. */
+  #menu-buttons-group,
+  #menu-buttons-group * {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    right: auto !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    z-index: 0;
   }
 
   /* Layers and search stay in the document for the drawer to click. */
@@ -9821,6 +9835,7 @@ html.feed-app appkit-modal {
 }
 @media (prefers-reduced-motion: reduce) {
   #feed-menu,
+  #feed-menu .feed-menu-page,
   .feed-menu-dim {
     transition: none;
   }
@@ -9837,6 +9852,8 @@ html.feed-app appkit-modal {
   appearance: none;
   display: flex;
   align-items: center;
+  box-sizing: border-box;
+  min-height: 44px;
   gap: calc(var(--fu) * 0.8);
   width: 100%;
   margin: 0;
@@ -9892,6 +9909,8 @@ html.feed-app appkit-modal {
   appearance: none;
   display: flex;
   align-items: center;
+  box-sizing: border-box;
+  min-height: 44px;
   gap: calc(var(--fu) * 0.9);
   width: 100%;
   margin: 0;
@@ -9931,6 +9950,127 @@ html.feed-app appkit-modal {
 #feed-menu .feed-menu-account-btn:focus-visible {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.12);
+}
+#feed-menu.is-page {
+  overflow: hidden;
+}
+#feed-menu .feed-menu-page {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  background: #0a0a12;
+  transform: translateX(100%);
+  transition: transform 250ms ease-out;
+}
+#feed-menu.is-page .feed-menu-page {
+  transform: translateX(0);
+}
+#feed-menu .feed-menu-page-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--fu) * 0.8);
+  box-sizing: border-box;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 calc(var(--fu) * 1.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+}
+#feed-menu .feed-menu-page-back {
+  appearance: none;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#feed-menu .feed-menu-page-back svg {
+  width: calc(var(--fu) * 2.2);
+  height: calc(var(--fu) * 2.2);
+  display: block;
+  pointer-events: none;
+}
+#feed-menu .feed-menu-page-back:is(:hover, :active, .is-hold) {
+  color: #22D3EE;
+}
+#feed-menu .feed-menu-page-back:focus-visible {
+  outline: calc(var(--fu) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--fu) * 0.12);
+}
+#feed-menu .feed-menu-page-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+  font-size: calc(var(--fu) * 2.1);
+  font-weight: 700;
+  line-height: 1.2;
+}
+#feed-menu .feed-menu-page-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: calc(var(--fu) * 0.8) calc(var(--fu) * 0.7) calc(var(--fu) * 1.2);
+}
+#feed-menu .feed-menu-page-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#feed-menu .in-drawer {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  margin: 0 !important;
+  z-index: auto !important;
+  transform: none !important;
+  animation: onboardBorderPulse 1.3s ease-in-out infinite !important;
+}
+#feed-menu .in-drawer .options-column-title {
+  display: none;
+}
+#feed-menu .in-drawer .toolbar-column,
+#feed-menu .in-drawer .toolbar-column-btns,
+#feed-menu .in-drawer .toolbar-column-first-settings-btns,
+#feed-menu .in-drawer .toolbar-column-settings-btns {
+  box-sizing: border-box;
+  min-height: 44px;
+}
+#feed-menu .in-drawer .panel-help-btn,
+#feed-menu .in-drawer .panel-close-btn {
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+}
+html.drawer-page .info-overlay {
+  z-index: 8700;
 }
 #feed-settings {
   --feed-zoom: 1;
