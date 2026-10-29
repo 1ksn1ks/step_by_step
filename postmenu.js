@@ -3,6 +3,7 @@
 
 import { connectedAccount } from './web3.js';
 import { bindDonationTarget, openDonation } from './donations.js';
+import { bindPressFeedback } from './followtopic.js';
 
 const DOTS = [
   ['circle', { cx: '5', cy: '12', r: '1.6' }],
@@ -76,6 +77,7 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
   btn.setAttribute('aria-expanded', 'false');
   btn.setAttribute('aria-controls', id);
   btn.appendChild(dotsIcon());
+  bindPressFeedback(btn);
 
   const pop = document.createElement('div');
   pop.id = id;
@@ -146,8 +148,12 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
 
   function watchAnchor() {
     if (openPanel !== panel) return;
+    // The press scale grows the painted box from its centre. Use the
+    // unscaled layout point so that pop does not look like a scroll.
     const box = btn.getBoundingClientRect();
-    const sig = box.top.toFixed(1) + '|' + box.left.toFixed(1);
+    const top = box.top + box.height / 2 - btn.offsetHeight / 2;
+    const left = box.left + box.width / 2 - btn.offsetWidth / 2;
+    const sig = top.toFixed(1) + '|' + left.toFixed(1);
     if (anchorSig && sig !== anchorSig && !panel.settling()) {
       panel.close();
       return;

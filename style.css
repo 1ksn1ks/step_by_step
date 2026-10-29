@@ -3266,7 +3266,8 @@ html, body {
   }
 
   /* Same press timing as the follow button. The back chevron keeps its own scale. */
-  .maplibregl-popup-close-button:not(.comments-back-button) {
+  .maplibregl-popup-close-button:not(.comments-back-button),
+  .post-menu-btn {
     transition: background-color var(--press-dur) var(--press-ease), border-color var(--press-dur) var(--press-ease), color var(--press-dur) var(--press-ease);
   }
   .maplibregl-popup-close-button:not(.comments-back-button) .topic-follow-glyph,
@@ -3402,7 +3403,8 @@ html, body {
 
   .topic-follow-btn,
   #feed-back-btn,
-  .maplibregl-popup-close-button:not(.comments-back-button) {
+  .maplibregl-popup-close-button:not(.comments-back-button),
+  .post-menu-btn {
     --press-dur: 200ms;
     --press-ease: ease;
     --press-bg: #22D3EE;
@@ -3454,12 +3456,18 @@ html, body {
      and keeps .is-hold, which is the follow button's press. */
   .topic-follow-btn:not(.is-following):is(:hover, .is-hold),
   #feed-back-btn:is(:hover, .is-hold),
-  .maplibregl-popup-close-button:not(.comments-back-button):is(:hover, .is-hold) {
+  .maplibregl-popup-close-button:not(.comments-back-button):is(:hover, .is-hold),
+  .post-menu-btn:is(:hover, .is-hold, [aria-expanded="true"]) {
     background-color: var(--press-bg);
     border-color: var(--press-border);
     color: var(--press-ink);
   }
   @media (hover: none), (pointer: coarse) {
+    .post-menu-btn:hover:not(.is-hold):not([aria-expanded="true"]) {
+      background-color: var(--rest-bg);
+      border-color: var(--rest-border);
+      color: var(--rest-ink);
+    }
     .maplibregl-popup-close-button:not(.comments-back-button):hover:not(.is-hold) {
       background-color: var(--rest-bg);
       border-color: var(--rest-border);
@@ -3503,7 +3511,8 @@ html, body {
   }
   .topic-follow-btn.is-pop,
   #feed-back-btn.is-pop,
-  .maplibregl-popup-close-button:not(.comments-back-button).is-pop {
+  .maplibregl-popup-close-button:not(.comments-back-button).is-pop,
+  .post-menu-btn.is-pop {
     animation: topicFollowPop var(--press-dur) var(--press-ease);
   }
   .topic-follow-glyph {
@@ -3583,6 +3592,7 @@ html, body {
     .topic-follow-btn.is-pop,
     #feed-back-btn.is-pop,
     .maplibregl-popup-close-button:not(.comments-back-button).is-pop,
+    .post-menu-btn.is-pop,
     .popup-icon-chip.popup-settings-gear.is-pop,
     .popup-icon-chip.popup-nav-arrow.is-pop {
       animation: none !important;
@@ -4061,15 +4071,14 @@ html, body {
     border-radius: 50%;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u, 9.6px) * 0.4) calc(var(--u, 9.6px) * 1) rgba(0, 0, 0, 0.35);
     cursor: pointer;
+    --rest-bg: rgba(255, 255, 255, 0.10);
+    --rest-border: rgba(255, 255, 255, 0.22);
+    --rest-ink: #fff;
   }
   .post-menu-btn svg {
     width: calc(var(--u, 9.6px) * 2.2);
     height: calc(var(--u, 9.6px) * 2.2);
     display: block;
-  }
-  .post-menu-btn:hover,
-  .post-menu-btn[aria-expanded="true"] {
-    background: rgba(255, 255, 255, 0.16);
   }
   .post-menu-btn:focus-visible {
     outline: 2px solid #22D3EE;
