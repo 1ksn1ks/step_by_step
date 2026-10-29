@@ -1159,11 +1159,6 @@ function adoptComments(section, host) {
 // Copies the same deep link the notifications "Open on the map" uses:
 // place, payer, n, and at name the original place (for a shared pin, the
 // original place's payer and stored pin — the same data the share uses).
-const COPY_LINK_ICON = [
-  ['path', { d: 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71' }],
-  ['path', { d: 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71' }],
-];
-
 function copyPostLink(source) {
   const url = placeUrl({
     kind: source && source.kind === 'polygon' ? 'polygon' : 'marker',
@@ -1193,20 +1188,6 @@ function copySourceOf(data, payer, copyKind) {
   };
 }
 
-function createCopyLink(source) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'copy-link';
-  button.setAttribute('aria-label', 'Copy link');
-  button.title = 'Copy link';
-  button.appendChild(popupStrokeIcon('', COPY_LINK_ICON));
-  button.addEventListener('click', (event) => {
-    event.stopPropagation();
-    copyPostLink(source);
-  });
-  return button;
-}
-
 // Same heart, comment, and share controls the marker and polygon popups use.
 export function mountPostReactions(cluster, data, kind, home) {
   const polygon = kind === 'polygon';
@@ -1226,8 +1207,7 @@ export function mountPostReactions(cluster, data, kind, home) {
     number: polygon ? data.polygonnumber : data.markernumber,
     timestamp,
   };
-  // Copy-link → heart → comment → share in every cluster.
-  cluster.appendChild(createCopyLink(shareSource));
+  // Heart, comment, and share. Copy link stays on the post menu.
   cluster.appendChild(createHeartLike({
     count: polygon ? data.likeCountPolygon : data.likeCountMarker,
     liked: data.likedByMe,

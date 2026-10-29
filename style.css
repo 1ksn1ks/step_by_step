@@ -3958,47 +3958,8 @@ html, body {
     --h: calc(var(--u) * 0.22);
   }
 
-  /* Copy link — same glass disc as the heart, sits right before it in the
-     reaction cluster (and stays a small glass bubble in the feed action
-     row, via the override further down). */
-  .copy-link {
-    --h: calc(var(--u) * 0.38);
-    width: calc(var(--h) * 10);
-    height: calc(var(--h) * 10);
-    flex-shrink: 0;
-    position: relative;
-    z-index: 2;
-    box-sizing: border-box;
-    padding: 0;
-    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
-    background: rgba(255, 255, 255, 0.10);
-    box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.35);
-    border-radius: 999px;
-    color: #777;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
-  }
-
-  .copy-link svg {
-    width: calc(var(--h) * 6.2);
-    height: calc(var(--h) * 6.2);
-    flex: 0 0 auto;
-    display: block;
-  }
-
-  .copy-link:hover {
-    transform: scale(1.08);
-  }
-
-  .copy-link:active {
-    transform: scale(0.94);
-  }
-
-  /* Glass matches the copy-link disc. Next to Follow it takes that
-     button's height. A total turns it into a pill; zero stays the icon. */
+  /* Glass disc. Next to Follow it takes that button's height.
+     A total turns it into a pill; zero stays the icon. */
   .donate-pill {
     --h: calc(var(--u) * 0.38);
     height: calc(var(--h) * 10);
@@ -9347,33 +9308,6 @@ html.feed-app appkit-modal {
   width: auto;
   height: auto;
   z-index: auto;
-}
-/* The link stays a small glass bubble in the feed row (like the popup),
-   sitting just left of the heart. */
-:is(#feed-column, .feed-comments-stage) .feed-actions .copy-link {
-  --h: calc(var(--fu) * 0.30);
-  width: calc(var(--h) * 10);
-  height: calc(var(--h) * 10);
-  padding: 0;
-  border: calc(var(--fu) * 0.12) solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.10);
-  box-shadow: inset 0 calc(var(--fu) * 0.15) 0 rgba(255, 255, 255, 0.18);
-  border-radius: 999px;
-  color: var(--feed-action, #777);
-  position: static;
-  z-index: auto;
-}
-:is(#feed-column, .feed-comments-stage) .feed-actions .copy-link svg {
-  width: calc(var(--fu) * 1.9);
-  height: calc(var(--fu) * 1.9);
-}
-:is(#feed-column, .feed-comments-stage) .feed-actions .copy-link:hover {
-  transform: scale(1.08);
-  color: var(--feed-action-hover, #67e8f9);
-  background: rgba(255, 255, 255, 0.16);
-}
-:is(#feed-column, .feed-comments-stage) .feed-actions .copy-link:active {
-  transform: scale(0.94);
 }
 :is(#feed-column, .feed-comments-stage) .feed-actions .heart-like label {
   position: relative;

@@ -1884,11 +1884,9 @@ function buildCard(post) {
     const cluster = document.createElement('div');
     mountPostReactions(cluster, record, post.kind, card);
     const heart = cluster.querySelector('.heart-like:not(.comment-bubble):not(.share-bubble)');
-    const copyLink = cluster.querySelector('.copy-link');
     const comment = cluster.querySelector('.comment-bubble');
     const share = cluster.querySelector('.share-bubble');
-    // Copy-link first: [link][heart] on the left, comment mid, share right.
-    if (copyLink) actionLeft.appendChild(copyLink);
+    // Heart on the left, comment in the middle, share on the right.
     if (heart) actionLeft.appendChild(heart);
     if (comment) {
       actionMid.appendChild(comment);
