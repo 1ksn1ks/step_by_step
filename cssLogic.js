@@ -295,6 +295,11 @@ export function CloseALL() {
     window.defineLayer("topicchat", {
       open: () => document.getElementById("topic-chat-btn").click(),
       close: () => {
+        const panel = document.getElementById("topic-chat-container");
+        if (panel && panel.dataset.navLeaving === "1") {
+          restoreMapDrawer();
+          return;
+        }
         CloseALL();
         restoreMapDrawer();
       },
@@ -302,6 +307,11 @@ export function CloseALL() {
     window.defineLayer("e2eechat", {
       open: () => document.getElementById("toggle-encrypted-chat-btn").click(),
       close: () => {
+        const panel = document.getElementById("encrypted-chat-container");
+        if (panel && panel.dataset.navLeaving === "1") {
+          restoreMapDrawer();
+          return;
+        }
         CloseALL();
         restoreMapDrawer();
       },

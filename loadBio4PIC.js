@@ -86,6 +86,12 @@ function closeBioPanel() {
   bioEpoch += 1;
   restorePopupsForBio();
   const loadColumn = document.getElementById('load-column');
+  if (loadColumn && loadColumn.dataset.navLeaving === '1') {
+    delete loadColumn.dataset.historyLayer;
+    dropBioOverFeed(loadColumn);
+    if (window.restoreDrawerFromMap) window.restoreDrawerFromMap();
+    return;
+  }
   if (loadColumn) delete loadColumn.dataset.historyLayer;
   dropBioOverFeed(loadColumn);
   CloseALL();

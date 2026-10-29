@@ -4109,6 +4109,7 @@ function openOverFeed(run) {
 }
 
 function openOwnProfile() {
+  if (navBusy()) return;
   const account = walletNow();
   if (!account) return;
   openFeedProfile(account, 'drawer');
@@ -4144,13 +4145,17 @@ function syncProfileOwn() {
 }
 
 function showProfilePage() {
-  profilePage.hidden = false;
+  if (!beginFeedCover(profilePage)) {
+    delete profilePage.dataset.navLeaving;
+    profilePage.classList.remove('nav-off', 'nav-prep', 'nav-cover');
+    profilePage.hidden = false;
+  }
   syncProfileOwn();
 }
 
 function hideProfilePage() {
-  profilePage.hidden = true;
   profileEdit.hidden = true;
+  concealCover(profilePage);
 }
 
 function hideProfileBanner() {
@@ -4282,11 +4287,14 @@ function openFeedProfile(payer, source) {
   if (!feedCovers()) {
     // Map profile is the bio card. Keep the drawer under it the same way
     // the feed profile does, so Back highlights My profile.
-    if (source === 'drawer') keepDrawer('My profile');
+    if (source === 'drawer') {
+      if (navBusy()) return;
+      coverFromDrawer('My profile');
+    }
     if (window.loadBio4PIC) window.loadBio4PIC(id);
     return;
   }
-  const fromDrawer = source === 'drawer' && keepDrawer('My profile');
+  const fromDrawer = source === 'drawer' && coverFromDrawer('My profile');
   if (!fromDrawer) {
     holdScroll();
     closeReplacedMenu();
@@ -4517,12 +4525,14 @@ bannerPic.addEventListener('error', () => {
 });
 
 function openTopicChat() {
+  if (navBusy()) return;
   openFeedChat('topic', 'drawer');
 }
 
 function openE2ee() {
   // Unlock/read is local. Wallet only needed later to send / change wrap.
   // The chat entry sits on the drawer. The notice is not its own step.
+  if (navBusy()) return;
   const fromDrawer = !!(window.layerIsTop && window.layerIsTop('feedmenu'));
   if (!fromDrawer) closeReplacedMenu();
   const open = () => openFeedChat('e2ee', fromDrawer ? 'drawer' : undefined);
@@ -4866,6 +4876,7 @@ root.appendChild(feedChat);
 
 let feedChatKind = '';
 let feedChatHome = null;
+let feedChatLeaveGen = 0;
 let feedChatWatch = null;
 let feedChatLive = false;
 let feedChatPlaced = [];
@@ -5086,6 +5097,7 @@ function parkFeedChat(kind) {
 
 function paintFeedChat(kind) {
   const spec = FEED_CHATS[kind];
+  feedChatLeaveGen += 1;
   if (!spec) {
     hideFeedChatPanel();
     return;
@@ -5102,7 +5114,11 @@ function paintFeedChat(kind) {
   feedChatLive = true;
   feedChatTitle.textContent = spec.title;
   feedChat.setAttribute('aria-label', spec.title);
-  feedChat.hidden = false;
+  if (!beginFeedCover(feedChat)) {
+    delete feedChat.dataset.navLeaving;
+    feedChat.classList.remove('nav-off', 'nav-prep', 'nav-cover');
+    feedChat.hidden = false;
+  }
   dressFeedChatIcons(true);
   parkFeedChat(kind);
   feedChatBack.focus({ preventScroll: true, focusVisible: false });
@@ -5120,8 +5136,16 @@ function hideFeedChatPanel() {
     feedChatWatch.disconnect();
     feedChatWatch = null;
   }
-  feedChat.hidden = true;
-  restoreFeedChat();
+  const leaveGen = ++feedChatLeaveGen;
+  const covered = feedChat.classList.contains('nav-cover');
+  concealCover(feedChat);
+  if (!covered) restoreFeedChat();
+  else {
+    afterNav(feedChat, () => {
+      if (leaveGen !== feedChatLeaveGen) return;
+      restoreFeedChat();
+    });
+  }
   dressFeedChatIcons(false);
   feedChatKind = '';
 }
@@ -5140,7 +5164,7 @@ function openFeedChat(kind, source) {
   if (!feedOn() || root.classList.contains('is-peek')) return;
   if (!FEED_CHATS[kind]) return;
   const item = kind === 'e2ee' ? 'E2EE chat' : kind === 'topic' ? 'Topic chat' : '';
-  if (source === 'drawer' && item && keepDrawer(item)) {
+  if (source === 'drawer' && item && coverFromDrawer(item)) {
     paintFeedChat(kind);
     if (window.layerOpened) window.layerOpened('feedchat', drawerState({ kind }));
     return;
@@ -5278,6 +5302,11 @@ let drawerPageBody = null;
 let drawerPageTitle = null;
 let drawerPageBack = null;
 const drawerHosted = new Map();
+const drawerShells = [];
+let navGen = 0;
+let backWatch = 0;
+let drawerSyncQueued = false;
+let drawerSyncAnimate = false;
 
 function motionOff() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -5321,8 +5350,60 @@ function restoreDrawer() {
   if (suppressDrawerRestore || !drawerItem) return;
   if (!window.layerIsTop || !window.layerIsTop('feedmenu')) return;
   if (!feedCovers() && !menu.classList.contains('is-map-drawer')) return;
-  paintMenu(true);
-  markMenuItem(drawerItem);
+  const shifted = menu.classList.contains('is-nav-back');
+  menu.classList.remove('is-nav-back');
+  delete menu.dataset.cover;
+  if (menu.hidden || !menu.classList.contains('is-open')) paintMenu(true);
+  else markMenuItem(drawerItem);
+  if (shifted) holdNav();
+}
+
+// A page opened from the drawer stays on top of it. The drawer shifts
+// left and dims; it does not play its close slide.
+function coverFromDrawer(item) {
+  if (!window.layerIsTop || !window.layerIsTop('feedmenu')) return false;
+  if (navBusy()) return false;
+  holdScroll();
+  drawerItem = item;
+  menu.dataset.cover = '1';
+  if (window.layerOpened) window.layerOpened('feedmenu', { item: item });
+  return true;
+}
+
+function beginFeedCover(el) {
+  if (!el || menu.dataset.cover !== '1') return false;
+  delete menu.dataset.cover;
+  delete el.dataset.navLeaving;
+  el.classList.add('nav-cover', 'nav-prep', 'nav-off');
+  el.hidden = false;
+  menu.classList.add('is-nav-back');
+  void el.offsetWidth;
+  el.classList.remove('nav-prep');
+  void el.offsetWidth;
+  el.classList.remove('nav-off');
+  holdNav();
+  return true;
+}
+
+function concealCover(el) {
+  if (!el || el.dataset.navLeaving === '1') return;
+  if (!el.classList.contains('nav-cover')) {
+    el.hidden = true;
+    return;
+  }
+  el.dataset.navLeaving = '1';
+  pinMotion(el);
+  el.classList.add('nav-off');
+  menu.classList.remove('is-nav-back');
+  void el.offsetWidth;
+  releaseMotion(el);
+  holdNav();
+  afterNav(el, () => {
+    if (el.dataset.navLeaving !== '1') return;
+    el.hidden = true;
+    el.classList.remove('nav-off', 'nav-prep', 'nav-cover');
+    delete el.dataset.navLeaving;
+  });
 }
 
 function hideKeptDrawer(state, fallback) {
@@ -5354,6 +5435,12 @@ function paintMenu(open) {
     return;
   }
   markMenuItem('');
+  if (menu.classList.contains('is-nav-back') || menu.classList.contains('is-nav-under')) {
+    menu.classList.add('is-prep');
+    menu.classList.remove('is-nav-back', 'is-nav-under');
+    void menu.offsetWidth;
+    menu.classList.remove('is-prep');
+  }
   menu.classList.remove('is-open');
   menuDim.classList.remove('is-open');
   const finish = () => {
@@ -5444,14 +5531,17 @@ function openMapOptions() {
 }
 
 function openMapTopic() {
-  if (window.layerIsTop && window.layerIsTop('feedmenu')) keepDrawer('Topic chat');
+  const fromDrawer = !!(window.layerIsTop && window.layerIsTop('feedmenu'));
+  if (fromDrawer && navBusy()) return;
+  if (fromDrawer) coverFromDrawer('Topic chat');
   const button = document.getElementById('topic-chat-btn');
   if (button) button.click();
 }
 
 function openMapE2ee() {
   const fromDrawer = !!(window.layerIsTop && window.layerIsTop('feedmenu'));
-  if (fromDrawer) keepDrawer('E2EE chat');
+  if (fromDrawer && navBusy()) return;
+  if (fromDrawer) coverFromDrawer('E2EE chat');
   const button = document.getElementById('toggle-encrypted-chat-btn');
   if (!button) return;
   if (fromDrawer) button.dataset.fromDrawer = '1';
@@ -5669,7 +5759,12 @@ function showForDrawer(el) {
 }
 
 function hostDrawer(el) {
-  if (!el || drawerHosted.has(el) || el.classList.contains('in-drawer')) return;
+  if (!el || !drawerPageBody) return;
+  // A child parked in the page underneath still has to move onto the new page.
+  if (drawerHosted.has(el) || el.classList.contains('in-drawer')) {
+    if (el.parentNode !== drawerPageBody) drawerPageBody.appendChild(el);
+    return;
+  }
   drawerHosted.set(el, { parent: el.parentNode, next: el.nextSibling });
   el.classList.add('in-drawer');
   drawerPageBody.appendChild(el);
@@ -5683,13 +5778,6 @@ function unhostDrawer(el, hide) {
   if (!spot || !spot.parent || !spot.parent.isConnected) return;
   const next = spot.next && spot.next.parentNode === spot.parent ? spot.next : null;
   spot.parent.insertBefore(el, next);
-}
-
-function unhostDrawerAll(keep) {
-  for (const el of [...drawerHosted.keys()]) {
-    if (keep && keep.has(el)) continue;
-    unhostDrawer(el, true);
-  }
 }
 
 const DRAWER_LABELS = {
@@ -5799,61 +5887,219 @@ function fillDrawerPanel(id) {
   }
 }
 
-function renderDrawer(slide) {
-  if (!drawerPage) return;
+// Same curve as the drawer open and the first Settings slide.
+function navMs() {
+  return motionOff() ? 160 : 250;
+}
+
+function navBusy() {
+  return document.documentElement.classList.contains('is-nav-lock');
+}
+
+function holdNav() {
+  const gen = ++navGen;
+  document.documentElement.classList.add('is-nav-lock');
+  setTimeout(() => {
+    if (gen !== navGen) return;
+    document.documentElement.classList.remove('is-nav-lock');
+  }, navMs());
+}
+
+function motionLive(el) {
+  return el.getAnimations().some((anim) => anim.playState === 'running'
+    && (anim.transitionProperty === 'transform' || anim.transitionProperty === 'opacity'));
+}
+
+// A back press during a slide must start from the frame on screen.
+// Dropping the class that owns the running transition cancels it.
+function pinMotion(el) {
+  if (!el || !motionLive(el)) return;
+  const cs = getComputedStyle(el);
+  el.style.transition = 'none';
+  if (cs.transform && cs.transform !== 'none') el.style.transform = cs.transform;
+  el.style.opacity = cs.opacity;
+  void el.offsetWidth;
+}
+
+function releaseMotion(el) {
+  if (!el) return;
+  el.style.transition = '';
+  el.style.transform = '';
+  el.style.opacity = '';
+}
+
+function afterNav(el, done) {
+  let settled = false;
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    el.removeEventListener('transitionend', onEnd);
+    done();
+  };
+  const onEnd = (event) => {
+    if (event.target !== el) return;
+    if (event.propertyName !== 'transform' && event.propertyName !== 'opacity') return;
+    if (motionLive(el)) return;
+    finish();
+  };
+  el.addEventListener('transitionend', onEnd);
+  setTimeout(finish, navMs() + 40);
+}
+
+function syncShellRefs() {
+  const shell = drawerShells[drawerStack.length - 1] || null;
+  drawerPage = shell ? shell.el : null;
+  drawerPageBody = shell ? shell.body : null;
+  drawerPageTitle = shell ? shell.title : null;
+  drawerPageBack = shell ? shell.back : null;
+}
+
+function unhostShell(shell) {
+  if (!shell) return;
+  for (const el of [...drawerHosted.keys()]) {
+    if (!shell.body.contains(el)) continue;
+    unhostDrawer(el, true);
+  }
+}
+
+function paintShell(shell, id) {
+  syncShellRefs();
   drawerRenderLock = true;
   try {
-    const top = drawerStack[drawerStack.length - 1] || '';
-    document.documentElement.classList.toggle('drawer-page', !!top);
-    if (!top) {
-      menu.classList.remove('is-page');
-      const token = ++drawerPageToken;
-      const wait = motionOff() ? 0 : 250;
-      setTimeout(() => {
-        if (token !== drawerPageToken || drawerStack.length) return;
-        unhostDrawerAll();
-        drawerPageBody.replaceChildren();
-        drawerPage.hidden = true;
-      }, wait);
-      return;
-    }
-    drawerPageToken += 1;
-    const keep = new Set();
-    if (top !== 'settings') {
-      const el = document.getElementById(top);
-      if (el) keep.add(el);
-      for (const extraId of DRAWER_EXTRAS[top] || []) {
-        const extra = document.getElementById(extraId);
-        if (extra && panelShown(extra) && !(el && el.contains(extra))) keep.add(extra);
-      }
-    }
-    unhostDrawerAll(keep);
-    drawerPage.hidden = false;
-    drawerPageTitle.textContent = drawerPageLabel(top);
-    drawerPage.setAttribute('aria-label', drawerPageTitle.textContent);
-    const kept = [...drawerPageBody.children].filter((node) => node.classList.contains('in-drawer'));
-    drawerPageBody.replaceChildren(...kept);
-    if (top === 'settings') fillSettingsList();
-    else fillDrawerPanel(top);
-    menu.scrollTop = 0;
-    if (slide) {
-      menu.classList.remove('is-page');
-      void drawerPage.offsetWidth;
-    }
-    menu.classList.add('is-page');
-    paintGroupDividers(drawerPageBody);
-    if (drawerPage.tabIndex < 0) drawerPage.tabIndex = -1;
-    drawerPage.focus({ preventScroll: true });
+    shell.title.textContent = drawerPageLabel(id);
+    shell.el.setAttribute('aria-label', shell.title.textContent);
+    if (id === 'settings') fillSettingsList();
+    else fillDrawerPanel(id);
+    paintGroupDividers(shell.body);
   } finally {
     drawerRenderLock = false;
   }
 }
 
+function focusShell(shell) {
+  if (!shell) return;
+  if (shell.el.tabIndex < 0) shell.el.tabIndex = -1;
+  shell.el.focus({ preventScroll: true });
+}
+
+// Push: the new page comes in from the right and the page under it
+// shifts left and dims. Pop is the same classes run backwards, so a
+// back press reverses from wherever the slide currently is.
+function mountDrawerForward(id) {
+  const shell = makeDrawerShell();
+  shell.id = id;
+  shell.el.classList.add('is-prep');
+  menu.classList.add('is-page');
+  menu.appendChild(shell.el);
+  drawerShells.push(shell);
+  paintShell(shell, id);
+  menu.scrollTop = 0;
+  const prev = drawerShells[drawerShells.length - 2];
+  void shell.el.offsetWidth;
+  shell.el.classList.remove('is-prep');
+  void shell.el.offsetWidth;
+  shell.el.classList.add('is-front');
+  if (prev) {
+    prev.el.classList.remove('is-front');
+    prev.el.classList.add('is-under');
+  } else {
+    menu.classList.add('is-nav-under');
+  }
+  document.documentElement.classList.add('drawer-page');
+  focusShell(shell);
+  holdNav();
+}
+
+function mountDrawerParked(id, mode) {
+  const shell = makeDrawerShell();
+  shell.id = id;
+  shell.el.classList.add('is-prep', mode === 'front' ? 'is-front' : 'is-under');
+  menu.classList.add('is-page', 'is-nav-under');
+  menu.appendChild(shell.el);
+  drawerShells.push(shell);
+  paintShell(shell, id);
+  void shell.el.offsetWidth;
+  shell.el.classList.remove('is-prep');
+  document.documentElement.classList.add('drawer-page');
+  if (mode === 'front') focusShell(shell);
+}
+
+function watchBack(shell) {
+  const watch = ++backWatch;
+  const epoch = drawerPageToken;
+  afterNav(shell.el, () => {
+    if (watch !== backWatch || epoch !== drawerPageToken) return;
+    if (!shell.el.classList.contains('is-leave')) return;
+    if (drawerShells[drawerShells.length - 1] !== shell) return;
+    if (drawerShells.length <= drawerStack.length) return;
+    drawerShells.pop();
+    unhostShell(shell);
+    shell.el.remove();
+    syncShellRefs();
+    if (!drawerShells.length) {
+      menu.classList.remove('is-page');
+      document.documentElement.classList.remove('drawer-page');
+      return;
+    }
+    focusShell(drawerShells[drawerStack.length - 1]);
+  });
+}
+
+function mountDrawerBack() {
+  while (drawerShells.length > drawerStack.length + 1) {
+    const mid = drawerShells.splice(drawerStack.length, 1)[0];
+    unhostShell(mid);
+    mid.el.remove();
+  }
+  syncShellRefs();
+  if (drawerShells.length <= drawerStack.length) {
+    if (!drawerStack.length) {
+      menu.classList.remove('is-page', 'is-nav-under');
+      document.documentElement.classList.remove('drawer-page');
+    }
+    return;
+  }
+  const leaving = drawerShells[drawerShells.length - 1];
+  const reveal = drawerShells[drawerShells.length - 2];
+  pinMotion(leaving.el);
+  if (reveal) pinMotion(reveal.el);
+  leaving.el.classList.remove('is-front', 'is-under');
+  leaving.el.classList.add('is-leave');
+  if (!drawerStack.length) menu.classList.remove('is-nav-under');
+  else if (reveal) {
+    reveal.el.classList.remove('is-under', 'is-leave');
+    reveal.el.classList.add('is-front');
+  }
+  void leaving.el.offsetWidth;
+  releaseMotion(leaving.el);
+  if (reveal) releaseMotion(reveal.el);
+  holdNav();
+  watchBack(leaving);
+}
+
+function queueDrawerSync(animate) {
+  if (!drawerSyncQueued) drawerSyncAnimate = !!animate;
+  if (drawerSyncQueued) return;
+  drawerSyncQueued = true;
+  queueMicrotask(() => {
+    drawerSyncQueued = false;
+    const slide = drawerSyncAnimate;
+    drawerSyncAnimate = false;
+    while (drawerShells.length < drawerStack.length) {
+      const id = drawerStack[drawerShells.length];
+      const last = drawerShells.length === drawerStack.length - 1;
+      if (last && slide) mountDrawerForward(id);
+      else mountDrawerParked(id, last ? 'front' : 'under');
+    }
+  });
+}
+
 function pushDrawer(id) {
   if (!id || drawerStack[drawerStack.length - 1] === id) return;
   if (drawerStack.length >= DRAWER_PAGE_LEVELS) return;
+  if (navBusy()) return;
   drawerStack.push(id);
-  renderDrawer(true);
+  mountDrawerForward(id);
   if (window.layerOpened) {
     window.layerOpened(drawerPageName(drawerStack.length), { stack: drawerStack.slice() });
   }
@@ -5865,10 +6111,10 @@ function finishDrawerBack(leaving) {
 }
 
 function drawerBack() {
-  if (!drawerStack.length) return;
+  if (!drawerStack.length || navBusy()) return;
   const name = drawerPageName(drawerStack.length);
   const leaving = drawerStack.pop();
-  renderDrawer(false);
+  mountDrawerBack();
   finishDrawerBack(leaving);
   if (window.layerIsTop && window.layerIsTop(name)) window.layerClosedByUI(name);
 }
@@ -5877,7 +6123,7 @@ function drawerPageClose(level) {
   if (drawerStack.length < level) return;
   const leaving = drawerStack[level - 1];
   drawerStack.length = level - 1;
-  renderDrawer(false);
+  mountDrawerBack();
   finishDrawerBack(leaving);
 }
 
@@ -5894,41 +6140,136 @@ function dropDrawerHistory() {
     if (window.layerIsTop && window.layerIsTop(name)) window.layerClosedByUI(name);
   }
   drawerPageToken += 1;
-  unhostDrawerAll();
-  document.documentElement.classList.remove('drawer-page');
-  menu.classList.remove('is-page');
-  if (!drawerPage) return;
-  drawerPageBody.replaceChildren();
-  drawerPage.hidden = true;
+  backWatch += 1;
+  for (const shell of drawerShells) {
+    unhostShell(shell);
+    shell.el.remove();
+  }
+  drawerShells.length = 0;
+  syncShellRefs();
+  document.documentElement.classList.remove('drawer-page', 'is-nav-lock');
+  menu.classList.add('is-prep');
+  menu.classList.remove('is-page', 'is-nav-under', 'is-nav-back');
+  void menu.offsetWidth;
+  menu.classList.remove('is-prep');
+  delete menu.dataset.cover;
 }
 
-drawerPage = document.createElement('li');
-drawerPage.className = 'feed-menu-page';
-drawerPage.hidden = true;
-drawerPage.setAttribute('role', 'presentation');
-const drawerPageBar = document.createElement('div');
-drawerPageBar.className = 'feed-menu-page-bar';
-drawerPageBack = document.createElement('button');
-drawerPageBack.type = 'button';
-drawerPageBack.className = 'feed-menu-page-back';
-drawerPageBack.setAttribute('aria-label', 'Back');
-drawerPageBack.appendChild(svgIcon([
-  ['path', { d: 'm12 19-7-7 7-7' }],
-  ['path', { d: 'M19 12H5' }],
-]));
-drawerPageTitle = document.createElement('span');
-drawerPageTitle.className = 'feed-menu-page-title';
-drawerPageBar.append(drawerPageBack, drawerPageTitle);
-drawerPageBody = document.createElement('div');
-drawerPageBody.className = 'feed-menu-page-body';
-drawerPage.append(drawerPageBar, drawerPageBody);
-drawerPage.addEventListener('click', (event) => event.stopPropagation());
-drawerPageBack.addEventListener('click', (event) => {
-  event.stopPropagation();
-  drawerBack();
-});
-bindPress(drawerPageBack);
-menu.appendChild(drawerPage);
+function makeDrawerShell() {
+  const el = document.createElement('li');
+  el.className = 'feed-menu-page';
+  el.setAttribute('role', 'presentation');
+  const bar = document.createElement('div');
+  bar.className = 'feed-menu-page-bar';
+  const back = document.createElement('button');
+  back.type = 'button';
+  back.className = 'feed-menu-page-back';
+  back.setAttribute('aria-label', 'Back');
+  back.appendChild(svgIcon([
+    ['path', { d: 'm12 19-7-7 7-7' }],
+    ['path', { d: 'M19 12H5' }],
+  ]));
+  const title = document.createElement('span');
+  title.className = 'feed-menu-page-title';
+  bar.append(back, title);
+  const body = document.createElement('div');
+  body.className = 'feed-menu-page-body';
+  el.append(bar, body);
+  el.addEventListener('click', (event) => event.stopPropagation());
+  back.addEventListener('click', (event) => {
+    event.stopPropagation();
+    drawerBack();
+  });
+  bindPress(back);
+  new MutationObserver(() => {
+    if (!drawerStack.length || body !== drawerPageBody) return;
+    paintGroupDividers(body);
+  }).observe(body, { subtree: true, attributeFilter: ['style', 'hidden'] });
+  return { id: '', el, body, title, back };
+}
+
+// Map pages opened from the drawer (profile, topic chat, E2EE) are the
+// same push as a drawer sub-page. Their own code only flips display.
+function coverEligible(el) {
+  if (!el || menu.dataset.cover !== '1') return false;
+  if (el.classList.contains('in-drawer') || el.classList.contains('is-feed-shell')) return false;
+  if (el.closest && el.closest('#feed-chat')) return false;
+  return true;
+}
+
+function startCoverEnter(el) {
+  if (!coverEligible(el)) return false;
+  delete menu.dataset.cover;
+  delete el.dataset.navLeaving;
+  el.classList.add('nav-cover', 'nav-prep', 'nav-off');
+  menu.classList.add('is-nav-back');
+  void el.offsetWidth;
+  el.classList.remove('nav-prep');
+  void el.offsetWidth;
+  el.classList.remove('nav-off');
+  holdNav();
+  return true;
+}
+
+function startCoverLeave(el) {
+  if (!el || el.dataset.navLeaving === '1' || !el.classList.contains('nav-cover')) return;
+  el.dataset.navLeaving = '1';
+  el.dataset.navHold = '1';
+  if (el.id === 'load-column') el.dataset.historyHold = '1';
+  const shown = el.id === 'load-column' ? 'block' : 'flex';
+  el.classList.add('nav-prep');
+  el.classList.remove('nav-off');
+  el.style.display = shown;
+  void el.offsetWidth;
+  el.classList.remove('nav-prep');
+  void el.offsetWidth;
+  el.classList.add('nav-off');
+  menu.classList.remove('is-nav-back');
+  holdNav();
+  afterNav(el, () => {
+    if (el.dataset.navLeaving !== '1') return;
+    if (el.id === 'load-column') el.dataset.historyHold = '1';
+    el.dataset.navHold = '1';
+    delete el.dataset.navLeaving;
+    el.classList.remove('nav-off', 'nav-prep', 'nav-cover');
+    el.style.display = 'none';
+  });
+}
+
+function bindCoverPanel(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const shownNow = () => el.style.display !== 'none' && el.style.display !== '';
+  let wasShown = shownNow();
+  new MutationObserver(() => {
+    if (el.dataset.navHold === '1') {
+      delete el.dataset.navHold;
+      wasShown = shownNow();
+      return;
+    }
+    const shown = shownNow();
+    if (shown === wasShown) return;
+    wasShown = shown;
+    if (el.dataset.navLeaving === '1') {
+      if (!shown) return;
+      delete el.dataset.navLeaving;
+      if (!startCoverEnter(el)) {
+        el.classList.remove('nav-off', 'nav-prep', 'nav-cover');
+        menu.classList.remove('is-nav-back');
+      }
+      return;
+    }
+    if (!shown) {
+      if (el.classList.contains('nav-cover')) startCoverLeave(el);
+      return;
+    }
+    startCoverEnter(el);
+  }).observe(el, { attributes: true, attributeFilter: ['style'] });
+}
+
+bindCoverPanel('topic-chat-container');
+bindCoverPanel('encrypted-chat-container');
+bindCoverPanel('load-column');
 
 // Only the panel whose display just changed. A column already on the map
 // (the startup Load panel) must not be pulled in just because its parent opened.
@@ -6143,12 +6484,6 @@ function markSetGroups() {
 dressNavRows();
 dressVisibility();
 markSetGroups();
-if (drawerPageBody) {
-  new MutationObserver(() => {
-    if (!drawerStack.length) return;
-    paintGroupDividers(drawerPageBody);
-  }).observe(drawerPageBody, { subtree: true, attributeFilter: ['style', 'hidden'] });
-}
 
 function paintMapAccount() {
   const id = walletNow();
@@ -6220,12 +6555,13 @@ if (window.defineLayer) {
       parent: level === 1 ? 'feedmenu' : drawerPageName(level - 1),
       open: (state) => {
         const stack = state && Array.isArray(state.stack) ? state.stack : [];
+        const menuWasOpen = !menu.hidden && menu.classList.contains('is-open');
         drawerStack = stack.slice(0, level);
         if (menu.hidden) {
           placeMenuForMap(!feedCovers());
           paintMenu(true);
         }
-        renderDrawer(false);
+        queueDrawerSync(menuWasOpen);
       },
       close: () => drawerPageClose(level),
     });
