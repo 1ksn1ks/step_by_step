@@ -29,6 +29,15 @@ import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadT
 import { startEarlyHashinals } from "./hashinals.js";
 import { feedGeoKey, lookupFeedPlace, parseFeedGeoKey, placePackBuffers, shortCity } from "./feedplace.js";
 import { createChunkAssembler } from "../hcschunks.js";
+import { bareAccount, makeLimiter, normalizeConsensusTs } from "../donationmath.js";
+import {
+  ensureDonationTable,
+  recordDonation,
+  donationPostTotals,
+  donationAccountTotals,
+  donationBatch,
+  resolveRecipient,
+} from "./donations.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -348,6 +357,7 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS feed_views_seen_at ON feed_views(seen_at);
 `);
+ensureDonationTable(db);
 
 const q = {
   getTopic: db.prepare("SELECT * FROM topics WHERE topic_id = ?"),
@@ -2936,6 +2946,7 @@ app.get("/api/post", publicPostLimit, async (req, res) => {
       coverimage: data.coverimage,
       msg: data.msg,
       payer: row.payer,
+      consensusTimestamp: row.ts,
       topicName: topicNameFor(topic),
       views: viewRow ? viewRow.views : 0,
       likes: reactions.likeCount,
@@ -3477,6 +3488,81 @@ app.get("/api/place", publicPostLimit, (req, res) => {
   }
   if (queued) geoWorker();
   res.json({ ok: true, places });
+});
+
+// Donations hit the mirror (and retry while a transfer propagates), so they
+// do not share the busier read bucket.
+const donationAllow = makeLimiter(20, 60 * 1000);
+function donationLimit(req, res, next) {
+  const hit = donationAllow(clientIp(req) + " POST /api/donations");
+  if (!hit.ok) {
+    res.setHeader("Retry-After", String(hit.retryAfter));
+    return res.status(429).json({ ok: false, error: "rate limit" });
+  }
+  next();
+}
+
+async function donationMirror(url) {
+  try {
+    const json = await mirrorFetch(url);
+    return { ok: true, status: 200, json };
+  } catch (err) {
+    const match = /HTTP (\d+)/.exec(String(err && err.message));
+    return { ok: false, status: match ? Number(match[1]) : 0, json: null };
+  }
+}
+
+function donationCtx() {
+  return { db, mirror: MIRROR, fetchMirror: donationMirror };
+}
+
+app.get("/api/donations/post/:topicId/:ts", publicPostLimit, (req, res) => {
+  if (!bareAccount(req.params.topicId) || !normalizeConsensusTs(req.params.ts)) {
+    return res.status(400).json({ ok: false, error: "bad donation" });
+  }
+  res.json(donationPostTotals(db, req.params.topicId, req.params.ts));
+});
+
+app.get("/api/donations/account/:id", publicPostLimit, (req, res) => {
+  if (!bareAccount(req.params.id)) return res.status(400).json({ ok: false, error: "bad account" });
+  res.json(donationAccountTotals(db, req.params.id));
+});
+
+app.get("/api/donations/recipient/:topicId/:ts", publicPostLimit, async (req, res) => {
+  try {
+    const found = await resolveRecipient(donationCtx(), req.params.topicId, req.params.ts);
+    if (found.error) return res.status(found.status || 400).json({ ok: false, error: found.error });
+    res.json({ account: found.account });
+  } catch (err) {
+    console.error("donation recipient failed", err && err.message);
+    if (!res.headersSent) res.status(502).json({ ok: false, error: "mirror" });
+  }
+});
+
+app.post("/api/donations/batch", publicPostLimit, async (req, res) => {
+  try {
+    const posts = await donationBatch(donationCtx(), req.body && req.body.posts);
+    res.json({ ok: true, posts });
+  } catch (err) {
+    console.error("donation batch failed", err && err.message);
+    if (!res.headersSent) res.status(502).json({ ok: false, error: "mirror" });
+  }
+});
+
+app.post("/api/donations", donationLimit, async (req, res) => {
+  const body = req.body || {};
+  try {
+    const saved = await recordDonation(donationCtx(), {
+      txId: body.txId,
+      topicId: body.topicId,
+      postTimestamp: body.postTimestamp,
+    });
+    if (saved.error) return res.status(saved.status || 400).json({ ok: false, error: saved.error });
+    res.json({ ok: true, total: saved.total, count: saved.count, memo: saved.memo });
+  } catch (err) {
+    console.error("donation record failed", err && err.message);
+    if (!res.headersSent) res.status(502).json({ ok: false, error: "mirror" });
+  }
 });
 
 app.get("/api/health", (req, res) => {

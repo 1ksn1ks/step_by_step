@@ -3779,6 +3779,61 @@ html, body {
     transform: scale(0.94);
   }
 
+  /* Donate sits next to the heart. Glass matches the copy-link disc.
+     A total turns it into a pill; zero stays the icon alone. */
+  .donate-pill {
+    --h: calc(var(--u) * 0.38);
+    height: calc(var(--h) * 10);
+    min-width: calc(var(--h) * 10);
+    max-width: 28dvw;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 2;
+    box-sizing: border-box;
+    padding: 0 calc(var(--h) * 1.2);
+    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.10);
+    box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.35);
+    border-radius: 999px;
+    color: #777;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--h) * 0.7);
+    font: inherit;
+  }
+
+  .donate-pill svg {
+    width: calc(var(--h) * 6.2);
+    height: calc(var(--h) * 6.2);
+    flex: 0 0 auto;
+    display: block;
+  }
+
+  .donate-pill .donate-amount {
+    display: none;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: calc(var(--h) * 2.6);
+    line-height: 1;
+    color: #fff;
+  }
+
+  .donate-pill.has-total .donate-amount {
+    display: inline;
+  }
+
+  .donate-pill:hover {
+    transform: scale(1.08);
+  }
+
+  .donate-pill:active {
+    transform: scale(0.94);
+  }
+
   .heart-like input {
     display: none;
   }
@@ -4884,6 +4939,105 @@ html, body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .profile-received {
+    align-self: stretch;
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 1.6dvh;
+    line-height: 1.3;
+    color: rgba(255, 255, 255, 0.72);
+    padding: 0.6dvh 1.4dvw 0;
+  }
+
+  #donate-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 9800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    padding: 4dvh 4dvw;
+  }
+
+  #donate-sheet[hidden] {
+    display: none;
+  }
+
+  .donate-card {
+    width: min(86dvw, 46dvh);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 1.4dvh;
+    padding: 2.4dvh 4dvw;
+    border-radius: 2.2dvh;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(15, 15, 20, 0.92);
+    box-shadow: inset 0 0.4dvh 0 rgba(255, 255, 255, 0.08), 0 1.2dvh 3dvh rgba(0, 0, 0, 0.45);
+    color: #fff;
+  }
+
+  .donate-title {
+    margin: 0;
+    font-size: 2.2dvh;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .donate-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6dvh;
+    font-size: 1.5dvh;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .donate-input {
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 1.4dvh;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    font: inherit;
+    font-size: 2dvh;
+    padding: 1.2dvh 2.4dvw;
+  }
+
+  .donate-bytes,
+  .donate-memo {
+    margin: 0;
+    font-size: 1.4dvh;
+    line-height: 1.3;
+    color: rgba(255, 255, 255, 0.7);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .donate-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 2dvw;
+  }
+
+  .donate-cancel,
+  .donate-send {
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.10);
+    color: #fff;
+    font: inherit;
+    font-size: 1.7dvh;
+    padding: 1dvh 3.2dvw;
+    cursor: pointer;
+  }
+
+  .donate-send {
+    background: rgba(34, 211, 238, 0.22);
+    border-color: rgba(34, 211, 238, 0.55);
   }
 
   .profile-live-bio {
@@ -8682,6 +8836,34 @@ html.feed-app appkit-modal {
 :is(#feed-column, .feed-comments-stage) .feed-actions .copy-link:active {
   transform: scale(0.94);
 }
+:is(#feed-column, .feed-comments-stage) .feed-actions .donate-pill {
+  --h: calc(var(--fu) * 0.30);
+  height: calc(var(--h) * 10);
+  min-width: calc(var(--h) * 10);
+  max-width: 28dvw;
+  padding: 0 calc(var(--fu) * 1.1);
+  border: calc(var(--fu) * 0.12) solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 calc(var(--fu) * 0.15) 0 rgba(255, 255, 255, 0.18);
+  color: var(--feed-action, #777);
+  position: static;
+  z-index: auto;
+}
+:is(#feed-column, .feed-comments-stage) .feed-actions .donate-pill svg {
+  width: calc(var(--fu) * 1.9);
+  height: calc(var(--fu) * 1.9);
+}
+:is(#feed-column, .feed-comments-stage) .feed-actions .donate-pill .donate-amount {
+  font-size: calc(var(--fu) * 1.6);
+}
+:is(#feed-column, .feed-comments-stage) .feed-actions .donate-pill:hover {
+  transform: scale(1.08);
+  color: var(--feed-action-hover, #67e8f9);
+  background: rgba(255, 255, 255, 0.16);
+}
+:is(#feed-column, .feed-comments-stage) .feed-actions .donate-pill:active {
+  transform: scale(0.94);
+}
 :is(#feed-column, .feed-comments-stage) .feed-actions .heart-like label {
   position: relative;
   inset: auto;
@@ -10232,6 +10414,16 @@ html.feed-app appkit-modal {
 #feed-profile .feed-profile-follow {
   flex: 0 0 auto;
   margin-left: auto;
+}
+#feed-profile .feed-profile-received {
+  flex: 1 0 100%;
+  margin: 0;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--fu) * 1.45);
+  font-weight: 600;
+  line-height: 1.3;
 }
 #feed-profile .feed-profile-bio {
   flex: 1 0 100%;

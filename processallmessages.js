@@ -27,6 +27,8 @@ import { applyAllStyles } from './loadprofilepopup';
 import { scene } from './threejs'
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium'
 import { signer, connectedAccount } from './web3';
+import { consensusOf } from './donationmath.js';
+import { createDonatePill, noteVisibleDonation } from './donations.js';
 import { refitPopups } from './popupanim';
 import { copyTextToClipboard } from './handleallmessages';
 import { toast } from './toast'
@@ -1214,6 +1216,8 @@ export function mountPostReactions(cluster, data, kind, home) {
       ? window.likePolygon(timestamp, topicId, !wantLike)
       : window.likeMarker(timestamp, topicId, !wantLike),
   }));
+  const donate = createDonatePill(data);
+  if (donate) cluster.appendChild(donate);
   const bubble = createCommentBubble({
     count: commentCount,
     syncKey: 'comment|' + sync,
@@ -2062,6 +2066,7 @@ export function createMarkerPopupHTML(data) {
 
   // Comments (below the bottom row, hidden until 💬 is pressed)
   if (markerComments) adoptComments(markerComments, container);
+  noteVisibleDonation(container);
 
   return container;
 }
@@ -2246,6 +2251,7 @@ function createPolygonPopupHTML(data) {
 
   // Comments (below the bottom row, hidden until 💬 is pressed)
   if (polygonComments) adoptComments(polygonComments, container);
+  noteVisibleDonation(container);
 
   return container;
 }
@@ -2408,6 +2414,7 @@ function liveShareRecord(live, base) {
     msg: live.msg,
     timestamp: ts,
     created: live.created,
+    consensusTimestamp: typeof live.consensusTimestamp === 'string' ? live.consensusTimestamp : (base.consensusTimestamp || ''),
     likeCountMarker: live.likes || 0,
     likeCountPolygon: live.likes || 0,
     likedByMe: !!live.likedByMe,
@@ -2945,6 +2952,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                       timestamp,
                       created: messageCreated(postCreated),
+                      consensusTimestamp: consensusOf(message),
                       likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
                       likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
                       comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
@@ -3029,6 +3037,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                         timestamp,
                         created: messageCreated(postCreated),
+                      consensusTimestamp: consensusOf(message),
                         likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
                         likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
                         comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
@@ -5260,6 +5269,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                       timestamp,
                       created: messageCreated(postCreated),
+                      consensusTimestamp: consensusOf(message),
                       likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
                       likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
                       comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
@@ -5344,6 +5354,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                         timestamp,
                         created: messageCreated(postCreated),
+                      consensusTimestamp: consensusOf(message),
                         likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
                         likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
                         comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
@@ -5956,6 +5967,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                       timestamp,
                       created: messageCreated(postCreated),
+                      consensusTimestamp: consensusOf(message),
                       likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
                       likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
                       comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
@@ -6043,6 +6055,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                         timestamp,
                         created: messageCreated(postCreated),
+                      consensusTimestamp: consensusOf(message),
                         likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
                         likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
                         comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({

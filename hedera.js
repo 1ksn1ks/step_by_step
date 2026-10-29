@@ -6,6 +6,8 @@ import {
   TopicUpdateTransaction,
   AccountId,
   TransactionId,
+  TransferTransaction,
+  Hbar,
   CustomFixedFee} from '@hashgraph/sdk';
 import { signer, dAppConnector } from './web3';
 import { toast } from './toast.js';
@@ -209,6 +211,25 @@ export async function createTopic({memo:memo, adminkey:adminKey} = {}) {
   const receipt = await txResponse.getReceiptWithSigner(signer);
 
   return receipt.topicId.toString();
+}
+
+// HBAR from the connected wallet to an account the server already resolved
+// as the original post's payer. The memo is optional and at most 100 bytes.
+export async function sendHbarDonation({ toAccountId, tinybar, memo }) {
+  const target = String(toAccountId || '').split('-')[0];
+  if (!/^\d+\.\d+\.\d+$/.test(target)) throw new Error('bad recipient');
+  const amount = Hbar.fromTinybars(String(tinybar));
+  const transaction = new TransferTransaction()
+    .addHbarTransfer(connectedAccountId(), amount.negated())
+    .addHbarTransfer(target, amount);
+  if (memo) transaction.setTransactionMemo(memo);
+  const txResponse = await transaction.executeWithSigner(signer);
+  const receipt = await txResponse.getReceiptWithSigner(signer);
+  const status = receipt && receipt.status && receipt.status.toString();
+  if (status && status !== 'SUCCESS') throw new Error(status);
+  const txId = txResponse.transactionId && txResponse.transactionId.toString();
+  if (!txId) throw new Error('missing transaction id');
+  return txId;
 }
 
 

@@ -23,6 +23,8 @@ import { applyAllStyles } from './loadprofilepopup.js';
 import { scene } from './threejs.js';
 import { profilePictures, usernames, click2url, loadTopicBio, profileTopics } from './loadalladata.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
+import { consensusOf } from './donationmath.js';
+import { noteVisibleDonation, paintReceived } from './donations.js';
 import { earlyHashinalNumber, paintProfileAvatar } from './earlyhashinal.js';
 import { followPersonControls } from './followtopic.js';
 import { fillTopicIds, useTopicId } from './topicidintext.js';
@@ -352,7 +354,9 @@ const profileFollow = document.createElement('div');
 profileFollow.className = 'feed-profile-follow';
 const profileBio = document.createElement('div');
 profileBio.className = 'feed-profile-bio';
-profileIdentity.append(profilePicSlot, profileNames, profileFollow, profileBio);
+const profileReceived = document.createElement('div');
+profileReceived.className = 'feed-profile-received';
+profileIdentity.append(profilePicSlot, profileNames, profileFollow, profileReceived, profileBio);
 const profileSections = document.createElement('div');
 profileSections.className = 'feed-profile-sections';
 const profileLoad = document.createElement('button');
@@ -1582,6 +1586,7 @@ function ensureViewObserver() {
         viewIntersecting.add(entry.target);
         warmFeedVideo(entry.target);
         wantPlace(entry.target);
+        noteVisibleDonation(entry.target);
       } else {
         viewIntersecting.delete(entry.target);
         syncFeedVideo(entry.target);
@@ -1881,11 +1886,13 @@ function buildCard(post) {
     mountPostReactions(cluster, record, post.kind, card);
     const heart = cluster.querySelector('.heart-like:not(.comment-bubble):not(.share-bubble)');
     const copyLink = cluster.querySelector('.copy-link');
+    const donate = cluster.querySelector('.donate-pill');
     const comment = cluster.querySelector('.comment-bubble');
     const share = cluster.querySelector('.share-bubble');
-    // Copy-link first: [link][heart] on the left, comment mid, share right.
+    // Copy-link first: [link][heart][donate] on the left, comment mid, share right.
     if (copyLink) actionLeft.appendChild(copyLink);
     if (heart) actionLeft.appendChild(heart);
+    if (donate) actionLeft.appendChild(donate);
     if (comment) {
       actionMid.appendChild(comment);
       actionRight.appendChild(commentCountSpace(comment));
@@ -2226,6 +2233,7 @@ function markerPost(message, data) {
       edited: !!edit,
       timestamp: stampLabel,
       created,
+      consensusTimestamp: consensusOf(message),
       likeCountMarker: likeTotal('marker', stampLabel),
       likedByMe: liked('marker', stampLabel),
       comments: commentsFor('marker', stampLabel),
@@ -2280,6 +2288,7 @@ function polygonPost(message, data) {
       edited: !!edit,
       timestamp: stampLabel,
       created,
+      consensusTimestamp: consensusOf(message),
       likeCountPolygon: likeTotal('polygon', stampLabel),
       likedByMe: liked('polygon', stampLabel),
       comments: commentsFor('polygon', stampLabel),
@@ -4193,6 +4202,7 @@ function paintFeedProfile(payer) {
   profileName.replaceChildren(payerUsernameNode(name, link, { className: 'feed-profile-name' }));
   profileHandle.href = 'https://explore.hashpack.app/' + encodeURIComponent(id);
   profileHandle.textContent = id;
+  paintReceived(profileReceived, id);
   mountProfilePic(id);
   profileFollow.replaceChildren(followPersonControls(id));
   paintProfileBio('');
