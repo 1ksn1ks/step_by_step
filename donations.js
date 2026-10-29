@@ -34,6 +34,7 @@ let sheetBusy = false;
 let sheetSent = false;
 let sheetOpenId = 0;
 let sheetCloseTimer = 0;
+let pendingTx = null;
 
 const DEFAULT_AVATAR = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const PRESETS = ['1', '5', '10', '25'];
@@ -247,6 +248,15 @@ function lockFields(locked) {
 
 function paintSend() {
   if (!sheet || sheetBusy || sheetSent) return;
+  if (pendingTx && pendingTx.topicId === sheetTopic && pendingTx.ts === sheetTs) {
+    const retry = sheetPart('.donate-send');
+    if (retry) {
+      retry.disabled = false;
+      retry.textContent = 'Check again';
+    }
+    lockFields(true);
+    return;
+  }
   const amount = sheetPart('#donate-amount');
   const memo = sheetPart('#donate-memo');
   const send = sheetPart('.donate-send');
@@ -452,6 +462,7 @@ function closeSheet() {
   sheetTs = '';
   sheetAccount = '';
   sheetSent = false;
+  pendingTx = null;
 }
 
 function showSheet(topicId, ts, account) {
@@ -551,49 +562,83 @@ function donationError(error) {
   return "Couldn't record the donation";
 }
 
+async function recordedTotal(topicId, ts) {
+  const res = await fetch(
+    `${BACKEND_URL}/api/donations/post/${encodeURIComponent(topicId)}/${encodeURIComponent(ts)}`
+  );
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data || data.total == null) return null;
+  return data.total;
+}
+
 async function submitDonation() {
   if (sheetSent) {
     closeSheet();
     return;
   }
   if (sheetBusy || !sheet || !sheetAccount) return;
-  const amountInput = sheet.querySelector('#donate-amount');
-  const memoInput = sheet.querySelector('#donate-memo');
   const send = sheet.querySelector('.donate-send');
-  const tiny = hbarToTinybar(amountInput ? amountInput.value : '');
-  const memo = memoInput ? memoInput.value : '';
-  if (tiny == null || utf8ByteLength(memo) > MEMO_MAX_BYTES) {
-    paintSend();
-    return;
+  const held = pendingTx && pendingTx.topicId === sheetTopic && pendingTx.ts === sheetTs
+    ? pendingTx
+    : null;
+  let tiny = held ? held.tiny : null;
+  let memo = '';
+  if (!held) {
+    const amountInput = sheet.querySelector('#donate-amount');
+    const memoInput = sheet.querySelector('#donate-memo');
+    tiny = hbarToTinybar(amountInput ? amountInput.value : '');
+    memo = memoInput ? memoInput.value : '';
+    if (tiny == null || utf8ByteLength(memo) > MEMO_MAX_BYTES) {
+      paintSend();
+      return;
+    }
   }
   sheetBusy = true;
   showError('');
   lockFields(true);
   if (send) {
     send.disabled = true;
-    send.textContent = 'Sending…';
+    send.textContent = held ? 'Checking…' : 'Sending…';
   }
   const topicId = sheetTopic;
   const ts = sheetTs;
   const account = sheetAccount;
   let failure = '';
+  let tx = held;
   try {
-    const txId = await sendHbarDonation({ toAccountId: account, tinybar: tiny.toString(), memo });
-    if (send && sheet && !sheet.hidden) send.textContent = 'Checking…';
+    if (!tx) {
+      const txId = await sendHbarDonation({ toAccountId: account, tinybar: tiny.toString(), memo });
+      tx = { txId, topicId, ts, tiny };
+      pendingTx = tx;
+      if (send && sheet && !sheet.hidden) send.textContent = 'Checking…';
+    }
     const res = await fetch(BACKEND_URL + '/api/donations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ txId, topicId, postTimestamp: ts }),
+      body: JSON.stringify({ txId: tx.txId, topicId: tx.topicId, postTimestamp: tx.ts }),
     });
     const data = await res.json().catch(() => null);
-    if (!res.ok || !data || !data.ok) {
-      failure = donationError(data && data.error);
+    const error = data && data.error;
+    if (res.ok && data && data.ok) {
+      pendingTx = null;
+      paintPills(tx.topicId, tx.ts, data.total);
+      showSent(tx.tiny, tx.txId);
       return;
     }
-    paintPills(topicId, ts, data.total);
-    showSent(tiny, txId);
+    if (error === 'already recorded') {
+      pendingTx = null;
+      const total = await recordedTotal(tx.topicId, tx.ts).catch(() => null);
+      if (total != null) paintPills(tx.topicId, tx.ts, total);
+      showSent(tx.tiny, tx.txId);
+      return;
+    }
+    if (!res.ok && (!data || error === 'transaction not found' || error === 'mirror')) {
+      failure = 'Payment sent  tap to check again';
+      return;
+    }
+    failure = donationError(error);
   } catch {
-    failure = "Couldn't send the donation";
+    failure = tx ? 'Payment sent  tap to check again' : "Couldn't send the donation";
   } finally {
     sheetBusy = false;
     if (!sheetSent) {
