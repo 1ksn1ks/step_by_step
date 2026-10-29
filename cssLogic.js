@@ -289,13 +289,22 @@ export function CloseALL() {
   // close path (the ? button, its × / Got it, the backdrop, CloseALL)
   // is a display change, so a style observer is the single funnel.
   if (window.defineLayer) {
+    const restoreMapDrawer = () => {
+      if (window.restoreDrawerFromMap) window.restoreDrawerFromMap();
+    };
     window.defineLayer("topicchat", {
       open: () => document.getElementById("topic-chat-btn").click(),
-      close: () => CloseALL(),
+      close: () => {
+        CloseALL();
+        restoreMapDrawer();
+      },
     });
     window.defineLayer("e2eechat", {
       open: () => document.getElementById("toggle-encrypted-chat-btn").click(),
-      close: () => CloseALL(),
+      close: () => {
+        CloseALL();
+        restoreMapDrawer();
+      },
     });
     PANEL_HELP.forEach(([, overlayId]) => {
       const overlay = document.getElementById(overlayId);
@@ -350,7 +359,10 @@ export function CloseALL() {
     // also runs CloseALL, so the entry is dropped with the other layers.
     window.watchDisplayLayer("options-menu", document.getElementById("toggle-toolbar-btn"), {
       open: () => document.getElementById("main-toggle-btn").click(),
-      close: () => CloseALL(),
+      close: () => {
+        CloseALL();
+        if (window.restoreDrawerFromMap) window.restoreDrawerFromMap();
+      },
     });
     panelLayer("toolbar", "toggle-toolbar-btn");
     subColumn("Edit_Profile-column", "Edit_Profile", "toolbar", "toggle-toolbar-btn", ["Edit_Profile-column-container"]);
@@ -1257,7 +1269,9 @@ export function CloseALL() {
   
   document.getElementById("toggle-encrypted-chat-btn").addEventListener("click", (event) => {
     event.stopPropagation();
-    withE2eeWebNotice(() => {
+    const fromDrawer = event.currentTarget.dataset.fromDrawer === "1";
+    delete event.currentTarget.dataset.fromDrawer;
+    const openChat = () => {
       CloseALL();
       closeDrawAnchor();
       activePolygonPopups.forEach((popup) => popup.remove());
@@ -1279,7 +1293,13 @@ export function CloseALL() {
       setE2eeMessagesVisible(true);
 
       removeUfoModel();
-    });
+    };
+    if (fromDrawer) {
+      openChat();
+      withE2eeWebNotice(() => {});
+      return;
+    }
+    withE2eeWebNotice(openChat);
   });
   
   document.getElementById("show-options-from-encrypted-chat").addEventListener("click", (event) => {

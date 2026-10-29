@@ -58,13 +58,13 @@ function updateClock() {
       const p = parts.find((x) => x.type === t);
       return p ? p.value : '';
     };
-    clockEl.textContent = `${get('hour')}:${get('minute')} · ${get('day')} ${get('month')}`;
+    clockEl.textContent = `${get('hour')}:${get('minute')} ${get('day')} ${get('month')}`;
   } else {
     const local = new Date(Date.now() + lonOffset * 3600000);
     const hh = String(local.getUTCHours()).padStart(2, '0');
     const mm = String(local.getUTCMinutes()).padStart(2, '0');
     const dd = String(local.getUTCDate()).padStart(2, '0');
-    clockEl.textContent = `${hh}:${mm} · ${dd} ${MONTHS[local.getUTCMonth()]}`;
+    clockEl.textContent = `${hh}:${mm} ${dd} ${MONTHS[local.getUTCMonth()]}`;
   }
 }
 

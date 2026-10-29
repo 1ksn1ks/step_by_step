@@ -274,11 +274,12 @@ btn.id = 'layout-mode-btn';
 btn.type = 'button';
 btn.setAttribute('aria-pressed', 'false');
 
-const rowsIcon = svgIcon([
+const ROWS_ICON = [
   ['rect', { width: '18', height: '18', x: '3', y: '3', rx: '2' }],
   ['path', { d: 'M21 9H3' }],
   ['path', { d: 'M21 15H3' }],
-]);
+];
+const rowsIcon = svgIcon(ROWS_ICON);
 const GLOBE_ICON = [
   ['circle', { cx: '12', cy: '12', r: '10' }],
   ['path', { d: 'M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20' }],
@@ -299,6 +300,49 @@ if (searchBtn && searchBtn.parentNode) {
   row.append(btn, searchBtn);
 } else document.body.appendChild(btn);
 document.body.appendChild(root);
+
+// One map row: menu, clock, coordinates, then the round controls
+// (layers, search, locate, compass). The feed drawer is the same list.
+const mapBar = document.createElement('div');
+mapBar.id = 'map-topbar';
+const mapMenuBtn = document.createElement('button');
+mapMenuBtn.id = 'map-menu-btn';
+mapMenuBtn.type = 'button';
+mapMenuBtn.setAttribute('aria-label', 'Menu');
+mapMenuBtn.setAttribute('aria-haspopup', 'menu');
+mapMenuBtn.setAttribute('aria-expanded', 'false');
+mapMenuBtn.setAttribute('aria-controls', 'feed-menu');
+mapMenuBtn.title = 'Menu';
+mapMenuBtn.appendChild(svgIcon([
+  ['line', { x1: '4', x2: '20', y1: '12', y2: '12' }],
+  ['line', { x1: '4', x2: '20', y1: '6', y2: '6' }],
+  ['line', { x1: '4', x2: '20', y1: '18', y2: '18' }],
+]));
+const mapPills = document.createElement('div');
+mapPills.id = 'map-top-pills';
+const mapClock = document.getElementById('local-clock');
+const mapCoords = document.getElementById('coordinates-display');
+const mapCopy = document.getElementById('copy-coordinates');
+const mapCoordWrap = document.createElement('div');
+mapCoordWrap.id = 'map-coord-wrap';
+if (mapCoords) mapCoordWrap.appendChild(mapCoords);
+if (mapCopy) mapCoordWrap.appendChild(mapCopy);
+if (mapClock) mapPills.appendChild(mapClock);
+mapPills.appendChild(mapCoordWrap);
+const mapTools = document.getElementById('map-corner-buttons');
+const mapCtrls = document.querySelector('.maplibregl-ctrl-top-right');
+if (mapCtrls) {
+  const locateGroup = document.querySelector('.maplibregl-ctrl-geolocate');
+  const compassGroup = document.querySelector('.maplibregl-ctrl-compass');
+  const locateBox = locateGroup && locateGroup.closest('.maplibregl-ctrl-group');
+  const compassBox = compassGroup && compassGroup.closest('.maplibregl-ctrl-group');
+  if (locateBox) mapCtrls.appendChild(locateBox);
+  if (compassBox) mapCtrls.appendChild(compassBox);
+}
+mapBar.append(mapMenuBtn, mapPills);
+if (mapTools) mapBar.appendChild(mapTools);
+if (mapCtrls) mapBar.appendChild(mapCtrls);
+document.body.appendChild(mapBar);
 
 const profilePage = document.createElement('div');
 profilePage.id = 'feed-profile';
@@ -3815,6 +3859,7 @@ function applyFeed(on) {
     }
   }
   if (on) {
+    placeMenuForMap(false);
     const opening = !feedOn();
     peek = false;
     root.classList.remove('is-peek');
@@ -5241,7 +5286,7 @@ function keepDrawer(item) {
 function restoreDrawer() {
   if (suppressDrawerRestore || !drawerItem) return;
   if (!window.layerIsTop || !window.layerIsTop('feedmenu')) return;
-  if (!feedCovers()) return;
+  if (!feedCovers() && !menu.classList.contains('is-map-drawer')) return;
   paintMenu(true);
   markMenuItem(drawerItem);
 }
@@ -5254,7 +5299,8 @@ function hideKeptDrawer(state, fallback) {
 
 function paintMenu(open) {
   menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-  if (open) paintWalletRows();
+  mapMenuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) paintMenuRows();
   if (open && !menu.hidden && menu.classList.contains('is-open')) return;
   const token = ++menuToken;
   if (open) {
@@ -5313,8 +5359,61 @@ function closeMenu() {
 
 function openMenu() {
   if (window.layerIsTop && !window.layerIsTop('feed')) return;
+  placeMenuForMap(false);
   paintMenu(true);
   if (window.layerOpened) window.layerOpened('feedmenu');
+}
+
+// The drawer node lives in the feed column. On the map it is fixed on
+// the page, with the map's own rows, and moves back when the feed opens.
+function placeMenuForMap(on) {
+  if (on) {
+    if (menu.parentNode !== document.body) document.body.append(menuDim, menu);
+    menu.classList.add('is-map-drawer');
+    menuDim.classList.add('is-map-drawer');
+  } else {
+    menu.classList.remove('is-map-drawer');
+    menuDim.classList.remove('is-map-drawer');
+    if (menu.parentNode !== frame) frame.append(menuDim, menu);
+  }
+  paintMenuRows();
+}
+
+function openMapMenu() {
+  if (feedCovers()) return;
+  placeMenuForMap(true);
+  paintMenu(true);
+  if (window.layerOpened) window.layerOpened('feedmenu');
+}
+
+function openMapOptions() {
+  if (window.layerIsTop && window.layerIsTop('feedmenu')) keepDrawer('Options');
+  const button = document.getElementById('main-toggle-btn');
+  if (button) button.click();
+}
+
+function openMapTopic() {
+  if (window.layerIsTop && window.layerIsTop('feedmenu')) keepDrawer('Topic chat');
+  const button = document.getElementById('topic-chat-btn');
+  if (button) button.click();
+}
+
+function openMapE2ee() {
+  const fromDrawer = !!(window.layerIsTop && window.layerIsTop('feedmenu'));
+  if (fromDrawer) keepDrawer('E2EE chat');
+  const button = document.getElementById('toggle-encrypted-chat-btn');
+  if (!button) return;
+  if (fromDrawer) button.dataset.fromDrawer = '1';
+  button.click();
+}
+
+function goToFeed() {
+  drawerItem = '';
+  paintMenu(false);
+  if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedmenu')) {
+    window.layerClosedByUI('feedmenu');
+  }
+  applyFeed(true);
 }
 
 function backToMap() {
@@ -5328,21 +5427,70 @@ function backToMap() {
 }
 
 const MENU_ROWS = [
-  { label: 'Back to map', icon: GLOBE_ICON, run: backToMap },
-  { label: 'Connect wallet', icon: WALLET_ICON, run: openConnect, wallet: 'off' },
-  { label: 'My profile', icon: USER_ICON, run: openOwnProfile, wallet: 'on' },
-  { label: 'Topic chat', icon: CHAT_ICON, run: openTopicChat },
-  { label: 'E2EE chat', icon: LOCK_ICON, run: openE2ee },
-  { label: 'Settings', icon: SETTINGS_ICON, run: openFeedSettings },
-  { rule: true, wallet: 'on' },
-  { label: 'Disconnect', icon: LOGOUT_ICON, run: openDisconnect, wallet: 'on', danger: true },
+  { mode: 'feed', label: 'Back to map', icon: GLOBE_ICON, run: backToMap },
+  { mode: 'feed', label: 'Connect wallet', icon: WALLET_ICON, run: openConnect, wallet: 'off' },
+  { mode: 'feed', label: 'My profile', icon: USER_ICON, run: openOwnProfile, wallet: 'on' },
+  { mode: 'feed', label: 'Topic chat', icon: CHAT_ICON, run: openTopicChat },
+  { mode: 'feed', label: 'E2EE chat', icon: LOCK_ICON, run: openE2ee },
+  { mode: 'feed', label: 'Settings', icon: SETTINGS_ICON, run: openFeedSettings },
+  { mode: 'feed', rule: true, wallet: 'on' },
+  { mode: 'feed', label: 'Disconnect', icon: LOGOUT_ICON, run: openDisconnect, wallet: 'on', danger: true },
+  { mode: 'map', label: 'Options', icon: SETTINGS_ICON, run: openMapOptions },
+  { mode: 'map', label: 'Topic chat', icon: CHAT_ICON, run: openMapTopic },
+  { mode: 'map', label: 'E2EE chat', icon: LOCK_ICON, run: openMapE2ee },
+  { mode: 'map', label: 'Go to feed', icon: ROWS_ICON, run: goToFeed },
+  { mode: 'map', rule: true, wallet: 'on' },
+  { mode: 'map', label: 'Disconnect', icon: LOGOUT_ICON, run: openDisconnect, wallet: 'on', danger: true },
 ];
 
 const walletRows = [];
 
-function paintWalletRows() {
+const mapAccount = document.createElement('li');
+mapAccount.className = 'feed-menu-account';
+mapAccount.dataset.mode = 'map';
+const mapAccountBtn = document.createElement('button');
+mapAccountBtn.type = 'button';
+mapAccountBtn.className = 'feed-menu-account-btn';
+const mapAvatar = document.createElement('img');
+mapAvatar.className = 'feed-menu-avatar';
+mapAvatar.alt = '';
+mapAvatar.addEventListener('error', () => {
+  if (mapAvatar.src !== DEFAULT_PIC) mapAvatar.src = DEFAULT_PIC;
+});
+const mapAccountId = document.createElement('span');
+mapAccountId.className = 'feed-menu-account-id';
+mapAccountBtn.append(mapAvatar, mapAccountId);
+mapAccount.appendChild(mapAccountBtn);
+menu.appendChild(mapAccount);
+mapAccountBtn.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (walletNow()) return;
+  openConnect();
+});
+
+function paintMapAccount() {
+  const id = walletNow();
+  const label = document.getElementById('account-id');
+  const text = id || (label && label.textContent.trim()) || 'Not connected';
+  mapAccountId.textContent = text;
+  mapAvatar.src = id ? profilePicUrl(id) : DEFAULT_PIC;
+  paintProfileAvatar(mapAvatar, id);
+  mapAccountBtn.classList.toggle('is-connect', !id);
+  mapAccountBtn.setAttribute('aria-label', id ? text : 'Connect wallet');
+}
+
+function paintMenuRows() {
+  const mapMode = menu.classList.contains('is-map-drawer');
   const on = !!walletNow();
-  for (const row of walletRows) row.hidden = on ? row.dataset.wallet !== 'on' : row.dataset.wallet !== 'off';
+  for (const row of menu.children) {
+    if (!row.dataset) continue;
+    const mode = row.dataset.mode || 'feed';
+    let hide = mapMode ? mode !== 'map' : mode !== 'feed';
+    const wallet = row.dataset.wallet;
+    if (!hide && wallet) hide = on ? wallet !== 'on' : wallet !== 'off';
+    row.hidden = hide;
+  }
+  paintMapAccount();
 }
 
 // web3.js writes #account-id on connect and disconnect. Repaint so a
@@ -5356,7 +5504,7 @@ function watchWalletRows() {
     const now = walletNow();
     if (now === last) return;
     last = now;
-    paintWalletRows();
+    paintMenuRows();
     syncProfileOwn();
   };
   new MutationObserver(sync).observe(account, { childList: true, characterData: true, subtree: true });
@@ -5364,6 +5512,7 @@ function watchWalletRows() {
 
 for (const item of MENU_ROWS) {
   const row = document.createElement('li');
+  if (item.mode) row.dataset.mode = item.mode;
   if (item.wallet) {
     row.dataset.wallet = item.wallet;
     walletRows.push(row);
@@ -5387,13 +5536,17 @@ for (const item of MENU_ROWS) {
   row.appendChild(choice);
   menu.appendChild(row);
 }
-paintWalletRows();
+paintMenuRows();
 watchWalletRows();
+window.restoreDrawerFromMap = restoreDrawer;
+document.addEventListener('profiles-loaded', paintMapAccount);
 
 if (window.defineLayer) {
   window.defineLayer('feedmenu', {
     parent: 'feed',
     open: (state) => {
+      if (feedCovers()) placeMenuForMap(false);
+      else placeMenuForMap(true);
       paintMenu(true);
       if (state && state.item) {
         drawerItem = state.item;
@@ -5484,6 +5637,12 @@ menuBtn.addEventListener('click', (event) => {
   event.stopPropagation();
   if (window.layerIsTop && window.layerIsTop('feedmenu')) closeMenu();
   else openMenu();
+});
+bindPress(mapMenuBtn);
+mapMenuBtn.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (window.layerIsTop && window.layerIsTop('feedmenu')) closeMenu();
+  else openMapMenu();
 });
 
 bindPress(topicBtn);

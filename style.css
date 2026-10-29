@@ -2116,6 +2116,156 @@ html, body {
     flex-direction: row;
   }
 
+  /* One row: menu, clock, coordinates, then layers / search / locate / compass. */
+  :root {
+    --map-pill: 4.6dvh;
+  }
+  #map-topbar {
+    position: fixed;
+    top: 0.9dvh;
+    left: 0.9dvw;
+    right: 0.9dvw;
+    z-index: 1007;
+    display: flex;
+    align-items: center;
+    gap: 0.7dvh;
+    height: var(--map-pill);
+    pointer-events: none;
+  }
+  #map-topbar > * {
+    pointer-events: auto;
+  }
+  #map-menu-btn {
+    appearance: none;
+    flex: 0 0 auto;
+    width: var(--map-pill);
+    height: var(--map-pill);
+    margin: 0;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    background-color: rgba(10, 10, 18, 0.88);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 50%;
+    cursor: pointer;
+    touch-action: manipulation;
+    line-height: 0;
+  }
+  #map-menu-btn svg {
+    width: calc(var(--map-pill) * 0.46);
+    height: calc(var(--map-pill) * 0.46);
+    display: block;
+    pointer-events: none;
+  }
+  #map-menu-btn:hover,
+  #map-topbar #search-toggle-btn:hover,
+  #map-topbar #layout-mode-btn:hover {
+    background-color: rgba(30, 30, 42, 0.94);
+    border-color: rgba(255, 255, 255, 0.45);
+  }
+  #map-menu-btn:focus-visible {
+    outline: 0.2dvh solid #22D3EE;
+    outline-offset: 0.2dvh;
+  }
+  #map-top-pills {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.7dvh;
+  }
+  #map-topbar #local-clock,
+  #map-topbar #coordinates-display {
+    position: static;
+    height: 100%;
+    margin: 0;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    padding: 0 1.3dvh;
+    border-radius: 999px;
+    font-size: 1.45dvh;
+    line-height: 1;
+    white-space: nowrap;
+    background-color: rgba(15, 15, 20, 0.86);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+  #map-topbar #local-clock {
+    flex: 0 0 auto;
+    align-self: center;
+    pointer-events: none;
+  }
+  #map-coord-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+  }
+  #map-topbar #coordinates-display {
+    width: 100% !important;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+  }
+  #map-topbar .copy-coordinates {
+    position: absolute;
+    inset: 0;
+    width: auto !important;
+    height: auto !important;
+    right: auto;
+    top: auto;
+  }
+  #map-topbar #map-corner-buttons {
+    position: static;
+    top: auto;
+    right: auto;
+    flex: 0 0 auto;
+    height: var(--map-pill);
+    gap: 0.7dvh;
+  }
+  #map-topbar .maplibregl-ctrl-top-right {
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    flex: 0 0 auto;
+    align-items: center;
+    height: var(--map-pill);
+    gap: 0.7dvh;
+    margin: 0;
+  }
+  #map-topbar .maplibregl-ctrl-top-right .maplibregl-ctrl {
+    margin: 0 !important;
+    float: none;
+  }
+  #map-topbar .maplibregl-ctrl-group {
+    box-shadow: none;
+  }
+  #map-topbar .custom-geolocate-position {
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+  }
+  #map-topbar #layout-mode-btn,
+  #map-topbar #search-toggle-btn,
+  #map-topbar .maplibregl-ctrl-compass,
+  #map-topbar .maplibregl-ctrl-geolocate {
+    width: var(--map-pill);
+    height: var(--map-pill);
+    flex: 0 0 auto;
+  }
+  #map-topbar #layout-mode-btn svg {
+    width: calc(var(--map-pill) * 0.46);
+    height: calc(var(--map-pill) * 0.46);
+  }
+  #menu-buttons-group {
+    top: calc(0.9dvh + var(--map-pill) + 1.2dvh) !important;
+  }
+
   /* Location search — same circular dark-glass look as the compass/geolocate
      nav buttons. The feed toggle sits in this row, immediately left of
      search, with the same 1vh gap the row already uses. */
@@ -2131,11 +2281,26 @@ html, body {
     z-index: 1005;
   }
 
-  /* Same band as the round buttons. Pills stay content-sized and centre in it. */
+  /* Same band as the round buttons. The row stays in the DOM so Options,
+     Topic chat and E2EE chat can still be opened from the drawer. */
   #main-buttons-row {
-    top: calc(5vh + 10px);
-    height: 3vh;
-    align-items: center;
+    display: none !important;
+  }
+
+  /* Wallet, account id and Disconnect live in the drawer. The clock
+     moves into the top bar; this box only keeps the hidden controls. */
+  .flex-container {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    pointer-events: none;
+    z-index: 0;
   }
 
   #search-toggle-btn {
@@ -9669,6 +9834,23 @@ html.feed-app appkit-modal {
 #feed-menu.is-open {
   transform: translateX(0);
 }
+#feed-menu.is-map-drawer,
+.feed-menu-dim.is-map-drawer {
+  position: fixed;
+  z-index: 8600;
+}
+.feed-menu-dim.is-map-drawer {
+  z-index: 8590;
+}
+#feed-menu.is-map-drawer {
+  height: 100dvh;
+  width: min(78dvw, 42dvh);
+  --feed-zoom: 1;
+  --fu: calc(min(78dvw, 42dvh) / 31.25);
+}
+#feed-menu.is-map-drawer .feed-menu-rule {
+  margin-top: auto;
+}
 #feed-menu[hidden] {
   display: none;
 }
@@ -9732,6 +9914,55 @@ html.feed-app appkit-modal {
 #feed-menu .feed-menu-item.is-danger:is(:hover, :active, .is-hold) {
   color: #f07178;
   background: rgba(240, 113, 120, 0.14);
+}
+#feed-menu .feed-menu-account {
+  margin: 0;
+  padding: calc(var(--fu) * 0.6) calc(var(--fu) * 1.3) calc(var(--fu) * 0.9);
+  list-style: none;
+}
+#feed-menu .feed-menu-account-btn {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--fu) * 0.9);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+  touch-action: manipulation;
+}
+#feed-menu .feed-menu-account-btn.is-connect {
+  cursor: pointer;
+}
+#feed-menu .feed-menu-avatar {
+  width: calc(var(--fu) * 4.2);
+  height: calc(var(--fu) * 4.2);
+  flex: 0 0 auto;
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.08);
+}
+#feed-menu .feed-menu-account-id {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(var(--fu) * 1.7);
+  font-weight: 700;
+  line-height: 1.2;
+}
+#feed-menu .feed-menu-account-btn.is-connect .feed-menu-account-id {
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 600;
+}
+#feed-menu .feed-menu-account-btn:focus-visible {
+  outline: calc(var(--fu) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--fu) * 0.12);
 }
 #feed-settings {
   --feed-zoom: 1;

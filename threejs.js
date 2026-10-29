@@ -207,7 +207,7 @@ function animate(now) {
     // Update coordinates display only if changed. A successful copy holds
     // the same "Copyed!" flash the topic name uses, then the live text returns.
     const coordinatesDisplay = document.getElementById("coordinates-display");
-    const newCoords = `Z: ${zoom} · lng: ${lng}, lat: ${lat}`;
+    const newCoords = `Z: ${zoom} lng: ${lng}, lat: ${lat}`;
     const copiedUntil = Number(coordinatesDisplay.dataset.copiedUntil) || 0;
     const nextText = Date.now() < copiedUntil ? "Copyed!" : newCoords;
     if (coordinatesDisplay.value !== nextText) {

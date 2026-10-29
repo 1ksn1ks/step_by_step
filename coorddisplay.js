@@ -1,6 +1,8 @@
 function adjustButtonSize() {
     const coordinatesDisplay = document.getElementById('coordinates-display');
     const copyCoordinatesButton = document.getElementById('copy-coordinates');
+    if (!coordinatesDisplay || !copyCoordinatesButton) return;
+    if (coordinatesDisplay.closest('#map-topbar')) return;
 
     // Use the rendered size (includes padding and border) so the
     // button exactly matches the display
