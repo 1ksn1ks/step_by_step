@@ -120,15 +120,16 @@ function pinSettingsCard() {
   const card = document.getElementById('popup-settings-card');
   if (!card) return;
   const set = (prop, value) => card.style.setProperty(prop, value, 'important');
+  const wide = window.matchMedia('(orientation: landscape)').matches;
   set('top', 'var(--popup-top)');
-  set('right', 'var(--popup-right)');
+  set('right', wide ? 'calc(var(--popup-right) + env(safe-area-inset-right))' : 'var(--popup-right)');
   set('bottom', 'var(--popup-bottom)');
-  set('left', 'var(--popup-left)');
+  set('left', wide ? 'calc(var(--popup-left) + env(safe-area-inset-left))' : 'var(--popup-left)');
   set('transform', 'none');
   set('width', 'auto');
-  set('height', 'auto');
+  set('height', wide ? 'calc(100dvh - var(--popup-top) - var(--popup-bottom))' : 'auto');
   set('max-width', 'none');
-  set('max-height', 'none');
+  set('max-height', wide ? 'calc(100dvh - var(--popup-top) - var(--popup-bottom))' : 'none');
 }
 
 // Older fits wrote a per-popup top and --fit. Those would pin one post

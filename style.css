@@ -6783,22 +6783,24 @@ a.payer-link {
   .popup-media-expand:active { transform: scale(0.94); }
 }
 
-/* Landscape only: the same topic popup keeps the portrait frame (toolbar
-   line, full width, 0.5dvh bottom). The shell is clear so two sheet cards
-   show the map between them. Comments stay hidden until 💬, then the same
-   comments view covers only the right card. Draw, settings, and a portrait
-   comments modal sit outside .maplibregl-map, so they stay one card. */
+/* Landscape only: the same full-screen frame as portrait. Top and bottom
+   are 0.5dvh plus the safe area (--popup-top / --popup-bottom). The
+   current side margins stay, plus the side safe area for a notch. The
+   shell is clear so two sheet cards show the map between them. Comments
+   stay hidden until 💬, then the same comments view covers only the right
+   card. Draw, settings, and a portrait comments modal sit outside
+   .maplibregl-map, so they stay one card. */
 @media (orientation: landscape) {
   .maplibregl-map .maplibregl-popup {
     top: var(--popup-top) !important;
-    left: var(--popup-left) !important;
-    right: var(--popup-right) !important;
     bottom: var(--popup-bottom) !important;
+    left: calc(var(--popup-left) + env(safe-area-inset-left)) !important;
+    right: calc(var(--popup-right) + env(safe-area-inset-right)) !important;
     transform: none !important;
     width: auto !important;
     max-width: none !important;
-    height: auto !important;
-    max-height: none !important;
+    height: calc(100dvh - var(--popup-top) - var(--popup-bottom)) !important;
+    max-height: calc(100dvh - var(--popup-top) - var(--popup-bottom)) !important;
     --popup-h: calc(100dvh - var(--popup-top) - var(--popup-bottom));
     --popup-w: var(--popup-card);
     container-type: size;
@@ -6838,6 +6840,14 @@ a.payer-link {
     min-height: 0;
     max-height: 100%;
     overflow: visible;
+  }
+
+  /* The text row is the only flexible one, so a long post scrolls inside
+     the right card. The picture stays the full height of the left card. */
+  .maplibregl-map .maplibregl-popup-content > .popup-sheet {
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    row-gap: 0;
+    overflow: hidden;
   }
 
   .maplibregl-map .popup-sheet::before,
@@ -6897,10 +6907,10 @@ a.payer-link {
     grid-column: 1;
     grid-row: 1 / -1;
     box-sizing: border-box;
-    width: 100%;
+    width: auto;
     height: 100%;
-    max-width: 100%;
-    max-height: 100%;
+    max-width: none;
+    max-height: none;
     min-width: 0;
     min-height: 0;
     aspect-ratio: auto;
@@ -6919,7 +6929,7 @@ a.payer-link {
     height: 100%;
     max-width: none;
     max-height: none;
-    object-fit: contain;
+    object-fit: cover;
     background-color: #0b0d13;
     opacity: 1;
     mix-blend-mode: normal;
@@ -6930,13 +6940,14 @@ a.payer-link {
     grid-row: 2;
     min-width: 0;
     max-width: 100%;
+    margin-top: calc(var(--u) * 0.8);
     margin-bottom: 0;
   }
 
   .maplibregl-map .popup-nav {
     grid-column: 2;
     grid-row: 3;
-    margin: 0;
+    margin: calc(var(--u) * 0.8) 0 0;
     min-width: 0;
     max-width: 100%;
   }
@@ -6950,8 +6961,13 @@ a.payer-link {
     grid-row: 4;
     min-width: 0;
     min-height: 0;
+    max-height: 100%;
+    margin-top: calc(var(--u) * 0.8);
     align-self: stretch;
-    overflow: visible;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
   }
 
   .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-body > div:not(.popup-media-card) {
@@ -7027,7 +7043,10 @@ a.payer-link {
   .maplibregl-map .popup-text-bubble {
     width: fit-content;
     max-width: 100%;
+    max-height: none;
     box-sizing: border-box;
+    overflow-x: hidden;
+    overflow-y: visible;
     overflow-wrap: anywhere;
     font-size: calc(var(--u) * 2 * var(--popup-font-scale, 1));
     line-height: 1.35;
@@ -7062,7 +7081,8 @@ a.payer-link {
   }
 
   .maplibregl-map .popup-sheet > .popup-dock:has(.popup-top-topic) {
-    grid-row: 6;
+    grid-row: 5;
+    margin-top: calc(var(--u) * 0.8) !important;
   }
 
   .maplibregl-map .popup-sheet > .popup-footer-row {
@@ -7796,6 +7816,12 @@ a.payer-link {
    Shell values match .maplibregl-map .maplibregl-popup in this file. */
 @media (orientation: landscape) {
   #popup-settings-card:not([style*="display: none"]) {
+    top: var(--popup-top) !important;
+    bottom: var(--popup-bottom) !important;
+    left: calc(var(--popup-left) + env(safe-area-inset-left)) !important;
+    right: calc(var(--popup-right) + env(safe-area-inset-right)) !important;
+    height: calc(100dvh - var(--popup-top) - var(--popup-bottom)) !important;
+    max-height: calc(100dvh - var(--popup-top) - var(--popup-bottom)) !important;
     --popup-h: calc(100dvh - var(--popup-top) - var(--popup-bottom));
     --popup-w: var(--popup-card);
     --fit: 1;
