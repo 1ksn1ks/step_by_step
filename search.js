@@ -45,8 +45,13 @@ function closeSearchBar() {
 searchToggleBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   closeDrawAnchor();
+  // The map drawer already closed the other panels and is waiting to
+  // hand its history entry to this bar. CloseALL here would commit
+  // that back and immediately dismiss the search it just opened.
+  const fromDrawer = searchToggleBtn.dataset.fromDrawer === '1';
+  delete searchToggleBtn.dataset.fromDrawer;
   if (searchBar.style.display !== 'block') {
-    CloseALL();
+    if (!fromDrawer) CloseALL();
     searchBar.style.display = 'block';
     searchInput.focus();
     layerOpened('search', { query: searchInput.value });

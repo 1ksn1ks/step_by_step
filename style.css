@@ -2109,14 +2109,24 @@ html, body {
     display: none;
   }
 
-  .maplibregl-ctrl-top-right {
-    top: 5vh !important;
-    right: 10px !important;
-    display: flex;
-    flex-direction: row;
+  /* Layers, search, locate and the compass stay clickable for the drawer. */
+  .maplibregl-ctrl-top-right,
+  .maplibregl-ctrl-top-right * {
+    position: fixed !important;
+    top: 0 !important;
+    right: auto !important;
+    left: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    z-index: 0;
   }
 
-  /* One row: menu, clock, coordinates, then layers / search / locate / compass. */
+  /* One row: menu, clock, coordinates. */
   :root {
     --map-pill: 4.6dvh;
   }
@@ -2159,9 +2169,7 @@ html, body {
     display: block;
     pointer-events: none;
   }
-  #map-menu-btn:hover,
-  #map-topbar #search-toggle-btn:hover,
-  #map-topbar #layout-mode-btn:hover {
+  #map-menu-btn:hover {
     background-color: rgba(30, 30, 42, 0.94);
     border-color: rgba(255, 255, 255, 0.45);
   }
@@ -2220,65 +2228,25 @@ html, body {
     right: auto;
     top: auto;
   }
-  #map-topbar #map-corner-buttons {
-    position: static;
-    top: auto;
-    right: auto;
-    flex: 0 0 auto;
-    height: var(--map-pill);
-    gap: 0.7dvh;
-  }
-  #map-topbar .maplibregl-ctrl-top-right {
-    position: static !important;
-    top: auto !important;
-    right: auto !important;
-    flex: 0 0 auto;
-    align-items: center;
-    height: var(--map-pill);
-    gap: 0.7dvh;
-    margin: 0;
-  }
-  #map-topbar .maplibregl-ctrl-top-right .maplibregl-ctrl {
-    margin: 0 !important;
-    float: none;
-  }
-  #map-topbar .maplibregl-ctrl-group {
-    box-shadow: none;
-  }
-  #map-topbar .custom-geolocate-position {
-    position: static !important;
-    top: auto !important;
-    right: auto !important;
-  }
-  #map-topbar #layout-mode-btn,
-  #map-topbar #search-toggle-btn,
-  #map-topbar .maplibregl-ctrl-compass,
-  #map-topbar .maplibregl-ctrl-geolocate {
-    width: var(--map-pill);
-    height: var(--map-pill);
-    flex: 0 0 auto;
-  }
-  #map-topbar #layout-mode-btn svg {
-    width: calc(var(--map-pill) * 0.46);
-    height: calc(var(--map-pill) * 0.46);
-  }
   #menu-buttons-group {
     top: calc(0.9dvh + var(--map-pill) + 1.2dvh) !important;
   }
 
-  /* Location search — same circular dark-glass look as the compass/geolocate
-     nav buttons. The feed toggle sits in this row, immediately left of
-     search, with the same 1vh gap the row already uses. */
-  #map-corner-buttons {
-    position: fixed;
-    top: calc(5vh + 10px);
-    right: calc(8vh + 20px);
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    height: 3vh;
-    gap: 1vh;
-    z-index: 1005;
+  /* Layers and search stay in the document for the drawer to click. */
+  #map-corner-buttons,
+  #map-corner-buttons * {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    right: auto !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    z-index: 0;
   }
 
   /* Same band as the round buttons. The row stays in the DOM so Options,
@@ -2428,10 +2396,10 @@ html, body {
   }
 
   .custom-geolocate-position {
-    position: absolute !important;
-    top: 0vh !important;
-    right: 4vh !important;
-    z-index: 10;
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    z-index: 0;
   }
   
   .maplibregl-ctrl.maplibregl-ctrl-group {

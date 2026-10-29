@@ -301,8 +301,8 @@ if (searchBtn && searchBtn.parentNode) {
 } else document.body.appendChild(btn);
 document.body.appendChild(root);
 
-// One map row: menu, clock, coordinates, then the round controls
-// (layers, search, locate, compass). The feed drawer is the same list.
+// One map row: menu, clock, coordinates. Layers, search, locate and
+// the compass stay in the page so the drawer can run the same clicks.
 const mapBar = document.createElement('div');
 mapBar.id = 'map-topbar';
 const mapMenuBtn = document.createElement('button');
@@ -329,19 +329,7 @@ if (mapCoords) mapCoordWrap.appendChild(mapCoords);
 if (mapCopy) mapCoordWrap.appendChild(mapCopy);
 if (mapClock) mapPills.appendChild(mapClock);
 mapPills.appendChild(mapCoordWrap);
-const mapTools = document.getElementById('map-corner-buttons');
-const mapCtrls = document.querySelector('.maplibregl-ctrl-top-right');
-if (mapCtrls) {
-  const locateGroup = document.querySelector('.maplibregl-ctrl-geolocate');
-  const compassGroup = document.querySelector('.maplibregl-ctrl-compass');
-  const locateBox = locateGroup && locateGroup.closest('.maplibregl-ctrl-group');
-  const compassBox = compassGroup && compassGroup.closest('.maplibregl-ctrl-group');
-  if (locateBox) mapCtrls.appendChild(locateBox);
-  if (compassBox) mapCtrls.appendChild(compassBox);
-}
 mapBar.append(mapMenuBtn, mapPills);
-if (mapTools) mapBar.appendChild(mapTools);
-if (mapCtrls) mapBar.appendChild(mapCtrls);
 document.body.appendChild(mapBar);
 
 const profilePage = document.createElement('div');
@@ -4004,6 +3992,22 @@ const WALLET_ICON = [
   ['path', { d: 'M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1' }],
   ['path', { d: 'M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4' }],
 ];
+const SEARCH_ICON = [
+  ['circle', { cx: '11', cy: '11', r: '8' }],
+  ['path', { d: 'm21 21-4.3-4.3' }],
+];
+const LOCATE_ICON = [
+  ['line', { x1: '2', x2: '5', y1: '12', y2: '12' }],
+  ['line', { x1: '19', x2: '22', y1: '12', y2: '12' }],
+  ['line', { x1: '12', x2: '12', y1: '2', y2: '5' }],
+  ['line', { x1: '12', x2: '12', y1: '19', y2: '22' }],
+  ['circle', { cx: '12', cy: '12', r: '7' }],
+];
+// Same up/down needle the compass button draws.
+const NORTH_ICON = [
+  ['path', { d: 'M12 3 17.5 12H6.5Z', fill: 'currentColor', stroke: 'none' }],
+  ['path', { d: 'M12 21 6.5 12h11Z', fill: 'currentColor', stroke: 'none', opacity: '0.45' }],
+];
 
 // Panels Options can open. They are painted under the feed, so a drawer
 // open lifts them while that Options session is up.
@@ -5386,6 +5390,22 @@ function openMapMenu() {
   if (window.layerOpened) window.layerOpened('feedmenu');
 }
 
+// Map tools leave the drawer. The original control still does the work.
+// Search skips its own CloseALL: that call commits the drawer's pending
+// back and the bar disappears in the same turn.
+function runMapControl(selector) {
+  const el = document.querySelector(selector);
+  if (selector === '#search-toggle-btn' && el) {
+    CloseALL();
+    closeMenu();
+    el.dataset.fromDrawer = '1';
+    el.click();
+    return;
+  }
+  closeMenu();
+  if (el) el.click();
+}
+
 function openMapOptions() {
   if (window.layerIsTop && window.layerIsTop('feedmenu')) keepDrawer('Options');
   const button = document.getElementById('main-toggle-btn');
@@ -5435,6 +5455,10 @@ const MENU_ROWS = [
   { mode: 'feed', label: 'Settings', icon: SETTINGS_ICON, run: openFeedSettings },
   { mode: 'feed', rule: true, wallet: 'on' },
   { mode: 'feed', label: 'Disconnect', icon: LOGOUT_ICON, run: openDisconnect, wallet: 'on', danger: true },
+  { mode: 'map', label: 'Layers', icon: GLOBE_ICON, run: () => runMapControl('#layout-mode-btn') },
+  { mode: 'map', label: 'Search', icon: SEARCH_ICON, run: () => runMapControl('#search-toggle-btn') },
+  { mode: 'map', label: 'Locate me', icon: LOCATE_ICON, run: () => runMapControl('.maplibregl-ctrl-geolocate') },
+  { mode: 'map', label: 'Reset north', icon: NORTH_ICON, run: () => runMapControl('.maplibregl-ctrl-compass') },
   { mode: 'map', label: 'Options', icon: SETTINGS_ICON, run: openMapOptions },
   { mode: 'map', label: 'Topic chat', icon: CHAT_ICON, run: openMapTopic },
   { mode: 'map', label: 'E2EE chat', icon: LOCK_ICON, run: openMapE2ee },
