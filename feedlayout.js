@@ -5258,35 +5258,31 @@ function openDisconnect() {
 
 // The parked Wallet button reveals Connect. Connect's own handler opens
 // the sheet. The drawer stays up; paintMenuRows swaps this row for the
-// account and Disconnect when the id lands.
+// account and Disconnect when the id lands. A second tap while the sheet
+// or the "Connecting..." label is up does not start another connect.
+let drawerConnectWatch = 0;
 function openDrawerConnect() {
+  if (walletModalOpen() || connectPending() || drawerConnectWatch) return;
+  const watchId = ++drawerConnectWatch;
   clickId('wallet-wallet-btn');
   clickId('connect-wallet-btn');
-}
-
-// The drawer sits on the feed, and #connect-wallet-btn is under that screen.
-// Close the drawer first, let its deferred history.back() land, then open
-// the sheet the same way the plus button does. Success and cancel both
-// stay on the feed.
-async function openConnect() {
-  holdScroll();
-  closeReplacedMenu();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  // Own the busy flag only when the plus button does not already hold it.
-  const token = placeBusy ? 0 : ++placeToken;
-  if (token) placeBusy = true;
-  let status = 'fail';
-  try {
-    status = await ensureWallet();
-  } catch (err) {
-    status = 'fail';
-  } finally {
-    if (token && token === placeToken) placeBusy = false;
-  }
-  if (token && token !== placeToken) return;
-  if (token) placeBusy = false;
-  if (status === 'ok' || status === 'cancel') return;
-  toast.info("Couldn't open the wallet");
+  const started = Date.now();
+  let sawSheet = walletModalOpen();
+  const watch = () => {
+    if (watchId !== drawerConnectWatch) return;
+    if (walletModalOpen()) sawSheet = true;
+    if (walletNow() || sawSheet) {
+      drawerConnectWatch = 0;
+      return;
+    }
+    if (Date.now() - started < 4000) {
+      setTimeout(watch, 200);
+      return;
+    }
+    drawerConnectWatch = 0;
+    toast.info("Couldn't open the wallet");
+  };
+  setTimeout(watch, 200);
 }
 
 // A later open or close bumps this so a finishing slide cannot hide
