@@ -5576,9 +5576,9 @@ const DRAWER_ORDER = [
   { label: 'My profile', icon: USER_ICON, run: openOwnProfile, wallet: 'on' },
   { label: 'Topic chat', icon: CHAT_ICON, run: { feed: openTopicChat, map: openMapTopic } },
   { label: 'E2EE chat', icon: LOCK_ICON, run: { feed: openE2ee, map: openMapE2ee } },
-  { label: 'Settings', icon: SETTINGS_ICON, run: () => openDrawerPanel('rotation-controls') },
-  { label: 'Visibility', icon: EYE_ICON, run: () => openDrawerPanel('visibility-controls') },
-  { label: 'Toolbar', icon: TOOLS_ICON, run: () => openDrawerPanel('toolbar') },
+  { label: 'Settings', icon: SETTINGS_ICON, run: { feed: openFeedSettings, map: () => openDrawerPanel('rotation-controls') } },
+  { label: 'Visibility', icon: EYE_ICON, mode: 'map', run: () => openDrawerPanel('visibility-controls') },
+  { label: 'Toolbar', icon: TOOLS_ICON, mode: 'map', run: () => openDrawerPanel('toolbar') },
   {
     kind: 'tools',
     feed: [],
