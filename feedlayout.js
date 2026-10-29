@@ -301,7 +301,7 @@ if (searchBtn && searchBtn.parentNode) {
 } else document.body.appendChild(btn);
 document.body.appendChild(root);
 
-// One map row: menu, clock, coordinates. Layers, search, locate and
+// One map row: menu, clock, coordinates. Search, locate and
 // the compass stay in the page so the drawer can run the same clicks.
 const mapBar = document.createElement('div');
 mapBar.id = 'map-topbar';
@@ -5274,7 +5274,8 @@ function motionOff() {
 function markMenuItem(label) {
   const buttons = menu.querySelectorAll(':scope > li > .feed-menu-item');
   for (const button of buttons) {
-    const on = !!label && button.dataset.item === label;
+    // Search, Locate me and Reset north run once. They are never the open page.
+    const on = !!label && button.dataset.shot !== '1' && button.dataset.item === label;
     button.classList.toggle('is-current', on);
     if (on) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
@@ -5492,10 +5493,9 @@ const DRAWER_ORDER = [
     kind: 'tools',
     feed: [],
     map: [
-      { label: 'Layers', icon: GLOBE_ICON, run: () => runMapControl('#layout-mode-btn') },
-      { label: 'Search', icon: SEARCH_ICON, run: () => runMapControl('#search-toggle-btn') },
-      { label: 'Locate me', icon: LOCATE_ICON, run: () => runMapControl('.maplibregl-ctrl-geolocate') },
-      { label: 'Collapse', icon: NORTH_ICON, run: () => runMapControl('.maplibregl-ctrl-compass') },
+      { label: 'Search', icon: SEARCH_ICON, run: () => runMapControl('#search-toggle-btn'), shot: true },
+      { label: 'Locate me', icon: LOCATE_ICON, run: () => runMapControl('.maplibregl-ctrl-geolocate'), shot: true },
+      { label: 'Reset north', icon: NORTH_ICON, run: () => runMapControl('.maplibregl-ctrl-compass'), shot: true },
     ],
   },
   { label: 'Disconnect', icon: LOGOUT_ICON, run: openDisconnect, wallet: 'on', danger: true, end: true },
@@ -5534,11 +5534,20 @@ function appendDrawerItem(spec) {
   const choice = document.createElement('button');
   choice.type = 'button';
   choice.className = spec.danger ? 'feed-menu-item is-danger' : 'feed-menu-item';
+  if (spec.shot) {
+    choice.dataset.shot = '1';
+    choice.classList.add('is-shot');
+  }
   paintChoice(choice, spec, menu.classList.contains('is-map-drawer'));
   choice.addEventListener('click', (event) => {
     event.stopPropagation();
     const run = viewValue(spec.run, menu.classList.contains('is-map-drawer'));
     if (typeof run === 'function') run();
+    if (choice.dataset.shot === '1') {
+      choice.classList.remove('is-current', 'is-hold');
+      choice.removeAttribute('aria-current');
+      choice.blur();
+    }
   });
   bindPress(choice);
   row.appendChild(choice);

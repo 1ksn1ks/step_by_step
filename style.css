@@ -9912,6 +9912,12 @@ html.feed-app appkit-modal {
   color: #22D3EE;
   background: rgba(34, 211, 238, 0.12);
 }
+/* One-shot map tools light up only while pressed. A sticky :hover
+   must not leave Search, Locate me or Reset north looking selected. */
+#feed-menu .feed-menu-item.is-shot:not(:active):not(.is-hold) {
+  color: #fff;
+  background: none;
+}
 #feed-menu .feed-menu-item:focus-visible {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.12);
