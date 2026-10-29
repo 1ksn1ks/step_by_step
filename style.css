@@ -2126,46 +2126,48 @@ html, body {
     z-index: 0;
   }
 
-  /* One row: menu, clock, coordinates. */
-  :root {
-    --map-pill: 4.6dvh;
-  }
+  /* One row, pre-declutter metrics: menu in the Disconnect slot
+     (2px + the wallet inset), clock beside it, coordinates at the
+     right edge sized to the text. The bar itself does not take hits. */
   #map-topbar {
     position: fixed;
-    top: 0.9dvh;
-    left: 0.9dvw;
-    right: 0.9dvw;
+    top: 2px;
+    left: 2px;
+    right: 2px;
     z-index: 1007;
     display: flex;
-    align-items: center;
-    gap: 0.7dvh;
-    height: var(--map-pill);
+    align-items: stretch;
+    gap: 0.5vh;
+    height: auto;
+    padding-left: 0.225vh;
+    box-sizing: border-box;
     pointer-events: none;
-  }
-  #map-topbar > * {
-    pointer-events: auto;
   }
   #map-menu-btn {
     appearance: none;
     flex: 0 0 auto;
-    width: var(--map-pill);
-    height: var(--map-pill);
+    align-self: center;
+    box-sizing: border-box;
+    width: calc(1lh + 0.8vh + 0.8vh + 1px + 1px);
+    height: calc(1lh + 0.8vh + 0.8vh + 1px + 1px);
     margin: 0;
-    padding: 0;
+    padding: 0.8vh;
+    font-family: Arial, sans-serif;
+    font-size: 1.5vh;
+    line-height: normal;
     display: grid;
     place-items: center;
-    box-sizing: border-box;
     background-color: rgba(10, 10, 18, 0.88);
     color: #fff;
     border: 1px solid rgba(255, 255, 255, 0.25);
     border-radius: 50%;
     cursor: pointer;
     touch-action: manipulation;
-    line-height: 0;
+    pointer-events: auto;
   }
   #map-menu-btn svg {
-    width: calc(var(--map-pill) * 0.46);
-    height: calc(var(--map-pill) * 0.46);
+    width: 1.5vh;
+    height: 1.5vh;
     display: block;
     pointer-events: none;
   }
@@ -2180,23 +2182,23 @@ html, body {
   #map-top-pills {
     flex: 1 1 auto;
     min-width: 0;
-    height: 100%;
+    height: auto;
     display: flex;
     align-items: center;
-    gap: 0.7dvh;
+    gap: 0.5vh;
+    pointer-events: none;
   }
   #map-topbar #local-clock,
   #map-topbar #coordinates-display {
     position: static;
-    height: 100%;
+    height: auto;
     margin: 0;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    padding: 0 1.3dvh;
-    border-radius: 999px;
-    font-size: 1.45dvh;
-    line-height: 1;
+    box-sizing: content-box;
+    padding: 0.8vh 0.45vh;
+    border-radius: 0.8vh;
+    font-family: Arial, sans-serif;
+    font-size: 1.5vh;
+    line-height: normal;
     white-space: nowrap;
     background-color: rgba(15, 15, 20, 0.86);
     color: #fff;
@@ -2204,29 +2206,59 @@ html, body {
   }
   #map-topbar #local-clock {
     flex: 0 0 auto;
-    align-self: center;
+    display: inline-flex;
+    align-items: center;
     pointer-events: none;
   }
   #map-coord-wrap {
     position: relative;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-width: 0;
-    height: 100%;
+    max-width: 100%;
+    margin-left: auto;
+    height: auto;
+    pointer-events: none;
   }
   #map-topbar #coordinates-display {
-    width: 100% !important;
+    display: block;
+    width: auto;
     min-width: 0;
+    max-width: calc(100% - 0.9vh - 2px);
     overflow: hidden;
     text-overflow: ellipsis;
     pointer-events: none;
+    transition: transform 0.12s ease, filter 0.12s ease;
   }
   #map-topbar .copy-coordinates {
     position: absolute;
-    inset: 0;
-    width: auto !important;
-    height: auto !important;
-    right: auto;
-    top: auto;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0;
+    padding: 0;
+    pointer-events: auto;
+    cursor: pointer;
+    z-index: 2;
+    touch-action: manipulation;
+  }
+  #map-coord-wrap:has(.copy-coordinates:hover) #coordinates-display {
+    transform: scale(1.03);
+    filter: brightness(1.08);
+  }
+  #map-coord-wrap:has(.copy-coordinates:active) #coordinates-display {
+    transform: scale(0.97);
+  }
+  #map-coord-wrap:has(.copy-coordinates:focus-visible) #coordinates-display {
+    outline: 0.2dvh solid #22D3EE;
+    outline-offset: 0.2dvh;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #map-topbar #coordinates-display {
+      transition: none;
+    }
   }
   /* Settings, Visibility and Toolbar stay in the document so the drawer
      can show those panels. They are not part of the map. */
