@@ -31,7 +31,6 @@ import { fillTopicIds, useTopicId } from './topicidintext.js';
 import { payerUsernameNode } from './payerlink.js';
 import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { openPreview } from './fullscreenmedia.js';
-import { attachDisplayImage } from './displayimage.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -1785,11 +1784,9 @@ function buildCard(post) {
       node.playsInline = true;
       node.preload = 'none';
       const poster = mediaOf(record.coverimage);
+      if (poster && !isVideo(poster)) node.poster = poster;
+      node.src = src;
       media.appendChild(node);
-      // No src/poster until the slot is on screen — attachDisplayImage
-      // starts the download (and the cover) at eligibility; the tap
-      // below opens the original full-res URL.
-      attachDisplayImage(node, src, poster && !isVideo(poster) ? poster : '');
       coverFeedPlayer(media, () => {
         if (node.paused) {
           delete node.dataset.feedHold;
@@ -1803,11 +1800,11 @@ function buildCard(post) {
     } else {
       node.alt = '';
       node.draggable = false;
+      node.loading = 'lazy';
+      node.decoding = 'async';
+      node.src = src;
       media.appendChild(node);
-      // No src until the slot is on screen — then the card shows a
-      // downscaled blob; the tap below opens the original full-res URL
-      // (gif/video skip the downscale but start at the same gate).
-      attachDisplayImage(node, src);
+      // Tap opens this same original URL in the fullscreen viewer.
       coverFeedPlayer(media, () => {
         holdScroll();
         openPreview(src);

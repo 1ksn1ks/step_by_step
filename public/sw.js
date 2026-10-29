@@ -1,15 +1,12 @@
-// Install service worker for Meritocracy. v3
+// Install service worker for Meritocracy. v4
 // The fetch listener is what the install prompt looks for.
-// /api, the app shell, map tiles, and WalletConnect stay on the network.
+// /api, the app shell, map tiles, WalletConnect, and post pictures stay on
+// the network. R2 sends Cache-Control: public, max-age=31536000, immutable,
+// so the browser HTTP cache keeps each post picture after the first download.
 // Profile picture files whose links this phone has saved are the exception:
 // the page sends those links, and a later visit uses the saved file.
-// Post pictures on the R2 host are saved on first view. Videos are not
-// intercepted; the browser cache keeps those.
 
 const PICTURES = "meritocracy-profile-pictures";
-const MEDIA = "meritocracy-post-media";
-const MEDIA_HOST = "pub-243bb90aeefc464884cd212612165e5b.r2.dev";
-const MEDIA_MAX = 400;
 const SETTINGS_DB = "meritocracy-user-settings";
 const knownPictures = new Set();
 
@@ -62,7 +59,10 @@ self.addEventListener("install", () => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(loadKnownPictures().then(() => self.clients.claim()));
+  event.waitUntil(Promise.all([
+    loadKnownPictures(),
+    caches.delete("meritocracy-post-media"),
+  ]).then(() => self.clients.claim()));
 });
 
 self.addEventListener("message", (event) => {
@@ -73,55 +73,9 @@ self.addEventListener("message", (event) => {
   }
 });
 
-function isPostPicture(request, url) {
-  if (request.method !== "GET") return false;
-  if (request.destination !== "image") return false;
-  if (url.host !== MEDIA_HOST) return false;
-  if (!url.pathname.startsWith("/markers/")) return false;
-  // Videos use Range requests. The browser cache handles them.
-  if (/\.(mp4|webm)(\?|#|$)/i.test(url.pathname)) return false;
-  return true;
-}
-
-async function notifyPictureCacheFull() {
-  const pages = await self.clients.matchAll({ type: "window" });
-  for (const page of pages) page.postMessage({ type: "picture-cache-full" });
-}
-
-async function postPicture(event) {
-  const cache = await caches.open(MEDIA);
-  const hit = await cache.match(event.request);
-  if (hit) return hit;
-  let response;
-  try {
-    response = await fetch(new Request(event.request.url, { mode: "cors", credentials: "omit" }));
-  } catch {
-    return fetch(event.request);
-  }
-  if (response.ok) {
-    try {
-      await cache.put(event.request, response.clone());
-      const keys = await cache.keys();
-      let extra = keys.length - MEDIA_MAX;
-      for (let i = 0; extra > 0 && i < keys.length; i += 1, extra -= 1) {
-        await cache.delete(keys[i]);
-      }
-    } catch (error) {
-      if (error && (error.name === "QuotaExceededError" || error.name === "NS_ERROR_DOM_QUOTA_REACHED")) {
-        await notifyPictureCacheFull();
-      }
-    }
-  }
-  return response;
-}
-
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
-  if (isPostPicture(event.request, url)) {
-    event.respondWith(postPicture(event));
-    return;
-  }
   if (url.origin === self.location.origin) return;
   if (event.request.destination !== "image") return;
   if (!knownPictures.has(event.request.url)) return;

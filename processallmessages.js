@@ -17,7 +17,6 @@ import { confirmShare, unshareFromMyTopic, sharePin, followPersonControls, watch
 import { clearShareTopic, noteShare, shareState, shareMine, takeSharePin, takeUnsharePin } from './sharecount.js'
 import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
 import { openPreview } from './fullscreenmedia';
-import { attachDisplayImage } from './displayimage';
 import { paintHashtags, singleLineText } from './hashtag.js';
 import { isTyping } from './joystick.js';
 import { normalizeMessageNewlines, clipMessage, formatHcsUsage, utf8ByteLength, HCS_TOO_LONG, HCS_MESSAGE_MAX_BYTES } from './hcschunks.js';
@@ -1976,8 +1975,6 @@ export function createMarkerPopupHTML(data) {
     imageDiv.className = 'popup-media-card'; // glass media card (style.css)
     const isVideo = /\.(mp4|webm)(\?|#|$)/i.test(image);
     const media = isVideo ? document.createElement('video') : document.createElement('img');
-    // Video: the popup is open when this is built, so it is already
-    // eligible. Still: no src until attachDisplayImage paints it.
     if (isVideo) {
       media.src = image;
       media.controls = true;
@@ -1996,9 +1993,9 @@ export function createMarkerPopupHTML(data) {
         openPreview(image);
       });
       imageDiv.appendChild(chip);
-      // The popup shows a downscaled blob once visible; tap and chip open
-      // the original full-res URL above.
-      attachDisplayImage(media, image);
+      media.loading = 'lazy';
+      media.decoding = 'async';
+      media.src = image;
     }
     imageDiv.appendChild(media);
     contentSection.appendChild(imageDiv);
@@ -2167,8 +2164,6 @@ function createPolygonPopupHTML(data) {
     imageDiv.className = 'popup-media-card'; // glass media card (style.css)
     const isVideo = /\.(mp4|webm)(\?|#|$)/i.test(popupImageUrl);
     const media = isVideo ? document.createElement('video') : document.createElement('img');
-    // Same as the marker popup: the video is eligible the moment the
-    // popup is open; the still waits for attachDisplayImage.
     if (isVideo) {
       media.src = popupImageUrl;
       media.controls = true;
@@ -2187,8 +2182,9 @@ function createPolygonPopupHTML(data) {
         openPreview(popupImageUrl);
       });
       imageDiv.appendChild(chip);
-      // Same as the marker popup: small bitmap on screen, full-res tap.
-      attachDisplayImage(media, popupImageUrl);
+      media.loading = 'lazy';
+      media.decoding = 'async';
+      media.src = popupImageUrl;
     }
     imageDiv.appendChild(media);
     contentSection.appendChild(imageDiv);

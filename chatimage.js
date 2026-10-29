@@ -4,7 +4,6 @@
 import { toast } from "./toast.js";
 import { uploadChatImage } from "./uploadmedia.js";
 import { openPreview } from "./fullscreenmedia.js";
-import { attachDisplayImage } from "./displayimage.js";
 import { normalizeMessageNewlines, utf8ByteLength } from "./hcschunks.js";
 
 const CHAT_IMAGE_PREFIX = "\u001echat1\n";
@@ -152,15 +151,16 @@ export function fillChatMessage(el, text, imageUrl) {
   const img = document.createElement("img");
   img.className = "chat-msg-image";
   img.alt = "";
-  // No src until the bubble is on screen — attachDisplayImage owns the
-  // swap to the downscaled blob. The tap above opens the original
-  // full-res URL, so the preview never gets the small one.
+  img.loading = "lazy";
+  img.decoding = "async";
+  // Edit composers read data-full-src so a later edit sends this URL.
+  img.dataset.fullSrc = src;
+  img.src = src;
   img.addEventListener("click", (event) => {
     event.stopPropagation();
     openPreview(src);
   });
   el.appendChild(img);
-  attachDisplayImage(img, src);
 }
 
 function showPreview(s, src) {

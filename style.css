@@ -8550,11 +8550,6 @@ html.feed-app appkit-modal {
 :is(#feed-column, .feed-comments-stage) .feed-media-hit.is-video {
   bottom: calc(var(--fu) * 6);
 }
-/* Lazy media: a pending slot (bytes not started yet) keeps a box so the
-   card doesn't jump when the picture arrives */
-:is(#feed-column, .feed-comments-stage) .popup-media-card:has(.media-pending) {
-  min-height: 16dvh;
-}
 :is(#feed-column, .feed-comments-stage) .popup-media-card,
 :is(#feed-column, .feed-comments-stage) .popup-media-card *,
 :is(#feed-column, .feed-comments-stage) .feed-media-hit {

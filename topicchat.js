@@ -187,8 +187,7 @@ function openTopicChatEdit(payer, created) {
     payer,
     created: createdIso,
     topicId,
-    // fullSrc is the original URL; the displayed src is a session blob
-    // once the lazy downscale has painted (a blob on-chain is dead).
+    // data-full-src is the original image URL. The bubble shows that same URL.
     image: imgEl ? (imgEl.dataset.fullSrc || imgEl.getAttribute('src') || '') : '',
   };
   const text = document.getElementById('topic-chat-edit-text');
