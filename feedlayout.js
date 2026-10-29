@@ -5495,9 +5495,9 @@ const DRAWER_ORDER = [
     icon: SETTINGS_ICON,
     run: openDrawerSettings,
     pages: [
-      { id: 'rotation-controls', label: 'Settings', icon: SETTINGS_ICON },
-      { id: 'visibility-controls', label: 'Visibility', icon: EYE_ICON },
-      { id: 'toolbar', label: 'Toolbar', icon: TOOLS_ICON },
+      { id: 'rotation-controls', label: 'Settings', icon: SETTINGS_ICON, desc: 'Markers, buttons, appearance and chat' },
+      { id: 'visibility-controls', label: 'Visibility', icon: EYE_ICON, desc: 'Models, markers, polygons and the globe' },
+      { id: 'toolbar', label: 'Toolbar', icon: TOOLS_ICON, desc: 'Profile, topics, draw and tools' },
     ],
   },
   {
@@ -5692,10 +5692,20 @@ function unhostDrawerAll(keep) {
   }
 }
 
+const DRAWER_LABELS = {
+  'marker-options-column': 'Markers',
+  'main-button-column': 'Main buttons',
+  'button-input-column': 'Appearance',
+  'topic-chat-column': 'Chat',
+  'model-column': 'Model',
+  'crosshair-column': 'Crosshair',
+};
+
 function drawerPageLabel(id) {
   if (id === 'settings') return 'Settings';
   const spec = settingsPages().find((item) => item.id === id);
   if (spec) return spec.label;
+  if (DRAWER_LABELS[id]) return DRAWER_LABELS[id];
   const el = document.getElementById(id);
   const heading = el && el.querySelector('.options-column-title');
   if (heading) {
@@ -5716,6 +5726,31 @@ function markSettingsRow(id) {
   }
 }
 
+function chevronIcon() {
+  return svgIcon([['path', { d: 'm9 18 6-6-6-6' }]]);
+}
+
+function rowShown(el) {
+  if (!el || el.hidden) return false;
+  if (el.style.display === 'none') return false;
+  return getComputedStyle(el).display !== 'none';
+}
+
+function paintGroupDividers(root) {
+  if (!root) return;
+  for (const group of root.querySelectorAll('.set-group')) {
+    let first = true;
+    for (const child of group.children) {
+      if (!rowShown(child)) {
+        child.classList.remove('set-split');
+        continue;
+      }
+      child.classList.toggle('set-split', !first);
+      first = false;
+    }
+  }
+}
+
 function fillSettingsList() {
   const list = document.createElement('ul');
   list.className = 'feed-menu-page-list';
@@ -5725,7 +5760,22 @@ function fillSettingsList() {
     button.type = 'button';
     button.className = 'feed-menu-item';
     button.dataset.panel = spec.id;
-    button.append(svgIcon(spec.icon), document.createTextNode(spec.label));
+    const copy = document.createElement('span');
+    copy.className = 'set-nav-copy';
+    const label = document.createElement('span');
+    label.className = 'set-nav-label';
+    label.textContent = spec.label;
+    copy.appendChild(label);
+    if (spec.desc) {
+      const desc = document.createElement('span');
+      desc.className = 'set-nav-desc';
+      desc.textContent = spec.desc;
+      copy.appendChild(desc);
+    }
+    const chev = document.createElement('span');
+    chev.className = 'set-nav-chev';
+    chev.appendChild(chevronIcon());
+    button.append(svgIcon(spec.icon), copy, chev);
     button.addEventListener('click', (event) => {
       event.stopPropagation();
       pushDrawer(spec.id);
@@ -5791,7 +5841,9 @@ function renderDrawer(slide) {
       void drawerPage.offsetWidth;
     }
     menu.classList.add('is-page');
-    drawerPageBack.focus({ preventScroll: true });
+    paintGroupDividers(drawerPageBody);
+    if (drawerPage.tabIndex < 0) drawerPage.tabIndex = -1;
+    drawerPage.focus({ preventScroll: true });
   } finally {
     drawerRenderLock = false;
   }
@@ -5934,6 +5986,169 @@ document.addEventListener('click', (event) => {
     }
   }, 0);
 }, true);
+
+const NAV_ICONS = {
+  'change-marker-options': [
+    ['path', { d: 'M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0' }],
+    ['circle', { cx: '12', cy: '10', r: '3' }],
+  ],
+  'change-color-of-main-buttons': [
+    ['rect', { width: '20', height: '12', x: '2', y: '6', rx: '2' }],
+    ['path', { d: 'M7 12h.01' }],
+    ['path', { d: 'M12 12h.01' }],
+    ['path', { d: 'M17 12h.01' }],
+  ],
+  'change-button-input-settings': [
+    ['circle', { cx: '13.5', cy: '6.5', r: '.5', fill: 'currentColor' }],
+    ['circle', { cx: '17.5', cy: '10.5', r: '.5', fill: 'currentColor' }],
+    ['circle', { cx: '8.5', cy: '7.5', r: '.5', fill: 'currentColor' }],
+    ['circle', { cx: '6.5', cy: '12.5', r: '.5', fill: 'currentColor' }],
+    ['path', { d: 'M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z' }],
+  ],
+  'change-topic-chat-options': CHAT_ICON,
+  'change-model-settings': [
+    ['path', { d: 'M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z' }],
+    ['path', { d: 'm3.3 7 8.7 5 8.7-5' }],
+    ['path', { d: 'M12 22V12' }],
+  ],
+  'change-crosshair-settings': [
+    ['circle', { cx: '12', cy: '12', r: '10' }],
+    ['line', { x1: '22', x2: '18', y1: '12', y2: '12' }],
+    ['line', { x1: '6', x2: '2', y1: '12', y2: '12' }],
+    ['line', { x1: '12', x2: '12', y1: '6', y2: '2' }],
+    ['line', { x1: '12', x2: '12', y1: '22', y2: '18' }],
+  ],
+  Edit_Profile: [
+    ['path', { d: 'M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z' }],
+    ['path', { d: 'm15 5 4 4' }],
+  ],
+  Load_Everything: [
+    ['path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }],
+    ['polyline', { points: '7 10 12 15 17 10' }],
+    ['line', { x1: '12', x2: '12', y1: '15', y2: '3' }],
+  ],
+  Draw_Marker_Polygon: [
+    ['path', { d: 'M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z' }],
+  ],
+  Create_New_Topic: [
+    ['path', { d: 'M5 12h14' }],
+    ['path', { d: 'M12 5v14' }],
+  ],
+  Domain: GLOBE_ICON,
+  'NFT-utility': [
+    ['rect', { width: '18', height: '18', x: '3', y: '3', rx: '2', ry: '2' }],
+    ['circle', { cx: '9', cy: '9', r: '2' }],
+    ['path', { d: 'm21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21' }],
+  ],
+  Change_Memo: [
+    ['path', { d: 'M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z' }],
+    ['circle', { cx: '7.5', cy: '7.5', r: '.5', fill: 'currentColor' }],
+  ],
+  Stack_topic_IDs: [
+    ['path', { d: 'm12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z' }],
+    ['path', { d: 'm22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65' }],
+    ['path', { d: 'm22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65' }],
+  ],
+  Set_Initial_XYZ: LOCATE_ICON,
+};
+
+const VIS_ROWS = [
+  ['toggle-3d-model-visibility', [
+    ['path', { d: 'M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z' }],
+    ['path', { d: 'm3.3 7 8.7 5 8.7-5' }],
+    ['path', { d: 'M12 22V12' }],
+  ], true],
+  ['toggle-marker-visibility', NAV_ICONS['change-marker-options'], true],
+  ['toggle-polygon-visibility', [
+    ['path', { d: 'M10.83 2.18a2 2 0 0 1 2.34 0l8 5.74a2 2 0 0 1 .83 1.63v7.9a2 2 0 0 1-.83 1.63l-8 5.74a2 2 0 0 1-2.34 0l-8-5.74A2 2 0 0 1 2 17.45v-7.9a2 2 0 0 1 .83-1.63z' }],
+  ], true],
+  ['toggle-globe-mode', GLOBE_ICON, false],
+];
+
+function dressNavRows() {
+  for (const [id, icon] of Object.entries(NAV_ICONS)) {
+    const el = document.getElementById(id);
+    if (!el || el.querySelector('.set-nav-icon')) continue;
+    el.classList.add('set-nav');
+    const ico = document.createElement('span');
+    ico.className = 'set-nav-icon';
+    ico.appendChild(svgIcon(icon));
+    const chev = document.createElement('span');
+    chev.className = 'set-nav-chev';
+    chev.appendChild(chevronIcon());
+    el.insertBefore(ico, el.firstChild);
+    el.appendChild(chev);
+  }
+}
+
+function syncVisRow(row) {
+  const value = row.querySelector(':scope > span[id$="-value"]');
+  if (!value) return;
+  const text = value.textContent.replace(/\s+/g, ' ').trim();
+  row.classList.toggle('is-switch', text === 'On' || text === 'Off');
+  row.classList.toggle('is-on', text === 'On');
+}
+
+function dressVisibility() {
+  for (const [id, icon, binary] of VIS_ROWS) {
+    const button = document.getElementById(id);
+    const row = button && button.closest('.mb-row');
+    if (!row || row.dataset.dressed === '1') continue;
+    row.dataset.dressed = '1';
+    const ico = document.createElement('span');
+    ico.className = 'set-nav-icon';
+    ico.appendChild(svgIcon(icon));
+    row.insertBefore(ico, row.firstChild);
+    if (binary) {
+      const sw = document.createElement('span');
+      sw.className = 'set-switch';
+      sw.setAttribute('aria-hidden', 'true');
+      row.appendChild(sw);
+    }
+    row.addEventListener('click', (event) => {
+      if (button === event.target || button.contains(event.target)) return;
+      button.click();
+    });
+    syncVisRow(row);
+    const value = row.querySelector(':scope > span[id$="-value"]');
+    if (value) {
+      new MutationObserver(() => syncVisRow(row)).observe(value, {
+        childList: true, characterData: true, subtree: true,
+      });
+    }
+  }
+}
+
+function markSetGroups() {
+  const ids = new Set(['toolbar', 'rotation-controls', 'visibility-controls', ...drawerWatchIds]);
+  for (const extra of Object.values(DRAWER_EXTRAS)) {
+    for (const id of extra) ids.add(id);
+  }
+  const buttonSel = '.toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns';
+  for (const id of ids) {
+    const root = document.getElementById(id);
+    if (!root) continue;
+    for (const div of root.querySelectorAll('div')) {
+      const kids = [...div.children];
+      if (!kids.length) continue;
+      const buttons = kids.filter((kid) => kid.matches(buttonSel));
+      if (!buttons.length) continue;
+      const other = kids.filter((kid) => !kid.matches(buttonSel) && kid.tagName !== 'BR');
+      if (other.length) continue;
+      div.classList.add('set-group');
+    }
+  }
+}
+
+dressNavRows();
+dressVisibility();
+markSetGroups();
+if (drawerPageBody) {
+  new MutationObserver(() => {
+    if (!drawerStack.length) return;
+    paintGroupDividers(drawerPageBody);
+  }).observe(drawerPageBody, { subtree: true, attributeFilter: ['style', 'hidden'] });
+}
 
 function paintMapAccount() {
   const id = walletNow();

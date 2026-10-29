@@ -142,26 +142,17 @@
       </div>
       
       
-      <div id="toolbar" class="toolbar" style="display: none; flex-direction: column;">
+      <div id="toolbar" class="toolbar set-group" style="display: none; flex-direction: column;">
         <div class="options-column-title">🧰 TOOLBAR</div>
-        <div class="toolbar-column" id="Edit_Profile">Edit
-        </div>
-        <div class="toolbar-column" id="Load_Everything">Load
-        </div>
-        <div class="toolbar-column" id="Draw_Marker_Polygon">Draw
-        </div>
-        <div class="toolbar-column" id="Create_New_Topic">Create
-        </div>
-        <div class="toolbar-column" id="Domain">Domain
-        </div>
-        <div class="toolbar-column" id="NFT-utility">NFT Utility
-        </div>
-        <div class="toolbar-column" id="Change_Memo">Update Topic
-        </div>
-        <div class="toolbar-column" id="Stack_topic_IDs">Stack topic IDs
-        </div>
-        <div class="toolbar-column" id="Set_Initial_XYZ">Set initial XYZ
-        </div>
+        <div class="toolbar-column set-nav" id="Edit_Profile"><span class="set-nav-copy"><span class="set-nav-label">Edit</span><span class="set-nav-desc">Picture, name and bio</span></span></div>
+        <div class="toolbar-column set-nav" id="Load_Everything"><span class="set-nav-copy"><span class="set-nav-label">Load</span><span class="set-nav-desc">Open a topic or account</span></span></div>
+        <div class="toolbar-column set-nav" id="Draw_Marker_Polygon"><span class="set-nav-copy"><span class="set-nav-label">Draw</span><span class="set-nav-desc">Place a marker or polygon</span></span></div>
+        <div class="toolbar-column set-nav" id="Create_New_Topic"><span class="set-nav-copy"><span class="set-nav-label">Create</span><span class="set-nav-desc">New topic or keys</span></span></div>
+        <div class="toolbar-column set-nav" id="Domain"><span class="set-nav-copy"><span class="set-nav-label">Domain</span><span class="set-nav-desc">Name and renew a domain</span></span></div>
+        <div class="toolbar-column set-nav" id="NFT-utility"><span class="set-nav-copy"><span class="set-nav-label">NFT Utility</span><span class="set-nav-desc">Models, markers and chat rules</span></span></div>
+        <div class="toolbar-column set-nav" id="Change_Memo"><span class="set-nav-copy"><span class="set-nav-label">Update Topic</span><span class="set-nav-desc">Bio, name, memo and fee</span></span></div>
+        <div class="toolbar-column set-nav" id="Stack_topic_IDs"><span class="set-nav-copy"><span class="set-nav-label">Stack topic IDs</span><span class="set-nav-desc">Topics that open together</span></span></div>
+        <div class="toolbar-column set-nav" id="Set_Initial_XYZ"><span class="set-nav-copy"><span class="set-nav-label">Set initial XYZ</span><span class="set-nav-desc">Where a topic opens on the map</span></span></div>
       </div>
 
       <div id="edit-profile-help-overlay" class="info-overlay">
@@ -1701,20 +1692,14 @@
         </div>
       </div>
       
-      <div id="rotation-controls" class='rotation-controls' onclick="event.stopPropagation();">
+      <div id="rotation-controls" class="rotation-controls set-group" onclick="event.stopPropagation();">
         <div class="options-column-title">⚙ SETTINGS</div>
-        <div class="toolbar-column" id="change-model-settings" style="display: none;">Model Settings
-        </div>
-        <div class="toolbar-column" id="change-crosshair-settings" style="display: none;">Crosshair Settings
-        </div>
-        <div class="toolbar-column" id="change-marker-options">Marker Options
-        </div>
-        <div class="toolbar-column" id="change-color-of-main-buttons">Main Buttons
-        </div>
-        <div class="toolbar-column" id="change-button-input-settings">Button/Input/Containers
-        </div>
-        <div class="toolbar-column" id="change-topic-chat-options">Chat settings
-        </div>
+        <div class="toolbar-column set-nav" id="change-model-settings" style="display: none;"><span class="set-nav-copy"><span class="set-nav-label">Model</span><span class="set-nav-desc">URL, rotation and scale</span></span></div>
+        <div class="toolbar-column set-nav" id="change-crosshair-settings" style="display: none;"><span class="set-nav-copy"><span class="set-nav-label">Crosshair</span><span class="set-nav-desc">Color, length and thickness</span></span></div>
+        <div class="toolbar-column set-nav" id="change-marker-options"><span class="set-nav-copy"><span class="set-nav-label">Markers</span><span class="set-nav-desc">Marker size on the map</span></span></div>
+        <div class="toolbar-column set-nav" id="change-color-of-main-buttons"><span class="set-nav-copy"><span class="set-nav-label">Main buttons</span><span class="set-nav-desc">Font size and button colors</span></span></div>
+        <div class="toolbar-column set-nav" id="change-button-input-settings"><span class="set-nav-copy"><span class="set-nav-label">Appearance</span><span class="set-nav-desc">Buttons, inputs and containers</span></span></div>
+        <div class="toolbar-column set-nav" id="change-topic-chat-options"><span class="set-nav-copy"><span class="set-nav-label">Chat</span><span class="set-nav-desc">Message text, time and colors</span></span></div>
       </div>
           
       <div id="visibility-controls" class="toolbar-containers mb-panel" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
