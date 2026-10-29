@@ -221,6 +221,31 @@ export function donationAccountTotals(db, account) {
   return { received: formatHbar(sum), count: rows.length };
 }
 
+function consensusNow(nowMs) {
+  const ms = Number.isFinite(nowMs) ? nowMs : Date.now();
+  const seconds = Math.floor(ms / 1000);
+  const nanos = String((ms % 1000) * 1_000_000).padStart(9, "0");
+  return normalizeConsensusTs(`${seconds}.${nanos}`);
+}
+
+function consensusMinusSeconds(ts, seconds) {
+  const norm = normalizeConsensusTs(ts);
+  if (!norm) return "";
+  const [sec, nano] = norm.split(".");
+  const shifted = Number(sec) - seconds;
+  if (!Number.isFinite(shifted) || shifted < 0) return "";
+  return normalizeConsensusTs(`${shifted}.${nano}`);
+}
+
+// A gift counts only after the post, and only for 15 minutes.
+function donationIsCurrent(paidTs, postTs, nowMs) {
+  const paid = normalizeConsensusTs(paidTs);
+  const posted = normalizeConsensusTs(postTs);
+  const cutoff = consensusMinusSeconds(consensusNow(nowMs), 15 * 60);
+  if (!paid || !posted || !cutoff) return false;
+  return paid > posted && paid >= cutoff;
+}
+
 export async function recordDonation(ctx, input) {
   const txId = canonicalTxId(input && input.txId);
   const topicId = input && input.topicId;
@@ -232,6 +257,9 @@ export async function recordDonation(ctx, input) {
   if (fetched.error) return fetched;
   const assessed = assessTransfer(fetched.tx, post.payer);
   if (assessed.error) return assessed;
+  if (!donationIsCurrent(assessed.consensusTs, post.ts)) {
+    return { error: "too old", status: 400 };
+  }
   const memo = decodeMemo(fetched.tx.memo_base64);
   const inserted = insertDonation(ctx.db, {
     txId,

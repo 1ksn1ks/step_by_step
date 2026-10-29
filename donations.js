@@ -558,6 +558,7 @@ function donationError(error) {
   if (error === 'own post') return "You can't donate to your own post";
   if (error === 'below minimum') return `Enter at least ${formatDonationAmount('0.1')} HBAR`;
   if (error === 'transaction not found') return "That payment isn't on the network yet";
+  if (error === 'too old') return 'That payment is too old to count';
   if (error === 'post not found' || error === 'not a post') return "Couldn't find that post";
   return "Couldn't record the donation";
 }

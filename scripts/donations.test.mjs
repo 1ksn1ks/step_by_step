@@ -18,6 +18,14 @@ const AUTHOR = "0.0.200";
 const SENDER = "0.0.100";
 const POST_TS = "1700000000.000000001";
 const TX = "0.0.100@1700000001.000000009";
+
+function consensusAt(ms) {
+  const seconds = Math.floor(ms / 1000);
+  const nanos = String((ms % 1000) * 1_000_000).padStart(9, "0");
+  return `${seconds}.${nanos}`;
+}
+
+const FRESH_TS = consensusAt(Date.now() - 30_000);
 const HTML_MEMO = '<img src=x onerror=alert(1)>';
 
 function tempDb() {
@@ -63,12 +71,13 @@ function transfer({
   to = AUTHOR,
   amount = 10_000_000,
   memo = HTML_MEMO,
+  consensus = FRESH_TS,
 } = {}) {
   return {
     transaction_id: id,
     result,
     name,
-    consensus_timestamp: "1700000001.000000009",
+    consensus_timestamp: consensus,
     memo_base64: Buffer.from(memo, "utf8").toString("base64"),
     transfers: [
       { account: from, amount: -(amount + 100000) },
@@ -166,6 +175,39 @@ test("a confirmed transfer records once and an HTML memo stays text", async () =
   }
 });
 
+test("a transfer before the post or older than 15 minutes does not count", async () => {
+  const handle = tempDb();
+  try {
+    const now = Date.now();
+    const postRecent = consensusAt(now - 20_000);
+    const beforePost = consensusAt(now - 40_000);
+    const stalePaid = consensusAt(now - 16 * 60 * 1000);
+    const body = JSON.stringify({ marker: { data: { title: "Hi" } }, payer: "0.0.999" });
+    seedPost(handle.db);
+    handle.db.prepare(
+      "INSERT INTO messages (topic_id, seq, ts, payer, body) VALUES (?, ?, ?, ?, ?)"
+    ).run(TOPIC, 2, postRecent, AUTHOR, body);
+    const earlyId = `${SENDER}@${beforePost}`;
+    const early = await recordDonation(
+      ctx(handle.db, { [mirrorTxPath(earlyId)]: transfer({ id: earlyId, consensus: beforePost }) }),
+      { txId: earlyId, topicId: TOPIC, postTimestamp: postRecent }
+    );
+    assert.equal(early.error, "too old");
+    assert.equal(early.status, 400);
+    const staleId = `${SENDER}@${stalePaid}`;
+    const stale = await recordDonation(
+      ctx(handle.db, { [mirrorTxPath(staleId)]: transfer({ id: staleId, consensus: stalePaid }) }),
+      { txId: staleId, topicId: TOPIC, postTimestamp: POST_TS }
+    );
+    assert.equal(stale.error, "too old");
+    assert.equal(stale.status, 400);
+    assert.equal(donationPostTotals(handle.db, TOPIC, postRecent).count, 0);
+    assert.equal(donationPostTotals(handle.db, TOPIC, POST_TS).count, 0);
+  } finally {
+    handle.close();
+  }
+});
+
 test("the author is the message payer, not a payer field in the body", async () => {
   const handle = tempDb();
   try {
@@ -217,7 +259,7 @@ test("a staking reward paid in the same transfer is not the donation", async () 
     transaction_id: TX,
     result: "SUCCESS",
     name: "CRYPTOTRANSFER",
-    consensus_timestamp: "1700000001.000000009",
+    consensus_timestamp: FRESH_TS,
     memo_base64: Buffer.from("test", "utf8").toString("base64"),
     charged_tx_fee: 100_000,
     staking_reward_transfers: [{ account: AUTHOR, amount: 908_900_000 }],
