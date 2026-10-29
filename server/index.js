@@ -38,6 +38,13 @@ import {
   donationBatch,
   resolveRecipient,
 } from "./donations.js";
+import {
+  ensureFeedViewTables,
+  prepareFeedViews,
+  storeFeedViews,
+  feedViewCounts,
+  pruneExpiredFeedViews,
+} from "./feedviews.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -345,18 +352,9 @@ const effectiveFollowersSql = `
   }
 }
 
-// One row per person per feed card. post_id is the card key. viewer is the
-// connected account, or a random id the browser kept. Not on-chain, and not
-// popup_views: that counter has no viewer and counts map-popup opens.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS feed_views (
-    post_id TEXT NOT NULL,
-    viewer  TEXT NOT NULL,
-    seen_at INTEGER NOT NULL,
-    PRIMARY KEY (post_id, viewer)
-  );
-  CREATE INDEX IF NOT EXISTS feed_views_seen_at ON feed_views(seen_at);
-`);
+// Viewer rows expire. The permanent count is filled before the first prune.
+ensureFeedViewTables(db);
+const feedViewQ = prepareFeedViews(db);
 ensureDonationTable(db);
 
 const q = {
@@ -661,10 +659,6 @@ const q = {
     WHERE topic_id = ? AND payer = ? AND (created = ? OR stamp = ?)
     LIMIT 1
   `),
-  insertFeedView: db.prepare(
-    "INSERT OR IGNORE INTO feed_views (post_id, viewer, seen_at) VALUES (?, ?, ?)"
-  ),
-  pruneFeedViews: db.prepare("DELETE FROM feed_views WHERE seen_at < ?"),
   msgByTopicSeq: db.prepare(
     "SELECT ts, payer, body FROM messages WHERE topic_id = ? AND seq = ?"
   ),
@@ -691,11 +685,10 @@ const q = {
   `),
 };
 
-// Rows older than 90 days are not part of the count. Once an hour.
-const FEED_VIEW_KEEP_MS = 90 * 24 * 60 * 60 * 1000;
+// Viewer rows older than 90 days leave once an hour. The total stays.
 function pruneOldFeedViews() {
   try {
-    q.pruneFeedViews.run(Date.now() - FEED_VIEW_KEEP_MS);
+    pruneExpiredFeedViews(feedViewQ);
   } catch (err) {
     console.error("feed view prune failed", err.message);
   }
@@ -2741,32 +2734,6 @@ function feedViewerRoom(ip, viewer) {
   return true;
 }
 
-function feedViewCounts(ids) {
-  const counts = {};
-  for (const id of ids) counts[id] = 0;
-  if (!ids.length) return counts;
-  const marks = ids.map(() => "?").join(",");
-  const rows = db.prepare(
-    `SELECT post_id, COUNT(*) AS n FROM feed_views WHERE post_id IN (${marks}) GROUP BY post_id`
-  ).all(...ids);
-  for (const row of rows) {
-    if (Object.prototype.hasOwnProperty.call(counts, row.post_id)) counts[row.post_id] = Number(row.n) || 0;
-  }
-  return counts;
-}
-
-function storeFeedViews(viewer, ids) {
-  const now = Date.now();
-  db.exec("BEGIN");
-  try {
-    for (const id of ids) q.insertFeedView.run(id, viewer, now);
-    db.exec("COMMIT");
-  } catch (err) {
-    try { db.exec("ROLLBACK"); } catch { /* already closed */ }
-    throw err;
-  }
-}
-
 // A feed view. posts are card keys this viewer has already had on screen.
 // An id that is not a stored message is skipped. A repeat pair is ignored.
 // counts includes a zero for every id that was kept.
@@ -2781,12 +2748,12 @@ app.post("/api/views", publicPostLimit, (req, res) => {
   }
   if (known.length && feedViewerRoom(clientIp(req), viewer)) {
     try {
-      storeFeedViews(viewer, known);
+      storeFeedViews(db, feedViewQ, viewer, known);
     } catch {
       return res.status(500).json({ ok: false, error: "view failed" });
     }
   }
-  res.json({ ok: true, counts: feedViewCounts(posts) });
+  res.json({ ok: true, counts: feedViewCounts(db, posts) });
 });
 
 // Counts for the cards on screen. ids is a comma-separated list of card keys.
@@ -2795,7 +2762,7 @@ app.get("/api/views", publicPostLimit, (req, res) => {
   if (typeof raw !== "string" || raw.length > 16000) return res.status(400).json({ ok: false, error: "bad view" });
   const posts = feedPostList(raw.split(","), 50);
   if (!posts || !posts.length) return res.status(400).json({ ok: false, error: "bad view" });
-  res.json({ ok: true, counts: feedViewCounts(posts) });
+  res.json({ ok: true, counts: feedViewCounts(db, posts) });
 });
 
 // Topic names resolve from changeName messages (a scan of the topic).
