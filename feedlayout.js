@@ -3988,6 +3988,10 @@ const LOGOUT_ICON = [
   ['path', { d: 'M21 12H9' }],
   ['path', { d: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4' }],
 ];
+const WALLET_ICON = [
+  ['path', { d: 'M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 0 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1' }],
+  ['path', { d: 'M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4' }],
+];
 const SEARCH_ICON = [
   ['circle', { cx: '11', cy: '11', r: '8' }],
   ['path', { d: 'm21 21-4.3-4.3' }],
@@ -5228,6 +5232,14 @@ function openDisconnect() {
   openOverFeed(() => clickId('disconnect-wallet-btn'));
 }
 
+// The parked Wallet button reveals Connect. Connect's own handler opens
+// the sheet. The drawer stays up; paintMenuRows swaps this row for the
+// account and Disconnect when the id lands.
+function openDrawerConnect() {
+  clickId('wallet-wallet-btn');
+  clickId('connect-wallet-btn');
+}
+
 // The drawer sits on the feed, and #connect-wallet-btn is under that screen.
 // Close the drawer first, let its deferred history.back() land, then open
 // the sheet the same way the plus button does. Success and cancel both
@@ -5470,7 +5482,6 @@ function backToMap() {
 // per-view label, icon, or action. tools are that view's extras; an
 // empty list hides the group and its divider.
 const DRAWER_ORDER = [
-  { kind: 'account' },
   {
     label: { feed: 'Back to map', map: 'Go to feed' },
     icon: { feed: GLOBE_ICON, map: ROWS_ICON },
@@ -5498,7 +5509,9 @@ const DRAWER_ORDER = [
       { label: 'Reset north', icon: NORTH_ICON, run: () => runMapControl('.maplibregl-ctrl-compass'), shot: true },
     ],
   },
-  { label: 'Disconnect', icon: LOGOUT_ICON, run: openDisconnect, wallet: 'on', danger: true, end: true },
+  { kind: 'account', end: true },
+  { label: 'Connect wallet', icon: WALLET_ICON, run: openDrawerConnect, wallet: 'off', accent: true, end: true },
+  { label: 'Disconnect', icon: LOGOUT_ICON, run: openDisconnect, wallet: 'on', danger: true },
 ];
 
 let mapAccountBtn;
@@ -5534,6 +5547,7 @@ function appendDrawerItem(spec) {
   const choice = document.createElement('button');
   choice.type = 'button';
   choice.className = spec.danger ? 'feed-menu-item is-danger' : 'feed-menu-item';
+  if (spec.accent) choice.classList.add('is-accent');
   if (spec.shot) {
     choice.dataset.shot = '1';
     choice.classList.add('is-shot');
@@ -5543,7 +5557,7 @@ function appendDrawerItem(spec) {
     event.stopPropagation();
     const run = viewValue(spec.run, menu.classList.contains('is-map-drawer'));
     if (typeof run === 'function') run();
-    if (choice.dataset.shot === '1') {
+    if (choice.dataset.shot === '1' || choice.classList.contains('is-accent')) {
       choice.classList.remove('is-current', 'is-hold');
       choice.removeAttribute('aria-current');
       choice.blur();
@@ -5558,12 +5572,14 @@ function appendDrawerItem(spec) {
   }
 }
 
-function buildAccountRow() {
+function buildAccountRow(spec) {
   const mapAccount = document.createElement('li');
   mapAccount.className = 'feed-menu-account';
+  mapAccount.dataset.wallet = 'on';
+  if (spec && spec.end) mapAccount.classList.add('feed-menu-end');
   mapAccountBtn = document.createElement('button');
   mapAccountBtn.type = 'button';
-  mapAccountBtn.className = 'feed-menu-account-btn';
+  mapAccountBtn.className = 'feed-menu-item feed-menu-account-btn';
   mapAvatar = document.createElement('img');
   mapAvatar.className = 'feed-menu-avatar';
   mapAvatar.alt = '';
@@ -5578,14 +5594,13 @@ function buildAccountRow() {
   mapAccountBtn.addEventListener('click', (event) => {
     event.stopPropagation();
     if (walletNow()) openOwnProfile();
-    else openConnect();
   });
   bindPress(mapAccountBtn);
 }
 
 for (const entry of DRAWER_ORDER) {
   if (entry.kind === 'account') {
-    buildAccountRow();
+    buildAccountRow(entry);
     continue;
   }
   if (entry.kind === 'tools') {
@@ -5928,7 +5943,7 @@ function paintMapAccount() {
   mapAvatar.src = id ? profilePicUrl(id) : DEFAULT_PIC;
   paintProfileAvatar(mapAvatar, id);
   mapAccountBtn.classList.toggle('is-connect', !id);
-  mapAccountBtn.setAttribute('aria-label', id ? text + ', My profile' : 'Connect wallet');
+  mapAccountBtn.setAttribute('aria-label', id ? text + ', My profile' : 'My profile');
 }
 
 function paintMenuRows() {

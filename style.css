@@ -9938,47 +9938,37 @@ html.feed-app appkit-modal {
   color: #f07178;
   background: rgba(240, 113, 120, 0.14);
 }
+#feed-menu .feed-menu-item.is-accent {
+  color: #22D3EE;
+}
+#feed-menu .feed-menu-item.is-accent:is(:hover, :active, .is-hold) {
+  color: #22D3EE;
+  background: rgba(34, 211, 238, 0.12);
+}
 #feed-menu .feed-menu-account {
   margin: 0;
-  padding: calc(var(--fu) * 0.6) calc(var(--fu) * 1.3) calc(var(--fu) * 0.9);
+  padding: 0;
   list-style: none;
 }
 #feed-menu .feed-menu-account-btn {
-  appearance: none;
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-  min-height: 44px;
-  gap: calc(var(--fu) * 0.9);
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: #fff;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-#feed-menu .feed-menu-account-btn.is-connect {
-  cursor: pointer;
+  gap: calc(var(--fu) * 0.8);
 }
 #feed-menu .feed-menu-avatar {
-  width: calc(var(--fu) * 4.2);
-  height: calc(var(--fu) * 4.2);
+  width: calc(var(--fu) * 2.2);
+  height: calc(var(--fu) * 2.2);
   flex: 0 0 auto;
   border-radius: 50%;
   object-fit: cover;
   background: rgba(255, 255, 255, 0.08);
 }
 #feed-menu .feed-menu-account-id {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: calc(var(--fu) * 1.7);
-  font-weight: 700;
+  font-size: calc(var(--fu) * 1.9);
+  font-weight: 600;
   line-height: 1.2;
 }
 #feed-menu .feed-menu-account-btn.is-connect .feed-menu-account-id {
