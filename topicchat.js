@@ -123,10 +123,11 @@ function addChatEditButton(wrapper, payer, createdIso) {
 }
 
 // ── Edit composer ───────────────────────────────────────────────────
-// Same pattern as the post edit: prefill the composer with the text that is
-// on screen, confirm in the wallet, and apply locally the moment it sends.
-let topicChatEditTarget = null; // { payer, created, topicId, image }
+// Edit mode reuses the normal composer. The in-progress draft is stashed
+// and restored on cancel or save. Confirm in the wallet, then apply locally.
+let topicChatEditTarget = null; // { payer, created, topicId, image, original }
 let topicChatEditBusy = false;
+let topicChatComposeDraft = '';
 
 function resolveTopicChatId() {
   const userInput = document.getElementById('topic-chat-topic-id').value.toLowerCase();
@@ -145,27 +146,71 @@ function topicChatEditPayload(newText) {
   return { editUserMessage: data };
 }
 
+function topicChatCompose() {
+  return document.getElementById('user-write-message')?.closest('.chat-compose') || null;
+}
+
+function fitTopicComposer(field) {
+  if (!field) return;
+  const editing = !!field.closest('.chat-compose')?.classList.contains('is-editing');
+  // The feed stylesheet locks height with !important. Edit mode has to
+  // win that so the field can grow, then let it go when editing ends.
+  if (!editing) {
+    field.style.height = '';
+    field.style.height = field.scrollHeight + 'px';
+    return;
+  }
+  field.style.setProperty('height', '0px', 'important');
+  field.style.setProperty('height', field.scrollHeight + 'px', 'important');
+}
+
+function clearTopicChatEditMark() {
+  document.querySelectorAll('#messages-from-topic-chat .chat-msg-editing').forEach((el) => {
+    el.classList.remove('chat-msg-editing');
+  });
+}
+
+function topicEditQuote(text, image) {
+  const line = String(text || '').replace(/\s+/g, ' ').trim();
+  if (line) return line;
+  return image ? 'Photo' : '';
+}
+
 function paintTopicChatEditBytes() {
-  const counter = document.getElementById('topic-chat-edit-bytes');
-  const save = document.getElementById('topic-chat-edit-save');
-  const text = document.getElementById('topic-chat-edit-text');
+  const counter = document.getElementById('char-counter');
+  const save = document.getElementById('post-msg');
+  const text = document.getElementById('user-write-message');
   if (!counter || !text || !topicChatEditTarget) return;
   const usage = formatHcsUsage(utf8ByteLength(JSON.stringify(topicChatEditPayload(text.value))));
+  counter.hidden = false;
   counter.textContent = usage.text;
   counter.classList.toggle('hcs-warn', usage.warn);
   counter.classList.toggle('hcs-over', usage.over);
-  if (save) save.classList.toggle('hcs-send-blocked', usage.over);
+  if (!save) return;
+  // Over the limit stays clickable so the existing toast can fire.
+  // Unchanged or empty is a dead control.
+  save.classList.toggle('hcs-send-blocked', usage.over);
+  const unchanged = text.value === topicChatEditTarget.original;
+  save.disabled = unchanged || text.value.trim() === '';
 }
 
-const topicChatComposeControls = ['user-write-message', 'char-counter', 'topic-chat-image-btn', 'post-msg'];
 function setTopicChatEditing(on) {
-  const box = document.getElementById('topic-chat-editbox');
-  if (!box) return;
-  for (const id of topicChatComposeControls) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = on ? 'none' : '';
+  const compose = topicChatCompose();
+  const bar = document.getElementById('topic-chat-editbar');
+  const quote = document.getElementById('topic-chat-edit-quote');
+  const send = document.getElementById('post-msg');
+  if (compose) compose.classList.toggle('is-editing', on);
+  if (bar) bar.hidden = !on;
+  if (!on) {
+    clearTopicChatEditMark();
+    if (send) {
+      send.disabled = false;
+      send.setAttribute('aria-label', 'Send');
+    }
+    if (quote) quote.textContent = '';
+    return;
   }
-  box.style.display = on ? 'block' : 'none';
+  if (send) send.setAttribute('aria-label', 'Save edit');
 }
 
 function openTopicChatEdit(payer, created) {
@@ -177,29 +222,58 @@ function openTopicChatEdit(payer, created) {
     return;
   }
   const container = document.querySelector(
-    `#messages-from-topic-chat [data-chat-payer="${payer}"][data-chat-created="${createdIso}"]`
+    `#messages-from-topic-chat [data-chat-payer="${CSS.escape(payer)}"][data-chat-created="${CSS.escape(createdIso)}"]`
   );
   const currentText = container
     ? (container.querySelector('.chat-msg-body')?.textContent || '')
     : '';
   const imgEl = container && container.querySelector('.chat-msg-image');
+  const field = document.getElementById('user-write-message');
+  // A second edit replaces the first and keeps the stashed draft.
+  if (!topicChatEditTarget && field) topicChatComposeDraft = field.value;
   topicChatEditTarget = {
     payer,
     created: createdIso,
     topicId,
     // data-full-src is the original image URL. The bubble shows that same URL.
     image: imgEl ? (imgEl.dataset.fullSrc || imgEl.getAttribute('src') || '') : '',
+    original: currentText,
   };
-  const text = document.getElementById('topic-chat-edit-text');
-  if (text) text.value = currentText;
+  const quote = document.getElementById('topic-chat-edit-quote');
+  if (quote) quote.textContent = topicEditQuote(currentText, topicChatEditTarget.image);
+  clearTopicChatEditMark();
+  if (container) {
+    container.classList.add('chat-msg-editing');
+    requestAnimationFrame(() => {
+      container.scrollIntoView({ block: 'center', inline: 'nearest' });
+    });
+  }
   setTopicChatEditing(true);
-  paintTopicChatEditBytes();
-  if (text) text.focus();
+  if (!field) {
+    paintTopicChatEditBytes();
+    return;
+  }
+  field.value = currentText;
+  fitTopicComposer(field);
+  const end = field.value.length;
+  field.focus();
+  try { field.setSelectionRange(end, end); } catch (_) { /* older browsers */ }
+  field.scrollTop = field.scrollHeight;
+  field.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function closeTopicChatEdit() {
-  setTopicChatEditing(false);
+  const field = document.getElementById('user-write-message');
+  const was = !!topicChatEditTarget;
+  const draft = topicChatComposeDraft;
   topicChatEditTarget = null;
+  topicChatComposeDraft = '';
+  setTopicChatEditing(false);
+  if (!was || !field) return;
+  field.value = draft;
+  fitTopicComposer(field);
+  // is-editing is already off, so the normal byte painter runs again.
+  field.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 async function saveTopicChatEdit() {
@@ -208,14 +282,16 @@ async function saveTopicChatEdit() {
     toast.error('Connect wallet first');
     return;
   }
-  const save = document.getElementById('topic-chat-edit-save');
+  const save = document.getElementById('post-msg');
   if (save && save.classList.contains('hcs-send-blocked')) {
     toast.error(HCS_TOO_LONG);
     return;
   }
-  const text = document.getElementById('topic-chat-edit-text');
+  const text = document.getElementById('user-write-message');
+  const raw = text ? text.value : '';
+  if (!raw.trim() || raw === topicChatEditTarget.original) return;
   const target = topicChatEditTarget;
-  const payload = topicChatEditPayload(text ? text.value : '');
+  const payload = topicChatEditPayload(raw);
   const outgoing = JSON.stringify(payload);
   if (utf8ByteLength(outgoing) > HCS_MESSAGE_MAX_BYTES) {
     toast.error(HCS_TOO_LONG);
@@ -237,12 +313,39 @@ async function saveTopicChatEdit() {
   }
 }
 
-const topicChatEditSave = document.getElementById('topic-chat-edit-save');
-if (topicChatEditSave) topicChatEditSave.addEventListener('click', saveTopicChatEdit);
 const topicChatEditCancel = document.getElementById('topic-chat-edit-cancel');
-if (topicChatEditCancel) topicChatEditCancel.addEventListener('click', closeTopicChatEdit);
-const topicChatEditText = document.getElementById('topic-chat-edit-text');
-if (topicChatEditText) topicChatEditText.addEventListener('input', paintTopicChatEditBytes);
+if (topicChatEditCancel) {
+  topicChatEditCancel.addEventListener('click', (event) => {
+    event.stopPropagation();
+    closeTopicChatEdit();
+  });
+}
+const topicChatField = document.getElementById('user-write-message');
+if (topicChatField) {
+  topicChatField.addEventListener('input', () => {
+    if (!topicChatEditTarget) return;
+    fitTopicComposer(topicChatField);
+    paintTopicChatEditBytes();
+  });
+}
+const topicChatSend = document.getElementById('post-msg');
+if (topicChatSend) {
+  // Capture runs after the byte-limit watcher and before a new send.
+  topicChatSend.addEventListener('click', (event) => {
+    if (!topicChatEditTarget) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    saveTopicChatEdit();
+  }, true);
+}
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || !topicChatEditTarget) return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+  closeTopicChatEdit();
+}, true);
 
 document.getElementById('go-to-top-msgs').addEventListener('click', function() {
     const container = document.getElementById('messages-from-topic-chat');

@@ -831,6 +831,9 @@ export function CloseALL() {
     containComposerTouch(ta);
     const paintBytes = () => {
       if (!counter) return;
+      // Edit mode paints the sealed edit size itself. A normal send count
+      // would ignore the original image and the edit envelope.
+      if (ta.closest(".chat-compose")?.classList.contains("is-editing")) return;
       const usage = formatHcsUsage(composerWireBytes(kind, ta.value));
       counter.hidden = false;
       counter.textContent = usage.text;

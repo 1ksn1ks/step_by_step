@@ -808,101 +808,143 @@ html, body {
     outline-offset: 0.1dvh;
   }
 
-  /* Edit composer: swaps into the send row while editing an own message. */
-  #topic-chat-editbox {
-    display: none;
-    padding: 0.6vh 0 0.4vh;
-    text-align: left;
+  /* Edit mode reuses the normal composer. 44px is the tap-target floor. */
+  .chat-msg-editing {
+    background: rgba(34, 211, 238, 0.14);
+    border-radius: 1dvh;
+    box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.55);
+    scroll-margin: 8dvh;
   }
-  #topic-chat-edit-label {
-    font-size: 1.5vh;
-    opacity: 0.6;
-    margin-bottom: 0.5vh;
+  .chat-edit-bar[hidden] {
+    display: none !important;
   }
-  #topic-chat-edit-text {
-    display: block;
-    width: 100%;
+  .chat-edit-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.8dvh;
     box-sizing: border-box;
-    min-height: 7vh;
-    max-height: 30vh;
-    overflow: auto;
-    resize: none;
-    padding: 1.2vh 1.4vh;
-    border-radius: 1vh;
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    width: 100%;
+    min-height: max(44px, 5.5dvh);
+    margin: 0 0 0.6dvh;
+    padding: 0.4dvh 0.2dvh 0.4dvh 1dvh;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-left: 0.35dvh solid #22D3EE;
+    border-radius: 1dvh;
     background: rgba(15, 15, 20, 0.55);
     color: #fff;
-    font-family: inherit;
-    font-size: 1.8vh;
-    line-height: 1.4;
   }
-  #topic-chat-edit-text:focus {
-    outline: none;
-    border-color: rgba(255, 255, 255, 0.4);
-  }
-  #topic-chat-edit-bytes {
-    margin: 0.6vh 0;
-  }
-  #topic-chat-edit-actions {
+  .chat-edit-bar-icon {
+    flex: 0 0 auto;
     display: flex;
-    gap: 0.6vh;
+    color: #22D3EE;
   }
-  #topic-chat-edit-actions .toolbar-column-btns {
-    flex: 1;
-    width: auto;
-  }
-
-  /* E2EE edit composer: same swap-into-the-send-row pattern. */
-  #e2ee-chat-editbox {
-    display: none;
-    padding: 0.6vh 0 0.4vh;
-    text-align: left;
-  }
-  #e2ee-chat-edit-label {
-    font-size: 1.5vh;
-    opacity: 0.6;
-    margin-bottom: 0.5vh;
-  }
-  #e2ee-chat-edit-text {
+  .chat-edit-bar-icon svg {
+    width: 2.2dvh;
+    height: 2.2dvh;
     display: block;
-    width: 100%;
-    box-sizing: border-box;
-    min-height: 7vh;
-    max-height: 30vh;
-    overflow: auto;
-    resize: none;
-    padding: 1.2vh 1.4vh;
-    border-radius: 1vh;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: rgba(15, 15, 20, 0.55);
-    color: #fff;
-    font-family: inherit;
-    font-size: 1.8vh;
-    line-height: 1.4;
   }
-  #e2ee-chat-edit-text:focus {
-    outline: none;
-    border-color: rgba(255, 255, 255, 0.4);
-  }
-  #e2ee-chat-edit-bytes {
-    margin: 0.6vh 0;
-  }
-  #e2ee-chat-edit-actions {
+  .chat-edit-bar-copy {
+    flex: 1 1 auto;
+    min-width: 0;
     display: flex;
-    gap: 0.6vh;
+    flex-direction: column;
+    gap: 0.15dvh;
   }
-  #e2ee-chat-edit-actions .toolbar-column-btns {
-    flex: 1;
-    width: auto;
+  .chat-edit-bar-title {
+    color: #22D3EE;
+    font-size: 1.45dvh;
+    line-height: 1.2;
+  }
+  .chat-edit-bar-quote {
+    overflow: hidden;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 1.6dvh;
+    line-height: 1.2;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .chat-edit-bar-x {
+    appearance: none;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: max(44px, 5.5dvh);
+    height: max(44px, 5.5dvh);
+    min-width: 44px;
+    min-height: 44px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: #fff;
+    font-size: 2.2dvh;
+    line-height: 1;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .chat-edit-bar-x:is(:hover, :active) {
+    color: #22D3EE;
+  }
+  .msg-send-mark,
+  .msg-check-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .msg-check-mark {
+    display: none;
+  }
+  .msg-check-mark svg {
+    width: 2.4dvh;
+    height: 2.4dvh;
+    display: block;
+  }
+  .chat-compose.is-editing .msg-send-mark {
+    display: none;
+  }
+  .chat-compose.is-editing .msg-check-mark {
+    display: inline-flex;
+  }
+  .chat-compose.is-editing .msg-image-btn,
+  .chat-compose.is-editing .chat-attach-preview {
+    display: none !important;
+  }
+  .chat-compose.is-editing .msg-send-btn {
+    width: max(44px, 5.5dvh);
+    height: max(44px, 5.5dvh);
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border-radius: 999px;
+    border-color: #22D3EE;
+    background: #22D3EE;
+    color: #083344;
+  }
+  .chat-compose.is-editing .msg-send-btn:disabled {
+    opacity: 0.38;
+    cursor: default;
+  }
+  .chat-compose.is-editing #user-write-message,
+  .chat-compose.is-editing #user-write-message-encrypted-chat {
+    width: 100%;
+    max-height: calc(5 * 2.6dvh + max(44px, 5.5dvh) + 2dvh) !important;
+    padding-bottom: calc(max(44px, 5.5dvh) + 1.2dvh) !important;
+  }
+  .chat-compose.is-editing > .hcs-byte-counter {
+    right: calc(max(44px, 5.5dvh) + 1.4dvh) !important;
+    bottom: 1.2dvh !important;
+    font-size: 1.45dvh !important;
+    line-height: 1;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .chat-compose.is-editing > .hcs-byte-counter.hcs-warn,
+  .chat-compose.is-editing > .hcs-byte-counter.hcs-over {
+    color: #ff5c5c;
   }
 
-  /* The edit Save/Cancel buttons are real <button>s now — neutralize the
-     UA button defaults (padding, own font, centered text) so they render
-     exactly like the .toolbar-column-btns divs they replaced. */
-  #topic-chat-edit-save,
-  #topic-chat-edit-cancel,
-  #e2ee-chat-edit-save,
-  #e2ee-chat-edit-cancel,
   #popup-settings-edit-save {
     padding: 0;
     font-family: inherit;
@@ -2319,9 +2361,7 @@ html, body {
 #submit-button-Create_encrypted-Marker.hcs-send-blocked,
 #submit-button-Create_Polygon.hcs-send-blocked,
 #submit-button-Create_encrypted-Polygon.hcs-send-blocked,
-#popup-settings-edit-save.hcs-send-blocked,
-#topic-chat-edit-save.hcs-send-blocked,
-#e2ee-chat-edit-save.hcs-send-blocked {
+#popup-settings-edit-save.hcs-send-blocked {
     opacity: 0.45;
     cursor: default;
 }
@@ -10452,6 +10492,51 @@ html.feed-app appkit-modal {
   background: #22D3EE !important;
   border: 0 !important;
   color: #083344 !important;
+}
+#feed-chat .is-feed-shell .chat-edit-bar {
+  order: -1;
+  flex: 1 0 100%;
+  margin: 0 0 calc(var(--fu) * 0.45);
+  border-radius: calc(var(--fu) * 1.4);
+  background: rgba(255, 255, 255, 0.06);
+}
+#feed-chat .is-feed-shell .chat-compose.is-editing .msg-send-btn {
+  width: max(44px, 5.5dvh) !important;
+  height: max(44px, 5.5dvh) !important;
+  min-width: 44px;
+  min-height: 44px;
+}
+#feed-chat .is-feed-shell .chat-compose.is-editing .msg-send-btn .feed-chat-glyph {
+  display: none !important;
+}
+#feed-chat .is-feed-shell .chat-compose.is-editing .msg-check-mark {
+  display: inline-flex !important;
+}
+#feed-chat .is-feed-shell .chat-compose.is-editing .msg-check-mark svg {
+  width: calc(var(--fu) * 2);
+  height: calc(var(--fu) * 2);
+}
+#feed-chat .is-feed-shell .chat-compose.is-editing #user-write-message,
+#feed-chat .is-feed-shell .chat-compose.is-editing #user-write-message-encrypted-chat {
+  max-height: calc(var(--fu) * 14) !important;
+  padding-bottom: calc(var(--fu) * 3.1) !important;
+  padding-right: calc(var(--fu) * 1.1) !important;
+}
+#feed-chat .is-feed-shell .chat-compose.is-editing > .hcs-byte-counter {
+  position: absolute !important;
+  right: calc(max(44px, 5.5dvh) + var(--fu) * 1.35) !important;
+  bottom: calc(var(--fu) * 1.05) !important;
+  max-width: calc(100% - max(44px, 5.5dvh) - var(--fu) * 2.4);
+  margin: 0;
+  overflow: hidden;
+  font-size: calc(var(--fu) * 1.05) !important;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #22d3ee !important;
+}
+#feed-chat .is-feed-shell .chat-compose.is-editing > .hcs-byte-counter.hcs-warn,
+#feed-chat .is-feed-shell .chat-compose.is-editing > .hcs-byte-counter.hcs-over {
+  color: #ff5c5c !important;
 }
 #feed-chat .is-feed-shell .feed-chat-glyph {
   width: calc(var(--fu) * 1.8);

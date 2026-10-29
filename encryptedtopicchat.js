@@ -133,11 +133,11 @@ function addE2eeEditButton(wrapper, payer, createdIso) {
 }
 
 // ── Edit composer ───────────────────────────────────────────────────
-// Same pattern as the post edit: prefill the composer with the text that
-// is on screen, confirm in the wallet, and apply locally the moment it
-// sends.
-let e2eeChatEditTarget = null; // { payer, created, topicId, image, stamp }
+// Edit mode reuses the normal composer. The in-progress draft is stashed
+// and restored on cancel or save. Confirm in the wallet, then apply locally.
+let e2eeChatEditTarget = null; // { payer, created, topicId, image, stamp, original }
 let e2eeChatEditBusy = false;
+let e2eeChatComposeDraft = '';
 
 function resolveE2eeEditTopicId() {
   const userInput = document.getElementById('encrypted-chat-topic-id').value.trim();
@@ -182,27 +182,71 @@ function e2eeChatEditOutgoing(newText) {
   return JSON.stringify({ editEncryptedMessage: data });
 }
 
+function e2eeChatCompose() {
+  return document.getElementById('user-write-message-encrypted-chat')?.closest('.chat-compose') || null;
+}
+
+function fitE2eeComposer(field) {
+  if (!field) return;
+  const editing = !!field.closest('.chat-compose')?.classList.contains('is-editing');
+  // The feed stylesheet locks height with !important. Edit mode has to
+  // win that so the field can grow, then let it go when editing ends.
+  if (!editing) {
+    field.style.height = '';
+    field.style.height = field.scrollHeight + 'px';
+    return;
+  }
+  field.style.setProperty('height', '0px', 'important');
+  field.style.setProperty('height', field.scrollHeight + 'px', 'important');
+}
+
+function clearE2eeChatEditMark() {
+  document.querySelectorAll('#messages-from-encrypted-chat .chat-msg-editing').forEach((el) => {
+    el.classList.remove('chat-msg-editing');
+  });
+}
+
+function e2eeEditQuote(text, image) {
+  const line = String(text || '').replace(/\s+/g, ' ').trim();
+  if (line) return line;
+  return image ? 'Photo' : '';
+}
+
 function paintE2eeChatEditBytes() {
-  const counter = document.getElementById('e2ee-chat-edit-bytes');
-  const save = document.getElementById('e2ee-chat-edit-save');
-  const text = document.getElementById('e2ee-chat-edit-text');
+  const counter = document.getElementById('char-counter-encrypted-chat');
+  const save = document.getElementById('post-msg-encrypted-chat');
+  const text = document.getElementById('user-write-message-encrypted-chat');
   if (!counter || !text || !e2eeChatEditTarget) return;
   const usage = formatHcsUsage(utf8ByteLength(e2eeChatEditOutgoing(text.value)));
+  counter.hidden = false;
   counter.textContent = usage.text;
   counter.classList.toggle('hcs-warn', usage.warn);
   counter.classList.toggle('hcs-over', usage.over);
-  if (save) save.classList.toggle('hcs-send-blocked', usage.over);
+  if (!save) return;
+  // Over the limit stays clickable so the existing toast can fire.
+  // Unchanged or empty is a dead control.
+  save.classList.toggle('hcs-send-blocked', usage.over);
+  const unchanged = text.value === e2eeChatEditTarget.original;
+  save.disabled = unchanged || text.value.trim() === '';
 }
 
-const e2eeChatComposeControls = ['user-write-message-encrypted-chat', 'char-counter-encrypted-chat', 'encrypted-chat-image-btn', 'post-msg-encrypted-chat'];
 function setE2eeChatEditing(on) {
-  const box = document.getElementById('e2ee-chat-editbox');
-  if (!box) return;
-  for (const id of e2eeChatComposeControls) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = on ? 'none' : '';
+  const compose = e2eeChatCompose();
+  const bar = document.getElementById('e2ee-chat-editbar');
+  const quote = document.getElementById('e2ee-chat-edit-quote');
+  const send = document.getElementById('post-msg-encrypted-chat');
+  if (compose) compose.classList.toggle('is-editing', on);
+  if (bar) bar.hidden = !on;
+  if (!on) {
+    clearE2eeChatEditMark();
+    if (send) {
+      send.disabled = false;
+      send.setAttribute('aria-label', 'Send');
+    }
+    if (quote) quote.textContent = '';
+    return;
   }
-  box.style.display = on ? 'block' : 'none';
+  if (send) send.setAttribute('aria-label', 'Save edit');
 }
 
 function openE2eeChatEdit(payer, created) {
@@ -214,12 +258,15 @@ function openE2eeChatEdit(payer, created) {
     return;
   }
   const container = document.querySelector(
-    `#messages-from-encrypted-chat [data-chat-payer="${payer}"][data-chat-created="${createdIso}"]`
+    `#messages-from-encrypted-chat [data-chat-payer="${CSS.escape(payer)}"][data-chat-created="${CSS.escape(createdIso)}"]`
   );
   const currentText = container
     ? (container.querySelector('.chat-msg-body')?.textContent || '')
     : '';
   const imgEl = container && container.querySelector('.chat-msg-image');
+  const field = document.getElementById('user-write-message-encrypted-chat');
+  // A second edit replaces the first and keeps the stashed draft.
+  if (!e2eeChatEditTarget && field) e2eeChatComposeDraft = field.value;
   e2eeChatEditTarget = {
     payer,
     created: createdIso,
@@ -227,17 +274,43 @@ function openE2eeChatEdit(payer, created) {
     // data-full-src is the original image URL. The bubble shows that same URL.
     image: imgEl ? (imgEl.dataset.fullSrc || imgEl.getAttribute('src') || '') : '',
     stamp: e2eeChatStamp(createdIso),
+    original: currentText,
   };
-  const text = document.getElementById('e2ee-chat-edit-text');
-  if (text) text.value = currentText;
+  const quote = document.getElementById('e2ee-chat-edit-quote');
+  if (quote) quote.textContent = e2eeEditQuote(currentText, e2eeChatEditTarget.image);
+  clearE2eeChatEditMark();
+  if (container) {
+    container.classList.add('chat-msg-editing');
+    requestAnimationFrame(() => {
+      container.scrollIntoView({ block: 'center', inline: 'nearest' });
+    });
+  }
   setE2eeChatEditing(true);
-  paintE2eeChatEditBytes();
-  if (text) text.focus();
+  if (!field) {
+    paintE2eeChatEditBytes();
+    return;
+  }
+  field.value = currentText;
+  fitE2eeComposer(field);
+  const end = field.value.length;
+  field.focus();
+  try { field.setSelectionRange(end, end); } catch (_) { /* older browsers */ }
+  field.scrollTop = field.scrollHeight;
+  field.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function closeE2eeChatEdit() {
-  setE2eeChatEditing(false);
+  const field = document.getElementById('user-write-message-encrypted-chat');
+  const was = !!e2eeChatEditTarget;
+  const draft = e2eeChatComposeDraft;
   e2eeChatEditTarget = null;
+  e2eeChatComposeDraft = '';
+  setE2eeChatEditing(false);
+  if (!was || !field) return;
+  field.value = draft;
+  fitE2eeComposer(field);
+  // is-editing is already off, so the normal byte painter runs again.
+  field.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 // ── Admin-pinned public key, cached per topic ────────────────────────
@@ -301,11 +374,14 @@ async function saveE2eeChatEdit() {
     toast.error('Connect wallet first');
     return;
   }
-  const save = document.getElementById('e2ee-chat-edit-save');
+  const save = document.getElementById('post-msg-encrypted-chat');
   if (save && save.classList.contains('hcs-send-blocked')) {
     toast.error(HCS_TOO_LONG);
     return;
   }
+  const field = document.getElementById('user-write-message-encrypted-chat');
+  const raw = field ? field.value : '';
+  if (!raw.trim() || raw === e2eeChatEditTarget.original) return;
   const target = e2eeChatEditTarget;
   // Same key discovery as a normal E2EE send: the admin-pinned public key,
   // cached per topic with a short lifetime (e2eePublicKeysByTopic above).
@@ -326,12 +402,11 @@ async function saveE2eeChatEdit() {
       return;
     }
   }
-  const text = document.getElementById('e2ee-chat-edit-text');
   e2eeChatEditBusy = true;
   try {
     // Encrypt before build: plaintext never enters the HCS JSON. The image
     // rides inside the sealed payload, the same as a normal send.
-    const payload = packChatPayload(text ? text.value : '', target.image || '');
+    const payload = packChatPayload(raw, target.image || '');
     let encryptedMessage;
     try {
       encryptedMessage = await encryptMessage(payload, PublicKey);
@@ -372,12 +447,39 @@ async function saveE2eeChatEdit() {
   }
 }
 
-const e2eeChatEditSave = document.getElementById('e2ee-chat-edit-save');
-if (e2eeChatEditSave) e2eeChatEditSave.addEventListener('click', saveE2eeChatEdit);
 const e2eeChatEditCancel = document.getElementById('e2ee-chat-edit-cancel');
-if (e2eeChatEditCancel) e2eeChatEditCancel.addEventListener('click', closeE2eeChatEdit);
-const e2eeChatEditText = document.getElementById('e2ee-chat-edit-text');
-if (e2eeChatEditText) e2eeChatEditText.addEventListener('input', paintE2eeChatEditBytes);
+if (e2eeChatEditCancel) {
+  e2eeChatEditCancel.addEventListener('click', (event) => {
+    event.stopPropagation();
+    closeE2eeChatEdit();
+  });
+}
+const e2eeChatField = document.getElementById('user-write-message-encrypted-chat');
+if (e2eeChatField) {
+  e2eeChatField.addEventListener('input', () => {
+    if (!e2eeChatEditTarget) return;
+    fitE2eeComposer(e2eeChatField);
+    paintE2eeChatEditBytes();
+  });
+}
+const e2eeChatSend = document.getElementById('post-msg-encrypted-chat');
+if (e2eeChatSend) {
+  // Capture runs after the byte-limit watcher and before a new send.
+  e2eeChatSend.addEventListener('click', (event) => {
+    if (!e2eeChatEditTarget) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    saveE2eeChatEdit();
+  }, true);
+}
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || !e2eeChatEditTarget) return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+  closeE2eeChatEdit();
+}, true);
 
 // Helper function to check valid URL
 function isValidUrl(string) {

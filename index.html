@@ -1446,21 +1446,18 @@
             <button id="go-to-bottom-msgs" class="toolbar-column-btns">⬇</button>
           </div>
       
-          <div style="position: relative;">
+          <div class="chat-compose" style="position: relative;">
             <div id="topic-chat-image-preview" class="chat-attach-preview" hidden>
               <img id="topic-chat-image-preview-img" alt="">
               <button type="button" id="topic-chat-image-clear" class="chat-attach-clear">×</button>
             </div>
-            <div id="topic-chat-editbox">
-              <div id="topic-chat-edit-label">Edit message</div>
-              <textarea id="topic-chat-edit-text" aria-label="Edit message" rows="3" placeholder="Message text"
-              onclick="event.stopPropagation();"
-              oninput="this.style.height='';this.style.height=this.scrollHeight+'px';"></textarea>
-              <div id="topic-chat-edit-bytes" class="hcs-byte-counter">0 B / 18 KB</div>
-              <div id="topic-chat-edit-actions">
-                <button type="button" id="topic-chat-edit-cancel" class="toolbar-column-btns">Cancel</button>
-                <button type="button" id="topic-chat-edit-save" class="toolbar-column-btns">Save</button>
-              </div>
+            <div id="topic-chat-editbar" class="chat-edit-bar" hidden>
+              <span class="chat-edit-bar-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+              <span class="chat-edit-bar-copy">
+                <span class="chat-edit-bar-title">Edit message</span>
+                <span id="topic-chat-edit-quote" class="chat-edit-bar-quote"></span>
+              </span>
+              <button type="button" id="topic-chat-edit-cancel" class="chat-edit-bar-x" aria-label="Cancel edit">✕</button>
             </div>
             <textarea
             class="toolbar-column"
@@ -1478,7 +1475,7 @@
             <div id="char-counter" class="hcs-byte-counter" style="position: absolute; bottom: 1.5vh; right: 5.5vh; font-size: 2vh;">0 B / 18 KB</div>
             <button type="button" id="topic-chat-image-btn" class="toolbar-column-btns submit-message-btn msg-image-btn">🖼</button>
             <input type="file" id="topic-chat-image-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
-            <button id="post-msg" class="toolbar-column-btns submit-message-btn msg-send-btn">📨</button>
+            <button type="button" id="post-msg" class="toolbar-column-btns submit-message-btn msg-send-btn" aria-label="Send"><span class="msg-send-mark" aria-hidden="true">📨</span><span class="msg-check-mark" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></button>
           </div>
 
         </div>
@@ -1689,21 +1686,18 @@
       
           <div id="encrypted-chat-chat-container">
       
-          <div style="position: relative;">
+          <div class="chat-compose" style="position: relative;">
             <div id="encrypted-chat-image-preview" class="chat-attach-preview" hidden>
               <img id="encrypted-chat-image-preview-img" alt="">
               <button type="button" id="encrypted-chat-image-clear" class="chat-attach-clear">×</button>
             </div>
-            <div id="e2ee-chat-editbox">
-              <div id="e2ee-chat-edit-label">Edit message</div>
-              <textarea id="e2ee-chat-edit-text" aria-label="Edit message" rows="3" placeholder="Message text"
-              onclick="event.stopPropagation();"
-              oninput="this.style.height='';this.style.height=this.scrollHeight+'px';"></textarea>
-              <div id="e2ee-chat-edit-bytes" class="hcs-byte-counter">0 B / 18 KB</div>
-              <div id="e2ee-chat-edit-actions">
-                <button type="button" id="e2ee-chat-edit-cancel" class="toolbar-column-btns">Cancel</button>
-                <button type="button" id="e2ee-chat-edit-save" class="toolbar-column-btns">Save</button>
-              </div>
+            <div id="e2ee-chat-editbar" class="chat-edit-bar" hidden>
+              <span class="chat-edit-bar-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+              <span class="chat-edit-bar-copy">
+                <span class="chat-edit-bar-title">Edit message</span>
+                <span id="e2ee-chat-edit-quote" class="chat-edit-bar-quote"></span>
+              </span>
+              <button type="button" id="e2ee-chat-edit-cancel" class="chat-edit-bar-x" aria-label="Cancel edit">✕</button>
             </div>
             <textarea
             class="toolbar-column"
@@ -1721,7 +1715,7 @@
             <div id="char-counter-encrypted-chat" class="hcs-byte-counter" style="position: absolute; bottom: 1.5vh; right: 5.5vh; font-size: 2vh;">0 B / 18 KB</div>
             <button type="button" id="encrypted-chat-image-btn" class="toolbar-column-btns submit-message-btn msg-image-btn">🖼</button>
             <input type="file" id="encrypted-chat-image-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
-            <button id="post-msg-encrypted-chat" class="toolbar-column-btns submit-message-btn msg-send-btn">📨</button>
+            <button type="button" id="post-msg-encrypted-chat" class="toolbar-column-btns submit-message-btn msg-send-btn" aria-label="Send"><span class="msg-send-mark" aria-hidden="true">📨</span><span class="msg-check-mark" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></button>
           </div>
         </div>
 
