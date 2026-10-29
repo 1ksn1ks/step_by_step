@@ -9629,7 +9629,7 @@ html.feed-app appkit-modal {
   display: block;
   pointer-events: none;
 }
-#feed-menu .feed-menu-item:is(:hover, :active, .is-hold) {
+#feed-menu .feed-menu-item:is(:hover, :active, .is-hold, .is-current) {
   color: #22D3EE;
   background: rgba(34, 211, 238, 0.12);
 }

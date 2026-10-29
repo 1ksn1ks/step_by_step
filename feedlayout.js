@@ -3705,7 +3705,7 @@ function returnToFeed(sent) {
 
 function closePlaceBlockers() {
   if (searchOpen || (window.layerIsOpen && window.layerIsOpen('feedsearch'))) closeSearch();
-  if (!menu.hidden || (window.layerIsOpen && window.layerIsOpen('feedmenu'))) closeMenu();
+  if (!menu.hidden || (window.layerIsTop && window.layerIsTop('feedmenu'))) closeMenu();
 }
 
 function placeSurfaceOpen() {
@@ -3798,15 +3798,21 @@ function applyFeed(on) {
   paintToggle(on);
   writeMode(on ? 'feed' : 'map');
   if (!on) {
-    paintMenu(false);
-    dropOptions();
-    leavePlace();
-    const dropSearch = window.layerIsOpen && window.layerIsOpen('feedsearch');
-    hideSearch();
-    if (dropSearch && window.layerClosedByUI) window.layerClosedByUI('feedsearch');
-    if (settingsOpen || (window.layerIsOpen && window.layerIsOpen('feedsettings'))) closeFeedSettings();
-    if (feedChatKind || (window.layerIsOpen && window.layerIsOpen('feedchat'))) closeFeedChat();
-    dismissFeedProfile();
+    suppressDrawerRestore = true;
+    try {
+      paintMenu(false);
+      dropOptions();
+      leavePlace();
+      const dropSearch = window.layerIsOpen && window.layerIsOpen('feedsearch');
+      hideSearch();
+      if (dropSearch && window.layerClosedByUI) window.layerClosedByUI('feedsearch');
+      if (settingsOpen || (window.layerIsOpen && window.layerIsOpen('feedsettings'))) closeFeedSettings();
+      if (feedChatKind || (window.layerIsOpen && window.layerIsOpen('feedchat'))) closeFeedChat();
+      dismissFeedProfile();
+      if (drawerItem && window.layerIsOpen && window.layerIsOpen('feedmenu')) closeMenu();
+    } finally {
+      suppressDrawerRestore = false;
+    }
   }
   if (on) {
     const opening = !feedOn();
@@ -4035,18 +4041,18 @@ function clickId(id) {
   if (el) el.click();
 }
 
-// Close the drawer first so the feature replaces that history entry.
-// One Back then returns to the feed.
+// A visible drawer is replaced, so one Back returns to the feed.
+// A drawer kept under one of its pages stays put.
 function openOverFeed(run) {
   holdScroll();
-  closeMenu();
+  closeReplacedMenu();
   run();
 }
 
 function openOwnProfile() {
   const account = walletNow();
   if (!account) return;
-  openFeedProfile(account);
+  openFeedProfile(account, 'drawer');
 }
 
 function httpUrl(value) {
@@ -4211,22 +4217,22 @@ function paintFeedProfile(payer) {
   }).catch(() => {});
 }
 
-function openFeedProfile(payer) {
+function openFeedProfile(payer, source) {
   const id = String(payer || '').trim();
   if (!/^\d+\.\d+\.\d+$/.test(id)) return;
   if (!feedCovers()) {
     if (window.loadBio4PIC) window.loadBio4PIC(id);
     return;
   }
-  holdScroll();
-  closeMenu();
+  const fromDrawer = source === 'drawer' && keepDrawer('My profile');
+  if (!fromDrawer) {
+    holdScroll();
+    closeReplacedMenu();
+  }
   if (profileFilter || bannerTracks()) clearProfileFilter();
   paintFeedProfile(id);
-  if (window.layerIsOpen && window.layerIsOpen('feedprofile')) {
-    if (window.layerOpened) window.layerOpened('feedprofile', { payer: id });
-    return;
-  }
-  if (window.layerOpened) window.layerOpened('feedprofile', { payer: id });
+  const data = (fromDrawer || carryingDrawer()) ? drawerState({ payer: id }) : { payer: id };
+  if (window.layerOpened) window.layerOpened('feedprofile', data);
 }
 
 function refreshBannerHeight() {
@@ -4401,6 +4407,7 @@ function closeFeedProfile() {
   if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedprofile')) {
     window.layerClosedByUI('feedprofile');
   }
+  restoreDrawer();
 }
 
 function dismissFeedProfile() {
@@ -4448,13 +4455,21 @@ bannerPic.addEventListener('error', () => {
 });
 
 function openTopicChat() {
-  openFeedChat('topic');
+  openFeedChat('topic', 'drawer');
 }
 
 function openE2ee() {
   // Unlock/read is local. Wallet only needed later to send / change wrap.
-  closeMenu();
-  withE2eeWebNotice(() => openFeedChat('e2ee'));
+  // The chat entry sits on the drawer. The notice is not its own step.
+  const fromDrawer = !!(window.layerIsTop && window.layerIsTop('feedmenu'));
+  if (!fromDrawer) closeReplacedMenu();
+  const open = () => openFeedChat('e2ee', fromDrawer ? 'drawer' : undefined);
+  if (fromDrawer) {
+    open();
+    withE2eeWebNotice(() => {});
+    return;
+  }
+  withE2eeWebNotice(open);
 }
 
 let zoomRange = null;
@@ -5048,7 +5063,13 @@ function paintFeedChat(kind) {
   feedChatBack.focus({ preventScroll: true, focusVisible: false });
 }
 
+function hideE2eeWebNotice() {
+  const overlay = document.getElementById('e2ee-web-notice-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
 function hideFeedChatPanel() {
+  hideE2eeWebNotice();
   feedChatLive = false;
   if (feedChatWatch) {
     feedChatWatch.disconnect();
@@ -5067,11 +5088,18 @@ function closeFeedChat() {
   if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedchat')) {
     window.layerClosedByUI('feedchat');
   }
+  restoreDrawer();
 }
 
-function openFeedChat(kind) {
+function openFeedChat(kind, source) {
   if (!feedOn() || root.classList.contains('is-peek')) return;
   if (!FEED_CHATS[kind]) return;
+  const item = kind === 'e2ee' ? 'E2EE chat' : kind === 'topic' ? 'Topic chat' : '';
+  if (source === 'drawer' && item && keepDrawer(item)) {
+    paintFeedChat(kind);
+    if (window.layerOpened) window.layerOpened('feedchat', drawerState({ kind }));
+    return;
+  }
   openOverFeed(() => {
     paintFeedChat(kind);
     if (window.layerOpened) window.layerOpened('feedchat', { kind });
@@ -5139,10 +5167,16 @@ function closeFeedSettings() {
   if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedsettings')) {
     window.layerClosedByUI('feedsettings');
   }
+  restoreDrawer();
 }
 
 function openFeedSettings() {
   if (!feedOn() || root.classList.contains('is-peek')) return;
+  if (keepDrawer('Settings')) {
+    paintFeedSettings(true);
+    if (window.layerOpened) window.layerOpened('feedsettings', drawerState());
+    return;
+  }
   openOverFeed(() => {
     paintFeedSettings(true);
     if (window.layerOpened) window.layerOpened('feedsettings');
@@ -5159,7 +5193,7 @@ function openDisconnect() {
 // stay on the feed.
 async function openConnect() {
   holdScroll();
-  closeMenu();
+  closeReplacedMenu();
   await new Promise((resolve) => setTimeout(resolve, 0));
   // Own the busy flag only when the plus button does not already hold it.
   const token = placeBusy ? 0 : ++placeToken;
@@ -5181,9 +5215,58 @@ async function openConnect() {
 // A later open or close bumps this so a finishing slide cannot hide
 // the drawer the user just reopened.
 let menuToken = 0;
+let drawerItem = '';
+let suppressDrawerRestore = false;
 
 function motionOff() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function markMenuItem(label) {
+  const buttons = menu.querySelectorAll('.feed-menu-item');
+  for (const button of buttons) {
+    const on = !!label && button.dataset.item === label;
+    button.classList.toggle('is-current', on);
+    if (on) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  }
+}
+
+function drawerState(data) {
+  return Object.assign({ from: 'drawer', item: drawerItem }, data || {});
+}
+
+function carryingDrawer() {
+  return !!(drawerItem && window.layerIsOpen && window.layerIsOpen('feedmenu')
+    && (!window.layerIsTop || !window.layerIsTop('feedmenu')));
+}
+
+function closeReplacedMenu() {
+  if (carryingDrawer()) return;
+  closeMenu();
+}
+
+function keepDrawer(item) {
+  if (!window.layerIsTop || !window.layerIsTop('feedmenu')) return false;
+  holdScroll();
+  drawerItem = item;
+  paintMenu(false);
+  if (window.layerOpened) window.layerOpened('feedmenu', { item: item });
+  return true;
+}
+
+function restoreDrawer() {
+  if (suppressDrawerRestore || !drawerItem) return;
+  if (!window.layerIsTop || !window.layerIsTop('feedmenu')) return;
+  if (!feedCovers()) return;
+  paintMenu(true);
+  markMenuItem(drawerItem);
+}
+
+function hideKeptDrawer(state, fallback) {
+  if (!state || state.from !== 'drawer') return;
+  drawerItem = state.item || fallback || drawerItem;
+  paintMenu(false);
 }
 
 function paintMenu(open) {
@@ -5207,6 +5290,7 @@ function paintMenu(open) {
     menuDim.classList.add('is-open');
     return;
   }
+  markMenuItem('');
   menu.classList.remove('is-open');
   menuDim.classList.remove('is-open');
   const finish = () => {
@@ -5237,6 +5321,7 @@ function paintMenu(open) {
 // entry. A phone Back already popped that entry, so the history call
 // no-ops and the feed stays.
 function closeMenu() {
+  drawerItem = '';
   paintMenu(false);
   if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedmenu')) {
     window.layerClosedByUI('feedmenu');
@@ -5252,7 +5337,7 @@ function openMenu() {
 function backToMap() {
   // The menu sits on the feed. Two steps land where one phone Back
   // lands when the menu is shut: the feed closes and the map returns.
-  if (window.layerIsOpen && window.layerIsOpen('feedmenu')) {
+  if (window.layerIsTop && window.layerIsTop('feedmenu')) {
     history.go(-2);
     return;
   }
@@ -5309,6 +5394,7 @@ for (const item of MENU_ROWS) {
   const choice = document.createElement('button');
   choice.type = 'button';
   choice.className = item.danger ? 'feed-menu-item is-danger' : 'feed-menu-item';
+  choice.dataset.item = item.label;
   choice.append(svgIcon(item.icon), document.createTextNode(item.label));
   choice.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -5324,22 +5410,38 @@ watchWalletRows();
 if (window.defineLayer) {
   window.defineLayer('feedmenu', {
     parent: 'feed',
-    open: () => paintMenu(true),
+    open: (state) => {
+      paintMenu(true);
+      if (state && state.item) {
+        drawerItem = state.item;
+        markMenuItem(state.item);
+      }
+    },
     close: () => closeMenu(),
   });
   window.defineLayer('feedsettings', {
     parent: 'feed',
-    open: () => paintFeedSettings(true),
+    open: (state) => {
+      hideKeptDrawer(state, 'Settings');
+      paintFeedSettings(true);
+    },
     close: () => closeFeedSettings(),
   });
   window.defineLayer('feedchat', {
     parent: 'feed',
-    open: (state) => paintFeedChat(state && state.kind),
-    close: () => hideFeedChatPanel(),
+    open: (state) => {
+      hideKeptDrawer(state, state && state.kind === 'e2ee' ? 'E2EE chat' : 'Topic chat');
+      paintFeedChat(state && state.kind);
+    },
+    close: () => {
+      hideFeedChatPanel();
+      restoreDrawer();
+    },
   });
   window.defineLayer('feedprofile', {
     parent: 'feed',
     open: (state) => {
+      hideKeptDrawer(state, 'My profile');
       const payer = state && state.payer;
       if (payer) paintFeedProfile(payer);
     },
@@ -5354,7 +5456,8 @@ if (window.defineLayer) {
           if (profilePayer !== payer || bannerTracks()) return;
           if (window.layerIsOpen && window.layerIsOpen('feedprofile')) return;
           if (!feedCovers()) return;
-          if (window.layerOpened) window.layerOpened('feedprofile', { payer });
+          const data = drawerItem ? drawerState({ payer }) : { payer };
+          if (window.layerOpened) window.layerOpened('feedprofile', data);
         }, 0);
         return;
       }
@@ -5362,6 +5465,7 @@ if (window.defineLayer) {
       profilePayer = '';
       profileEpoch += 1;
       clearProfileFilter();
+      restoreDrawer();
     },
   });
   window.defineLayer('feedsearch', {
@@ -5395,7 +5499,7 @@ if (window.defineLayer) {
 bindPress(menuBtn);
 menuBtn.addEventListener('click', (event) => {
   event.stopPropagation();
-  if (window.layerIsOpen && window.layerIsOpen('feedmenu')) closeMenu();
+  if (window.layerIsTop && window.layerIsTop('feedmenu')) closeMenu();
   else openMenu();
 });
 
