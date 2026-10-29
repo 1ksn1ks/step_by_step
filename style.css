@@ -9816,9 +9816,6 @@ html.feed-app appkit-modal {
   --feed-zoom: 1;
   --fu: calc(min(78dvw, 42dvh) / 31.25);
 }
-#feed-menu.is-map-drawer .feed-menu-rule {
-  margin-top: auto;
-}
 #feed-menu[hidden] {
   display: none;
 }
@@ -9832,6 +9829,9 @@ html.feed-app appkit-modal {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+#feed-menu li.feed-menu-end {
+  margin-top: auto;
 }
 #feed-menu .feed-menu-item {
   appearance: none;
@@ -9873,7 +9873,7 @@ html.feed-app appkit-modal {
 #feed-menu .feed-menu-rule {
   flex: 0 0 auto;
   height: calc(var(--fu) * 0.08);
-  margin: auto calc(var(--fu) * 1.3) calc(var(--fu) * 0.35);
+  margin: calc(var(--fu) * 0.55) calc(var(--fu) * 1.3) calc(var(--fu) * 0.35);
   background: rgba(255, 255, 255, 0.22);
 }
 #feed-menu .feed-menu-item.is-danger {
@@ -9901,7 +9901,7 @@ html.feed-app appkit-modal {
   color: #fff;
   font: inherit;
   text-align: left;
-  cursor: default;
+  cursor: pointer;
   touch-action: manipulation;
 }
 #feed-menu .feed-menu-account-btn.is-connect {

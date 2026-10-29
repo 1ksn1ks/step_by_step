@@ -3988,10 +3988,6 @@ const LOGOUT_ICON = [
   ['path', { d: 'M21 12H9' }],
   ['path', { d: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4' }],
 ];
-const WALLET_ICON = [
-  ['path', { d: 'M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1' }],
-  ['path', { d: 'M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4' }],
-];
 const SEARCH_ICON = [
   ['circle', { cx: '11', cy: '11', r: '8' }],
   ['path', { d: 'm21 21-4.3-4.3' }],
@@ -4270,6 +4266,9 @@ function openFeedProfile(payer, source) {
   const id = String(payer || '').trim();
   if (!/^\d+\.\d+\.\d+$/.test(id)) return;
   if (!feedCovers()) {
+    // Map profile is the bio card. Keep the drawer under it the same way
+    // the feed profile does, so Back highlights My profile.
+    if (source === 'drawer') keepDrawer('My profile');
     if (window.loadBio4PIC) window.loadBio4PIC(id);
     return;
   }
@@ -5407,7 +5406,7 @@ function runMapControl(selector) {
 }
 
 function openMapOptions() {
-  if (window.layerIsTop && window.layerIsTop('feedmenu')) keepDrawer('Options');
+  if (window.layerIsTop && window.layerIsTop('feedmenu')) keepDrawer('Settings');
   const button = document.getElementById('main-toggle-btn');
   if (button) button.click();
 }
@@ -5446,51 +5445,125 @@ function backToMap() {
   if (window.layerIsOpen && window.layerIsOpen('feed')) history.back();
 }
 
-const MENU_ROWS = [
-  { mode: 'feed', label: 'Back to map', icon: GLOBE_ICON, run: backToMap },
-  { mode: 'feed', label: 'Connect wallet', icon: WALLET_ICON, run: openConnect, wallet: 'off' },
-  { mode: 'feed', label: 'My profile', icon: USER_ICON, run: openOwnProfile, wallet: 'on' },
-  { mode: 'feed', label: 'Topic chat', icon: CHAT_ICON, run: openTopicChat },
-  { mode: 'feed', label: 'E2EE chat', icon: LOCK_ICON, run: openE2ee },
-  { mode: 'feed', label: 'Settings', icon: SETTINGS_ICON, run: openFeedSettings },
-  { mode: 'feed', rule: true, wallet: 'on' },
-  { mode: 'feed', label: 'Disconnect', icon: LOGOUT_ICON, run: openDisconnect, wallet: 'on', danger: true },
-  { mode: 'map', label: 'Layers', icon: GLOBE_ICON, run: () => runMapControl('#layout-mode-btn') },
-  { mode: 'map', label: 'Search', icon: SEARCH_ICON, run: () => runMapControl('#search-toggle-btn') },
-  { mode: 'map', label: 'Locate me', icon: LOCATE_ICON, run: () => runMapControl('.maplibregl-ctrl-geolocate') },
-  { mode: 'map', label: 'Reset north', icon: NORTH_ICON, run: () => runMapControl('.maplibregl-ctrl-compass') },
-  { mode: 'map', label: 'Options', icon: SETTINGS_ICON, run: openMapOptions },
-  { mode: 'map', label: 'Topic chat', icon: CHAT_ICON, run: openMapTopic },
-  { mode: 'map', label: 'E2EE chat', icon: LOCK_ICON, run: openMapE2ee },
-  { mode: 'map', label: 'Go to feed', icon: ROWS_ICON, run: goToFeed },
-  { mode: 'map', rule: true, wallet: 'on' },
-  { mode: 'map', label: 'Disconnect', icon: LOGOUT_ICON, run: openDisconnect, wallet: 'on', danger: true },
+// One order for both drawers. A feed/map object is the same slot with a
+// per-view label, icon, or action. tools are that view's extras; an
+// empty list hides the group and its divider.
+const DRAWER_ORDER = [
+  { kind: 'account' },
+  {
+    label: { feed: 'Back to map', map: 'Go to feed' },
+    icon: { feed: GLOBE_ICON, map: ROWS_ICON },
+    run: { feed: backToMap, map: goToFeed },
+  },
+  { label: 'My profile', icon: USER_ICON, run: openOwnProfile, wallet: 'on' },
+  { label: 'Topic chat', icon: CHAT_ICON, run: { feed: openTopicChat, map: openMapTopic } },
+  { label: 'E2EE chat', icon: LOCK_ICON, run: { feed: openE2ee, map: openMapE2ee } },
+  { label: 'Settings', icon: SETTINGS_ICON, run: { feed: openFeedSettings, map: openMapOptions } },
+  {
+    kind: 'tools',
+    feed: [],
+    map: [
+      { label: 'Layers', icon: GLOBE_ICON, run: () => runMapControl('#layout-mode-btn') },
+      { label: 'Search', icon: SEARCH_ICON, run: () => runMapControl('#search-toggle-btn') },
+      { label: 'Locate me', icon: LOCATE_ICON, run: () => runMapControl('.maplibregl-ctrl-geolocate') },
+      { label: 'Collapse', icon: NORTH_ICON, run: () => runMapControl('.maplibregl-ctrl-compass') },
+    ],
+  },
+  { label: 'Disconnect', icon: LOGOUT_ICON, run: openDisconnect, wallet: 'on', danger: true, end: true },
 ];
 
-const walletRows = [];
+let mapAccountBtn;
+let mapAvatar;
+let mapAccountId;
+let feedToolCount = 0;
+let mapToolCount = 0;
+const viewChoices = [];
 
-const mapAccount = document.createElement('li');
-mapAccount.className = 'feed-menu-account';
-mapAccount.dataset.mode = 'map';
-const mapAccountBtn = document.createElement('button');
-mapAccountBtn.type = 'button';
-mapAccountBtn.className = 'feed-menu-account-btn';
-const mapAvatar = document.createElement('img');
-mapAvatar.className = 'feed-menu-avatar';
-mapAvatar.alt = '';
-mapAvatar.addEventListener('error', () => {
-  if (mapAvatar.src !== DEFAULT_PIC) mapAvatar.src = DEFAULT_PIC;
-});
-const mapAccountId = document.createElement('span');
-mapAccountId.className = 'feed-menu-account-id';
-mapAccountBtn.append(mapAvatar, mapAccountId);
-mapAccount.appendChild(mapAccountBtn);
-menu.appendChild(mapAccount);
-mapAccountBtn.addEventListener('click', (event) => {
-  event.stopPropagation();
-  if (walletNow()) return;
-  openConnect();
-});
+function viewValue(value, mapMode) {
+  if (value && typeof value === 'object' && !Array.isArray(value)
+      && (Object.prototype.hasOwnProperty.call(value, 'feed') || Object.prototype.hasOwnProperty.call(value, 'map'))) {
+    return mapMode ? value.map : value.feed;
+  }
+  return value;
+}
+
+function paintChoice(choice, spec, mapMode) {
+  const label = viewValue(spec.label, mapMode);
+  const icon = viewValue(spec.icon, mapMode);
+  const view = mapMode ? 'map' : 'feed';
+  if (choice.dataset.item === label && choice.dataset.view === view) return;
+  choice.dataset.item = label;
+  choice.dataset.view = view;
+  choice.replaceChildren(svgIcon(icon), document.createTextNode(label));
+}
+
+function appendDrawerItem(spec) {
+  const row = document.createElement('li');
+  if (spec.mode) row.dataset.mode = spec.mode;
+  if (spec.wallet) row.dataset.wallet = spec.wallet;
+  if (spec.end) row.classList.add('feed-menu-end');
+  const choice = document.createElement('button');
+  choice.type = 'button';
+  choice.className = spec.danger ? 'feed-menu-item is-danger' : 'feed-menu-item';
+  paintChoice(choice, spec, menu.classList.contains('is-map-drawer'));
+  choice.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const run = viewValue(spec.run, menu.classList.contains('is-map-drawer'));
+    if (typeof run === 'function') run();
+  });
+  bindPress(choice);
+  row.appendChild(choice);
+  menu.appendChild(row);
+  if (viewValue(spec.label, false) !== viewValue(spec.label, true)
+      || viewValue(spec.icon, false) !== viewValue(spec.icon, true)) {
+    viewChoices.push({ choice, spec });
+  }
+}
+
+function buildAccountRow() {
+  const mapAccount = document.createElement('li');
+  mapAccount.className = 'feed-menu-account';
+  mapAccountBtn = document.createElement('button');
+  mapAccountBtn.type = 'button';
+  mapAccountBtn.className = 'feed-menu-account-btn';
+  mapAvatar = document.createElement('img');
+  mapAvatar.className = 'feed-menu-avatar';
+  mapAvatar.alt = '';
+  mapAvatar.addEventListener('error', () => {
+    if (mapAvatar.src !== DEFAULT_PIC) mapAvatar.src = DEFAULT_PIC;
+  });
+  mapAccountId = document.createElement('span');
+  mapAccountId.className = 'feed-menu-account-id';
+  mapAccountBtn.append(mapAvatar, mapAccountId);
+  mapAccount.appendChild(mapAccountBtn);
+  menu.appendChild(mapAccount);
+  mapAccountBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (walletNow()) openOwnProfile();
+    else openConnect();
+  });
+  bindPress(mapAccountBtn);
+}
+
+for (const entry of DRAWER_ORDER) {
+  if (entry.kind === 'account') {
+    buildAccountRow();
+    continue;
+  }
+  if (entry.kind === 'tools') {
+    const rule = document.createElement('li');
+    rule.className = 'feed-menu-rule';
+    rule.dataset.tools = '1';
+    rule.setAttribute('role', 'separator');
+    menu.appendChild(rule);
+    feedToolCount = (entry.feed || []).length;
+    mapToolCount = (entry.map || []).length;
+    for (const tool of entry.feed || []) appendDrawerItem({ ...tool, mode: 'feed' });
+    for (const tool of entry.map || []) appendDrawerItem({ ...tool, mode: 'map' });
+    continue;
+  }
+  appendDrawerItem(entry);
+}
 
 function paintMapAccount() {
   const id = walletNow();
@@ -5500,16 +5573,22 @@ function paintMapAccount() {
   mapAvatar.src = id ? profilePicUrl(id) : DEFAULT_PIC;
   paintProfileAvatar(mapAvatar, id);
   mapAccountBtn.classList.toggle('is-connect', !id);
-  mapAccountBtn.setAttribute('aria-label', id ? text : 'Connect wallet');
+  mapAccountBtn.setAttribute('aria-label', id ? text + ', My profile' : 'Connect wallet');
 }
 
 function paintMenuRows() {
   const mapMode = menu.classList.contains('is-map-drawer');
   const on = !!walletNow();
+  for (const slot of viewChoices) paintChoice(slot.choice, slot.spec, mapMode);
+  const tools = mapMode ? mapToolCount : feedToolCount;
   for (const row of menu.children) {
     if (!row.dataset) continue;
-    const mode = row.dataset.mode || 'feed';
-    let hide = mapMode ? mode !== 'map' : mode !== 'feed';
+    if (row.dataset.tools) {
+      row.hidden = tools === 0;
+      continue;
+    }
+    const mode = row.dataset.mode;
+    let hide = !!(mode && (mapMode ? mode !== 'map' : mode !== 'feed'));
     const wallet = row.dataset.wallet;
     if (!hide && wallet) hide = on ? wallet !== 'on' : wallet !== 'off';
     row.hidden = hide;
@@ -5518,8 +5597,7 @@ function paintMenuRows() {
 }
 
 // web3.js writes #account-id on connect and disconnect. Repaint so a
-// connect that finishes after the drawer was painted cannot leave
-// "Connect wallet" showing.
+// connect that finishes after the drawer was painted shows the account.
 function watchWalletRows() {
   const account = document.getElementById('account-id');
   if (!account) return;
@@ -5532,33 +5610,6 @@ function watchWalletRows() {
     syncProfileOwn();
   };
   new MutationObserver(sync).observe(account, { childList: true, characterData: true, subtree: true });
-}
-
-for (const item of MENU_ROWS) {
-  const row = document.createElement('li');
-  if (item.mode) row.dataset.mode = item.mode;
-  if (item.wallet) {
-    row.dataset.wallet = item.wallet;
-    walletRows.push(row);
-  }
-  if (item.rule) {
-    row.className = 'feed-menu-rule';
-    row.setAttribute('role', 'separator');
-    menu.appendChild(row);
-    continue;
-  }
-  const choice = document.createElement('button');
-  choice.type = 'button';
-  choice.className = item.danger ? 'feed-menu-item is-danger' : 'feed-menu-item';
-  choice.dataset.item = item.label;
-  choice.append(svgIcon(item.icon), document.createTextNode(item.label));
-  choice.addEventListener('click', (event) => {
-    event.stopPropagation();
-    item.run();
-  });
-  bindPress(choice);
-  row.appendChild(choice);
-  menu.appendChild(row);
 }
 paintMenuRows();
 watchWalletRows();

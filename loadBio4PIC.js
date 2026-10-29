@@ -89,6 +89,9 @@ function closeBioPanel() {
   if (loadColumn) delete loadColumn.dataset.historyLayer;
   dropBioOverFeed(loadColumn);
   CloseALL();
+  // A bio opened from the map drawer sits on that drawer. Back leaves
+  // the drawer on top; show it again with My profile still highlighted.
+  if (window.restoreDrawerFromMap) window.restoreDrawerFromMap();
 }
 
 function textOf(value) {
