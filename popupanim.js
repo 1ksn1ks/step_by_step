@@ -77,10 +77,8 @@ Popup.prototype = NativePopup.prototype;
 maplibregl.Popup = Popup;
 
 // One frame for every map popup and for the popup settings card.
-// The top line is the toolbar (10vh), so the gap under OPTIONS / TOPIC
-// CHAT / E2EE CHAT matches that panel. Left, right, and bottom match the
-// fully open topic chat and E2EE chat: flush to the sides, 0.5dvh up
-// from the bottom. A post with more text scrolls inside the frame.
+// Top and bottom are the same gap: 0.5dvh plus the safe area. Left and
+// right stay flush. A post with more text scrolls inside the frame.
 // The visual viewport is the tighter limit while the keyboard is open,
 // because dvh does not shrink for the keyboard.
 const visualViewport = window.visualViewport;
@@ -99,22 +97,19 @@ function fitPopupsToViewport() {
   root.setProperty('--popup-left', `${offsetLeft}px`);
   root.setProperty('--popup-right', '0px');
   if (!keyboard) {
-    root.setProperty('--popup-top', '10vh');
-    root.setProperty('--popup-bottom', '0.5dvh');
-    root.setProperty('--popup-max-h', 'calc(100dvh - 10vh - 0.5dvh)');
+    root.setProperty('--popup-top', 'calc(0.5dvh + env(safe-area-inset-top))');
+    root.setProperty('--popup-bottom', 'calc(0.5dvh + env(safe-area-inset-bottom))');
+    root.setProperty('--popup-max-h', 'calc(100dvh - var(--popup-top) - var(--popup-bottom))');
     clearPopupFit();
     pinSettingsCard();
     return;
   }
-  // Keep the toolbar line when it is still on screen, and keep 0.5% of
-  // the visible height clear above the keyboard.
-  const toolbarTop = layoutH * 0.1;
-  const bottomInset = viewH * 0.005;
-  const top = Math.max(toolbarTop, offsetTop);
-  const bottom = Math.max(0, layoutH - (offsetTop + viewH) + bottomInset);
-  root.setProperty('--popup-top', `${top}px`);
-  root.setProperty('--popup-bottom', `${bottom}px`);
-  root.setProperty('--popup-max-h', `${Math.max(80, offsetTop + viewH - top - bottomInset)}px`);
+  // Same gap, shifted into the visible viewport. dvh stays the full
+  // screen, so the covered strip under the keyboard is added by hand.
+  const covered = Math.max(0, layoutH - (offsetTop + viewH));
+  root.setProperty('--popup-top', `calc(${offsetTop}px + 0.5dvh + env(safe-area-inset-top))`);
+  root.setProperty('--popup-bottom', `calc(${covered}px + 0.5dvh + env(safe-area-inset-bottom))`);
+  root.setProperty('--popup-max-h', `max(80px, calc(${viewH}px - 1dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)))`);
   clearPopupFit();
   pinSettingsCard();
 }

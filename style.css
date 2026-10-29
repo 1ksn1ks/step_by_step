@@ -2506,16 +2506,15 @@ html, body {
   }
 
   /* One frame for every popup and for the popup settings card.
-     Top is the toolbar line (10vh), so the gap under OPTIONS / TOPIC
-     CHAT / E2EE CHAT matches the toolbar. Left, right, and bottom match
-     the fully open topic chat and E2EE chat. Content scrolls inside. */
+     Top and bottom are the same gap, plus the safe area. Left and
+     right stay flush. Content scrolls inside. */
   :root {
-    --popup-top: 10vh;
+    --popup-top: calc(0.5dvh + env(safe-area-inset-top));
     --popup-left: 0px;
     --popup-right: 0px;
-    --popup-bottom: 0.5dvh;
+    --popup-bottom: calc(0.5dvh + env(safe-area-inset-bottom));
     --popup-card: 100vw;
-    --popup-max-h: calc(100dvh - 10vh - 0.5dvh);
+    --popup-max-h: calc(100dvh - var(--popup-top) - var(--popup-bottom));
   }
 
   .maplibregl-popup {
@@ -2543,9 +2542,9 @@ html, body {
     box-sizing: border-box !important;
     font: calc(var(--u) * 2) / calc(var(--u) * 3) 'Helvetica Neue', Arial, Helvetica, sans-serif;
     text-align: left;
-    /* Above the star canvas (z-index 1). Draw and the settings card
+    /* Above #map-topbar (1007). Draw and the settings card
        copy this class and force auto so they stay inside those panels. */
-    z-index: 1000 !important;
+    z-index: 1008 !important;
     border: calc(var(--u) * 0.3) solid #ffffff;
     border-radius: calc(var(--u) * 2);
     /* Solid fill on the shell. A rounded content box inside the border
@@ -2563,7 +2562,8 @@ html, body {
 #popup-settings-card {
     container-type: inline-size;
     position: fixed !important;
-    /* Same top, sides, and bottom as .maplibregl-popup. */
+    /* Same top, sides, and bottom as .maplibregl-popup. Above #map-topbar. */
+    z-index: 1008 !important;
     top: var(--popup-top) !important;
     left: var(--popup-left) !important;
     right: var(--popup-right) !important;
