@@ -6152,9 +6152,15 @@ function makeDrawerShell() {
     drawerBack();
   });
   bindPress(back);
+  let paintQueued = false;
   new MutationObserver(() => {
-    if (!drawerStack.length || body !== drawerPageBody) return;
-    paintGroupDividers(body);
+    if (paintQueued || !drawerStack.length || body !== drawerPageBody) return;
+    paintQueued = true;
+    requestAnimationFrame(() => {
+      paintQueued = false;
+      if (!drawerStack.length || body !== drawerPageBody) return;
+      paintGroupDividers(body);
+    });
   }).observe(body, { subtree: true, attributeFilter: ['style', 'hidden'] });
   return { id: '', el, body, title, back };
 }
