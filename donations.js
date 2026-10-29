@@ -8,6 +8,7 @@ import { sendHbarDonation } from './hedera.js';
 import { toast } from './toast.js';
 import {
   bareAccount,
+  formatDonationAmount,
   formatHbar,
   hbarToTinybar,
   normalizeConsensusTs,
@@ -48,7 +49,8 @@ function coinIcon() {
 }
 
 function paintPill(pill, total) {
-  const shown = total && total !== '0' ? total : '';
+  const n = Number(total);
+  const shown = Number.isFinite(n) && n > 0 ? formatDonationAmount(n) : '';
   const amount = pill.querySelector('.donate-amount');
   if (amount) amount.textContent = shown;
   pill.classList.toggle('has-total', shown !== '');
@@ -197,7 +199,7 @@ function ensureSheet() {
   amount.inputMode = 'decimal';
   amount.autocomplete = 'off';
   amount.spellcheck = false;
-  amount.placeholder = '0.1';
+  amount.placeholder = formatDonationAmount('0.1');
   amountLabel.appendChild(amount);
   const memoLabel = document.createElement('label');
   memoLabel.className = 'donate-label';
@@ -334,7 +336,7 @@ function donationError(error) {
     return 'That payment did not go to the author';
   }
   if (error === 'own post') return "You can't donate to your own post";
-  if (error === 'below minimum') return 'Enter at least 0.1 HBAR';
+  if (error === 'below minimum') return `Enter at least ${formatDonationAmount('0.1')} HBAR`;
   if (error === 'transaction not found') return "That payment isn't on the network yet";
   if (error === 'post not found' || error === 'not a post') return "Couldn't find that post";
   return "Couldn't record the donation";
@@ -353,7 +355,7 @@ async function submitDonation() {
   const title = sheet.querySelector('.donate-title');
   const tiny = hbarToTinybar(amountInput ? amountInput.value : '');
   if (tiny == null) {
-    toast.info('Enter at least 0.1 HBAR');
+    toast.info(`Enter at least ${formatDonationAmount('0.1')} HBAR`);
     return;
   }
   const memo = memoInput ? memoInput.value : '';
@@ -404,7 +406,7 @@ export function paintReceived(el, account) {
     .then((data) => {
       if (!data || !el.isConnected || el.dataset.receivedFor !== id) return;
       const received = typeof data.received === 'string' ? data.received : formatHbar(0);
-      el.textContent = `Received ${received} HBAR`;
+      el.textContent = `Received ${formatDonationAmount(received)} HBAR`;
     })
     .catch(() => {});
 }

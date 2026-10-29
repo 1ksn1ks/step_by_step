@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { assessTransfer, formatHbar, hbarToTinybar, makeLimiter, mirrorTxPath, transactionRow } from "../donationmath.js";
+import { assessTransfer, formatDonationAmount, formatHbar, hbarToTinybar, makeLimiter, mirrorTxPath, transactionRow } from "../donationmath.js";
 import {
   donationAccountTotals,
   donationBatch,
@@ -102,6 +102,9 @@ test("amount floor is 0.1 HBAR and the limiter trips", () => {
   assert.equal(hbarToTinybar("0.1"), 10_000_000n);
   assert.equal(formatHbar(10_000_000n), "0.1");
   assert.equal(formatHbar(150_000_000n), "1.5");
+  assert.equal(formatDonationAmount(10), "10.00");
+  assert.equal(formatDonationAmount("1.5"), "1.50");
+  assert.equal(formatDonationAmount("0.1"), "0.10");
   const allow = makeLimiter(2, 60_000);
   assert.equal(allow("a", 1000).ok, true);
   assert.equal(allow("a", 1000).ok, true);

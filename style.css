@@ -2920,6 +2920,57 @@ html, body {
     white-space: nowrap;
   }
 
+  /* Donate sits on the same row as Follow, same height and gap. The
+     follower count stays on the line under them. */
+  .popup-profile-bubble > .topic-follow:has(.donate-pill) {
+    display: grid;
+    grid-template-columns: auto minmax(0, auto);
+    align-content: space-between;
+    align-items: center;
+    justify-content: end;
+    width: auto;
+    min-width: calc(var(--u, 9.6px) * 4.2);
+    max-width: min(46dvw, 100%);
+  }
+
+  .popup-profile-bubble > .topic-follow:has(.donate-pill) > .topic-follow-count {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+    justify-self: end;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .popup-profile-bubble > .topic-follow > .donate-pill {
+    --h: calc(var(--u, 9.6px) * 0.42);
+    height: calc(var(--u, 9.6px) * 4.2);
+    min-width: calc(var(--u, 9.6px) * 4.2);
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    border-radius: 50%;
+    position: static;
+    z-index: auto;
+  }
+
+  .popup-profile-bubble > .topic-follow > .donate-pill.has-total {
+    width: auto;
+    min-width: 0;
+    max-width: 40dvw;
+    padding: 0 calc(var(--u, 9.6px) * 0.7);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .popup-profile-bubble > .topic-follow > .donate-pill svg {
+    width: calc(var(--u, 9.6px) * 2.1);
+    height: calc(var(--u, 9.6px) * 2.1);
+  }
+
+  .popup-profile-bubble > .topic-follow > .donate-pill .donate-amount {
+    font-size: calc(var(--u, 9.6px) * 1.25);
+  }
+
   /* Early holder: the pill border is the ring. The mask stays on the
      wrapper so the conic disc can rotate on iOS Safari and Android Chrome.
      Padding matches the existing border, so the ring does not cover the
@@ -3779,8 +3830,8 @@ html, body {
     transform: scale(0.94);
   }
 
-  /* Donate sits next to the heart. Glass matches the copy-link disc.
-     A total turns it into a pill; zero stays the icon alone. */
+  /* Glass matches the copy-link disc. Next to Follow it takes that
+     button's height. A total turns it into a pill; zero stays the icon. */
   .donate-pill {
     --h: calc(var(--u) * 0.38);
     height: calc(var(--h) * 10);
@@ -8829,34 +8880,6 @@ html.feed-app appkit-modal {
   background: rgba(255, 255, 255, 0.16);
 }
 :is(#feed-column, .feed-comments-stage) .feed-actions .copy-link:active {
-  transform: scale(0.94);
-}
-:is(#feed-column, .feed-comments-stage) .feed-actions .donate-pill {
-  --h: calc(var(--fu) * 0.30);
-  height: calc(var(--h) * 10);
-  min-width: calc(var(--h) * 10);
-  max-width: 28dvw;
-  padding: 0 calc(var(--fu) * 1.1);
-  border: calc(var(--fu) * 0.12) solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.10);
-  box-shadow: inset 0 calc(var(--fu) * 0.15) 0 rgba(255, 255, 255, 0.18);
-  color: var(--feed-action, #777);
-  position: static;
-  z-index: auto;
-}
-:is(#feed-column, .feed-comments-stage) .feed-actions .donate-pill svg {
-  width: calc(var(--fu) * 1.9);
-  height: calc(var(--fu) * 1.9);
-}
-:is(#feed-column, .feed-comments-stage) .feed-actions .donate-pill .donate-amount {
-  font-size: calc(var(--fu) * 1.6);
-}
-:is(#feed-column, .feed-comments-stage) .feed-actions .donate-pill:hover {
-  transform: scale(1.08);
-  color: var(--feed-action-hover, #67e8f9);
-  background: rgba(255, 255, 255, 0.16);
-}
-:is(#feed-column, .feed-comments-stage) .feed-actions .donate-pill:active {
   transform: scale(0.94);
 }
 :is(#feed-column, .feed-comments-stage) .feed-actions .heart-like label {

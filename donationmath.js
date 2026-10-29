@@ -71,6 +71,13 @@ export function formatHbar(tiny) {
   return frac ? `${whole.toString()}.${frac}` : whole.toString();
 }
 
+// Shown amounts only. Stored tinybars and the API strings stay as they are.
+export function formatDonationAmount(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "0.00";
+  return n.toFixed(2);
+}
+
 export function utf8ByteLength(text) {
   return new TextEncoder().encode(String(text == null ? "" : text)).length;
 }

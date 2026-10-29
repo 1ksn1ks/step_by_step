@@ -1215,8 +1215,6 @@ export function mountPostReactions(cluster, data, kind, home) {
       ? window.likePolygon(timestamp, topicId, !wantLike)
       : window.likeMarker(timestamp, topicId, !wantLike),
   }));
-  const donate = createDonatePill(data);
-  if (donate) cluster.appendChild(donate);
   const bubble = createCommentBubble({
     count: commentCount,
     syncKey: 'comment|' + sync,
@@ -1729,7 +1727,7 @@ function appendShareFeature(features, ctx) {
 // (exported so the 24h local-news markers reuse the exact same popup)
 // The marker and polygon popups, and the feed card, share this header.
 // Account on the first line, display name on the second, follow on the right.
-export function buildPopupProfile({ profileUrl, payer, payerInfo, username, click2link }) {
+export function buildPopupProfile({ profileUrl, payer, payerInfo, username, click2link, donation }) {
   const profileSection = document.createElement('div');
   profileSection.className = 'popup-profile-bubble';
 
@@ -1767,7 +1765,14 @@ export function buildPopupProfile({ profileUrl, payer, payerInfo, username, clic
 
   headerDiv.appendChild(h2);
   profileSection.appendChild(headerDiv);
-  profileSection.appendChild(followPersonControls(payer));
+  const follow = followPersonControls(payer);
+  const donate = createDonatePill(donation);
+  if (donate) {
+    const followBtn = follow.querySelector('.topic-follow-btn');
+    if (followBtn) followBtn.after(donate);
+    else follow.appendChild(donate);
+  }
+  profileSection.appendChild(follow);
   return profileSection;
 }
 
@@ -1943,7 +1948,7 @@ export function createMarkerPopupHTML(data) {
 
   container.appendChild(topHeader);
 
-  container.appendChild(buildPopupProfile({ profileUrl, payer, payerInfo, username, click2link }));
+  container.appendChild(buildPopupProfile({ profileUrl, payer, payerInfo, username, click2link, donation: data }));
 
   // Content section. Image and text scroll. The arrow row stays under the name.
   const contentSection = document.createElement('div');
@@ -2130,7 +2135,7 @@ function createPolygonPopupHTML(data) {
 
   container.appendChild(topHeader);
 
-  container.appendChild(buildPopupProfile({ profileUrl, payer, payerInfo, username, click2link }));
+  container.appendChild(buildPopupProfile({ profileUrl, payer, payerInfo, username, click2link, donation: data }));
 
   // Content section
   const contentSection = document.createElement('div');

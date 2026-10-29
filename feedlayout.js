@@ -1748,6 +1748,7 @@ function buildCard(post) {
     payerInfo: record.payerInfo || 'Anonymous',
     username: record.username || '',
     click2link: record.click2link || '',
+    donation: record,
   });
   card.appendChild(profile);
   paintFeedHashinal(card);
@@ -1883,13 +1884,11 @@ function buildCard(post) {
     mountPostReactions(cluster, record, post.kind, card);
     const heart = cluster.querySelector('.heart-like:not(.comment-bubble):not(.share-bubble)');
     const copyLink = cluster.querySelector('.copy-link');
-    const donate = cluster.querySelector('.donate-pill');
     const comment = cluster.querySelector('.comment-bubble');
     const share = cluster.querySelector('.share-bubble');
-    // Copy-link first: [link][heart][donate] on the left, comment mid, share right.
+    // Copy-link first: [link][heart] on the left, comment mid, share right.
     if (copyLink) actionLeft.appendChild(copyLink);
     if (heart) actionLeft.appendChild(heart);
-    if (donate) actionLeft.appendChild(donate);
     if (comment) {
       actionMid.appendChild(comment);
       actionRight.appendChild(commentCountSpace(comment));
