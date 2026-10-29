@@ -402,3 +402,99 @@ test("a real testnet donation records once", async () => {
     handle.close();
   }
 });
+
+test("batch created lookups mirror at most five tracked topics and remember misses", async () => {
+  const createdAt = (n) => new Date(Date.UTC(2024, 0, 1, 0, 0, 0, n)).toISOString();
+  const windowStart = (iso) => (Date.parse(iso) / 1000 - 0.000001).toFixed(9);
+  const localCreated = new Date(Number(POST_TS) * 1000).toISOString();
+
+  const bare = tempDb();
+  try {
+    const calls = [];
+    const posts = await donationBatch(
+      {
+        db: bare.db,
+        mirror: "https://mirror.test",
+        fetchMirror: async (url) => {
+          calls.push(url);
+          return { ok: false, status: 404, json: null };
+        },
+      },
+      [{ topicId: TOPIC, created: createdAt(1) }]
+    );
+    assert.equal(calls.length, 0);
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].found, false);
+    assert.equal(posts[0].total, "0");
+  } finally {
+    bare.close();
+  }
+
+  const handle = tempDb();
+  try {
+    handle.db.exec("CREATE TABLE topics (topic_id TEXT PRIMARY KEY, last_active REAL NOT NULL DEFAULT 0)");
+    const tracked = "0.0.501";
+    handle.db.prepare("INSERT INTO topics (topic_id) VALUES (?)").run(tracked);
+    seedPost(handle.db);
+    const calls = [];
+    const base = {
+      db: handle.db,
+      mirror: "https://mirror.test",
+      fetchMirror: async (url) => {
+        calls.push(url);
+        return { ok: true, status: 200, json: { messages: [] } };
+      },
+    };
+    const unknown = (n) => ({ topicId: tracked, created: createdAt(n) });
+    const firstIds = [10, 11, 12, 13, 14, 15];
+    const first = await donationBatch(base, [
+      { topicId: TOPIC, created: localCreated },
+      { topicId: "0.0.502", created: createdAt(2) },
+      ...firstIds.map(unknown),
+    ]);
+    assert.equal(calls.length, 5);
+    assert.ok(calls.every((url, i) => (
+      url.includes("/topics/" + tracked + "/messages?")
+      && url.includes("gte:" + windowStart(createdAt(firstIds[i])))
+    )));
+    assert.equal(first[0].found, true);
+    assert.equal(first[0].ts, POST_TS);
+    assert.equal(first[0].total, "0");
+    assert.equal(first[1].found, false);
+    assert.equal(first[7].found, false);
+
+    calls.length = 0;
+    await donationBatch(base, [
+      { topicId: "0.0.502", created: createdAt(2) },
+      ...firstIds.map(unknown),
+    ]);
+    assert.equal(calls.length, 1);
+    assert.ok(calls[0].includes("gte:" + windowStart(createdAt(15))));
+
+    calls.length = 0;
+    await donationBatch(base, firstIds.map(unknown));
+    assert.equal(calls.length, 0);
+
+    const extras = [];
+    for (let n = 100; n < 100 + 1994; n++) extras.push(unknown(n));
+    for (let i = 0; i < extras.length; i += 5) {
+      await donationBatch(base, extras.slice(i, i + 5));
+    }
+    calls.length = 0;
+    await donationBatch(base, [unknown(10)]);
+    assert.equal(calls.length, 0);
+    await donationBatch(base, [unknown(9000)]);
+    assert.equal(calls.length, 1);
+    assert.ok(calls[0].includes("gte:" + windowStart(createdAt(9000))));
+    calls.length = 0;
+    const kept = await donationBatch(base, [unknown(11)]);
+    assert.equal(calls.length, 0);
+    assert.equal(kept[0].found, false);
+    const evicted = await donationBatch(base, [unknown(10)]);
+    assert.equal(calls.length, 1);
+    assert.ok(calls[0].includes("gte:" + windowStart(createdAt(10))));
+    assert.equal(evicted[0].found, false);
+  } finally {
+    handle.close();
+  }
+});

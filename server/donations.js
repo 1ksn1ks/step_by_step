@@ -15,6 +15,70 @@ import {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// One flush can name 40 cards. Mirror range lookups run only for topics this
+// server already tracks (the same row as q.getTopic) and for at most 5 cards
+// in that request. A miss is remembered so the next flush does not ask again.
+const BATCH_MIRROR_LIMIT = 5;
+const CREATED_MISS_CAP = 2000;
+const CREATED_MISS_TTL_MS = 60_000;
+const createdMisses = new Map();
+const trackedTopicStmt = new WeakMap();
+
+function createdMissKey(topic, created) {
+  return topic + "\n" + created;
+}
+
+function createdMissFresh(topic, created, now) {
+  const key = createdMissKey(topic, created);
+  const expires = createdMisses.get(key);
+  if (expires == null) return false;
+  if (expires <= now) {
+    createdMisses.delete(key);
+    return false;
+  }
+  return true;
+}
+
+function rememberCreatedMiss(topic, created, now) {
+  const key = createdMissKey(topic, created);
+  createdMisses.delete(key);
+  createdMisses.set(key, now + CREATED_MISS_TTL_MS);
+  if (createdMisses.size <= CREATED_MISS_CAP) return;
+  for (const [cached, expires] of createdMisses) {
+    if (expires <= now) createdMisses.delete(cached);
+  }
+  while (createdMisses.size > CREATED_MISS_CAP) {
+    const oldest = createdMisses.keys().next().value;
+    createdMisses.delete(oldest);
+  }
+}
+
+function topicsTableMissing(err) {
+  return /no such table/i.test(String(err && err.message));
+}
+
+function topicIsTracked(ctx, topicId) {
+  const db = ctx && ctx.db;
+  if (!db) return false;
+  let stmt = trackedTopicStmt.get(db);
+  if (stmt === null) return false;
+  if (!stmt) {
+    try {
+      stmt = db.prepare("SELECT * FROM topics WHERE topic_id = ?");
+    } catch (err) {
+      if (topicsTableMissing(err)) trackedTopicStmt.set(db, null);
+      return false;
+    }
+    trackedTopicStmt.set(db, stmt);
+  }
+  try {
+    return Boolean(stmt.get(topicId));
+  } catch (err) {
+    if (topicsTableMissing(err)) trackedTopicStmt.set(db, null);
+    return false;
+  }
+}
+
 export function ensureDonationTable(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS donations (
@@ -144,11 +208,20 @@ export async function resolvePost(ctx, topicId, postTimestamp) {
   return { topicId: topic, ...remote };
 }
 
-async function resolveCreated(ctx, topicId, created) {
+async function resolveCreated(ctx, topicId, created, mirrorBudget) {
   const topic = bareAccount(topicId);
   if (!topic || typeof created !== "string") return null;
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(created)) return null;
-  return localByCreated(ctx.db, topic, created) || mirrorByCreated(ctx, topic, created);
+  const local = localByCreated(ctx.db, topic, created);
+  if (local) return local;
+  const now = Date.now();
+  if (createdMissFresh(topic, created, now)) return null;
+  if (!topicIsTracked(ctx, topic)) return null;
+  if (!mirrorBudget || mirrorBudget.used >= BATCH_MIRROR_LIMIT) return null;
+  mirrorBudget.used += 1;
+  const remote = await mirrorByCreated(ctx, topic, created);
+  if (!remote) rememberCreatedMiss(topic, created, now);
+  return remote;
 }
 
 async function fetchTransaction(ctx, txId) {
@@ -285,12 +358,13 @@ export async function resolveRecipient(ctx, topicId, postTimestamp) {
 export async function donationBatch(ctx, posts) {
   const list = Array.isArray(posts) ? posts.slice(0, 40) : [];
   const out = [];
+  const mirrorBudget = { used: 0 };
   for (const item of list) {
     const topicId = item && item.topicId;
     if (!bareAccount(topicId)) continue;
     let ts = normalizeConsensusTs(item && item.ts);
     if (!ts && item && item.created) {
-      const found = await resolveCreated(ctx, topicId, item.created);
+      const found = await resolveCreated(ctx, topicId, item.created, mirrorBudget);
       if (found) ts = found.ts;
     }
     if (!ts) {
