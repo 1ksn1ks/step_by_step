@@ -247,6 +247,10 @@ function setE2eeChatEditing(on) {
     return;
   }
   if (send) send.setAttribute('aria-label', 'Save edit');
+  // Android back pops this entry and cancels the edit. The chat stays.
+  if (window.layerOpened && (!window.layerIsOpen || !window.layerIsOpen('e2eechatedit'))) {
+    window.layerOpened('e2eechatedit');
+  }
 }
 
 function openE2eeChatEdit(payer, created) {
@@ -302,10 +306,17 @@ function openE2eeChatEdit(payer, created) {
 function closeE2eeChatEdit() {
   const field = document.getElementById('user-write-message-encrypted-chat');
   const was = !!e2eeChatEditTarget;
+  const layerUp = !!(window.layerIsOpen && window.layerIsOpen('e2eechatedit'));
+  if (!was && !layerUp) return;
   const draft = e2eeChatComposeDraft;
   e2eeChatEditTarget = null;
   e2eeChatComposeDraft = '';
   setE2eeChatEditing(false);
+  // Popstate already dropped the entry before it calls close. A cancel,
+  // Escape, or a panel close still has to consume it.
+  if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('e2eechatedit')) {
+    window.layerClosedByUI('e2eechatedit');
+  }
   if (!was || !field) return;
   field.value = draft;
   fitE2eeComposer(field);
@@ -480,6 +491,14 @@ document.addEventListener('keydown', (event) => {
   event.stopImmediatePropagation();
   closeE2eeChatEdit();
 }, true);
+
+if (window.defineLayer) {
+  window.defineLayer('e2eechatedit', {
+    open() {},
+    close() { closeE2eeChatEdit(); },
+  });
+}
+window.closeE2eeChatEdit = closeE2eeChatEdit;
 
 // Helper function to check valid URL
 function isValidUrl(string) {

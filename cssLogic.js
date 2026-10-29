@@ -163,6 +163,10 @@ export function CloseALL() {
     // tap, another panel) drops that popup; Back restores it first, so
     // this list is empty and the popup stays.
     if (window.dismissBioPopups) window.dismissBioPopups();
+    // An in-progress edit sits above the chat in history. Drop it first
+    // so Android back / this close does not leave that entry behind.
+    if (typeof window.closeTopicChatEdit === 'function') window.closeTopicChatEdit();
+    if (typeof window.closeE2eeChatEdit === 'function') window.closeE2eeChatEdit();
     // Back/Forward: the chat panels close through here (their × button
     // and every map tap), so record which are open before hiding them.
     const historyLayers = [];

@@ -5063,6 +5063,8 @@ function hideFeedChatPanel() {
 }
 
 function closeFeedChat() {
+  if (typeof window.closeTopicChatEdit === 'function') window.closeTopicChatEdit();
+  if (typeof window.closeE2eeChatEdit === 'function') window.closeE2eeChatEdit();
   hideFeedChatPanel();
   if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedchat')) {
     window.layerClosedByUI('feedchat');

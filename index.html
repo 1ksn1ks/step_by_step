@@ -1335,21 +1335,12 @@
 
           <div class="options-column-title">💬 TOPIC CHAT</div>
 
-          <div style="display: flex; align-items: center;">
-
-            <textarea class="toolbar-column" type="text" id="topic-chat-topic-id" placeholder="Domain/Topic ID"
-            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
-      
-            <div style="display: flex; align-items: center;">
-              <button id="load-msgs-from" class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Load
-              </button>
-              <button id="show-options-from-topic-chat" class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Options ✅
-              </button>
-              <button id="show-options-from-topic-chat-btn" display: none; class="toolbar-column-btns" style="margin-left: 1vw; width: 20vw;">Options ⛔
-              </button>
-            </div>
+          <div class="chat-load-row e2ee-load-row">
+            <input type="text" class="toolbar-column" id="topic-chat-topic-id" placeholder="Domain/Topic ID" spellcheck="false" autocomplete="off" autocapitalize="off" onclick="event.stopPropagation();">
+            <button id="load-msgs-from" class="toolbar-column-btns">Load</button>
           </div>
+          <button id="show-options-from-topic-chat" class="toolbar-column-btns">Options ✅</button>
+          <button id="show-options-from-topic-chat-btn" class="toolbar-column-btns" style="display: none;">Options ⛔</button>
       
         <div id="options-from-topic-chat" style="display: none;">
       
@@ -1466,13 +1457,13 @@
             placeholder="Message"
             rows="1"
             style="
-            max-height: 50vh;
+            max-height: 50dvh;
             overflow: auto;
             "
             onclick="event.stopPropagation();"
             oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
-            <div id="char-counter" class="hcs-byte-counter" style="position: absolute; bottom: 1.5vh; right: 5.5vh; font-size: 2vh;">0 B / 18 KB</div>
+            <div id="char-counter" class="hcs-byte-counter">0 B / 18 KB</div>
             <button type="button" id="topic-chat-image-btn" class="toolbar-column-btns submit-message-btn msg-image-btn">🖼</button>
             <input type="file" id="topic-chat-image-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
             <button type="button" id="post-msg" class="toolbar-column-btns submit-message-btn msg-send-btn" aria-label="Send"><span class="msg-send-mark" aria-hidden="true">📨</span><span class="msg-check-mark" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></button>
@@ -1534,7 +1525,7 @@
           </div>
         </div>
 
-          <div class="e2ee-load-row">
+          <div class="e2ee-load-row chat-load-row">
             <input type="text" class="toolbar-column" id="encrypted-chat-topic-id" placeholder="Domain / Topic ID / Payer ID" spellcheck="false" autocomplete="off" autocapitalize="off" onclick="event.stopPropagation();">
             <button id="load-msgs-from-encrypted-chat" class="toolbar-column-btns">Load</button>
           </div>
@@ -1706,13 +1697,13 @@
             placeholder="Message"
             rows="1"
             style="
-            max-height: 50vh;
+            max-height: 50dvh;
             overflow: auto;
             "
             onclick="event.stopPropagation();"
             oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
-            <div id="char-counter-encrypted-chat" class="hcs-byte-counter" style="position: absolute; bottom: 1.5vh; right: 5.5vh; font-size: 2vh;">0 B / 18 KB</div>
+            <div id="char-counter-encrypted-chat" class="hcs-byte-counter">0 B / 18 KB</div>
             <button type="button" id="encrypted-chat-image-btn" class="toolbar-column-btns submit-message-btn msg-image-btn">🖼</button>
             <input type="file" id="encrypted-chat-image-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
             <button type="button" id="post-msg-encrypted-chat" class="toolbar-column-btns submit-message-btn msg-send-btn" aria-label="Send"><span class="msg-send-mark" aria-hidden="true">📨</span><span class="msg-check-mark" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span></button>

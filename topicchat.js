@@ -211,6 +211,10 @@ function setTopicChatEditing(on) {
     return;
   }
   if (send) send.setAttribute('aria-label', 'Save edit');
+  // Android back pops this entry and cancels the edit. The chat stays.
+  if (window.layerOpened && (!window.layerIsOpen || !window.layerIsOpen('topicchatedit'))) {
+    window.layerOpened('topicchatedit');
+  }
 }
 
 function openTopicChatEdit(payer, created) {
@@ -265,10 +269,17 @@ function openTopicChatEdit(payer, created) {
 function closeTopicChatEdit() {
   const field = document.getElementById('user-write-message');
   const was = !!topicChatEditTarget;
+  const layerUp = !!(window.layerIsOpen && window.layerIsOpen('topicchatedit'));
+  if (!was && !layerUp) return;
   const draft = topicChatComposeDraft;
   topicChatEditTarget = null;
   topicChatComposeDraft = '';
   setTopicChatEditing(false);
+  // Popstate already dropped the entry before it calls close. A cancel,
+  // Escape, or a panel close still has to consume it.
+  if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('topicchatedit')) {
+    window.layerClosedByUI('topicchatedit');
+  }
   if (!was || !field) return;
   field.value = draft;
   fitTopicComposer(field);
@@ -346,6 +357,14 @@ document.addEventListener('keydown', (event) => {
   event.stopImmediatePropagation();
   closeTopicChatEdit();
 }, true);
+
+if (window.defineLayer) {
+  window.defineLayer('topicchatedit', {
+    open() {},
+    close() { closeTopicChatEdit(); },
+  });
+}
+window.closeTopicChatEdit = closeTopicChatEdit;
 
 document.getElementById('go-to-top-msgs').addEventListener('click', function() {
     const container = document.getElementById('messages-from-topic-chat');

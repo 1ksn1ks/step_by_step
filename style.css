@@ -409,7 +409,10 @@ html, body {
     -webkit-text-security: none;
     text-security: none;
   }
-  /* 44px is the tap-target floor. 5.5dvh equals that floor on an 800px-tall phone. */
+  /* 44px is the tap-target floor. 5.5dvh equals that floor on an 800px-tall phone.
+     Both chat panels share the token so the topic row and the feed shell
+     can use the same height as the E2EE unlock row. */
+  #topic-chat-container,
   #encrypted-chat-container {
     --e2ee-head-h: max(44px, 5.5dvh);
     --e2ee-head-gap: clamp(0.6dvh, 1.2dvw, 1.2dvh);
@@ -495,6 +498,7 @@ html, body {
   .secret-entry-clear::before {
     content: "✕";
   }
+  .chat-load-row,
   .e2ee-load-row {
     display: flex;
     align-items: center;
@@ -503,6 +507,21 @@ html, body {
     box-sizing: border-box;
     margin: 0 0 0.5dvh;
   }
+  /* Unlock, topic, and composer share the panel's left and right edges. */
+  #topic-chat-container:not(.is-feed-shell) .chat-load-row,
+  #topic-chat-container:not(.is-feed-shell) .chat-compose,
+  #encrypted-chat-container:not(.is-feed-shell) .secret-entry-row,
+  #encrypted-chat-container:not(.is-feed-shell) .chat-load-row,
+  #encrypted-chat-container:not(.is-feed-shell) .chat-compose {
+    align-self: stretch;
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    box-sizing: border-box;
+  }
+  #topic-chat-container:not(.is-feed-shell) .chat-load-row > #topic-chat-topic-id,
+  #encrypted-chat-container:not(.is-feed-shell) .chat-load-row > #encrypted-chat-topic-id,
   #encrypted-chat-container .e2ee-load-row > #encrypted-chat-topic-id {
     flex: 1 1 auto;
     min-width: 0;
@@ -513,8 +532,14 @@ html, body {
     margin: 0 !important;
     padding: 0 1.2dvh !important;
     border-radius: var(--e2ee-head-radius) !important;
+    font-family: inherit;
+    font-size: 2dvh;
     line-height: normal;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
+  #topic-chat-container:not(.is-feed-shell) .chat-load-row > #load-msgs-from,
+  #encrypted-chat-container:not(.is-feed-shell) .chat-load-row > #load-msgs-from-encrypted-chat,
   #encrypted-chat-container .e2ee-load-row > #load-msgs-from-encrypted-chat {
     flex: 0 0 auto;
     display: inline-flex;
@@ -522,20 +547,28 @@ html, body {
     justify-content: center;
     width: auto !important;
     height: var(--e2ee-head-h) !important;
+    min-width: 44px;
     min-height: var(--e2ee-head-h) !important;
     max-height: var(--e2ee-head-h) !important;
     margin: 0 !important;
     padding: 0 1.6dvh !important;
     border-radius: var(--e2ee-head-radius) !important;
+    font-size: 2dvh;
     line-height: 1;
   }
+  #topic-chat-container:not(.is-feed-shell) .chat-topic-chat-container > #show-options-from-topic-chat,
+  #topic-chat-container:not(.is-feed-shell) .chat-topic-chat-container > #show-options-from-topic-chat-btn,
+  #encrypted-chat-container:not(.is-feed-shell) .chat-topic-chat-container > #show-options-from-encrypted-chat,
+  #encrypted-chat-container:not(.is-feed-shell) .chat-topic-chat-container > #show-options-from-encrypted-chat-btn,
   #encrypted-chat-container .chat-topic-chat-container > #show-options-from-encrypted-chat,
   #encrypted-chat-container .chat-topic-chat-container > #show-options-from-encrypted-chat-btn {
     align-self: flex-start;
-    width: 20vw;
+    width: auto !important;
+    min-width: 44px;
     height: var(--e2ee-head-h) !important;
     min-height: 44px;
-    margin: 0 0 0.5dvh;
+    margin: 0 0 0.5dvh !important;
+    padding: 0 1.6dvh;
   }
 
   #messages-from-topic-chat,
@@ -1065,37 +1098,75 @@ html, body {
                 inset 0 0 0.8vh rgba(34, 211, 238, 0.3);
   }
 
-  /* Submit button inside the message input — 1vh gap from the corner
-     (keeps the 1vh glow inside the box): button = 3vh (1.8vh glyph + 2×0.6vh) */
-  .msg-send-btn {
+  /* Map skin: image and send sit inside the field, on the reserved
+     bottom row. 44px is the tap-target floor. The feed shell
+     (.is-feed-shell) keeps its own placement and must not inherit
+     this min-width. */
+  #topic-chat-container:not(.is-feed-shell) .chat-compose > .msg-send-btn,
+  #topic-chat-container:not(.is-feed-shell) .chat-compose > .msg-image-btn,
+  #encrypted-chat-container:not(.is-feed-shell) .chat-compose > .msg-send-btn,
+  #encrypted-chat-container:not(.is-feed-shell) .chat-compose > .msg-image-btn {
     position: absolute;
-    bottom: 1vh;
-    right: 1vh;
-    width: auto;
-    height: auto;
+    bottom: 0.6dvh;
+    width: max(44px, 5.5dvh);
+    height: max(44px, 5.5dvh);
+    min-width: 44px;
+    min-height: 44px;
     margin: 0;
-    padding: 0.6vh;
-    font-size: 1.8vh;
+    padding: 0;
+    font-size: 2.2dvh;
     line-height: 1;
     display: flex;
     align-items: center;
     justify-content: center;
+    z-index: 2;
   }
 
-  /* Image attach — same row as Send, on the left, same size */
-  .msg-image-btn {
+  #topic-chat-container:not(.is-feed-shell) .chat-compose > .msg-send-btn,
+  #encrypted-chat-container:not(.is-feed-shell) .chat-compose > .msg-send-btn {
+    right: 0.6dvh;
+    left: auto;
+  }
+
+  #topic-chat-container:not(.is-feed-shell) .chat-compose > .msg-image-btn,
+  #encrypted-chat-container:not(.is-feed-shell) .chat-compose > .msg-image-btn {
+    left: 0.6dvh;
+    right: auto;
+  }
+
+  /* Byte counter: small and muted in the corner, red near the limit. */
+  #topic-chat-container:not(.is-feed-shell) .chat-compose > .hcs-byte-counter,
+  #encrypted-chat-container:not(.is-feed-shell) .chat-compose > .hcs-byte-counter {
     position: absolute;
-    bottom: 1vh;
-    left: 1vh;
-    width: auto;
-    height: auto;
+    right: calc(max(44px, 5.5dvh) + 1.2dvh);
+    bottom: calc(0.6dvh + (max(44px, 5.5dvh) - 1.35dvh) / 2);
     margin: 0;
-    padding: 0.6vh;
-    font-size: 1.8vh;
+    max-width: calc(100% - (max(44px, 5.5dvh) * 2) - 2.8dvh);
+    overflow: hidden;
+    font-family: inherit;
+    font-size: 1.35dvh;
     line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: rgba(255, 255, 255, 0.5);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  #topic-chat-container:not(.is-feed-shell) .chat-compose > .hcs-byte-counter.hcs-warn,
+  #topic-chat-container:not(.is-feed-shell) .chat-compose > .hcs-byte-counter.hcs-over,
+  #encrypted-chat-container:not(.is-feed-shell) .chat-compose > .hcs-byte-counter.hcs-warn,
+  #encrypted-chat-container:not(.is-feed-shell) .chat-compose > .hcs-byte-counter.hcs-over {
+    color: #ff5c5c;
+  }
+
+  /* One family for every field in the map panel. The panel itself does
+     not set a face, so inherit matches the title and the glass chrome. */
+  #topic-chat-container:not(.is-feed-shell) .chat-topic-chat-container :is(input, textarea),
+  #encrypted-chat-container:not(.is-feed-shell) .chat-topic-chat-container :is(input, textarea),
+  #topic-chat-container:not(.is-feed-shell) .secret-entry-field,
+  #encrypted-chat-container:not(.is-feed-shell) .secret-entry-field {
+    font-family: inherit;
   }
 
   .chat-attach-preview {
@@ -1147,15 +1218,16 @@ html, body {
     margin-top: 0.5vh;
   }
 
-  /* Keep typed text clear of the in-input send button (bottom row only —
-     the button's row is reserved by the padding below, text uses full width).
+  /* Keep typed text clear of the in-field image, send, and counter
+     (bottom row only — text uses the full width above that row).
      height:auto lets the empty field sit at its natural height (line +
      reserved button row) so delete-all shrinks it back to the initial size */
   #user-write-message,
   #user-write-message-encrypted-chat {
     height: auto;
-    padding-bottom: 4vh; /* = button 3vh + its 1vh offset — smallest the box can start */
-    padding-right: 0.45vh;
+    padding-bottom: calc(max(44px, 5.5dvh) + 0.9dvh);
+    padding-right: 1.2dvh;
+    font-family: inherit;
     /* A swipe on the field stays inside it. Past the text, it does not
        pull the chat panel or the page. */
     overscroll-behavior: contain;
