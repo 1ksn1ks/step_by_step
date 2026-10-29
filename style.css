@@ -10191,57 +10191,6 @@ html.is-nav-lock body * {
   overflow-y: auto;
   padding: calc(var(--fu) * 0.8) calc(var(--fu) * 0.7) calc(var(--fu) * 1.2);
 }
-#feed-menu .feed-menu-page-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: calc(var(--fu) * 1.4);
-  overflow: hidden;
-}
-#feed-menu .feed-menu-page-list > li + li {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-}
-#feed-menu .feed-menu-page-list .feed-menu-item {
-  align-items: center;
-  min-height: max(44px, 6dvh);
-  padding: calc(var(--fu) * 0.4) calc(var(--fu) * 1.15);
-  white-space: normal;
-  border-radius: 0;
-}
-#feed-menu .feed-menu-page-list .set-nav-copy {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-width: 0;
-  gap: calc(var(--fu) * 0.08);
-}
-#feed-menu .feed-menu-page-list .set-nav-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  line-height: 1.2;
-}
-#feed-menu .feed-menu-page-list .set-nav-desc {
-  display: block;
-  color: rgba(255, 255, 255, 0.45);
-  font-size: calc(var(--fu) * 1.35);
-  font-weight: 400;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-#feed-menu .feed-menu-page-list .set-nav-chev {
-  display: flex;
-  flex: 0 0 auto;
-  margin-left: auto;
-  color: rgba(255, 255, 255, 0.45);
-}
-#feed-menu .feed-menu-page-list .set-nav-chev svg {
-  width: calc(var(--fu) * 1.8);
-  height: calc(var(--fu) * 1.8);
-}
 #feed-menu .in-drawer {
   position: relative !important;
   inset: auto !important;

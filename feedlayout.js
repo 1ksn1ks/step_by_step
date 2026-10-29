@@ -5580,16 +5580,9 @@ const DRAWER_ORDER = [
   { label: 'My profile', icon: USER_ICON, run: openOwnProfile, wallet: 'on' },
   { label: 'Topic chat', icon: CHAT_ICON, run: { feed: openTopicChat, map: openMapTopic } },
   { label: 'E2EE chat', icon: LOCK_ICON, run: { feed: openE2ee, map: openMapE2ee } },
-  {
-    label: 'Settings',
-    icon: SETTINGS_ICON,
-    run: openDrawerSettings,
-    pages: [
-      { id: 'rotation-controls', label: 'Settings', icon: SETTINGS_ICON, desc: 'Markers, buttons, appearance and chat' },
-      { id: 'visibility-controls', label: 'Visibility', icon: EYE_ICON, desc: 'Models, markers, polygons and the globe' },
-      { id: 'toolbar', label: 'Toolbar', icon: TOOLS_ICON, desc: 'Profile, topics, draw and tools' },
-    ],
-  },
+  { label: 'Settings', icon: SETTINGS_ICON, run: () => openDrawerPanel('rotation-controls') },
+  { label: 'Visibility', icon: EYE_ICON, run: () => openDrawerPanel('visibility-controls') },
+  { label: 'Toolbar', icon: TOOLS_ICON, run: () => openDrawerPanel('toolbar') },
   {
     kind: 'tools',
     feed: [],
@@ -5708,8 +5701,9 @@ for (const entry of DRAWER_ORDER) {
   appendDrawerItem(entry);
 }
 
-// Settings slides inside the drawer. One overlay, one history level per
-// page. Panels are the existing nodes, parked here while the page is open.
+// Settings, Visibility and Toolbar slide inside the drawer. One overlay,
+// one history level per page. Panels are the existing nodes, parked here
+// while the page is open.
 const DRAWER_PAGE_LEVELS = 4;
 const DRAWER_CHILDREN = {
   toolbar: [
@@ -5730,11 +5724,6 @@ const DRAWER_EXTRAS = {
   'button-input-column': ['button-input-column-save'],
   'topic-chat-column': ['topic-chat-save'],
 };
-
-function settingsPages() {
-  const entry = DRAWER_ORDER.find((item) => item.label === 'Settings');
-  return (entry && entry.pages) || [];
-}
 
 function panelShown(el) {
   if (!el) return false;
@@ -5780,6 +5769,12 @@ function unhostDrawer(el, hide) {
   spot.parent.insertBefore(el, next);
 }
 
+const DRAWER_ROOT_PAGES = {
+  'rotation-controls': 'Settings',
+  'visibility-controls': 'Visibility',
+  toolbar: 'Toolbar',
+};
+
 const DRAWER_LABELS = {
   'marker-options-column': 'Markers',
   'main-button-column': 'Main buttons',
@@ -5790,9 +5785,7 @@ const DRAWER_LABELS = {
 };
 
 function drawerPageLabel(id) {
-  if (id === 'settings') return 'Settings';
-  const spec = settingsPages().find((item) => item.id === id);
-  if (spec) return spec.label;
+  if (DRAWER_ROOT_PAGES[id]) return DRAWER_ROOT_PAGES[id];
   if (DRAWER_LABELS[id]) return DRAWER_LABELS[id];
   const el = document.getElementById(id);
   const heading = el && el.querySelector('.options-column-title');
@@ -5801,17 +5794,6 @@ function drawerPageLabel(id) {
     if (text) return text;
   }
   return 'Settings';
-}
-
-function markSettingsRow(id) {
-  if (!drawerPageBody) return;
-  const buttons = drawerPageBody.querySelectorAll('.feed-menu-item');
-  for (const button of buttons) {
-    const on = !!id && button.dataset.panel === id;
-    button.classList.toggle('is-current', on);
-    if (on) button.setAttribute('aria-current', 'page');
-    else button.removeAttribute('aria-current');
-  }
 }
 
 function chevronIcon() {
@@ -5837,42 +5819,6 @@ function paintGroupDividers(root) {
       first = false;
     }
   }
-}
-
-function fillSettingsList() {
-  const list = document.createElement('ul');
-  list.className = 'feed-menu-page-list';
-  for (const spec of settingsPages()) {
-    const row = document.createElement('li');
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'feed-menu-item';
-    button.dataset.panel = spec.id;
-    const copy = document.createElement('span');
-    copy.className = 'set-nav-copy';
-    const label = document.createElement('span');
-    label.className = 'set-nav-label';
-    label.textContent = spec.label;
-    copy.appendChild(label);
-    if (spec.desc) {
-      const desc = document.createElement('span');
-      desc.className = 'set-nav-desc';
-      desc.textContent = spec.desc;
-      copy.appendChild(desc);
-    }
-    const chev = document.createElement('span');
-    chev.className = 'set-nav-chev';
-    chev.appendChild(chevronIcon());
-    button.append(svgIcon(spec.icon), copy, chev);
-    button.addEventListener('click', (event) => {
-      event.stopPropagation();
-      pushDrawer(spec.id);
-    });
-    bindPress(button);
-    row.appendChild(button);
-    list.appendChild(row);
-  }
-  drawerPageBody.appendChild(list);
 }
 
 function fillDrawerPanel(id) {
@@ -5968,8 +5914,7 @@ function paintShell(shell, id) {
   try {
     shell.title.textContent = drawerPageLabel(id);
     shell.el.setAttribute('aria-label', shell.title.textContent);
-    if (id === 'settings') fillSettingsList();
-    else fillDrawerPanel(id);
+    fillDrawerPanel(id);
     paintGroupDividers(shell.body);
   } finally {
     drawerRenderLock = false;
@@ -6105,32 +6050,33 @@ function pushDrawer(id) {
   }
 }
 
-function finishDrawerBack(leaving) {
-  if (!drawerStack.length) markMenuItem('Settings');
-  else if (drawerStack[drawerStack.length - 1] === 'settings') markSettingsRow(leaving);
+function finishDrawerBack() {
+  if (!drawerStack.length) markMenuItem('');
 }
 
 function drawerBack() {
   if (!drawerStack.length || navBusy()) return;
   const name = drawerPageName(drawerStack.length);
-  const leaving = drawerStack.pop();
+  drawerStack.pop();
   mountDrawerBack();
-  finishDrawerBack(leaving);
+  finishDrawerBack();
   if (window.layerIsTop && window.layerIsTop(name)) window.layerClosedByUI(name);
 }
 
 function drawerPageClose(level) {
   if (drawerStack.length < level) return;
-  const leaving = drawerStack[level - 1];
   drawerStack.length = level - 1;
   mountDrawerBack();
-  finishDrawerBack(leaving);
+  finishDrawerBack();
 }
 
-function openDrawerSettings() {
+function openDrawerPanel(id) {
   if (!window.layerIsTop || !window.layerIsTop('feedmenu')) return;
-  if (drawerStack.length) return;
-  pushDrawer('settings');
+  if (drawerStack.length || navBusy()) return;
+  const label = DRAWER_ROOT_PAGES[id];
+  if (!label) return;
+  markMenuItem(label);
+  pushDrawer(id);
 }
 
 function dropDrawerHistory() {
@@ -6277,7 +6223,6 @@ function watchDrawerPanel(id, el) {
   new MutationObserver(() => {
     if (drawerRenderLock || !drawerStack.length) return;
     const top = drawerStack[drawerStack.length - 1];
-    if (top === 'settings') return;
     const kids = DRAWER_CHILDREN[top] || [];
     if (kids.includes(id) && panelShown(el)) {
       pushDrawer(id);
@@ -6299,7 +6244,7 @@ for (const id of drawerWatchIds) {
 // Move a child into the drawer before its click handler shows it, and
 // hold its own history layer so the drawer page stays the one Back step.
 document.addEventListener('click', (event) => {
-  if (drawerStack.length < 2 || !menu.contains(event.target)) return;
+  if (!drawerStack.length || !menu.contains(event.target)) return;
   const top = drawerStack[drawerStack.length - 1];
   const kids = DRAWER_CHILDREN[top] || [];
   if (!kids.length) return;
@@ -6561,6 +6506,8 @@ if (window.defineLayer) {
           placeMenuForMap(!feedCovers());
           paintMenu(true);
         }
+        const rootLabel = DRAWER_ROOT_PAGES[drawerStack[0]];
+        if (rootLabel) markMenuItem(rootLabel);
         queueDrawerSync(menuWasOpen);
       },
       close: () => drawerPageClose(level),
