@@ -5923,6 +5923,34 @@ function focusShell(shell) {
   shell.el.focus({ preventScroll: true });
 }
 
+// A nested open runs CloseALL, which hides the page underneath. Show it
+// again before focus, or the opener row is not rendered and focus is lost.
+function showShellPanel(shell) {
+  if (!shell || !shell.id) return;
+  const panel = document.getElementById(shell.id);
+  if (!panel || !shell.body.contains(panel) || panelShown(panel)) return;
+  showForDrawer(panel);
+}
+
+// Back returns focus to the row that opened the page we left.
+function focusDrawerOpener(leftId) {
+  const parent = drawerShells[drawerShells.length - 1];
+  showShellPanel(parent);
+  const row = parent && parent.body.querySelector('[data-panel="' + leftId + '"]');
+  if (row) {
+    row.focus({ preventScroll: true });
+    return;
+  }
+  const label = DRAWER_ROOT_PAGES[leftId];
+  const main = label && [...menu.querySelectorAll(':scope > li > .feed-menu-item')]
+    .find((btn) => btn.dataset.item === label);
+  if (main) {
+    main.focus({ preventScroll: true });
+    return;
+  }
+  if (parent) focusShell(parent);
+}
+
 // Push: the new page comes in from the right and the page under it
 // shifts left and dims. Pop is the same classes run backwards, so a
 // back press reverses from wherever the slide currently is.
@@ -5973,6 +6001,7 @@ function watchBack(shell) {
     if (!shell.el.classList.contains('is-leave')) return;
     if (drawerShells[drawerShells.length - 1] !== shell) return;
     if (drawerShells.length <= drawerStack.length) return;
+    const leftId = shell.id;
     drawerShells.pop();
     unhostShell(shell);
     shell.el.remove();
@@ -5980,9 +6009,8 @@ function watchBack(shell) {
     if (!drawerShells.length) {
       menu.classList.remove('is-page');
       document.documentElement.classList.remove('drawer-page');
-      return;
     }
-    focusShell(drawerShells[drawerStack.length - 1]);
+    focusDrawerOpener(leftId);
   });
 }
 
@@ -6010,6 +6038,7 @@ function mountDrawerBack() {
   else if (reveal) {
     reveal.el.classList.remove('is-under', 'is-leave');
     reveal.el.classList.add('is-front');
+    showShellPanel(reveal);
   }
   void leaving.el.offsetWidth;
   releaseMotion(leaving.el);
@@ -6347,11 +6376,38 @@ const VIS_ROWS = [
   ['toggle-globe-mode', GLOBE_ICON, false],
 ];
 
+const NAV_PANELS = {
+  'change-marker-options': 'marker-options-column',
+  'change-color-of-main-buttons': 'main-button-column',
+  'change-button-input-settings': 'button-input-column',
+  'change-topic-chat-options': 'topic-chat-column',
+  'change-model-settings': 'model-column',
+  'change-crosshair-settings': 'crosshair-column',
+  Edit_Profile: 'Edit_Profile-column',
+  Load_Everything: 'load-column',
+  Draw_Marker_Polygon: 'draw-column',
+  Create_New_Topic: 'create-column',
+  'NFT-utility': 'utility-column',
+  Change_Memo: 'memo-column',
+  Domain: 'domain-column',
+  Stack_topic_IDs: 'stack-topic-ids',
+  Set_Initial_XYZ: 'initial-xyz-column',
+};
+
 function dressNavRows() {
   for (const [id, icon] of Object.entries(NAV_ICONS)) {
     const el = document.getElementById(id);
     if (!el || el.querySelector('.set-nav-icon')) continue;
     el.classList.add('set-nav');
+    el.setAttribute('role', 'button');
+    el.tabIndex = 0;
+    if (NAV_PANELS[id]) el.dataset.panel = NAV_PANELS[id];
+    el.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      if (event.repeat) return;
+      event.preventDefault();
+      el.click();
+    });
     const ico = document.createElement('span');
     ico.className = 'set-nav-icon';
     ico.appendChild(svgIcon(icon));
@@ -6369,6 +6425,10 @@ function syncVisRow(row) {
   const text = value.textContent.replace(/\s+/g, ' ').trim();
   row.classList.toggle('is-switch', text === 'On' || text === 'Off');
   row.classList.toggle('is-on', text === 'On');
+  const button = row.querySelector('button');
+  if (!button) return;
+  if (text === 'On' || text === 'Off') button.setAttribute('aria-pressed', text === 'On' ? 'true' : 'false');
+  else button.removeAttribute('aria-pressed');
 }
 
 function dressVisibility() {
