@@ -10310,6 +10310,8 @@ html.feed-app appkit-modal {
   --feed-zoom: 1;
   --feed-unit: calc(min(100dvw, var(--feed-col-width)) * 0.024);
   --fu: var(--feed-unit);
+  --row-gap: max(8px, 1dvh);
+  --chat-field-h: max(44px, 5.5dvh);
   position: absolute;
   top: 0;
   bottom: 0;
@@ -10415,8 +10417,11 @@ html.feed-app appkit-modal {
   margin: 0;
   padding: 0;
   border: 0;
+  border-radius: 50%;
   background: none;
   color: #fff;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
   cursor: pointer;
   touch-action: manipulation;
 }
@@ -10429,9 +10434,12 @@ html.feed-app appkit-modal {
 .feed-chat-back:is(:hover, :active, .is-hold) {
   color: #22D3EE;
 }
+.feed-chat-back:focus {
+  outline: none;
+}
 .feed-chat-back:focus-visible {
-  outline: calc(var(--fu) * 0.12) solid #22D3EE;
-  outline-offset: calc(var(--fu) * 0.12);
+  outline: 2px solid #22D3EE;
+  outline-offset: 2px;
 }
 .feed-chat-title {
   flex: 1 1 auto;
@@ -10511,11 +10519,11 @@ html.feed-app appkit-modal {
   display: flex !important;
   flex-wrap: nowrap;
   align-items: center;
-  gap: calc(var(--fu) * 0.55);
+  gap: var(--row-gap);
   box-sizing: border-box;
-  min-height: calc(var(--fu) * 4.6);
+  min-height: 0;
   margin: 0;
-  padding: calc(var(--fu) * 0.45) calc(var(--fu) * 0.8);
+  padding: var(--row-gap);
   border-bottom: 1px solid rgba(255, 255, 255, 0.22);
   background: #0a0a12;
 }
@@ -10604,10 +10612,10 @@ html.feed-app appkit-modal {
 #feed-chat .is-feed-shell .feed-chat-gate {
   display: none;
 }
-/* Same kind of air as toolbar  All/Following: not flush to the bar or the topic row */
+/* Header, password, domain, and the Load gap share one inset. */
 #feed-chat .is-feed-shell .chat-topic-chat-container {
   gap: 0;
-  padding-top: calc(var(--fu) * 0.8);
+  padding-top: 0;
 }
 #feed-chat .is-feed-shell #encrypted-chat-private-key-container {
   order: 0;
@@ -10617,29 +10625,34 @@ html.feed-app appkit-modal {
   display: none;
   width: auto;
   box-sizing: border-box;
-  margin: 0 calc(var(--fu) * 0.8) calc(var(--fu) * 0.8);
-  padding: 0;
+  margin: var(--row-gap) 0 0;
+  padding: 0 var(--row-gap);
   border: 0;
   background: transparent;
 }
 #feed-chat .is-feed-shell.is-locked #encrypted-chat-private-key-container {
   display: flex;
 }
-#feed-chat .is-feed-shell #encrypted-chat-private-key {
+#feed-chat .is-feed-shell .secret-entry-field > #encrypted-chat-private-key {
+  display: block !important;
+  box-sizing: border-box !important;
   width: 100% !important;
-  height: 100% !important;
-  min-height: 0 !important;
-  max-height: none !important;
+  max-width: none !important;
+  height: var(--chat-field-h) !important;
+  min-height: var(--chat-field-h) !important;
+  max-height: var(--chat-field-h) !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
   border-radius: calc(var(--fu) * 2) !important;
 }
 #feed-chat .is-feed-shell .e2ee-load-row > #encrypted-chat-topic-id {
   border-radius: calc(var(--fu) * 2) !important;
 }
 #feed-chat .is-feed-shell .secret-entry-field {
-  height: var(--e2ee-head-h);
+  height: var(--chat-field-h);
 }
 #feed-chat .is-feed-shell .secret-entry-field .secret-entry-btn {
-  width: var(--e2ee-head-h);
+  width: var(--chat-field-h);
   min-width: 44px;
   height: 100%;
   min-height: 44px;
@@ -10675,9 +10688,11 @@ html.feed-app appkit-modal {
 #feed-chat .is-feed-shell .feed-chat-room .toolbar-column {
   flex: 1 1 auto;
   width: auto !important;
-  height: var(--e2ee-head-h) !important;
-  min-height: var(--e2ee-head-h) !important;
-  max-height: var(--e2ee-head-h) !important;
+  height: var(--chat-field-h) !important;
+  min-height: var(--chat-field-h) !important;
+  max-height: var(--chat-field-h) !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
   overflow: hidden;
 }
 #feed-chat .is-feed-shell .loaded-topics-search {
@@ -10736,10 +10751,12 @@ html.feed-app appkit-modal {
   border-color: #22D3EE !important;
   color: #083344 !important;
 }
+#feed-chat .is-feed-shell .e2ee-load-row > #load-msgs-from,
 #feed-chat .is-feed-shell .e2ee-load-row > #load-msgs-from-encrypted-chat {
-  height: var(--e2ee-head-h) !important;
-  min-height: var(--e2ee-head-h) !important;
-  max-height: var(--e2ee-head-h) !important;
+  box-sizing: border-box;
+  height: var(--chat-field-h) !important;
+  min-height: var(--chat-field-h) !important;
+  max-height: var(--chat-field-h) !important;
   padding: 0 1.6dvh !important;
   border-radius: calc(var(--fu) * 2) !important;
 }

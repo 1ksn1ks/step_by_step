@@ -5045,7 +5045,7 @@ function paintFeedChat(kind) {
   feedChat.hidden = false;
   dressFeedChatIcons(true);
   parkFeedChat(kind);
-  feedChatBack.focus({ preventScroll: true });
+  feedChatBack.focus({ preventScroll: true, focusVisible: false });
 }
 
 function hideFeedChatPanel() {
