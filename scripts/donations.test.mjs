@@ -206,6 +206,50 @@ test("the author is the message payer, not a payer field in the body", async () 
   }
 });
 
+test("a staking reward paid in the same transfer is not the donation", async () => {
+  // Payer -1.001, fee account 0.0.802 +0.001, staking account 0.0.800 -9.089,
+  // recipient +10.089. The gift is 1 HBAR. The other 9.089 is the pending
+  // staking reward, paid out because the account was credited.
+  const tx = {
+    transaction_id: TX,
+    result: "SUCCESS",
+    name: "CRYPTOTRANSFER",
+    consensus_timestamp: "1700000001.000000009",
+    memo_base64: Buffer.from("test", "utf8").toString("base64"),
+    charged_tx_fee: 100_000,
+    staking_reward_transfers: [{ account: AUTHOR, amount: 908_900_000 }],
+    transfers: [
+      { account: SENDER, amount: -100_100_000 },
+      { account: "0.0.802", amount: 100_000 },
+      { account: "0.0.800", amount: -908_900_000 },
+      { account: AUTHOR, amount: 1_008_900_000 },
+    ],
+  };
+  const assessed = assessTransfer(tx, AUTHOR);
+  assert.equal(assessed.error, undefined);
+  assert.equal(assessed.amount, 100_000_000n);
+  assert.equal(formatHbar(assessed.amount), "1");
+  const withoutList = { ...tx };
+  delete withoutList.staking_reward_transfers;
+  delete withoutList.charged_tx_fee;
+  assert.equal(assessTransfer(withoutList, AUTHOR).amount, 100_000_000n);
+
+  const handle = tempDb();
+  try {
+    seedPost(handle.db);
+    const saved = await recordDonation(ctx(handle.db, { "0.0.100-1700000001-000000009": tx }), {
+      txId: TX,
+      topicId: TOPIC,
+      postTimestamp: POST_TS,
+    });
+    assert.equal(saved.ok, true);
+    assert.equal(saved.total, "1");
+    assert.equal(handle.db.prepare("SELECT amount_tinybar FROM donations").get().amount_tinybar, "100000000");
+  } finally {
+    handle.close();
+  }
+});
+
 test("visible post totals resolve from the original timestamp", async () => {
   const handle = tempDb();
   try {
@@ -223,21 +267,6 @@ test("visible post totals resolve from the original timestamp", async () => {
     handle.close();
   }
 });
-
-function creditTo(row, account) {
-  let sum = 0n;
-  for (const part of row.transfers || []) {
-    const id = String(part.account || "").split("-")[0];
-    if (id !== account) continue;
-    const amount = BigInt(part.amount);
-    if (amount > 0n) sum += amount;
-  }
-  return sum;
-}
-
-function payerOf(row) {
-  return String(row.transaction_id || "").split(/[@-]/)[0];
-}
 
 test("a real testnet donation records once", async () => {
   const base = "https://testnet.mirrornode.hedera.com";
@@ -263,9 +292,10 @@ test("a real testnet donation records once", async () => {
       });
       if (!hit) continue;
       const account = String(hit.account).split("-")[0];
-      if (payerOf(full) === account) continue;
-      if (!chosen) chosen = { row: full, account };
-      else if (!other && creditTo(full, chosen.account) === 0n) other = full;
+      const assessed = assessTransfer(full, account);
+      if (assessed.error) continue;
+      if (!chosen) chosen = { row: full, account, amount: assessed.amount };
+      else if (!other && assessTransfer(full, chosen.account).error === "wrong recipient") other = full;
     }
     if (!json.links || !json.links.next) break;
     page = base + json.links.next;
@@ -301,7 +331,7 @@ test("a real testnet donation records once", async () => {
     const txId = chosen.row.transaction_id;
     const first = await recordDonation(live, { txId, topicId: TOPIC, postTimestamp: POST_TS });
     assert.equal(first.ok, true, first.error || "record failed");
-    assert.equal(first.total, formatHbar(creditTo(chosen.row, chosen.account)));
+    assert.equal(first.total, formatHbar(chosen.amount));
     assert.equal(first.count, 1);
     const replay = await recordDonation(live, { txId, topicId: TOPIC, postTimestamp: POST_TS });
     assert.equal(replay.status, 409);
