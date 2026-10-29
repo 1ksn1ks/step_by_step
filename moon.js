@@ -141,18 +141,22 @@ let lastSizeVh = 0;
 export let moonScreen = null;
 
 // The moon stays pointer-events:none so a mouse drag or the scroll wheel
-// over it still reaches the map. Touches do not: any touch whose point lies
-// inside the visible disc is stopped on the way down, before MapLibre's
-// canvas listeners, at every zoom — including zoom < -1, where the moon is
-// pinned to the center and would otherwise pan or open the Earth behind it.
-// A tap (no drag, one finger) opens 1mhbar.com. Popups and page buttons that
-// paint above the moon keep their own touches.
+// over it still reaches the map, same as over the globe. A one-finger touch
+// inside the visible disc is stopped before MapLibre's canvas listeners, at
+// every zoom — including zoom < -1, where the moon is pinned to the center
+// and would otherwise pan or open the Earth behind it. A tap (no drag, one
+// finger) opens 1mhbar.com. A second finger is a pinch or two-finger drag:
+// those events are not stopped, so the map zooms with its own limits and
+// speed. Popups and page buttons that paint above the moon keep their touches.
 function bindMoonTouch() {
   if (window.__moonTapBound) return; // HMR re-import guard
   window.__moonTapBound = true;
 
   const claimed = new Map(); // touch id -> {x, y, moved}
   let openedAt = 0;
+  // Set once a gesture has two fingers. Stays set until the last finger
+  // lifts, so the pinch's touchend still reaches the map.
+  let multi = false;
 
   const inMoon = (x, y) => {
     if (!moonEl || moonEl.style.display === 'none') return false;
@@ -183,21 +187,28 @@ function bindMoonTouch() {
     e.stopPropagation();
   };
 
+  const markMulti = (e) => {
+    if (e.touches.length < 2) return;
+    multi = true;
+    for (const g of claimed.values()) g.moved = true;
+  };
+
   document.addEventListener('touchstart', (e) => {
     if (aboveMoon(e)) return;
+    markMulti(e);
+    if (multi) return;
     let hit = false;
     for (const t of e.changedTouches) {
       if (!inMoon(t.clientX, t.clientY)) continue;
       claimed.set(t.identifier, { x: t.clientX, y: t.clientY, moved: false });
       hit = true;
     }
-    if (e.touches.length > 1) {
-      for (const g of claimed.values()) g.moved = true;
-    }
     if (hit) swallow(e);
   }, { capture: true, passive: false });
 
   document.addEventListener('touchmove', (e) => {
+    markMulti(e);
+    if (multi) return;
     let hit = false;
     for (const t of e.touches) {
       const g = claimed.get(t.identifier);
@@ -209,6 +220,11 @@ function bindMoonTouch() {
   }, { capture: true, passive: false });
 
   const endTouch = (e) => {
+    if (multi) {
+      for (const t of e.changedTouches) claimed.delete(t.identifier);
+      if (e.touches.length === 0) multi = false;
+      return;
+    }
     let hit = false;
     let tap = false;
     for (const t of e.changedTouches) {
@@ -224,6 +240,7 @@ function bindMoonTouch() {
   document.addEventListener('touchend', endTouch, { capture: true, passive: false });
   document.addEventListener('touchcancel', (e) => {
     for (const t of e.changedTouches) claimed.delete(t.identifier);
+    if (e.touches.length === 0) multi = false;
   }, { capture: true });
 
   // Mouse click, and any click the browser still synthesizes after a touch.
@@ -279,8 +296,8 @@ export function updateMoon() {
     // container after the moon, so an open popup always paints over the moon.
     // (#three-container sits after #map in the DOM, which put the moon above
     // popups — the bug this fixes.) pointer-events:none stays so mouse-drag
-    // and the wheel still reach the map; touches inside the disc are stopped
-    // in bindMoonTouch before they get there.
+    // and the wheel still reach the map. A one-finger touch inside the disc
+    // is stopped in bindMoonTouch; a second finger is left for the map.
     map.getContainer().appendChild(moonEl);
     bindMoonHover(face);
   }

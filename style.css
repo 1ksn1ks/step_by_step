@@ -87,8 +87,8 @@ html, body {
     width: 3.4vh;
     height: 3.4vh;
     /* pointer-events: none so a mouse drag or the scroll wheel over the moon
-       still reaches the map. Touches do not: moon.js stops any touch inside
-       the disc before the map sees it, at every zoom. The face holds the
+       still reaches the map. moon.js stops a one-finger touch inside the disc.
+       A second finger is a pinch and is left for the map. The face holds the
        circle clip so a lean is not cut off by this box. */
     pointer-events: none;
     overflow: visible;
