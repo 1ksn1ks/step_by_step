@@ -5863,7 +5863,7 @@ function fillDrawerPanel(id) {
   }
 }
 
-// Same curve as the drawer open and the first Settings slide.
+// Drawer pages keep their own slide. This only locks the gesture for that time.
 function navMs() {
   return motionOff() ? 160 : 250;
 }
