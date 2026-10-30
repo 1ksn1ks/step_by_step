@@ -12801,3 +12801,181 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   animation: none !important;
 }
 
+/* Marker / polygon create uses the shared chat page. The form under the
+   header stays the draw column. This wrapper is invisible until that page
+   pins the submit row and scrolls the fields above it. */
+.draw-form-scroll {
+  display: contents;
+}
+#feed-chat.is-draw {
+  top: var(--popup-top);
+  bottom: var(--popup-bottom);
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: #0a0a12;
+  overflow: hidden;
+}
+#feed-chat.is-draw.is-map-chat {
+  height: auto;
+}
+#feed-chat.is-draw > .feed-chat-bar {
+  position: relative;
+  min-height: 44px;
+  padding-top: 0;
+}
+#feed-chat.is-draw > .feed-chat-bar .feed-chat-back {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  background: none;
+}
+#feed-chat.is-draw > .feed-chat-bar .feed-chat-back:focus {
+  outline: none;
+}
+#feed-chat.is-draw > .feed-chat-bar .feed-chat-back:focus-visible {
+  outline: 2px solid #22D3EE;
+  outline-offset: 2px;
+}
+#feed-chat.is-draw > .feed-chat-bar .feed-chat-title {
+  position: absolute;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 120px);
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+  color: #22d3ee;
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 1.5vh rgba(34, 211, 238, 0.6);
+  animation: none;
+}
+#feed-chat.is-draw .feed-chat-actions > #help-draw-column {
+  display: inline-flex !important;
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  z-index: auto;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #fff !important;
+  font-family: Inter, system-ui, sans-serif !important;
+  font-size: calc(var(--fu) * 2.1) !important;
+  font-weight: 600;
+  line-height: 1 !important;
+  transform: none !important;
+  filter: none !important;
+  animation: none !important;
+}
+#feed-chat.is-draw .feed-chat-actions > #help-draw-column:is(:hover, :active, .is-hold) {
+  color: #22D3EE !important;
+  background: transparent !important;
+  transform: none !important;
+  filter: none !important;
+  box-shadow: none !important;
+}
+#feed-chat.is-draw .feed-chat-actions > #help-draw-column:focus {
+  outline: none;
+}
+#feed-chat.is-draw .feed-chat-actions > #help-draw-column:focus-visible {
+  outline: 2px solid #22D3EE;
+  outline-offset: 2px;
+}
+body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
+  position: fixed;
+  inset: 0;
+  top: 0;
+  z-index: 9004;
+}
+#feed-chat.is-draw #draw-column {
+  display: flex;
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  z-index: 1 !important;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 0;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+  animation: none !important;
+  transform: none !important;
+}
+#feed-chat.is-draw #draw-column .options-column-title,
+#feed-chat.is-draw #draw-column .panel-help-btn,
+#feed-chat.is-draw #draw-column .panel-close-btn {
+  display: none !important;
+}
+#feed-chat.is-draw #draw-column-container {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  width: 100%;
+  height: auto !important;
+  min-height: 0;
+  max-height: none !important;
+  margin: 0;
+  padding: 1.4vh 0.63vh 0.8vh;
+  overflow: hidden;
+  background: transparent;
+}
+#feed-chat.is-draw #draw-shape-switch {
+  flex: 0 0 auto;
+}
+#feed-chat.is-draw #marker-column-container:not([style*="display: none"]):not([style*="display:none"]),
+#feed-chat.is-draw #polygon-column-container:not([style*="display: none"]):not([style*="display:none"]) {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1 1 auto;
+  height: auto !important;
+  min-height: 0;
+  overflow: hidden;
+}
+#feed-chat.is-draw .draw-popup-editor {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+#feed-chat.is-draw .draw-form-scroll {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+#feed-chat.is-draw .draw-submit-row {
+  flex: 0 0 auto;
+}
+

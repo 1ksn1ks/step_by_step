@@ -181,16 +181,21 @@ function handlePress(loc) {
   showAnchor(loc);
 }
 
-// The toolbar Draw button, so CloseALL / toolbar / UFO handling stay identical.
-// fromMap is the pin path: that tap already chose Marker or Polygon.
+// The same Draw control the toolbar row uses. fromMap is the pin path:
+// that tap already chose Marker or Polygon. The feed + passes false.
 export function openDrawColumn(fromMap = true) {
   const drawBtn = document.getElementById('Draw_Marker_Polygon');
   if (!drawBtn) return false;
-  if (fromMap) drawBtn.dataset.fromMap = '1';
-  else delete drawBtn.dataset.fromMap;
+  if (fromMap) {
+    drawBtn.dataset.fromMap = '1';
+    drawBtn.dataset.drawSource = 'map';
+  } else {
+    delete drawBtn.dataset.fromMap;
+    drawBtn.dataset.drawSource = 'feed';
+  }
   drawBtn.click();
-  const col = document.getElementById('draw-column');
-  return !!(col && col.style.display !== 'none');
+  const chat = document.getElementById('feed-chat');
+  return !!(chat && !chat.hidden && chat.classList.contains('is-draw'));
 }
 
 function showMarkerForm() {

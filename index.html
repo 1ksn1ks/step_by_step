@@ -710,6 +710,7 @@
           <textarea id="input-field-2-0" hidden></textarea>
 
           <div id="draw-marker-editor" class="draw-popup-editor">
+            <div class="draw-form-scroll">
             <div id="draw-marker-cover-preview" class="draw-cover-preview draw-cover-preview-marker" role="button" tabindex="0" aria-label="Marker cover">
               <span class="draw-cover-hint">Cover</span>
               <img alt="" hidden>
@@ -756,6 +757,7 @@
               oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';" onclick="event.stopPropagation();"
               ></textarea>
             </div>
+            </div>
             <div class="draw-submit-row">
               <button type="button" id="submit-button-Create_Marker" class="toolbar-column-btns" title="Submit regular" aria-label="Submit regular">🌍 Submit regular</button>
               <button type="button" id="submit-button-Create_encrypted-Marker" class="toolbar-column-btns" title="Submit encrypted" aria-label="Submit encrypted">🔒 Submit encrypted</button>
@@ -787,6 +789,7 @@
           <textarea id="input-field-3-0" hidden></textarea>
 
           <div id="draw-polygon-editor" class="draw-popup-editor">
+            <div class="draw-form-scroll">
             <div id="draw-polygon-cover-preview" class="draw-cover-preview draw-cover-preview-polygon" role="button" tabindex="0" aria-label="Polygon cover">
               <span class="draw-popup-media-hint">Cover</span>
               <img alt="" hidden>
@@ -837,6 +840,7 @@
               <textarea class="toolbar-column" type="text" id="input-field-3-5" placeholder="BOTTOM RIGHT long,lat"
               onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
               ></textarea>
+            </div>
             </div>
             <div class="draw-submit-row">
               <button type="button" id="submit-button-Create_Polygon" class="toolbar-column-btns" title="Submit regular" aria-label="Submit regular">🌍 Submit regular</button>

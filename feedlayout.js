@@ -4786,6 +4786,11 @@ const FEED_CHATS = {
     title: '🪐 LOAD',
     expand: prepareLoadColumnForFeed,
   },
+  draw: {
+    id: 'draw-column',
+    title: '✏️ DRAW',
+    expand() {},
+  },
 };
 const FEED_CHAT_ICONS = [
   ['go-to-top-msgs', [
@@ -4887,6 +4892,7 @@ let feedChatKind = '';
 let feedChatHome = null;
 let feedChatLeaveGen = 0;
 let feedChatWatch = null;
+let drawTitleWatch = null;
 let feedChatLive = false;
 let feedChatPlaced = [];
 
@@ -5063,9 +5069,34 @@ function clearLoadOptions() {
   if (page) page.remove();
 }
 
+function syncDrawHeader() {
+  if (feedChatKind !== 'draw') return;
+  const node = document.getElementById('draw-column-title');
+  const text = (node && node.textContent) || '✏️ DRAW';
+  feedChatTitle.textContent = text;
+  feedChat.setAttribute('aria-label', text);
+}
+
+function watchDrawHeader() {
+  const node = document.getElementById('draw-column-title');
+  if (drawTitleWatch) drawTitleWatch.disconnect();
+  drawTitleWatch = null;
+  if (!node) return;
+  drawTitleWatch = new MutationObserver(syncDrawHeader);
+  drawTitleWatch.observe(node, { childList: true, characterData: true, subtree: true });
+  syncDrawHeader();
+}
+
+function clearDrawHeader() {
+  if (!drawTitleWatch) return;
+  drawTitleWatch.disconnect();
+  drawTitleWatch = null;
+}
+
 function clearFeedMessenger(panel) {
   unplaceFeedChat();
   clearLoadOptions();
+  clearDrawHeader();
   feedChatSearch.classList.remove('is-on');
   feedChatSearch.hidden = false;
   feedChatSearch.setAttribute('aria-pressed', 'false');
@@ -5091,6 +5122,16 @@ function mountFeedMessenger(panel, kind) {
     if (box) box.style.display = 'block';
     placeFeedNode(document.getElementById('help-load-column'), feedChatActions);
     mountLoadOptions();
+    return;
+  }
+  if (kind === 'draw') {
+    feedChatSearch.hidden = true;
+    feedChatUnlock.hidden = true;
+    feedChatUnlock.classList.remove('is-on');
+    const box = document.getElementById('draw-column-container');
+    if (box) box.style.display = 'block';
+    placeFeedNode(document.getElementById('help-draw-column'), feedChatActions);
+    watchDrawHeader();
     return;
   }
   feedChatSearch.hidden = false;
@@ -5149,7 +5190,7 @@ const feedScrollHeight = new WeakMap();
 
 function feedChatScrollers(panel) {
   if (!panel) return [];
-  return [...panel.querySelectorAll('#messages-from-topic-chat, #messages-from-encrypted-chat, #load-column-container, #loaded-topics')];
+  return [...panel.querySelectorAll('#messages-from-topic-chat, #messages-from-encrypted-chat, #load-column-container, #loaded-topics, #marker-column-container, #polygon-column-container')];
 }
 
 // The map scroller fights native fling. Inside the feed shell the list is
@@ -5185,7 +5226,7 @@ function restoreFeedChat() {
   // history entry. The drawer watcher would also host the column as a
   // Toolbar child. Closing the page puts the column away. One write, so
   // the hold flags cover that single change.
-  if (panel.id === 'load-column') {
+  if (panel.id === 'load-column' || panel.id === 'draw-column') {
     panel.dataset.historyHold = '1';
     panel.dataset.drawerSkip = '1';
     const kept = (home.style || '').split(';').map((part) => part.trim()).filter((part) => part && !/^display\s*:/i.test(part));
@@ -5212,13 +5253,14 @@ function parkFeedChat(kind) {
     };
     feedChatBody.appendChild(panel);
   }
-  panel.classList.add('is-feed-shell');
+  if (kind === 'draw') panel.classList.remove('is-feed-shell');
+  else panel.classList.add('is-feed-shell');
   pauseFeedChatScroll(panel);
   panel.classList.remove('topic-chat-compact', 'topic-chat-fit', 'topic-chat-capped', 'is-search');
   feedChatSearch.classList.remove('is-on');
   feedChatSearch.setAttribute('aria-pressed', 'false');
   mountFeedMessenger(panel, kind);
-  if (kind === 'load') panel.dataset.historyHold = '1';
+  if (kind === 'load' || kind === 'draw') panel.dataset.historyHold = '1';
   panel.style.display = 'flex';
   if (feedChatWatch) feedChatWatch.disconnect();
   feedChatWatch = new MutationObserver(() => {
@@ -5290,16 +5332,31 @@ function paintFeedChat(kind) {
     }
     restoreFeedChat();
   }
+  const keepDraw = kind === 'draw' && feedChatKind === 'draw' && !feedChat.hidden && feedChat.classList.contains('nav-cover');
   feedChatKind = kind;
   feedChatLive = true;
   feedChat.classList.toggle('is-load', kind === 'load');
+  feedChat.classList.toggle('is-draw', kind === 'draw');
   feedChatTitle.textContent = spec.title;
   feedChat.setAttribute('aria-label', spec.title);
   placeFeedChatForMap(!feedCovers());
   if (!beginFeedCover(feedChat)) {
-    delete feedChat.dataset.navLeaving;
-    feedChat.classList.remove('nav-off', 'nav-prep', 'nav-cover');
-    feedChat.hidden = false;
+    if (kind === 'draw' && !keepDraw) {
+      // Map and feed open this page with the drawer closed, or the feed
+      // peeked. Same push as the chat page, without shifting a closed drawer.
+      delete feedChat.dataset.navLeaving;
+      feedChat.classList.add('nav-cover', 'nav-prep', 'nav-off');
+      feedChat.hidden = false;
+      void feedChat.offsetWidth;
+      feedChat.classList.remove('nav-prep');
+      void feedChat.offsetWidth;
+      feedChat.classList.remove('nav-off');
+      holdNav();
+    } else if (!keepDraw) {
+      delete feedChat.dataset.navLeaving;
+      feedChat.classList.remove('nav-off', 'nav-prep', 'nav-cover');
+      feedChat.hidden = false;
+    }
   }
   dressFeedChatIcons(true);
   parkFeedChat(kind);
@@ -5328,7 +5385,7 @@ function hideFeedChatPanel() {
     restoreFeedChat();
     placeFeedChatForMap(false);
     fitFeedChatFrame();
-    feedChat.classList.remove('is-load');
+    feedChat.classList.remove('is-load', 'is-draw');
   };
   if (!covered) releaseChat();
   else afterNav(feedChat, releaseChat);
@@ -5353,6 +5410,19 @@ function closeFeedChat() {
   }
   restoreDrawer();
 }
+
+// Marker / polygon create. One page for the drawer Draw row, the feed +,
+// and a map tap. The drawer keeps the Toolbar page underneath.
+function openDrawPage(source) {
+  const fromDrawer = source === 'drawer';
+  if (fromDrawer && !coverFromDrawerPage()) return false;
+  paintFeedChat('draw');
+  if (window.layerOpened) {
+    window.layerOpened('feedchat', fromDrawer ? drawerState({ kind: 'draw' }) : { kind: 'draw', source: source || 'map' });
+  }
+  return feedChatKind === 'draw' && !feedChat.hidden;
+}
+window.openDrawPage = openDrawPage;
 
 function openFeedChat(kind, source) {
   if (root.classList.contains('is-peek')) return;
@@ -6597,7 +6667,8 @@ function watchDrawerPanel(id, el) {
     const top = drawerStack[drawerStack.length - 1];
     const kids = DRAWER_CHILDREN[top] || [];
     if (kids.includes(id) && panelShown(el)) {
-      // Load lives in the shared chat page. Its display is not a drawer page.
+      // Load and Draw live in the shared chat page. Their display is not a drawer page.
+      if (id === 'load-column' || id === 'draw-column') return;
       if (el.classList.contains('is-feed-shell') || (el.closest && el.closest('#feed-chat'))) return;
       pushDrawer(id);
       return;
@@ -6648,8 +6719,8 @@ document.addEventListener('click', (event) => {
     parked.push(el);
   };
   for (const id of kids) {
-    // Load is the shared chat page, not a column hosted in the drawer.
-    if (id === 'load-column') continue;
+    // Load and Draw are the shared chat page, not columns hosted in the drawer.
+    if (id === 'load-column' || id === 'draw-column') continue;
     park(id, true);
     for (const extraId of DRAWER_EXTRAS[id] || []) park(extraId, false);
   }
@@ -6948,7 +7019,7 @@ if (window.defineLayer) {
   window.defineLayer('feedchat', {
     parent: 'feed',
     open: (state) => {
-      const fallback = state && state.kind === 'e2ee' ? 'E2EE chat' : state && state.kind === 'load' ? 'Load' : 'Topic chat';
+      const fallback = state && state.kind === 'e2ee' ? 'E2EE chat' : state && state.kind === 'load' ? 'Load' : state && state.kind === 'draw' ? 'Draw' : 'Topic chat';
       hideKeptDrawer(state, fallback);
       paintFeedChat(state && state.kind);
     },
@@ -7090,7 +7161,7 @@ for (const id of OPTION_PANELS) {
 const drawColumn = document.getElementById('draw-column');
 if (drawColumn) {
   new MutationObserver(() => {
-    const open = drawColumn.style.display === 'block';
+    const open = drawColumn.style.display !== 'none' && drawColumn.style.display !== '';
     if (open) {
       if (placing) drawWasOpen = true;
       return;
@@ -7161,6 +7232,15 @@ document.addEventListener('keydown', (event) => {
     // A slide owns the key. Help, the wallet sheet, and any other layer
     // above the chat take Escape before this page does.
     if (navBusy()) return;
+    if (feedChatKind === 'draw') {
+      const help = document.getElementById('map-draw-help-overlay');
+      if (help && help.style.display === 'block') {
+        event.preventDefault();
+        event.stopPropagation();
+        help.style.display = 'none';
+        return;
+      }
+    }
     const chatTop = window.layerIsTop && (window.layerIsTop('feedchat')
       || (feedChatKind === 'load' && window.layerIsTop('loadoptions')));
     if (!chatTop) return;

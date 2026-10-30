@@ -603,16 +603,20 @@ export function CloseALL() {
   
   document.getElementById("Draw_Marker_Polygon").addEventListener("click", (event) => {
     event.stopPropagation();
-    CloseALL();
-    document.getElementById("draw-column").style.display = "block";
-    document.getElementById("draw-column-container").style.display = "block";
-    // A map tap already picked marker or polygon, so the switch row is redundant.
-    // The toolbar Draw button leaves it up so the shape can still be chosen.
+    // Map and feed clear other map panels first. The drawer Draw row must
+    // not: CloseALL would hide the Toolbar page this sheet slides over.
     const fromMap = event.currentTarget.dataset.fromMap === "1";
+    const source = event.currentTarget.dataset.drawSource || (fromMap ? "map" : "drawer");
     delete event.currentTarget.dataset.fromMap;
-    document.getElementById("draw-shape-switch").style.display = fromMap ? "none" : "flex";
-
-    OpenToggleToolbar();
+    delete event.currentTarget.dataset.drawSource;
+    if (source !== "drawer") CloseALL();
+    // A map tap already picked marker or polygon, so the switch row is redundant.
+    // The toolbar Draw button and the feed + leave it up.
+    const switcher = document.getElementById("draw-shape-switch");
+    if (switcher) switcher.style.display = fromMap ? "none" : "flex";
+    const box = document.getElementById("draw-column-container");
+    if (box) box.style.display = "block";
+    if (typeof window.openDrawPage === "function") window.openDrawPage(source);
     removeUfoModel();
   });
   
