@@ -109,7 +109,36 @@ export function updateUI() {
 
 init();
 
-async function connectWallet() {
+// One pairing at a time. A second tap reopens the sheet that is already
+// waiting, instead of awaiting another openModal. Profile loads run once.
+let connectFlight = null;
+
+function reopenWalletModal() {
+  const modal = dAppConnector.walletConnectModal;
+  if (!modal || typeof modal.openModal !== 'function') return;
+  const host = document.querySelector('wcm-modal');
+  const overlay = host && host.shadowRoot && host.shadowRoot.querySelector('.wcm-overlay');
+  if (overlay && overlay.classList.contains('wcm-active')) return;
+  import('@walletconnect/modal-core').then(({ OptionsCtrl }) => {
+    const uri = OptionsCtrl && OptionsCtrl.state && OptionsCtrl.state.walletConnectUri;
+    if (!uri || !connectFlight) return;
+    modal.openModal({ uri }).catch(() => {});
+  }).catch(() => {});
+}
+
+function connectWallet() {
+  if (connectFlight) {
+    reopenWalletModal();
+    return connectFlight;
+  }
+  let settle;
+  const flight = new Promise((resolve) => { settle = resolve; });
+  connectFlight = flight;
+  finishConnect(flight, settle);
+  return flight;
+}
+
+async function finishConnect(flight, settle) {
   try {
     connectBtn.textContent = 'Connecting...';
     await dAppConnector.openModal();
@@ -142,6 +171,9 @@ async function connectWallet() {
   } catch (err) {
     console.error('Connection error:', err);
     updateUI();
+  } finally {
+    if (connectFlight === flight) connectFlight = null;
+    settle();
   }
 }
 

@@ -10188,7 +10188,7 @@ html.is-nav-lock body * {
 #feed-profile.nav-cover.nav-off,
 #feed-chat.nav-cover.nav-off,
 #feed-settings.nav-cover.nav-off {
-  transform: translateX(100dvw);
+  transform: translateX(50dvw);
 }
 #topic-chat-container.nav-cover,
 #encrypted-chat-container.nav-cover,
@@ -12574,7 +12574,8 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   flex: 0 0 auto;
 }
 #feed-chat #load-column.is-feed-shell .loaded-topic-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max(44px, 5.5dvh) max(44px, 5.5dvh);
   align-items: center;
   gap: calc(var(--fu) * 0.2);
   box-sizing: border-box;
@@ -12607,6 +12608,38 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+#feed-chat #load-column.is-feed-shell .loaded-topic-open {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-row: 1;
+  grid-template-columns: minmax(0, 1fr) max(44px, 5.5dvh) max(44px, 5.5dvh);
+  gap: calc(var(--fu) * 0.2);
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: max(44px, 5.5dvh);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+#feed-chat #load-column.is-feed-shell .loaded-topic-open .loaded-topic-label {
+  grid-column: 1;
+}
+#feed-chat #load-column.is-feed-shell .loaded-topic-open .loaded-topic-chev {
+  grid-column: 3;
+}
 #feed-chat #load-column.is-feed-shell .loaded-topic-copy,
 #feed-chat #load-column.is-feed-shell .loaded-topic-chev {
   display: inline-flex;
@@ -12619,9 +12652,21 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   height: max(44px, 5.5dvh);
   margin: 0;
   padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: rgba(255, 255, 255, 0.55);
+  font-family: inherit;
   font-size: calc(var(--fu) * 1.6);
   line-height: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+#feed-chat #load-column.is-feed-shell .loaded-topic-copy {
+  grid-column: 2;
+  grid-row: 1;
+  z-index: 1;
 }
 #feed-chat #load-column.is-feed-shell .loaded-topic-chev svg {
   width: 16px;

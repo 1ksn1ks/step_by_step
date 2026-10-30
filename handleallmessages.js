@@ -103,8 +103,10 @@ function topicChevron() {
 function setTopicChevron(arrowBtn, open) {
   if (!arrowBtn) return;
   arrowBtn.classList.toggle('is-open', open);
-  const row = arrowBtn.closest('.loaded-topic-row');
-  if (row) row.setAttribute('aria-expanded', open ? 'true' : 'false');
+  const toggle = arrowBtn.parentElement;
+  if (toggle && toggle.tagName === 'BUTTON') {
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
 }
 
 // The row chevron expands/collapses that topic's bio below its row.
@@ -175,20 +177,29 @@ export function renderLoadedTopics() {
 
     const row = document.createElement('div');
     row.className = 'loaded-topic-row';
-    row.setAttribute('role', 'button');
-    row.tabIndex = 0;
-    row.setAttribute('aria-expanded', 'false');
+
+    const openBtn = document.createElement('button');
+    openBtn.type = 'button';
+    openBtn.className = 'loaded-topic-open';
+    openBtn.setAttribute('aria-expanded', 'false');
 
     const label = document.createElement('span');
     label.className = 'loaded-topic-label';
     label.textContent = entry;
-    row.appendChild(label);
+    openBtn.appendChild(label);
 
-    const copyBtn = document.createElement('span');
+    const arrowBtn = document.createElement('span');
+    arrowBtn.className = 'loaded-topic-chev';
+    arrowBtn.setAttribute('aria-hidden', 'true');
+    arrowBtn.appendChild(topicChevron());
+    setTopicChevron(arrowBtn, false);
+    openBtn.appendChild(arrowBtn);
+    row.appendChild(openBtn);
+
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
     copyBtn.className = 'loaded-topic-copy';
     copyBtn.textContent = '📋';
-    copyBtn.setAttribute('role', 'button');
-    copyBtn.tabIndex = 0;
     copyBtn.setAttribute('aria-label', 'Copy topic id');
     copyBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -202,32 +213,11 @@ export function renderLoadedTopics() {
         toast.error('Could not copy topic id');
       }
     });
-    copyBtn.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      e.preventDefault();
-      e.stopPropagation();
-      copyBtn.click();
-    });
     row.appendChild(copyBtn);
-
-    const arrowBtn = document.createElement('span');
-    arrowBtn.className = 'loaded-topic-chev';
-    arrowBtn.setAttribute('aria-hidden', 'true');
-    arrowBtn.appendChild(topicChevron());
-    setTopicChevron(arrowBtn, false);
-    row.appendChild(arrowBtn);
 
     row.addEventListener('click', () => {
       const selected = window.getSelection && window.getSelection();
       if (selected && selected.toString()) return;
-      toggleTopicBio(topicId, row, arrowBtn);
-      adjustTextareaHeight(el);
-    });
-    row.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      if (e.target !== row) return;
-      if (e.repeat) return;
-      e.preventDefault();
       toggleTopicBio(topicId, row, arrowBtn);
       adjustTextareaHeight(el);
     });
