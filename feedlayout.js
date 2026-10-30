@@ -5320,12 +5320,14 @@ function openDrawerConnect() {
   let sawSheet = walletModalOpen();
   const watch = () => {
     if (watchId !== drawerConnectWatch) return;
-    if (walletModalOpen()) sawSheet = true;
-    if (walletNow() || sawSheet) {
+    // "Connecting..." is the sheet still opening. It counts as seen, but
+    // the watch stays up until that label clears.
+    if (walletModalOpen() || connectPending()) sawSheet = true;
+    if (walletNow() || (sawSheet && !connectPending())) {
       drawerConnectWatch = 0;
       return;
     }
-    if (Date.now() - started < 4000) {
+    if (connectPending() || Date.now() - started < 4000) {
       setTimeout(watch, 200);
       return;
     }
@@ -6343,6 +6345,20 @@ for (const id of drawerWatchIds) {
   const el = document.getElementById(id);
   if (el) watchDrawerPanel(id, el);
 }
+
+// A tap during the page slide must not open the row under the moving page.
+// Capture on the menu stops the row. The same check is on document so this
+// host listener, which is also capture, never runs mid-slide.
+function ignoreDrawerSlideTap(event) {
+  if (!navBusy()) return;
+  const node = event.target;
+  if (!node || !node.closest || !node.closest('.feed-menu-page')) return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+}
+document.addEventListener('click', ignoreDrawerSlideTap, true);
+menu.addEventListener('click', ignoreDrawerSlideTap, true);
 
 // Move a child into the drawer before its click handler shows it, and
 // hold its own history layer so the drawer page stays the one Back step.

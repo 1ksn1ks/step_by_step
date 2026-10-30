@@ -10093,9 +10093,11 @@ html.is-nav-lock body * {
 #feed-chat.nav-cover {
   transition: transform 250ms ease-out, opacity 250ms ease-out;
 }
-#feed-profile.nav-cover.nav-off,
-#feed-chat.nav-cover.nav-off {
+#feed-profile.nav-cover.nav-off {
   transform: translateX(50%);
+}
+#feed-chat.nav-cover.nav-off {
+  transform: translateX(50dvw);
 }
 #topic-chat-container.nav-cover,
 #encrypted-chat-container.nav-cover,
