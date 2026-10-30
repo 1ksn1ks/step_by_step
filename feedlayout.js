@@ -4960,7 +4960,10 @@ function loadOptionsShown() {
 // out onto Load.
 function slideLoadOptions(open) {
   const page = feedChat.querySelector('.load-options-page');
-  if (!page) return;
+  if (!page) {
+    feedChat.classList.remove('is-nav-under');
+    return;
+  }
   if (open) {
     delete page.dataset.navLeaving;
     page.hidden = false;
@@ -4968,6 +4971,7 @@ function slideLoadOptions(open) {
     void page.offsetWidth;
     page.classList.remove('nav-prep');
     void page.offsetWidth;
+    feedChat.classList.add('is-nav-under');
     page.classList.remove('nav-off');
     holdNav();
     const back = page.querySelector('.feed-chat-back');
@@ -4976,11 +4980,13 @@ function slideLoadOptions(open) {
   }
   if (page.hidden || page.dataset.navLeaving === '1') {
     page.hidden = true;
+    feedChat.classList.remove('is-nav-under');
     return;
   }
   page.dataset.navLeaving = '1';
   pinMotion(page);
   page.classList.add('nav-off');
+  feedChat.classList.remove('is-nav-under');
   void page.offsetWidth;
   releaseMotion(page);
   holdNav();
@@ -5052,6 +5058,7 @@ function clearLoadOptions() {
     loadOptionsWatch.disconnect();
     loadOptionsWatch = null;
   }
+  feedChat.classList.remove('is-nav-under');
   const page = feedChat.querySelector('.load-options-page');
   if (page) page.remove();
 }
@@ -5307,6 +5314,7 @@ function hideE2eeWebNotice() {
 
 function hideFeedChatPanel() {
   hideE2eeWebNotice();
+  feedChat.classList.remove('is-nav-under');
   feedChatLive = false;
   if (feedChatWatch) {
     feedChatWatch.disconnect();
@@ -5423,10 +5431,16 @@ document.getElementById('load-msgs-from-encrypted-chat').addEventListener('click
 
 function paintFeedSettings(open) {
   settingsOpen = open;
-  settings.hidden = !open;
   if (open) {
+    if (!beginFeedCover(settings)) {
+      delete settings.dataset.navLeaving;
+      settings.classList.remove('nav-off', 'nav-prep', 'nav-cover');
+      settings.hidden = false;
+    }
     for (const paint of settingsPaints) paint();
     settingsBack.focus({ preventScroll: true });
+  } else {
+    concealCover(settings);
   }
   syncFeedVideos();
 }
@@ -5441,7 +5455,7 @@ function closeFeedSettings() {
 
 function openFeedSettings() {
   if (!feedOn() || root.classList.contains('is-peek')) return;
-  if (keepDrawer('Settings')) {
+  if (coverFromDrawer('Settings')) {
     paintFeedSettings(true);
     if (window.layerOpened) window.layerOpened('feedsettings', drawerState());
     return;
@@ -5659,8 +5673,11 @@ function paintMenu(open) {
     menu.hidden = false;
     menuDim.hidden = false;
     if (motionOff()) {
+      menu.classList.add('is-prep');
       menu.classList.add('is-open');
       menuDim.classList.add('is-open');
+      void menu.offsetWidth;
+      menu.classList.remove('is-prep');
       return;
     }
     menu.classList.remove('is-open');
@@ -6054,9 +6071,9 @@ function fillDrawerPanel(id) {
   }
 }
 
-// Drawer pages keep their own slide. This only locks the gesture for that time.
+// Page pushes are 250ms in both directions, including reduced motion.
 function navMs() {
-  return motionOff() ? 160 : 250;
+  return 250;
 }
 
 function navBusy() {
@@ -6084,7 +6101,6 @@ function pinMotion(el) {
   const cs = getComputedStyle(el);
   el.style.transition = 'none';
   if (cs.transform && cs.transform !== 'none') el.style.transform = cs.transform;
-  el.style.opacity = cs.opacity;
   void el.offsetWidth;
 }
 
@@ -6092,7 +6108,6 @@ function releaseMotion(el) {
   if (!el) return;
   el.style.transition = '';
   el.style.transform = '';
-  el.style.opacity = '';
 }
 
 function afterNav(el, done) {
@@ -7080,15 +7095,16 @@ menu.addEventListener('pointerdown', (event) => {
 
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
-  if (!feedChat.hidden && feedChatKind === 'load') {
+  if (!feedChat.hidden && feedChatKind) {
     // A slide owns the key. Help, the wallet sheet, and any other layer
-    // above Load or Options take Escape before this page does.
+    // above the chat take Escape before this page does.
     if (navBusy()) return;
-    const loadTop = window.layerIsTop && (window.layerIsTop('feedchat') || window.layerIsTop('loadoptions'));
-    if (!loadTop) return;
+    const chatTop = window.layerIsTop && (window.layerIsTop('feedchat')
+      || (feedChatKind === 'load' && window.layerIsTop('loadoptions')));
+    if (!chatTop) return;
     event.preventDefault();
     event.stopPropagation();
-    if (loadOptionsShown()) {
+    if (feedChatKind === 'load' && loadOptionsShown()) {
       const hide = document.getElementById('hide-options-from-load');
       if (hide) hide.click();
       return;

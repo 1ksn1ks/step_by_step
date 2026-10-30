@@ -10054,10 +10054,10 @@ html.feed-app appkit-modal {
   padding: 0;
   background: #0a0a12;
   transform: translateX(100%);
-  transition: transform 250ms ease-out;
+  transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 #feed-menu > li:not(.feed-menu-page) {
-  transition: transform 250ms ease-out;
+  transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 #feed-menu.is-nav-under > li:not(.feed-menu-page) {
   transform: translateX(-25%);
@@ -10065,12 +10065,12 @@ html.feed-app appkit-modal {
 #feed-menu.is-open.is-nav-back {
   transform: translateX(-25%);
 }
-/* Sub-pages and pages opened over the drawer keep the earlier ease-out.
-   The open and close slide above is only for the drawer itself. */
+/* The drawer shell keeps its own open/close slide. While a page covers it,
+   the same 250ms curve shifts the shell to -25% and back. */
 #feed-menu.is-page,
 #feed-menu.is-nav-back,
 #feed-menu.is-open.is-nav-back {
-  transition: transform 250ms ease-out;
+  transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 #feed-menu::before,
 #feed-menu::after,
@@ -10081,7 +10081,7 @@ html.feed-app appkit-modal {
   background: rgba(0, 0, 0, 0.45);
   pointer-events: none;
   opacity: 0;
-  transition: opacity 250ms ease-out;
+  transition: opacity 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 #feed-menu::before {
   z-index: 4;
@@ -10108,10 +10108,12 @@ html.feed-app appkit-modal {
   z-index: 7;
 }
 #feed-menu.is-prep,
+#feed-menu.is-open.is-prep,
 #feed-menu.is-prep > li,
 #feed-menu .feed-menu-page.is-prep,
 #feed-profile.nav-cover.nav-prep,
 #feed-chat.nav-cover.nav-prep,
+#feed-settings.nav-cover.nav-prep,
 #feed-chat .load-options-page.nav-cover.nav-prep,
 #topic-chat-container.nav-cover.nav-prep,
 #encrypted-chat-container.nav-cover.nav-prep,
@@ -10122,14 +10124,14 @@ html.is-nav-lock body * {
   pointer-events: none !important;
 }
 #feed-profile.nav-cover,
-#feed-chat.nav-cover {
-  transition: transform 250ms ease-out, opacity 250ms ease-out;
+#feed-chat.nav-cover,
+#feed-settings.nav-cover {
+  transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-#feed-profile.nav-cover.nav-off {
-  transform: translateX(50%);
-}
-#feed-chat.nav-cover.nav-off {
-  transform: translateX(50dvw);
+#feed-profile.nav-cover.nav-off,
+#feed-chat.nav-cover.nav-off,
+#feed-settings.nav-cover.nav-off {
+  transform: translateX(100dvw);
 }
 #topic-chat-container.nav-cover,
 #encrypted-chat-container.nav-cover,
@@ -10143,7 +10145,7 @@ html.is-nav-lock body * {
 #encrypted-chat-container.nav-cover,
 #load-column.nav-cover {
   z-index: 9002 !important;
-  transition: transform 250ms ease-out, opacity 250ms ease-out;
+  transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 #topic-chat-container.nav-cover.nav-off,
 #encrypted-chat-container.nav-cover.nav-off,
@@ -10153,56 +10155,33 @@ html.is-nav-lock body * {
 @media (prefers-reduced-motion: reduce) {
   #feed-menu,
   #feed-menu.is-page,
-  #feed-menu.is-nav-back,
-  #feed-menu.is-open.is-nav-back,
   .feed-menu-dim {
     transition: none;
   }
-  #feed-menu .feed-menu-page {
-    transition: opacity 160ms ease-out !important;
-    transform: none !important;
-  }
-  #feed-menu .feed-menu-page:not(.is-front) {
-    opacity: 0;
-  }
-  #feed-menu .feed-menu-page.is-front {
-    opacity: 1;
-  }
-  #feed-menu.is-nav-under > li:not(.feed-menu-page) {
-    transform: none;
-  }
-  #feed-menu.is-open.is-nav-back {
-    transform: translateX(0);
+  /* Pages still push. Reduced motion does not turn them into a fade.
+     The open shell keeps this curve so a page can slide back onto it.
+     Opening the shell itself still snaps: paintMenu sets is-prep first. */
+  #feed-menu.is-open,
+  #feed-menu.is-nav-back,
+  #feed-menu.is-open.is-nav-back,
+  #feed-menu .feed-menu-page,
+  #feed-menu > li:not(.feed-menu-page),
+  #feed-profile.nav-cover,
+  #feed-chat.nav-cover,
+  #feed-settings.nav-cover,
+  #topic-chat-container.nav-cover,
+  #encrypted-chat-container.nav-cover,
+  #load-column.nav-cover,
+  #feed-chat .load-options-page.nav-cover,
+  #feed-chat > .feed-chat-bar,
+  #feed-chat > .feed-chat-body {
+    transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1) !important;
   }
   #feed-menu::before,
   #feed-menu::after,
-  #feed-menu .feed-menu-page::after {
-    transition: opacity 160ms ease-out;
-  }
-  #feed-profile.nav-cover,
-  #feed-chat.nav-cover {
-    transition: opacity 160ms ease-out !important;
-    transform: translateX(-50%) !important;
-  }
-  #feed-profile.nav-cover.nav-off,
-  #feed-chat.nav-cover.nav-off,
-  #topic-chat-container.nav-cover.nav-off,
-  #encrypted-chat-container.nav-cover.nav-off,
-  #load-column.nav-cover.nav-off {
-    opacity: 0;
-  }
-  #topic-chat-container.nav-cover,
-  #encrypted-chat-container.nav-cover,
-  #load-column.nav-cover {
-    transition: opacity 160ms ease-out !important;
-    transform: none !important;
-  }
-  #feed-chat .load-options-page.nav-cover {
-    transition: opacity 160ms ease-out !important;
-    transform: none !important;
-  }
-  #feed-chat .load-options-page.nav-cover.nav-off {
-    opacity: 0;
+  #feed-menu .feed-menu-page::after,
+  #feed-chat::after {
+    transition: opacity 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 }
 #feed-menu .feed-menu-page-bar {
@@ -10744,12 +10723,10 @@ html.drawer-page .info-overlay {
   box-sizing: border-box;
   width: min(100dvw, var(--feed-col-width));
   margin: 0;
-  background: rgba(10, 10, 18, 0.9);
+  background: #0a0a12;
   color: #fff;
   font-family: Inter, system-ui, sans-serif;
   transform: translateX(-50%);
-  backdrop-filter: blur(1.2dvh);
-  -webkit-backdrop-filter: blur(1.2dvh);
   container-type: inline-size;
   container-name: feedsettings;
 }
@@ -12580,11 +12557,32 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
 #feed-chat .load-options-page[hidden] {
   display: none !important;
 }
+#feed-chat > .feed-chat-bar,
+#feed-chat > .feed-chat-body {
+  transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+#feed-chat.is-nav-under > .feed-chat-bar,
+#feed-chat.is-nav-under > .feed-chat-body {
+  transform: translateX(-25%);
+}
+#feed-chat::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+#feed-chat.is-nav-under::after {
+  opacity: 1;
+}
 #feed-chat .load-options-page.nav-cover {
-  transition: transform 250ms ease-out;
+  transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 #feed-chat .load-options-page.nav-cover.nav-off {
-  transform: translateX(100%);
+  transform: translateX(100dvw);
 }
 #feed-chat .load-options-page > .feed-chat-bar {
   position: relative;
