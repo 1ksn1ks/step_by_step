@@ -87,7 +87,7 @@ const accountSpan = document.getElementById('account-id');
 const disconnectBtn = document.getElementById("disconnect-wallet-btn");
 const walletBtn = document.getElementById("wallet-wallet-btn")
 
-function updateUI() {
+export function updateUI() {
   if (connectedAccount) {
     accountSpan.textContent = connectedAccount;
     connectBtn.textContent = 'Connected ✓';  // Optional: hide or disable connect button

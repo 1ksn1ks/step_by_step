@@ -8,7 +8,7 @@ import { markerPopupNode, polygonPopupNode, mountPostReactions, buildPopupProfil
 import { BACKEND_URL, fetchMessagesBackend, streamOnTopic, messageSig, fetchFollowing } from './msgbackend.js';
 import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
 import { initialTopicId } from './extracttopic.js';
-import { connectedAccount } from './web3.js';
+import { connectedAccount, updateUI } from './web3.js';
 import { toast } from './toast.js';
 import { handleAllMessages } from './handleallmessages.js';
 import { activeMarkerPopups } from './marker.js';
@@ -5458,31 +5458,58 @@ function openDisconnect() {
 
 // The parked Wallet button reveals Connect. Connect's own handler opens
 // the sheet. The drawer stays up; paintMenuRows swaps this row for the
-// account and Disconnect when the id lands. A second tap while the sheet
-// or the "Connecting..." label is up does not start another connect.
+// account and Disconnect when the id lands. A second tap is ignored only
+// while the sheet is open or this watch is running. A leftover
+// "Connecting..." label is not a second tap.
 let drawerConnectWatch = 0;
+function endDrawerConnect(watchId, failed) {
+  if (watchId !== drawerConnectWatch) return;
+  drawerConnectWatch = 0;
+  if (walletNow()) return;
+  updateUI();
+  if (failed) toast.info("Couldn't open the wallet");
+}
 function openDrawerConnect() {
-  if (walletModalOpen() || connectPending() || drawerConnectWatch) return;
+  if (walletModalOpen() || drawerConnectWatch) return;
   const watchId = ++drawerConnectWatch;
   clickId('wallet-wallet-btn');
   clickId('connect-wallet-btn');
   const started = Date.now();
   let sawSheet = walletModalOpen();
+  let closedAt = 0;
   const watch = () => {
     if (watchId !== drawerConnectWatch) return;
-    // "Connecting..." is the sheet still opening. It counts as seen, but
-    // the watch stays up until that label clears.
-    if (walletModalOpen() || connectPending()) sawSheet = true;
-    if (walletNow() || (sawSheet && !connectPending())) {
+    if (walletNow()) {
       drawerConnectWatch = 0;
       return;
     }
-    if (connectPending() || Date.now() - started < 4000) {
-      setTimeout(watch, 200);
+    const open = walletModalOpen();
+    const connecting = connectPending();
+    if (open) {
+      sawSheet = true;
+      closedAt = 0;
+    } else if (sawSheet && !closedAt) {
+      closedAt = Date.now();
+    }
+    // Same endings as ensureWallet. A sheet that has stayed closed ~1.5s
+    // is done even while the label still says "Connecting...".
+    if (sawSheet && !open && !connecting) {
+      endDrawerConnect(watchId, false);
       return;
     }
-    drawerConnectWatch = 0;
-    toast.info("Couldn't open the wallet");
+    if (sawSheet && !open && closedAt && Date.now() - closedAt >= 1500) {
+      endDrawerConnect(watchId, false);
+      return;
+    }
+    if (!sawSheet && !open && !connecting && Date.now() - started >= 4000) {
+      endDrawerConnect(watchId, true);
+      return;
+    }
+    if (Date.now() - started >= 90000) {
+      endDrawerConnect(watchId, true);
+      return;
+    }
+    setTimeout(watch, 200);
   };
   setTimeout(watch, 200);
 }
@@ -7054,6 +7081,11 @@ menu.addEventListener('pointerdown', (event) => {
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
   if (!feedChat.hidden && feedChatKind === 'load') {
+    // A slide owns the key. Help, the wallet sheet, and any other layer
+    // above Load or Options take Escape before this page does.
+    if (navBusy()) return;
+    const loadTop = window.layerIsTop && (window.layerIsTop('feedchat') || window.layerIsTop('loadoptions'));
+    if (!loadTop) return;
     event.preventDefault();
     event.stopPropagation();
     if (loadOptionsShown()) {

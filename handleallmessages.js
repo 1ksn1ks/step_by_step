@@ -103,7 +103,8 @@ function topicChevron() {
 function setTopicChevron(arrowBtn, open) {
   if (!arrowBtn) return;
   arrowBtn.classList.toggle('is-open', open);
-  arrowBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  const row = arrowBtn.closest('.loaded-topic-row');
+  if (row) row.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 // The row chevron expands/collapses that topic's bio below its row.
@@ -174,6 +175,9 @@ export function renderLoadedTopics() {
 
     const row = document.createElement('div');
     row.className = 'loaded-topic-row';
+    row.setAttribute('role', 'button');
+    row.tabIndex = 0;
+    row.setAttribute('aria-expanded', 'false');
 
     const label = document.createElement('span');
     label.className = 'loaded-topic-label';
@@ -201,6 +205,7 @@ export function renderLoadedTopics() {
     copyBtn.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       e.preventDefault();
+      e.stopPropagation();
       copyBtn.click();
     });
     row.appendChild(copyBtn);
@@ -213,6 +218,16 @@ export function renderLoadedTopics() {
     row.appendChild(arrowBtn);
 
     row.addEventListener('click', () => {
+      const selected = window.getSelection && window.getSelection();
+      if (selected && selected.toString()) return;
+      toggleTopicBio(topicId, row, arrowBtn);
+      adjustTextareaHeight(el);
+    });
+    row.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (e.target !== row) return;
+      if (e.repeat) return;
+      e.preventDefault();
       toggleTopicBio(topicId, row, arrowBtn);
       adjustTextareaHeight(el);
     });
