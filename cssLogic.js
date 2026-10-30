@@ -585,23 +585,8 @@ export function CloseALL() {
   
   document.getElementById("Load_Everything").addEventListener("click", (event) => {
     event.stopPropagation();
-    // Drawer Toolbar opens the shared full-screen page. Other callers
-    // (startup, a history Forward of the old column) still show the panel.
-    if (typeof window.openLoadPage === "function" && window.openLoadPage()) return;
-    CloseALL();
-    loadColumnsEverything();
-    loadColumnsHideOptionsload();
-    document.getElementById("show-options-from-load").style.display = "block";
-    document.getElementById("hide-options-from-load").style.display = "none";
-    document.getElementById("options-from-load").style.display = "none";
-    document.getElementById("load-column").style.display = "block";
-    document.getElementById("load-column-container").style.display = "block";
-    const loaded_text_area = document.getElementById("loaded-topics");
-    renderLoadedTopics(); // Rows: topic id + name + 📋 copy + ✕ unload
-
-    adjustTextareaHeight(loaded_text_area);
-    OpenToggleToolbar();
-    removeUfoModel();
+    // Load is only the full-screen page opened from the drawer.
+    if (typeof window.openLoadPage === "function") window.openLoadPage();
   });
   
   document.getElementById("Create_New_Topic").addEventListener("click", (event) => {

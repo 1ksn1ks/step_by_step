@@ -12410,6 +12410,21 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   background: rgba(255, 255, 255, 0.06);
   border-radius: calc(var(--fu) * 1.4);
 }
+.loaded-topic-row {
+  overflow: hidden;
+}
+.loaded-topic-chev {
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.45);
+}
+.loaded-topic-chev svg {
+  width: 16px;
+  height: 16px;
+  max-width: 16px;
+  max-height: 16px;
+  display: block;
+  flex: 0 0 auto;
+}
 #feed-chat #load-column.is-feed-shell .loaded-topic-row {
   display: flex;
   align-items: center;
@@ -12419,6 +12434,7 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   min-height: max(44px, 5.5dvh);
   margin: 0;
   padding: 0 calc(var(--fu) * 0.35) 0 calc(var(--fu) * 1.1);
+  overflow: hidden;
   border: 0;
   background: transparent;
   color: #fff;
@@ -12460,9 +12476,12 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   line-height: 1;
 }
 #feed-chat #load-column.is-feed-shell .loaded-topic-chev svg {
-  width: calc(var(--fu) * 1.8);
-  height: calc(var(--fu) * 1.8);
+  width: 16px;
+  height: 16px;
+  max-width: 16px;
+  max-height: 16px;
   display: block;
+  flex: 0 0 auto;
   transition: transform 0.12s ease;
 }
 #feed-chat #load-column.is-feed-shell .loaded-topic-chev.is-open svg {

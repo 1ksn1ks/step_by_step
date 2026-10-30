@@ -3254,8 +3254,7 @@ function openLoadFromFeed() {
   openFeedChat('load');
 }
 
-// Toolbar → Load. The drawer stays the page underneath. Returns false when
-// this click should still open the floating column (startup, bio, history).
+// Toolbar → Load, only while the drawer is open. Startup never calls this.
 function openLoadPage() {
   const drawerOpen = !menu.hidden && menu.classList.contains('is-open') && drawerStack.length > 0;
   if (!drawerOpen || navBusy()) return false;

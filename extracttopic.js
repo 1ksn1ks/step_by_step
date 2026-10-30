@@ -1,5 +1,3 @@
-
-import {adjustTextareaHeight} from './adjusttextarea' 
 import { loadedDomains } from './loaddomains';
 
 export let initialTopicId = '';
@@ -26,13 +24,10 @@ export async function extractTopicId() {
     }
   }
 
-    const loadColumn = document.getElementById("load-column");
-    loadColumn.style.display = "block";
-    const inputarea = document.getElementById("input-field");
-    inputarea.value = '';
-    inputarea.value = topicId;
-    adjustTextareaHeight(inputarea);
-    // toolbarload = true;
+  // The id is what the background load reads. Do not show #load-column
+  // or move focus; the Load page opens only from the drawer.
+  const inputarea = document.getElementById("input-field");
+  inputarea.value = topicId;
 
   initialTopicId = topicId; 
   return initialTopicId;
