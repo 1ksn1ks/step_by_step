@@ -6044,6 +6044,16 @@ function rowShown(el) {
   return getComputedStyle(el).display !== 'none';
 }
 
+function isGroupRow(el) {
+  if (!el || !el.classList) return false;
+  if (el.classList.contains('save-settings-btn') || el.classList.contains('mb-reset-btn')) return false;
+  if (el.classList.contains('mb-card-title') || el.classList.contains('options-column-title')) return false;
+  if (el.classList.contains('panel-help-btn') || el.classList.contains('panel-close-btn')) return false;
+  if (el.classList.contains('set-nav') || el.classList.contains('mb-row')) return true;
+  if (el.matches('.toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns')) return true;
+  return !!(el.querySelector && el.querySelector(':scope > input[type="range"]'));
+}
+
 function paintGroupDividers(root) {
   if (!root) return;
   for (const group of root.querySelectorAll('.set-group')) {
@@ -6056,6 +6066,20 @@ function paintGroupDividers(root) {
       child.classList.toggle('set-split', !first);
       first = false;
     }
+  }
+  const groups = new Set(root.querySelectorAll('.set-group, .mb-card'));
+  for (const el of root.querySelectorAll('div')) {
+    if (groups.has(el) || el.closest('.mb-card, .set-group')) continue;
+    const stacks = [...el.children].some((child) => child.querySelector && child.querySelector(':scope > input[type="range"]'));
+    if (stacks) groups.add(el);
+  }
+  for (const group of groups) {
+    for (const child of group.children) child.classList.remove('is-row-first', 'is-row-last');
+    const shown = [...group.children].filter(rowShown);
+    const rows = shown.filter(isGroupRow);
+    if (!rows.length) continue;
+    if (rows[0] === shown[0]) rows[0].classList.add('is-row-first');
+    if (rows[rows.length - 1] === shown[shown.length - 1]) rows[rows.length - 1].classList.add('is-row-last');
   }
 }
 
@@ -6138,10 +6162,37 @@ function syncShellRefs() {
 
 function unhostShell(shell) {
   if (!shell) return;
+  restorePageHelp(shell);
   for (const el of [...drawerHosted.keys()]) {
     if (!shell.body.contains(el)) continue;
     unhostDrawer(el, true);
   }
+}
+
+// The ? sits in the header while the panel is hosted, and goes back
+// to the panel when the page closes.
+function takePageHelp(shell) {
+  if (!shell || (shell.help && shell.bar.contains(shell.help))) return;
+  const btn = shell.body.querySelector('.in-drawer > .panel-help-btn');
+  if (!btn) return;
+  shell.help = btn;
+  shell.helpSpot = { parent: btn.parentNode, next: btn.nextSibling };
+  btn.classList.add('is-bar-help');
+  shell.bar.appendChild(btn);
+}
+
+function restorePageHelp(shell) {
+  const btn = shell && shell.help;
+  const spot = shell && shell.helpSpot;
+  if (shell) {
+    shell.help = null;
+    shell.helpSpot = null;
+  }
+  if (!btn) return;
+  btn.classList.remove('is-bar-help');
+  if (!spot || !spot.parent || !spot.parent.isConnected) return;
+  const next = spot.next && spot.next.parentNode === spot.parent ? spot.next : null;
+  spot.parent.insertBefore(btn, next);
 }
 
 function paintShell(shell, id) {
@@ -6151,6 +6202,7 @@ function paintShell(shell, id) {
     shell.title.textContent = drawerPageLabel(id);
     shell.el.setAttribute('aria-label', shell.title.textContent);
     fillDrawerPanel(id);
+    takePageHelp(shell);
     paintGroupDividers(shell.body);
   } finally {
     drawerRenderLock = false;
@@ -6228,15 +6280,25 @@ function focusDrawerOpener(leftId) {
 // Push: the new page comes in from the right and the page under it
 // shifts left and dims. Pop is the same classes run backwards, so a
 // back press reverses from wherever the slide currently is.
+// A nested page cannot stay inside #feed-menu: the drawer's transform
+// traps position:fixed. Root pages stay in the drawer. Deeper pages
+// are a body-level frame and use the same push as the chat pages.
+function placeDrawerShell(shell) {
+  const screen = drawerShells.length > 0;
+  shell.el.classList.toggle('drawer-screen', screen);
+  const parent = screen ? document.body : menu;
+  if (shell.el.parentNode !== parent) parent.appendChild(shell.el);
+}
+
 function mountDrawerForward(id) {
   const shell = makeDrawerShell();
   shell.id = id;
   shell.el.classList.add('is-prep');
   menu.classList.add('is-page');
-  menu.appendChild(shell.el);
+  placeDrawerShell(shell);
   drawerShells.push(shell);
   paintShell(shell, id);
-  menu.scrollTop = 0;
+  if (shell.el.parentNode === menu) menu.scrollTop = 0;
   const prev = drawerShells[drawerShells.length - 2];
   void shell.el.offsetWidth;
   shell.el.classList.remove('is-prep');
@@ -6258,7 +6320,7 @@ function mountDrawerParked(id, mode) {
   shell.id = id;
   shell.el.classList.add('is-prep', mode === 'front' ? 'is-front' : 'is-under');
   menu.classList.add('is-page', 'is-nav-under');
-  menu.appendChild(shell.el);
+  placeDrawerShell(shell);
   drawerShells.push(shell);
   paintShell(shell, id);
   void shell.el.offsetWidth;
@@ -6402,7 +6464,7 @@ function dropDrawerHistory() {
 }
 
 function makeDrawerShell() {
-  const el = document.createElement('li');
+  const el = document.createElement(drawerShells.length > 0 ? 'div' : 'li');
   el.className = 'feed-menu-page';
   el.setAttribute('role', 'presentation');
   const bar = document.createElement('div');
@@ -6437,7 +6499,7 @@ function makeDrawerShell() {
       paintGroupDividers(body);
     });
   }).observe(body, { subtree: true, attributeFilter: ['style', 'hidden'] });
-  return { id: '', el, body, title, back };
+  return { id: '', el, body, title, back, bar };
 }
 
 // Map profile, opened from the drawer, uses the same push as a drawer

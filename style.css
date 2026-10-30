@@ -10043,7 +10043,7 @@ html.feed-app appkit-modal {
 #feed-menu.is-page {
   overflow: hidden;
 }
-#feed-menu .feed-menu-page {
+:is(#feed-menu, .drawer-screen) .feed-menu-page {
   position: absolute;
   inset: 0;
   z-index: 5;
@@ -10074,7 +10074,7 @@ html.feed-app appkit-modal {
 }
 #feed-menu::before,
 #feed-menu::after,
-#feed-menu .feed-menu-page::after {
+:is(#feed-menu, .drawer-screen) .feed-menu-page::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -10087,30 +10087,87 @@ html.feed-app appkit-modal {
   z-index: 4;
 }
 #feed-menu::after,
-#feed-menu .feed-menu-page::after {
+:is(#feed-menu, .drawer-screen) .feed-menu-page::after {
   z-index: 8;
 }
 #feed-menu.is-nav-under::before,
 #feed-menu.is-nav-back::after,
-#feed-menu .feed-menu-page.is-under::after {
+:is(#feed-menu, .drawer-screen) .feed-menu-page.is-under::after {
   opacity: 1;
 }
-#feed-menu .feed-menu-page.is-front {
+:is(#feed-menu, .drawer-screen) .feed-menu-page.is-front {
   transform: translateX(0);
   z-index: 6;
 }
-#feed-menu .feed-menu-page.is-under {
+:is(#feed-menu, .drawer-screen) .feed-menu-page.is-under {
   transform: translateX(-25%);
   z-index: 5;
 }
-#feed-menu .feed-menu-page.is-leave {
+:is(#feed-menu, .drawer-screen) .feed-menu-page.is-leave {
   transform: translateX(100%);
   z-index: 7;
+}
+/* Nested settings leave the drawer column. Same popup frame as the map
+   cards, and the same 250ms push as the chat pages. */
+.drawer-screen {
+  --fu: calc(min(78dvw, 42dvh) / 31.25);
+  position: fixed;
+  z-index: 8650;
+  top: var(--popup-top);
+  right: var(--popup-right);
+  bottom: var(--popup-bottom);
+  left: var(--popup-left);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #0a0a12;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  list-style: none;
+  transform: translateX(100dvw);
+  transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (orientation: landscape) {
+  .drawer-screen {
+    left: calc(var(--popup-left) + env(safe-area-inset-left));
+    right: calc(var(--popup-right) + env(safe-area-inset-right));
+  }
+}
+.drawer-screen.is-front {
+  transform: translateX(0);
+  z-index: 8650;
+}
+.drawer-screen.is-under {
+  transform: translateX(-25%);
+  z-index: 8640;
+}
+.drawer-screen.is-leave {
+  transform: translateX(100dvw);
+  z-index: 8660;
+}
+.drawer-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.drawer-screen.is-under::after {
+  opacity: 1;
 }
 #feed-menu.is-prep,
 #feed-menu.is-open.is-prep,
 #feed-menu.is-prep > li,
-#feed-menu .feed-menu-page.is-prep,
+:is(#feed-menu, .drawer-screen) .feed-menu-page.is-prep,
+.drawer-screen.is-prep,
 #feed-profile.nav-cover.nav-prep,
 #feed-chat.nav-cover.nav-prep,
 #feed-settings.nav-cover.nav-prep,
@@ -10164,7 +10221,8 @@ html.is-nav-lock body * {
   #feed-menu.is-open,
   #feed-menu.is-nav-back,
   #feed-menu.is-open.is-nav-back,
-  #feed-menu .feed-menu-page,
+  :is(#feed-menu, .drawer-screen) .feed-menu-page,
+  .drawer-screen,
   #feed-menu > li:not(.feed-menu-page),
   #feed-profile.nav-cover,
   #feed-chat.nav-cover,
@@ -10179,12 +10237,13 @@ html.is-nav-lock body * {
   }
   #feed-menu::before,
   #feed-menu::after,
-  #feed-menu .feed-menu-page::after,
+  :is(#feed-menu, .drawer-screen) .feed-menu-page::after,
+  .drawer-screen::after,
   #feed-chat::after {
     transition: opacity 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 }
-#feed-menu .feed-menu-page-bar {
+:is(#feed-menu, .drawer-screen) .feed-menu-page-bar {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -10195,7 +10254,7 @@ html.is-nav-lock body * {
   padding: 0 calc(var(--fu) * 1.1);
   border-bottom: 1px solid rgba(255, 255, 255, 0.22);
 }
-#feed-menu .feed-menu-page-back {
+:is(#feed-menu, .drawer-screen) .feed-menu-page-back {
   appearance: none;
   flex: 0 0 auto;
   display: flex;
@@ -10217,29 +10276,30 @@ html.is-nav-lock body * {
   -webkit-tap-highlight-color: transparent;
   outline: none;
 }
-#feed-menu .feed-menu-page-back svg {
+:is(#feed-menu, .drawer-screen) .feed-menu-page-back svg {
   width: calc(var(--fu) * 2.2);
   height: calc(var(--fu) * 2.2);
   display: block;
   pointer-events: none;
 }
-#feed-menu .feed-menu-page-back:focus {
+:is(#feed-menu, .drawer-screen) .feed-menu-page-back:focus {
   outline: none;
 }
-#feed-menu .feed-menu-page-back:is(:hover, :active, .is-hold) {
+:is(#feed-menu, .drawer-screen) .feed-menu-page-back:is(:hover, :active, .is-hold) {
   color: #22D3EE;
   background: transparent;
   outline: none;
   box-shadow: none;
 }
-#feed-menu .feed-menu-page:focus {
+:is(#feed-menu, .drawer-screen) .feed-menu-page:focus {
   outline: none;
 }
-#feed-menu .feed-menu-page-back:focus-visible {
+:is(#feed-menu, .drawer-screen) .feed-menu-page-back:focus-visible {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.15);
 }
-#feed-menu .feed-menu-page-title {
+:is(#feed-menu, .drawer-screen) .feed-menu-page-title {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -10249,14 +10309,14 @@ html.is-nav-lock body * {
   font-weight: 700;
   line-height: 1.2;
 }
-#feed-menu .feed-menu-page-body {
+:is(#feed-menu, .drawer-screen) .feed-menu-page-body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   padding: calc(var(--fu) * 0.8) calc(var(--fu) * 0.7) calc(var(--fu) * 1.2);
 }
-#feed-menu .in-drawer {
+:is(#feed-menu, .drawer-screen) .in-drawer {
   position: relative !important;
   inset: auto !important;
   top: auto !important;
@@ -10278,23 +10338,53 @@ html.is-nav-lock body * {
   background: transparent !important;
   overflow: visible !important;
 }
-#feed-menu .in-drawer .options-column-title {
+:is(#feed-menu, .drawer-screen) .in-drawer .options-column-title {
   display: none;
 }
-#feed-menu .in-drawer .panel-close-btn {
+:is(#feed-menu, .drawer-screen) .in-drawer .panel-close-btn {
   display: none !important;
 }
-#feed-menu .in-drawer > .panel-help-btn {
-  position: static;
-  top: auto;
+:is(#feed-menu, .drawer-screen) .feed-menu-page-bar > .panel-help-btn.is-bar-help {
+  position: static !important;
+  top: auto !important;
   right: auto !important;
   left: auto !important;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   box-sizing: border-box;
   width: 44px;
   height: 44px;
   min-width: 44px;
   min-height: 44px;
-  margin: 0 0 calc(var(--fu) * 0.7);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  font-size: calc(var(--fu) * 1.8);
+  font-weight: 600;
+  line-height: 1;
+  transform: none;
+  filter: none;
+  outline: none;
+  box-shadow: none;
+  cursor: pointer;
+}
+:is(#feed-menu, .drawer-screen) .feed-menu-page-bar > .panel-help-btn.is-bar-help:is(:hover, :active) {
+  color: #22D3EE;
+  background: transparent;
+  transform: none;
+  filter: none;
+}
+:is(#feed-menu, .drawer-screen) .feed-menu-page-bar > .panel-help-btn.is-bar-help:focus {
+  outline: none;
+}
+:is(#feed-menu, .drawer-screen) .feed-menu-page-bar > .panel-help-btn.is-bar-help:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px #22D3EE;
 }
 #toolbar .set-nav-icon,
 #toolbar .set-nav-chev,
@@ -10306,8 +10396,8 @@ html.is-nav-lock body * {
 #visibility-controls .set-switch {
   display: none;
 }
-#feed-menu .in-drawer.set-group,
-#feed-menu .in-drawer .set-group {
+:is(#feed-menu, .drawer-screen) .in-drawer.set-group,
+:is(#feed-menu, .drawer-screen) .in-drawer .set-group {
   align-items: stretch !important;
   gap: 0 !important;
   box-sizing: border-box;
@@ -10321,18 +10411,18 @@ html.is-nav-lock body * {
   overflow: hidden !important;
   animation: none !important;
 }
-#feed-menu .in-drawer.set-group:not([style*="display: none"]):not([style*="display:none"]),
-#feed-menu .in-drawer .set-group:not([style*="display: none"]):not([style*="display:none"]) {
+:is(#feed-menu, .drawer-screen) .in-drawer.set-group:not([style*="display: none"]):not([style*="display:none"]),
+:is(#feed-menu, .drawer-screen) .in-drawer .set-group:not([style*="display: none"]):not([style*="display:none"]) {
   display: flex !important;
   flex-direction: column !important;
 }
-#feed-menu .in-drawer .set-group > .set-split {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-group > .set-split {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
 }
-#feed-menu .in-drawer .set-group > .set-nav.set-split:not([style*="display: none"]):not([style*="display:none"]) {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-group > .set-nav.set-split:not([style*="display: none"]):not([style*="display:none"]) {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
 }
-#feed-menu .in-drawer .set-nav:not([style*="display: none"]):not([style*="display:none"]) {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav:not([style*="display: none"]):not([style*="display:none"]) {
   display: flex !important;
   flex-direction: row;
   align-items: center;
@@ -10350,37 +10440,38 @@ html.is-nav-lock body * {
   background-color: transparent !important;
   box-shadow: none !important;
   animation: none !important;
+  transition: none;
   color: #fff;
   text-align: left !important;
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-#feed-menu .in-drawer .set-nav-icon,
-#feed-menu .in-drawer .set-nav-chev {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav-icon,
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav-chev {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   pointer-events: none;
 }
-#feed-menu .in-drawer .set-nav-icon {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav-icon {
   color: #fff;
 }
-#feed-menu .in-drawer .set-nav-chev {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav-chev {
   margin-left: auto;
   color: rgba(255, 255, 255, 0.45);
 }
-#feed-menu .in-drawer .set-nav-icon svg,
-#feed-menu .in-drawer .set-nav-chev svg {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav-icon svg,
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav-chev svg {
   width: calc(var(--fu) * 2.2);
   height: calc(var(--fu) * 2.2);
   display: block;
 }
-#feed-menu .in-drawer .set-nav-chev svg {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav-chev svg {
   width: calc(var(--fu) * 1.8);
   height: calc(var(--fu) * 1.8);
 }
-#feed-menu .in-drawer .set-nav-copy {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav-copy {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -10388,14 +10479,14 @@ html.is-nav-lock body * {
   gap: calc(var(--fu) * 0.08);
   pointer-events: none;
 }
-#feed-menu .in-drawer .set-nav-label {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav-label {
   font-size: calc(var(--fu) * 1.8);
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-#feed-menu .in-drawer .set-nav-desc {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav-desc {
   display: block;
   color: rgba(255, 255, 255, 0.45);
   font-size: calc(var(--fu) * 1.35);
@@ -10405,30 +10496,30 @@ html.is-nav-lock body * {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-#feed-menu .in-drawer .set-nav:is(:hover, :active) {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav:is(:hover, :active) {
   background: rgba(34, 211, 238, 0.12) !important;
   background-color: rgba(34, 211, 238, 0.12) !important;
   color: #22D3EE;
   transform: none !important;
   filter: none !important;
 }
-#feed-menu .in-drawer .set-nav:is(:hover, :active) .set-nav-desc,
-#feed-menu .in-drawer .set-nav:is(:hover, :active) .set-nav-chev {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav:is(:hover, :active) .set-nav-desc,
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav:is(:hover, :active) .set-nav-chev {
   color: rgba(255, 255, 255, 0.55);
 }
-#feed-menu .in-drawer .set-nav:focus {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav:focus {
   outline: none;
 }
-#feed-menu .in-drawer .set-nav:focus-visible {
-  outline: calc(var(--fu) * 0.12) solid #22D3EE;
-  outline-offset: calc(var(--fu) * -0.2);
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav:focus-visible:not([style*="display: none"]):not([style*="display:none"]) {
+  outline: none;
+  box-shadow: inset 0 0 0 2px #22D3EE !important;
 }
-#feed-menu .in-drawer .set-group > :is(.toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not([style*="display: none"]):not([style*="display:none"]) {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-group > :is(.toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not(.save-settings-btn):not([style*="display: none"]):not([style*="display:none"]) {
   display: flex !important;
   align-items: center;
   justify-content: flex-start;
 }
-#feed-menu .in-drawer :is(.toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns) {
+:is(#feed-menu, .drawer-screen) .in-drawer :is(.toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not(.save-settings-btn) {
   box-sizing: border-box;
   width: 100% !important;
   max-width: 100% !important;
@@ -10451,7 +10542,7 @@ html.is-nav-lock body * {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-#feed-menu .in-drawer :is(.toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns):is(:hover, :active) {
+:is(#feed-menu, .drawer-screen) .in-drawer :is(.toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not(.save-settings-btn):is(:hover, :active) {
   background: rgba(34, 211, 238, 0.12) !important;
   background-color: rgba(34, 211, 238, 0.12) !important;
   color: #22D3EE;
@@ -10459,17 +10550,44 @@ html.is-nav-lock body * {
   filter: none !important;
   box-shadow: none !important;
 }
-#feed-menu .in-drawer .set-group > .set-split:is(.toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns):is(:hover, :active) {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-group > .set-split:is(.toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns):is(:hover, :active) {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
 }
-#feed-menu .in-drawer :is(.toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns):focus {
+:is(#feed-menu, .drawer-screen) .in-drawer :is(.toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns):focus {
   outline: none;
 }
-#feed-menu .in-drawer :is(.toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns):focus-visible {
-  outline: calc(var(--fu) * 0.12) solid #22D3EE;
-  outline-offset: calc(var(--fu) * -0.2);
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav.is-row-first:not([style*="display: none"]):not([style*="display:none"]),
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-row.is-row-first,
+:is(#feed-menu, .drawer-screen) .in-drawer .set-group > .is-row-first:is(.toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns),
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]).is-row-first {
+  border-top-left-radius: calc(var(--fu) * 1.4) !important;
+  border-top-right-radius: calc(var(--fu) * 1.4) !important;
 }
-#feed-menu .in-drawer .mb-card {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-nav.is-row-last:not([style*="display: none"]):not([style*="display:none"]),
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-row.is-row-last,
+:is(#feed-menu, .drawer-screen) .in-drawer .set-group > .is-row-last:is(.toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns),
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]).is-row-last {
+  border-bottom-left-radius: calc(var(--fu) * 1.4) !important;
+  border-bottom-right-radius: calc(var(--fu) * 1.4) !important;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]).is-row-first {
+  border-top-left-radius: calc(var(--fu) * 1.4);
+  border-top-right-radius: calc(var(--fu) * 1.4);
+}
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]).is-row-last {
+  border-bottom-left-radius: calc(var(--fu) * 1.4);
+  border-bottom-right-radius: calc(var(--fu) * 1.4);
+}
+:is(#feed-menu, .drawer-screen) .in-drawer :is(.mb-row, .toolbar-column-btns, .toolbar-column-first-settings-btns, .toolbar-column-settings-btns):focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px #22D3EE !important;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer .set-group > .set-nav.set-split:focus-visible:not([style*="display: none"]):not([style*="display:none"]),
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card > .mb-row + .mb-row:focus-visible {
+  outline: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 0 0 2px #22D3EE !important;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card {
   background: rgba(255, 255, 255, 0.06);
   border: 0;
   border-radius: calc(var(--fu) * 1.4);
@@ -10478,13 +10596,13 @@ html.is-nav-lock body * {
   margin: 0 0 calc(var(--fu) * 0.9);
   overflow: hidden;
 }
-#feed-menu .in-drawer .mb-card-title {
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card-title {
   margin: 0;
   padding: calc(var(--fu) * 0.7) calc(var(--fu) * 1.1) calc(var(--fu) * 0.25);
   font-size: calc(var(--fu) * 1.25);
   letter-spacing: 0.08em;
 }
-#feed-menu .in-drawer .mb-row {
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-row {
   box-sizing: border-box;
   min-height: max(44px, 6dvh);
   margin: 0;
@@ -10493,16 +10611,16 @@ html.is-nav-lock body * {
   border: 0;
   border-radius: 0;
 }
-#feed-menu .in-drawer .mb-card > .mb-row + .mb-row {
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card > .mb-row + .mb-row {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
-#feed-menu .in-drawer .mb-row:is(:hover, :active) {
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-row:is(:hover, :active) {
   background: rgba(34, 211, 238, 0.12);
 }
-#feed-menu .in-drawer .mb-row-label {
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-row-label {
   font-size: calc(var(--fu) * 1.6);
 }
-#feed-menu .in-drawer .mb-value-pill {
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-value-pill {
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -10511,22 +10629,26 @@ html.is-nav-lock body * {
   color: rgba(255, 255, 255, 0.45);
   font-size: calc(var(--fu) * 1.4);
 }
-#feed-menu .in-drawer .mb-swatch {
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-swatch {
   order: 2;
   width: calc(var(--fu) * 2.4);
   height: calc(var(--fu) * 2.4);
   margin-left: auto;
 }
-#feed-menu .in-drawer .mb-swatch:hover {
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-swatch:hover {
   transform: none;
 }
-#feed-menu .in-drawer .mb-row:has(.mb-swatch) .mb-row-label {
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-row:has(.mb-swatch) .mb-row-label {
   order: 1;
 }
-#feed-menu .in-drawer .mb-card:has(.mb-preview),
-#feed-menu .in-drawer .mb-card:has(.mb-preview-column),
-#feed-menu .in-drawer .mb-card:has(.mb-chat-preview) {
-  padding: calc(var(--fu) * 0.8) calc(var(--fu) * 1);
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card:has(.mb-preview),
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card:has(.mb-preview-column),
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card:has(.mb-chat-preview) {
+  padding: 0;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card :is(.mb-preview, .mb-preview-column, .mb-chat-preview) {
+  box-sizing: border-box;
+  padding: calc(var(--fu) * 0.35) calc(var(--fu) * 1.1);
 }
 #feed-menu #visibility-controls.in-drawer .mb-row:has(> .toolbar-column-btns) {
   position: relative;
@@ -10568,7 +10690,7 @@ html.is-nav-lock body * {
 #feed-menu #visibility-controls.in-drawer .mb-row:has(> .toolbar-column-btns) > span[id$="-value2"] {
   display: none !important;
 }
-#feed-menu .in-drawer .set-switch {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-switch {
   display: none;
   position: relative;
   z-index: 1;
@@ -10581,10 +10703,10 @@ html.is-nav-lock body * {
   background: rgba(255, 255, 255, 0.22);
   pointer-events: none;
 }
-#feed-menu .in-drawer .mb-row.is-switch .set-switch {
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-row.is-switch .set-switch {
   display: block;
 }
-#feed-menu .in-drawer .set-switch::after {
+:is(#feed-menu, .drawer-screen) .in-drawer .set-switch::after {
   content: "";
   position: absolute;
   top: calc(var(--fu) * 0.18);
@@ -10595,40 +10717,83 @@ html.is-nav-lock body * {
   background: #fff;
   transition: transform 160ms ease;
 }
-#feed-menu .in-drawer .mb-row.is-on .set-switch {
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-row.is-on .set-switch {
   background: #22D3EE;
 }
-#feed-menu .in-drawer .mb-row.is-on .set-switch::after {
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-row.is-on .set-switch::after {
   transform: translateX(calc(var(--fu) * 1.5));
 }
-#feed-menu .in-drawer .mb-reset-btn,
-#feed-menu .in-drawer .save-settings-btn {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: max(44px, 6dvh);
-  margin: calc(var(--fu) * 0.7) 0 0;
-  padding: 0 calc(var(--fu) * 1.1);
+:is(#feed-menu, .drawer-screen) .in-drawer .save-settings-toolbar-containers {
+  width: 100% !important;
+  max-width: 100% !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
   border: 0 !important;
-  border-radius: calc(var(--fu) * 1.4) !important;
-  background: rgba(255, 255, 255, 0.06) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
   box-shadow: none !important;
-  color: #fff;
-  font-size: calc(var(--fu) * 1.7);
-  text-shadow: none !important;
+  overflow: visible !important;
   animation: none !important;
 }
-#feed-menu .in-drawer .mb-reset-btn:is(:hover, :active),
-#feed-menu .in-drawer .save-settings-btn:is(:hover, :active) {
-  background: rgba(34, 211, 238, 0.12) !important;
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-reset-btn,
+:is(#feed-menu, .drawer-screen) .in-drawer .save-settings-btn {
+  box-sizing: border-box;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 100% !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+  margin: 1.5dvh 0 0 !important;
+  padding: 0 calc(var(--fu) * 1.1) !important;
+  border: 0 !important;
+  border-radius: calc(var(--fu) * 1.4) !important;
+  box-shadow: none !important;
+  font-size: calc(var(--fu) * 1.7);
+  font-weight: 600;
+  line-height: 1;
+  text-align: center !important;
+  text-shadow: none !important;
+  animation: none !important;
+  cursor: pointer;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-reset-btn {
+  background: rgba(255, 255, 255, 0.06) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: #f07178;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer .save-settings-btn {
+  background: #22D3EE !important;
+  background-color: #22D3EE !important;
+  color: #0a0a12;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-reset-btn:is(:hover, :active) {
+  background: rgba(240, 113, 120, 0.14) !important;
+  background-color: rgba(240, 113, 120, 0.14) !important;
+  color: #f07178;
   transform: none !important;
   filter: none !important;
   box-shadow: none !important;
 }
-#feed-menu .in-drawer textarea.toolbar-column,
-#feed-menu .in-drawer input.toolbar-column:not([type="range"]):not([type="color"]):not([type="checkbox"]):not([type="number"]) {
+:is(#feed-menu, .drawer-screen) .in-drawer .save-settings-btn:is(:hover, :active) {
+  background: #22D3EE !important;
+  background-color: #22D3EE !important;
+  color: #0a0a12;
+  transform: none !important;
+  filter: brightness(1.08);
+  box-shadow: none !important;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer :is(.mb-reset-btn, .save-settings-btn):focus {
+  outline: none;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer :is(.mb-reset-btn, .save-settings-btn):focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px #22D3EE !important;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer textarea.toolbar-column,
+:is(#feed-menu, .drawer-screen) .in-drawer input.toolbar-column:not([type="range"]):not([type="color"]):not([type="checkbox"]):not([type="number"]) {
   box-sizing: border-box;
   width: 100% !important;
   min-height: max(44px, 6dvh);
@@ -10644,7 +10809,7 @@ html.is-nav-lock body * {
   text-align: left;
   font-size: calc(var(--fu) * 1.6);
 }
-#feed-menu .in-drawer label.toolbar-column {
+:is(#feed-menu, .drawer-screen) .in-drawer label.toolbar-column {
   width: auto !important;
   flex: 0 1 auto;
   min-width: 0;
@@ -10660,7 +10825,7 @@ html.is-nav-lock body * {
   white-space: nowrap;
   font-size: calc(var(--fu) * 1.6);
 }
-#feed-menu .in-drawer div:has(> input[type="range"]) {
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) {
   display: flex !important;
   align-items: center;
   box-sizing: border-box;
@@ -10671,17 +10836,25 @@ html.is-nav-lock body * {
   border-radius: 0;
   background: transparent;
 }
-#feed-menu .in-drawer div:has(> div > input[type="range"]) {
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]).is-row-first {
+  border-top-left-radius: calc(var(--fu) * 1.4);
+  border-top-right-radius: calc(var(--fu) * 1.4);
+}
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]).is-row-last {
+  border-bottom-left-radius: calc(var(--fu) * 1.4);
+  border-bottom-right-radius: calc(var(--fu) * 1.4);
+}
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> div > input[type="range"]) {
   margin: 0 0 calc(var(--fu) * 0.8);
   background: rgba(255, 255, 255, 0.06);
   border-radius: calc(var(--fu) * 1.4);
   overflow: hidden;
 }
-#feed-menu .in-drawer div:has(> div > input[type="range"]) > div + div {
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> div > input[type="range"]) > div + div {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
-#feed-menu .in-drawer div:has(> input[type="range"]) > input.toolbar-column[type="number"]:not([type="color"]),
-#feed-menu .in-drawer div:has(> input[type="range"]) > input.yourfov[type="number"]:not([type="color"]) {
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input.toolbar-column[type="number"]:not([type="color"]),
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input.yourfov[type="number"]:not([type="color"]) {
   width: calc(var(--fu) * 6.2) !important;
   flex: 0 0 auto;
   min-height: max(44px, 6dvh);
@@ -10694,15 +10867,13 @@ html.is-nav-lock body * {
   color: rgba(255, 255, 255, 0.45);
   text-align: right;
 }
-#feed-menu .in-drawer .set-group > .save-settings-btn {
-  margin: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  background-color: transparent !important;
+:is(#feed-menu, .drawer-screen) .in-drawer .set-group > :is(.save-settings-btn, .mb-reset-btn) {
+  margin: 1.5dvh 0 0 !important;
+  border-radius: calc(var(--fu) * 1.4) !important;
 }
-#feed-menu .in-drawer div.toolbar-column:not(.set-nav):is(:hover, :active),
-#feed-menu .in-drawer textarea.toolbar-column:is(:hover, :active),
-#feed-menu .in-drawer input.toolbar-column:is(:hover, :active) {
+:is(#feed-menu, .drawer-screen) .in-drawer div.toolbar-column:not(.set-nav):is(:hover, :active),
+:is(#feed-menu, .drawer-screen) .in-drawer textarea.toolbar-column:is(:hover, :active),
+:is(#feed-menu, .drawer-screen) .in-drawer input.toolbar-column:is(:hover, :active) {
   transform: none !important;
   filter: none !important;
 }
