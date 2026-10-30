@@ -6807,6 +6807,11 @@ a.payer-link {
     --fit: 1;
     --card: var(--popup-card);
     --u: clamp(0.9dvh, min(calc(var(--popup-h) * 0.017), calc(var(--popup-w) * 0.0106)), 1.6dvh);
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    /* The two cards draw their own corners. A clip here cuts them. */
+    overflow: visible !important;
     border-width: 0 !important;
     background: transparent !important;
     box-shadow: none !important;
@@ -6815,14 +6820,15 @@ a.payer-link {
 
   .maplibregl-map .maplibregl-popup-content {
     --fit: 1;
+    box-sizing: border-box !important;
     height: 100% !important;
     max-height: 100% !important;
     min-height: 0;
+    margin: 0 !important;
     flex: 1 1 auto;
     line-height: 1.35;
-    /* Matches the card margin below, so each card's outer edge stays
-       on the popup frame. 0.4 + -0.4 on every side. */
-    padding: calc(var(--u) * 0.4) !important;
+    padding: 0 !important;
+    overflow: visible !important;
   }
 
   .maplibregl-map .maplibregl-popup-content > .popup-sheet,
@@ -6847,17 +6853,28 @@ a.payer-link {
   .maplibregl-map .maplibregl-popup-content > .popup-sheet {
     grid-template-rows: auto auto auto minmax(0, 1fr) auto;
     row-gap: 0;
-    overflow: hidden;
+    /* 0.4u insets the picture and the text. The frames are positioned
+       on the padding edge, which is the popup edge, so this does not
+       shrink the border or add height. */
+    box-sizing: border-box !important;
+    margin: 0;
+    padding: calc(var(--u) * 0.4);
+    overflow: visible;
   }
 
   .maplibregl-map .popup-sheet::before,
   .maplibregl-map .popup-sheet::after {
     content: '';
+    position: absolute;
     z-index: -1;
-    /* Inner edge of the 0.3u border is 0.1u outside the grid on every side. */
-    margin: calc(var(--u) * -0.4);
-    align-self: stretch;
-    justify-self: stretch;
+    /* Not a grid area: a stretched row was as tall as the popup and the
+       old negative margin pushed the corners off the screen. */
+    grid-column: auto;
+    grid-row: auto;
+    margin: 0;
+    top: 0;
+    bottom: 0;
+    height: auto;
     box-sizing: border-box;
     border: calc(var(--u) * 0.3) solid var(--popup-border-color, #ffffff);
     border-radius: calc(var(--u) * 2);
@@ -6866,13 +6883,16 @@ a.payer-link {
   }
 
   .maplibregl-map .popup-sheet::before {
-    grid-column: 1;
-    grid-row: 1 / -1;
+    left: 0;
+    right: auto;
+    /* Outer edge on the frame. 0.4u of padding, the column, and 0.4u of the gap. */
+    width: calc(var(--u) * 0.8 + (100% - var(--u) * 2.8) * 0.55);
   }
 
   .maplibregl-map .popup-sheet::after {
-    grid-column: 2;
-    grid-row: 1 / -1;
+    right: 0;
+    left: auto;
+    width: calc(var(--u) * 0.8 + (100% - var(--u) * 2.8) * 0.45);
   }
 
   .maplibregl-map .popup-body,
@@ -7143,13 +7163,15 @@ a.payer-link {
      and still covers the hearts and the gear. */
   .maplibregl-map .comments-modal--in-card {
     position: absolute;
-    grid-column: 2;
-    grid-row: 1 / -1;
+    grid-column: auto;
+    grid-row: auto;
     /* Same box as the right card border. */
-    top: calc(var(--u) * -0.4);
-    right: calc(var(--u) * -0.4);
-    bottom: calc(var(--u) * -0.4);
-    left: calc(var(--u) * -0.4);
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: auto;
+    width: calc(var(--u) * 0.8 + (100% - var(--u) * 2.8) * 0.45);
+    height: auto;
     z-index: 3;
     box-sizing: border-box;
     display: flex;
@@ -8583,10 +8605,15 @@ a.payer-link {
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::before,
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::after {
     content: '';
-    grid-row: 1 / -1;
-    margin: calc(var(--u) * -0.4);
-    align-self: stretch;
-    justify-self: stretch;
+    /* Same edge as the card. A negative offset here leaves the glow off-screen. */
+    position: absolute;
+    grid-column: auto;
+    grid-row: auto;
+    margin: 0;
+    top: 0;
+    bottom: 0;
+    height: auto;
+    box-sizing: border-box;
     border-radius: calc(var(--u) * 2);
     z-index: -2;
     pointer-events: none;
@@ -8598,11 +8625,15 @@ a.payer-link {
   }
 
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::before {
-    grid-column: 1;
+    left: 0;
+    right: auto;
+    width: calc(var(--u) * 0.8 + (100% - var(--u) * 2.8) * 0.55);
   }
 
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::after {
-    grid-column: 2;
+    right: 0;
+    left: auto;
+    width: calc(var(--u) * 0.8 + (100% - var(--u) * 2.8) * 0.45);
   }
 }
 
