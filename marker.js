@@ -28,29 +28,9 @@ export function newActiveMarkerPopups(a) {
   activeMarkerPopups = a;
 }
 
-// Full picture, kept for the session. Cluster and uncluster reuse this
-// element, so the file is not requested again. No crossOrigin: cover images
-// and profile pictures are only displayed, and a cross-origin read is what
-// the browser reports as a CORS failure.
-const fullImageCache = new Map();
-
 function markerPictureUrl(value) {
   const raw = Array.isArray(value) ? value[0] : value;
   return typeof raw === 'string' ? raw : '';
-}
-
-function loadFullImage(url) {
-  if (!url) return Promise.resolve(null);
-  const cached = fullImageCache.get(url);
-  if (cached) return cached;
-  const pending = new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = url;
-  });
-  fullImageCache.set(url, pending);
-  return pending;
 }
 
 // True when [lng, lat] is on the visible side of the globe. On a globe,
@@ -267,30 +247,39 @@ function syncKeptMarkers() {
   newExistingMarkers(list);
 }
 
+// The face sits in a MapLibre marker (transform, not scroll). Set the cover
+// URL directly. A viewport lazy observer never sees these on a phone.
 function paintMarkerPicture(entry, url) {
   const seq = (entry.pictureSeq || 0) + 1;
   entry.pictureSeq = seq;
-  entry.pictureUrl = url;
-  loadFullImage(url).then((loaded) => {
+  entry.pictureUrl = url || '';
+  const face = entry.face;
+  let view = face.querySelector('img');
+  if (!url) {
+    if (view) view.remove();
+    face.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+    return;
+  }
+  if (!view) {
+    view = document.createElement('img');
+    view.alt = '';
+    view.draggable = false;
+    view.style.cssText = 'width:100%;height:100%;object-fit:cover;object-position:center;border-radius:50%;display:block;pointer-events:none;';
+    face.insertBefore(view, face.firstChild);
+  }
+  view.loading = 'eager';
+  view.decoding = 'async';
+  view.onload = () => {
     if (entry.pictureSeq !== seq) return;
-    if (keptMarkers.get(entry.key) !== entry) return;
-    const face = entry.face;
-    let view = face.querySelector('img');
-    if (loaded) {
-      face.style.backgroundColor = '';
-      if (!view) {
-        view = document.createElement('img');
-        view.alt = '';
-        view.draggable = false;
-        view.style.cssText = 'width:100%;height:100%;object-fit:cover;object-position:center;border-radius:50%;display:block;pointer-events:none;';
-        face.insertBefore(view, face.firstChild);
-      }
-      if (view.src !== loaded.src) view.src = loaded.src;
-    } else {
-      if (view) view.remove();
-      face.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
-    }
-  });
+    face.style.backgroundColor = '';
+  };
+  view.onerror = () => {
+    if (entry.pictureSeq !== seq) return;
+    view.remove();
+    face.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+  };
+  if (view.getAttribute('src') !== url) view.src = url;
+  else face.style.backgroundColor = '';
 }
 
 function paintMarkerHashinal(entry) {
