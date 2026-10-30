@@ -10112,6 +10112,7 @@ html.feed-app appkit-modal {
 #feed-menu .feed-menu-page.is-prep,
 #feed-profile.nav-cover.nav-prep,
 #feed-chat.nav-cover.nav-prep,
+#feed-chat .load-options-page.nav-cover.nav-prep,
 #topic-chat-container.nav-cover.nav-prep,
 #encrypted-chat-container.nav-cover.nav-prep,
 #load-column.nav-cover.nav-prep {
@@ -10195,6 +10196,13 @@ html.is-nav-lock body * {
   #load-column.nav-cover {
     transition: opacity 160ms ease-out !important;
     transform: none !important;
+  }
+  #feed-chat .load-options-page.nav-cover {
+    transition: opacity 160ms ease-out !important;
+    transform: none !important;
+  }
+  #feed-chat .load-options-page.nav-cover.nav-off {
+    opacity: 0;
   }
 }
 #feed-menu .feed-menu-page-bar {
@@ -12166,7 +12174,67 @@ html.drawer-page .info-overlay {
   color: var(--press-ink);
 }
 
-/* Feed Load is a full shell. Map #load-column keeps the floating panel. */
+/* Load uses the shared chat page. The map column stays for bio and startup. */
+#feed-chat.is-load > .feed-chat-bar {
+  position: relative;
+}
+#feed-chat.is-load > .feed-chat-bar .feed-chat-title {
+  position: absolute;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - var(--fu) * 12);
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+  color: #22d3ee;
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 1.5vh rgba(34, 211, 238, 0.6);
+}
+#feed-chat.is-load .feed-chat-actions > #help-load-column {
+  display: inline-flex !important;
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  z-index: auto;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: calc(var(--fu) * 4.2) !important;
+  height: calc(var(--fu) * 4.2) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #fff !important;
+  font-family: Inter, system-ui, sans-serif !important;
+  font-size: calc(var(--fu) * 2.1) !important;
+  font-weight: 600;
+  line-height: 1 !important;
+  transform: none !important;
+  animation: none !important;
+}
+#feed-chat.is-load .feed-chat-actions > #help-load-column:is(:hover, :active, .is-hold) {
+  color: #22D3EE !important;
+  background: transparent !important;
+  transform: none !important;
+  filter: none !important;
+}
+#feed-chat.is-load .feed-chat-actions > #help-load-column:focus {
+  outline: none;
+}
+#feed-chat.is-load .feed-chat-actions > #help-load-column:focus-visible {
+  outline: calc(var(--fu) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--fu) * 0.08);
+}
+body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
+  position: fixed;
+  inset: 0;
+  top: 0;
+  z-index: 9004;
+}
 #feed-chat #load-column.is-feed-shell {
   position: relative !important;
   inset: auto !important;
@@ -12205,13 +12273,12 @@ html.drawer-page .info-overlay {
   gap: calc(var(--fu) * 0.8);
   box-sizing: border-box;
   width: 100%;
+  height: auto !important;
   min-height: 0;
   margin: 0;
   padding: calc(var(--fu) * 0.8);
-  overflow: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-y !important;
+  padding-bottom: calc(var(--fu) * 0.8 + env(safe-area-inset-bottom));
+  overflow: hidden;
   background: transparent;
 }
 #feed-chat #load-column.is-feed-shell .load-section-label {
@@ -12231,8 +12298,8 @@ html.drawer-page .info-overlay {
 }
 #feed-chat #load-column.is-feed-shell #input-field {
   width: 100% !important;
-  min-height: calc(var(--fu) * 4.4) !important;
-  padding-right: calc(var(--fu) * 4.8) !important;
+  min-height: max(44px, 5.5dvh) !important;
+  padding-right: calc(var(--fu) * 5) !important;
 }
 #feed-chat #load-column.is-feed-shell #paste-topic-btn {
   position: absolute !important;
@@ -12262,33 +12329,46 @@ html.drawer-page .info-overlay {
   justify-content: center;
   width: 100% !important;
   height: auto !important;
-  min-height: calc(var(--fu) * 4.4);
+  min-height: max(44px, 5.5dvh);
   margin: 0 !important;
   padding: 0 calc(var(--fu) * 1.4) !important;
-  border: 0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
   border-radius: 999px !important;
-  background: #22D3EE !important;
-  color: #083344 !important;
+  background: rgba(15, 15, 20, 0.45) !important;
+  color: #fff !important;
   font-family: Inter, system-ui, sans-serif !important;
-  font-size: 0 !important;
-  font-weight: 700;
-  box-shadow: 0 0 calc(var(--fu) * 1.2) rgba(34, 211, 238, 0.45);
+  font-size: calc(var(--fu) * 1.55) !important;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  animation: none !important;
+  transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease !important;
 }
 #feed-chat #load-column.is-feed-shell #toolbar-load::after {
-  content: "Load";
-  color: #083344;
-  font-size: calc(var(--fu) * 1.6);
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  line-height: 1;
+  content: none;
+}
+#feed-chat #load-column.is-feed-shell #toolbar-load:hover {
+  transform: scale(1.03) !important;
+  filter: brightness(1.08);
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+#feed-chat #load-column.is-feed-shell #toolbar-load:active {
+  transform: scale(0.97) !important;
+  filter: brightness(1.08);
 }
 #feed-chat #load-column.is-feed-shell #loaded-topics {
-  flex: 0 0 auto;
+  display: flex !important;
+  flex-direction: column;
+  flex: 1 1 auto;
   width: 100% !important;
+  height: auto !important;
+  min-height: 0;
   max-height: none !important;
   margin: 0 !important;
   padding: 0 !important;
-  overflow: visible;
+  overflow: hidden;
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
@@ -12306,9 +12386,12 @@ html.drawer-page .info-overlay {
   border: 0 !important;
   background: transparent;
 }
+#feed-chat #load-column.is-feed-shell .loaded-topics-sort,
+#feed-chat #load-column.is-feed-shell .loaded-topics-search {
+  min-height: max(44px, 5.5dvh);
+}
 #feed-chat #load-column.is-feed-shell .loaded-topics-sort {
   border-radius: 999px !important;
-  min-height: calc(var(--fu) * 3.4);
 }
 #feed-chat #load-column.is-feed-shell .loaded-topics-sort.active {
   border-color: rgba(34, 211, 238, 0.75) !important;
@@ -12318,36 +12401,215 @@ html.drawer-page .info-overlay {
 #feed-chat #load-column.is-feed-shell #loaded-topics-list {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--fu) * 0.4);
-}
-#feed-chat #load-column.is-feed-shell #loaded-topics-list > div:has(> span) {
-  min-height: calc(var(--fu) * 4.4);
-  margin: 0;
-  padding: calc(var(--fu) * 0.7) calc(var(--fu) * 0.85) !important;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: calc(var(--fu) * 1.4);
+  flex: 0 1 auto;
+  gap: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   background: rgba(255, 255, 255, 0.06);
-  gap: calc(var(--fu) * 0.55) !important;
+  border-radius: calc(var(--fu) * 1.4);
+}
+#feed-chat #load-column.is-feed-shell .loaded-topic-row {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--fu) * 0.2);
+  box-sizing: border-box;
+  width: 100%;
+  min-height: max(44px, 5.5dvh);
+  margin: 0;
+  padding: 0 calc(var(--fu) * 0.35) 0 calc(var(--fu) * 1.1);
+  border: 0;
+  background: transparent;
+  color: #fff;
   font-family: Inter, system-ui, sans-serif;
-  font-size: calc(var(--fu) * 1.45);
-  line-height: 1.35;
+  font-size: calc(var(--fu) * 1.5);
+  line-height: 1.3;
+  cursor: pointer;
+  touch-action: manipulation;
 }
-#feed-chat #load-column.is-feed-shell #loaded-topics-list > div > span:first-child,
-#feed-chat #load-column.is-feed-shell #loaded-topics-list > div > span:last-child {
+#feed-chat #load-column.is-feed-shell .loaded-topic-row + .loaded-topic-row,
+#feed-chat #load-column.is-feed-shell .topic-bio-row + .loaded-topic-row,
+#feed-chat #load-column.is-feed-shell .loaded-topic-row + .topic-bio-row {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+#feed-chat #load-column.is-feed-shell .loaded-topic-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--fu) * 1.5);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+#feed-chat #load-column.is-feed-shell .loaded-topic-copy,
+#feed-chat #load-column.is-feed-shell .loaded-topic-chev {
+  display: inline-flex;
   flex: 0 0 auto;
-  color: #22D3EE;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: max(44px, 5.5dvh);
+  min-width: max(44px, 5.5dvh);
+  height: max(44px, 5.5dvh);
+  margin: 0;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.55);
   font-size: calc(var(--fu) * 1.6);
+  line-height: 1;
 }
-#feed-chat #load-column.is-feed-shell #load-column-container > div[style*="display: flex"],
-#feed-chat #load-column.is-feed-shell #load-column-container > div[style*="display:flex"],
-#feed-chat #load-column.is-feed-shell #options-from-load > div {
+#feed-chat #load-column.is-feed-shell .loaded-topic-chev svg {
+  width: calc(var(--fu) * 1.8);
+  height: calc(var(--fu) * 1.8);
+  display: block;
+  transition: transform 0.12s ease;
+}
+#feed-chat #load-column.is-feed-shell .loaded-topic-chev.is-open svg {
+  transform: rotate(90deg);
+}
+#feed-chat #load-column.is-feed-shell .loaded-topic-row:is(:hover, :active) {
+  background: rgba(34, 211, 238, 0.12);
+  color: #22D3EE;
+}
+#feed-chat #load-column.is-feed-shell .topic-bio-row {
+  margin: 0;
+  padding: calc(var(--fu) * 0.7) calc(var(--fu) * 1.1) calc(var(--fu) * 0.9);
+  color: rgba(255, 255, 255, 0.6);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--fu) * 1.35);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+#feed-chat #load-column.is-feed-shell #load-column-container > div:has(> #show-options-from-load) {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 0 0 auto;
+  gap: 0 !important;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: calc(var(--fu) * 1.4);
+}
+#feed-chat #load-column.is-feed-shell #show-pin-key-load,
+#feed-chat #load-column.is-feed-shell #hide-pin-key-load,
+#feed-chat #load-column.is-feed-shell #hide-options-from-load {
+  display: none !important;
+}
+#feed-chat #load-column.is-feed-shell #show-options-from-load {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  width: 100% !important;
+  height: auto !important;
+  min-height: max(44px, 5.5dvh);
+  margin: 0 !important;
+  padding: 0 calc(var(--fu) * 1.1) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #fff !important;
+  font-family: Inter, system-ui, sans-serif !important;
+  font-size: calc(var(--fu) * 1.55) !important;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: left;
+  animation: none !important;
+  transform: none !important;
+  filter: none !important;
+  cursor: pointer;
+}
+#feed-chat #load-column.is-feed-shell #show-options-from-load::after {
+  content: "";
+  flex: 0 0 auto;
+  width: calc(var(--fu) * 0.7);
+  height: calc(var(--fu) * 0.7);
+  margin-left: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.45);
+  border-right: 1px solid rgba(255, 255, 255, 0.45);
+  transform: rotate(45deg);
+}
+#feed-chat #load-column.is-feed-shell #show-options-from-load:is(:hover, :active) {
+  background: rgba(34, 211, 238, 0.12) !important;
+  color: #22D3EE !important;
+  transform: none !important;
+  filter: none !important;
+}
+#feed-chat #load-column.is-feed-shell #show-options-from-load:focus {
+  outline: none;
+}
+#feed-chat #load-column.is-feed-shell #show-options-from-load:focus-visible {
+  outline: calc(var(--fu) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--fu) * -0.2);
+}
+#feed-chat .load-options-page {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  background: #0a0a12;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+}
+#feed-chat .load-options-page[hidden] {
+  display: none !important;
+}
+#feed-chat .load-options-page.nav-cover {
+  transition: transform 250ms ease-out;
+}
+#feed-chat .load-options-page.nav-cover.nav-off {
+  transform: translateX(100%);
+}
+#feed-chat .load-options-page > .feed-chat-bar {
+  position: relative;
+}
+#feed-chat .load-options-page > .feed-chat-bar .feed-chat-title {
+  position: absolute;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - var(--fu) * 12);
+  margin: 0;
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+}
+#feed-chat .load-options-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--fu) * 0.7);
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+  padding: calc(var(--fu) * 0.8);
+  padding-bottom: calc(var(--fu) * 0.8 + env(safe-area-inset-bottom));
+}
+#feed-chat .load-options-body #options-from-load,
+#feed-chat .load-options-body #options-from-load > div,
+#feed-chat .load-options-body > div[style*="display: flex"],
+#feed-chat .load-options-body > div[style*="display:flex"] {
+  display: flex;
   flex-wrap: wrap;
   gap: calc(var(--fu) * 0.45);
 }
-#feed-chat #load-column.is-feed-shell #options-from-load[style*="display: block"],
-#feed-chat #load-column.is-feed-shell #options-from-load[style*="display:block"] {
-  display: flex !important;
-  flex-direction: column;
-  gap: calc(var(--fu) * 0.45);
+#feed-chat .load-options-body #options-from-load[style*="display: none"],
+#feed-chat .load-options-body #options-from-load[style*="display:none"] {
+  display: none;
+}
+#feed-chat .load-options-body .toolbar-column,
+#feed-chat .load-options-body .toolbar-column-btns,
+#feed-chat .load-options-body .toolbar-column-first-settings-btns,
+#feed-chat .load-options-body .toolbar-column-settings-btns,
+#feed-chat .load-options-body .pin-public-key-from-encrypted-chat {
+  animation: none !important;
 }
 

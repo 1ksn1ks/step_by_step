@@ -585,11 +585,15 @@ export function CloseALL() {
   
   document.getElementById("Load_Everything").addEventListener("click", (event) => {
     event.stopPropagation();
+    // Drawer Toolbar opens the shared full-screen page. Other callers
+    // (startup, a history Forward of the old column) still show the panel.
+    if (typeof window.openLoadPage === "function" && window.openLoadPage()) return;
     CloseALL();
     loadColumnsEverything();
     loadColumnsHideOptionsload();
     document.getElementById("show-options-from-load").style.display = "block";
     document.getElementById("hide-options-from-load").style.display = "none";
+    document.getElementById("options-from-load").style.display = "none";
     document.getElementById("load-column").style.display = "block";
     document.getElementById("load-column-container").style.display = "block";
     const loaded_text_area = document.getElementById("loaded-topics");
@@ -1962,6 +1966,7 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     loadColumnsHideOptionsload();
     document.getElementById("show-options-from-load").style.display = "block";
     document.getElementById("hide-options-from-load").style.display = "none";
+    document.getElementById("options-from-load").style.display = "none";
     document.getElementById("load-column-container").style.display = "block";
     const loaded = document.getElementById("loaded-topics");
     renderLoadedTopics();
@@ -2060,12 +2065,20 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("options-from-load").style.display = "block";
     document.getElementById("hide-options-from-load").style.display = "block";
     document.getElementById("show-options-from-load").style.display = "none";
+    const column = document.getElementById("load-column");
+    if (column && column.classList.contains("is-feed-shell") && window.layerOpened) {
+      window.layerOpened("loadoptions");
+    }
   });
   document.getElementById("hide-options-from-load").addEventListener("click", (event) => {
     loadColumnsEverything();
     loadColumnsHideOptionsload();
+    document.getElementById("options-from-load").style.display = "none";
     document.getElementById("show-options-from-load").style.display = "block";
     document.getElementById("hide-options-from-load").style.display = "none";
+    if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen("loadoptions")) {
+      window.layerClosedByUI("loadoptions");
+    }
   });
 
   document.getElementById("show-pin-key-load").addEventListener("click", (event) => {

@@ -3254,6 +3254,16 @@ function openLoadFromFeed() {
   openFeedChat('load');
 }
 
+// Toolbar → Load. The drawer stays the page underneath. Returns false when
+// this click should still open the floating column (startup, bio, history).
+function openLoadPage() {
+  const drawerOpen = !menu.hidden && menu.classList.contains('is-open') && drawerStack.length > 0;
+  if (!drawerOpen || navBusy()) return false;
+  openFeedChat('load', 'drawer');
+  return feedChatKind === 'load' && !feedChat.hidden;
+}
+window.openLoadPage = openLoadPage;
+
 // savedScroll stays live. History is updated once the feed sits still,
 // and again right before the map opens or the feed closes.
 function writeScroll() {
@@ -4774,7 +4784,7 @@ const FEED_CHATS = {
   },
   load: {
     id: 'load-column',
-    title: 'Load',
+    title: '🪐 LOAD',
     expand: prepareLoadColumnForFeed,
   },
 };
@@ -4939,8 +4949,117 @@ function primeFeedOptionPair(openId, closeId, panelId) {
   if (close) close.style.display = shown ? 'block' : 'none';
 }
 
+let loadOptionsWatch = null;
+
+function loadOptionsShown() {
+  const options = document.getElementById('options-from-load');
+  return !!(options && options.style.display !== 'none');
+}
+
+// Options is the next level of the Load page. Same nav-cover helpers as
+// the page itself: prep, off to the right, then slide in. Back slides it
+// out onto Load.
+function slideLoadOptions(open) {
+  const page = feedChat.querySelector('.load-options-page');
+  if (!page) return;
+  if (open) {
+    delete page.dataset.navLeaving;
+    page.hidden = false;
+    page.classList.add('nav-cover', 'nav-prep', 'nav-off');
+    void page.offsetWidth;
+    page.classList.remove('nav-prep');
+    void page.offsetWidth;
+    page.classList.remove('nav-off');
+    holdNav();
+    const back = page.querySelector('.feed-chat-back');
+    if (back) back.focus({ preventScroll: true, focusVisible: false });
+    return;
+  }
+  if (page.hidden || page.dataset.navLeaving === '1') {
+    page.hidden = true;
+    return;
+  }
+  page.dataset.navLeaving = '1';
+  pinMotion(page);
+  page.classList.add('nav-off');
+  void page.offsetWidth;
+  releaseMotion(page);
+  holdNav();
+  afterNav(page, () => {
+    if (page.dataset.navLeaving !== '1') return;
+    page.hidden = true;
+    page.classList.remove('nav-off', 'nav-prep', 'nav-cover');
+    delete page.dataset.navLeaving;
+    if (feedChatKind === 'load') feedChatBack.focus({ preventScroll: true, focusVisible: false });
+  });
+}
+
+function mountLoadOptions() {
+  if (feedChat.querySelector('.load-options-page')) return;
+  const options = document.getElementById('options-from-load');
+  const container = document.getElementById('load-column-container');
+  if (!options || !container || options.parentNode !== container) return;
+  const page = document.createElement('div');
+  page.className = 'load-options-page';
+  page.hidden = true;
+  page.setAttribute('role', 'dialog');
+  page.setAttribute('aria-label', 'Options');
+  const bar = document.createElement('div');
+  bar.className = 'feed-chat-bar';
+  const back = document.createElement('button');
+  back.type = 'button';
+  back.className = 'feed-chat-back';
+  back.setAttribute('aria-label', 'Back');
+  back.appendChild(svgIcon([
+    ['path', { d: 'm12 19-7-7 7-7' }],
+    ['path', { d: 'M19 12H5' }],
+  ]));
+  const title = document.createElement('h2');
+  title.className = 'feed-chat-title';
+  title.textContent = 'Options';
+  bar.append(back, title);
+  const body = document.createElement('div');
+  body.className = 'load-options-body';
+  page.append(bar, body);
+  // Pin sits beside Options in the column. On this page it belongs with
+  // the options content, or the slide covers it.
+  const pinShow = document.getElementById('show-pin-key-load');
+  const pinHide = document.getElementById('hide-pin-key-load');
+  if (pinShow) placeFeedNode(pinShow, body);
+  if (pinHide) placeFeedNode(pinHide, body);
+  let node = options;
+  while (node && node.parentNode === container) {
+    const next = node.nextSibling;
+    placeFeedNode(node, body);
+    node = next;
+  }
+  feedChat.appendChild(page);
+  bindPress(back);
+  back.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const hide = document.getElementById('hide-options-from-load');
+    if (hide) hide.click();
+  });
+  if (loadOptionsWatch) loadOptionsWatch.disconnect();
+  loadOptionsWatch = new MutationObserver(() => {
+    if (feedChatKind !== 'load') return;
+    slideLoadOptions(loadOptionsShown());
+  });
+  loadOptionsWatch.observe(options, { attributes: true, attributeFilter: ['style'] });
+}
+
+function clearLoadOptions() {
+  if (loadOptionsWatch) {
+    loadOptionsWatch.disconnect();
+    loadOptionsWatch = null;
+  }
+  const page = feedChat.querySelector('.load-options-page');
+  if (page) page.remove();
+}
+
 function clearFeedMessenger(panel) {
   unplaceFeedChat();
+  clearLoadOptions();
   feedChatSearch.classList.remove('is-on');
   feedChatSearch.hidden = false;
   feedChatSearch.setAttribute('aria-pressed', 'false');
@@ -4964,6 +5083,8 @@ function mountFeedMessenger(panel, kind) {
     feedChatUnlock.classList.remove('is-on');
     const box = document.getElementById('load-column-container');
     if (box) box.style.display = 'block';
+    placeFeedNode(document.getElementById('help-load-column'), feedChatActions);
+    mountLoadOptions();
     return;
   }
   feedChatSearch.hidden = false;
@@ -5055,9 +5176,19 @@ function restoreFeedChat() {
   panel.classList.remove('is-feed-shell');
   resumeFeedChatScroll(panel);
   // The map Load watcher treats any display other than none as its own
-  // history entry. The feed shell owns that entry instead.
-  if (panel.id === 'load-column') panel.dataset.historyHold = '1';
-  if (home.style == null) panel.removeAttribute('style');
+  // history entry. The drawer watcher would also host the column as a
+  // Toolbar child. Closing the page puts the column away. One write, so
+  // the hold flags cover that single change.
+  if (panel.id === 'load-column') {
+    panel.dataset.historyHold = '1';
+    panel.dataset.drawerSkip = '1';
+    const kept = (home.style || '').split(';').map((part) => part.trim()).filter((part) => part && !/^display\s*:/i.test(part));
+    kept.push('display: none');
+    panel.setAttribute('style', kept.join('; '));
+    queueMicrotask(() => {
+      if (panel.dataset.drawerSkip === '1') delete panel.dataset.drawerSkip;
+    });
+  } else if (home.style == null) panel.removeAttribute('style');
   else panel.setAttribute('style', home.style);
   if (home.parent) home.parent.insertBefore(panel, home.next);
 }
@@ -5155,6 +5286,7 @@ function paintFeedChat(kind) {
   }
   feedChatKind = kind;
   feedChatLive = true;
+  feedChat.classList.toggle('is-load', kind === 'load');
   feedChatTitle.textContent = spec.title;
   feedChat.setAttribute('aria-label', spec.title);
   placeFeedChatForMap(!feedCovers());
@@ -5189,6 +5321,7 @@ function hideFeedChatPanel() {
     restoreFeedChat();
     placeFeedChatForMap(false);
     fitFeedChatFrame();
+    feedChat.classList.remove('is-load');
   };
   if (!covered) releaseChat();
   else afterNav(feedChat, releaseChat);
@@ -5199,6 +5332,14 @@ function hideFeedChatPanel() {
 function closeFeedChat() {
   if (typeof window.closeTopicChatEdit === 'function') window.closeTopicChatEdit();
   if (typeof window.closeE2eeChatEdit === 'function') window.closeE2eeChatEdit();
+  if (feedChatKind === 'load' && loadOptionsShown()) {
+    if (loadOptionsWatch) {
+      loadOptionsWatch.disconnect();
+      loadOptionsWatch = null;
+    }
+    const hide = document.getElementById('hide-options-from-load');
+    if (hide) hide.click();
+  }
   hideFeedChatPanel();
   if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedchat')) {
     window.layerClosedByUI('feedchat');
@@ -5213,6 +5354,11 @@ function openFeedChat(kind, source) {
   const onMap = !feedCovers();
   if (!onMap && !feedOn()) return;
   const item = kind === 'e2ee' ? 'E2EE chat' : kind === 'topic' ? 'Topic chat' : '';
+  if (source === 'drawer' && kind === 'load' && coverFromDrawerPage()) {
+    paintFeedChat(kind);
+    if (window.layerOpened) window.layerOpened('feedchat', drawerState({ kind }));
+    return;
+  }
   if (source === 'drawer' && item && coverFromDrawer(item)) {
     paintFeedChat(kind);
     if (window.layerOpened) window.layerOpened('feedchat', drawerState({ kind }));
@@ -5228,6 +5374,11 @@ function openFeedChat(kind, source) {
 bindPress(feedChatBack);
 feedChatBack.addEventListener('click', (event) => {
   event.stopPropagation();
+  if (feedChatKind === 'load' && loadOptionsShown()) {
+    const hide = document.getElementById('hide-options-from-load');
+    if (hide) hide.click();
+    return;
+  }
   closeFeedChat();
 });
 
@@ -5415,6 +5566,18 @@ function coverFromDrawer(item) {
   drawerItem = item;
   menu.dataset.cover = '1';
   if (window.layerOpened) window.layerOpened('feedmenu', { item: item });
+  return true;
+}
+
+// Load opens on top of a drawer page (Toolbar), not the root drawer list.
+// The page underneath stays put. Back slides out onto that same page.
+function coverFromDrawerPage() {
+  if (navBusy()) return false;
+  if (!drawerStack.length) return false;
+  const name = drawerPageName(drawerStack.length);
+  if (window.layerIsTop && !window.layerIsTop(name)) return false;
+  holdScroll();
+  menu.dataset.cover = '1';
   return true;
 }
 
@@ -6236,8 +6399,8 @@ function makeDrawerShell() {
   return { id: '', el, body, title, back };
 }
 
-// Map profile and Load, opened from the drawer, use the same push as a
-// drawer sub-page. Topic chat and E2EE use the shared #feed-chat page.
+// Map profile, opened from the drawer, uses the same push as a drawer
+// sub-page. Topic chat, E2EE and Load use the shared #feed-chat page.
 function coverEligible(el) {
   if (!el || menu.dataset.cover !== '1') return false;
   if (el.classList.contains('in-drawer') || el.classList.contains('is-feed-shell')) return false;
@@ -6323,10 +6486,16 @@ bindCoverPanel('load-column');
 // (the startup Load panel) must not be pulled in just because its parent opened.
 function watchDrawerPanel(id, el) {
   new MutationObserver(() => {
+    if (el.dataset.drawerSkip === '1') {
+      delete el.dataset.drawerSkip;
+      return;
+    }
     if (drawerRenderLock || !drawerStack.length) return;
     const top = drawerStack[drawerStack.length - 1];
     const kids = DRAWER_CHILDREN[top] || [];
     if (kids.includes(id) && panelShown(el)) {
+      // Load lives in the shared chat page. Its display is not a drawer page.
+      if (el.classList.contains('is-feed-shell') || (el.closest && el.closest('#feed-chat'))) return;
       pushDrawer(id);
       return;
     }
@@ -6376,6 +6545,8 @@ document.addEventListener('click', (event) => {
     parked.push(el);
   };
   for (const id of kids) {
+    // Load is the shared chat page, not a column hosted in the drawer.
+    if (id === 'load-column') continue;
     park(id, true);
     for (const extraId of DRAWER_EXTRAS[id] || []) park(extraId, false);
   }
@@ -6674,12 +6845,25 @@ if (window.defineLayer) {
   window.defineLayer('feedchat', {
     parent: 'feed',
     open: (state) => {
-      hideKeptDrawer(state, state && state.kind === 'e2ee' ? 'E2EE chat' : 'Topic chat');
+      const fallback = state && state.kind === 'e2ee' ? 'E2EE chat' : state && state.kind === 'load' ? 'Load' : 'Topic chat';
+      hideKeptDrawer(state, fallback);
       paintFeedChat(state && state.kind);
     },
     close: () => {
       hideFeedChatPanel();
       restoreDrawer();
+    },
+  });
+  window.defineLayer('loadoptions', {
+    parent: 'feedchat',
+    open: () => {
+      const show = document.getElementById('show-options-from-load');
+      if (show && !loadOptionsShown()) show.click();
+    },
+    close: () => {
+      if (!loadOptionsShown()) return;
+      const hide = document.getElementById('hide-options-from-load');
+      if (hide) hide.click();
     },
   });
   window.defineLayer('feedprofile', {
@@ -6870,6 +7054,17 @@ menu.addEventListener('pointerdown', (event) => {
 
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
+  if (!feedChat.hidden && feedChatKind === 'load') {
+    event.preventDefault();
+    event.stopPropagation();
+    if (loadOptionsShown()) {
+      const hide = document.getElementById('hide-options-from-load');
+      if (hide) hide.click();
+      return;
+    }
+    closeFeedChat();
+    return;
+  }
   if (bannerTracks() && profilePayer && (!window.layerIsTop || window.layerIsTop('feedprofile'))) {
     event.preventDefault();
     event.stopPropagation();

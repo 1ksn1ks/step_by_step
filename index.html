@@ -375,7 +375,7 @@
       </div>
       
       <div id="load-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top:10vh;">
-        <button class="panel-help-btn" id="help-load-column">?</button>
+        <button class="panel-help-btn" id="help-load-column" aria-label="Help">?</button>
         <div id="load-column-container">
 
           <div class="options-column-title">🪐 LOAD</div>
@@ -391,12 +391,12 @@
           <button id="toolbar-load" class="toolbar-column-btns">༼ つ ◕_◕༽つ━☆ﾟ.*･｡ﾟ Load
           </button>
       
-          <div class="load-section-label" id="loaded-topics-label">Loaded topics:</div>
+          <div class="load-section-label" id="loaded-topics-label">Loaded topics</div>
           <div class="toolbar-column" style="user-select: text;" id="loaded-topics" placeholder="Loaded Topics" onclick="event.stopPropagation();">
             <div class="loaded-topics-controls">
               <input type="text" id="loaded-topics-search" class="loaded-topics-search" placeholder="Search topics" onclick="event.stopPropagation();">
-              <button id="sort-topics-az" class="loaded-topics-sort" onclick="event.stopPropagation();">A→Z</button>
-              <button id="sort-topics-za" class="loaded-topics-sort" onclick="event.stopPropagation();">Z→A</button>
+              <button id="sort-topics-az" class="loaded-topics-sort" onclick="event.stopPropagation();">AZ</button>
+              <button id="sort-topics-za" class="loaded-topics-sort" onclick="event.stopPropagation();">ZA</button>
             </div>
             <div id="loaded-topics-list"></div>
           </div>
@@ -408,8 +408,7 @@
               </button>
               <button id="hide-pin-key-load" class="toolbar-column-first-settings-btns" style="display: none;">Pin
               </button>
-              <button id="show-options-from-load" class="toolbar-column-btns">Options ✅
-              </button>
+              <button id="show-options-from-load" class="toolbar-column-btns">Options</button>
               <button id="hide-options-from-load" class="toolbar-column-btns" style="display: none; margin-left: 1vw;">Options ⛔
               </button>
             </div>

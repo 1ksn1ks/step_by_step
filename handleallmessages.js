@@ -83,23 +83,43 @@ function topicNameOf(entry) {
   return entry.split(' - ').slice(1).join(' - ') || entry;
 }
 
-// Pressing the ▸ arrow expands/collapses that topic's bio below its row
+function topicChevron() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', 'm9 18 6-6-6-6');
+  svg.appendChild(path);
+  return svg;
+}
+
+function setTopicChevron(arrowBtn, open) {
+  if (!arrowBtn) return;
+  arrowBtn.classList.toggle('is-open', open);
+  arrowBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+// The row chevron expands/collapses that topic's bio below its row.
 function toggleTopicBio(topicId, row, arrowBtn) {
   const existing = row.nextElementSibling;
   if (existing && existing.classList && existing.classList.contains('topic-bio-row')) {
     existing.remove();
-    arrowBtn.textContent = '▸';
+    setTopicChevron(arrowBtn, false);
     return;
   }
   const bioEl = document.createElement('div');
   bioEl.className = 'topic-bio-row';
-  bioEl.style.cssText = 'color: rgba(255,255,255,0.6); font-size: 1.6vh; line-height: 1.4; padding: 0.1em 0.2em 0.3em 1.4em; white-space: pre-wrap; word-break: break-word;';
   const raw = globalTopicBios[topicId];
   const bio = Array.isArray(raw) ? String(raw[0] || '') : (typeof raw === 'string' ? raw : '');
   if (bio) fillTopicIds(bioEl, bio);
   else bioEl.textContent = 'No bio set yet';
   row.after(bioEl);
-  arrowBtn.textContent = '▾';
+  setTopicChevron(arrowBtn, true);
 }
 
 // Render the "Loaded topics:" list as rows: topic id + name, a ▸ arrow that
@@ -151,26 +171,19 @@ export function renderLoadedTopics() {
     const topicId = entry.split(' - ')[0];
 
     const row = document.createElement('div');
-    row.style.cssText = 'display: flex; align-items: center; gap: 0.5em; padding: 0.15em 0.2em;';
-
-    const arrowBtn = document.createElement('span');
-    arrowBtn.textContent = '▸';
-    arrowBtn.style.cssText = 'cursor: pointer; font-size: 1.6vh;';
-    arrowBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      toggleTopicBio(topicId, row, arrowBtn);
-      adjustTextareaHeight(el); // grow/shrink the list box for the bio row
-    });
-    row.appendChild(arrowBtn);
+    row.className = 'loaded-topic-row';
 
     const label = document.createElement('span');
-    label.style.cssText = 'flex: 1; white-space: normal; word-break: break-all;';
+    label.className = 'loaded-topic-label';
     label.textContent = entry;
     row.appendChild(label);
 
     const copyBtn = document.createElement('span');
+    copyBtn.className = 'loaded-topic-copy';
     copyBtn.textContent = '📋';
-    copyBtn.style.cssText = 'cursor: pointer; font-size: 1.6vh;';
+    copyBtn.setAttribute('role', 'button');
+    copyBtn.tabIndex = 0;
+    copyBtn.setAttribute('aria-label', 'Copy topic id');
     copyBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       try {
@@ -183,8 +196,24 @@ export function renderLoadedTopics() {
         toast.error('Could not copy topic id');
       }
     });
+    copyBtn.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      copyBtn.click();
+    });
     row.appendChild(copyBtn);
 
+    const arrowBtn = document.createElement('span');
+    arrowBtn.className = 'loaded-topic-chev';
+    arrowBtn.setAttribute('aria-hidden', 'true');
+    arrowBtn.appendChild(topicChevron());
+    setTopicChevron(arrowBtn, false);
+    row.appendChild(arrowBtn);
+
+    row.addEventListener('click', () => {
+      toggleTopicBio(topicId, row, arrowBtn);
+      adjustTextareaHeight(el);
+    });
     list.appendChild(row);
   }
 
