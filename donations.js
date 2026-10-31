@@ -7,6 +7,7 @@ import { connectedAccount } from './web3.js';
 import { sendHbarDonation } from './hedera.js';
 import { toast } from './toast.js';
 import { profilePictures, usernames } from './loadalladata.js';
+import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import {
   bareAccount,
   formatDonationAmount,
@@ -465,7 +466,18 @@ function closeSheet() {
   pendingTx = null;
 }
 
-function showSheet(topicId, ts, account) {
+function hashinalHost(el) {
+  return el && el.closest ? el.closest('.' + EARLY_POPUP_CLASS) : null;
+}
+
+function paintSheetChrome(host) {
+  const card = sheetPart('.donate-card');
+  if (!card) return;
+  card.classList.toggle(EARLY_POPUP_CLASS, !!host);
+  card.style.fontFamily = host ? (getComputedStyle(host).fontFamily || '') : '';
+}
+
+function showSheet(topicId, ts, account, host) {
   if (sheetBusy) return;
   const root = ensureSheet();
   if (sheetCloseTimer) {
@@ -496,6 +508,7 @@ function showSheet(topicId, ts, account) {
     accountLine.hidden = !showId;
   }
   if (avatar) avatar.src = recipientAvatar(account);
+  paintSheetChrome(host);
   lockFields(false);
   paintSend();
   root.hidden = false;
@@ -514,6 +527,7 @@ async function resolveTimestamp(pill) {
 }
 
 async function openDonate(pill) {
+  const host = hashinalHost(pill);
   const topicId = pill.dataset.topic || '';
   const ts = await resolveTimestamp(pill);
   if (!topicId || !ts) {
@@ -547,7 +561,7 @@ async function openDonate(pill) {
     toast.info("You can't donate to your own post");
     return;
   }
-  showSheet(topicId, ts, account);
+  showSheet(topicId, ts, account, host);
 }
 
 function donationError(error) {

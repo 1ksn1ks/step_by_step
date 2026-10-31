@@ -5883,6 +5883,73 @@ html, body {
     text-decoration: underline;
   }
 
+  /* Same chrome as a Hashinals post. Glass stays on every other post. */
+  .donate-card.early-holder-popup {
+    position: relative;
+    border-color: transparent;
+    border-width: calc(var(--u, 9.6px) * 0.3);
+    background-color: transparent;
+    background-image:
+      linear-gradient(rgba(12, 12, 18, 0.94), rgba(12, 12, 18, 0.94)),
+      conic-gradient(from var(--eh-angle), #f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    box-shadow: none;
+    color: #f4f1ea;
+    isolation: isolate;
+    overflow: visible;
+    animation-name: donate-sheet-up, early-hashinal-angle;
+    animation-duration: 0.28s, 4s;
+    animation-timing-function: ease, linear;
+    animation-iteration-count: 1, infinite;
+  }
+  @media (min-width: 100dvh) {
+    .donate-card.early-holder-popup {
+      animation-name: donate-pop, early-hashinal-angle;
+    }
+  }
+  .donate-card.early-holder-popup::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: -1;
+    box-shadow:
+      0 0 1.4dvh rgba(246, 226, 122, 0.55),
+      0 0 3dvh rgba(255, 74, 214, 0.32);
+    opacity: 0.7;
+    animation: early-holder-glow 2.6s ease-in-out infinite;
+  }
+  .donate-card.early-holder-popup .donate-title,
+  .donate-card.early-holder-popup .donate-x,
+  .donate-card.early-holder-popup .donate-hash {
+    color: #f6e27a;
+  }
+  .donate-card.early-holder-popup .donate-account,
+  .donate-card.early-holder-popup .donate-bytes,
+  .donate-card.early-holder-popup .donate-input::placeholder {
+    color: #e9d5ff;
+  }
+  .donate-card.early-holder-popup .donate-input {
+    color: #f4f1ea;
+  }
+  .donate-card.early-holder-popup .donate-input:focus {
+    outline-color: #f6e27a;
+    border-color: #f6e27a;
+  }
+  .donate-card.early-holder-popup .donate-chip[aria-pressed="true"],
+  .donate-card.early-holder-popup .donate-send {
+    background: #f6e27a;
+    border-color: #f6e27a;
+    color: #0c0c12;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .donate-card.early-holder-popup {
+      animation-duration: 0.01s, 8s;
+    }
+  }
+
   .profile-live-bio {
     align-self: stretch;
     width: 100%;
@@ -8528,6 +8595,7 @@ a.payer-link {
   .popup-profile-bubble.early > .popup-early-spin::before,
   :is(#feed-column, .feed-comments-stage) .feed-card.early-holder-popup,
   :is(#feed-column, .feed-comments-stage) .feed-card.early-holder-popup::before,
+  .donate-card.early-holder-popup::before,
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::before,
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::after,
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::before,
