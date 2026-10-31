@@ -38,7 +38,6 @@ import { stackedTopicRules, smallestPolygonSize } from './topicrules.js'
 import { payerUsernameNode } from './payerlink.js'
 import { paintProfileAvatar } from './earlyhashinal.js'
 import { watchProfilePicture, watchProfileTree, forgetProfileTree } from './markertilt.js'
-import { holdMedia, revealPopupMedia } from './lazymedia.js'
 
 // A drawing counts toward the NFT allowance only when it is a real marker
 // or polygon. Likes, comments, deletes, and other messages do not.
@@ -499,7 +498,6 @@ function ensurePopupPreview(slot) {
   popup.appendChild(content);
   slot.appendChild(popup);
   applyAllStyles();
-  revealPopupMedia(popup);
 }
 
 // The sample is a full portrait popup. Scale it uniformly into the slot.
@@ -2010,9 +2008,9 @@ export function createMarkerPopupHTML(data) {
         openPreview(image);
       });
       imageDiv.appendChild(chip);
-      // src stays off until the popup opens. loading="lazy" never fetches
-      // inside a transformed MapLibre popup on a phone.
-      holdMedia(media, image);
+      media.decoding = 'async';
+      media.loading = 'eager';
+      media.src = image;
     }
     imageDiv.appendChild(media);
     contentSection.appendChild(imageDiv);
@@ -2199,7 +2197,9 @@ function createPolygonPopupHTML(data) {
         openPreview(popupImageUrl);
       });
       imageDiv.appendChild(chip);
-      holdMedia(media, popupImageUrl);
+      media.decoding = 'async';
+      media.loading = 'eager';
+      media.src = popupImageUrl;
     }
     imageDiv.appendChild(media);
     contentSection.appendChild(imageDiv);

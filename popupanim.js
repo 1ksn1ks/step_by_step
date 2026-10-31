@@ -1,6 +1,5 @@
 import maplibregl from 'maplibre-gl';
 import { forgetProfileTree, watchProfileTree } from './markertilt.js';
-import { revealPopupMedia } from './lazymedia.js';
 
 // Animate popup close: play the shrink+fade (.closing class, popupOut keyframes
 // in style.css), then let MapLibre actually remove the popup.
@@ -71,10 +70,6 @@ function Popup(options) {
   // tap, a bulk close — goes through this event.
   popup.on('close', () => {
     if (window.layerPopupClosed) window.layerPopupClosed(popup);
-  });
-  popup.on('open', () => {
-    const el = typeof popup.getElement === 'function' ? popup.getElement() : null;
-    if (el) revealPopupMedia(el);
   });
   return popup;
 }
@@ -177,7 +172,6 @@ maplibregl.Popup.prototype.setDOMContent = function (node) {
   if (node && node.nodeType === 1) {
     watchProfileTree(node);
     document.dispatchEvent(new CustomEvent('follow-popup-open', { detail: node }));
-    revealPopupMedia(node);
   }
   // Back/Forward: a card swapped into an already-open popup (paging,
   // live-marker walk) refreshes the saved history data.
@@ -201,7 +195,6 @@ maplibregl.Popup.prototype.addTo = function (map) {
     if (window.layerPopupOpened && el.querySelector('.popup-sheet')) {
       window.layerPopupOpened(this, popupLayerData(this));
     }
-    revealPopupMedia(el);
   }
   return result;
 };
