@@ -1659,7 +1659,8 @@ function closeMemoSubPanels() {
 const updateTopicTarget = document.getElementById("update-topic-target");
 if (updateTopicTarget) {
   updateTopicTarget.addEventListener("input", () => {
-    updateTopicTarget.dataset.userTyped = "1";
+    if (updateTopicTarget.value.trim()) updateTopicTarget.dataset.userTyped = "1";
+    else delete updateTopicTarget.dataset.userTyped;
     syncUpdateTopicTarget();
   });
 }

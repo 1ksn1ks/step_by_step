@@ -19,9 +19,11 @@ export let allLoadedMessagesFromLoad = [];
         return;
       }
       const sharedTopic = document.getElementById("update-topic-target");
-      const userInput = (sharedTopic && sharedTopic.value.trim())
-        ? sharedTopic.value
-        : document.getElementById("input-field").value;
+      const userInput = sharedTopic ? sharedTopic.value : "";
+      if (!userInput.trim()) {
+        toast.error("Enter a Domain/Topic ID");
+        return;
+      }
 
       const privateKey = document.getElementById("encrypt-key-load").value;
       const newPassword = document.getElementById("change-key-load").value;
@@ -75,9 +77,11 @@ export let allLoadedMessagesFromLoad = [];
         return;
       }
       const sharedTopic = document.getElementById("update-topic-target");
-      const userInput = (sharedTopic && sharedTopic.value.trim())
-        ? sharedTopic.value
-        : document.getElementById("input-field").value;
+      const userInput = sharedTopic ? sharedTopic.value : "";
+      if (!userInput.trim()) {
+        toast.error("Enter a Domain/Topic ID");
+        return;
+      }
 
       const oldPass = document.getElementById("encrypt-key-load").value;
       const newPassword = document.getElementById("change-key-load").value;
@@ -179,9 +183,11 @@ export let allLoadedMessagesFromLoad = [];
         return;
       }
       const sharedTopic = document.getElementById("update-topic-target");
-      const rawTopic = (sharedTopic && sharedTopic.value.trim())
-        ? sharedTopic.value
-        : document.getElementById("input-field").value;
+      const rawTopic = sharedTopic ? sharedTopic.value : "";
+      if (!rawTopic.trim()) {
+        toast.error("Enter a Domain/Topic ID");
+        return;
+      }
       let userInput = rawTopic.toLowerCase();
       let publicKey = document.getElementById("publickkey-load").value;
       let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
