@@ -151,6 +151,7 @@
         <div class="toolbar-column set-nav" id="Domain"><span class="set-nav-copy"><span class="set-nav-label">Domain</span><span class="set-nav-desc">Name and renew a domain</span></span></div>
         <div class="toolbar-column set-nav" id="NFT-utility"><span class="set-nav-copy"><span class="set-nav-label">NFT Utility</span><span class="set-nav-desc">Models, markers and chat rules</span></span></div>
         <div class="toolbar-column set-nav" id="Change_Memo"><span class="set-nav-copy"><span class="set-nav-label">Update Topic</span><span class="set-nav-desc">Bio, name, memo and fee</span></span></div>
+        <div class="toolbar-column set-nav" id="Update_Topic"><span class="set-nav-copy"><span class="set-nav-label">Update topic</span><span class="set-nav-desc" id="update-topic-desc">Pin and passwords</span></span></div>
         <div class="toolbar-column set-nav" id="Stack_topic_IDs"><span class="set-nav-copy"><span class="set-nav-label">Stack topic IDs</span><span class="set-nav-desc">Topics that open together</span></span></div>
         <div class="toolbar-column set-nav" id="Set_Initial_XYZ"><span class="set-nav-copy"><span class="set-nav-label">Set initial XYZ</span><span class="set-nav-desc">Where a topic opens on the map</span></span></div>
       </div>
@@ -466,84 +467,77 @@
 
 
             <div style="display: flex;">
-              <button id="show-pin-key-load" class="toolbar-column-first-settings-btns" style="display: none;">Pin
-              </button>
-              <button id="hide-pin-key-load" class="toolbar-column-first-settings-btns" style="display: none;">Pin
-              </button>
               <button id="show-options-from-load" class="toolbar-column-btns">Options</button>
               <button id="hide-options-from-load" class="toolbar-column-btns" style="display: none; margin-left: 1vw;">Options ⛔
               </button>
             </div>
 
           <div id="options-from-load" style="display: none;">
-            <div style="display: flex;">
-              <button id="show-change-password-load" class="toolbar-column-first-settings-btns">Change Password
+            <div class="topic-options-bar load-options-inline-bar">
+              <button type="button" class="topic-options-back" data-options-close="hide-options-from-load" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg></button>
+              <h2 class="topic-options-title">Options</h2>
+              <button type="button" class="topic-options-help" id="help-load-options-inline" aria-label="Help">?</button>
+            </div>
+            <div class="topic-options-home">
+              <div class="mb-card topic-options-card">
+                <div class="mb-row topic-options-row">
+                  <button type="button" class="topic-options-hit" data-options-open="show-unlock-load">
+                    <span class="mb-row-label">Unlock ◕_◕</span>
+                    <span class="topic-options-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                  </button>
+                </div>
+                <div class="mb-row topic-options-row">
+                  <button type="button" class="topic-options-hit" data-options-open="show-time-from-users-load-column">
+                    <span class="mb-row-label">Time</span>
+                    <span class="topic-options-value" data-options-time="from-mmddyyyy-users-load-column,from-hhmmss-users-load-column,to-mmddyyyy-users-load-column,to-hhmmss-users-load-column"></span>
+                    <span class="topic-options-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                  </button>
+                </div>
+                <div class="mb-row topic-options-row">
+                  <button type="button" class="topic-options-hit" data-options-open="show-load-from-users">
+                    <span class="mb-row-label">From</span>
+                    <span class="topic-options-value" data-options-from="load-msgs-from-ids"></span>
+                    <span class="topic-options-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                  </button>
+                </div>
+              </div>
+              <div class="mb-card topic-options-card">
+                <div class="mb-row topic-options-row">
+                  <button type="button" class="topic-options-hit is-danger" data-options-open="show-block-from-users">
+                    <span class="mb-row-label">Block</span>
+                    <span class="topic-options-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="topic-options-legacy" style="display: none;">
+              <button id="show-unlock-load" class="toolbar-column-settings-btns">Unlock ◕_◕</button>
+              <button id="hide-unlock-load" style="display: none;" class="toolbar-column-settings-btns">Unlock ◕_◕</button>
+              <button id="show-block-from-users" class="toolbar-column-first-settings-btns">Block</button>
+              <button id="hide-block-from-users" style="display: none;" class="toolbar-column-first-settings-btns">Block</button>
+              <button id="show-time-from-users-load-column" class="toolbar-column-settings-btns">Time</button>
+              <button id="hide-time-from-users-load-column" style="display: none;" class="toolbar-column-settings-btns">Time</button>
+              <button id="show-load-from-users" class="toolbar-column-settings-btns">From</button>
+              <button id="hide-load-from-users" style="display: none;" class="toolbar-column-settings-btns">From</button>
+            </div>
+          </div>
+
+          <div id="unlock-from-load" class="topic-options-editor" style="display: none;">
+            <button type="button" class="topic-options-editor-back" data-options-back="hide-unlock-load">Back</button>
+            <textarea class="toolbar-column" type="text" id="unlockkey-load" placeholder="Unlock with Private Key / password" style="display: none;"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <div id="unlock-load-actions">
+              <button id="unlock-load-all" class="toolbar-column-first-settings-btns" style="display: none;"> ༼ つ ಠ_ಠ ༽つ all
               </button>
-              <button id="hide-change-password-load" style="display: none;" class="toolbar-column-first-settings-btns">Change Password
-              </button>
-              <button id="show-set-password-load" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Set Password
-              </button>
-              <button id="hide-set-password-load" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Set Password
-              </button>
-              <button id="show-unlock-load" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Unlock ◕_◕
-              </button>
-              <button id="hide-unlock-load" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Unlock ◕_◕
+              <button id="unlock-load-few" class="toolbar-column-btns" style="display: none;"> ༼ つ╭ರ_◕ ༽つ few
               </button>
             </div>
-            <div style="display: flex;">
-              <button id="show-block-from-users" class="toolbar-column-first-settings-btns">Block
-              </button>
-              <button id="hide-block-from-users" style="display: none;" class="toolbar-column-first-settings-btns">Block
-              </button>
-              <button id="show-time-from-users-load-column" class="toolbar-column-settings-btns">Time
-              </button>
-              <button id="hide-time-from-users-load-column" style="display: none;" class="toolbar-column-settings-btns">Time
-              </button>
-              <button id="show-load-from-users" class="toolbar-column-settings-btns">From
-              </button>
-              <button id="hide-load-from-users" style="display: none;" class="toolbar-column-settings-btns">From
-              </button>
-            </div>
           </div>
-
-          <textarea class="toolbar-column" type="text" id="publickkey-load" placeholder="Public Key" style="display: none;"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
-
-          <textarea class="toolbar-column" type="text" id="unlockkey-load" placeholder="Unlock with Private Key / password" style="display: none;"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
-  
-          <div id="encrypt-key-load-label" style="display: none;">
-            <label style="font-size: 2vh; padding: 0px;">Private key</label>
-          </div>
-          <textarea class="toolbar-column" type="text" id="encrypt-key-load" placeholder="Private key" style="display: none;"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
-
-          <div id="change-key-load-label" style="display: none;">
-            <label style="font-size: 2vh; padding: 0px;">Password</label>
-          </div>
-          <textarea class="toolbar-column" type="text" id="change-key-load" placeholder="Password" style="display: none;"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
-
-          <button id="change-password-load" class="pin-public-key-from-encrypted-chat" style="display: none;">Change Password
-          </button>
-    
-          <button id="set-password-load" class="pin-public-key-from-encrypted-chat" style="display: none;">Set Password
-          </button>
-          <div style="display: flex;">
-            <button id="unlock-load-all" class="toolbar-column-first-settings-btns" style="display: none;"> ༼ つ ಠ_ಠ ༽つ all
-            </button>
-            <button id="unlock-load-few" class="toolbar-column-btns" style="display: none; margin-left: 1vw;"> ༼ つ╭ರ_◕ ༽つ few
-            </button>
-          </div>
-          <button id="pin-publickkey-load" class="pin-public-key-from-encrypted-chat" style="display: none;"> Pin
-          </button>
       
       
-          <div id="time-from-users-load-column" style="display: none;">
+          <div id="time-from-users-load-column" class="topic-options-editor" style="display: none;">
+            <button type="button" class="topic-options-editor-back" data-options-back="hide-time-from-users-load-column">Back</button>
             <div class="filter-time-row">
             <button type="button" class="toolbar-column-btns filter-time-open" data-label="From" data-date-id="from-mmddyyyy-users-load-column" data-time-id="from-hhmmss-users-load-column">From</button>
             <button type="button" class="toolbar-column-btns filter-time-open" data-label="To" data-date-id="to-mmddyyyy-users-load-column" data-time-id="to-hhmmss-users-load-column">To</button>
@@ -554,7 +548,7 @@
             <input type="time" id="to-hhmmss-users-load-column" hidden>
         </div>
       
-        <div id="time-from-users-load-column-filter" style="display: none;">
+        <div id="time-from-users-load-column-filter" class="topic-options-editor" style="display: none;">
           <button id="load-time-from-users-load-column" class="toolbar-column-first-settings-btns">Load Filters
           </button>
           <button id="users-load-column-filter" class="toolbar-column-settings-btns">Apply Filter
@@ -564,30 +558,32 @@
         </div>
         
       
-          <div id="load-load-from-users-label" style="display: none;">
+          <div id="load-load-from-users-label" class="topic-options-editor" style="display: none;">
+            <button type="button" class="topic-options-editor-back" data-options-back="hide-load-from-users">Back</button>
             <label style="font-size: 2vh; padding: 0px;">Load From Users:
             </label>
           </div>
       
-          <div id="load-block-from-users-label" style="display: none;">
+          <div id="load-block-from-users-label" class="topic-options-editor" style="display: none;">
+            <button type="button" class="topic-options-editor-back" data-options-back="hide-block-from-users">Back</button>
             <label style="font-size: 2vh; padding: 0px;">Block Users:
             </label>
           </div>
       
-          <div id="load-msgs-from-ids-load-column" style="display: none;">
+          <div id="load-msgs-from-ids-load-column" class="topic-options-editor" style="display: none;">
             <textarea class="toolbar-column" type="text" id="load-msgs-from-ids" placeholder="user ID or IDs separated by comma"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
           </div>
       
-          <div id="load-blocks-from-ids-load-column" style="display: none;">
+          <div id="load-blocks-from-ids-load-column" class="topic-options-editor" style="display: none;">
             <textarea class="toolbar-column" type="text" id="load-blocks-from-ids" placeholder="user ID or IDs separated by comma"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
           </div>
       
       
-          <div id="load-load-from-users" style="display: none; flex-direction: row;"> 
+          <div id="load-load-from-users" class="topic-options-editor" style="display: none; flex-direction: row;"> 
             <button id="load-filters-from-users" class="toolbar-column-first-settings-btns">Load Filters
             </button>
             <button id="load-msgs-from-ids-button" class="toolbar-column-settings-btns">Apply Filter
@@ -598,7 +594,7 @@
       
       
       
-          <div id="load-block-from-users" style="display: none;">
+          <div id="load-block-from-users" class="topic-options-editor" style="display: none;">
             <button id="load-blocks-from-users" class="toolbar-column-first-settings-btns">Load Filters
             </button>
             <button id="load-block-from-users-button" class="toolbar-column-settings-btns">Apply Filter
@@ -1154,6 +1150,81 @@
         </div>
       </div>
       
+      <div id="update-topic-help-overlay" class="info-overlay">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+          <h3 class="info-overlay-title">Update topic</h3>
+          <p class="info-overlay-subtitle">Pin a key or change the password on the open topic.</p>
+          <ul class="info-overlay-list">
+            <li><b>Pin</b> — as admin, pin your public key so only you can unlock messages on this topic.</li>
+            <li><b>Change Password</b> — replace the password that wraps this topic's saved key.</li>
+            <li><b>Set Password</b> — wrap the topic private key with a password.</li>
+            <li>These act on the topic that is open now. Open a topic in chat, Load, or the feed first.</li>
+          </ul>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('update-topic-help-overlay').style.display='none'">Got it</button>
+          </div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('update-topic-help-overlay').style.display='none'">×</div>
+        </div>
+      </div>
+
+      <div id="update-topic-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <button class="panel-help-btn" id="help-update-topic-column" aria-label="Help">?</button>
+        <div id="update-topic-column-container">
+          <div class="options-column-title">Update topic</div>
+          <div class="topic-update-home" id="topic-update-home">
+            <div class="mb-card topic-options-card topic-update-card">
+              <div class="mb-row topic-options-row">
+                <button type="button" class="topic-options-hit" data-update-open="show-pin-key-load">
+                  <span class="mb-row-label">Pin</span>
+                  <span class="topic-options-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                </button>
+              </div>
+              <div class="mb-row topic-options-row">
+                <button type="button" class="topic-options-hit" data-update-open="show-change-password-load">
+                  <span class="mb-row-label">Change Password</span>
+                  <span class="topic-options-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                </button>
+              </div>
+              <div class="mb-row topic-options-row">
+                <button type="button" class="topic-options-hit" data-update-open="show-set-password-load">
+                  <span class="mb-row-label">Set Password</span>
+                  <span class="topic-options-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="topic-options-legacy" style="display: none;">
+            <button id="show-pin-key-load" class="toolbar-column-first-settings-btns" style="display: none;">Pin</button>
+            <button id="hide-pin-key-load" class="toolbar-column-first-settings-btns" style="display: none;">Pin</button>
+            <button id="show-change-password-load" class="toolbar-column-first-settings-btns">Change Password</button>
+            <button id="hide-change-password-load" style="display: none;" class="toolbar-column-first-settings-btns">Change Password</button>
+            <button id="show-set-password-load" class="toolbar-column-settings-btns">Set Password</button>
+            <button id="hide-set-password-load" style="display: none;" class="toolbar-column-settings-btns">Set Password</button>
+          </div>
+          <div class="topic-update-editor" id="topic-update-editor">
+            <button type="button" class="topic-options-editor-back" id="topic-update-back">Back</button>
+            <textarea class="toolbar-column" type="text" id="publickkey-load" placeholder="Public Key" style="display: none;"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <div id="encrypt-key-load-label" style="display: none;">
+              <label style="font-size: 2vh; padding: 0px;">Private key</label>
+            </div>
+            <textarea class="toolbar-column" type="text" id="encrypt-key-load" placeholder="Private key" style="display: none;"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <div id="change-key-load-label" style="display: none;">
+              <label style="font-size: 2vh; padding: 0px;">Password</label>
+            </div>
+            <textarea class="toolbar-column" type="text" id="change-key-load" placeholder="Password" style="display: none;"
+            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+            ></textarea>
+            <button id="change-password-load" class="pin-public-key-from-encrypted-chat" style="display: none;">Change Password</button>
+            <button id="set-password-load" class="pin-public-key-from-encrypted-chat" style="display: none;">Set Password</button>
+            <button id="pin-publickkey-load" class="pin-public-key-from-encrypted-chat" style="display: none;"> Pin</button>
+          </div>
+        </div>
+      </div>
+
       <div id="memo-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top:10vh;">
         <button class="panel-help-btn" id="help-memo-column">?</button>
         <div id="memo-column-container">
@@ -1366,6 +1437,24 @@
       
       <input type="range" id="speed-slider" min="0.1" max="5" step="0.01" value="1" style="display: none;" />
       
+      <div id="topic-options-help-overlay" class="info-overlay">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+          <h3 class="info-overlay-title">Options</h3>
+          <p class="info-overlay-subtitle">Filter the topic that is open.</p>
+          <ul class="info-overlay-list">
+            <li><b>Unlock</b> — on Load, open messages with a private key or password.</li>
+            <li><b>Time</b> — only messages in a date and time range.</li>
+            <li><b>From</b> — only messages from these user ids.</li>
+            <li><b>Block</b> — hide messages from these user ids.</li>
+            <li><b>Pin, Change Password, Set Password</b> — Toolbar, Update topic. They use the topic that is open now.</li>
+          </ul>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('topic-options-help-overlay').style.display='none'">Got it</button>
+          </div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('topic-options-help-overlay').style.display='none'">×</div>
+        </div>
+      </div>
+
       <div id="topic-chat-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
           <h3 class="info-overlay-title">Topic Chat</h3>
@@ -1397,89 +1486,94 @@
           </div>
           <button id="show-options-from-topic-chat" class="toolbar-column-btns">Options ✅</button>
           <button id="show-options-from-topic-chat-btn" class="toolbar-column-btns" style="display: none;">Options ⛔</button>
-      
-        <div id="options-from-topic-chat" style="display: none;">
-      
-          <div style="display: flex;">
-            <button id="show-block-from-topic-chat" class="toolbar-column-first-settings-btns">Block
-            </button>
-            <button id="hide-block-from-topic-chat" style="display: none;" class="toolbar-column-first-settings-btns">Block
-            </button>
-            <button id="show-time-from-topic-chat" class="toolbar-column-settings-btns">Time
-            </button>
-            <button id="hide-time-from-topic-chat" style="display: none;" class="toolbar-column-settings-btns">Time
-            </button>
-            <button id="show-from-from-topic-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">From
-            </button>
-            <button id="hide-from-from-topic-chat" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">From
-            </button>
+
+        <div id="options-from-topic-chat" class="topic-options-page" style="display: none;">
+          <div class="topic-options-bar">
+            <button type="button" class="topic-options-back" data-options-close="show-options-from-topic-chat-btn" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg></button>
+            <h2 class="topic-options-title">Options</h2>
+            <button type="button" class="topic-options-help" id="help-topic-options" aria-label="Help">?</button>
           </div>
-      
+          <div class="topic-options-body">
+            <div class="topic-options-home">
+              <div class="mb-card topic-options-card">
+                <div class="mb-row topic-options-row">
+                  <button type="button" class="topic-options-hit" data-options-open="show-time-from-topic-chat">
+                    <span class="mb-row-label">Time</span>
+                    <span class="topic-options-value" data-options-time="from-mmddyyyy,from-hhmmss,to-mmddyyyy,to-hhmmss"></span>
+                    <span class="topic-options-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                  </button>
+                </div>
+                <div class="mb-row topic-options-row">
+                  <button type="button" class="topic-options-hit" data-options-open="show-from-from-topic-chat">
+                    <span class="mb-row-label">From</span>
+                    <span class="topic-options-value" data-options-from="load-msgs-from-ids-topic-chat"></span>
+                    <span class="topic-options-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                  </button>
+                </div>
+              </div>
+              <div class="mb-card topic-options-card">
+                <div class="mb-row topic-options-row">
+                  <button type="button" class="topic-options-hit is-danger" data-options-open="show-block-from-topic-chat">
+                    <span class="mb-row-label">Block</span>
+                    <span class="topic-options-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="topic-options-legacy" style="display: none;">
+              <button id="show-block-from-topic-chat" class="toolbar-column-first-settings-btns">Block</button>
+              <button id="hide-block-from-topic-chat" style="display: none;" class="toolbar-column-first-settings-btns">Block</button>
+              <button id="show-time-from-topic-chat" class="toolbar-column-settings-btns">Time</button>
+              <button id="hide-time-from-topic-chat" style="display: none;" class="toolbar-column-settings-btns">Time</button>
+              <button id="show-from-from-topic-chat" class="toolbar-column-settings-btns">From</button>
+              <button id="hide-from-from-topic-chat" style="display: none;" class="toolbar-column-settings-btns">From</button>
+            </div>
+            <div id="time-from-topic-chat" class="topic-options-editor" style="display: none;">
+              <button type="button" class="topic-options-editor-back" data-options-back="hide-time-from-topic-chat">Back</button>
+              <div class="filter-time-row">
+                <button type="button" class="toolbar-column-btns filter-time-open" data-label="From" data-date-id="from-mmddyyyy" data-time-id="from-hhmmss">From</button>
+                <button type="button" class="toolbar-column-btns filter-time-open" data-label="To" data-date-id="to-mmddyyyy" data-time-id="to-hhmmss">To</button>
+              </div>
+              <input type="date" id="from-mmddyyyy" hidden>
+              <input type="date" id="to-mmddyyyy" hidden>
+              <input type="time" id="from-hhmmss" hidden>
+              <input type="time" id="to-hhmmss" hidden>
+            </div>
+            <div id="time-from-topic-chat-filter" class="topic-options-editor" style="display: none;">
+              <button id="load-time-from-topic-chat" class="toolbar-column-first-settings-btns">Load Filters</button>
+              <button id="topic-msgs-filter" class="toolbar-column-settings-btns">Apply Filter</button>
+              <button id="save-time-from-topic-chat" class="toolbar-column-settings-btns">Save Filters</button>
+            </div>
+            <div id="load-load-from-users-label-from-topic-chat" class="topic-options-editor" style="display: none;">
+              <button type="button" class="topic-options-editor-back" data-options-back="hide-from-from-topic-chat">Back</button>
+              <label style="font-size: 2vh; padding: 0px;">Load From Users:</label>
+            </div>
+            <div id="load-block-from-users-label-from-topic-chat" class="topic-options-editor" style="display: none;">
+              <button type="button" class="topic-options-editor-back" data-options-back="hide-block-from-topic-chat">Back</button>
+              <label style="font-size: 2vh; padding: 0px;">Block Users:</label>
+            </div>
+            <div id="load-msgs-from-ids-from-topic-chat" class="topic-options-editor" style="display: none;">
+              <textarea class="toolbar-column" type="text" id="load-msgs-from-ids-topic-chat" placeholder="user ID or IDs separated by comma"
+              onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+              ></textarea>
+            </div>
+            <div id="load-blocks-from-ids-from-topic-chat" class="topic-options-editor" style="display: none;">
+              <textarea class="toolbar-column" type="text" id="load-blocks-from-ids-topic-chat" placeholder="user ID or IDs separated by comma"
+              onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+              ></textarea>
+            </div>
+            <div id="load-load-from-users-from-topic-chat" class="topic-options-editor" style="display: none;">
+              <button id="load-filters-from-topic-chat" class="toolbar-column-first-settings-btns">Load Filters</button>
+              <button id="load-msgs-from-ids-button-topic-chat" class="toolbar-column-settings-btns">Apply Filter</button>
+              <button id="save-filters-from-topic-chat" class="toolbar-column-settings-btns">Save Filters</button>
+            </div>
+            <div id="load-block-from-users-from-topic-chat" class="topic-options-editor" style="display: none;">
+              <button id="load-blocks-from-topic-chat" class="toolbar-column-first-settings-btns">Load Filters</button>
+              <button id="load-block-from-users-button-topic-chat" class="toolbar-column-settings-btns">Apply Filter</button>
+              <button id="save-blocks-from-topic-chat" class="toolbar-column-settings-btns">Save Filters</button>
+            </div>
+          </div>
         </div>
-      
-        
-        <div id="time-from-topic-chat" style="display: none;">
-          <div class="filter-time-row">
-          <button type="button" class="toolbar-column-btns filter-time-open" data-label="From" data-date-id="from-mmddyyyy" data-time-id="from-hhmmss">From</button>
-          <button type="button" class="toolbar-column-btns filter-time-open" data-label="To" data-date-id="to-mmddyyyy" data-time-id="to-hhmmss">To</button>
-          </div>
-          <input type="date" id="from-mmddyyyy" hidden>
-          <input type="date" id="to-mmddyyyy" hidden>
-          <input type="time" id="from-hhmmss" hidden>
-          <input type="time" id="to-hhmmss" hidden>
-      </div>
-      
-      <div id="time-from-topic-chat-filter" style="display: none;">
-        <button id="load-time-from-topic-chat" class="toolbar-column-first-settings-btns">Load Filters
-        </button>
-        <button id="topic-msgs-filter" class="toolbar-column-settings-btns">Apply Filter
-        </button>
-        <button id="save-time-from-topic-chat" class="toolbar-column-settings-btns">Save Filters
-        </button>
-      </div>
-      
-      <div id="load-load-from-users-label-from-topic-chat" style="display: none;">
-        <label style="font-size: 2vh; padding: 0px;">Load From Users:
-        </label>
-      </div>
-      
-      <div id="load-block-from-users-label-from-topic-chat" style="display: none;">
-        <label style="font-size: 2vh; padding: 0px;">Block Users:
-        </label>
-      </div>
-      
-      <div id="load-msgs-from-ids-from-topic-chat" style="display: none;">
-        <textarea class="toolbar-column" type="text" id="load-msgs-from-ids-topic-chat" placeholder="user ID or IDs separated by comma"
-        onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-        ></textarea>
-      </div>
-      
-      <div id="load-blocks-from-ids-from-topic-chat" style="display: none;">
-        <textarea class="toolbar-column" type="text" id="load-blocks-from-ids-topic-chat" placeholder="user ID or IDs separated by comma"
-        onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-        ></textarea>
-      </div>
-      
-      
-      <div id="load-load-from-users-from-topic-chat" style="display: none;"> 
-        <button id="load-filters-from-topic-chat" class="toolbar-column-first-settings-btns">Load Filters
-        </button>
-        <button id="load-msgs-from-ids-button-topic-chat" class="toolbar-column-settings-btns">Apply Filter
-        </button>
-        <button id="save-filters-from-topic-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Save Filters
-        </button>
-      </div>
-      
-      
-      
-      <div id="load-block-from-users-from-topic-chat" style="display: none;">
-        <button id="load-blocks-from-topic-chat" class="toolbar-column-first-settings-btns">Load Filters
-        </button>
-        <button id="load-block-from-users-button-topic-chat" class="toolbar-column-settings-btns">Apply Filter
-        </button>
-        <button id="save-blocks-from-topic-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Save Filters
-        </button>
-      </div>
 
           <div class="loaded-topics-controls" onclick="event.stopPropagation();">
             <input type="text" id="topic-chat-msg-search" class="loaded-topics-search" placeholder="Search messages" onclick="event.stopPropagation();">
@@ -1546,7 +1640,7 @@
             <li><b>Domain/Topic ID</b> — the topic to read and write.</li>
             <li><b>Load</b> — fetches messages; your private key / password unlocks them.</li>
             <li><b>Options</b> — filter by blocked users, a date/time range, or specific users.</li>
-            <li><b>Pin</b> — as admin, pin your public key so only you can unlock messages.</li>
+            <li><b>Update topic</b> — Toolbar. Pin a public key, or change and set the password, on the topic that is open.</li>
             <li><b>Go to the top</b> — back to the start of the chat.</li>
             <li><b>Submit Message</b> — needs a Domain/Topic ID; up to 18 KB.</li>
           </ul>
@@ -1581,40 +1675,100 @@
           </div>
           <button id="show-options-from-encrypted-chat" class="toolbar-column-btns">Options ✅</button>
           <button id="show-options-from-encrypted-chat-btn" class="toolbar-column-btns" style="display: none;">Options ⛔</button>
-      
-          <div id="options-from-encrypted-chat" style="display: none;">
-      
-            <div style="display: flex;">
-              <button id="show-block-from-encrypted-chat" class="toolbar-column-first-settings-btns">Block
-              </button>
-              <button id="hide-block-from-encrypted-chat" style="display: none;" class="toolbar-column-first-settings-btns">Block
-              </button>
-              <button id="show-time-from-encrypted-chat" class="toolbar-column-settings-btns">Time
-              </button>
-              <button id="hide-time-from-encrypted-chat" style="display: none;" class="toolbar-column-settings-btns">Time
-              </button>
-              <button id="show-from-from-encrypted-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">From
-              </button>
-              <button id="hide-from-from-encrypted-chat" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">From
-              </button>
-            </div>
 
-            <div style="display: flex;">
-              <button id="show-pin-public-key-from-encrypted-chat" class="toolbar-column-first-settings-btns">Pin Public Key
-              </button>
-              <button id="hide-pin-public-key-from-encrypted-chat" style="display: none;" class="toolbar-column-first-settings-btns">Pin Public Key
-              </button>
-              <button id="show-block-change-password-encrypted-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Change Password
-              </button>
-              <button id="hide-block-change-password-encrypted-chat" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Change Password
-              </button>
-              <button id="show-time-set-password-encrypted-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Set Password
-              </button>
-              <button id="hide-time-set-password-encrypted-chat" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Set Password
-              </button>
+          <div id="options-from-encrypted-chat" class="topic-options-page" style="display: none;">
+            <div class="topic-options-bar">
+              <button type="button" class="topic-options-back" data-options-close="show-options-from-encrypted-chat-btn" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg></button>
+              <h2 class="topic-options-title">Options</h2>
+              <button type="button" class="topic-options-help" id="help-e2ee-options" aria-label="Help">?</button>
             </div>
-      
-        </div>
+            <div class="topic-options-body">
+              <div class="topic-options-home">
+                <div class="mb-card topic-options-card">
+                  <div class="mb-row topic-options-row">
+                    <button type="button" class="topic-options-hit" data-options-open="show-time-from-encrypted-chat">
+                      <span class="mb-row-label">Time</span>
+                      <span class="topic-options-value" data-options-time="from-mmddyyyy-encrypted-chat,from-hhmmss-encrypted-chat,to-mmddyyyy-encrypted-chat,to-hhmmss-encrypted-chat"></span>
+                      <span class="topic-options-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                    </button>
+                  </div>
+                  <div class="mb-row topic-options-row">
+                    <button type="button" class="topic-options-hit" data-options-open="show-from-from-encrypted-chat">
+                      <span class="mb-row-label">From</span>
+                      <span class="topic-options-value" data-options-from="load-msgs-from-ids-encrypted-chat"></span>
+                      <span class="topic-options-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                    </button>
+                  </div>
+                </div>
+                <div class="mb-card topic-options-card">
+                  <div class="mb-row topic-options-row">
+                    <button type="button" class="topic-options-hit is-danger" data-options-open="show-block-from-encrypted-chat">
+                      <span class="mb-row-label">Block</span>
+                      <span class="topic-options-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="topic-options-legacy" style="display: none;">
+                <button id="show-block-from-encrypted-chat" class="toolbar-column-first-settings-btns">Block</button>
+                <button id="hide-block-from-encrypted-chat" style="display: none;" class="toolbar-column-first-settings-btns">Block</button>
+                <button id="show-time-from-encrypted-chat" class="toolbar-column-settings-btns">Time</button>
+                <button id="hide-time-from-encrypted-chat" style="display: none;" class="toolbar-column-settings-btns">Time</button>
+                <button id="show-from-from-encrypted-chat" class="toolbar-column-settings-btns">From</button>
+                <button id="hide-from-from-encrypted-chat" style="display: none;" class="toolbar-column-settings-btns">From</button>
+                <button id="show-pin-public-key-from-encrypted-chat" class="toolbar-column-first-settings-btns" style="display: none;">Pin Public Key</button>
+                <button id="hide-pin-public-key-from-encrypted-chat" style="display: none;" class="toolbar-column-first-settings-btns">Pin Public Key</button>
+                <button id="show-block-change-password-encrypted-chat" class="toolbar-column-settings-btns" style="display: none;">Change Password</button>
+                <button id="hide-block-change-password-encrypted-chat" style="display: none;" class="toolbar-column-settings-btns">Change Password</button>
+                <button id="show-time-set-password-encrypted-chat" class="toolbar-column-settings-btns" style="display: none;">Set Password</button>
+                <button id="hide-time-set-password-encrypted-chat" style="display: none;" class="toolbar-column-settings-btns">Set Password</button>
+              </div>
+              <div id="time-from-encrypted-chat" class="topic-options-editor" style="display: none;">
+                <button type="button" class="topic-options-editor-back" data-options-back="hide-time-from-encrypted-chat">Back</button>
+                <div class="filter-time-row">
+                  <button type="button" class="toolbar-column-btns filter-time-open" data-label="From" data-date-id="from-mmddyyyy-encrypted-chat" data-time-id="from-hhmmss-encrypted-chat">From</button>
+                  <button type="button" class="toolbar-column-btns filter-time-open" data-label="To" data-date-id="to-mmddyyyy-encrypted-chat" data-time-id="to-hhmmss-encrypted-chat">To</button>
+                </div>
+                <input type="date" id="from-mmddyyyy-encrypted-chat" hidden>
+                <input type="date" id="to-mmddyyyy-encrypted-chat" hidden>
+                <input type="time" id="from-hhmmss-encrypted-chat" hidden>
+                <input type="time" id="to-hhmmss-encrypted-chat" hidden>
+              </div>
+              <div id="time-from-encrypted-chat-filter" class="topic-options-editor" style="display: none;">
+                <button id="load-time-from-encrypted-chat" class="toolbar-column-first-settings-btns">Load Filters</button>
+                <button id="topic-msgs-filter-encrypted-chat" class="toolbar-column-settings-btns">Apply Filter</button>
+                <button id="save-time-from-encrypted-chat" class="toolbar-column-settings-btns">Save Filters</button>
+              </div>
+              <div id="load-load-from-users-label-from-encrypted-chat" class="topic-options-editor" style="display: none;">
+                <button type="button" class="topic-options-editor-back" data-options-back="hide-from-from-encrypted-chat">Back</button>
+                <label style="font-size: 2vh; padding: 0px;">Load From Users:</label>
+              </div>
+              <div id="load-block-from-users-label-from-encrypted-chat" class="topic-options-editor" style="display: none;">
+                <button type="button" class="topic-options-editor-back" data-options-back="hide-block-from-encrypted-chat">Back</button>
+                <label style="font-size: 2vh; padding: 0px;">Block Users:</label>
+              </div>
+              <div id="load-msgs-from-ids-from-encrypted-chat" class="topic-options-editor" style="display: none;">
+                <textarea class="toolbar-column" type="text" id="load-msgs-from-ids-encrypted-chat" placeholder="user ID or IDs separated by comma"
+                onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+                ></textarea>
+              </div>
+              <div id="load-blocks-from-ids-from-encrypted-chat" class="topic-options-editor" style="display: none;">
+                <textarea class="toolbar-column" type="text" id="load-blocks-from-ids-encrypted-chat" placeholder="user ID or IDs separated by comma"
+                onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+                ></textarea>
+              </div>
+              <div id="load-load-from-users-from-encrypted-chat" class="topic-options-editor" style="display: none;">
+                <button id="load-load-filters-from-users-encrypted-chat" class="toolbar-column-first-settings-btns">Load Filters</button>
+                <button id="load-msgs-from-ids-button-encrypted-chat" class="toolbar-column-settings-btns">Apply Filter</button>
+                <button id="load-save-filters-from-users-encrypted-chat" class="toolbar-column-settings-btns">Save Filters</button>
+              </div>
+              <div id="load-block-from-users-from-encrypted-chat" class="topic-options-editor" style="display: none;">
+                <button id="load-load-blocks-from-users-encrypted-chat" class="toolbar-column-first-settings-btns">Load Filters</button>
+                <button id="load-block-from-users-button-encrypted-chat" class="toolbar-column-settings-btns">Apply Filter</button>
+                <button id="load-save-blocks-from-users-encrypted-chat" class="toolbar-column-settings-btns">Save Filters</button>
+              </div>
+            </div>
+          </div>
 
         <textarea class="toolbar-column" type="text" id="encrypted-chat-public-key" placeholder="Public Key" style="display: none;"
         onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
@@ -1648,70 +1802,6 @@
           <button id="stack-encrypted-chat-set-password-button" class="pin-public-key-from-encrypted-chat">Set Password
           </button>
         </div>
-      
-        <div id="time-from-encrypted-chat" style="display: none;">
-          <div class="filter-time-row">
-          <button type="button" class="toolbar-column-btns filter-time-open" data-label="From" data-date-id="from-mmddyyyy-encrypted-chat" data-time-id="from-hhmmss-encrypted-chat">From</button>
-          <button type="button" class="toolbar-column-btns filter-time-open" data-label="To" data-date-id="to-mmddyyyy-encrypted-chat" data-time-id="to-hhmmss-encrypted-chat">To</button>
-          </div>
-          <input type="date" id="from-mmddyyyy-encrypted-chat" hidden>
-          <input type="date" id="to-mmddyyyy-encrypted-chat" hidden>
-          <input type="time" id="from-hhmmss-encrypted-chat" hidden>
-          <input type="time" id="to-hhmmss-encrypted-chat" hidden>
-      </div>
-      
-      <div id="time-from-encrypted-chat-filter" style="display: none;">
-        <button id="load-time-from-encrypted-chat" class="toolbar-column-first-settings-btns">Load Filters
-        </button>
-        <button id="topic-msgs-filter-encrypted-chat" class="toolbar-column-settings-btns">Apply Filter
-        </button>
-        <button id="save-time-from-encrypted-chat" class="toolbar-column-settings-btns">Save Filters
-        </button>
-      </div>
-      
-      
-      <div id="load-load-from-users-label-from-encrypted-chat" style="display: none;">
-        <label style="font-size: 2vh; padding: 0px;">Load From Users:
-        </label>
-      </div>
-      
-      <div id="load-block-from-users-label-from-encrypted-chat" style="display: none;">
-        <label style="font-size: 2vh; padding: 0px;">Block Users:
-        </label>
-      </div>
-      
-      <div id="load-msgs-from-ids-from-encrypted-chat" style="display: none;">
-        <textarea class="toolbar-column" type="text" id="load-msgs-from-ids-encrypted-chat" placeholder="user ID or IDs separated by comma"
-        onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-        ></textarea>
-      </div>
-      
-      <div id="load-blocks-from-ids-from-encrypted-chat" style="display: none;">
-        <textarea class="toolbar-column" type="text" id="load-blocks-from-ids-encrypted-chat" placeholder="user ID or IDs separated by comma"
-        onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-        ></textarea>
-      </div>
-      
-      
-      <div id="load-load-from-users-from-encrypted-chat" style="display: none;"> 
-        <button id="load-load-filters-from-users-encrypted-chat" class="toolbar-column-first-settings-btns">Load Filters
-        </button>
-        <button id="load-msgs-from-ids-button-encrypted-chat" class="toolbar-column-settings-btns">Apply Filter
-        </button>
-        <button id="load-save-filters-from-users-encrypted-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Save Filters
-        </button>
-      </div>
-      
-      
-      
-      <div id="load-block-from-users-from-encrypted-chat" style="display: none;">
-        <button id="load-load-blocks-from-users-encrypted-chat" class="toolbar-column-first-settings-btns">Load Filters
-        </button>
-        <button id="load-block-from-users-button-encrypted-chat" class="toolbar-column-settings-btns">Apply Filter
-        </button>
-        <button id="load-save-blocks-from-users-encrypted-chat" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Save Filters
-        </button>
-      </div>
 
           <div class="loaded-topics-controls" onclick="event.stopPropagation();">
             <input type="text" id="e2ee-chat-msg-search" class="loaded-topics-search" placeholder="Search messages" onclick="event.stopPropagation();">

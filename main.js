@@ -40,6 +40,7 @@ import './domaintimeleft.js'
 import './installapp.js'
 import './openplace.js'
 import './feedlayout.js'
+import './topicoptions.js'
 
 window.restrictLength = function(input, maxLength) {
     if (input.value.length > maxLength) {
