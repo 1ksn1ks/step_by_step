@@ -488,6 +488,7 @@ function svgIcon(parts) {
   svg.setAttribute('stroke-width', '2');
   svg.setAttribute('stroke-linecap', 'round');
   svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('overflow', 'visible');
   svg.setAttribute('aria-hidden', 'true');
   for (const [name, attrs] of parts) {
     const node = document.createElementNS(SVG_NS, name);
@@ -6839,7 +6840,7 @@ const VIS_ROWS = [
   ], true],
   ['toggle-marker-visibility', NAV_ICONS['change-marker-options'], true],
   ['toggle-polygon-visibility', [
-    ['path', { d: 'M10.83 2.18a2 2 0 0 1 2.34 0l8 5.74a2 2 0 0 1 .83 1.63v7.9a2 2 0 0 1-.83 1.63l-8 5.74a2 2 0 0 1-2.34 0l-8-5.74A2 2 0 0 1 2 17.45v-7.9a2 2 0 0 1 .83-1.63z' }],
+    ['path', { d: 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z' }],
   ], true],
   ['toggle-globe-mode', GLOBE_ICON, false],
 ];
