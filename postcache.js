@@ -35,6 +35,35 @@ function cardKey(topicId, created) {
   return String(topicId || '') + '|' + String(created || '');
 }
 
+// IndexedDB can store ids, text, urls, and numbers. A card built for the
+// screen also carries onPrev / onclick closures, and put() throws
+// DataCloneError on the first one of those. Drop anything that is not
+// plain data. The screen rebuilds the handlers when it paints the card.
+function plainCard(value, seen) {
+  if (value == null) return value;
+  const kind = typeof value;
+  if (kind === 'string' || kind === 'boolean') return value;
+  if (kind === 'number') return Number.isFinite(value) ? value : null;
+  if (kind !== 'object') return undefined;
+  if (typeof Node !== 'undefined' && value instanceof Node) return undefined;
+  if (seen.has(value)) return undefined;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    const list = [];
+    for (const item of value) {
+      const next = plainCard(item, seen);
+      if (next !== undefined) list.push(next);
+    }
+    return list;
+  }
+  const out = {};
+  for (const key of Object.keys(value)) {
+    const next = plainCard(value[key], seen);
+    if (next !== undefined) out[key] = next;
+  }
+  return out;
+}
+
 export async function readPostCard(topicId, created) {
   const database = await openDb();
   if (!database || !topicId || !created) return null;
@@ -60,15 +89,27 @@ export async function forgetPostCard(topicId, created) {
 export async function writePostCard(topicId, created, card) {
   const database = await openDb();
   if (!database || !topicId || !created || !card) return;
-  return new Promise((resolve) => {
-    const tx = database.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).put(card, cardKey(topicId, created));
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => {
-      if (isQuota(tx.error) && typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('topic-cache-full'));
+  try {
+    const plain = plainCard(card, new WeakSet());
+    if (!plain || typeof plain !== 'object') return;
+    return await new Promise((resolve) => {
+      let tx;
+      try {
+        tx = database.transaction(STORE, 'readwrite');
+        tx.objectStore(STORE).put(plain, cardKey(topicId, created));
+      } catch {
+        resolve();
+        return;
       }
-      resolve();
-    };
-  });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => {
+        if (isQuota(tx.error) && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('topic-cache-full'));
+        }
+        resolve();
+      };
+    });
+  } catch {
+    return;
+  }
 }

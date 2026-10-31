@@ -28,7 +28,9 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 // ────────────────────────────────────────────────
 
 const dracoLoader = new DRACOLoader();
-dracoLoader.setDecoderPath('node_modules/three/examples/jsm/libs/draco/');
+// public/draco. A path under node_modules is answered with index.html, and
+// DRACOLoader puts that HTML in a blob worker ("Unexpected token '<'").
+dracoLoader.setDecoderPath('/draco/');
 
 const RAD = Math.PI / 180;
 const EARTH_R = 6371008.8; // MapLibre's globe radius (meters)

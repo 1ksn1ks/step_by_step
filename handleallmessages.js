@@ -29,21 +29,34 @@ import { fillTopicIds } from "./topicidintext.js";
 // to only one of them. A remembered answer skips a second mirror ask.
 const accountChecks = new Map();
 
+async function mirrorHas(kind, id, signal) {
+  const response = await fetch(`https://mainnet.mirrornode.hedera.com/api/v1/${kind}/${encodeURIComponent(id)}`, { signal });
+  if (response.status === 404) return false;
+  if (!response.ok) return null;
+  return true;
+}
+
 export async function isHederaAccount(id) {
+  if (!id) return false;
   if (accountChecks.has(id)) return accountChecks.get(id);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 4000);
   try {
-    const response = await fetch(`https://mainnet.mirrornode.hedera.com/api/v1/accounts/${id}`, { signal: controller.signal });
-    if (response.status === 404) {
+    // Account ids and topic ids share 0.0.N. A topic is the common case
+    // (0.0.9609912), so ask /topics/ first and never 404 /accounts/ for one.
+    const topic = await mirrorHas('topics', id, controller.signal);
+    if (topic === true) {
       accountChecks.set(id, false);
       return false;
     }
-    if (!response.ok) return false;
-    const data = await response.json();
-    const yes = !!(data && data.account);
-    if (yes) accountChecks.set(id, true);
-    return yes;
+    if (topic !== false) return false;
+    const account = await mirrorHas('accounts', id, controller.signal);
+    if (account === true) {
+      accountChecks.set(id, true);
+      return true;
+    }
+    if (account === false) accountChecks.set(id, false);
+    return false;
   } catch {
     return false;
   } finally {

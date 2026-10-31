@@ -15,6 +15,7 @@ import { watchPolygonTilt, forgetPolygonTilt } from './polygontilt.js';
 import { fillMapTip } from './maptip.js';
 import { prefetchPersonFollow } from './followtopic.js';
 import { isPointerOnGlobe } from './onglobe.js';
+import { advanceIpfsImage } from './ipfsimage.js';
 
 
 
@@ -114,6 +115,7 @@ function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackU
   if (cached) return cached;
   const pending = new Promise((resolve, reject) => {
     const img = new Image();
+    img.dataset.canvasImage = '1';
     img.crossOrigin = "anonymous";
 
     img.onload = () => {
@@ -158,6 +160,7 @@ function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackU
     };
 
     img.onerror = () => {
+      if (advanceIpfsImage(img)) return;
       if (fallbackUrl && img.src !== fallbackUrl) {
         // Try fallback once
         img.src = fallbackUrl;
