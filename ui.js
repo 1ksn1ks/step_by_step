@@ -22,8 +22,6 @@ export const everythinginsideoptionsbuttons = [
     "crosshair-column-save",
     "popup-settings-backdrop",
     "popup-settings-card",
-    "main-button-column",
-    "main-button-column-save",
     "marker-options-column",
     "marker-column-save",
     "button-input-column",
@@ -58,7 +56,6 @@ export const everythinginsideoptionsbuttons = [
     "change-model-help-overlay",
     "crosshair-settings-help-overlay",
     "marker-size-help-overlay",
-    "main-buttons-style-help-overlay",
     "main-buttons-advanced-style-help-overlay",
     "chat-style-help-overlay",
     "visibility-help-overlay"

@@ -6090,16 +6090,6 @@ html, body {
     padding: 0.6vh 0 0.4vh;
   }
 
-  /* Mirrors the real buttons: same padding/border, height+width auto */
-  .mb-panel .mb-preview-btn {
-    padding: 0.8vh 0.45vh;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 1.5vh;
-    color: white;
-    font-family: inherit;
-    cursor: default;
-  }
-
   /* Visibility panel preview: a polygon over a checkered background so
      the transparency is visible */
   .mb-panel .mb-poly-preview-bg {

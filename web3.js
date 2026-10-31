@@ -14,7 +14,6 @@ import { loadTopicChatSettings } from './loadtopicchatset';
 import { loadProfilePopup, syncEarlyStyleEditor } from './loadprofilepopup';
 import { loadProfileObject } from './loadprofileobject';
 import { loadButtonInputSettings } from './loadbuttoninput';
-import { loadMainButtonSettings } from './loadmainbutton';
 import { loadMarkerSettings } from './loadmarkersett';
 import { confirmNFTFunction, ownsModelNFT, setOwnsModelNFT } from './confirmnft';
 import { handleAllMessages } from './handleallmessages';
@@ -55,7 +54,6 @@ async function init() {
       loadTopicChatSettings(accountId)
       loadProfilePopup(accountId)
       loadButtonInputSettings(accountId)
-      loadMainButtonSettings(accountId)
       loadMarkerSettings(accountId)
       confirmNFTFunction(accountId).then(() => updateUI())
 
@@ -152,7 +150,6 @@ async function finishConnect(flight, settle) {
       loadTopicChatSettings(accountId)
       loadProfilePopup(accountId)
       loadButtonInputSettings(accountId)
-      loadMainButtonSettings(accountId)
       loadMarkerSettings(accountId)
       confirmNFTFunction(accountId).then(() => updateUI())
 

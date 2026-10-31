@@ -4050,8 +4050,6 @@ const OPTION_PANELS = [
   'crosshair-column-save',
   'popup-settings-backdrop',
   'popup-settings-card',
-  'main-button-column',
-  'main-button-column-save',
   'marker-options-column',
   'marker-column-save',
   'button-input-column',
@@ -4071,7 +4069,6 @@ const OPTION_PANELS = [
   'change-model-help-overlay',
   'crosshair-settings-help-overlay',
   'marker-size-help-overlay',
-  'main-buttons-style-help-overlay',
   'main-buttons-advanced-style-help-overlay',
   'chat-style-help-overlay',
   'visibility-help-overlay',
@@ -6021,14 +6018,13 @@ const DRAWER_CHILDREN = {
   ],
   'rotation-controls': [
     'model-column', 'crosshair-column', 'marker-options-column',
-    'main-button-column', 'button-input-column', 'topic-chat-column',
+    'button-input-column', 'topic-chat-column',
   ],
 };
 const DRAWER_EXTRAS = {
   'model-column': ['model-column-save'],
   'crosshair-column': ['crosshair-column-save'],
   'marker-options-column': ['marker-column-save'],
-  'main-button-column': ['main-button-column-save'],
   'button-input-column': ['button-input-column-save'],
   'topic-chat-column': ['topic-chat-save'],
 };
@@ -6085,7 +6081,6 @@ const DRAWER_ROOT_PAGES = {
 
 const DRAWER_LABELS = {
   'marker-options-column': 'Markers',
-  'main-button-column': 'Main buttons',
   'button-input-column': 'Appearance',
   'topic-chat-column': 'Chat',
   'model-column': 'Model',
@@ -6742,12 +6737,6 @@ const NAV_ICONS = {
     ['path', { d: 'M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0' }],
     ['circle', { cx: '12', cy: '10', r: '3' }],
   ],
-  'change-color-of-main-buttons': [
-    ['rect', { width: '20', height: '12', x: '2', y: '6', rx: '2' }],
-    ['path', { d: 'M7 12h.01' }],
-    ['path', { d: 'M12 12h.01' }],
-    ['path', { d: 'M17 12h.01' }],
-  ],
   'change-button-input-settings': [
     ['circle', { cx: '13.5', cy: '6.5', r: '.5', fill: 'currentColor' }],
     ['circle', { cx: '17.5', cy: '10.5', r: '.5', fill: 'currentColor' }],
@@ -6817,7 +6806,6 @@ const VIS_ROWS = [
 
 const NAV_PANELS = {
   'change-marker-options': 'marker-options-column',
-  'change-color-of-main-buttons': 'main-button-column',
   'change-button-input-settings': 'button-input-column',
   'change-topic-chat-options': 'topic-chat-column',
   'change-model-settings': 'model-column',
