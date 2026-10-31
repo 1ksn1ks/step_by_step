@@ -574,15 +574,19 @@
 
           <div class="options-column-title">✨ CREATE</div>
 
-          <div style="display: flex;">
-            <button id="show-new-topic-from-create" class="toolbar-column-first-settings-btns">New Topic
+          <div class="create-toggle-grid">
+            <div class="create-toggle-col">
+            <button id="show-new-topic-from-create" class="toolbar-column-first-settings-btns">New Topic ✅
             </button>
-            <button id="hide-new-topic-from-create" style="display: none;" class="toolbar-column-first-settings-btns">New Topic
+            <button id="hide-new-topic-from-create" style="display: none;" class="toolbar-column-first-settings-btns">New Topic ⛔
             </button>
-            <button id="show-new-keys-from-create" class="toolbar-column-settings-btns" style="margin-left: 1vw;">New Keys
+            </div>
+            <div class="create-toggle-col">
+            <button id="show-new-keys-from-create" class="toolbar-column-settings-btns" style="margin-left: 1vw;">New Keys ✅
             </button>
-            <button id="hide-new-keys-from-create" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">New Keys
+            <button id="hide-new-keys-from-create" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">New Keys ⛔
             </button>
+            </div>
           </div>
       
           <div id="new-topic-from-create" style="display: none;">
@@ -595,7 +599,7 @@
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
       
-            <label for="public-key-label" style="font-size: 2vh; padding: 0px; user-select: text;">Created TopicID:
+            <label for="public-key-label" style="font-size: 2vh; padding: 0px; user-select: text;">Created TopicID
             </label>
       
             <input class="toolbar-column" type="text" id="input-field-5" placeholder="Generated Topic ID"
@@ -648,7 +652,7 @@
         </div>
       
         <div id="new-keys-from-create" style="display: none;">
-            <label for="public-key-label" style="font-size: 2vh; padding: 0px;">Public Key:
+            <label for="public-key-label" style="font-size: 2vh; padding: 0px;">Public Key
             </label>
             <textarea
             class="toolbar-column"
@@ -658,7 +662,7 @@
             onclick="event.stopPropagation();"
           ></textarea>
       
-          <label for="private-key-label" style="font-size: 2vh; padding: 0px;">Private Key:
+          <label for="private-key-label" style="font-size: 2vh; padding: 0px;">Private Key
           </label>
       
           <textarea class="toolbar-column" id="generated-private-key" placeholder="Generated Private Key"
