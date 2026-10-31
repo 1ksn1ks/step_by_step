@@ -635,6 +635,7 @@ export async function appendEncryptedChatMessage(
     if (payer !== previousPayerEncryptedChat) {
       currentGroupContainerEncrypted = document.createElement('div');
       currentGroupContainerEncrypted.className = 'toolbar-group-messages';
+      if (payer && payer === connectedAccount) currentGroupContainerEncrypted.classList.add('chat-group-own');
       currentGroupContainerEncrypted.style.cssText = `
         position: relative;
         padding-left: 2.5em;
@@ -1351,6 +1352,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
 
       currentGroupDiv = document.createElement('div');
       currentGroupDiv.className = 'toolbar-group-messages';
+      if (payer && payer === connectedAccount) currentGroupDiv.classList.add('chat-group-own');
       currentGroupDiv.style.cssText = `
         position: relative;
         padding-left: 2.5em;
@@ -1448,9 +1450,9 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
     const timeSpan = document.createElement('span');
     timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
     timeSpan.className = 'chat-msg-time';
-    timeSpan.textContent = message.pending ? `⏳ ${timestamp}` : timestamp;
+    timeSpan.textContent = parsedMessage.pending ? `⏳ ${timestamp}` : timestamp;
     if (editHit) addE2eeEditedMark(timeSpan);
-    if (message.pending) msgWrapper.dataset.sig = messageSig(message);
+    if (parsedMessage.pending) msgWrapper.dataset.sig = messageSig(parsedMessage);
 
     msgWrapper.appendChild(contentDiv);
     msgWrapper.appendChild(timeSpan);

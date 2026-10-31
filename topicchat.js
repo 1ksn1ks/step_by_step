@@ -461,6 +461,7 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
       // Create new group
       currentGroupContainer = document.createElement('div');
       currentGroupContainer.className = 'toolbar-group-messages';
+      if (payer && payer === connectedAccount) currentGroupContainer.classList.add('chat-group-own');
       currentGroupContainer.style.cssText = `position: relative; padding-left: 2.5em; min-height: 2.5em; border-color: ${innerContainerTopicChatColor};`;
 
       // Profile image
@@ -927,6 +928,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
   
         currentGroupDiv = document.createElement('div');
         currentGroupDiv.className = 'toolbar-group-messages';
+        if (payer && payer === connectedAccount) currentGroupDiv.classList.add('chat-group-own');
         currentGroupDiv.style.cssText = `
           position: relative;
           padding-left: 2.5em;

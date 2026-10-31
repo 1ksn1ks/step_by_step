@@ -15473,3 +15473,66 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   box-shadow: none;
 }
 
+/* Own topic and E2EE groups sit on the right. Everyone else stays left. */
+.toolbar-group-messages.chat-group-own {
+  max-width: 85%;
+  margin-left: auto;
+  padding-left: 0.5em !important;
+  padding-right: 2.5em;
+}
+.toolbar-group-messages.chat-group-own > img,
+.toolbar-group-messages.chat-group-own .profile-img-click {
+  left: auto !important;
+  right: 0.25em;
+}
+.toolbar-group-messages.chat-group-own > div {
+  align-items: flex-end;
+  max-width: 100%;
+  min-width: 0;
+}
+.toolbar-group-messages.chat-group-own > div > div {
+  max-width: 100%;
+  min-width: 0;
+}
+.toolbar-group-messages.chat-group-own .toolbar-group-messages-header,
+.toolbar-group-messages.chat-group-own :has(> .toolbar-group-messages-header) {
+  justify-content: flex-end;
+  text-align: right;
+  align-items: flex-end;
+  max-width: 100%;
+}
+.toolbar-group-messages.chat-group-own :has(> .chat-msg-text) {
+  align-items: flex-end;
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  min-width: 0;
+}
+.toolbar-group-messages.chat-group-own .chat-msg-text {
+  align-self: flex-end;
+  text-align: right;
+  max-width: 100%;
+  background: rgba(0, 229, 255, 0.08);
+  border-color: rgba(0, 229, 255, 0.35);
+}
+.toolbar-group-messages.chat-group-own .chat-msg-time {
+  align-self: stretch;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+  text-align: right;
+  max-width: 100%;
+}
+.toolbar-group-messages.chat-group-own .chat-edited-mark {
+  order: -1;
+  margin-left: 0;
+  margin-right: auto;
+}
+.toolbar-group-messages.chat-group-own .chat-msg-image {
+  margin-left: auto;
+}
+.toolbar-group-messages.chat-group-own .chat-edit-btn {
+  align-self: flex-start;
+}
+
