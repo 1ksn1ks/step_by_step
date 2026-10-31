@@ -6080,6 +6080,7 @@ const DRAWER_LABELS = {
   'topic-chat-column': 'Chat',
   'model-column': 'Model',
   'crosshair-column': 'Crosshair',
+  'Edit_Profile-column': 'Profile',
 };
 
 function drawerPageLabel(id) {

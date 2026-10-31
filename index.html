@@ -160,13 +160,12 @@
           <h3 class="info-overlay-title">Profile Editor</h3>
           <p class="info-overlay-subtitle">Make the map yours.</p>
           <ul class="info-overlay-list">
-            <li><b>Profile picture</b> — upload an image. On markers is the center crop. On polygons is the full picture beside it.</li>
-            <li><b>Username</b> — enter a new name, then press Save.</li>
-            <li><b>BIO</b> — set your profile bio; tapping a PFP shows it in Load.</li>
-            <li><b>CLICK2LINK</b> — attach any URL to your username.</li>
-            <li><b>Your topic</b> — the topic connected to this account. Share posts land here. Followers follow this topic. Connect saves the topic id. The × next to a connected id takes that connection off.</li>
+            <li><b>Profile picture</b> — tap the photo or Change photo. Upload image, then Change PFP to save it. That round photo is what shows on your markers.</li>
+            <li><b>Username</b> — tap the row, enter a new name, then press Change Username.</li>
+            <li><b>Bio</b> — tap the row to set your profile bio. Tapping a picture shows it in Load.</li>
+            <li><b>Click2Link</b> — tap the row to attach any URL to your username.</li>
+            <li><b>Topic</b> — the topic connected to this account. Share posts land here. Followers follow this topic. Connect saves the topic id. The × next to a connected id takes that connection off.</li>
             <li><b>Public key</b> — pin your Ed25519 public key to your connected topic. Anyone can then send you an encrypted message just by your payer id.</li>
-            <li><b>Preview</b> — the card updates as you change the picture, name, bio, and link.</li>
           </ul>
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('edit-profile-help-overlay').style.display='none'">Got it</button>
@@ -179,55 +178,104 @@
         <button class="panel-help-btn" id="help-Edit_Profile-column">?</button>
         <div id="Edit_Profile-column-container">
 
-          <div class="options-column-title">👤 PROFILE</div>
+          <div class="options-column-title">Profile</div>
 
-          <div id="profile-live-preview" class="profile-live-preview">
-            <div class="profile-live-label">Preview</div>
-            <div class="profile-live-bubble">
-              <img id="profile-live-pic" class="profile-live-pic" alt="Profile photo">
-              <div class="profile-live-names">
-                <div id="profile-live-account" class="profile-live-account"></div>
-                <div id="profile-live-username"></div>
+          <div class="profile-home" id="profile-home">
+            <div id="profile-live-preview" class="profile-live-preview profile-hero">
+              <button type="button" class="profile-hero-avatar" id="profile-hero-avatar" aria-label="Change photo">
+                <img id="profile-live-pic" class="profile-live-pic" alt="">
+              </button>
+              <button type="button" class="profile-change-photo" id="profile-change-photo">Change photo</button>
+              <div id="profile-live-username" class="profile-hero-name"></div>
+              <div id="profile-live-account" class="profile-live-account"></div>
+              <p class="profile-hero-caption">Shown on your markers</p>
+            </div>
+
+            <div class="mb-card profile-card">
+              <div class="mb-row profile-field-row">
+                <button type="button" class="profile-field-hit" data-profile-open="show-username-from-edit-profile">
+                  <span class="mb-row-label">Username</span>
+                  <span class="profile-field-value" id="profile-value-username"></span>
+                  <span class="profile-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                </button>
+              </div>
+              <div class="mb-row profile-field-row">
+                <button type="button" class="profile-field-hit" data-profile-open="show-bio-from-edit-profile">
+                  <span class="mb-row-label">Bio</span>
+                  <span class="profile-field-value" id="profile-value-bio"></span>
+                  <span class="profile-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                </button>
               </div>
             </div>
-            <div id="profile-live-bio" class="profile-live-bio"></div>
+
+            <div class="mb-card profile-card">
+              <div class="mb-row profile-field-row">
+                <button type="button" class="profile-field-hit" data-profile-open="show-click2link-from-edit-profile">
+                  <span class="mb-row-label">Click2Link</span>
+                  <span class="profile-field-value" id="profile-value-link"></span>
+                  <span class="profile-copy-slot" aria-hidden="true"></span>
+                  <span class="profile-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                </button>
+                <button type="button" class="profile-copy" id="profile-copy-link" hidden aria-label="Copy Click2Link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg></button>
+              </div>
+              <div class="mb-row profile-field-row">
+                <button type="button" class="profile-field-hit" data-profile-open="show-topic-from-edit-profile">
+                  <span class="mb-row-label">Topic</span>
+                  <span class="profile-field-value" id="profile-value-topic"></span>
+                  <span class="profile-copy-slot" aria-hidden="true"></span>
+                  <span class="profile-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                </button>
+                <button type="button" class="profile-copy" id="profile-copy-topic" hidden aria-label="Copy topic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg></button>
+              </div>
+              <div class="mb-row profile-field-row">
+                <button type="button" class="profile-field-hit" data-profile-open="show-public-key-from-edit-profile">
+                  <span class="mb-row-label">Public key</span>
+                  <span class="profile-field-value" id="profile-value-key"></span>
+                  <span class="profile-copy-slot" aria-hidden="true"></span>
+                  <span class="profile-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                </button>
+                <button type="button" class="profile-copy" id="profile-copy-key" hidden aria-label="Copy public key"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg></button>
+              </div>
+            </div>
           </div>
 
-          <div style="display: flex;">
-            <button id="show-profile-picture-from-edit-profile" class="toolbar-column-first-settings-btns">Profile picture
-            </button>
-            <button id="hide-profile-picture-from-edit-profile" style="display: none;" class="toolbar-column-first-settings-btns">Profile picture
-            </button>
-            <button id="show-username-from-edit-profile" class="toolbar-column-settings-btns">Username
-            </button>
-            <button id="hide-username-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Username
-            </button>
-            <button id="show-bio-from-edit-profile" class="toolbar-column-settings-btns">BIO
-            </button>
-            <button id="hide-bio-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">BIO
-            </button>
-          </div>
+          <div class="profile-legacy-tabs">
+            <div style="display: flex;">
+              <button id="show-profile-picture-from-edit-profile" class="toolbar-column-first-settings-btns">Profile picture
+              </button>
+              <button id="hide-profile-picture-from-edit-profile" style="display: none;" class="toolbar-column-first-settings-btns">Profile picture
+              </button>
+              <button id="show-username-from-edit-profile" class="toolbar-column-settings-btns">Username
+              </button>
+              <button id="hide-username-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Username
+              </button>
+              <button id="show-bio-from-edit-profile" class="toolbar-column-settings-btns">Bio
+              </button>
+              <button id="hide-bio-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Bio
+              </button>
+            </div>
 
-          <div style="display: flex;">
-            <button id="show-click2link-from-edit-profile" class="toolbar-column-first-settings-btns">CLICK2LINK
-            </button>
-            <button id="hide-click2link-from-edit-profile" style="display: none;" class="toolbar-column-first-settings-btns">CLICK2LINK
-            </button>
-            <button id="show-topic-from-edit-profile" class="toolbar-column-settings-btns">Topic
-            </button>
-            <button id="hide-topic-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Topic
-            </button>
-            <button id="show-public-key-from-edit-profile" class="toolbar-column-settings-btns">Public key
-            </button>
-            <button id="hide-public-key-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Public key
-            </button>
+            <div style="display: flex;">
+              <button id="show-click2link-from-edit-profile" class="toolbar-column-first-settings-btns">Click2Link
+              </button>
+              <button id="hide-click2link-from-edit-profile" style="display: none;" class="toolbar-column-first-settings-btns">Click2Link
+              </button>
+              <button id="show-topic-from-edit-profile" class="toolbar-column-settings-btns">Topic
+              </button>
+              <button id="hide-topic-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Topic
+              </button>
+              <button id="show-public-key-from-edit-profile" class="toolbar-column-settings-btns">Public key
+              </button>
+              <button id="hide-public-key-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Public key
+              </button>
+            </div>
           </div>
       
       
       
       
       
-          <div id="edit-profile-picture" style="display: none;">
+          <div id="edit-profile-picture" class="profile-picture-editor" style="display: none;">
             <input type="hidden" id="input-field-profile-picture">
             <div class="profile-picture-previews">
               <div class="profile-circle-preview">
@@ -250,7 +298,8 @@
             </button>
           </div>
       
-          <div id="edit-profile-username" style="display: none;">
+          <div id="edit-profile-username" class="profile-editor" style="display: none;">
+            <button type="button" class="profile-editor-back" data-profile-back="hide-username-from-edit-profile">Back</button>
             <textarea type="text" id="edit-profile-username-input" placeholder="Username" maxlength="19"
             class="toolbar-column" onclick="event.stopPropagation();"
             oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
@@ -259,7 +308,8 @@
             </button>
           </div>
       
-          <div id="edit-profile-click2link" style="display: none;">
+          <div id="edit-profile-click2link" class="profile-editor" style="display: none;">
+            <button type="button" class="profile-editor-back" data-profile-back="hide-click2link-from-edit-profile">Back</button>
             <textarea type="text" id="edit-profile-click2link-input" placeholder="URL"
             class="toolbar-column" onclick="event.stopPropagation();"
             oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
@@ -268,7 +318,8 @@
             </button>
           </div>
       
-          <div id="edit-profile-bio" style="display: none;">
+          <div id="edit-profile-bio" class="profile-editor" style="display: none;">
+            <button type="button" class="profile-editor-back" data-profile-back="hide-bio-from-edit-profile">Back</button>
             <div style="position: relative;">
               <textarea type="text" id="Edit_Profile-bio" placeholder="Your bio" maxlength="256"
               class="toolbar-column" onclick="event.stopPropagation();"
@@ -277,11 +328,12 @@
               <div id="char-counter-bio" style="position: absolute; bottom: 5px; right: 10px; font-size: 2vh; color: #22d3ee;">0/256
               </div>
             </div>
-            <button class="toolbar-column-btns" id="button_for_bio">BIO
+            <button class="toolbar-column-btns" id="button_for_bio">Save bio
             </button>
           </div>
 
-          <div id="edit-profile-topic" style="display: none;">
+          <div id="edit-profile-topic" class="profile-editor" style="display: none;">
+            <button type="button" class="profile-editor-back" data-profile-back="hide-topic-from-edit-profile">Back</button>
             <div id="profile-topic-status" class="is-empty">
               <div id="loaded-profile-topic">No topic connected.</div>
               <button id="clear-profile-topic" class="profile-topic-clear" type="button" hidden aria-label="Remove connected topic">×</button>
@@ -295,7 +347,8 @@
             </div>
           </div>
 
-          <div id="edit-profile-public-key" style="display: none;">
+          <div id="edit-profile-public-key" class="profile-editor" style="display: none;">
+            <button type="button" class="profile-editor-back" data-profile-back="hide-public-key-from-edit-profile">Back</button>
             <div id="edit-profile-key-note">People message you by payer id — your key is pinned to your connected topic.</div>
             <textarea type="text" id="edit-profile-public-key-input" placeholder="Ed25519 public key (hex)"
             class="toolbar-column" onclick="event.stopPropagation();"
@@ -304,6 +357,15 @@
             <button class="toolbar-column-btns" id="pin-profile-public-key" type="button">Pin to my topic</button>
           </div>
       
+        </div>
+      </div>
+
+      <div id="profile-photo-sheet" class="profile-photo-sheet" hidden>
+        <button type="button" class="profile-photo-sheet-dim" aria-label="Cancel"></button>
+        <div class="profile-photo-sheet-card" role="dialog" aria-modal="true" aria-label="Change photo">
+          <button type="button" id="profile-sheet-upload">Upload image</button>
+          <button type="button" id="profile-sheet-pfp">Change PFP</button>
+          <button type="button" id="profile-sheet-cancel">Cancel</button>
         </div>
       </div>
 
