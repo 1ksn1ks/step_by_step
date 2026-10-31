@@ -847,16 +847,20 @@
 
           <div class="options-column-title">🎯 XYZ</div>
 
+          <div class="mb-card">
           <textarea class="toolbar-column" type="text" id="input-field-topic-id-for-initial-xyz" placeholder="Domain/Topic ID"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
+          </div>
+          <div class="mb-card">
           <label for="loaded-xyz-for-topic" style=" font-size: 2vh;padding: 0px;">Current XYZ:
           </label>
           <div class="toolbar-column-loaded-rules" style="user-select: text; white-space: pre-wrap; word-break: break-word;" id="loaded-xyz-for-topic"
           onclick="event.stopPropagation();"></div>
           <button id="load-xyz-for-topic" class="toolbar-column-btns">Load XYZ
           </button>
-
+          </div>
+          <div class="mb-card">
           <textarea class="toolbar-column" type="text" id="input-field-lng-lat-for-initial-xyz" placeholder="lng,lat"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
@@ -867,6 +871,7 @@
 
           <button id="submit-button-Set_Initial_XYZ" class="toolbar-column-btns" style="display: block;">Set initial XYZ
           </button>
+          </div>
 
         </div>
       </div>
@@ -1244,24 +1249,30 @@
 
           <div class="options-column-title">📚 STACK</div>
 
-          <label for="stack-topic-ids-topic" style="font-size: 2vh; padding: 0px;">Main Domain/Topic ID:
+          <div class="mb-card">
+          <label for="stack-topic-ids-topic" style="font-size: 2vh; padding: 0px;">Main Domain/Topic ID:</label>
           <textarea class="toolbar-column" type="text" id="stack-topic-ids-topic" placeholder="Domain/Topic ID"
           click="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
+          </div>
+          <div class="mb-card">
           <label for="loaded-stack-for-topic" style=" font-size: 2vh;padding: 0px;">Current topics:
           </label>
           <div class="toolbar-column-loaded-rules" style="user-select: text; white-space: pre-wrap; word-break: break-word;" id="loaded-stack-for-topic"
           onclick="event.stopPropagation();"></div>
           <button id="load-stack-for-topic" class="toolbar-column-btns">Load topics
           </button>
+          </div>
+          <div class="mb-card">
           <textarea class="toolbar-column" type="text" id="stack-topic-add-remove-topic" placeholder="Topic ID/IDs 0.0.1,0.0.2.."
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
-          <div style="display: flex;">
+          <div class="stack-action-row" style="display: flex;">
               <button id="add-topic-id" class="toolbar-column-btns" style="display: block; margin-right: 0.5vh;">Stack
               </button>
               <button id="remove-topic-id" class="toolbar-column-btns" style="display: block; margin-left: 0.5vh;">Remove
               </button>
+          </div>
           </div>
         </div>
       </div>
