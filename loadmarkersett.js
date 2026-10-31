@@ -117,3 +117,30 @@ document.getElementById("reset-marker-size").addEventListener("click", (event) =
 });
 
 els.size.addEventListener("input", () => { updateMarkerSettings(); });
+
+// Settings preview only. Same box as marker.js applyMarkerBox: the clamped
+// slider value in vh. Does not touch the map, Save, or Reset.
+function paintMarkerPreview() {
+    const dot = $("marker-size-preview-dot");
+    if (!dot) return;
+    const size = Math.min(parseFloat(els.size.value) || 5, 10);
+    const box = `${size}vh`;
+    dot.style.width = box;
+    dot.style.height = box;
+}
+
+els.size.addEventListener("input", paintMarkerPreview);
+document.getElementById("reset-marker-size").addEventListener("click", paintMarkerPreview);
+
+const markerPanel = $("marker-options-column");
+if (markerPanel) {
+    const paintIfOpen = () => {
+        if (markerPanel.style.display === "none") return;
+        paintMarkerPreview();
+    };
+    new MutationObserver(paintIfOpen).observe(markerPanel, {
+        attributes: true,
+        attributeFilter: ["style", "class"],
+    });
+}
+paintMarkerPreview();
