@@ -16554,35 +16554,82 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   margin: 0;
 }
 .picker-sheet .follow-suggest-row {
+  display: flex;
+  align-items: center;
   height: 56px;
   min-height: 56px;
   gap: var(--ui-gap);
-  padding-inline: var(--ui-pad-x);
+  padding: 0 var(--ui-pad-x);
   border: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 0;
   border-radius: 0;
-  background: transparent;
+  background-color: transparent;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08));
+  background-repeat: no-repeat;
+  background-position: calc(var(--ui-pad-x) + 40px + var(--ui-gap)) 100%;
+  background-size: calc(100% - var(--ui-pad-x) - 40px - var(--ui-gap)) 1px;
+  box-shadow: none;
   text-align: left;
   font-family: Inter, system-ui, sans-serif;
   font-size: var(--ui-small);
 }
+.picker-sheet .follow-suggest-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  text-align: left;
+}
+.picker-sheet .follow-suggest-primary,
+.picker-sheet .follow-suggest-id {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
 .picker-sheet .follow-suggest-primary {
   font-size: var(--ui-label);
+  font-weight: 600;
+  line-height: 1.15;
+  color: #fff;
 }
 .picker-sheet .follow-suggest-id,
 .picker-sheet .follow-suggest-hint {
   font-size: var(--ui-small);
+  font-weight: 400;
+  line-height: 1.15;
+}
+.picker-sheet .follow-suggest-id {
+  color: rgba(255, 255, 255, 0.55);
+  font-variant-numeric: tabular-nums;
 }
 .picker-sheet .follow-suggest-avatar,
 .picker-sheet .follow-suggest-icon {
-  width: calc(var(--fu) * 3.6);
-  height: calc(var(--fu) * 3.6);
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  flex: 0 0 40px;
+  border-radius: 999px;
 }
 .picker-sheet .follow-suggest-icon svg {
-  width: calc(var(--fu) * 2);
-  height: calc(var(--fu) * 2);
+  width: 20px;
+  height: 20px;
 }
-.picker-sheet .follow-suggest-row.is-picked {
+.picker-sheet .follow-suggest-row.is-active,
+.picker-sheet .follow-suggest-row:hover,
+.picker-sheet .follow-suggest-row:active {
+  background-color: rgba(34, 211, 238, 0.08);
+  box-shadow: none;
+}
+.picker-sheet .follow-suggest-row.is-picked,
+.picker-sheet .follow-suggest-row.is-picked.is-active,
+.picker-sheet .follow-suggest-row.is-picked:hover,
+.picker-sheet .follow-suggest-row.is-picked:active {
   box-shadow: inset 3px 0 0 #22D3EE;
 }
 .picker-section,
@@ -16600,7 +16647,12 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   text-transform: uppercase;
 }
 .picker-section {
-  color: rgba(255, 255, 255, 0.55);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.45);
+  padding: calc(var(--fu) * 1.2) var(--ui-pad-x) calc(var(--fu) * 0.4);
+  text-transform: none;
 }
 .picker-letter {
   color: #22D3EE;

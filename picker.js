@@ -7,6 +7,7 @@ const RECENT_KEY = 'picker-recent-v1';
 const ROW_H = 56;
 const LETTER_H = 28;
 const SECTION_H = 32;
+const LETTER_AFTER = 15;
 const BUFFER = ROW_H * 8;
 const DEFAULT_AVATAR = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 
@@ -179,12 +180,15 @@ function buildEntries() {
   const following = matched.slice().sort(byName);
   if (following.length) {
     entries.push({ type: 'section', label: 'Following' });
+    const showLetters = following.length > LETTER_AFTER;
     let letter = '';
     for (const item of following) {
-      const next = letterOf(displayName(item));
-      if (next !== letter) {
-        letter = next;
-        entries.push({ type: 'letter', letter });
+      if (showLetters) {
+        const next = letterOf(displayName(item));
+        if (next !== letter) {
+          letter = next;
+          entries.push({ type: 'letter', letter });
+        }
       }
       entries.push({ type: 'row', item, rowIndex: rows.length });
       rows.push(item);
@@ -196,11 +200,23 @@ function buildEntries() {
   return { entries, rows, empty };
 }
 
+function sectionHeight() {
+  if (!root) return SECTION_H;
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;height:var(--fu);';
+  root.appendChild(probe);
+  const fu = probe.getBoundingClientRect().height;
+  probe.remove();
+  if (!fu) return SECTION_H;
+  return Math.max(SECTION_H, Math.ceil(fu * 1.6 + fu * 1.35 * 1.2));
+}
+
 function layout(entries) {
   let y = 0;
   const next = [];
+  const sectionH = sectionHeight();
   for (const entry of entries) {
-    const h = entry.type === 'row' ? ROW_H : entry.type === 'letter' ? LETTER_H : SECTION_H;
+    const h = entry.type === 'row' ? ROW_H : entry.type === 'letter' ? LETTER_H : sectionH;
     next.push({ entry, y, h });
     y += h;
   }
@@ -209,11 +225,17 @@ function layout(entries) {
 
 function pinText(scrollTop) {
   let text = '';
+  let top = 0;
+  let height = 0;
   for (const box of boxes) {
     if (box.y > scrollTop + 1) break;
-    if (box.entry.type === 'section') text = box.entry.label;
-    else if (box.entry.type === 'letter') text = box.entry.letter;
+    if (box.entry.type === 'section' || box.entry.type === 'letter') {
+      text = box.entry.type === 'letter' ? box.entry.letter : box.entry.label;
+      top = box.y;
+      height = box.h;
+    }
   }
+  if (!text || top + height > scrollTop + 1) return '';
   return text;
 }
 
@@ -450,7 +472,7 @@ function onScroll() {
 }
 
 function onResize() {
-  paintWindow(true);
+  rebuild(false);
 }
 
 function onKey(event) {
