@@ -4788,12 +4788,12 @@ const FEED_CHATS = {
   },
   load: {
     id: 'load-column',
-    title: '🪐 LOAD',
+    title: 'LOAD',
     expand: prepareLoadColumnForFeed,
   },
   draw: {
     id: 'draw-column',
-    title: '✏️ Draw',
+    title: 'Draw',
     expand() {},
   },
 };
@@ -5070,10 +5070,9 @@ function clearLoadOptions() {
 
 function syncDrawHeader() {
   if (feedChatKind !== 'draw') return;
-  const node = document.getElementById('draw-column-title');
-  const text = (node && node.textContent) || '✏️ Draw';
-  feedChatTitle.textContent = text;
-  feedChat.setAttribute('aria-label', text);
+  // Marker and Polygon change their own buttons. The header stays "Draw".
+  feedChatTitle.textContent = 'Draw';
+  feedChat.setAttribute('aria-label', 'Draw');
 }
 
 function watchDrawHeader() {

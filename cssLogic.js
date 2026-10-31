@@ -1549,15 +1549,6 @@ function hideElements(...ids) {
     document.getElementById("show-new-keys-from-create").style.display = "block";
   });
 
-  // The DRAW column title reflects the open form: Marker / Polygon / Draw
-  function updateDrawTitle() {
-    const t = document.getElementById("draw-column-title");
-    if (!t) return;
-    if (document.getElementById("marker-column-container").style.display === "block") t.textContent = "📍 Marker";
-    else if (document.getElementById("polygon-column-container").style.display === "block") t.textContent = "🔷 Polygon";
-    else t.textContent = "✏️ Draw";
-  }
-
   document.getElementById("show-draw-marker").addEventListener("click", (event) => {
     document.getElementById("polygon-column-container").style.display = "none";
     document.getElementById("marker-column-container").style.display = "block";
@@ -1565,14 +1556,12 @@ function hideElements(...ids) {
     document.getElementById("show-draw-marker").style.display = "none";
     document.getElementById("hide-draw-polygon").style.display = "none";
     document.getElementById("show-draw-polygon").style.display = "block";
-    updateDrawTitle();
   });
 
   document.getElementById("hide-draw-marker").addEventListener("click", (event) => {
     document.getElementById("marker-column-container").style.display = "none";
     document.getElementById("hide-draw-marker").style.display = "none";
     document.getElementById("show-draw-marker").style.display = "block";
-    updateDrawTitle();
   });
 
   document.getElementById("show-draw-polygon").addEventListener("click", (event) => {
@@ -1582,14 +1571,12 @@ function hideElements(...ids) {
     document.getElementById("show-draw-polygon").style.display = "none";
     document.getElementById("hide-draw-marker").style.display = "none";
     document.getElementById("show-draw-marker").style.display = "block";
-    updateDrawTitle();
   });
 
   document.getElementById("hide-draw-polygon").addEventListener("click", (event) => {
     document.getElementById("polygon-column-container").style.display = "none";
     document.getElementById("hide-draw-polygon").style.display = "none";
     document.getElementById("show-draw-polygon").style.display = "block";
-    updateDrawTitle();
   });
   
 
