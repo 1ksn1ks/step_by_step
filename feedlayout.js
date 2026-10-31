@@ -5030,12 +5030,6 @@ function mountLoadOptions() {
   const body = document.createElement('div');
   body.className = 'load-options-body';
   page.append(bar, body);
-  // Pin sits beside Options in the column. On this page it belongs with
-  // the options content, or the slide covers it.
-  const pinShow = document.getElementById('show-pin-key-load');
-  const pinHide = document.getElementById('hide-pin-key-load');
-  if (pinShow) placeFeedNode(pinShow, body);
-  if (pinHide) placeFeedNode(pinHide, body);
   let node = options;
   while (node && node.parentNode === container) {
     const next = node.nextSibling;

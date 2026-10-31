@@ -409,10 +409,6 @@
 
 
             <div style="display: flex;">
-              <button id="show-pin-key-load" class="toolbar-column-first-settings-btns" style="display: none;">Pin
-              </button>
-              <button id="hide-pin-key-load" class="toolbar-column-first-settings-btns" style="display: none;">Pin
-              </button>
               <button id="show-options-from-load" class="toolbar-column-btns">Options</button>
               <button id="hide-options-from-load" class="toolbar-column-btns" style="display: none; margin-left: 1vw;">Options ⛔
               </button>
@@ -420,14 +416,6 @@
 
           <div id="options-from-load" style="display: none;">
             <div style="display: flex;">
-              <button id="show-change-password-load" class="toolbar-column-first-settings-btns">Change Password
-              </button>
-              <button id="hide-change-password-load" style="display: none;" class="toolbar-column-first-settings-btns">Change Password
-              </button>
-              <button id="show-set-password-load" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Set Password
-              </button>
-              <button id="hide-set-password-load" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Set Password
-              </button>
               <button id="show-unlock-load" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Unlock ◕_◕
               </button>
               <button id="hide-unlock-load" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Unlock ◕_◕
@@ -449,42 +437,16 @@
             </div>
           </div>
 
-          <textarea class="toolbar-column" type="text" id="publickkey-load" placeholder="Public Key" style="display: none;"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
-
           <textarea class="toolbar-column" type="text" id="unlockkey-load" placeholder="Unlock with Private Key / password" style="display: none;"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
   
-          <div id="encrypt-key-load-label" style="display: none;">
-            <label style="font-size: 2vh; padding: 0px;">Private key</label>
-          </div>
-          <textarea class="toolbar-column" type="text" id="encrypt-key-load" placeholder="Private key" style="display: none;"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
-
-          <div id="change-key-load-label" style="display: none;">
-            <label style="font-size: 2vh; padding: 0px;">Password</label>
-          </div>
-          <textarea class="toolbar-column" type="text" id="change-key-load" placeholder="Password" style="display: none;"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
-
-          <button id="change-password-load" class="pin-public-key-from-encrypted-chat" style="display: none;">Change Password
-          </button>
-    
-          <button id="set-password-load" class="pin-public-key-from-encrypted-chat" style="display: none;">Set Password
-          </button>
           <div style="display: flex;">
             <button id="unlock-load-all" class="toolbar-column-first-settings-btns" style="display: none;"> ༼ つ ಠ_ಠ ༽つ all
             </button>
             <button id="unlock-load-few" class="toolbar-column-btns" style="display: none; margin-left: 1vw;"> ༼ つ╭ರ_◕ ༽つ few
             </button>
           </div>
-          <button id="pin-publickkey-load" class="pin-public-key-from-encrypted-chat" style="display: none;"> Pin
-          </button>
-      
       
           <div id="time-from-users-load-column" style="display: none;">
             <div class="filter-time-row">
@@ -1107,6 +1069,9 @@
 
           <div class="options-column-title">🏷 UPDATE TOPIC</div>
 
+          <textarea id="update-topic-target" class="toolbar-column" placeholder="Domain/Topic ID"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"></textarea>
+
           <div style="display: flex;">
             <button id="show-update-bio-from-memo" class="toolbar-column-first-settings-btns">Update bio ✅
             </button>
@@ -1129,8 +1094,42 @@
             </button>
           </div>
 
+          <div class="memo-action-row" style="display: flex;">
+            <button id="show-pin-key-load" class="toolbar-column-first-settings-btns">Pin ✅
+            </button>
+            <button id="hide-pin-key-load" class="toolbar-column-first-settings-btns" style="display: none;">Pin ⛔
+            </button>
+            <button id="show-change-password-load" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Change Password ✅
+            </button>
+            <button id="hide-change-password-load" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Change Password ⛔
+            </button>
+            <button id="show-set-password-load" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Set Password ✅
+            </button>
+            <button id="hide-set-password-load" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Set Password ⛔
+            </button>
+          </div>
+
+          <textarea class="toolbar-column" type="text" id="publickkey-load" placeholder="Public Key" style="display: none;"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"></textarea>
+          <div id="encrypt-key-load-label" style="display: none;">
+            <label style="font-size: 2vh; padding: 0px;">Private key</label>
+          </div>
+          <textarea class="toolbar-column" type="text" id="encrypt-key-load" placeholder="Private key" style="display: none;"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"></textarea>
+          <div id="change-key-load-label" style="display: none;">
+            <label style="font-size: 2vh; padding: 0px;">Password</label>
+          </div>
+          <textarea class="toolbar-column" type="text" id="change-key-load" placeholder="Password" style="display: none;"
+          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"></textarea>
+          <button id="change-password-load" class="pin-public-key-from-encrypted-chat" style="display: none;">Change Password
+          </button>
+          <button id="set-password-load" class="pin-public-key-from-encrypted-chat" style="display: none;">Set Password
+          </button>
+          <button id="pin-publickkey-load" class="pin-public-key-from-encrypted-chat" style="display: none;"> Pin
+          </button>
+
           <div id="update-bio-from-memo" style="display: none;">
-            <textarea class="toolbar-column" type="text" id="input-field-topic-id-bio" placeholder="Domain/Topic ID"
+            <textarea class="toolbar-column" type="text" id="input-field-topic-id-bio" placeholder="Domain/Topic ID" style="display: none;"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
             <label for="loaded-bio-for-topic" style=" font-size: 2vh;padding: 0px;">Current bio:
@@ -1152,7 +1151,7 @@
           </div>
 
           <div id="memo-from-memo" style="display: none;">
-            <textarea class="toolbar-column" type="text" id="input-field-topic-id" placeholder="Domain/Topic ID"
+            <textarea class="toolbar-column" type="text" id="input-field-topic-id" placeholder="Domain/Topic ID" style="display: none;"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
             <label for="loaded-memo-for-topic" style=" font-size: 2vh;padding: 0px;">Current memo:
@@ -1172,7 +1171,7 @@
           </div>
 
           <div id="fee-from-memo" style="display: none;">
-            <textarea class="toolbar-column" type="text" id="input-field-topic-id-fee" placeholder="Domain/Topic ID"
+            <textarea class="toolbar-column" type="text" id="input-field-topic-id-fee" placeholder="Domain/Topic ID" style="display: none;"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
             <label for="loaded-memo-for-fee" style=" font-size: 2vh;padding: 0px;">Current memo:
@@ -1201,7 +1200,7 @@
           </div>
 
           <div id="topic-name-from-memo" style="display: none;">
-            <textarea class="toolbar-column" type="text" id="input-field-topic-id-name" placeholder="Domain/Topic ID"
+            <textarea class="toolbar-column" type="text" id="input-field-topic-id-name" placeholder="Domain/Topic ID" style="display: none;"
             onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
             <label for="loaded-name-for-topic" style=" font-size: 2vh;padding: 0px;">Current name:

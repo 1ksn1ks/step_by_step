@@ -18,7 +18,10 @@ export let allLoadedMessagesFromLoad = [];
         toast.error("Connect wallet first");
         return;
       }
-      const userInput = document.getElementById("input-field").value;
+      const sharedTopic = document.getElementById("update-topic-target");
+      const userInput = (sharedTopic && sharedTopic.value.trim())
+        ? sharedTopic.value
+        : document.getElementById("input-field").value;
 
       const privateKey = document.getElementById("encrypt-key-load").value;
       const newPassword = document.getElementById("change-key-load").value;
@@ -71,7 +74,10 @@ export let allLoadedMessagesFromLoad = [];
         toast.error("Connect wallet first");
         return;
       }
-      const userInput = document.getElementById("input-field").value;
+      const sharedTopic = document.getElementById("update-topic-target");
+      const userInput = (sharedTopic && sharedTopic.value.trim())
+        ? sharedTopic.value
+        : document.getElementById("input-field").value;
 
       const oldPass = document.getElementById("encrypt-key-load").value;
       const newPassword = document.getElementById("change-key-load").value;
@@ -172,7 +178,11 @@ export let allLoadedMessagesFromLoad = [];
         toast.error("Connect wallet first");
         return;
       }
-      let userInput = document.getElementById("input-field").value.toLowerCase();
+      const sharedTopic = document.getElementById("update-topic-target");
+      const rawTopic = (sharedTopic && sharedTopic.value.trim())
+        ? sharedTopic.value
+        : document.getElementById("input-field").value;
+      let userInput = rawTopic.toLowerCase();
       let publicKey = document.getElementById("publickkey-load").value;
       let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
       let topicId;

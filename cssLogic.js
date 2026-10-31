@@ -604,17 +604,27 @@ export function CloseALL() {
   
   document.getElementById("Change_Memo").addEventListener("click", (event) => {
     event.stopPropagation();
+    // Read an open chat before CloseALL hides it. A typed value stays.
+    prefillUpdateTopicTarget();
     CloseALL();
     document.getElementById("memo-column").style.display = "block";
     document.getElementById("memo-column-container").style.display = "block";
 
-    // Start with only the four sub-buttons; each opens its own panel
-    showElements("show-update-bio-from-memo", "show-memo-from-memo", "show-fee-from-memo", "show-topic-name-from-memo");
+    // Start with only the sub-buttons; each opens its own panel
+    showElements(
+      "show-update-bio-from-memo", "show-memo-from-memo", "show-fee-from-memo", "show-topic-name-from-memo",
+      "show-pin-key-load", "show-change-password-load", "show-set-password-load"
+    );
     hideElements(
       "hide-update-bio-from-memo", "update-bio-from-memo",
       "hide-memo-from-memo", "memo-from-memo",
       "hide-fee-from-memo", "fee-from-memo",
-      "hide-topic-name-from-memo", "topic-name-from-memo"
+      "hide-topic-name-from-memo", "topic-name-from-memo",
+      "hide-pin-key-load", "publickkey-load", "pin-publickkey-load",
+      "hide-change-password-load", "hide-set-password-load",
+      "encrypt-key-load", "encrypt-key-load-label",
+      "change-key-load", "change-key-load-label",
+      "change-password-load", "set-password-load"
     );
 
     OpenToggleToolbar();
@@ -1586,7 +1596,76 @@ function hideElements(...ids) {
 // ==================== UPDATE TOPIC (MEMO COLUMN) EVENT LISTENERS ====================
 // Pressing a ✅ opens only that panel and re-shows the other ✅ buttons
 
+const UPDATE_TOPIC_FIELD_IDS = [
+  "input-field-topic-id-bio",
+  "input-field-topic-id",
+  "input-field-topic-id-fee",
+  "input-field-topic-id-name",
+];
+
+function syncUpdateTopicTarget() {
+  const source = document.getElementById("update-topic-target");
+  if (!source) return;
+  const value = source.value;
+  UPDATE_TOPIC_FIELD_IDS.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = value;
+  });
+}
+
+function openChatTopicId() {
+  const topicChat = document.getElementById("topic-chat-container");
+  if (topicChat && topicChat.style.display === "flex") {
+    const value = (document.getElementById("topic-chat-topic-id").value || "").trim();
+    if (value) return value;
+  }
+  const e2eeChat = document.getElementById("encrypted-chat-container");
+  if (e2eeChat && e2eeChat.style.display === "flex") {
+    const value = (document.getElementById("encrypted-chat-topic-id").value || "").trim();
+    if (value) return value;
+  }
+  return "";
+}
+
+function prefillUpdateTopicTarget() {
+  const field = document.getElementById("update-topic-target");
+  if (!field) return;
+  if (field.dataset.userTyped !== "1") {
+    const loadValue = (document.getElementById("input-field").value || "").trim();
+    field.value = openChatTopicId() || loadValue;
+  }
+  syncUpdateTopicTarget();
+}
+
+function clickShown(id) {
+  const el = document.getElementById(id);
+  if (!el || el.style.display === "none") return;
+  el.click();
+}
+
+function closeMovedLoadPanels() {
+  clickShown("hide-pin-key-load");
+  clickShown("hide-change-password-load");
+  clickShown("hide-set-password-load");
+}
+
+function closeMemoSubPanels() {
+  clickShown("hide-update-bio-from-memo");
+  clickShown("hide-memo-from-memo");
+  clickShown("hide-fee-from-memo");
+  clickShown("hide-topic-name-from-memo");
+}
+
+const updateTopicTarget = document.getElementById("update-topic-target");
+if (updateTopicTarget) {
+  updateTopicTarget.addEventListener("input", () => {
+    updateTopicTarget.dataset.userTyped = "1";
+    syncUpdateTopicTarget();
+  });
+}
+
 document.getElementById("show-update-bio-from-memo").addEventListener("click", () => {
+  closeMovedLoadPanels();
   showElements("update-bio-from-memo", "hide-update-bio-from-memo");
   hideElements("show-update-bio-from-memo");
 
@@ -1615,6 +1694,7 @@ document.getElementById("hide-update-bio-from-memo").addEventListener("click", (
 });
 
 document.getElementById("show-memo-from-memo").addEventListener("click", () => {
+  closeMovedLoadPanels();
   showElements("memo-from-memo", "hide-memo-from-memo");
   hideElements("show-memo-from-memo");
 
@@ -1643,6 +1723,7 @@ document.getElementById("hide-memo-from-memo").addEventListener("click", () => {
 });
 
 document.getElementById("show-fee-from-memo").addEventListener("click", () => {
+  closeMovedLoadPanels();
   showElements("fee-from-memo", "hide-fee-from-memo");
   hideElements("show-fee-from-memo");
 
@@ -1671,6 +1752,7 @@ document.getElementById("hide-fee-from-memo").addEventListener("click", () => {
 });
 
 document.getElementById("show-topic-name-from-memo").addEventListener("click", () => {
+  closeMovedLoadPanels();
   showElements("topic-name-from-memo", "hide-topic-name-from-memo");
   hideElements("show-topic-name-from-memo");
 
@@ -1874,21 +1956,10 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("hide-load-from-users"),
     document.getElementById("hide-block-from-users"),
     document.getElementById("hide-time-from-users-load-column"),
-    document.getElementById("hide-change-password-load"),
-    document.getElementById("hide-set-password-load"),
     document.getElementById("hide-unlock-load"),
     document.getElementById("unlockkey-load"),
-    document.getElementById("encrypt-key-load"),
-    document.getElementById("encrypt-key-load-label"),
-    document.getElementById("change-key-load"),
-    document.getElementById("change-key-load-label"),
-    document.getElementById("change-password-load"),
-    document.getElementById("set-password-load"),
     document.getElementById("unlock-load-few"),
     document.getElementById("unlock-load-all"),
-    document.getElementById("hide-pin-key-load"),
-    document.getElementById("pin-publickkey-load"),
-    document.getElementById("publickkey-load"),
   ];
 
   function loadColumnsEverything() {
@@ -1901,10 +1972,7 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("show-load-from-users"),
     document.getElementById("show-block-from-users"),
     document.getElementById("show-time-from-users-load-column"),
-    document.getElementById("show-change-password-load"),
-    document.getElementById("show-set-password-load"),
     document.getElementById("show-unlock-load"),
-    document.getElementById("show-pin-key-load"),
   ];
   
   
@@ -1975,8 +2043,9 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
   });
 
   document.getElementById("show-change-password-load").addEventListener("click", (event) => {
-    loadColumnsEverything();
-    loadColumnsShowOptionsload();
+    clickShown("hide-set-password-load");
+    clickShown("hide-pin-key-load");
+    closeMemoSubPanels();
     document.getElementById("hide-change-password-load").style.display = "block";
     document.getElementById("show-change-password-load").style.display = "none";
     labelPasswordFields('encrypt-key-load', 'Old password', 'change-key-load', 'New password');
@@ -1985,13 +2054,19 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("change-password-load").style.display = "block";
   });
   document.getElementById("hide-change-password-load").addEventListener("click", (event) => {
-    loadColumnsEverything();
-    loadColumnsShowOptionsload();
+    document.getElementById("hide-change-password-load").style.display = "none";
+    document.getElementById("show-change-password-load").style.display = "block";
+    document.getElementById("encrypt-key-load").style.display = "none";
+    document.getElementById("encrypt-key-load-label").style.display = "none";
+    document.getElementById("change-key-load").style.display = "none";
+    document.getElementById("change-key-load-label").style.display = "none";
+    document.getElementById("change-password-load").style.display = "none";
   });
   
   document.getElementById("show-set-password-load").addEventListener("click", (event) => {
-    loadColumnsEverything();
-    loadColumnsShowOptionsload();
+    clickShown("hide-change-password-load");
+    clickShown("hide-pin-key-load");
+    closeMemoSubPanels();
     document.getElementById("hide-set-password-load").style.display = "block";
     document.getElementById("show-set-password-load").style.display = "none";
     labelPasswordFields('encrypt-key-load', 'Private key', 'change-key-load', 'Password');
@@ -2000,8 +2075,13 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("set-password-load").style.display = "block";
   });
   document.getElementById("hide-set-password-load").addEventListener("click", (event) => {
-    loadColumnsEverything();
-    loadColumnsShowOptionsload();
+    document.getElementById("hide-set-password-load").style.display = "none";
+    document.getElementById("show-set-password-load").style.display = "block";
+    document.getElementById("encrypt-key-load").style.display = "none";
+    document.getElementById("encrypt-key-load-label").style.display = "none";
+    document.getElementById("change-key-load").style.display = "none";
+    document.getElementById("change-key-load-label").style.display = "none";
+    document.getElementById("set-password-load").style.display = "none";
   });
 
   document.getElementById("show-unlock-load").addEventListener("click", (event) => {
@@ -2042,16 +2122,19 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
   });
 
   document.getElementById("show-pin-key-load").addEventListener("click", (event) => {
-    loadColumnsEverything();
-    loadColumnsShowOptionsload();
+    clickShown("hide-change-password-load");
+    clickShown("hide-set-password-load");
+    closeMemoSubPanels();
     document.getElementById("hide-pin-key-load").style.display = "block";
     document.getElementById("show-pin-key-load").style.display = "none";
     document.getElementById("pin-publickkey-load").style.display = "block";
     document.getElementById("publickkey-load").style.display = "block";
   });
   document.getElementById("hide-pin-key-load").addEventListener("click", (event) => {
-    loadColumnsEverything();
-    loadColumnsShowOptionsload();
+    document.getElementById("hide-pin-key-load").style.display = "none";
+    document.getElementById("show-pin-key-load").style.display = "block";
+    document.getElementById("pin-publickkey-load").style.display = "none";
+    document.getElementById("publickkey-load").style.display = "none";
   });
   
 
