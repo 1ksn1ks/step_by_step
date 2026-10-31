@@ -4788,7 +4788,7 @@ const FEED_CHATS = {
   },
   load: {
     id: 'load-column',
-    title: 'LOAD',
+    title: 'Load',
     expand: prepareLoadColumnForFeed,
   },
   draw: {
