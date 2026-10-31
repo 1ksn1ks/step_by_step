@@ -598,6 +598,7 @@ function mountFollowControl(box, btn, count, read, isMine, send, options) {
     settling = true;
     try {
       await settleFollow(gen, () => generation, read, paint, next);
+      if (gen === generation) refreshFollowing();
     } finally {
       if (gen === generation) settling = false;
     }

@@ -1,7 +1,17 @@
 // Full-screen following picker. Rows come from followsuggest's cache.
 // This module does not fetch.
 
-import { ensureData, getFollowingItems, appendHighlighted } from './followsuggest.js';
+import { connectedAccount } from './web3.js';
+import {
+  ensureData,
+  getFollowingItems,
+  appendHighlighted,
+  followingStatus,
+  clearFollowingFailure,
+  FOLLOWING_UPDATED,
+  followingCountText,
+  followingEmptyText,
+} from './followsuggest.js';
 
 const RECENT_KEY = 'picker-recent-v1';
 const ROW_H = 56;
@@ -27,6 +37,8 @@ let boxes = [];
 let rowItems = [];
 let searchTimer = 0;
 let scrollRaf = 0;
+let walletFrame = 0;
+let walletObserver = null;
 let scroller = null;
 let canvas = null;
 let pin = null;
@@ -160,7 +172,8 @@ function isSelected(item) {
   return selected.some((row) => itemKey(row) === key);
 }
 
-function buildEntries() {
+function buildEntries(emptyOverride) {
+  if (emptyOverride) return { entries: [], rows: [], empty: emptyOverride };
   const tabItems = filterTab(items, tab);
   const matched = tabItems.filter((item) => itemMatches(item, query));
   const recent = liveRecent(items).filter((item) => {
@@ -194,10 +207,7 @@ function buildEntries() {
       rows.push(item);
     }
   }
-  let empty = '';
-  if (!items.length) empty = 'Not following anyone yet';
-  else if (!rows.length) empty = 'No matches';
-  return { entries, rows, empty };
+  return { entries, rows, empty: followingEmptyText('ready', items.length, rows.length) };
 }
 
 function sectionHeight() {
@@ -432,9 +442,11 @@ function moveActive(delta) {
 
 function rebuild(resetScroll) {
   if (!session || !countEl) return;
+  const status = followingStatus();
   const tabItems = filterTab(items, tab);
-  countEl.textContent = tabItems.length + ' following';
-  const built = buildEntries();
+  countEl.textContent = followingCountText(status, tabItems.length);
+  const override = status === 'ready' ? '' : followingEmptyText(status, items.length, 0);
+  const built = buildEntries(override);
   rowItems = built.rows;
   const laid = layout(built.entries);
   boxes = laid.boxes;
@@ -501,9 +513,69 @@ function onKey(event) {
   }
 }
 
+function stopWalletWatch() {
+  if (walletFrame) cancelAnimationFrame(walletFrame);
+  walletFrame = 0;
+  if (walletObserver) walletObserver.disconnect();
+  walletObserver = null;
+}
+
+function onFollowingUpdated() {
+  if (!session || session.settled || !lastOpts) return;
+  items = applyDim(getFollowingItems(lastOpts.kinds), lastOpts.dimMissing);
+  rebuild(false);
+}
+
+function loadFollowing(my, resetScroll) {
+  const pending = ensureData(true);
+  if (session && !session.settled && session.token === my && lastOpts) {
+    items = applyDim(getFollowingItems(lastOpts.kinds), lastOpts.dimMissing);
+    rebuild(!!resetScroll);
+  }
+  return pending.then(() => {
+    if (!session || session.settled || session.token !== my || !lastOpts) return;
+    items = applyDim(getFollowingItems(lastOpts.kinds), lastOpts.dimMissing);
+    rebuild(!!resetScroll);
+  });
+}
+
+// #account-id is the connect signal followtopic already watches. Poll the
+// live account too, because the session can restore before that node exists.
+function watchWallet(my) {
+  stopWalletWatch();
+  const started = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const arm = () => {
+    if (walletFrame) cancelAnimationFrame(walletFrame);
+    walletFrame = 0;
+    if (!session || session.settled || session.token !== my) {
+      stopWalletWatch();
+      return;
+    }
+    if (connectedAccount) {
+      stopWalletWatch();
+      loadFollowing(my, true);
+      return;
+    }
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (now - started >= 10000) {
+      stopWalletWatch();
+      return;
+    }
+    walletFrame = requestAnimationFrame(arm);
+  };
+  const accountEl = document.getElementById('account-id');
+  if (accountEl && typeof MutationObserver === 'function') {
+    walletObserver = new MutationObserver(arm);
+    walletObserver.observe(accountEl, { childList: true, characterData: true, subtree: true });
+  }
+  walletFrame = requestAnimationFrame(arm);
+}
+
 function teardown() {
   clearTimeout(searchTimer);
   searchTimer = 0;
+  stopWalletWatch();
+  document.removeEventListener(FOLLOWING_UPDATED, onFollowingUpdated);
   if (scrollRaf) cancelAnimationFrame(scrollRaf);
   scrollRaf = 0;
   document.removeEventListener('keydown', onKey, true);
@@ -611,7 +683,7 @@ function mount(opts) {
   title.textContent = opts.title || 'Following';
   countEl = document.createElement('div');
   countEl.className = 'picker-count';
-  countEl.textContent = '0 following';
+  countEl.textContent = followingCountText('loading', 0);
   heading.append(title);
   head.append(back, heading);
   root.setAttribute('aria-labelledby', 'follow-picker-title');
@@ -673,7 +745,15 @@ function mount(opts) {
   canvas.className = 'picker-canvas';
   emptyEl = document.createElement('div');
   emptyEl.className = 'picker-empty';
-  emptyEl.hidden = true;
+  emptyEl.hidden = false;
+  emptyEl.textContent = followingEmptyText('loading', 0, 0);
+  emptyEl.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (!session || session.settled || followingStatus() !== 'offline') return;
+    const my = session.token;
+    clearFollowingFailure();
+    loadFollowing(my, false);
+  });
   scroller.append(canvas, emptyEl);
   scroller.addEventListener('scroll', onScroll, { passive: true });
 
@@ -692,6 +772,7 @@ function mount(opts) {
   root.append(head, countEl, searchEl, chipsEl, tabs, pin, scroller, doneBtn);
   document.body.appendChild(root);
   document.addEventListener('keydown', onKey, true);
+  document.addEventListener(FOLLOWING_UPDATED, onFollowingUpdated);
   window.addEventListener('resize', onResize);
 }
 
@@ -725,11 +806,11 @@ export function openPicker({ title, kinds = ['accounts', 'topics'], multi: many 
     query = opts.query;
     mount(opts);
     if (typeof window.layerOpened === 'function') window.layerOpened('followpicker');
-    ensureData(true).then(() => {
+    const walletAtOpen = connectedAccount;
+    loadFollowing(my, true).then(() => {
       if (!session || session.settled || session.token !== my) return;
-      items = applyDim(getFollowingItems(opts.kinds), opts.dimMissing);
-      rebuild(true);
       if (isDesktop() && searchEl) searchEl.focus({ preventScroll: true });
     });
+    if (!walletAtOpen) watchWallet(my);
   });
 }

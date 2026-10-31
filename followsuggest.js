@@ -7,9 +7,11 @@ import { usernames, profilePictures, profileTopics } from './loadalladata.js';
 import { fetchFollowing } from './msgbackend.js';
 import { safeHttpUrl } from './payerlink.js';
 import { openPicker } from './picker.js';
+import { createFollowingStore, FOLLOWING_UPDATED, seeAllQuery } from './followingstate.js';
+
+export { FOLLOWING_UPDATED, followingCountText, followingEmptyText } from './followingstate.js';
 
 const DEFAULT_AVATAR = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
-const CACHE_MS = 5 * 60 * 1000;
 const LIST_ID = 'follow-suggest';
 const QUICK = 5;
 
@@ -22,12 +24,15 @@ const PANELS = {
 const specs = [];
 const armed = new WeakSet();
 
-let cacheAccount = '';
-let cacheAt = 0;
-let cacheData = null;
-let inflight = null;
-let failedAccount = '';
-let failedAt = 0;
+let refreshSerial = 0;
+
+const store = createFollowingStore({
+  getAccount: () => connectedAccount,
+  fetchFollowing,
+  onUpdated() {
+    document.dispatchEvent(new CustomEvent(FOLLOWING_UPDATED));
+  },
+});
 
 let list = null;
 let openInput = null;
@@ -46,56 +51,25 @@ function reducedMotion() {
 }
 
 export function ensureData(allowRetry) {
-  const account = connectedAccount;
-  if (!account) return Promise.resolve(null);
-  if (cacheData && cacheAccount === account && (Date.now() - cacheAt) < CACHE_MS) {
-    return Promise.resolve(cacheData);
-  }
-  if (inflight && inflight.account === account) return inflight.promise;
-  if (!allowRetry && failedAccount === account && (Date.now() - failedAt) < CACHE_MS) {
-    return Promise.resolve(null);
-  }
-  let run;
-  run = fetchFollowing(account).then((data) => {
-    const current = inflight && inflight.promise === run;
-    if (current) inflight = null;
-    if (!current || connectedAccount !== account) return null;
-    if (!data) {
-      cacheData = null;
-      cacheAt = 0;
-      cacheAccount = '';
-      failedAccount = account;
-      failedAt = Date.now();
-      return null;
-    }
-    failedAccount = '';
-    failedAt = 0;
-    cacheAccount = account;
-    cacheData = data;
-    cacheAt = Date.now();
-    return data;
-  }).catch(() => {
-    if (inflight && inflight.promise === run) inflight = null;
-    failedAccount = account;
-    failedAt = Date.now();
-    return null;
-  });
-  inflight = { account, promise: run };
-  return run;
+  return store.ensureData(allowRetry);
+}
+
+export function followingStatus() {
+  return store.followingStatus();
+}
+
+export function clearFollowingFailure() {
+  store.clearFollowingFailure();
 }
 
 export function refreshFollowing() {
-  cacheAccount = '';
-  cacheAt = 0;
-  cacheData = null;
-  inflight = null;
-  failedAccount = '';
-  failedAt = 0;
-  if (!openInput || !connectedAccount) return;
+  const mine = ++refreshSerial;
   const token = showToken;
   const spec = openSpec;
-  ensureData(true).then(() => {
-    if (token !== showToken || openInput !== spec.input) return;
+  const input = openInput;
+  return store.refreshFollowing().then(() => {
+    if (mine !== refreshSerial) return;
+    if (!input || !spec || token !== showToken || openInput !== spec.input) return;
     render();
   });
 }
@@ -157,7 +131,7 @@ function buildItems(data, spec, query) {
 }
 
 export function getFollowingItems(kinds) {
-  const data = cacheData && cacheAccount === connectedAccount ? cacheData : null;
+  const data = store.getData();
   if (!data) return [];
   const list = Array.isArray(kinds) ? kinds : ['accounts', 'topics'];
   return buildItems(data, { kinds: list, dimMissing: false }, '');
@@ -317,7 +291,7 @@ function onListPointerUp(event) {
   event.stopPropagation();
   if (moved) return;
   if (seeAll) {
-    openSpecPicker(openSpec, openInput ? openInput.value : '');
+    openSpecPicker(openSpec, seeAllQuery(openInput ? openInput.value : ''));
     return;
   }
   pick(index);
@@ -441,7 +415,7 @@ function paintRows(query) {
 
 function render() {
   if (!openInput || !openSpec) return;
-  const data = cacheData && cacheAccount === connectedAccount ? cacheData : null;
+  const data = store.getData();
   if (!connectedAccount || !data) {
     hideList();
     return;
@@ -536,7 +510,7 @@ function onKeyDown(event) {
     move(-1);
   } else if (event.key === 'Enter' && visible && activeIndex >= 0) {
     event.preventDefault();
-    if (activeIndex >= quickCount()) openSpecPicker(spec, spec.input.value || '');
+    if (activeIndex >= quickCount()) openSpecPicker(spec, seeAllQuery(spec.input.value || ''));
     else pick(activeIndex);
   } else if (event.key === 'Escape' && openInput === spec.input) {
     event.preventDefault();

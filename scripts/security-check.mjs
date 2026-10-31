@@ -12,6 +12,7 @@ import { DatabaseSync } from "node:sqlite";
 import { runHashinalTests } from "./hashinals-test.mjs";
 import { runEarlyPopupTests } from "./earlypopup-test.mjs";
 import { runFollowCountTests } from "./followcount-test.mjs";
+import { runPickerStateTests } from "./picker-state.test.mjs";
 import { runHcsChunkTests } from "./hcschunks-test.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -1036,6 +1037,12 @@ async function main() {
     pass("follower count cache");
   } catch (err) {
     fail("follower count cache", err && err.stack ? err.stack : String(err));
+  }
+  try {
+    await runPickerStateTests();
+    pass("picker following state");
+  } catch (err) {
+    fail("picker following state", err && err.stack ? err.stack : String(err));
   }
   try {
     await runHcsChunkTests();
