@@ -320,6 +320,111 @@ html, body {
               inset 0 0 0.8vh rgba(34, 211, 238, 0.4);
 }
 
+/* E2EE intro only. The open path sets display:block; flex wins while it
+   is shown and display:none still hides it. */
+#e2ee-web-notice-overlay {
+  --fu: calc(min(100dvw, 100dvh) * 0.024);
+  position: fixed;
+  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100dvw;
+  height: 100dvh;
+  z-index: 11000 !important;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  align-items: center;
+  justify-content: center;
+}
+#e2ee-web-notice-overlay:not([style*="display: none"]):not([style*="display:none"]) {
+  display: flex !important;
+}
+#e2ee-web-notice-overlay .info-overlay-inner {
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
+  box-sizing: border-box;
+  width: min(92dvw, 520px);
+  max-width: min(92dvw, 520px);
+  max-height: 86dvh;
+  margin: 0;
+  padding: calc(var(--fu) * 2);
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: rgba(18, 18, 28, 0.94);
+  border: 0.1vh solid rgba(34, 211, 238, 0.6);
+  font-family: Inter, system-ui, sans-serif;
+  animation: e2ee-notice-pop 0.34s cubic-bezier(0.34, 1.56, 0.64, 1),
+             onboardBorderPulse 1.3s ease-in-out 0.34s infinite;
+}
+@keyframes e2ee-notice-pop {
+  from { transform: scale(0.94); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+#e2ee-web-notice-overlay .info-overlay-title,
+#e2ee-web-notice-overlay .info-overlay-subtitle {
+  flex: 0 0 auto;
+  padding-inline: 44px;
+  box-sizing: border-box;
+  text-align: center;
+  font-family: Inter, system-ui, sans-serif;
+  line-height: 1.45;
+}
+#e2ee-web-notice-overlay .info-overlay-title {
+  font-size: calc(var(--fu) * 2);
+  font-weight: 700;
+}
+#e2ee-web-notice-overlay .info-overlay-subtitle,
+#e2ee-web-notice-overlay .info-overlay-list,
+#e2ee-web-notice-overlay .info-overlay-list li {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--fu) * 1.5);
+  line-height: 1.45;
+  text-align: left;
+}
+#e2ee-web-notice-overlay .info-overlay-subtitle {
+  text-align: center;
+}
+#e2ee-web-notice-overlay .info-overlay-list {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+#e2ee-web-notice-overlay .info-overlay-actions {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: center;
+}
+#e2ee-web-notice-overlay .info-overlay-close-button-1 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 44px;
+  margin-inline: auto;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--fu) * 1.5);
+}
+#e2ee-web-notice-overlay .info-overlay-x {
+  top: calc(var(--fu) * 0.45);
+  right: calc(var(--fu) * 0.45);
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  font-family: Inter, system-ui, sans-serif;
+}
+
   .rotation-controls {
     position: fixed;
     display: flex;
