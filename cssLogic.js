@@ -1539,13 +1539,13 @@ function hideElements(...ids) {
     document.getElementById("show-new-keys-from-create").style.display = "block";
   });
 
-  // The DRAW column title reflects the open form: MARKER / POLYGON / DRAW
+  // The DRAW column title reflects the open form: Marker / Polygon / Draw
   function updateDrawTitle() {
     const t = document.getElementById("draw-column-title");
     if (!t) return;
-    if (document.getElementById("marker-column-container").style.display === "block") t.textContent = "📍 MARKER";
-    else if (document.getElementById("polygon-column-container").style.display === "block") t.textContent = "🔷 POLYGON";
-    else t.textContent = "✏️ DRAW";
+    if (document.getElementById("marker-column-container").style.display === "block") t.textContent = "📍 Marker";
+    else if (document.getElementById("polygon-column-container").style.display === "block") t.textContent = "🔷 Polygon";
+    else t.textContent = "✏️ Draw";
   }
 
   document.getElementById("show-draw-marker").addEventListener("click", (event) => {

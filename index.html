@@ -694,7 +694,7 @@
         <button class="panel-help-btn" id="help-draw-column">?</button>
         <div id="draw-column-container">
 
-          <div class="options-column-title" id="draw-column-title">✏️ DRAW</div>
+          <div class="options-column-title" id="draw-column-title">✏️ Draw</div>
 
           <div id="draw-shape-switch" style="display: flex;">
             <button id="show-draw-marker" class="toolbar-column-first-settings-btns">Marker ✅
@@ -751,13 +751,13 @@
                   <div class="popup-dock draw-popup-topic-row">
                     <span id="draw-marker-topic" class="popup-top-topic draw-popup-topic" contenteditable="true" role="textbox" aria-label="Topic" data-placeholder="Topic id/domain/account id" data-max="100"></span>
                   </div>
+                  <div class="draw-coord-fields">
+                    <textarea class="toolbar-column" type="text" id="input-field-2-3" placeholder="Coordinates long,lat"
+                    oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';" onclick="event.stopPropagation();"
+                    ></textarea>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="draw-coord-fields">
-              <textarea class="toolbar-column" type="text" id="input-field-2-3" placeholder="Coordinates long,lat"
-              oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';" onclick="event.stopPropagation();"
-              ></textarea>
             </div>
             </div>
             <div class="draw-submit-row">
@@ -832,16 +832,16 @@
                   <div class="popup-dock draw-popup-topic-row">
                     <span id="draw-polygon-topic" class="popup-top-topic draw-popup-topic" contenteditable="true" role="textbox" aria-label="Topic" data-placeholder="Topic id/domain/account id" data-max="100"></span>
                   </div>
+                  <div class="draw-coord-fields draw-coord-fields-pair">
+                    <textarea class="toolbar-column" type="text" id="input-field-3-3" placeholder="TOP LEFT long,lat"
+                    onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+                    ></textarea>
+                    <textarea class="toolbar-column" type="text" id="input-field-3-5" placeholder="BOTTOM RIGHT long,lat"
+                    onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+                    ></textarea>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="draw-coord-fields draw-coord-fields-pair">
-              <textarea class="toolbar-column" type="text" id="input-field-3-3" placeholder="TOP LEFT long,lat"
-              onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-              ></textarea>
-              <textarea class="toolbar-column" type="text" id="input-field-3-5" placeholder="BOTTOM RIGHT long,lat"
-              onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-              ></textarea>
             </div>
             </div>
             <div class="draw-submit-row">

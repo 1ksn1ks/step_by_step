@@ -2638,8 +2638,12 @@ html, body {
     user-select: text;
 }
 .draw-popup-topic {
-    min-width: 5em;
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
     max-width: 100%;
+    text-align: center;
 }
 .draw-popup-topic.popup-top-topic:empty::before {
     content: attr(data-placeholder);
@@ -2655,8 +2659,11 @@ html, body {
     opacity: 0.45;
 }
 .draw-popup-text {
-    min-width: 46%;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
     max-width: 100%;
+    height: auto;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     text-align: center;
@@ -2674,10 +2681,11 @@ html, body {
 }
 #draw-column .draw-byte-counter {
     position: absolute;
-    right: calc(var(--u) * 2);
-    bottom: calc(var(--u) * 0.35);
-    font-size: 2vh;
+    right: calc(var(--u) * 1.2);
+    bottom: calc(var(--u) * 0.4);
+    font-size: calc(var(--u) * 0.75);
     line-height: 1;
+    text-align: right;
     pointer-events: none;
     z-index: 1;
 }
@@ -2703,8 +2711,10 @@ html, body {
 #draw-column .draw-popup-title::after {
     content: attr(data-left);
     position: absolute;
-    right: calc(var(--u) * 2);
-    bottom: calc(var(--u) * 0.12);
+    top: 50%;
+    right: calc(var(--u) * 0.7);
+    bottom: auto;
+    transform: translateY(-50%);
     font-size: calc(var(--u) * 0.7);
     line-height: 1;
     font-weight: 700;
@@ -2759,9 +2769,9 @@ html, body {
     margin-top: calc(var(--u) * 0.6);
 }
 .draw-popup-topic-row {
-    justify-content: flex-start;
-    margin-left: calc(var(--u) * -0.5);
-    margin-right: calc(var(--u) * -0.5);
+    justify-content: stretch;
+    margin-left: 0;
+    margin-right: 0;
     margin-bottom: calc(var(--u) * -0.3);
 }
 .draw-popup-cover {
@@ -2772,6 +2782,18 @@ html, body {
 }
 .draw-coord-fields {
     margin-top: 0.8vh;
+    flex: 0 0 auto;
+    min-width: 0;
+}
+/* The popup shell sets a Helvetica shorthand. These boxes stay the toolbar
+   field: monospace, 2vh, the same 1vh corners and the same border. */
+#draw-column .draw-coord-fields .toolbar-column {
+    font-family: monospace;
+    font-size: 2vh;
+    line-height: normal;
+    letter-spacing: normal;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 1vh;
 }
 .draw-coord-fields .toolbar-column:last-child {
     margin-bottom: 0;
@@ -5422,6 +5444,16 @@ html, body {
     text-align: center;
     margin-bottom: 1vh;
     animation: optionsTitleFloat 3s ease-in-out infinite;
+  }
+
+  /* Same size and weight as a drawer page title. Colour and glow stay. */
+  #draw-column-title {
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 700;
+    line-height: 1.2;
+    font-size: 2.4vh;
+    font-size: calc(var(--fu) * 2.1);
   }
 
   @keyframes optionsTitleFloat {
@@ -8281,6 +8313,49 @@ a.payer-link {
 .maplibregl-popup .popup-title-bubble,
 .maplibregl-map .maplibregl-popup .popup-title-bubble {
   padding: calc(var(--u) * 0.35 * var(--popup-font-scale, 1)) calc(var(--u) * 1.5 * var(--popup-font-scale, 1));
+}
+
+/* Draw forms only. Map popups keep their own title, message, and profile pills.
+   The message matches the topic size, grows with the text, and reserves the
+   bottom of the bubble for the byte count. The title count sits on the
+   vertical middle of that pill. An empty account name drops the capsule. */
+.draw-popup-editor .draw-popup-title,
+.draw-popup-editor .draw-popup-text,
+.draw-popup-editor .draw-popup-topic {
+  font-size: calc(var(--u) * 1);
+}
+.draw-popup-editor .draw-popup-title {
+  padding-inline-end: calc(var(--u) * 2.8);
+}
+.draw-popup-editor .draw-popup-text {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  max-height: none;
+  overflow: visible;
+  padding-bottom: calc(var(--u) * 1.7);
+}
+.draw-popup-editor .draw-popup-topic {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+.draw-popup-editor .popup-profile-bubble:has(.payer-info:empty) {
+  width: fit-content;
+  margin-inline: auto;
+  align-self: center;
+  gap: 0;
+  padding: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.draw-popup-editor .popup-profile-bubble:has(.payer-info:empty) > div {
+  display: none;
 }
 
 /* ===== Following suggestions ===== */
@@ -12988,7 +13063,8 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   text-align: center;
   pointer-events: none;
   color: #22d3ee;
-  letter-spacing: 0.15em;
+  letter-spacing: normal;
+  text-transform: none;
   text-shadow: 0 0 1.5vh rgba(34, 211, 238, 0.6);
   animation: none;
 }

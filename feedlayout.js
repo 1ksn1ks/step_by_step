@@ -4786,7 +4786,7 @@ const FEED_CHATS = {
   },
   draw: {
     id: 'draw-column',
-    title: '✏️ DRAW',
+    title: '✏️ Draw',
     expand() {},
   },
 };
@@ -5070,7 +5070,7 @@ function clearLoadOptions() {
 function syncDrawHeader() {
   if (feedChatKind !== 'draw') return;
   const node = document.getElementById('draw-column-title');
-  const text = (node && node.textContent) || '✏️ DRAW';
+  const text = (node && node.textContent) || '✏️ Draw';
   feedChatTitle.textContent = text;
   feedChat.setAttribute('aria-label', text);
 }
