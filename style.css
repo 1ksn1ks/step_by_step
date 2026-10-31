@@ -10563,7 +10563,7 @@ html.is-nav-lock body * {
 }
 :is(#feed-menu, .drawer-screen) .in-drawer .mb-card-title {
   margin: 0;
-  padding: calc(var(--fu) * 0.7) calc(var(--fu) * 1.1) calc(var(--fu) * 0.25);
+  padding: calc(var(--fu) * 0.7) 16px calc(var(--fu) * 0.25);
   font-size: calc(var(--fu) * 1.25);
   letter-spacing: 0.08em;
 }
@@ -10571,8 +10571,8 @@ html.is-nav-lock body * {
   box-sizing: border-box;
   min-height: max(44px, 6dvh);
   margin: 0;
-  padding: 0 calc(var(--fu) * 1.1);
-  gap: calc(var(--fu) * 0.7);
+  padding: 0 16px;
+  gap: 12px;
   border: 0;
   border-radius: 0;
 }
@@ -10593,6 +10593,11 @@ html.is-nav-lock body * {
   background: none;
   color: rgba(255, 255, 255, 0.45);
   font-size: calc(var(--fu) * 1.4);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer .mb-swatch {
   order: 2;
@@ -10606,13 +10611,34 @@ html.is-nav-lock body * {
 :is(#feed-menu, .drawer-screen) .in-drawer .mb-row:has(.mb-swatch) .mb-row-label {
   order: 1;
 }
-:is(#feed-menu, .drawer-screen) .in-drawer .mb-card:has(.mb-preview),
-:is(#feed-menu, .drawer-screen) .in-drawer .mb-card:has(.mb-chat-preview) {
-  padding: 0;
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card:has(.mb-preview, .mb-chat-preview) {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  padding: 0 16px 12px;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card:has(.mb-preview, .mb-chat-preview) > .mb-card-title {
+  margin-left: -16px;
+  margin-right: -16px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer .mb-card :is(.mb-preview, .mb-chat-preview) {
   box-sizing: border-box;
-  padding: calc(var(--fu) * 0.35) calc(var(--fu) * 1.1);
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: none;
+  margin: 0;
+  padding: 12px 16px;
+  overflow: hidden;
+  border-radius: max(0px, calc(var(--fu) * 1.4 - 16px));
+}
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-chat-preview :is(.mb-chat-inner, .mb-chat-msg),
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-poly-preview-bg {
+  height: auto;
+  max-height: none;
+  max-width: 100%;
 }
 #feed-menu #visibility-controls.in-drawer .mb-row:has(> .toolbar-column-btns) {
   position: relative;
@@ -10805,15 +10831,32 @@ html.is-nav-lock body * {
   font-size: calc(var(--fu) * 1.6);
 }
 :is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) {
-  display: flex !important;
+  display: grid !important;
+  grid-template-columns: var(--slider-label-w, 30%) 1fr 4.5em;
   align-items: center;
   box-sizing: border-box;
   min-height: max(44px, 6dvh);
-  gap: calc(var(--fu) * 0.6);
+  gap: 12px;
   margin: 0;
-  padding: 0 calc(var(--fu) * 1);
+  padding: 0 16px;
   border-radius: 0;
   background: transparent;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > :is(.mb-row-label, label) {
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input[type="range"] {
+  width: 100% !important;
+  min-width: 0;
+  height: auto;
+  max-height: none;
+  margin: 0 !important;
+  overflow: visible;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]).is-row-first {
   border-top-left-radius: calc(var(--fu) * 1.4);
@@ -10833,18 +10876,26 @@ html.is-nav-lock body * {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 :is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input.toolbar-column[type="number"]:not([type="color"]),
-:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input.yourfov[type="number"]:not([type="color"]) {
-  width: calc(var(--fu) * 6.2) !important;
-  flex: 0 0 auto;
-  min-height: max(44px, 6dvh);
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input.yourfov[type="number"]:not([type="color"]),
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > .mb-value-pill {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100%;
+  height: auto !important;
+  min-height: 0 !important;
   margin: 0 !important;
-  padding-right: calc(var(--fu) * 0.2) !important;
+  padding: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
   background-color: transparent !important;
+  box-shadow: none !important;
   color: rgba(255, 255, 255, 0.45);
-  text-align: right;
+  font-variant-numeric: tabular-nums;
+  text-align: right !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 :is(#feed-menu, .drawer-screen) .in-drawer div.toolbar-column:not(.set-nav):is(:hover, :active),

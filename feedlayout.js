@@ -6114,8 +6114,46 @@ function isGroupRow(el) {
   return !!(el.querySelector && el.querySelector(':scope > input[type="range"]'));
 }
 
+function alignSliderColumns(root) {
+  const rows = [...root.querySelectorAll('div')].filter((el) => el.querySelector(':scope > input[type="range"]'));
+  const groups = new Map();
+  for (const row of rows) {
+    if (!rowShown(row)) continue;
+    const group = row.closest('.mb-card') || row.parentElement;
+    if (!group) continue;
+    const list = groups.get(group);
+    if (list) list.push(row);
+    else groups.set(group, [row]);
+  }
+  for (const [group, list] of groups) {
+    const rowWidth = list[0].getBoundingClientRect().width;
+    if (rowWidth < 8) continue;
+    let longest = 0;
+    for (const row of list) {
+      const label = row.querySelector(':scope > .mb-row-label, :scope > label');
+      if (!label) continue;
+      let textWidth = 0;
+      if (label.childNodes.length) {
+        const range = document.createRange();
+        range.selectNodeContents(label);
+        textWidth = range.getBoundingClientRect().width;
+      }
+      if (textWidth < 1) textWidth = label.scrollWidth;
+      longest = Math.max(longest, textWidth);
+    }
+    if (longest <= 0) continue;
+    const font = parseFloat(getComputedStyle(list[0]).fontSize) || 16;
+    const cap = rowWidth - (4.5 * font) - 24 - 36;
+    const width = Math.max(0, Math.min(longest, cap));
+    const next = Math.ceil(width) + 'px';
+    if (group.style.getPropertyValue('--slider-label-w').trim() === next) continue;
+    group.style.setProperty('--slider-label-w', next);
+  }
+}
+
 function paintGroupDividers(root) {
   if (!root) return;
+  alignSliderColumns(root);
   for (const group of root.querySelectorAll('.set-group')) {
     let first = true;
     for (const child of group.children) {
