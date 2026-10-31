@@ -13243,3 +13243,324 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   filter: none !important;
 }
 
+/* Profile editors: one settings card each. Inline display:none still hides them. */
+#edit-profile-picture:not([style*="display: none"]):not([style*="display:none"]),
+#edit-profile-username:not([style*="display: none"]):not([style*="display:none"]),
+#edit-profile-bio:not([style*="display: none"]):not([style*="display:none"]),
+#edit-profile-click2link:not([style*="display: none"]):not([style*="display:none"]),
+#edit-profile-topic:not([style*="display: none"]):not([style*="display:none"]),
+#edit-profile-public-key:not([style*="display: none"]):not([style*="display:none"]) {
+  display: flex !important;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  box-sizing: border-box;
+  width: auto;
+  min-width: 0;
+  margin: 12px;
+  padding: 16px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.06);
+}
+#edit-profile-picture > div,
+#edit-profile-bio > div,
+#edit-profile-topic .profile-topic-actions {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+#edit-profile-topic .profile-topic-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+#profile-topic-status {
+  margin: 0 auto;
+}
+#edit-profile-username-input,
+#Edit_Profile-bio,
+#edit-profile-click2link-input,
+#edit-profile-topic-input,
+#edit-profile-public-key-input {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: 48px;
+  height: auto;
+  margin: 0;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+  color: #fff;
+  font-family: inherit !important;
+  font-size: 16px;
+  line-height: 1.3;
+  text-align: left;
+  resize: none;
+  animation: none;
+  transition: none;
+}
+#Edit_Profile-bio {
+  padding-right: 72px;
+  padding-bottom: 28px;
+}
+#edit-profile-username-input:focus,
+#Edit_Profile-bio:focus,
+#edit-profile-click2link-input:focus,
+#edit-profile-topic-input:focus,
+#edit-profile-public-key-input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px #22D3EE !important;
+}
+#button1,
+#button2,
+#button_for_bio,
+#button_for_click_url,
+#connect-profile-topic,
+#pin-profile-public-key,
+#upload-profile-picture,
+#remove-profile-topic {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  min-height: 48px;
+  height: auto;
+  margin: 0;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 10px;
+  background: #22D3EE;
+  background-color: #22D3EE;
+  box-shadow: none;
+  color: #0a0a12;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.25;
+  text-align: center;
+  text-transform: none;
+  text-shadow: none;
+  white-space: nowrap;
+  animation: none;
+  transform: none;
+  filter: none;
+  cursor: pointer;
+}
+/* Remove stays hidden on the feed overlay. The drawer rule below shows it. */
+#remove-profile-topic {
+  display: none;
+}
+#upload-profile-picture,
+#remove-profile-topic {
+  background: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.06);
+}
+#upload-profile-picture {
+  color: #22D3EE;
+}
+#remove-profile-topic,
+#clear-profile-topic,
+#clear-profile-topic:is(:hover, :active) {
+  color: #f07178;
+}
+#button1:is(:hover, :active),
+#button2:is(:hover, :active),
+#button_for_bio:is(:hover, :active),
+#button_for_click_url:is(:hover, :active),
+#connect-profile-topic:is(:hover, :active),
+#pin-profile-public-key:is(:hover, :active) {
+  background: #22D3EE;
+  background-color: #22D3EE;
+  color: #0a0a12;
+  transform: none;
+  filter: brightness(1.08);
+  box-shadow: none;
+}
+#upload-profile-picture:is(:hover, :active) {
+  background: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #22D3EE;
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+#remove-profile-topic:is(:hover, :active) {
+  background: rgba(240, 113, 120, 0.14);
+  background-color: rgba(240, 113, 120, 0.14);
+  color: #f07178;
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+#button1:disabled,
+#button2:disabled,
+#button_for_bio:disabled,
+#button_for_click_url:disabled,
+#connect-profile-topic:disabled,
+#pin-profile-public-key:disabled,
+#upload-profile-picture:disabled,
+#remove-profile-topic:disabled,
+#clear-profile-topic:disabled {
+  opacity: 0.4;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer :is(
+  #edit-profile-picture,
+  #edit-profile-username,
+  #edit-profile-bio,
+  #edit-profile-click2link,
+  #edit-profile-topic,
+  #edit-profile-public-key
+):not([style*="display: none"]):not([style*="display:none"]) {
+  border-radius: calc(var(--fu) * 1.4) !important;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer #edit-profile-topic .profile-topic-actions {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+  animation: none !important;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer :is(
+  #edit-profile-username-input,
+  #Edit_Profile-bio,
+  #edit-profile-click2link-input,
+  #edit-profile-topic-input,
+  #edit-profile-public-key-input
+) {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 48px !important;
+  height: auto;
+  margin: 0 !important;
+  padding: 12px 16px !important;
+  border: 0 !important;
+  border-radius: calc(var(--fu) * 1.1) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: none !important;
+  animation: none !important;
+  transition: none !important;
+  color: #fff;
+  font-family: inherit !important;
+  text-align: left;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer #Edit_Profile-bio {
+  padding-right: 72px !important;
+  padding-bottom: 28px !important;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer :is(
+  #edit-profile-username-input,
+  #Edit_Profile-bio,
+  #edit-profile-click2link-input,
+  #edit-profile-topic-input,
+  #edit-profile-public-key-input
+):focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px #22D3EE !important;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer :is(
+  #button1,
+  #button2,
+  #button_for_bio,
+  #button_for_click_url,
+  #connect-profile-topic,
+  #pin-profile-public-key,
+  #upload-profile-picture,
+  #remove-profile-topic
+) {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 48px !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 12px 16px !important;
+  border: 0 !important;
+  border-radius: calc(var(--fu) * 1.1) !important;
+  box-shadow: none !important;
+  animation: none !important;
+  font-family: inherit !important;
+  text-align: center !important;
+  text-transform: none;
+  text-shadow: none !important;
+  transform: none !important;
+  filter: none !important;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer :is(
+  #button1,
+  #button2,
+  #button_for_bio,
+  #button_for_click_url,
+  #connect-profile-topic,
+  #pin-profile-public-key
+) {
+  background: #22D3EE !important;
+  background-color: #22D3EE !important;
+  color: #0a0a12 !important;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer #upload-profile-picture {
+  background: rgba(255, 255, 255, 0.06) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: #22D3EE !important;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer #remove-profile-topic {
+  background: rgba(255, 255, 255, 0.06) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: #f07178 !important;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer :is(
+  #button1,
+  #button2,
+  #button_for_bio,
+  #button_for_click_url,
+  #connect-profile-topic,
+  #pin-profile-public-key
+):is(:hover, :active) {
+  background: #22D3EE !important;
+  background-color: #22D3EE !important;
+  color: #0a0a12 !important;
+  filter: brightness(1.08);
+  transform: none !important;
+  box-shadow: none !important;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer #upload-profile-picture:is(:hover, :active) {
+  background: rgba(255, 255, 255, 0.06) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: #22D3EE !important;
+  transform: none !important;
+  filter: none !important;
+  box-shadow: none !important;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer #remove-profile-topic:is(:hover, :active) {
+  background: rgba(240, 113, 120, 0.14) !important;
+  background-color: rgba(240, 113, 120, 0.14) !important;
+  color: #f07178 !important;
+  transform: none !important;
+  filter: none !important;
+  box-shadow: none !important;
+}
+
