@@ -389,6 +389,7 @@
             <textarea class="toolbar-column" type="text" id="input-field" placeholder="Domain/Topic/Account ID" onclick="event.stopPropagation();"
             oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
+            <button type="button" class="follow-pick-btn" id="input-field-follow" aria-label="Choose from following" onclick="event.stopPropagation();">👥</button>
             <button id="paste-topic-btn" onclick="event.stopPropagation();"
             style="position: absolute; top: 0.5vh; bottom: 0.5vh; right: 0.5vh; background: rgba(255, 255, 255, 0.12); color: white; border: 0.05vh solid rgba(255, 255, 255, 0.35); border-radius: 999px; padding: 0.15vh 0.7vh; font-size: 2.2vh; cursor: pointer;">📋</button>
           </div>
@@ -1356,6 +1357,7 @@
 
           <div class="chat-load-row e2ee-load-row">
             <input type="text" class="toolbar-column" id="topic-chat-topic-id" placeholder="Domain/Topic ID" spellcheck="false" autocomplete="off" autocapitalize="off" onclick="event.stopPropagation();">
+            <button type="button" class="follow-pick-btn" id="topic-chat-follow" aria-label="Choose from following" onclick="event.stopPropagation();">👥</button>
             <button id="load-msgs-from" class="toolbar-column-btns">Load</button>
           </div>
           <button id="show-options-from-topic-chat" class="toolbar-column-btns">Options ✅</button>
@@ -1540,6 +1542,7 @@
 
           <div class="e2ee-load-row chat-load-row">
             <input type="text" class="toolbar-column" id="encrypted-chat-topic-id" placeholder="Domain / Topic ID / Payer ID" spellcheck="false" autocomplete="off" autocapitalize="off" onclick="event.stopPropagation();">
+            <button type="button" class="follow-pick-btn" id="encrypted-chat-follow" aria-label="Choose from following" onclick="event.stopPropagation();">👥</button>
             <button id="load-msgs-from-encrypted-chat" class="toolbar-column-btns">Load</button>
           </div>
           <button id="show-options-from-encrypted-chat" class="toolbar-column-btns">Options ✅</button>

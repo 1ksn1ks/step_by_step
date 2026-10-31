@@ -6,10 +6,12 @@ import { connectedAccount } from './web3.js';
 import { usernames, profilePictures, profileTopics } from './loadalladata.js';
 import { fetchFollowing } from './msgbackend.js';
 import { safeHttpUrl } from './payerlink.js';
+import { openPicker } from './picker.js';
 
 const DEFAULT_AVATAR = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const CACHE_MS = 5 * 60 * 1000;
 const LIST_ID = 'follow-suggest';
+const QUICK = 5;
 
 const PANELS = {
   'input-field': 'load-column',
@@ -43,7 +45,7 @@ function reducedMotion() {
   return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 }
 
-function ensureData(allowRetry) {
+export function ensureData(allowRetry) {
   const account = connectedAccount;
   if (!account) return Promise.resolve(null);
   if (cacheData && cacheAccount === account && (Date.now() - cacheAt) < CACHE_MS) {
@@ -154,7 +156,14 @@ function buildItems(data, spec, query) {
   return items;
 }
 
-function appendHighlighted(parent, text, query) {
+export function getFollowingItems(kinds) {
+  const data = cacheData && cacheAccount === connectedAccount ? cacheData : null;
+  if (!data) return [];
+  const list = Array.isArray(kinds) ? kinds : ['accounts', 'topics'];
+  return buildItems(data, { kinds: list, dimMissing: false }, '');
+}
+
+export function appendHighlighted(parent, text, query) {
   const value = String(text || '');
   const needle = String(query || '').toLowerCase();
   if (!needle) {
@@ -252,15 +261,35 @@ function ensureList() {
   list.addEventListener('pointermove', onListPointerMove);
   list.addEventListener('pointerup', onListPointerUp);
   list.addEventListener('pointercancel', () => { drag = null; });
+  list.addEventListener('click', (event) => event.stopPropagation());
   return list;
+}
+
+function seeAllElement(count) {
+  const row = document.createElement('div');
+  row.className = 'follow-suggest-row follow-suggest-all';
+  row.setAttribute('role', 'option');
+  row.id = 'follow-suggest-see-all';
+  row.dataset.seeAll = '1';
+  row.setAttribute('aria-selected', 'false');
+  const text = document.createElement('div');
+  text.className = 'follow-suggest-text';
+  const primary = document.createElement('div');
+  primary.className = 'follow-suggest-primary';
+  primary.textContent = 'See all (' + count + ')';
+  text.appendChild(primary);
+  row.appendChild(text);
+  return row;
 }
 
 function onListPointerDown(event) {
   const row = event.target && event.target.closest && event.target.closest('.follow-suggest-row');
   if (!row || !openInput) return;
   event.preventDefault();
+  event.stopPropagation();
   drag = {
     index: Number(row.dataset.index),
+    seeAll: row.dataset.seeAll === '1',
     y: event.clientY,
     moved: false,
     id: event.pointerId,
@@ -282,9 +311,16 @@ function onListPointerMove(event) {
 function onListPointerUp(event) {
   if (!drag || event.pointerId !== drag.id) return;
   const index = drag.index;
+  const seeAll = drag.seeAll;
   const moved = drag.moved;
   drag = null;
-  if (!moved) pick(index);
+  event.stopPropagation();
+  if (moved) return;
+  if (seeAll) {
+    openSpecPicker(openSpec, openInput ? openInput.value : '');
+    return;
+  }
+  pick(index);
 }
 
 function syncAria() {
@@ -294,7 +330,8 @@ function syncAria() {
     const mine = open && input === openInput;
     input.setAttribute('aria-expanded', mine ? 'true' : 'false');
     if (mine && activeIndex >= 0) {
-      input.setAttribute('aria-activedescendant', 'follow-suggest-opt-' + activeIndex);
+      const desc = activeIndex >= quickCount() ? 'follow-suggest-see-all' : 'follow-suggest-opt-' + activeIndex;
+      input.setAttribute('aria-activedescendant', desc);
     } else {
       input.removeAttribute('aria-activedescendant');
     }
@@ -378,11 +415,21 @@ function paintActive() {
   syncAria();
 }
 
+function quickCount() {
+  return Math.min(QUICK, rows.length);
+}
+
+function slotCount() {
+  return rows.length ? quickCount() + 1 : 0;
+}
+
 function paintRows(query) {
   ensureList();
   clearTimeout(hideTimer);
   list.replaceChildren();
-  for (let i = 0; i < rows.length; i++) list.appendChild(rowElement(rows[i], query, i));
+  const shown = quickCount();
+  for (let i = 0; i < shown; i++) list.appendChild(rowElement(rows[i], query, i));
+  list.appendChild(seeAllElement(rows.length));
   list.hidden = false;
   if (reducedMotion()) list.classList.add('is-open');
   else {
@@ -432,23 +479,48 @@ function openFor(spec, allowRetry) {
   });
 }
 
+function writePick(spec, item) {
+  const input = spec.input;
+  picking = true;
+  input.value = spec.fill === 'topic' && item.topic ? item.topic : item.id;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  picking = false;
+}
+
 function pick(index) {
   const item = rows[index];
   const input = openInput;
   const submit = openSpec && openSpec.submit;
   if (!item || !input || !submit) return;
-  picking = true;
-  input.value = openSpec.fill === 'topic' && item.topic ? item.topic : item.id;
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-  picking = false;
+  writePick(openSpec, item);
   close();
   submit();
 }
 
+function openSpecPicker(spec, query) {
+  if (!spec) return;
+  const kinds = spec.kinds.slice();
+  const dimMissing = spec.dimMissing;
+  const q = query == null ? '' : String(query);
+  close();
+  openPicker({
+    title: 'Following',
+    kinds,
+    dimMissing,
+    query: q,
+  }).then((item) => {
+    if (!item || !spec.input || !spec.input.isConnected) return;
+    writePick(spec, item);
+    if (openInput === spec.input) close();
+    spec.submit();
+  });
+}
+
 function move(delta) {
-  if (!rows.length) return;
-  if (activeIndex < 0) activeIndex = delta > 0 ? 0 : rows.length - 1;
-  else activeIndex = (activeIndex + delta + rows.length) % rows.length;
+  const count = slotCount();
+  if (!count) return;
+  if (activeIndex < 0) activeIndex = delta > 0 ? 0 : count - 1;
+  else activeIndex = (activeIndex + delta + count) % count;
   paintActive();
 }
 
@@ -464,7 +536,8 @@ function onKeyDown(event) {
     move(-1);
   } else if (event.key === 'Enter' && visible && activeIndex >= 0) {
     event.preventDefault();
-    pick(activeIndex);
+    if (activeIndex >= quickCount()) openSpecPicker(spec, spec.input.value || '');
+    else pick(activeIndex);
   } else if (event.key === 'Escape' && openInput === spec.input) {
     event.preventDefault();
     close();
@@ -561,6 +634,16 @@ export function attachFollowSuggest(input, { kinds, submit, fill, dimMissing } =
   input.addEventListener('keydown', onKeyDown);
 }
 
+function bindPickButton(button, input) {
+  if (!button || !input) return;
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const spec = specs.find((item) => item.input === input);
+    if (spec) openSpecPicker(spec, '');
+  });
+}
+
 function boot() {
   if (booted) return;
   booted = true;
@@ -570,6 +653,9 @@ function boot() {
   if (load) attachFollowSuggest(load, { kinds: ['accounts'], fill: 'topic', submit: submitLoad });
   if (topic) attachFollowSuggest(topic, { kinds: ['accounts'], fill: 'topic', submit: submitTopic });
   if (e2ee) attachFollowSuggest(e2ee, { kinds: ['accounts'], dimMissing: true, submit: submitE2ee });
+  bindPickButton(document.getElementById('input-field-follow'), load);
+  bindPickButton(document.getElementById('topic-chat-follow'), topic);
+  bindPickButton(document.getElementById('encrypted-chat-follow'), e2ee);
   document.addEventListener('pointerdown', onDocPointer, true);
   document.addEventListener('profiles-loaded', () => {
     if (openInput && list && !list.hidden) render();
