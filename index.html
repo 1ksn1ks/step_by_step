@@ -628,102 +628,80 @@
         <button class="panel-help-btn" id="help-create-column">?</button>
         <div id="create-column-container">
 
-          <div class="options-column-title">✨ CREATE</div>
+          <div class="options-column-title">Create</div>
 
-          <div style="display: flex;">
-            <button id="show-new-topic-from-create" class="toolbar-column-first-settings-btns">New Topic
+          <div class="mb-card create-card">
+            <button type="button" id="show-new-topic-from-create" class="mb-row create-switch" aria-expanded="false">
+              <span class="create-switch-line">
+                <span class="mb-row-label">New topic</span>
+                <span class="create-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+              </span>
             </button>
-            <button id="hide-new-topic-from-create" style="display: none;" class="toolbar-column-first-settings-btns">New Topic
+            <button type="button" id="hide-new-topic-from-create" class="mb-row create-switch is-open" style="display: none;" aria-expanded="true">
+              <span class="create-switch-line">
+                <span class="mb-row-label">New topic</span>
+                <span class="create-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+              </span>
             </button>
-            <button id="show-new-keys-from-create" class="toolbar-column-settings-btns" style="margin-left: 1vw;">New Keys
+            <button type="button" id="show-new-keys-from-create" class="mb-row create-switch" aria-expanded="false">
+              <span class="create-switch-line">
+                <span class="mb-row-label">New keys</span>
+                <span class="create-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+              </span>
             </button>
-            <button id="hide-new-keys-from-create" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">New Keys
+            <button type="button" id="hide-new-keys-from-create" class="mb-row create-switch is-open" style="display: none;" aria-expanded="true">
+              <span class="create-switch-line">
+                <span class="mb-row-label">New keys</span>
+                <span class="create-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+              </span>
             </button>
           </div>
-      
+
           <div id="new-topic-from-create" style="display: none;">
-          <div class="toolbar-group">
-            <textarea class="toolbar-column" type="text" id="input-field-5-1" placeholder="Admins 0.0.1,0.0.2.."
-            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
-      
-            <textarea class="toolbar-column" type="text" id="input-field-5-2" placeholder="Use Private Key here"
-            onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
-      
-            <label for="public-key-label" style="font-size: 2vh; padding: 0px; user-select: text;">Created TopicID:
-            </label>
-      
-            <input class="toolbar-column" type="text" id="input-field-5" placeholder="Generated Topic ID"
-            onclick="event.stopPropagation();" readonly/>
-      
-            <!-- <label for="public-key-label" style="font-size: 2vh; padding: 0px;">Set fee for each message:</label>
-            <textarea
-            class="toolbar-column"
-            type="text"
-            id="input-field-5-3"
-            placeholder="Set amount of fee"
-            style="
-              background-color: transparent;
-              overflow: hidden; /* Hide scrollbars */
-              resize: none; /* Prevent manual resizing */
-            "
-            onclick="event.stopPropagation();"
-            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
-            <textarea
-            class="toolbar-column"
-            type="text"
-            id="input-field-5-4"
-            placeholder="Set token id of fee"
-            style="
-              background-color: transparent;
-              overflow: hidden; /* Hide scrollbars */
-              resize: none; /* Prevent manual resizing */
-            "
-            onclick="event.stopPropagation();"
-            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea>
-            <textarea
-            class="toolbar-column"
-            type="text"
-            id="input-field-5-5"
-            placeholder="Set royalty account"
-            style="
-              background-color: transparent;
-              overflow: hidden; /* Hide scrollbars */
-              resize: none; /* Prevent manual resizing */
-            "
-            onclick="event.stopPropagation();"
-            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-            ></textarea> -->
-      
-            <button id="submit-button-Create_New_Topic" class="toolbar-column-btns" style="display: block;">Create
-            </button>
+            <div class="mb-card create-card">
+              <div class="create-card-body">
+                <label class="create-field">
+                  <span class="create-caption">Admins</span>
+                  <textarea id="input-field-5-1" class="create-input" rows="1" placeholder="0.0.1, 0.0.2" autocomplete="off" spellcheck="false" autocapitalize="off" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"></textarea>
+                </label>
+                <label class="create-field">
+                  <span class="create-caption">Private key</span>
+                  <textarea id="input-field-5-2" class="create-input" rows="1" placeholder="Your private key" autocomplete="off" spellcheck="false" autocapitalize="off" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"></textarea>
+                </label>
+              </div>
+              <button type="button" id="create-topic-id-copy" class="mb-row create-topic-row">
+                <span class="mb-row-label">Topic ID</span>
+                <span class="create-topic-value" id="create-topic-id-value">—</span>
+              </button>
+              <input type="text" id="input-field-5" hidden autocomplete="off">
+              <div class="create-action">
+                <button type="button" id="submit-button-Create_New_Topic" class="drawer-action-btn">Create topic</button>
+              </div>
+            </div>
           </div>
-        </div>
-      
-        <div id="new-keys-from-create" style="display: none;">
-            <label for="public-key-label" style="font-size: 2vh; padding: 0px;">Public Key:
-            </label>
-            <textarea
-            class="toolbar-column"
-            id="generated-public-key"
-            placeholder="Generated Public Key"
-            readonly
-            onclick="event.stopPropagation();"
-          ></textarea>
-      
-          <label for="private-key-label" style="font-size: 2vh; padding: 0px;">Private Key:
-          </label>
-      
-          <textarea class="toolbar-column" id="generated-private-key" placeholder="Generated Private Key"
-          onclick="event.stopPropagation();" readonly
-          ></textarea>
-      
-          <button id="generate-private-and-public-key" class="toolbar-column-btns" style="display: block;">Generate
-          </button>
-        </div>
+
+          <div id="new-keys-from-create" style="display: none;">
+            <div class="mb-card create-card">
+              <div class="create-card-body">
+                <div class="create-key">
+                  <div class="create-key-bar">
+                    <span class="mb-row-label">Public key</span>
+                    <button type="button" class="create-copy" data-copy="generated-public-key" aria-label="Copy public key">Copy</button>
+                  </div>
+                  <textarea id="generated-public-key" class="create-key-value" rows="1" placeholder="—" readonly spellcheck="false"></textarea>
+                </div>
+                <div class="create-key">
+                  <div class="create-key-bar">
+                    <span class="mb-row-label">Private key</span>
+                    <button type="button" class="create-copy" data-copy="generated-private-key" aria-label="Copy private key">Copy</button>
+                  </div>
+                  <textarea id="generated-private-key" class="create-key-value" rows="1" placeholder="—" readonly spellcheck="false"></textarea>
+                </div>
+                <p class="create-warn">Keep your private key safe</p>
+                <button type="button" id="generate-private-and-public-key" class="drawer-action-btn">Generate keys</button>
+              </div>
+            </div>
+          </div>
       
         </div>
       </div>

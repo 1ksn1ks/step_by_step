@@ -6101,6 +6101,7 @@ const DRAWER_LABELS = {
   'Edit_Profile-column': 'Profile',
   'update-topic-column': 'Update topic',
   'domain-column': 'Domain',
+  'create-column': 'Create',
 };
 
 function drawerPageLabel(id) {
