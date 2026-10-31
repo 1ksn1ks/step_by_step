@@ -47,7 +47,7 @@ function restoreAll() {
 function leaning(face) {
   const state = face._tilt;
   if (!state) return false;
-  // The moon eases a hover amount instead of a lean. Same settle threshold.
+  // A leftover moon hover uses the same settle threshold as a lean.
   if ((state.hover || 0) >= 0.02) return true;
   return Math.hypot(state.nx, state.ny) >= 0.02;
 }
@@ -72,9 +72,7 @@ function hostDepth(host) {
 // The watched face whose host contains the element under the pointer.
 // Marker and cluster hosts are the outer box, so this matches the old
 // .marker / .cluster-bubble lookup. A picture's host is the picture
-// itself, or the ring wrapped around it. The moon stays pointer-events:none
-// so a drag still hits the map; its face is chosen by the same box when
-// the hit is the canvas. A finger never takes that path.
+// itself, or the ring wrapped around it. The moon is never the hot face.
 function faceAtPointer() {
   if (!pointer) return null;
   const hit = document.elementFromPoint(pointer.x, pointer.y);
@@ -82,23 +80,9 @@ function faceAtPointer() {
   let best = null;
   let bestDepth = -1;
   for (const face of faces) {
+    if (face.classList && face.classList.contains('moon-face')) continue;
     const host = face._tilt && face._tilt.host;
     if (!host || !host.contains(hit)) continue;
-    const depth = hostDepth(host);
-    if (depth >= bestDepth) {
-      best = face;
-      bestDepth = depth;
-    }
-  }
-  if (best || touching) return best;
-  if (typeof hit.closest !== 'function' || !hit.closest('.maplibregl-canvas')) return null;
-  for (const face of faces) {
-    if (!face.classList || !face.classList.contains('moon-face')) continue;
-    const host = face._tilt && face._tilt.host;
-    if (!host || !host.isConnected) continue;
-    const box = host.getBoundingClientRect();
-    if (box.width < 1 || box.height < 1) continue;
-    if (pointer.x < box.left || pointer.x > box.right || pointer.y < box.top || pointer.y > box.bottom) continue;
     const depth = hostDepth(host);
     if (depth >= bestDepth) {
       best = face;
@@ -195,37 +179,14 @@ function frame(now) {
     if (!state) continue;
     const host = (state.host && state.host.isConnected) ? state.host : face.parentElement;
     const isHot = face === hot && host && pointer;
-    // Moon zoom is one amount, 0 at rest and 1 anywhere on the disc. It
-    // uses the marker ease and the same 0.02 settle. translateZ at 1 is
-    // the old edge strength (half * sin of the 32° cap). No rotation.
+    // The moon never zooms or bobs. A transform left from an older hover
+    // is cleared once, and this face does not keep the loop running.
     if (face.classList && face.classList.contains('moon-face')) {
-      const target = isHot ? 1 : 0;
-      const prev = state.hover || 0;
-      if (!isHot && prev < 0.02) {
-        if (prev) {
-          state.hover = 0;
-          state.bob = 0;
-          clearLean(face);
-        }
-        continue;
-      }
-      state.hover = prev + (target - prev) * ease;
-      const bobY = isHot ? bob : 0;
-      if (state.hover < 0.02 && Math.abs(bobY) < 0.25) {
+      if (face.style.transform || state.hover || state.bob) {
         state.hover = 0;
         state.bob = 0;
         clearLean(face);
-        continue;
       }
-      busy = true;
-      state.bob = bobY;
-      const box = (host || face).getBoundingClientRect();
-      const half = Math.max(8, box.width / 2);
-      const edgeZ = half * Math.sin((MAX_DEG * Math.PI) / 180);
-      const zoomZ = edgeZ * state.hover;
-      face.style.transformStyle = 'flat';
-      face.style.willChange = 'transform';
-      face.style.transform = `perspective(${PERSPECTIVE_PX}px) translateY(${bobY.toFixed(2)}px) translateZ(${zoomZ.toFixed(2)}px)`;
       continue;
     }
     let tx = 0;
