@@ -9,11 +9,12 @@ import { isTyping } from './joystick.js';
 //
 // Backdrop tap, the ×, and Esc close it. A tap on the picture does not.
 //
-// The picture stays inside the visible screen. On a phone, 100vh is the
-// tall layout viewport (the area behind the address bar). A picture sized
-// to that box is taller than what the user can see, and some phones then
-// never paint it. visualViewport is the area that is actually on screen.
-// The picture uses most of that area, with a margin so the × stays clear.
+// The overlay itself is the stylesheet's edge-to-edge frame. The picture
+// stays inside the visible screen. On a phone, 100vh is the tall layout
+// viewport (the area behind the address bar). A picture sized to that box
+// is taller than what the user can see, and some phones then never paint
+// it. visualViewport is the area that is actually on screen. The picture
+// uses most of that area, with a margin so the × stays clear.
 let overlay = null;
 let fitted = null;
 let onFit = null;
@@ -26,12 +27,6 @@ function placePreview() {
   const view = window.visualViewport;
   const width = view && view.width ? view.width : window.innerWidth;
   const height = view && view.height ? view.height : window.innerHeight;
-  if (view) {
-    overlay.style.top = view.offsetTop + 'px';
-    overlay.style.left = view.offsetLeft + 'px';
-  }
-  overlay.style.width = Math.max(1, Math.floor(width)) + 'px';
-  overlay.style.height = Math.max(1, Math.floor(height)) + 'px';
   fitted.style.maxWidth = Math.max(1, Math.floor(width * PREVIEW_WIDTH)) + 'px';
   fitted.style.maxHeight = Math.max(1, Math.floor(height * PREVIEW_HEIGHT)) + 'px';
 }

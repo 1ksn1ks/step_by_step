@@ -77,10 +77,10 @@ Popup.prototype = NativePopup.prototype;
 maplibregl.Popup = Popup;
 
 // One frame for every map popup and for the popup settings card.
-// Top and bottom are the same gap: 0.5dvh plus the safe area. Left and
-// right stay flush. A post with more text scrolls inside the frame.
-// The visual viewport is the tighter limit while the keyboard is open,
-// because dvh does not shrink for the keyboard.
+// The shell covers the screen. Safe area is padding, not a top or bottom
+// offset. A post with more text scrolls inside the frame. The visual
+// viewport is the tighter limit while the keyboard is open, because dvh
+// does not shrink for the keyboard.
 const visualViewport = window.visualViewport;
 let scheduled = false;
 
@@ -97,39 +97,49 @@ function fitPopupsToViewport() {
   root.setProperty('--popup-left', `${offsetLeft}px`);
   root.setProperty('--popup-right', '0px');
   if (!keyboard) {
-    root.setProperty('--popup-top', 'calc(0.5dvh + env(safe-area-inset-top))');
-    root.setProperty('--popup-bottom', 'calc(0.5dvh + env(safe-area-inset-bottom))');
+    root.setProperty('--popup-top', 'env(safe-area-inset-top, 0px)');
+    root.setProperty('--popup-bottom', 'env(safe-area-inset-bottom, 0px)');
     root.setProperty('--popup-max-h', 'calc(100dvh - var(--popup-top) - var(--popup-bottom))');
     clearPopupFit();
     pinSettingsCard();
     return;
   }
-  // Same gap, shifted into the visible viewport. dvh stays the full
-  // screen, so the covered strip under the keyboard is added by hand.
+  // Shifted into the visible viewport. dvh stays the full screen, so the
+  // covered strip under the keyboard is added by hand.
   const covered = Math.max(0, layoutH - (offsetTop + viewH));
-  root.setProperty('--popup-top', `calc(${offsetTop}px + 0.5dvh + env(safe-area-inset-top))`);
-  root.setProperty('--popup-bottom', `calc(${covered}px + 0.5dvh + env(safe-area-inset-bottom))`);
-  root.setProperty('--popup-max-h', `max(80px, calc(${viewH}px - 1dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)))`);
+  root.setProperty('--popup-top', `calc(${offsetTop}px + env(safe-area-inset-top, 0px))`);
+  root.setProperty('--popup-bottom', `calc(${covered}px + env(safe-area-inset-bottom, 0px))`);
+  root.setProperty('--popup-max-h', `max(80px, calc(${viewH}px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)))`);
   clearPopupFit();
   pinSettingsCard();
 }
 
-// The settings card has to use this same frame. An older rule still in the
-// loaded stylesheet pins it to the top of the screen; these win over that.
+// The settings card covers the screen. Inline important beats the stylesheet,
+// so the same edge-to-edge frame is written here. Safe area stays padding.
 function pinSettingsCard() {
   const card = document.getElementById('popup-settings-card');
   if (!card) return;
   const set = (prop, value) => card.style.setProperty(prop, value, 'important');
   const wide = window.matchMedia('(orientation: landscape)').matches;
-  set('top', 'var(--popup-top)');
-  set('right', wide ? 'calc(var(--popup-right) + env(safe-area-inset-right))' : 'var(--popup-right)');
-  set('bottom', 'var(--popup-bottom)');
-  set('left', wide ? 'calc(var(--popup-left) + env(safe-area-inset-left))' : 'var(--popup-left)');
+  const layoutH = window.innerHeight;
+  const viewH = visualViewport ? visualViewport.height : layoutH;
+  const offsetTop = visualViewport ? visualViewport.offsetTop : 0;
+  const keyboard = layoutH - viewH > 80 || offsetTop > 40;
+  if (keyboard) {
+    set('top', `${offsetTop}px`);
+    set('bottom', 'auto');
+    set('height', `${Math.max(80, viewH)}px`);
+  } else {
+    set('top', '0px');
+    set('bottom', '0px');
+    set('height', '100dvh');
+  }
+  set('right', wide ? 'env(safe-area-inset-right, 0px)' : '0px');
+  set('left', wide ? 'env(safe-area-inset-left, 0px)' : '0px');
   set('transform', 'none');
-  set('width', 'auto');
-  set('height', wide ? 'calc(100dvh - var(--popup-top) - var(--popup-bottom))' : 'auto');
+  set('width', wide ? 'auto' : '100dvw');
   set('max-width', 'none');
-  set('max-height', wide ? 'calc(100dvh - var(--popup-top) - var(--popup-bottom))' : 'none');
+  set('max-height', 'none');
 }
 
 // Older fits wrote a per-popup top and --fit. Those would pin one post

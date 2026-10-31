@@ -18,16 +18,22 @@ html, body {
     padding: 0;
     overflow: hidden;
     position: fixed;
-    width: 100vw;
-    height: 100vh;
-    top: 0;
-    left: 0;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     background-color: #0a0a0a;
   }
   
   #loader-overlay {
     position: fixed;
     inset: 0;
+    width: 100dvw;
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
     background: rgba(0,0,0,0.85);
     display: flex;
     align-items: center;
@@ -331,11 +337,13 @@ html, body {
   bottom: 0;
   left: 0;
   width: 100dvw;
+  height: 100vh;
   height: 100dvh;
   z-index: 11000 !important;
   box-sizing: border-box;
   margin: 0;
-  padding: 0;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -517,6 +525,22 @@ html, body {
   /* 44px is the tap-target floor. 5.5dvh equals that floor on an 800px-tall phone.
      Both chat panels share the token so the topic row and the feed shell
      can use the same height as the E2EE unlock row. */
+  #topic-chat-container:not(.is-feed-shell):not(.topic-chat-compact),
+  #encrypted-chat-container:not(.is-feed-shell):not(.topic-chat-compact) {
+    position: fixed;
+    inset: 0;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100dvw;
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
+    box-sizing: border-box;
+    padding-top: calc(1.4vh + env(safe-area-inset-top));
+    padding-bottom: calc(0.8vh + env(safe-area-inset-bottom));
+  }
   #topic-chat-container,
   #encrypted-chat-container {
     --e2ee-head-h: max(44px, 5.5dvh);
@@ -1606,6 +1630,13 @@ html, body {
   .draw-date-picker {
     position: fixed;
     inset: 0;
+    width: 100dvw;
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
     z-index: 9600;
     background: rgba(8, 8, 18, 0.82);
   }
@@ -2614,20 +2645,21 @@ html, body {
      Top and bottom are the same gap, plus the safe area. Left and
      right stay flush. Content scrolls inside. */
   :root {
-    --popup-top: calc(0.5dvh + env(safe-area-inset-top));
+    --popup-top: env(safe-area-inset-top, 0px);
     --popup-left: 0px;
     --popup-right: 0px;
-    --popup-bottom: calc(0.5dvh + env(safe-area-inset-bottom));
+    --popup-bottom: env(safe-area-inset-bottom, 0px);
     --popup-card: 100vw;
     --popup-max-h: calc(100dvh - var(--popup-top) - var(--popup-bottom));
   }
 
   .maplibregl-popup {
     position: fixed !important;
-    top: var(--popup-top) !important;
-    left: var(--popup-left) !important;
-    right: var(--popup-right) !important;
-    bottom: var(--popup-bottom) !important;
+    inset: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
     transform: none !important;
     /* Not !important: an inline display:none can hide a popup.
        The settings sample copies this class and scales inside its slot. */
@@ -2639,10 +2671,14 @@ html, body {
     --card: var(--popup-card);
     --u: calc(var(--card) * 0.024 * var(--fit));
     --fit: 1;
-    width: auto !important;
+    width: 100dvw !important;
     max-width: none !important;
-    height: auto !important;
+    height: 100vh !important;
+    height: 100dvh !important;
     max-height: none !important;
+    margin: 0 !important;
+    padding-top: var(--popup-top) !important;
+    padding-bottom: var(--popup-bottom) !important;
 
     box-sizing: border-box !important;
     font: calc(var(--u) * 2) / calc(var(--u) * 3) 'Helvetica Neue', Arial, Helvetica, sans-serif;
@@ -2664,20 +2700,37 @@ html, body {
    --card must be a length. 100% made --u a percentage, so the border
    dropped out and the text collapsed to a few pixels. 100cqi is the
    card's inner width. */
+#popup-settings-backdrop {
+    position: fixed;
+    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100dvw;
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
+    box-sizing: border-box;
+    padding: 0;
+}
 #popup-settings-card {
     container-type: inline-size;
     position: fixed !important;
-    /* Same top, sides, and bottom as .maplibregl-popup. Above #map-topbar. */
+    /* Full viewport. Safe area is padding, so the glass reaches the edges. */
     z-index: 1008 !important;
-    top: var(--popup-top) !important;
-    left: var(--popup-left) !important;
-    right: var(--popup-right) !important;
-    bottom: var(--popup-bottom) !important;
+    inset: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
     transform: none !important;
-    width: auto !important;
+    width: 100dvw !important;
     max-width: none !important;
-    height: auto !important;
+    height: 100vh !important;
+    height: 100dvh !important;
     max-height: none !important;
+    margin: 0 !important;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -2707,6 +2760,7 @@ html, body {
     bottom: auto !important;
     transform: none !important;
     height: auto !important;
+    padding: 0 !important;
     --card: 100cqi;
     width: 100% !important;
     max-width: 100% !important;
@@ -2988,6 +3042,7 @@ html, body {
     bottom: auto !important;
     transform: none !important;
     height: auto !important;
+    padding: 0 !important;
     --card: 100cqi;
     width: 100% !important;
     max-width: 100% !important;
@@ -5321,6 +5376,14 @@ html, body {
   .onboard-overlay {
     position: fixed;
     inset: 0;
+    width: 100dvw;
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    background: rgba(0, 0, 0, 0.78);
     z-index: 9000; /* below toasts (10000), above everything else */
   }
 
@@ -5717,6 +5780,10 @@ html, body {
   #donate-sheet {
     position: fixed;
     inset: 0;
+    width: 100dvw;
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
     z-index: 9800;
     display: flex;
     align-items: flex-end;
@@ -5724,7 +5791,9 @@ html, body {
     background: rgba(0, 0, 0, 0.72);
     backdrop-filter: blur(1.6dvh);
     -webkit-backdrop-filter: blur(1.6dvh);
-    padding: 0;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
     font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   }
 
@@ -5770,7 +5839,10 @@ html, body {
   @media (min-width: 100dvh) {
     #donate-sheet {
       align-items: center;
-      padding: 4dvh 4dvw;
+      padding-top: calc(4dvh + env(safe-area-inset-top));
+      padding-right: 4dvw;
+      padding-bottom: calc(4dvh + env(safe-area-inset-bottom));
+      padding-left: 4dvw;
     }
 
     .donate-card {
@@ -6954,23 +7026,23 @@ a.payer-link {
 }
 
 /* Landscape only: the same full-screen frame as portrait. Top and bottom
-   are 0.5dvh plus the safe area (--popup-top / --popup-bottom). The
-   current side margins stay, plus the side safe area for a notch. The
+   are 0. Safe area is padding. Side insets keep a notch clear. The
    shell is clear so two sheet cards show the map between them. Comments
    stay hidden until 💬, then the same comments view covers only the right
    card. Draw, settings, and a portrait comments modal sit outside
    .maplibregl-map, so they stay one card. */
 @media (orientation: landscape) {
   .maplibregl-map .maplibregl-popup {
-    top: var(--popup-top) !important;
-    bottom: var(--popup-bottom) !important;
+    top: 0 !important;
+    bottom: 0 !important;
     left: calc(var(--popup-left) + env(safe-area-inset-left)) !important;
     right: calc(var(--popup-right) + env(safe-area-inset-right)) !important;
     transform: none !important;
     width: auto !important;
     max-width: none !important;
-    height: calc(100dvh - var(--popup-top) - var(--popup-bottom)) !important;
-    max-height: calc(100dvh - var(--popup-top) - var(--popup-bottom)) !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: none !important;
     --popup-h: calc(100dvh - var(--popup-top) - var(--popup-bottom));
     --popup-w: var(--popup-card);
     container-type: size;
@@ -6978,7 +7050,10 @@ a.payer-link {
     --card: var(--popup-card);
     --u: clamp(0.9dvh, min(calc(var(--popup-h) * 0.017), calc(var(--popup-w) * 0.0106)), 1.6dvh);
     margin: 0 !important;
-    padding: 0 !important;
+    padding-top: var(--popup-top) !important;
+    padding-right: 0 !important;
+    padding-bottom: var(--popup-bottom) !important;
+    padding-left: 0 !important;
     box-sizing: border-box !important;
     /* The two cards draw their own corners. A clip here cuts them. */
     overflow: visible !important;
@@ -7393,12 +7468,19 @@ a.payer-link {
    near-black stage, the media is the star, minimal chrome, calm entrance. */
 #media-fullscreen {
   position: fixed;
+  inset: 0;
   top: 0;
+  right: 0;
+  bottom: 0;
   left: 0;
   z-index: 10500;
-  width: 100%;
+  width: 100dvw;
   height: 100vh;
   height: 100dvh;
+  margin: 0;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
   background: rgba(3, 4, 8, 0.94);
   display: flex;
   align-items: center;
@@ -7480,8 +7562,10 @@ a.payer-link {
   border-radius: 2.4dvh;
   box-shadow: 0 2vh 5vh rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   box-shadow: 0 2dvh 5dvh rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  padding: 1.4vh 1.4vw 2vh;
-  padding: 1.4dvh 1.4dvw 2dvh;
+  padding-top: calc(1.4dvh + env(safe-area-inset-top));
+  padding-right: 1.4dvw;
+  padding-bottom: calc(2dvh + env(safe-area-inset-bottom));
+  padding-left: 1.4dvw;
   color: #fff;
   font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -8008,12 +8092,14 @@ a.payer-link {
    Shell values match .maplibregl-map .maplibregl-popup in this file. */
 @media (orientation: landscape) {
   #popup-settings-card:not([style*="display: none"]) {
-    top: var(--popup-top) !important;
-    bottom: var(--popup-bottom) !important;
+    top: 0 !important;
+    bottom: 0 !important;
     left: calc(var(--popup-left) + env(safe-area-inset-left)) !important;
     right: calc(var(--popup-right) + env(safe-area-inset-right)) !important;
-    height: calc(100dvh - var(--popup-top) - var(--popup-bottom)) !important;
-    max-height: calc(100dvh - var(--popup-top) - var(--popup-bottom)) !important;
+    width: auto !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: none !important;
     --popup-h: calc(100dvh - var(--popup-top) - var(--popup-bottom));
     --popup-w: var(--popup-card);
     --fit: 1;
@@ -8027,7 +8113,10 @@ a.payer-link {
     row-gap: calc(var(--u) * 0.8);
     align-items: stretch;
     /* Matches the card margin below, so each card's outer edge stays on the frame. */
-    padding: calc(var(--u) * 0.5) calc(var(--u) * 0.4) calc(var(--u) * 0.4);
+    padding-top: calc(var(--u) * 0.5 + env(safe-area-inset-top));
+    padding-right: calc(var(--u) * 0.4);
+    padding-bottom: calc(var(--u) * 0.4 + env(safe-area-inset-bottom));
+    padding-left: calc(var(--u) * 0.4);
     border-width: 0;
     border-radius: 0;
     background: transparent;
@@ -8938,6 +9027,13 @@ a.payer-link {
   --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
   position: fixed;
   inset: 0;
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
   z-index: 8000;
   font-family: Inter, system-ui, sans-serif;
   font-size: calc(var(--fu) * 1.9);
@@ -10112,7 +10208,9 @@ html.feed-app appkit-modal {
   gap: calc(var(--fu) * 0.15);
   box-sizing: border-box;
   width: calc(var(--fu) * 31.25);
-  height: 100dvh;
+  top: 0;
+  bottom: 0;
+  height: auto;
   margin: 0;
   padding: calc(var(--fu) * 1.4) 0;
   overflow-x: hidden;
@@ -10137,10 +10235,23 @@ html.feed-app appkit-modal {
   z-index: 8600;
 }
 .feed-menu-dim.is-map-drawer {
+  inset: 0;
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
   z-index: 8590;
 }
 #feed-menu.is-map-drawer {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  height: 100vh;
   height: 100dvh;
+  margin: 0;
+  box-sizing: border-box;
+  padding-top: calc(var(--fu) * 1.4 + env(safe-area-inset-top));
+  padding-bottom: calc(var(--fu) * 1.4 + env(safe-area-inset-bottom));
   width: min(78dvw, 42dvh);
   --feed-zoom: 1;
   --fu: calc(min(78dvw, 42dvh) / 31.25);
@@ -10355,17 +10466,20 @@ html.feed-app appkit-modal {
   --fu: calc(min(78dvw, 42dvh) / 31.25);
   position: fixed;
   z-index: 8650;
-  top: var(--popup-top);
-  right: var(--popup-right);
-  bottom: var(--popup-bottom);
-  left: var(--popup-left);
+  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  width: auto;
-  height: auto;
   margin: 0;
-  padding: 0;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
   overflow: hidden;
   background: #0a0a12;
   color: #fff;
@@ -10376,8 +10490,9 @@ html.feed-app appkit-modal {
 }
 @media (orientation: landscape) {
   .drawer-screen {
-    left: calc(var(--popup-left) + env(safe-area-inset-left));
-    right: calc(var(--popup-right) + env(safe-area-inset-right));
+    left: env(safe-area-inset-left);
+    right: env(safe-area-inset-right);
+    width: auto;
   }
 }
 .drawer-screen.is-front {
@@ -11480,12 +11595,20 @@ html.drawer-page .info-overlay {
 #disconnect-ask {
   position: fixed;
   inset: 0;
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
   z-index: 9900;
   display: flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  padding: clamp(3dvmin, 4dvmin, 5dvmin);
+  padding-top: calc(clamp(3dvmin, 4dvmin, 5dvmin) + env(safe-area-inset-top));
+  padding-right: clamp(3dvmin, 4dvmin, 5dvmin);
+  padding-bottom: calc(clamp(3dvmin, 4dvmin, 5dvmin) + env(safe-area-inset-bottom));
+  padding-left: clamp(3dvmin, 4dvmin, 5dvmin);
+  background: rgba(0, 0, 0, 0.62);
   font-family: Inter, system-ui, sans-serif;
 }
 #disconnect-ask[hidden] {
@@ -11558,6 +11681,20 @@ html.drawer-page .info-overlay {
   border: 0;
   color: #2a0c0e;
 }
+.comments-modal:not(.comments-modal--in-card):not(.comments-modal--feed) {
+  position: fixed;
+  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  box-sizing: border-box;
+  padding: 0;
+}
 .comments-modal.comments-modal--feed {
   --feed-zoom: 1;
   --feed-col-width: 100dvw;
@@ -11565,19 +11702,24 @@ html.drawer-page .info-overlay {
   --u: calc(var(--fu) * 0.95);
   position: fixed;
   top: 0;
-  left: 50%;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 8800;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  width: min(100dvw, var(--feed-col-width));
+  width: 100dvw;
+  height: 100vh;
   height: 100dvh;
   margin: 0;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
   background: #0a0a12;
   color: #fff;
   font-family: Inter, system-ui, sans-serif;
   font-size: calc(var(--fu) * 1.9);
-  transform: translateX(-50%);
+  transform: none;
   container-type: inline-size;
   container-name: feed;
 }
@@ -11838,8 +11980,15 @@ html.drawer-page .info-overlay {
 /* Map drawer hosts the same chat page on the body. The feed column is hidden. */
 #feed-chat.is-map-chat {
   position: fixed;
+  top: 0;
+  bottom: 0;
   z-index: 8700;
+  height: 100vh;
   height: 100dvh;
+  margin: 0;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
   --feed-col-width: 100dvw;
 }
 @media (orientation: landscape) {
@@ -12710,6 +12859,16 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   position: fixed;
   inset: 0;
   top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
   z-index: 9004;
 }
 #feed-chat #load-column.is-feed-shell {
@@ -13182,8 +13341,8 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   display: contents;
 }
 #feed-chat.is-draw {
-  top: var(--popup-top);
-  bottom: var(--popup-bottom);
+  top: 0;
+  bottom: 0;
   height: auto;
   border: 0;
   border-radius: 0;
@@ -13274,6 +13433,16 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   position: fixed;
   inset: 0;
   top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
   z-index: 9004;
 }
 #feed-chat.is-draw #draw-column {
