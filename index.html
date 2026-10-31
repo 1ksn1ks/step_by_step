@@ -416,39 +416,41 @@
 
           <div id="options-from-load" style="display: none;">
             <div style="display: flex;">
-              <button id="show-unlock-load" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Unlock ◕_◕
+              <button id="show-unlock-load" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Unlock ◕_◕ ✅
               </button>
-              <button id="hide-unlock-load" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Unlock ◕_◕
+              <button id="hide-unlock-load" style="display: none;" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Unlock ◕_◕ ⛔
               </button>
             </div>
             <div style="display: flex;">
-              <button id="show-block-from-users" class="toolbar-column-first-settings-btns">Block
+              <button id="show-block-from-users" class="toolbar-column-first-settings-btns">Block ✅
               </button>
-              <button id="hide-block-from-users" style="display: none;" class="toolbar-column-first-settings-btns">Block
+              <button id="hide-block-from-users" style="display: none;" class="toolbar-column-first-settings-btns">Block ⛔
               </button>
-              <button id="show-time-from-users-load-column" class="toolbar-column-settings-btns">Time
+              <button id="show-time-from-users-load-column" class="toolbar-column-settings-btns">Time ✅
               </button>
-              <button id="hide-time-from-users-load-column" style="display: none;" class="toolbar-column-settings-btns">Time
+              <button id="hide-time-from-users-load-column" style="display: none;" class="toolbar-column-settings-btns">Time ⛔
               </button>
-              <button id="show-load-from-users" class="toolbar-column-settings-btns">From
+              <button id="show-load-from-users" class="toolbar-column-settings-btns">From ✅
               </button>
-              <button id="hide-load-from-users" style="display: none;" class="toolbar-column-settings-btns">From
+              <button id="hide-load-from-users" style="display: none;" class="toolbar-column-settings-btns">From ⛔
               </button>
             </div>
           </div>
 
+          <div class="lo-card lo-unlock">
           <textarea class="toolbar-column" type="text" id="unlockkey-load" placeholder="Unlock with Private Key / password" style="display: none;"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
   
-          <div style="display: flex;">
+          <div class="lo-split" style="display: flex;">
             <button id="unlock-load-all" class="toolbar-column-first-settings-btns" style="display: none;"> ༼ つ ಠ_ಠ ༽つ all
             </button>
             <button id="unlock-load-few" class="toolbar-column-btns" style="display: none; margin-left: 1vw;"> ༼ つ╭ರ_◕ ༽つ few
             </button>
           </div>
+          </div>
       
-          <div id="time-from-users-load-column" style="display: none;">
+          <div id="time-from-users-load-column" class="lo-card" style="display: none;">
             <div class="filter-time-row">
             <button type="button" class="toolbar-column-btns filter-time-open" data-label="From" data-date-id="from-mmddyyyy-users-load-column" data-time-id="from-hhmmss-users-load-column">From</button>
             <button type="button" class="toolbar-column-btns filter-time-open" data-label="To" data-date-id="to-mmddyyyy-users-load-column" data-time-id="to-hhmmss-users-load-column">To</button>
@@ -459,7 +461,7 @@
             <input type="time" id="to-hhmmss-users-load-column" hidden>
         </div>
       
-        <div id="time-from-users-load-column-filter" style="display: none;">
+        <div id="time-from-users-load-column-filter" class="lo-card" style="display: none;">
           <button id="load-time-from-users-load-column" class="toolbar-column-first-settings-btns">Load Filters
           </button>
           <button id="users-load-column-filter" class="toolbar-column-settings-btns">Apply Filter
@@ -469,6 +471,7 @@
         </div>
         
       
+          <div class="lo-card lo-filter-card">
           <div id="load-load-from-users-label" style="display: none;">
             <label style="font-size: 2vh; padding: 0px;">Load From Users:
             </label>
@@ -510,6 +513,7 @@
             </button>
             <button id="save-blocks-from-users" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Save Filters
             </button>
+          </div>
           </div>
       
       

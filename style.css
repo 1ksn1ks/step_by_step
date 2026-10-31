@@ -15122,3 +15122,354 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   box-shadow: none !important;
 }
 
+/* Load Options: toggle card and editor cards. */
+:is(#load-column-container, .load-options-page) #options-from-load:not([style*="display: none"]):not([style*="display:none"]) {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 12px 0;
+  padding: 8px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+  overflow: visible;
+}
+:is(#load-column-container, .load-options-page) #options-from-load > div {
+  display: contents !important;
+}
+:is(#load-column-container, .load-options-page) #options-from-load > div > :is(
+  #show-unlock-load,
+  #hide-unlock-load,
+  #show-block-from-users,
+  #hide-block-from-users,
+  #show-time-from-users-load-column,
+  #hide-time-from-users-load-column,
+  #show-load-from-users,
+  #hide-load-from-users
+):not([style*="display: none"]):not([style*="display:none"]) {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 48px;
+  margin: 0 !important;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  background-color: transparent;
+  box-shadow: none;
+  animation: none;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.2;
+  text-align: left;
+  text-shadow: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  transform: none;
+  filter: none;
+  cursor: pointer;
+}
+:is(#load-column-container, .load-options-page) #options-from-load > div > :is(
+  #hide-unlock-load,
+  #hide-block-from-users,
+  #hide-time-from-users-load-column,
+  #hide-load-from-users
+):not([style*="display: none"]):not([style*="display:none"]) {
+  background: rgba(34, 211, 238, 0.12);
+  background-color: rgba(34, 211, 238, 0.12);
+  color: #22D3EE;
+}
+:is(#load-column-container, .load-options-page) #options-from-load > div > :is(
+  #show-unlock-load,
+  #hide-unlock-load,
+  #show-block-from-users,
+  #hide-block-from-users,
+  #show-time-from-users-load-column,
+  #hide-time-from-users-load-column,
+  #show-load-from-users,
+  #hide-load-from-users
+):not([style*="display: none"]):not([style*="display:none"]):is(:hover, :active) {
+  background: rgba(34, 211, 238, 0.12);
+  background-color: rgba(34, 211, 238, 0.12);
+  color: #22D3EE;
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+:is(#load-column-container, .load-options-page) .lo-card.lo-unlock,
+:is(#load-column-container, .load-options-page) .lo-card.lo-filter-card {
+  display: none;
+}
+:is(#load-column-container, .load-options-page) .lo-card:not(.lo-unlock):not(.lo-filter-card):not([style*="display: none"]):not([style*="display:none"]),
+:is(#load-column-container, .load-options-page) .lo-card.lo-unlock:has(textarea:not([style*="display: none"]):not([style*="display:none"])),
+:is(#load-column-container, .load-options-page) .lo-card.lo-unlock:has(button:not([style*="display: none"]):not([style*="display:none"])),
+:is(#load-column-container, .load-options-page) .lo-card.lo-filter-card:has(> [style*="display: block"]:not([style*="display: none"]):not([style*="display:none"])),
+:is(#load-column-container, .load-options-page) .lo-card.lo-filter-card:has(> [style*="display: flex"]:not([style*="display: none"]):not([style*="display:none"])) {
+  display: flex !important;
+  flex-direction: column;
+  align-items: stretch;
+  box-sizing: border-box;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  margin: 12px 0;
+  padding: 16px;
+  gap: 12px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+  overflow: visible;
+}
+:is(#load-column-container, .load-options-page) .lo-card label {
+  display: block;
+  margin: 0;
+  padding: 0 !important;
+  border: 0;
+  background: transparent;
+  font-family: Inter, system-ui, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: normal;
+  text-align: left;
+  text-transform: none;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: normal;
+}
+:is(#load-column-container, .load-options-page) .lo-filter-card > :is(
+  #load-load-from-users-label,
+  #load-block-from-users-label
+):not([style*="display: none"]):not([style*="display:none"]) {
+  margin: 0 0 -6px;
+}
+:is(#load-column-container, .load-options-page) .lo-card textarea.toolbar-column {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+}
+:is(#load-column-container, .load-options-page) .lo-split:not(:has(
+  button:not([style*="display: none"]):not([style*="display:none"])
+)) {
+  display: none !important;
+}
+:is(#load-column-container, .load-options-page) .lo-split:has(
+  button:not([style*="display: none"]):not([style*="display:none"])
+),
+:is(#load-column-container, .load-options-page) :is(
+  #load-load-from-users,
+  #load-block-from-users
+):not([style*="display: none"]):not([style*="display:none"]) {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+:is(#load-column-container, .load-options-page) #time-from-users-load-column .filter-time-row {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+:is(#load-column-container, .load-options-page) #time-from-users-load-column-filter:not([style*="display: none"]):not([style*="display:none"]) {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
+  gap: 8px;
+}
+:is(#load-column-container, .load-options-page) :is(
+  #users-load-column-filter,
+  #load-msgs-from-ids-button,
+  #load-block-from-users-button
+) {
+  grid-column: 1 / -1;
+  order: -1;
+}
+:is(#load-column-container, .load-options-page) :is(
+  #unlock-load-all,
+  #users-load-column-filter,
+  #load-msgs-from-ids-button,
+  #load-block-from-users-button
+):not([style*="display: none"]):not([style*="display:none"]) {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 48px;
+  min-height: 48px;
+  margin: 0 !important;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: #22D3EE;
+  background-color: #22D3EE;
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.45);
+  animation: none;
+  color: #0a0a12;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  text-shadow: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  transform: none;
+  filter: none;
+  cursor: pointer;
+}
+:is(#load-column-container, .load-options-page) :is(
+  #unlock-load-all,
+  #users-load-column-filter,
+  #load-msgs-from-ids-button,
+  #load-block-from-users-button
+):not([style*="display: none"]):not([style*="display:none"]):is(:hover, :active) {
+  background: #22D3EE;
+  background-color: #22D3EE;
+  color: #0a0a12;
+  transform: none;
+  filter: none;
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.45);
+}
+:is(#load-column-container, .load-options-page) :is(
+  #unlock-load-all,
+  #users-load-column-filter,
+  #load-msgs-from-ids-button,
+  #load-block-from-users-button
+):not([style*="display: none"]):not([style*="display:none"]):active {
+  transform: scale(0.97);
+}
+:is(#load-column-container, .load-options-page) :is(
+  #unlock-load-few,
+  #load-time-from-users-load-column,
+  #save-time-from-users-load-column,
+  #load-filters-from-users,
+  #save-filters-from-users,
+  #load-blocks-from-users,
+  #save-blocks-from-users
+):not([style*="display: none"]):not([style*="display:none"]) {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 48px;
+  margin: 0 !important;
+  padding: 8px 12px;
+  border: 1px solid #22D3EE;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+  animation: none;
+  color: #22D3EE;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  text-shadow: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  transform: none;
+  filter: none;
+  cursor: pointer;
+}
+:is(#load-column-container, .load-options-page) :is(
+  #unlock-load-few,
+  #load-time-from-users-load-column,
+  #save-time-from-users-load-column,
+  #load-filters-from-users,
+  #save-filters-from-users,
+  #load-blocks-from-users,
+  #save-blocks-from-users
+):not([style*="display: none"]):not([style*="display:none"]):is(:hover, :active) {
+  background: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #22D3EE;
+  border-color: #22D3EE;
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+:is(#load-column-container, .load-options-page) #time-from-users-load-column .filter-time-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 48px;
+  margin: 0 !important;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+  animation: none;
+  color: #22D3EE;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  text-shadow: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  transform: none;
+  filter: none;
+  cursor: pointer;
+}
+:is(#load-column-container, .load-options-page) #time-from-users-load-column .filter-time-open:is(:hover, :active) {
+  background: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #22D3EE;
+  border-color: transparent;
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+
