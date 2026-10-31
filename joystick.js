@@ -18,6 +18,7 @@ const rightRightButton = document.getElementById("right-right");
 const rightDownButton = document.getElementById("right-down");
 
 const activeIntervals = new Set();
+const buttonStops = new Set();
 
 function setupButton(buttonElement, action) {
   let intervalId;
@@ -38,14 +39,32 @@ function setupButton(buttonElement, action) {
     }
   };
 
+  buttonStops.add(stopAction);
+
   buttonElement.addEventListener("mousedown", startAction);
   buttonElement.addEventListener("mouseup", stopAction);
   buttonElement.addEventListener("mouseleave", stopAction);
+  buttonElement.addEventListener("pointerup", stopAction);
+  buttonElement.addEventListener("pointercancel", stopAction);
+  buttonElement.addEventListener("lostpointercapture", stopAction);
 
   buttonElement.addEventListener("touchstart", startAction);
   buttonElement.addEventListener("touchend", stopAction);
   buttonElement.addEventListener("touchcancel", stopAction);
 }
+
+function stopAllButtons() {
+  for (const stop of buttonStops) stop();
+}
+
+function clearButtonIntervals() {
+  stopAllButtons();
+  activeIntervals.forEach(interval => clearInterval(interval));
+  activeIntervals.clear();
+}
+
+document.addEventListener("pointerup", stopAllButtons, true);
+document.addEventListener("touchend", stopAllButtons, true);
 
 setupButton(leftUpButton, () => map.panBy([0, -BUTTON_PAN_SPEED * getSpeedMultiplier()], { animate: false }));
 setupButton(leftDownButton, () => map.panBy([0, BUTTON_PAN_SPEED * getSpeedMultiplier()], { animate: false }));
@@ -61,10 +80,7 @@ setupButton(rightRightButton, () => map.setBearing(map.getBearing() + MOVE_SPEED
 setupButton(document.getElementById("zoom-in"), () => map.setPitch(map.getPitch() + 1 * getSpeedMultiplier()));
 setupButton(document.getElementById("zoom-out"), () => map.setPitch(map.getPitch() - 1 * getSpeedMultiplier()));
 
-window.addEventListener("beforeunload", () => {
-  activeIntervals.forEach(interval => clearInterval(interval));
-  activeIntervals.clear();
-});
+window.addEventListener("beforeunload", clearButtonIntervals);
 
 
 
@@ -75,8 +91,9 @@ const keys = {
   d: false,
   q: false,
   e: false,
-  space: false,
-  shift: false,
+  // Shift zooms in. Space zooms out. The old names had those two swapped.
+  shiftZoomIn: false,
+  spaceZoomOut: false,
   r: false,
   f: false,
 };
@@ -132,10 +149,10 @@ export function handleMovement() {
       map.setBearing(map.getBearing() - MOVE_SPEED * getSpeedMultiplier());
     }
 
-    if (keys.space) {
+    if (keys.shiftZoomIn) {
       map.setZoom(map.getZoom() + zoomSpeed);
     }
-    if (keys.shift) {
+    if (keys.spaceZoomOut) {
       map.setZoom(map.getZoom() - zoomSpeed);
     }
 
@@ -169,8 +186,8 @@ function clearMovementKeys() {
   keys.d = false;
   keys.q = false;
   keys.e = false;
-  keys.space = false;
-  keys.shift = false;
+  keys.shiftZoomIn = false;
+  keys.spaceZoomOut = false;
   keys.r = false;
   keys.f = false;
 }
@@ -181,8 +198,15 @@ function typingNow(event) {
 
 document.addEventListener("keydown", (event) => {
   if (typingNow(event)) return;
+  // Win/Ctrl/Alt shortcuts (Win+Shift+S, Ctrl+Shift) must not latch zoom.
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  const key = event.key.toLowerCase();
+  if (event.repeat) {
+    if (key === " ") event.preventDefault();
+    return;
+  }
 
-  switch (event.key.toLowerCase()) {
+  switch (key) {
     case "w":
       keys.w = true;
       break;
@@ -202,11 +226,11 @@ document.addEventListener("keydown", (event) => {
       keys.e = true;
       break;
     case " ":
-      keys.shift = true;
+      keys.spaceZoomOut = true;
       event.preventDefault();
       break;
     case "shift":
-      keys.space = true;
+      keys.shiftZoomIn = true;
       break;
     case "r":
       keys.r = true;
@@ -218,7 +242,6 @@ document.addEventListener("keydown", (event) => {
 });
 
 document.addEventListener("keyup", (event) => {
-  if (typingNow(event)) return;
   switch (event.key.toLowerCase()) {
     case "w":
       keys.w = false;
@@ -239,10 +262,10 @@ document.addEventListener("keyup", (event) => {
       keys.e = false;
       break;
     case " ":
-      keys.shift = false;
+      keys.spaceZoomOut = false;
       break;
     case "shift":
-      keys.space = false;
+      keys.shiftZoomIn = false;
       break;
     case "r":
       keys.r = false;
@@ -256,3 +279,16 @@ document.addEventListener("keyup", (event) => {
 document.addEventListener("focusin", (event) => {
   if (isTyping(event.target)) clearMovementKeys();
 });
+
+window.addEventListener("blur", () => {
+  clearMovementKeys();
+  clearButtonIntervals();
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    clearMovementKeys();
+    clearButtonIntervals();
+  }
+});
+window.addEventListener("pagehide", clearMovementKeys);
+document.addEventListener("contextmenu", clearMovementKeys);
