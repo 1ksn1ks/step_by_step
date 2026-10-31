@@ -14078,3 +14078,219 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   box-shadow: inset 0 0 0 2px #22D3EE;
 }
 
+/* Domain page: two grouped cards. 12px from the drawer edges, 16px inside. */
+#domain-help-overlay {
+  position: fixed;
+  top: 0;
+  z-index: 9900;
+}
+.drawer-screen.feed-menu-page:has(> .feed-menu-page-body > #domain-column.in-drawer) > .feed-menu-page-body,
+#feed-menu > .feed-menu-page:has(> .feed-menu-page-body > #domain-column.in-drawer) > .feed-menu-page-body {
+  padding-left: 0;
+  padding-right: 0;
+}
+.drawer-screen.feed-menu-page:has(> .feed-menu-page-body > #domain-column.in-drawer) > .feed-menu-page-bar .feed-menu-page-title,
+#feed-menu > .feed-menu-page:has(> .feed-menu-page-body > #domain-column.in-drawer) > .feed-menu-page-bar .feed-menu-page-title {
+  font-size: clamp(16px, calc(var(--fu, 10px) * 2.1), 22px);
+  text-transform: none;
+}
+.drawer-screen.feed-menu-page:has(> .feed-menu-page-body > #domain-column.in-drawer) > .feed-menu-page-bar > .panel-help-btn.is-bar-help,
+#feed-menu > .feed-menu-page:has(> .feed-menu-page-body > #domain-column.in-drawer) > .feed-menu-page-bar > .panel-help-btn.is-bar-help {
+  font-size: clamp(16px, calc(var(--fu, 10px) * 1.8), 20px);
+}
+#domain-column.in-drawer .mb-card.domain-card,
+#domain-column .domain-card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 0;
+  border-radius: calc(var(--fu, 10px) * 1.4);
+  box-shadow: none;
+  padding: 0;
+  margin: 0 12px 12px;
+  overflow: hidden;
+}
+#domain-column .domain-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+  padding: 16px;
+}
+#domain-column .domain-card-title {
+  margin: 0;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(15px, calc(var(--fu, 10px) * 1.6), 17px);
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: none;
+}
+#domain-column .domain-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 48px;
+  min-height: 48px;
+  margin: 0;
+  padding: 0 16px;
+  border: 0;
+  border-radius: calc(var(--fu, 10px) * 1.4);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  caret-color: #22D3EE;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(15px, calc(var(--fu, 10px) * 1.6), 17px);
+  font-weight: 500;
+  line-height: 1.2;
+  touch-action: manipulation;
+}
+#domain-column .domain-input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+  font-family: Inter, system-ui, sans-serif;
+}
+#domain-column .domain-input:focus {
+  outline: none;
+}
+#domain-column .domain-input:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px #22D3EE;
+}
+#domain-column .domain-status {
+  display: flex;
+  align-items: center;
+  min-height: 0;
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(14px, calc(var(--fu, 10px) * 1.45), 16px);
+  font-weight: 600;
+  line-height: 1.2;
+}
+#domain-column .domain-status[hidden] {
+  display: none !important;
+}
+#domain-column .domain-status.is-available {
+  color: #3DDC97;
+}
+#domain-column .domain-status.is-taken {
+  color: #ff4d6a;
+}
+#domain-column .domain-status.is-checking {
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 500;
+}
+#domain-column .domain-check-btn,
+#domain-column .domain-extend-btn {
+  box-sizing: border-box;
+  width: 100%;
+  height: 48px;
+  min-height: 48px;
+  margin: 0;
+  padding: 0 16px;
+  border: 0;
+  border-radius: calc(var(--fu, 10px) * 1.4);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(15px, calc(var(--fu, 10px) * 1.6), 17px);
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#domain-column .domain-check-btn {
+  background: rgba(255, 255, 255, 0.06);
+  color: #22D3EE;
+}
+#domain-column .domain-check-btn:is(:hover, :active) {
+  background: rgba(34, 211, 238, 0.12);
+  color: #22D3EE;
+}
+#domain-column .domain-check-btn:focus {
+  outline: none;
+}
+#domain-column .domain-check-btn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px #22D3EE;
+}
+#domain-column .domain-extend-btn {
+  background: #22D3EE;
+  color: #0a0a12;
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.28);
+}
+#domain-column .domain-extend-btn:is(:hover, :active):not(:disabled) {
+  background: #22D3EE;
+  color: #0a0a12;
+  filter: brightness(1.08);
+}
+#domain-column .domain-extend-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  filter: none;
+}
+#domain-column .domain-extend-btn:focus {
+  outline: none;
+}
+#domain-column .domain-extend-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.28), inset 0 0 0 2px #fff;
+}
+#domain-column .domain-price {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+}
+#domain-column .domain-price-label {
+  padding-top: 2px;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(15px, calc(var(--fu, 10px) * 1.6), 17px);
+  font-weight: 500;
+  line-height: 1.2;
+}
+#domain-column .domain-price-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 44px;
+}
+#domain-column .domain-price-amount {
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(15px, calc(var(--fu, 10px) * 1.6), 17px);
+  font-weight: 600;
+  line-height: 1.2;
+}
+#domain-column .domain-token {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 2px 0 0;
+  border: 0;
+  border-radius: calc(var(--fu, 10px) * 0.8);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(12px, calc(var(--fu, 10px) * 1.2), 13px);
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: right;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#domain-column .domain-token:is(:hover, :active) {
+  color: #22D3EE;
+}
+#domain-column .domain-token:focus {
+  outline: none;
+}
+#domain-column .domain-token:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px #22D3EE;
+}
+

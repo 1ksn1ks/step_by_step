@@ -375,9 +375,9 @@
           <h3 class="info-overlay-title">Domain</h3>
           <p class="info-overlay-subtitle">Give a topic a friendly global name.</p>
           <ul class="info-overlay-list">
-            <li><b>Domain</b> — the name you want (e.g. mymap). Anyone can then load the topic by that name instead of the 0.0.x id.</li>
-            <li><b>Check Domain Availability</b> — asks the domain registry: "no one uses this domain" means it's free to claim; otherwise it shows how much time is left on the current registration.</li>
-            <li><b>Add 28 days to domain</b> — registers the domain for the topic (or renews an existing one) for 28 days. Costs 1 USDC (token 0.0.456858 — tap the id to copy it).</li>
+            <li><b>Domain name</b> — the name you want (e.g. mymap). Anyone can then load the topic by that name instead of the 0.0.x id.</li>
+            <li><b>Check availability</b> — Available means the name is free. Taken means someone already registered it.</li>
+            <li><b>Add 28 days</b> — registers the domain for the topic (or renews an existing one) for 28 days. Costs 1 USDC (token 0.0.456858 — tap the id to copy it).</li>
             <li>After registering, paste the domain into Load and it opens the topic directly.</li>
           </ul>
           <div class="info-overlay-actions">
@@ -391,31 +391,31 @@
         <button class="panel-help-btn" id="help-domain-column">?</button>
         <div id="domain-column-container">
 
-          <div class="options-column-title">🌐 DOMAIN</div>
+          <div class="options-column-title">Domain</div>
 
-          <textarea class="toolbar-column" type="text" id="domain-name-input" placeholder="Domain name"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
+          <div class="mb-card domain-card">
+            <div class="domain-card-body">
+              <h3 class="domain-card-title">Check domain</h3>
+              <input id="domain-name-input" class="domain-input" type="text" placeholder="Domain name" autocomplete="off" spellcheck="false" autocapitalize="off" enterkeyhint="search">
+              <p id="domain-time-left" class="domain-status" hidden aria-live="polite"></p>
+              <button type="button" id="button4" class="domain-check-btn">Check availability</button>
+            </div>
+          </div>
 
-          <button class="toolbar-column-btns" id="button4">Check Domain Availability
-          </button>
-
-          <textarea type="text" id="domain-time-left" placeholder="Domain Time Left"
-          class="toolbar-column" onclick="event.stopPropagation();" readonly>
-          </textarea>
-
-          <textarea class="toolbar-column" type="text" id="domain-topic-id" placeholder="Domain/Topic ID"
-          onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-          ></textarea>
-
-          <label for="domain-time-left" style="font-size: 2vh;">1 USDC
-          (<span style="cursor: pointer; color: rgb(255, 255, 255); text-decoration: underline;"
-          onclick="navigator.clipboard.writeText('0.0.456858')
-          .then(() => window.toast && window.toast.success('Copied to clipboard'))
-          .catch(err => console.error('Failed to copy: ', err));">0.0.456858</span>):
-          </label>
-          <button class="toolbar-column-btns" id="button5" style="margin-top: 0.5vh;">Add 28 days to domain
-          </button>
+          <div class="mb-card domain-card">
+            <div class="domain-card-body">
+              <h3 class="domain-card-title">Extend domain</h3>
+              <input id="domain-topic-id" class="domain-input" type="text" placeholder="Domain or topic ID" autocomplete="off" spellcheck="false" autocapitalize="off">
+              <div class="domain-price">
+                <span class="domain-price-label">Price</span>
+                <span class="domain-price-copy">
+                  <span class="domain-price-amount">1 USDC</span>
+                  <button type="button" class="domain-token" id="domain-token-id">0.0.456858</button>
+                </span>
+              </div>
+              <button type="button" id="button5" class="domain-extend-btn" disabled aria-disabled="true">Add 28 days&#160;&#160;1 USDC</button>
+            </div>
+          </div>
 
         </div>
       </div>

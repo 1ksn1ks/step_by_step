@@ -6100,6 +6100,7 @@ const DRAWER_LABELS = {
   'crosshair-column': 'Crosshair',
   'Edit_Profile-column': 'Profile',
   'update-topic-column': 'Update topic',
+  'domain-column': 'Domain',
 };
 
 function drawerPageLabel(id) {
