@@ -241,7 +241,12 @@ function showConnectToast() {
     action.textContent = label || "Connect";
     action.addEventListener("click", () => {
       dismissConnectToast();
-      connectBtn.click();
+      connectBtn.skipOverlayClose = true;
+      try {
+        connectBtn.click();
+      } finally {
+        connectBtn.skipOverlayClose = false;
+      }
     });
   }
   connectHold = toast.hold(CONNECT_UPLOAD, { action, stay: !!connectBtn });
