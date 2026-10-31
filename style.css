@@ -10978,17 +10978,17 @@ html.is-nav-lock body * {
   font-size: calc(var(--fu) * 1.6);
 }
 :is(#feed-menu, .drawer-screen) .in-drawer .mb-value-pill {
-  min-width: 0;
+  flex: 0 0 auto;
+  min-width: 4.5ch;
   margin: 0;
   padding: 0;
   border: 0;
   background: none;
   color: rgba(255, 255, 255, 0.45);
-  font-size: calc(var(--fu) * 1.4);
+  font-size: var(--ui-small);
   font-variant-numeric: tabular-nums;
   text-align: right;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
   white-space: nowrap;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer .mb-swatch {
@@ -11061,10 +11061,15 @@ html.is-nav-lock body * {
   position: relative;
   z-index: 1;
   order: 2;
+  flex: 0 0 auto;
+  min-width: 4.5ch;
   margin: 0 0 0 auto;
   padding: 0 !important;
+  overflow: visible;
   color: rgba(255, 255, 255, 0.45) !important;
-  font-size: calc(var(--fu) * 1.45) !important;
+  font-size: var(--ui-small) !important;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
   text-shadow: none !important;
   pointer-events: none;
   white-space: nowrap;
@@ -11223,8 +11228,8 @@ html.is-nav-lock body * {
   font-size: calc(var(--fu) * 1.6);
 }
 :is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) {
-  display: grid !important;
-  grid-template-columns: var(--slider-label-w, 30%) 1fr 4.5em;
+  display: flex !important;
+  flex-wrap: nowrap;
   align-items: center;
   box-sizing: border-box;
   min-height: max(44px, 6dvh);
@@ -11235,15 +11240,15 @@ html.is-nav-lock body * {
   background: transparent;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > :is(.mb-row-label, label) {
-  min-width: 0 !important;
-  width: 100% !important;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: 0 0 auto;
+  width: auto !important;
+  max-width: none;
+  overflow: visible;
   white-space: nowrap;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input[type="range"] {
-  width: 100% !important;
+  flex: 1 1 auto;
+  width: auto !important;
   min-width: 0;
   height: auto;
   max-height: none;
@@ -11270,9 +11275,10 @@ html.is-nav-lock body * {
 :is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input.toolbar-column[type="number"]:not([type="color"]),
 :is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input.yourfov[type="number"]:not([type="color"]),
 :is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > .mb-value-pill {
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: 100%;
+  flex: 0 0 auto;
+  width: auto !important;
+  min-width: 4.5ch !important;
+  max-width: none;
   height: auto !important;
   min-height: 0 !important;
   margin: 0 !important;
@@ -11283,11 +11289,22 @@ html.is-nav-lock body * {
   background-color: transparent !important;
   box-shadow: none !important;
   color: rgba(255, 255, 255, 0.45);
+  font-size: var(--ui-small);
   font-variant-numeric: tabular-nums;
   text-align: right !important;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
   white-space: nowrap;
+  field-sizing: content;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input[type="number"] {
+  width: 7ch !important;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input[type="number"]::-webkit-outer-spin-button,
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 :is(#feed-menu, .drawer-screen) .in-drawer div.toolbar-column:not(.set-nav):is(:hover, :active),
@@ -11456,15 +11473,17 @@ html.drawer-page .info-overlay {
 }
 .feed-settings-zoom-level {
   flex: 0 0 auto;
-  min-width: calc(var(--fu) * 4.6);
+  min-width: 4.5ch;
   margin: 0;
+  overflow: visible;
   color: #22D3EE;
   font-family: Inter, system-ui, sans-serif;
-  font-size: calc(var(--fu) * 1.45);
+  font-size: var(--ui-small);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   text-align: right;
+  white-space: nowrap;
 }
 .feed-settings-radios {
   display: flex;
