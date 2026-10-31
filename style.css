@@ -5454,6 +5454,7 @@ html, body {
     line-height: 1.2;
     font-size: 2.4vh;
     font-size: calc(var(--fu) * 2.1);
+    text-shadow: none;
   }
 
   @keyframes optionsTitleFloat {
@@ -10039,6 +10040,24 @@ html.feed-app appkit-modal {
   --feed-zoom: 1;
   --fu: calc(min(78dvw, 42dvh) / 31.25);
 }
+/* Shared drawer type scale. Restated wherever --fu changes so a nested
+   panel does not keep the parent's already-computed size. */
+#feed-layout,
+#feed-frame > *,
+#feed-menu.is-map-drawer,
+.drawer-screen,
+#feed-chat,
+#feed-chat > * {
+  --ui-label: calc(var(--fu) * 1.8);
+  --ui-small: calc(var(--fu) * 1.35);
+  --ui-row-h: max(48px, calc(var(--fu) * 4.4));
+  --ui-btn-h: max(48px, calc(var(--fu) * 4.4));
+  --ui-radius: 12px;
+  --ui-card-radius: 16px;
+  --ui-gap: max(8px, 1dvh);
+  --ui-pad-x: 14px;
+}
+
 #feed-menu[hidden] {
   display: none;
 }
@@ -11751,6 +11770,31 @@ html.drawer-page .info-overlay {
   --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi));
   --fu: var(--feed-unit);
 }
+/* Nested feed pages leave #feed-menu, so they were stuck on the map unit.
+   Match the Toolbar list: feed column on the feed, map drawer on the map.
+   Draw and Load Options live in the chat shell; only those pages switch. */
+html.feed-app .drawer-screen,
+html.feed-app #feed-chat.is-draw,
+html.feed-app #feed-chat.is-draw > *,
+html.feed-app #feed-chat > .load-options-page {
+  --feed-col-width: 100dvw;
+  --feed-unit: calc(min(100dvw, var(--feed-col-width)) * 0.024);
+  --fu: var(--feed-unit);
+}
+#feed-chat.is-draw.is-map-chat,
+#feed-chat.is-draw.is-map-chat > *,
+#feed-chat.is-map-chat > .load-options-page {
+  --feed-unit: calc(min(78dvw, 42dvh) / 31.25);
+  --fu: var(--feed-unit);
+}
+@media (orientation: landscape) {
+  html.feed-app .drawer-screen,
+  html.feed-app #feed-chat.is-draw,
+  html.feed-app #feed-chat.is-draw > *,
+  html.feed-app #feed-chat > .load-options-page {
+    --feed-col-width: clamp(40dvw, 46dvw, 46dvw);
+  }
+}
 #feed-chat[hidden] {
   display: none;
 }
@@ -13072,10 +13116,10 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   transform: translateX(-50%);
   text-align: center;
   pointer-events: none;
-  color: #22d3ee;
+  color: #fff;
   letter-spacing: normal;
   text-transform: none;
-  text-shadow: 0 0 1.5vh rgba(34, 211, 238, 0.6);
+  text-shadow: none;
   animation: none;
 }
 #feed-chat.is-draw .feed-chat-actions > #help-draw-column {
@@ -13168,12 +13212,94 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   min-height: 0;
   max-height: none !important;
   margin: 0;
-  padding: 1.4vh 0.63vh 0.8vh;
+  padding: calc(var(--fu) * 0.8) calc(var(--fu) * 0.7) calc(var(--fu) * 1.2);
   overflow: hidden;
   background: transparent;
 }
 #feed-chat.is-draw #draw-shape-switch {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
   flex: 0 0 auto;
+  gap: var(--ui-gap);
+  width: 100%;
+  margin: 0 0 var(--ui-gap);
+}
+#feed-chat.is-draw #draw-shape-switch > :is(.toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not([style*="display: none"]):not([style*="display:none"]) {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  width: auto;
+  min-width: 0;
+  height: auto !important;
+  min-height: var(--ui-row-h);
+  margin: 0 !important;
+  padding: 0 var(--ui-pad-x);
+  border: 0;
+  border-radius: var(--ui-card-radius);
+  background: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+  animation: none;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
+  font-weight: 400;
+  line-height: 1.2;
+  text-align: left;
+  text-shadow: none;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  transform: none;
+  filter: none;
+  cursor: pointer;
+}
+#feed-chat.is-draw #draw-shape-switch > button[id^="hide-"]:is(.toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not([style*="display: none"]):not([style*="display:none"]) {
+  background: rgba(34, 211, 238, 0.12);
+  background-color: rgba(34, 211, 238, 0.12);
+  color: #22D3EE;
+}
+#feed-chat.is-draw #draw-shape-switch > :is(.toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not([style*="display: none"]):not([style*="display:none"]):is(:hover, :active) {
+  background: rgba(34, 211, 238, 0.12);
+  background-color: rgba(34, 211, 238, 0.12);
+  color: #22D3EE;
+  transform: none;
+  filter: none;
+}
+#feed-chat.is-draw .draw-coord-fields .toolbar-column {
+  height: auto;
+  min-height: var(--ui-btn-h);
+  padding: 0 var(--ui-pad-x);
+  border-radius: var(--ui-radius);
+  font-size: var(--ui-label);
+  line-height: 1.3;
+}
+#feed-chat.is-draw .draw-submit-row {
+  flex: 0 0 auto;
+  gap: var(--ui-gap);
+  margin-top: var(--ui-gap);
+}
+#feed-chat.is-draw .draw-submit-row .toolbar-column-btns {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: auto;
+  min-height: var(--ui-btn-h);
+  padding: 0 var(--ui-pad-x);
+  border-radius: var(--ui-radius);
+  font-size: var(--ui-label);
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: normal;
+  overflow: visible;
+  transform: none;
+  filter: none;
+}
+#feed-chat.is-draw .draw-submit-row .toolbar-column-btns:is(:hover, :active) {
+  transform: none;
+  filter: none;
 }
 #feed-chat.is-draw #marker-column-container:not([style*="display: none"]):not([style*="display:none"]),
 #feed-chat.is-draw #polygon-column-container:not([style*="display: none"]):not([style*="display:none"]) {
@@ -13201,18 +13327,23 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
 }
-#feed-chat.is-draw .draw-submit-row {
-  flex: 0 0 auto;
-}
 
 /* Profile drawer toggles: two columns of three rows. The open row is the
-   visible hide button, same cyan as a settings row press. */
+   visible hide button, same cyan as a settings row press.
+   The preview bio matches a row label. The name keeps its own size. */
+#profile-live-bio {
+  font-size: var(--ui-label);
+}
+#Edit_Profile-column .profile-live-label {
+  font-size: var(--ui-small);
+  color: rgba(255, 255, 255, 0.45);
+}
 .profile-toggle-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: stretch;
-  gap: 12px;
-  margin: 12px 0;
+  gap: var(--ui-gap);
+  margin: var(--ui-gap) 0;
   min-width: 0;
 }
 .profile-toggle-col {
@@ -13227,7 +13358,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   padding: 0;
   background: rgba(255, 255, 255, 0.06);
   border: 0;
-  border-radius: 16px;
+  border-radius: var(--ui-card-radius);
   overflow: hidden;
 }
 .profile-toggle-col > :is(.toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not([style*="display: none"]):not([style*="display:none"]) {
@@ -13240,10 +13371,10 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   max-width: 100%;
   min-width: 0;
   height: auto;
-  min-height: 48px;
+  min-height: var(--ui-row-h);
   max-height: none;
   margin: 0;
-  padding: 0 14px;
+  padding: 0 var(--ui-pad-x);
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -13252,9 +13383,9 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   animation: none;
   color: #fff;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 400;
-  line-height: normal;
+  line-height: 1.2;
   text-align: left;
   text-transform: none;
   text-shadow: none;
@@ -13284,8 +13415,8 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 }
 :is(#feed-menu, .drawer-screen) .in-drawer .profile-toggle-grid {
   align-items: stretch;
-  gap: 12px;
-  margin: 12px 0;
+  gap: var(--ui-gap);
+  margin: var(--ui-gap) 0;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer .profile-toggle-grid > .profile-toggle-col {
   display: flex !important;
@@ -13299,7 +13430,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   padding: 0 !important;
   background: rgba(255, 255, 255, 0.06) !important;
   border: 0 !important;
-  border-radius: 16px !important;
+  border-radius: var(--ui-card-radius) !important;
   box-shadow: none !important;
   overflow: hidden !important;
   animation: none !important;
@@ -13313,18 +13444,18 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   max-width: 100% !important;
   min-width: 0;
   height: auto !important;
-  min-height: 48px !important;
+  min-height: var(--ui-row-h) !important;
   max-height: none !important;
   margin: 0 !important;
-  padding: 0 14px !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 0 !important;
   border-radius: 0 !important;
   animation: none !important;
   color: #fff;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px !important;
+  font-size: var(--ui-label) !important;
   font-weight: 400 !important;
-  line-height: normal !important;
+  line-height: 1.2 !important;
   text-align: left;
   text-transform: none;
   text-shadow: none !important;
@@ -13362,14 +13493,14 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   display: flex !important;
   flex-direction: column;
   align-items: stretch;
-  gap: 12px;
+  gap: var(--ui-gap);
   box-sizing: border-box;
   width: auto;
   min-width: 0;
-  margin: 12px;
+  margin: var(--ui-gap) 0;
   padding: 16px;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--ui-card-radius);
   background: rgba(255, 255, 255, 0.06);
   background-color: rgba(255, 255, 255, 0.06);
 }
@@ -13384,7 +13515,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 12px;
+  gap: var(--ui-gap);
   padding: 0;
   background: transparent;
   border-radius: 0;
@@ -13402,18 +13533,18 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   display: block;
   width: 100%;
   max-width: 100%;
-  min-height: 48px;
+  min-height: var(--ui-btn-h);
   height: auto;
   margin: 0;
-  padding: 12px 16px;
+  padding: 0 var(--ui-pad-x);
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--ui-radius);
   background: rgba(255, 255, 255, 0.06);
   background-color: rgba(255, 255, 255, 0.06);
   box-shadow: none;
   color: #fff;
   font-family: inherit !important;
-  font-size: 16px;
+  font-size: var(--ui-label);
   line-height: 1.3;
   text-align: left;
   resize: none;
@@ -13446,24 +13577,24 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   justify-content: center;
   width: 100%;
   max-width: 100%;
-  min-height: 48px;
+  min-height: var(--ui-btn-h);
   height: auto;
   margin: 0;
-  padding: 12px 16px;
+  padding: 0 var(--ui-pad-x);
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--ui-radius);
   background: #22D3EE;
   background-color: #22D3EE;
   box-shadow: none;
   color: #0a0a12;
   font-family: inherit;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 400;
   line-height: 1.25;
   text-align: center;
   text-transform: none;
   text-shadow: none;
-  white-space: nowrap;
+  white-space: normal;
   animation: none;
   transform: none;
   filter: none;
@@ -13534,12 +13665,12 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   #edit-profile-topic,
   #edit-profile-public-key
 ):not([style*="display: none"]):not([style*="display:none"]) {
-  border-radius: calc(var(--fu) * 1.4) !important;
+  border-radius: var(--ui-card-radius) !important;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer #edit-profile-topic .profile-topic-actions {
   display: flex !important;
   flex-direction: column !important;
-  gap: 12px !important;
+  gap: var(--ui-gap) !important;
   width: 100% !important;
   margin: 0 !important;
   padding: 0 !important;
@@ -13560,12 +13691,12 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 ) {
   width: 100% !important;
   max-width: 100% !important;
-  min-height: 48px !important;
+  min-height: var(--ui-btn-h) !important;
   height: auto;
   margin: 0 !important;
-  padding: 12px 16px !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 0 !important;
-  border-radius: calc(var(--fu) * 1.1) !important;
+  border-radius: var(--ui-radius) !important;
   background: rgba(255, 255, 255, 0.06) !important;
   background-color: rgba(255, 255, 255, 0.06) !important;
   box-shadow: none !important;
@@ -13573,6 +13704,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   transition: none !important;
   color: #fff;
   font-family: inherit !important;
+  font-size: var(--ui-label) !important;
   text-align: left;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer #Edit_Profile-bio {
@@ -13604,15 +13736,16 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   justify-content: center;
   width: 100% !important;
   max-width: 100% !important;
-  min-height: 48px !important;
+  min-height: var(--ui-btn-h) !important;
   height: auto !important;
   margin: 0 !important;
-  padding: 12px 16px !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 0 !important;
-  border-radius: calc(var(--fu) * 1.1) !important;
+  border-radius: var(--ui-radius) !important;
   box-shadow: none !important;
   animation: none !important;
   font-family: inherit !important;
+  font-size: var(--ui-label) !important;
   text-align: center !important;
   text-transform: none;
   text-shadow: none !important;
@@ -13677,8 +13810,8 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 #create-column .create-toggle-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin: 12px;
+  gap: var(--ui-gap);
+  margin: var(--ui-gap) 0;
   min-width: 0;
 }
 #create-column .create-toggle-col {
@@ -13692,19 +13825,20 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   padding: 0;
   background: rgba(255, 255, 255, 0.06);
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--ui-card-radius);
   overflow: hidden;
 }
 #create-column .create-toggle-col > :is(.toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not([style*="display: none"]):not([style*="display:none"]) {
-  display: block;
+  display: flex;
+  align-items: center;
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
-  height: 48px;
-  min-height: 48px;
-  max-height: 48px;
+  height: auto;
+  min-height: var(--ui-row-h);
+  max-height: none;
   margin: 0 !important;
-  padding: 0 12px;
+  padding: 0 var(--ui-pad-x);
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -13713,15 +13847,15 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   animation: none;
   color: #fff;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 400;
-  line-height: 48px;
+  line-height: 1.2;
   text-align: left;
   text-transform: none;
   text-shadow: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
   transform: none;
   filter: none;
   cursor: pointer;
@@ -13742,14 +13876,14 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   display: flex !important;
   flex-direction: column;
   align-items: stretch;
-  gap: 12px;
+  gap: var(--ui-gap);
   box-sizing: border-box;
   width: auto;
   min-width: 0;
-  margin: 12px;
+  margin: var(--ui-gap) 0;
   padding: 16px;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--ui-card-radius);
   background: rgba(255, 255, 255, 0.06);
   background-color: rgba(255, 255, 255, 0.06);
 }
@@ -13762,7 +13896,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   border: 0;
   background: transparent;
   font-family: Inter, system-ui, sans-serif !important;
-  font-size: 12px !important;
+  font-size: var(--ui-small) !important;
   font-weight: 400;
   line-height: 1.3;
   letter-spacing: normal;
@@ -13775,18 +13909,18 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   display: block;
   width: 100%;
   max-width: 100%;
-  min-height: 48px;
+  min-height: var(--ui-btn-h);
   height: auto;
   margin: 0;
-  padding: 12px 16px;
+  padding: 0 var(--ui-pad-x);
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--ui-radius);
   background: rgba(255, 255, 255, 0.06);
   background-color: rgba(255, 255, 255, 0.06);
   box-shadow: none;
   color: #fff;
   font-family: inherit !important;
-  font-size: 16px;
+  font-size: var(--ui-label);
   line-height: 1.3;
   text-align: left;
   resize: none;
@@ -13810,24 +13944,24 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   justify-content: center;
   width: 100%;
   max-width: 100%;
-  min-height: 48px;
+  min-height: var(--ui-btn-h);
   height: auto;
   margin: 0;
-  padding: 12px 16px;
+  padding: 0 var(--ui-pad-x);
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--ui-radius);
   background: #22D3EE;
   background-color: #22D3EE;
   box-shadow: none;
   color: #0a0a12;
   font-family: inherit;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 400;
   line-height: 1.25;
   text-align: center;
   text-transform: none;
   text-shadow: none;
-  white-space: nowrap;
+  white-space: normal;
   animation: none;
   transform: none;
   filter: none;
@@ -13850,34 +13984,35 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   padding: 0 !important;
   background: rgba(255, 255, 255, 0.06) !important;
   border: 0 !important;
-  border-radius: calc(var(--fu) * 1.4) !important;
+  border-radius: var(--ui-card-radius) !important;
   box-shadow: none !important;
   overflow: hidden !important;
   animation: none !important;
 }
 :is(#feed-menu, .drawer-screen) #create-column.in-drawer .create-toggle-col > :is(.toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not(.save-settings-btn):not([style*="display: none"]):not([style*="display:none"]) {
-  display: block !important;
+  display: flex !important;
+  align-items: center;
   width: 100% !important;
   max-width: 100% !important;
-  height: 48px !important;
-  min-height: 48px !important;
-  max-height: 48px;
+  height: auto !important;
+  min-height: var(--ui-row-h) !important;
+  max-height: none;
   margin: 0 !important;
-  padding: 0 12px !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 0 !important;
   border-radius: 0 !important;
   animation: none !important;
   color: #fff;
   font-family: Inter, system-ui, sans-serif !important;
-  font-size: calc(var(--fu) * 1.7);
+  font-size: var(--ui-label);
   font-weight: 400;
-  line-height: 48px;
+  line-height: 1.2;
   text-align: left !important;
   text-transform: none;
   text-shadow: none !important;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
   transform: none !important;
   filter: none !important;
 }
@@ -13895,19 +14030,19 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   box-shadow: none !important;
 }
 :is(#feed-menu, .drawer-screen) #create-column.in-drawer :is(#new-topic-from-create, #new-keys-from-create):not([style*="display: none"]):not([style*="display:none"]) {
-  border-radius: calc(var(--fu) * 1.4) !important;
+  border-radius: var(--ui-card-radius) !important;
 }
 :is(#feed-menu, .drawer-screen) #create-column.in-drawer :is(#new-topic-from-create, #new-keys-from-create) label {
-  font-size: calc(var(--fu) * 1.25) !important;
+  font-size: var(--ui-small) !important;
 }
 :is(#feed-menu, .drawer-screen) #create-column.in-drawer :is(#input-field-5-1, #input-field-5-2, #input-field-5, #generated-public-key, #generated-private-key) {
   width: 100% !important;
   max-width: 100% !important;
-  min-height: 48px !important;
+  min-height: var(--ui-btn-h) !important;
   margin: 0 !important;
-  padding: 12px 16px !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 0 !important;
-  border-radius: calc(var(--fu) * 1.1) !important;
+  border-radius: var(--ui-radius) !important;
   background: rgba(255, 255, 255, 0.06) !important;
   background-color: rgba(255, 255, 255, 0.06) !important;
   box-shadow: none !important;
@@ -13933,12 +14068,12 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   justify-content: center;
   width: 100% !important;
   max-width: 100% !important;
-  min-height: 48px !important;
+  min-height: var(--ui-btn-h) !important;
   height: auto !important;
   margin: 0 !important;
-  padding: 12px 16px !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 0 !important;
-  border-radius: calc(var(--fu) * 1.1) !important;
+  border-radius: var(--ui-radius) !important;
   background: #22D3EE !important;
   background-color: #22D3EE !important;
   box-shadow: none !important;
@@ -13963,7 +14098,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 
 /* Domain page only. */
 #domain-column .domain-card {
-  --domain-gap: 12px;
+  --domain-gap: var(--ui-gap);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -13971,10 +14106,10 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   box-sizing: border-box;
   width: auto;
   min-width: 0;
-  margin: 12px;
+  margin: var(--ui-gap) 0;
   padding: 16px;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--ui-card-radius);
   background: rgba(255, 255, 255, 0.06);
   background-color: rgba(255, 255, 255, 0.06);
 }
@@ -13983,18 +14118,18 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   display: block;
   width: 100%;
   max-width: 100%;
-  min-height: 48px;
+  min-height: var(--ui-btn-h);
   height: auto;
   margin: 0;
-  padding: 12px 16px;
+  padding: 0 var(--ui-pad-x);
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--ui-radius);
   background: rgba(255, 255, 255, 0.06);
   background-color: rgba(255, 255, 255, 0.06);
   box-shadow: none;
   color: #fff;
   font-family: inherit !important;
-  font-size: 16px;
+  font-size: var(--ui-label);
   line-height: 1.3;
   text-align: left;
   resize: none;
@@ -14023,7 +14158,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   box-shadow: none;
   color: rgba(255, 255, 255, 0.55);
   font-family: inherit !important;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 400;
   line-height: 1.3;
   text-align: left;
@@ -14053,13 +14188,13 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   border: 0;
   background: transparent;
   font-family: Inter, system-ui, sans-serif !important;
-  font-size: 16px !important;
+  font-size: var(--ui-small) !important;
   font-weight: 400;
   line-height: 1.3;
   letter-spacing: normal;
   text-align: left;
   text-transform: none;
-  color: #fff;
+  color: rgba(255, 255, 255, 0.45);
 }
 #domain-column :is(#button4, #button5) {
   box-sizing: border-box;
@@ -14068,18 +14203,18 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   justify-content: center;
   width: 100%;
   max-width: 100%;
-  min-height: 48px;
+  min-height: var(--ui-btn-h);
   height: auto;
   margin: 0 !important;
-  padding: 12px 16px;
+  padding: 0 var(--ui-pad-x);
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--ui-radius);
   background: #22D3EE;
   background-color: #22D3EE;
   box-shadow: none;
   color: #0a0a12;
   font-family: inherit;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 400;
   line-height: 1.25;
   text-align: center;
@@ -14100,21 +14235,21 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   box-shadow: none;
 }
 :is(#feed-menu, .drawer-screen) #domain-column.in-drawer .domain-card {
-  border-radius: calc(var(--fu) * 1.4) !important;
+  border-radius: var(--ui-card-radius) !important;
   background: rgba(255, 255, 255, 0.06) !important;
   background-color: rgba(255, 255, 255, 0.06) !important;
-  margin: 12px !important;
+  margin: var(--ui-gap) 0 !important;
   padding: 16px !important;
-  gap: 12px !important;
+  gap: var(--ui-gap) !important;
 }
 :is(#feed-menu, .drawer-screen) #domain-column.in-drawer :is(#domain-name-input, #domain-topic-id) {
   width: 100% !important;
   max-width: 100% !important;
-  min-height: 48px !important;
+  min-height: var(--ui-btn-h) !important;
   margin: 0 !important;
-  padding: 12px 16px !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 0 !important;
-  border-radius: calc(var(--fu) * 1.1) !important;
+  border-radius: var(--ui-radius) !important;
   background: rgba(255, 255, 255, 0.06) !important;
   background-color: rgba(255, 255, 255, 0.06) !important;
   background-image: none !important;
@@ -14150,14 +14285,14 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   height: 0 !important;
   min-height: 0 !important;
   max-height: 0 !important;
-  margin-top: -12px !important;
+  margin-top: calc(var(--ui-gap) * -1) !important;
 }
 :is(#feed-menu, .drawer-screen) #domain-column.in-drawer #domain-time-left:focus {
   box-shadow: none !important;
 }
 :is(#feed-menu, .drawer-screen) #domain-column.in-drawer .domain-card label {
-  font-size: calc(var(--fu) * 1.7) !important;
-  color: #fff !important;
+  font-size: var(--ui-small) !important;
+  color: rgba(255, 255, 255, 0.45) !important;
   text-align: left !important;
 }
 :is(#feed-menu, .drawer-screen) #domain-column.in-drawer :is(#button4, #button5) {
@@ -14166,19 +14301,19 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   justify-content: center;
   width: 100% !important;
   max-width: 100% !important;
-  min-height: 48px !important;
+  min-height: var(--ui-btn-h) !important;
   height: auto !important;
   margin: 0 !important;
-  padding: 12px 16px !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 0 !important;
-  border-radius: calc(var(--fu) * 1.1) !important;
+  border-radius: var(--ui-radius) !important;
   background: #22D3EE !important;
   background-color: #22D3EE !important;
   box-shadow: none !important;
   animation: none !important;
   color: #0a0a12 !important;
   font-family: inherit !important;
-  font-size: calc(var(--fu) * 1.7);
+  font-size: var(--ui-label);
   text-align: center !important;
   text-transform: none;
   text-shadow: none !important;
@@ -14200,19 +14335,19 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   display: block;
   width: 100%;
   max-width: 100%;
-  min-height: 48px;
+  min-height: var(--ui-btn-h);
   height: auto;
-  margin: 0 0 12px;
-  padding: 12px 16px;
+  margin: 0 0 var(--ui-gap);
+  padding: 0 var(--ui-pad-x);
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--ui-radius);
   background: rgba(255, 255, 255, 0.06);
   background-color: rgba(255, 255, 255, 0.06);
   background-image: none;
   box-shadow: none;
   color: #fff;
   font-family: Inter, system-ui, sans-serif !important;
-  font-size: 16px;
+  font-size: var(--ui-label);
   line-height: 1.3;
   text-align: left;
   resize: none;
@@ -14226,49 +14361,115 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 #memo-column :is(#input-field-topic-id-bio, #input-field-topic-id, #input-field-topic-id-fee, #input-field-topic-id-name) {
   display: none !important;
 }
-#memo-column:not(.in-drawer) .memo-action-row {
-  flex-wrap: nowrap;
-  gap: 8px;
-  width: 100%;
+#memo-column-container > :is(div[style*="display: flex"], .memo-action-row) {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
+  gap: var(--ui-gap);
   box-sizing: border-box;
+  width: 100%;
+  margin: var(--ui-gap) 0;
 }
-#memo-column:not(.in-drawer) .memo-action-row > :is(.toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not([style*="display: none"]):not([style*="display:none"]) {
-  flex: 1 1 0;
+#memo-column-container > :is(div[style*="display: flex"], .memo-action-row) > :is(.toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not([style*="display: none"]):not([style*="display:none"]) {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  width: 100%;
   min-width: 0;
-  width: auto;
+  height: auto !important;
+  min-height: var(--ui-row-h);
   margin: 0 !important;
-  height: auto;
-  min-height: 48px;
-  padding: 8px;
-  white-space: normal;
+  padding: 0 var(--ui-pad-x) !important;
+  border: 0 !important;
+  border-radius: var(--ui-card-radius) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: none !important;
+  animation: none !important;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label) !important;
+  font-weight: 400;
   line-height: 1.2;
-  text-align: center;
+  text-align: left;
+  text-shadow: none !important;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  transform: none !important;
+  filter: none !important;
+}
+#memo-column-container > :is(div[style*="display: flex"], .memo-action-row) > button[id^="hide-"]:is(.toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not([style*="display: none"]):not([style*="display:none"]) {
+  background: rgba(34, 211, 238, 0.12) !important;
+  background-color: rgba(34, 211, 238, 0.12) !important;
+  color: #22D3EE !important;
+}
+#memo-column-container > :is(div[style*="display: flex"], .memo-action-row) > :is(.toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not([style*="display: none"]):not([style*="display:none"]):is(:hover, :active) {
+  background: rgba(34, 211, 238, 0.12) !important;
+  background-color: rgba(34, 211, 238, 0.12) !important;
+  color: #22D3EE !important;
+  transform: none !important;
+  filter: none !important;
+}
+#memo-column label {
+  margin: 0;
+  padding: 0 !important;
+  font-family: Inter, system-ui, sans-serif !important;
+  font-size: var(--ui-small) !important;
+  font-weight: 400;
+  line-height: 1.3;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.45);
+}
+#memo-column textarea.toolbar-column {
+  box-sizing: border-box;
+  min-height: var(--ui-btn-h);
+  height: auto;
+  padding: 0 var(--ui-pad-x);
+  border-radius: var(--ui-radius);
+  font-size: var(--ui-label);
+  line-height: 1.3;
 }
 #memo-column:not(.in-drawer) :is(#pin-publickkey-load, #change-password-load, #set-password-load):not([style*="display: none"]):not([style*="display:none"]) {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
-  height: 5vh;
-  min-height: 48px;
-  margin: 0 0 0.5vh;
+  height: auto;
+  min-height: var(--ui-btn-h);
+  margin: 0 0 var(--ui-gap);
+  padding: 0 var(--ui-pad-x);
   border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 999px;
+  border-radius: var(--ui-radius);
   background-color: rgba(15, 15, 20, 0.45);
   color: #fff;
-  font-size: 2vh;
+  font-size: var(--ui-label);
+  line-height: 1.2;
+  white-space: normal;
+}
+:is(#feed-menu, .drawer-screen) #memo-column.in-drawer textarea.toolbar-column {
+  min-height: var(--ui-btn-h) !important;
+  height: auto !important;
+  padding: 0 var(--ui-pad-x) !important;
+  border: 0 !important;
+  border-radius: var(--ui-radius) !important;
+  font-size: var(--ui-label) !important;
+  line-height: 1.3;
 }
 :is(#feed-menu, .drawer-screen) #memo-column.in-drawer #update-topic-target {
-  min-height: 48px !important;
-  margin: 0 0 calc(var(--fu) * 0.55) !important;
-  padding: calc(var(--fu) * 0.55) calc(var(--fu) * 1.05) !important;
+  min-height: var(--ui-btn-h) !important;
+  margin: 0 0 var(--ui-gap) !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 0 !important;
-  border-radius: calc(var(--fu) * 1.1) !important;
+  border-radius: var(--ui-radius) !important;
   background: rgba(255, 255, 255, 0.06) !important;
   background-color: rgba(255, 255, 255, 0.06) !important;
   background-image: none !important;
   font-family: Inter, system-ui, sans-serif !important;
-  font-size: calc(var(--fu) * 1.6) !important;
+  font-size: var(--ui-label) !important;
   transition: none !important;
 }
 :is(#feed-menu, .drawer-screen) #memo-column.in-drawer #update-topic-target:focus {
@@ -14278,25 +14479,27 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 :is(#feed-menu, .drawer-screen) #memo-column.in-drawer :is(#pin-publickkey-load, #change-password-load, #set-password-load):not([style*="display: none"]):not([style*="display:none"]) {
   display: flex !important;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   box-sizing: border-box;
   width: 100% !important;
   max-width: 100% !important;
   height: auto !important;
-  min-height: max(44px, 6dvh);
+  min-height: var(--ui-btn-h) !important;
   margin: 0 !important;
-  padding: 0 calc(var(--fu) * 1.1) !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 0 !important;
-  border-radius: 0 !important;
+  border-radius: var(--ui-radius) !important;
   background: transparent !important;
   background-color: transparent !important;
   box-shadow: none !important;
   animation: none !important;
   color: #fff;
   font-family: inherit !important;
-  font-size: calc(var(--fu) * 1.7);
+  font-size: var(--ui-label) !important;
   line-height: 1.2;
-  text-align: left;
+  text-align: center;
+  white-space: normal;
+  overflow: visible;
   text-shadow: none !important;
 }
 :is(#feed-menu, .drawer-screen) #memo-column.in-drawer :is(#pin-publickkey-load, #change-password-load, #set-password-load):is(:hover, :active) {
@@ -14314,17 +14517,33 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
+  height: auto;
+  min-height: var(--ui-btn-h);
+  padding: 0 var(--ui-pad-x);
+  border-radius: var(--ui-radius);
   font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
+  line-height: 1.3;
+}
+#utility-column-container label {
+  margin: 0;
+  padding: 0 !important;
+  font-family: Inter, system-ui, sans-serif !important;
+  font-size: var(--ui-small) !important;
+  font-weight: 400;
+  line-height: 1.3;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.45);
 }
 #utility-column-container .nft-toggle-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: stretch;
-  gap: 12px;
+  gap: var(--ui-gap);
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  margin: 0 0 12px;
+  margin: 0 0 var(--ui-gap);
   box-sizing: border-box;
 }
 #utility-column-container .nft-toggle-col {
@@ -14341,7 +14560,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   padding: 0;
   background: rgba(255, 255, 255, 0.06);
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--ui-card-radius);
   overflow: hidden;
 }
 #utility-column-container .nft-toggle-col > :is(.toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not([style*="display: none"]):not([style*="display:none"]) {
@@ -14353,9 +14572,9 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   max-width: 100%;
   min-width: 0;
   height: auto;
-  min-height: 44px;
+  min-height: var(--ui-row-h);
   margin: 0 !important;
-  padding: 8px 12px;
+  padding: 0 var(--ui-pad-x);
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -14364,13 +14583,14 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   animation: none;
   color: #fff;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 400;
   line-height: 1.2;
   text-align: left;
   text-transform: none;
   text-shadow: none;
   white-space: normal;
+  overflow: visible;
   overflow-wrap: anywhere;
   transform: none;
   filter: none;
@@ -14399,12 +14619,12 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   display: grid !important;
   grid-template-columns: 1fr 1fr;
   align-items: stretch;
-  gap: 8px;
+  gap: var(--ui-gap);
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  margin: 12px 0 0 !important;
+  margin: var(--ui-gap) 0 0 !important;
   padding: 0;
   background: transparent;
   border: 0;
@@ -14426,24 +14646,24 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  height: 48px;
-  min-height: 48px;
+  height: auto;
+  min-height: var(--ui-btn-h);
   margin: 0 !important;
-  padding: 0 12px;
+  padding: 0 var(--ui-pad-x);
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--ui-radius);
   background: #22D3EE;
   background-color: #22D3EE;
   box-shadow: 0 0 16px rgba(34, 211, 238, 0.45);
   animation: none;
   color: #0a0a12;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 600;
   line-height: 1.2;
   text-align: center;
   text-shadow: none;
-  white-space: nowrap;
+  white-space: normal;
   transform: none;
   filter: none;
   cursor: pointer;
@@ -14471,24 +14691,24 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  height: 48px;
-  min-height: 48px;
+  height: auto;
+  min-height: var(--ui-btn-h);
   margin: 0 !important;
-  padding: 0 12px;
+  padding: 0 var(--ui-pad-x);
   border: 1px solid #f07178;
-  border-radius: 12px;
+  border-radius: var(--ui-radius);
   background: transparent;
   background-color: transparent;
   box-shadow: none;
   animation: none;
   color: #f07178;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 600;
   line-height: 1.2;
   text-align: center;
   text-shadow: none;
-  white-space: nowrap;
+  white-space: normal;
   transform: none;
   filter: none;
   cursor: pointer;
@@ -14516,18 +14736,18 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   max-width: 100%;
   min-width: 0;
   height: auto;
-  min-height: 48px;
-  margin: 12px 0 0 !important;
-  padding: 8px 12px;
+  min-height: var(--ui-btn-h);
+  margin: var(--ui-gap) 0 0 !important;
+  padding: 0 var(--ui-pad-x);
   border: 1px solid #22D3EE;
-  border-radius: 12px;
+  border-radius: var(--ui-radius);
   background: rgba(255, 255, 255, 0.06);
   background-color: rgba(255, 255, 255, 0.06);
   box-shadow: none;
   animation: none;
   color: #22D3EE;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 600;
   line-height: 1.2;
   text-align: center;
@@ -14546,9 +14766,9 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   opacity: 0.5;
 }
 #utility-column.in-drawer #utility-column-container .nft-toggle-grid {
-  gap: 12px;
+  gap: var(--ui-gap);
   width: 100% !important;
-  margin: 0 0 12px !important;
+  margin: 0 0 var(--ui-gap) !important;
 }
 #utility-column.in-drawer #utility-column-container .nft-toggle-col {
   display: flex !important;
@@ -14560,7 +14780,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   padding: 0 !important;
   background: rgba(255, 255, 255, 0.06) !important;
   border: 0 !important;
-  border-radius: calc(var(--fu) * 1.4) !important;
+  border-radius: var(--ui-card-radius) !important;
   box-shadow: none !important;
   overflow: hidden !important;
   animation: none !important;
@@ -14573,9 +14793,9 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   max-width: 100% !important;
   min-width: 0 !important;
   height: auto !important;
-  min-height: 44px !important;
+  min-height: var(--ui-row-h) !important;
   margin: 0 !important;
-  padding: 8px 12px !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
@@ -14583,9 +14803,10 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   animation: none !important;
   color: #fff;
   font-family: Inter, system-ui, sans-serif;
-  font-size: calc(var(--fu) * 1.7);
+  font-size: var(--ui-label) !important;
   font-weight: 400;
   line-height: 1.2;
+  overflow: visible;
   text-align: left !important;
   text-shadow: none !important;
   white-space: normal;
@@ -14608,6 +14829,13 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   transform: none !important;
   filter: none !important;
 }
+#utility-column.in-drawer #utility-column-container textarea.toolbar-column {
+  height: auto !important;
+  min-height: var(--ui-btn-h) !important;
+  padding: 0 var(--ui-pad-x) !important;
+  border-radius: var(--ui-radius) !important;
+  font-size: var(--ui-label) !important;
+}
 #utility-column.in-drawer #utility-column-container textarea.toolbar-column:has(+ .nft-confirm-row),
 #utility-column.in-drawer #utility-column-container #model-sharing-from-nft-utility > textarea.toolbar-column {
   margin-bottom: 0 !important;
@@ -14615,10 +14843,10 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 #utility-column.in-drawer #utility-column-container .nft-confirm-row {
   display: grid !important;
   grid-template-columns: 1fr 1fr !important;
-  gap: 8px !important;
+  gap: var(--ui-gap) !important;
   width: 100% !important;
   min-width: 0 !important;
-  margin: 12px 0 0 !important;
+  margin: var(--ui-gap) 0 0 !important;
   padding: 0 !important;
   background: transparent !important;
   border: 0 !important;
@@ -14640,19 +14868,19 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   width: auto !important;
   max-width: 100% !important;
   min-width: 0 !important;
-  height: 48px !important;
-  min-height: 48px !important;
+  height: auto !important;
+  min-height: var(--ui-btn-h) !important;
   margin: 0 !important;
-  padding: 0 12px !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 0 !important;
-  border-radius: 12px !important;
+  border-radius: var(--ui-radius) !important;
   background: #22D3EE !important;
   background-color: #22D3EE !important;
   box-shadow: 0 0 16px rgba(34, 211, 238, 0.45) !important;
   animation: none !important;
   color: #0a0a12 !important;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 600;
   text-align: center !important;
   text-shadow: none !important;
@@ -14694,19 +14922,19 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   width: auto !important;
   max-width: 100% !important;
   min-width: 0 !important;
-  height: 48px !important;
-  min-height: 48px !important;
+  height: auto !important;
+  min-height: var(--ui-btn-h) !important;
   margin: 0 !important;
-  padding: 0 12px !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 1px solid #f07178 !important;
-  border-radius: 12px !important;
+  border-radius: var(--ui-radius) !important;
   background: transparent !important;
   background-color: transparent !important;
   box-shadow: none !important;
   animation: none !important;
   color: #f07178 !important;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 600;
   text-align: center !important;
   text-shadow: none !important;
@@ -14734,18 +14962,18 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   width: 100% !important;
   max-width: 100% !important;
   height: auto !important;
-  min-height: 48px !important;
-  margin: 12px 0 0 !important;
-  padding: 8px 12px !important;
+  min-height: var(--ui-btn-h) !important;
+  margin: var(--ui-gap) 0 0 !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 1px solid #22D3EE !important;
-  border-radius: 12px !important;
+  border-radius: var(--ui-radius) !important;
   background: rgba(255, 255, 255, 0.06) !important;
   background-color: rgba(255, 255, 255, 0.06) !important;
   box-shadow: none !important;
   animation: none !important;
   color: #22D3EE !important;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 600;
   text-align: center !important;
   text-shadow: none !important;
@@ -14771,11 +14999,11 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   width: auto;
   min-width: 0;
   max-width: 100%;
-  margin: 12px;
+  margin: var(--ui-gap) 0;
   padding: 16px;
-  gap: 12px;
+  gap: var(--ui-gap);
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--ui-card-radius);
   background: rgba(255, 255, 255, 0.06);
   background-color: rgba(255, 255, 255, 0.06);
   box-shadow: none;
@@ -14783,12 +15011,12 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 }
 :is(#stack-topic-ids-container, #initial-xyz-column-container) > .mb-card > label {
   display: block;
-  margin: 0 0 -6px;
+  margin: 0;
   padding: 0 !important;
   border: 0;
   background: transparent;
   font-family: Inter, system-ui, sans-serif !important;
-  font-size: 12px !important;
+  font-size: var(--ui-small) !important;
   font-weight: 400;
   line-height: 1.3;
   letter-spacing: normal;
@@ -14801,7 +15029,13 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
+  height: auto;
+  min-height: var(--ui-btn-h);
   margin: 0;
+  padding: 0 var(--ui-pad-x);
+  border-radius: var(--ui-radius);
+  font-size: var(--ui-label);
+  line-height: 1.3;
 }
 :is(#stack-topic-ids-container, #initial-xyz-column-container) .toolbar-column-loaded-rules {
   box-sizing: border-box;
@@ -14809,15 +15043,16 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   width: 100%;
   max-width: 100%;
   height: auto;
-  min-height: 44px;
+  min-height: var(--ui-btn-h);
   max-height: none;
   margin: 0;
-  padding: 10px 12px;
+  padding: 0 var(--ui-pad-x);
   border: 1px dashed rgba(255, 255, 255, 0.35);
-  border-radius: 12px;
+  border-radius: var(--ui-radius);
   background: rgba(255, 255, 255, 0.1);
   background-color: rgba(255, 255, 255, 0.1);
   color: #fff;
+  font-size: var(--ui-label);
   overflow: visible;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -14835,18 +15070,18 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   max-width: 100%;
   min-width: 0;
   height: auto;
-  min-height: 48px;
+  min-height: var(--ui-btn-h);
   margin: 0 !important;
-  padding: 8px 12px;
+  padding: 0 var(--ui-pad-x);
   border: 1px solid #22D3EE;
-  border-radius: 12px;
+  border-radius: var(--ui-radius);
   background: rgba(255, 255, 255, 0.06);
   background-color: rgba(255, 255, 255, 0.06);
   box-shadow: none;
   animation: none;
   color: #22D3EE;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 600;
   line-height: 1.2;
   text-align: center;
@@ -14870,7 +15105,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   display: grid !important;
   grid-template-columns: 1fr 1fr;
   align-items: stretch;
-  gap: 8px;
+  gap: var(--ui-gap);
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
@@ -14894,19 +15129,19 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  height: 48px;
-  min-height: 48px;
+  height: auto;
+  min-height: var(--ui-btn-h);
   margin: 0 !important;
-  padding: 0 12px;
+  padding: 0 var(--ui-pad-x);
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--ui-radius);
   background: #22D3EE;
   background-color: #22D3EE;
   box-shadow: 0 0 16px rgba(34, 211, 238, 0.45);
   animation: none;
   color: #0a0a12;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 600;
   line-height: 1.2;
   text-align: center;
@@ -14942,19 +15177,19 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  height: 48px;
-  min-height: 48px;
+  height: auto;
+  min-height: var(--ui-btn-h);
   margin: 0 !important;
-  padding: 0 12px;
+  padding: 0 var(--ui-pad-x);
   border: 1px solid #f07178;
-  border-radius: 12px;
+  border-radius: var(--ui-radius);
   background: transparent;
   background-color: transparent;
   box-shadow: none;
   animation: none;
   color: #f07178;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 600;
   line-height: 1.2;
   text-align: center;
@@ -14980,11 +15215,11 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   width: auto !important;
   min-width: 0 !important;
   max-width: 100% !important;
-  margin: 12px !important;
+  margin: var(--ui-gap) 0 !important;
   padding: 16px !important;
-  gap: 12px !important;
+  gap: var(--ui-gap) !important;
   border: 0 !important;
-  border-radius: calc(var(--fu) * 1.4) !important;
+  border-radius: var(--ui-card-radius) !important;
   background: rgba(255, 255, 255, 0.06) !important;
   background-color: rgba(255, 255, 255, 0.06) !important;
   box-shadow: none !important;
@@ -14992,7 +15227,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   animation: none !important;
 }
 :is(#stack-topic-ids, #initial-xyz-column).in-drawer :is(#stack-topic-ids-container, #initial-xyz-column-container) > .mb-card > label {
-  margin: 0 0 -6px !important;
+  margin: 0 !important;
   padding: 0 !important;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.45) !important;
@@ -15002,19 +15237,25 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 :is(#stack-topic-ids, #initial-xyz-column).in-drawer :is(#stack-topic-ids-container, #initial-xyz-column-container) > .mb-card > textarea.toolbar-column {
   width: 100% !important;
   max-width: 100% !important;
+  height: auto !important;
+  min-height: var(--ui-btn-h) !important;
   margin: 0 !important;
+  padding: 0 var(--ui-pad-x) !important;
+  border-radius: var(--ui-radius) !important;
+  font-size: var(--ui-label) !important;
 }
 :is(#stack-topic-ids, #initial-xyz-column).in-drawer :is(#stack-topic-ids-container, #initial-xyz-column-container) .toolbar-column-loaded-rules {
   width: 100% !important;
   max-width: 100% !important;
   height: auto;
-  min-height: 44px !important;
+  min-height: var(--ui-btn-h) !important;
   max-height: none !important;
   margin: 0 !important;
   border: 1px dashed rgba(255, 255, 255, 0.35) !important;
-  border-radius: 12px !important;
+  border-radius: var(--ui-radius) !important;
   background: rgba(255, 255, 255, 0.1) !important;
   background-color: rgba(255, 255, 255, 0.1) !important;
+  font-size: var(--ui-label) !important;
   overflow: visible !important;
   white-space: pre-wrap;
   user-select: text;
@@ -15027,18 +15268,18 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   max-width: 100% !important;
   min-width: 0 !important;
   height: auto !important;
-  min-height: 48px !important;
+  min-height: var(--ui-btn-h) !important;
   margin: 0 !important;
-  padding: 8px 12px !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 1px solid #22D3EE !important;
-  border-radius: 12px !important;
+  border-radius: var(--ui-radius) !important;
   background: rgba(255, 255, 255, 0.06) !important;
   background-color: rgba(255, 255, 255, 0.06) !important;
   box-shadow: none !important;
   animation: none !important;
   color: #22D3EE !important;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 600;
   text-align: center !important;
   text-shadow: none !important;
@@ -15059,7 +15300,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   display: grid !important;
   grid-template-columns: 1fr 1fr !important;
   flex-direction: row !important;
-  gap: 8px !important;
+  gap: var(--ui-gap) !important;
   width: 100% !important;
   min-width: 0 !important;
   margin: 0 !important;
@@ -15082,19 +15323,19 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   width: auto !important;
   max-width: 100% !important;
   min-width: 0 !important;
-  height: 48px !important;
-  min-height: 48px !important;
+  height: auto !important;
+  min-height: var(--ui-btn-h) !important;
   margin: 0 !important;
-  padding: 0 12px !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 0 !important;
-  border-radius: 12px !important;
+  border-radius: var(--ui-radius) !important;
   background: #22D3EE !important;
   background-color: #22D3EE !important;
   box-shadow: 0 0 16px rgba(34, 211, 238, 0.45) !important;
   animation: none !important;
   color: #0a0a12 !important;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 600;
   text-align: center !important;
   text-shadow: none !important;
@@ -15125,19 +15366,19 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   width: auto !important;
   max-width: 100% !important;
   min-width: 0 !important;
-  height: 48px !important;
-  min-height: 48px !important;
+  height: auto !important;
+  min-height: var(--ui-btn-h) !important;
   margin: 0 !important;
-  padding: 0 12px !important;
+  padding: 0 var(--ui-pad-x) !important;
   border: 1px solid #f07178 !important;
-  border-radius: 12px !important;
+  border-radius: var(--ui-radius) !important;
   background: transparent !important;
   background-color: transparent !important;
   box-shadow: none !important;
   animation: none !important;
   color: #f07178 !important;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label);
   font-weight: 600;
   text-align: center !important;
   text-shadow: none !important;
@@ -15160,15 +15401,15 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   display: grid !important;
   grid-template-columns: 1fr 1fr;
   align-items: stretch;
-  gap: 8px;
+  gap: var(--ui-gap);
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  margin: 12px 0;
-  padding: 8px;
+  margin: var(--ui-gap) 0;
+  padding: var(--ui-gap);
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--ui-card-radius);
   background: rgba(255, 255, 255, 0.06);
   background-color: rgba(255, 255, 255, 0.06);
   box-shadow: none;
@@ -15195,26 +15436,27 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   max-width: 100%;
   min-width: 0;
   height: auto;
-  min-height: 48px;
+  min-height: var(--ui-row-h) !important;
   margin: 0 !important;
-  padding: 8px 12px;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
-  background-color: transparent;
-  box-shadow: none;
+  padding: 0 var(--ui-pad-x) !important;
+  border: 0 !important;
+  border-radius: var(--ui-radius) !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
   animation: none;
   color: #fff;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label) !important;
   font-weight: 400;
   line-height: 1.2;
   text-align: left;
-  text-shadow: none;
+  text-shadow: none !important;
   white-space: normal;
+  overflow: visible;
   overflow-wrap: anywhere;
-  transform: none;
-  filter: none;
+  transform: none !important;
+  filter: none !important;
   cursor: pointer;
 }
 :is(#load-column-container, .load-options-page) #options-from-load > div > :is(
@@ -15223,9 +15465,9 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   #hide-time-from-users-load-column,
   #hide-load-from-users
 ):not([style*="display: none"]):not([style*="display:none"]) {
-  background: rgba(34, 211, 238, 0.12);
-  background-color: rgba(34, 211, 238, 0.12);
-  color: #22D3EE;
+  background: rgba(34, 211, 238, 0.12) !important;
+  background-color: rgba(34, 211, 238, 0.12) !important;
+  color: #22D3EE !important;
 }
 :is(#load-column-container, .load-options-page) #options-from-load > div > :is(
   #show-unlock-load,
@@ -15237,12 +15479,12 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   #show-load-from-users,
   #hide-load-from-users
 ):not([style*="display: none"]):not([style*="display:none"]):is(:hover, :active) {
-  background: rgba(34, 211, 238, 0.12);
-  background-color: rgba(34, 211, 238, 0.12);
-  color: #22D3EE;
-  transform: none;
-  filter: none;
-  box-shadow: none;
+  background: rgba(34, 211, 238, 0.12) !important;
+  background-color: rgba(34, 211, 238, 0.12) !important;
+  color: #22D3EE !important;
+  transform: none !important;
+  filter: none !important;
+  box-shadow: none !important;
 }
 :is(#load-column-container, .load-options-page) .lo-card.lo-unlock,
 :is(#load-column-container, .load-options-page) .lo-card.lo-filter-card {
@@ -15260,11 +15502,11 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   width: auto;
   min-width: 0;
   max-width: 100%;
-  margin: 12px 0;
+  margin: var(--ui-gap) 0;
   padding: 16px;
-  gap: 12px;
+  gap: var(--ui-gap);
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--ui-card-radius);
   background: rgba(255, 255, 255, 0.06);
   background-color: rgba(255, 255, 255, 0.06);
   box-shadow: none;
@@ -15277,7 +15519,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   border: 0;
   background: transparent;
   font-family: Inter, system-ui, sans-serif !important;
-  font-size: 12px !important;
+  font-size: var(--ui-small) !important;
   font-weight: 400;
   line-height: 1.3;
   letter-spacing: normal;
@@ -15290,13 +15532,20 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   #load-load-from-users-label,
   #load-block-from-users-label
 ):not([style*="display: none"]):not([style*="display:none"]) {
-  margin: 0 0 -6px;
+  margin: 0;
 }
 :is(#load-column-container, .load-options-page) .lo-card textarea.toolbar-column {
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
-  margin: 0;
+  height: auto !important;
+  min-height: var(--ui-btn-h) !important;
+  margin: 0 !important;
+  padding: 0 var(--ui-pad-x) !important;
+  border: 0 !important;
+  border-radius: var(--ui-radius) !important;
+  font-size: var(--ui-label) !important;
+  line-height: 1.3;
 }
 :is(#load-column-container, .load-options-page) .lo-split:not(:has(
   button:not([style*="display: none"]):not([style*="display:none"])
@@ -15313,7 +15562,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   display: grid !important;
   grid-template-columns: 1fr 1fr;
   align-items: stretch;
-  gap: 8px;
+  gap: var(--ui-gap);
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
@@ -15330,7 +15579,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   display: grid !important;
   grid-template-columns: 1fr 1fr;
   align-items: stretch;
-  gap: 8px;
+  gap: var(--ui-gap);
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
@@ -15342,7 +15591,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   display: grid !important;
   grid-template-columns: 1fr 1fr;
   align-items: stretch;
-  gap: 8px;
+  gap: var(--ui-gap);
 }
 :is(#load-column-container, .load-options-page) :is(
   #users-load-column-filter,
@@ -15365,19 +15614,19 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  height: 48px;
-  min-height: 48px;
+  height: auto;
+  min-height: var(--ui-btn-h);
   margin: 0 !important;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 12px;
-  background: #22D3EE;
-  background-color: #22D3EE;
-  box-shadow: 0 0 16px rgba(34, 211, 238, 0.45);
+  padding: 0 var(--ui-pad-x) !important;
+  border: 0 !important;
+  border-radius: var(--ui-radius) !important;
+  background: #22D3EE !important;
+  background-color: #22D3EE !important;
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.45) !important;
   animation: none;
   color: #0a0a12;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label) !important;
   font-weight: 600;
   line-height: 1.2;
   text-align: center;
@@ -15394,12 +15643,12 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   #load-msgs-from-ids-button,
   #load-block-from-users-button
 ):not([style*="display: none"]):not([style*="display:none"]):is(:hover, :active) {
-  background: #22D3EE;
-  background-color: #22D3EE;
-  color: #0a0a12;
-  transform: none;
-  filter: none;
-  box-shadow: 0 0 16px rgba(34, 211, 238, 0.45);
+  background: #22D3EE !important;
+  background-color: #22D3EE !important;
+  color: #0a0a12 !important;
+  transform: none !important;
+  filter: none !important;
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.45) !important;
 }
 :is(#load-column-container, .load-options-page) :is(
   #unlock-load-all,
@@ -15426,18 +15675,18 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   max-width: 100%;
   min-width: 0;
   height: auto;
-  min-height: 48px;
+  min-height: var(--ui-btn-h);
   margin: 0 !important;
-  padding: 8px 12px;
-  border: 1px solid #22D3EE;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  background-color: rgba(255, 255, 255, 0.06);
-  box-shadow: none;
+  padding: 0 var(--ui-pad-x) !important;
+  border: 1px solid #22D3EE !important;
+  border-radius: var(--ui-radius) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: none !important;
   animation: none;
   color: #22D3EE;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label) !important;
   font-weight: 600;
   line-height: 1.2;
   text-align: center;
@@ -15457,35 +15706,35 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   #load-blocks-from-users,
   #save-blocks-from-users
 ):not([style*="display: none"]):not([style*="display:none"]):is(:hover, :active) {
-  background: rgba(255, 255, 255, 0.06);
-  background-color: rgba(255, 255, 255, 0.06);
-  color: #22D3EE;
-  border-color: #22D3EE;
-  transform: none;
-  filter: none;
-  box-shadow: none;
+  background: rgba(255, 255, 255, 0.06) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: #22D3EE !important;
+  border-color: #22D3EE !important;
+  transform: none !important;
+  filter: none !important;
+  box-shadow: none !important;
 }
 :is(#load-column-container, .load-options-page) #time-from-users-load-column .filter-time-open {
-  display: flex;
+  display: flex !important;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  height: auto;
-  min-height: 48px;
+  height: auto !important;
+  min-height: var(--ui-btn-h) !important;
   margin: 0 !important;
-  padding: 8px 12px;
-  border: 0;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  background-color: rgba(255, 255, 255, 0.06);
-  box-shadow: none;
+  padding: 0 var(--ui-pad-x) !important;
+  border: 0 !important;
+  border-radius: var(--ui-radius) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: none !important;
   animation: none;
-  color: #22D3EE;
+  color: #22D3EE !important;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: var(--ui-label) !important;
   font-weight: 600;
   line-height: 1.2;
   text-align: center;
@@ -15497,13 +15746,13 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   cursor: pointer;
 }
 :is(#load-column-container, .load-options-page) #time-from-users-load-column .filter-time-open:is(:hover, :active) {
-  background: rgba(255, 255, 255, 0.06);
-  background-color: rgba(255, 255, 255, 0.06);
-  color: #22D3EE;
-  border-color: transparent;
-  transform: none;
-  filter: none;
-  box-shadow: none;
+  background: rgba(255, 255, 255, 0.06) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: #22D3EE !important;
+  border-color: transparent !important;
+  transform: none !important;
+  filter: none !important;
+  box-shadow: none !important;
 }
 
 /* Own topic and E2EE groups sit on the right. Everyone else stays left. */
