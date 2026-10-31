@@ -12894,6 +12894,9 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   z-index: 9004;
 }
 #feed-chat #load-column.is-feed-shell {
+  --load-ctrl-h: max(44px, var(--ui-btn-h));
+  --load-tool: 44px;
+  --load-tool-gap: max(4px, 0.5dvh);
   position: relative !important;
   inset: auto !important;
   top: auto !important;
@@ -12957,27 +12960,29 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
 #feed-chat #load-column.is-feed-shell #input-field {
   width: 100% !important;
   min-height: max(44px, 5.5dvh) !important;
-  padding-right: calc(var(--fu) * 5) !important;
+  padding-right: calc(var(--load-tool) * 2 + var(--load-tool-gap) * 3) !important;
 }
 #feed-chat #load-column.is-feed-shell #paste-topic-btn {
   position: absolute !important;
   top: 50% !important;
-  right: calc(var(--fu) * 0.4) !important;
+  right: var(--load-tool-gap) !important;
   bottom: auto !important;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: calc(var(--fu) * 3.4) !important;
-  height: calc(var(--fu) * 3.4) !important;
+  width: var(--load-tool) !important;
+  height: var(--load-tool) !important;
+  min-width: 44px;
+  min-height: 44px;
   margin: 0;
   padding: 0 !important;
   border: 1px solid rgba(255, 255, 255, 0.22) !important;
   border-radius: 50% !important;
   background: rgba(255, 255, 255, 0.08) !important;
   color: #fff !important;
-  font-size: calc(var(--fu) * 1.45) !important;
-  line-height: 1;
+  font-size: 20px !important;
+  line-height: 1 !important;
   transform: translateY(-50%);
   cursor: pointer;
 }
@@ -13038,7 +13043,7 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   order: 0;
   flex: 0 0 auto;
   align-items: center;
-  gap: calc(var(--fu) * 0.45);
+  gap: var(--ui-gap);
   margin: 0 0 calc(var(--fu) * 0.55) !important;
   padding: 0 !important;
   border: 0 !important;
@@ -13046,10 +13051,33 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
 }
 #feed-chat #load-column.is-feed-shell .loaded-topics-sort,
 #feed-chat #load-column.is-feed-shell .loaded-topics-search {
-  min-height: max(44px, 5.5dvh);
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  height: var(--load-ctrl-h) !important;
+  min-height: var(--load-ctrl-h) !important;
+  max-height: var(--load-ctrl-h) !important;
+  margin: 0;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-radius: 999px !important;
+  line-height: 1;
+}
+#feed-chat #load-column.is-feed-shell .loaded-topics-search {
+  flex: 1 1 auto;
+  width: auto !important;
+  min-width: 0;
+  padding-left: var(--ui-pad-x);
+  padding-right: var(--ui-pad-x);
+  font-size: var(--ui-label) !important;
+  line-height: calc(var(--load-ctrl-h) - 2px);
 }
 #feed-chat #load-column.is-feed-shell .loaded-topics-sort {
-  border-radius: 999px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto !important;
+  padding-left: calc(var(--fu) * 1);
+  padding-right: calc(var(--fu) * 1);
 }
 #feed-chat #load-column.is-feed-shell .loaded-topics-sort.active {
   border-color: rgba(34, 211, 238, 0.75) !important;
@@ -16173,21 +16201,36 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   position: absolute;
   z-index: 3;
   top: 50%;
-  right: 5.8dvh;
+  right: calc(44px + max(4px, 0.5dvh) * 2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   width: 44px;
   height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 20px;
+  line-height: 1;
   transform: translateY(-50%);
 }
 #load-column #input-field {
-  padding-right: calc(44px + 6.4dvh);
+  padding-right: calc(88px + max(4px, 0.5dvh) * 3);
 }
 #feed-chat #load-column.is-feed-shell .follow-pick-btn {
-  right: calc(var(--fu) * 3.8 + 8px);
-  width: 44px;
-  height: 44px;
+  right: calc(var(--load-tool) + var(--load-tool-gap) * 2);
+  width: var(--load-tool);
+  height: var(--load-tool);
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 20px;
 }
 #feed-chat #load-column.is-feed-shell #input-field {
-  padding-right: calc(var(--fu) * 3.8 + 60px) !important;
+  padding-right: calc(var(--load-tool) * 2 + var(--load-tool-gap) * 3) !important;
 }
 .chat-load-row:has(> .follow-pick-btn),
 .e2ee-load-row:has(> .follow-pick-btn) {
