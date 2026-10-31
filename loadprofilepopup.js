@@ -184,8 +184,6 @@ export function syncEarlyStyleEditor(account) {
     }
     const live = document.getElementById("profile-live-preview");
     if (live) paintEarlyProfile(live, styleAccount);
-    const bio = document.getElementById("loaded-bio-card");
-    if (bio) paintEarlyProfile(bio, bio.dataset.popupPayer || "");
     applyAllStyles();
 }
 

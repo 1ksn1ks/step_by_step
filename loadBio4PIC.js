@@ -1,18 +1,7 @@
-import { loadTopicBio, usernames, profilePictures, click2url, profileTopics } from './loadalladata';
-import { followPersonControls } from './followtopic';
+import { handleAllMessages } from './handleallmessages.js';
 import { activePolygonPopups } from './polygons';
 import { activeMarkerPopups } from './marker';
-import { CloseALL, OpenToggleToolbar } from './cssLogic';
-import { adjustTextareaHeight } from './adjusttextarea';
-import { fillTopicIds, useTopicId } from './topicidintext';
-import { payerUsernameNode } from './payerlink.js';
-import { paintProfileAvatar } from './earlyhashinal.js';
-import { forgetProfileTree } from './markertilt.js';
-import { paintEarlyProfile } from './loadprofilepopup.js';
-import { paintProfileStats } from './profilestats.js';
-
-const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
-const EMPTY_BIO = 'User has not set a bio yet. You can set yours by going to OPTIONS > TOOLBAR > EDIT > BIO';
+import { CloseALL } from './cssLogic';
 
 // Popups the open bio is covering. They stay in the map (and on the
 // history stack) so Back can show them again. × / map tap removes them.
@@ -20,9 +9,12 @@ let hiddenPopupEls = [];
 // Set while loadBio4PIC is opening, so its own CloseALL does not drop
 // the popup it is about to cover.
 let suspendingDismiss = 0;
-// Bumped when a close wins, so an open still awaiting the bio bails
+// Bumped when a close wins, so an open still awaiting the page bails
 // instead of showing the column after Back already put the popup back.
 let bioEpoch = 0;
+// How many profile loads are inside handleAllMessages. Only the outer one
+// hides window.loadBio4PIC, so a second tap cannot restore it to null.
+let loadDepth = 0;
 
 function popupElement(popup) {
   if (!popup || typeof popup.getElement !== 'function') return null;
@@ -62,8 +54,8 @@ window.dismissBioPopups = dismissBioPopups;
 // The load-column history close hides the container, and the next open
 // then measures the list at height 0 — an empty glowing strip.
 // The feed covers the page at z-index 8000. This panel is painted at 1002,
-// so a bio opened from a card would sit under the feed. Lift only that
-// open. A map bio stays at 1002.
+// so a profile Load opened from a card would sit under the feed. Lift only
+// that open. A map open stays at 1002.
 const BIO_OVER_FEED_Z = '8800';
 
 function feedCoversPage() {
@@ -86,174 +78,131 @@ function closeBioPanel() {
   bioEpoch += 1;
   restorePopupsForBio();
   const loadColumn = document.getElementById('load-column');
-  if (loadColumn && loadColumn.dataset.navLeaving === '1') {
-    delete loadColumn.dataset.historyLayer;
-    dropBioOverFeed(loadColumn);
+  const shell = document.getElementById('feed-chat');
+  const leaving = (loadColumn && loadColumn.dataset.navLeaving === '1')
+    || (shell && shell.dataset.navLeaving === '1');
+  if (loadColumn) delete loadColumn.dataset.historyLayer;
+  dropBioOverFeed(loadColumn);
+  if (leaving) {
     if (window.restoreDrawerFromMap) window.restoreDrawerFromMap();
     return;
   }
-  if (loadColumn) delete loadColumn.dataset.historyLayer;
+  if (typeof window.hideLoadShellForBio === 'function') window.hideLoadShellForBio();
   dropBioOverFeed(loadColumn);
+  // A chat page left under this profile load would take a second Back.
+  if (window.layerIsOpen && window.layerIsOpen('feedchat') && window.layerClosedByUI) {
+    window.layerClosedByUI('feedchat');
+  }
   CloseALL();
-  // A bio opened from the map drawer sits on that drawer. Back leaves
-  // the drawer on top; show it again with My profile still highlighted.
+  // Opened from the map drawer. Back leaves the drawer on top; show it
+  // again with My profile still highlighted.
   if (window.restoreDrawerFromMap) window.restoreDrawerFromMap();
 }
 
-function textOf(value) {
-  if (Array.isArray(value)) return String(value[0] || '');
-  return typeof value === 'string' ? value : '';
-}
-
-function validUrl(value) {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
+// The Load page's own Back button. Browser Back runs closeBioPanel through
+// the history layer, so this also drops that entry.
+function closeUserBioFromButton() {
+  if (!window.layerIsTop || !window.layerIsTop('userbio')) return;
+  closeBioPanel();
+  if (window.layerIsOpen && window.layerIsOpen('userbio') && window.layerClosedByUI) {
+    window.layerClosedByUI('userbio');
   }
+  // The panel close above runs while this layer is still the top, so the
+  // drawer restore bails. The drawer is top only after that pop.
+  if (window.restoreDrawerFromMap) window.restoreDrawerFromMap();
+}
+window.closeUserBio = closeUserBioFromButton;
+
+function waitForLoadPaint() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  });
 }
 
-function colorOf(id, fallback) {
-  const el = document.getElementById(id);
-  return el && el.value ? el.value : fallback;
-}
-
-// Tap a PFP → show that user's bio in the Load box, same card as Edit Profile.
+// Tap a profile → the restyled Load page, with that account id loaded.
 export async function loadBio4PIC(payer) {
   // Still inside the tap, before any await. A phone drops a history entry
   // pushed after the gesture, and Back then leaves the site.
+  const id = String(payer || '').trim();
   const epoch = ++bioEpoch;
-  if (window.layerOpened) window.layerOpened('userbio', { payer: String(payer || '') });
+  const already = typeof window.loadPageOwnedByChat === 'function' && window.loadPageOwnedByChat();
+  if (!already && window.layerOpened) window.layerOpened('userbio', { payer: id });
   suspendingDismiss += 1;
+  let suspendHeld = true;
+  const releaseSuspend = () => {
+    if (!suspendHeld) return;
+    suspendHeld = false;
+    suspendingDismiss = Math.max(0, suspendingDismiss - 1);
+  };
   try {
-      const accountTopicBio = await loadTopicBio();
-      if (epoch !== bioEpoch) return {};
-      const bio = textOf(accountTopicBio[payer] && accountTopicBio[payer].topic_bio);
-
-      // A document click closes every panel. When the bio is already cached,
-      // this function continues before that click finishes and the panel would
-      // be closed by the same tap. Wait until the tap is over, then open.
+      // A document click closes every panel. This function can continue
+      // before that click finishes, and the same tap would close the page.
+      // Wait until the tap is over, then open.
       await new Promise((resolve) => setTimeout(resolve, 0));
       if (epoch !== bioEpoch) return {};
 
-      // Cover the popup; don't remove it. Its history entry stays under
-      // this one, so Back closes the bio and the popup is still there.
-      CloseALL();
+      if (!already) {
+        // Cover the popup; don't remove it. Its history entry stays under
+        // this one, so Back closes Load and the popup is still there.
+        CloseALL();
+        if (epoch !== bioEpoch) return {};
+        if (window.layerOpened && (!window.layerIsOpen || !window.layerIsOpen('userbio'))) {
+          window.layerOpened('userbio', { payer: id });
+        }
+        hidePopupsForBio();
+        const loadColumn = document.getElementById('load-column');
+        if (loadColumn) loadColumn.dataset.historyLayer = 'userbio';
+        const opened = typeof window.openLoadPage === 'function' && window.openLoadPage(true);
+        if (loadColumn) liftBioOverFeed(loadColumn);
+        if (!opened) {
+          restorePopupsForBio();
+          if (loadColumn) delete loadColumn.dataset.historyLayer;
+          dropBioOverFeed(loadColumn);
+          if (epoch === bioEpoch && window.layerIsOpen && window.layerIsOpen('userbio') && window.layerClosedByUI) {
+            window.layerClosedByUI('userbio');
+          }
+          return {};
+        }
+      }
+
+      releaseSuspend();
+      // The shell paints the topic list on the next frame. Load after that
+      // so the result is not replaced by that paint.
+      await waitForLoadPaint();
       if (epoch !== bioEpoch) return {};
-      hidePopupsForBio();
-      const loadColumn = document.getElementById("load-column");
-      const container = document.getElementById("load-column-container");
-      if (container) container.style.display = "block";
-      loadColumn.dataset.historyLayer = "userbio";
-      if (loadColumn.style.display === "none") loadColumn.dataset.historyHold = "1";
-      liftBioOverFeed(loadColumn);
-      loadColumn.style.display = "block";
-      OpenToggleToolbar();
-      const inputarea = document.getElementById("input-field");
-      inputarea.value = '';
-      const loaded_text_area = document.getElementById("loaded-topics");
-      const label = document.getElementById("loaded-topics-label");
-      if (label) label.style.display = "none";
-      const controls = loaded_text_area.querySelector(".loaded-topics-controls");
-      if (controls) controls.style.display = "none";
-      const list = document.getElementById("loaded-topics-list");
-      if (list) list.style.display = "none";
-      const previous = document.getElementById("loaded-bio-card");
-      if (previous) {
-        const oldStats = previous.querySelector('.profile-stats');
-        if (oldStats && typeof oldStats._dropProfileStats === 'function') oldStats._dropProfileStats();
-        forgetProfileTree(previous);
-        previous.remove();
+
+      const input = document.getElementById('input-field');
+      if (input) input.value = id;
+      if (!id) return { bio: '' };
+
+      // The account-id branch of Load calls back into this function.
+      // Drop the hook for this call so the toolbar Load runs once.
+      loadDepth += 1;
+      const hideHook = loadDepth === 1;
+      const previous = window.loadBio4PIC;
+      if (hideHook) window.loadBio4PIC = null;
+      try {
+        await handleAllMessages();
+      } finally {
+        loadDepth -= 1;
+        if (hideHook) window.loadBio4PIC = previous;
       }
-
-      const card = document.createElement('div');
-      card.id = 'loaded-bio-card';
-      card.className = 'profile-live-preview';
-
-      const bubble = document.createElement('div');
-      bubble.className = 'profile-live-bubble';
-
-      const img = document.createElement('img');
-      img.className = 'profile-live-pic';
-      img.alt = 'Profile photo';
-      const rawPic = profilePictures[payer] && profilePictures[payer].url;
-      img.src = validUrl(rawPic) ? rawPic : DEFAULT_PIC;
-      img.addEventListener('error', () => {
-        if (img.src !== DEFAULT_PIC) img.src = DEFAULT_PIC;
-      });
-
-      const names = document.createElement('div');
-      names.className = 'profile-live-names';
-      const account = document.createElement('a');
-      account.className = 'profile-live-account';
-      account.href = `https://explore.hashpack.app/${encodeURIComponent(payer)}`;
-      account.target = '_blank';
-      account.rel = 'noopener noreferrer';
-      account.textContent = payer;
-      account.style.color = colorOf('color-picker-popup-accid', '#ffffff');
-      account.style.textDecoration = 'none';
-      account.addEventListener('click', (event) => event.stopPropagation());
-      names.appendChild(account);
-
-      const name = textOf(usernames[payer] && usernames[payer].username).trim();
-      const link = textOf(click2url[payer] && click2url[payer].click2url).trim();
-      const nameColor = colorOf('color-picker-popup-username', '#ffffff');
-      if (name) {
-        const nameSlot = document.createElement('div');
-        const nameEl = payerUsernameNode(name, link, { className: 'profile-live-name' });
-        nameEl.style.color = nameColor;
-        nameSlot.appendChild(nameEl);
-        names.appendChild(nameSlot);
-      }
-      const stats = document.createElement('div');
-      names.appendChild(stats);
-
-      bubble.appendChild(img);
-      paintProfileAvatar(img, payer);
-      bubble.appendChild(names);
-      bubble.appendChild(followPersonControls(payer, { buttonOnly: true }));
-
-      const bioEl = document.createElement('div');
-      bioEl.className = 'profile-live-bio';
-      const hasBio = bio.trim().length > 0;
-      if (hasBio) fillTopicIds(bioEl, bio, 'profile-live-topic');
-      else bioEl.textContent = EMPTY_BIO;
-      bioEl.classList.toggle('is-empty', !hasBio);
-
-      card.appendChild(bubble);
-      paintProfileStats(stats, payer);
-      card.appendChild(bioEl);
-      paintEarlyProfile(card, payer);
-      const home = profileTopics[payer];
-      if (home) {
-        const topicLine = document.createElement('div');
-        topicLine.className = 'profile-live-topic profile-connected-topic';
-        topicLine.textContent = home;
-        topicLine.addEventListener('click', (event) => {
-          event.stopPropagation();
-          useTopicId(home);
-        });
-        card.appendChild(topicLine);
-      }
-      loaded_text_area.appendChild(card);
-      adjustTextareaHeight(loaded_text_area);
-
-      return { bio };
+      return { bio: '' };
 
   } catch (error) {
       console.log(`Error in loadBio4PIC for payer ${payer}:`, error);
-      const loadColumn = document.getElementById("load-column");
-      const shown = loadColumn && loadColumn.style.display !== "none" && document.getElementById("loaded-bio-card");
-      if (!shown && epoch === bioEpoch && window.layerIsOpen && window.layerIsOpen("userbio")) {
+      const loadColumn = document.getElementById('load-column');
+      const shell = document.getElementById('feed-chat');
+      const shown = !!(shell && !shell.hidden && loadColumn && loadColumn.style.display !== 'none');
+      if (!shown && epoch === bioEpoch && window.layerIsOpen && window.layerIsOpen('userbio')) {
+        restorePopupsForBio();
         if (loadColumn) delete loadColumn.dataset.historyLayer;
         dropBioOverFeed(loadColumn);
-        restorePopupsForBio();
-        window.layerClosedByUI("userbio");
+        if (window.layerClosedByUI) window.layerClosedByUI('userbio');
       }
       return {};
   } finally {
-      suspendingDismiss = Math.max(0, suspendingDismiss - 1);
+      releaseSuspend();
   }
 }
 

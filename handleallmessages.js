@@ -152,8 +152,6 @@ function restoreLoadedTopics() {
   if (controls) controls.style.display = '';
   const list = document.getElementById('loaded-topics-list');
   if (list) list.style.display = '';
-  const card = document.getElementById('loaded-bio-card');
-  if (card) card.remove();
 }
 
 export function renderLoadedTopics() {

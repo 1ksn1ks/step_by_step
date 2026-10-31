@@ -3256,7 +3256,13 @@ function openLoadFromFeed() {
 }
 
 // Toolbar → Load, only while the drawer is open. Startup never calls this.
-function openLoadPage() {
+// A profile tap passes true: same Load shell, no feedchat history entry.
+// That tap keeps the userbio layer so Back returns to the popup or drawer.
+function openLoadPage(fromProfile) {
+  if (fromProfile === true) {
+    paintFeedChat('load');
+    return feedChatKind === 'load' && !feedChat.hidden;
+  }
   const drawerOpen = !menu.hidden && menu.classList.contains('is-open') && drawerStack.length > 0;
   if (!drawerOpen || navBusy()) return false;
   openFeedChat('load', 'drawer');
@@ -4293,7 +4299,7 @@ function openFeedProfile(payer, source) {
   const id = String(payer || '').trim();
   if (!/^\d+\.\d+\.\d+$/.test(id)) return;
   if (!feedCovers()) {
-    // Map profile is the bio card. Keep the drawer under it the same way
+    // Map profile is the Load page. Keep the drawer under it the same way
     // the feed profile does, so Back highlights My profile.
     if (source === 'drawer') {
       if (navBusy()) return;
@@ -5404,6 +5410,20 @@ function closeFeedChat() {
   restoreDrawer();
 }
 
+// Toolbar Load owns this shell through the feedchat layer. A profile tap
+// does not, so Back on that open is the userbio layer instead.
+function loadPageOwnedByChat() {
+  return feedChatKind === 'load' && !feedChat.hidden
+    && !!(window.layerIsOpen && window.layerIsOpen('feedchat'));
+}
+
+function hideLoadShellForBio() {
+  if (feedChatKind !== 'load' || feedChat.hidden) return;
+  hideFeedChatPanel();
+}
+window.loadPageOwnedByChat = loadPageOwnedByChat;
+window.hideLoadShellForBio = hideLoadShellForBio;
+
 // Marker / polygon create. One page for the drawer Draw row, the feed +,
 // and a map tap. The drawer keeps the Toolbar page underneath.
 function openDrawPage(source) {
@@ -5447,6 +5467,10 @@ feedChatBack.addEventListener('click', (event) => {
   if (feedChatKind === 'load' && loadOptionsShown()) {
     const hide = document.getElementById('hide-options-from-load');
     if (hide) hide.click();
+    return;
+  }
+  if (window.layerIsTop && window.layerIsTop('userbio') && typeof window.closeUserBio === 'function') {
+    window.closeUserBio();
     return;
   }
   closeFeedChat();
