@@ -3615,7 +3615,11 @@ function ensureWallet() {
   const connect = document.getElementById('connect-wallet-btn');
   if (!connect) return Promise.resolve('fail');
   if (!walletModalOpen() && !connectPending()) {
+    // This click is mid-place. Explicit Connect buttons close overlays;
+    // this one must not.
+    connect.skipOverlayClose = true;
     try { connect.click(); } catch (err) { return Promise.resolve('fail'); }
+    finally { connect.skipOverlayClose = false; }
   }
   const started = Date.now();
   let sawSheet = walletModalOpen();
@@ -5535,10 +5539,10 @@ function openDisconnect() {
 }
 
 // The parked Wallet button reveals Connect. Connect's own handler opens
-// the sheet. The drawer stays up; paintMenuRows swaps this row for the
-// account and Disconnect when the id lands. A second tap is ignored only
-// while the sheet is open or this watch is running. A leftover
-// "Connecting..." label is not a second tap.
+// the sheet. The drawer closes first so it does not sit under the sheet.
+// paintMenuRows swaps this row for the account and Disconnect when the id
+// lands. A second tap is ignored only while the sheet is open or this watch
+// is running. A leftover "Connecting..." label is not a second tap.
 let drawerConnectWatch = 0;
 function endDrawerConnect(watchId, failed) {
   if (watchId !== drawerConnectWatch) return;
@@ -5549,6 +5553,7 @@ function endDrawerConnect(watchId, failed) {
 }
 function openDrawerConnect() {
   if (walletModalOpen() || drawerConnectWatch) return;
+  closeMenu();
   const watchId = ++drawerConnectWatch;
   clickId('wallet-wallet-btn');
   clickId('connect-wallet-btn');
@@ -5796,6 +5801,21 @@ function closeMenu() {
     window.layerClosedByUI('feedmenu');
   }
 }
+
+function layerOpen(name) {
+  return !!(window.layerIsOpen && window.layerIsOpen(name));
+}
+
+// Pages that restore the drawer close first, then the drawer itself.
+function closeFeedOverlays() {
+  if (!profilePage.hidden || layerOpen('feedprofile')) closeFeedProfile();
+  if (feedChatKind || !feedChat.hidden || layerOpen('feedchat')) closeFeedChat();
+  if (settingsOpen || layerOpen('feedsettings')) closeFeedSettings();
+  if (!menu.hidden || menu.classList.contains('is-open') || menu.classList.contains('is-nav-back') || layerOpen('feedmenu')) {
+    closeMenu();
+  }
+}
+window.closeFeedOverlays = closeFeedOverlays;
 
 function openMenu() {
   if (window.layerIsTop && !window.layerIsTop('feed')) return;

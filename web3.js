@@ -122,11 +122,21 @@ function reopenWalletModal() {
   }).catch(() => {});
 }
 
-function connectWallet() {
+// Map panels, then the drawer, chat, settings, and profile when they are
+// open. A second tap only reopens the sheet. A place-marker connect sets
+// skipOverlayClose and does not reach this.
+function closeForWalletConnect() {
+  if (typeof window.CloseALL === 'function') window.CloseALL();
+  if (typeof window.closeFeedOverlays === 'function') window.closeFeedOverlays();
+}
+
+function connectWallet(event) {
   if (connectFlight) {
     reopenWalletModal();
     return connectFlight;
   }
+  const skip = event && event.currentTarget && event.currentTarget.skipOverlayClose;
+  if (!skip) closeForWalletConnect();
   let settle;
   const flight = new Promise((resolve) => { settle = resolve; });
   connectFlight = flight;

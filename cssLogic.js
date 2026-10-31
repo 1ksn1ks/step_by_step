@@ -221,7 +221,10 @@ export function CloseALL() {
             }
     }
   }
-  
+  // web3.js cannot import this module: cssLogic already reaches web3 through
+  // polygons and the profile loader. Connect calls this on a new pairing.
+  window.CloseALL = CloseALL;
+
   // Backdrop press closes only that overlay — letting it bubble to the
   // document handlers would also run CloseALL / close the draw pin
   wireE2eeUnlockField();
