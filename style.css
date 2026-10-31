@@ -6116,39 +6116,6 @@ html, body {
     padding: 0;
   }
 
-  /* Button/Input panel preview: stacked full-width input + pill button,
-     mirroring .toolbar-column / .toolbar-column-btns */
-  .mb-panel .mb-preview-column {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6vh;
-    padding: 0.4vh 0 0.2vh;
-  }
-
-  .mb-panel .mb-preview-input {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0.4vh 0.6vh;
-    border-radius: 1vh;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    background: rgba(15, 15, 20, 0.45);
-    color: white;
-    font-family: inherit;
-  }
-
-  .mb-panel .mb-preview-pill {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0.4vh 1.4vh;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    background: rgba(15, 15, 20, 0.45);
-    color: white;
-    font-family: inherit;
-    cursor: default;
-    white-space: nowrap;
-  }
-
   /* Chat panel preview: mini message, mirroring
      .chat-container / .toolbar-group-messages / .chat-msg-text */
   .mb-panel .mb-chat-preview {
@@ -10632,11 +10599,10 @@ html.is-nav-lock body * {
   order: 1;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer .mb-card:has(.mb-preview),
-:is(#feed-menu, .drawer-screen) .in-drawer .mb-card:has(.mb-preview-column),
 :is(#feed-menu, .drawer-screen) .in-drawer .mb-card:has(.mb-chat-preview) {
   padding: 0;
 }
-:is(#feed-menu, .drawer-screen) .in-drawer .mb-card :is(.mb-preview, .mb-preview-column, .mb-chat-preview) {
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card :is(.mb-preview, .mb-chat-preview) {
   box-sizing: border-box;
   padding: calc(var(--fu) * 0.35) calc(var(--fu) * 1.1);
 }

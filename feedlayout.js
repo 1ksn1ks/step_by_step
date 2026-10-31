@@ -4052,8 +4052,6 @@ const OPTION_PANELS = [
   'popup-settings-card',
   'marker-options-column',
   'marker-column-save',
-  'button-input-column',
-  'button-input-column-save',
   'topic-chat-column',
   'topic-chat-save',
   'edit-profile-help-overlay',
@@ -4069,7 +4067,6 @@ const OPTION_PANELS = [
   'change-model-help-overlay',
   'crosshair-settings-help-overlay',
   'marker-size-help-overlay',
-  'main-buttons-advanced-style-help-overlay',
   'chat-style-help-overlay',
   'visibility-help-overlay',
 ];
@@ -6018,14 +6015,13 @@ const DRAWER_CHILDREN = {
   ],
   'rotation-controls': [
     'model-column', 'crosshair-column', 'marker-options-column',
-    'button-input-column', 'topic-chat-column',
+    'topic-chat-column',
   ],
 };
 const DRAWER_EXTRAS = {
   'model-column': ['model-column-save'],
   'crosshair-column': ['crosshair-column-save'],
   'marker-options-column': ['marker-column-save'],
-  'button-input-column': ['button-input-column-save'],
   'topic-chat-column': ['topic-chat-save'],
 };
 
@@ -6081,7 +6077,6 @@ const DRAWER_ROOT_PAGES = {
 
 const DRAWER_LABELS = {
   'marker-options-column': 'Markers',
-  'button-input-column': 'Appearance',
   'topic-chat-column': 'Chat',
   'model-column': 'Model',
   'crosshair-column': 'Crosshair',
@@ -6737,13 +6732,6 @@ const NAV_ICONS = {
     ['path', { d: 'M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0' }],
     ['circle', { cx: '12', cy: '10', r: '3' }],
   ],
-  'change-button-input-settings': [
-    ['circle', { cx: '13.5', cy: '6.5', r: '.5', fill: 'currentColor' }],
-    ['circle', { cx: '17.5', cy: '10.5', r: '.5', fill: 'currentColor' }],
-    ['circle', { cx: '8.5', cy: '7.5', r: '.5', fill: 'currentColor' }],
-    ['circle', { cx: '6.5', cy: '12.5', r: '.5', fill: 'currentColor' }],
-    ['path', { d: 'M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z' }],
-  ],
   'change-topic-chat-options': CHAT_ICON,
   'change-model-settings': [
     ['path', { d: 'M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z' }],
@@ -6806,7 +6794,6 @@ const VIS_ROWS = [
 
 const NAV_PANELS = {
   'change-marker-options': 'marker-options-column',
-  'change-button-input-settings': 'button-input-column',
   'change-topic-chat-options': 'topic-chat-column',
   'change-model-settings': 'model-column',
   'change-crosshair-settings': 'crosshair-column',

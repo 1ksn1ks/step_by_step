@@ -13,7 +13,6 @@ import { loadProfileCrosshair } from './loadcrosshair';
 import { loadTopicChatSettings } from './loadtopicchatset';
 import { loadProfilePopup, syncEarlyStyleEditor } from './loadprofilepopup';
 import { loadProfileObject } from './loadprofileobject';
-import { loadButtonInputSettings } from './loadbuttoninput';
 import { loadMarkerSettings } from './loadmarkersett';
 import { confirmNFTFunction, ownsModelNFT, setOwnsModelNFT } from './confirmnft';
 import { handleAllMessages } from './handleallmessages';
@@ -53,7 +52,6 @@ async function init() {
       loadProfileCrosshair(accountId)
       loadTopicChatSettings(accountId)
       loadProfilePopup(accountId)
-      loadButtonInputSettings(accountId)
       loadMarkerSettings(accountId)
       confirmNFTFunction(accountId).then(() => updateUI())
 
@@ -149,7 +147,6 @@ async function finishConnect(flight, settle) {
       loadProfileCrosshair(accountId)
       loadTopicChatSettings(accountId)
       loadProfilePopup(accountId)
-      loadButtonInputSettings(accountId)
       loadMarkerSettings(accountId)
       confirmNFTFunction(accountId).then(() => updateUI())
 

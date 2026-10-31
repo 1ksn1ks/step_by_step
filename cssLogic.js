@@ -152,7 +152,7 @@ const HISTORY_PANELS = [
   "draw-column", "utility-column", "memo-column", "domain-column",
   "stack-topic-ids", "initial-xyz-column", "visibility-controls",
   "rotation-controls", "model-column", "crosshair-column",
-  "marker-options-column", "button-input-column",
+  "marker-options-column",
   "topic-chat-column",
 ];
 const HISTORY_MEMO_SUBS = [
@@ -264,7 +264,6 @@ export function CloseALL() {
     ["model-column", "change-model-help-overlay"],
     ["crosshair-column", "crosshair-settings-help-overlay"],
     ["marker-options-column", "marker-size-help-overlay"],
-    ["button-input-column", "main-buttons-advanced-style-help-overlay"],
     ["topic-chat-column", "chat-style-help-overlay"],
     ["Edit_Profile-column", "edit-profile-help-overlay"],
     ["load-column", "load-options-help-overlay"],
@@ -391,8 +390,6 @@ export function CloseALL() {
       ["crosshair-column-container", "crosshair-column-save", "crosshair-column-container-save"]);
     subColumn("marker-options-column", "change-marker-options", "rotation-controls", "toggle-your-fov-btn",
       ["marker-options-column-container", "marker-column-save", "marker-column-container-save"]);
-    subColumn("button-input-column", "change-button-input-settings", "rotation-controls", "toggle-your-fov-btn",
-      ["button-input-column-container", "button-input-column-save", "button-input-column-container-save"]);
     subColumn("topic-chat-column", "change-topic-chat-options", "rotation-controls", "toggle-your-fov-btn",
       ["topic-chat-column-container", "topic-chat-save", "topic-chat-container-save"]);
     // Memo sub-panels: the ✅/⛔ buttons are plain toggles — the watcher
@@ -422,7 +419,6 @@ export function CloseALL() {
     "model-column",
     "crosshair-column",
     "marker-options-column",
-    "button-input-column",
     "topic-chat-column",
     "popup-settings-card",
   ];
@@ -521,18 +517,6 @@ export function CloseALL() {
     document.getElementById("marker-options-column-container").style.display = "block";
     document.getElementById("marker-column-save").style.display = "block";
     document.getElementById("marker-column-container-save").style.display = "block";
-
-    OpenToggleYourFov();
-    removeUfoModel();
-  });
-  
-  document.getElementById("change-button-input-settings").addEventListener("click", (event) => {
-    event.stopPropagation();
-    CloseALL();
-    document.getElementById("button-input-column").style.display = "block";
-    document.getElementById("button-input-column-container").style.display = "block";
-    document.getElementById("button-input-column-save").style.display = "block";
-    document.getElementById("button-input-column-container-save").style.display = "block";
 
     OpenToggleYourFov();
     removeUfoModel();

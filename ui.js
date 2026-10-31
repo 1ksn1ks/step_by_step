@@ -24,8 +24,6 @@ export const everythinginsideoptionsbuttons = [
     "popup-settings-card",
     "marker-options-column",
     "marker-column-save",
-    "button-input-column",
-    "button-input-column-save",
     "topic-chat-column",
     "topic-chat-save",
   ];
@@ -56,7 +54,6 @@ export const everythinginsideoptionsbuttons = [
     "change-model-help-overlay",
     "crosshair-settings-help-overlay",
     "marker-size-help-overlay",
-    "main-buttons-advanced-style-help-overlay",
     "chat-style-help-overlay",
     "visibility-help-overlay"
   ]
