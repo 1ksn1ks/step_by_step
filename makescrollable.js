@@ -324,7 +324,6 @@ export function makeScrollable(el) {
   makeScrollable(document.getElementById('polygon-column-container'));
   makeScrollable(document.getElementById('utility-column-container'));
   makeScrollable(document.getElementById('memo-column-container'));
-  makeScrollable(document.getElementById('update-topic-column-container'));
   makeScrollable(document.getElementById('domain-column-container'));
   makeScrollable(document.getElementById('stack-topic-ids-container'));
   makeScrollable(document.getElementById('input-field-3-2'));

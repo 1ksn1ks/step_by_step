@@ -4060,9 +4060,6 @@ const OPTION_PANELS = [
   'map-draw-help-overlay',
   'model-sharing-rules-help-overlay',
   'edit-topic-rules-help-overlay',
-  'update-topic-column',
-  'update-topic-help-overlay',
-  'topic-options-help-overlay',
   'domain-help-overlay',
   'stack-topic-ids-help-overlay',
   'topic-chat-help-overlay',
@@ -4893,6 +4890,39 @@ let drawTitleWatch = null;
 let feedChatLive = false;
 let feedChatPlaced = [];
 
+const FEED_CHAT_SHEETS = {
+  topic: [
+    'options-from-topic-chat',
+    'time-from-topic-chat',
+    'time-from-topic-chat-filter',
+    'load-load-from-users-label-from-topic-chat',
+    'load-block-from-users-label-from-topic-chat',
+    'load-msgs-from-ids-from-topic-chat',
+    'load-blocks-from-ids-from-topic-chat',
+    'load-load-from-users-from-topic-chat',
+    'load-block-from-users-from-topic-chat',
+  ],
+  e2ee: [
+    'options-from-encrypted-chat',
+    'encrypted-chat-public-key',
+    'encrypted-chat-change-password-key-label',
+    'encrypted-chat-change-password-key',
+    'encrypted-chat-new-password-key-label',
+    'encrypted-chat-new-password-key',
+    'pin-public-key-from-encrypted-chat',
+    'change-password-encrypted-chat',
+    'set-password-encrypted-chat',
+    'time-from-encrypted-chat',
+    'time-from-encrypted-chat-filter',
+    'load-load-from-users-label-from-encrypted-chat',
+    'load-block-from-users-label-from-encrypted-chat',
+    'load-msgs-from-ids-from-encrypted-chat',
+    'load-blocks-from-ids-from-encrypted-chat',
+    'load-load-from-users-from-encrypted-chat',
+    'load-block-from-users-from-encrypted-chat',
+  ],
+};
+
 function placeFeedNode(node, parent) {
   if (!node || !parent || node.parentNode === parent) return;
   feedChatPlaced.push({ node, parent: node.parentNode, next: node.nextSibling });
@@ -4919,39 +4949,6 @@ function primeFeedOptionPair(openId, closeId, panelId) {
 }
 
 let loadOptionsWatch = null;
-let chatOptionsWatch = null;
-
-function clearChatOptions() {
-  if (chatOptionsWatch) {
-    chatOptionsWatch.disconnect();
-    chatOptionsWatch = null;
-  }
-  const page = feedChat.querySelector(':scope > .chat-options-page');
-  if (page) page.remove();
-}
-
-function mountChatOptions(kind) {
-  const optionsId = kind === 'e2ee' ? 'options-from-encrypted-chat' : 'options-from-topic-chat';
-  const options = document.getElementById(optionsId);
-  if (!options) return;
-  let page = feedChat.querySelector(':scope > .chat-options-page');
-  if (!page) {
-    page = document.createElement('div');
-    page.className = 'chat-options-page';
-    page.hidden = true;
-    feedChat.appendChild(page);
-  }
-  placeFeedNode(options, page);
-  const sync = () => {
-    const open = options.style.display !== 'none';
-    page.hidden = !open;
-    if (!open) options.classList.remove('is-field-open');
-  };
-  if (chatOptionsWatch) chatOptionsWatch.disconnect();
-  chatOptionsWatch = new MutationObserver(sync);
-  chatOptionsWatch.observe(options, { attributes: true, attributeFilter: ['style'] });
-  sync();
-}
 
 function loadOptionsShown() {
   const options = document.getElementById('options-from-load');
@@ -5025,16 +5022,16 @@ function mountLoadOptions() {
   const title = document.createElement('h2');
   title.className = 'feed-chat-title';
   title.textContent = 'Options';
-  const help = document.createElement('button');
-  help.type = 'button';
-  help.id = 'help-load-options-page';
-  help.className = 'topic-options-help';
-  help.setAttribute('aria-label', 'Help');
-  help.textContent = '?';
-  bar.append(back, title, help);
+  bar.append(back, title);
   const body = document.createElement('div');
   body.className = 'load-options-body';
   page.append(bar, body);
+  // Pin sits beside Options in the column. On this page it belongs with
+  // the options content, or the slide covers it.
+  const pinShow = document.getElementById('show-pin-key-load');
+  const pinHide = document.getElementById('hide-pin-key-load');
+  if (pinShow) placeFeedNode(pinShow, body);
+  if (pinHide) placeFeedNode(pinHide, body);
   let node = options;
   while (node && node.parentNode === container) {
     const next = node.nextSibling;
@@ -5091,23 +5088,7 @@ function clearDrawHeader() {
 }
 
 function clearFeedMessenger(panel) {
-  if (chatOptionsWatch) {
-    chatOptionsWatch.disconnect();
-    chatOptionsWatch = null;
-  }
-  const chatPage = feedChat.querySelector(':scope > .chat-options-page');
-  const chatOptions = chatPage && chatPage.querySelector('.topic-options-page');
-  if (chatOptions) {
-    chatOptions.style.display = 'none';
-    chatOptions.classList.remove('is-field-open');
-    const e2ee = chatOptions.id === 'options-from-encrypted-chat';
-    const open = document.getElementById(e2ee ? 'show-options-from-encrypted-chat' : 'show-options-from-topic-chat');
-    const close = document.getElementById(e2ee ? 'show-options-from-encrypted-chat-btn' : 'show-options-from-topic-chat-btn');
-    if (open) open.style.display = 'block';
-    if (close) close.style.display = 'none';
-  }
   unplaceFeedChat();
-  clearChatOptions();
   clearLoadOptions();
   clearDrawHeader();
   feedChatSearch.classList.remove('is-on');
@@ -5116,7 +5097,6 @@ function clearFeedMessenger(panel) {
   feedChatUnlock.classList.remove('is-on');
   feedChatUnlock.hidden = true;
   if (!panel) return;
-  delete panel.dataset.feedOptionsMounted;
   panel.classList.remove('is-search', 'is-locked');
   panel.querySelectorAll('.feed-chat-room').forEach((el) => el.classList.remove('feed-chat-room'));
   panel.querySelectorAll('.feed-chat-compose').forEach((el) => el.classList.remove('feed-chat-compose'));
@@ -5149,10 +5129,9 @@ function mountFeedMessenger(panel, kind) {
     return;
   }
   feedChatSearch.hidden = false;
-  if (panel.dataset.feedOptionsMounted === '1') return;
+  if (panel.querySelector('.feed-chat-sheet')) return;
   const inner = panel.querySelector('.chat-topic-chat-container');
   if (!inner) return;
-  panel.dataset.feedOptionsMounted = '1';
   const topic = document.getElementById(kind === 'e2ee' ? 'encrypted-chat-topic-id' : 'topic-chat-topic-id');
   if (topic && topic.parentElement) topic.parentElement.classList.add('feed-chat-room');
   const field = document.getElementById(kind === 'e2ee' ? 'user-write-message-encrypted-chat' : 'user-write-message');
@@ -5164,7 +5143,10 @@ function mountFeedMessenger(panel, kind) {
   primeFeedOptionPair(openId, closeId, optionsId);
   placeFeedNode(document.getElementById(openId), feedChatActions);
   placeFeedNode(document.getElementById(closeId), feedChatActions);
-  mountChatOptions(kind);
+  const sheet = document.createElement('div');
+  sheet.className = 'feed-chat-sheet';
+  inner.appendChild(sheet);
+  for (const id of FEED_CHAT_SHEETS[kind]) placeFeedNode(document.getElementById(id), sheet);
   feedChatUnlock.hidden = kind !== 'e2ee';
   if (kind !== 'e2ee') return;
   // Unlock field under the header (with gap), not a centered gate.
@@ -6028,7 +6010,7 @@ const DRAWER_PAGE_LEVELS = 4;
 const DRAWER_CHILDREN = {
   toolbar: [
     'Edit_Profile-column', 'load-column', 'create-column', 'draw-column',
-    'utility-column', 'memo-column', 'update-topic-column', 'domain-column', 'stack-topic-ids',
+    'utility-column', 'memo-column', 'domain-column', 'stack-topic-ids',
     'initial-xyz-column',
   ],
   'rotation-controls': [
@@ -6098,10 +6080,6 @@ const DRAWER_LABELS = {
   'topic-chat-column': 'Chat',
   'model-column': 'Model',
   'crosshair-column': 'Crosshair',
-  'Edit_Profile-column': 'Profile',
-  'update-topic-column': 'Update topic',
-  'domain-column': 'Domain',
-  'create-column': 'Create',
 };
 
 function drawerPageLabel(id) {
@@ -6831,10 +6809,6 @@ const NAV_ICONS = {
     ['path', { d: 'M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z' }],
     ['circle', { cx: '7.5', cy: '7.5', r: '.5', fill: 'currentColor' }],
   ],
-  Update_Topic: [
-    ['path', { d: 'M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z' }],
-    ['circle', { cx: '16.5', cy: '7.5', r: '.5', fill: 'currentColor' }],
-  ],
   Stack_topic_IDs: [
     ['path', { d: 'm12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z' }],
     ['path', { d: 'm22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65' }],
@@ -6867,7 +6841,6 @@ const NAV_PANELS = {
   Create_New_Topic: 'create-column',
   'NFT-utility': 'utility-column',
   Change_Memo: 'memo-column',
-  Update_Topic: 'update-topic-column',
   Domain: 'domain-column',
   Stack_topic_IDs: 'stack-topic-ids',
   Set_Initial_XYZ: 'initial-xyz-column',
@@ -6994,7 +6967,6 @@ function paintMenuRows() {
     row.hidden = hide;
   }
   paintMapAccount();
-  if (window.paintUpdateTopicRow) window.paintUpdateTopicRow();
 }
 
 // web3.js writes #account-id on connect and disconnect. Repaint so a

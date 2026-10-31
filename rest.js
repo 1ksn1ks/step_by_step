@@ -70,13 +70,7 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
      console.log("createdTopicId is", createdTopicId);
  
  
-     const topicField = document.getElementById("input-field-5");
-     topicField.value = createdTopicId;
-     const topicShown = document.getElementById("create-topic-id-value");
-     if (topicShown) {
-       topicShown.textContent = createdTopicId || "—";
-       topicShown.classList.toggle("is-set", !!createdTopicId);
-     }
+     document.getElementById("input-field-5").value = createdTopicId;
      const markerTopic = document.getElementById("input-field-2-0");
      const polygonTopic = document.getElementById("input-field-3-0");
      markerTopic.value = createdTopicId;
@@ -103,24 +97,6 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
      } catch (error) {
      console.error("Error creating topic:", error);
    }
- });
-
- function copyCreateValue(value) {
-   if (!value) return;
-   navigator.clipboard.writeText(value)
-     .then(() => toast.success("Copied to clipboard"))
-     .catch((err) => console.error("Failed to copy: ", err));
- }
-
- document.getElementById("create-topic-id-copy").addEventListener("click", () => {
-   copyCreateValue(document.getElementById("input-field-5").value);
- });
-
- document.querySelectorAll("#create-column .create-copy").forEach((button) => {
-   button.addEventListener("click", () => {
-     const source = document.getElementById(button.dataset.copy);
-     copyCreateValue(source && source.value);
-   });
  });
  
  async function loadCurrentMemo(topicInputId, boxId, fieldId) {

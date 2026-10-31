@@ -149,7 +149,7 @@ export function closeTransientMapUI() {
 // gesture (e.g. a marker popup after a marker tap) sees the close first.
 const HISTORY_PANELS = [
   "toolbar", "Edit_Profile-column", "load-column", "create-column",
-  "draw-column", "utility-column", "memo-column", "update-topic-column", "domain-column",
+  "draw-column", "utility-column", "memo-column", "domain-column",
   "stack-topic-ids", "initial-xyz-column", "visibility-controls",
   "rotation-controls", "model-column", "crosshair-column",
   "marker-options-column",
@@ -271,7 +271,6 @@ export function CloseALL() {
     ["draw-column", "map-draw-help-overlay"],
     ["utility-column", "model-sharing-rules-help-overlay"],
     ["memo-column", "edit-topic-rules-help-overlay"],
-    ["update-topic-column", "update-topic-help-overlay"],
     ["domain-column", "domain-help-overlay"],
     ["stack-topic-ids", "stack-topic-ids-help-overlay"],
     ["topic-chat-container", "topic-chat-help-overlay"],
@@ -380,7 +379,6 @@ export function CloseALL() {
     subColumn("draw-column", "Draw_Marker_Polygon", "toolbar", "toggle-toolbar-btn", ["draw-column-container"]);
     subColumn("utility-column", "NFT-utility", "toolbar", "toggle-toolbar-btn", ["utility-column-container"]);
     subColumn("memo-column", "Change_Memo", "toolbar", "toggle-toolbar-btn", ["memo-column-container"]);
-    subColumn("update-topic-column", "Update_Topic", "toolbar", "toggle-toolbar-btn", ["update-topic-column-container"]);
     subColumn("domain-column", "Domain", "toolbar", "toggle-toolbar-btn", ["domain-column-container"]);
     subColumn("stack-topic-ids", "Stack_topic_IDs", "toolbar", "toggle-toolbar-btn", ["stack-topic-ids-container"]);
     subColumn("initial-xyz-column", "Set_Initial_XYZ", "toolbar", "toggle-toolbar-btn", ["initial-xyz-column-container"]);
@@ -616,19 +614,6 @@ export function CloseALL() {
       "hide-topic-name-from-memo", "topic-name-from-memo"
     );
 
-    OpenToggleToolbar();
-    removeUfoModel();
-  });
-
-  document.getElementById("Update_Topic").addEventListener("click", (event) => {
-    event.stopPropagation();
-    if (event.currentTarget.classList.contains("is-disabled")) return;
-    CloseALL();
-    if (window.applySelectedTopic) window.applySelectedTopic();
-    const column = document.getElementById("update-topic-column");
-    column.classList.remove("is-field-open");
-    column.style.display = "block";
-    document.getElementById("update-topic-column-container").style.display = "block";
     OpenToggleToolbar();
     removeUfoModel();
   });
