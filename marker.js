@@ -554,6 +554,7 @@ document.addEventListener("live-dataset-changed", () => {
 
       document.getElementById("marker-visibility-value").textContent = markersVisible ? "On" : "Off";
       document.getElementById("marker-visibility-value2").textContent = markersVisible ? "On" : "Off";
+      syncVisibilityMarkerPreview();
 
       if (!markersVisible) {
           map.off("move", viewportTopicUpdate);
@@ -569,5 +570,14 @@ document.addEventListener("live-dataset-changed", () => {
           updateClusters();
       }
   }
+
+  function syncVisibilityMarkerPreview() {
+    const el = document.getElementById("mb-marker-preview");
+    if (!el) return;
+    el.style.setProperty("--mb-marker-size", currentMarkerSize + "vh");
+    el.style.opacity = markersVisible ? "1" : "0.4";
+  }
+
+  document.addEventListener("marker-size-changed", syncVisibilityMarkerPreview);
 
   toggleMarkers()

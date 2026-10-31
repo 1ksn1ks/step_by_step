@@ -10640,6 +10640,74 @@ html.is-nav-lock body * {
   max-height: none;
   max-width: 100%;
 }
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .mb-card:has(.mb-preview) {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  padding: 16px;
+}
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .mb-card:has(.mb-preview) > .mb-card-title {
+  margin: 0 0 16px;
+  padding: 0;
+}
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .mb-preview {
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  justify-content: center;
+  align-items: center;
+  justify-items: center;
+  column-gap: 24px;
+  row-gap: calc(var(--fu) * 0.4);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .mb-preview-caption {
+  font-size: calc(var(--fu) * 1.25);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.25;
+  text-align: center;
+  text-transform: none;
+  color: rgba(255, 255, 255, 0.5);
+}
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .mb-poly-preview-bg {
+  width: auto;
+  height: auto;
+  overflow: visible;
+}
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .mb-poly-preview {
+  width: 10vh;
+  height: auto;
+  aspect-ratio: 10 / 4;
+  max-width: calc((100cqi - 24px) / 2);
+  max-height: calc((100cqi - 24px) / 2);
+}
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .mb-marker-preview {
+  box-sizing: border-box;
+  display: block;
+  position: relative;
+  width: auto;
+  height: var(--mb-marker-size, 5vh);
+  aspect-ratio: 1;
+  max-width: calc((100cqi - 24px) / 2);
+  max-height: calc((100cqi - 24px) / 2);
+  margin: 0;
+  overflow: visible;
+}
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .mb-marker-preview > .marker-face {
+  background-color: rgba(255, 255, 255, 0.8);
+}
 #feed-menu #visibility-controls.in-drawer .mb-row:has(> .toolbar-column-btns) {
   position: relative;
 }

@@ -104,7 +104,7 @@ const rasterOpacityPill = document.getElementById("raster-opacity-slider-pill");
 const mbPolyPreview = document.getElementById("mb-poly-preview");
 rasterOpacitySlider.addEventListener("input", (event) => {
   rasterOpacityPill.textContent = event.target.value;
-  mbPolyPreview.style.opacity = event.target.value;
+  syncPolyPreview();
 });
 
 const resizedImageCache = new Map();
@@ -1049,7 +1049,17 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
 
       document.getElementById("polygon-visibility-value").textContent = polygonsVisible ? "On" : "Off"; // Update button state
       document.getElementById("polygon-visibility-value2").textContent = polygonsVisible ? "On" : "Off"; // Update button state
+      syncPolyPreview();
   }
 
   document.getElementById("toggle-polygon-visibility").addEventListener("click", togglePolygons);
+
+function syncPolyPreview() {
+  if (!mbPolyPreview) return;
+  mbPolyPreview.style.opacity = rasterOpacitySlider ? rasterOpacitySlider.value : "1";
+  const bg = mbPolyPreview.parentElement;
+  if (bg) bg.style.opacity = polygonsVisible ? "" : "0.4";
+}
+
+syncPolyPreview();
 
