@@ -16,6 +16,7 @@ import { fillMapTip } from './maptip.js';
 import { prefetchPersonFollow } from './followtopic.js';
 import { isPointerOnGlobe } from './onglobe.js';
 import { advanceIpfsImage } from './ipfsimage.js';
+import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 
 
 
@@ -102,8 +103,13 @@ export function newActivePolygonPopups(a) {
 const rasterOpacitySlider = document.getElementById("raster-opacity-slider");
 const rasterOpacityPill = document.getElementById("raster-opacity-slider-pill");
 const mbPolyPreview = document.getElementById("mb-poly-preview");
+function paintRasterOpacityReadout() {
+  rasterOpacityPill.textContent = formatSliderValue(rasterOpacitySlider, rasterOpacitySlider.value);
+  applySliderValueWidth(rasterOpacitySlider, rasterOpacityPill);
+}
+paintRasterOpacityReadout();
 rasterOpacitySlider.addEventListener("input", (event) => {
-  rasterOpacityPill.textContent = event.target.value;
+  paintRasterOpacityReadout();
   mbPolyPreview.style.opacity = event.target.value;
 });
 

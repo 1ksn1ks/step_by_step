@@ -32,6 +32,7 @@ import { fillTopicIds, useTopicId } from './topicidintext.js';
 import { payerUsernameNode } from './payerlink.js';
 import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { openPreview } from './fullscreenmedia.js';
+import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -4566,7 +4567,9 @@ function paintFeedZoom() {
   const pct = Math.round(feedPrefs.zoom * 100);
   const fill = ((feedPrefs.zoom - FEED_ZOOM_MIN) / (FEED_ZOOM_MAX - FEED_ZOOM_MIN)) * 100;
   zoomRange.value = String(pct);
-  zoomLevel.textContent = pct + '%';
+  if (!/\d/.test(zoomLevel.textContent || '')) zoomLevel.textContent = pct + '%';
+  zoomLevel.textContent = formatSliderValue(zoomRange, pct);
+  applySliderValueWidth(zoomRange, zoomLevel);
   zoomRange.setAttribute('aria-valuetext', pct + '%');
   zoomRange.style.setProperty('--feed-zoom-fill', fill.toFixed(2) + '%');
 }
@@ -6164,9 +6167,8 @@ function alignSliderColumns(root) {
     else groups.set(group, [row]);
   }
   for (const [group, list] of groups) {
-    const rowWidth = list[0].getBoundingClientRect().width;
-    if (rowWidth < 8) continue;
     let longest = 0;
+    let zero = 0;
     for (const row of list) {
       const label = row.querySelector(':scope > .mb-row-label, :scope > label');
       if (!label) continue;
@@ -6177,17 +6179,34 @@ function alignSliderColumns(root) {
         textWidth = range.getBoundingClientRect().width;
       }
       if (textWidth < 1) textWidth = label.scrollWidth;
-      longest = Math.max(longest, textWidth);
+      if (textWidth <= longest) continue;
+      const probe = document.createElement('span');
+      probe.textContent = '0';
+      probe.setAttribute('aria-hidden', 'true');
+      const cs = getComputedStyle(label);
+      probe.style.cssText = 'position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;white-space:nowrap;font:' + cs.font + ';letter-spacing:' + cs.letterSpacing + ';';
+      document.body.appendChild(probe);
+      zero = probe.getBoundingClientRect().width;
+      probe.remove();
+      longest = textWidth;
     }
-    if (longest <= 0) continue;
-    const font = parseFloat(getComputedStyle(list[0]).fontSize) || 16;
-    const cap = rowWidth - (4.5 * font) - 24 - 36;
-    const width = Math.max(0, Math.min(longest, cap));
-    const next = Math.ceil(width) + 'px';
-    if (group.style.getPropertyValue('--slider-label-w').trim() === next) continue;
+    if (longest <= 0 || zero <= 0) continue;
+    const ch = Math.ceil((longest / zero) * 100) / 100 + 0.25;
+    const next = ch.toFixed(2) + 'ch';
+    const prev = parseFloat(group.style.getPropertyValue('--slider-label-w'));
+    if (Number.isFinite(prev) && Math.abs(prev - ch) < 0.2) continue;
     group.style.setProperty('--slider-label-w', next);
   }
 }
+
+function realignSliderColumns() {
+  for (const shell of drawerShells) {
+    if (shell.body) alignSliderColumns(shell.body);
+  }
+}
+window.addEventListener('resize', realignSliderColumns);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', realignSliderColumns);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(realignSliderColumns);
 
 function paintGroupDividers(root) {
   if (!root) return;

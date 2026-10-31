@@ -3,6 +3,7 @@ import { getTopicData as getMessages } from "./topicdata";
 import { setcurrentMarkerSize, updateClusters } from "./marker";
 import { signer } from "./web3";
 import { toast } from "./toast";
+import { formatSliderValue, applySliderValueWidth } from "./slidervalue";
 
 const $ = (id) => document.getElementById(id);
 
@@ -23,7 +24,8 @@ function syncControls(values) {
 }
 
 function updatePills() {
-    els.sizePill.textContent = `${els.size.value} vh`;
+    els.sizePill.textContent = formatSliderValue(els.size, els.size.value);
+    applySliderValueWidth(els.size, els.sizePill);
 }
 
 function updateMarkerSettings() {

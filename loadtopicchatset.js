@@ -12,6 +12,7 @@ import {
 } from './letall'
 import { signer } from "./web3";
 import { toast } from "./toast";
+import { formatSliderValue, applySliderValueWidth } from "./slidervalue";
 
 const $ = (id) => document.getElementById(id);
 
@@ -83,9 +84,15 @@ function syncControls(values) {
 }
 
 function updatePills() {
-    els.textFontPill.textContent = `${els.textFont.value} vh`;
-    els.timestampFontPill.textContent = `${els.timestampFont.value} vh`;
-    els.headerFontPill.textContent = `${els.headerFont.value} vh`;
+    const rows = [
+        [els.textFont, els.textFontPill],
+        [els.timestampFont, els.timestampFontPill],
+        [els.headerFont, els.headerFontPill],
+    ];
+    for (const [input, pill] of rows) {
+        pill.textContent = formatSliderValue(input, input.value);
+        applySliderValueWidth(input, pill);
+    }
 }
 
 function updatePreview() {

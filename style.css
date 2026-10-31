@@ -11210,10 +11210,12 @@ html.is-nav-lock body * {
   background: transparent;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > :is(.mb-row-label, label) {
-  flex: 0 0 auto;
-  width: auto !important;
+  flex: none;
+  width: var(--slider-label-w, max-content) !important;
+  min-width: var(--slider-label-w, max-content);
   max-width: none;
   overflow: visible;
+  text-overflow: clip;
   white-space: nowrap;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input[type="range"] {
@@ -11243,8 +11245,7 @@ html.is-nav-lock body * {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 :is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input.toolbar-column[type="number"]:not([type="color"]),
-:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input.yourfov[type="number"]:not([type="color"]),
-:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > .mb-value-pill {
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input.yourfov[type="number"]:not([type="color"]) {
   flex: 0 0 auto;
   width: auto !important;
   min-width: 4.5ch !important;
@@ -11265,6 +11266,28 @@ html.is-nav-lock body * {
   overflow: visible;
   white-space: nowrap;
   field-sizing: content;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > .mb-value-pill {
+  flex: none;
+  width: var(--slider-value-w, 4.5ch) !important;
+  min-width: var(--slider-value-w, 4.5ch) !important;
+  max-width: var(--slider-value-w, 4.5ch);
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: var(--ui-small);
+  font-variant-numeric: tabular-nums;
+  text-align: right !important;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer div:has(> input[type="range"]) > input[type="number"] {
   width: 7ch !important;
@@ -11442,10 +11465,13 @@ html.drawer-page .info-overlay {
   cursor: pointer;
 }
 .feed-settings-zoom-level {
-  flex: 0 0 auto;
-  min-width: 4.5ch;
+  flex: none;
+  width: var(--slider-value-w, 4.5ch);
+  min-width: var(--slider-value-w, 4.5ch);
+  max-width: var(--slider-value-w, 4.5ch);
   margin: 0;
   overflow: visible;
+  text-overflow: clip;
   color: #22D3EE;
   font-family: Inter, system-ui, sans-serif;
   font-size: var(--ui-small);
