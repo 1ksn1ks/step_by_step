@@ -906,7 +906,8 @@
       
       
       
-            <div style="display: flex;">
+          <div class="nft-toggle-grid">
+            <div style="display: flex;" class="nft-toggle-col">
               <button id="show-topic-rules-from-nft-utility" class="toolbar-column-first-settings-btns">Topic Rules ✅
               </button>
               <button id="hide-topic-rules-from-nft-utility" style="display: none;" class="toolbar-column-first-settings-btns">Topic Rules ⛔
@@ -921,7 +922,7 @@
               </button>
             </div>
 
-            <div style="display: flex;">
+            <div style="display: flex;" class="nft-toggle-col">
               <button id="show-topic-chat-from-nft-utility" class="toolbar-column-first-settings-btns">Topic Chat ✅
               </button>
               <button id="hide-topic-chat-from-nft-utility" style="display: none;" class="toolbar-column-first-settings-btns">Topic Chat ⛔
@@ -935,6 +936,7 @@
               <button id="hide-polygons-from-nft-utility" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Polygons ⛔
               </button>
             </div>
+          </div>
       
       
       
@@ -964,7 +966,7 @@
       
       
         <div id="model-sharing-from-nft-utility-button-group" style="display: none;">
-          <div class="button-group" style="display: flex; flex-direction: row; align-items: center;">
+          <div class="button-group nft-confirm-row" style="display: flex; flex-direction: row; align-items: center;">
             <button id="submit-button-add-NFT-for-model" class="toolbar-column-btns">Add
             </button>
             <button id="submit-button-remove-NFT-for-model" class="toolbar-column-btns" style="margin-left: 8vw;">Remove
@@ -979,7 +981,7 @@
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
       
-          <div class="button-group" style="display: flex; flex-direction: row; align-items: center;">
+          <div class="button-group nft-confirm-row" style="display: flex; flex-direction: row; align-items: center;">
             <button id="submit-button-add-scale-for-model" class="toolbar-column-btns">Add
             </button>
             <button id="submit-button-remove-scale-for-model" class="toolbar-column-btns" style="margin-left: 8vw;">Remove
@@ -994,7 +996,7 @@
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
       
-          <div class="button-group" style="display: flex; flex-direction: row; align-items: center;">
+          <div class="button-group nft-confirm-row" style="display: flex; flex-direction: row; align-items: center;">
             <button id="submit-button-add-topic-chat" class="toolbar-column-btns">Add
             </button>
             <button id="submit-button-remove-topic-chat" class="toolbar-column-btns" style="margin-left: 8vw;">Remove
@@ -1011,7 +1013,7 @@
           <textarea class="toolbar-column" type="text" id="input-field-messages-per-nft-for-markers" placeholder="how many markers per NFT"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
-          <div class="button-group" style="display: flex; flex-direction: row; align-items: center;">
+          <div class="button-group nft-confirm-row" style="display: flex; flex-direction: row; align-items: center;">
             <button id="submit-button-add-rules-for-markers" class="toolbar-column-btns">Add
             </button>
             <button id="submit-button-remove-rules-for-markers" class="toolbar-column-btns" style="margin-left: 8vw;">Remove
@@ -1031,7 +1033,7 @@
           <textarea class="toolbar-column" type="text" id="input-field-messages-size-for-polygons" placeholder="max size = (360,180) / (number)"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
           ></textarea>
-          <div class="button-group" style="display: flex; flex-direction: row; align-items: center;">
+          <div class="button-group nft-confirm-row" style="display: flex; flex-direction: row; align-items: center;">
             <button id="submit-button-add-rules-for-polygons" class="toolbar-column-btns">Add
             </button>
             <button id="submit-button-remove-rules-for-polygons" class="toolbar-column-btns" style="margin-left: 8vw;">Remove
