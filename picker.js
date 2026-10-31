@@ -535,6 +535,24 @@ function ensureLayer() {
   });
 }
 
+function backArrow() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('overflow', 'visible');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const d of ['m12 19-7-7 7-7', 'M19 12H5']) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+  }
+  return svg;
+}
+
 function tabButtons(kinds) {
   const defs = [];
   if (kinds.length > 1) defs.push({ id: 'all', label: 'All' });
@@ -558,7 +576,7 @@ function mount(opts) {
   back.type = 'button';
   back.className = 'picker-back';
   back.setAttribute('aria-label', 'Back');
-  back.textContent = '‹';
+  back.appendChild(backArrow());
   back.addEventListener('click', (event) => {
     event.stopPropagation();
     finish(null, false);
@@ -572,7 +590,7 @@ function mount(opts) {
   countEl = document.createElement('div');
   countEl.className = 'picker-count';
   countEl.textContent = '0 following';
-  heading.append(title, countEl);
+  heading.append(title);
   head.append(back, heading);
   root.setAttribute('aria-labelledby', 'follow-picker-title');
 
@@ -649,7 +667,7 @@ function mount(opts) {
     finish(picked, false);
   });
 
-  root.append(head, searchEl, chipsEl, tabs, pin, scroller, doneBtn);
+  root.append(head, countEl, searchEl, chipsEl, tabs, pin, scroller, doneBtn);
   document.body.appendChild(root);
   document.addEventListener('keydown', onKey, true);
   window.addEventListener('resize', onResize);

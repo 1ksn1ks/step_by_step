@@ -10217,7 +10217,8 @@ html.feed-app appkit-modal {
 #feed-menu.is-map-drawer,
 .drawer-screen,
 #feed-chat,
-#feed-chat > * {
+#feed-chat > *,
+.picker-sheet {
   --ui-label: calc(var(--fu) * 1.8);
   --ui-small: calc(var(--fu) * 1.35);
   --ui-row-h: max(48px, calc(var(--fu) * 4.4));
@@ -16306,6 +16307,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   height: max(44px, var(--chat-field-h, 44px));
 }
 .picker-sheet {
+  --fu: calc(min(100dvw, 100dvh) * 0.024);
   position: fixed;
   inset: 0;
   z-index: 9700;
@@ -16322,28 +16324,43 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
     env(safe-area-inset-right)
     env(safe-area-inset-bottom)
     env(safe-area-inset-left);
-  background: rgba(15, 15, 20, 0.94);
-  -webkit-backdrop-filter: blur(1.2vh);
-  -webkit-backdrop-filter: blur(1.2dvh);
-  backdrop-filter: blur(1.2vh);
-  backdrop-filter: blur(1.2dvh);
-  border: 1px solid rgba(34, 211, 238, 0.35);
-  box-shadow: inset 0 0 2dvh rgba(34, 211, 238, 0.08);
+  background: #0a0a12;
+  border: 0;
   color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+}
+@media (min-width: 1000px) and (hover: hover) {
+  .picker-sheet {
+    --feed-col-width: 100dvw;
+    --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
+    padding-left: max(env(safe-area-inset-left), calc((100dvw - min(100dvw, var(--feed-col-width))) / 2));
+    padding-right: max(env(safe-area-inset-right), calc((100dvw - min(100dvw, var(--feed-col-width))) / 2));
+  }
+}
+@media (min-width: 1000px) and (hover: hover) and (orientation: landscape) {
+  .picker-sheet {
+    --feed-col-width: clamp(40dvw, 46dvw, 46dvw);
+  }
+}
+.picker-sheet :is(button, input) {
   font-family: Inter, system-ui, sans-serif;
 }
 .picker-head {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 1.2dvw;
-  min-height: 48px;
-  padding: 0.6dvh 1.2dvw;
+  box-sizing: border-box;
+  gap: calc(var(--fu) * 0.8);
+  min-height: 44px;
+  margin: 0;
+  padding: 0 calc(var(--fu) * 1.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+  background: #0a0a12;
 }
 .picker-back {
   appearance: none;
   flex: 0 0 auto;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
@@ -16354,118 +16371,148 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+  background: transparent;
   color: #fff;
-  font-size: 3.2dvh;
-  line-height: 1;
   cursor: pointer;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.picker-back svg {
+  width: calc(var(--fu) * 2.2);
+  height: calc(var(--fu) * 2.2);
+  display: block;
+  pointer-events: none;
 }
 .picker-back:is(:hover, :active) {
   color: #22D3EE;
+  background: transparent;
+}
+.picker-back:focus {
+  outline: none;
+}
+.picker-back:focus-visible {
+  outline: 2px solid #22D3EE;
+  outline-offset: 2px;
 }
 .picker-heading {
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  align-items: center;
 }
 .picker-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 2dvh;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--fu) * 2.1);
   font-weight: 700;
   line-height: 1.2;
+  text-align: left;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .picker-count {
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 1.4dvh;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: calc(var(--fu) * 0.45) var(--ui-pad-x) 0;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-small);
   line-height: 1.2;
 }
 .picker-search {
+  appearance: none;
+  -webkit-appearance: none;
   flex: 0 0 auto;
   box-sizing: border-box;
   width: auto;
-  min-height: 44px;
-  margin: 0 1.2dvw 0.8dvh;
-  padding: 0 1.2dvw;
+  min-height: var(--ui-btn-h);
+  margin: var(--ui-gap) var(--ui-pad-x) 0;
+  padding: 0 var(--ui-pad-x);
   border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 1.2dvh;
+  border-radius: var(--ui-radius);
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
-  font-family: inherit;
-  font-size: 1.8dvh;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
 }
 .picker-search:focus {
   outline: none;
   border-color: rgba(34, 211, 238, 0.85);
-  box-shadow: 0 0 1.5dvh rgba(34, 211, 238, 0.45), inset 0 0 0.5dvh rgba(34, 211, 238, 0.12);
+  box-shadow: 0 0 calc(var(--fu) * 0.8) rgba(34, 211, 238, 0.35);
 }
 .picker-chips {
   flex: 0 0 auto;
   display: flex;
-  gap: 0.8dvw;
+  gap: var(--ui-gap);
   overflow-x: auto;
-  padding: 0 1.2dvw 0.6dvh;
+  padding: var(--ui-gap) var(--ui-pad-x) 0;
 }
 .picker-chips[hidden] { display: none; }
 .picker-chip {
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
-  max-width: 70dvw;
-  min-height: 44px;
-  padding: 0 0 0 1.2dvw;
-  border-radius: 999px;
+  max-width: calc(var(--fu) * 29);
+  min-height: var(--ui-btn-h);
+  padding: 0 0 0 var(--ui-pad-x);
+  border-radius: var(--ui-radius);
   background: rgba(34, 211, 238, 0.16);
   color: #fff;
+  font-family: Inter, system-ui, sans-serif;
 }
 .picker-chip-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 1.5dvh;
+  font-size: var(--ui-small);
 }
 .picker-chip-x {
   appearance: none;
   flex: 0 0 auto;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: max(44px, var(--ui-btn-h));
+  min-height: max(44px, var(--ui-btn-h));
   margin: 0;
   padding: 0;
   border: 0;
+  border-radius: var(--ui-radius);
   background: transparent;
   color: #fff;
-  font-size: 2dvh;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
   cursor: pointer;
+  touch-action: manipulation;
 }
 .picker-tabs {
   flex: 0 0 auto;
   display: flex;
-  gap: 0.8dvw;
-  padding: 0 1.2dvw 0.8dvh;
+  gap: var(--ui-gap);
+  padding: var(--ui-gap) var(--ui-pad-x);
 }
 .picker-tabs[hidden] { display: none; }
 .picker-tab {
   appearance: none;
   min-width: 44px;
-  min-height: 44px;
-  padding: 0 1.6dvw;
+  min-height: var(--ui-btn-h);
+  padding: 0 calc(var(--fu) * 1.6);
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 999px;
   background: transparent;
   color: #fff;
-  font-family: inherit;
-  font-size: 1.5dvh;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-small);
   cursor: pointer;
   touch-action: manipulation;
 }
 .picker-tab.is-on {
-  background: #22D3EE;
-  border-color: #22D3EE;
-  color: #083344;
+  background: rgba(34, 211, 238, 0.12);
+  background-color: rgba(34, 211, 238, 0.12);
+  border-color: rgba(34, 211, 238, 0.6);
+  color: #22D3EE;
   font-weight: 700;
 }
 .picker-pin {
@@ -16474,10 +16521,11 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   align-items: center;
   box-sizing: border-box;
   height: 28px;
-  padding: 0 1.6dvw;
-  background: rgba(15, 15, 20, 0.98);
+  padding-inline: var(--ui-pad-x);
+  background: #0a0a12;
   color: #22D3EE;
-  font-size: 1.3dvh;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-small);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -16508,12 +16556,31 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 .picker-sheet .follow-suggest-row {
   height: 56px;
   min-height: 56px;
+  gap: var(--ui-gap);
+  padding-inline: var(--ui-pad-x);
   border: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 0;
   background: transparent;
   text-align: left;
-  font-family: inherit;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-small);
+}
+.picker-sheet .follow-suggest-primary {
+  font-size: var(--ui-label);
+}
+.picker-sheet .follow-suggest-id,
+.picker-sheet .follow-suggest-hint {
+  font-size: var(--ui-small);
+}
+.picker-sheet .follow-suggest-avatar,
+.picker-sheet .follow-suggest-icon {
+  width: calc(var(--fu) * 3.6);
+  height: calc(var(--fu) * 3.6);
+}
+.picker-sheet .follow-suggest-icon svg {
+  width: calc(var(--fu) * 2);
+  height: calc(var(--fu) * 2);
 }
 .picker-sheet .follow-suggest-row.is-picked {
   box-shadow: inset 3px 0 0 #22D3EE;
@@ -16522,43 +16589,47 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 .picker-letter {
   display: flex;
   align-items: center;
-  background: rgba(15, 15, 20, 0.98);
-  font-size: 1.3dvh;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #0a0a12;
+  padding-inline: var(--ui-pad-x);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-small);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .picker-section {
   color: rgba(255, 255, 255, 0.55);
-  padding: 0 1.6dvw;
 }
 .picker-letter {
   color: #22D3EE;
-  padding: 0 1.6dvw;
 }
 .picker-empty {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 2dvh 4dvw;
+  box-sizing: border-box;
+  padding: calc(var(--fu) * 3) var(--ui-pad-x);
   color: rgba(255, 255, 255, 0.55);
-  font-size: 1.8dvh;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
   text-align: center;
 }
 .picker-empty[hidden] { display: none; }
 .picker-done {
   appearance: none;
   flex: 0 0 auto;
-  min-height: 48px;
-  margin: 0.8dvh 1.2dvw;
+  min-height: var(--ui-btn-h);
+  margin: var(--ui-gap) var(--ui-pad-x);
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--ui-radius);
   background: #22D3EE;
   color: #083344;
-  font-family: inherit;
-  font-size: 1.8dvh;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
   font-weight: 700;
   cursor: pointer;
   touch-action: manipulation;
