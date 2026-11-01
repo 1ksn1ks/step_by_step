@@ -12855,7 +12855,6 @@ html.feed-app #feed-chat > .load-options-page {
 #feed-chat .is-feed-shell .toolbar-column,
 #feed-chat .is-feed-shell .loaded-topics-search {
   width: auto !important;
-  height: auto !important;
   min-height: calc(var(--fu) * 4.2);
   max-height: calc(var(--fu) * 14) !important;
   margin: 0 !important;
@@ -12869,6 +12868,11 @@ html.feed-app #feed-chat > .load-options-page {
   line-height: 1.3;
   box-shadow: none !important;
   resize: none;
+}
+/* #input-field keeps a plain height so its oninput style.height can grow. */
+#feed-chat .is-feed-shell .toolbar-column:not(#input-field),
+#feed-chat .is-feed-shell .loaded-topics-search {
+  height: auto !important;
 }
 #feed-chat .is-feed-shell .feed-chat-room .toolbar-column {
   flex: 1 1 auto;
@@ -13403,7 +13407,7 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
 #feed-chat #load-column.is-feed-shell {
   --load-ctrl-h: max(44px, var(--ui-btn-h));
   --load-tool: 44px;
-  --load-tool-gap: max(4px, 0.5dvh);
+  --load-tool-gap: 4px;
   position: relative !important;
   inset: auto !important;
   top: auto !important;
@@ -13464,15 +13468,34 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   position: relative;
   width: 100%;
 }
-#feed-chat #load-column.is-feed-shell #input-field {
-  width: 100% !important;
-  min-height: max(44px, 5.5dvh) !important;
-  padding-right: calc(var(--load-tool) * 2 + var(--load-tool-gap) * 3) !important;
+:is(#feed-chat #load-column.is-feed-shell, :is(#feed-menu, .drawer-screen) #load-column.in-drawer) {
+  --load-tool: 44px;
+  --load-tool-gap: 4px;
 }
-#feed-chat #load-column.is-feed-shell #paste-topic-btn {
+:is(#feed-chat #load-column.is-feed-shell, :is(#feed-menu, .drawer-screen) #load-column.in-drawer) #input-field {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  height: 48px;
+  min-height: 44px !important;
+  max-height: 120px !important;
+  padding: 12px calc(var(--load-tool) * 2 + var(--load-tool-gap) * 3) 12px 12px !important;
+  border: 0 !important;
+  border-radius: calc(var(--fu) * 2) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22) !important;
+  color: #fff !important;
+  font-family: Inter, system-ui, sans-serif !important;
+  font-size: 16px !important;
+  line-height: 24px !important;
+  overflow-x: hidden;
+  overflow-y: auto;
+  resize: none;
+  animation: none !important;
+}
+:is(#feed-chat #load-column.is-feed-shell, :is(#feed-menu, .drawer-screen) #load-column.in-drawer) :is(#paste-topic-btn, #input-field-follow) {
   position: absolute !important;
   top: 50% !important;
-  right: var(--load-tool-gap) !important;
   bottom: auto !important;
   display: inline-flex;
   align-items: center;
@@ -13480,8 +13503,8 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   box-sizing: border-box;
   width: var(--load-tool) !important;
   height: var(--load-tool) !important;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 44px !important;
+  min-height: 44px !important;
   margin: 0;
   padding: 0 !important;
   border: 1px solid rgba(255, 255, 255, 0.22) !important;
@@ -13490,16 +13513,24 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   color: #fff !important;
   font-size: 20px !important;
   line-height: 1 !important;
-  transform: translateY(-50%);
+  transform: translateY(-50%) !important;
   cursor: pointer;
 }
-#feed-chat #load-column.is-feed-shell #toolbar-load {
+:is(#feed-chat #load-column.is-feed-shell, :is(#feed-menu, .drawer-screen) #load-column.in-drawer) #paste-topic-btn {
+  right: var(--load-tool-gap) !important;
+}
+:is(#feed-chat #load-column.is-feed-shell, :is(#feed-menu, .drawer-screen) #load-column.in-drawer) #input-field-follow {
+  right: calc(var(--load-tool) + var(--load-tool-gap) * 2) !important;
+}
+:is(#feed-chat #load-column.is-feed-shell, :is(#feed-menu, .drawer-screen) #load-column.in-drawer) #toolbar-load {
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   width: 100% !important;
-  height: auto !important;
-  min-height: max(44px, 5.5dvh);
+  height: 48px !important;
+  min-height: 48px !important;
+  max-height: 48px !important;
   margin: 0 !important;
   padding: 0 calc(var(--fu) * 1.4) !important;
   border: 1px solid rgba(255, 255, 255, 0.3) !important;
@@ -13511,20 +13542,21 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
+  text-align: center;
   text-shadow: none !important;
   box-shadow: none !important;
   animation: none !important;
   transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease !important;
 }
-#feed-chat #load-column.is-feed-shell #toolbar-load::after {
+:is(#feed-chat #load-column.is-feed-shell, :is(#feed-menu, .drawer-screen) #load-column.in-drawer) #toolbar-load::after {
   content: none;
 }
-#feed-chat #load-column.is-feed-shell #toolbar-load:hover {
+:is(#feed-chat #load-column.is-feed-shell, :is(#feed-menu, .drawer-screen) #load-column.in-drawer) #toolbar-load:hover {
   transform: scale(1.03) !important;
   filter: brightness(1.08);
   background: rgba(255, 255, 255, 0.2) !important;
 }
-#feed-chat #load-column.is-feed-shell #toolbar-load:active {
+:is(#feed-chat #load-column.is-feed-shell, :is(#feed-menu, .drawer-screen) #load-column.in-drawer) #toolbar-load:active {
   transform: scale(0.97) !important;
   filter: brightness(1.08);
 }
@@ -16728,15 +16760,15 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 #load-column #input-field {
   padding-right: calc(88px + max(4px, 0.5dvh) * 3);
 }
-#feed-chat #load-column.is-feed-shell .follow-pick-btn {
-  right: calc(var(--load-tool) + var(--load-tool-gap) * 2);
-  width: var(--load-tool);
-  height: var(--load-tool);
-  min-width: 44px;
-  min-height: 44px;
-  font-size: 20px;
+:is(#feed-chat #load-column.is-feed-shell, :is(#feed-menu, .drawer-screen) #load-column.in-drawer) .follow-pick-btn {
+  right: calc(var(--load-tool) + var(--load-tool-gap) * 2) !important;
+  width: var(--load-tool) !important;
+  height: var(--load-tool) !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  font-size: 20px !important;
 }
-#feed-chat #load-column.is-feed-shell #input-field {
+:is(#feed-chat #load-column.is-feed-shell, :is(#feed-menu, .drawer-screen) #load-column.in-drawer) #input-field {
   padding-right: calc(var(--load-tool) * 2 + var(--load-tool-gap) * 3) !important;
 }
 .chat-load-row:has(> .follow-pick-btn),
