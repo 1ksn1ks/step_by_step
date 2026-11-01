@@ -5,8 +5,10 @@
 // so the browser HTTP cache keeps each post picture after the first download.
 // Profile picture files whose links this phone has saved are the exception:
 // the page sends those links, and a later visit uses the saved file.
-// v5 drops the previous picture cache. It held opaque responses, and a CORS
-// image request cannot be answered with one.
+// v5 is the picture cache. A no-cors image saves an opaque body and only a
+// no-cors request is answered with it. A cors or same-origin request never
+// receives an opaque body; that hit is dropped. Older cache names are deleted
+// on activate.
 
 const PICTURES = "meritocracy-profile-pictures-v5";
 const RETIRED_CACHES = ["meritocracy-post-media", "meritocracy-profile-pictures"];
@@ -61,20 +63,10 @@ self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
-function dropOpaqueEntries(cache) {
-  return cache.keys().then((requests) => Promise.all(requests.map((request) => (
-    cache.match(request).then((response) => {
-      if (!response || response.type !== "opaque") return;
-      return cache.delete(request);
-    })
-  ))));
-}
-
 self.addEventListener("activate", (event) => {
   event.waitUntil(Promise.all([
     loadKnownPictures(),
     ...RETIRED_CACHES.map((name) => caches.delete(name)),
-    caches.open(PICTURES).then(dropOpaqueEntries),
   ]).then(() => self.clients.claim()));
 });
 
@@ -103,12 +95,15 @@ self.addEventListener("fetch", (event) => {
       return hit;
     }
     const response = await fetch(event.request);
+    // Never answer a cors or same-origin request with an opaque body.
     if (response && response.type === "opaque" && event.request.mode !== "no-cors") {
       return Response.error();
     }
-    // Store the request as it arrived so the saved mode matches the next one.
-    // Opaque bodies are not stored.
-    if (response && response.ok && response.type !== "opaque") {
+    // A plain <img> is no-cors, so a cross-origin picture is opaque (status 0)
+    // and response.ok is false. That is the body worth saving. A cors image
+    // is saved only when the server actually allowed it.
+    const opaqueNoCors = !!(response && response.type === "opaque" && event.request.mode === "no-cors");
+    if (response && (opaqueNoCors || (response.ok && response.type !== "opaque"))) {
       try {
         await cache.put(event.request, response.clone());
       } catch (error) {
