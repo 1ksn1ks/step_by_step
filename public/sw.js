@@ -1,12 +1,15 @@
-// Install service worker for Meritocracy. v4
+// Install service worker for Meritocracy. v5
 // The fetch listener is what the install prompt looks for.
 // /api, the app shell, map tiles, WalletConnect, and post pictures stay on
 // the network. R2 sends Cache-Control: public, max-age=31536000, immutable,
 // so the browser HTTP cache keeps each post picture after the first download.
 // Profile picture files whose links this phone has saved are the exception:
 // the page sends those links, and a later visit uses the saved file.
+// v5 drops the previous picture cache. It held opaque responses, and a CORS
+// image request cannot be answered with one.
 
-const PICTURES = "meritocracy-profile-pictures";
+const PICTURES = "meritocracy-profile-pictures-v5";
+const RETIRED_CACHES = ["meritocracy-post-media", "meritocracy-profile-pictures"];
 const SETTINGS_DB = "meritocracy-user-settings";
 const knownPictures = new Set();
 
@@ -58,10 +61,20 @@ self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
+function dropOpaqueEntries(cache) {
+  return cache.keys().then((requests) => Promise.all(requests.map((request) => (
+    cache.match(request).then((response) => {
+      if (!response || response.type !== "opaque") return;
+      return cache.delete(request);
+    })
+  ))));
+}
+
 self.addEventListener("activate", (event) => {
   event.waitUntil(Promise.all([
     loadKnownPictures(),
-    caches.delete("meritocracy-post-media"),
+    ...RETIRED_CACHES.map((name) => caches.delete(name)),
+    caches.open(PICTURES).then(dropOpaqueEntries),
   ]).then(() => self.clients.claim()));
 });
 
@@ -82,11 +95,20 @@ self.addEventListener("fetch", (event) => {
   event.respondWith((async () => {
     const cache = await caches.open(PICTURES);
     const hit = await cache.match(event.request);
-    if (hit) return hit;
+    // A saved no-cors body is opaque. Replaying it for a CORS image is a
+    // network error. Only a no-cors request may receive one.
+    if (hit && hit.type === "opaque" && event.request.mode !== "no-cors") {
+      try { await cache.delete(event.request); } catch { /* fetch the request */ }
+    } else if (hit) {
+      return hit;
+    }
     const response = await fetch(event.request);
-    // Image tags use no-cors, so a saved picture is often an opaque response
-    // (status 0). Those still replay correctly into an image tag.
-    if (response && (response.ok || response.type === "opaque")) {
+    if (response && response.type === "opaque" && event.request.mode !== "no-cors") {
+      return Response.error();
+    }
+    // Store the request as it arrived so the saved mode matches the next one.
+    // Opaque bodies are not stored.
+    if (response && response.ok && response.type !== "opaque") {
       try {
         await cache.put(event.request, response.clone());
       } catch (error) {
