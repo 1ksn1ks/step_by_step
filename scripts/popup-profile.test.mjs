@@ -110,10 +110,10 @@ function readLoadTail() {
   return source.slice(start, end + marker.length);
 }
 
-function readUncover() {
+function readFn(name) {
   const source = fs.readFileSync(new URL("../feedlayout.js", import.meta.url), "utf8");
-  const start = source.indexOf("function uncoverPopupUnderProfile()");
-  assert.notEqual(start, -1);
+  const start = source.indexOf(`function ${name}(`);
+  assert.notEqual(start, -1, name);
   let depth = 0;
   let started = false;
   for (let end = start; end < source.length; end++) {
@@ -126,7 +126,26 @@ function readUncover() {
       if (started && depth === 0) return source.slice(start, end + 1);
     }
   }
-  assert.fail("uncoverPopupUnderProfile did not close");
+  assert.fail(`${name} did not close`);
+}
+
+function readUncover() {
+  return readFn("uncoverPopupUnderProfile");
+}
+
+function classList(initial) {
+  const classes = new Set(initial);
+  return {
+    contains: (name) => classes.has(name),
+    add: (...names) => { for (const name of names) classes.add(name); },
+    remove: (...names) => { for (const name of names) classes.delete(name); },
+    toggle(name, on) {
+      const next = on === undefined ? !classes.has(name) : !!on;
+      if (next) classes.add(name);
+      else classes.delete(name);
+      return next;
+    },
+  };
 }
 
 // Photo, Load posts, then Back, with the same window the page uses.
@@ -139,6 +158,8 @@ function peekLoadBack(feedOn) {
     dismiss: 0,
     closeProfileLayer: 0,
     closeFeedProfile: 0,
+    closeOverlays: 0,
+    closeMenu: 0,
     ensure: 0,
     hide: 0,
     show: 0,
@@ -205,6 +226,10 @@ function peekLoadBack(feedOn) {
     "hideProfilePage",
     "showLoadedProfileFeed",
     "payer",
+    "closeFeedOverlays",
+    "closeMenu",
+    "drawerItem",
+    "menu",
     readLoadTail(),
   )(
     windowObj,
@@ -214,6 +239,10 @@ function peekLoadBack(feedOn) {
     () => { calls.hide += 1; },
     () => { calls.show += 1; },
     "0.0.9779355",
+    () => { calls.closeOverlays += 1; },
+    () => { calls.closeMenu += 1; },
+    "",
+    { dataset: {} },
   );
   const back = new Function(
     "window",
@@ -244,6 +273,8 @@ test("peek mode Load posts drops the covered popup so Back does not restore it",
   assert.equal(calls.closeProfileLayer, 1);
   assert.equal(calls.feedprofileOpen, false);
   assert.equal(calls.closeFeedProfile, 0);
+  assert.equal(calls.closeOverlays, 0);
+  assert.equal(calls.closeMenu, 0);
   assert.equal(calls.ensure, 1);
   assert.equal(calls.hide, 1);
   assert.equal(calls.show, 1);
@@ -256,7 +287,16 @@ test("peek mode Load posts drops the covered popup so Back does not restore it",
 
 test("a feed-card Load posts does not dismiss a popup or close profile history", () => {
   const source = readLoadTail();
-  const calls = { dismiss: 0, closeProfileLayer: 0, closeFeedProfile: 0, ensure: 0, hide: 0, show: 0 };
+  const calls = {
+    dismiss: 0,
+    closeProfileLayer: 0,
+    closeFeedProfile: 0,
+    closeOverlays: 0,
+    closeMenu: 0,
+    ensure: 0,
+    hide: 0,
+    show: 0,
+  };
   const windowObj = {
     __profileCoversPopup: false,
     layerIsOpen: () => true,
@@ -271,6 +311,10 @@ test("a feed-card Load posts does not dismiss a popup or close profile history",
     "hideProfilePage",
     "showLoadedProfileFeed",
     "payer",
+    "closeFeedOverlays",
+    "closeMenu",
+    "drawerItem",
+    "menu",
     source,
   )(
     windowObj,
@@ -280,18 +324,31 @@ test("a feed-card Load posts does not dismiss a popup or close profile history",
     () => { calls.hide += 1; },
     () => { calls.show += 1; },
     "0.0.9779355",
+    () => { calls.closeOverlays += 1; },
+    () => { calls.closeMenu += 1; },
+    "",
+    { dataset: {} },
   );
   assert.equal(calls.dismiss, 0);
   assert.equal(calls.closeProfileLayer, 0);
   assert.equal(calls.closeFeedProfile, 0);
+  assert.equal(calls.closeOverlays, 0);
+  assert.equal(calls.closeMenu, 0);
   assert.equal(windowObj.__profileCoversPopup, false);
   assert.equal(calls.ensure, 1);
   assert.equal(calls.hide, 1);
   assert.equal(calls.show, 1);
 });
 
-test("map mode Load posts still closes the profile and does not open the feed", () => {
-  const calls = { dismiss: 0, closeFeedProfile: 0, ensure: 0, show: 0, closeProfileLayer: 0 };
+test("map mode Load posts closes every overlay and does not open the feed", () => {
+  const calls = {
+    dismiss: 0,
+    closeFeedProfile: 0,
+    closeFeedOverlays: 0,
+    ensure: 0,
+    show: 0,
+    closeProfileLayer: 0,
+  };
   const windowObj = {
     __profileCoversPopup: true,
     dismissBioPopups() { calls.dismiss += 1; },
@@ -306,6 +363,10 @@ test("map mode Load posts still closes the profile and does not open the feed", 
     "hideProfilePage",
     "showLoadedProfileFeed",
     "payer",
+    "closeFeedOverlays",
+    "closeMenu",
+    "drawerItem",
+    "menu",
     readLoadTail(),
   )(
     windowObj,
@@ -315,11 +376,177 @@ test("map mode Load posts still closes the profile and does not open the feed", 
     () => {},
     () => { calls.show += 1; },
     "0.0.9779355",
+    () => { calls.closeFeedOverlays += 1; },
+    () => {},
+    "",
+    { dataset: {} },
   );
   assert.equal(calls.dismiss, 1);
-  assert.equal(calls.closeFeedProfile, 1);
+  assert.equal(calls.closeFeedOverlays, 1);
+  assert.equal(calls.closeFeedProfile, 0);
   assert.equal(calls.ensure, 0);
   assert.equal(calls.show, 0);
   assert.equal(calls.closeProfileLayer, 0);
   assert.equal(windowObj.__profileCoversPopup, true);
+});
+
+// History matches historyLayers: a top close drops its entry. A close that
+// is not the top leaves the entry, which is how Back would reopen the drawer.
+function runDrawerProfile({ feed, action }) {
+  const calls = {
+    dismiss: 0,
+    ensure: 0,
+    hide: 0,
+    show: 0,
+    drop: 0,
+    marked: "",
+    buried: [],
+    backs: [],
+    seq: [],
+  };
+  const open = [];
+  const entries = [];
+  const menu = {
+    hidden: false,
+    dataset: {},
+    classList: classList(feed ? ["is-open", "is-nav-back"] : ["is-open", "is-map-drawer", "is-nav-back"]),
+  };
+  const profilePage = { hidden: false };
+  const feedChat = { hidden: true };
+  const windowObj = {
+    dismissBioPopups() { calls.dismiss += 1; },
+    layerIsOpen: (name) => open.includes(name),
+    layerIsTop: (name) => open[open.length - 1] === name,
+    layerClosedByUI(name) {
+      const i = open.lastIndexOf(name);
+      if (i < 0) return;
+      const top = i === open.length - 1;
+      open.splice(i, 1);
+      if (!top) {
+        calls.buried.push(name);
+        return;
+      }
+      if (entries[entries.length - 1] === name) {
+        entries.pop();
+        calls.backs.push(name);
+      }
+    },
+  };
+  if (feed) {
+    open.push("feed");
+    entries.push("feed");
+  }
+  open.push("feedmenu", "feedprofile");
+  entries.push("feedmenu", "feedprofile");
+  const body = `
+    let drawerItem = "My profile";
+    let suppressDrawerRestore = false;
+    let profilePayer = "0.0.9779355";
+    let profileEpoch = 1;
+    let feedChatKind = "";
+    let settingsOpen = false;
+    function dismissProfileEditCover() {}
+    function uncoverPopupUnderProfile() {}
+    function hideProfilePage() {
+      profilePage.hidden = true;
+      calls.hide += 1;
+      calls.seq.push("hide");
+    }
+    function clearProfileFilter() {}
+    function holdNav() {}
+    function markMenuItem(label) { calls.marked = label; }
+    function paintMenu(openFlag) {
+      menu.hidden = !openFlag;
+      menu.classList.toggle("is-open", !!openFlag);
+      if (!openFlag) markMenuItem("");
+    }
+    function dropDrawerHistory() {
+      calls.drop += 1;
+      calls.seq.push("menu");
+      delete menu.dataset.cover;
+      menu.classList.remove("is-nav-back", "is-nav-under", "is-page");
+    }
+    function feedCovers() { return feedCovering; }
+    ${readFn("closeFeedProfile")}
+    ${readFn("restoreDrawer")}
+    ${readFn("closeMenu")}
+    ${readFn("layerOpen")}
+    ${readFn("closeFeedOverlays")}
+    function runLoad() {
+      ${readLoadTail()}
+    }
+    if (action === "load") runLoad();
+    else closeFeedProfile();
+    return drawerItem;
+  `;
+  const drawerItem = new Function(
+    "window",
+    "feedOn",
+    "ensureTopic",
+    "showLoadedProfileFeed",
+    "payer",
+    "calls",
+    "menu",
+    "profilePage",
+    "feedChat",
+    "feedCovering",
+    "action",
+    body,
+  )(
+    windowObj,
+    () => feed,
+    () => { calls.ensure += 1; calls.seq.push("ensure"); },
+    () => { calls.show += 1; calls.seq.push("show"); },
+    "0.0.9779355",
+    calls,
+    menu,
+    profilePage,
+    feedChat,
+    feed,
+    action,
+  );
+  return {
+    calls,
+    menu,
+    profilePage,
+    drawerItem,
+    open: open.slice(),
+    entries: entries.slice(),
+  };
+}
+
+test("drawer My profile Load posts closes the drawer and Back returns to it", () => {
+  for (const feed of [false, true]) {
+    const loaded = runDrawerProfile({ feed, action: "load" });
+    const where = feed ? "feed" : "map";
+    assert.deepEqual(loaded.entries, feed ? ["feed"] : [], where);
+    assert.deepEqual(loaded.open, loaded.entries, where);
+    assert.deepEqual(loaded.calls.buried, [], where);
+    assert.deepEqual(loaded.calls.backs, ["feedprofile", "feedmenu"], where);
+    assert.equal(loaded.drawerItem, "", where);
+    assert.equal(loaded.calls.marked, "", where);
+    assert.equal(loaded.menu.hidden, true, where);
+    assert.equal(loaded.menu.classList.contains("is-open"), false, where);
+    assert.equal(loaded.menu.classList.contains("is-nav-back"), false, where);
+    assert.equal(loaded.profilePage.hidden, true, where);
+    assert.equal(loaded.calls.dismiss, feed ? 0 : 1, where);
+    assert.equal(loaded.calls.show, feed ? 1 : 0, where);
+    assert.equal(loaded.calls.ensure, feed ? 1 : 0, where);
+    assert.equal(loaded.calls.drop, 1, where);
+    if (feed) assert.deepEqual(loaded.calls.seq, ["ensure", "hide", "menu", "show"], where);
+    else assert.deepEqual(loaded.calls.seq, ["hide", "menu"], where);
+
+    const back = runDrawerProfile({ feed, action: "back" });
+    assert.deepEqual(back.entries, feed ? ["feed", "feedmenu"] : ["feedmenu"], where);
+    assert.deepEqual(back.open, back.entries, where);
+    assert.deepEqual(back.calls.buried, [], where);
+    assert.deepEqual(back.calls.backs, ["feedprofile"], where);
+    assert.equal(back.drawerItem, "My profile", where);
+    assert.equal(back.calls.marked, "My profile", where);
+    assert.equal(back.calls.drop, 0, where);
+    assert.equal(back.menu.hidden, false, where);
+    assert.equal(back.menu.classList.contains("is-open"), true, where);
+    assert.equal(back.menu.classList.contains("is-nav-back"), false, where);
+    assert.equal(back.profilePage.hidden, true, where);
+  }
 });

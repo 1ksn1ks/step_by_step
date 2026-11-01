@@ -4549,8 +4549,10 @@ async function loadProfilePosts() {
   // and stay there. The feed still switches into that topic's posts.
   if (!feedOn()) {
     // The loaded topic is the map. Drop the popup this profile was covering.
+    // closeFeedProfile alone slides the drawer back; overlays also close
+    // that drawer and its feedmenu history, so Back stays on the map.
     if (window.dismissBioPopups) window.dismissBioPopups();
-    closeFeedProfile();
+    closeFeedOverlays();
     return;
   }
   // Peek opened this profile over a hidden map popup. Drop that popup and
@@ -4566,6 +4568,14 @@ async function loadProfilePosts() {
   }
   ensureTopic(false);
   hideProfilePage();
+  // My profile from the drawer keeps that menu underneath. Close the
+  // profile entry first so the menu is the top history step, then the menu.
+  if (drawerItem === 'My profile' || menu.dataset.cover === '1') {
+    if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedprofile')) {
+      window.layerClosedByUI('feedprofile');
+    }
+    closeMenu();
+  }
   showLoadedProfileFeed(payer);
 }
 
