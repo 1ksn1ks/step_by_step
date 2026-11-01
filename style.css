@@ -151,16 +151,39 @@ html, body {
   }
 
 
+/* Viewport shell. These nodes stay on document.body, so container-type on
+   #feed-chat, #feed-profile, #feed-frame, .comments-modal--feed,
+   #popup-settings-card, .draw-popup-editor, and landscape map popups
+   does not size them. */
 .info-overlay {
-  position: absolute;
+  --fu: calc(min(100dvw, 100dvh) * 0.024);
+  position: fixed;
   inset: 0;
-  top: 10vh;
-  z-index: 1003;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
+  z-index: 11000;
+  box-sizing: border-box;
+  margin: 0;
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
   background: rgba(8, 8, 18, 0.82);
   cursor: pointer;
   user-select: none;
   display: none;
+  align-items: center;
+  justify-content: center;
   animation: overlay-fade-in 0.22s ease-out;
+}
+.info-overlay[style*="display: block"],
+.info-overlay[style*="display:block"] {
+  display: flex !important;
 }
 
 @keyframes overlay-fade-in {
@@ -169,17 +192,24 @@ html, body {
 }
 
 .info-overlay-inner {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
+  box-sizing: border-box;
+  width: min(92dvw, 560px);
+  max-width: min(92dvw, 560px, 100%);
+  height: auto;
+  max-height: min(86dvh, 720px, 100%);
+  margin: 0;
   background: rgba(18, 18, 28, 0.94);
   color: #e6e6f0;
   border-radius: 20px;
-  padding: 3.2vh 1.53vh 2.6vh;
-  width: 90%;
-  max-height: 76vh;
-  overflow-y: auto;
+  padding: calc(var(--fu) * 2);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.14);
   cursor: default;
@@ -187,18 +217,21 @@ html, body {
 }
 
 @keyframes overlay-pop-in {
-  from { transform: translate(-50%, -50%) scale(0.94); opacity: 0; }
-  to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  from { transform: scale(0.94); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 
-.info-overlay-inner::-webkit-scrollbar { width: 6px; }
-.info-overlay-inner::-webkit-scrollbar-thumb {
+.info-overlay-list::-webkit-scrollbar { width: 6px; }
+.info-overlay-list::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
   border-radius: 3px;
 }
 
 .info-overlay-title {
+  flex: 0 0 auto;
   margin: 0;
+  padding-inline: max(0px, calc(44px - var(--fu) * 1.2));
+  box-sizing: border-box;
   font-size: 2.6vh;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -207,13 +240,21 @@ html, body {
 }
 
 .info-overlay-subtitle {
+  flex: 0 0 auto;
   margin: 0.8vh 0 0;
+  padding-inline: max(0px, calc(44px - var(--fu) * 1.2));
+  box-sizing: border-box;
   font-size: 1.8vh;
   text-align: center;
   color: rgba(230, 230, 245, 0.6);
 }
 
 .info-overlay-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   list-style: none;
   margin: 2.4vh 0 0;
   padding: 0;
@@ -244,6 +285,7 @@ html, body {
 }
 
 .info-overlay-actions {
+  flex: 0 0 auto;
   margin-top: 3vh;
   text-align: center;
 }
@@ -282,7 +324,17 @@ html, body {
   color: #ffffff;
 }
 
-/* Info overlay X (close) buttons — top-right, cyan border + animated glow */
+/* Info overlay X (close) buttons — top-right, cyan border + animated glow.
+   44px is the border box. #draw-date-close keeps the vh size below. */
+.info-overlay .info-overlay-x {
+  box-sizing: border-box;
+  top: calc(var(--fu) * 0.45);
+  right: calc(var(--fu) * 0.45);
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+}
 .info-overlay-x {
   position: absolute;
   top: 0.5vh;
@@ -413,6 +465,7 @@ html, body {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 #e2ee-web-notice-overlay .info-overlay-actions {
   display: flex;
@@ -11475,7 +11528,7 @@ html.feed-app :is(
   filter: none !important;
 }
 html.drawer-page .info-overlay {
-  z-index: 8700;
+  z-index: 11000;
 }
 #feed-settings {
   --feed-zoom: 1;
