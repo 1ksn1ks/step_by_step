@@ -13,6 +13,8 @@ import { ringCenter } from './polygonframe.js';
 
 const searchInput = document.getElementById('search-input');
 const searchResults = document.getElementById('search-results');
+searchResults.setAttribute('role', 'listbox');
+searchResults.setAttribute('aria-label', 'Search results');
 const searchBar = document.getElementById('search-bar');
 const searchToggleBtn = document.getElementById('search-toggle-btn');
 const searchClearBtn = document.getElementById('search-clear-btn');
@@ -70,19 +72,70 @@ if (window.defineLayer) {
   });
 }
 
-function paintResultItem(item, label, kind) {
+function paintResultItem(item, label, kind, selectable = true) {
   item.className = 'search-result-item is-' + kind;
   item.title = label;
+  if (selectable) {
+    item.setAttribute('role', 'option');
+    item.setAttribute('tabindex', '0');
+    item.tabIndex = 0;
+  } else {
+    item.removeAttribute('role');
+    item.removeAttribute('tabindex');
+  }
   const text = document.createElement('span');
   text.className = 'search-result-label';
   text.textContent = label;
   item.replaceChildren(text);
 }
 
+function resultOptions() {
+  if (searchResults.style.display === 'none') return [];
+  return [...searchResults.querySelectorAll('.search-result-item[role="option"]')];
+}
+
+// Enter and Space run the row's click handler. Arrows move through the
+// options; ArrowUp on the first row returns to the field.
+function onResultKey(event, item) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    item.click();
+    return;
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeSearchBar();
+    return;
+  }
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+  event.preventDefault();
+  const rows = resultOptions();
+  const index = rows.indexOf(item);
+  if (event.key === 'ArrowUp' && index <= 0) {
+    searchInput.focus({ preventScroll: true });
+    return;
+  }
+  const next = rows[index + (event.key === 'ArrowDown' ? 1 : -1)];
+  if (next) next.focus();
+}
+
+function bindResultKeys(item) {
+  item.addEventListener('keydown', (event) => onResultKey(event, item));
+}
+
+function focusFirstResult(event) {
+  if (!event || event.key !== 'ArrowDown') return false;
+  const first = resultOptions()[0];
+  if (!first) return false;
+  event.preventDefault();
+  first.focus();
+  return true;
+}
+
 function showResults(results, query) {
   if (results.length === 0) {
     const item = document.createElement('div');
-    paintResultItem(item, `No results for "${query}"`, String(query).trim().startsWith('#') ? 'tag' : 'place');
+    paintResultItem(item, `No results for "${query}"`, String(query).trim().startsWith('#') ? 'tag' : 'place', false);
     item.style.cursor = 'default';
     searchResults.innerHTML = '';
     searchResults.appendChild(item);
@@ -120,6 +173,7 @@ function showResults(results, query) {
       }
       closeSearchBar();
     });
+    bindResultKeys(item);
     searchResults.appendChild(item);
   }
   // While suggestions are visible, size the input to the longest one
@@ -256,6 +310,7 @@ function showHashtagResults(posts, tag) {
       closeSearchBar();
       openLinkedPlace(href);
     });
+    bindResultKeys(item);
     searchResults.appendChild(item);
   }
   searchInput.size = Math.max(searchInput.value.length + 1, Math.min(longest + 1, 60), 20);
@@ -387,6 +442,7 @@ searchInput.addEventListener('paste', (e) => {
 });
 
 searchInput.addEventListener('keydown', (e) => {
+  if (focusFirstResult(e)) return;
   if (e.key === 'Enter') {
     const point = parseCoords(searchInput.value);
     if (!point) return;
