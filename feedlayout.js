@@ -3295,6 +3295,22 @@ function holdScroll() {
 
 window.holdFeedScroll = holdScroll;
 
+window.openFeedProfile = (payer) => openFeedProfile(payer);
+
+window.openProfileFromPopup = (payer) => {
+  if (feedOn() && root.classList.contains('is-peek')) {
+    if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedfly')) {
+      window.layerClosedByUI('feedfly');
+    }
+    reveal();
+  }
+  if (feedCovers()) {
+    openFeedProfile(payer);
+    return true;
+  }
+  return false;
+};
+
 function rememberScroll() {
   if (scrollIdle) {
     clearTimeout(scrollIdle);
