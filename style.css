@@ -10218,6 +10218,8 @@ html.feed-app appkit-modal {
 .drawer-screen,
 #feed-chat,
 #feed-chat > *,
+#feed-profile,
+#feed-profile > *,
 .picker-sheet {
   --ui-label: calc(var(--fu) * 1.8);
   --ui-small: calc(var(--fu) * 1.35);
@@ -12545,6 +12547,25 @@ html.feed-app #feed-chat > .load-options-page {
   --u: var(--fu);
   --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi));
   --fu: var(--feed-unit);
+}
+/* Map mode hosts the same profile page on the body. The feed column is hidden. */
+#feed-profile.is-map-profile {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  z-index: 8700;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  box-sizing: border-box;
+  --feed-col-width: 100dvw;
+  font-size: calc(var(--fu) * 1.9);
+  visibility: visible;
+}
+@media (orientation: landscape) {
+  #feed-profile.is-map-profile {
+    --feed-col-width: clamp(40dvw, 46dvw, 46dvw);
+  }
 }
 #feed-profile[hidden] {
   display: none;

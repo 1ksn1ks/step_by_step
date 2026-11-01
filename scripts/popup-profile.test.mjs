@@ -1,4 +1,4 @@
-// Popup photo opens the feed profile only while the feed covers the map.
+// Popup photo opens the feed profile in the feed, the peek, and map mode.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -66,12 +66,34 @@ function loadHook(root, calls, feedflyOpen) {
   return open;
 }
 
-test("openProfileFromPopup returns false when the feed is not covering", () => {
+test("openProfileFromPopup opens the profile when the feed is not covering", () => {
   const root = fakeRoot("none", false);
   const calls = { reveal: 0, profile: 0, feedfly: 0, payer: "" };
   const open = loadHook(root, calls, false);
-  assert.equal(open("0.0.9779355"), false);
-  assert.equal(calls.profile, 0);
+  assert.equal(open("0.0.9779355"), true);
+  assert.equal(calls.profile, 1);
+  assert.equal(calls.payer, "0.0.9779355");
   assert.equal(calls.reveal, 0);
   assert.equal(calls.feedfly, 0);
+});
+
+test("openProfileFromPopup leaves the peek, then opens the profile", () => {
+  const root = fakeRoot("block", true);
+  const calls = { reveal: 0, profile: 0, feedfly: 0, payer: "" };
+  const open = loadHook(root, calls, true);
+  assert.equal(open("0.0.9779355"), true);
+  assert.equal(calls.reveal, 1);
+  assert.equal(calls.feedfly, 1);
+  assert.equal(calls.profile, 1);
+  assert.equal(calls.payer, "0.0.9779355");
+  assert.equal(root.classList.contains("is-peek"), false);
+});
+
+test("openProfileFromPopup returns false for a non-account id", () => {
+  const root = fakeRoot("none", false);
+  const calls = { reveal: 0, profile: 0, feedfly: 0, payer: "" };
+  const open = loadHook(root, calls, false);
+  assert.equal(open("not-an-account"), false);
+  assert.equal(calls.profile, 0);
+  assert.equal(calls.reveal, 0);
 });

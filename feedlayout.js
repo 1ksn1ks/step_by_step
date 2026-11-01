@@ -3304,11 +3304,10 @@ window.openProfileFromPopup = (payer) => {
     }
     reveal();
   }
-  if (feedCovers()) {
-    openFeedProfile(payer);
-    return true;
-  }
-  return false;
+  const id = String(payer || '').trim();
+  if (!/^\d+\.\d+\.\d+$/.test(id)) return false;
+  openFeedProfile(id);
+  return true;
 };
 
 function rememberScroll() {
@@ -3332,6 +3331,9 @@ function scheduleScrollWrite() {
 function reveal() {
   peek = false;
   root.classList.remove('is-peek');
+  // A profile opened over the peek sits on the body. The feed is covering
+  // again, so the same page goes back into the column.
+  if (!profilePage.hidden) placeProfileForMap(false);
   syncCover();
   syncFeedMapBack();
   const y = savedScroll;
@@ -3884,6 +3886,11 @@ function applyFeed(on) {
     }
   }
   if (on) {
+    // Map and peek host the profile on the body. Close it before the feed
+    // column shows, so the page is not left fixed over the feed.
+    const profileOverMap = !profilePage.hidden && (profilePage.classList.contains('is-map-profile') || !feedOn());
+    const profileLayerOverMap = !feedOn() && window.layerIsOpen && window.layerIsOpen('feedprofile');
+    if (profileOverMap || profileLayerOverMap) dismissFeedProfile();
     placeMenuForMap(false);
     const opening = !feedOn();
     peek = false;
@@ -4175,7 +4182,23 @@ function syncProfileOwn() {
   profileEdit.hidden = !profilePayer || profilePage.hidden || walletNow() !== profilePayer;
 }
 
+// The profile page lives in the feed column. On the map the column is
+// hidden, so the same page is fixed on the body, the way the chat page is.
+let profileParkGen = 0;
+
+function placeProfileForMap(on) {
+  if (!on) {
+    profilePage.classList.remove('is-map-profile');
+    if (profilePage.parentNode !== root) root.appendChild(profilePage);
+    return;
+  }
+  if (profilePage.parentNode !== document.body) document.body.appendChild(profilePage);
+  profilePage.classList.add('is-map-profile');
+}
+
 function showProfilePage() {
+  profileParkGen += 1;
+  placeProfileForMap(!feedCovers());
   if (!beginFeedCover(profilePage)) {
     delete profilePage.dataset.navLeaving;
     profilePage.classList.remove('nav-off', 'nav-prep', 'nav-cover');
@@ -4186,7 +4209,17 @@ function showProfilePage() {
 
 function hideProfilePage() {
   profileEdit.hidden = true;
+  const gen = ++profileParkGen;
+  const mapCover = profilePage.classList.contains('is-map-profile') && profilePage.classList.contains('nav-cover');
   concealCover(profilePage);
+  const park = () => {
+    if (gen !== profileParkGen) return;
+    placeProfileForMap(false);
+  };
+  // A map slide has to finish on the body. Parking early would hide it
+  // inside the feed column. A later show bumps the generation and cancels this.
+  if (!mapCover) park();
+  else afterNav(profilePage, park);
 }
 
 function hideProfileBanner() {
@@ -4315,16 +4348,9 @@ function paintFeedProfile(payer) {
 function openFeedProfile(payer, source) {
   const id = String(payer || '').trim();
   if (!/^\d+\.\d+\.\d+$/.test(id)) return;
-  if (!feedCovers()) {
-    // Map profile is the Load page. Keep the drawer under it the same way
-    // the feed profile does, so Back highlights My profile.
-    if (source === 'drawer') {
-      if (navBusy()) return;
-      coverFromDrawer('My profile');
-    }
-    if (window.loadBio4PIC) window.loadBio4PIC(id);
-    return;
-  }
+  // Map, peek, and feed all open this page. The drawer shift is the same
+  // so Back highlights My profile. showProfilePage hosts it on the body
+  // when the feed column is hidden.
   const fromDrawer = source === 'drawer' && coverFromDrawer('My profile');
   if (!fromDrawer) {
     holdScroll();
@@ -4544,6 +4570,13 @@ profileEdit.addEventListener('click', (event) => {
 bindPress(profileLoad);
 profileLoad.addEventListener('click', (event) => {
   event.stopPropagation();
+  // Map mode still opens the Load page. The feed keeps its own posts load.
+  if (!feedOn()) {
+    const id = profilePayer;
+    closeFeedProfile();
+    if (id && window.loadBio4PIC) window.loadBio4PIC(id);
+    return;
+  }
   loadProfilePosts();
 });
 profileBanner.addEventListener('click', (event) => {
