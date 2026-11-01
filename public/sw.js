@@ -56,8 +56,9 @@ function pictureIsCacheable(request, response) {
   return !!(opaqueNoCors || (response.ok && response.type !== "opaque"));
 }
 
+// One address only. Listing the whole cache here walks every saved picture.
 async function findPicture(cache, url) {
-  const keys = await cache.keys();
+  const keys = await cache.keys(url);
   for (const key of keys) {
     if (key.url === url) return key;
   }
@@ -92,8 +93,10 @@ async function storePicture(cache, request, response) {
   if (!knownPictures.has(request.url)) return false;
   if (!pictureIsCacheable(request, response)) return false;
   try {
+    // A refresh replaces this same link, so the count does not grow.
+    const existing = await findPicture(cache, request.url);
     await cache.put(pictureKey(request.url, Date.now()), response.clone());
-    await trimPictures(cache);
+    if (!existing) await trimPictures(cache);
     return true;
   } catch (error) {
     if (error && (error.name === "QuotaExceededError" || error.name === "NS_ERROR_DOM_QUOTA_REACHED")) {

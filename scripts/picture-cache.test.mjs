@@ -20,6 +20,7 @@ function fakeResponse(body, type, ok) {
 function createCache() {
   const entries = new Map();
   return {
+    keyCalls: [],
     async put(request, response) {
       entries.set(request.url, { request, response });
     },
@@ -32,8 +33,12 @@ function createCache() {
       const url = typeof request === "string" ? request : request.url;
       return entries.delete(url);
     },
-    async keys() {
-      return [...entries.values()].map((entry) => entry.request);
+    async keys(request) {
+      this.keyCalls.push(request);
+      const all = [...entries.values()].map((entry) => entry.request);
+      if (request == null) return all;
+      const url = typeof request === "string" ? request : request.url;
+      return all.filter((key) => key.url === url);
     },
   };
 }
@@ -170,6 +175,37 @@ test("a fresh picture is served immediately and replaced in the background", asy
   const key = (await cache.keys()).find((item) => item.url === url);
   assert.equal(api.pictureSavedAt(key), savedAt + 5000);
   assert.equal((await cache.match(url)).body, "new");
+});
+
+test("a cache hit never lists every saved picture", async () => {
+  const cache = createCache();
+  const savedAt = 1_700_000_000_000;
+  const clock = { now: savedAt + 1000 };
+  const url = "https://cdn.example/hit.png";
+  const other = "https://cdn.example/other.png";
+  let releaseFetch = null;
+  const api = loadWorker(clock, () => new Promise((resolve) => {
+    releaseFetch = () => resolve(fakeResponse("new", "opaque", false));
+  }), cache);
+  api.knownPictures.add(url);
+  api.knownPictures.add(other);
+  await cache.put(api.pictureKey(other, savedAt), fakeResponse("other", "opaque", false));
+  await cache.put(api.pictureKey(url, savedAt), fakeResponse("old", "opaque", false));
+  cache.keyCalls.length = 0;
+
+  const flight = fetchEvent(pictureRequest(url));
+  api.listeners.fetch(flight.event);
+  const response = await flight.response();
+  assert.equal(response.body, "old");
+  clock.now = savedAt + 5000;
+  releaseFetch();
+  await Promise.all(flight.waits);
+  assert.equal(cache.keyCalls.some((request) => request == null), false);
+  assert.equal(cache.keyCalls.some((request) => (
+    request === url || (request && request.url === url)
+  )), true);
+  assert.equal((await cache.match(url)).body, "new");
+  assert.equal((await cache.match(other)).body, "other");
 });
 
 test("a picture saved exactly 7 days ago is still served from the cache", async () => {
