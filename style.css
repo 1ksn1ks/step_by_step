@@ -326,8 +326,9 @@ html, body {
               inset 0 0 0.8vh rgba(34, 211, 238, 0.4);
 }
 
-/* E2EE intro only. The open path sets display:block; flex wins while it
-   is shown and display:none still hides it. */
+/* E2EE intro only. This node stays on document.body, so no transformed
+   #feed-chat ancestor can capture fixed or dvw. The open path sets
+   display:block; flex wins while it is shown and display:none still hides it. */
 #e2ee-web-notice-overlay {
   --fu: calc(min(100dvw, 100dvh) * 0.024);
   position: fixed;
@@ -343,7 +344,9 @@ html, body {
   box-sizing: border-box;
   margin: 0;
   padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
   padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -359,15 +362,16 @@ html, body {
   left: auto;
   transform: none;
   box-sizing: border-box;
-  width: min(92dvw, 520px);
-  max-width: min(92dvw, 520px);
-  max-height: 86dvh;
+  width: min(92dvw, 560px);
+  max-width: min(92dvw, 560px, 100%);
+  height: auto;
+  max-height: min(86dvh, 720px, 100%);
   margin: 0;
   padding: calc(var(--fu) * 2);
   display: flex;
   flex-direction: column;
-  overflow-x: hidden;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   border-radius: 16px;
   background: rgba(18, 18, 28, 0.94);
   border: 0.1vh solid rgba(34, 211, 238, 0.6);
@@ -382,7 +386,8 @@ html, body {
 #e2ee-web-notice-overlay .info-overlay-title,
 #e2ee-web-notice-overlay .info-overlay-subtitle {
   flex: 0 0 auto;
-  padding-inline: 44px;
+  /* Card padding already covers part of the 44px close control. */
+  padding-inline: max(0px, calc(44px - var(--fu) * 1.2));
   box-sizing: border-box;
   text-align: center;
   font-family: Inter, system-ui, sans-serif;
@@ -404,8 +409,9 @@ html, body {
   text-align: center;
 }
 #e2ee-web-notice-overlay .info-overlay-list {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 #e2ee-web-notice-overlay .info-overlay-actions {
@@ -426,6 +432,7 @@ html, body {
 #e2ee-web-notice-overlay .info-overlay-x {
   top: calc(var(--fu) * 0.45);
   right: calc(var(--fu) * 0.45);
+  box-sizing: border-box;
   width: 44px;
   height: 44px;
   min-width: 44px;
