@@ -19,12 +19,25 @@ const rightDownButton = document.getElementById("right-down");
 
 const activeIntervals = new Set();
 const buttonStops = new Set();
+const buttonReleases = new Set();
+
+function pointerKeys(event) {
+  const keys = [];
+  if (typeof event.pointerId === "number") keys.push("p:" + event.pointerId);
+  const touches = event.changedTouches;
+  if (touches) {
+    for (let i = 0; i < touches.length; i += 1) keys.push("t:" + touches[i].identifier);
+  }
+  return keys;
+}
 
 function setupButton(buttonElement, action) {
   let intervalId;
+  const pointers = new Set();
 
   const startAction = (event) => {
     event.preventDefault();
+    for (const key of pointerKeys(event)) pointers.add(key);
     if (!intervalId) {
       intervalId = setInterval(action, 16); // 60fps timing
       activeIntervals.add(intervalId);
@@ -32,6 +45,7 @@ function setupButton(buttonElement, action) {
   };
 
   const stopAction = () => {
+    pointers.clear();
     if (intervalId) {
       clearInterval(intervalId);
       activeIntervals.delete(intervalId);
@@ -39,9 +53,17 @@ function setupButton(buttonElement, action) {
     }
   };
 
+  // A second finger on another button must keep running when this one ends.
+  const releasePointer = (key) => {
+    if (!pointers.delete(key)) return;
+    if (pointers.size === 0) stopAction();
+  };
+
   buttonStops.add(stopAction);
+  buttonReleases.add(releasePointer);
 
   buttonElement.addEventListener("mousedown", startAction);
+  buttonElement.addEventListener("pointerdown", startAction);
   buttonElement.addEventListener("mouseup", stopAction);
   buttonElement.addEventListener("mouseleave", stopAction);
   buttonElement.addEventListener("pointerup", stopAction);
@@ -57,14 +79,23 @@ function stopAllButtons() {
   for (const stop of buttonStops) stop();
 }
 
+function stopEndedPointers(event) {
+  const keys = pointerKeys(event);
+  if (!keys.length) return;
+  for (const release of buttonReleases) {
+    for (const key of keys) release(key);
+  }
+}
+
 function clearButtonIntervals() {
   stopAllButtons();
   activeIntervals.forEach(interval => clearInterval(interval));
   activeIntervals.clear();
 }
 
-document.addEventListener("pointerup", stopAllButtons, true);
-document.addEventListener("touchend", stopAllButtons, true);
+document.addEventListener("pointerup", stopEndedPointers, true);
+document.addEventListener("pointercancel", stopEndedPointers, true);
+document.addEventListener("touchend", stopEndedPointers, true);
 
 setupButton(leftUpButton, () => map.panBy([0, -BUTTON_PAN_SPEED * getSpeedMultiplier()], { animate: false }));
 setupButton(leftDownButton, () => map.panBy([0, BUTTON_PAN_SPEED * getSpeedMultiplier()], { animate: false }));
