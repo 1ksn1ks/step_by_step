@@ -38,6 +38,7 @@ import { stackedTopicRules, smallestPolygonSize } from './topicrules.js'
 import { payerUsernameNode } from './payerlink.js'
 import { paintProfileAvatar } from './earlyhashinal.js'
 import { watchProfilePicture, watchProfileTree, forgetProfileTree } from './markertilt.js'
+import { loadBio4PIC } from './loadBio4PIC.js';
 
 // A drawing counts toward the NFT allowance only when it is a real marker
 // or polygon. Likes, comments, deletes, and other messages do not.
@@ -1739,7 +1740,7 @@ export function buildPopupProfile({ profileUrl, payer, payerInfo, username, clic
   profileImg.style.cssText = 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; cursor: pointer; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
   profileImg.onclick = (event) => {
     event.stopPropagation();
-    window.loadBio4PIC(payer);
+    loadBio4PIC(payer);
   };
   watchFollowPrefetch(profileImg, payer);
   profileSection.appendChild(profileImg);
@@ -3757,7 +3758,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
     img.src = validPayerImage;
     img.alt = 'Profile photo';
     img.style.cssText = 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer;';
-    img.addEventListener('click', () => window.loadBio4PIC(payer));
+    img.addEventListener('click', () => loadBio4PIC(payer));
     watchFollowPrefetch(img, payer);
     group.appendChild(img);
 
@@ -3817,7 +3818,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
       payerPic.src = isValidUrl(picUrl) ? picUrl : defaultProfilePic;
       payerPic.alt = 'Profile photo';
       payerPic.style.cssText = 'width: 1.2em; height: 1.2em; border-radius: 1em; object-fit: cover; border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.35); cursor: pointer;';
-      payerPic.addEventListener('click', () => window.loadBio4PIC(node.payer));
+      payerPic.addEventListener('click', () => loadBio4PIC(node.payer));
       watchFollowPrefetch(payerPic, node.payer);
       whoRow.appendChild(payerPic);
       const payerLabel = document.createElement('a');
