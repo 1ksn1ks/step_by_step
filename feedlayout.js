@@ -453,7 +453,11 @@ let profileFilter = '';
 let profileEpoch = 0;
 let profileView = null;
 let profileShift = { all: 0, following: 0 };
-let profileEditLift = false;
+// Set only while the profile pencil is showing Edit profile. Toolbar → Edit
+// profile leaves this false, so closing that page does not repaint the profile.
+let profileEditCover = false;
+let profileEditScroll = 0;
+let profileEditZHeld = false;
 let bannerOffset = 0;
 let bannerHidePx = 0;
 let tabTrackHold = false;
@@ -4527,6 +4531,7 @@ async function loadProfilePosts() {
 }
 
 function closeFeedProfile() {
+  dismissProfileEditCover();
   hideProfilePage();
   profilePayer = '';
   profileEpoch += 1;
@@ -4538,6 +4543,7 @@ function closeFeedProfile() {
 }
 
 function dismissFeedProfile() {
+  dismissProfileEditCover();
   if (profilePage.hidden && !profileFilter && !bannerTracks() && !(window.layerIsOpen && window.layerIsOpen('feedprofile'))) return;
   hideProfilePage();
   profilePayer = '';
@@ -4549,12 +4555,18 @@ function dismissFeedProfile() {
 }
 
 function openProfileEdit() {
-  const trigger = document.getElementById('Edit_Profile');
-  if (!trigger) return;
-  profileEditLift = true;
-  trigger.click();
+  // Same shell as Toolbar → Edit profile (pushDrawer → hostDrawer). No row
+  // click: that CloseALL would hide the profile and open the raw column.
+  if (navBusy() || profilePage.hidden || !profilePayer) return;
+  if (drawerStack.length) return;
   const column = document.getElementById('Edit_Profile-column');
-  if (column && column.style.display !== 'none' && column.style.zIndex !== '8800') column.style.zIndex = '8800';
+  if (!column) return;
+  const box = document.getElementById('Edit_Profile-column-container');
+  if (box && box.style.display === 'none') box.style.display = 'block';
+  profileEditScroll = profileBody.scrollTop;
+  profileEditCover = true;
+  pushDrawer('Edit_Profile-column');
+  if (drawerStack[drawerStack.length - 1] !== 'Edit_Profile-column') profileEditCover = false;
 }
 
 bindPress(profileBack);
@@ -6484,11 +6496,113 @@ function focusDrawerOpener(leftId) {
 // Push: the new page comes in from the right and the page under it
 // shifts left and dims. Pop is the same classes run backwards, so a
 // back press reverses from wherever the slide currently is.
+// The pencil's Edit profile is the only page on the stack, so it would
+// otherwise be a menu row. It still has to be the body screen.
+function profileEditScreen(shell) {
+  if (!profileEditCover) return false;
+  if (shell && shell.id !== 'Edit_Profile-column') return false;
+  if (drawerShells.length === 0) return true;
+  // tagProfileEditShell runs after the shell is pushed.
+  return !!(shell && drawerShells.length === 1 && drawerShells[0] === shell);
+}
+
+// Map profile is 8700, above a drawer screen. Drop it under the screen
+// until the screen leaves, so this page stacks like the Toolbar one.
+// The ? overlay stays on the drawer-page rule above the screen.
+function holdMapProfileUnderEdit() {
+  if (profileEditZHeld || !profilePage.classList.contains('is-map-profile')) return;
+  profileEditZHeld = true;
+  profilePage.dataset.editZPrev = profilePage.style.zIndex || '';
+  profilePage.style.zIndex = '8640';
+}
+
+function releaseMapProfileZ() {
+  if (!profileEditZHeld) return;
+  profileEditZHeld = false;
+  const prev = profilePage.dataset.editZPrev || '';
+  delete profilePage.dataset.editZPrev;
+  if (prev) profilePage.style.zIndex = prev;
+  else profilePage.style.removeProperty('z-index');
+}
+
+function tagProfileEditShell(shell) {
+  if (!shell || !profileEditScreen(shell)) return;
+  shell.el.dataset.profileCover = '1';
+  holdMapProfileUnderEdit();
+}
+
+function profileEditIsCoverTop() {
+  return profileEditCover && drawerStack[drawerStack.length - 1] === 'Edit_Profile-column';
+}
+
+// paintFeedProfile scrolls to the top and, when no drawer cover is armed,
+// strips nav-cover. The bio paint that follows changes the height, and the
+// browser then anchors the scroller. Put the scroll back until that settles.
+function keepProfileScroll(scroll) {
+  let gen = 0;
+  const apply = () => { profileBody.scrollTop = scroll; };
+  profileBody.style.overflowAnchor = 'none';
+  apply();
+  const obs = new MutationObserver(() => {
+    const token = ++gen;
+    apply();
+    setTimeout(() => {
+      if (token !== gen) return;
+      obs.disconnect();
+      apply();
+      profileBody.style.removeProperty('overflow-anchor');
+    }, 80);
+  });
+  obs.observe(profileBody, { childList: true, subtree: true, characterData: true });
+  setTimeout(() => {
+    if (!gen) {
+      obs.disconnect();
+      apply();
+      profileBody.style.removeProperty('overflow-anchor');
+    }
+  }, 1600);
+}
+
+function repaintProfileUnderEdit() {
+  const payer = profilePayer;
+  const scroll = profileEditScroll;
+  const keepCover = !profilePage.hidden
+    && profilePage.classList.contains('nav-cover')
+    && !profilePage.classList.contains('nav-off');
+  if (!payer || profilePage.hidden) return;
+  paintFeedProfile(payer);
+  keepProfileScroll(scroll);
+  if (keepCover && !profilePage.classList.contains('nav-cover')) {
+    profilePage.classList.add('nav-cover');
+  }
+}
+
+function settleProfileEditCover() {
+  if (!profileEditCover) return;
+  profileEditCover = false;
+  repaintProfileUnderEdit();
+}
+
+// Profile itself is going away. Drop the shell and do not repaint, or the
+// repaint would show the profile again.
+function dismissProfileEditCover() {
+  if (!profileEditCover) return;
+  profileEditCover = false;
+  if (drawerStack[drawerStack.length - 1] !== 'Edit_Profile-column') return;
+  const name = drawerPageName(drawerStack.length);
+  drawerStack.pop();
+  mountDrawerBack();
+  if (profilePage.hidden) finishDrawerBack();
+  if (window.layerIsTop && window.layerIsTop(name)) window.layerClosedByUI(name);
+}
+
 // A nested page cannot stay inside #feed-menu: the drawer's transform
 // traps position:fixed. Root pages stay in the drawer. Deeper pages
 // are a body-level frame and use the same push as the chat pages.
+// The profile pencil is the exception: Edit profile is the only page,
+// and it still has to be that body frame so it covers the profile.
 function placeDrawerShell(shell) {
-  const screen = drawerShells.length > 0;
+  const screen = drawerShells.length > 0 || profileEditScreen(shell);
   shell.el.classList.toggle('drawer-screen', screen);
   const parent = screen ? document.body : menu;
   if (shell.el.parentNode !== parent) parent.appendChild(shell.el);
@@ -6502,6 +6616,7 @@ function mountDrawerForward(id) {
   placeDrawerShell(shell);
   drawerShells.push(shell);
   paintShell(shell, id);
+  tagProfileEditShell(shell);
   if (shell.el.parentNode === menu) menu.scrollTop = 0;
   const prev = drawerShells[drawerShells.length - 2];
   void shell.el.offsetWidth;
@@ -6527,6 +6642,7 @@ function mountDrawerParked(id, mode) {
   placeDrawerShell(shell);
   drawerShells.push(shell);
   paintShell(shell, id);
+  tagProfileEditShell(shell);
   void shell.el.offsetWidth;
   shell.el.classList.remove('is-prep');
   document.documentElement.classList.add('drawer-page');
@@ -6542,9 +6658,11 @@ function watchBack(shell) {
     if (drawerShells[drawerShells.length - 1] !== shell) return;
     if (drawerShells.length <= drawerStack.length) return;
     const leftId = shell.id;
+    const profileCoverShell = shell.el.dataset.profileCover === '1';
     drawerShells.pop();
     unhostShell(shell);
     shell.el.remove();
+    if (profileCoverShell) releaseMapProfileZ();
     syncShellRefs();
     if (!drawerShells.length) {
       menu.classList.remove('is-page');
@@ -6557,8 +6675,10 @@ function watchBack(shell) {
 function mountDrawerBack() {
   while (drawerShells.length > drawerStack.length + 1) {
     const mid = drawerShells.splice(drawerStack.length, 1)[0];
+    const profileCoverShell = mid.el.dataset.profileCover === '1';
     unhostShell(mid);
     mid.el.remove();
+    if (profileCoverShell) releaseMapProfileZ();
   }
   syncShellRefs();
   if (drawerShells.length <= drawerStack.length) {
@@ -6611,7 +6731,11 @@ function pushDrawer(id) {
   drawerStack.push(id);
   mountDrawerForward(id);
   if (window.layerOpened) {
-    window.layerOpened(drawerPageName(drawerStack.length), { stack: drawerStack.slice() });
+    const data = { stack: drawerStack.slice() };
+    if (profileEditCover && data.stack.length === 1 && data.stack[0] === 'Edit_Profile-column') {
+      data.profileCover = 1;
+    }
+    window.layerOpened(drawerPageName(drawerStack.length), data);
   }
 }
 
@@ -6622,18 +6746,22 @@ function finishDrawerBack() {
 function drawerBack() {
   if (!drawerStack.length || navBusy()) return;
   const name = drawerPageName(drawerStack.length);
+  const cover = profileEditIsCoverTop();
+  if (cover) settleProfileEditCover();
   drawerStack.pop();
   mountDrawerBack();
-  finishDrawerBack();
+  if (!cover || profilePage.hidden) finishDrawerBack();
   if (window.layerIsTop && window.layerIsTop(name)) window.layerClosedByUI(name);
 }
 
 function drawerPageClose(level) {
   if (drawerStack.length < level) return;
+  const cover = profileEditIsCoverTop() && level === drawerStack.length;
+  if (cover) settleProfileEditCover();
   drawerStack.length = level - 1;
   // Same parent restore as the header back. mountDrawerBack shows it.
   mountDrawerBack();
-  finishDrawerBack();
+  if (!cover || profilePage.hidden) finishDrawerBack();
 }
 
 function openDrawerPanel(id) {
@@ -6646,6 +6774,8 @@ function openDrawerPanel(id) {
 }
 
 function dropDrawerHistory() {
+  if (profileEditIsCoverTop() && !profilePage.hidden) settleProfileEditCover();
+  else profileEditCover = false;
   while (drawerStack.length) {
     const name = drawerPageName(drawerStack.length);
     drawerStack.pop();
@@ -6655,7 +6785,9 @@ function dropDrawerHistory() {
   backWatch += 1;
   for (const shell of drawerShells) {
     unhostShell(shell);
+    const profileCoverShell = shell.el.dataset.profileCover === '1';
     shell.el.remove();
+    if (profileCoverShell) releaseMapProfileZ();
   }
   drawerShells.length = 0;
   syncShellRefs();
@@ -6668,7 +6800,7 @@ function dropDrawerHistory() {
 }
 
 function makeDrawerShell() {
-  const el = document.createElement(drawerShells.length > 0 ? 'div' : 'li');
+  const el = document.createElement(drawerShells.length > 0 || profileEditScreen() ? 'div' : 'li');
   el.className = 'feed-menu-page';
   el.setAttribute('role', 'presentation');
   const bar = document.createElement('div');
@@ -7114,9 +7246,17 @@ if (window.defineLayer) {
       parent: level === 1 ? 'feedmenu' : drawerPageName(level - 1),
       open: (state) => {
         const stack = state && Array.isArray(state.stack) ? state.stack : [];
+        const profileCover = !!(state && state.profileCover)
+          && level === 1
+          && stack.length === 1
+          && stack[0] === 'Edit_Profile-column';
+        if (profileCover) {
+          profileEditCover = true;
+          profileEditScroll = profileBody.scrollTop;
+        }
         const menuWasOpen = !menu.hidden && menu.classList.contains('is-open');
         drawerStack = stack.slice(0, level);
-        if (menu.hidden) {
+        if (menu.hidden && !profileCover) {
           placeMenuForMap(!feedCovers());
           paintMenu(true);
         }
@@ -7170,6 +7310,7 @@ if (window.defineLayer) {
     // page. The entry is already gone, so the page is pushed again
     // after this pop finishes. Back from the account page leaves.
     close: () => {
+      dismissProfileEditCover();
       if (bannerTracks() && profilePayer) {
         const payer = profilePayer;
         backToProfileAccount();
@@ -7235,26 +7376,6 @@ topicBtn.addEventListener('click', (event) => {
   event.stopPropagation();
   openLoadFromFeed();
 });
-
-const editProfileColumn = document.getElementById('Edit_Profile-column');
-if (editProfileColumn) {
-  new MutationObserver(() => {
-    const shown = editProfileColumn.style.display !== 'none';
-    if (shown && profileEditLift && editProfileColumn.style.zIndex !== '8800') editProfileColumn.style.zIndex = '8800';
-    if (!shown && editProfileColumn.style.zIndex === '8800') {
-      editProfileColumn.style.zIndex = '1002';
-      profileEditLift = false;
-    }
-  }).observe(editProfileColumn, { attributes: true, attributeFilter: ['style'] });
-}
-const editProfileHelp = document.getElementById('edit-profile-help-overlay');
-if (editProfileHelp) {
-  new MutationObserver(() => {
-    const shown = editProfileHelp.style.display !== 'none';
-    if (shown && profileEditLift && editProfileHelp.style.zIndex !== '8801') editProfileHelp.style.zIndex = '8801';
-    if (!shown && editProfileHelp.style.zIndex === '8801') editProfileHelp.style.zIndex = '1003';
-  }).observe(editProfileHelp, { attributes: true, attributeFilter: ['style'] });
-}
 
 const optionTrigger = document.getElementById('toggle-toolbar-btn');
 if (optionTrigger) {
@@ -7371,6 +7492,15 @@ document.addEventListener('keydown', (event) => {
       return;
     }
     closeFeedChat();
+    return;
+  }
+  // The pencil page sits on the profile. The menu under a card-opened
+  // profile is hidden, so the drawer Esc check further down never runs.
+  if (profileEditCover && drawerStack.length) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    drawerBack();
     return;
   }
   if (bannerTracks() && profilePayer && (!window.layerIsTop || window.layerIsTop('feedprofile'))) {
