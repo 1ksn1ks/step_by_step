@@ -4553,6 +4553,17 @@ async function loadProfilePosts() {
     closeFeedProfile();
     return;
   }
+  // Peek opened this profile over a hidden map popup. Drop that popup and
+  // the profile history entry. Back then leaves this topic's feed and does
+  // not bring the popup or the peek back. A feed-card profile never set
+  // the flag, so this block does not run for it.
+  if (window.__profileCoversPopup) {
+    if (window.dismissBioPopups) window.dismissBioPopups();
+    window.__profileCoversPopup = false;
+    if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedprofile')) {
+      window.layerClosedByUI('feedprofile');
+    }
+  }
   ensureTopic(false);
   hideProfilePage();
   showLoadedProfileFeed(payer);
