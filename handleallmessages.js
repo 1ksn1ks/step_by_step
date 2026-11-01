@@ -272,8 +272,12 @@ export async function handleAllMessages() {
     try {
       const userInput = document.getElementById("input-field").value.toLowerCase();
       const accountMatch = userInput.trim().match(/^(0\.0\.\d+)(?:-[a-z0-9]+)?$/);
-      if (accountMatch && await isHederaAccount(accountMatch[1]) && typeof window.loadBio4PIC === 'function') {
-        await window.loadBio4PIC(accountMatch[1]);
+      // An account id shares the 0.0. shape with a topic. Stop here, before
+      // any stored map data is cleared, even when the profile hook is absent.
+      if (accountMatch && await isHederaAccount(accountMatch[1])) {
+        if (typeof window.loadBio4PIC === 'function') {
+          await window.loadBio4PIC(accountMatch[1]);
+        }
         return;
       }
       newStoredMarkers([]);

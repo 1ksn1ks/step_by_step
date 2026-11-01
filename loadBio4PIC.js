@@ -1,7 +1,18 @@
-import { handleAllMessages } from './handleallmessages.js';
 import { activePolygonPopups } from './polygons';
 import { activeMarkerPopups } from './marker';
 import { CloseALL } from './cssLogic';
+import { loadTopicBio, usernames, profilePictures, click2url, profileTopics } from './loadalladata';
+import { followPersonControls } from './followtopic';
+import { adjustTextareaHeight } from './adjusttextarea';
+import { fillTopicIds, useTopicId } from './topicidintext';
+import { payerUsernameNode } from './payerlink.js';
+import { paintProfileAvatar } from './earlyhashinal.js';
+import { forgetProfileTree } from './markertilt.js';
+import { paintEarlyProfile } from './loadprofilepopup.js';
+import { paintProfileStats } from './profilestats.js';
+
+const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+const EMPTY_BIO = 'User has not set a bio yet. You can set yours by going to OPTIONS > TOOLBAR > EDIT > BIO';
 
 // Popups the open bio is covering. They stay in the map (and on the
 // history stack) so Back can show them again. × / map tap removes them.
@@ -12,9 +23,6 @@ let suspendingDismiss = 0;
 // Bumped when a close wins, so an open still awaiting the page bails
 // instead of showing the column after Back already put the popup back.
 let bioEpoch = 0;
-// How many profile loads are inside handleAllMessages. Only the outer one
-// hides window.loadBio4PIC, so a second tap cannot restore it to null.
-let loadDepth = 0;
 
 function popupElement(popup) {
   if (!popup || typeof popup.getElement !== 'function') return null;
@@ -119,6 +127,118 @@ function waitForLoadPaint() {
   });
 }
 
+function textOf(value) {
+  if (Array.isArray(value)) return String(value[0] || '');
+  return typeof value === 'string' ? value : '';
+}
+
+function validUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function colorOf(id, fallback) {
+  const el = document.getElementById(id);
+  return el && el.value ? el.value : fallback;
+}
+
+function paintBio(bioEl, bio) {
+  const text = String(bio || '');
+  const hasBio = text.trim().length > 0;
+  if (hasBio) fillTopicIds(bioEl, text, 'profile-live-topic');
+  else bioEl.textContent = EMPTY_BIO;
+  bioEl.classList.toggle('is-empty', !hasBio);
+}
+
+// Picture, name, followers, received, bio, and the connected topic.
+// This replaces the topic rows in the list only. Map markers stay.
+function showAccount(id) {
+  const list = document.getElementById('loaded-topics-list');
+  const loaded = document.getElementById('loaded-topics');
+  if (!list) return '';
+  const previous = document.getElementById('loaded-bio-card');
+  if (previous) {
+    const oldStats = previous.querySelector('.profile-stats');
+    if (oldStats && typeof oldStats._dropProfileStats === 'function') oldStats._dropProfileStats();
+    forgetProfileTree(previous);
+    previous.remove();
+  }
+
+  const card = document.createElement('div');
+  card.id = 'loaded-bio-card';
+  card.className = 'profile-live-preview';
+  card.dataset.account = id;
+
+  const bubble = document.createElement('div');
+  bubble.className = 'profile-live-bubble';
+
+  const img = document.createElement('img');
+  img.className = 'profile-live-pic';
+  img.alt = 'Profile photo';
+  const rawPic = profilePictures[id] && profilePictures[id].url;
+  img.src = validUrl(rawPic) ? rawPic : DEFAULT_PIC;
+  img.addEventListener('error', () => {
+    if (img.src !== DEFAULT_PIC) img.src = DEFAULT_PIC;
+  });
+
+  const names = document.createElement('div');
+  names.className = 'profile-live-names';
+  const account = document.createElement('a');
+  account.className = 'profile-live-account';
+  account.href = `https://explore.hashpack.app/${encodeURIComponent(id)}`;
+  account.target = '_blank';
+  account.rel = 'noopener noreferrer';
+  account.textContent = id;
+  account.style.color = colorOf('color-picker-popup-accid', '#ffffff');
+  account.style.textDecoration = 'none';
+  account.addEventListener('click', (event) => event.stopPropagation());
+  names.appendChild(account);
+
+  const name = textOf(usernames[id] && usernames[id].username).trim();
+  const link = textOf(click2url[id] && click2url[id].click2url).trim();
+  if (name) {
+    const nameSlot = document.createElement('div');
+    const nameEl = payerUsernameNode(name, link, { className: 'profile-live-name' });
+    nameEl.style.color = colorOf('color-picker-popup-username', '#ffffff');
+    nameSlot.appendChild(nameEl);
+    names.appendChild(nameSlot);
+  }
+  const stats = document.createElement('div');
+  names.appendChild(stats);
+
+  bubble.appendChild(img);
+  paintProfileAvatar(img, id);
+  bubble.appendChild(names);
+  bubble.appendChild(followPersonControls(id, { buttonOnly: true }));
+
+  const bioEl = document.createElement('div');
+  bioEl.className = 'profile-live-bio is-empty';
+  bioEl.textContent = EMPTY_BIO;
+
+  card.appendChild(bubble);
+  paintProfileStats(stats, id);
+  card.appendChild(bioEl);
+  paintEarlyProfile(card, id);
+  const home = profileTopics[id];
+  if (home) {
+    const topicLine = document.createElement('div');
+    topicLine.className = 'profile-live-topic profile-connected-topic';
+    topicLine.textContent = home;
+    topicLine.addEventListener('click', (event) => {
+      event.stopPropagation();
+      useTopicId(home);
+    });
+    card.appendChild(topicLine);
+  }
+  list.replaceChildren(card);
+  if (loaded) adjustTextareaHeight(loaded);
+  return bioEl;
+}
+
 // Tap a profile → the restyled Load page, with that account id loaded.
 export async function loadBio4PIC(payer) {
   // Still inside the tap, before any await. A phone drops a history entry
@@ -175,19 +295,16 @@ export async function loadBio4PIC(payer) {
       if (input) input.value = id;
       if (!id) return { bio: '' };
 
-      // The account-id branch of Load calls back into this function.
-      // Drop the hook for this call so the toolbar Load runs once.
-      loadDepth += 1;
-      const hideHook = loadDepth === 1;
-      const previous = window.loadBio4PIC;
-      if (hideHook) window.loadBio4PIC = null;
-      try {
-        await handleAllMessages();
-      } finally {
-        loadDepth -= 1;
-        if (hideHook) window.loadBio4PIC = previous;
-      }
-      return { bio: '' };
+      const bioEl = showAccount(id);
+      if (epoch !== bioEpoch) return {};
+      let bios = null;
+      try { bios = await loadTopicBio(); } catch { bios = null; }
+      if (epoch !== bioEpoch || !bioEl || !bioEl.isConnected) return {};
+      const bio = textOf(bios && bios[id] && bios[id].topic_bio);
+      paintBio(bioEl, bio);
+      const loaded = document.getElementById('loaded-topics');
+      if (loaded) adjustTextareaHeight(loaded);
+      return { bio };
 
   } catch (error) {
       console.log(`Error in loadBio4PIC for payer ${payer}:`, error);
