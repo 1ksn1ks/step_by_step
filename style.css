@@ -2562,7 +2562,7 @@ html, body {
     padding-right: env(safe-area-inset-right);
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
-    background: rgba(10, 10, 18, 0.97);
+    background: #0a0a12;
     color: #fff;
     font-family: Inter, system-ui, sans-serif;
     overflow: hidden;
@@ -2713,15 +2713,16 @@ html, body {
   }
 
   #search-sections {
-    flex: 1 1 auto;
-    min-height: 0;
+    flex: 0 0 auto;
+    height: auto;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
     touch-action: pan-y;
   }
 
-  #search-bar:not(:has(#search-input:placeholder-shown)) #search-sections {
+  /* Hint stays while the list is closed. It hides only once rows are shown. */
+  #search-bar:has(#search-results:not(:empty):not([style*="display: none"])) #search-sections {
     display: none;
   }
 
@@ -2736,13 +2737,25 @@ html, body {
     text-align: left;
   }
 
-  #search-results {
+  /* Rows stack from the top of the page. The old dropdown was
+     position:absolute under the field; these resets keep that from
+     coming back on top of the full-page list. */
+  #search-bar #search-results {
     position: static;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
     flex: 1 1 auto;
+    align-self: auto;
+    justify-content: flex-start;
+    align-content: flex-start;
     min-height: 0;
     box-sizing: border-box;
     width: 100%;
     margin: 0;
+    margin-top: 0;
+    transform: none;
     background: transparent;
     border: 0;
     border-radius: 0;
@@ -2759,10 +2772,18 @@ html, body {
     touch-action: pan-y;
   }
 
-  .search-result-item {
+  #search-bar .search-result-item {
+    position: static;
+    top: auto;
+    bottom: auto;
+    margin-top: 0;
+    transform: none;
+    align-self: auto;
     box-sizing: border-box;
     display: flex;
+    flex-direction: row;
     align-items: center;
+    justify-content: flex-start;
     gap: 12px;
     height: 56px;
     min-height: 56px;
@@ -2810,12 +2831,12 @@ html, body {
     text-align: left;
   }
 
-  .search-result-item:last-child {
+  #search-bar .search-result-item:last-child {
     background-image: none;
   }
 
-  .search-result-item:hover,
-  .search-result-item:active {
+  #search-bar .search-result-item:hover,
+  #search-bar .search-result-item:active {
     background-color: rgba(34, 211, 238, 0.12);
   }
 
@@ -2823,16 +2844,18 @@ html, body {
      state, and result list are capped and centred. */
   @media (min-width: 900px) {
     .search-page-bar,
-    #search-sections,
-    #search-results {
+    #search-bar #search-sections,
+    #search-bar #search-results {
       width: 100%;
       max-width: 720px;
       margin-inline: auto;
     }
 
-    #search-results {
+    #search-bar #search-results {
       flex: 1 1 auto;
       min-height: 0;
+      margin-top: 0;
+      justify-content: flex-start;
       overflow-y: auto;
     }
   }
