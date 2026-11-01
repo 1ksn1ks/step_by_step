@@ -1740,13 +1740,14 @@ export function buildPopupProfile({ profileUrl, payer, payerInfo, username, clic
   profileImg.style.cssText = 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; cursor: pointer; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
   profileImg.onclick = (event) => {
     event.stopPropagation();
-    if (window.openProfileFromPopup && window.openProfileFromPopup(payer)) {
-      const popupEl = profileImg.closest('.maplibregl-popup');
-      const close = popupEl && popupEl.querySelector('.maplibregl-popup-close-button:not(.feed-map-back):not(.comments-back-button)');
-      if (close) close.click();
-    } else {
-      loadBio4PIC(payer);
-    }
+    const popupEl = profileImg.closest('.maplibregl-popup');
+    const livePopup = popupEl && !popupEl.closest('#popup-settings-card, #popup-settings-preview, #draw-column');
+    // Cover the popup. Do not click ×: that drops its history entry, and
+    // Back from the profile would land on the bare map.
+    if (livePopup && window.coverPopupsForPage) window.coverPopupsForPage(popupEl);
+    if (window.openProfileFromPopup && window.openProfileFromPopup(payer)) return;
+    if (livePopup && window.restorePopupsForPage) window.restorePopupsForPage();
+    loadBio4PIC(payer);
   };
   watchFollowPrefetch(profileImg, payer);
   profileSection.appendChild(profileImg);

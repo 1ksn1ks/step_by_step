@@ -14,10 +14,10 @@ import { paintProfileStats } from './profilestats.js';
 const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const EMPTY_BIO = 'User has not set a bio yet. You can set yours by going to OPTIONS > TOOLBAR > EDIT > BIO';
 
-// Popups the open bio is covering. They stay in the map (and on the
+// Popups a profile or bio is covering. They stay in the map (and on the
 // history stack) so Back can show them again. × / map tap removes them.
 let hiddenPopupEls = [];
-// Set while loadBio4PIC is opening, so its own CloseALL does not drop
+// Set while a cover is opening, so its own CloseALL does not drop
 // the popup it is about to cover.
 let suspendingDismiss = 0;
 // Bumped when a close wins, so an open still awaiting the page bails
@@ -42,18 +42,65 @@ function hidePopupsForBio() {
 }
 
 function restorePopupsForBio() {
+  let restored = false;
   for (const el of hiddenPopupEls) {
-    if (el && el.isConnected) el.style.removeProperty('display');
+    if (!el || !el.isConnected) continue;
+    el.style.removeProperty('display');
+    restored = true;
   }
   hiddenPopupEls = [];
+  return restored;
 }
+
+function coverPopupsForPage(extraEl) {
+  suspendingDismiss += 1;
+  let held = true;
+  const release = () => {
+    if (!held) return;
+    held = false;
+    suspendingDismiss = Math.max(0, suspendingDismiss - 1);
+  };
+  try {
+    hidePopupsForBio();
+    const extras = [];
+    if (extraEl && extraEl.nodeType === 1) extras.push(extraEl);
+    document.querySelectorAll('.maplibregl-popup').forEach((el) => {
+      if (el.closest('#popup-settings-card, #popup-settings-preview, #draw-column')) return;
+      extras.push(el);
+    });
+    const seen = new Set(hiddenPopupEls);
+    for (const el of extras) {
+      if (!el || seen.has(el)) continue;
+      seen.add(el);
+      el.style.display = 'none';
+      hiddenPopupEls.push(el);
+    }
+  } finally {
+    queueMicrotask(release);
+  }
+}
+window.coverPopupsForPage = coverPopupsForPage;
+window.restorePopupsForPage = restorePopupsForBio;
 
 function dismissBioPopups() {
   if (suspendingDismiss || !hiddenPopupEls.length) return;
   bioEpoch += 1;
+  const covered = hiddenPopupEls;
   hiddenPopupEls = [];
+  const known = new Set();
+  for (const popup of [...activePolygonPopups, ...activeMarkerPopups]) {
+    const el = popupElement(popup);
+    if (el) known.add(el);
+  }
   activePolygonPopups.slice().forEach((popup) => popup.remove());
   activeMarkerPopups.slice().forEach((popup) => popup.remove());
+  // Local-news uses the same card but not those lists. A map tap still
+  // removes that popup; Back never gets a disconnected shell.
+  for (const el of covered) {
+    if (!el || !el.isConnected || known.has(el)) continue;
+    const close = el.querySelector('.maplibregl-popup-close-button:not(.feed-map-back):not(.comments-back-button)');
+    if (close) close.click();
+  }
 }
 window.dismissBioPopups = dismissBioPopups;
 

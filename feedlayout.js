@@ -3302,6 +3302,8 @@ window.holdFeedScroll = holdScroll;
 window.openFeedProfile = (payer) => openFeedProfile(payer);
 
 window.openProfileFromPopup = (payer) => {
+  // Peek and map mode are not covering, so this profile sits over a popup.
+  const coverPopup = !feedCovers();
   if (feedOn() && root.classList.contains('is-peek')) {
     if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedfly')) {
       window.layerClosedByUI('feedfly');
@@ -3310,6 +3312,7 @@ window.openProfileFromPopup = (payer) => {
   }
   const id = String(payer || '').trim();
   if (!/^\d+\.\d+\.\d+$/.test(id)) return false;
+  window.__profileCoversPopup = coverPopup;
   openFeedProfile(id);
   return true;
 };
@@ -4363,7 +4366,24 @@ function openFeedProfile(payer, source) {
   if (profileFilter || bannerTracks()) clearProfileFilter();
   paintFeedProfile(id);
   const data = (fromDrawer || carryingDrawer()) ? drawerState({ payer: id }) : { payer: id };
+  if (window.__profileCoversPopup) data.coverPopup = true;
   if (window.layerOpened) window.layerOpened('feedprofile', data);
+}
+
+// The photo tap hid the popup instead of closing it. Back shows that same
+// popup. In the feed, the profile had stepped out of the peek to use the
+// column, so the peek returns with the popup.
+function uncoverPopupUnderProfile() {
+  const backToPeek = window.__profileCoversPopup === true && feedOn();
+  window.__profileCoversPopup = false;
+  const restored = typeof window.restorePopupsForPage === 'function'
+    && window.restorePopupsForPage() === true;
+  if (!backToPeek || !restored) return;
+  peek = true;
+  root.classList.add('is-peek');
+  revealToken += 1;
+  syncCover();
+  syncFeedMapBack();
 }
 
 function refreshBannerHeight() {
@@ -4528,6 +4548,8 @@ async function loadProfilePosts() {
   // handleAllMessages already drew this topic on the map. Close the page
   // and stay there. The feed still switches into that topic's posts.
   if (!feedOn()) {
+    // The loaded topic is the map. Drop the popup this profile was covering.
+    if (window.dismissBioPopups) window.dismissBioPopups();
     closeFeedProfile();
     return;
   }
@@ -4538,6 +4560,7 @@ async function loadProfilePosts() {
 
 function closeFeedProfile() {
   dismissProfileEditCover();
+  uncoverPopupUnderProfile();
   hideProfilePage();
   profilePayer = '';
   profileEpoch += 1;
@@ -4551,6 +4574,7 @@ function closeFeedProfile() {
 function dismissFeedProfile() {
   dismissProfileEditCover();
   if (profilePage.hidden && !profileFilter && !bannerTracks() && !(window.layerIsOpen && window.layerIsOpen('feedprofile'))) return;
+  uncoverPopupUnderProfile();
   hideProfilePage();
   profilePayer = '';
   profileEpoch += 1;
@@ -7302,6 +7326,10 @@ if (window.defineLayer) {
     parent: 'feed',
     open: (state) => {
       hideKeptDrawer(state, 'My profile');
+      if (state && state.coverPopup) {
+        window.__profileCoversPopup = true;
+        if (window.coverPopupsForPage) window.coverPopupsForPage();
+      }
       const payer = state && state.payer;
       if (payer) paintFeedProfile(payer);
     },
@@ -7318,10 +7346,12 @@ if (window.defineLayer) {
           if (window.layerIsOpen && window.layerIsOpen('feedprofile')) return;
           if (!feedCovers()) return;
           const data = drawerItem ? drawerState({ payer }) : { payer };
+          if (window.__profileCoversPopup) data.coverPopup = true;
           if (window.layerOpened) window.layerOpened('feedprofile', data);
         }, 0);
         return;
       }
+      uncoverPopupUnderProfile();
       hideProfilePage();
       profilePayer = '';
       profileEpoch += 1;
