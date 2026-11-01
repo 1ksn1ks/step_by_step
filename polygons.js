@@ -15,7 +15,7 @@ import { watchPolygonTilt, forgetPolygonTilt } from './polygontilt.js';
 import { fillMapTip } from './maptip.js';
 import { prefetchPersonFollow } from './followtopic.js';
 import { isPointerOnGlobe } from './onglobe.js';
-import { advanceIpfsImage } from './ipfsimage.js';
+import { advanceIpfsImage, preferGateway } from './ipfsimage.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 
 
@@ -175,7 +175,7 @@ function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackU
       }
     };
 
-    img.src = imageUrl;
+    img.src = preferGateway(imageUrl) || imageUrl;
   });
   resizedImageCache.set(key, pending);
   pending.catch(() => {});
