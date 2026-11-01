@@ -42,21 +42,12 @@ export async function isHederaAccount(id) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 4000);
   try {
-    // Account ids and topic ids share 0.0.N. A topic is the common case
-    // (0.0.9609912), so ask /topics/ first and never 404 /accounts/ for one.
-    const topic = await mirrorHas('topics', id, controller.signal);
-    if (topic === true) {
-      accountChecks.set(id, false);
-      return false;
-    }
-    if (topic !== false) return false;
+    // Account ids and topic ids share 0.0.N. Ask /accounts/ and stop when
+    // it answers, so an account load does not also 404 /topics/.
     const account = await mirrorHas('accounts', id, controller.signal);
-    if (account === true) {
-      accountChecks.set(id, true);
-      return true;
-    }
-    if (account === false) accountChecks.set(id, false);
-    return false;
+    if (account === null) return false;
+    accountChecks.set(id, account);
+    return account;
   } catch {
     return false;
   } finally {
