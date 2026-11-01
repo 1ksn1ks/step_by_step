@@ -2535,98 +2535,175 @@ html, body {
     border-color: rgba(255, 255, 255, 0.45);
   }
 
-  /* Opens at the same height the topic chat opens; hugs the input (grows
-     with what is typed) and never gets wider than 98vw */
+  /* Same spot as before (top 10vh, left 1vh). Width is fixed, so the
+     input's size attribute no longer grows the bar. Phones use nearly the
+     screen; desktop keeps a short column. --fu matches the Load page field. */
   #search-bar {
+    --fu: calc(min(100dvw, 100dvh) * 0.024);
+    --search-field-h: max(44px, 5.5dvh);
     position: fixed;
     top: 10vh;
     left: 1vh;
-    width: fit-content;
-    max-width: 98vw;
+    box-sizing: border-box;
+    width: min(92dvw, 520px);
+    max-width: min(92dvw, 520px);
     z-index: 1005;
   }
 
-  #search-input {
-    width: auto; /* sized from its `size` attr — grows with the typed text */
-    max-width: 98vw;
-    box-sizing: border-box;
-    background-color: rgba(15, 15, 20, 0.86);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 2vh;
-    padding: 0.8vh 3.5vh 0.8vh 1.2vh; /* 0.25vh between text and × */
-    font-size: 1.5vh;
-    font-family: Arial, sans-serif;
-    outline: none;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  @media (orientation: landscape) {
+    #search-bar {
+      --fu: calc(46dvw * 0.024);
+    }
   }
 
-  /* × inside the input's right edge: clears the current text.
-     0.25vh gap to top/bottom/right; height stretches, so it never overflows */
-  #search-clear-btn {
+  @media (min-width: 1000px) {
+    #search-bar {
+      width: min(520px, 40dvw);
+      max-width: min(520px, 40dvw);
+    }
+  }
+
+  /* Decorative search mark. The input paints over the bar, so this sits
+     above it and ignores hits. */
+  #search-bar::before {
+    content: "";
     position: absolute;
-    top: 0.25vh;
-    bottom: 0.25vh;
-    right: 0.25vh;
-    width: 3vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.8vh;
-    line-height: 1;
-    background-color: rgba(10, 10, 18, 0.88);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: 50%;
-    cursor: pointer;
-    transition: background-color 0.2s, border-color 0.2s;
+    z-index: 1;
+    left: 14px;
+    top: calc(var(--search-field-h) / 2);
+    width: 18px;
+    height: 18px;
+    transform: translateY(-50%);
+    pointer-events: none;
+    background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E");
+    opacity: 0.85;
   }
 
-  #search-clear-btn:hover {
-    background-color: rgba(30, 30, 42, 0.94);
-    border-color: rgba(255, 255, 255, 0.45);
+  #search-input {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    height: var(--search-field-h);
+    min-height: 44px;
+    margin: 0;
+    padding: 0 calc(44px + max(4px, 0.5dvh) + 8px) 0 40px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: calc(var(--fu) * 2);
+    /* Load paints rgba(255,255,255,.06) on #0a0a12. Same composite here so
+       the map does not show through the field. */
+    background:
+      linear-gradient(rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.06)),
+      #0a0a12;
+    color: #fff;
+    font-family: Inter, system-ui, sans-serif;
+    font-size: calc(var(--fu) * 1.55);
+    font-weight: 400;
+    line-height: 1.2;
+    outline: none;
+    box-shadow: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
 
   #search-input::placeholder {
     color: rgba(255, 255, 255, 0.5);
   }
 
-  #search-input:focus {
+  #search-input:focus,
+  #search-input:focus-visible {
     border-color: rgba(34, 211, 238, 0.6);
     box-shadow: 0 0 1vh rgba(34, 211, 238, 0.4);
+    outline: none;
+  }
+
+  /* 44×44 ×, same 20px glyph as the Load paste button. Inline display
+     still hides it until there is text. */
+  #search-clear-btn {
+    position: absolute;
+    z-index: 2;
+    top: calc(var(--search-field-h) / 2);
+    right: max(4px, 0.5dvh);
+    transform: translateY(-50%);
+    box-sizing: border-box;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    font-family: Inter, system-ui, sans-serif;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  #search-clear-btn:hover,
+  #search-clear-btn:active {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.45);
   }
 
   #search-results {
     position: absolute;
-    top: calc(100% + 0.5vh);
+    top: calc(100% + 6px);
     left: 0;
+    box-sizing: border-box;
     width: 100%;
-    background-color: rgba(15, 15, 20, 0.94);
-    border: 0.1vh solid rgba(34, 211, 238, 0.6);
-    border-radius: 2vh;
+    margin: 0;
+    background: rgba(18, 18, 28, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 16px;
+    max-height: min(50dvh, 420px);
+    overflow-x: hidden;
     overflow-y: auto;
-    max-height: 40vh;
+    overscroll-behavior: contain;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    touch-action: pan-y;
+  }
+
+  #search-results * {
+    touch-action: pan-y;
   }
 
   .search-result-item {
-    padding: 1vh 1.2vh;
-    font-size: 1.4vh;
+    box-sizing: border-box;
+    display: block;
+    height: 56px;
+    min-height: 56px;
+    margin: 0;
+    padding: 0 16px;
+    border: 0;
+    background-color: transparent;
+    background-image: linear-gradient(rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.14));
+    background-repeat: no-repeat;
+    background-size: calc(100% - 32px) 1px;
+    background-position: center bottom;
     color: #e6e6f0;
-    cursor: pointer;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-family: Inter, system-ui, sans-serif;
+    font-size: max(16px, calc(var(--fu) * 1.55));
+    line-height: 56px;
+    text-align: left;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    cursor: pointer;
   }
 
   .search-result-item:last-child {
-    border-bottom: none;
+    background-image: none;
   }
 
-  .search-result-item:hover {
-    background-color: rgba(34, 211, 238, 0.15);
-    color: #ffffff;
+  .search-result-item:hover,
+  .search-result-item:active {
+    color: #22D3EE;
   }
 
   button.post-hashtag {
