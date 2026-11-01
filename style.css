@@ -11019,8 +11019,8 @@ html.feed-app :is(
   #feed-settings > .feed-settings-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar
 ) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back) svg {
-  width: calc(var(--fu) * 2.2);
-  height: calc(var(--fu) * 2.2);
+  width: 22px;
+  height: 22px;
   display: block;
   pointer-events: none;
 }
@@ -11098,8 +11098,8 @@ html.feed-app :is(
   #feed-profile > .feed-chat-bar,
   #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar
 ) .feed-chat-actions .feed-chat-glyph {
-  width: calc(var(--fu) * 1.8);
-  height: calc(var(--fu) * 1.8);
+  width: 22px;
+  height: 22px;
 }
 :is(
   #feed-profile > .feed-chat-bar,
@@ -12584,7 +12584,7 @@ html.feed-app #feed-chat > .load-options-page {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: calc(var(--fu) * 0.15);
+  gap: 4px;
   margin-left: auto;
 }
 .feed-chat-actions > .feed-chat-icon,
@@ -12617,17 +12617,28 @@ html.feed-app #feed-chat > .load-options-page {
   display: none;
 }
 .feed-chat-actions .feed-chat-glyph {
-  width: calc(var(--fu) * 2);
-  height: calc(var(--fu) * 2);
+  width: 22px;
+  height: 22px;
   display: block;
   margin: auto;
   pointer-events: none;
+}
+.feed-chat-actions > button:not(.feed-chat-icon) {
+  width: 44px !important;
+  min-width: 44px !important;
+  height: 44px !important;
+  min-height: 44px !important;
 }
 .feed-chat-actions > button:not(.feed-chat-icon) .feed-chat-glyph {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+}
+.feed-chat-actions > button[hidden],
+.feed-chat-actions > button[style*="display: none"],
+.feed-chat-actions > button[style*="display:none"] {
+  display: none !important;
 }
 .feed-chat-actions > button:is(:hover, :active, .is-hold, .is-on) {
   color: #22D3EE !important;
@@ -13009,6 +13020,10 @@ html.feed-app #feed-chat > .load-options-page {
   display: block;
   pointer-events: none;
 }
+#feed-chat .is-feed-shell .feed-chat-bar .feed-chat-glyph {
+  width: 22px;
+  height: 22px;
+}
 #feed-chat .is-feed-shell #go-to-top-msgs,
 #feed-chat .is-feed-shell #go-to-bottom-msgs,
 #feed-chat .is-feed-shell #go-to-top-msgs-encrypted-chat,
@@ -13362,6 +13377,12 @@ html.feed-app #feed-chat.is-load > .feed-chat-bar {
   min-height: 44px;
   background: none;
 }
+#feed-chat.is-load > .feed-chat-bar .feed-chat-back svg,
+#feed-chat.is-draw > .feed-chat-bar .feed-chat-back svg,
+#feed-chat .load-options-page > .feed-chat-bar .feed-chat-back svg {
+  width: 22px;
+  height: 22px;
+}
 #feed-chat.is-load > .feed-chat-bar .feed-chat-back:focus {
   outline: none;
 }
@@ -13411,7 +13432,7 @@ html.feed-app #feed-chat.is-load > .feed-chat-bar {
   box-shadow: none !important;
   color: #fff !important;
   font-family: Inter, system-ui, sans-serif !important;
-  font-size: calc(var(--fu) * 1.8) !important;
+  font-size: 22px !important;
   font-weight: 600;
   line-height: 1 !important;
   transform: none !important;
@@ -14074,7 +14095,7 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   box-shadow: none !important;
   color: #fff !important;
   font-family: Inter, system-ui, sans-serif !important;
-  font-size: calc(var(--fu) * 1.8) !important;
+  font-size: 22px !important;
   font-weight: 600;
   line-height: 1 !important;
   transform: none !important;
