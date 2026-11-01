@@ -4525,6 +4525,12 @@ async function loadProfilePosts() {
     toast.error('Could not load topic');
     return;
   }
+  // handleAllMessages already drew this topic on the map. Close the page
+  // and stay there. The feed still switches into that topic's posts.
+  if (!feedOn()) {
+    closeFeedProfile();
+    return;
+  }
   ensureTopic(false);
   hideProfilePage();
   showLoadedProfileFeed(payer);
@@ -4582,13 +4588,6 @@ profileEdit.addEventListener('click', (event) => {
 bindPress(profileLoad);
 profileLoad.addEventListener('click', (event) => {
   event.stopPropagation();
-  // Map mode still opens the Load page. The feed keeps its own posts load.
-  if (!feedOn()) {
-    const id = profilePayer;
-    closeFeedProfile();
-    if (id && window.loadBio4PIC) window.loadBio4PIC(id);
-    return;
-  }
   loadProfilePosts();
 });
 profileBanner.addEventListener('click', (event) => {
