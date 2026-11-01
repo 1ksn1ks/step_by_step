@@ -15,7 +15,7 @@ import { watchPolygonTilt, forgetPolygonTilt } from './polygontilt.js';
 import { fillMapTip } from './maptip.js';
 import { prefetchPersonFollow } from './followtopic.js';
 import { isPointerOnGlobe } from './onglobe.js';
-import { advanceIpfsImage, preferGateway } from './ipfsimage.js';
+import { advanceIpfsImage, armIpfsAttempt, clearIpfsAttempt, preferGateway } from './ipfsimage.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 
 
@@ -125,6 +125,7 @@ function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackU
     img.crossOrigin = "anonymous";
 
     img.onload = () => {
+      clearIpfsAttempt(img);
       try {
         const canvas = document.createElement('canvas');
         let width = img.width;
@@ -166,6 +167,7 @@ function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackU
     };
 
     img.onerror = () => {
+      clearIpfsAttempt(img);
       if (advanceIpfsImage(img)) return;
       if (fallbackUrl && img.src !== fallbackUrl) {
         // Try fallback once
@@ -176,6 +178,7 @@ function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackU
     };
 
     img.src = preferGateway(imageUrl) || imageUrl;
+    armIpfsAttempt(img);
   });
   resizedImageCache.set(key, pending);
   pending.catch(() => {});
