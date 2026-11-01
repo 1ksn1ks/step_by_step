@@ -94,7 +94,7 @@ function loadApi() {
     "searchResults",
     "searchInput",
     "closeSearchBar",
-    `${["paintResultItem", "resultOptions", "onResultKey", "bindResultKeys", "focusFirstResult"].map(readFn).join("\n")}\nreturn { paintResultItem, resultOptions, onResultKey, bindResultKeys, focusFirstResult, searchResults, searchInput };`,
+    `${["paintResultItem", "resultOptions", "markActiveOption", "onResultKey", "bindResultKeys", "focusFirstResult"].map(readFn).join("\n")}\nreturn { paintResultItem, resultOptions, markActiveOption, onResultKey, bindResultKeys, focusFirstResult, searchResults, searchInput };`,
   )(
     { createElement: createEl },
     searchResults,

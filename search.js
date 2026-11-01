@@ -29,6 +29,7 @@ let currentRequest = 0;
 function closeResults() {
   searchResults.style.display = 'none';
   searchResults.innerHTML = '';
+  searchResults.setAttribute('role', 'listbox');
   // Back to sizing for the typed text
   searchInput.size = Math.max(searchInput.value.length + 1, 20);
 }
@@ -79,9 +80,11 @@ function paintResultItem(item, label, kind, selectable = true) {
     item.setAttribute('role', 'option');
     item.setAttribute('tabindex', '0');
     item.tabIndex = 0;
+    item.setAttribute('aria-selected', 'false');
   } else {
     item.removeAttribute('role');
     item.removeAttribute('tabindex');
+    item.removeAttribute('aria-selected');
   }
   const text = document.createElement('span');
   text.className = 'search-result-label';
@@ -92,6 +95,16 @@ function paintResultItem(item, label, kind, selectable = true) {
 function resultOptions() {
   if (searchResults.style.display === 'none') return [];
   return [...searchResults.querySelectorAll('.search-result-item[role="option"]')];
+}
+
+// One tab stop. aria-selected is only the option that currently has focus.
+function markActiveOption(item, focused) {
+  for (const row of resultOptions()) {
+    const current = row === item;
+    row.tabIndex = current ? 0 : -1;
+    row.setAttribute('tabindex', current ? '0' : '-1');
+    row.setAttribute('aria-selected', current && focused ? 'true' : 'false');
+  }
 }
 
 // Enter and Space run the row's click handler. Arrows move through the
@@ -112,15 +125,20 @@ function onResultKey(event, item) {
   const rows = resultOptions();
   const index = rows.indexOf(item);
   if (event.key === 'ArrowUp' && index <= 0) {
+    markActiveOption(item, false);
     searchInput.focus({ preventScroll: true });
     return;
   }
   const next = rows[index + (event.key === 'ArrowDown' ? 1 : -1)];
-  if (next) next.focus();
+  if (next) {
+    markActiveOption(next, true);
+    next.focus();
+  }
 }
 
 function bindResultKeys(item) {
   item.addEventListener('keydown', (event) => onResultKey(event, item));
+  item.addEventListener('focus', () => markActiveOption(item, true));
 }
 
 function focusFirstResult(event) {
@@ -128,6 +146,7 @@ function focusFirstResult(event) {
   const first = resultOptions()[0];
   if (!first) return false;
   event.preventDefault();
+  markActiveOption(first, true);
   first.focus();
   return true;
 }
@@ -137,12 +156,16 @@ function showResults(results, query) {
     const item = document.createElement('div');
     paintResultItem(item, `No results for "${query}"`, String(query).trim().startsWith('#') ? 'tag' : 'place', false);
     item.style.cursor = 'default';
+    // Not an option, and not inside the listbox. The row stays where it was.
+    item.setAttribute('role', 'status');
+    searchResults.removeAttribute('role');
     searchResults.innerHTML = '';
     searchResults.appendChild(item);
     searchResults.style.display = 'block';
     return;
   }
 
+  searchResults.setAttribute('role', 'listbox');
   searchResults.innerHTML = '';
   for (const r of results) {
     const item = document.createElement('div');
@@ -183,6 +206,8 @@ function showResults(results, query) {
   }
   searchInput.size = Math.max(searchInput.value.length + 1, longest + 1, 20);
   searchResults.style.display = 'block';
+  const firstPlace = resultOptions()[0];
+  if (firstPlace) markActiveOption(firstPlace, false);
 }
 
 async function doSearch(query) {
@@ -314,7 +339,10 @@ function showHashtagResults(posts, tag) {
     searchResults.appendChild(item);
   }
   searchInput.size = Math.max(searchInput.value.length + 1, Math.min(longest + 1, 60), 20);
+  searchResults.setAttribute('role', 'listbox');
   searchResults.style.display = "block";
+  const firstPost = resultOptions()[0];
+  if (firstPost) markActiveOption(firstPost, false);
 }
 
 async function searchHashtags(tag) {
