@@ -2535,47 +2535,115 @@ html, body {
     border-color: rgba(255, 255, 255, 0.45);
   }
 
-  /* Same spot as before (top 10vh, left 1vh). Width is fixed, so the
-     input's size attribute no longer grows the bar. Phones use nearly the
-     screen; desktop keeps a short column. --fu matches the Load page field. */
+  /* Full-viewport search page. JS still sets display:block to open;
+     flex wins while it is shown, and display:none still hides it.
+     Above the map (1008) and the map drawer (8600), below onboarding
+     (9000), toasts (10000) and help overlays (11000). */
+  #search-bar[style*="display: block"],
+  #search-bar[style*="display:block"] {
+    display: flex !important;
+    flex-direction: column;
+  }
+
   #search-bar {
-    --fu: calc(min(100dvw, 100dvh) * 0.024);
-    --search-field-h: max(44px, 5.5dvh);
     position: fixed;
-    top: 10vh;
-    left: 1vh;
+    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
     box-sizing: border-box;
-    width: min(92dvw, 520px);
-    max-width: min(92dvw, 520px);
-    z-index: 1005;
+    width: 100dvw;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 8800;
+    margin: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    background: rgba(10, 10, 18, 0.97);
+    color: #fff;
+    font-family: Inter, system-ui, sans-serif;
+    overflow: hidden;
   }
 
-  @media (orientation: landscape) {
-    #search-bar {
-      --fu: calc(46dvw * 0.024);
-    }
+  .search-page-bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+    height: 44px;
+    min-height: 44px;
+    margin: 0;
+    padding: 0 8px 0 0;
+    border-bottom: 0;
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.22);
   }
 
-  @media (min-width: 1000px) {
-    #search-bar {
-      width: min(520px, 40dvw);
-      max-width: min(520px, 40dvw);
-    }
+  #search-back-btn {
+    appearance: none;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #fff;
+    cursor: pointer;
+    touch-action: manipulation;
+    outline: none;
   }
 
-  /* Decorative search mark. The input paints over the bar, so this sits
-     above it and ignores hits. */
-  #search-bar::before {
+  #search-back-btn svg {
+    width: 22px;
+    height: 22px;
+    display: block;
+    pointer-events: none;
+  }
+
+  #search-back-btn:focus {
+    outline: none;
+  }
+
+  #search-back-btn:focus-visible {
+    outline: 2px solid #22D3EE;
+    outline-offset: 2px;
+  }
+
+  #search-back-btn:is(:hover, :active) {
+    color: #22D3EE;
+    background: transparent;
+  }
+
+  .search-field {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .search-field::before {
     content: "";
     position: absolute;
     z-index: 1;
-    left: 14px;
-    top: calc(var(--search-field-h) / 2);
+    left: 12px;
+    top: 50%;
     width: 18px;
     height: 18px;
     transform: translateY(-50%);
     pointer-events: none;
-    background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E");
+    background: center / 18px 18px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E");
     opacity: 0.85;
   }
 
@@ -2585,25 +2653,20 @@ html, body {
     width: 100%;
     min-width: 0;
     max-width: 100%;
-    height: var(--search-field-h);
+    height: 44px;
     min-height: 44px;
     margin: 0;
-    padding: 0 calc(44px + max(4px, 0.5dvh) + 8px) 0 40px;
+    padding: 0 44px 0 38px;
     border: 1px solid rgba(255, 255, 255, 0.22);
-    border-radius: calc(var(--fu) * 2);
-    /* Load paints rgba(255,255,255,.06) on #0a0a12. Same composite here so
-       the map does not show through the field. */
-    background:
-      linear-gradient(rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.06)),
-      #0a0a12;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
     color: #fff;
     font-family: Inter, system-ui, sans-serif;
-    font-size: calc(var(--fu) * 1.55);
+    font-size: 16px;
     font-weight: 400;
     line-height: 1.2;
     outline: none;
     box-shadow: none;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
 
   #search-input::placeholder {
@@ -2613,18 +2676,17 @@ html, body {
   #search-input:focus,
   #search-input:focus-visible {
     border-color: rgba(34, 211, 238, 0.6);
-    box-shadow: 0 0 1vh rgba(34, 211, 238, 0.4);
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.35);
     outline: none;
   }
 
-  /* 44×44 ×, same 20px glyph as the Load paste button. Inline display
-     still hides it until there is text. */
+  /* 44×44 × at the right end of the field. Inline display still hides
+     it until there is text. */
   #search-clear-btn {
     position: absolute;
     z-index: 2;
-    top: calc(var(--search-field-h) / 2);
-    right: max(4px, 0.5dvh);
-    transform: translateY(-50%);
+    top: 0;
+    right: 0;
     box-sizing: border-box;
     width: 44px;
     height: 44px;
@@ -2635,9 +2697,9 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.08);
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
     color: #fff;
     font-family: Inter, system-ui, sans-serif;
     font-size: 20px;
@@ -2647,35 +2709,61 @@ html, body {
 
   #search-clear-btn:hover,
   #search-clear-btn:active {
-    background: rgba(255, 255, 255, 0.16);
-    border-color: rgba(255, 255, 255, 0.45);
+    color: #22D3EE;
   }
 
-  #search-results {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    box-sizing: border-box;
-    width: 100%;
-    margin: 0;
-    background: rgba(18, 18, 28, 0.94);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 16px;
-    max-height: min(50dvh, 420px);
+  #search-sections {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
     touch-action: pan-y;
   }
 
-  #search-results * {
+  #search-bar:not(:has(#search-input:placeholder-shown)) #search-sections {
+    display: none;
+  }
+
+  .search-empty {
+    margin: 0;
+    padding: 16px;
+    color: rgba(255, 255, 255, 0.45);
+    font-family: Inter, system-ui, sans-serif;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.3;
+    text-align: left;
+  }
+
+  #search-results {
+    position: static;
+    flex: 1 1 auto;
+    min-height: 0;
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    max-height: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-shadow: none;
+    touch-action: pan-y;
+  }
+
+  #search-results *,
+  #search-sections * {
     touch-action: pan-y;
   }
 
   .search-result-item {
     box-sizing: border-box;
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 12px;
     height: 56px;
     min-height: 56px;
     margin: 0;
@@ -2684,17 +2772,42 @@ html, body {
     background-color: transparent;
     background-image: linear-gradient(rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.14));
     background-repeat: no-repeat;
-    background-size: calc(100% - 32px) 1px;
-    background-position: center bottom;
-    color: #e6e6f0;
+    background-position: left 46px bottom;
+    background-size: calc(100% - 62px) 1px;
+    color: #fff;
     font-family: Inter, system-ui, sans-serif;
-    font-size: max(16px, calc(var(--fu) * 1.55));
-    line-height: 56px;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.2;
     text-align: left;
-    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .search-result-item::before {
+    content: "";
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
+    background: center / 18px 18px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0'/%3E%3Ccircle cx='12' cy='10' r='3'/%3E%3C/svg%3E");
+    opacity: 0.85;
+  }
+
+  .search-result-item.is-tag::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='4' x2='20' y1='9' y2='9'/%3E%3Cline x1='4' x2='20' y1='15' y2='15'/%3E%3Cline x1='10' x2='8' y1='3' y2='21'/%3E%3Cline x1='16' x2='14' y1='3' y2='21'/%3E%3C/svg%3E");
+  }
+
+  .search-result-item.is-pin::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 17v5'/%3E%3Cpath d='M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z'/%3E%3C/svg%3E");
+  }
+
+  .search-result-label {
+    flex: 1 1 auto;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    cursor: pointer;
+    white-space: nowrap;
+    font: inherit;
+    text-align: left;
   }
 
   .search-result-item:last-child {
@@ -2703,7 +2816,26 @@ html, body {
 
   .search-result-item:hover,
   .search-result-item:active {
-    color: #22D3EE;
+    background-color: rgba(34, 211, 238, 0.12);
+  }
+
+  @media (min-width: 900px) {
+    #search-bar[style*="display: block"],
+    #search-bar[style*="display:block"] {
+      inset: auto;
+      top: 50%;
+      right: auto;
+      bottom: auto;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(560px, 90dvw);
+      height: auto;
+      max-height: min(70dvh, 640px);
+      padding: 0;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 16px;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+    }
   }
 
   button.post-hashtag {

@@ -16,6 +16,7 @@ const searchResults = document.getElementById('search-results');
 const searchBar = document.getElementById('search-bar');
 const searchToggleBtn = document.getElementById('search-toggle-btn');
 const searchClearBtn = document.getElementById('search-clear-btn');
+const searchBackBtn = document.getElementById('search-back-btn');
 
 // Fit the input to the placeholder at rest; it grows with the typed text
 searchInput.size = 30;
@@ -53,7 +54,7 @@ searchToggleBtn.addEventListener('click', (e) => {
   if (searchBar.style.display !== 'block') {
     if (!fromDrawer) CloseALL();
     searchBar.style.display = 'block';
-    searchInput.focus();
+    searchInput.focus({ preventScroll: true });
     layerOpened('search', { query: searchInput.value });
   } else {
     closeSearchBar();
@@ -69,11 +70,19 @@ if (window.defineLayer) {
   });
 }
 
+function paintResultItem(item, label, kind) {
+  item.className = 'search-result-item is-' + kind;
+  item.title = label;
+  const text = document.createElement('span');
+  text.className = 'search-result-label';
+  text.textContent = label;
+  item.replaceChildren(text);
+}
+
 function showResults(results, query) {
   if (results.length === 0) {
     const item = document.createElement('div');
-    item.className = 'search-result-item';
-    item.textContent = `No results for "${query}"`;
+    paintResultItem(item, `No results for "${query}"`, String(query).trim().startsWith('#') ? 'tag' : 'place');
     item.style.cursor = 'default';
     searchResults.innerHTML = '';
     searchResults.appendChild(item);
@@ -84,9 +93,7 @@ function showResults(results, query) {
   searchResults.innerHTML = '';
   for (const r of results) {
     const item = document.createElement('div');
-    item.className = 'search-result-item';
-    item.textContent = r.display_name;
-    item.title = r.display_name;
+    paintResultItem(item, r.display_name, 'place');
     item.addEventListener('click', (e) => {
       // Don't let this click reach the map's "tap outside closes the pin"
       // listeners, or the freshly dropped search pin would vanish at once
@@ -98,8 +105,6 @@ function showResults(results, query) {
         essentialOnly: true,
       });
       searchInput.value = r.display_name.split(',')[0];
-      closeResults();
-      searchInput.blur();
       // Drop the draw-here pin (no buttons) at the picked location
       showSearchPin({ lng: parseFloat(r.lon), lat: parseFloat(r.lat) });
       // Picking a destination closes any open marker/polygon popups
@@ -113,6 +118,7 @@ function showResults(results, query) {
       } else {
         showLocalMarkers([]);
       }
+      closeSearchBar();
     });
     searchResults.appendChild(item);
   }
@@ -243,9 +249,7 @@ function showHashtagResults(posts, tag) {
     const label = hashtagLabel(post);
     longest = Math.max(longest, label.length);
     const item = document.createElement("div");
-    item.className = "search-result-item";
-    item.textContent = label;
-    item.title = label;
+    paintResultItem(item, label, post.kind === "polygon" ? "tag" : "pin");
     item.addEventListener("click", (event) => {
       event.stopPropagation();
       const href = `${location.origin}${location.pathname}?place=${post.kind}&topic=${encodeURIComponent(post.topicId || "")}&payer=${encodeURIComponent(post.payer || "")}&n=${encodeURIComponent(post.number == null ? "" : String(post.number))}&at=${post.lng},${post.lat}`;
@@ -316,6 +320,7 @@ document.addEventListener("hashtag-search", (event) => {
   searchBar.style.display = "block";
   layerOpened('search', { query: tag });
   searchInput.value = `#${tag}`;
+  searchInput.focus({ preventScroll: true });
   searchInput.size = Math.max(tag.length + 2, 20);
   searchClearBtn.style.display = "flex";
   searchHashtags(tag);
@@ -327,7 +332,13 @@ searchClearBtn.addEventListener('click', () => {
   searchInput.size = 30;
   searchClearBtn.style.display = 'none';
   closeResults();
-  searchInput.focus();
+  searchInput.focus({ preventScroll: true });
+});
+
+searchBackBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  closeSearchBar();
 });
 
 // "45.81, 15.98" or "45.81 15.98" is lat, lng. If the first value only
@@ -355,13 +366,12 @@ function parseCoords(text) {
 
 function flyToCoords(point) {
     clearTimeout(debounceTimer);
-    closeResults();
-    searchInput.blur();
     showSearchPin(point);
     activePolygonPopups.forEach((popup) => popup.remove());
     activeMarkerPopups.forEach((popup) => popup.remove());
     // Same camera move as opening a marker link.
     animateMapTo(map, [point.lng, point.lat], MARKER_ZOOM);
+    closeSearchBar();
 }
 
 // Pasting coordinates flies at once, the same as Enter.
@@ -385,15 +395,16 @@ searchInput.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Escape') {
-    closeResults();
-    searchInput.blur();
+    e.preventDefault();
+    closeSearchBar();
   }
 });
 
-// Close the whole bar when clicking outside it (the 🔍 button toggles itself).
-// Capture phase: the toolbar buttons (OPTIONS, TOPIC CHAT, E2EE CHAT, ...)
-// stopPropagation, so a bubble listener would never see their clicks
+// Desktop panel: a tap past the page still closes it. The phone page
+// covers the viewport, so a tap on it is never outside. Capture phase:
+// the toolbar buttons stopPropagation, so a bubble listener would miss them.
 document.addEventListener('click', (e) => {
+  if (searchBar.style.display === 'block' && !window.matchMedia('(min-width: 900px)').matches) return;
   if (!e.target.closest('#search-bar') && !e.target.closest('#search-toggle-btn')) {
     closeSearchBar();
   }
