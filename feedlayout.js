@@ -4344,7 +4344,7 @@ function paintFeedProfile(payer) {
   paintProfileBio('');
   fillProfileSections(id);
   profileBody.scrollTop = 0;
-  profileBack.focus({ preventScroll: true });
+  profileBack.focus({ preventScroll: true, focusVisible: false });
   loadTopicBio().then((all) => {
     if (epoch !== profileEpoch || profilePayer !== id) return;
     paintProfileBio(profileBioText(all && all[id]));
@@ -4494,7 +4494,7 @@ function backToProfileAccount() {
   }
   showProfilePage();
   clearProfileFilter();
-  profileBack.focus({ preventScroll: true });
+  profileBack.focus({ preventScroll: true, focusVisible: false });
 }
 
 let profileLoadBusy = false;
@@ -5611,7 +5611,7 @@ function paintFeedSettings(open) {
       settings.hidden = false;
     }
     for (const paint of settingsPaints) paint();
-    settingsBack.focus({ preventScroll: true });
+    settingsBack.focus({ preventScroll: true, focusVisible: false });
   } else {
     concealCover(settings);
   }
@@ -6205,6 +6205,7 @@ const DRAWER_LABELS = {
   'topic-chat-column': 'Chat',
   'model-column': 'Model',
   'crosshair-column': 'Crosshair',
+  'Edit_Profile-column': 'Edit profile',
 };
 
 function drawerPageLabel(id) {

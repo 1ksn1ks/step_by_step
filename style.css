@@ -10623,6 +10623,164 @@ html.is-nav-lock body * {
   font-weight: 700;
   line-height: 1.2;
 }
+/* Profile, topic/E2EE chat, feed Settings, and feed Comments use the
+   drawer page bar. Load, Draw, and Load Options keep their own copies. */
+:is(
+  #feed-profile > .feed-chat-bar,
+  #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
+  #feed-settings > .feed-settings-bar,
+  .comments-modal.comments-modal--feed > .feed-comments-bar
+) {
+  --fu: calc(min(78dvw, 42dvh) / 31.25);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--fu) * 0.8);
+  box-sizing: border-box;
+  height: auto;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 calc(var(--fu) * 1.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+}
+html.feed-app :is(
+  #feed-profile > .feed-chat-bar,
+  #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
+  #feed-settings > .feed-settings-bar,
+  .comments-modal.comments-modal--feed > .feed-comments-bar
+) {
+  --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
+}
+:is(
+  #feed-profile > .feed-chat-bar,
+  #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
+  #feed-settings > .feed-settings-bar,
+  .comments-modal.comments-modal--feed > .feed-comments-bar
+) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back) {
+  appearance: none;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+  box-shadow: none;
+}
+:is(
+  #feed-profile > .feed-chat-bar,
+  #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
+  #feed-settings > .feed-settings-bar,
+  .comments-modal.comments-modal--feed > .feed-comments-bar
+) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back) svg {
+  width: calc(var(--fu) * 2.2);
+  height: calc(var(--fu) * 2.2);
+  display: block;
+  pointer-events: none;
+}
+:is(
+  #feed-profile > .feed-chat-bar,
+  #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
+  #feed-settings > .feed-settings-bar,
+  .comments-modal.comments-modal--feed > .feed-comments-bar
+) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back):focus {
+  outline: none;
+  box-shadow: none;
+}
+:is(
+  #feed-profile > .feed-chat-bar,
+  #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
+  #feed-settings > .feed-settings-bar,
+  .comments-modal.comments-modal--feed > .feed-comments-bar
+) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back):is(:hover, :active, .is-hold) {
+  color: #22D3EE;
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+:is(
+  #feed-profile > .feed-chat-bar,
+  #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
+  #feed-settings > .feed-settings-bar,
+  .comments-modal.comments-modal--feed > .feed-comments-bar
+) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back):focus-visible {
+  outline: calc(var(--fu) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--fu) * 0.15);
+}
+:is(
+  #feed-profile > .feed-chat-bar,
+  #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
+  #feed-settings > .feed-settings-bar,
+  .comments-modal.comments-modal--feed > .feed-comments-bar
+) :is(.feed-chat-title, .feed-settings-title, .feed-comments-title) {
+  position: static;
+  left: auto;
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  transform: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  pointer-events: auto;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--fu) * 2.1);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: normal;
+  text-shadow: none;
+  text-transform: none;
+}
+:is(
+  #feed-profile > .feed-chat-bar,
+  #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar
+) .feed-chat-actions > :is(.feed-chat-icon, button) {
+  width: 44px !important;
+  min-width: 44px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+:is(
+  #feed-profile > .feed-chat-bar,
+  #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar
+) .feed-chat-actions .feed-chat-glyph {
+  width: calc(var(--fu) * 1.8);
+  height: calc(var(--fu) * 1.8);
+}
+:is(
+  #feed-profile > .feed-chat-bar,
+  #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar
+) .feed-chat-actions > :is(.feed-chat-icon, button):focus {
+  outline: none;
+  box-shadow: none;
+}
+:is(
+  #feed-profile > .feed-chat-bar,
+  #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar
+) .feed-chat-actions > :is(.feed-chat-icon, button):focus-visible {
+  outline: calc(var(--fu) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--fu) * 0.15);
+}
 :is(#feed-menu, .drawer-screen) .feed-menu-page-body {
   flex: 1 1 auto;
   min-height: 0;
@@ -12558,6 +12716,7 @@ html.feed-app #feed-chat > .load-options-page {
   height: 100dvh;
   margin: 0;
   box-sizing: border-box;
+  padding-top: env(safe-area-inset-top);
   --feed-col-width: 100dvw;
   font-size: calc(var(--fu) * 1.9);
   visibility: visible;
