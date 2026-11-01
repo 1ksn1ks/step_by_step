@@ -2819,22 +2819,21 @@ html, body {
     background-color: rgba(34, 211, 238, 0.12);
   }
 
+  /* Wide screens stay a full-viewport page. Only the header, empty
+     state, and result list are capped and centred. */
   @media (min-width: 900px) {
-    #search-bar[style*="display: block"],
-    #search-bar[style*="display:block"] {
-      inset: auto;
-      top: 50%;
-      right: auto;
-      bottom: auto;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: min(560px, 90dvw);
-      height: auto;
-      max-height: min(70dvh, 640px);
-      padding: 0;
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 16px;
-      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+    .search-page-bar,
+    #search-sections,
+    #search-results {
+      width: 100%;
+      max-width: 720px;
+      margin-inline: auto;
+    }
+
+    #search-results {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
     }
   }
 
