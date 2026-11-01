@@ -260,6 +260,47 @@ function firstBoxAt(y) {
   return lo;
 }
 
+function heldRowFocus() {
+  const el = document.activeElement;
+  if (!el || !canvas || !canvas.contains(el) || typeof el.closest !== 'function') return null;
+  const row = el.closest('.picker-row');
+  if (!row || !canvas.contains(row)) return null;
+  const index = row.id && row.id.indexOf('picker-opt-') === 0 ? row.id.slice('picker-opt-'.length) : '';
+  return { kind: row.dataset.kind || '', id: row.dataset.id || '', index };
+}
+
+function renderedRow(held) {
+  if (!held || !canvas) return null;
+  if (held.index !== '') {
+    const byIndex = document.getElementById('picker-opt-' + held.index);
+    if (byIndex && canvas.contains(byIndex) && (byIndex.dataset.kind || '') === held.kind && (byIndex.dataset.id || '') === held.id) {
+      return byIndex;
+    }
+  }
+  const rows = canvas.querySelectorAll('.picker-row');
+  for (const row of rows) {
+    if ((row.dataset.kind || '') === held.kind && (row.dataset.id || '') === held.id) return row;
+  }
+  return null;
+}
+
+// replaceChildren removes the focused row. Keep that item when it is still
+// on screen; otherwise the search field keeps the keyboard.
+function restoreRowFocus(held) {
+  if (!held) return;
+  const next = renderedRow(held);
+  if (next) next.focus({ preventScroll: true });
+  else if (searchEl) searchEl.focus({ preventScroll: true });
+}
+
+function syncActiveDescendant() {
+  if (!searchEl) return;
+  const id = active >= 0 ? 'picker-opt-' + active : '';
+  const el = id ? document.getElementById(id) : null;
+  if (el && canvas && canvas.contains(el)) searchEl.setAttribute('aria-activedescendant', id);
+  else searchEl.removeAttribute('aria-activedescendant');
+}
+
 function paintWindow(force) {
   if (!scroller || !canvas) return;
   paintPin();
@@ -277,12 +318,15 @@ function paintWindow(force) {
   canvas.dataset.to = String(to);
   canvas.dataset.active = String(active);
   canvas.dataset.picked = String(selected.length);
+  const held = heldRowFocus();
   const frag = document.createDocumentFragment();
   for (let i = from; i < to; i++) {
     const box = boxes[i];
     frag.appendChild(entryNode(box));
   }
   canvas.replaceChildren(frag);
+  restoreRowFocus(held);
+  syncActiveDescendant();
 }
 
 function paintPin() {
@@ -434,10 +478,6 @@ function moveActive(delta) {
   else active = (active + delta + rowItems.length) % rowItems.length;
   revealActive();
   paintWindow(true);
-  if (searchEl) {
-    const id = 'picker-opt-' + active;
-    searchEl.setAttribute('aria-activedescendant', id);
-  }
 }
 
 function rebuild(resetScroll) {
