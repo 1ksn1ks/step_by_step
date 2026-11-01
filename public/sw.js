@@ -24,6 +24,10 @@ const knownPictures = new Set();
 let picturesLoaded = false;
 
 function rememberPictures(urls) {
+  // The page sends its full list. Once the saved accounts are loaded, that
+  // list replaces the set so a removed account's picture can be dropped.
+  // Before that, only add: a short list must not wipe the cache.
+  if (picturesLoaded) knownPictures.clear();
   for (const url of urls || []) {
     if (typeof url !== "string" || !url) continue;
     try {

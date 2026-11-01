@@ -316,6 +316,39 @@ test("a picture list update drops cached links that are no longer known", async 
   assert.equal(api.knownPictures.has(gone), false);
 });
 
+test("a removed account's picture leaves the cache and the known set", async () => {
+  const clock = { now: 1_700_000_000_000 };
+  const removed = "https://cdn.example/removed.png";
+  const kept = "https://cdn.example/kept.png";
+  const cache = createCache();
+  const api = loadWorker(clock, async () => fakeResponse("unused", "opaque", false), cache);
+  await cache.put(api.pictureKey(removed, clock.now), fakeResponse("removed", "opaque", false));
+  await cache.put(api.pictureKey(kept, clock.now), fakeResponse("kept", "opaque", false));
+  await api.loadKnownPictures();
+
+  let pending = null;
+  api.listeners.message({
+    data: { type: "profile-pictures", urls: [removed, kept] },
+    waitUntil(promise) { pending = promise; },
+    ports: [],
+  });
+  await pending;
+  assert.equal(api.knownPictures.has(removed), true);
+  assert.equal((await cache.keys()).length, 2);
+
+  pending = null;
+  api.listeners.message({
+    data: { type: "profile-pictures", urls: [kept] },
+    waitUntil(promise) { pending = promise; },
+    ports: [],
+  });
+  await pending;
+  const urls = (await cache.keys()).map((key) => key.url);
+  assert.deepEqual(urls, [kept]);
+  assert.equal(api.knownPictures.has(removed), false);
+  assert.equal(api.knownPictures.has(kept), true);
+});
+
 test("a cors or same-origin request never receives an opaque picture", async () => {
   const cache = createCache();
   const clock = { now: 1_700_000_000_000 };
