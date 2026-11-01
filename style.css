@@ -9279,6 +9279,8 @@ a.payer-link {
   --feed-zoom: 1;
   --feed-col-width: 100dvw;
   --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
+  --feed-bar-h: 52px;
+  --feed-tabs-h: 44px;
   position: fixed;
   inset: 0;
   width: 100dvw;
@@ -9348,7 +9350,7 @@ html.feed-app appkit-modal {
   right: 0;
   z-index: 3;
   width: 100%;
-  height: calc(var(--fu) * 5.6);
+  height: var(--feed-bar-h);
   margin-inline: auto;
   box-sizing: border-box;
   display: flex;
@@ -9359,17 +9361,20 @@ html.feed-app appkit-modal {
 }
 #feed-back-btn {
   appearance: none;
-  width: calc(var(--fu) * 4.5);
-  height: calc(var(--fu) * 4.5);
+  position: relative;
+  width: 44px;
+  height: 44px;
   padding: 0;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  background-color: rgba(10, 10, 18, 0.88);
+  --ring-bg: rgba(10, 10, 18, 0.88);
+  --ring-border: rgba(255, 255, 255, 0.25);
+  background-color: transparent;
   color: #fff;
-  border: calc(var(--fu) * 0.1) solid rgba(255, 255, 255, 0.25);
+  border: 0;
   border-radius: 50%;
   cursor: pointer;
   touch-action: manipulation;
@@ -9380,8 +9385,8 @@ html.feed-app appkit-modal {
   outline-offset: calc(var(--fu) * 0.12);
 }
 #feed-back-btn svg {
-  width: calc(var(--fu) * 2.2);
-  height: calc(var(--fu) * 2.2);
+  width: 20px;
+  height: 20px;
   display: block;
   pointer-events: none;
 }
@@ -9402,13 +9407,15 @@ html.feed-app appkit-modal {
   align-items: center;
   gap: calc(var(--fu) * 0.4);
   margin: 0;
+  box-sizing: border-box;
+  min-height: 44px;
   padding: calc(var(--fu) * 0.3) calc(var(--fu) * 0.55);
   border: 0;
   background: none;
   color: #fff;
   font-family: Inter, system-ui, sans-serif;
-  font-size: calc(var(--fu) * 2.1);
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   line-height: 1.2;
   text-align: left;
   cursor: pointer;
@@ -9421,7 +9428,7 @@ html.feed-app appkit-modal {
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  gap: calc(var(--fu) * 0.12);
+  gap: 2px;
 }
 #feed-topic-btn .feed-topic-label,
 #feed-topic-btn .feed-topic-id {
@@ -9433,12 +9440,14 @@ html.feed-app appkit-modal {
   text-align: left;
 }
 #feed-topic-btn .feed-topic-label {
-  font-size: calc(var(--fu) * 2.1);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
 }
 #feed-topic-btn .feed-topic-id {
   color: rgba(255, 255, 255, 0.45);
   font-family: Inter, system-ui, sans-serif;
-  font-size: calc(var(--fu) * 1.4);
+  font-size: 12px;
   font-weight: 500;
   line-height: 1.1;
 }
@@ -9446,8 +9455,8 @@ html.feed-app appkit-modal {
   display: none;
 }
 #feed-topic-btn svg {
-  width: calc(var(--fu) * 1.8);
-  height: calc(var(--fu) * 1.8);
+  width: 16px;
+  height: 16px;
   flex: 0 0 auto;
   display: block;
   pointer-events: none;
@@ -9467,8 +9476,9 @@ html.feed-app appkit-modal {
   --press-border: #22D3EE;
   --press-ink: #083344;
   appearance: none;
-  width: calc(var(--fu) * 4.5);
-  height: calc(var(--fu) * 4.5);
+  position: relative;
+  width: 44px;
+  height: 44px;
   margin: 0 0 0 calc(var(--fu) * 0.5);
   padding: 0;
   flex: 0 0 auto;
@@ -9476,9 +9486,11 @@ html.feed-app appkit-modal {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  background-color: rgba(10, 10, 18, 0.88);
+  --ring-bg: rgba(10, 10, 18, 0.88);
+  --ring-border: rgba(255, 255, 255, 0.25);
+  background-color: transparent;
   color: #fff;
-  border: calc(var(--fu) * 0.1) solid rgba(255, 255, 255, 0.25);
+  border: 0;
   border-radius: 50%;
   cursor: pointer;
   touch-action: manipulation;
@@ -9486,8 +9498,8 @@ html.feed-app appkit-modal {
 }
 #feed-search-btn svg,
 #feed-search-close svg {
-  width: calc(var(--fu) * 2.2);
-  height: calc(var(--fu) * 2.2);
+  width: 20px;
+  height: 20px;
   display: block;
   pointer-events: none;
 }
@@ -9498,8 +9510,10 @@ html.feed-app appkit-modal {
 }
 #feed-search-btn:is(:hover, .is-hold),
 #feed-search-close:is(:hover, .is-hold) {
-  background-color: var(--press-bg);
-  border-color: var(--press-border);
+  --ring-bg: var(--press-bg);
+  --ring-border: var(--press-border);
+  background-color: transparent;
+  border-color: transparent;
   color: var(--press-ink);
 }
 #feed-search-btn.is-pop,
@@ -9513,8 +9527,9 @@ html.feed-app appkit-modal {
   --press-border: #22D3EE;
   --press-ink: #083344;
   appearance: none;
-  width: calc(var(--fu) * 4.5);
-  height: calc(var(--fu) * 4.5);
+  position: relative;
+  width: 44px;
+  height: 44px;
   margin: 0 0 0 calc(var(--fu) * 0.5);
   padding: 0;
   flex: 0 0 auto;
@@ -9522,17 +9537,19 @@ html.feed-app appkit-modal {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  background-color: rgba(10, 10, 18, 0.88);
+  --ring-bg: rgba(10, 10, 18, 0.88);
+  --ring-border: #22D3EE;
+  background-color: transparent;
   color: #22D3EE;
-  border: calc(var(--fu) * 0.1) solid #22D3EE;
+  border: 0;
   border-radius: 50%;
   cursor: pointer;
   touch-action: manipulation;
   transition: background-color var(--press-dur) var(--press-ease), border-color var(--press-dur) var(--press-ease), color var(--press-dur) var(--press-ease);
 }
 #feed-post-btn svg {
-  width: calc(var(--fu) * 2.2);
-  height: calc(var(--fu) * 2.2);
+  width: 20px;
+  height: 20px;
   display: block;
   pointer-events: none;
 }
@@ -9541,12 +9558,27 @@ html.feed-app appkit-modal {
   outline-offset: calc(var(--fu) * 0.12);
 }
 #feed-post-btn:is(:hover, .is-hold) {
-  background-color: var(--press-bg);
-  border-color: var(--press-border);
+  --ring-bg: var(--press-bg);
+  --ring-border: var(--press-border);
+  background-color: transparent;
+  border-color: transparent;
   color: var(--press-ink);
 }
 #feed-post-btn.is-pop {
   animation: topicFollowPop var(--press-dur, 200ms) var(--press-ease, ease);
+}
+#feed-back-btn::before,
+#feed-search-btn::before,
+#feed-search-close::before,
+#feed-post-btn::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background-color: var(--ring-bg);
+  border: calc(var(--fu) * 0.1) solid var(--ring-border);
+  pointer-events: none;
 }
 #feed-search {
   flex: 1 1 auto;
@@ -9568,7 +9600,7 @@ html.feed-app appkit-modal {
   appearance: none;
   flex: 1 1 auto;
   min-width: 0;
-  height: calc(var(--fu) * 4.5);
+  height: 40px;
   margin: 0;
   padding: 0 calc(var(--fu) * 1.1);
   box-sizing: border-box;
@@ -9598,17 +9630,18 @@ html.feed-app appkit-modal {
 #feed-tabs {
   --feed-tab-y: 0px;
   position: absolute;
-  top: calc(var(--fu) * 5.6);
+  top: var(--feed-bar-h);
   left: 0;
   right: 0;
   z-index: 2;
   width: 100%;
-  height: calc(var(--fu) * 4.4);
+  height: var(--feed-tabs-h);
   margin-inline: auto;
   box-sizing: border-box;
   overflow: hidden;
   background: #0a0a12;
-  border-bottom: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
+  border-bottom: 0;
+  box-shadow: inset 0 calc(var(--fu) * -0.08) 0 rgba(255, 255, 255, 0.22);
   opacity: 1;
   transform: translateY(var(--feed-tab-y, 0px));
   transition: none;
@@ -9616,7 +9649,7 @@ html.feed-app appkit-modal {
 .feed-tabs-slide {
   display: flex;
   align-items: stretch;
-  height: calc(var(--fu) * 4.4);
+  height: var(--feed-tabs-h);
 }
 
 #feed-tab-ruler {
@@ -9644,7 +9677,7 @@ html.feed-app appkit-modal {
   background: none;
   color: rgba(255, 255, 255, 0.45);
   font-family: Inter, system-ui, sans-serif;
-  font-size: calc(var(--fu) * 1.9);
+  font-size: 15px;
   font-weight: 500;
   line-height: 1.2;
   cursor: pointer;
@@ -9659,8 +9692,8 @@ html.feed-app appkit-modal {
   position: absolute;
   left: 50%;
   bottom: 0;
-  width: calc(var(--fu) * 6);
-  height: calc(var(--fu) * 0.28);
+  width: 48px;
+  height: 3px;
   border-radius: calc(var(--fu) * 0.2);
   background: #22D3EE;
   transform: translateX(-50%);
@@ -9672,7 +9705,7 @@ html.feed-app appkit-modal {
 #feed-profile-banner {
   --feed-banner-y: 0px;
   position: absolute;
-  top: calc(var(--fu) * 10);
+  top: calc(var(--feed-bar-h) + var(--feed-tabs-h));
   left: 0;
   right: 0;
   z-index: 1;
@@ -9766,7 +9799,7 @@ html.feed-app appkit-modal {
   display: none;
 }
 #feed-frame.is-profile-feed #feed-column {
-  padding-top: calc(var(--feed-chrome) * 10.8 + var(--feed-chrome));
+  padding-top: calc(var(--feed-tabs-h) + var(--feed-chrome) * 6.4 + var(--feed-chrome));
 }
 :is(#feed-column, .feed-comments-stage) .feed-empty {
   display: flex;
@@ -9789,7 +9822,7 @@ html.feed-app appkit-modal {
   position: absolute;
   z-index: 0;
   isolation: isolate;
-  top: calc(var(--fu) * 5.6);
+  top: var(--feed-bar-h);
   right: 0;
   bottom: 0;
   left: 0;
@@ -9806,8 +9839,8 @@ html.feed-app appkit-modal {
 #feed-scroll * {
   touch-action: pan-y;
 }
-/* Zoom lives on the posts. The scroller's own top stays on the chrome unit
-   captured above, and the tab clearance does too, so the bars do not jump. */
+/* Zoom lives on the posts. The scroller top and the tab clearance use the
+   fixed bar and tab heights, so the bars do not jump. */
 #feed-scroll > * {
   --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi) * var(--feed-zoom, 1));
   --fu: var(--feed-unit);
@@ -9817,7 +9850,7 @@ html.feed-app appkit-modal {
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
-  padding: calc(var(--feed-chrome) * 4.4 + var(--feed-chrome)) calc(var(--fu) * 1) calc(var(--fu) * 2);
+  padding: calc(var(--feed-tabs-h) + var(--feed-chrome)) calc(var(--fu) * 1) calc(var(--fu) * 2);
   touch-action: pan-y;
 }
 @media (orientation: landscape) {
@@ -12347,7 +12380,7 @@ html.drawer-page .info-overlay {
   --feed-tab-y: 0px;
   position: absolute;
   z-index: 3;
-  top: calc(var(--fu) * 10.8);
+  top: calc(var(--feed-bar-h) + var(--feed-tabs-h) + var(--fu) * 0.8);
   left: 50%;
   display: flex;
   align-items: center;
@@ -12435,13 +12468,17 @@ html.drawer-page .info-overlay {
   #feed-back-btn:hover:not(.is-hold),
   #feed-search-btn:hover:not(.is-hold),
   #feed-search-close:hover:not(.is-hold) {
-    background-color: rgba(10, 10, 18, 0.88);
-    border-color: rgba(255, 255, 255, 0.25);
+    --ring-bg: rgba(10, 10, 18, 0.88);
+    --ring-border: rgba(255, 255, 255, 0.25);
+    background-color: transparent;
+    border-color: transparent;
     color: #fff;
   }
   #feed-post-btn:hover:not(.is-hold) {
-    background-color: rgba(10, 10, 18, 0.88);
-    border-color: #22D3EE;
+    --ring-bg: rgba(10, 10, 18, 0.88);
+    --ring-border: #22D3EE;
+    background-color: transparent;
+    border-color: transparent;
     color: #22D3EE;
   }
 }
@@ -12476,6 +12513,8 @@ html.drawer-page .info-overlay {
   --feed-zoom: 1;
   --feed-unit: calc(min(100dvw, var(--feed-col-width)) * 0.024);
   --fu: var(--feed-unit);
+  --feed-bar-h: 52px;
+  --feed-tabs-h: 44px;
   --row-gap: max(8px, 1dvh);
   --chat-field-h: max(44px, 5.5dvh);
   position: absolute;
@@ -12784,7 +12823,7 @@ html.feed-app #feed-chat > .load-options-page {
   background: #0a0a12;
 }
 #feed-chat .is-feed-shell.is-search .feed-chat-sheet {
-  top: calc(var(--fu) * 10.2);
+  top: calc(var(--feed-bar-h) + var(--feed-tabs-h) + var(--fu) * 0.2);
 }
 #feed-chat .is-feed-shell .feed-chat-sheet:has(> :not([style*="display: none"]):not([style*="display:none"])) {
   display: flex;
@@ -13295,8 +13334,10 @@ html.feed-app #feed-chat > .load-options-page {
   }
 }
 #feed-back-btn:is(:hover, .is-hold) {
-  background-color: var(--press-bg);
-  border-color: var(--press-border);
+  --ring-bg: var(--press-bg);
+  --ring-border: var(--press-border);
+  background-color: transparent;
+  border-color: transparent;
   color: var(--press-ink);
 }
 
