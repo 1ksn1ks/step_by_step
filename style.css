@@ -10607,7 +10607,7 @@ html.feed-app appkit-modal {
   height: 100dvh;
   margin: 0;
   box-sizing: border-box;
-  padding-top: calc(2px + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
   padding-bottom: calc(8px + env(safe-area-inset-bottom));
   width: min(78dvw, 42dvh);
   --feed-zoom: 1;
@@ -10654,20 +10654,9 @@ html.feed-app appkit-modal {
 #feed-menu li.feed-menu-end {
   margin-top: auto;
 }
-/* The switch row matches the bar that opened the drawer, so its centre
-   sits on that hamburger. The map pill has no 44px floor. */
+/* Do not let the switch row stretch. Its button uses the shared row size. */
 #feed-menu > li:first-child {
   flex: 0 0 auto;
-}
-#feed-menu > li:first-child > .feed-menu-item {
-  height: var(--map-pill-h);
-  min-height: var(--map-pill-h);
-  padding-top: 0;
-  padding-bottom: 0;
-}
-#feed-menu.is-map-drawer > li:first-child > .feed-menu-item {
-  height: calc(1.725vh + 1.6vh + 2px);
-  min-height: calc(1.725vh + 1.6vh + 2px);
 }
 #feed-menu .feed-menu-item {
   appearance: none;
