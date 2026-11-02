@@ -17637,6 +17637,9 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 }
 .picker-sheet {
   --fu: calc(min(100dvw, 100dvh) * 0.024);
+  --picker-row-h: max(44px, calc(var(--fu) * 5.6));
+  --picker-avatar: calc(var(--picker-row-h) * 0.72);
+  --picker-letter-h: calc(var(--fu) * 2.8);
   position: fixed;
   inset: 0;
   z-index: 9700;
@@ -17849,7 +17852,8 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  height: 28px;
+  height: var(--picker-letter-h);
+  min-height: var(--picker-letter-h);
   padding-inline: var(--ui-pad-x);
   background: #0a0a12;
   color: #22D3EE;
@@ -17885,8 +17889,8 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 .picker-sheet .follow-suggest-row {
   display: flex;
   align-items: center;
-  height: 56px;
-  min-height: 56px;
+  height: var(--picker-row-h);
+  min-height: var(--picker-row-h);
   gap: var(--ui-gap);
   padding: 0 var(--ui-pad-x);
   border: 0;
@@ -17895,8 +17899,8 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   background-color: transparent;
   background-image: linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08));
   background-repeat: no-repeat;
-  background-position: calc(var(--ui-pad-x) + 40px + var(--ui-gap)) 100%;
-  background-size: calc(100% - var(--ui-pad-x) - 40px - var(--ui-gap)) 1px;
+  background-position: calc(var(--ui-pad-x) + var(--picker-avatar) + var(--ui-gap)) 100%;
+  background-size: calc(100% - var(--ui-pad-x) - var(--picker-avatar) - var(--ui-gap)) calc(var(--fu) * 0.08);
   box-shadow: none;
   text-align: left;
   font-family: Inter, system-ui, sans-serif;
@@ -17909,7 +17913,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  gap: 0;
+  gap: calc(var(--fu) * 0.2);
   text-align: left;
 }
 .picker-sheet .follow-suggest-primary,
@@ -17938,16 +17942,16 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 }
 .picker-sheet .follow-suggest-avatar,
 .picker-sheet .follow-suggest-icon {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  min-height: 40px;
-  flex: 0 0 40px;
-  border-radius: 999px;
+  width: var(--picker-avatar);
+  height: var(--picker-avatar);
+  min-width: var(--picker-avatar);
+  min-height: var(--picker-avatar);
+  flex: 0 0 var(--picker-avatar);
+  border-radius: 50%;
 }
 .picker-sheet .follow-suggest-icon svg {
-  width: 20px;
-  height: 20px;
+  width: calc(var(--picker-avatar) * 0.5);
+  height: calc(var(--picker-avatar) * 0.5);
 }
 .picker-sheet .follow-suggest-row.is-active,
 .picker-sheet .follow-suggest-row:hover,
@@ -17984,6 +17988,8 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   text-transform: none;
 }
 .picker-letter {
+  height: var(--picker-letter-h);
+  min-height: var(--picker-letter-h);
   color: #22D3EE;
 }
 .picker-empty {

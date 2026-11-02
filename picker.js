@@ -18,8 +18,11 @@ const ROW_H = 56;
 const LETTER_H = 28;
 const SECTION_H = 32;
 const LETTER_AFTER = 15;
-const BUFFER = ROW_H * 8;
 const DEFAULT_AVATAR = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+
+// Measured once per layout from the sheet. Fall back when the sheet is gone.
+let rowH = ROW_H;
+let letterH = LETTER_H;
 
 let root = null;
 let session = null;
@@ -221,12 +224,32 @@ function sectionHeight() {
   return Math.max(SECTION_H, Math.ceil(fu * 1.6 + fu * 1.35 * 1.2));
 }
 
+function measureListHeights() {
+  rowH = ROW_H;
+  letterH = LETTER_H;
+  if (!root) return;
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;';
+  const rowProbe = document.createElement('div');
+  rowProbe.style.height = 'var(--picker-row-h)';
+  const letterProbe = document.createElement('div');
+  letterProbe.style.height = 'var(--picker-letter-h)';
+  probe.append(rowProbe, letterProbe);
+  root.appendChild(probe);
+  const measuredRow = rowProbe.getBoundingClientRect().height;
+  const measuredLetter = letterProbe.getBoundingClientRect().height;
+  probe.remove();
+  if (measuredRow) rowH = measuredRow;
+  if (measuredLetter) letterH = measuredLetter;
+}
+
 function layout(entries) {
+  measureListHeights();
   let y = 0;
   const next = [];
   const sectionH = sectionHeight();
   for (const entry of entries) {
-    const h = entry.type === 'row' ? ROW_H : entry.type === 'letter' ? LETTER_H : sectionH;
+    const h = entry.type === 'row' ? rowH : entry.type === 'letter' ? letterH : sectionH;
     next.push({ entry, y, h });
     y += h;
   }
@@ -306,8 +329,9 @@ function paintWindow(force) {
   paintPin();
   const scrollTop = scroller.scrollTop;
   const view = scroller.clientHeight || 0;
-  const fromY = Math.max(0, scrollTop - BUFFER);
-  const toY = scrollTop + view + BUFFER;
+  const buffer = rowH * 8;
+  const fromY = Math.max(0, scrollTop - buffer);
+  const toY = scrollTop + view + buffer;
   let from = firstBoxAt(fromY);
   let to = from;
   while (to < boxes.length && boxes[to].y < toY) to += 1;
@@ -620,6 +644,7 @@ function teardown() {
   scrollRaf = 0;
   document.removeEventListener('keydown', onKey, true);
   window.removeEventListener('resize', onResize);
+  window.removeEventListener('orientationchange', onResize);
   if (root && root.parentNode) root.parentNode.removeChild(root);
   root = null;
   scroller = null;
@@ -688,8 +713,8 @@ function backArrow() {
 }
 
 function tabButtons(kinds) {
-  const defs = [];
-  if (kinds.length > 1) defs.push({ id: 'all', label: 'All' });
+  if (!kinds || kinds.length < 2) return [];
+  const defs = [{ id: 'all', label: 'All' }];
   if (kinds.indexOf('accounts') !== -1) defs.push({ id: 'accounts', label: 'Accounts' });
   if (kinds.indexOf('topics') !== -1) defs.push({ id: 'topics', label: 'Topics' });
   return defs;
@@ -744,34 +769,35 @@ function mount(opts) {
   chipsEl.className = 'picker-chips';
   chipsEl.hidden = true;
 
-  const tabs = document.createElement('div');
-  tabs.className = 'picker-tabs';
-  tabs.setAttribute('role', 'tablist');
   const defs = tabButtons(opts.kinds);
-  if (defs.length < 2) tabs.hidden = defs.length === 0;
-  for (const def of defs) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'picker-tab' + (def.id === tab ? ' is-on' : '');
-    button.setAttribute('role', 'tab');
-    button.setAttribute('aria-selected', def.id === tab ? 'true' : 'false');
-    button.textContent = def.label;
-    button.dataset.tab = def.id;
-    button.addEventListener('click', (event) => {
-      event.stopPropagation();
-      tab = def.id;
-      active = -1;
-      const all = tabs.querySelectorAll('.picker-tab');
-      for (const node of all) {
-        const on = node.dataset.tab === tab;
-        node.classList.toggle('is-on', on);
-        node.setAttribute('aria-selected', on ? 'true' : 'false');
-      }
-      rebuild(true);
-    });
-    tabs.appendChild(button);
+  let tabs = null;
+  if (defs.length) {
+    tabs = document.createElement('div');
+    tabs.className = 'picker-tabs';
+    tabs.setAttribute('role', 'tablist');
+    for (const def of defs) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'picker-tab' + (def.id === tab ? ' is-on' : '');
+      button.setAttribute('role', 'tab');
+      button.setAttribute('aria-selected', def.id === tab ? 'true' : 'false');
+      button.textContent = def.label;
+      button.dataset.tab = def.id;
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        tab = def.id;
+        active = -1;
+        const all = tabs.querySelectorAll('.picker-tab');
+        for (const node of all) {
+          const on = node.dataset.tab === tab;
+          node.classList.toggle('is-on', on);
+          node.setAttribute('aria-selected', on ? 'true' : 'false');
+        }
+        rebuild(true);
+      });
+      tabs.appendChild(button);
+    }
   }
-  if (defs.length === 1) tabs.hidden = false;
 
   pin = document.createElement('div');
   pin.className = 'picker-pin';
@@ -809,11 +835,15 @@ function mount(opts) {
     finish(picked, false);
   });
 
-  root.append(head, countEl, searchEl, chipsEl, tabs, pin, scroller, doneBtn);
+  const parts = [head, countEl, searchEl, chipsEl];
+  if (tabs) parts.push(tabs);
+  parts.push(pin, scroller, doneBtn);
+  root.append(...parts);
   document.body.appendChild(root);
   document.addEventListener('keydown', onKey, true);
   document.addEventListener(FOLLOWING_UPDATED, onFollowingUpdated);
   window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
 }
 
 export function openPicker({ title, kinds = ['accounts', 'topics'], multi: many = false, onPick, query: initialQuery, dimMissing } = {}) {
