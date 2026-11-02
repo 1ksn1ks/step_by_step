@@ -9548,8 +9548,7 @@ html.feed-app appkit-modal {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.12);
 }
-#feed-search-btn,
-#feed-search-close {
+#feed-search-btn {
   --press-dur: 200ms;
   --press-ease: ease;
   --press-bg: #22D3EE;
@@ -9577,28 +9576,24 @@ html.feed-app appkit-modal {
   touch-action: manipulation;
   transition: background-color var(--press-dur) var(--press-ease), border-color var(--press-dur) var(--press-ease), color var(--press-dur) var(--press-ease);
 }
-#feed-search-btn svg,
-#feed-search-close svg {
+#feed-search-btn svg {
   width: calc(var(--map-pill-h) * 0.36);
   height: calc(var(--map-pill-h) * 0.36);
   display: block;
   pointer-events: none;
 }
-#feed-search-btn:focus-visible,
-#feed-search-close:focus-visible {
+#feed-search-btn:focus-visible {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.12);
 }
-#feed-search-btn:is(:hover, .is-hold),
-#feed-search-close:is(:hover, .is-hold) {
+#feed-search-btn:is(:hover, .is-hold) {
   --ring-bg: var(--press-bg);
   --ring-border: var(--press-border);
   background-color: transparent;
   border-color: transparent;
   color: var(--press-ink);
 }
-#feed-search-btn.is-pop,
-#feed-search-close.is-pop {
+#feed-search-btn.is-pop {
   animation: topicFollowPop var(--press-dur, 200ms) var(--press-ease, ease);
 }
 #feed-post-btn {
@@ -9651,7 +9646,6 @@ html.feed-app appkit-modal {
 }
 #feed-back-btn::before,
 #feed-search-btn::before,
-#feed-search-close::before,
 #feed-post-btn::before {
   content: "";
   position: absolute;
@@ -9662,29 +9656,6 @@ html.feed-app appkit-modal {
   background-color: var(--ring-bg);
   border: calc(var(--fu) * 0.1) solid var(--ring-border);
   pointer-events: none;
-}
-#feed-search {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: calc(var(--fu) * 0.4);
-}
-#feed-toolbar.is-search {
-  padding-left: calc(var(--fu) * 0.4);
-  padding-right: calc(var(--fu) * 0.4);
-}
-#feed-search-close {
-  margin-left: 0;
-}
-#feed-search[hidden] {
-  display: none;
-}
-#feed-toolbar.is-search .feed-menu-anchor,
-#feed-toolbar.is-search .feed-toolbar-slot,
-#feed-toolbar.is-search #feed-post-btn,
-#feed-toolbar.is-search #feed-search-btn {
-  display: none;
 }
 #feed-search-input {
   appearance: none;
@@ -9710,9 +9681,96 @@ html.feed-app appkit-modal {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.1);
 }
+.feed-search-field {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--fu) * 0.4);
+  box-sizing: border-box;
+  padding: calc(var(--fu) * 0.8) calc(var(--fu) * 1.1);
+}
+#feed-search-clear {
+  appearance: none;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: calc(var(--map-pill-h) * 0.9);
+  height: calc(var(--map-pill-h) * 0.9);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#feed-search-clear[hidden] {
+  display: none;
+}
+#feed-search-clear svg {
+  width: calc(var(--map-pill-h) * 0.36);
+  height: calc(var(--map-pill-h) * 0.36);
+  display: block;
+  pointer-events: none;
+}
+#feed-search-clear:focus-visible {
+  outline: calc(var(--fu) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--fu) * 0.1);
+}
+#feed-search-page {
+  --feed-zoom: 1;
+  --feed-unit: calc(min(100dvw, var(--feed-col-width)) * 0.024);
+  --fu: var(--feed-unit);
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: min(100dvw, var(--feed-col-width));
+  margin: 0;
+  background: #0a0a12;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  transform: translateX(-50%);
+  container-type: inline-size;
+  container-name: feedsearch;
+}
+#feed-search-page > * {
+  --feed-zoom: 1;
+  --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi));
+  --fu: var(--feed-unit);
+}
+#feed-search-page[hidden] {
+  display: none;
+}
+.feed-search-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+#feed-search-filters {
+  flex: 0 0 auto;
+}
+#feed-search-results {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+#feed-search-results > #feed-scroll {
+  top: 0;
+}
+#feed-search-results > #feed-scroll > #feed-column {
+  padding-top: var(--feed-chrome);
+}
 @media (prefers-reduced-motion: reduce) {
   #feed-search-btn.is-pop,
-  #feed-search-close.is-pop,
   #feed-post-btn.is-pop {
     animation: none;
   }
@@ -11050,12 +11108,13 @@ html.is-nav-lock body * {
   font-weight: 700;
   line-height: 1.2;
 }
-/* Profile, topic/E2EE chat, feed Settings, and feed Comments use the
-   drawer page bar. Load, Draw, and Load Options keep their own copies. */
+/* Profile, topic/E2EE chat, feed Settings, feed Search, and feed Comments
+   use the drawer page bar. Load, Draw, and Load Options keep their own copies. */
 :is(
   #feed-profile > .feed-chat-bar,
   #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
   #feed-settings > .feed-settings-bar,
+  #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar
 ) {
   --fu: calc(min(78dvw, 42dvh) / 31.25);
@@ -11074,6 +11133,7 @@ html.feed-app :is(
   #feed-profile > .feed-chat-bar,
   #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
   #feed-settings > .feed-settings-bar,
+  #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar
 ) {
   --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
@@ -11082,6 +11142,7 @@ html.feed-app :is(
   #feed-profile > .feed-chat-bar,
   #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
   #feed-settings > .feed-settings-bar,
+  #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar
 ) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back) {
   appearance: none;
@@ -11110,6 +11171,7 @@ html.feed-app :is(
   #feed-profile > .feed-chat-bar,
   #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
   #feed-settings > .feed-settings-bar,
+  #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar
 ) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back) svg {
   width: calc(var(--fu) * 2.2);
@@ -11123,6 +11185,7 @@ html.feed-app :is(
   #feed-profile > .feed-chat-bar,
   #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
   #feed-settings > .feed-settings-bar,
+  #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar
 ) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back):focus {
   outline: none;
@@ -11132,6 +11195,7 @@ html.feed-app :is(
   #feed-profile > .feed-chat-bar,
   #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
   #feed-settings > .feed-settings-bar,
+  #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar
 ) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back):is(:hover, :active, .is-hold) {
   color: #22D3EE;
@@ -11143,6 +11207,7 @@ html.feed-app :is(
   #feed-profile > .feed-chat-bar,
   #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
   #feed-settings > .feed-settings-bar,
+  #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar
 ) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back):focus-visible {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
@@ -11152,6 +11217,7 @@ html.feed-app :is(
   #feed-profile > .feed-chat-bar,
   #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
   #feed-settings > .feed-settings-bar,
+  #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar
 ) :is(.feed-chat-title, .feed-settings-title, .feed-comments-title) {
   position: static;
@@ -12562,8 +12628,7 @@ html.drawer-page .info-overlay {
 }
 @media (hover: none), (pointer: coarse) {
   #feed-back-btn:hover:not(.is-hold),
-  #feed-search-btn:hover:not(.is-hold),
-  #feed-search-close:hover:not(.is-hold) {
+  #feed-search-btn:hover:not(.is-hold) {
     --ring-bg: rgba(10, 10, 18, 0.88);
     --ring-border: rgba(255, 255, 255, 0.25);
     background-color: transparent;
@@ -12581,7 +12646,6 @@ html.drawer-page .info-overlay {
 @media (prefers-reduced-motion: reduce) {
   #feed-back-btn.is-pop,
   #feed-search-btn.is-pop,
-  #feed-search-close.is-pop,
   #feed-post-btn.is-pop {
     animation: none !important;
   }

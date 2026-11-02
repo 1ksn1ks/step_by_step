@@ -33,6 +33,7 @@ import { payerUsernameNode } from './payerlink.js';
 import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { openPreview } from './fullscreenmedia.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
+import { clearQuery, getQuery, matches, onChange, setText } from './feedsearch.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -219,29 +220,7 @@ postBtn.appendChild(svgIcon([
   ['path', { d: 'M5 12h14' }],
   ['path', { d: 'M12 5v14' }],
 ]));
-const searchBar = document.createElement('div');
-searchBar.id = 'feed-search';
-searchBar.hidden = true;
-const searchInput = document.createElement('input');
-searchInput.id = 'feed-search-input';
-searchInput.type = 'text';
-searchInput.setAttribute('aria-label', 'Search posts');
-searchInput.placeholder = 'Search';
-searchInput.autocomplete = 'off';
-searchInput.autocapitalize = 'off';
-searchInput.spellcheck = false;
-searchInput.enterKeyHint = 'search';
-const searchClose = document.createElement('button');
-searchClose.id = 'feed-search-close';
-searchClose.type = 'button';
-searchClose.setAttribute('aria-label', 'Close search');
-searchClose.title = 'Close search';
-searchClose.appendChild(svgIcon([
-  ['path', { d: 'M18 6 6 18' }],
-  ['path', { d: 'm6 6 12 12' }],
-]));
-searchBar.append(searchInput, searchClose);
-toolbar.append(menuAnchor, tools, searchBtnFeed, postBtn, searchBar);
+toolbar.append(menuAnchor, tools, searchBtnFeed, postBtn);
 const profileBanner = document.createElement('button');
 profileBanner.id = 'feed-profile-banner';
 profileBanner.type = 'button';
@@ -401,12 +380,65 @@ profilePage.addEventListener('click', (event) => event.stopPropagation());
 profilePage.addEventListener('pointerdown', (event) => event.stopPropagation());
 root.appendChild(profilePage);
 
+const searchPage = document.createElement('div');
+searchPage.id = 'feed-search-page';
+searchPage.hidden = true;
+searchPage.setAttribute('role', 'dialog');
+searchPage.setAttribute('aria-modal', 'true');
+searchPage.setAttribute('aria-label', 'Search');
+const searchBar = document.createElement('div');
+searchBar.className = 'feed-chat-bar';
+const searchBack = document.createElement('button');
+searchBack.type = 'button';
+searchBack.className = 'feed-chat-back';
+searchBack.setAttribute('aria-label', 'Back');
+searchBack.appendChild(svgIcon([
+  ['path', { d: 'm12 19-7-7 7-7' }],
+  ['path', { d: 'M19 12H5' }],
+]));
+const searchTitle = document.createElement('h2');
+searchTitle.className = 'feed-chat-title';
+searchTitle.textContent = 'SEARCH';
+searchBar.append(searchBack, searchTitle);
+const searchBody = document.createElement('div');
+searchBody.className = 'feed-search-body';
+const searchField = document.createElement('div');
+searchField.className = 'feed-search-field';
+const searchInput = document.createElement('input');
+searchInput.id = 'feed-search-input';
+searchInput.type = 'text';
+searchInput.setAttribute('aria-label', 'Search posts');
+searchInput.placeholder = 'Search';
+searchInput.autocomplete = 'off';
+searchInput.autocapitalize = 'off';
+searchInput.spellcheck = false;
+searchInput.enterKeyHint = 'search';
+const searchClear = document.createElement('button');
+searchClear.id = 'feed-search-clear';
+searchClear.type = 'button';
+searchClear.hidden = true;
+searchClear.setAttribute('aria-label', 'Clear search');
+searchClear.appendChild(svgIcon([
+  ['path', { d: 'M18 6 6 18' }],
+  ['path', { d: 'm6 6 12 12' }],
+]));
+searchField.append(searchInput, searchClear);
+const searchFilters = document.createElement('div');
+searchFilters.id = 'feed-search-filters';
+const searchResults = document.createElement('div');
+searchResults.id = 'feed-search-results';
+searchBody.append(searchField, searchFilters, searchResults);
+searchPage.append(searchBar, searchBody);
+searchPage.addEventListener('click', (event) => event.stopPropagation());
+searchPage.addEventListener('pointerdown', (event) => event.stopPropagation());
+root.appendChild(searchPage);
+
 let posts = [];
 let shown = [];
 let found = [];
-let searchQuery = '';
-let searchOpen = false;
 let searchTimer = 0;
+let searchMute = false;
+let restoreOnClear = false;
 let searchPinned = false;
 let pinScroll = 0;
 let pinStart = 0;
@@ -2590,8 +2622,20 @@ function profileLane(list) {
   return out;
 }
 
+function feedFiltering() {
+  const query = getQuery();
+  if (String(query.text || '').trim()) return true;
+  const filters = query.filters || {};
+  for (const key of Object.keys(filters)) {
+    const value = filters[key];
+    if (value == null || value === '' || value === false) continue;
+    return true;
+  }
+  return false;
+}
+
 function lane() {
-  if (searchQuery) return found;
+  if (feedFiltering()) return found;
   return profileLane(feedTab === 'following' ? shown : posts);
 }
 
@@ -2600,18 +2644,13 @@ function tabPosts() {
 }
 
 function hitQuery(post) {
-  if (!searchQuery || !post) return false;
-  const record = recordFor(post) || {};
-  const parts = [textOf(record.msg), record.title, record.username, record.payer, record.payerInfo, post.payer];
-  for (const part of parts) {
-    if (part != null && String(part).toLowerCase().includes(searchQuery)) return true;
-  }
-  return false;
+  if (!feedFiltering() || !post) return false;
+  return matches(post, recordFor(post) || {});
 }
 
 function syncFound() {
   found = [];
-  if (!searchQuery) return;
+  if (!feedFiltering()) return;
   for (const post of profileLane(tabPosts())) {
     if (hitQuery(post)) found.push(post);
   }
@@ -2645,7 +2684,7 @@ function paintTabs() {
 }
 
 function searchMiss() {
-  if (!searchQuery || paging) return false;
+  if (!feedFiltering() || paging) return false;
   if (feedTab === 'following' && followState === 'loading') return false;
   if (followBlocked()) return true;
   return exhausted;
@@ -2655,10 +2694,10 @@ function paintEmpty() {
   const old = column.querySelector('.feed-empty');
   if (old) old.remove();
   let text = '';
-  if (searchQuery && found.length === 0 && searchMiss()) text = 'No posts found';
-  else if (!searchQuery && feedTab === 'following' && followState === 'nowallet') text = 'Connect your wallet to see who you follow';
-  else if (!searchQuery && feedTab === 'following' && followState === 'empty') text = "You're not following anyone yet";
-  else if (!searchQuery && profileFilter && lane().length === 0 && exhausted && !paging && !followBlocked()) text = 'No posts yet';
+  if (feedFiltering() && found.length === 0 && searchMiss()) text = 'No posts found';
+  else if (!feedFiltering() && feedTab === 'following' && followState === 'nowallet') text = 'Connect your wallet to see who you follow';
+  else if (!feedFiltering() && feedTab === 'following' && followState === 'empty') text = "You're not following anyone yet";
+  else if (!feedFiltering() && profileFilter && lane().length === 0 && exhausted && !paging && !followBlocked()) text = 'No posts yet';
   if (!text) return;
   const note = document.createElement('p');
   note.className = 'feed-empty';
@@ -2672,7 +2711,7 @@ function rerenderLane(opts) {
     tabScroll[feedTab] = 0;
     tabRange[feedTab] = { start: 0, end: 0 };
   }
-  if (searchQuery) syncFound();
+  if (feedFiltering()) syncFound();
   rangeStart = 0;
   rangeEnd = 0;
   savedScroll = 0;
@@ -2693,11 +2732,11 @@ async function selectTab(next) {
   if (next !== 'all' && next !== 'following') return;
   if (next === feedTab) return;
   if (!profileFilter) {
-    if (searchQuery && searchPinned) {
+    if (feedFiltering() && searchPinned) {
       tabScroll[feedTab] = pinScroll;
       tabRange[feedTab] = { start: pinStart, end: pinEnd };
     } else saveTabView();
-    if (searchQuery) {
+    if (feedFiltering()) {
       searchPinned = true;
       pinScroll = 0;
       pinStart = 0;
@@ -2710,7 +2749,7 @@ async function selectTab(next) {
   showFeedTabs();
   if (profileFilter || bannerTracks()) writeBannerOffset(0);
   if (next === 'all') {
-    if (searchQuery || profileFilter) rerenderLane({ keepHeld: true });
+    if (feedFiltering() || profileFilter) rerenderLane({ keepHeld: true });
     else restoreTabView();
     return;
   }
@@ -2727,7 +2766,7 @@ async function selectTab(next) {
   column.replaceChildren();
   rangeStart = 0;
   rangeEnd = 0;
-  if (!searchQuery) {
+  if (!feedFiltering()) {
     setFeedScroll(0);
     savedScroll = 0;
   }
@@ -2761,7 +2800,7 @@ async function selectTab(next) {
   followState = 'ready';
   shown = posts.filter((post) => followSet.has(post.payer));
   alignHeld('following');
-  if (searchQuery || profileFilter) rerenderLane({ keepHeld: true });
+  if (feedFiltering() || profileFilter) rerenderLane({ keepHeld: true });
   else restoreTabView();
 }
 
@@ -2823,7 +2862,7 @@ function fillUp() {
 function fillDown() {
   if (!feedOn() || root.classList.contains('is-peek') || paging) return;
   if (followBlocked()) {
-    if (searchQuery) paintEmpty();
+    if (feedFiltering()) paintEmpty();
     return;
   }
   const list = lane();
@@ -2853,7 +2892,7 @@ function fillDown() {
 
 function laneFloor() {
   if (profileFilter) return 0;
-  return searchQuery ? 0 : held[feedTab].length;
+  return feedFiltering() ? 0 : held[feedTab].length;
 }
 
 function tabIsAtTop(tab) {
@@ -2865,7 +2904,7 @@ function tabIsAtTop(tab) {
     return profileView.start === 0 && profileView.scroll < 2;
   }
   if (held[tab].length) return false;
-  if (tab === feedTab && searchQuery) {
+  if (tab === feedTab && feedFiltering()) {
     const start = searchPinned ? pinStart : 0;
     const scroll = searchPinned ? pinScroll : 0;
     return start === 0 && scroll < 2;
@@ -2875,7 +2914,7 @@ function tabIsAtTop(tab) {
 }
 
 function saveTabView() {
-  if (searchQuery) return;
+  if (feedFiltering()) return;
   tabScroll[feedTab] = scroller.scrollTop;
   tabRange[feedTab] = { start: rangeStart, end: rangeEnd };
 }
@@ -2921,7 +2960,7 @@ function paintNewFaces(list) {
 }
 
 function paintNewPill() {
-  const show = feedOn() && !profileFilter && !root.classList.contains('is-peek') && !searchQuery && held[feedTab].length > 0;
+  const show = feedOn() && !profileFilter && !root.classList.contains('is-peek') && !feedFiltering() && held[feedTab].length > 0;
   if (!show) {
     newPill.hidden = true;
     newPill.classList.remove('is-in');
@@ -2946,7 +2985,7 @@ function noteHeld(tab, batch) {
   held[tab].unshift(...batch);
   tabRange[tab].start += batch.length;
   tabRange[tab].end += batch.length;
-  if (tab === feedTab && !searchQuery && !profileFilter) {
+  if (tab === feedTab && !feedFiltering() && !profileFilter) {
     rangeStart += batch.length;
     rangeEnd += batch.length;
   }
@@ -3003,19 +3042,19 @@ function prependPosts(list) {
   const visible = profileFilter ? profileLane(tabBatch) : tabBatch;
   if (!profileFilter) shiftPin(tabBatch.length);
   let searchIncoming = [];
-  if (searchQuery) {
+  if (feedFiltering()) {
     for (const post of visible) if (hitQuery(post)) searchIncoming.push(post);
     if (searchIncoming.length) found.unshift(...searchIncoming);
   }
   const heldAll = noteHeld('all', list);
   const heldFollow = followSet ? noteHeld('following', followed) : false;
   if (profileFilter) {
-    if (searchQuery) mountIncoming(searchIncoming, true);
+    if (feedFiltering()) mountIncoming(searchIncoming, true);
     else mountIncoming(visible, false);
     paintNewPill();
     return;
   }
-  if (searchQuery) mountIncoming(searchIncoming, true);
+  if (feedFiltering()) mountIncoming(searchIncoming, true);
   else if (feedTab === 'following') {
     if (!heldFollow) mountIncoming(followed, false);
   } else if (!heldAll) mountIncoming(list, false);
@@ -3049,7 +3088,7 @@ function prependAbove(count) {
 }
 
 function revealParked() {
-  if (profileFilter || searchQuery || root.classList.contains('is-peek')) return;
+  if (profileFilter || feedFiltering() || root.classList.contains('is-peek')) return;
   const tab = feedTab;
   const n = held[tab].length;
   if (!n || scroller.scrollTop >= 2 || rangeStart !== n) return;
@@ -3071,7 +3110,7 @@ function goToFreshPosts() {
   }
   held[tab] = [];
   paintNewPill();
-  if (searchQuery) {
+  if (feedFiltering()) {
     feedScrollTo({ top: 0, behavior: scrollMotion() });
     return;
   }
@@ -3152,7 +3191,7 @@ async function loadOlder() {
     posts.push(...made);
     const added = feedTab === 'following' ? takeFollowed(made) : made;
     if (feedTab === 'following') shown.push(...added);
-    if (searchQuery) {
+    if (feedFiltering()) {
       for (const post of added) if (hitQuery(post)) found.push(post);
     }
     ok = true;
@@ -3493,10 +3532,29 @@ function openOnMap(post) {
   flyOnly(post.lngLat, flyZoom(post));
 }
 
-function paintSearch(open) {
-  toolbar.classList.toggle('is-search', open);
-  searchBar.hidden = !open;
-  searchBtnFeed.setAttribute('aria-expanded', open ? 'true' : 'false');
+function syncSearchChrome() {
+  const pageOpen = !searchPage.hidden;
+  toolbar.classList.toggle('has-search-query', feedFiltering() && !pageOpen);
+  searchBtnFeed.setAttribute('aria-expanded', pageOpen ? 'true' : 'false');
+  const text = getQuery().text;
+  if (searchInput.value !== text) searchInput.value = text;
+  searchClear.hidden = searchInput.value.length === 0;
+}
+
+function parkScroller() {
+  if (scroller.parentNode === searchResults) return;
+  const y = scroller.scrollTop;
+  tabTrackHold = true;
+  searchResults.appendChild(scroller);
+  setFeedScroll(y);
+}
+
+function unparkScroller() {
+  if (scroller.parentNode === frame) return;
+  const y = scroller.scrollTop;
+  tabTrackHold = true;
+  frame.insertBefore(scroller, menuDim);
+  setFeedScroll(y);
 }
 
 function pinWindow() {
@@ -3550,62 +3608,83 @@ function restorePin() {
   revealParked();
 }
 
-function applyQuery(raw) {
-  const next = String(raw || '').trim().toLowerCase();
-  if (next === searchQuery) return;
-  if (!next) {
-    searchQuery = '';
+function onFeedSearchChange() {
+  if (searchMute) return;
+  syncSearchChrome();
+  if (restoreOnClear) {
+    restoreOnClear = false;
     found = [];
     if (searchPinned) restorePin();
     else paintEmpty();
     return;
   }
+  if (!feedFiltering()) {
+    found = [];
+    showQueryResults();
+    paintNewPill();
+    return;
+  }
   pinWindow();
-  searchQuery = next;
   showQueryResults();
+  paintNewPill();
 }
 
+function applyQuery(raw) {
+  setText(raw == null ? '' : String(raw));
+}
+
+function flushSearchInput() {
+  if (!searchTimer) return;
+  clearTimeout(searchTimer);
+  searchTimer = 0;
+  setText(searchInput.value);
+}
+
+// Leaving the feed drops the query so the next open is not still filtered.
 function hideSearch() {
   if (searchTimer) {
     clearTimeout(searchTimer);
     searchTimer = 0;
   }
-  searchOpen = false;
-  searchQuery = '';
+  searchMute = true;
+  try {
+    clearQuery();
+  } finally {
+    searchMute = false;
+  }
   found = [];
   searchPinned = false;
   pinScroll = 0;
   pinStart = 0;
   pinEnd = 0;
+  restoreOnClear = false;
   searchInput.value = '';
-  paintSearch(false);
+  searchClear.hidden = true;
+  if (!searchPage.hidden) searchPage.hidden = true;
+  unparkScroller();
+  syncSearchChrome();
 }
 
-function closeSearch() {
-  if (searchTimer) {
-    clearTimeout(searchTimer);
-    searchTimer = 0;
-  }
-  const pinned = searchPinned;
-  searchOpen = false;
-  searchQuery = '';
-  found = [];
-  searchInput.value = '';
-  paintSearch(false);
-  if (pinned) restorePin();
-  else paintEmpty();
+// Back, Escape, and browser Back close the page and keep the query.
+function closeSearchPage() {
+  if (searchPage.hidden) return;
+  flushSearchInput();
+  searchPage.hidden = true;
+  unparkScroller();
+  syncSearchChrome();
   if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedsearch')) {
     window.layerClosedByUI('feedsearch');
   }
 }
 
 function openSearch() {
-  if (searchOpen) return;
+  if (!searchPage.hidden) return;
   if (!feedOn() || root.classList.contains('is-peek')) return;
   if (window.layerIsTop && !window.layerIsTop('feed')) return;
   holdScroll();
-  searchOpen = true;
-  paintSearch(true);
+  searchPage.hidden = false;
+  parkScroller();
+  syncSearchChrome();
   if (window.layerOpened) window.layerOpened('feedsearch');
   searchInput.focus({ preventScroll: true });
 }
@@ -3783,7 +3862,8 @@ function returnToFeed(sent) {
 }
 
 function closePlaceBlockers() {
-  if (searchOpen || (window.layerIsOpen && window.layerIsOpen('feedsearch'))) closeSearch();
+  // Posting closes the page and keeps a query the user already left in place.
+  if (!searchPage.hidden || (window.layerIsOpen && window.layerIsOpen('feedsearch'))) closeSearchPage();
   if (!menu.hidden || (window.layerIsTop && window.layerIsTop('feedmenu'))) closeMenu();
 }
 
@@ -4466,14 +4546,14 @@ function clearProfileFilter() {
   hideProfileBanner();
   writeBannerOffset(0);
   if (!saved) {
-    if (searchQuery) syncFound();
+    if (feedFiltering()) syncFound();
     return;
   }
   if (searchPinned && !(saved.pinStart === 0 && saved.pinScroll < 2)) {
     pinStart += shift;
     pinEnd += shift;
   }
-  if (searchQuery) {
+  if (feedFiltering()) {
     syncFound();
     showQueryResults();
     showFeedTabs();
@@ -7413,11 +7493,13 @@ if (window.defineLayer) {
   window.defineLayer('feedsearch', {
     parent: 'feed',
     open: () => {
-      searchOpen = true;
-      paintSearch(true);
+      if (!searchPage.hidden) return;
+      searchPage.hidden = false;
+      parkScroller();
+      syncSearchChrome();
       searchInput.focus({ preventScroll: true });
     },
-    close: () => closeSearch(),
+    close: () => closeSearchPage(),
   });
   window.defineLayer('feedplace', {
     parent: 'feed',
@@ -7601,6 +7683,12 @@ document.addEventListener('keydown', (event) => {
     closeFeedSettings();
     return;
   }
+  if (!searchPage.hidden && (!window.layerIsTop || window.layerIsTop('feedsearch'))) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeSearchPage();
+    return;
+  }
   if (menu.hidden) return;
   if (drawerStack.length) {
     event.preventDefault();
@@ -7653,17 +7741,36 @@ postBtn.addEventListener('click', (event) => {
   event.stopPropagation();
   startPost();
 });
-bindPress(searchClose);
-searchClose.addEventListener('click', (event) => {
+bindPress(searchBack);
+searchBack.addEventListener('click', (event) => {
   event.stopPropagation();
-  closeSearch();
+  closeSearchPage();
+});
+bindPress(searchClear);
+searchClear.addEventListener('click', (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+    searchTimer = 0;
+  }
+  searchInput.value = '';
+  searchClear.hidden = true;
+  restoreOnClear = true;
+  clearQuery();
+  if (!restoreOnClear) return;
+  restoreOnClear = false;
+  found = [];
+  if (searchPinned) restorePin();
+  else paintEmpty();
 });
 searchInput.addEventListener('input', () => {
+  searchClear.hidden = searchInput.value.length === 0;
   if (searchTimer) clearTimeout(searchTimer);
   const value = searchInput.value;
   searchTimer = setTimeout(() => {
     searchTimer = 0;
-    if (!searchOpen) return;
+    if (searchPage.hidden) return;
     applyQuery(value);
   }, 250);
 });
@@ -7671,6 +7778,7 @@ searchInput.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter') return;
   event.preventDefault();
 });
+onChange(onFeedSearchChange);
 
 function refreshTabRowHeight() {
   const h = tabs.getBoundingClientRect().height;
