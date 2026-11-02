@@ -4269,14 +4269,19 @@ function mountProfilePic(payer) {
   });
   profilePicSlot.appendChild(img);
   paintProfileAvatar(img, payer);
+  paintProfileHolder(payer);
+}
+
+function paintProfileHolder(payer) {
   paintEarlyProfile(profileIdentity, payer);
+  paintEarlyProfile(profilePage, payer);
 }
 
 function paintOpenProfileChrome() {
   if (!profilePayer || profilePage.hidden) return;
   const img = profilePicSlot.querySelector('img');
   if (img) paintProfileAvatar(img, profilePayer);
-  paintEarlyProfile(profileIdentity, profilePayer);
+  paintProfileHolder(profilePayer);
 }
 
 function paintProfileBio(bio) {

@@ -9185,6 +9185,8 @@ a.payer-link {
   .early-holder-card .profile-live-bubble::before,
   #feed-profile .feed-profile-identity.early-holder-card,
   #feed-profile .feed-profile-identity.early-holder-card::before,
+  #feed-profile.early-holder-card .feed-profile-row:has(> a.feed-profile-value),
+  #feed-profile.early-holder-card .feed-profile-row:has(> a.feed-profile-value)::before,
   .marker-title-tip.early::before,
   .marker-title-tip.early > .marker-tip-spin::before,
   .popup-profile-bubble.early::before,
@@ -13424,6 +13426,46 @@ html.feed-app #feed-chat > .load-options-page {
   line-height: 1.2;
   text-transform: uppercase;
 }
+/* Account and Link only. The home topic row stays the glass card.
+   Same 2px ring as the identity card, with a shorter glow. */
+#feed-profile.early-holder-card .feed-profile-row:has(> a.feed-profile-value) {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  border: 2px solid transparent;
+  background-color: transparent;
+  background-image:
+    linear-gradient(rgba(12, 12, 18, 0.94), rgba(12, 12, 18, 0.94)),
+    conic-gradient(from var(--eh-angle), #f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  animation: early-hashinal-angle 4s linear infinite;
+}
+#feed-profile.early-holder-card .feed-profile-row:has(> a.feed-profile-value)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  box-shadow:
+    0 0 6px rgba(246, 226, 122, 0.35),
+    0 0 12px rgba(255, 74, 214, 0.16);
+  opacity: 0.55;
+  animation: early-holder-glow 2.6s ease-in-out infinite;
+}
+#feed-profile.early-holder-card .feed-profile-row:has(> a.feed-profile-value) .feed-profile-kicker {
+  color: rgba(246, 226, 122, 0.45);
+}
+#feed-profile.early-holder-card .feed-profile-row a.feed-profile-value {
+  color: #e9d5ff;
+}
+@media (prefers-reduced-motion: reduce) {
+  #feed-profile.early-holder-card .feed-profile-row:has(> a.feed-profile-value),
+  #feed-profile.early-holder-card .feed-profile-row:has(> a.feed-profile-value)::before {
+    animation-duration: 8s;
+  }
+}
 #feed-profile button.feed-profile-value {
   appearance: none;
   margin: 0;
@@ -13459,6 +13501,10 @@ html.feed-app #feed-chat > .load-options-page {
 }
 #feed-profile-load:is(:hover, :active, .is-hold) {
   filter: brightness(1.06);
+}
+#feed-profile.early-holder-card #feed-profile-load {
+  background: linear-gradient(100deg, #f6e27a, #ff4ad6, #7c3aed);
+  color: #0b0b14;
 }
 @media (orientation: landscape) {
   .comments-modal.comments-modal--feed {
