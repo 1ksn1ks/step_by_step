@@ -1,8 +1,12 @@
 // IPFS images start on the first gateway. Known bad hosts are rewritten there.
-import test, { mock } from "node:test";
+import test, { beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { advanceIpfsImage, armIpfsAttempt, clearIpfsAttempt, IPFS_ATTEMPT_MS, IPFS_SLOW_ATTEMPT_MS, preferGateway } from "../ipfsimage.js";
+import { advanceIpfsImage, armIpfsAttempt, clearIpfsAttempt, IPFS_ATTEMPT_MS, IPFS_SLOW_ATTEMPT_MS, IPFS_SLOW_LOAD_MS, preferGateway, resetIpfsSlowSession } from "../ipfsimage.js";
+
+beforeEach(() => {
+  resetIpfsSlowSession();
+});
 
 const CID = "Qm" + "a".repeat(44);
 const CIDV1 = "bafy" + "a".repeat(48);
@@ -110,8 +114,12 @@ test("a canvas image is pointed at the first gateway before it loads", () => {
 
 test("a gateway that is still loading steps on after 4 seconds", () => {
   assert.equal(IPFS_ATTEMPT_MS, 4000);
+  const nav = globalThis.navigator;
+  const had = Object.prototype.hasOwnProperty.call(nav, "connection");
+  const previous = nav.connection;
   mock.timers.enable({ apis: ["setTimeout"] });
   try {
+    Object.defineProperty(nav, "connection", { configurable: true, value: { effectiveType: "4g" } });
     const stalled = fakeImg(FIRST + "/a.png");
     stalled.complete = false;
     armIpfsAttempt(stalled);
@@ -150,6 +158,8 @@ test("a gateway that is still loading steps on after 4 seconds", () => {
     assert.equal(new URL(canvas.src).host, "gateway.pinata.cloud");
   } finally {
     mock.timers.reset();
+    if (had) Object.defineProperty(nav, "connection", { configurable: true, value: previous });
+    else delete nav.connection;
   }
 });
 
@@ -266,6 +276,82 @@ test("a slow connection allows 10 seconds per gateway", () => {
     assert.equal(new URL(fast.src).host, "gateway.pinata.cloud");
   } finally {
     mock.timers.reset();
+    if (had) Object.defineProperty(nav, "connection", { configurable: true, value: previous });
+    else delete nav.connection;
+  }
+});
+
+test("a missing connection widens later attempts after a slow load or a timeout", () => {
+  assert.equal(IPFS_SLOW_LOAD_MS, 3000);
+  const nav = globalThis.navigator;
+  const had = Object.prototype.hasOwnProperty.call(nav, "connection");
+  const previous = nav.connection;
+  const enableClock = () => {
+    mock.timers.reset();
+    mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  };
+  try {
+    if (had) delete nav.connection;
+    enableClock();
+
+    const quick = fakeImg(FIRST + "/quick.png");
+    quick.complete = false;
+    armIpfsAttempt(quick);
+    mock.timers.tick(IPFS_SLOW_LOAD_MS - 1);
+    quick.complete = true;
+    clearIpfsAttempt(quick);
+    const afterQuick = fakeImg(FIRST + "/after-quick.png");
+    afterQuick.complete = false;
+    armIpfsAttempt(afterQuick);
+    mock.timers.tick(IPFS_ATTEMPT_MS - 1);
+    assert.equal(new URL(afterQuick.src).host, "ipfs.filebase.io");
+    mock.timers.tick(1);
+    assert.equal(new URL(afterQuick.src).host, "gateway.pinata.cloud");
+    mock.timers.tick(IPFS_ATTEMPT_MS);
+    assert.equal(new URL(afterQuick.src).host, "gateway.pinata.cloud");
+    mock.timers.tick(IPFS_SLOW_ATTEMPT_MS - IPFS_ATTEMPT_MS);
+    assert.equal(new URL(afterQuick.src).host, "4everland.io");
+
+    resetIpfsSlowSession();
+    enableClock();
+    const slow = fakeImg(FIRST + "/slow.png");
+    slow.complete = false;
+    armIpfsAttempt(slow);
+    mock.timers.tick(IPFS_SLOW_LOAD_MS);
+    assert.equal(new URL(slow.src).host, "ipfs.filebase.io");
+    slow.complete = true;
+    clearIpfsAttempt(slow);
+    const afterSlow = fakeImg(FIRST + "/after-slow.png");
+    afterSlow.complete = false;
+    armIpfsAttempt(afterSlow);
+    mock.timers.tick(IPFS_ATTEMPT_MS);
+    assert.equal(new URL(afterSlow.src).host, "ipfs.filebase.io");
+    mock.timers.tick(IPFS_SLOW_ATTEMPT_MS - IPFS_ATTEMPT_MS);
+    assert.equal(new URL(afterSlow.src).host, "gateway.pinata.cloud");
+
+    const last = fakeImg("https://dweb.link/ipfs/" + CID + "/slow-last.png");
+    last.complete = false;
+    last.dataset.ipfsCid = CID + "/slow-last.png";
+    last.dataset.ipfsTried = ORDER.slice(0, -1).join(" ");
+    armIpfsAttempt(last);
+    mock.timers.tick(IPFS_SLOW_ATTEMPT_MS);
+    assert.equal(new URL(last.src).host, "dweb.link");
+
+    resetIpfsSlowSession();
+    enableClock();
+    Object.defineProperty(nav, "connection", { configurable: true, value: { effectiveType: "4g" } });
+    const fast = fakeImg(FIRST + "/still-fast.png");
+    fast.complete = false;
+    armIpfsAttempt(fast);
+    mock.timers.tick(IPFS_ATTEMPT_MS);
+    assert.equal(new URL(fast.src).host, "gateway.pinata.cloud");
+    mock.timers.tick(IPFS_ATTEMPT_MS - 1);
+    assert.equal(new URL(fast.src).host, "gateway.pinata.cloud");
+    mock.timers.tick(1);
+    assert.equal(new URL(fast.src).host, "4everland.io");
+  } finally {
+    mock.timers.reset();
+    resetIpfsSlowSession();
     if (had) Object.defineProperty(nav, "connection", { configurable: true, value: previous });
     else delete nav.connection;
   }

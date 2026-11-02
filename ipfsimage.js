@@ -1,8 +1,10 @@
 // Profile pictures and NFT images are often IPFS. Filebase is tried
 // first; a failure or a stall walks the rest. A fast link gets 4s and a
-// slow one 10s. The last gateway is not timed out. A lazy image waits
-// until it nears the viewport, so an off-screen card does not burn a
-// gateway. w3s.link only redirects to dweb.link, and that redirect sends
+// slow one 10s. With no connection info, a timeout or a load of about 3s
+// makes later attempts use 10s for the rest of the page. The last gateway
+// is not timed out. A lazy image waits until it nears the viewport, so an
+// off-screen card does not burn a gateway. w3s.link only redirects to
+// dweb.link, and that redirect sends
 // no CORS header, so a canvas draw fails. nftstorage.link redirects the
 // same way. Neither is a candidate. gateway.lighthouse.storage answers
 // 402. Those links are rewritten onto the first gateway. Plain <img> tags
@@ -19,13 +21,23 @@ const GATEWAYS = [
 
 export const IPFS_ATTEMPT_MS = 4000;
 export const IPFS_SLOW_ATTEMPT_MS = 10000;
+// A load this slow counts when the browser has no connection info.
+export const IPFS_SLOW_LOAD_MS = 3000;
 // Chromium starts a lazy fetch about this far from the viewport.
 const LAZY_NEAR_MARGIN = '1250px';
 const SLOW_TYPES = new Set(['slow-2g', '2g', '3g']);
 const attemptTimers = new WeakMap();
+const attemptAt = new WeakMap();
 const lazyWaiting = new WeakSet();
 const lazyNear = new WeakSet();
 let nearObserver = null;
+// Page session only. Browsers without navigator.connection (iOS Safari,
+// Firefox) start at 4s and widen after one slow attempt.
+let sessionSlow = false;
+
+export function resetIpfsSlowSession() {
+  sessionSlow = false;
+}
 
 // Hosts that should not be fetched as-is. A hit is loaded from GATEWAYS[0].
 const REWRITE_HOSTS = ['ipfs.io', 'dweb.link', 'w3s.link', 'nftstorage.link', 'lighthouse.storage'];
@@ -138,11 +150,31 @@ function hasAnotherGateway(img, src) {
   return false;
 }
 
+function connectionInfo() {
+  if (typeof navigator === 'undefined') return null;
+  return navigator.connection || null;
+}
+
 function attemptDelay() {
-  const conn = typeof navigator !== 'undefined' ? navigator.connection : null;
-  if (!conn) return IPFS_ATTEMPT_MS;
-  if (conn.saveData || SLOW_TYPES.has(conn.effectiveType)) return IPFS_SLOW_ATTEMPT_MS;
-  return IPFS_ATTEMPT_MS;
+  const conn = connectionInfo();
+  if (conn) {
+    if (conn.saveData || SLOW_TYPES.has(conn.effectiveType)) return IPFS_SLOW_ATTEMPT_MS;
+    return IPFS_ATTEMPT_MS;
+  }
+  return sessionSlow ? IPFS_SLOW_ATTEMPT_MS : IPFS_ATTEMPT_MS;
+}
+
+function markSessionSlow() {
+  if (!connectionInfo()) sessionSlow = true;
+}
+
+function noteSlowLoad(img) {
+  if (!img || !img.complete) return;
+  const mark = attemptAt.get(img);
+  if (!mark) return;
+  const src = img.currentSrc || img.src || '';
+  if (src !== mark.src) return;
+  if (Date.now() - mark.at >= IPFS_SLOW_LOAD_MS) markSessionSlow();
 }
 
 function isLazy(img) {
@@ -180,6 +212,8 @@ export function clearIpfsAttempt(img) {
     attemptTimers.delete(img);
   }
   if (!img) return;
+  noteSlowLoad(img);
+  attemptAt.delete(img);
   lazyWaiting.delete(img);
   if (nearObserver) nearObserver.unobserve(img);
 }
@@ -191,15 +225,21 @@ export function armIpfsAttempt(img) {
   clearIpfsAttempt(img);
   if (!img || img.complete) return;
   const src = img.currentSrc || img.src || (img.getAttribute && img.getAttribute('src')) || '';
-  if (!ipfsParts(src) || !hasAnotherGateway(img, src)) return;
+  if (!ipfsParts(src)) return;
   if (isLazy(img) && !lazyNear.has(img)) {
     watchUntilNear(img);
     return;
   }
+  attemptAt.set(img, { at: Date.now(), src });
+  if (!hasAnotherGateway(img, src)) return;
   const timer = setTimeout(() => {
     attemptTimers.delete(img);
     const current = img.currentSrc || img.src || '';
-    if (current !== src || img.complete) return;
+    if (current !== src || img.complete) {
+      if (current === src && img.complete) noteSlowLoad(img);
+      return;
+    }
+    markSessionSlow();
     if (img.dataset && img.dataset.canvasImage === '1' && typeof img.onerror === 'function') {
       img.onerror();
       return;
