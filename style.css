@@ -2554,6 +2554,8 @@ html, body {
   }
 
   #search-bar {
+    --feed-col-width: 100dvw;
+    --fu: calc(min(78dvw, 42dvh) / 31.25);
     position: fixed;
     inset: 0;
     top: 0;
@@ -2576,18 +2578,27 @@ html, body {
     overflow: hidden;
   }
 
+  html.feed-app #search-bar {
+    --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
+  }
+
+  @media (orientation: landscape) {
+    html.feed-app #search-bar {
+      --feed-col-width: clamp(40dvw, 46dvw, 46dvw);
+    }
+  }
+
   .search-page-bar {
     flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: calc(var(--fu) * 0.8);
     box-sizing: border-box;
-    height: 44px;
+    height: auto;
     min-height: 44px;
     margin: 0;
-    padding: 0 8px 0 0;
-    border-bottom: 0;
-    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.22);
+    padding: 0 calc(var(--fu) * 1.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.22);
   }
 
   #search-back-btn {
@@ -2613,9 +2624,11 @@ html, body {
   }
 
   #search-back-btn svg {
-    width: 22px;
-    height: 22px;
+    width: calc(var(--fu) * 2.2);
+    height: calc(var(--fu) * 2.2);
     display: block;
+    flex-shrink: 0;
+    overflow: visible;
     pointer-events: none;
   }
 
@@ -11092,9 +11105,11 @@ html.feed-app :is(
   #feed-settings > .feed-settings-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar
 ) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back) svg {
-  width: 22px;
-  height: 22px;
+  width: calc(var(--fu) * 2.2);
+  height: calc(var(--fu) * 2.2);
   display: block;
+  flex-shrink: 0;
+  overflow: visible;
   pointer-events: none;
 }
 :is(
@@ -11152,7 +11167,7 @@ html.feed-app :is(
   line-height: 1.2;
   letter-spacing: normal;
   text-shadow: none;
-  text-transform: none;
+  text-transform: uppercase;
 }
 :is(
   #feed-profile > .feed-chat-bar,
@@ -13515,7 +13530,7 @@ html.feed-app #feed-chat > .load-options-page {
   position: relative;
   gap: calc(var(--fu) * 0.8);
   min-height: 44px;
-  padding: 0 calc(var(--feed-unit) * 0.8);
+  padding: 0 calc(var(--fu) * 1.1);
   border-bottom: 1px solid rgba(255, 255, 255, 0.22);
 }
 html.feed-app #feed-chat.is-load > .feed-chat-bar {
@@ -13531,8 +13546,10 @@ html.feed-app #feed-chat.is-load > .feed-chat-bar {
 #feed-chat.is-load > .feed-chat-bar .feed-chat-back svg,
 #feed-chat.is-draw > .feed-chat-bar .feed-chat-back svg,
 #feed-chat .load-options-page > .feed-chat-bar .feed-chat-back svg {
-  width: 22px;
-  height: 22px;
+  width: calc(var(--fu) * 2.2);
+  height: calc(var(--fu) * 2.2);
+  flex-shrink: 0;
+  overflow: visible;
 }
 #feed-chat.is-load > .feed-chat-bar .feed-chat-back:focus {
   outline: none;
@@ -13558,7 +13575,7 @@ html.feed-app #feed-chat.is-load > .feed-chat-bar {
   line-height: 1.2;
   letter-spacing: normal;
   text-shadow: none;
-  text-transform: none;
+  text-transform: uppercase;
 }
 #feed-chat.is-load .feed-chat-actions > #help-load-column {
   display: inline-flex !important;
@@ -14094,11 +14111,15 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   transform: translateX(100dvw);
 }
 #feed-chat .load-options-page > .feed-chat-bar {
+  --fu: calc(min(78dvw, 42dvh) / 31.25);
   position: relative;
   gap: calc(var(--fu) * 0.8);
   min-height: 44px;
   padding: 0 calc(var(--fu) * 1.1);
   border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+}
+html.feed-app #feed-chat .load-options-page > .feed-chat-bar {
+  --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
 }
 #feed-chat .load-options-page > .feed-chat-bar .feed-chat-back {
   width: 44px;
@@ -14130,6 +14151,7 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: normal;
+  text-transform: uppercase;
   text-shadow: none;
 }
 #feed-chat .load-options-body {
@@ -14185,11 +14207,15 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   height: auto;
 }
 #feed-chat.is-draw > .feed-chat-bar {
+  --fu: calc(min(78dvw, 42dvh) / 31.25);
   position: relative;
   gap: calc(var(--fu) * 0.8);
   min-height: 44px;
   padding: 0 calc(var(--fu) * 1.1);
   border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+}
+html.feed-app #feed-chat.is-draw > .feed-chat-bar {
+  --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
 }
 #feed-chat.is-draw > .feed-chat-bar .feed-chat-back {
   width: 44px;
@@ -14220,8 +14246,10 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: normal;
-  text-transform: none;
+  text-transform: uppercase;
   text-shadow: none;
+}
+#feed-chat.is-draw > .feed-chat-bar .feed-chat-title {
   animation: none;
 }
 #feed-chat.is-draw .feed-chat-actions > #help-draw-column {
