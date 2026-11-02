@@ -9890,11 +9890,26 @@ html.feed-app #feed-search-page {
   display: none;
 }
 .feed-search-body {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+.feed-search-head {
+  --feed-search-y: 0px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  background: #0a0a12;
+  transform: translateY(var(--feed-search-y, 0px));
+  transition: none;
 }
 #feed-search-filters {
   flex: 0 0 auto;
@@ -10265,7 +10280,7 @@ html.feed-app #feed-search-page {
   top: 0;
 }
 #feed-search-results > #feed-scroll > #feed-column {
-  padding-top: var(--feed-chrome);
+  padding-top: calc(var(--feed-search-head-h, 0px) + var(--feed-chrome));
 }
 @media (prefers-reduced-motion: reduce) {
   #feed-search-btn.is-pop,

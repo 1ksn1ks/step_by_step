@@ -407,9 +407,20 @@ searchBack.appendChild(svgIcon([
 const searchTitle = document.createElement('h2');
 searchTitle.className = 'feed-chat-title';
 searchTitle.textContent = 'SEARCH';
-searchBar.append(searchBack, searchTitle);
+const searchGear = document.createElement('button');
+searchGear.type = 'button';
+searchGear.id = 'feed-search-gear';
+searchGear.className = 'popup-icon-chip popup-settings-gear';
+searchGear.setAttribute('aria-label', 'Filters');
+searchGear.setAttribute('aria-expanded', 'false');
+searchGear.appendChild(popupGearIcon());
+bindPressFeedback(searchGear);
+// Gear stays in the fixed bar so Filters stay reachable while the pill hides.
+searchBar.append(searchBack, searchTitle, searchGear);
 const searchBody = document.createElement('div');
 searchBody.className = 'feed-search-body';
+const searchHead = document.createElement('div');
+searchHead.className = 'feed-search-head';
 const searchField = document.createElement('div');
 searchField.className = 'feed-search-field';
 const searchInput = document.createElement('input');
@@ -430,21 +441,14 @@ searchClear.appendChild(svgIcon([
   ['path', { d: 'M18 6 6 18' }],
   ['path', { d: 'm6 6 12 12' }],
 ]));
-const searchGear = document.createElement('button');
-searchGear.type = 'button';
-searchGear.id = 'feed-search-gear';
-searchGear.className = 'popup-icon-chip popup-settings-gear';
-searchGear.setAttribute('aria-label', 'Filters');
-searchGear.setAttribute('aria-expanded', 'false');
-searchGear.appendChild(popupGearIcon());
-bindPressFeedback(searchGear);
-searchField.append(searchInput, searchClear, searchGear);
+searchField.append(searchInput, searchClear);
 const searchFilters = document.createElement('div');
 searchFilters.id = 'feed-search-filters';
 searchFilters.hidden = true;
 const searchResults = document.createElement('div');
 searchResults.id = 'feed-search-results';
-searchBody.append(searchField, searchFilters, searchResults);
+searchHead.append(searchField, searchFilters);
+searchBody.append(searchHead, searchResults);
 const filterBackdrop = document.createElement('div');
 filterBackdrop.id = 'feed-filter-backdrop';
 // display is the open/close switch. Placement and glass live in CSS.
@@ -595,6 +599,7 @@ let savedScroll = 0;
 let tabLastY = 0;
 let tabOffset = 0;
 let tabHidePx = 0;
+let searchHidePx = 0;
 let tabPending = 0;
 let profilePayer = '';
 let profileFilter = '';
@@ -3948,6 +3953,7 @@ function syncSearchChrome() {
   searchGear.setAttribute('aria-expanded', filterCard.style.display === 'block' ? 'true' : 'false');
   rebuildChips();
   syncFilterControls();
+  if (!searchPage.hidden) revealSearchHead();
 }
 
 function parkScroller() {
@@ -4060,6 +4066,7 @@ function flushSearchInput() {
 
 // Leaving the feed drops the query so the next open is not still filtered.
 function hideSearch() {
+  const wasOpen = !searchPage.hidden;
   if (searchTimer) {
     clearTimeout(searchTimer);
     searchTimer = 0;
@@ -4082,8 +4089,9 @@ function hideSearch() {
   restoreOnClear = false;
   searchInput.value = '';
   searchClear.hidden = true;
-  if (!searchPage.hidden) searchPage.hidden = true;
+  if (wasOpen) searchPage.hidden = true;
   unparkScroller();
+  if (wasOpen) resetScrollChrome();
   syncSearchChrome();
 }
 
@@ -4100,6 +4108,7 @@ function closeFilterCard() {
   if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedfilters')) {
     window.layerClosedByUI('feedfilters');
   }
+  if (!searchPage.hidden) revealSearchHead();
 }
 
 function openFilterCard() {
@@ -4118,6 +4127,7 @@ function closeSearchPage() {
   flushSearchInput();
   searchPage.hidden = true;
   unparkScroller();
+  resetScrollChrome();
   syncSearchChrome();
   if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedsearch')) {
     window.layerClosedByUI('feedsearch');
@@ -4135,6 +4145,7 @@ function openSearch() {
   syncSearchChrome();
   if (window.layerOpened) window.layerOpened('feedsearch');
   searchInput.focus({ preventScroll: true });
+  requestAnimationFrame(() => revealSearchHead());
 }
 
 function ownPlace(post) {
@@ -8238,6 +8249,7 @@ searchClear.addEventListener('click', (event) => {
   else paintEmpty();
 });
 searchInput.addEventListener('input', () => {
+  revealSearchHead();
   searchClear.hidden = searchInput.value.length === 0;
   if (searchTimer) clearTimeout(searchTimer);
   const value = searchInput.value;
@@ -8325,16 +8337,36 @@ filterCountry.addEventListener('change', () => {
 });
 onChange(onFeedSearchChange);
 
-function refreshTabRowHeight() {
+// While search is open the same delta moves the search head, not the tabs.
+function followTarget() {
+  return searchPage.hidden ? tabs : searchHead;
+}
+
+function refreshTabRowHeight(el) {
+  const target = el || followTarget();
+  if (target === searchHead) {
+    if (searchPage.hidden) return;
+    const h = searchHead.getBoundingClientRect().height;
+    if (h > 1) searchHidePx = h;
+    const px = (searchHidePx > 1 ? searchHidePx : 0).toFixed(2) + 'px';
+    searchPage.style.setProperty('--feed-search-head-h', px);
+    return;
+  }
   const h = tabs.getBoundingClientRect().height;
   if (h > 1) tabHidePx = h;
 }
 
-function tabRowHeight() {
-  return tabHidePx > 1 ? tabHidePx : 0;
+function rowHideLimit(el) {
+  const px = el === searchHead ? searchHidePx : tabHidePx;
+  return px > 1 ? px : 0;
 }
 
-function setTabY(value) {
+function setTabY(value, el) {
+  const target = el || followTarget();
+  if (target === searchHead) {
+    searchHead.style.setProperty('--feed-search-y', value);
+    return;
+  }
   tabs.style.setProperty('--feed-tab-y', value);
   newPill.style.setProperty('--feed-tab-y', value);
 }
@@ -8345,15 +8377,17 @@ function cancelTabFinish() {
     tabEndTimer = 0;
   }
   tabs.classList.remove('is-settle');
+  searchHead.classList.remove('is-settle');
 }
 
-function writeTabOffset(y) {
-  const limit = tabRowHeight();
+function writeTabOffset(y, el) {
+  const target = el || followTarget();
+  const limit = rowHideLimit(target);
   const next = limit > 1 ? Math.max(-limit, Math.min(0, y)) : 0;
-  tabOffset = next;
-  setTabY(next.toFixed(2) + 'px');
-  if (next <= -limit + 0.5 && limit > 1) tabs.style.pointerEvents = 'none';
-  else tabs.style.removeProperty('pointer-events');
+  if (target === followTarget()) tabOffset = next;
+  setTabY(next.toFixed(2) + 'px', target);
+  if (next <= -limit + 0.5 && limit > 1) target.style.pointerEvents = 'none';
+  else target.style.removeProperty('pointer-events');
 }
 
 function showFeedTabs() {
@@ -8363,8 +8397,28 @@ function showFeedTabs() {
   writeTabOffset(0);
 }
 
+function revealSearchHead() {
+  if (searchPage.hidden) return;
+  cancelTabFinish();
+  tabPending = 0;
+  refreshTabRowHeight(searchHead);
+  tabLastY = scroller.scrollTop;
+  writeTabOffset(0, searchHead);
+}
+
+function resetScrollChrome() {
+  cancelTabFinish();
+  tabPending = 0;
+  refreshTabRowHeight(tabs);
+  writeTabOffset(0, tabs);
+  writeTabOffset(0, searchHead);
+  tabOffset = 0;
+  tabLastY = scroller.scrollTop;
+}
+
 function measureTabHide() {
-  refreshTabRowHeight();
+  refreshTabRowHeight(tabs);
+  if (!searchPage.hidden) refreshTabRowHeight(searchHead);
   writeTabOffset(tabOffset);
   if (bannerTracks()) refreshBannerHeight();
 }
@@ -8386,6 +8440,7 @@ function applyTabFollow() {
   // The offset stays in JS. Reading the composited transform mid-glide
   // forces layout and makes the row hitch behind the scroll.
   tabs.classList.remove('is-settle');
+  searchHead.classList.remove('is-settle');
   if (scroller.scrollTop < 2) {
     writeTabOffset(0);
     if (bannerTracks()) writeBannerOffset(0);
@@ -8401,6 +8456,7 @@ function finishTabGlide() {
   tabEndTimer = 0;
   if (root.classList.contains('is-peek')) return;
   tabs.classList.remove('is-settle');
+  searchHead.classList.remove('is-settle');
   if (tabFollowQueued) return;
   if (scroller.scrollTop < 2) {
     writeTabOffset(0);
@@ -8433,6 +8489,7 @@ function feedScrollTo(options) {
 }
 
 tabs.addEventListener('focusin', () => showFeedTabs());
+searchHead.addEventListener('focusin', () => revealSearchHead());
 window.addEventListener('resize', measureTabHide);
 if (window.visualViewport) window.visualViewport.addEventListener('resize', measureTabHide);
 if (document.fonts) {
