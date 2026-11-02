@@ -13459,7 +13459,7 @@ html.feed-app #feed-chat > .load-options-page {
   animation: early-holder-glow 2.6s ease-in-out infinite;
 }
 #feed-profile.early-holder-card .feed-profile-row:has(> a.feed-profile-value) .feed-profile-kicker {
-  color: rgba(246, 226, 122, 0.45);
+  color: rgba(246, 226, 122, 0.62);
 }
 #feed-profile.early-holder-card .feed-profile-row a.feed-profile-value {
   color: #e9d5ff;
