@@ -9668,7 +9668,14 @@ html.feed-app appkit-modal {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: calc(var(--fu) * 0.6);
+  gap: calc(var(--fu) * 0.4);
+}
+#feed-toolbar.is-search {
+  padding-left: calc(var(--fu) * 0.4);
+  padding-right: calc(var(--fu) * 0.4);
+}
+#feed-search-close {
+  margin-left: 0;
 }
 #feed-search[hidden] {
   display: none;
@@ -9683,18 +9690,18 @@ html.feed-app appkit-modal {
   appearance: none;
   flex: 1 1 auto;
   min-width: 0;
-  height: 40px;
+  height: calc(var(--map-pill-h) * 0.9);
   margin: 0;
-  padding: 0 calc(var(--fu) * 1.1);
+  padding: 0 calc(var(--fu) * 1.2);
   box-sizing: border-box;
   border: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
   border-radius: calc(var(--fu) * 2.2);
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
   font-family: Inter, system-ui, sans-serif;
-  font-size: calc(var(--fu) * 1.9);
+  font-size: calc(var(--map-pill-h) * 0.42);
   font-weight: 500;
-  line-height: 1.2;
+  line-height: normal;
 }
 #feed-search-input::placeholder {
   color: rgba(255, 255, 255, 0.45);
