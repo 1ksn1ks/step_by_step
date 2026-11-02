@@ -9287,8 +9287,9 @@ a.payer-link {
   --feed-zoom: 1;
   --feed-col-width: 100dvw;
   --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
-  --feed-bar-h: 52px;
-  --feed-tabs-h: 44px;
+  --map-pill-h: max(44px, calc(1.725vh + 1.6vh + 2px));
+  --feed-bar-h: var(--map-pill-h);
+  --feed-tabs-h: var(--map-pill-h);
   position: fixed;
   inset: 0;
   width: 100dvw;
@@ -9365,13 +9366,14 @@ html.feed-app appkit-modal {
   align-items: center;
   padding: 0 calc(var(--fu) * 0.8);
   background: #0a0a12;
-  border-bottom: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
+  border-bottom: 0;
+  box-shadow: inset 0 calc(var(--fu) * -0.08) 0 rgba(255, 255, 255, 0.22);
 }
 #feed-back-btn {
   appearance: none;
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: var(--map-pill-h);
+  height: var(--map-pill-h);
   padding: 0;
   flex: 0 0 auto;
   display: flex;
@@ -9393,8 +9395,8 @@ html.feed-app appkit-modal {
   outline-offset: calc(var(--fu) * 0.12);
 }
 #feed-back-btn svg {
-  width: 20px;
-  height: 20px;
+  width: calc(var(--map-pill-h) * 0.36);
+  height: calc(var(--map-pill-h) * 0.36);
   display: block;
   pointer-events: none;
 }
@@ -9416,13 +9418,13 @@ html.feed-app appkit-modal {
   gap: calc(var(--fu) * 0.4);
   margin: 0;
   box-sizing: border-box;
-  min-height: 44px;
+  min-height: 0;
   padding: calc(var(--fu) * 0.3) calc(var(--fu) * 0.55);
   border: 0;
   background: none;
   color: #fff;
   font-family: Inter, system-ui, sans-serif;
-  font-size: 18px;
+  font-size: calc(var(--map-pill-h) * 0.34);
   font-weight: 700;
   line-height: 1.2;
   text-align: left;
@@ -9449,13 +9451,13 @@ html.feed-app appkit-modal {
 }
 #feed-topic-btn .feed-topic-label {
   font-family: Inter, system-ui, sans-serif;
-  font-size: 18px;
+  font-size: calc(var(--map-pill-h) * 0.34);
   font-weight: 700;
 }
 #feed-topic-btn .feed-topic-id {
   color: rgba(255, 255, 255, 0.45);
   font-family: Inter, system-ui, sans-serif;
-  font-size: 12px;
+  font-size: calc(var(--map-pill-h) * 0.23);
   font-weight: 500;
   line-height: 1.1;
 }
@@ -9485,8 +9487,8 @@ html.feed-app appkit-modal {
   --press-ink: #083344;
   appearance: none;
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: var(--map-pill-h);
+  height: var(--map-pill-h);
   margin: 0 0 0 calc(var(--fu) * 0.5);
   padding: 0;
   flex: 0 0 auto;
@@ -9506,8 +9508,8 @@ html.feed-app appkit-modal {
 }
 #feed-search-btn svg,
 #feed-search-close svg {
-  width: 20px;
-  height: 20px;
+  width: calc(var(--map-pill-h) * 0.36);
+  height: calc(var(--map-pill-h) * 0.36);
   display: block;
   pointer-events: none;
 }
@@ -9536,8 +9538,8 @@ html.feed-app appkit-modal {
   --press-ink: #083344;
   appearance: none;
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: var(--map-pill-h);
+  height: var(--map-pill-h);
   margin: 0 0 0 calc(var(--fu) * 0.5);
   padding: 0;
   flex: 0 0 auto;
@@ -9556,8 +9558,8 @@ html.feed-app appkit-modal {
   transition: background-color var(--press-dur) var(--press-ease), border-color var(--press-dur) var(--press-ease), color var(--press-dur) var(--press-ease);
 }
 #feed-post-btn svg {
-  width: 20px;
-  height: 20px;
+  width: calc(var(--map-pill-h) * 0.36);
+  height: calc(var(--map-pill-h) * 0.36);
   display: block;
   pointer-events: none;
 }
@@ -9581,7 +9583,7 @@ html.feed-app appkit-modal {
 #feed-post-btn::before {
   content: "";
   position: absolute;
-  inset: 2px;
+  inset: 10%;
   box-sizing: border-box;
   border-radius: 50%;
   background-color: var(--ring-bg);
@@ -9685,7 +9687,7 @@ html.feed-app appkit-modal {
   background: none;
   color: rgba(255, 255, 255, 0.45);
   font-family: Inter, system-ui, sans-serif;
-  font-size: 15px;
+  font-size: calc(var(--map-pill-h) * 0.33);
   font-weight: 500;
   line-height: 1.2;
   cursor: pointer;
@@ -9700,8 +9702,8 @@ html.feed-app appkit-modal {
   position: absolute;
   left: 50%;
   bottom: 0;
-  width: 48px;
-  height: 3px;
+  width: calc(var(--map-pill-h) * 48 / 44);
+  height: calc(var(--map-pill-h) * 3 / 44);
   border-radius: calc(var(--fu) * 0.2);
   background: #22D3EE;
   transform: translateX(-50%);
@@ -10507,7 +10509,7 @@ html.feed-app appkit-modal {
   bottom: 0;
   height: auto;
   margin: 0;
-  padding: calc(var(--fu) * 1.4) 0;
+  padding: env(safe-area-inset-top) 0 calc(8px + env(safe-area-inset-bottom)) 0;
   overflow-x: hidden;
   overflow-y: auto;
   list-style: none;
@@ -10545,8 +10547,8 @@ html.feed-app appkit-modal {
   height: 100dvh;
   margin: 0;
   box-sizing: border-box;
-  padding-top: calc(var(--fu) * 1.4 + env(safe-area-inset-top));
-  padding-bottom: calc(var(--fu) * 1.4 + env(safe-area-inset-bottom));
+  padding-top: calc(2px + env(safe-area-inset-top));
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
   width: min(78dvw, 42dvh);
   --feed-zoom: 1;
   --fu: calc(min(78dvw, 42dvh) / 31.25);
@@ -10591,6 +10593,21 @@ html.feed-app appkit-modal {
 }
 #feed-menu li.feed-menu-end {
   margin-top: auto;
+}
+/* The switch row matches the bar that opened the drawer, so its centre
+   sits on that hamburger. The map pill has no 44px floor. */
+#feed-menu > li:first-child {
+  flex: 0 0 auto;
+}
+#feed-menu > li:first-child > .feed-menu-item {
+  height: var(--map-pill-h);
+  min-height: var(--map-pill-h);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+#feed-menu.is-map-drawer > li:first-child > .feed-menu-item {
+  height: calc(1.725vh + 1.6vh + 2px);
+  min-height: calc(1.725vh + 1.6vh + 2px);
 }
 #feed-menu .feed-menu-item {
   appearance: none;
@@ -12521,8 +12538,9 @@ html.drawer-page .info-overlay {
   --feed-zoom: 1;
   --feed-unit: calc(min(100dvw, var(--feed-col-width)) * 0.024);
   --fu: var(--feed-unit);
-  --feed-bar-h: 52px;
-  --feed-tabs-h: 44px;
+  --map-pill-h: max(44px, calc(1.725vh + 1.6vh + 2px));
+  --feed-bar-h: var(--map-pill-h);
+  --feed-tabs-h: var(--map-pill-h);
   --row-gap: max(8px, 1dvh);
   --chat-field-h: max(44px, 5.5dvh);
   position: absolute;
