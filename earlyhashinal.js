@@ -6,12 +6,33 @@ import { forgetTilt, watchProfilePicture } from "./markertilt.js";
 const REFRESH_MS = 15 * 60 * 1000;
 
 let owners = new Map();
+let ownersReady = false;
 let armed = false;
+const ownerListeners = new Set();
 
 export function earlyHashinalNumber(account) {
   if (typeof account !== "string" || !account) return 0;
   const n = owners.get(account);
   return Number.isInteger(n) && n > 0 ? n : 0;
+}
+
+// True after the first owners response, including an empty or failed pull.
+// Until then every number is 0 because the map has not been filled.
+export function earlyHashinalReady() {
+  return ownersReady;
+}
+
+export function onOwnersChange(fn) {
+  if (typeof fn !== "function") return () => {};
+  ownerListeners.add(fn);
+  return () => ownerListeners.delete(fn);
+}
+
+function settleOwners() {
+  ownersReady = true;
+  for (const fn of ownerListeners) {
+    try { fn(); } catch { /* a listener cannot block the next paint */ }
+  }
 }
 
 function ensureSpin(shell) {
@@ -104,7 +125,10 @@ document.addEventListener("early-hashinals", repaintProfiles);
 
 function applyOwners(body) {
   const raw = body && body.owners;
-  if (!raw || typeof raw !== "object") return;
+  if (!raw || typeof raw !== "object") {
+    settleOwners();
+    return;
+  }
   const next = new Map();
   for (const [id, value] of Object.entries(raw)) {
     const n = typeof value === "number" ? value : Number(value);
@@ -112,6 +136,7 @@ function applyOwners(body) {
   }
   owners = next;
   document.dispatchEvent(new Event("early-hashinals"));
+  settleOwners();
 }
 
 function pull() {
@@ -119,8 +144,9 @@ function pull() {
     .then((res) => (res.ok ? res.json() : null))
     .then((body) => {
       if (body) applyOwners(body);
+      else settleOwners();
     })
-    .catch(() => {});
+    .catch(() => settleOwners());
 }
 
 function arm() {

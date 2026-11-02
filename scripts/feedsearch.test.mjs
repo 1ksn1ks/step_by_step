@@ -1,12 +1,16 @@
 // Feed query state. No DOM and no feedlayout import.
 import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { clearQuery, getQuery, matches, onChange, registerFilter, setFilter, setText } from "../feedsearch.js";
+import { clearQuery, getQuery, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from "../feedsearch.js";
 
 beforeEach(() => {
   clearQuery();
   registerFilter("kind", null);
   registerFilter("topic", null);
+  registerFilter("extra", null);
+  registerSort("oldest", null);
+  registerSort("liked", null);
+  registerSort("viewed", null);
 });
 
 const post = { payer: "0.0.5" };
@@ -70,7 +74,7 @@ test("clearQuery drops text and filters and a second clear is quiet", () => {
     setText("moon");
     setFilter("kind", "marker");
     clearQuery();
-    assert.deepEqual(getQuery(), { text: "", filters: {} });
+    assert.deepEqual(getQuery(), { text: "", filters: {}, sort: "newest" });
     assert.equal(matches({ kind: "marker", payer: "1" }, { title: "moon" }), false);
     const before = seen.length;
     clearQuery();
@@ -105,11 +109,63 @@ test("a query stays active with no page", () => {
     assert.equal(events[0].detail.text, "Moon");
     assert.deepEqual(events[0].detail.filters, {});
     assert.equal(getQuery().text, "Moon");
+    assert.equal(getQuery().sort, "newest");
     assert.equal(matches({ payer: "0.0.1" }, { title: "moon landing" }), true);
   } finally {
     stop();
     if (previous === undefined) delete globalThis.window;
     else globalThis.window = previous;
     clearQuery();
+  }
+});
+
+test("several filters AND with text, setText keeps them, clearQuery resets sort", () => {
+  registerFilter("kind", (item, record, value) => item.kind === value);
+  registerFilter("topic", (item, record, value) => record.topic === value);
+  registerSort("oldest", (a, b) => a.n - b.n);
+  const seen = [];
+  const stop = onChange((query) => seen.push(query.sort));
+  try {
+    setText("moon");
+    setFilter("kind", "marker");
+    setFilter("topic", "news");
+    setSort("oldest");
+    assert.equal(seen.at(-1), "oldest");
+    assert.equal(getQuery().sort, "oldest");
+    assert.equal(sortCmp()( { n: 1 }, { n: 2 } ), -1);
+    const marker = { kind: "marker", payer: "0.0.9" };
+    assert.equal(matches(marker, { title: "Moon", topic: "news" }), true);
+    assert.equal(matches(marker, { title: "Moon", topic: "other" }), false);
+    assert.equal(matches({ kind: "chat", payer: "0.0.9" }, { title: "Moon", topic: "news" }), false);
+    assert.equal(matches(marker, { title: "sun", topic: "news" }), false);
+    setText("");
+    assert.equal(getQuery().text, "");
+    assert.deepEqual(getQuery().filters, { kind: "marker", topic: "news" });
+    assert.equal(getQuery().sort, "oldest");
+    assert.equal(matches(marker, { title: "sun", topic: "news" }), true);
+    assert.equal(matches(marker, { topic: "other" }), false);
+    setSort("oldest");
+    const before = seen.length;
+    setSort("oldest");
+    assert.equal(seen.length, before);
+    setSort("");
+    assert.equal(getQuery().sort, "newest");
+    assert.equal(sortCmp(), null);
+    assert.equal(matches(marker, { topic: "news" }), true);
+    setSort("liked");
+    const copy = getQuery();
+    copy.sort = "viewed";
+    copy.filters.extra = true;
+    assert.equal(getQuery().sort, "liked");
+    assert.equal(getQuery().filters.extra, undefined);
+    clearQuery();
+    assert.deepEqual(getQuery(), { text: "", filters: {}, sort: "newest" });
+    const quiet = seen.length;
+    clearQuery();
+    assert.equal(seen.length, quiet);
+    setSort("viewed");
+    assert.equal(matches(marker, { title: "moon", topic: "news" }), false);
+  } finally {
+    stop();
   }
 });

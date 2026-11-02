@@ -1799,7 +1799,7 @@ const POPUP_GEAR = [
   ['circle', { cx: '12', cy: '12', r: '3' }],
 ];
 
-function popupStrokeIcon(className, parts) {
+export function popupStrokeIcon(className, parts) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
   svg.setAttribute('fill', 'none');
@@ -1817,9 +1817,11 @@ function popupStrokeIcon(className, parts) {
   return svg;
 }
 
-function popupGearIcon() {
+export function popupGearIcon() {
   return popupStrokeIcon('', POPUP_GEAR);
 }
+
+export { bindPressFeedback };
 
 const POPUP_ARROW_LEFT = [
   ['path', { d: 'M19 12H5' }],

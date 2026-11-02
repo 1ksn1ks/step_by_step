@@ -9821,7 +9821,8 @@ html.feed-app #feed-search-page {
 #feed-search-filters::-webkit-scrollbar {
   display: none;
 }
-#feed-search-filters:empty {
+#feed-search-filters:empty,
+#feed-search-filters[hidden] {
   display: none;
   height: 0;
   margin: 0;

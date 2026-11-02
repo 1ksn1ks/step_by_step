@@ -4,7 +4,7 @@
 import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
 import { currentUfoModelInGLTF, globalLoadedTopicIdsWithNames } from './letall.js';
-import { markerPopupNode, polygonPopupNode, mountPostReactions, buildPopupProfile, rememberShapeEdit, shapeEditFor, viewsChip as sharedViewsChip, setViewsCount } from './processallmessages.js';
+import { markerPopupNode, polygonPopupNode, mountPostReactions, buildPopupProfile, rememberShapeEdit, shapeEditFor, viewsChip as sharedViewsChip, setViewsCount, popupGearIcon, bindPressFeedback } from './processallmessages.js';
 import { BACKEND_URL, fetchMessagesBackend, streamOnTopic, messageSig, fetchFollowing } from './msgbackend.js';
 import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
 import { initialTopicId } from './extracttopic.js';
@@ -26,14 +26,14 @@ import { paintHashtags, singleLineText } from './hashtag.js';
 import { consensusOf } from './donationmath.js';
 import { noteVisibleDonation } from './donations.js';
 import { paintProfileStats } from './profilestats.js';
-import { earlyHashinalNumber, paintProfileAvatar } from './earlyhashinal.js';
+import { earlyHashinalNumber, earlyHashinalReady, onOwnersChange, paintProfileAvatar } from './earlyhashinal.js';
 import { followPersonControls } from './followtopic.js';
 import { fillTopicIds, useTopicId } from './topicidintext.js';
 import { payerUsernameNode } from './payerlink.js';
 import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { openPreview } from './fullscreenmedia.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
-import { clearQuery, getQuery, matches, onChange, setText } from './feedsearch.js';
+import { clearQuery, getQuery, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -86,6 +86,14 @@ function writeFeedSetting(key, value) {
 
 readFeedPrefs();
 const PAGE = 2030;
+// Oldest, liked, and viewed rank only the posts already paged in. Pages
+// still arrive newest-first, PAGE messages at a time. While one of those
+// sorts is active, loadOlder keeps going until the topic is exhausted, the
+// dateFrom floor is reached, or this many pages have been pulled for the
+// query. paintSpinner covers the wait. Hitting the cap before exhaustion
+// labels the row "sorted among loaded posts" so a short window is not
+// shown as a complete ranking.
+const SORT_PAGE_CAP = 4;
 const CARD_CAP = 200;
 const RENDER_CHUNK = 30;
 const SCROLL_IDLE_MS = 250;
@@ -422,13 +430,80 @@ searchClear.appendChild(svgIcon([
   ['path', { d: 'M18 6 6 18' }],
   ['path', { d: 'm6 6 12 12' }],
 ]));
-searchField.append(searchInput, searchClear);
+const searchGear = document.createElement('button');
+searchGear.type = 'button';
+searchGear.id = 'feed-search-gear';
+searchGear.className = 'popup-icon-chip popup-settings-gear';
+searchGear.setAttribute('aria-label', 'Filters');
+searchGear.setAttribute('aria-expanded', 'false');
+searchGear.appendChild(popupGearIcon());
+bindPressFeedback(searchGear);
+searchField.append(searchInput, searchClear, searchGear);
 const searchFilters = document.createElement('div');
 searchFilters.id = 'feed-search-filters';
+searchFilters.hidden = true;
 const searchResults = document.createElement('div');
 searchResults.id = 'feed-search-results';
 searchBody.append(searchField, searchFilters, searchResults);
-searchPage.append(searchBar, searchBody);
+const filterBackdrop = document.createElement('div');
+filterBackdrop.id = 'feed-filter-backdrop';
+// Absolute only so a click can hit the backdrop. The look is a later pass.
+filterBackdrop.style.display = 'none';
+filterBackdrop.style.position = 'absolute';
+filterBackdrop.style.inset = '0';
+const filterCard = document.createElement('div');
+filterCard.id = 'feed-filter-card';
+filterCard.setAttribute('role', 'dialog');
+filterCard.setAttribute('aria-label', 'Filters');
+filterCard.style.display = 'none';
+filterCard.style.position = 'absolute';
+filterCard.style.zIndex = '1';
+filterCard.style.top = '0';
+filterCard.style.left = '0';
+filterCard.style.right = '0';
+filterCard.style.maxHeight = '80%';
+filterCard.style.overflow = 'auto';
+const filterClose = document.createElement('button');
+filterClose.type = 'button';
+filterClose.className = 'panel-close-btn';
+filterClose.setAttribute('aria-label', 'Close');
+filterClose.textContent = '\u00d7';
+function filterToggle(key, label) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.dataset.filter = key;
+  btn.textContent = label;
+  btn.setAttribute('aria-pressed', 'false');
+  return btn;
+}
+const filterHasImage = filterToggle('hasImage', 'Has image');
+const filterOnlyText = filterToggle('onlyText', 'Text only');
+const filterMine = filterToggle('mine', 'Mine');
+const filterFollowing = filterToggle('following', 'Following');
+const filterHashinal = filterToggle('hashinal', 'Early Hashinal holders');
+const filterComments = filterToggle('hasComments', 'Has comments');
+const filterSort = document.createElement('select');
+filterSort.id = 'feed-filter-sort';
+filterSort.setAttribute('aria-label', 'Sort');
+for (const [value, label] of [['newest', 'Newest'], ['oldest', 'Oldest'], ['liked', 'Liked'], ['viewed', 'Viewed']]) {
+  const opt = document.createElement('option');
+  opt.value = value;
+  opt.textContent = label;
+  filterSort.appendChild(opt);
+}
+const filterFrom = document.createElement('input');
+filterFrom.id = 'feed-filter-from';
+filterFrom.type = 'date';
+filterFrom.setAttribute('aria-label', 'From');
+const filterTo = document.createElement('input');
+filterTo.id = 'feed-filter-to';
+filterTo.type = 'date';
+filterTo.setAttribute('aria-label', 'To');
+const filterCountry = document.createElement('select');
+filterCountry.id = 'feed-filter-country';
+filterCountry.setAttribute('aria-label', 'Country');
+filterCard.append(filterClose, filterHasImage, filterOnlyText, filterMine, filterFollowing, filterHashinal, filterComments, filterSort, filterFrom, filterTo, filterCountry);
+searchPage.append(searchBar, searchBody, filterBackdrop, filterCard);
 searchPage.addEventListener('click', (event) => event.stopPropagation());
 searchPage.addEventListener('pointerdown', (event) => event.stopPropagation());
 root.appendChild(searchPage);
@@ -447,6 +522,7 @@ let feedTab = 'all';
 let tabToken = 0;
 let followState = 'idle';
 let followSet = null;
+let followPromise = null;
 let rangeStart = 0;
 let rangeEnd = 0;
 const held = { all: [], following: [] };
@@ -459,6 +535,10 @@ let loadedTopic = '';
 let cursor = null;
 let exhausted = false;
 let paging = false;
+let searchFloor = false;
+let sortPages = 0;
+let viewSortWait = 0;
+const viewSortAsked = new Set();
 let generation = 0;
 let highSeq = 0;
 let streamOff = null;
@@ -777,6 +857,8 @@ let packCountries = null;
 let packRows = null;
 let placePackReady = false;
 let placePackStarted = false;
+let placePackFailed = false;
+const placePackListeners = new Set();
 const OCEAN_PACK_KEY = 'oceans-pack-v1';
 let oceanFeatures = null;
 let oceanPackReady = false;
@@ -895,6 +977,10 @@ function adoptPlacePack(text) {
   packCountries = countries;
   packRows = rows;
   placePackReady = true;
+  placePackFailed = false;
+  queueMicrotask(() => {
+    for (const fn of placePackListeners) fn(true);
+  });
   return true;
 }
 
@@ -965,16 +1051,28 @@ function refreshPlaceCards() {
   });
 }
 
+function placePackGaveUp() {
+  if (placePackReady) return;
+  placePackFailed = true;
+  for (const fn of placePackListeners) fn(false);
+}
+
 async function fetchPlacePack() {
   try {
     const res = await fetch(`${BACKEND_URL}/api/place-pack`);
-    if (!res.ok) return;
+    if (!res.ok) {
+      placePackGaveUp();
+      return;
+    }
     const text = await res.text();
-    if (!adoptPlacePack(text)) return;
+    if (!adoptPlacePack(text)) {
+      placePackGaveUp();
+      return;
+    }
     rememberPlacePack(text);
     refreshPlaceCards();
   } catch {
-    /* offline — coordinates stay, and feed labels do not call /api/place */
+    placePackGaveUp();
   }
 }
 
@@ -1294,6 +1392,14 @@ function placeCountryCode(hit) {
   return countryCodeByName.get(normPlaceName(hit && hit.country)) || '';
 }
 
+// Chat posts and ocean cells have no country, so a country filter skips them.
+function countryOf(post) {
+  if (!post || post.kind === 'chat' || !post.lngLat || !placePackReady) return '';
+  const key = placeKey(post.lngLat);
+  if (!key) return '';
+  return placeCountryCode(packCountry(key) || {});
+}
+
 function placePart(className, mark, name) {
   const el = document.createElement('span');
   el.className = className;
@@ -1503,6 +1609,10 @@ function paintCounts(counts) {
   }
   for (const card of column.children) {
     if (card.classList && card.classList.contains('feed-card')) paintCardCount(card);
+  }
+  if (getQuery().sort === 'viewed' && feedFiltering()) {
+    queueViewSort();
+    paintSorted();
   }
 }
 
@@ -2311,6 +2421,7 @@ function markerPost(message, data) {
     payer,
     kind: 'marker',
     seq: Number(message.sequence_number) || 0,
+    ts: String(message.consensus_timestamp || ''),
     lngLat,
     time: stamp(message.created),
     feature: {
@@ -2366,6 +2477,7 @@ function polygonPost(message, data) {
     payer,
     kind: 'polygon',
     seq: Number(message.sequence_number) || 0,
+    ts: String(message.consensus_timestamp || ''),
     polygon,
     lngLat,
     time: stamp(message.created),
@@ -2408,6 +2520,7 @@ function sharePost(message) {
     payer,
     kind: 'marker',
     seq: Number(message.sequence_number) || 0,
+    ts: String(message.consensus_timestamp || ''),
     lngLat,
     time: stamp(message.created),
     feature: {
@@ -2435,6 +2548,7 @@ function chatPost(message) {
     payer: message.payer || '',
     kind: 'chat',
     seq: Number(message.sequence_number) || 0,
+    ts: String(message.consensus_timestamp || ''),
     message,
     topicId: loadedTopic,
     lngLat,
@@ -2622,7 +2736,7 @@ function profileLane(list) {
   return out;
 }
 
-function feedFiltering() {
+function queryHasPredicate() {
   const query = getQuery();
   if (String(query.text || '').trim()) return true;
   const filters = query.filters || {};
@@ -2632,6 +2746,11 @@ function feedFiltering() {
     return true;
   }
   return false;
+}
+
+function feedFiltering() {
+  if (queryHasPredicate()) return true;
+  return getQuery().sort !== 'newest';
 }
 
 function lane() {
@@ -2644,15 +2763,102 @@ function tabPosts() {
 }
 
 function hitQuery(post) {
-  if (!feedFiltering() || !post) return false;
+  if (!post || !feedFiltering()) return false;
+  // Sort is not a predicate. matches() is false when text and filters are
+  // both empty, so a sort-only query keeps every loaded post and orders it.
+  if (!queryHasPredicate()) return true;
   return matches(post, recordFor(post) || {});
+}
+
+function localDaySeconds(iso, end) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if (!match) return null;
+  const date = end
+    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 23, 59, 59, 999)
+    : new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 0, 0, 0, 0);
+  const ms = date.getTime();
+  return Number.isFinite(ms) ? ms / 1000 : null;
+}
+
+function postSeconds(post, record) {
+  const raw = Number(post && post.ts);
+  if (Number.isFinite(raw) && raw > 1e8) return raw;
+  const created = record && record.created;
+  if (created) {
+    const ms = new Date(created).getTime();
+    if (Number.isFinite(ms)) return ms / 1000;
+  }
+  return null;
+}
+
+function dateFromStart() {
+  return localDaySeconds(getQuery().filters && getQuery().filters.dateFrom, false);
+}
+
+function noteSearchFloor() {
+  const start = dateFromStart();
+  if (start == null || !cursor || cursor.ts == null || cursor.ts === '') {
+    searchFloor = false;
+    return;
+  }
+  const oldest = Number(cursor.ts);
+  searchFloor = Number.isFinite(oldest) && oldest < start;
+}
+
+function rankedSort() {
+  const sort = getQuery().sort;
+  return sort === 'oldest' || sort === 'liked' || sort === 'viewed';
+}
+
+function orderFound() {
+  const cmp = sortCmp();
+  if (!cmp || found.length < 2) return false;
+  const before = found.map((post) => post && post.key).join('\n');
+  found.sort(cmp);
+  return found.map((post) => post && post.key).join('\n') !== before;
+}
+
+function queueViewSort() {
+  if (getQuery().sort !== 'viewed') {
+    viewSortWait = 0;
+    return;
+  }
+  let missing = 0;
+  for (const post of found) {
+    if (!post || !post.key || viewTotals.has(post.key)) continue;
+    missing += 1;
+    if (viewSortAsked.has(post.key)) continue;
+    viewSortAsked.add(post.key);
+    wantCount(post.key);
+  }
+  viewSortWait = missing;
+}
+
+function searchDataPending() {
+  const filters = getQuery().filters || {};
+  if (filters.following === true && followState !== 'ready' && followState !== 'empty' && followState !== 'offline' && followState !== 'nowallet') return true;
+  if (filters.hashinal === true && !earlyHashinalReady()) return true;
+  if (filters.country && !placePackReady && !placePackFailed) return true;
+  if (getQuery().sort === 'viewed' && viewSortWait > 0 && found.length === 0) return true;
+  return false;
 }
 
 function syncFound() {
   found = [];
+  noteSearchFloor();
   if (!feedFiltering()) return;
   for (const post of profileLane(tabPosts())) {
     if (hitQuery(post)) found.push(post);
+  }
+  orderFound();
+  queueViewSort();
+  if (getQuery().filters.country && !placePackReady && !placePackFailed) ensurePlacePack();
+  if (getQuery().filters.following === true && followState !== 'ready' && followState !== 'empty' && followState !== 'offline' && followState !== 'nowallet') {
+    ensureFollowSet().then(() => {
+      if (getQuery().filters.following !== true) return;
+      if (followState === 'loading') return;
+      showQueryResults();
+    });
   }
 }
 
@@ -2685,24 +2891,59 @@ function paintTabs() {
 
 function searchMiss() {
   if (!feedFiltering() || paging) return false;
+  if (searchDataPending()) return false;
   if (feedTab === 'following' && followState === 'loading') return false;
   if (followBlocked()) return true;
-  return exhausted;
+  if (searchFloor || exhausted) return true;
+  if (rankedSort() && sortPages >= SORT_PAGE_CAP) return true;
+  return false;
+}
+
+function sortWindowPartial() {
+  return rankedSort() && found.length > 0 && sortPages >= SORT_PAGE_CAP && !exhausted && !searchFloor && !paging;
+}
+
+function paintSortNote() {
+  const old = document.getElementById('feed-sort-note');
+  if (!sortWindowPartial()) {
+    if (old) old.remove();
+    return;
+  }
+  const note = old || document.createElement('p');
+  note.id = 'feed-sort-note';
+  note.className = 'feed-empty';
+  note.textContent = 'sorted among loaded posts';
+  if (!old) column.appendChild(note);
+}
+
+function paintSorted() {
+  if (!orderFound()) return;
+  rangeStart = 0;
+  rangeEnd = 0;
+  clearViewWatch();
+  column.replaceChildren();
+  setFeedScroll(0);
+  const list = found;
+  if (list.length) renderThrough(Math.min(list.length, RENDER_CHUNK));
+  paintEmpty();
+  paintSortNote();
 }
 
 function paintEmpty() {
   const old = column.querySelector('.feed-empty');
-  if (old) old.remove();
+  if (old && old.id !== 'feed-sort-note') old.remove();
   let text = '';
   if (feedFiltering() && found.length === 0 && searchMiss()) text = 'No posts found';
   else if (!feedFiltering() && feedTab === 'following' && followState === 'nowallet') text = 'Connect your wallet to see who you follow';
   else if (!feedFiltering() && feedTab === 'following' && followState === 'empty') text = "You're not following anyone yet";
   else if (!feedFiltering() && profileFilter && lane().length === 0 && exhausted && !paging && !followBlocked()) text = 'No posts yet';
-  if (!text) return;
-  const note = document.createElement('p');
-  note.className = 'feed-empty';
-  note.textContent = text;
-  column.appendChild(note);
+  if (text) {
+    const note = document.createElement('p');
+    note.className = 'feed-empty';
+    note.textContent = text;
+    column.appendChild(note);
+  }
+  paintSortNote();
 }
 
 function rerenderLane(opts) {
@@ -2753,61 +2994,93 @@ async function selectTab(next) {
     else restoreTabView();
     return;
   }
-  const account = walletNow();
-  if (!account) {
+  if (!walletNow()) {
     followState = 'nowallet';
     followSet = null;
     shown = [];
     rerenderLane();
     return;
   }
-  followState = 'loading';
-  clearViewWatch();
-  column.replaceChildren();
-  rangeStart = 0;
-  rangeEnd = 0;
-  if (!feedFiltering()) {
-    setFeedScroll(0);
-    savedScroll = 0;
+  if (!(followState === 'ready' && followSet)) {
+    followState = 'loading';
+    clearViewWatch();
+    column.replaceChildren();
+    rangeStart = 0;
+    rangeEnd = 0;
+    if (!feedFiltering()) {
+      setFeedScroll(0);
+      savedScroll = 0;
+    }
+    paintEmpty();
+    paintNewPill();
   }
-  paintEmpty();
-  paintNewPill();
-  const data = await fetchFollowing(account);
+  const state = await ensureFollowSet(true);
   if (token !== tabToken || feedTab !== 'following') return;
-  if (!data) {
-    followState = 'offline';
-    followSet = null;
+  if (state === 'offline') {
     shown = [];
     paintEmpty();
     paintNewPill();
     return;
   }
-  const ids = [];
-  const accounts = Array.isArray(data.accounts) ? data.accounts : [];
-  for (const entry of accounts) {
-    const raw = typeof entry === 'string' ? entry : entry && entry.id;
-    const id = typeof raw === 'string' ? raw.trim() : '';
-    if (/^\d+\.\d+\.\d+$/.test(id)) ids.push(id);
-  }
-  if (!ids.length) {
-    followState = 'empty';
-    followSet = null;
+  if (state !== 'ready' || !followSet) {
     shown = [];
     rerenderLane();
     return;
   }
-  followSet = new Set(ids);
-  followState = 'ready';
   shown = posts.filter((post) => followSet.has(post.payer));
   alignHeld('following');
   if (feedFiltering() || profileFilter) rerenderLane({ keepHeld: true });
   else restoreTabView();
 }
 
+function ensureFollowSet(force) {
+  const account = walletNow();
+  if (!account) {
+    followState = 'nowallet';
+    followSet = null;
+    return Promise.resolve('nowallet');
+  }
+  if (!force && followState === 'ready' && followSet) return Promise.resolve('ready');
+  if (!force && followState === 'empty') return Promise.resolve('empty');
+  if (followPromise) return followPromise;
+  followState = 'loading';
+  const asked = account;
+  followPromise = fetchFollowing(asked).then((data) => {
+    followPromise = null;
+    if (walletNow() !== asked) return ensureFollowSet(force);
+    if (!data) {
+      followState = 'offline';
+      followSet = null;
+      return 'offline';
+    }
+    const ids = [];
+    const accounts = Array.isArray(data.accounts) ? data.accounts : [];
+    for (const entry of accounts) {
+      const raw = typeof entry === 'string' ? entry : entry && entry.id;
+      const id = typeof raw === 'string' ? raw.trim() : '';
+      if (/^\d+\.\d+\.\d+$/.test(id)) ids.push(id);
+    }
+    if (!ids.length) {
+      followState = 'empty';
+      followSet = null;
+      return 'empty';
+    }
+    followSet = new Set(ids);
+    followState = 'ready';
+    return 'ready';
+  }).catch(() => {
+    followPromise = null;
+    followState = 'offline';
+    followSet = null;
+    return 'offline';
+  });
+  return followPromise;
+}
+
 function renderThrough(end) {
   if (end <= rangeEnd) return;
   const note = column.querySelector('.feed-empty');
-  if (note) note.remove();
+  if (note && note.id !== 'feed-sort-note') note.remove();
   const list = lane();
   const frag = document.createDocumentFragment();
   const cards = [];
@@ -2868,6 +3141,7 @@ function fillDown() {
   const list = lane();
   if (scroller.clientHeight < 1) {
     if (rangeEnd < list.length) renderThrough(Math.min(list.length, rangeEnd + RENDER_CHUNK));
+    else if (searchCanPage()) loadOlder();
     return;
   }
   let guard = 0;
@@ -2876,7 +3150,8 @@ function fillDown() {
     const room = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
     const short = scroller.scrollHeight <= scroller.clientHeight + 4;
     if (!short && room >= scroller.clientHeight * 2) {
-      paintEmpty();
+      if (rankedSort() && searchCanPage()) loadOlder();
+      else paintEmpty();
       return;
     }
     if (rangeEnd < list.length) {
@@ -2884,10 +3159,16 @@ function fillDown() {
       trimAbove();
       continue;
     }
-    if (!exhausted) loadOlder();
+    if (searchCanPage()) loadOlder();
     else paintEmpty();
     return;
   }
+}
+
+function searchCanPage() {
+  if (exhausted || searchFloor || paging) return false;
+  if (rankedSort() && sortPages >= SORT_PAGE_CAP) return false;
+  return true;
 }
 
 function laneFloor() {
@@ -3161,7 +3442,8 @@ function restoreTabView() {
 }
 
 async function loadOlder() {
-  if (paging || exhausted) return;
+  if (paging || exhausted || searchFloor) return;
+  if (rankedSort() && sortPages >= SORT_PAGE_CAP) return;
   const topic = loadedTopic;
   if (!topic) return;
   const gen = generation;
@@ -3187,12 +3469,22 @@ async function loadOlder() {
     }
     cursor = { ts: nextTs, seq: nextSeq };
     if (page.done) exhausted = true;
+    noteSearchFloor();
     const made = ingest(messages);
     posts.push(...made);
     const added = feedTab === 'following' ? takeFollowed(made) : made;
     if (feedTab === 'following') shown.push(...added);
     if (feedFiltering()) {
       for (const post of added) if (hitQuery(post)) found.push(post);
+      if (rankedSort()) sortPages += 1;
+      if (orderFound()) {
+        rangeStart = 0;
+        rangeEnd = 0;
+        clearViewWatch();
+        column.replaceChildren();
+        setFeedScroll(0);
+      }
+      queueViewSort();
     }
     ok = true;
   } catch (error) {
@@ -3532,6 +3824,82 @@ function openOnMap(post) {
   flyOnly(post.lngLat, flyZoom(post));
 }
 
+function chipText(key, value) {
+  if (key === 'hasImage') return 'Has image';
+  if (key === 'onlyText') return 'Text only';
+  if (key === 'mine') return 'Mine';
+  if (key === 'following') return 'Following';
+  if (key === 'hashinal') return 'Early Hashinal holders';
+  if (key === 'hasComments') return 'Has comments';
+  if (key === 'dateFrom') return 'From ' + value;
+  if (key === 'dateTo') return 'To ' + value;
+  if (key === 'country') return countryNameByCode.get(value) || String(value);
+  if (key === 'sort') {
+    if (value === 'oldest') return 'Oldest';
+    if (value === 'liked') return 'Liked';
+    if (value === 'viewed') return 'Viewed';
+  }
+  return String(value);
+}
+
+function rebuildChips() {
+  const query = getQuery();
+  const chips = [];
+  for (const key of Object.keys(query.filters)) {
+    const value = query.filters[key];
+    if (value == null || value === '' || value === false) continue;
+    chips.push({ key, label: chipText(key, value), sort: false });
+  }
+  if (query.sort && query.sort !== 'newest') chips.push({ key: 'sort', label: chipText('sort', query.sort), sort: true });
+  searchFilters.replaceChildren();
+  if (!chips.length) {
+    searchFilters.hidden = true;
+    return;
+  }
+  searchFilters.hidden = false;
+  for (const chip of chips) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'is-active';
+    btn.textContent = chip.label + ' \u00d7';
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (chip.sort) setSort('newest');
+      else setFilter(chip.key, '');
+    });
+    searchFilters.appendChild(btn);
+  }
+}
+
+function paintFilterToggle(btn, on) {
+  btn.classList.toggle('is-active', !!on);
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+
+function syncFilterControls() {
+  const query = getQuery();
+  const filters = query.filters || {};
+  paintFilterToggle(filterHasImage, filters.hasImage === true);
+  paintFilterToggle(filterOnlyText, filters.onlyText === true);
+  const wallet = walletNow();
+  filterMine.disabled = !wallet;
+  filterMine.textContent = wallet ? 'Mine' : 'Connect your wallet';
+  paintFilterToggle(filterMine, filters.mine === true);
+  filterFollowing.disabled = !wallet;
+  filterFollowing.textContent = wallet ? 'Following' : 'Connect your wallet';
+  paintFilterToggle(filterFollowing, filters.following === true);
+  paintFilterToggle(filterHashinal, filters.hashinal === true);
+  paintFilterToggle(filterComments, filters.hasComments === true);
+  const sort = query.sort || 'newest';
+  if (filterSort.value !== sort) filterSort.value = sort;
+  const from = typeof filters.dateFrom === 'string' ? filters.dateFrom : '';
+  const to = typeof filters.dateTo === 'string' ? filters.dateTo : '';
+  if (filterFrom.value !== from) filterFrom.value = from;
+  if (filterTo.value !== to) filterTo.value = to;
+  const country = typeof filters.country === 'string' ? filters.country : '';
+  if (filterCountry.value !== country) filterCountry.value = country;
+}
+
 function syncSearchChrome() {
   const pageOpen = !searchPage.hidden;
   toolbar.classList.toggle('has-search-query', feedFiltering() && !pageOpen);
@@ -3539,6 +3907,10 @@ function syncSearchChrome() {
   const text = getQuery().text;
   if (searchInput.value !== text) searchInput.value = text;
   searchClear.hidden = searchInput.value.length === 0;
+  searchGear.classList.toggle('is-active', Object.keys(getQuery().filters).length > 0);
+  searchGear.setAttribute('aria-expanded', filterCard.style.display === 'block' ? 'true' : 'false');
+  rebuildChips();
+  syncFilterControls();
 }
 
 function parkScroller() {
@@ -3566,6 +3938,9 @@ function pinWindow() {
 }
 
 function showQueryResults() {
+  sortPages = 0;
+  viewSortAsked.clear();
+  viewSortWait = 0;
   syncFound();
   rangeStart = 0;
   rangeEnd = 0;
@@ -3613,6 +3988,12 @@ function onFeedSearchChange() {
   syncSearchChrome();
   if (restoreOnClear) {
     restoreOnClear = false;
+    if (feedFiltering()) {
+      pinWindow();
+      showQueryResults();
+      paintNewPill();
+      return;
+    }
     found = [];
     if (searchPinned) restorePin();
     else paintEmpty();
@@ -3652,6 +4033,10 @@ function hideSearch() {
   } finally {
     searchMute = false;
   }
+  concealFilterCard();
+  if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedfilters')) {
+    window.layerClosedByUI('feedfilters');
+  }
   found = [];
   searchPinned = false;
   pinScroll = 0;
@@ -3666,7 +4051,32 @@ function hideSearch() {
 }
 
 // Back, Escape, and browser Back close the page and keep the query.
+function concealFilterCard() {
+  filterBackdrop.style.display = 'none';
+  filterCard.style.display = 'none';
+  searchGear.setAttribute('aria-expanded', 'false');
+}
+
+function closeFilterCard() {
+  if (filterCard.style.display !== 'block' && filterBackdrop.style.display !== 'block') return;
+  concealFilterCard();
+  if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedfilters')) {
+    window.layerClosedByUI('feedfilters');
+  }
+}
+
+function openFilterCard() {
+  if (filterCard.style.display === 'block') return;
+  if (searchPage.hidden) return;
+  syncFilterControls();
+  filterBackdrop.style.display = 'block';
+  filterCard.style.display = 'block';
+  searchGear.setAttribute('aria-expanded', 'true');
+  if (window.layerOpened) window.layerOpened('feedfilters');
+}
+
 function closeSearchPage() {
+  if (filterCard.style.display === 'block' || filterBackdrop.style.display === 'block') closeFilterCard();
   if (searchPage.hidden) return;
   flushSearchInput();
   searchPage.hidden = true;
@@ -7371,8 +7781,13 @@ function watchWalletRows() {
     const now = walletNow();
     if (now === last) return;
     last = now;
+    followSet = null;
+    followPromise = null;
+    followState = now ? 'idle' : 'nowallet';
     paintMenuRows();
     syncProfileOwn();
+    syncFilterControls();
+    if (feedFiltering() && (getQuery().filters.mine === true || getQuery().filters.following === true)) showQueryResults();
   };
   new MutationObserver(sync).observe(account, { childList: true, characterData: true, subtree: true });
 }
@@ -7500,6 +7915,17 @@ if (window.defineLayer) {
       searchInput.focus({ preventScroll: true });
     },
     close: () => closeSearchPage(),
+  });
+  window.defineLayer('feedfilters', {
+    parent: 'feedsearch',
+    open: () => {
+      if (searchPage.hidden || filterCard.style.display === 'block') return;
+      syncFilterControls();
+      filterBackdrop.style.display = 'block';
+      filterCard.style.display = 'block';
+      searchGear.setAttribute('aria-expanded', 'true');
+    },
+    close: () => concealFilterCard(),
   });
   window.defineLayer('feedplace', {
     parent: 'feed',
@@ -7683,6 +8109,12 @@ document.addEventListener('keydown', (event) => {
     closeFeedSettings();
     return;
   }
+  if (filterCard.style.display === 'block' && (!window.layerIsTop || window.layerIsTop('feedfilters'))) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeFilterCard();
+    return;
+  }
   if (!searchPage.hidden && (!window.layerIsTop || window.layerIsTop('feedsearch'))) {
     event.preventDefault();
     event.stopPropagation();
@@ -7756,10 +8188,13 @@ searchClear.addEventListener('click', (event) => {
   }
   searchInput.value = '';
   searchClear.hidden = true;
-  restoreOnClear = true;
-  clearQuery();
+  const query = getQuery();
+  const still = Object.keys(query.filters).length > 0 || (query.sort && query.sort !== 'newest');
+  if (!still) restoreOnClear = true;
+  setText('');
   if (!restoreOnClear) return;
   restoreOnClear = false;
+  if (feedFiltering()) return;
   found = [];
   if (searchPinned) restorePin();
   else paintEmpty();
@@ -7777,6 +8212,68 @@ searchInput.addEventListener('input', () => {
 searchInput.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter') return;
   event.preventDefault();
+});
+searchGear.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (filterCard.style.display === 'block') closeFilterCard();
+  else openFilterCard();
+});
+filterBackdrop.addEventListener('click', (event) => {
+  event.stopPropagation();
+  closeFilterCard();
+});
+filterCard.addEventListener('click', (event) => event.stopPropagation());
+filterCard.addEventListener('pointerdown', (event) => event.stopPropagation());
+filterClose.addEventListener('click', (event) => {
+  event.stopPropagation();
+  closeFilterCard();
+});
+function setExclusive(key, other) {
+  if (getQuery().filters[key] === true) setFilter(key, '');
+  else {
+    setFilter(other, '');
+    setFilter(key, true);
+  }
+}
+filterHasImage.addEventListener('click', (event) => {
+  event.stopPropagation();
+  setExclusive('hasImage', 'onlyText');
+});
+filterOnlyText.addEventListener('click', (event) => {
+  event.stopPropagation();
+  setExclusive('onlyText', 'hasImage');
+});
+filterMine.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (filterMine.disabled) return;
+  if (getQuery().filters.mine === true) setFilter('mine', '');
+  else setFilter('mine', true);
+});
+filterFollowing.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (filterFollowing.disabled) return;
+  if (getQuery().filters.following === true) setFilter('following', '');
+  else {
+    setFilter('following', true);
+    ensureFollowSet();
+  }
+});
+filterHashinal.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (getQuery().filters.hashinal === true) setFilter('hashinal', '');
+  else setFilter('hashinal', true);
+});
+filterComments.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (getQuery().filters.hasComments === true) setFilter('hasComments', '');
+  else setFilter('hasComments', true);
+});
+filterSort.addEventListener('change', () => setSort(filterSort.value));
+filterFrom.addEventListener('change', () => setFilter('dateFrom', filterFrom.value));
+filterTo.addEventListener('change', () => setFilter('dateTo', filterTo.value));
+filterCountry.addEventListener('change', () => {
+  setFilter('country', filterCountry.value);
+  if (filterCountry.value && !placePackReady && !placePackFailed) ensurePlacePack();
 });
 onChange(onFeedSearchChange);
 
@@ -7939,3 +8436,89 @@ setInterval(() => {
   if (!feedOn() || root.classList.contains('is-peek')) return;
   ensureTopic(false);
 }, 2000);
+
+function cmpNewestPosts(a, b) {
+  const ts = cmpTs(b && b.ts, a && a.ts);
+  if (ts) return ts;
+  return (Number(b && b.seq) || 0) - (Number(a && a.seq) || 0);
+}
+
+function likeScore(post) {
+  const record = recordFor(post) || {};
+  const marker = Number(record.likeCountMarker);
+  const polygon = Number(record.likeCountPolygon);
+  const left = Number.isFinite(marker) ? marker : 0;
+  const right = Number.isFinite(polygon) ? polygon : 0;
+  return left + right;
+}
+
+function cmpViewedPosts(a, b) {
+  const aKnown = !!(a && viewTotals.has(a.key));
+  const bKnown = !!(b && viewTotals.has(b.key));
+  if (!aKnown && !bKnown) return cmpNewestPosts(a, b);
+  if (!aKnown) return 1;
+  if (!bKnown) return -1;
+  const diff = viewTotals.get(b.key) - viewTotals.get(a.key);
+  if (diff) return diff;
+  return cmpNewestPosts(a, b);
+}
+
+registerSort('oldest', (a, b) => cmpNewestPosts(b, a));
+registerSort('liked', (a, b) => {
+  const diff = likeScore(b) - likeScore(a);
+  if (diff) return diff;
+  return cmpNewestPosts(a, b);
+});
+registerSort('viewed', cmpViewedPosts);
+
+registerFilter('hasImage', (post, record) => mediaOf(record && record.image) !== '');
+registerFilter('onlyText', (post, record) => {
+  const rec = record || {};
+  return !mediaOf(rec.image) && !mediaOf(rec.coverimage) && textOf(rec.msg).trim() !== '';
+});
+registerFilter('mine', (post) => {
+  const me = walletNow();
+  return !!me && postBy(post, me);
+});
+registerFilter('following', (post) => !!(followSet && post && followSet.has(post.payer)));
+registerFilter('hashinal', (post) => earlyHashinalNumber(post && post.payer) > 0);
+// Chat records have no comments field (chatRecord). Those posts are not matches.
+// Shares store comments: [] and are not matches either.
+registerFilter('hasComments', (post, record) => Array.isArray(record && record.comments) && record.comments.length > 0);
+registerFilter('dateFrom', (post, record, value) => {
+  const start = localDaySeconds(value, false);
+  const ts = postSeconds(post, record);
+  if (start == null || ts == null) return false;
+  return ts >= start;
+});
+registerFilter('dateTo', (post, record, value) => {
+  const end = localDaySeconds(value, true);
+  const ts = postSeconds(post, record);
+  if (end == null || ts == null) return false;
+  return ts <= end;
+});
+registerFilter('country', (post, record, value) => {
+  const code = String(value || '').trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(code)) return false;
+  return countryOf(post) === code;
+});
+
+const countryBlank = document.createElement('option');
+countryBlank.value = '';
+countryBlank.textContent = 'Country';
+filterCountry.appendChild(countryBlank);
+for (const [code, name] of [...countryNameByCode.entries()].sort((a, b) => a[1].localeCompare(b[1]))) {
+  const opt = document.createElement('option');
+  opt.value = code;
+  opt.textContent = name;
+  filterCountry.appendChild(opt);
+}
+
+placePackListeners.add(() => {
+  if (!getQuery().filters.country || !feedOn()) return;
+  showQueryResults();
+});
+onOwnersChange(() => {
+  if (getQuery().filters.hashinal !== true || !feedOn()) return;
+  showQueryResults();
+});
