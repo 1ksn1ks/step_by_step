@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { profilePictureUrls, publishProfilePictures } from "../picturecache.js";
 
 const source = fs.readFileSync(new URL("../public/sw.js", import.meta.url), "utf8");
 
@@ -347,6 +348,86 @@ test("a removed account's picture leaves the cache and the known set", async () 
   assert.deepEqual(urls, [kept]);
   assert.equal(api.knownPictures.has(removed), false);
   assert.equal(api.knownPictures.has(kept), true);
+});
+
+test("an own-picture change leaves the other cached pictures", async () => {
+  const page = fs.readFileSync(new URL("../loadalladata.js", import.meta.url), "utf8");
+  assert.equal(page.includes("publishProfilePictures([patch.profilePic])"), false);
+  assert.match(
+    page,
+    /publishProfilePictures\(profilePictureUrls\(savedAccounts, \[\.\.\.ownOverlay\.values\(\)\]\)\)/,
+  );
+
+  const accounts = [
+    { accountId: "0.0.1", profilePic: "https://cdn.example/a.png" },
+    { accountId: "0.0.2", profilePic: "https://cdn.example/b.png" },
+    { accountId: "0.0.3", profilePic: "https://cdn.example/old.png" },
+  ];
+  const own = "https://cdn.example/new.png";
+  const urls = profilePictureUrls(accounts, [{ profilePic: own }]);
+  assert.deepEqual(urls, [
+    "https://cdn.example/a.png",
+    "https://cdn.example/b.png",
+    "https://cdn.example/old.png",
+    own,
+  ]);
+
+  const posted = [];
+  const nav = globalThis.navigator;
+  const previous = nav.serviceWorker;
+  Object.defineProperty(nav, "serviceWorker", {
+    configurable: true,
+    value: {
+      controller: {
+        postMessage(message, ports) {
+          posted.push(message);
+          const port = ports && ports[0];
+          if (port) {
+            port.postMessage({ ok: true });
+            port.close();
+          }
+        },
+      },
+      addEventListener() {},
+    },
+  });
+  try {
+    await publishProfilePictures(urls);
+  } finally {
+    if (previous === undefined) delete nav.serviceWorker;
+    else Object.defineProperty(nav, "serviceWorker", { configurable: true, value: previous });
+  }
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0].type, "profile-pictures");
+  for (const url of urls) assert.equal(posted[0].urls.includes(url), true);
+
+  const clock = { now: 1_700_000_000_000 };
+  const cache = createCache();
+  const api = loadWorker(clock, async () => fakeResponse("unused", "opaque", false), cache);
+  for (const row of accounts) {
+    await cache.put(api.pictureKey(row.profilePic, clock.now), fakeResponse(row.profilePic, "opaque", false));
+  }
+  const removed = "https://cdn.example/removed.png";
+  await cache.put(api.pictureKey(removed, clock.now), fakeResponse("removed", "opaque", false));
+  await api.loadKnownPictures();
+
+  let pending = null;
+  api.listeners.message({
+    data: posted[0],
+    waitUntil(promise) { pending = promise; },
+    ports: [],
+  });
+  await pending;
+  const cached = (await cache.keys()).map((key) => key.url).sort();
+  assert.deepEqual(cached, [
+    "https://cdn.example/a.png",
+    "https://cdn.example/b.png",
+    "https://cdn.example/old.png",
+  ]);
+  assert.equal(api.knownPictures.has(own), true);
+  assert.equal(api.knownPictures.has(removed), false);
+  assert.equal(api.knownPictures.has("https://cdn.example/a.png"), true);
+  assert.equal(api.knownPictures.has("https://cdn.example/b.png"), true);
 });
 
 test("a cors or same-origin request never receives an opaque picture", async () => {

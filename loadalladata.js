@@ -1,7 +1,7 @@
 import { getTopicData as getMessages } from "./topicdata";
 import { fetchUserSettings } from "./msgbackend";
 import { readSettings, writeSettings } from "./settingscache.js";
-import { publishProfilePictures } from "./picturecache.js";
+import { profilePictureUrls, publishProfilePictures } from "./picturecache.js";
 import { profileTopicAction } from "./server/profiletopic.js";
 
 export let profilePictures = [];
@@ -15,6 +15,10 @@ export let profileTopics = {};
 // into the saved copy. The next server card that matches it removes it. If
 // the message never lands, the next cold open shows the saved server value.
 const ownOverlay = new Map();
+// Account rows last read from this phone or from the server. Picture messages
+// send these links plus ownOverlay, so one edit cannot shrink the set.
+let savedAccounts = [];
+let savedAccountsReady = false;
 let inflight = null;
 let toldCacheFull = false;
 let triedTopicFallback = false;
@@ -30,12 +34,29 @@ function snapshot() {
   return { profilePictures, usernames, click2url, topicBio };
 }
 
-function pictureList(accounts) {
-  const urls = [];
-  for (const row of accounts || []) {
-    if (row && row.profilePic) urls.push(row.profilePic);
+async function ensureSavedAccounts() {
+  if (savedAccountsReady) return;
+  try {
+    const local = await readSettings();
+    if (savedAccountsReady) return;
+    savedAccounts = (local && local.accounts) || [];
+    savedAccountsReady = true;
+  } catch (error) {
+    console.warn('settings cache read failed', error);
   }
-  return urls;
+}
+
+// A picture message is the full current list. Skip it when the saved accounts
+// could not be read, so a short list cannot wipe the cache.
+async function publishSavedPictures(nextAccounts) {
+  if (nextAccounts !== undefined) {
+    savedAccounts = nextAccounts || [];
+    savedAccountsReady = true;
+  } else {
+    await ensureSavedAccounts();
+    if (!savedAccountsReady) return;
+  }
+  await publishProfilePictures(profilePictureUrls(savedAccounts, [...ownOverlay.values()]));
 }
 
 function applyAccounts(accounts) {
@@ -105,7 +126,7 @@ export function showOwnProfile(accountId, patch) {
   const prev = ownOverlay.get(accountId) || {};
   ownOverlay.set(accountId, { ...prev, ...patch });
   applyOverlay();
-  if (patch.profilePic) publishProfilePictures([patch.profilePic]);
+  if (patch.profilePic) publishSavedPictures();
   document.dispatchEvent(new CustomEvent('profiles-loaded'));
 }
 
@@ -119,7 +140,7 @@ async function loadAllDataBody() {
   if (local.accounts.length) {
     applyAccounts(local.accounts);
     applyOverlay();
-    await publishProfilePictures(pictureList(local.accounts));
+    await publishSavedPictures(local.accounts);
     document.dispatchEvent(new CustomEvent('profiles-loaded'));
   }
 
@@ -151,7 +172,7 @@ async function loadAllDataBody() {
     } catch (error) {
       console.warn('settings cache write failed', error);
     }
-    await publishProfilePictures(pictureList(accounts));
+    await publishSavedPictures(accounts);
     document.dispatchEvent(new CustomEvent('profiles-loaded'));
     return snapshot();
   }
