@@ -2554,7 +2554,6 @@ html, body {
   }
 
   #search-bar {
-    --fu: calc(min(78dvw, 42dvh) / 31.25);
     position: fixed;
     inset: 0;
     top: 0;
@@ -2576,15 +2575,6 @@ html, body {
     font-family: Inter, system-ui, sans-serif;
     overflow: hidden;
   }
-  html.feed-app #search-bar {
-    --feed-col-width: 100dvw;
-    --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
-  }
-  @media (orientation: landscape) {
-    html.feed-app #search-bar {
-      --feed-col-width: clamp(40dvw, 46dvw, 46dvw);
-    }
-  }
 
   .search-page-bar {
     flex: 0 0 auto;
@@ -2592,8 +2582,8 @@ html, body {
     align-items: center;
     gap: 8px;
     box-sizing: border-box;
-    height: auto;
-    min-height: max(44px, calc(var(--fu) * 4.5));
+    height: 44px;
+    min-height: 44px;
     margin: 0;
     padding: 0 8px 0 0;
     border-bottom: 0;
@@ -2607,10 +2597,10 @@ html, body {
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
-    width: max(44px, calc(var(--fu) * 4.5));
-    min-width: max(44px, calc(var(--fu) * 4.5));
-    height: max(44px, calc(var(--fu) * 4.5));
-    min-height: max(44px, calc(var(--fu) * 4.5));
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
     margin: 0;
     padding: 0;
     border: 0;
@@ -2623,8 +2613,8 @@ html, body {
   }
 
   #search-back-btn svg {
-    width: calc(var(--fu) * 2.2);
-    height: calc(var(--fu) * 2.2);
+    width: 22px;
+    height: 22px;
     display: block;
     pointer-events: none;
   }
@@ -4089,8 +4079,8 @@ html, body {
   }
 
   .comments-back-button svg {
-    width: calc(var(--u) * 2.2);
-    height: calc(var(--u) * 2.2);
+    width: calc(var(--u) * 1.7);
+    height: calc(var(--u) * 1.7);
     display: block;
     pointer-events: none;
   }
@@ -10992,10 +10982,10 @@ html.is-nav-lock body * {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: max(44px, calc(var(--fu) * 4.5));
-  min-width: max(44px, calc(var(--fu) * 4.5));
-  height: max(44px, calc(var(--fu) * 4.5));
-  min-height: max(44px, calc(var(--fu) * 4.5));
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -11080,10 +11070,10 @@ html.feed-app :is(
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: max(44px, calc(var(--fu) * 4.5));
-  min-width: max(44px, calc(var(--fu) * 4.5));
-  height: max(44px, calc(var(--fu) * 4.5));
-  min-height: max(44px, calc(var(--fu) * 4.5));
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -11102,8 +11092,8 @@ html.feed-app :is(
   #feed-settings > .feed-settings-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar
 ) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back) svg {
-  width: calc(var(--fu) * 2.2);
-  height: calc(var(--fu) * 2.2);
+  width: 22px;
+  height: 22px;
   display: block;
   pointer-events: none;
 }
@@ -11934,8 +11924,8 @@ html.drawer-page .info-overlay {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: max(44px, calc(var(--fu) * 4.5));
-  height: max(44px, calc(var(--fu) * 4.5));
+  width: calc(var(--fu) * 4.5);
+  height: calc(var(--fu) * 4.5);
   margin: 0;
   padding: 0;
   border: 0;
@@ -12341,8 +12331,8 @@ html.drawer-page .info-overlay {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: max(44px, calc(var(--fu) * 4.5));
-  height: max(44px, calc(var(--fu) * 4.5));
+  width: calc(var(--fu) * 4.5);
+  height: calc(var(--fu) * 4.5);
   margin: 0;
   padding: 0;
   border: 0;
@@ -12738,8 +12728,8 @@ html.feed-app #feed-chat > .load-options-page {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: max(44px, calc(var(--fu) * 4.5));
-  height: max(44px, calc(var(--fu) * 4.5));
+  width: calc(var(--fu) * 4.5);
+  height: calc(var(--fu) * 4.5);
   margin: 0;
   padding: 0;
   border: 0;
@@ -13532,17 +13522,17 @@ html.feed-app #feed-chat.is-load > .feed-chat-bar {
   --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
 }
 #feed-chat.is-load > .feed-chat-bar .feed-chat-back {
-  width: max(44px, calc(var(--fu) * 4.5));
-  min-width: max(44px, calc(var(--fu) * 4.5));
-  height: max(44px, calc(var(--fu) * 4.5));
-  min-height: max(44px, calc(var(--fu) * 4.5));
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
   background: none;
 }
 #feed-chat.is-load > .feed-chat-bar .feed-chat-back svg,
 #feed-chat.is-draw > .feed-chat-bar .feed-chat-back svg,
 #feed-chat .load-options-page > .feed-chat-bar .feed-chat-back svg {
-  width: calc(var(--fu) * 2.2);
-  height: calc(var(--fu) * 2.2);
+  width: 22px;
+  height: 22px;
 }
 #feed-chat.is-load > .feed-chat-bar .feed-chat-back:focus {
   outline: none;
@@ -14111,10 +14101,10 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   border-bottom: 1px solid rgba(255, 255, 255, 0.22);
 }
 #feed-chat .load-options-page > .feed-chat-bar .feed-chat-back {
-  width: max(44px, calc(var(--fu) * 4.5));
-  min-width: max(44px, calc(var(--fu) * 4.5));
-  height: max(44px, calc(var(--fu) * 4.5));
-  min-height: max(44px, calc(var(--fu) * 4.5));
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
   background: none;
 }
 #feed-chat .load-options-page > .feed-chat-bar .feed-chat-back:focus {
@@ -14202,10 +14192,10 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   border-bottom: 1px solid rgba(255, 255, 255, 0.22);
 }
 #feed-chat.is-draw > .feed-chat-bar .feed-chat-back {
-  width: max(44px, calc(var(--fu) * 4.5));
-  min-width: max(44px, calc(var(--fu) * 4.5));
-  height: max(44px, calc(var(--fu) * 4.5));
-  min-height: max(44px, calc(var(--fu) * 4.5));
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
   background: none;
 }
 #feed-chat.is-draw > .feed-chat-bar .feed-chat-back:focus {
@@ -17102,10 +17092,10 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: max(44px, calc(var(--fu) * 4.5));
-  min-width: max(44px, calc(var(--fu) * 4.5));
-  height: max(44px, calc(var(--fu) * 4.5));
-  min-height: max(44px, calc(var(--fu) * 4.5));
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
   margin: 0;
   padding: 0;
   border: 0;
