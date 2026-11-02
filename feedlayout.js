@@ -33,7 +33,7 @@ import { payerUsernameNode } from './payerlink.js';
 import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { openPreview } from './fullscreenmedia.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
-import { clearQuery, getQuery, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
+import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -2736,21 +2736,9 @@ function profileLane(list) {
   return out;
 }
 
-function queryHasPredicate() {
-  const query = getQuery();
-  if (String(query.text || '').trim()) return true;
-  const filters = query.filters || {};
-  for (const key of Object.keys(filters)) {
-    const value = filters[key];
-    if (value == null || value === '' || value === false) continue;
-    return true;
-  }
-  return false;
-}
-
 function feedFiltering() {
-  if (queryHasPredicate()) return true;
-  return getQuery().sort !== 'newest';
+  if (isActive()) return true;
+  return sortCmp() != null;
 }
 
 function lane() {
@@ -2766,7 +2754,7 @@ function hitQuery(post) {
   if (!post || !feedFiltering()) return false;
   // Sort is not a predicate. matches() is false when text and filters are
   // both empty, so a sort-only query keeps every loaded post and orders it.
-  if (!queryHasPredicate()) return true;
+  if (!isActive()) return true;
   return matches(post, recordFor(post) || {});
 }
 
@@ -3902,8 +3890,10 @@ function syncFilterControls() {
 
 function syncSearchChrome() {
   const pageOpen = !searchPage.hidden;
-  toolbar.classList.toggle('has-search-query', feedFiltering() && !pageOpen);
+  const filtered = feedFiltering() && !pageOpen;
+  toolbar.classList.toggle('has-search-query', filtered);
   searchBtnFeed.setAttribute('aria-expanded', pageOpen ? 'true' : 'false');
+  searchBtnFeed.setAttribute('aria-label', filtered ? 'Search, filtered' : 'Search');
   const text = getQuery().text;
   if (searchInput.value !== text) searchInput.value = text;
   searchClear.hidden = searchInput.value.length === 0;
@@ -4085,6 +4075,7 @@ function closeSearchPage() {
   if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedsearch')) {
     window.layerClosedByUI('feedsearch');
   }
+  searchBtnFeed.focus({ preventScroll: true });
 }
 
 function openSearch() {

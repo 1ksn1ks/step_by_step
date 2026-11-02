@@ -15,12 +15,37 @@ function snapshot() {
   return { text: state.text, filters: { ...state.filters }, sort: state.sort };
 }
 
+// Rebuilt when the query changes and when a filter function is registered
+// or dropped. matches() reads these instead of walking the query per post.
+let cachedNeedle = '';
+let cachedFilters = [];
+
+function rebuildQuery() {
+  cachedNeedle = state.text.trim().toLowerCase();
+  const next = [];
+  for (const key of Object.keys(state.filters)) {
+    const value = state.filters[key];
+    if (value == null || value === '' || value === false) continue;
+    const fn = fns.get(key);
+    if (typeof fn !== 'function') continue;
+    next.push([fn, value]);
+  }
+  cachedFilters = next;
+}
+
 function emit() {
+  rebuildQuery();
   const query = snapshot();
   for (const fn of listeners) fn(query);
   const host = typeof globalThis.window !== 'undefined' ? globalThis.window : null;
   if (!host || typeof host.dispatchEvent !== 'function' || typeof CustomEvent !== 'function') return;
   host.dispatchEvent(new CustomEvent('feed-search', { detail: query }));
+}
+
+// Search text, or a filter that has a function and a value. An unregistered
+// key and a non-newest sort are not active.
+export function isActive() {
+  return cachedNeedle.length > 0 || cachedFilters.length > 0;
 }
 
 export function getQuery() {
@@ -80,38 +105,25 @@ export function clearQuery() {
 export function registerFilter(key, fn) {
   if (typeof fn === 'function') fns.set(key, fn);
   else fns.delete(key);
-}
-
-function activeFilters() {
-  const out = [];
-  for (const key of Object.keys(state.filters)) {
-    const value = state.filters[key];
-    if (value == null || value === '' || value === false) continue;
-    const fn = fns.get(key);
-    if (typeof fn !== 'function') continue;
-    out.push([fn, value]);
-  }
-  return out;
+  rebuildQuery();
 }
 
 export function matches(post, record) {
   if (!post) return false;
-  const needle = state.text.trim().toLowerCase();
   const rec = record || {};
-  if (needle) {
+  if (cachedNeedle) {
     const parts = [textOf(rec.msg), rec.title, rec.username, rec.payer, rec.payerInfo, post.payer];
     let hit = false;
     for (const part of parts) {
-      if (part != null && String(part).toLowerCase().includes(needle)) {
+      if (part != null && String(part).toLowerCase().includes(cachedNeedle)) {
         hit = true;
         break;
       }
     }
     if (!hit) return false;
   }
-  const filters = activeFilters();
-  if (!needle && !filters.length) return false;
-  for (const [fn, value] of filters) {
+  if (!cachedNeedle && !cachedFilters.length) return false;
+  for (const [fn, value] of cachedFilters) {
     if (!fn(post, rec, value)) return false;
   }
   return true;

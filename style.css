@@ -9415,6 +9415,12 @@ html.feed-app appkit-modal {
   position: relative;
   z-index: 9100;
 }
+/* Post settings stay at 1008 on the map. While the feed covers, the same
+   card has to clear this screen, including the search page inside it. */
+html.feed-app #popup-settings-backdrop,
+html.feed-app #popup-settings-card {
+  z-index: 8800 !important;
+}
 .feed-dim {
   position: absolute;
   inset: 0;
@@ -9726,6 +9732,7 @@ html.feed-app appkit-modal {
 }
 #feed-search-clear {
   appearance: none;
+  position: relative;
   flex: 0 0 auto;
   align-self: center;
   display: flex;
@@ -9742,6 +9749,15 @@ html.feed-app appkit-modal {
   color: #fff;
   cursor: pointer;
   touch-action: manipulation;
+}
+#feed-search-clear::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(44px, calc(var(--map-pill-h) * 0.7));
+  height: max(44px, calc(var(--map-pill-h) * 0.7));
+  transform: translate(-50%, -50%);
 }
 #feed-search-clear[hidden] {
   display: none;
@@ -12050,7 +12066,7 @@ html.drawer-page .info-overlay {
   top: 0;
   bottom: 0;
   left: 50%;
-  z-index: 5;
+  z-index: 7;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -13287,7 +13303,7 @@ html.feed-app #feed-chat > .load-options-page {
   top: 0;
   bottom: 0;
   left: 50%;
-  z-index: 6;
+  z-index: 7;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;

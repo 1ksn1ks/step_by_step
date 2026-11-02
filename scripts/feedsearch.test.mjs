@@ -1,7 +1,7 @@
 // Feed query state. No DOM and no feedlayout import.
 import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { clearQuery, getQuery, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from "../feedsearch.js";
+import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from "../feedsearch.js";
 
 beforeEach(() => {
   clearQuery();
@@ -168,4 +168,34 @@ test("several filters AND with text, setText keeps them, clearQuery resets sort"
   } finally {
     stop();
   }
+});
+
+test("an unregistered filter key does not count as filtering or hide posts", () => {
+  setFilter("nope", true);
+  setSort("oldest");
+  assert.equal(isActive(), false);
+  assert.equal(getQuery().filters.nope, true);
+  const posts = [
+    [{ payer: "0.0.1", kind: "marker" }, { title: "Moon" }],
+    [{ payer: "0.0.2", kind: "chat" }, { msg: ["hello", "there"] }],
+    [{ payer: "0.0.3" }, { username: "ada" }],
+  ];
+  for (const [item, record] of posts) {
+    assert.equal(isActive() && !matches(item, record), false);
+  }
+  setText("moon");
+  assert.equal(isActive(), true);
+  assert.equal(matches(posts[0][0], posts[0][1]), true);
+  setText("   ");
+  assert.equal(isActive(), false);
+  assert.equal(isActive() && !matches(posts[0][0], posts[0][1]), false);
+  setText("");
+  registerFilter("kind", (item, _record, value) => item.kind === value);
+  setFilter("kind", "marker");
+  assert.equal(isActive(), true);
+  assert.equal(matches(posts[0][0], { title: "sun" }), true);
+  assert.equal(matches(posts[1][0], posts[1][1]), false);
+  setFilter("kind", false);
+  assert.equal(isActive(), false);
+  assert.equal(getQuery().filters.nope, true);
 });
