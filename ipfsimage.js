@@ -1,10 +1,13 @@
 // Profile pictures and NFT images are often IPFS. Filebase is tried
-// first; a failure or a 4s stall walks the rest. w3s.link only redirects
-// to dweb.link, and that redirect sends no CORS header, so a canvas draw
-// fails. nftstorage.link redirects the same way. Neither is a candidate.
-// gateway.lighthouse.storage answers 402. Those links are rewritten onto
-// the first gateway. Plain <img> tags do not need CORS; crossOrigin stays
-// only on images that draw into a canvas (those set data-canvas-image).
+// first; a failure or a stall walks the rest. A fast link gets 4s and a
+// slow one 10s. The last gateway is not timed out. A lazy image waits
+// until it nears the viewport, so an off-screen card does not burn a
+// gateway. w3s.link only redirects to dweb.link, and that redirect sends
+// no CORS header, so a canvas draw fails. nftstorage.link redirects the
+// same way. Neither is a candidate. gateway.lighthouse.storage answers
+// 402. Those links are rewritten onto the first gateway. Plain <img> tags
+// do not need CORS; crossOrigin stays only on images that draw into a
+// canvas (those set data-canvas-image).
 
 const GATEWAYS = [
   'https://ipfs.filebase.io/ipfs/',
@@ -15,7 +18,14 @@ const GATEWAYS = [
 ];
 
 export const IPFS_ATTEMPT_MS = 4000;
+export const IPFS_SLOW_ATTEMPT_MS = 10000;
+// Chromium starts a lazy fetch about this far from the viewport.
+const LAZY_NEAR_MARGIN = '1250px';
+const SLOW_TYPES = new Set(['slow-2g', '2g', '3g']);
 const attemptTimers = new WeakMap();
+const lazyWaiting = new WeakSet();
+const lazyNear = new WeakSet();
+let nearObserver = null;
 
 // Hosts that should not be fetched as-is. A hit is loaded from GATEWAYS[0].
 const REWRITE_HOSTS = ['ipfs.io', 'dweb.link', 'w3s.link', 'nftstorage.link', 'lighthouse.storage'];
@@ -114,20 +124,78 @@ export function advanceIpfsImage(img) {
   return false;
 }
 
-export function clearIpfsAttempt(img) {
-  const timer = attemptTimers.get(img);
-  if (timer == null) return;
-  clearTimeout(timer);
-  attemptTimers.delete(img);
+function hasAnotherGateway(img, src) {
+  // Same walk as advanceIpfsImage, without changing the image.
+  const host = hostOf(src);
+  const tried = new Set(((img.dataset && img.dataset.ipfsTried) || '').split(' ').filter(Boolean));
+  tried.add(host);
+  const start = GATEWAYS.findIndex((base) => hostOf(base) === host);
+  for (let step = 1; step <= GATEWAYS.length; step += 1) {
+    const index = (start < 0 ? step - 1 : start + step) % GATEWAYS.length;
+    const nextHost = hostOf(GATEWAYS[index]);
+    if (nextHost && !tried.has(nextHost)) return true;
+  }
+  return false;
 }
 
-// One gateway at a time. A load or an error drops the timer; if the image
-// is still pending when it fires, this attempt ends the same way an error does.
+function attemptDelay() {
+  const conn = typeof navigator !== 'undefined' ? navigator.connection : null;
+  if (!conn) return IPFS_ATTEMPT_MS;
+  if (conn.saveData || SLOW_TYPES.has(conn.effectiveType)) return IPFS_SLOW_ATTEMPT_MS;
+  return IPFS_ATTEMPT_MS;
+}
+
+function isLazy(img) {
+  if (img.loading === 'lazy') return true;
+  return typeof img.getAttribute === 'function' && img.getAttribute('loading') === 'lazy';
+}
+
+function ensureNearObserver() {
+  if (nearObserver) return nearObserver;
+  if (typeof IntersectionObserver !== 'function') return null;
+  nearObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      const waiting = entry.target;
+      if (!entry.isIntersecting || !lazyWaiting.has(waiting)) continue;
+      lazyWaiting.delete(waiting);
+      lazyNear.add(waiting);
+      nearObserver.unobserve(waiting);
+      armIpfsAttempt(waiting);
+    }
+  }, { rootMargin: LAZY_NEAR_MARGIN });
+  return nearObserver;
+}
+
+function watchUntilNear(img) {
+  const observer = ensureNearObserver();
+  if (!observer) return;
+  lazyWaiting.add(img);
+  observer.observe(img);
+}
+
+export function clearIpfsAttempt(img) {
+  const timer = attemptTimers.get(img);
+  if (timer != null) {
+    clearTimeout(timer);
+    attemptTimers.delete(img);
+  }
+  if (!img) return;
+  lazyWaiting.delete(img);
+  if (nearObserver) nearObserver.unobserve(img);
+}
+
+// One gateway at a time. A load or an error drops the timer. A lazy image
+// is not timed until it nears the viewport, and the last gateway is left
+// to finish. A stall before that ends the attempt the same way an error does.
 export function armIpfsAttempt(img) {
   clearIpfsAttempt(img);
   if (!img || img.complete) return;
   const src = img.currentSrc || img.src || (img.getAttribute && img.getAttribute('src')) || '';
-  if (!ipfsParts(src)) return;
+  if (!ipfsParts(src) || !hasAnotherGateway(img, src)) return;
+  if (isLazy(img) && !lazyNear.has(img)) {
+    watchUntilNear(img);
+    return;
+  }
   const timer = setTimeout(() => {
     attemptTimers.delete(img);
     const current = img.currentSrc || img.src || '';
@@ -137,7 +205,7 @@ export function armIpfsAttempt(img) {
       return;
     }
     advanceIpfsImage(img);
-  }, IPFS_ATTEMPT_MS);
+  }, attemptDelay());
   if (timer && typeof timer.unref === 'function') timer.unref();
   attemptTimers.set(img, timer);
 }

@@ -2,7 +2,7 @@
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { advanceIpfsImage, armIpfsAttempt, clearIpfsAttempt, IPFS_ATTEMPT_MS, preferGateway } from "../ipfsimage.js";
+import { advanceIpfsImage, armIpfsAttempt, clearIpfsAttempt, IPFS_ATTEMPT_MS, IPFS_SLOW_ATTEMPT_MS, preferGateway } from "../ipfsimage.js";
 
 const CID = "Qm" + "a".repeat(44);
 const CIDV1 = "bafy" + "a".repeat(48);
@@ -150,5 +150,123 @@ test("a gateway that is still loading steps on after 4 seconds", () => {
     assert.equal(new URL(canvas.src).host, "gateway.pinata.cloud");
   } finally {
     mock.timers.reset();
+  }
+});
+
+test("a lazy off-screen image waits until it nears the viewport", () => {
+  const seen = [];
+  class FakeIO {
+    constructor(callback, options) {
+      this.callback = callback;
+      this.options = options;
+      seen.push(this);
+    }
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  const previous = globalThis.IntersectionObserver;
+  globalThis.IntersectionObserver = FakeIO;
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const img = fakeImg(FIRST + "/lazy.png");
+    img.complete = false;
+    img.loading = "lazy";
+    armIpfsAttempt(img);
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].options.rootMargin, "1250px");
+    mock.timers.tick(IPFS_SLOW_ATTEMPT_MS);
+    assert.equal(new URL(img.src).host, "ipfs.filebase.io");
+    seen[0].callback([{ isIntersecting: false, target: img }]);
+    mock.timers.tick(IPFS_SLOW_ATTEMPT_MS);
+    assert.equal(new URL(img.src).host, "ipfs.filebase.io");
+    seen[0].callback([{ isIntersecting: true, target: img }]);
+    mock.timers.tick(IPFS_ATTEMPT_MS - 1);
+    assert.equal(new URL(img.src).host, "ipfs.filebase.io");
+    mock.timers.tick(1);
+    assert.equal(new URL(img.src).host, "gateway.pinata.cloud");
+
+    const parked = fakeImg(FIRST + "/parked.png");
+    parked.complete = false;
+    parked.loading = "lazy";
+    armIpfsAttempt(parked);
+    clearIpfsAttempt(parked);
+    seen[0].callback([{ isIntersecting: true, target: parked }]);
+    mock.timers.tick(IPFS_SLOW_ATTEMPT_MS);
+    assert.equal(new URL(parked.src).host, "ipfs.filebase.io");
+  } finally {
+    mock.timers.reset();
+    if (previous === undefined) delete globalThis.IntersectionObserver;
+    else globalThis.IntersectionObserver = previous;
+  }
+});
+
+test("the last gateway is not timed out", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const img = fakeImg("https://dweb.link/ipfs/" + CID + "/last.png");
+    img.complete = false;
+    img.dataset.ipfsCid = CID + "/last.png";
+    img.dataset.ipfsTried = ORDER.slice(0, -1).join(" ");
+    armIpfsAttempt(img);
+    mock.timers.tick(IPFS_SLOW_ATTEMPT_MS);
+    assert.equal(new URL(img.src).host, "dweb.link");
+
+    const canvas = fakeImg("https://dweb.link/ipfs/" + CID + "/canvas.png");
+    canvas.complete = false;
+    canvas.dataset.canvasImage = "1";
+    canvas.dataset.ipfsCid = CID + "/canvas.png";
+    canvas.dataset.ipfsTried = ORDER.slice(0, -1).join(" ");
+    let errors = 0;
+    canvas.onerror = () => {
+      errors += 1;
+    };
+    armIpfsAttempt(canvas);
+    mock.timers.tick(IPFS_SLOW_ATTEMPT_MS);
+    assert.equal(errors, 0);
+    assert.equal(new URL(canvas.src).host, "dweb.link");
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("a slow connection allows 10 seconds per gateway", () => {
+  assert.equal(IPFS_SLOW_ATTEMPT_MS, 10000);
+  const cases = [
+    { effectiveType: "slow-2g" },
+    { effectiveType: "2g" },
+    { effectiveType: "3g" },
+    { effectiveType: "4g", saveData: true },
+  ];
+  const nav = globalThis.navigator;
+  const had = Object.prototype.hasOwnProperty.call(nav, "connection");
+  const previous = nav.connection;
+  try {
+    for (const conn of cases) {
+      mock.timers.reset();
+      mock.timers.enable({ apis: ["setTimeout"] });
+      Object.defineProperty(nav, "connection", { configurable: true, value: conn });
+      const img = fakeImg(FIRST + "/" + (conn.effectiveType || "save") + ".png");
+      img.complete = false;
+      armIpfsAttempt(img);
+      mock.timers.tick(IPFS_ATTEMPT_MS);
+      assert.equal(new URL(img.src).host, "ipfs.filebase.io", conn.effectiveType || "saveData");
+      mock.timers.tick(IPFS_SLOW_ATTEMPT_MS - IPFS_ATTEMPT_MS);
+      assert.equal(new URL(img.src).host, "gateway.pinata.cloud", conn.effectiveType || "saveData");
+    }
+    mock.timers.reset();
+    mock.timers.enable({ apis: ["setTimeout"] });
+    Object.defineProperty(nav, "connection", { configurable: true, value: { effectiveType: "4g" } });
+    const fast = fakeImg(FIRST + "/4g.png");
+    fast.complete = false;
+    armIpfsAttempt(fast);
+    mock.timers.tick(IPFS_ATTEMPT_MS - 1);
+    assert.equal(new URL(fast.src).host, "ipfs.filebase.io");
+    mock.timers.tick(1);
+    assert.equal(new URL(fast.src).host, "gateway.pinata.cloud");
+  } finally {
+    mock.timers.reset();
+    if (had) Object.defineProperty(nav, "connection", { configurable: true, value: previous });
+    else delete nav.connection;
   }
 });
