@@ -65,9 +65,9 @@ function createEl(tag, sink) {
       el.focusOpts = opts || null;
       if (sink) sink.current = el;
     },
-    replaceChildren(child) {
-      el.children = [child];
-      el.textContent = child.textContent || "";
+    replaceChildren(...nodes) {
+      el.children = nodes.filter(Boolean);
+      el.textContent = el.children.map((child) => child.textContent || "").join("");
     },
     appendChild(child) {
       el.children.push(child);
@@ -211,6 +211,67 @@ test("ArrowDown does nothing when there is no selectable row", () => {
   assert.equal(api.focusFirstResult(down), false);
   assert.equal(down.prevented, false);
   assert.equal(place.focused, false);
+});
+
+function loadPlaceApi() {
+  const sink = { current: null };
+  return new Function(
+    "document",
+    `${["foldPlaceName", "placeSuggestion", "fillPlaceLabel"].map(readFn).join("\n")}\nreturn { placeSuggestion, fillPlaceLabel };`,
+  )({ createElement: (tag) => createEl(tag, sink) });
+}
+
+test("a different native name is shown and an identical one is not", () => {
+  const api = loadPlaceApi();
+  const different = api.placeSuggestion({
+    display_name: "Munich, Bavaria, Germany",
+    namedetails: { name: "München" },
+  });
+  assert.equal(different.native, "München");
+  assert.equal(different.text, "Munich München, Bavaria, Germany");
+  assert.ok(different.text.length > "Munich, Bavaria, Germany".length);
+
+  const label = createEl("span");
+  api.fillPlaceLabel(label, different);
+  const mark = label.children.find((child) => String(child.className).includes("search-result-native"));
+  assert.ok(mark);
+  assert.equal(mark.textContent, "München");
+  assert.equal(label.textContent, "Munich München, Bavaria, Germany");
+
+  const same = api.placeSuggestion({
+    display_name: "Munich, Bavaria, Germany",
+    namedetails: { name: "Munich" },
+  });
+  assert.equal(same.native, "");
+  assert.equal(same.text, "Munich, Bavaria, Germany");
+  const plain = createEl("span");
+  api.fillPlaceLabel(plain, same);
+  assert.equal(plain.textContent, "Munich, Bavaria, Germany");
+  assert.equal(plain.children.some((child) => String(child.className).includes("search-result-native")), false);
+
+  const accent = api.placeSuggestion({
+    display_name: "Zurich, Switzerland",
+    namedetails: { name: "Zürich" },
+  });
+  assert.equal(accent.native, "");
+  const capital = api.placeSuggestion({
+    display_name: "Zagreb, Croatia",
+    namedetails: { name: "ZAGREB" },
+  });
+  assert.equal(capital.native, "");
+
+  assert.match(source, /namedetails=1/);
+  assert.match(source, /accept-language=en/);
+  assert.match(source, /addressdetails=1/);
+  assert.match(source, /suggestion\.text\.length/);
+  assert.match(source, /fillPlaceLabel\(label, suggestion\)/);
+  assert.match(source, /r\.display_name\.split\(','\)\[0\]/);
+  assert.match(source, /r\.address && r\.address\.country/);
+  const nativeAt = css.indexOf(".search-result-native");
+  assert.notEqual(nativeAt, -1);
+  assert.match(css.slice(nativeAt, nativeAt + 80), /color:\s*rgba\(255,\s*255,\s*255,\s*0\.45\)/);
+  const emptyAt = css.indexOf(".search-empty");
+  assert.match(css.slice(emptyAt, emptyAt + 180), /color:\s*rgba\(255,\s*255,\s*255,\s*0\.45\)/);
 });
 
 test("result rows keep their size and use the cyan focus ring", () => {

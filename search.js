@@ -151,6 +151,47 @@ function focusFirstResult(event) {
   return true;
 }
 
+function foldPlaceName(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+// English display_name stays the row. A native name is added only when
+// namedetails.name is not the same word as the first part (case and accents).
+function placeSuggestion(result) {
+  const display = String((result && result.display_name) || "");
+  const comma = display.indexOf(",");
+  const head = comma === -1 ? display : display.slice(0, comma);
+  const tail = comma === -1 ? "" : display.slice(comma);
+  const raw = result && result.namedetails ? result.namedetails.name : "";
+  const native = String(raw == null ? "" : raw).trim();
+  if (!native || foldPlaceName(native) === foldPlaceName(head.trim())) {
+    return { text: display, native: "", head, tail };
+  }
+  return { text: `${head} ${native}${tail}`, native, head, tail };
+}
+
+function fillPlaceLabel(label, suggestion) {
+  if (!suggestion || !suggestion.native) {
+    label.textContent = suggestion ? suggestion.text : "";
+    return;
+  }
+  const head = document.createElement("span");
+  head.textContent = `${suggestion.head} `;
+  const mark = document.createElement("span");
+  mark.className = "search-result-native";
+  mark.textContent = suggestion.native;
+  if (!suggestion.tail) {
+    label.replaceChildren(head, mark);
+    return;
+  }
+  const tail = document.createElement("span");
+  tail.textContent = suggestion.tail;
+  label.replaceChildren(head, mark, tail);
+}
+
 function showResults(results, query) {
   if (results.length === 0) {
     const item = document.createElement('div');
@@ -167,9 +208,14 @@ function showResults(results, query) {
 
   searchResults.setAttribute('role', 'listbox');
   searchResults.innerHTML = '';
+  let longest = 0;
   for (const r of results) {
+    const suggestion = placeSuggestion(r);
+    longest = Math.max(longest, suggestion.text.length);
     const item = document.createElement('div');
-    paintResultItem(item, r.display_name, 'place');
+    paintResultItem(item, suggestion.text, 'place');
+    const label = item.querySelector('.search-result-label');
+    if (label) fillPlaceLabel(label, suggestion);
     item.addEventListener('click', (e) => {
       // Don't let this click reach the map's "tap outside closes the pin"
       // listeners, or the freshly dropped search pin would vanish at once
@@ -199,11 +245,8 @@ function showResults(results, query) {
     bindResultKeys(item);
     searchResults.appendChild(item);
   }
-  // While suggestions are visible, size the input to the longest one
-  let longest = 0;
-  for (const r of results) {
-    longest = Math.max(longest, r.display_name.length);
-  }
+  // While suggestions are visible, size the input to the longest one,
+  // including a native name shown beside the English place.
   searchInput.size = Math.max(searchInput.value.length + 1, longest + 1, 20);
   searchResults.style.display = 'block';
   const firstPlace = resultOptions()[0];
@@ -216,6 +259,8 @@ async function doSearch(query) {
     // addressdetails=1 → r.address.country for the local-news view;
     // accept-language=en → country names in English, matching the backend's
     // (also English) reverse-geocode so the two sides always agree;
+    // namedetails=1 → r.namedetails.name, shown beside the English name
+    // when the two differ;
     // viewbox → bias results toward what's currently on screen, so "Athens"
     // means Athens, Greece when you're looking at Europe (skipped when the
     // whole globe is visible — there's no context to bias by).
@@ -227,7 +272,7 @@ async function doSearch(query) {
     ) {
       viewbox = `&viewbox=${b.west},${b.south},${b.east},${b.north}`;
     }
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=10&addressdetails=1&accept-language=en&q=${encodeURIComponent(query)}${viewbox}`;
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=10&addressdetails=1&accept-language=en&namedetails=1&q=${encodeURIComponent(query)}${viewbox}`;
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if (!res.ok) return;
     const data = await res.json();

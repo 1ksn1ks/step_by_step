@@ -2839,6 +2839,10 @@ html, body {
     text-align: left;
   }
 
+  .search-result-native {
+    color: rgba(255, 255, 255, 0.45);
+  }
+
   #search-bar .search-result-item:last-child {
     background-image: none;
   }
