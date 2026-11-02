@@ -3656,6 +3656,24 @@ html, body {
     touch-action: pan-y;
 }
 
+/* The message column takes the spare room. The picture keeps its size,
+   and the text bubble fills whatever is left down to the action row. */
+.maplibregl-map .popup-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.maplibregl-map .popup-body > .popup-media-card {
+    flex: 0 0 auto;
+}
+.maplibregl-map .popup-body > div:not(.popup-media-card) {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
 .popup-nav,
 .popup-dock,
 .popup-top-row,
@@ -3675,10 +3693,14 @@ html, body {
     margin: 0 calc(var(--u) * -0.5) calc(var(--u) * 0.25);
 }
 
-/* Takes the spare room so the hearts and the topic stay on the bottom.
-   The title and the picture stay above it. */
+/* The message bubble now takes the spare room. This spacer no longer
+   grows, so the hearts stay just under the bubble. */
 .popup-gap {
     flex: 1 1 auto;
+    min-height: 0;
+}
+.maplibregl-map .popup-gap {
+    flex: 0 0 auto;
     min-height: 0;
 }
 
@@ -3980,6 +4002,22 @@ html, body {
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+  /* Full-screen popup column. Same side inset as the title pill. The
+     box fills down to the action row; short text stays at the top, and
+     only a longer message scrolls. Feed cards keep the rule above. */
+  .maplibregl-map .popup-text-bubble {
+    box-sizing: border-box;
+    flex: 1 1 auto;
+    align-self: stretch;
+    width: calc(100% - var(--u));
+    max-width: none;
+    min-height: 0;
+    max-height: none;
+    margin-top: calc(var(--u) * 0.25);
+    margin-right: calc(var(--u) * 0.5);
+    margin-bottom: 0;
+    margin-left: calc(var(--u) * 0.5);
   }
 
   /* Glass × — same bubble height as the bottom .popup-icon-chip */
@@ -7490,13 +7528,14 @@ a.payer-link {
   .maplibregl-map .popup-body > div:not(.popup-media-card) {
     grid-column: 2;
     grid-row: 4;
+    display: flex;
+    flex-direction: column;
     min-width: 0;
     min-height: 0;
     max-height: 100%;
     margin-top: calc(var(--u) * 0.8);
     align-self: stretch;
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow: hidden;
     overscroll-behavior: contain;
     touch-action: pan-y;
   }
@@ -7517,11 +7556,14 @@ a.payer-link {
 
   .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-text-bubble {
     box-sizing: border-box;
-    width: 100%;
+    width: calc(100% - var(--u));
     flex: 1 1 auto;
     min-height: 0;
-    margin: 0;
-    max-height: 100%;
+    margin-top: calc(var(--u) * 0.25);
+    margin-right: calc(var(--u) * 0.5);
+    margin-bottom: 0;
+    margin-left: calc(var(--u) * 0.5);
+    max-height: none;
     overflow-y: auto;
     overscroll-behavior: contain;
   }
@@ -7572,12 +7614,18 @@ a.payer-link {
   }
 
   .maplibregl-map .popup-text-bubble {
-    width: fit-content;
-    max-width: 100%;
+    width: calc(100% - var(--u));
+    max-width: none;
     max-height: none;
     box-sizing: border-box;
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-top: calc(var(--u) * 0.25);
+    margin-right: calc(var(--u) * 0.5);
+    margin-bottom: 0;
+    margin-left: calc(var(--u) * 0.5);
     overflow-x: hidden;
-    overflow-y: visible;
+    overflow-y: auto;
     overflow-wrap: anywhere;
     font-size: calc(var(--u) * 2 * var(--popup-font-scale, 1));
     line-height: 1.35;
