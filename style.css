@@ -9657,48 +9657,84 @@ html.feed-app appkit-modal {
   border: calc(var(--fu) * 0.1) solid var(--ring-border);
   pointer-events: none;
 }
+/* Sits on the ring's top-right. ::before is the ring, so the dot is ::after. */
+#feed-toolbar.has-search-query #feed-search-btn::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 12%;
+  right: 12%;
+  width: calc(var(--map-pill-h) * 0.18);
+  height: calc(var(--map-pill-h) * 0.18);
+  border-radius: 50%;
+  background: #22D3EE;
+  pointer-events: none;
+}
 #feed-search-input {
   appearance: none;
+  -webkit-appearance: none;
   flex: 1 1 auto;
+  align-self: stretch;
   min-width: 0;
-  height: calc(var(--map-pill-h) * 0.9);
+  height: 100%;
   margin: 0;
-  padding: 0 calc(var(--fu) * 1.2);
+  padding: 0 calc(var(--map-pill-h) * 0.28);
   box-sizing: border-box;
-  border: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
-  border-radius: calc(var(--fu) * 2.2);
-  background: rgba(255, 255, 255, 0.06);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   color: #fff;
   font-family: Inter, system-ui, sans-serif;
   font-size: calc(var(--map-pill-h) * 0.42);
   font-weight: 500;
   line-height: normal;
+  outline: none;
 }
 #feed-search-input::placeholder {
   color: rgba(255, 255, 255, 0.45);
 }
+#feed-search-input:focus,
 #feed-search-input:focus-visible {
-  outline: calc(var(--fu) * 0.12) solid #22D3EE;
-  outline-offset: calc(var(--fu) * 0.1);
+  outline: none;
 }
 .feed-search-field {
+  position: relative;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: calc(var(--fu) * 0.4);
+  gap: 0;
   box-sizing: border-box;
-  padding: calc(var(--fu) * 0.8) calc(var(--fu) * 1.1);
+  height: calc(var(--map-pill-h) * 0.9);
+  margin: calc(var(--fu) * 0.8) calc(var(--fu) * 0.8) calc(var(--fu) * 0.6);
+  padding: 0 calc(var(--fu) * 0.35) 0 calc(var(--fu) * 0.7);
+  border: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
+  border-radius: calc(var(--map-pill-h) * 0.45);
+  background: rgba(255, 255, 255, 0.06);
+}
+.feed-search-field::before {
+  content: "";
+  flex: 0 0 auto;
+  width: calc(var(--map-pill-h) * 0.42);
+  height: calc(var(--map-pill-h) * 0.42);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") center / contain no-repeat;
+  pointer-events: none;
+}
+.feed-search-field:focus-within {
+  outline: calc(var(--fu) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--fu) * 0.1);
 }
 #feed-search-clear {
   appearance: none;
   flex: 0 0 auto;
+  align-self: center;
   display: flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: calc(var(--map-pill-h) * 0.9);
-  height: calc(var(--map-pill-h) * 0.9);
-  margin: 0;
+  width: calc(var(--map-pill-h) * 0.7);
+  height: calc(var(--map-pill-h) * 0.7);
+  margin: 0 0 0 calc(var(--fu) * 0.15);
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -9711,39 +9747,50 @@ html.feed-app appkit-modal {
   display: none;
 }
 #feed-search-clear svg {
-  width: calc(var(--map-pill-h) * 0.36);
-  height: calc(var(--map-pill-h) * 0.36);
+  width: calc(var(--map-pill-h) * 0.42);
+  height: calc(var(--map-pill-h) * 0.42);
   display: block;
   pointer-events: none;
+}
+#feed-search-clear:is(:hover, :active, .is-hold) {
+  color: #22D3EE;
+  background: transparent;
+}
+#feed-search-clear:focus {
+  outline: none;
 }
 #feed-search-clear:focus-visible {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.1);
 }
+/* Full viewport. --fu stays the column unit in the feed and the drawer
+   unit otherwise, so the pill matches the CREATE header. The page is not
+   a size container: cards keep the column width on the results host. */
 #feed-search-page {
   --feed-zoom: 1;
-  --feed-unit: calc(min(100dvw, var(--feed-col-width)) * 0.024);
+  --feed-unit: calc(min(78dvw, 42dvh) / 31.25);
   --fu: var(--feed-unit);
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
+  position: fixed;
+  inset: 0;
   z-index: 6;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  width: min(100dvw, var(--feed-col-width));
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
   margin: 0;
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  overflow: hidden;
   background: #0a0a12;
   color: #fff;
   font-family: Inter, system-ui, sans-serif;
-  transform: translateX(-50%);
-  container-type: inline-size;
-  container-name: feedsearch;
 }
-#feed-search-page > * {
-  --feed-zoom: 1;
-  --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi));
+html.feed-app #feed-search-page {
+  --feed-unit: calc(min(100dvw, var(--feed-col-width)) * 0.024);
   --fu: var(--feed-unit);
 }
 #feed-search-page[hidden] {
@@ -9752,16 +9799,45 @@ html.feed-app appkit-modal {
 .feed-search-body {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
 #feed-search-filters {
   flex: 0 0 auto;
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: center;
+  gap: calc(var(--fu) * 0.6);
+  box-sizing: border-box;
+  min-width: 0;
+  margin: 0 calc(var(--fu) * 0.8) calc(var(--fu) * 0.6);
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+#feed-search-filters::-webkit-scrollbar {
+  display: none;
+}
+#feed-search-filters:empty {
+  display: none;
+  height: 0;
+  margin: 0;
+  padding: 0;
+}
+#feed-search-filters > * {
+  flex: 0 0 auto;
 }
 #feed-search-results {
   position: relative;
   flex: 1 1 auto;
+  align-self: center;
+  width: min(100%, var(--feed-col-width));
   min-height: 0;
+  container-type: inline-size;
+  container-name: feedsearch;
 }
 #feed-search-results > #feed-scroll {
   top: 0;
@@ -12634,6 +12710,10 @@ html.drawer-page .info-overlay {
     background-color: transparent;
     border-color: transparent;
     color: #fff;
+  }
+  #feed-search-clear:hover:not(.is-hold) {
+    color: #fff;
+    background: transparent;
   }
   #feed-post-btn:hover:not(.is-hold) {
     --ring-bg: rgba(10, 10, 18, 0.88);
