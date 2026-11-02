@@ -9380,6 +9380,7 @@ html.feed-app appkit-modal {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+  isolation: isolate;
   --ring-bg: rgba(10, 10, 18, 0.88);
   --ring-border: rgba(255, 255, 255, 0.25);
   background-color: transparent;
@@ -9496,6 +9497,7 @@ html.feed-app appkit-modal {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+  isolation: isolate;
   --ring-bg: rgba(10, 10, 18, 0.88);
   --ring-border: rgba(255, 255, 255, 0.25);
   background-color: transparent;
@@ -9547,6 +9549,7 @@ html.feed-app appkit-modal {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+  isolation: isolate;
   --ring-bg: rgba(10, 10, 18, 0.88);
   --ring-border: #22D3EE;
   background-color: transparent;
@@ -9583,6 +9586,7 @@ html.feed-app appkit-modal {
 #feed-post-btn::before {
   content: "";
   position: absolute;
+  z-index: -1;
   inset: 10%;
   box-sizing: border-box;
   border-radius: 50%;
