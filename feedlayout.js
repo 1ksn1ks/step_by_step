@@ -447,22 +447,13 @@ searchResults.id = 'feed-search-results';
 searchBody.append(searchField, searchFilters, searchResults);
 const filterBackdrop = document.createElement('div');
 filterBackdrop.id = 'feed-filter-backdrop';
-// Absolute only so a click can hit the backdrop. The look is a later pass.
+// display is the open/close switch. Placement and glass live in CSS.
 filterBackdrop.style.display = 'none';
-filterBackdrop.style.position = 'absolute';
-filterBackdrop.style.inset = '0';
 const filterCard = document.createElement('div');
 filterCard.id = 'feed-filter-card';
 filterCard.setAttribute('role', 'dialog');
 filterCard.setAttribute('aria-label', 'Filters');
 filterCard.style.display = 'none';
-filterCard.style.position = 'absolute';
-filterCard.style.zIndex = '1';
-filterCard.style.top = '0';
-filterCard.style.left = '0';
-filterCard.style.right = '0';
-filterCard.style.maxHeight = '80%';
-filterCard.style.overflow = 'auto';
 const filterClose = document.createElement('button');
 filterClose.type = 'button';
 filterClose.className = 'panel-close-btn';
@@ -471,6 +462,7 @@ filterClose.textContent = '\u00d7';
 function filterToggle(key, label) {
   const btn = document.createElement('button');
   btn.type = 'button';
+  btn.className = 'feed-filter-toggle';
   btn.dataset.filter = key;
   btn.textContent = label;
   btn.setAttribute('aria-pressed', 'false');
@@ -484,12 +476,25 @@ const filterHashinal = filterToggle('hashinal', 'Early Hashinal holders');
 const filterComments = filterToggle('hasComments', 'Has comments');
 const filterSort = document.createElement('select');
 filterSort.id = 'feed-filter-sort';
-filterSort.setAttribute('aria-label', 'Sort');
+filterSort.className = 'feed-filter-native';
+filterSort.tabIndex = -1;
+filterSort.setAttribute('aria-hidden', 'true');
+const filterSortPills = document.createElement('div');
+filterSortPills.className = 'feed-filter-pills';
+filterSortPills.setAttribute('role', 'group');
+filterSortPills.setAttribute('aria-label', 'Sort');
 for (const [value, label] of [['newest', 'Newest'], ['oldest', 'Oldest'], ['liked', 'Liked'], ['viewed', 'Viewed']]) {
   const opt = document.createElement('option');
   opt.value = value;
   opt.textContent = label;
   filterSort.appendChild(opt);
+  const pill = document.createElement('button');
+  pill.type = 'button';
+  pill.className = 'feed-filter-pill' + (value === 'newest' ? ' is-active' : '');
+  pill.dataset.sort = value;
+  pill.textContent = label;
+  pill.setAttribute('aria-pressed', value === 'newest' ? 'true' : 'false');
+  filterSortPills.appendChild(pill);
 }
 const filterFrom = document.createElement('input');
 filterFrom.id = 'feed-filter-from';
@@ -502,7 +507,38 @@ filterTo.setAttribute('aria-label', 'To');
 const filterCountry = document.createElement('select');
 filterCountry.id = 'feed-filter-country';
 filterCountry.setAttribute('aria-label', 'Country');
-filterCard.append(filterClose, filterHasImage, filterOnlyText, filterMine, filterFollowing, filterHashinal, filterComments, filterSort, filterFrom, filterTo, filterCountry);
+function filterField(labelText, control) {
+  const row = document.createElement('label');
+  row.className = 'feed-filter-row';
+  const span = document.createElement('span');
+  span.className = 'feed-filter-label';
+  span.textContent = labelText;
+  control.classList.add('feed-filter-field');
+  row.append(span, control);
+  return row;
+}
+const filterBody = document.createElement('div');
+filterBody.className = 'feed-filter-body';
+const filterToggleSection = document.createElement('div');
+filterToggleSection.className = 'feed-filter-section';
+filterToggleSection.append(filterHasImage, filterOnlyText, filterMine, filterFollowing, filterHashinal, filterComments);
+const filterSortLabel = document.createElement('span');
+filterSortLabel.className = 'feed-filter-label';
+filterSortLabel.textContent = 'Sort';
+const filterSortRow = document.createElement('div');
+filterSortRow.className = 'feed-filter-row';
+filterSortRow.append(filterSortLabel, filterSortPills);
+const filterSortSection = document.createElement('div');
+filterSortSection.className = 'feed-filter-section';
+filterSortSection.append(filterSortRow, filterSort);
+const filterDateSection = document.createElement('div');
+filterDateSection.className = 'feed-filter-section';
+filterDateSection.append(filterField('From', filterFrom), filterField('To', filterTo));
+const filterCountrySection = document.createElement('div');
+filterCountrySection.className = 'feed-filter-section';
+filterCountrySection.append(filterField('Country', filterCountry));
+filterBody.append(filterToggleSection, filterSortSection, filterDateSection, filterCountrySection);
+filterCard.append(filterClose, filterBody);
 searchPage.append(searchBar, searchBody, filterBackdrop, filterCard);
 searchPage.addEventListener('click', (event) => event.stopPropagation());
 searchPage.addEventListener('pointerdown', (event) => event.stopPropagation());
@@ -3849,7 +3885,13 @@ function rebuildChips() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'is-active';
-    btn.textContent = chip.label + ' \u00d7';
+    const chipLabel = document.createElement('span');
+    chipLabel.textContent = chip.label;
+    const chipX = document.createElement('span');
+    chipX.className = 'feed-filter-chip-x';
+    chipX.setAttribute('aria-hidden', 'true');
+    chipX.textContent = '\u00d7';
+    btn.append(chipLabel, chipX);
     btn.addEventListener('click', (event) => {
       event.stopPropagation();
       if (chip.sort) setSort('newest');
@@ -3880,6 +3922,11 @@ function syncFilterControls() {
   paintFilterToggle(filterComments, filters.hasComments === true);
   const sort = query.sort || 'newest';
   if (filterSort.value !== sort) filterSort.value = sort;
+  for (const pill of filterSortPills.children) {
+    const on = pill.dataset.sort === sort;
+    pill.classList.toggle('is-active', on);
+    pill.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
   const from = typeof filters.dateFrom === 'string' ? filters.dateFrom : '';
   const to = typeof filters.dateTo === 'string' ? filters.dateTo : '';
   if (filterFrom.value !== from) filterFrom.value = from;
@@ -8260,6 +8307,16 @@ filterComments.addEventListener('click', (event) => {
   else setFilter('hasComments', true);
 });
 filterSort.addEventListener('change', () => setSort(filterSort.value));
+// Pills are the visible sort control. They write the select and use its change listener.
+filterSortPills.addEventListener('click', (event) => {
+  const pill = event.target.closest('button');
+  if (!pill || !filterSortPills.contains(pill)) return;
+  event.stopPropagation();
+  const value = pill.dataset.sort;
+  if (!value || filterSort.value === value) return;
+  filterSort.value = value;
+  filterSort.dispatchEvent(new Event('change'));
+});
 filterFrom.addEventListener('change', () => setFilter('dateFrom', filterFrom.value));
 filterTo.addEventListener('change', () => setFilter('dateTo', filterTo.value));
 filterCountry.addEventListener('change', () => {
