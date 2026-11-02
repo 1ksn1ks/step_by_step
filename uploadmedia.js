@@ -6,14 +6,15 @@
 //                 "📎 Upload image (cover)" → Cover Image URL (stills + gif)
 //   polygon form: "📎 Upload cover (image / gif / video)" → Cover Image URL
 //                 "📎 Upload image / video" → Inside image URL (the popup)
-// A polygon cover video/gif animates in the map (polygons.js pump); the
-// Inside field is what the popup plays — e.g. a 15s cover ad + the real
-// video in the popup. No automatic thumbnail.
+// A polygon cover video is max 30s and animates in the map (polygons.js
+// pump). The Inside field is what the popup plays and stays unlimited
+// (100 MB, any length). No automatic thumbnail.
 import { toast } from "./toast.js";
 import { connectedAccount, signer } from "./web3.js";
 import { profilePictures } from "./loadalladata.js";
 import { paintDrawField } from "./drawpreview.js";
 import { rememberGrant, withUploadAuth } from "./uploadgrant.js";
+import { COVER_VIDEO_MAX_SECONDS, coverVideoTooLong } from "./covervideolimit.js";
 
 const VIDEO_MAX = 100 * 1024 * 1024;
 const IMAGE_MAX = 20 * 1024 * 1024;
@@ -24,8 +25,9 @@ const MEDIA_TYPES = new Set([
 // Marker dot cover: stills + gif (a gif CSS background animates natively —
 // a video can't play inside a dot).
 const MARKER_COVER_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
-// Polygon cover: everything — gif/video animate in the map via the
-// updateImage pump in polygons.js (the 15s cover ad case).
+// Polygon cover: stills, gif, and video. A cover video is max 30s and
+// animates in the map via the updateImage pump in polygons.js.
+// Inside/popup media is unlimited.
 const POLYGON_COVER_TYPES = MEDIA_TYPES;
 // Cover stills are the only uploads shrunk before they reach R2: the map
 // fill (createResizedImage in polygons.js) caps textures at 512, so a
@@ -390,8 +392,9 @@ function readVideoSeconds(localUrl) {
     const timer = setTimeout(() => finish(null), 5000);
     video.onloadedmetadata = () => {
       const duration = video.duration;
-      const seconds = Number.isFinite(duration) && duration > 0 ? Math.round(duration) : null;
-      finish(seconds > 0 ? seconds : null);
+      // Raw length so a cover can allow 30.5s of rounding. The caller
+      // rounds a positive length for the filename header.
+      finish(Number.isFinite(duration) && duration > 0 ? duration : null);
     };
     video.onerror = () => finish(null);
     video.src = localUrl;
@@ -629,8 +632,17 @@ async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg
   const localUrl = URL.createObjectURL(file);
   showFieldPreview(targetFieldId, localUrl, isVideo ? "video" : "image");
   try {
-    const seconds = isVideo ? await readVideoSeconds(localUrl) : null;
-    const url = await uploadToR2(file, `Uploading ${label}`, seconds, btn);
+    const length = isVideo ? await readVideoSeconds(localUrl) : null;
+    if (targetFieldId === "input-field-coverimage-polygon" && isVideo && coverVideoTooLong(length)) {
+      toast.error(`Cover video max ${COVER_VIDEO_MAX_SECONDS} seconds`);
+      URL.revokeObjectURL(localUrl);
+      fillField(targetFieldId, previous);
+      if (/^https?:\/\//i.test(previous)) showFieldPreview(targetFieldId, previous);
+      else hideFieldPreview(targetFieldId);
+      return;
+    }
+    const seconds = Number.isFinite(length) && length > 0 ? Math.round(length) : null;
+    const url = await uploadToR2(file, `Uploading ${label}`, seconds > 0 ? seconds : null, btn);
     fillField(targetFieldId, url);
     showFieldPreview(targetFieldId, url, isVideo ? "video" : "image");
     toast.success("Uploaded");

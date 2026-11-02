@@ -17,6 +17,7 @@ import { prefetchPersonFollow } from './followtopic.js';
 import { isPointerOnGlobe } from './onglobe.js';
 import { advanceIpfsImage, armIpfsAttempt, clearIpfsAttempt, preferGateway } from './ipfsimage.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
+import { COVER_VIDEO_MAX_SECONDS } from './covervideolimit.js';
 
 
 
@@ -742,6 +743,7 @@ function ensurePump() {
             if (!cov.video.paused) cov.video.pause();
             continue;
           }
+          if (cov.video.currentTime >= COVER_VIDEO_MAX_SECONDS) cov.video.currentTime = 0;
           if (cov.video.paused) cov.video.play().catch(() => {});
           any = true;
           if (now - cov.lastFrameAt < VIDEO_FRAME_MS) continue; // ~15 fps
