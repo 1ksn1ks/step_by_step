@@ -242,7 +242,7 @@ html, body {
 
 .info-overlay-subtitle {
   flex: 0 0 auto;
-  margin: 0.8vh 0 0;
+  margin: 6px 0 0;
   padding-inline: 36px;
   box-sizing: border-box;
   font-size: clamp(14px, calc(var(--fu) * 1.5), 16px);
@@ -258,13 +258,13 @@ html, body {
   overflow-y: auto;
   overscroll-behavior: contain;
   list-style: none;
-  margin: 2.4vh 0 0;
+  margin: 16px 0 0;
   padding: 0;
 }
 
 .info-overlay-list li {
   position: relative;
-  padding: 0.55vh 0 0.55vh 2.8vh;
+  padding: 6px 0 6px 22px;
   font-size: clamp(14px, calc(var(--fu) * 1.5), 16px);
   line-height: 1.45;
   color: rgba(230, 230, 245, 0.85);
@@ -273,10 +273,10 @@ html, body {
 .info-overlay-list li::before {
   content: "";
   position: absolute;
-  left: 0.6vh;
-  top: 1.4vh;
-  width: 0.55vh;
-  height: 0.55vh;
+  left: 6px;
+  top: calc(6px + 0.725em - 3px);
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #7c9eff;
 }
@@ -288,7 +288,7 @@ html, body {
 
 .info-overlay-actions {
   flex: 0 0 auto;
-  margin-top: 3vh;
+  margin-top: 20px;
   text-align: center;
 }
 
@@ -296,25 +296,30 @@ html, body {
   background: rgba(255, 255, 255, 0.94);
   color: #0b0b14;
   border: none;
-  padding: 1.3vh 2.25vh;
+  padding: 0 24px;
   border-radius: 999px;
   font-size: clamp(14px, calc(var(--fu) * 1.5), 16px);
   font-weight: 600;
   cursor: pointer;
   min-width: 180px;
+  min-height: 44px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .info-overlay-close-button-2 {
   position: absolute;
-  top: 1.6vh;
-  right: 0.63vh;
-  width: 3.4vh;
-  height: 3.4vh;
+  top: 10px;
+  right: 10px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  font-size: 2.4vh;
+  font-size: 22px;
   color: rgba(255, 255, 255, 0.55);
   background: rgba(255, 255, 255, 0.08);
   cursor: pointer;
@@ -330,12 +335,13 @@ html, body {
    44px is the border box. #draw-date-close keeps the vh size below. */
 .info-overlay .info-overlay-x {
   box-sizing: border-box;
-  top: calc(var(--fu) * 0.45);
-  right: calc(var(--fu) * 0.45);
+  top: 10px;
+  right: 10px;
   width: 44px;
   height: 44px;
   min-width: 44px;
   min-height: 44px;
+  font-size: 22px;
 }
 .info-overlay-x {
   position: absolute;
@@ -351,8 +357,8 @@ html, body {
   color: rgba(255, 255, 255, 0.7);
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(34, 211, 238, 0.5);
-  box-shadow: 0 0 1vh rgba(34, 211, 238, 0.5),
-              inset 0 0 0.6vh rgba(34, 211, 238, 0.25);
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.5),
+              inset 0 0 5px rgba(34, 211, 238, 0.25);
   cursor: pointer;
   line-height: 1;
   animation: overlayXGlow 2s ease-in-out infinite;
@@ -360,13 +366,13 @@ html, body {
 
 @keyframes overlayXGlow {
   0%, 100% {
-    box-shadow: 0 0 1vh rgba(34, 211, 238, 0.5),
-                inset 0 0 0.6vh rgba(34, 211, 238, 0.25);
+    box-shadow: 0 0 8px rgba(34, 211, 238, 0.5),
+                inset 0 0 5px rgba(34, 211, 238, 0.25);
     border-color: rgba(34, 211, 238, 0.5);
   }
   50% {
-    box-shadow: 0 0 2vh rgba(34, 211, 238, 0.85),
-                inset 0 0 1vh rgba(34, 211, 238, 0.45);
+    box-shadow: 0 0 16px rgba(34, 211, 238, 0.85),
+                inset 0 0 8px rgba(34, 211, 238, 0.45);
     border-color: rgba(34, 211, 238, 0.9);
   }
 }
@@ -376,8 +382,8 @@ html, body {
   color: #ffffff;
   animation: none;
   border-color: rgba(34, 211, 238, 0.9);
-  box-shadow: 0 0 1.6vh rgba(34, 211, 238, 0.8),
-              inset 0 0 0.8vh rgba(34, 211, 238, 0.4);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.8),
+              inset 0 0 6px rgba(34, 211, 238, 0.4);
 }
 
 /* E2EE intro only. This node stays on document.body, so no transformed
@@ -428,7 +434,7 @@ html, body {
   overflow: hidden;
   border-radius: 16px;
   background: rgba(18, 18, 28, 0.94);
-  border: 0.1vh solid rgba(34, 211, 238, 0.6);
+  border: 1px solid rgba(34, 211, 238, 0.6);
   font-family: Inter, system-ui, sans-serif;
   animation: e2ee-notice-pop 0.34s cubic-bezier(0.34, 1.56, 0.64, 1),
              onboardBorderPulse 1.3s ease-in-out 0.34s infinite;
@@ -484,8 +490,9 @@ html, body {
   font-size: clamp(14px, calc(var(--fu) * 1.5), 16px);
 }
 #e2ee-web-notice-overlay .info-overlay-x {
-  top: calc(var(--fu) * 0.45);
-  right: calc(var(--fu) * 0.45);
+  top: 10px;
+  right: 10px;
+  font-size: 22px;
   box-sizing: border-box;
   width: 44px;
   height: 44px;
@@ -6874,7 +6881,7 @@ html, body {
 
   /* Same glow for every info overlay card (keeps its pop-in first) */
   .info-overlay-inner {
-    border: 0.1vh solid rgba(34, 211, 238, 0.6);
+    border: 1px solid rgba(34, 211, 238, 0.6);
     animation: overlay-pop-in 0.34s cubic-bezier(0.34, 1.56, 0.64, 1),
                onboardBorderPulse 1.3s ease-in-out 0.34s infinite;
   }
