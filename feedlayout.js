@@ -19,7 +19,7 @@ import { ringCenter, zoomForPolygon } from './polygonframe.js';
 import { CloseALL, changePopupState, popIsOpen, expandTopicChat, expandEncryptedChat, withE2eeWebNotice, prepareLoadColumnForFeed } from './cssLogic.js';
 import { closeDrawAnchor, openDrawColumn } from './drawhere.js';
 import { closePressAnchor } from './poiinfo.js';
-import { applyAllStyles } from './loadprofilepopup.js';
+import { applyAllStyles, paintEarlyProfile } from './loadprofilepopup.js';
 import { scene } from './threejs.js';
 import { profilePictures, usernames, click2url, loadTopicBio, profileTopics } from './loadalladata.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
@@ -1759,6 +1759,7 @@ document.addEventListener('early-hashinals', () => {
   for (const card of column.children) {
     if (card.classList && card.classList.contains('feed-card')) paintFeedHashinal(card);
   }
+  paintOpenProfileChrome();
 });
 
 function feedTitle(record) {
@@ -4268,6 +4269,14 @@ function mountProfilePic(payer) {
   });
   profilePicSlot.appendChild(img);
   paintProfileAvatar(img, payer);
+  paintEarlyProfile(profileIdentity, payer);
+}
+
+function paintOpenProfileChrome() {
+  if (!profilePayer || profilePage.hidden) return;
+  const img = profilePicSlot.querySelector('img');
+  if (img) paintProfileAvatar(img, profilePayer);
+  paintEarlyProfile(profileIdentity, profilePayer);
 }
 
 function paintProfileBio(bio) {
