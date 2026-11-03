@@ -4304,6 +4304,9 @@ function hideSearch() {
   unparkScroller();
   if (wasOpen) resetScrollChrome();
   syncSearchChrome();
+  searchOpenedByPointer = false;
+  searchArmPointer = false;
+  clearSearchBtnPress();
 }
 
 // Back, Escape, and browser Back close the page and keep the query.
@@ -4332,9 +4335,21 @@ function openFilterCard() {
   if (window.layerOpened) window.layerOpened('feedfilters');
 }
 
+// Set from the opening click and consumed by openSearch. A tap must not
+// restore a visible ring; a keyboard open still does.
+let searchArmPointer = false;
+let searchOpenedByPointer = false;
+
+function clearSearchBtnPress() {
+  searchBtnFeed.classList.remove('is-active', 'is-open', 'is-hold');
+}
+
 function closeSearchPage() {
   if (filterCard.style.display === 'block' || filterBackdrop.style.display === 'block') closeFilterCard();
-  if (searchPage.hidden) return;
+  if (searchPage.hidden) {
+    clearSearchBtnPress();
+    return;
+  }
   flushSearchInput();
   searchPage.hidden = true;
   unparkScroller();
@@ -4343,7 +4358,13 @@ function closeSearchPage() {
   if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedsearch')) {
     window.layerClosedByUI('feedsearch');
   }
-  searchBtnFeed.focus({ preventScroll: true });
+  const fromPointer = searchOpenedByPointer;
+  searchOpenedByPointer = false;
+  searchArmPointer = false;
+  clearSearchBtnPress();
+  searchBtnFeed.focus(fromPointer
+    ? { preventScroll: true, focusVisible: false }
+    : { preventScroll: true, focusVisible: true });
 }
 
 // The pill focuses itself when it is tapped. Opening the page must not
@@ -4353,9 +4374,12 @@ function focusSearchPage() {
 }
 
 function openSearch() {
+  const fromPointer = searchArmPointer;
+  searchArmPointer = false;
   if (!searchPage.hidden) return;
   if (!feedOn() || root.classList.contains('is-peek')) return;
   if (window.layerIsTop && !window.layerIsTop('feed')) return;
+  searchOpenedByPointer = fromPointer;
   holdScroll();
   searchPage.hidden = false;
   parkScroller();
@@ -8409,6 +8433,8 @@ paintTabs();
 bindPress(searchBtnFeed);
 searchBtnFeed.addEventListener('click', (event) => {
   event.stopPropagation();
+  // Enter and Space synthesize a click with detail 0. A tap or mouse click counts.
+  searchArmPointer = event.detail > 0;
   openSearch();
 });
 bindPress(postBtn);

@@ -9597,16 +9597,28 @@ html.feed-app #popup-settings-card {
   display: block;
   pointer-events: none;
 }
+#feed-search-btn:focus {
+  outline: none;
+}
 #feed-search-btn:focus-visible {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.12);
 }
-#feed-search-btn:is(:hover, .is-hold) {
+#feed-search-btn.is-hold {
   --ring-bg: var(--press-bg);
   --ring-border: var(--press-border);
   background-color: transparent;
   border-color: transparent;
   color: var(--press-ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  #feed-search-btn:hover {
+    --ring-bg: var(--press-bg);
+    --ring-border: var(--press-border);
+    background-color: transparent;
+    border-color: transparent;
+    color: var(--press-ink);
+  }
 }
 #feed-search-btn.is-pop {
   animation: topicFollowPop var(--press-dur, 200ms) var(--press-ease, ease);
@@ -13166,8 +13178,7 @@ html.drawer-page .info-overlay {
   }
 }
 @media (hover: none), (pointer: coarse) {
-  #feed-back-btn:hover:not(.is-hold),
-  #feed-search-btn:hover:not(.is-hold) {
+  #feed-back-btn:hover:not(.is-hold) {
     --ring-bg: rgba(10, 10, 18, 0.88);
     --ring-border: rgba(255, 255, 255, 0.25);
     background-color: transparent;
