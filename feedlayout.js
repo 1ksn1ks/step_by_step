@@ -173,6 +173,7 @@ const menuAnchor = document.createElement('div');
 menuAnchor.className = 'feed-menu-anchor';
 const menuBtn = document.createElement('button');
 menuBtn.id = 'feed-back-btn';
+menuBtn.className = 'feed-chat-back';
 menuBtn.type = 'button';
 menuBtn.setAttribute('aria-label', 'Menu');
 menuBtn.setAttribute('aria-haspopup', 'menu');
@@ -256,8 +257,8 @@ bannerCopy.append(bannerName, bannerHandle, bannerBio);
 profileBanner.append(bannerBack, bannerPic, bannerCopy);
 const frame = document.createElement('div');
 frame.id = 'feed-frame';
-frame.append(toolbar, tabs, tabRuler, profileBanner, newPill, scroller, menuDim, menu);
-root.append(dim, frame);
+frame.append(tabRuler, profileBanner, newPill, scroller, menuDim, menu);
+root.append(dim, frame, toolbar, tabs);
 
 const btn = document.createElement('button');
 btn.id = 'layout-mode-btn';
@@ -9020,7 +9021,13 @@ function resetScrollChrome() {
   tabLastY = scroller.scrollTop;
 }
 
+function refreshBarHeight() {
+  const h = toolbar.getBoundingClientRect().height;
+  if (h > 1) root.style.setProperty('--feed-bar-h', h.toFixed(2) + 'px');
+}
+
 function measureTabHide() {
+  refreshBarHeight();
   refreshTabRowHeight(tabs);
   if (!searchPage.hidden) refreshTabRowHeight(searchHead);
   writeTabOffset(tabOffset);
