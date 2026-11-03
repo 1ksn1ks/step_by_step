@@ -31,23 +31,34 @@ export function isTextControl(el) {
   return !TEXT_SKIP.has(String(el.type || 'text').toLowerCase());
 }
 
+// Pinch-zoom shrinks visualViewport.height by about the same factor as scale.
+// A hair over 1 is subpixel noise. Above that, put the height back in stable
+// pixels so the zoom is not a keyboard and the lift does not chase it.
+function unscaledViewHeight(height, scale) {
+  const h = Number(height) || 0;
+  if (typeof scale === 'number' && scale > 1.01) return h * scale;
+  return h;
+}
+
 // A focused text field plus a drop of more than ~25%. Overlay browsers shrink
 // visualViewport. A resizing WebView or installed PWA shrinks innerHeight
 // and can leave visualViewport.height unchanged. Either drop counts.
 // layoutH is optional so a caller that only has the visual height still works.
-export function keyboardOpen(focused, viewH, stableH, layoutH) {
+// scale is optional. Above 1.01 the visual height is height * scale.
+export function keyboardOpen(focused, viewH, stableH, layoutH, scale) {
   if (!focused || !(stableH > 0)) return false;
   const line = stableH * KB_RATIO;
-  if (viewH < line) return true;
+  if (unscaledViewHeight(viewH, scale) < line) return true;
   return typeof layoutH === 'number' && layoutH > 0 && layoutH < line;
 }
 
 // Visible bottom in layout-viewport coordinates. getBoundingClientRect() is
 // in that space, so the keyboard edge is visualViewport.offsetTop + height,
 // not height alone. When the layout viewport has already shrunk above that
-// sum, the visible bottom is innerHeight.
-export function visibleBottom(offsetTop, height, layoutH) {
-  const visual = (Number(offsetTop) || 0) + (Number(height) || 0);
+// sum, the visible bottom is innerHeight. scale undoes a pinch-zoom shrink
+// of that height before the lift measures overlap.
+export function visibleBottom(offsetTop, height, layoutH, scale) {
+  const visual = (Number(offsetTop) || 0) + unscaledViewHeight(height, scale);
   const layout = Number(layoutH);
   if (layout > 0 && visual > 0) return Math.min(visual, layout);
   return visual > 0 ? visual : (layout > 0 ? layout : 0);
@@ -62,7 +73,7 @@ export function nextStableHeight(state) {
   if (!(state.stableH > 0)) return measured;
   const widthChanged = Math.abs(state.width - state.stableW) > 2;
   const orientChanged = state.orient !== state.prevOrient;
-  const open = keyboardOpen(state.focused, state.viewH, state.stableH, state.layoutH);
+  const open = keyboardOpen(state.focused, state.viewH, state.stableH, state.layoutH, state.scale);
   if (open && !widthChanged && !orientChanged) return state.stableH;
   return measured;
 }
@@ -143,17 +154,19 @@ function boot() {
     const layoutH = window.innerHeight;
     const viewH = view && view.height ? view.height : layoutH;
     const offsetTop = view && Number.isFinite(view.offsetTop) ? view.offsetTop : 0;
+    const scale = view && Number.isFinite(view.scale) ? view.scale : 1;
     return {
       width,
       layoutH,
       viewH,
       offsetTop,
+      scale,
       orient: width > layoutH ? 'land' : 'port',
     };
   }
 
   function edgeOf(metrics) {
-    return visibleBottom(metrics.offsetTop, metrics.viewH, metrics.layoutH);
+    return visibleBottom(metrics.offsetTop, metrics.viewH, metrics.layoutH, metrics.scale);
   }
 
   function kbDebug() {
@@ -219,6 +232,7 @@ function boot() {
       orient: metrics.orient,
       prevOrient: stableOrient,
       focused: focusedNow(),
+      scale: metrics.scale,
     });
     commit(next, metrics);
   }
@@ -285,7 +299,7 @@ function boot() {
     const el = document.activeElement;
     const metrics = box();
     const edge = edgeOf(metrics);
-    const open = keyboardOpen(focusedNow(), metrics.viewH, stableH, metrics.layoutH);
+    const open = keyboardOpen(focusedNow(), metrics.viewH, stableH, metrics.layoutH, metrics.scale);
     if (!open || !isTextControl(el)) {
       clearLifts();
       paintDebug(metrics, open, 0);
@@ -385,7 +399,7 @@ function boot() {
     const metrics = box();
     // Focus is already gone. keyboardOpen(true) is only the shrink test,
     // so a WebView that shrank innerHeight still waits out the animation.
-    if (keyboardOpen(true, metrics.viewH, stableH, metrics.layoutH) && blurTries < 8) {
+    if (keyboardOpen(true, metrics.viewH, stableH, metrics.layoutH, metrics.scale) && blurTries < 8) {
       blurTries += 1;
       blurTimer = setTimeout(finishBlur, 50);
       return;

@@ -74,6 +74,36 @@ test("a dock uses the same lift and keeps the search head shift", () => {
   assert.equal(scrollDelta(200, 250, revealLimit(234, 48)), 72);
 });
 
+test("pinch-zoom is not the keyboard", () => {
+  assert.equal(keyboardOpen(true, 370, 740, 740, 2), false);
+  assert.equal(keyboardOpen(true, 370, 740, undefined, 2), false);
+  assert.equal(keyboardOpen(true, 370, 740, 740, 1), true);
+  assert.equal(keyboardOpen(true, 370, 740, 740, 1.01), true);
+  assert.equal(keyboardOpen(true, 200, 740, 740, 2), true);
+  assert.equal(keyboardOpen(true, 370, 740, 400, 2), true);
+
+  const zoomed = {
+    viewH: 370,
+    layoutH: 740,
+    dvh: 700,
+    stableH: 740,
+    stableW: 360,
+    width: 360,
+    orient: "port",
+    prevOrient: "port",
+    focused: true,
+    scale: 2,
+  };
+  assert.equal(nextStableHeight(zoomed), 700);
+  assert.equal(nextStableHeight({ ...zoomed, viewH: 200, dvh: 400 }), 740);
+
+  const zoomedEdge = visibleBottom(0, 370, 740, 2);
+  assert.equal(zoomedEdge, 740);
+  assert.equal(liftPx(740, 0, zoomedEdge), liftPx(740, 0, visibleBottom(0, 740, 740)));
+  assert.equal(liftPx(740, 0, visibleBottom(0, 200, 740, 2)), 348);
+  assert.equal(visibleBottom(280, 200, 740, 2), 680);
+});
+
 test("the visible bottom includes the visual viewport offset", () => {
   assert.equal(visibleBottom(280, 400), 680);
   assert.equal(visibleBottom(280, 400, 740), 680);
