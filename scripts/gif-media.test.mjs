@@ -12,6 +12,7 @@ import {
   resolveMediaUrl,
   scaleFilter,
 } from "../mediaurl.js";
+import { readCappedBody } from "../server/giftranscode.js";
 
 function gifBytes(delays) {
   const chunks = [
@@ -140,6 +141,54 @@ test("a polygon-cover GIF longer than 30 seconds is rejected before ffmpeg", asy
   assert.equal(out.ok, false);
   assert.equal(out.status, 400);
   assert.equal(out.error, "Cover video max 30 seconds");
+});
+
+test("an oversized GIF stream stops at the cap", async () => {
+  let pulls = 0;
+  let cancelled = false;
+  const endless = new ReadableStream({
+    pull(controller) {
+      pulls += 1;
+      controller.enqueue(new Uint8Array(8));
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  await assert.rejects(
+    () => readCappedBody(endless, 10),
+    (err) => err && err.code === 413 && err.message === "size",
+  );
+  assert.equal(pulls, 2);
+  assert.equal(cancelled, true);
+
+  let readers = 0;
+  const declared = {
+    getReader() {
+      readers += 1;
+      throw new Error("should not read");
+    },
+    cancel() {
+      cancelled = true;
+      return Promise.resolve();
+    },
+  };
+  cancelled = false;
+  await assert.rejects(
+    () => readCappedBody(declared, 10, "11"),
+    (err) => err && err.code === 413,
+  );
+  assert.equal(readers, 0);
+  assert.equal(cancelled, true);
+
+  const kept = await readCappedBody(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new Uint8Array([1, 2, 3]));
+      controller.enqueue(new Uint8Array([4]));
+      controller.close();
+    },
+  }), 10, "4");
+  assert.deepEqual([...kept], [1, 2, 3, 4]);
 });
 
 test("bytes that are not a GIF are refused", async () => {

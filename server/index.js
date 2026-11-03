@@ -25,7 +25,7 @@ import { profileTopicAction } from "./profiletopic.js";
 import { hashtagsIn } from "../hashtag.js";
 import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { GIF_CONVERT_ERROR, gifRole, ownGifKey, siblingKeys } from "../mediaurl.js";
-import { convertGifBytes, remoteGifAllowed } from "./giftranscode.js";
+import { convertGifBytes, readCappedBody, remoteGifAllowed } from "./giftranscode.js";
 import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
 import { startEarlyHashinals } from "./hashinals.js";
@@ -2603,12 +2603,7 @@ async function fetchRemoteGif(start) {
       err.code = 404;
       throw err;
     }
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (!bytes.length || bytes.length > GIF_FETCH_MAX) {
-      const err = new Error("size");
-      err.code = 413;
-      throw err;
-    }
+    const bytes = await readCappedBody(response.body, GIF_FETCH_MAX, response.headers.get("content-length"));
     if (!magicMatches("image/gif", bytes)) {
       const err = new Error("type");
       err.code = 415;

@@ -60,6 +60,49 @@ export function convertGifBytes(bytes, role, options) {
   });
 }
 
+function sizeError() {
+  const err = new Error("size");
+  err.code = 413;
+  return err;
+}
+
+// Stop a remote GIF once the declared length or the bytes already read pass
+// the cap. The overflowing chunk is not kept, and the stream is cancelled
+// so the rest of the body is not buffered.
+export async function readCappedBody(body, max, contentLength) {
+  const declared = Number(contentLength);
+  if (Number.isFinite(declared) && declared > max) {
+    if (body && typeof body.cancel === "function") {
+      try { await body.cancel(); } catch { /* already closed */ }
+    }
+    throw sizeError();
+  }
+  if (!body || typeof body.getReader !== "function") throw sizeError();
+  const reader = body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const size = value ? value.byteLength : 0;
+      if (total + size > max) {
+        try { await reader.cancel(); } catch { /* already closed */ }
+        throw sizeError();
+      }
+      total += size;
+      if (size) chunks.push(Buffer.from(value));
+    }
+  } catch (err) {
+    if (!(err && err.code === 413)) {
+      try { await reader.cancel(); } catch { /* already closed */ }
+    }
+    throw err;
+  }
+  if (!total) throw sizeError();
+  return Buffer.concat(chunks, total);
+}
+
 function blockedAddress(address) {
   const ip = String(address || "").toLowerCase().replace(/^\[|\]$/g, "");
   if (ip === "::1" || ip === "0.0.0.0") return true;
