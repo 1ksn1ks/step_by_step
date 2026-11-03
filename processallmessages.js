@@ -3957,11 +3957,18 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
   replyChipClose.onclick = () => { replyTarget = null; replyChip.style.display = 'none'; };
   replyChip.appendChild(replyChipLabel);
   replyChip.appendChild(replyChipClose);
-  section.appendChild(replyChip);
+
+  // The reply chip and the input sit in one bottom bar. The list above
+  // scrolls. keyboardlayout.js lifts this bar, not the comments.
+  const compose = document.createElement('div');
+  compose.className = 'comments-compose';
+  compose.dataset.kbDock = '';
+  compose.appendChild(replyChip);
 
   // Input row: rounded glass textarea + rounded pill Send button,
   // bottom-aligned so the button stays put as the textarea grows.
   const inputRow = document.createElement('div');
+  inputRow.className = 'comments-input-row';
   inputRow.style.cssText = 'display: flex; align-items: flex-end; gap: calc(var(--u) * 1);';
 
   const input = document.createElement('textarea');
@@ -3994,7 +4001,8 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
     }
   };
   inputRow.appendChild(sendBtn);
-  section.appendChild(inputRow);
+  compose.appendChild(inputRow);
+  section.appendChild(compose);
 
   return section;
 }

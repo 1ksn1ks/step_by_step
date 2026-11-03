@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { keyboardOpen, nextStableHeight, liftPx, fieldOutside, scrollDelta, KB_RATIO } from "../keyboardlayout.js";
+import {
+  keyboardOpen, nextStableHeight, liftPx, fieldOutside, scrollDelta, KB_RATIO,
+  DOCK_SELECTOR, KB_OPEN_CLASS, SEARCH_HEAD_SHIFT, liftTransform, dockCover, revealLimit,
+} from "../keyboardlayout.js";
 
 test("the keyboard is a focused field and a drop past about 25%", () => {
   assert.equal(KB_RATIO, 0.75);
@@ -48,4 +51,17 @@ test("a composer lifts once and a field already on screen does not scroll", () =
   assert.equal(scrollDelta(20, 80, 400), 0);
   assert.equal(scrollDelta(236, 270, 234), 44);
   assert.equal(scrollDelta(-12, 40, 400), -20);
+});
+
+test("a dock uses the same lift and keeps the search head shift", () => {
+  assert.equal(DOCK_SELECTOR, ".chat-compose, [data-kb-dock]");
+  assert.equal(KB_OPEN_CLASS, "kb-open");
+  assert.equal(liftTransform(308), "translateY(-308.00px)");
+  assert.equal(liftTransform(308, SEARCH_HEAD_SHIFT), "translateY(calc(var(--feed-search-y, 0px) + -308.00px))");
+  assert.equal(liftPx(392, -308, 400), 308);
+  assert.equal(dockCover(390, 234, 48), 48);
+  assert.equal(dockCover(200, 234, 48), 0);
+  assert.equal(revealLimit(234, 48), 186);
+  assert.equal(revealLimit(234, 0), 234);
+  assert.equal(scrollDelta(200, 250, revealLimit(234, 48)), 72);
 });

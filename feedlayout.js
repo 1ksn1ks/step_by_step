@@ -423,6 +423,7 @@ const searchBody = document.createElement('div');
 searchBody.className = 'feed-search-body';
 const searchHead = document.createElement('div');
 searchHead.className = 'feed-search-head';
+searchHead.dataset.kbDock = '';
 const searchField = document.createElement('div');
 searchField.className = 'feed-search-field';
 const searchInput = document.createElement('input');

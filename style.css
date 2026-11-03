@@ -13023,7 +13023,13 @@ html.drawer-page .info-overlay {
 .comments-modal--feed > .popup-comments > :not(.comments-scroll) {
   flex: 0 0 auto;
 }
-.comments-modal--feed > .popup-comments > :last-child {
+.comments-compose {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.comments-modal--feed .comments-input-row {
   padding-top: calc(var(--fu) * 0.9);
   border-top: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
 }
@@ -18062,5 +18068,65 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 }
 @media (prefers-reduced-motion: reduce) {
   .picker-sheet { transition: none; }
+}
+
+/* Keyboard chrome. keyboardlayout.js sets html.kb-open while a text field
+   is focused and the visual viewport has dropped. Opacity and visibility
+   only, so nothing reflows. The lifted bar (.chat-compose, [data-kb-dock])
+   is not in this list.
+   #feed-tabs is the tab row (style.css, the #feed-tabs rule).
+   #feed-post-btn is the new-post control in the feed toolbar.
+   #feed-new-posts is the floating posted pill.
+   #go-to-top-msgs and #go-to-bottom-msgs (and the encrypted pair) are the
+   chat scroll arrows (index.html, inside .chat-messages-wrap).
+   .maplibregl-ctrl-top-right is the compass and geolocate.
+   #map-corner-buttons holds #layout-mode-btn and #search-toggle-btn. */
+#feed-tabs {
+  transition: opacity var(--press-dur, 200ms) var(--press-ease, ease), visibility var(--press-dur, 200ms) var(--press-ease, ease);
+}
+html.kb-open :is(
+  #feed-tabs,
+  #feed-post-btn,
+  #feed-new-posts,
+  #go-to-top-msgs,
+  #go-to-top-msgs-encrypted-chat,
+  #go-to-bottom-msgs,
+  #go-to-bottom-msgs-encrypted-chat,
+  .maplibregl-ctrl-top-right,
+  #map-corner-buttons,
+  #layout-mode-btn,
+  #search-toggle-btn
+) {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--press-dur, 200ms) var(--press-ease, ease), visibility var(--press-dur, 200ms) var(--press-ease, ease);
+}
+html.kb-open :is(#layout-mode-btn.is-feed, #layout-mode-btn.is-peek-return, #layout-mode-btn.is-feed.is-peek-return) {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+html.kb-open :is(.chat-compose, [data-kb-dock]) {
+  opacity: 1;
+  visibility: visible;
+}
+@media (prefers-reduced-motion: reduce) {
+  #feed-tabs,
+  html.kb-open :is(
+    #feed-tabs,
+    #feed-post-btn,
+    #feed-new-posts,
+    #go-to-top-msgs,
+    #go-to-top-msgs-encrypted-chat,
+    #go-to-bottom-msgs,
+    #go-to-bottom-msgs-encrypted-chat,
+    .maplibregl-ctrl-top-right,
+    #map-corner-buttons,
+    #layout-mode-btn,
+    #search-toggle-btn
+  ) {
+    transition: none;
+  }
 }
 
