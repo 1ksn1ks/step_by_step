@@ -718,8 +718,12 @@ export function CloseALL() {
     chatLayoutLock.add(containerId);
     try {
       container.classList.remove("topic-chat-fit", "topic-chat-capped");
-      container.style.height = "";
-      container.style.maxHeight = "";
+      // A keyboard pin owns top, height, and bottom. Clearing height here
+      // would stretch the panel back over the keyboard before the list refits.
+      if (container.dataset.kbPin !== "1") {
+        container.style.height = "";
+        container.style.maxHeight = "";
+      }
       messages.style.overflowY = "";
       fitChatMessages(messagesId);
       const composeField = document.getElementById(containerId === "encrypted-chat-container"
@@ -773,6 +777,7 @@ export function CloseALL() {
       attributeFilter: ["style"],
     });
     window.addEventListener("resize", refit);
+    window.addEventListener("kbpin", refit);
     if (window.visualViewport) window.visualViewport.addEventListener("resize", refit);
   });
 

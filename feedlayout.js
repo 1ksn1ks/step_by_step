@@ -423,7 +423,6 @@ const searchBody = document.createElement('div');
 searchBody.className = 'feed-search-body';
 const searchHead = document.createElement('div');
 searchHead.className = 'feed-search-head';
-searchHead.dataset.kbDock = '';
 const searchField = document.createElement('div');
 searchField.className = 'feed-search-field';
 const searchInput = document.createElement('input');
@@ -6559,9 +6558,10 @@ function placeFeedChatForMap(on) {
   feedChat.classList.add('is-map-chat');
 }
 
-// The page keeps its height while the keyboard is open. keyboardlayout.js
-// lifts only the composer, so a leftover pin from an older fit is cleared.
+// Open and close clear a leftover inline frame. A live keyboard pin owns
+// top, height, and bottom until blur, so this must not strip it.
 function fitFeedChatFrame() {
+  if (feedChat.dataset.kbPin === '1') return;
   feedChat.style.removeProperty('top');
   feedChat.style.removeProperty('height');
   feedChat.style.removeProperty('bottom');

@@ -118,7 +118,8 @@ function fitPopupsToViewport() {
 // so the same edge-to-edge frame is written here. Safe area stays padding.
 function pinSettingsCard() {
   const card = document.getElementById('popup-settings-card');
-  if (!card) return;
+  // keyboardlayout.js owns top, height, and bottom while it is pinned.
+  if (!card || card.dataset.kbPin === '1') return;
   const set = (prop, value) => card.style.setProperty(prop, value, 'important');
   const wide = window.matchMedia('(orientation: landscape)').matches;
   const layoutH = window.innerHeight;
@@ -147,6 +148,7 @@ function pinSettingsCard() {
 function clearPopupFit() {
   document.querySelectorAll('.maplibregl-popup').forEach((el) => {
     if (el.closest('#popup-settings-card')) return;
+    if (el.dataset.kbPin === '1') return;
     el.style.removeProperty('top');
     el.style.removeProperty('--fit');
     el.style.removeProperty('height');

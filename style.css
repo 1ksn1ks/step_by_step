@@ -18298,8 +18298,8 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
 
 /* Keyboard chrome. keyboardlayout.js sets html.kb-open while a text field
    is focused and the visual viewport has dropped. Opacity and visibility
-   only, so nothing reflows. The lifted bar (.chat-compose, [data-kb-dock])
-   is not in this list.
+   only, so nothing reflows. The page shell is pinned instead of lifting
+   a bar, and .chat-compose is not in this list.
    #feed-tabs is the tab row (style.css, the #feed-tabs rule).
    #feed-post-btn is the new-post control in the feed toolbar.
    #feed-new-posts is the floating new-posts pill.
@@ -18336,7 +18336,7 @@ html.kb-open :is(#layout-mode-btn.is-feed, #layout-mode-btn.is-peek-return, #lay
   visibility: hidden;
   pointer-events: none;
 }
-html.kb-open :is(.chat-compose, [data-kb-dock]) {
+html.kb-open .chat-compose {
   opacity: 1;
   visibility: visible;
 }

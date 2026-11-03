@@ -3956,10 +3956,9 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
   replyChip.appendChild(replyChipClose);
 
   // The reply chip and the input sit in one bottom bar. The list above
-  // scrolls. keyboardlayout.js lifts this bar, not the comments.
+  // scrolls. The comments sheet is pinned with the keyboard.
   const compose = document.createElement('div');
   compose.className = 'comments-compose';
-  compose.dataset.kbDock = '';
   compose.appendChild(replyChip);
 
   // Input row: rounded glass textarea + rounded pill Send button,

@@ -326,7 +326,6 @@ function ensureSheet() {
   root.hidden = true;
   const card = document.createElement('form');
   card.className = 'donate-card';
-  card.dataset.kbDock = '';
   card.noValidate = true;
   card.setAttribute('role', 'dialog');
   card.setAttribute('aria-modal', 'true');
