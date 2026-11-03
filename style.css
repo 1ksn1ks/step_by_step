@@ -11492,6 +11492,39 @@ html.feed-app #feed-search-page {
   --feed-zoom: 1;
   --fu: calc(min(78dvw, calc(var(--app-h, 100dvh) * 0.42)) / 31.25);
 }
+/* Landscape feed uses the same shell as the map drawer. Portrait keeps the
+   column menu. The panel stays on the left; the feed to its right stays up. */
+@media (orientation: landscape) {
+  #feed-layout #feed-frame > .feed-menu-dim:not(.is-map-drawer) {
+    position: fixed;
+    inset: 0;
+    width: 100dvw;
+    height: 100vh;
+    height: var(--app-h, 100dvh);
+    margin: 0;
+    z-index: 8590;
+  }
+  #feed-layout #feed-frame > #feed-menu:not(.is-map-drawer) {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 8600;
+    height: 100vh;
+    height: var(--app-h, 100dvh);
+    margin: 0;
+    box-sizing: border-box;
+    width: min(78dvw, calc(var(--app-h, 100dvh) * 0.42));
+    --feed-zoom: 1;
+    --feed-unit: calc(min(78dvw, calc(var(--app-h, 100dvh) * 0.42)) / 31.25);
+    --fu: var(--feed-unit);
+  }
+  /* Keep the slide on screen. is-open drops at the start of the close,
+     while the panel is still translating out. */
+  #feed-frame:has(> #feed-menu:not([hidden])) {
+    overflow: visible;
+  }
+}
 /* Shared drawer type scale. Restated wherever --fu changes so a nested
    panel does not keep the parent's already-computed size. */
 #feed-layout,
