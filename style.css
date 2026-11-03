@@ -10113,9 +10113,20 @@ html.feed-app #feed-search-page {
   cursor: pointer;
   touch-action: manipulation;
 }
-#feed-filter-card .feed-filter-toggle:disabled {
+#feed-filter-card .feed-filter-toggle:disabled,
+#feed-filter-card .feed-filter-toggle[aria-disabled="true"] {
   opacity: 0.45;
   cursor: default;
+}
+.feed-filter-hint {
+  margin: calc(var(--fu) * 0.15) 0 calc(var(--fu) * 0.55);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: calc(var(--map-pill-h) * 0.28);
+  font-weight: 500;
+  line-height: 1.3;
+}
+.feed-filter-hint[hidden] {
+  display: none;
 }
 #feed-filter-card .feed-filter-toggle::before {
   content: "";

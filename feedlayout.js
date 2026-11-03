@@ -478,6 +478,11 @@ const filterHasImage = filterToggle('hasImage', 'Has image');
 const filterOnlyText = filterToggle('onlyText', 'Text only');
 const filterMine = filterToggle('mine', 'Mine');
 const filterFollowing = filterToggle('following', 'Following');
+const filterWalletHint = document.createElement('p');
+filterWalletHint.id = 'feed-filter-wallet-hint';
+filterWalletHint.className = 'feed-filter-hint';
+filterWalletHint.hidden = true;
+filterWalletHint.textContent = 'Connect your wallet to use Mine and Following';
 const filterHashinal = filterToggle('hashinal', 'Early Hashinal holders');
 const filterComments = filterToggle('hasComments', 'Has comments');
 const filterSort = document.createElement('select');
@@ -527,7 +532,7 @@ const filterBody = document.createElement('div');
 filterBody.className = 'feed-filter-body';
 const filterToggleSection = document.createElement('div');
 filterToggleSection.className = 'feed-filter-section';
-filterToggleSection.append(filterHasImage, filterOnlyText, filterMine, filterFollowing, filterHashinal, filterComments);
+filterToggleSection.append(filterHasImage, filterOnlyText, filterMine, filterFollowing, filterWalletHint, filterHashinal, filterComments);
 const filterSortLabel = document.createElement('span');
 filterSortLabel.className = 'feed-filter-label';
 filterSortLabel.textContent = 'Sort';
@@ -4097,18 +4102,22 @@ function paintFilterToggle(btn, on) {
   btn.setAttribute('aria-pressed', on ? 'true' : 'false');
 }
 
+function paintWalletToggle(btn, on, open) {
+  paintFilterToggle(btn, on);
+  btn.setAttribute('aria-disabled', open ? 'false' : 'true');
+  if (open) btn.removeAttribute('aria-describedby');
+  else btn.setAttribute('aria-describedby', 'feed-filter-wallet-hint');
+}
+
 function syncFilterControls() {
   const query = getQuery();
   const filters = query.filters || {};
   paintFilterToggle(filterHasImage, filters.hasImage === true);
   paintFilterToggle(filterOnlyText, filters.onlyText === true);
-  const wallet = walletNow();
-  filterMine.disabled = !wallet;
-  filterMine.textContent = wallet ? 'Mine' : 'Connect your wallet';
-  paintFilterToggle(filterMine, filters.mine === true);
-  filterFollowing.disabled = !wallet;
-  filterFollowing.textContent = wallet ? 'Following' : 'Connect your wallet';
-  paintFilterToggle(filterFollowing, filters.following === true);
+  const wallet = !!walletNow();
+  paintWalletToggle(filterMine, filters.mine === true, wallet);
+  paintWalletToggle(filterFollowing, filters.following === true, wallet);
+  filterWalletHint.hidden = wallet;
   paintFilterToggle(filterHashinal, filters.hashinal === true);
   paintFilterToggle(filterComments, filters.hasComments === true);
   const sort = query.sort || 'newest';
@@ -4132,10 +4141,19 @@ function syncSearchChrome() {
   toolbar.classList.toggle('has-search-query', filtered);
   searchBtnFeed.setAttribute('aria-expanded', pageOpen ? 'true' : 'false');
   searchBtnFeed.setAttribute('aria-label', filtered ? 'Search, filtered' : 'Search');
-  const text = getQuery().text;
+  const query = getQuery();
+  const text = query.text;
   if (searchInput.value !== text) searchInput.value = text;
   searchClear.hidden = searchInput.value.length === 0;
-  searchGear.classList.toggle('is-active', Object.keys(getQuery().filters).length > 0);
+  let filterOn = false;
+  const filters = query.filters || {};
+  for (const key of Object.keys(filters)) {
+    const value = filters[key];
+    if (value == null || value === '' || value === false) continue;
+    filterOn = true;
+    break;
+  }
+  searchGear.classList.toggle('is-active', filterOn || (query.sort || 'newest') !== 'newest');
   searchGear.setAttribute('aria-expanded', filterCard.style.display === 'block' ? 'true' : 'false');
   rebuildChips();
   syncFilterControls();
@@ -8487,13 +8505,13 @@ filterOnlyText.addEventListener('click', (event) => {
 });
 filterMine.addEventListener('click', (event) => {
   event.stopPropagation();
-  if (filterMine.disabled) return;
+  if (filterMine.getAttribute('aria-disabled') === 'true') return;
   if (getQuery().filters.mine === true) setFilter('mine', '');
   else setFilter('mine', true);
 });
 filterFollowing.addEventListener('click', (event) => {
   event.stopPropagation();
-  if (filterFollowing.disabled) return;
+  if (filterFollowing.getAttribute('aria-disabled') === 'true') return;
   if (getQuery().filters.following === true) setFilter('following', '');
   else {
     setFilter('following', true);
