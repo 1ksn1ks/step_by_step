@@ -16,7 +16,8 @@ import { profilePictures } from "./loadalladata.js";
 import { paintDrawField } from "./drawpreview.js";
 import { rememberGrant, withUploadAuth } from "./uploadgrant.js";
 import { COVER_VIDEO_PROBE_MS, coverVideoReject } from "./covervideolimit.js";
-import { isGifUrl, resolveMediaUrl } from "./mediaurl.js";
+import { isGifUrl, needsGifCheck, resolveMediaUrl } from "./mediaurl.js";
+import { presentImage } from "./loopmedia.js";
 import {
   GIF_BROWSER_ERROR,
   convertGifFile,
@@ -645,8 +646,10 @@ function isVideoUrl(url) {
 }
 
 function previewSrc(url) {
-  if (isGifUrl(url)) return "";
-  return resolveMediaUrl(url).src || "";
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  if (isGifUrl(raw) || needsGifCheck(raw)) return raw;
+  return resolveMediaUrl(raw).src || "";
 }
 
 // A local GIF must not play in an <img>. The first frame is a JPEG preview
@@ -693,7 +696,7 @@ function showFieldPreview(fieldId, url, kind) {
   const videoMode = kind === "video" || isVideoUrl(url);
   if (!shown) {
     revokePreviewUrl(box);
-    img.removeAttribute("src");
+    presentImage(img, "");
     img.hidden = true;
     video.pause();
     video.removeAttribute("src");
@@ -722,7 +725,7 @@ function showFieldPreview(fieldId, url, kind) {
     video.removeAttribute("src");
     video.load();
     img.hidden = false;
-    if (img.getAttribute("src") !== shown) img.src = shown;
+    presentImage(img, shown);
   }
   box.hidden = false;
   paintDrawField(fieldId, shown, videoMode ? "video" : "image");
@@ -735,7 +738,7 @@ function hideFieldPreview(fieldId) {
   const img = box.querySelector("img");
   const video = box.querySelector("video");
   revokePreviewUrl(box);
-  img.removeAttribute("src");
+  presentImage(img, "");
   img.hidden = true;
   video.pause();
   video.removeAttribute("src");

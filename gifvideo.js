@@ -427,3 +427,68 @@ export async function convertGifFile(file, options) {
     if (decoded && decoded.close) decoded.close();
   }
 }
+
+function paintFrameZero(decoded) {
+  if (!decoded || !decoded.painter || !decoded.width || !decoded.height) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = decoded.width;
+  canvas.height = decoded.height;
+  decoded.painter.reset();
+  decoded.painter.paint(0, canvas.getContext("2d"), {
+    width: decoded.width,
+    height: decoded.height,
+    sx: 0,
+    sy: 0,
+    sw: decoded.width,
+    sh: decoded.height,
+  });
+  return canvas;
+}
+
+// Frame 0 only. ImageDecoder reads that frame and stops. gifuct-js is the
+// fallback. Nothing here records or uploads.
+export async function gifStillCanvas(file) {
+  const data = await file.arrayBuffer();
+  if (typeof ImageDecoder === "function") {
+    let decoder = null;
+    let image = null;
+    try {
+      decoder = new ImageDecoder({ data: data.slice(0), type: "image/gif" });
+      await decoder.tracks.ready;
+      const track = decoder.tracks.selectedTrack;
+      if (track && track.frameCount) {
+        const result = await decoder.decode({ frameIndex: 0 });
+        image = result && result.image;
+        const width = image && (image.displayWidth || image.codedWidth);
+        const height = image && (image.displayHeight || image.codedHeight);
+        if (width && height) {
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext("2d").drawImage(image, 0, 0);
+          return canvas;
+        }
+      }
+    } catch {
+      /* the byte decoder below draws frame 0 */
+    } finally {
+      if (image) {
+        try { image.close(); } catch { /* already closed */ }
+      }
+      if (decoder) {
+        try { decoder.close(); } catch { /* already closed */ }
+      }
+    }
+  }
+  let decoded = null;
+  try {
+    decoded = await decodeWithGifuct(new File([data], "frame.gif", { type: "image/gif" }));
+    if (!decoded) return null;
+    decoded.painter = gifuctPainter(decoded);
+    return paintFrameZero(decoded);
+  } catch {
+    return null;
+  } finally {
+    if (decoded && decoded.close) decoded.close();
+  }
+}

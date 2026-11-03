@@ -251,14 +251,15 @@ function syncKeptMarkers() {
 }
 
 // The face sits in a MapLibre marker (transform, not scroll). A still is an
-// img. A GIF or video is a small muted loop that plays while the dot is on
-// the map and pauses when the tab is hidden.
+// img. A GIF is frame 0 and stays still. A video is a small muted loop
+// that plays while the dot is on the map and pauses when the tab is hidden.
 function paintMarkerPicture(entry, url) {
   const seq = (entry.pictureSeq || 0) + 1;
   entry.pictureSeq = seq;
   entry.pictureUrl = url || '';
   const face = entry.face;
   let view = face.querySelector('img, video.loop-face');
+  face.querySelectorAll('canvas.media-still, video.media-gif-play').forEach((node) => node.remove());
   if (!url) {
     if (view && view.tagName === 'VIDEO') forgetLoop(view);
     if (view) view.remove();

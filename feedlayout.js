@@ -36,8 +36,8 @@ import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
 import { VIEW_SORT_BATCH, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs, zeroViewCounts } from './viewsort.js';
 import { FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, feedAutoplayAllowed, feedVideoHeld, feedVideoPreloadOnPause, feedVideoShouldRelease, feedVideoStartDelay, pickFeedVideo } from './feedvideo.js';
-import { isGifUrl, resolveMediaUrl } from './mediaurl.js';
-import { mountPicture, pictureElement } from './loopmedia.js';
+import { classifyImageUrl, isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
+import { mountPicture, pictureElement, playStoredGif, presentImage } from './loopmedia.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -2296,10 +2296,11 @@ function buildCard(post) {
 
   let media = null;
   const src = mediaOf(record.image);
-  // A stored .gif is not played. New uploads are already MP4, WebM, or JPEG.
-  if (src && !isGifUrl(src)) {
+  // A GIF, including an extensionless IPFS file, is a still until a tap
+  // plays it in memory. The card keeps its skeleton while the check runs.
+  const gifLike = !!(src && (isGifUrl(src) || needsGifCheck(src)));
+  if (src && (gifLike || resolveMediaUrl(src).src)) {
     const resolved = resolveMediaUrl(src);
-    if (resolved.src) {
     media = document.createElement('div');
     media.className = 'popup-media-card';
     const video = resolved.kind === 'video';
@@ -2315,7 +2316,14 @@ function buildCard(post) {
       if (resolved.poster) node.poster = resolved.poster;
       else {
         const poster = mediaOf(record.coverimage);
-        if (poster && !isVideo(poster) && !isGifUrl(poster)) node.poster = poster;
+        if (poster && !isVideo(poster) && !isGifUrl(poster)) {
+          if (!needsGifCheck(poster)) node.poster = poster;
+          else {
+            classifyImageUrl(poster).then((isGif) => {
+              if (isGif === false && node.isConnected) node.poster = poster;
+            });
+          }
+        }
       }
       media.appendChild(node);
       bindFeedVideo(node);
@@ -2335,14 +2343,19 @@ function buildCard(post) {
       node.draggable = false;
       node.loading = 'lazy';
       node.decoding = 'async';
-      node.src = resolved.src;
       media.appendChild(node);
-      // Tap opens this same original URL in the fullscreen viewer.
+      presentImage(node, src, { play: true });
+      // A still GIF plays here, muted and looping. Other pictures open
+      // the fullscreen viewer. A tap during the check does nothing.
       coverFeedPlayer(media, () => {
+        if (node.classList.contains('is-media-pending')) return;
+        if (node.dataset.mediaGif === '1') {
+          playStoredGif(node);
+          return;
+        }
         holdScroll();
-        openPreview(resolved.src);
+        openPreview(resolved.src || src);
       });
-    }
     }
   }
 

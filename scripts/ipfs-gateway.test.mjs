@@ -77,7 +77,7 @@ test("recognised IPFS urls are rewritten to the first gateway", () => {
 
 test("a canvas image is pointed at the first gateway before it loads", () => {
   const source = fs.readFileSync(new URL("../polygons.js", import.meta.url), "utf8");
-  const start = source.indexOf("function createResizedImage");
+  const start = source.indexOf("function loadElementImage");
   assert.notEqual(start, -1);
   let depth = 0;
   let started = false;
@@ -97,6 +97,10 @@ test("a canvas image is pointed at the first gateway before it loads", () => {
   }
   const body = source.slice(start, end);
   assert.equal(body.includes("img.src = preferGateway(imageUrl) || imageUrl;"), true);
+  const resized = source.slice(source.indexOf("function createResizedImage"));
+  assert.match(resized, /classifyImageUrl\(url\)/);
+  assert.match(resized, /gifStillCanvas/);
+  assert.equal(resized.includes("img.src = preferGateway(imageUrl) || imageUrl;"), false);
   const onerror = body.indexOf("img.onerror");
   const advance = body.indexOf("advanceIpfsImage(img)", onerror);
   const fallbackAssign = body.indexOf("img.src = fallbackUrl", onerror);

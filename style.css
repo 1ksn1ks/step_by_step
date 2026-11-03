@@ -7903,6 +7903,7 @@ a.payer-link {
   max-height: 100%;
 }
 .media-preview-stage img,
+.media-preview-stage canvas.media-still,
 .media-preview-stage video {
   max-width: 92vw;
   max-width: 92dvw;
@@ -10782,6 +10783,7 @@ html.feed-app #feed-search-page {
   justify-self: center;
 }
 :is(#feed-column, .feed-comments-stage) .popup-media-card img,
+:is(#feed-column, .feed-comments-stage) .popup-media-card canvas.media-still,
 :is(#feed-column, .feed-comments-stage) .popup-media-card video,
 :is(#feed-column, .feed-comments-stage) .popup-media-card iframe,
 :is(#feed-column, .feed-comments-stage) .popup-media-card embed,
@@ -10801,6 +10803,7 @@ html.feed-app #feed-search-page {
   -webkit-user-drag: none;
 }
 :is(#feed-column, .feed-comments-stage) .popup-media-card img,
+:is(#feed-column, .feed-comments-stage) .popup-media-card canvas.media-still,
 :is(#feed-column, .feed-comments-stage) .popup-media-card video,
 :is(#feed-column, .feed-comments-stage) .popup-media-card iframe,
 :is(#feed-column, .feed-comments-stage) .popup-media-card embed,
@@ -18281,5 +18284,75 @@ html.kb-open :is(.chat-compose, [data-kb-dock]) {
   ) {
     transition: none;
   }
+}
+
+/* A sniffed GIF is a canvas of frame 0. The img stays for taps and profile
+   lookup, with no src, so the file is never an <img> or a CSS background.
+   The pending card uses the same radial skeleton as .popup-media-card. */
+img.is-media-pending:not([src]) {
+  visibility: hidden;
+}
+img.is-gif-hit {
+  position: absolute !important;
+  width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+.popup-media-card.is-media-pending {
+  background-color: #0b0d13;
+  background-image: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
+}
+:is(#feed-column, .feed-comments-stage) .popup-media-card.is-media-pending {
+  width: min(100%, calc(var(--fu) * 16));
+  aspect-ratio: 1;
+  background-color: #0b0d13;
+  background-image: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
+}
+#media-fullscreen img.is-media-pending {
+  --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
+  visibility: visible;
+  width: calc(var(--fu) * 16);
+  aspect-ratio: 1;
+  background-color: #0b0d13;
+  background-image: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
+}
+.marker-face > canvas.media-still,
+.early-hashinal > canvas.media-still {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.early-hashinal > canvas.media-still {
+  position: relative;
+  z-index: 3;
+}
+.popup-media-card > canvas.media-still,
+.popup-media-card > video.media-gif-play {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  border-radius: inherit;
+  background-color: #0b0d13;
+  pointer-events: auto;
+}
+:is(#feed-column, .feed-comments-stage) .popup-media-card > canvas.media-still,
+:is(#feed-column, .feed-comments-stage) .popup-media-card > video.media-gif-play {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 50dvh;
+  object-fit: contain;
+  background: none;
+  pointer-events: none;
 }
 

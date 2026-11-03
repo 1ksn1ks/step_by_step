@@ -1,7 +1,16 @@
 // Device GIF geometry, progress, and the media-URL resolver. No browser and no network.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { posterTargetKey, resolveMediaUrl } from "../mediaurl.js";
+import {
+  classifyImageUrl,
+  contentTypeVerdict,
+  gifMagic,
+  readGifCache,
+  resetGifCache,
+  resolveMediaUrl,
+  writeGifCache,
+  posterTargetKey,
+} from "../mediaurl.js";
 import {
   GIF_BROWSER_ERROR,
   conversionRatio,
@@ -113,6 +122,139 @@ test("a gif address is not rendered and other media stays put", () => {
     kind: "video", src: "https://example.com/clip.webm", poster: "",
   });
   assert.deepEqual(resolveMediaUrl(""), { kind: "image", src: "", poster: "" });
+});
+
+function memStore() {
+  const data = new Map();
+  return {
+    getItem: (key) => (data.has(key) ? data.get(key) : null),
+    setItem: (key, value) => data.set(key, String(value)),
+  };
+}
+
+test("gif magic is GIF87a or GIF89a and nothing else", () => {
+  const bytes = (text) => Uint8Array.from(text, (ch) => ch.charCodeAt(0));
+  assert.equal(gifMagic(bytes("GIF87a")), true);
+  assert.equal(gifMagic(bytes("GIF89a")), true);
+  assert.equal(gifMagic(bytes("GIF89aXXXX")), true);
+  assert.equal(gifMagic(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a])), false);
+  assert.equal(gifMagic(Uint8Array.from([0xff, 0xd8, 0xff, 0x00, 0x00, 0x00])), false);
+  assert.equal(gifMagic(bytes("GIF89")), false);
+  assert.equal(gifMagic(bytes("GIF87b")), false);
+  assert.equal(gifMagic(null), false);
+  assert.equal(gifMagic(new ArrayBuffer(0)), false);
+  assert.equal(contentTypeVerdict("image/gif; charset=binary"), "gif");
+  assert.equal(contentTypeVerdict("image/png"), "other");
+  assert.equal(contentTypeVerdict("application/octet-stream"), "unknown");
+  assert.equal(contentTypeVerdict(""), "unknown");
+});
+
+test("the gif answer is cached in memory and localStorage", () => {
+  resetGifCache();
+  const url = "https://cdn.example/ipfs/QmCacheGif";
+  const box = memStore();
+  assert.equal(readGifCache(url, box), null);
+  writeGifCache(url, true, box);
+  assert.equal(readGifCache(url, box), true);
+  resetGifCache();
+  assert.equal(readGifCache(url, box), true);
+  assert.equal(JSON.parse(box.getItem("sbs-gif-sniff"))[url], 1);
+  writeGifCache(url, false, box);
+  assert.equal(readGifCache(url, box), false);
+  resetGifCache();
+  assert.equal(readGifCache(url, box), false);
+  assert.equal(JSON.parse(box.getItem("sbs-gif-sniff"))[url], 0);
+  let reads = 0;
+  const memoryBox = {
+    getItem() {
+      reads += 1;
+      return JSON.stringify({ "https://cdn.example/mem": 0 });
+    },
+    setItem() { throw new Error("full"); },
+  };
+  writeGifCache("https://cdn.example/mem", true, memoryBox);
+  reads = 0;
+  assert.equal(readGifCache("https://cdn.example/mem", memoryBox), true);
+  assert.equal(reads, 0);
+  resetGifCache();
+});
+
+test("an extensionless gif is sniffed by content-type, else by a ranged read", async () => {
+  resetGifCache();
+  const gif = Uint8Array.from("GIF89aXXXX", (ch) => ch.charCodeAt(0));
+  const url = "https://massive-crimson-bass.myfilebase.com/ipfs/QmVWR33Rk8VLTd5CpQYBsNiRdXQY1eSTFGUR5bCew5R9x7";
+  const box = memStore();
+  let calls = 0;
+  const ranged = async (_url, init) => {
+    calls += 1;
+    assert.equal(init.headers.Range, "bytes=0-5");
+    return new Response(gif, { status: 206, headers: { "content-type": "application/octet-stream" } });
+  };
+  assert.equal(await classifyImageUrl(url, { fetch: ranged, storage: box }), true);
+  assert.equal(await classifyImageUrl(url, { fetch: ranged, storage: box }), true);
+  assert.equal(calls, 1);
+  assert.equal(JSON.parse(box.getItem("sbs-gif-sniff"))[url], 1);
+
+  resetGifCache();
+  const typed = "https://cdn.example/ipfs/QmTypedGif";
+  let typedCalls = 0;
+  assert.equal(await classifyImageUrl(typed, {
+    fetch: async () => {
+      typedCalls += 1;
+      return new Response(new Uint8Array(), { status: 200, headers: { "content-type": "image/gif" } });
+    },
+    storage: box,
+  }), true);
+  assert.equal(typedCalls, 1);
+
+  resetGifCache();
+  let pngCalls = 0;
+  assert.equal(await classifyImageUrl("https://kiloscribe.com/api/inscription-cdn/0.0.4819119", {
+    fetch: () => {
+      pngCalls += 1;
+      return new Response(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]), {
+        status: 200,
+        headers: { "content-type": "image/png" },
+      });
+    },
+    storage: box,
+  }), false);
+  assert.equal(pngCalls, 1);
+
+  resetGifCache();
+  let skipped = 0;
+  assert.equal(await classifyImageUrl("https://cdn.example/photo.JPG?x=1", {
+    fetch: () => { skipped += 1; },
+    storage: box,
+  }), false);
+  assert.equal(await classifyImageUrl("https://cdn.example/old.gif", {
+    fetch: () => { skipped += 1; },
+    storage: box,
+  }), true);
+  assert.equal(skipped, 0);
+
+  resetGifCache();
+  const fallen = "https://cdn.example/ipfs/QmFallback";
+  const older = Uint8Array.from("GIF87aYYYY", (ch) => ch.charCodeAt(0));
+  const fetches = [];
+  assert.equal(await classifyImageUrl(fallen, {
+    fetch: async (_url, init) => {
+      fetches.push(init && init.headers && init.headers.Range ? "range" : "full");
+      if (init && init.headers && init.headers.Range) throw new Error("range refused");
+      return new Response(older, { status: 200, headers: { "content-type": "application/octet-stream" } });
+    },
+    storage: box,
+  }), true);
+  assert.deepEqual(fetches, ["range", "full"]);
+
+  resetGifCache();
+  const down = "https://cdn.example/ipfs/QmDown";
+  assert.equal(await classifyImageUrl(down, {
+    fetch: async () => { throw new Error("offline"); },
+    storage: box,
+  }), null);
+  assert.equal(readGifCache(down, box), null);
+  resetGifCache();
 });
 
 test("a poster is stored only beside our own mp4 or webm", () => {

@@ -17,8 +17,8 @@ import { confirmShare, unshareFromMyTopic, sharePin, followPersonControls, watch
 import { clearShareTopic, noteShare, shareState, shareMine, takeSharePin, takeUnsharePin } from './sharecount.js'
 import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
 import { openPreview } from './fullscreenmedia';
-import { isGifUrl, resolveMediaUrl } from './mediaurl.js';
-import { pictureElement } from './loopmedia.js';
+import { isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
+import { pictureElement, playStoredGif, presentImage } from './loopmedia.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
 import { isTyping } from './joystick.js';
 import { normalizeMessageNewlines, clipMessage, formatHcsUsage, utf8ByteLength, HCS_TOO_LONG, HCS_MESSAGE_MAX_BYTES } from './hcschunks.js';
@@ -1906,36 +1906,52 @@ function popupSettingsGear(walk) {
   return btn;
 }
 
-// A stored GIF address is left empty. A real video keeps the in-popup player.
+// A GIF stays a still until a tap plays it in memory. The card's own
+// background is the skeleton while classifyImageUrl is still running.
 function fillPopupMedia(imageDiv, url) {
-  if (!url || isGifUrl(url)) return;
+  if (!url) return;
   const resolved = resolveMediaUrl(url);
-  if (!resolved.src) return;
+  const raw = String(url).trim();
+  const gifLike = isGifUrl(raw) || needsGifCheck(raw);
+  if (!resolved.src && !gifLike) return;
   const isVideo = resolved.kind === "video";
-  const media = isVideo ? document.createElement("video") : document.createElement("img");
   if (isVideo) {
+    const media = document.createElement("video");
     media.src = resolved.src;
     if (resolved.poster) media.poster = resolved.poster;
     media.controls = true;
     media.playsInline = true;
     media.preload = "metadata";
-  } else {
-    media.style.cursor = "zoom-in";
-    media.addEventListener("click", () => openPreview(url));
-    const chip = document.createElement("button");
-    chip.className = "popup-media-expand";
-    chip.title = "Expand";
-    chip.textContent = "⤢";
-    chip.addEventListener("click", (e) => {
-      e.stopPropagation();
-      openPreview(url);
-    });
-    imageDiv.appendChild(chip);
-    media.decoding = "async";
-    media.loading = "eager";
-    media.src = resolved.src;
+    imageDiv.appendChild(media);
+    return;
   }
+  const media = document.createElement("img");
+  media.style.cursor = "zoom-in";
+  media.addEventListener("click", () => {
+    if (media.classList.contains("is-media-pending")) return;
+    if (media.dataset.mediaGif === "1") {
+      playStoredGif(media);
+      return;
+    }
+    openPreview(url);
+  });
+  const chip = document.createElement("button");
+  chip.className = "popup-media-expand";
+  chip.title = "Expand";
+  chip.textContent = "⤢";
+  chip.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (media.dataset.mediaGif === "1") {
+      playStoredGif(media);
+      return;
+    }
+    openPreview(url);
+  });
+  imageDiv.appendChild(chip);
+  media.decoding = "async";
+  media.loading = "eager";
   imageDiv.appendChild(media);
+  presentImage(media, raw, { play: true });
 }
 
 export function createMarkerPopupHTML(data) {

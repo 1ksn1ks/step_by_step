@@ -1,5 +1,6 @@
 import { isTyping } from './joystick.js';
-import { isGifUrl, resolveMediaUrl } from './mediaurl.js';
+import { presentImage } from './loopmedia.js';
+import { isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
 
 // One preview for every picture in the app (chat thumbnails, popup
 // pictures, and the next place that needs it). Call openPreview. Add the
@@ -19,6 +20,7 @@ import { isGifUrl, resolveMediaUrl } from './mediaurl.js';
 let overlay = null;
 let fitted = null;
 let onFit = null;
+let stillWatch = null;
 
 const PREVIEW_WIDTH = 0.92;
 const PREVIEW_HEIGHT = 0.84;
@@ -28,8 +30,14 @@ function placePreview() {
   const view = window.visualViewport;
   const width = view && view.width ? view.width : window.innerWidth;
   const height = view && view.height ? view.height : window.innerHeight;
-  fitted.style.maxWidth = Math.max(1, Math.floor(width * PREVIEW_WIDTH)) + 'px';
-  fitted.style.maxHeight = Math.max(1, Math.floor(height * PREVIEW_HEIGHT)) + 'px';
+  const maxWidth = Math.max(1, Math.floor(width * PREVIEW_WIDTH)) + 'px';
+  const maxHeight = Math.max(1, Math.floor(height * PREVIEW_HEIGHT)) + 'px';
+  const stage = fitted.classList && fitted.classList.contains('media-preview-stage');
+  const nodes = stage ? fitted.querySelectorAll('canvas, img, video') : [fitted];
+  nodes.forEach((node) => {
+    node.style.maxWidth = maxWidth;
+    node.style.maxHeight = maxHeight;
+  });
 }
 
 function watchPreview(media) {
@@ -57,6 +65,10 @@ function unwatchPreview() {
 
 export function closePreview() {
   if (!overlay) return;
+  if (stillWatch) {
+    stillWatch.disconnect();
+    stillWatch = null;
+  }
   unwatchPreview();
   overlay.remove();
   overlay = null;
@@ -71,12 +83,14 @@ function onKey(e) {
 }
 
 export function openPreview(src, options = {}) {
-  if (!src || isGifUrl(src)) return;
+  if (!src) return;
   const resolved = resolveMediaUrl(src);
-  const play = resolved.src;
-  if (!play) return;
-  closePreview();
+  const raw = String(src).trim();
+  const gifLike = isGifUrl(raw) || needsGifCheck(raw);
   const video = options.video === true || resolved.kind === 'video';
+  if (video && !resolved.src) return;
+  if (!video && !resolved.src && !gifLike) return;
+  closePreview();
 
   overlay = document.createElement('div');
   overlay.id = 'media-fullscreen';
@@ -84,8 +98,8 @@ export function openPreview(src, options = {}) {
   const stage = document.createElement('div');
   stage.className = 'media-preview-stage';
   const media = video ? document.createElement('video') : document.createElement('img');
-  media.src = play;
   if (video) {
+    media.src = resolved.src;
     media.controls = true;
     media.playsInline = true;
     media.setAttribute('playsinline', '');
@@ -94,7 +108,13 @@ export function openPreview(src, options = {}) {
   }
   stage.appendChild(media);
   overlay.appendChild(stage);
-  watchPreview(media);
+  if (video) watchPreview(media);
+  else {
+    presentImage(media, raw);
+    watchPreview(stage);
+    stillWatch = new MutationObserver(() => placePreview());
+    stillWatch.observe(stage, { childList: true, attributes: true, attributeFilter: ['src', 'class'] });
+  }
 
   const close = document.createElement('button');
   close.type = 'button';

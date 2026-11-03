@@ -2,7 +2,8 @@ import { applyAllStyles } from './loadprofilepopup';
 import { scene } from "./threejs";
 import maplibregl from 'maplibre-gl';
 import { animateMapTo } from './animatemapto';
-import { isGifUrl, resolveMediaUrl } from './mediaurl.js';
+import { classifyImageUrl, isGifUrl, loadImageBytes, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
+import { gifStillCanvas } from './gifvideo.js';
 import { currentUfoModelInGLTF, polygons } from './letall';
 import { map } from './map'
 import { cameraState, earthOccludes } from './moon.js';
@@ -116,11 +117,32 @@ rasterOpacitySlider.addEventListener("input", (event) => {
 
 const resizedImageCache = new Map();
 
-function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackUrl = null) {
-  const key = `${imageUrl}|${maxWidth}|${maxHeight}`;
-  const cached = resizedImageCache.get(key);
-  if (cached) return cached;
-  const pending = new Promise((resolve, reject) => {
+function rasterize(source, sw, sh, maxWidth, maxHeight) {
+  const canvas = document.createElement('canvas');
+  let width = sw;
+  let height = sh;
+  if (width > maxWidth || height > maxHeight) {
+    if (width / height > maxWidth / maxHeight) {
+      if (width > maxWidth) {
+        height = Math.round(height * (maxWidth / width));
+        width = maxWidth;
+      }
+    } else if (height > maxHeight) {
+      width = Math.round(width * (maxHeight / height));
+      height = maxHeight;
+    }
+  }
+  canvas.width = Math.max(1, width);
+  canvas.height = Math.max(1, height);
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg', 0.92);
+}
+
+function loadElementImage(imageUrl, maxWidth, maxHeight, fallbackUrl) {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     img.dataset.canvasImage = '1';
     img.crossOrigin = "anonymous";
@@ -128,38 +150,7 @@ function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackU
     img.onload = () => {
       clearIpfsAttempt(img);
       try {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-
-        // Maintain aspect ratio
-        if (width > maxWidth || height > maxHeight) {
-          if (width / height > maxWidth / maxHeight) {
-            // wider than target ratio → constrain by width
-            if (width > maxWidth) {
-              height = Math.round(height * (maxWidth / width));
-              width = maxWidth;
-            }
-          } else {
-            // taller or same → constrain by height
-            if (height > maxHeight) {
-              width = Math.round(width * (maxHeight / height));
-              height = maxHeight;
-            }
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // You can also do: 'image/webp', 0.85 for smaller size & good quality
-        resolve(canvas.toDataURL('image/jpeg', 0.92));
+        resolve(rasterize(img, img.width, img.height, maxWidth, maxHeight));
       } catch (err) {
         // A tainted canvas throws here. One retry on the static fallback.
         if (fallbackUrl && img.src !== fallbackUrl) img.src = fallbackUrl;
@@ -171,7 +162,6 @@ function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackU
       clearIpfsAttempt(img);
       if (advanceIpfsImage(img)) return;
       if (fallbackUrl && img.src !== fallbackUrl) {
-        // Try fallback once
         img.src = fallbackUrl;
       } else {
         reject(new Error(`Failed to load image: ${img.src}`));
@@ -181,6 +171,31 @@ function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackU
     img.src = preferGateway(imageUrl) || imageUrl;
     armIpfsAttempt(img);
   });
+}
+
+function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackUrl = null) {
+  const key = `${imageUrl}|${maxWidth}|${maxHeight}`;
+  const cached = resizedImageCache.get(key);
+  if (cached) return cached;
+  const pending = (async () => {
+    const url = preferGateway(imageUrl) || imageUrl;
+    // The black map placeholder stays until this resolves. A GIF is frame 0
+    // from the shared helper, never an <img> that can animate.
+    if (url && (isGifUrl(url) || needsGifCheck(url))) {
+      const gif = await classifyImageUrl(url);
+      if (gif === true) {
+        const buf = await loadImageBytes(url);
+        const still = await gifStillCanvas(new File([buf], "cover.gif", { type: "image/gif" }));
+        if (!still) throw new Error("gif still");
+        return rasterize(still, still.width, still.height, maxWidth, maxHeight);
+      }
+      if (gif == null) {
+        if (!fallbackUrl) throw new Error("unverified image");
+        return loadElementImage(fallbackUrl, maxWidth, maxHeight, null);
+      }
+    }
+    return loadElementImage(url, maxWidth, maxHeight, fallbackUrl);
+  })();
   resizedImageCache.set(key, pending);
   pending.catch(() => {});
   return pending;
@@ -188,7 +203,7 @@ function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackU
 
 // ── Animated covers (video) ─────────────────────────────────────────────
 // A MapLibre image source is a static texture. A hidden <video> is blitted
-// onto a canvas and uploaded from there. A stored GIF address is not drawn.
+// onto a canvas and uploaded from there. A GIF cover is frame 0 only.
 // A cover that was converted to MP4 or WebM uses this path, including the 30s rewind.
 //
 // A looping profile picture is the fill whenever a polygon has no cover of
@@ -716,10 +731,8 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
         addedLayers.add(maskLayerId);
 
         // A video cover waits until the polygon is on screen. A still
-        // cover does too, and downloads only then.
-        if (isGifUrl(coverUrl)) {
-          /* an old .gif cover is not drawn */
-        } else if (kind === 'video') {
+        // cover does too, and downloads only then. A GIF is frame 0.
+        if (kind === 'video') {
           registerCover(sourceId, layerId, 'video', coverPlayUrl(coverUrl), sourceCoordinates);
         } else {
           queueCoverLoad(sourceId, coverUrl, sourceCoordinates, 'still');

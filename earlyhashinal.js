@@ -60,6 +60,19 @@ function syncPopupBubbleRing(bubble, early) {
   bubble.prepend(spin);
 }
 
+function gifStillNode(img) {
+  const prev = img && img.previousElementSibling;
+  if (prev && prev.classList && prev.classList.contains("media-still")) return prev;
+  return null;
+}
+
+function unwrapRing(parent, img) {
+  const still = gifStillNode(img);
+  forgetTilt(parent);
+  parent.replaceWith(img);
+  if (still && img.parentNode) img.parentNode.insertBefore(still, img);
+}
+
 function syncProfileRing(img) {
   const n = earlyHashinalNumber(img.dataset.earlyAccount || "");
   const parent = img.parentElement;
@@ -68,29 +81,25 @@ function syncProfileRing(img) {
   // The profile pill wears the ring. Marker and list avatars keep theirs.
   // The picture leans on its own. A wrapped avatar ring leans with it.
   if (bubble) {
-    if (wrapped) {
-      forgetTilt(parent);
-      parent.replaceWith(img);
-    }
+    if (wrapped) unwrapRing(parent, img);
     syncPopupBubbleRing(bubble, n > 0);
     watchProfilePicture(img);
     return;
   }
   if (!n) {
-    if (wrapped) {
-      forgetTilt(parent);
-      parent.replaceWith(img);
-    }
+    if (wrapped) unwrapRing(parent, img);
     watchProfilePicture(img);
     return;
   }
   let shell = wrapped ? parent : null;
   if (!shell) {
     if (!img.parentNode) return;
+    const still = gifStillNode(img);
     forgetTilt(img);
     shell = document.createElement("span");
     shell.className = "early-hashinal";
     img.replaceWith(shell);
+    if (still) shell.appendChild(still);
     shell.appendChild(img);
   }
   delete shell.dataset.tip;

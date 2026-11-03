@@ -9,8 +9,8 @@ import { paintProfileAvatar } from "./earlyhashinal.js";
 import { watchProfilePicture } from "./markertilt.js";
 import { syncPopupChrome } from "./loadprofilepopup.js";
 import { watchFollowPrefetch } from "./followtopic.js";
-import { isGifUrl, resolveMediaUrl } from "./mediaurl.js";
-import { mountPicture } from "./loopmedia.js";
+import { isGifUrl, needsGifCheck, resolveMediaUrl } from "./mediaurl.js";
+import { mountPicture, presentImage } from "./loopmedia.js";
 
 const DEFAULT_PIC = "https://kiloscribe.com/api/inscription-cdn/0.0.4819119";
 
@@ -36,17 +36,26 @@ function playable(url) {
   return resolveMediaUrl(url).src || "";
 }
 
+// A GIF address has an empty playable src. It still has to be checked so
+// the preview can show frame 0 instead of skipping the picture.
+function stillUrl(url) {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  if (isGifUrl(raw) || needsGifCheck(raw)) return raw;
+  return playable(raw);
+}
+
 function paintMedia(id, url, kind) {
   const card = document.getElementById(id);
   if (!card) return;
   const img = card.querySelector("img");
   const video = card.querySelector("video");
   const clear = card.querySelector(".draw-popup-clear");
-  const src = playable(url);
+  const src = stillUrl(url);
   const videoMode = kind === "video" || isVideoUrl(url);
   if (!src) {
     img.hidden = true;
-    img.removeAttribute("src");
+    presentImage(img, "");
     video.pause();
     video.hidden = true;
     video.removeAttribute("src");
@@ -74,29 +83,29 @@ function paintMedia(id, url, kind) {
     video.removeAttribute("src");
     video.load();
     img.hidden = false;
-    if (img.getAttribute("src") !== src) img.src = src;
+    presentImage(img, src);
   }
 }
 
 function paintCover(id, url, kind, fieldId) {
   const chip = document.getElementById(id);
   if (chip) {
-    chip.classList.toggle("has-cover", !!playable(url));
-    chip.textContent = playable(url) ? "Cover ✓" : "Cover";
+    chip.classList.toggle("has-cover", !!stillUrl(url));
+    chip.textContent = stillUrl(url) ? "Cover ✓" : "Cover";
   }
   const preview = document.getElementById(COVER_PREVIEW[fieldId]);
   if (!preview) return;
   const img = preview.querySelector("img");
   const video = preview.querySelector("video");
   const clear = preview.querySelector(".draw-popup-clear");
-  const src = playable(url);
+  const src = stillUrl(url);
   const videoMode = !!video && (kind === "video" || isVideoUrl(url));
   if (!src) {
     preview.classList.remove("has-cover", "has-media");
     if (clear) clear.hidden = true;
     if (img) {
       img.hidden = true;
-      img.removeAttribute("src");
+      presentImage(img, "");
     }
     if (video) {
       video.pause();
@@ -129,7 +138,7 @@ function paintCover(id, url, kind, fieldId) {
   }
   if (!img) return;
   img.hidden = false;
-  if (img.getAttribute("src") !== src) img.src = src;
+  presentImage(img, src);
 }
 
 export function paintDrawField(fieldId, url, kind) {
