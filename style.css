@@ -7138,6 +7138,79 @@ html, body {
 }
 .polygon-title-tip[hidden],
 .marker-title-tip[hidden] { display: none; }
+
+/* Play control for a polygon cover video. The glass disc matches the
+   new-posts pill. The hit target is the only fixed length: 44px. */
+.polygon-cover-play {
+  --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
+  --ui-label: calc(var(--fu) * 1.8);
+  --ui-small: calc(var(--fu) * 1.35);
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  top: 0;
+  width: max(44px, calc(var(--fu) * 3.6));
+  height: max(44px, calc(var(--fu) * 3.6));
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: #22D3EE;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  transform: translate(-50%, -50%);
+  -webkit-tap-highlight-color: transparent;
+}
+.polygon-cover-play[hidden] {
+  display: none;
+}
+.polygon-cover-play-glass {
+  width: calc(var(--fu) * 2.6);
+  height: calc(var(--fu) * 2.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: solid #22D3EE;
+  border-width: calc(var(--fu) * 0.08);
+  background: rgba(8, 10, 18, 0.72);
+  -webkit-backdrop-filter: blur(calc(var(--fu) * 1.4));
+  backdrop-filter: blur(calc(var(--fu) * 1.4));
+  box-shadow:
+    0 0 calc(var(--fu) * 1.15) rgba(34, 211, 238, 0.45),
+    0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+.polygon-cover-play-icon {
+  width: calc(var(--fu) * 1.15);
+  height: calc(var(--fu) * 1.15);
+  display: block;
+}
+.polygon-cover-play .is-pause { display: none; }
+.polygon-cover-play.is-playing .is-play { display: none; }
+.polygon-cover-play.is-playing .is-pause { display: block; }
+.polygon-cover-play:focus-visible {
+  outline: calc(var(--fu) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--fu) * 0.12);
+}
+@media (prefers-reduced-motion: reduce) {
+  .polygon-cover-play,
+  .polygon-cover-play-glass {
+    transition: none;
+    animation: none;
+  }
+}
+html.feed-app .polygon-cover-play {
+  visibility: hidden;
+  pointer-events: none;
+}
 /* Early holder hover card. Same box as the normal tip. A conic disc rotates
    inside a 1px ring clip (the mask is on the wrapper, not the rotating
    layer) so the border stays on the GPU and the center stays dark glass. */

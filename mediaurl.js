@@ -277,3 +277,26 @@ export function posterTargetKey(publicBase, videoUrl) {
   if (!key || key.includes("..") || !POSTER_KEY.test(key)) return "";
   return key.replace(/\.(mp4|webm)$/i, ".poster.jpg");
 }
+
+// The sibling poster URL for a markers mp4 or webm. Search and hash are
+// dropped. A prefixed public base still matches. Anything else is empty,
+// so a missing poster never becomes a video download.
+export function siblingPosterUrl(videoUrl) {
+  const raw = typeof videoUrl === "string" ? videoUrl.trim() : "";
+  if (!raw) return "";
+  let parsed;
+  try { parsed = new URL(raw); } catch { return ""; }
+  let path;
+  try { path = decodeURIComponent(parsed.pathname); } catch { return ""; }
+  if (!path || path.includes("..")) return "";
+  const parts = path.split("/");
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const key = parts.slice(i).join("/");
+    if (!POSTER_KEY.test(key)) continue;
+    const posterKey = key.replace(/\.(mp4|webm)$/i, ".poster.jpg");
+    const posterPath = parts.slice(0, i).concat(posterKey).join("/");
+    const pathname = posterPath.startsWith("/") ? posterPath : `/${posterPath}`;
+    return `${parsed.origin}${pathname}`;
+  }
+  return "";
+}

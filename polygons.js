@@ -2,7 +2,8 @@ import { applyAllStyles } from './loadprofilepopup';
 import { scene } from "./threejs";
 import maplibregl from 'maplibre-gl';
 import { animateMapTo } from './animatemapto';
-import { classifyImageUrl, isGifUrl, loadImageBytes, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
+import { classifyImageUrl, isGifUrl, loadImageBytes, needsGifCheck, resolveMediaUrl, siblingPosterUrl } from './mediaurl.js';
+import { COVER_RELEASE_MS, coverBatteryIsLow, coverHoldSrc, coverIdsToRelease, coverShouldRelease, shouldAutoplayCover } from './coverautoplay.js';
 import { gifStillCanvas } from './gifvideo.js';
 import { currentUfoModelInGLTF, polygons } from './letall';
 import { map } from './map'
@@ -203,16 +204,23 @@ function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackU
 
 // ── Animated covers (video) ─────────────────────────────────────────────
 // A MapLibre image source is a static texture. A hidden <video> is blitted
-// onto a canvas and uploaded from there. A GIF cover is frame 0 only.
-// A cover that was converted to MP4 or WebM uses this path, including the 30s rewind.
+// onto a canvas and uploaded from there while one cover is playing.
+// A GIF cover is frame 0 only. A cover that was converted to MP4 or WebM
+// uses this path, including the 30s rewind.
 //
-// A looping profile picture is the fill whenever a polygon has no cover of
-// its own. The video is created only once the polygon is on screen. In view
-// = the map center is inside the source bbox, or a bbox corner projects
-// inside the canvas (40px margin) and is not hidden by the Earth. Off view,
-// the <video> is not created, a created one is paused, and the rAF stops
-// when nothing is visible. Texture cap: 512² JPEG q0.8 @ ~30 fps.
+// Nothing plays by itself. shouldAutoplayCover is the only hook that can
+// turn that on, and it returns false. In view, the texture is the uploaded
+// poster, or frame 0 grabbed once and kept in memory. The video src stays
+// unset until a tap. Off screen, a hidden tab, the feed, or another cover
+// pauses it and gives the file back after a few seconds. The poster stays.
+// In view = the map center is inside the source bbox, or a bbox corner
+// projects inside the canvas (40px margin) and is not hidden by the Earth.
+// Texture cap: 512² @ ~30 fps while playing.
 const mediaCovers = new Map(); // sourceId → cover state
+// Poster and frame-0 stills, keyed by the video URL. Survives a src release.
+const stillCache = new Map();
+const stillPending = new Map();
+let coverBatteryLow = false;
 // Still covers wait for the same in-view test. Until then the source shows
 // the black placeholder.
 const pendingCovers = new Map(); // sourceId → { url, corners, kind }
@@ -222,8 +230,9 @@ const VIDEO_FRAME_MS = 33; // ~30 fps texture uploads (2026-10-07, user asked fo
 const COVER_FALLBACK = "https://kiloscribe.com/api/inscription-cdn/0.0.4819119";
 const D2R = Math.PI / 180;
 
-// HMR: drop orphaned cover videos left by a previous module instance
+// HMR: drop orphaned cover videos and play buttons left by a previous module instance
 document.querySelectorAll('video[data-polygon-cover]').forEach((v) => v.remove());
+document.querySelectorAll('.polygon-cover-play').forEach((el) => el.remove());
 
 const mediaKind = (url) => (resolveMediaUrl(url).kind === 'video' ? 'video' : null);
 
@@ -315,9 +324,20 @@ export function dropPolygonCover(polygonId) {
 
 function detachCover(cov) {
   if (!cov) return;
+  cov.dead = true;
+  cov.playing = false;
+  if (cov.releaseTimer) {
+    clearTimeout(cov.releaseTimer);
+    cov.releaseTimer = 0;
+  }
+  if (cov.btn) {
+    cov.btn.remove();
+    cov.btn = null;
+  }
   if (cov.video) {
     try { cov.video.pause(); } catch { /* already idle */ }
     cov.video.removeAttribute('src');
+    delete cov.video.dataset.coverSrc;
     try { cov.video.load(); } catch { /* element is going away */ }
     cov.video.remove();
     cov.video = null;
@@ -341,14 +361,18 @@ function visPass() {
   }
   if (mediaCovers.size === 0 && pendingCovers.size === 0) { stopVisTimer(); return; }
   const st = cameraState();
-  for (const cov of mediaCovers.values()) cov.inView = coverInView(cov.corners, st);
+  const viewer = readCoverViewer();
+  for (const cov of mediaCovers.values()) {
+    cov.inView = coverInView(cov.corners, st);
+    settleCover(cov, viewer);
+  }
   for (const [sid, cov] of [...pendingCovers]) {
     if (coverInView(cov.corners, st)) {
       pendingCovers.delete(sid);
       startPendingCover(sid, cov); // its bytes start now
     }
   }
-  ensurePump(); // a cover may have just entered view
+  ensurePump();
 }
 
 function stopVisTimer() {
@@ -400,30 +424,259 @@ async function startPendingCover(sourceId, cov) {
   }
 }
 
-// Register a video cover. The <video> waits until the polygon is on screen.
-function registerCover(sourceId, layerId, kind, url, corners) {
-  // A topic reload re-adds the same sourceId — drop the previous load's
-  // entry (and its orphaned hidden <video>, if any) and start fresh, so a
-  // stale in-flight state from the old source can't block the new one.
-  const stale = mediaCovers.get(sourceId);
-  if (stale) detachCover(stale);
-  const cov = { kind, sourceId, layerId, url, corners, started: false, starting: false, inView: false };
-  cov.inView = coverInView(corners, cameraState());
-  mediaCovers.set(sourceId, cov);
-  ensureVisTimer();
-  if (cov.inView) startCover(cov); // in view at insert time → begin now
+const COVER_VIDEO_STYLE = 'position: fixed; left: -10px; top: -10px; width: 2px; height: 2px; opacity: 0; pointer-events: none;';
+
+function coverFeedOpen() {
+  return document.documentElement.classList.contains('feed-app');
 }
 
-// Begin a cover while it is in view. The hidden <video> decodes on play()
-// and the pump blits frames. A background tab pauses it.
-async function startCover(cov) {
-  if (cov.started || cov.starting) return;
-  if (!map.getSource(cov.sourceId)) { detachCover(cov); return; }
-  if (cov.kind !== 'video') { detachCover(cov); return; }
-  cov.started = true;
+function coverLayerOn(cov) {
+  try {
+    return !!map.getLayer(cov.layerId)
+      && map.getLayoutProperty(cov.layerId, 'visibility') === 'visible';
+  } catch {
+    return false;
+  }
+}
+
+function coverOnScreen(cov) {
+  return !!cov.inView && !document.hidden && !coverFeedOpen() && coverLayerOn(cov);
+}
+
+function readCoverViewer() {
+  const net = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  let reducedMotion = false;
+  try {
+    reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    reducedMotion = false;
+  }
+  return {
+    saveData: !!(net && net.saveData),
+    lowBattery: coverBatteryLow,
+    reducedMotion,
+  };
+}
+
+function watchCoverBattery() {
+  const getBattery = navigator.getBattery;
+  if (typeof getBattery !== 'function') return;
+  Promise.resolve().then(() => getBattery.call(navigator)).then((battery) => {
+    if (!battery) return;
+    const apply = () => { coverBatteryLow = coverBatteryIsLow(battery); };
+    apply();
+    battery.addEventListener('levelchange', apply);
+    battery.addEventListener('chargingchange', apply);
+  }).catch(() => {});
+}
+watchCoverBattery();
+
+function coverHoldState(cov) {
+  return {
+    hasSrc: !!(cov.video && cov.video.dataset.coverSrc),
+    playing: !!cov.playing,
+    replaced: !!cov.forceRelease,
+    hidden: document.hidden,
+    feed: coverFeedOpen(),
+    inView: !!cov.inView && coverLayerOn(cov),
+  };
+}
+
+function syncCoverHold(cov) {
+  const state = coverHoldState(cov);
+  if (!state.hasSrc || coverHoldSrc(state)) {
+    if (cov.releaseTimer) {
+      clearTimeout(cov.releaseTimer);
+      cov.releaseTimer = 0;
+    }
+    return;
+  }
+  if (cov.releaseTimer) return;
+  cov.releaseSince = Date.now();
+  cov.releaseTimer = setTimeout(() => {
+    cov.releaseTimer = 0;
+    if (coverHoldSrc(coverHoldState(cov))) return;
+    if (!coverShouldRelease(cov.releaseSince, Date.now())) return;
+    releaseCoverSrc(cov);
+  }, COVER_RELEASE_MS);
+}
+
+function releaseCoverSrc(cov) {
+  if (!cov || cov.dead) return;
+  if (cov.releaseTimer) {
+    clearTimeout(cov.releaseTimer);
+    cov.releaseTimer = 0;
+  }
+  cov.playing = false;
+  cov.forceRelease = false;
+  const video = cov.video;
+  if (video) {
+    try { video.pause(); } catch { /* idle */ }
+    video.removeAttribute('src');
+    delete video.dataset.coverSrc;
+    try { video.load(); } catch { /* already clear */ }
+  }
+  const still = stillCache.get(cov.url) || cov.still;
+  if (still) paintCoverStill(cov, still);
+  syncCoverButton(cov);
+}
+
+function armCoverRelease(cov) {
+  cov.playing = false;
+  cov.userPaused = false;
+  cov.forceRelease = true;
+  if (cov.video && !cov.video.paused) {
+    try { cov.video.pause(); } catch { /* idle */ }
+  }
+  syncCoverHold(cov);
+  syncCoverButton(cov);
+}
+
+function allocBlit(cov) {
+  if (cov.canvas && cov.ctx) return;
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  cov.canvas = canvas;
+  cov.ctx = canvas.getContext('2d');
+}
+
+function paintCoverStill(cov, still) {
+  if (!still || cov.dead) return false;
+  if (!map.getSource(cov.sourceId)) return false;
+  if (still.kind === 'url') {
+    try {
+      const src = map.getSource(cov.sourceId);
+      if (!src || typeof src.updateImage !== 'function') return false;
+      src.updateImage({ url: still.url });
+      cov.still = still;
+      cov.stillReady = true;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  allocBlit(cov);
+  try {
+    const source = still.kind === 'canvas' ? still.canvas : still.image;
+    cov.ctx.drawImage(source, 0, 0, 512, 512);
+    cov.still = still;
+    cov.stillReady = !!swapSourceImage(cov.sourceId, cov.canvas);
+    return cov.stillReady;
+  } catch {
+    if (!still.url) return false;
+    return paintCoverStill(cov, { kind: 'url', url: still.url });
+  }
+}
+
+function probePoster(posterUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.decoding = 'async';
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = posterUrl;
+  });
+}
+
+// One metadata load, seek to frame 0, draw, then drop src. The canvas stays
+// in stillCache. A later view does not download the file again.
+function grabCoverFrame(url) {
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    video.setAttribute('data-polygon-cover', 'frame');
+    video.crossOrigin = 'anonymous';
+    video.muted = true;
+    video.defaultMuted = true;
+    video.setAttribute('muted', '');
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.preload = 'metadata';
+    video.style.cssText = COVER_VIDEO_STYLE;
+    let settled = false;
+    let asked = false;
+    let timer = 0;
+    const finish = (still) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      video.removeAttribute('src');
+      try { video.load(); } catch { /* already clear */ }
+      video.remove();
+      resolve(still || null);
+    };
+    const draw = () => {
+      if (settled || !asked || video.readyState < 2) return;
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        canvas.getContext('2d').drawImage(video, 0, 0, 512, 512);
+        finish({ kind: 'canvas', canvas });
+      } catch {
+        finish(null);
+      }
+    };
+    video.addEventListener('loadedmetadata', () => {
+      asked = true;
+      try { video.currentTime = 0; } catch { draw(); }
+      if (video.currentTime === 0 && video.readyState >= 2) draw();
+    }, { once: true });
+    video.addEventListener('seeked', draw);
+    video.addEventListener('loadeddata', draw);
+    video.addEventListener('error', () => finish(null), { once: true });
+    timer = setTimeout(() => finish(null), 8000);
+    document.body.appendChild(video); // iOS only decodes videos in the DOM
+    video.src = url;
+  });
+}
+
+function loadCoverStill(url) {
+  if (!url) return Promise.resolve({ kind: 'url', url: COVER_FALLBACK });
+  const cached = stillCache.get(url);
+  if (cached) return Promise.resolve(cached);
+  const pending = stillPending.get(url);
+  if (pending) return pending;
+  const job = (async () => {
+    const poster = siblingPosterUrl(url);
+    if (poster) {
+      const image = await probePoster(poster);
+      if (image) return { kind: 'image', image, url: poster };
+    }
+    const frame = await grabCoverFrame(url);
+    if (frame) return frame;
+    return { kind: 'url', url: COVER_FALLBACK };
+  })();
+  stillPending.set(url, job);
+  job.then((still) => { stillCache.set(url, still); }).finally(() => { stillPending.delete(url); });
+  return job;
+}
+
+function ensureCoverStill(cov) {
+  if (!cov || cov.dead || cov.stillReady || cov.grabbing || !cov.url) return;
+  if (!cov.inView || document.hidden || coverFeedOpen()) return;
+  cov.grabbing = true;
+  const token = cov;
+  loadCoverStill(cov.url).then((still) => {
+    if (mediaCovers.get(token.sourceId) !== token || token.dead) return;
+    if (token.playing || (token.userPaused && token.frameDrawn)) {
+      token.still = still;
+      return;
+    }
+    paintCoverStill(token, still);
+  }).catch(() => {
+    if (mediaCovers.get(token.sourceId) !== token || token.dead || token.playing) return;
+    paintCoverStill(token, { kind: 'url', url: COVER_FALLBACK });
+  }).finally(() => {
+    if (mediaCovers.get(token.sourceId) === token) token.grabbing = false;
+  });
+}
+
+function ensureCoverVideo(cov) {
+  if (cov.video) return cov.video;
   const video = document.createElement('video');
   video.setAttribute('data-polygon-cover', cov.sourceId);
-  video.src = cov.url;
   video.crossOrigin = 'anonymous'; // R2 objects carry CORS (set at upload)
   video.muted = true;
   video.defaultMuted = true;
@@ -431,61 +684,232 @@ async function startCover(cov) {
   video.loop = true;
   video.playsInline = true;
   video.setAttribute('playsinline', '');
-  video.preload = 'auto';
-  video.style.cssText = 'position: fixed; left: -10px; top: -10px; width: 2px; height: 2px; opacity: 0; pointer-events: none;';
+  video.preload = 'metadata';
+  video.style.cssText = COVER_VIDEO_STYLE;
   document.body.appendChild(video); // iOS only decodes videos in the DOM
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d');
-  Object.assign(cov, { video, canvas, ctx, lastFrameAt: 0 });
+  allocBlit(cov);
+  cov.video = video;
+  cov.lastFrameAt = 0;
   video.addEventListener('error', () => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      ctx.drawImage(img, 0, 0, 512, 512);
-      swapSourceImage(cov.sourceId, canvas);
-      detachCover(cov);
-    };
-    img.src = COVER_FALLBACK;
+    if (!cov.playing || cov.video !== video) return;
+    cov.playing = false;
+    cov.userPaused = true;
+    if (!stillCache.has(cov.url)) stillCache.set(cov.url, { kind: 'url', url: COVER_FALLBACK });
+    releaseCoverSrc(cov);
   });
+  return video;
+}
+
+function playCover(cov) {
+  if (!cov || cov.dead || !cov.url) return;
+  if (!map.getSource(cov.sourceId)) { detachCover(cov); return; }
+  const busy = [];
+  for (const other of mediaCovers.values()) {
+    if (other === cov) continue;
+    if (other.playing || (other.video && other.video.dataset.coverSrc)) busy.push(other.sourceId);
+  }
+  for (const id of coverIdsToRelease(busy, cov.sourceId)) {
+    const other = mediaCovers.get(id);
+    if (other) armCoverRelease(other);
+  }
+  const video = ensureCoverVideo(cov);
+  if (video.dataset.coverSrc !== cov.url) {
+    video.src = cov.url;
+    video.dataset.coverSrc = cov.url;
+  }
+  cov.playing = true;
+  cov.userPaused = false;
+  cov.forceRelease = false;
+  if (cov.releaseTimer) {
+    clearTimeout(cov.releaseTimer);
+    cov.releaseTimer = 0;
+  }
+  const pending = video.play();
+  if (pending && typeof pending.catch === 'function') pending.catch(() => {});
+  syncCoverButton(cov);
   ensurePump();
 }
 
-// The shared pump — one rAF loop for all animated covers. It runs only
-// while at least one cover is visible; off-view covers cost nothing (no
-// decode, no blit, no texture upload) and the rAF stops between them.
-// visPass (moveend/zoomend + 1s timer) restarts it when one enters view.
+function toggleCoverPlay(cov) {
+  if (!cov || cov.dead) return;
+  if (cov.playing) {
+    cov.playing = false;
+    cov.userPaused = true;
+    cov.forceRelease = false;
+    if (cov.releaseTimer) {
+      clearTimeout(cov.releaseTimer);
+      cov.releaseTimer = 0;
+    }
+    if (cov.video && !cov.video.paused) {
+      try { cov.video.pause(); } catch { /* idle */ }
+    }
+    syncCoverButton(cov);
+    return;
+  }
+  playCover(cov);
+}
+
+function settleCover(cov, viewer) {
+  if (!coverOnScreen(cov)) {
+    if (cov.playing) {
+      cov.playing = false;
+      if (cov.video && !cov.video.paused) {
+        try { cov.video.pause(); } catch { /* idle */ }
+      }
+    }
+  } else if (!cov.playing && !cov.userPaused && shouldAutoplayCover(cov.polygon, viewer || readCoverViewer())) {
+    playCover(cov);
+  } else if (!cov.playing && !cov.userPaused && !cov.stillReady && !cov.grabbing) {
+    ensureCoverStill(cov);
+  }
+  syncCoverHold(cov);
+  syncCoverButton(cov);
+  placeCoverButton(cov);
+}
+
+function coverCenter(corners) {
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  for (const pair of corners || []) {
+    const lng = pair[0];
+    const lat = pair[1];
+    if (lng < minLng) minLng = lng;
+    if (lng > maxLng) maxLng = lng;
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+  }
+  return [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
+}
+
+function coverCenterHidden(lng, lat, st) {
+  if (!st || !st.C) return false;
+  const lr = lat * D2R;
+  const gr = lng * D2R;
+  const m = [Math.cos(lr) * Math.cos(gr), Math.cos(lr) * Math.sin(gr), Math.sin(lr)];
+  return earthOccludes(st.C, m);
+}
+
+function ensureCoverButton(cov) {
+  if (cov.btn) return cov.btn;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'polygon-cover-play';
+  btn.dataset.cover = cov.sourceId;
+  btn.hidden = true;
+  btn.setAttribute('aria-label', 'Play cover');
+  btn.innerHTML = '<span class="polygon-cover-play-glass" aria-hidden="true">'
+    + '<svg class="polygon-cover-play-icon" viewBox="0 0 24 24" focusable="false">'
+    + '<path class="is-play" d="M9 6.2v11.6l9.2-5.8z" fill="#22D3EE"></path>'
+    + '<path class="is-pause" d="M7 5.5h3.2v13H7zm6.8 0H17v13h-3.2z" fill="#22D3EE"></path>'
+    + '</svg></span>';
+  btn.addEventListener('pointerdown', (event) => { event.stopPropagation(); });
+  btn.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleCoverPlay(cov);
+  });
+  map.getContainer().appendChild(btn);
+  cov.btn = btn;
+  return btn;
+}
+
+function syncCoverButton(cov) {
+  const btn = cov.btn;
+  if (!btn) return;
+  const playing = !!cov.playing;
+  btn.classList.toggle('is-playing', playing);
+  btn.setAttribute('aria-label', playing ? 'Pause cover' : 'Play cover');
+}
+
+function placeCoverButton(cov) {
+  if (!coverOnScreen(cov)) {
+    if (cov.btn) cov.btn.hidden = true;
+    return;
+  }
+  const center = coverCenter(cov.corners);
+  if (coverCenterHidden(center[0], center[1], cameraState())) {
+    if (cov.btn) cov.btn.hidden = true;
+    return;
+  }
+  let point = null;
+  try { point = map.project(center); } catch { point = null; }
+  const canvas = map.getCanvas();
+  const w = canvas ? canvas.clientWidth : 0;
+  const h = canvas ? canvas.clientHeight : 0;
+  if (!point || point.x < 0 || point.y < 0 || point.x > w || point.y > h) {
+    if (cov.btn) cov.btn.hidden = true;
+    return;
+  }
+  const btn = ensureCoverButton(cov);
+  btn.hidden = false;
+  btn.style.left = `${point.x}px`;
+  btn.style.top = `${point.y}px`;
+  syncCoverButton(cov);
+}
+
+// Register a video cover. The file stays unloaded until a tap. In view, the
+// texture becomes the poster or a cached frame 0. A topic reload drops the
+// previous entry so a stale video cannot block the new one.
+function registerCover(sourceId, layerId, url, corners, polygon) {
+  const stale = mediaCovers.get(sourceId);
+  if (stale) detachCover(stale);
+  const cov = {
+    kind: 'video',
+    sourceId,
+    layerId,
+    url,
+    corners,
+    polygon,
+    inView: false,
+    playing: false,
+    userPaused: false,
+    forceRelease: false,
+    stillReady: false,
+    grabbing: false,
+    releaseTimer: 0,
+  };
+  cov.inView = coverInView(corners, cameraState());
+  mediaCovers.set(sourceId, cov);
+  ensureVisTimer();
+  settleCover(cov, readCoverViewer());
+}
+
+// The shared pump blits only the cover that is playing. Off-view, hidden,
+// and feed covers pause here and give the file back after the release window.
 function ensurePump() {
   if (pumpRunning) return;
+  let playing = false;
+  for (const cov of mediaCovers.values()) if (cov.playing) playing = true;
+  if (!playing) return;
   pumpRunning = true;
   const tick = (now) => {
-    if (mediaCovers.size === 0) { pumpRunning = false; stopVisTimer(); return; }
     let any = false;
     for (const cov of mediaCovers.values()) {
-      // One corrupt cover must not kill the shared loop — drop it and go on
       try {
-        let visible = false;
-        try {
-          visible = cov.inView && !!map.getLayer(cov.layerId)
-            && map.getLayoutProperty(cov.layerId, 'visibility') === 'visible';
-        } catch { visible = false; }
-        if (!cov.started) {
-          if (visible && !document.hidden) startCover(cov);
-          continue;
-        }
-        if (!cov.video) { detachCover(cov); continue; }
-        if (!visible || document.hidden) {
-          if (!cov.video.paused) cov.video.pause();
+        if (!cov.playing || !cov.video) continue;
+        if (!coverOnScreen(cov)) {
+          cov.playing = false;
+          if (!cov.video.paused) {
+            try { cov.video.pause(); } catch { /* idle */ }
+          }
+          syncCoverHold(cov);
+          syncCoverButton(cov);
+          placeCoverButton(cov);
           continue;
         }
         if (cov.video.currentTime >= COVER_VIDEO_MAX_SECONDS) cov.video.currentTime = 0;
-        if (cov.video.paused) cov.video.play().catch(() => {});
+        if (cov.video.paused) {
+          const pending = cov.video.play();
+          if (pending && typeof pending.catch === 'function') pending.catch(() => {});
+        }
         any = true;
-        if (now - cov.lastFrameAt < VIDEO_FRAME_MS) continue;
+        if (!cov.ctx || now - cov.lastFrameAt < VIDEO_FRAME_MS) continue;
         cov.lastFrameAt = now;
         if (cov.video.readyState >= 2) {
           cov.ctx.drawImage(cov.video, 0, 0, 512, 512);
+          cov.frameDrawn = true;
           if (!swapSourceImage(cov.sourceId, cov.canvas)) detachCover(cov);
         }
       } catch (err) {
@@ -494,22 +918,60 @@ function ensurePump() {
       }
     }
     if (any) requestAnimationFrame(tick);
-    else pumpRunning = false; // nothing visible — rAF stops until visPass
+    else pumpRunning = false;
   };
   requestAnimationFrame(tick);
 }
 
+function pauseCoverForBlock(cov) {
+  if (cov.playing) {
+    cov.playing = false;
+    if (cov.video && !cov.video.paused) {
+      try { cov.video.pause(); } catch { /* idle */ }
+    }
+  }
+  syncCoverHold(cov);
+  syncCoverButton(cov);
+  placeCoverButton(cov);
+}
+
+function trackCoverButtons() {
+  if (mediaCovers.size === 0) return;
+  const st = cameraState();
+  for (const cov of mediaCovers.values()) {
+    const was = cov.inView;
+    cov.inView = coverInView(cov.corners, st);
+    if (was && !cov.inView) pauseCoverForBlock(cov);
+    else {
+      if (!was && cov.inView) syncCoverHold(cov);
+      placeCoverButton(cov);
+    }
+  }
+}
+
+map.on('move', trackCoverButtons);
 map.on('moveend', visPass);
 map.on('zoomend', visPass);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    for (const cov of mediaCovers.values()) {
-      if (cov.video && !cov.video.paused) cov.video.pause();
-    }
+    for (const cov of mediaCovers.values()) pauseCoverForBlock(cov);
     return;
   }
-  ensurePump();
+  visPass();
 });
+
+let coverFeedWas = document.documentElement.classList.contains('feed-app');
+const coverFeedWatch = new MutationObserver(() => {
+  const feed = document.documentElement.classList.contains('feed-app');
+  if (feed === coverFeedWas) return;
+  coverFeedWas = feed;
+  if (feed) {
+    for (const cov of mediaCovers.values()) pauseCoverForBlock(cov);
+    return;
+  }
+  visPass();
+});
+coverFeedWatch.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
 // MapLibre v5: 'load' fires ONCE (initial style load). After that, every
 // in-flight source change (addSource, 3d-model layer, ...) flips
@@ -650,6 +1112,7 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
       // Add interactivity (only if not already added)
       if (!addedLayers.has(maskLayerId)) {
         map.on('click', maskLayerId, (e) => {
+          if (kind === 'video') toggleCoverPlay(mediaCovers.get(sourceId));
           hidePolygonTitle();
           const description = polygonPopupNode(polygon);
           if (description) {
@@ -730,10 +1193,11 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
         // Mark this layer as added
         addedLayers.add(maskLayerId);
 
-        // A video cover waits until the polygon is on screen. A still
-        // cover does too, and downloads only then. A GIF is frame 0.
+        // A video cover shows a still until a tap. The file is not requested
+        // until then. A raster cover downloads only once it is on screen.
+        // A GIF is frame 0.
         if (kind === 'video') {
-          registerCover(sourceId, layerId, 'video', coverPlayUrl(coverUrl), sourceCoordinates);
+          registerCover(sourceId, layerId, coverPlayUrl(coverUrl), sourceCoordinates, polygon);
         } else {
           queueCoverLoad(sourceId, coverUrl, sourceCoordinates, 'still');
         }
