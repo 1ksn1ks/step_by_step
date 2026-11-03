@@ -159,15 +159,12 @@ newPill.id = 'feed-new-posts';
 newPill.type = 'button';
 newPill.hidden = true;
 newPill.setAttribute('aria-label', 'New posts');
-newPill.appendChild(svgIcon([
-  ['path', { d: 'm5 12 7-7 7 7' }],
-  ['path', { d: 'M12 19V5' }],
-]));
 const newFaces = document.createElement('span');
 newFaces.className = 'feed-new-faces';
+newFaces.hidden = true;
+newFaces.setAttribute('aria-hidden', 'true');
 const newLabel = document.createElement('span');
 newLabel.className = 'feed-new-label';
-newLabel.textContent = 'posted';
 newPill.append(newFaces, newLabel);
 
 const toolbar = document.createElement('div');
@@ -3723,44 +3720,98 @@ function resetQueues() {
   paintNewPill();
 }
 
-function faceUrl(post) {
-  const payer = post && post.payer;
-  const pic = payer && profilePictures[payer] && profilePictures[payer].url;
-  if (typeof pic === 'string' && pic) return pic;
-  const record = recordFor(post);
-  if (record && typeof record.profileUrl === 'string' && record.profileUrl) return record.profileUrl;
-  return DEFAULT_PIC;
+function newPostLabel(count) {
+  return count === 1 ? '1 new post' : count + ' new posts';
+}
+
+// held[tab] is newest first. The pill takes the first three distinct authors.
+function pendingAuthors(list) {
+  const rows = [];
+  const seen = new Set();
+  for (const post of list) {
+    const id = post && typeof post.payer === 'string' ? post.payer.trim() : '';
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    rows.push({ id, post });
+    if (rows.length === 3) break;
+  }
+  return rows;
+}
+
+function authorPicture(id, post) {
+  const cached = httpUrl(profilePictures[id] && profilePictures[id].url);
+  if (cached && cached !== DEFAULT_PIC) return cached;
+  const record = post ? recordFor(post) : null;
+  const fromPost = record && httpUrl(record.profileUrl);
+  if (fromPost && fromPost !== DEFAULT_PIC) return fromPost;
+  return '';
+}
+
+function authorLetter(id) {
+  const name = textOf(usernames[id] && usernames[id].username).trim();
+  const source = name || id;
+  const ch = String(source || '').trim().charAt(0).toLocaleUpperCase();
+  return ch || '';
+}
+
+function letterFace(id) {
+  const letter = authorLetter(id);
+  if (!letter) return null;
+  const mark = document.createElement('span');
+  mark.className = 'feed-new-face feed-new-letter';
+  mark.textContent = letter;
+  mark.setAttribute('aria-hidden', 'true');
+  return mark;
+}
+
+function swapAuthorFace(face, id) {
+  const mark = letterFace(id);
+  const host = (face.closest && face.closest('.early-hashinal')) || face;
+  if (mark) host.replaceWith(mark);
+  else host.remove();
+  if (!newFaces.childElementCount) newFaces.hidden = true;
 }
 
 function paintNewFaces(list) {
-  const urls = [];
-  const seen = new Set();
-  for (const post of list) {
-    const payer = post && post.payer ? post.payer : '';
-    if (seen.has(payer)) continue;
-    seen.add(payer);
-    urls.push(faceUrl(post));
-    if (urls.length === 3) break;
-  }
   newFaces.replaceChildren();
-  for (const url of urls) {
-    const img = pictureElement(url, { className: 'feed-new-face', alt: '', fallback: DEFAULT_PIC });
-    newFaces.appendChild(img);
+  for (const row of pendingAuthors(list)) {
+    const url = authorPicture(row.id, row.post);
+    if (!url) {
+      const mark = letterFace(row.id);
+      if (mark) newFaces.appendChild(mark);
+      continue;
+    }
+    const face = pictureElement(url, { className: 'feed-new-face', alt: '' });
+    let broken = false;
+    face.addEventListener('error', () => {
+      broken = true;
+      swapAuthorFace(face, row.id);
+    }, { once: true });
+    newFaces.appendChild(face);
+    paintProfileAvatar(face, row.id);
+    if (broken || (face.tagName === 'IMG' && face.complete && face.naturalWidth === 0 && face.getAttribute('src'))) {
+      swapAuthorFace(face, row.id);
+    }
   }
+  newFaces.hidden = newFaces.childElementCount === 0;
 }
 
 function paintNewPill() {
-  const show = feedOn() && !profileFilter && !root.classList.contains('is-peek') && !feedFiltering() && held[feedTab].length > 0;
+  const count = held[feedTab].length;
+  const show = feedOn() && !profileFilter && !root.classList.contains('is-peek') && !feedFiltering() && count > 0;
   if (!show) {
     newPill.hidden = true;
-    newPill.classList.remove('is-in');
+    newPill.classList.remove('is-in', 'is-pop');
     return;
   }
   paintNewFaces(held[feedTab]);
+  const label = newPostLabel(count);
+  newLabel.textContent = label;
+  newPill.setAttribute('aria-label', label);
   const fresh = newPill.hidden;
   newPill.hidden = false;
   if (!fresh) return;
-  newPill.classList.remove('is-in');
+  newPill.classList.remove('is-in', 'is-pop');
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       if (!newPill.hidden) newPill.classList.add('is-in');

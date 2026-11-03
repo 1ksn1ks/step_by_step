@@ -13113,6 +13113,11 @@ html.drawer-page .info-overlay {
 }
 #feed-new-posts {
   --feed-tab-y: 0px;
+  --press-dur: 200ms;
+  --press-ease: ease;
+  --press-bg: #22D3EE;
+  --press-border: #22D3EE;
+  --press-ink: #083344;
   position: absolute;
   z-index: 3;
   top: calc(var(--feed-bar-h) + var(--feed-tabs-h) + var(--fu) * 0.8);
@@ -13122,14 +13127,17 @@ html.drawer-page .info-overlay {
   gap: calc(var(--fu) * 0.7);
   box-sizing: border-box;
   max-width: calc(100% - var(--fu) * 3);
+  min-height: max(44px, calc(var(--fu) * 3.2));
   margin: 0;
-  padding: calc(var(--fu) * 0.55) calc(var(--fu) * 1.3);
-  border: 0;
+  padding: calc(var(--fu) * 0.35) calc(var(--fu) * 1.15);
+  border: 1px solid #22D3EE;
   border-radius: calc(var(--fu) * 20);
-  background: #22D3EE;
-  color: #083344;
+  background: rgba(8, 10, 18, 0.72);
+  -webkit-backdrop-filter: blur(calc(var(--fu) * 1.4));
+  backdrop-filter: blur(calc(var(--fu) * 1.4));
+  color: #fff;
   font-family: Inter, system-ui, sans-serif;
-  font-size: calc(var(--fu) * 1.6);
+  font-size: var(--ui-label);
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -13138,62 +13146,118 @@ html.drawer-page .info-overlay {
   user-select: none;
   touch-action: manipulation;
   opacity: 0;
-  box-shadow: 0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.28);
-  transform: translateX(-50%) translateY(calc(var(--fu) * -1.4 + var(--feed-tab-y, 0px)));
-  transition: opacity 220ms ease;
+  box-shadow:
+    0 0 calc(var(--fu) * 1.15) rgba(34, 211, 238, 0.45),
+    0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.35);
+  transform: translateX(-50%) translateY(var(--feed-tab-y, 0px));
 }
 #feed-new-posts[hidden] {
   display: none;
 }
+@keyframes feedNewPillIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(calc(var(--feed-tab-y, 0px) - var(--fu) * 1.2));
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(var(--feed-tab-y, 0px));
+  }
+}
+@keyframes feedNewPillPop {
+  0% { transform: translateX(-50%) translateY(var(--feed-tab-y, 0px)) scale(1); }
+  50% { transform: translateX(-50%) translateY(var(--feed-tab-y, 0px)) scale(1.06); }
+  100% { transform: translateX(-50%) translateY(var(--feed-tab-y, 0px)) scale(1); }
+}
 #feed-new-posts.is-in {
   opacity: 1;
   pointer-events: auto;
-  transform: translateX(-50%) translateY(var(--feed-tab-y, 0px));
+  animation: feedNewPillIn 280ms ease;
 }
-#feed-new-posts svg {
-  width: calc(var(--fu) * 1.7);
-  height: calc(var(--fu) * 1.7);
-  flex: 0 0 auto;
-  display: block;
-  pointer-events: none;
+#feed-new-posts.is-pop {
+  animation: feedNewPillPop var(--press-dur) var(--press-ease);
 }
 #feed-new-posts .feed-new-faces {
   display: flex;
   align-items: center;
   flex: 0 0 auto;
 }
-#feed-new-posts .feed-new-face {
+#feed-new-posts .feed-new-faces[hidden] {
+  display: none;
+}
+#feed-new-posts .feed-new-faces > .feed-new-face,
+#feed-new-posts .feed-new-faces > .early-hashinal {
   position: relative;
   box-sizing: border-box;
-  width: calc(var(--fu) * 2.6);
-  height: calc(var(--fu) * 2.6);
-  margin: 0;
-  border: calc(var(--fu) * 0.16) solid #22D3EE;
+  width: calc(var(--fu) * 2.5);
+  height: calc(var(--fu) * 2.5);
+  flex: 0 0 auto;
   border-radius: 50%;
-  background: #083344;
+}
+#feed-new-posts .feed-new-faces > :nth-child(1) { z-index: 3; }
+#feed-new-posts .feed-new-faces > :nth-child(2) { z-index: 2; }
+#feed-new-posts .feed-new-faces > :nth-child(3) { z-index: 1; }
+#feed-new-posts .feed-new-face {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: calc(var(--fu) * 0.1) solid #0a0a12;
+  border-radius: 50%;
+  background: #14141c;
   object-fit: cover;
   pointer-events: none;
 }
-#feed-new-posts .feed-new-face:nth-child(1) { z-index: 3; }
-#feed-new-posts .feed-new-face:nth-child(2) { z-index: 2; }
-#feed-new-posts .feed-new-face:nth-child(3) { z-index: 1; }
-#feed-new-posts .feed-new-face + .feed-new-face {
+#feed-new-posts .feed-new-faces > * + * {
   margin-left: calc(var(--fu) * -0.85);
+}
+#feed-new-posts .early-hashinal {
+  padding: calc(var(--fu) * 0.12);
+}
+#feed-new-posts .feed-new-letter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: var(--ui-small);
+  font-weight: 700;
+  line-height: 1;
 }
 #feed-new-posts .feed-new-label {
   flex: 0 0 auto;
+  white-space: nowrap;
   pointer-events: none;
 }
 #feed-new-posts:is(:hover, :active, .is-hold) {
-  filter: brightness(1.06);
+  background: var(--press-bg);
+  border-color: var(--press-border);
+  color: var(--press-ink);
+  box-shadow:
+    0 0 calc(var(--fu) * 1.4) rgba(34, 211, 238, 0.7),
+    0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.28);
+}
+#feed-new-posts:is(:hover, :active, .is-hold) .feed-new-letter {
+  color: #fff;
 }
 #feed-new-posts:focus-visible {
-  outline: calc(var(--fu) * 0.12) solid #083344;
+  outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.12);
 }
+@media (hover: none), (pointer: coarse) {
+  #feed-new-posts:hover:not(.is-hold):not(:active) {
+    background: rgba(8, 10, 18, 0.72);
+    border-color: #22D3EE;
+    color: #fff;
+    box-shadow:
+      0 0 calc(var(--fu) * 1.15) rgba(34, 211, 238, 0.45),
+      0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.35);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  #feed-new-posts {
-    transition-duration: 50ms;
+  #feed-new-posts.is-in,
+  #feed-new-posts.is-pop {
+    animation: none;
   }
   #feed-tabs {
     transition: none;
@@ -18110,13 +18174,16 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
    is not in this list.
    #feed-tabs is the tab row (style.css, the #feed-tabs rule).
    #feed-post-btn is the new-post control in the feed toolbar.
-   #feed-new-posts is the floating posted pill.
+   #feed-new-posts is the floating new-posts pill.
    #go-to-top-msgs and #go-to-bottom-msgs (and the encrypted pair) are the
    chat scroll arrows (index.html, inside .chat-messages-wrap).
    .maplibregl-ctrl-top-right is the compass and geolocate.
    #map-corner-buttons holds #layout-mode-btn and #search-toggle-btn. */
 #feed-tabs {
   transition: opacity var(--press-dur, 200ms) var(--press-ease, ease), visibility var(--press-dur, 200ms) var(--press-ease, ease);
+}
+html.kb-open #feed-new-posts {
+  animation: none;
 }
 html.kb-open :is(
   #feed-tabs,
