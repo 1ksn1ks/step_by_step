@@ -35,7 +35,7 @@ import { openPreview } from './fullscreenmedia.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
 import { VIEW_SORT_BATCH, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs } from './viewsort.js';
-import { FEED_VIDEO_THRESHOLDS, feedAutoplayAllowed, pickFeedVideo } from './feedvideo.js';
+import { FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, feedAutoplayAllowed, feedVideoHeld, feedVideoPreloadOnPause, feedVideoShouldRelease, feedVideoStartDelay, pickFeedVideo } from './feedvideo.js';
 import { isGifUrl, resolveMediaUrl } from './mediaurl.js';
 import { mountPicture, pictureElement } from './loopmedia.js';
 
@@ -1759,6 +1759,10 @@ let activeFeedVideo = null;
 let preferredFeedVideo = null;
 let feedVideoFrame = 0;
 let feedVideoLock = 0;
+let feedVideoDwellId = null;
+let feedVideoDwellTimer = 0;
+const feedVideoZeroSince = new Map();
+const feedVideoReleaseTimers = new Map();
 
 function feedVideoBlocked() {
   if (document.visibilityState === 'hidden') return true;
@@ -1774,11 +1778,12 @@ function feedVideoBlocked() {
 }
 
 function ensureFeedVideoSrc(video) {
-  if (video.getAttribute('src')) return;
-  const src = video.dataset.src;
-  if (!src) return;
+  if (!video.getAttribute('src')) {
+    const src = video.dataset.src;
+    if (!src) return;
+    video.src = src;
+  }
   video.preload = 'auto';
-  video.src = src;
 }
 
 function startFeedVideo(video, fromUser) {
@@ -1815,7 +1820,98 @@ function pauseFeedVideo(video) {
   }
 }
 
+function cancelFeedVideoDwell() {
+  if (feedVideoDwellTimer) clearTimeout(feedVideoDwellTimer);
+  feedVideoDwellTimer = 0;
+  feedVideoDwellId = null;
+}
+
+function cancelFeedVideoRelease(video) {
+  feedVideoZeroSince.delete(video);
+  const timer = feedVideoReleaseTimers.get(video);
+  if (timer) clearTimeout(timer);
+  feedVideoReleaseTimers.delete(video);
+}
+
+function scheduleFeedVideoRelease(video) {
+  if (!feedVideoZeroSince.has(video)) feedVideoZeroSince.set(video, Date.now());
+  if (feedVideoReleaseTimers.has(video)) return;
+  const timer = setTimeout(() => {
+    feedVideoReleaseTimers.delete(video);
+    const ratio = feedVideoRatio.has(video) ? feedVideoRatio.get(video) : 0;
+    if (!feedVideoShouldRelease({
+      ratio,
+      zeroSince: feedVideoZeroSince.get(video),
+      user: video === preferredFeedVideo || video.dataset.feedSound === '1',
+      held: video.dataset.feedHold === '1',
+    }, Date.now())) return;
+    unloadFeedVideoSrc(video);
+  }, FEED_VIDEO_RELEASE_MS);
+  feedVideoReleaseTimers.set(video, timer);
+}
+
+// Pause from the autoplay picker. A user video stays untouched until none
+// of it is on screen. Fully off screen, the file is dropped after the wait.
+function retireFeedVideo(video) {
+  const ratio = feedVideoRatio.get(video) || 0;
+  const user = video === preferredFeedVideo || video.dataset.feedSound === '1';
+  if (feedVideoHeld({ ratio, user, held: video.dataset.feedHold === '1' })) {
+    cancelFeedVideoRelease(video);
+    return;
+  }
+  pauseFeedVideo(video);
+  const preload = feedVideoPreloadOnPause({ ratio, user, hasSrc: !!video.getAttribute('src') });
+  if (preload) video.preload = preload;
+  if (ratio <= 0) scheduleFeedVideoRelease(video);
+  else cancelFeedVideoRelease(video);
+}
+
+function unloadFeedVideoSrc(video) {
+  if (!video.getAttribute('src')) return;
+  const poster = video.getAttribute('poster');
+  const src = video.dataset.src || '';
+  feedVideoLock += 1;
+  try {
+    video.removeAttribute('src');
+    video.preload = 'none';
+    video.load();
+  } finally {
+    feedVideoLock -= 1;
+  }
+  if (src) video.dataset.src = src;
+  if (poster) video.setAttribute('poster', poster);
+}
+
+function armFeedVideoStart(video, fromUser) {
+  const delay = feedVideoStartDelay({
+    id: video,
+    user: fromUser,
+    playing: video === activeFeedVideo && !video.paused,
+  });
+  if (!delay) {
+    cancelFeedVideoDwell();
+    startFeedVideo(video, fromUser);
+    return;
+  }
+  if (feedVideoDwellId === video) return;
+  cancelFeedVideoDwell();
+  feedVideoDwellId = video;
+  feedVideoDwellTimer = setTimeout(() => {
+    feedVideoDwellTimer = 0;
+    if (feedVideoDwellId !== video) return;
+    feedVideoDwellId = null;
+    if (!video.isConnected || feedVideoBlocked()) return;
+    const ratio = feedVideoVisibleRatio(video);
+    feedVideoRatio.set(video, ratio);
+    if (ratio < FEED_VIDEO_MIN && video !== preferredFeedVideo) return;
+    activeFeedVideo = video;
+    startFeedVideo(video, false);
+  }, delay);
+}
+
 function releaseFeedVideo(video) {
+  cancelFeedVideoRelease(video);
+  if (feedVideoDwellId === video) cancelFeedVideoDwell();
   if (feedVideoObserver) feedVideoObserver.unobserve(video);
   feedVideoRatio.delete(video);
   if (activeFeedVideo === video) activeFeedVideo = null;
@@ -1830,15 +1926,19 @@ function settleFeedVideos() {
   }
   if (preferredFeedVideo && !feedVideoRatio.has(preferredFeedVideo)) preferredFeedVideo = null;
   if (feedVideoBlocked()) {
+    cancelFeedVideoDwell();
     activeFeedVideo = null;
-    for (const video of feedVideoRatio.keys()) pauseFeedVideo(video);
+    for (const video of feedVideoRatio.keys()) {
+      retireFeedVideo(video);
+      pauseFeedVideo(video);
+    }
     return;
   }
   const allow = autoplayAllowed();
   const candidates = [];
   for (const [video, ratio] of feedVideoRatio) {
     if (!video.closest('#feed-column')) {
-      pauseFeedVideo(video);
+      retireFeedVideo(video);
       continue;
     }
     if (video.dataset.feedHold === '1' && video !== preferredFeedVideo) continue;
@@ -1857,10 +1957,12 @@ function settleFeedVideos() {
     if (!(ratio > 0)) preferredFeedVideo = null;
   }
   for (const video of feedVideoRatio.keys()) {
-    if (video !== next) pauseFeedVideo(video);
+    if (video !== next) retireFeedVideo(video);
   }
+  if (next) cancelFeedVideoRelease(next);
   activeFeedVideo = next;
-  if (next) startFeedVideo(next, next === preferredFeedVideo);
+  if (next) armFeedVideoStart(next, next === preferredFeedVideo);
+  else cancelFeedVideoDwell();
 }
 
 function syncFeedVideos() {
@@ -1879,6 +1981,25 @@ function queueFeedVideos() {
   });
 }
 
+// The intersection callback lags a fast flick. Measure against the scroller
+// immediately so a dwell cannot start a video that has already left.
+function feedVideoVisibleRatio(video) {
+  if (!video || !video.isConnected) return 0;
+  const vr = video.getBoundingClientRect();
+  const sr = scroller.getBoundingClientRect();
+  const height = Math.max(0, Math.min(vr.bottom, sr.bottom) - Math.max(vr.top, sr.top));
+  const width = Math.max(0, Math.min(vr.right, sr.right) - Math.max(vr.left, sr.left));
+  const area = vr.width * vr.height;
+  if (!area) return 0;
+  return (width * height) / area;
+}
+
+function refreshFeedVideoRatios() {
+  for (const video of feedVideoRatio.keys()) {
+    feedVideoRatio.set(video, feedVideoVisibleRatio(video));
+  }
+}
+
 function ensureFeedVideoObserver() {
   if (feedVideoObserver) return feedVideoObserver;
   feedVideoObserver = new IntersectionObserver((entries) => {
@@ -1887,6 +2008,10 @@ function ensureFeedVideoObserver() {
     }
     queueFeedVideos();
   }, { root: scroller, threshold: FEED_VIDEO_THRESHOLDS.slice() });
+  scroller.addEventListener('scroll', () => {
+    refreshFeedVideoRatios();
+    queueFeedVideos();
+  }, { passive: true });
   return feedVideoObserver;
 }
 

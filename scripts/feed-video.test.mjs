@@ -1,7 +1,7 @@
 // Which feed video is allowed to play. No DOM.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { FEED_VIDEO_MIN, FEED_VIDEO_THRESHOLDS, feedAutoplayAllowed, pickFeedVideo } from "../feedvideo.js";
+import { FEED_VIDEO_DWELL_MS, FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, feedAutoplayAllowed, feedVideoHeld, feedVideoPreloadOnPause, feedVideoShouldRelease, feedVideoStartDelay, pickFeedVideo } from "../feedvideo.js";
 
 test("the feed video observer thresholds include the 0.6 play line", () => {
   assert.equal(FEED_VIDEO_MIN, 0.6);
@@ -42,6 +42,34 @@ test("a video the user started stays until it leaves the scroller", () => {
   assert.equal(pickFeedVideo(both, { preferred: "tapped", current: "taller" }), "tapped");
   const gone = [{ id: "tapped", ratio: 0 }, { id: "taller", ratio: 0.8 }];
   assert.equal(pickFeedVideo(gone, { preferred: "tapped" }), "taller");
+});
+
+test("autoplay waits a quarter second and a user start does not", () => {
+  assert.equal(FEED_VIDEO_DWELL_MS, 250);
+  assert.equal(feedVideoStartDelay({ id: "a" }), 250);
+  assert.equal(feedVideoStartDelay({ id: "a", user: true }), 0);
+  assert.equal(feedVideoStartDelay({ id: "a", playing: true }), 0);
+  assert.equal(feedVideoStartDelay(null), 0);
+});
+
+test("an autoplay pause drops preload to metadata and a visible user video does not", () => {
+  assert.equal(feedVideoPreloadOnPause({ hasSrc: true, ratio: 0.2, user: false }), "metadata");
+  assert.equal(feedVideoPreloadOnPause({ hasSrc: true, ratio: 0, user: true }), "metadata");
+  assert.equal(feedVideoPreloadOnPause({ hasSrc: true, ratio: 0.4, user: true }), "");
+  assert.equal(feedVideoPreloadOnPause({ hasSrc: true, ratio: 0.8, held: true }), "");
+  assert.equal(feedVideoPreloadOnPause({ hasSrc: false, ratio: 0 }), "");
+  assert.equal(feedVideoHeld({ ratio: 0.2, user: true }), true);
+  assert.equal(feedVideoHeld({ ratio: 0, user: true }), false);
+});
+
+test("a video at zero visibility releases its file after 3 seconds", () => {
+  assert.equal(FEED_VIDEO_RELEASE_MS, 3000);
+  assert.equal(feedVideoShouldRelease({ ratio: 0, zeroSince: 1000 }, 3999), false);
+  assert.equal(feedVideoShouldRelease({ ratio: 0, zeroSince: 1000 }, 4000), true);
+  assert.equal(feedVideoShouldRelease({ ratio: 0.2, zeroSince: 0 }, 99999), false);
+  assert.equal(feedVideoShouldRelease({ ratio: 0, user: true, zeroSince: 0 }, 3000), true);
+  assert.equal(feedVideoShouldRelease({ ratio: 0.1, user: true, zeroSince: 0 }, 9000), false);
+  assert.equal(feedVideoShouldRelease({ ratio: 0 }, 5000), false);
 });
 
 test("reduced motion and Save-Data refuse autoplay", () => {
