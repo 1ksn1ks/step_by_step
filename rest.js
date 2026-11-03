@@ -21,7 +21,8 @@ import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, utf8ByteLength, no
 import { refreshFilterTimeButtons } from './drawdate.js';
 import { pendingChatImage, chatImageBusy, clearPendingChatImage, topicChatWire } from './chatimage.js';
 import { stackedTopicRules } from './topicrules.js';
-import { adminsFromMemo, currentTopicBio, currentTopicName, currentStackedTopics, currentInitialXYZ } from './loadcurrenttopic.js';
+import { adminsFromMemo, autoplayConfigMessage, currentAutoplayNft, currentTopicBio, currentTopicName, currentStackedTopics, currentInitialXYZ } from './loadcurrenttopic.js';
+import { readUniqueNft, rememberTopicAutoplay } from './coverautoplay.js';
 
 
 
@@ -758,6 +759,56 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
    }
  });
 
+ async function sendAutoplayConfig(tokenId) {
+   if (!signer) {
+     toast.error("Connect wallet first");
+     return false;
+   }
+   const topicId = utilityTopicId();
+   if (!topicId) {
+     toast.error("Please enter a Topic ID or domain.");
+     return false;
+   }
+   const message = autoplayConfigMessage(tokenId);
+   if (!message) {
+     toast.error("Enter a token ID like 0.0.x.");
+     return false;
+   }
+   toast.info("Confirm in wallet 👛");
+   await sendMessage(topicId, message);
+   rememberTopicAutoplay(topicId, String(tokenId || "").trim());
+   return true;
+ }
+
+ document.getElementById("submit-button-set-autoplay-nft").addEventListener("click", async () => {
+   try {
+     const tokenId = document.getElementById("input-field-autoplay-nft").value.trim();
+     if (!autoplayConfigMessage(tokenId) || !tokenId) {
+       toast.error("Enter a token ID like 0.0.x.");
+       return;
+     }
+     const unique = await readUniqueNft(tokenId);
+     if (!unique) {
+       toast.error("That token is not a unique NFT.");
+       return;
+     }
+     await sendAutoplayConfig(tokenId);
+   } catch (error) {
+     console.error("Error setting autoplay NFT:", error);
+   }
+ });
+
+ document.getElementById("submit-button-clear-autoplay-nft").addEventListener("click", async () => {
+   try {
+     const sent = await sendAutoplayConfig("");
+     if (!sent) return;
+     const field = document.getElementById("input-field-autoplay-nft");
+     if (field) field.value = "";
+   } catch (error) {
+     console.error("Error clearing autoplay NFT:", error);
+   }
+ });
+
  document.getElementById("submit-button-remove-rules-for-polygons").addEventListener("click", async () => {
    try {
      const polygonTopicId = document.getElementById("input-field-topic-id-for-polygons").value.trim();
@@ -888,8 +939,11 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
     }
 
     const { markers, polygons } = stackedTopicRules(messages, topicAdmin);
+    const autoplayNft = currentAutoplayNft(messages, topicAdmin);
     messagesContainer.innerHTML = '';
     messagesContainer.dataset.loadedTopicId = topicId;
+    const autoplayField = document.getElementById("input-field-autoplay-nft");
+    if (autoplayField) autoplayField.value = autoplayNft;
 
     if (loadedNFTsForModel.length > 0) {
       appendStaticRule(messagesContainer, `NFTs for model: ${loadedNFTsForModel.join(', ')}`);
@@ -910,6 +964,9 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
         appendRemovableRule(messagesContainer, `Marker NFT: ${marker.markerTopicId} (${marker.markerMessagesPerNft} per NFT)`, 'marker', marker.markerTopicId);
       }
     }
+    appendStaticRule(messagesContainer, autoplayNft
+      ? `Autoplay polygon videos: ${autoplayNft}`
+      : 'Autoplay polygon videos: none');
     if (polygons.length === 0) {
       appendStaticRule(messagesContainer, 'Polygon NFT: none');
     }

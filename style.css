@@ -7211,6 +7211,112 @@ html.feed-app .polygon-cover-play {
   visibility: hidden;
   pointer-events: none;
 }
+/* Topic setting: autoplay covers for creators who hold one unique NFT.
+   Glass and the cyan edge match the cover play control. Sizes follow --fu. */
+.cover-autoplay-field {
+  --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
+  --ui-label: calc(var(--fu) * 1.8);
+  --ui-small: calc(var(--fu) * 1.35);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--fu) * 0.7);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: calc(var(--fu) * 0.9) 0 0;
+  padding: calc(var(--fu) * 1);
+  border: solid #22D3EE;
+  border-width: calc(var(--fu) * 0.08);
+  border-radius: calc(var(--fu) * 1.1);
+  background:
+    linear-gradient(180deg, rgba(34, 211, 238, 0.16), rgba(34, 211, 238, 0) 42%),
+    rgba(8, 10, 18, 0.72);
+  -webkit-backdrop-filter: blur(calc(var(--fu) * 1.4));
+  backdrop-filter: blur(calc(var(--fu) * 1.4));
+  box-shadow:
+    0 0 calc(var(--fu) * 1.15) rgba(34, 211, 238, 0.45),
+    0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.35);
+}
+#utility-column-container label.cover-autoplay-label {
+  margin: 0;
+  padding: 0;
+  color: #22D3EE !important;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-small) !important;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: left;
+  white-space: normal;
+}
+.cover-autoplay-input {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: calc(var(--fu) * 3.6);
+  margin: 0;
+  padding: calc(var(--fu) * 0.55) calc(var(--fu) * 0.9);
+  border: solid rgba(34, 211, 238, 0.45);
+  border-width: calc(var(--fu) * 0.08);
+  border-radius: calc(var(--fu) * 0.8);
+  background: rgba(8, 10, 18, 0.55);
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
+  line-height: 1.3;
+  resize: none;
+}
+.cover-autoplay-input:focus {
+  outline: calc(var(--fu) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--fu) * 0.12);
+}
+.cover-autoplay-actions {
+  display: flex;
+  gap: calc(var(--fu) * 0.7);
+  width: 100%;
+  min-width: 0;
+}
+.cover-autoplay-save,
+.cover-autoplay-clear {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: calc(var(--fu) * 3.6);
+  margin: 0;
+  padding: 0 calc(var(--fu) * 0.8);
+  border-radius: calc(var(--fu) * 0.8);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.cover-autoplay-save {
+  border: 0;
+  background: #22D3EE;
+  color: #0a0a12;
+  box-shadow: 0 0 calc(var(--fu) * 1.15) rgba(34, 211, 238, 0.45);
+}
+.cover-autoplay-clear {
+  border: solid #22D3EE;
+  border-width: calc(var(--fu) * 0.08);
+  background: transparent;
+  color: #22D3EE;
+}
+.cover-autoplay-save:focus-visible,
+.cover-autoplay-clear:focus-visible {
+  outline: calc(var(--fu) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--fu) * 0.12);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cover-autoplay-field,
+  .cover-autoplay-save,
+  .cover-autoplay-clear {
+    transition: none;
+    animation: none;
+  }
+}
 /* Early holder hover card. Same box as the normal tip. A conic disc rotates
    inside a 1px ring clip (the mask is on the wrapper, not the rotating
    layer) so the border stays on the GPU and the center stays dark glass. */

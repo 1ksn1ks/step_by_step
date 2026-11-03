@@ -3,7 +3,7 @@ import { scene } from "./threejs";
 import maplibregl from 'maplibre-gl';
 import { animateMapTo } from './animatemapto';
 import { classifyImageUrl, isGifUrl, loadImageBytes, needsGifCheck, resolveMediaUrl, siblingPosterUrl } from './mediaurl.js';
-import { COVER_RELEASE_MS, coverBatteryIsLow, coverHoldSrc, coverIdsToRelease, coverShouldRelease, shouldAutoplayCover } from './coverautoplay.js';
+import { COVER_RELEASE_MS, coverBatteryIsLow, coverHoldSrc, coverIdsToRelease, coverScreenScore, coverShouldRelease, holdQueriesFor, lookupHolds, pickAutoplayCover, shouldAutoplayCover } from './coverautoplay.js';
 import { gifStillCanvas } from './gifvideo.js';
 import { currentUfoModelInGLTF, polygons } from './letall';
 import { map } from './map'
@@ -208,8 +208,10 @@ function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackU
 // A GIF cover is frame 0 only. A cover that was converted to MP4 or WebM
 // uses this path, including the 30s rewind.
 //
-// Nothing plays by itself. shouldAutoplayCover is the only hook that can
-// turn that on, and it returns false. In view, the texture is the uploaded
+// shouldAutoplayCover is the only hook that can start a cover. It stays
+// false unless that polygon's topic set an autoplay NFT and the creator
+// holds it. Save-Data, low battery, and reduced motion still refuse.
+// In view, the texture is the uploaded
 // poster, or frame 0 grabbed once and kept in memory. The video src stays
 // unset until a tap. Off screen, a hidden tab, the feed, or another cover
 // pauses it and gives the file back after a few seconds. The poster stays.
@@ -345,6 +347,60 @@ function detachCover(cov) {
   mediaCovers.delete(cov.sourceId);
 }
 
+// Screen area of a cover. A polygon that contains the map center fills the
+// view, so it outranks a corner sliver. The pure score lives in coverautoplay.
+function coverVisibleScore(cov) {
+  const canvas = map.getCanvas();
+  const w = canvas ? canvas.clientWidth : 0;
+  const h = canvas ? canvas.clientHeight : 0;
+  const corners = cov && cov.corners;
+  if (!corners || corners.length < 4) return 0;
+  const minLng = Math.min(corners[0][0], corners[2][0]);
+  const maxLng = Math.max(corners[1][0], corners[3][0]);
+  const minLat = Math.min(corners[2][1], corners[3][1]);
+  const maxLat = Math.max(corners[0][1], corners[1][1]);
+  let center = null;
+  try { center = map.getCenter(); } catch { center = null; }
+  if (center && center.lng >= minLng && center.lng <= maxLng && center.lat >= minLat && center.lat <= maxLat) {
+    return coverScreenScore({ centerInside: true }, { w, h });
+  }
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let any = false;
+  for (const pair of corners) {
+    let point = null;
+    try { point = map.project(pair); } catch { point = null; }
+    if (!point) continue;
+    any = true;
+    if (point.x < minX) minX = point.x;
+    if (point.y < minY) minY = point.y;
+    if (point.x > maxX) maxX = point.x;
+    if (point.y > maxY) maxY = point.y;
+  }
+  if (!any) return 0;
+  return coverScreenScore({ minX, minY, maxX, maxY }, { w, h });
+}
+
+let holdRefresh = null;
+function refreshCoverHolds() {
+  if (holdRefresh) return;
+  const onScreen = [];
+  for (const cov of mediaCovers.values()) {
+    if (!cov.inView || !cov.polygon) continue;
+    onScreen.push(cov.polygon);
+  }
+  const queries = holdQueriesFor(onScreen);
+  if (!queries.length) return;
+  holdRefresh = lookupHolds(queries).then(() => {
+    holdRefresh = null;
+    visPass();
+  }, () => {
+    holdRefresh = null;
+  });
+}
+
 // Re-check every cover against ONE camera snapshot; drop covers whose
 // source was removed. Runs on moveend/zoomend and every second.
 function visPass() {
@@ -362,10 +418,19 @@ function visPass() {
   if (mediaCovers.size === 0 && pendingCovers.size === 0) { stopVisTimer(); return; }
   const st = cameraState();
   const viewer = readCoverViewer();
+  const rows = [];
+  let currentId = null;
   for (const cov of mediaCovers.values()) {
     cov.inView = coverInView(cov.corners, st);
-    settleCover(cov, viewer);
+    if (cov.playing) currentId = cov.sourceId;
+    const eligible = coverOnScreen(cov) && !cov.userPaused && shouldAutoplayCover(cov.polygon, viewer);
+    rows.push({ id: cov.sourceId, eligible, score: eligible ? coverVisibleScore(cov) : 0 });
   }
+  const winner = pickAutoplayCover(rows, currentId);
+  for (const cov of mediaCovers.values()) {
+    settleCover(cov, viewer, !!winner && cov.sourceId === winner);
+  }
+  refreshCoverHolds();
   for (const [sid, cov] of [...pendingCovers]) {
     if (coverInView(cov.corners, st)) {
       pendingCovers.delete(sid);
@@ -524,6 +589,7 @@ function releaseCoverSrc(cov) {
 function armCoverRelease(cov) {
   cov.playing = false;
   cov.userPaused = false;
+  cov.autoStarted = false;
   cov.forceRelease = true;
   if (cov.video && !cov.video.paused) {
     try { cov.video.pause(); } catch { /* idle */ }
@@ -700,7 +766,7 @@ function ensureCoverVideo(cov) {
   return video;
 }
 
-function playCover(cov) {
+function playCover(cov, auto) {
   if (!cov || cov.dead || !cov.url) return;
   if (!map.getSource(cov.sourceId)) { detachCover(cov); return; }
   const busy = [];
@@ -719,6 +785,7 @@ function playCover(cov) {
   }
   cov.playing = true;
   cov.userPaused = false;
+  cov.autoStarted = !!auto;
   cov.forceRelease = false;
   if (cov.releaseTimer) {
     clearTimeout(cov.releaseTimer);
@@ -735,6 +802,7 @@ function toggleCoverPlay(cov) {
   if (cov.playing) {
     cov.playing = false;
     cov.userPaused = true;
+    cov.autoStarted = false;
     cov.forceRelease = false;
     if (cov.releaseTimer) {
       clearTimeout(cov.releaseTimer);
@@ -749,16 +817,19 @@ function toggleCoverPlay(cov) {
   playCover(cov);
 }
 
-function settleCover(cov, viewer) {
+function settleCover(cov, viewer, allowAutoplay) {
   if (!coverOnScreen(cov)) {
     if (cov.playing) {
       cov.playing = false;
+      cov.autoStarted = false;
       if (cov.video && !cov.video.paused) {
         try { cov.video.pause(); } catch { /* idle */ }
       }
     }
-  } else if (!cov.playing && !cov.userPaused && shouldAutoplayCover(cov.polygon, viewer || readCoverViewer())) {
-    playCover(cov);
+  } else if (!allowAutoplay && cov.playing && cov.autoStarted) {
+    armCoverRelease(cov);
+  } else if (allowAutoplay && !cov.playing && !cov.userPaused && shouldAutoplayCover(cov.polygon, viewer || readCoverViewer())) {
+    playCover(cov, true);
   } else if (!cov.playing && !cov.userPaused && !cov.stillReady && !cov.grabbing) {
     ensureCoverStill(cov);
   }
@@ -865,6 +936,7 @@ function registerCover(sourceId, layerId, url, corners, polygon) {
     inView: false,
     playing: false,
     userPaused: false,
+    autoStarted: false,
     forceRelease: false,
     stillReady: false,
     grabbing: false,
@@ -873,7 +945,7 @@ function registerCover(sourceId, layerId, url, corners, polygon) {
   cov.inView = coverInView(corners, cameraState());
   mediaCovers.set(sourceId, cov);
   ensureVisTimer();
-  settleCover(cov, readCoverViewer());
+  visPass();
 }
 
 // The shared pump blits only the cover that is playing. Off-view, hidden,

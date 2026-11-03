@@ -37,6 +37,8 @@ import { toast } from './toast'
 import { videoSeconds } from './mediaduration.js'
 import { placeUrl } from './placeurl.js';
 import { stackedTopicRules, smallestPolygonSize } from './topicrules.js'
+import { currentAutoplayNft } from './loadcurrenttopic.js'
+import { rememberTopicAutoplay } from './coverautoplay.js'
 import { payerUsernameNode } from './payerlink.js'
 import { paintProfileAvatar } from './earlyhashinal.js'
 import { watchProfilePicture, watchProfileTree, forgetProfileTree } from './markertilt.js'
@@ -3091,6 +3093,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
           }
           };
 
+          rememberTopicAutoplay(topicId, currentAutoplayNft(messages, topicAdmin));
           await showDrawingsAsApproved({
             messages,
             messagesByPayer,
@@ -5415,6 +5418,7 @@ if (rawResult && Array.isArray(rawResult)) {
           }
           };
 
+          rememberTopicAutoplay(topicId, currentAutoplayNft(messages, topicAdmin));
           await showDrawingsAsApproved({
             messages,
             messagesByPayer,
@@ -6120,6 +6124,7 @@ if (rawResult && Array.isArray(rawResult)) {
           }
           };
 
+          rememberTopicAutoplay(topicId, currentAutoplayNft(messages, topicAdmin));
           await showDrawingsAsApproved({
             messages,
             messagesByPayer,

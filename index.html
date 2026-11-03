@@ -905,6 +905,7 @@
             <li><b>Topic chat</b> — only messages from users with the required NFT are shown.</li>
             <li><b>Markers</b> — the NFT required to post markers, and how many each owned NFT allows. Several marker rules can be set. Setting the same NFT again uses the latest count.</li>
             <li><b>Polygons</b> — the NFT, how many polygons each owned NFT allows, and the max size. Several polygon rules can be set. Setting the same NFT again uses the latest count and size.</li>
+            <li><b>Autoplay polygon videos for creators holding</b> — a unique NFT id. Creators who hold it can have their cover play. Clear removes it. The latest admin message wins.</li>
             <li>Remove uses the NFT ID in the field and drops only that rule. Each loaded marker or polygon rule also has an ✕, which sends that same remove message for its NFT.</li>
             <li>Enter a Domain/Topic ID and press <b>Load Topic Rules</b> to read the current rules.</li>
           </ul>
@@ -1061,6 +1062,15 @@
             </button>
             <button id="submit-button-remove-rules-for-polygons" class="toolbar-column-btns" style="margin-left: 8vw;">Remove
             </button>
+          </div>
+          <div class="cover-autoplay-field" id="cover-autoplay-field">
+            <label class="cover-autoplay-label" for="input-field-autoplay-nft">Autoplay polygon videos for creators holding</label>
+            <textarea class="cover-autoplay-input" id="input-field-autoplay-nft" placeholder="0.0.x" rows="1" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+            onclick="event.stopPropagation();"></textarea>
+            <div class="cover-autoplay-actions">
+              <button type="button" id="submit-button-set-autoplay-nft" class="cover-autoplay-save">Save</button>
+              <button type="button" id="submit-button-clear-autoplay-nft" class="cover-autoplay-clear">Clear</button>
+            </div>
           </div>
         </div>
       

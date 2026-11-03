@@ -76,6 +76,36 @@ export function currentStackedTopics(messages, topicAdmin) {
     .map(([topic]) => topic);
 }
 
+// Newest admin autoplayNft wins. An empty value clears it. A message that
+// is not a token id is skipped, same as a name or bio that fails its check.
+// payerAllowed is the topic-settings check: memo admins only, or anyone
+// when the memo lists none.
+const HEDERA_TOKEN_ID = /^0\.0\.\d+$/;
+
+export function isHederaTokenId(value) {
+  return HEDERA_TOKEN_ID.test(String(value || '').trim());
+}
+
+export function autoplayConfigMessage(tokenId) {
+  const id = tokenId == null ? '' : String(tokenId).trim();
+  if (id && !isHederaTokenId(id)) return '';
+  return JSON.stringify({ autoplayNft: id });
+}
+
+export function currentAutoplayNft(messages, topicAdmin) {
+  for (let index = (messages || []).length - 1; index >= 0; index--) {
+    const message = messages[index];
+    const parsed = readMessage(message);
+    if (!parsed || !Object.prototype.hasOwnProperty.call(parsed, 'autoplayNft')) continue;
+    if (!payerAllowed(message, topicAdmin)) continue;
+    const raw = parsed.autoplayNft;
+    if (raw == null || (typeof raw === 'string' && raw.trim() === '')) return '';
+    if (typeof raw !== 'string' || !isHederaTokenId(raw)) continue;
+    return raw.trim();
+  }
+  return '';
+}
+
 export function currentInitialXYZ(messages, topicAdmin) {
   let target = null;
   for (const message of messages || []) {
