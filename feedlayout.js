@@ -34,7 +34,7 @@ import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { openPreview } from './fullscreenmedia.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
-import { VIEW_SORT_BATCH, keepScroll, retryAfterMs } from './viewsort.js';
+import { VIEW_SORT_BATCH, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs } from './viewsort.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -91,9 +91,10 @@ const PAGE = 2030;
 // still arrive newest-first, PAGE messages at a time. While one of those
 // sorts is active, loadOlder keeps going until the topic is exhausted, the
 // dateFrom floor is reached, or this many pages have been pulled for the
-// query. paintSpinner covers the wait. Hitting the cap before exhaustion
-// labels the row "sorted among loaded posts" so a short window is not
-// shown as a complete ranking.
+// query. The spinner stays up through that window. The ranked list is
+// painted once when it settles, so a later page does not jump the scroll.
+// Hitting the cap before exhaustion labels the row "sorted among loaded
+// posts" so a short window is not shown as a complete ranking.
 const SORT_PAGE_CAP = 4;
 const CARD_CAP = 200;
 const RENDER_CHUNK = 30;
@@ -578,6 +579,8 @@ let exhausted = false;
 let paging = false;
 let searchFloor = false;
 let sortPages = 0;
+let sortHold = false;
+let sortFetchPause = false;
 let viewSortWait = 0;
 let viewSortGen = 0;
 let viewSortTimer = 0;
@@ -2264,6 +2267,9 @@ function resetFeed(topic) {
   cursor = null;
   exhausted = false;
   paging = false;
+  sortPages = 0;
+  sortHold = false;
+  sortFetchPause = false;
   highSeq = 0;
   assembler = createChunkAssembler();
   clearMaps();
@@ -2884,6 +2890,10 @@ function armViewSort() {
   viewSortTimer = setTimeout(pullViewSort, wait);
 }
 
+function viewSortBusy() {
+  return viewSortQueued.length > 0 || viewSortFlight || viewSortInflight.size > 0;
+}
+
 function scheduleViewSortPaint() {
   const gen = viewSortGen;
   if (viewSortSettle) clearTimeout(viewSortSettle);
@@ -2891,7 +2901,9 @@ function scheduleViewSortPaint() {
     viewSortSettle = 0;
     if (gen !== viewSortGen) return;
     if (getQuery().sort !== 'viewed' || !feedFiltering()) return;
-    if (viewSortQueued.length || viewSortFlight || viewSortInflight.size) return;
+    if (viewSortBusy()) return;
+    // Pages are still arriving behind the spinner. The drain paints once.
+    if (sortHold || !rankedWindowReady(sortPages, SORT_PAGE_CAP, exhausted, searchFloor)) return;
     paintSorted();
   }, 200);
 }
@@ -3074,7 +3086,8 @@ function paintSortNote() {
 }
 
 function paintSorted() {
-  if (keepScroll(scroller.scrollTop)) {
+  if (sortHold) return;
+  if (rankedPaintHold(!!column.querySelector('.feed-card'), scroller.scrollTop)) {
     sortPaintDirty = true;
     return;
   }
@@ -3295,7 +3308,7 @@ function fillUp() {
 }
 
 function fillDown() {
-  if (!feedOn() || root.classList.contains('is-peek') || paging) return;
+  if (sortHold || !feedOn() || root.classList.contains('is-peek') || paging) return;
   if (followBlocked()) {
     if (feedFiltering()) paintEmpty();
     return;
@@ -3328,9 +3341,31 @@ function fillDown() {
 }
 
 function searchCanPage() {
-  if (exhausted || searchFloor || paging) return false;
+  if (sortFetchPause || exhausted || searchFloor || paging) return false;
   if (rankedSort() && sortPages >= SORT_PAGE_CAP) return false;
   return true;
+}
+
+// Pull the capped window before the first ranked paint. A page that arrives
+// after the reader has scrolled does not rebuild the cards on screen.
+function finishRanked(opts) {
+  const retry = !opts || opts.retry !== false;
+  if (!feedFiltering() || !rankedSort()) {
+    sortHold = false;
+    paintSpinner(false);
+    return;
+  }
+  if (retry && loadedTopic && !rankedWindowReady(sortPages, SORT_PAGE_CAP, exhausted, searchFloor)) {
+    sortHold = true;
+    paintSpinner(true);
+    loadOlder();
+    return;
+  }
+  sortHold = false;
+  paintSpinner(false);
+  sortPaintDirty = true;
+  paintSorted();
+  fillDown();
 }
 
 function laneFloor() {
@@ -3491,13 +3526,17 @@ function prependPosts(list) {
   }
   const heldAll = noteHeld('all', list);
   const heldFollow = followSet ? noteHeld('following', followed) : false;
+  const holdRank = sortHold && feedFiltering() && !column.querySelector('.feed-card');
   if (profileFilter) {
-    if (feedFiltering()) mountIncoming(searchIncoming, true);
-    else mountIncoming(visible, false);
+    if (feedFiltering()) {
+      if (!holdRank) mountIncoming(searchIncoming, true);
+    } else mountIncoming(visible, false);
     paintNewPill();
     return;
   }
-  if (feedFiltering()) mountIncoming(searchIncoming, true);
+  if (feedFiltering()) {
+    if (!holdRank) mountIncoming(searchIncoming, true);
+  }
   else if (feedTab === 'following') {
     if (!heldFollow) mountIncoming(followed, false);
   } else if (!heldAll) mountIncoming(list, false);
@@ -3619,42 +3658,58 @@ async function loadOlder() {
     if (!messages.length) {
       exhausted = true;
       ok = true;
-      return;
-    }
-    const oldest = messages[messages.length - 1];
-    const nextTs = String(oldest.consensus_timestamp || '');
-    const nextSeq = Number(oldest.sequence_number) || 0;
-    if (cursor && nextTs === String(cursor.ts)) {
-      exhausted = true;
-      ok = true;
-      return;
-    }
-    cursor = { ts: nextTs, seq: nextSeq };
-    if (page.done) exhausted = true;
-    noteSearchFloor();
-    const made = ingest(messages);
-    posts.push(...made);
-    const added = feedTab === 'following' ? takeFollowed(made) : made;
-    if (feedTab === 'following') shown.push(...added);
-    if (feedFiltering()) {
-      for (const post of added) if (hitQuery(post)) found.push(post);
-      if (rankedSort()) {
-        sortPages += 1;
-        if (keepScroll(scroller.scrollTop)) sortPaintDirty = true;
-        else paintSorted();
+    } else {
+      const oldest = messages[messages.length - 1];
+      const nextTs = String(oldest.consensus_timestamp || '');
+      const nextSeq = Number(oldest.sequence_number) || 0;
+      if (cursor && nextTs === String(cursor.ts)) {
+        exhausted = true;
+        ok = true;
+      } else {
+        cursor = { ts: nextTs, seq: nextSeq };
+        if (page.done) exhausted = true;
+        noteSearchFloor();
+        const made = ingest(messages);
+        posts.push(...made);
+        const added = feedTab === 'following' ? takeFollowed(made) : made;
+        if (feedTab === 'following') shown.push(...added);
+        if (feedFiltering()) {
+          for (const post of added) if (hitQuery(post)) found.push(post);
+          if (rankedSort()) {
+            sortPages += 1;
+            queueViewSort();
+          }
+        }
+        ok = true;
       }
-      queueViewSort();
     }
-    ok = true;
   } catch (error) {
     console.warn('feed page failed', error);
   } finally {
-    if (gen === generation) {
-      paging = false;
-      paintSpinner(false);
-    }
+    if (gen === generation) paging = false;
   }
-  if (ok && gen === generation) fillDown();
+  if (gen !== generation) return;
+  if (!ok) {
+    sortHold = false;
+    paintSpinner(false);
+    if (rankedSort() && feedFiltering()) {
+      sortPaintDirty = true;
+      sortFetchPause = true;
+      try {
+        paintSorted();
+        fillDown();
+      } finally {
+        sortFetchPause = false;
+      }
+    }
+    return;
+  }
+  if (rankedSort() && feedFiltering()) finishRanked();
+  else {
+    sortHold = false;
+    paintSpinner(false);
+    fillDown();
+  }
 }
 
 async function catchUp() {
@@ -3673,6 +3728,7 @@ async function catchUp() {
   } finally {
     if (gen === generation) paging = false;
   }
+  if (gen === generation && sortHold && rankedSort() && feedFiltering()) finishRanked();
 }
 
 function onStream(event) {
@@ -4112,6 +4168,7 @@ function pinWindow() {
 
 function showQueryResults() {
   sortPages = 0;
+  sortHold = false;
   resetViewSort();
   syncFound();
   rangeStart = 0;
@@ -4119,6 +4176,11 @@ function showQueryResults() {
   clearViewWatch();
   column.replaceChildren();
   setFeedScroll(0);
+  if (rankedSort()) {
+    finishRanked();
+    return;
+  }
+  paintSpinner(false);
   paintEmpty();
   if (!followBlocked()) fillDown();
   else paintEmpty();
@@ -4211,6 +4273,7 @@ function hideSearch() {
     window.layerClosedByUI('feedfilters');
   }
   found = [];
+  sortHold = false;
   searchPinned = false;
   pinScroll = 0;
   pinStart = 0;
@@ -8645,7 +8708,7 @@ scroller.addEventListener('scroll', (event) => {
     armTabFinish();
   }
   savedScroll = y;
-  if (sortPaintDirty && !keepScroll(y)) paintSorted();
+  if (sortPaintDirty && !sortHold && !keepScroll(y)) paintSorted();
   fillUp();
   fillDown();
   revealParked();

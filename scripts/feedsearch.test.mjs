@@ -2,7 +2,7 @@
 import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from "../feedsearch.js";
-import { VIEW_SORT_BATCH, VIEW_SORT_LIMIT, VIEW_SORT_WINDOW, keepScroll, retryAfterMs, viewCountBatches } from "../viewsort.js";
+import { VIEW_SORT_BATCH, VIEW_SORT_LIMIT, VIEW_SORT_WINDOW, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs, viewCountBatches } from "../viewsort.js";
 
 beforeEach(() => {
   clearQuery();
@@ -228,4 +228,17 @@ test("a 429 waits for Retry-After and a re-sort keeps a scrolled list", () => {
   assert.equal(keepScroll(1.9), false);
   assert.equal(keepScroll(2), true);
   assert.equal(keepScroll("4"), true);
+});
+
+test("a ranked window paints once and a scrolled list keeps its place", () => {
+  assert.equal(rankedWindowReady(0, 4, false, false), false);
+  assert.equal(rankedWindowReady(3, 4, false, false), false);
+  assert.equal(rankedWindowReady(4, 4, false, false), true);
+  assert.equal(rankedWindowReady(1, 4, true, false), true);
+  assert.equal(rankedWindowReady(1, 4, false, true), true);
+  assert.equal(rankedPaintHold(false, 80), false);
+  assert.equal(rankedPaintHold(true, 0), false);
+  assert.equal(rankedPaintHold(true, 1.9), false);
+  assert.equal(rankedPaintHold(true, 2), true);
+  assert.equal(rankedPaintHold(true, "40"), true);
 });

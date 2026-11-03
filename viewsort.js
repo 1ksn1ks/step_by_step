@@ -47,3 +47,18 @@ export function retryAfterMs(header, now = Date.now()) {
 export function keepScroll(scrollTop) {
   return Number(scrollTop) >= 2;
 }
+
+// A ranked window is ready once the topic is exhausted, the date floor is
+// reached, or the page cap has been pulled. Until then the spinner stays
+// up and nothing is painted, so paging cannot jump the scroll.
+export function rankedWindowReady(pages, cap, exhausted, floor) {
+  if (exhausted || floor) return true;
+  const limit = cap > 0 ? cap : 0;
+  return pages >= limit;
+}
+
+// Cards already on screen keep their scroll position. An empty column is
+// the first paint and starts at the top.
+export function rankedPaintHold(hasCards, scrollTop) {
+  return !!hasCards && keepScroll(scrollTop);
+}
