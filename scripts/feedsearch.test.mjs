@@ -2,6 +2,7 @@
 import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from "../feedsearch.js";
+import { VIEW_SORT_BATCH, VIEW_SORT_LIMIT, VIEW_SORT_WINDOW, keepScroll, retryAfterMs, viewCountBatches } from "../viewsort.js";
 
 beforeEach(() => {
   clearQuery();
@@ -198,4 +199,33 @@ test("an unregistered filter key does not count as filtering or hide posts", () 
   setFilter("kind", false);
   assert.equal(isActive(), false);
   assert.equal(getQuery().filters.nope, true);
+});
+
+test("viewed sort fetches stay under the public rate limit", () => {
+  const ids = [];
+  for (let i = 0; i < VIEW_SORT_WINDOW; i++) ids.push("m:0.0.1:0.0.2:t:" + i);
+  ids.push(ids[0], "", ids[1]);
+  const batches = viewCountBatches(ids);
+  assert.equal(VIEW_SORT_BATCH, 400);
+  assert.equal(batches.length, Math.ceil(VIEW_SORT_WINDOW / VIEW_SORT_BATCH));
+  assert.ok(batches.length < VIEW_SORT_LIMIT);
+  for (const batch of batches) assert.ok(batch.length <= VIEW_SORT_BATCH);
+  assert.equal(batches.flat().length, VIEW_SORT_WINDOW);
+  assert.equal(viewCountBatches(null).length, 0);
+  assert.equal(viewCountBatches(["a", "a", "b"], 1).length, 2);
+});
+
+test("a 429 waits for Retry-After and a re-sort keeps a scrolled list", () => {
+  assert.equal(retryAfterMs("12"), 12000);
+  assert.equal(retryAfterMs(" 0 "), 0);
+  assert.equal(retryAfterMs(""), 1000);
+  assert.equal(retryAfterMs(null), 1000);
+  assert.equal(retryAfterMs("soon"), 1000);
+  const now = Date.parse("Wed, 21 Oct 2015 07:28:00 GMT");
+  assert.equal(retryAfterMs("Wed, 21 Oct 2015 07:28:05 GMT", now), 5000);
+  assert.equal(retryAfterMs("Wed, 21 Oct 2015 07:27:00 GMT", now), 0);
+  assert.equal(keepScroll(0), false);
+  assert.equal(keepScroll(1.9), false);
+  assert.equal(keepScroll(2), true);
+  assert.equal(keepScroll("4"), true);
 });

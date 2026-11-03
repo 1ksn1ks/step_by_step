@@ -34,6 +34,7 @@ import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { openPreview } from './fullscreenmedia.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
+import { VIEW_SORT_BATCH, keepScroll, retryAfterMs } from './viewsort.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -578,7 +579,14 @@ let paging = false;
 let searchFloor = false;
 let sortPages = 0;
 let viewSortWait = 0;
-const viewSortAsked = new Set();
+let viewSortGen = 0;
+let viewSortTimer = 0;
+let viewSortSettle = 0;
+let viewSortFlight = false;
+let viewSortRetryAt = 0;
+let sortPaintDirty = false;
+const viewSortQueued = [];
+const viewSortInflight = new Set();
 let generation = 0;
 let highSeq = 0;
 let streamOff = null;
@@ -1650,10 +1658,6 @@ function paintCounts(counts) {
   }
   for (const card of column.children) {
     if (card.classList && card.classList.contains('feed-card')) paintCardCount(card);
-  }
-  if (getQuery().sort === 'viewed' && feedFiltering()) {
-    queueViewSort();
-    paintSorted();
   }
 }
 
@@ -2847,20 +2851,144 @@ function orderFound() {
   return found.map((post) => post && post.key).join('\n') !== before;
 }
 
-function queueViewSort() {
-  if (getQuery().sort !== 'viewed') {
-    viewSortWait = 0;
-    return;
-  }
+function refreshViewSortWait() {
   let missing = 0;
-  for (const post of found) {
-    if (!post || !post.key || viewTotals.has(post.key)) continue;
-    missing += 1;
-    if (viewSortAsked.has(post.key)) continue;
-    viewSortAsked.add(post.key);
-    wantCount(post.key);
+  if (getQuery().sort === 'viewed') {
+    for (const post of found) {
+      if (post && post.key && !viewTotals.has(post.key)) missing += 1;
+    }
   }
   viewSortWait = missing;
+}
+
+function resetViewSort() {
+  viewSortGen += 1;
+  viewSortQueued.length = 0;
+  viewSortInflight.clear();
+  viewSortWait = 0;
+  viewSortRetryAt = 0;
+  sortPaintDirty = false;
+  if (viewSortTimer) {
+    clearTimeout(viewSortTimer);
+    viewSortTimer = 0;
+  }
+  if (viewSortSettle) {
+    clearTimeout(viewSortSettle);
+    viewSortSettle = 0;
+  }
+}
+
+function armViewSort() {
+  if (viewSortTimer || viewSortFlight) return;
+  const wait = Math.max(0, viewSortRetryAt - Date.now());
+  viewSortTimer = setTimeout(pullViewSort, wait);
+}
+
+function scheduleViewSortPaint() {
+  const gen = viewSortGen;
+  if (viewSortSettle) clearTimeout(viewSortSettle);
+  viewSortSettle = setTimeout(() => {
+    viewSortSettle = 0;
+    if (gen !== viewSortGen) return;
+    if (getQuery().sort !== 'viewed' || !feedFiltering()) return;
+    if (viewSortQueued.length || viewSortFlight || viewSortInflight.size) return;
+    paintSorted();
+  }, 200);
+}
+
+function requeueViewSort(ids) {
+  const have = new Set(viewSortQueued);
+  for (let i = ids.length - 1; i >= 0; i--) {
+    const id = ids[i];
+    if (!id || viewTotals.has(id) || have.has(id) || viewSortInflight.has(id)) continue;
+    viewSortQueued.unshift(id);
+    have.add(id);
+  }
+}
+
+// One bulk POST per VIEW_SORT_BATCH ids. The queue is not marked asked
+// until the counts land, so a 429 puts the same ids back after Retry-After.
+async function pullViewSort() {
+  viewSortTimer = 0;
+  if (viewSortFlight) return;
+  const gen = viewSortGen;
+  if (getQuery().sort !== 'viewed') return;
+  const ids = [];
+  while (viewSortQueued.length && ids.length < VIEW_SORT_BATCH) {
+    const id = viewSortQueued.shift();
+    if (!id || viewTotals.has(id) || viewSortInflight.has(id)) continue;
+    viewSortInflight.add(id);
+    ids.push(id);
+  }
+  if (!ids.length) {
+    refreshViewSortWait();
+    if (!viewSortInflight.size) scheduleViewSortPaint();
+    return;
+  }
+  viewSortFlight = true;
+  let requeue = false;
+  let again = 0;
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/views/counts`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    if (res.status === 429) {
+      requeue = true;
+      again = retryAfterMs(res.headers.get('Retry-After'));
+    } else if (res.ok) {
+      const data = await res.json();
+      paintCounts(data && data.counts);
+    } else if (res.status !== 400) {
+      requeue = true;
+      again = retryAfterMs(null);
+    }
+  } catch {
+    requeue = true;
+    again = retryAfterMs(null);
+  } finally {
+    viewSortFlight = false;
+    for (const id of ids) viewSortInflight.delete(id);
+  }
+  if (gen !== viewSortGen || getQuery().sort !== 'viewed') {
+    if (viewSortQueued.length && getQuery().sort === 'viewed') armViewSort();
+    return;
+  }
+  if (requeue) {
+    requeueViewSort(ids);
+    viewSortRetryAt = Date.now() + again;
+  } else {
+    viewSortRetryAt = 0;
+  }
+  refreshViewSortWait();
+  if (viewSortQueued.length) armViewSort();
+  else scheduleViewSortPaint();
+}
+
+function queueViewSort() {
+  if (getQuery().sort !== 'viewed') {
+    viewSortQueued.length = 0;
+    viewSortWait = 0;
+    viewSortRetryAt = 0;
+    if (viewSortTimer) {
+      clearTimeout(viewSortTimer);
+      viewSortTimer = 0;
+    }
+    if (viewSortSettle) {
+      clearTimeout(viewSortSettle);
+      viewSortSettle = 0;
+    }
+    return;
+  }
+  const queued = new Set(viewSortQueued);
+  for (const post of found) {
+    if (!post || !post.key || viewTotals.has(post.key) || queued.has(post.key) || viewSortInflight.has(post.key)) continue;
+    viewSortQueued.push(post.key);
+    queued.add(post.key);
+  }
+  refreshViewSortWait();
+  if (viewSortQueued.length) armViewSort();
 }
 
 function searchDataPending() {
@@ -2946,16 +3074,21 @@ function paintSortNote() {
 }
 
 function paintSorted() {
-  if (!orderFound()) return;
+  if (keepScroll(scroller.scrollTop)) {
+    sortPaintDirty = true;
+    return;
+  }
+  if (!orderFound() && !sortPaintDirty) return;
+  sortPaintDirty = false;
   rangeStart = 0;
   rangeEnd = 0;
   clearViewWatch();
   column.replaceChildren();
-  setFeedScroll(0);
   const list = found;
   if (list.length) renderThrough(Math.min(list.length, RENDER_CHUNK));
   paintEmpty();
   paintSortNote();
+  setFeedScroll(0);
 }
 
 function paintEmpty() {
@@ -3505,13 +3638,10 @@ async function loadOlder() {
     if (feedTab === 'following') shown.push(...added);
     if (feedFiltering()) {
       for (const post of added) if (hitQuery(post)) found.push(post);
-      if (rankedSort()) sortPages += 1;
-      if (orderFound()) {
-        rangeStart = 0;
-        rangeEnd = 0;
-        clearViewWatch();
-        column.replaceChildren();
-        setFeedScroll(0);
+      if (rankedSort()) {
+        sortPages += 1;
+        if (keepScroll(scroller.scrollTop)) sortPaintDirty = true;
+        else paintSorted();
       }
       queueViewSort();
     }
@@ -3982,8 +4112,7 @@ function pinWindow() {
 
 function showQueryResults() {
   sortPages = 0;
-  viewSortAsked.clear();
-  viewSortWait = 0;
+  resetViewSort();
   syncFound();
   rangeStart = 0;
   rangeEnd = 0;
@@ -8516,6 +8645,7 @@ scroller.addEventListener('scroll', (event) => {
     armTabFinish();
   }
   savedScroll = y;
+  if (sortPaintDirty && !keepScroll(y)) paintSorted();
   fillUp();
   fillDown();
   revealParked();

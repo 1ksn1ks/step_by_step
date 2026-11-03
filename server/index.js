@@ -45,6 +45,7 @@ import {
   feedViewCounts,
   pruneExpiredFeedViews,
 } from "./feedviews.js";
+import { VIEW_SORT_BATCH } from "../viewsort.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1793,6 +1794,7 @@ function publicPostLimit(req, res, next) {
   bucket.count += 1;
   if (bucket.count > PUBLIC_POST_RATE_LIMIT) {
     res.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.reset - now) / 1000))));
+    res.setHeader("Access-Control-Expose-Headers", "Retry-After");
     return res.status(429).json({ ok: false, error: "rate limit" });
   }
   next();
@@ -2753,6 +2755,14 @@ app.post("/api/views", publicPostLimit, (req, res) => {
       return res.status(500).json({ ok: false, error: "view failed" });
     }
   }
+  res.json({ ok: true, counts: feedViewCounts(db, posts) });
+});
+
+// Bulk counts for the viewed sort. GET /api/views holds 50 ids, and a full
+// sort window does not fit under the per-minute cap at that size.
+app.post("/api/views/counts", publicPostLimit, (req, res) => {
+  const posts = feedPostList(req.body && req.body.ids, VIEW_SORT_BATCH);
+  if (!posts || !posts.length) return res.status(400).json({ ok: false, error: "bad view" });
   res.json({ ok: true, counts: feedViewCounts(db, posts) });
 });
 
