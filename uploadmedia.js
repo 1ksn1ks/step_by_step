@@ -14,7 +14,7 @@ import { connectedAccount, signer } from "./web3.js";
 import { profilePictures } from "./loadalladata.js";
 import { paintDrawField } from "./drawpreview.js";
 import { rememberGrant, withUploadAuth } from "./uploadgrant.js";
-import { COVER_VIDEO_MAX_SECONDS, coverVideoTooLong } from "./covervideolimit.js";
+import { COVER_VIDEO_PROBE_MS, coverVideoReject } from "./covervideolimit.js";
 
 const VIDEO_MAX = 100 * 1024 * 1024;
 const IMAGE_MAX = 20 * 1024 * 1024;
@@ -373,7 +373,8 @@ function progressPill(label) {
 
 // Read the length from the local file before it is uploaded. The popup
 // later reads that number out of the filename, so it never loads the video
-// just to filter. A slow or broken file uploads without a length.
+// just to filter. Inside media still uploads when the length never arrives.
+// A polygon cover refuses that case on its own.
 function readVideoSeconds(localUrl) {
   return new Promise((resolve) => {
     const video = document.createElement("video");
@@ -389,7 +390,7 @@ function readVideoSeconds(localUrl) {
       try { video.load(); } catch { /* the element is already idle */ }
       resolve(seconds);
     };
-    const timer = setTimeout(() => finish(null), 5000);
+    const timer = setTimeout(() => finish(null), COVER_VIDEO_PROBE_MS);
     video.onloadedmetadata = () => {
       const duration = video.duration;
       // Raw length so a cover can allow 30.5s of rounding. The caller
@@ -633,8 +634,13 @@ async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg
   showFieldPreview(targetFieldId, localUrl, isVideo ? "video" : "image");
   try {
     const length = isVideo ? await readVideoSeconds(localUrl) : null;
-    if (targetFieldId === "input-field-coverimage-polygon" && isVideo && coverVideoTooLong(length)) {
-      toast.error(`Cover video max ${COVER_VIDEO_MAX_SECONDS} seconds`);
+    // Inside and popup video stay uncapped. Only a polygon cover is limited,
+    // and only a length we could read can be "too long".
+    const coverReason = targetFieldId === "input-field-coverimage-polygon" && isVideo
+      ? coverVideoReject(length)
+      : "";
+    if (coverReason) {
+      toast.error(coverReason);
       URL.revokeObjectURL(localUrl);
       fillField(targetFieldId, previous);
       if (/^https?:\/\//i.test(previous)) showFieldPreview(targetFieldId, previous);
