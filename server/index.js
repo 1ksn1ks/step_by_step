@@ -47,7 +47,7 @@ import {
   feedViewCounts,
   pruneExpiredFeedViews,
 } from "./feedviews.js";
-import { VIEW_SORT_BATCH } from "../viewsort.js";
+import { VIEW_SORT_BATCH, isFeedPostId, viewCountIds } from "../viewsort.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -2715,14 +2715,9 @@ app.post("/api/popup-view", publicPostLimit, (req, res) => {
 });
 
 // Feed card keys: m|p|c|s, then topic, account, ISO time, and a number.
-const FEED_POST_ID = /^[mpcs]:[A-Za-z0-9:._-]+$/;
 const FEED_VIEWER_ACCOUNT = /^\d+\.\d+\.\d+$/;
 const FEED_VIEWER_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FEED_VIEW_BATCH = 80;
-
-function isFeedPostId(s) {
-  return typeof s === "string" && s.length >= 3 && s.length <= 200 && FEED_POST_ID.test(s);
-}
 
 function isFeedViewer(s) {
   if (typeof s !== "string" || s.length > 40) return false;
@@ -2746,17 +2741,7 @@ function feedPostList(raw, max) {
 
 // POST skips an id that is not a card key. One bad id does not reject the batch.
 function feedPostIds(raw, max) {
-  if (!Array.isArray(raw) || raw.length > max) return null;
-  const ids = [];
-  const seen = new Set();
-  for (const item of raw) {
-    const id = typeof item === "string" ? item.trim() : "";
-    if (!id || seen.has(id)) continue;
-    if (!isFeedPostId(id)) continue;
-    seen.add(id);
-    ids.push(id);
-  }
-  return ids;
+  return viewCountIds(raw, max);
 }
 
 // Same pieces feedlayout.js puts in a card key.
@@ -2926,9 +2911,10 @@ app.post("/api/views", publicPostLimit, (req, res) => {
 });
 
 // Bulk counts for the viewed sort. GET /api/views holds 50 ids, and a full
-// sort window does not fit under the per-minute cap at that size.
+// sort window does not fit under the per-minute cap at that size. Invalid
+// ids are skipped. 400 is a non-array body, a list over the cap, or no valid ids.
 app.post("/api/views/counts", publicPostLimit, (req, res) => {
-  const posts = feedPostList(req.body && req.body.ids, VIEW_SORT_BATCH);
+  const posts = viewCountIds(req.body && req.body.ids, VIEW_SORT_BATCH);
   if (!posts || !posts.length) return res.status(400).json({ ok: false, error: "bad view" });
   res.json({ ok: true, counts: feedViewCounts(db, posts) });
 });

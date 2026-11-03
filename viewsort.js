@@ -8,6 +8,38 @@
 export const VIEW_SORT_BATCH = 400;
 export const VIEW_SORT_LIMIT = 60;
 export const VIEW_SORT_WINDOW = 4 * 2030;
+const FEED_POST_ID = /^[mpcs]:[A-Za-z0-9:._-]+$/;
+
+export function isFeedPostId(s) {
+  return typeof s === "string" && s.length >= 3 && s.length <= 200 && FEED_POST_ID.test(s);
+}
+
+// Card keys for POST /api/views/counts. A bad id is skipped. null means the
+// body is not an array or is over the batch cap. An empty list has no valid
+// ids, and the route answers 400.
+export function viewCountIds(raw, max = VIEW_SORT_BATCH) {
+  if (!Array.isArray(raw) || raw.length > max) return null;
+  const ids = [];
+  const seen = new Set();
+  for (const item of raw) {
+    const id = typeof item === "string" ? item.trim() : "";
+    if (!id || seen.has(id)) continue;
+    if (!isFeedPostId(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+// A 400 from the counts route. Those ids count as zero so the sort can finish.
+export function zeroViewCounts(ids) {
+  const counts = {};
+  if (!Array.isArray(ids)) return counts;
+  for (const id of ids) {
+    if (typeof id === "string" && id) counts[id] = 0;
+  }
+  return counts;
+}
 const RETRY_FALLBACK_MS = 1000;
 
 export function viewCountBatches(ids, batchSize = VIEW_SORT_BATCH) {

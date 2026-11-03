@@ -2,7 +2,7 @@
 import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from "../feedsearch.js";
-import { VIEW_SORT_BATCH, VIEW_SORT_LIMIT, VIEW_SORT_WINDOW, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs, viewCountBatches } from "../viewsort.js";
+import { VIEW_SORT_BATCH, VIEW_SORT_LIMIT, VIEW_SORT_WINDOW, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs, viewCountBatches, viewCountIds, zeroViewCounts } from "../viewsort.js";
 
 beforeEach(() => {
   clearQuery();
@@ -199,6 +199,25 @@ test("an unregistered filter key does not count as filtering or hide posts", () 
   setFilter("kind", false);
   assert.equal(isActive(), false);
   assert.equal(getQuery().filters.nope, true);
+});
+
+test("view counts skip invalid ids and a rejected batch is zero", () => {
+  const good = "m:0.0.1:0.0.2:2019-01-01T00:00:00.000Z:1";
+  const also = "s:0.0.3:0.0.4:2019-01-01T00:00:00.000Z";
+  assert.deepEqual(viewCountIds([`  ${good}  `, "not-a-post", also, good, "", 12]), [good, also]);
+  assert.deepEqual(viewCountIds(["bad", "x"]), []);
+  assert.equal(viewCountIds({ ids: [good] }), null);
+  assert.equal(viewCountIds(null), null);
+  assert.equal(viewCountIds([good, also], 1), null);
+  const zeros = zeroViewCounts([good, also, ""]);
+  assert.deepEqual(zeros, { [good]: 0, [also]: 0 });
+  const totals = new Map(Object.entries(zeros));
+  const found = [{ key: good }, { key: also }];
+  let missing = 0;
+  for (const post of found) {
+    if (post && post.key && !totals.has(post.key)) missing += 1;
+  }
+  assert.equal(missing, 0);
 });
 
 test("viewed sort fetches stay under the public rate limit", () => {

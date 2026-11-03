@@ -34,7 +34,7 @@ import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { openPreview } from './fullscreenmedia.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
-import { VIEW_SORT_BATCH, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs } from './viewsort.js';
+import { VIEW_SORT_BATCH, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs, zeroViewCounts } from './viewsort.js';
 import { FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, feedAutoplayAllowed, feedVideoHeld, feedVideoPreloadOnPause, feedVideoShouldRelease, feedVideoStartDelay, pickFeedVideo } from './feedvideo.js';
 import { isGifUrl, resolveMediaUrl } from './mediaurl.js';
 import { mountPicture, pictureElement } from './loopmedia.js';
@@ -3225,6 +3225,7 @@ function requeueViewSort(ids) {
 
 // One bulk POST per VIEW_SORT_BATCH ids. The queue is not marked asked
 // until the counts land, so a 429 puts the same ids back after Retry-After.
+// A 400 stores 0 for that batch so viewSortWait can reach 0.
 async function pullViewSort() {
   viewSortTimer = 0;
   if (viewSortFlight) return;
@@ -3257,7 +3258,9 @@ async function pullViewSort() {
     } else if (res.ok) {
       const data = await res.json();
       paintCounts(data && data.counts);
-    } else if (res.status !== 400) {
+    } else if (res.status === 400) {
+      paintCounts(zeroViewCounts(ids));
+    } else {
       requeue = true;
       again = retryAfterMs(null);
     }
