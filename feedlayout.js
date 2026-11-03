@@ -1919,8 +1919,17 @@ function releaseFeedVideo(video) {
   pauseFeedVideo(video);
 }
 
+// A removed card does not reliably notify the intersection observer, and the
+// column is no longer watched. Drop tracked videos while their card is still
+// in the tree, before a trim or a column replace detaches them.
+function releaseFeedVideosIn(root) {
+  if (!root || !root.contains) return;
+  for (const video of [...feedVideoRatio.keys()]) {
+    if (root.contains(video)) releaseFeedVideo(video);
+  }
+}
+
 function settleFeedVideos() {
-  scanFeedVideos();
   for (const video of [...feedVideoRatio.keys()]) {
     if (!video.isConnected) releaseFeedVideo(video);
   }
@@ -2055,10 +2064,6 @@ function bindFeedVideo(video) {
   });
   ensureFeedVideoObserver().observe(video);
   if (!feedVideoRatio.has(video)) feedVideoRatio.set(video, 0);
-}
-
-function scanFeedVideos() {
-  for (const video of column.querySelectorAll('.popup-media-card video')) bindFeedVideo(video);
 }
 
 function syncVisibleViews() {
@@ -2218,6 +2223,7 @@ function forgetCard(card) {
   if (viewObserver) viewObserver.unobserve(card);
   viewIntersecting.delete(card);
   disarmView(card);
+  releaseFeedVideosIn(card);
 }
 
 function clearViewWatch() {
@@ -2225,6 +2231,7 @@ function clearViewWatch() {
   viewIntersecting.clear();
   for (const timer of viewTimers.values()) clearTimeout(timer);
   viewTimers.clear();
+  releaseFeedVideosIn(column);
 }
 
 function paintFeedHashinal(card) {
@@ -2303,6 +2310,7 @@ function buildCard(post) {
       : (video ? document.createElement('video') : document.createElement('img'));
     if (gifLoop) {
       media.appendChild(node);
+      if (node && node.tagName === 'VIDEO') bindFeedVideo(node);
       coverFeedPlayer(media, () => {
         holdScroll();
         openPreview(resolved.src, { video: true });
@@ -8738,7 +8746,6 @@ for (const node of [profilePage, settings, feedChat, menu, root]) {
 }
 feedVideoShell.observe(filterCard, { attributes: true, attributeFilter: ['style'] });
 feedVideoShell.observe(document.body, { childList: true });
-feedVideoShell.observe(column, { childList: true, subtree: true });
 window.addEventListener('pagehide', flushViewsNow);
 
 allTab.addEventListener('click', () => { selectTab('all'); });
