@@ -4345,6 +4345,12 @@ function closeSearchPage() {
   searchBtnFeed.focus({ preventScroll: true });
 }
 
+// The pill focuses itself when it is tapped. Opening the page must not
+// focus the field, or the phone keyboard covers the results.
+function focusSearchPage() {
+  searchBack.focus({ preventScroll: true, focusVisible: false });
+}
+
 function openSearch() {
   if (!searchPage.hidden) return;
   if (!feedOn() || root.classList.contains('is-peek')) return;
@@ -4354,7 +4360,7 @@ function openSearch() {
   parkScroller();
   syncSearchChrome();
   if (window.layerOpened) window.layerOpened('feedsearch');
-  searchInput.focus({ preventScroll: true });
+  focusSearchPage();
   requestAnimationFrame(() => revealSearchHead());
 }
 
@@ -8171,7 +8177,7 @@ if (window.defineLayer) {
       searchPage.hidden = false;
       parkScroller();
       syncSearchChrome();
-      searchInput.focus({ preventScroll: true });
+      focusSearchPage();
     },
     close: () => closeSearchPage(),
   });
