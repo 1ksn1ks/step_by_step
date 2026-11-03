@@ -1,5 +1,5 @@
 import { isTyping } from './joystick.js';
-import { resolveMediaUrl } from './mediaurl.js';
+import { isGifUrl, resolveMediaUrl } from './mediaurl.js';
 
 // One preview for every picture in the app (chat thumbnails, popup
 // pictures, and the next place that needs it). Call openPreview. Add the
@@ -71,11 +71,12 @@ function onKey(e) {
 }
 
 export function openPreview(src, options = {}) {
-  if (!src) return;
-  closePreview();
+  if (!src || isGifUrl(src)) return;
   const resolved = resolveMediaUrl(src);
+  const play = resolved.src;
+  if (!play) return;
+  closePreview();
   const video = options.video === true || resolved.kind === 'video';
-  const play = resolved.src || src;
 
   overlay = document.createElement('div');
   overlay.id = 'media-fullscreen';

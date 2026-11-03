@@ -9,7 +9,7 @@ import { paintProfileAvatar } from "./earlyhashinal.js";
 import { watchProfilePicture } from "./markertilt.js";
 import { syncPopupChrome } from "./loadprofilepopup.js";
 import { watchFollowPrefetch } from "./followtopic.js";
-import { resolveMediaUrl } from "./mediaurl.js";
+import { isGifUrl, resolveMediaUrl } from "./mediaurl.js";
 import { mountPicture } from "./loopmedia.js";
 
 const DEFAULT_PIC = "https://kiloscribe.com/api/inscription-cdn/0.0.4819119";
@@ -32,8 +32,8 @@ function isVideoUrl(url) {
 }
 
 function playable(url) {
-  const resolved = resolveMediaUrl(url);
-  return resolved.src || url;
+  if (isGifUrl(url)) return "";
+  return resolveMediaUrl(url).src || "";
 }
 
 function paintMedia(id, url, kind) {
@@ -42,8 +42,9 @@ function paintMedia(id, url, kind) {
   const img = card.querySelector("img");
   const video = card.querySelector("video");
   const clear = card.querySelector(".draw-popup-clear");
+  const src = playable(url);
   const videoMode = kind === "video" || isVideoUrl(url);
-  if (!url) {
+  if (!src) {
     img.hidden = true;
     img.removeAttribute("src");
     video.pause();
@@ -60,7 +61,6 @@ function paintMedia(id, url, kind) {
     img.hidden = true;
     img.removeAttribute("src");
     video.hidden = false;
-    const src = playable(url);
     if (video.getAttribute("src") !== src) {
       video.src = src;
       video.muted = true;
@@ -74,7 +74,6 @@ function paintMedia(id, url, kind) {
     video.removeAttribute("src");
     video.load();
     img.hidden = false;
-    const src = playable(url);
     if (img.getAttribute("src") !== src) img.src = src;
   }
 }
@@ -82,16 +81,17 @@ function paintMedia(id, url, kind) {
 function paintCover(id, url, kind, fieldId) {
   const chip = document.getElementById(id);
   if (chip) {
-    chip.classList.toggle("has-cover", !!url);
-    chip.textContent = url ? "Cover ✓" : "Cover";
+    chip.classList.toggle("has-cover", !!playable(url));
+    chip.textContent = playable(url) ? "Cover ✓" : "Cover";
   }
   const preview = document.getElementById(COVER_PREVIEW[fieldId]);
   if (!preview) return;
   const img = preview.querySelector("img");
   const video = preview.querySelector("video");
   const clear = preview.querySelector(".draw-popup-clear");
+  const src = playable(url);
   const videoMode = !!video && (kind === "video" || isVideoUrl(url));
-  if (!url) {
+  if (!src) {
     preview.classList.remove("has-cover", "has-media");
     if (clear) clear.hidden = true;
     if (img) {
@@ -112,7 +112,6 @@ function paintCover(id, url, kind, fieldId) {
     img.hidden = true;
     img.removeAttribute("src");
     video.hidden = false;
-    const src = playable(url);
     if (video.getAttribute("src") !== src) {
       video.src = src;
       video.muted = true;
@@ -130,7 +129,6 @@ function paintCover(id, url, kind, fieldId) {
   }
   if (!img) return;
   img.hidden = false;
-  const src = playable(url);
   if (img.getAttribute("src") !== src) img.src = src;
 }
 

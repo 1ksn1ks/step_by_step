@@ -2296,23 +2296,15 @@ function buildCard(post) {
 
   let media = null;
   const src = mediaOf(record.image);
-  if (src) {
+  // A stored .gif is not played. New uploads are already MP4, WebM, or JPEG.
+  if (src && !isGifUrl(src)) {
+    const resolved = resolveMediaUrl(src);
+    if (resolved.src) {
     media = document.createElement('div');
     media.className = 'popup-media-card';
-    const resolved = resolveMediaUrl(src);
-    const gifLoop = isGifUrl(src);
-    const video = resolved.kind === 'video' && !gifLoop;
-    const node = gifLoop
-      ? pictureElement(src, { alt: '' })
-      : (video ? document.createElement('video') : document.createElement('img'));
-    if (gifLoop) {
-      media.appendChild(node);
-      if (node && node.tagName === 'VIDEO') bindFeedVideo(node);
-      coverFeedPlayer(media, () => {
-        holdScroll();
-        openPreview(resolved.src, { video: true });
-      });
-    } else if (video) {
+    const video = resolved.kind === 'video';
+    const node = video ? document.createElement('video') : document.createElement('img');
+    if (video) {
       node.controls = true;
       node.playsInline = true;
       node.setAttribute('playsinline', '');
@@ -2323,7 +2315,7 @@ function buildCard(post) {
       if (resolved.poster) node.poster = resolved.poster;
       else {
         const poster = mediaOf(record.coverimage);
-        if (poster && !isVideo(poster)) node.poster = poster;
+        if (poster && !isVideo(poster) && !isGifUrl(poster)) node.poster = poster;
       }
       media.appendChild(node);
       bindFeedVideo(node);
@@ -2350,6 +2342,7 @@ function buildCard(post) {
         holdScroll();
         openPreview(resolved.src);
       });
+    }
     }
   }
 

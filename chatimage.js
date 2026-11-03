@@ -193,6 +193,8 @@ function bind(kind) {
     s.uploading = true;
     s.btn.disabled = true;
     if (file.type === "image/gif") {
+      // The chat preview stays a JPEG still. uploadChatImage converts the
+      // GIF on this device and never sends the .gif.
       const still = await stillObjectUrl(file);
       URL.revokeObjectURL(s.objectUrl);
       s.objectUrl = still;

@@ -2,7 +2,7 @@ import { applyAllStyles } from './loadprofilepopup';
 import { scene } from "./threejs";
 import maplibregl from 'maplibre-gl';
 import { animateMapTo } from './animatemapto';
-import { resolveMediaUrl } from './mediaurl.js';
+import { isGifUrl, resolveMediaUrl } from './mediaurl.js';
 import { currentUfoModelInGLTF, polygons } from './letall';
 import { map } from './map'
 import { cameraState, earthOccludes } from './moon.js';
@@ -188,8 +188,8 @@ function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackU
 
 // ── Animated covers (video) ─────────────────────────────────────────────
 // A MapLibre image source is a static texture. A hidden <video> is blitted
-// onto a canvas and uploaded from there. A GIF address is resolved to its
-// MP4 first, then it uses this same path, including the 30s rewind.
+// onto a canvas and uploaded from there. A stored GIF address is not drawn.
+// A cover that was converted to MP4 or WebM uses this path, including the 30s rewind.
 //
 // A looping profile picture is the fill whenever a polygon has no cover of
 // its own. The video is created only once the polygon is on screen. In view
@@ -214,7 +214,7 @@ const mediaKind = (url) => (resolveMediaUrl(url).kind === 'video' ? 'video' : nu
 
 function coverPlayUrl(url) {
   const resolved = resolveMediaUrl(url);
-  return resolved.kind === 'video' ? resolved.src : url;
+  return resolved.kind === 'video' ? resolved.src : '';
 }
 
 let black512 = null;
@@ -717,7 +717,9 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
 
         // A video cover waits until the polygon is on screen. A still
         // cover does too, and downloads only then.
-        if (kind === 'video') {
+        if (isGifUrl(coverUrl)) {
+          /* an old .gif cover is not drawn */
+        } else if (kind === 'video') {
           registerCover(sourceId, layerId, 'video', coverPlayUrl(coverUrl), sourceCoordinates);
         } else {
           queueCoverLoad(sourceId, coverUrl, sourceCoordinates, 'still');

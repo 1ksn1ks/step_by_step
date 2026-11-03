@@ -1,234 +1,133 @@
-// GIF transcode plan and the one media-URL resolver. No ffmpeg and no network.
+// Device GIF geometry, progress, and the media-URL resolver. No browser and no network.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { posterTargetKey, resolveMediaUrl } from "../mediaurl.js";
 import {
-  COVER_MAX_EDGE,
-  GIF_CONVERT_ERROR,
-  applyGifTranscode,
-  ffmpegStillArgs,
-  ffmpegVideoArgs,
-  inspectGif,
-  ownGifKey,
-  resolveMediaUrl,
-  scaleFilter,
-} from "../mediaurl.js";
-import { readCappedBody } from "../server/giftranscode.js";
+  GIF_BROWSER_ERROR,
+  conversionRatio,
+  frameBox,
+  gifDurationReject,
+  mapGifProgress,
+  pickRecorderMime,
+  recorderFallback,
+  storedType,
+} from "../gifvideo.js";
 
-function gifBytes(delays) {
-  const chunks = [
-    Buffer.from("GIF89a"),
-    Buffer.from([0x02, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00]),
-  ];
-  for (const delay of delays) {
-    chunks.push(Buffer.from([
-      0x21, 0xf9, 0x04, 0x00,
-      delay & 0xff, (delay >> 8) & 0xff,
-      0x00, 0x00,
-    ]));
-    chunks.push(Buffer.from([
-      0x2c,
-      0x00, 0x00, 0x00, 0x00,
-      0x02, 0x00, 0x02, 0x00,
-      0x00,
-    ]));
-    chunks.push(Buffer.from([0x02, 0x02, 0x4c, 0x01, 0x00]));
-  }
-  chunks.push(Buffer.from([0x3b]));
-  return Buffer.concat(chunks);
-}
-
-const stubRun = (calls) => async (kind, job) => {
-  calls.push({ kind, maxEdge: job.maxEdge });
-  return Buffer.from(kind === "video" ? "mp4-bytes" : "jpeg-bytes");
-};
-
-test("a one-frame GIF is stored as a JPEG still", async () => {
-  const calls = [];
-  const out = await applyGifTranscode({
-    bytes: gifBytes([8]),
-    role: "avatar",
-    run: stubRun(calls),
+test("cover roles centre-crop to an even edge of at most 512", () => {
+  assert.deepEqual(frameBox(1000, 400, "cover"), {
+    width: 400, height: 400, sx: 300, sy: 0, sw: 400, sh: 400,
   });
-  assert.equal(out.ok, true);
-  assert.equal(out.ext, ".jpg");
-  assert.equal(out.mime, "image/jpeg");
-  assert.equal(out.poster, null);
-  assert.equal(out.ext === ".gif", false);
-  assert.deepEqual(calls, [{ kind: "still", maxEdge: COVER_MAX_EDGE }]);
-  assert.equal(inspectGif(gifBytes([8])).frames, 1);
+  assert.deepEqual(frameBox(2000, 1000, "avatar"), {
+    width: 512, height: 512, sx: 500, sy: 0, sw: 1000, sh: 1000,
+  });
+  assert.deepEqual(frameBox(513, 513, "polygon-cover"), {
+    width: 512, height: 512, sx: 0, sy: 0, sw: 513, sh: 513,
+  });
+  const narrow = frameBox(31, 45, "cover");
+  assert.equal(narrow.width, 30);
+  assert.equal(narrow.height, 30);
+  assert.equal(narrow.sx, 0);
+  assert.equal(narrow.sy, 7);
+  assert.equal(narrow.sw, 31);
+  assert.equal(narrow.sh, 31);
+  assert.equal(narrow.width % 2, 0);
+  assert.equal(narrow.height % 2, 0);
 });
 
-test("an animated GIF becomes an MP4 plus a first-frame poster", async () => {
-  const calls = [];
-  const out = await applyGifTranscode({
-    bytes: gifBytes([10, 10]),
-    role: "cover",
-    run: stubRun(calls),
+test("media keeps its size and only evens each side", () => {
+  assert.deepEqual(frameBox(101, 51, "media"), {
+    width: 100, height: 50, sx: 0, sy: 0, sw: 101, sh: 51,
   });
-  assert.equal(out.ok, true);
-  assert.equal(out.ext, ".mp4");
-  assert.equal(out.mime, "video/mp4");
-  assert.equal(Buffer.from(out.poster).toString(), "jpeg-bytes");
-  assert.equal(out.seconds, 0.2);
-  assert.deepEqual(calls.map((row) => row.kind), ["video", "poster"]);
-  assert.equal(calls[0].maxEdge, 512);
-  const videoArgs = ffmpegVideoArgs("in.gif", "out.mp4", 512);
-  assert.equal(videoArgs.includes("-an"), true);
-  assert.equal(videoArgs.includes("+faststart"), true);
-  assert.equal(videoArgs.includes("yuv420p"), true);
-  assert.equal(videoArgs.includes("libx264"), true);
-  assert.match(videoArgs.join(" "), /512/);
-  const posterArgs = ffmpegStillArgs("in.gif", "out.jpg", 512);
-  assert.equal(posterArgs.includes("1"), true);
-  assert.equal(posterArgs.includes("-q:v"), true);
-  assert.equal(scaleFilter(0), "scale=trunc(iw/2)*2:trunc(ih/2)*2");
-  const mediaCalls = [];
-  const media = await applyGifTranscode({
-    bytes: gifBytes([10, 10]),
-    role: "media",
-    run: stubRun(mediaCalls),
-  });
-  assert.equal(media.ok, true);
-  assert.equal(media.ext, ".mp4");
-  assert.equal(mediaCalls[0].maxEdge, 0);
-  assert.match(ffmpegVideoArgs("in.gif", "out.mp4", 0).join(" "), /trunc\(iw\/2\)\*2/);
+  const odd = frameBox(3, 5, "media");
+  assert.equal(odd.width, 2);
+  assert.equal(odd.height, 4);
+  assert.equal(odd.sx, 0);
+  assert.equal(odd.sy, 0);
+  assert.equal(odd.sw, 3);
+  assert.equal(odd.sh, 5);
+  assert.notEqual(frameBox(800, 200, "media").width, frameBox(800, 200, "cover").width);
 });
 
-test("a stored GIF forced to video stays an MP4 even with one frame", async () => {
-  const calls = [];
-  const out = await applyGifTranscode({
-    bytes: gifBytes([5]),
-    role: "media",
-    forceVideo: true,
-    run: stubRun(calls),
-  });
-  assert.equal(out.ok, true);
-  assert.equal(out.ext, ".mp4");
-  assert.ok(out.poster);
-  assert.equal(calls[0].maxEdge, 0);
+test("conversion fills 0–70 and the upload fills 70–100", () => {
+  assert.equal(mapGifProgress("convert", 0), 0);
+  assert.equal(mapGifProgress("convert", 0.5), 35);
+  assert.equal(mapGifProgress("convert", 1), 70);
+  assert.equal(mapGifProgress("convert", 2), 70);
+  assert.equal(mapGifProgress("upload", 0), 70);
+  assert.equal(mapGifProgress("upload", 0.5), 85);
+  assert.equal(mapGifProgress("upload", 1), 100);
+  assert.equal(mapGifProgress("upload", -1), 70);
+  assert.equal(conversionRatio(1, 2, 0, 1000), 0.5);
+  assert.equal(conversionRatio(0, 2, 800, 1000), 0.8);
+  assert.equal(conversionRatio(3, 2, 5000, 1000), 1);
+  assert.equal(conversionRatio(0, 0, 0, 0), 0);
 });
 
-test("ffmpeg failing rejects the upload and never returns a gif", async () => {
-  const thrown = await applyGifTranscode({
-    bytes: gifBytes([10, 10]),
-    role: "media",
-    run: async () => { throw new Error("ffmpeg missing"); },
-  });
-  assert.equal(thrown.ok, false);
-  assert.equal(thrown.status, 422);
-  assert.equal(thrown.error, GIF_CONVERT_ERROR);
-  assert.equal(thrown.ext, undefined);
-  assert.equal(Object.hasOwn(thrown, "body"), false);
-
-  const empty = await applyGifTranscode({
-    bytes: gifBytes([10, 10]),
-    role: "cover",
-    run: async () => Buffer.alloc(0),
-  });
-  assert.equal(empty.ok, false);
-  assert.equal(empty.status, 422);
-  assert.equal(empty.error, GIF_CONVERT_ERROR);
-});
-
-test("a polygon-cover GIF longer than 30 seconds is rejected before ffmpeg", async () => {
-  let ran = false;
-  const out = await applyGifTranscode({
-    bytes: gifBytes([2000, 2000]),
-    role: "polygon-cover",
-    run: async () => { ran = true; return Buffer.from("nope"); },
-  });
-  assert.equal(ran, false);
-  assert.equal(out.ok, false);
-  assert.equal(out.status, 400);
-  assert.equal(out.error, "Cover video max 30 seconds");
-});
-
-test("an oversized GIF stream stops at the cap", async () => {
-  let pulls = 0;
-  let cancelled = false;
-  const endless = new ReadableStream({
-    pull(controller) {
-      pulls += 1;
-      controller.enqueue(new Uint8Array(8));
-    },
-    cancel() {
-      cancelled = true;
-    },
-  });
-  await assert.rejects(
-    () => readCappedBody(endless, 10),
-    (err) => err && err.code === 413 && err.message === "size",
+test("an unsupported recorder refuses the upload and never stores a gif", () => {
+  assert.equal(recorderFallback(false, "video/mp4"), GIF_BROWSER_ERROR);
+  assert.equal(recorderFallback(true, ""), GIF_BROWSER_ERROR);
+  assert.equal(recorderFallback(true, "image/gif"), GIF_BROWSER_ERROR);
+  assert.equal(recorderFallback(true, "video/webm"), "");
+  assert.equal(pickRecorderMime(() => false), "");
+  assert.equal(pickRecorderMime((type) => type === "video/webm;codecs=vp8"), "video/webm;codecs=vp8");
+  assert.equal(
+    pickRecorderMime((type) => type === "video/mp4" || type === "video/webm;codecs=vp9"),
+    "video/mp4",
   );
-  assert.equal(pulls, 2);
-  assert.equal(cancelled, true);
-
-  let readers = 0;
-  const declared = {
-    getReader() {
-      readers += 1;
-      throw new Error("should not read");
-    },
-    cancel() {
-      cancelled = true;
-      return Promise.resolve();
-    },
-  };
-  cancelled = false;
-  await assert.rejects(
-    () => readCappedBody(declared, 10, "11"),
-    (err) => err && err.code === 413,
-  );
-  assert.equal(readers, 0);
-  assert.equal(cancelled, true);
-
-  const kept = await readCappedBody(new ReadableStream({
-    start(controller) {
-      controller.enqueue(new Uint8Array([1, 2, 3]));
-      controller.enqueue(new Uint8Array([4]));
-      controller.close();
-    },
-  }), 10, "4");
-  assert.deepEqual([...kept], [1, 2, 3, 4]);
+  assert.deepEqual(storedType("video/mp4;codecs=avc1.42E01E"), { type: "video/mp4", ext: ".mp4" });
+  assert.deepEqual(storedType("video/webm;codecs=vp9"), { type: "video/webm", ext: ".webm" });
+  assert.equal(storedType("image/gif"), null);
+  assert.equal(storedType("video/mp4").ext === ".gif", false);
 });
 
-test("bytes that are not a GIF are refused", async () => {
-  const out = await applyGifTranscode({
-    bytes: Buffer.from("not a gif"),
-    role: "media",
-    run: async () => Buffer.from("x"),
+test("only a polygon cover longer than 30 seconds is rejected", () => {
+  assert.equal(gifDurationReject("polygon-cover", 31), "Cover video max 30 seconds");
+  assert.equal(gifDurationReject("polygon-cover", 30), "");
+  assert.equal(gifDurationReject("polygon-cover", 30.5), "");
+  assert.equal(gifDurationReject("media", 31), "");
+  assert.equal(gifDurationReject("cover", 90), "");
+  assert.equal(gifDurationReject("avatar", 90), "");
+});
+
+test("a gif address is not rendered and other media stays put", () => {
+  assert.deepEqual(resolveMediaUrl("https://pub-abc.r2.dev/markers/a.gif?x=1#y"), {
+    kind: "image", src: "", poster: "",
   });
-  assert.equal(out.ok, false);
-  assert.equal(out.status, 415);
-});
-
-test("the resolver maps hosted, remote, still, and video addresses", () => {
-  const hosted = resolveMediaUrl("https://pub-abc.r2.dev/markers/a.gif?x=1#y");
-  assert.equal(hosted.kind, "video");
-  assert.equal(hosted.src, "https://pub-abc.r2.dev/markers/a.mp4");
-  assert.equal(hosted.poster, "https://pub-abc.r2.dev/markers/a.poster.jpg");
-
-  const pub = resolveMediaUrl("https://cdn.r2.pub/old.gif");
-  assert.equal(pub.src, "https://cdn.r2.pub/old.mp4");
-  assert.equal(pub.poster, "https://cdn.r2.pub/old.poster.jpg");
-
-  const ipfs = resolveMediaUrl("https://ipfs.io/ipfs/bafy.gif");
-  assert.equal(ipfs.kind, "video");
-  assert.equal(ipfs.remote, true);
-  assert.equal(ipfs.src, "/api/media/gif?url=" + encodeURIComponent("https://ipfs.io/ipfs/bafy.gif"));
-  assert.equal(ipfs.poster, ipfs.src + "&poster=1");
-
-  const remote = resolveMediaUrl("https://example.com/anim.GIF");
-  assert.equal(remote.remote, true);
-  assert.match(remote.src, /^\/api\/media\/gif\?url=/);
-
-  const jpg = resolveMediaUrl("https://pub-abc.r2.dev/a.jpg");
-  assert.deepEqual(jpg, { kind: "image", src: "https://pub-abc.r2.dev/a.jpg", poster: "" });
-
-  const mp4 = resolveMediaUrl("https://example.com/clip.mp4");
-  assert.deepEqual(mp4, { kind: "video", src: "https://example.com/clip.mp4", poster: "" });
-
+  assert.deepEqual(resolveMediaUrl("https://cdn.r2.pub/old.gif"), {
+    kind: "image", src: "", poster: "",
+  });
+  assert.deepEqual(resolveMediaUrl("https://ipfs.io/ipfs/bafy.gif"), {
+    kind: "image", src: "", poster: "",
+  });
+  assert.deepEqual(resolveMediaUrl("https://example.com/anim.GIF"), {
+    kind: "image", src: "", poster: "",
+  });
+  assert.equal(resolveMediaUrl("https://ipfs.io/ipfs/bafy.gif").src.includes("/api/media/gif"), false);
+  assert.deepEqual(resolveMediaUrl("https://pub-abc.r2.dev/a.jpg"), {
+    kind: "image", src: "https://pub-abc.r2.dev/a.jpg", poster: "",
+  });
+  assert.deepEqual(resolveMediaUrl("https://example.com/clip.mp4"), {
+    kind: "video", src: "https://example.com/clip.mp4", poster: "",
+  });
+  assert.deepEqual(resolveMediaUrl("https://example.com/clip.webm"), {
+    kind: "video", src: "https://example.com/clip.webm", poster: "",
+  });
   assert.deepEqual(resolveMediaUrl(""), { kind: "image", src: "", poster: "" });
-  assert.equal(ownGifKey("https://pub-243.r2.dev/markers/a.gif", "https://pub-243.r2.dev"), "markers/a.gif");
-  assert.equal(ownGifKey("https://evil.example/markers/a.gif", "https://pub-243.r2.dev"), "");
-  assert.equal(ownGifKey("https://pub-243.r2.dev/markers/%2e%2e%2fsecret.gif", "https://pub-243.r2.dev"), "");
+});
+
+test("a poster is stored only beside our own mp4 or webm", () => {
+  const base = "https://pub-243.r2.dev";
+  assert.equal(
+    posterTargetKey(base, "https://pub-243.r2.dev/markers/1700000000000-ab12cd.mp4"),
+    "markers/1700000000000-ab12cd.poster.jpg",
+  );
+  assert.equal(
+    posterTargetKey(base, "https://pub-243.r2.dev/markers/1700000000000-ab12cd-d12.webm?x=1"),
+    "markers/1700000000000-ab12cd-d12.poster.jpg",
+  );
+  assert.equal(posterTargetKey(base, "https://evil.example/markers/1-ab.mp4"), "");
+  assert.equal(posterTargetKey(base, "https://pub-243.r2.dev/markers/%2e%2e%2fsecret.mp4"), "");
+  assert.equal(posterTargetKey(base, "https://pub-243.r2.dev/markers/1-ab.gif"), "");
+  assert.equal(posterTargetKey(base, "https://pub-243.r2.dev/markers/1-ab.mov"), "");
+  assert.equal(posterTargetKey("", "https://pub-243.r2.dev/markers/1-ab.mp4"), "");
 });

@@ -2,12 +2,12 @@
 // Cloudflare R2 through /api/upload (server/index.js), and auto-fill the
 // form field, then show the file itself instead of the address.
 // Four uploaders (2026-10-06 layout):
-//   marker form:  "📎 Upload image / video" → Image URL (gif input becomes mp4 or jpeg)
+//   marker form:  "📎 Upload image / video" → Image URL (a GIF becomes mp4, webm, or jpeg here)
 //                 "📎 Upload image (cover)" → Cover Image URL (stills + gif input)
 //   polygon form: "📎 Upload cover (image / gif / video)" → Cover Image URL
 //                 "📎 Upload image / video" → Inside image URL (the popup)
 // A polygon cover video is max 30s and animates in the map (polygons.js
-// pump). An animated GIF is converted on the server to that same MP4 loop.
+// pump). An animated GIF is converted on this device to that same loop.
 // The Inside field is what the popup plays and stays unlimited
 // (100 MB, any length). No automatic thumbnail.
 import { toast } from "./toast.js";
@@ -17,6 +17,12 @@ import { paintDrawField } from "./drawpreview.js";
 import { rememberGrant, withUploadAuth } from "./uploadgrant.js";
 import { COVER_VIDEO_PROBE_MS, coverVideoReject } from "./covervideolimit.js";
 import { isGifUrl, resolveMediaUrl } from "./mediaurl.js";
+import {
+  GIF_BROWSER_ERROR,
+  convertGifFile,
+  gifCancelError,
+  mapGifProgress,
+} from "./gifvideo.js";
 
 const VIDEO_MAX = 100 * 1024 * 1024;
 const IMAGE_MAX = 20 * 1024 * 1024;
@@ -24,8 +30,8 @@ const MEDIA_TYPES = new Set([
   "video/mp4", "video/webm", "video/quicktime",
   "image/png", "image/jpeg", "image/gif", "image/webp",
 ]);
-// Marker dot cover: stills, plus a GIF file. The server stores an MP4 loop
-// (or a JPEG when the GIF has one frame). The dot plays that loop.
+// Marker dot cover: stills, plus a GIF file. This device stores an MP4 or
+// WebM loop (or a JPEG when the GIF has one frame). The dot plays that loop.
 const MARKER_COVER_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 // Polygon cover: stills, gif, and video. A cover video is max 30s and
 // animates in the map via the updateImage pump in polygons.js.
@@ -167,6 +173,11 @@ const KEPT_UPLOAD_MESSAGES = new Set([
   "Could not load the check",
   "Open the upload panel first",
   "Upload cancelled",
+  "Cover video max 30 seconds",
+  "Couldn't read the video length. Try MP4/H.264",
+  "Too big — 100 MB max",
+  "Too big — 20 MB max",
+  GIF_BROWSER_ERROR,
   HASHPACK_CANCEL,
   HASHPACK_TIMEOUT,
   CONNECT_UPLOAD,
@@ -353,7 +364,8 @@ async function requestUploadGrant() {
 
 // A persistent pill in the toast container that reports upload progress —
 // the regular toasts auto-hide after 2.6 s, too short for a big file.
-function progressPill(label) {
+// GIF conversion passes onCancel so the same pill can stop the recorder.
+function progressPill(label, onCancel) {
   let container = document.getElementById("toast-container");
   if (!container) {
     container = document.createElement("div");
@@ -361,15 +373,27 @@ function progressPill(label) {
     document.body.appendChild(container);
   }
   const el = document.createElement("div");
-  el.className = "toast toast-info toast-show";
+  el.className = onCancel ? "toast toast-info toast-show toast-gif" : "toast toast-info toast-show";
   const text = document.createElement("span");
   text.className = "toast-text";
   text.textContent = label;
   el.appendChild(text);
+  if (onCancel) {
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "toast-gif-cancel";
+    cancel.textContent = "Cancel";
+    cancel.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onCancel();
+    });
+    el.appendChild(cancel);
+  }
   container.appendChild(el);
   return {
     set(textContent) { text.textContent = textContent; },
-    done() { el.remove(); },
+    done() { if (el.isConnected) el.remove(); },
   };
 }
 
@@ -404,39 +428,94 @@ function readVideoSeconds(localUrl) {
   });
 }
 
-// The 0% pill appears only once the bytes start moving. Signature, wallet,
-// and Turnstile failures never leave it on screen.
-function sendUpload(file, baseLabel, seconds, turnstile, uploadToken, role) {
-  const pill = progressPill(`${baseLabel} 0%`);
+function postFile({ file, seconds, turnstile, uploadToken, role, posterFor, expectPoster, signal, onProgress }) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    let settled = false;
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      if (signal) signal.removeEventListener("abort", onAbort);
+      fn(value);
+    };
+    const onAbort = () => {
+      try { xhr.abort(); } catch { /* already stopped */ }
+      finish(reject, gifCancelError());
+    };
+    if (signal) {
+      if (signal.aborted) {
+        finish(reject, gifCancelError());
+        return;
+      }
+      signal.addEventListener("abort", onAbort);
+    }
     xhr.open("POST", "/api/upload");
     xhr.responseType = "json";
-    if (role) xhr.setRequestHeader("X-Media-Role", role);
+    if (role && !posterFor) xhr.setRequestHeader("X-Media-Role", role);
     if (Number.isInteger(seconds) && seconds > 0) xhr.setRequestHeader("X-Media-Duration", String(seconds));
+    if (posterFor) xhr.setRequestHeader("X-Poster-For", posterFor);
+    if (expectPoster) xhr.setRequestHeader("X-Expect-Poster", "1");
     if (connectedAccount) xhr.setRequestHeader("X-Account", connectedAccount);
     if (uploadToken) xhr.setRequestHeader("X-Upload-Token", uploadToken);
     if (turnstile) xhr.setRequestHeader("CF-Turnstile-Response", turnstile);
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) pill.set(`${baseLabel} ${Math.round((e.loaded / e.total) * 100)}%`);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) onProgress(event.loaded / event.total);
     };
     xhr.onload = () => {
       if (xhr.status === 200 && xhr.response && xhr.response.ok && typeof xhr.response.url === "string") {
-        resolve(xhr.response.url);
+        finish(resolve, xhr.response.url);
         return;
       }
       const serverError = xhr.response && typeof xhr.response.error === "string" ? xhr.response.error : "";
       const err = new Error(xhr.status === 401 || !serverError ? UPLOAD_FAILED : serverError);
       err.status = xhr.status;
       if (serverError && xhr.status !== 401) err.serverError = serverError;
-      reject(err);
+      finish(reject, err);
     };
-    xhr.onerror = () => {
-      reject(new Error(UPLOAD_FAILED));
-    };
+    xhr.onerror = () => finish(reject, new Error(UPLOAD_FAILED));
+    xhr.onabort = () => finish(reject, gifCancelError());
     xhr.send(file);
-  }).finally(() => {
-    pill.done();
+  });
+}
+
+// The 0% pill appears only once the bytes start moving. Signature, wallet,
+// and Turnstile failures never leave it on screen. A GIF pill is owned by
+// uploadToR2 so conversion and the upload share one bar.
+function sendUpload(file, baseLabel, seconds, turnstile, uploadToken, role, extra) {
+  const gif = !!(extra && extra.gif);
+  const pill = gif ? extra.pill : progressPill(`${baseLabel} 0%`);
+  const signal = extra && extra.signal;
+  const poster = extra && extra.poster;
+  const ownPill = !gif;
+  const job = (async () => {
+    const url = await postFile({
+      file,
+      seconds,
+      turnstile,
+      uploadToken,
+      role,
+      expectPoster: !!(gif && poster),
+      signal,
+      onProgress(ratio) {
+        if (!pill) return;
+        if (gif) pill.set(`Uploading ${mapGifProgress("upload", ratio)}%`);
+        else pill.set(`${baseLabel} ${Math.round(ratio * 100)}%`);
+      },
+    });
+    if (gif && poster) {
+      if (pill) pill.set(`Uploading ${mapGifProgress("upload", 1)}%`);
+      await postFile({
+        file: poster,
+        turnstile,
+        uploadToken,
+        posterFor: url,
+        signal,
+      });
+    }
+    return url;
+  })();
+  return job.finally(() => {
+    if (ownPill && pill) pill.done();
   });
 }
 
@@ -448,19 +527,101 @@ function uploadRole(fieldId) {
   return "media";
 }
 
+function outputTooBig(file) {
+  const video = file && String(file.type || "").startsWith("video/");
+  const cap = video ? VIDEO_MAX : IMAGE_MAX;
+  if (!file || file.size <= cap) return "";
+  return video ? "Too big — 100 MB max" : "Too big — 20 MB max";
+}
+
+// Convert a GIF here, then upload the MP4, WebM, or JPEG. The original
+// bytes are not sent. Cancel stops the recorder and aborts the request.
 async function uploadToR2(file, baseLabel, seconds, anchor, role) {
-  const turnstile = await ensureTurnstileToken(anchor);
-  const send = (uploadToken) => sendUpload(file, baseLabel, seconds, turnstile, uploadToken, role || "media");
-  const url = REQUIRE_UPLOAD_AUTH
-    ? await withUploadAuth({
-      account: connectedAccount,
-      storage: grantStorage,
-      sign: signUploadChallenge,
-      send,
-    })
-    : await send("");
-  dismissConnectToast();
-  return url;
+  const gif = !!(file && file.type === "image/gif");
+  const abort = gif ? new AbortController() : null;
+  let pill = null;
+  try {
+    let uploadFile = file;
+    let poster = null;
+    let uploadSeconds = seconds;
+    if (gif) {
+      pill = progressPill("Converting GIF 0%", () => abort.abort());
+      const converted = await convertGifFile(file, {
+        role: role || "media",
+        signal: abort.signal,
+        onProgress(ratio) {
+          pill.set(`Converting GIF ${mapGifProgress("convert", ratio)}%`);
+        },
+      });
+      uploadFile = converted.file;
+      poster = converted.poster;
+      uploadSeconds = uploadFile.type === "image/jpeg" || !(converted.seconds > 0)
+        ? null
+        : Math.round(converted.seconds);
+      if (uploadSeconds != null && uploadSeconds < 1) uploadSeconds = null;
+      const tooBig = outputTooBig(uploadFile);
+      if (tooBig) throw new Error(tooBig);
+      if (!uploadFile || uploadFile.type === "image/gif" || /\.gif$/i.test(uploadFile.name || "")) {
+        throw new Error(GIF_BROWSER_ERROR);
+      }
+      pill.set(`Uploading ${mapGifProgress("upload", 0)}%`);
+    }
+    if (abort && abort.signal.aborted) throw gifCancelError();
+    let turnstile = "";
+    if (abort) {
+      const onAbort = () => removeTurnstile(gifCancelError());
+      abort.signal.addEventListener("abort", onAbort);
+      try {
+        turnstile = await ensureTurnstileToken(anchor);
+      } finally {
+        abort.signal.removeEventListener("abort", onAbort);
+      }
+      if (abort.signal.aborted) throw gifCancelError();
+    } else {
+      turnstile = await ensureTurnstileToken(anchor);
+    }
+    const send = (uploadToken) => sendUpload(
+      uploadFile,
+      baseLabel,
+      uploadSeconds,
+      turnstile,
+      uploadToken,
+      role || "media",
+      { gif, pill, poster, signal: abort && abort.signal },
+    );
+    const sendJob = REQUIRE_UPLOAD_AUTH
+      ? withUploadAuth({
+        account: connectedAccount,
+        storage: grantStorage,
+        sign: signUploadChallenge,
+        send,
+      })
+      : send("");
+    let url;
+    if (abort) {
+      let cancelWait = null;
+      const cancelled = new Promise((_, reject) => {
+        cancelWait = () => reject(gifCancelError());
+        if (abort.signal.aborted) cancelWait();
+        else abort.signal.addEventListener("abort", cancelWait, { once: true });
+      });
+      cancelled.catch(() => {});
+      try {
+        url = await Promise.race([sendJob, cancelled]);
+      } catch (err) {
+        sendJob.catch(() => {});
+        throw err;
+      } finally {
+        if (cancelWait) abort.signal.removeEventListener("abort", cancelWait);
+      }
+    } else {
+      url = await sendJob;
+    }
+    dismissConnectToast();
+    return url;
+  } finally {
+    if (pill) pill.done();
+  }
 }
 
 // Fill a form field the same way user typing would — the inline oninput
@@ -484,12 +645,12 @@ function isVideoUrl(url) {
 }
 
 function previewSrc(url) {
-  const resolved = resolveMediaUrl(url);
-  return resolved.src || url;
+  if (isGifUrl(url)) return "";
+  return resolveMediaUrl(url).src || "";
 }
 
 // A local GIF must not play in an <img>. The first frame is a JPEG preview
-// until the server returns the MP4 or the still.
+// while the device converts the rest.
 async function gifStillPreview(file) {
   if (!file || file.type !== "image/gif" || typeof createImageBitmap !== "function") return "";
   let bmp = null;
@@ -529,10 +690,22 @@ function showFieldPreview(fieldId, url, kind) {
   const img = box.querySelector("img");
   const video = box.querySelector("video");
   const shown = previewSrc(url);
-  const videoMode = kind === "video" || isVideoUrl(url) || isGifUrl(url);
+  const videoMode = kind === "video" || isVideoUrl(url);
+  if (!shown) {
+    revokePreviewUrl(box);
+    img.removeAttribute("src");
+    img.hidden = true;
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+    video.hidden = true;
+    box.hidden = true;
+    paintDrawField(fieldId, "");
+    return;
+  }
   if (box.dataset.objectUrl && box.dataset.objectUrl !== url && box.dataset.objectUrl !== shown) revokePreviewUrl(box);
   if (String(url).startsWith("blob:") || String(shown).startsWith("blob:")) box.dataset.objectUrl = String(shown).startsWith("blob:") ? shown : url;
-  if (videoMode && !isGifUrl(shown)) {
+  if (videoMode) {
     img.hidden = true;
     img.removeAttribute("src");
     video.hidden = false;
@@ -552,7 +725,7 @@ function showFieldPreview(fieldId, url, kind) {
     if (img.getAttribute("src") !== shown) img.src = shown;
   }
   box.hidden = false;
-  paintDrawField(fieldId, shown, videoMode && !isGifUrl(shown) ? "video" : "image");
+  paintDrawField(fieldId, shown, videoMode ? "video" : "image");
 }
 
 function hideFieldPreview(fieldId) {

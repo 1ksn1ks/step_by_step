@@ -1,6 +1,6 @@
 // Small stand-in for a GIF: muted, looping, plays only while on screen,
 // and pauses when the tab is in the background. Stills stay an img.
-import { resolveMediaUrl } from "./mediaurl.js";
+import { isGifUrl, resolveMediaUrl } from "./mediaurl.js";
 
 const watching = new Set();
 let observer = null;
@@ -141,12 +141,16 @@ export function pictureElement(url, options) {
   return img;
 }
 
-// Swap an existing img or video so a GIF address becomes a loop and a
-// still stays an image. The replacement keeps id, class, and style.
+// Swap an existing img or video. A GIF address resolves to nothing, so it
+// is not painted. The replacement keeps id, class, and style.
 export function mountPicture(el, url, options) {
   if (!el) return el;
   const opts = options || {};
   const resolved = resolveMediaUrl(url);
+  if (!resolved.src) {
+    if (isGifUrl(url)) el.removeAttribute("src");
+    return el;
+  }
   const className = opts.className || el.className || "";
   const style = opts.style || el.getAttribute("style") || "";
   const alt = opts.alt || el.getAttribute("alt") || el.getAttribute("aria-label") || "";

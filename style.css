@@ -5574,6 +5574,58 @@ html, body {
     cursor: pointer;
   }
 
+  /* GIF conversion shares one glass pill with the upload. Sizes follow --fu. */
+  .toast.toast-gif {
+    --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
+    --ui-label: calc(var(--fu) * 1.8);
+    --ui-small: calc(var(--fu) * 1.35);
+    pointer-events: auto;
+    gap: calc(var(--fu) * 0.55);
+    padding: calc(var(--fu) * 0.65) calc(var(--fu) * 0.9);
+    border-radius: calc(var(--fu) * 1.05);
+    border: calc(var(--fu) * 0.06) solid #22d3ee;
+    background: rgba(8, 10, 18, 0.72);
+    color: #e6e6f0;
+    font-size: var(--ui-label);
+    max-width: min(92dvw, calc(var(--fu) * 28));
+    box-shadow: 0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.45);
+    animation: toastGifGlow 1.3s ease-in-out infinite;
+  }
+
+  .toast.toast-gif .toast-text {
+    font-size: var(--ui-label);
+    line-height: 1.2;
+  }
+
+  .toast-gif-cancel {
+    flex: none;
+    margin: 0;
+    padding: calc(var(--fu) * 0.28) calc(var(--fu) * 0.7);
+    border-radius: calc(var(--fu) * 0.7);
+    border: calc(var(--fu) * 0.06) solid #22d3ee;
+    background: rgba(34, 211, 238, 0.12);
+    color: #22d3ee;
+    font: inherit;
+    font-size: var(--ui-small);
+    line-height: 1.2;
+    cursor: pointer;
+  }
+
+  @keyframes toastGifGlow {
+    0%, 100% {
+      border-color: rgba(34, 211, 238, 0.95);
+      box-shadow:
+        0 0 calc(var(--fu) * 0.9) rgba(34, 211, 238, 0.45),
+        0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.45);
+    }
+    50% {
+      border-color: rgba(34, 211, 238, 0.35);
+      box-shadow:
+        0 0 calc(var(--fu) * 0.2) rgba(34, 211, 238, 0.12),
+        0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.45);
+    }
+  }
+
   .toast-show {
     opacity: 1;
     transform: translateY(0) scale(1);

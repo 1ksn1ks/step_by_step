@@ -1906,17 +1906,11 @@ function popupSettingsGear(walk) {
   return btn;
 }
 
-// A GIF address is a silent loop, the same shape as a still. A real
-// video keeps the in-popup player. Tap a loop to open it full screen.
+// A stored GIF address is left empty. A real video keeps the in-popup player.
 function fillPopupMedia(imageDiv, url) {
+  if (!url || isGifUrl(url)) return;
   const resolved = resolveMediaUrl(url);
-  if (isGifUrl(url)) {
-    const media = pictureElement(url, { alt: "" });
-    media.style.cursor = "zoom-in";
-    imageDiv.appendChild(media);
-    imageDiv.addEventListener("click", () => openPreview(resolved.src, { video: true }));
-    return;
-  }
+  if (!resolved.src) return;
   const isVideo = resolved.kind === "video";
   const media = isVideo ? document.createElement("video") : document.createElement("img");
   if (isVideo) {
@@ -1939,7 +1933,7 @@ function fillPopupMedia(imageDiv, url) {
     imageDiv.appendChild(chip);
     media.decoding = "async";
     media.loading = "eager";
-    media.src = resolved.src || url;
+    media.src = resolved.src;
   }
   imageDiv.appendChild(media);
 }
