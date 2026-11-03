@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   keyboardOpen, nextStableHeight, liftPx, fieldOutside, scrollDelta, KB_RATIO,
+  visibleBottom,
   DOCK_SELECTOR, KB_OPEN_CLASS, SEARCH_HEAD_SHIFT, liftTransform, dockCover, revealLimit,
 } from "../keyboardlayout.js";
 
@@ -11,6 +12,10 @@ test("the keyboard is a focused field and a drop past about 25%", () => {
   assert.equal(keyboardOpen(true, 600, 740), false);
   assert.equal(keyboardOpen(false, 400, 740), false);
   assert.equal(keyboardOpen(true, 400, 0), false);
+  assert.equal(keyboardOpen(true, 740, 740, 400), true);
+  assert.equal(keyboardOpen(true, 400, 740, 740), true);
+  assert.equal(keyboardOpen(false, 400, 740, 400), false);
+  assert.equal(keyboardOpen(true, 600, 740, 600), false);
 });
 
 test("the frozen height holds through a keyboard shrink and follows a real resize", () => {
@@ -38,6 +43,9 @@ test("the frozen height holds through a keyboard shrink and follows a real resiz
   const urlBar = { ...closed, dvh: 690, layoutH: 800, viewH: 690, stableH: 740 };
   assert.equal(nextStableHeight(urlBar), 690);
 
+  const webview = { ...held, viewH: 740, layoutH: 400, dvh: 400 };
+  assert.equal(nextStableHeight(webview), 740);
+
   assert.equal(nextStableHeight({ ...held, stableH: 0, viewH: 740, layoutH: 800 }), 800);
 });
 
@@ -64,4 +72,20 @@ test("a dock uses the same lift and keeps the search head shift", () => {
   assert.equal(revealLimit(234, 48), 186);
   assert.equal(revealLimit(234, 0), 234);
   assert.equal(scrollDelta(200, 250, revealLimit(234, 48)), 72);
+});
+
+test("the visible bottom includes the visual viewport offset", () => {
+  assert.equal(visibleBottom(280, 400), 680);
+  assert.equal(visibleBottom(280, 400, 740), 680);
+  assert.equal(visibleBottom(0, 740, 400), 400);
+  const edge = visibleBottom(280, 400);
+  assert.equal(liftPx(740, 0, edge), 68);
+  assert.equal(liftPx(672, -68, edge), 68);
+  assert.equal(fieldOutside(300, 360, edge, 8, 280), false);
+  assert.equal(fieldOutside(300, 700, edge, 8, 280), true);
+  assert.equal(fieldOutside(200, 260, edge, 8, 280), true);
+  assert.equal(scrollDelta(640, 700, edge, 8, 280), 28);
+  assert.equal(scrollDelta(200, 260, edge, 8, 280), -88);
+  assert.equal(dockCover(740, edge, 48), 48);
+  assert.equal(dockCover(600, edge, 48), 0);
 });

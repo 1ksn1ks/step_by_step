@@ -31,9 +31,26 @@ export function isTextControl(el) {
   return !TEXT_SKIP.has(String(el.type || 'text').toLowerCase());
 }
 
-// A focused text field plus a visual-viewport drop of more than ~25%.
-export function keyboardOpen(focused, viewH, stableH) {
-  return !!focused && stableH > 0 && viewH < stableH * KB_RATIO;
+// A focused text field plus a drop of more than ~25%. Overlay browsers shrink
+// visualViewport. A resizing WebView or installed PWA shrinks innerHeight
+// and can leave visualViewport.height unchanged. Either drop counts.
+// layoutH is optional so a caller that only has the visual height still works.
+export function keyboardOpen(focused, viewH, stableH, layoutH) {
+  if (!focused || !(stableH > 0)) return false;
+  const line = stableH * KB_RATIO;
+  if (viewH < line) return true;
+  return typeof layoutH === 'number' && layoutH > 0 && layoutH < line;
+}
+
+// Visible bottom in layout-viewport coordinates. getBoundingClientRect() is
+// in that space, so the keyboard edge is visualViewport.offsetTop + height,
+// not height alone. When the layout viewport has already shrunk above that
+// sum, the visible bottom is innerHeight.
+export function visibleBottom(offsetTop, height, layoutH) {
+  const visual = (Number(offsetTop) || 0) + (Number(height) || 0);
+  const layout = Number(layoutH);
+  if (layout > 0 && visual > 0) return Math.min(visual, layout);
+  return visual > 0 ? visual : (layout > 0 ? layout : 0);
 }
 
 // Keep the frozen height while the keyboard is open. A width or orientation
@@ -45,28 +62,33 @@ export function nextStableHeight(state) {
   if (!(state.stableH > 0)) return measured;
   const widthChanged = Math.abs(state.width - state.stableW) > 2;
   const orientChanged = state.orient !== state.prevOrient;
-  const open = keyboardOpen(state.focused, state.viewH, state.stableH);
+  const open = keyboardOpen(state.focused, state.viewH, state.stableH, state.layoutH);
   if (open && !widthChanged && !orientChanged) return state.stableH;
   return measured;
 }
 
 // How far a bottom bar must move so its box sits pad px above the keyboard.
-// translateY is the lift already applied (negative when lifted).
-export function liftPx(barBottom, translateY, viewH, pad = 8) {
+// translateY is the lift already applied (negative when lifted). viewBottom
+// is the visible bottom (offsetTop + visualViewport.height). With offsetTop
+// 0 that is the visual height, so older callers stay the same.
+export function liftPx(barBottom, translateY, viewBottom, pad = 8) {
   const raw = barBottom - translateY;
-  const overlap = raw - (viewH - pad);
+  const overlap = raw - (viewBottom - pad);
   return overlap > 1 ? overlap : 0;
 }
 
-export function fieldOutside(top, bottom, viewH, pad = 8) {
-  return top < pad || bottom > viewH - pad;
+// viewTop defaults to 0, the band when the visual viewport has not panned.
+export function fieldOutside(top, bottom, viewBottom, pad = 8, viewTop = 0) {
+  const origin = Number(viewTop) || 0;
+  return top < origin + pad || bottom > viewBottom - pad;
 }
 
 // Extra scroll after scrollIntoView. The field's scroller can be taller
-// than the visual viewport, so "nearest" still leaves it under the keyboard.
-export function scrollDelta(top, bottom, viewH, pad = 8) {
-  if (bottom > viewH - pad) return bottom - (viewH - pad);
-  if (top < pad) return top - pad;
+// than the visible band, so "nearest" still leaves it under the keyboard.
+export function scrollDelta(top, bottom, viewBottom, pad = 8, viewTop = 0) {
+  const origin = Number(viewTop) || 0;
+  if (bottom > viewBottom - pad) return bottom - (viewBottom - pad);
+  if (top < origin + pad) return top - (origin + pad);
   return 0;
 }
 
@@ -79,11 +101,12 @@ export function liftTransform(lift, base) {
   return 'translateY(' + shift + ')';
 }
 
-// How much of the visual viewport a pinned action row covers once it has
-// been lifted. The scrolling field then stops above that row.
-export function dockCover(rawBottom, viewH, height, pad = 8) {
+// How much of the visible band a pinned action row covers once it has
+// been lifted. viewBottom is the visible bottom. The scrolling field then
+// stops above that row.
+export function dockCover(rawBottom, viewBottom, height, pad = 8) {
   if (!(height > 0)) return 0;
-  return rawBottom > viewH - pad ? height : 0;
+  return rawBottom > viewBottom - pad ? height : 0;
 }
 
 export function revealLimit(viewH, coverPx) {
@@ -99,6 +122,9 @@ function boot() {
   let probe = null;
   let blurTimer = 0;
   let blurTries = 0;
+  let focusFrame = 0;
+  let focusTimer = 0;
+  let debugEl = null;
 
   function dvhHeight() {
     if (!probe) {
@@ -116,12 +142,54 @@ function boot() {
     const width = window.innerWidth;
     const layoutH = window.innerHeight;
     const viewH = view && view.height ? view.height : layoutH;
+    const offsetTop = view && Number.isFinite(view.offsetTop) ? view.offsetTop : 0;
     return {
       width,
       layoutH,
       viewH,
+      offsetTop,
       orient: width > layoutH ? 'land' : 'port',
     };
+  }
+
+  function edgeOf(metrics) {
+    return visibleBottom(metrics.offsetTop, metrics.viewH, metrics.layoutH);
+  }
+
+  function kbDebug() {
+    try {
+      return new URLSearchParams(window.location.search).get('kbdebug') === '1';
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function paintDebug(metrics, open, lift) {
+    if (!kbDebug()) return;
+    if (!debugEl) {
+      debugEl = document.createElement('div');
+      debugEl.id = 'kb-debug';
+      debugEl.setAttribute('aria-hidden', 'true');
+      debugEl.style.cssText = 'position:fixed;left:0.4rem;top:0.4rem;z-index:2147483646;margin:0;padding:0.35rem 0.5rem;background:rgba(0,0,0,0.82);color:#7CFFB2;font:600 0.7rem/1.35 ui-monospace,monospace;pointer-events:none;white-space:pre;border-radius:0.4rem;';
+      document.documentElement.appendChild(debugEl);
+    }
+    const view = window.visualViewport;
+    debugEl.textContent = [
+      'innerHeight ' + metrics.layoutH,
+      'vvH ' + (view && view.height ? view.height : metrics.viewH),
+      'offsetTop ' + (view && Number.isFinite(view.offsetTop) ? view.offsetTop : 0),
+      'stableH ' + stableH,
+      'keyboardOpen ' + !!open,
+      'lift ' + lift,
+    ].join('\n');
+  }
+
+  function focusedLift() {
+    const el = document.activeElement;
+    const bar = el && el.closest && el.closest(DOCK_SELECTOR);
+    if (!bar || !bar.dataset.kbLift) return 0;
+    const n = Number(bar.dataset.kbLift);
+    return Number.isFinite(n) ? Math.abs(n) : 0;
   }
 
   function focusedNow() {
@@ -184,19 +252,24 @@ function boot() {
 
   // Lift one bar. Returns how tall it is when its resting bottom sits in
   // the keyboard, so a field in the scroller can stop above it.
-  function liftBar(bar, viewH) {
+  function liftBar(bar, viewBottom) {
     const ty = translateY(bar);
     const rect = bar.getBoundingClientRect();
-    const lift = liftPx(rect.bottom, ty, viewH);
+    const lift = liftPx(rect.bottom, ty, viewBottom);
     const rawBottom = rect.bottom - ty;
     if (lift) {
       const base = bar.classList.contains('feed-search-head') ? SEARCH_HEAD_SHIFT : '';
-      bar.style.transform = liftTransform(lift, base);
+      // chatSectionIn animates transform on .chat-compose, and a stylesheet
+      // transform !important would beat a plain inline value. Inline
+      // !important wins over both. An ancestor transform (#feed-chat's
+      // translateX(-50%), slideInNoFade, .nav-cover) composes with this
+      // translateY. It does not replace it.
+      bar.style.setProperty('transform', liftTransform(lift, base), 'important');
       bar.dataset.kbLift = (-lift).toFixed(2);
     } else if (bar.dataset.kbLift) {
       dropLift(bar);
     }
-    return dockCover(rawBottom, viewH, rect.height);
+    return dockCover(rawBottom, viewBottom, rect.height);
   }
 
   // The create-post submit row is pinned under the scroller, so it is not
@@ -211,9 +284,11 @@ function boot() {
   function liftFocused() {
     const el = document.activeElement;
     const metrics = box();
-    const open = keyboardOpen(focusedNow(), metrics.viewH, stableH);
+    const edge = edgeOf(metrics);
+    const open = keyboardOpen(focusedNow(), metrics.viewH, stableH, metrics.layoutH);
     if (!open || !isTextControl(el)) {
       clearLifts();
+      paintDebug(metrics, open, 0);
       return;
     }
     document.documentElement.classList.add(KB_OPEN_CLASS);
@@ -224,15 +299,17 @@ function boot() {
     extras.forEach((dock) => keep.push(dock));
     keepLifts(keep);
     let cover = 0;
-    if (bar) liftBar(bar, metrics.viewH);
+    if (bar) liftBar(bar, edge);
     extras.forEach((dock) => {
-      cover += liftBar(dock, metrics.viewH);
+      cover += liftBar(dock, edge);
     });
     if (bar) {
       document.querySelectorAll('[data-kb-pad]').forEach(dropPad);
+      paintDebug(metrics, true, focusedLift());
       return;
     }
-    revealField(el, revealLimit(metrics.viewH, cover));
+    revealField(el, revealLimit(edge, cover), metrics.offsetTop);
+    paintDebug(metrics, true, focusedLift());
   }
 
   function dropPad(el) {
@@ -255,8 +332,8 @@ function boot() {
     return live.length ? live : nodes;
   }
 
-  function parkField(scroller, el, viewH) {
-    const tail = scroller.getBoundingClientRect().bottom - (viewH - 8);
+  function parkField(scroller, el, viewBottom, viewTop) {
+    const tail = scroller.getBoundingClientRect().bottom - (viewBottom - 8);
     if (tail > 1) {
       if (!scroller.dataset.kbPad) {
         scroller.dataset.kbPad = '1';
@@ -269,24 +346,29 @@ function boot() {
     let moved = false;
     for (let guard = 0; guard < 4; guard += 1) {
       const rect = el.getBoundingClientRect();
-      const delta = scrollDelta(rect.top, rect.bottom, viewH);
+      const delta = scrollDelta(rect.top, rect.bottom, viewBottom, 8, viewTop);
       if (Math.abs(delta) <= 1) return true;
       const before = scroller.scrollTop;
       scroller.scrollTop = before + delta;
       if (scroller.scrollTop === before) break;
       moved = true;
     }
-    if (Math.abs(scrollDelta(el.getBoundingClientRect().top, el.getBoundingClientRect().bottom, viewH)) <= 1) return true;
+    const settled = el.getBoundingClientRect();
+    if (Math.abs(scrollDelta(settled.top, settled.bottom, viewBottom, 8, viewTop)) <= 1) return true;
     if (!moved) dropPad(scroller);
     return moved;
   }
 
-  function revealField(el, viewH) {
+  function revealField(el, viewBottom, viewTop) {
     try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (err) { /* older browsers */ }
-    if (Math.abs(scrollDelta(el.getBoundingClientRect().top, el.getBoundingClientRect().bottom, viewH)) <= 1) return;
+    const placed = () => {
+      const rect = el.getBoundingClientRect();
+      return Math.abs(scrollDelta(rect.top, rect.bottom, viewBottom, 8, viewTop)) <= 1;
+    };
+    if (placed()) return;
     for (const scroller of scrollers(el)) {
-      if (Math.abs(scrollDelta(el.getBoundingClientRect().top, el.getBoundingClientRect().bottom, viewH)) <= 1) return;
-      if (parkField(scroller, el, viewH)) return;
+      if (placed()) return;
+      if (parkField(scroller, el, viewBottom, viewTop)) return;
     }
   }
 
@@ -301,19 +383,46 @@ function boot() {
     document.documentElement.classList.remove(KB_OPEN_CLASS);
     clearLifts();
     const metrics = box();
-    if (stableH && metrics.viewH < stableH * KB_RATIO && blurTries < 8) {
+    // Focus is already gone. keyboardOpen(true) is only the shrink test,
+    // so a WebView that shrank innerHeight still waits out the animation.
+    if (keyboardOpen(true, metrics.viewH, stableH, metrics.layoutH) && blurTries < 8) {
       blurTries += 1;
       blurTimer = setTimeout(finishBlur, 50);
       return;
     }
     blurTries = 0;
     syncHeight();
+    paintDebug(box(), false, 0);
+  }
+
+  function clearFocusFollow() {
+    if (focusFrame) cancelAnimationFrame(focusFrame);
+    focusFrame = 0;
+    clearTimeout(focusTimer);
+    focusTimer = 0;
   }
 
   function onBlur() {
+    clearFocusFollow();
     clearTimeout(blurTimer);
     blurTries = 0;
     blurTimer = setTimeout(finishBlur, 50);
+  }
+
+  // The keyboard animates in after focus. Measure again on the next frame
+  // and once it has had time to settle. A newer focus or a blur cancels both.
+  function onFocus() {
+    clearFocusFollow();
+    onGeometry();
+    focusFrame = requestAnimationFrame(() => {
+      focusFrame = 0;
+      liftFocused();
+    });
+    focusTimer = setTimeout(() => {
+      focusTimer = 0;
+      if (!focusedNow()) return;
+      liftFocused();
+    }, 300);
   }
 
   onGeometry();
@@ -322,7 +431,7 @@ function boot() {
     window.visualViewport.addEventListener('resize', onGeometry);
     window.visualViewport.addEventListener('scroll', liftFocused);
   }
-  document.addEventListener('focusin', onGeometry);
+  document.addEventListener('focusin', onFocus);
   document.addEventListener('focusout', onBlur);
 }
 
