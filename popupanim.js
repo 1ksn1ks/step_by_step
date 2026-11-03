@@ -99,7 +99,7 @@ function fitPopupsToViewport() {
   if (!keyboard) {
     root.setProperty('--popup-top', 'env(safe-area-inset-top, 0px)');
     root.setProperty('--popup-bottom', 'env(safe-area-inset-bottom, 0px)');
-    root.setProperty('--popup-max-h', 'calc(100dvh - var(--popup-top) - var(--popup-bottom))');
+    root.setProperty('--popup-max-h', 'calc(var(--app-h, 100dvh) - var(--popup-top) - var(--popup-bottom))');
     clearPopupFit();
     pinSettingsCard();
     return;
@@ -132,7 +132,7 @@ function pinSettingsCard() {
   } else {
     set('top', '0px');
     set('bottom', '0px');
-    set('height', '100dvh');
+    set('height', 'var(--app-h, 100dvh)');
   }
   set('right', wide ? 'env(safe-area-inset-right, 0px)' : '0px');
   set('left', wide ? 'env(safe-area-inset-left, 0px)' : '0px');

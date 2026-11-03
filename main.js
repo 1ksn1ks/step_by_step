@@ -1,4 +1,5 @@
 import './dprcap.js';
+import './keyboardlayout.js';
 import './ipfsimage.js';
 import './historyLayers.js';
 import './map.js';

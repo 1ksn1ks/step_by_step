@@ -6161,36 +6161,13 @@ function placeFeedChatForMap(on) {
   feedChat.classList.add('is-map-chat');
 }
 
-// dvh does not shrink for the keyboard. Pin the open page to the visible
-// viewport so the composer stays above it, on the map and in the feed.
+// The page keeps its height while the keyboard is open. keyboardlayout.js
+// lifts only the composer, so a leftover pin from an older fit is cleared.
 function fitFeedChatFrame() {
-  if (feedChat.hidden) {
-    feedChat.style.removeProperty('top');
-    feedChat.style.removeProperty('height');
-    feedChat.style.removeProperty('bottom');
-    return;
-  }
-  const view = window.visualViewport;
-  const layoutH = window.innerHeight;
-  const viewH = view ? view.height : layoutH;
-  const offsetTop = view ? view.offsetTop : 0;
-  const keyboard = layoutH - viewH > 80 || offsetTop > 40;
-  if (!keyboard) {
-    feedChat.style.removeProperty('top');
-    feedChat.style.removeProperty('height');
-    feedChat.style.removeProperty('bottom');
-    return;
-  }
-  feedChat.style.top = `${offsetTop}px`;
-  feedChat.style.bottom = 'auto';
-  feedChat.style.height = `${Math.max(80, viewH)}px`;
+  feedChat.style.removeProperty('top');
+  feedChat.style.removeProperty('height');
+  feedChat.style.removeProperty('bottom');
 }
-
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', fitFeedChatFrame);
-  window.visualViewport.addEventListener('scroll', fitFeedChatFrame);
-}
-window.addEventListener('resize', fitFeedChatFrame);
 
 function paintFeedChat(kind) {
   const spec = FEED_CHATS[kind];

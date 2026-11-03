@@ -13,14 +13,23 @@
   initial-value: 0px;
 }
 
+/* Frozen by keyboardlayout.js while the on-screen keyboard is open.
+   100dvh is the value before that script measures, and the fallback. */
+html {
+  --app-h: 100dvh;
+}
+
 html, body {
     margin: 0;
     padding: 0;
     overflow: hidden;
     position: fixed;
-    inset: 0;
+    top: 0;
+    right: 0;
+    left: 0;
     width: 100%;
     height: 100%;
+    height: var(--app-h, 100%);
     background-color: #0a0a0a;
   }
   
@@ -29,7 +38,7 @@ html, body {
     inset: 0;
     width: 100dvw;
     height: 100vh;
-    height: 100dvh;
+    height: var(--app-h, 100dvh);
     margin: 0;
     box-sizing: border-box;
     padding-top: env(safe-area-inset-top);
@@ -156,7 +165,7 @@ html, body {
    #popup-settings-card, .draw-popup-editor, and landscape map popups
    does not size them. */
 .info-overlay {
-  --fu: calc(min(100dvw, 100dvh) * 0.024);
+  --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
   position: fixed;
   inset: 0;
   top: 0;
@@ -165,7 +174,7 @@ html, body {
   left: 0;
   width: 100dvw;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   z-index: 11000;
   box-sizing: border-box;
   margin: 0;
@@ -390,7 +399,7 @@ html, body {
    #feed-chat ancestor can capture fixed or dvw. The open path sets
    display:block; flex wins while it is shown and display:none still hides it. */
 #e2ee-web-notice-overlay {
-  --fu: calc(min(100dvw, 100dvh) * 0.024);
+  --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
   position: fixed;
   inset: 0;
   top: 0;
@@ -399,7 +408,7 @@ html, body {
   left: 0;
   width: 100dvw;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   z-index: 11000 !important;
   box-sizing: border-box;
   margin: 0;
@@ -603,7 +612,7 @@ html, body {
     left: 0 !important;
     width: 100dvw;
     height: 100vh;
-    height: 100dvh;
+    height: var(--app-h, 100dvh);
     margin: 0;
     box-sizing: border-box;
     padding-top: calc(1.4vh + env(safe-area-inset-top));
@@ -843,9 +852,9 @@ html, body {
     box-sizing: border-box;
     border-radius: 2vh;
     overflow-y: auto; /* Enable vertical scrolling */
-    /* 100dvh - 20dvh: keeps the 10dvh top band and the 10dvh save-bar
-       zone (button 5vh + bottom 2.5vh) free, dvh follows the URL bar */
-    max-height: calc(100dvh - 20dvh);
+    /* 80% of the stable height: keeps the 10% top band and the save-bar
+       zone free. --app-h tracks the URL bar and stays put for the keyboard. */
+    max-height: calc(var(--app-h, 100dvh) * 0.8);
     touch-action: auto; /* Enable touch interactions */
     resize: none; /* Prevent manual resizing */
     left: 1vw;
@@ -1700,7 +1709,7 @@ html, body {
     inset: 0;
     width: 100dvw;
     height: 100vh;
-    height: 100dvh;
+    height: var(--app-h, 100dvh);
     margin: 0;
     box-sizing: border-box;
     padding-top: env(safe-area-inset-top);
@@ -2555,7 +2564,7 @@ html, body {
 
   #search-bar {
     --feed-col-width: 100dvw;
-    --fu: calc(min(78dvw, 42dvh) / 31.25);
+    --fu: calc(min(78dvw, calc(var(--app-h, 100dvh) * 0.42)) / 31.25);
     position: fixed;
     inset: 0;
     top: 0;
@@ -2565,7 +2574,7 @@ html, body {
     box-sizing: border-box;
     width: 100dvw;
     height: 100vh;
-    height: 100dvh;
+    height: var(--app-h, 100dvh);
     z-index: 8800;
     margin: 0;
     padding-top: env(safe-area-inset-top);
@@ -2975,7 +2984,7 @@ html, body {
     --popup-right: 0px;
     --popup-bottom: env(safe-area-inset-bottom, 0px);
     --popup-card: 100vw;
-    --popup-max-h: calc(100dvh - var(--popup-top) - var(--popup-bottom));
+    --popup-max-h: calc(var(--app-h, 100dvh) - var(--popup-top) - var(--popup-bottom));
   }
 
   .maplibregl-popup {
@@ -2999,7 +3008,7 @@ html, body {
     width: 100dvw !important;
     max-width: none !important;
     height: 100vh !important;
-    height: 100dvh !important;
+    height: var(--app-h, 100dvh) !important;
     max-height: none !important;
     margin: 0 !important;
     padding-top: var(--popup-top) !important;
@@ -3034,7 +3043,7 @@ html, body {
     left: 0;
     width: 100dvw;
     height: 100vh;
-    height: 100dvh;
+    height: var(--app-h, 100dvh);
     margin: 0;
     box-sizing: border-box;
     padding: 0;
@@ -3053,7 +3062,7 @@ html, body {
     width: 100dvw !important;
     max-width: none !important;
     height: 100vh !important;
-    height: 100dvh !important;
+    height: var(--app-h, 100dvh) !important;
     max-height: none !important;
     margin: 0 !important;
     overflow-x: hidden;
@@ -5710,7 +5719,7 @@ html, body {
     inset: 0;
     width: 100dvw;
     height: 100vh;
-    height: 100dvh;
+    height: var(--app-h, 100dvh);
     margin: 0;
     box-sizing: border-box;
     padding-top: env(safe-area-inset-top);
@@ -6114,7 +6123,7 @@ html, body {
     inset: 0;
     width: 100dvw;
     height: 100vh;
-    height: 100dvh;
+    height: var(--app-h, 100dvh);
     margin: 0;
     z-index: 9800;
     display: flex;
@@ -7358,9 +7367,9 @@ a.payer-link {
     width: auto !important;
     max-width: none !important;
     height: 100vh !important;
-    height: 100dvh !important;
+    height: var(--app-h, 100dvh) !important;
     max-height: none !important;
-    --popup-h: calc(100dvh - var(--popup-top) - var(--popup-bottom));
+    --popup-h: calc(var(--app-h, 100dvh) - var(--popup-top) - var(--popup-bottom));
     --popup-w: var(--popup-card);
     container-type: size;
     --fit: 1;
@@ -7803,7 +7812,7 @@ a.payer-link {
   z-index: 10500;
   width: 100dvw;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   margin: 0;
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top);
@@ -8425,9 +8434,9 @@ a.payer-link {
     right: calc(var(--popup-right) + env(safe-area-inset-right)) !important;
     width: auto !important;
     height: 100vh !important;
-    height: 100dvh !important;
+    height: var(--app-h, 100dvh) !important;
     max-height: none !important;
-    --popup-h: calc(100dvh - var(--popup-top) - var(--popup-bottom));
+    --popup-h: calc(var(--app-h, 100dvh) - var(--popup-top) - var(--popup-bottom));
     --popup-w: var(--popup-card);
     --fit: 1;
     --card: var(--popup-card);
@@ -8769,7 +8778,7 @@ a.payer-link {
   #popup-settings-card #popup-settings-preview > .maplibregl-popup,
   #popup-settings-card #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content,
   #popup-settings-card #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content > .popup-sheet {
-    --popup-h: calc(100dvh - var(--popup-top) - var(--popup-bottom));
+    --popup-h: calc(var(--app-h, 100dvh) - var(--popup-top) - var(--popup-bottom));
     --popup-w: var(--popup-card);
     --fit: 1;
     --card: var(--popup-card);
@@ -9363,7 +9372,7 @@ a.payer-link {
   inset: 0;
   width: 100dvw;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   margin: 0;
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top);
@@ -9861,7 +9870,7 @@ html.feed-app #popup-settings-card {
    a size container: cards keep the column width on the results host. */
 #feed-search-page {
   --feed-zoom: 1;
-  --feed-unit: calc(min(78dvw, 42dvh) / 31.25);
+  --feed-unit: calc(min(78dvw, calc(var(--app-h, 100dvh) * 0.42)) / 31.25);
   --fu: var(--feed-unit);
   position: fixed;
   inset: 0;
@@ -9871,7 +9880,7 @@ html.feed-app #popup-settings-card {
   box-sizing: border-box;
   width: 100dvw;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   margin: 0;
   padding-top: env(safe-area-inset-top);
   padding-right: env(safe-area-inset-right);
@@ -11197,7 +11206,7 @@ html.feed-app #feed-search-page {
   inset: 0;
   width: 100dvw;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   margin: 0;
   z-index: 8590;
 }
@@ -11206,14 +11215,14 @@ html.feed-app #feed-search-page {
   bottom: 0;
   left: 0;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   margin: 0;
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top);
   padding-bottom: calc(8px + env(safe-area-inset-bottom));
-  width: min(78dvw, 42dvh);
+  width: min(78dvw, calc(var(--app-h, 100dvh) * 0.42));
   --feed-zoom: 1;
-  --fu: calc(min(78dvw, 42dvh) / 31.25);
+  --fu: calc(min(78dvw, calc(var(--app-h, 100dvh) * 0.42)) / 31.25);
 }
 /* Shared drawer type scale. Restated wherever --fu changes so a nested
    panel does not keep the parent's already-computed size. */
@@ -11429,7 +11438,7 @@ html.feed-app #feed-search-page {
 /* Nested settings leave the drawer column. Same popup frame as the map
    cards, and the same 250ms push as the chat pages. */
 .drawer-screen {
-  --fu: calc(min(78dvw, 42dvh) / 31.25);
+  --fu: calc(min(78dvw, calc(var(--app-h, 100dvh) * 0.42)) / 31.25);
   position: fixed;
   z-index: 8650;
   inset: 0;
@@ -11439,7 +11448,7 @@ html.feed-app #feed-search-page {
   left: 0;
   width: 100dvw;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -11641,7 +11650,7 @@ html.is-nav-lock body * {
   #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar
 ) {
-  --fu: calc(min(78dvw, 42dvh) / 31.25);
+  --fu: calc(min(78dvw, calc(var(--app-h, 100dvh) * 0.42)) / 31.25);
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -12792,7 +12801,7 @@ html.drawer-page .info-overlay {
   inset: 0;
   width: 100dvw;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   margin: 0;
   z-index: 9900;
   display: flex;
@@ -12885,7 +12894,7 @@ html.drawer-page .info-overlay {
   left: 0;
   width: 100dvw;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   margin: 0;
   box-sizing: border-box;
   padding: 0;
@@ -12906,7 +12915,7 @@ html.drawer-page .info-overlay {
   box-sizing: border-box;
   width: 100dvw;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   margin: 0;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
@@ -13185,7 +13194,7 @@ html.drawer-page .info-overlay {
   bottom: 0;
   z-index: 8700;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   margin: 0;
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top);
@@ -13242,7 +13251,7 @@ html.feed-app #feed-chat > .load-options-page {
 #feed-chat.is-draw.is-map-chat,
 #feed-chat.is-draw.is-map-chat > *,
 #feed-chat.is-map-chat > .load-options-page {
-  --feed-unit: calc(min(78dvw, 42dvh) / 31.25);
+  --feed-unit: calc(min(78dvw, calc(var(--app-h, 100dvh) * 0.42)) / 31.25);
   --fu: var(--feed-unit);
 }
 @media (orientation: landscape) {
@@ -13760,7 +13769,7 @@ html.feed-app #feed-chat > .load-options-page {
   bottom: 0;
   z-index: 8700;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   margin: 0;
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top);
@@ -14125,7 +14134,7 @@ html.feed-app #feed-chat > .load-options-page {
 /* Load uses the shared chat page. The map column stays for bio and startup.
    The header row matches the Domain bar. The page under it keeps its unit. */
 #feed-chat.is-load > .feed-chat-bar {
-  --fu: calc(min(78dvw, 42dvh) / 31.25);
+  --fu: calc(min(78dvw, calc(var(--app-h, 100dvh) * 0.42)) / 31.25);
   position: relative;
   gap: calc(var(--fu) * 0.8);
   min-height: 44px;
@@ -14227,7 +14236,7 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   left: 0;
   width: 100dvw;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   margin: 0;
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top);
@@ -14710,7 +14719,7 @@ body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
   transform: translateX(100dvw);
 }
 #feed-chat .load-options-page > .feed-chat-bar {
-  --fu: calc(min(78dvw, 42dvh) / 31.25);
+  --fu: calc(min(78dvw, calc(var(--app-h, 100dvh) * 0.42)) / 31.25);
   position: relative;
   gap: calc(var(--fu) * 0.8);
   min-height: 44px;
@@ -14806,7 +14815,7 @@ html.feed-app #feed-chat .load-options-page > .feed-chat-bar {
   height: auto;
 }
 #feed-chat.is-draw > .feed-chat-bar {
-  --fu: calc(min(78dvw, 42dvh) / 31.25);
+  --fu: calc(min(78dvw, calc(var(--app-h, 100dvh) * 0.42)) / 31.25);
   position: relative;
   gap: calc(var(--fu) * 0.8);
   min-height: 44px;
@@ -14903,7 +14912,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   left: 0;
   width: 100dvw;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   margin: 0;
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top);
@@ -17662,7 +17671,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   height: max(44px, var(--chat-field-h, 44px));
 }
 .picker-sheet {
-  --fu: calc(min(100dvw, 100dvh) * 0.024);
+  --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
   --picker-row-h: max(44px, calc(var(--fu) * 5.6));
   --picker-avatar: calc(var(--picker-row-h) * 0.72);
   --picker-letter-h: calc(var(--fu) * 2.8);
@@ -17675,7 +17684,7 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
   width: 100vw;
   width: 100dvw;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   margin: 0;
   padding:
     env(safe-area-inset-top)
