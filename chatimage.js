@@ -4,6 +4,8 @@
 import { toast } from "./toast.js";
 import { uploadChatImage } from "./uploadmedia.js";
 import { openPreview } from "./fullscreenmedia.js";
+import { pictureElement, stillObjectUrl } from "./loopmedia.js";
+import { resolveMediaUrl } from "./mediaurl.js";
 import { normalizeMessageNewlines, utf8ByteLength } from "./hcschunks.js";
 
 const CHAT_IMAGE_PREFIX = "\u001echat1\n";
@@ -44,7 +46,11 @@ export function clearPendingChatImage(kind) {
   s.objectUrl = "";
   s.url = "";
   s.uploading = false;
-  if (s.img) s.img.removeAttribute("src");
+  if (s.img) {
+    s.img.removeAttribute("src");
+    delete s.img.dataset.src;
+    if (s.img.pause) s.img.pause();
+  }
   if (s.preview) {
     s.preview.hidden = true;
     s.preview.style.display = "none";
@@ -148,24 +154,24 @@ export function fillChatMessage(el, text, imageUrl) {
   }
   if (!src) return;
   if (body) el.appendChild(document.createElement("br"));
-  const img = document.createElement("img");
-  img.className = "chat-msg-image";
-  img.alt = "";
-  img.loading = "lazy";
-  img.decoding = "async";
-  // Edit composers read data-full-src so a later edit sends this URL.
+  const resolved = resolveMediaUrl(src);
+  const img = pictureElement(src, { className: "chat-msg-image", alt: "" });
   img.dataset.fullSrc = src;
-  img.src = src;
   img.addEventListener("click", (event) => {
     event.stopPropagation();
-    openPreview(src);
+    openPreview(src, { video: resolved.kind === "video" });
   });
   el.appendChild(img);
 }
 
 function showPreview(s, src) {
-  if (!s.preview || !s.img) return;
-  s.img.src = src;
+  if (!s.preview) return;
+  const live = s.img && s.img.isConnected ? s.img : s.preview.querySelector("img, video.loop-face");
+  if (!live) return;
+  const next = pictureElement(src, { className: live.className, alt: "" });
+  if (live.id) next.id = live.id;
+  if (next !== live && live.parentNode) live.replaceWith(next);
+  s.img = next;
   s.preview.hidden = false;
   s.preview.style.display = "flex";
 }
@@ -186,7 +192,14 @@ function bind(kind) {
     s.url = "";
     s.uploading = true;
     s.btn.disabled = true;
-    showPreview(s, s.objectUrl);
+    if (file.type === "image/gif") {
+      const still = await stillObjectUrl(file);
+      URL.revokeObjectURL(s.objectUrl);
+      s.objectUrl = still;
+      if (still) showPreview(s, still);
+    } else {
+      showPreview(s, s.objectUrl);
+    }
     try {
       const url = await uploadChatImage(file, s.btn);
       if (mine !== s.gen) return;

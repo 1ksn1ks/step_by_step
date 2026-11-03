@@ -9,7 +9,7 @@ const EASE_MS = 60;
 const PERSPECTIVE_PX = 480;
 
 // A popup picture, or the early-Hashinal ring wrapped around one.
-const PROFILE_PICTURE = '.popup-profile-bubble > img, .popup-profile-bubble > .early-hashinal > img, img.profile-live-pic';
+const PROFILE_PICTURE = '.popup-profile-bubble > img, .popup-profile-bubble > video.loop-face, .popup-profile-bubble > .early-hashinal > img, .popup-profile-bubble > .early-hashinal > video.loop-face, img.profile-live-pic, video.profile-live-pic';
 
 const faces = new Set();
 let running = false;

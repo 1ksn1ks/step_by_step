@@ -19,11 +19,13 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { S3Client, PutObjectCommand, PutBucketCorsCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, PutBucketCorsCommand, HeadObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { appIcon, APP_ICONS } from "./appicon.js";
 import { profileTopicAction } from "./profiletopic.js";
 import { hashtagsIn } from "../hashtag.js";
 import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
+import { GIF_CONVERT_ERROR, gifRole, ownGifKey, siblingKeys } from "../mediaurl.js";
+import { convertGifBytes, remoteGifAllowed } from "./giftranscode.js";
 import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
 import { startEarlyHashinals } from "./hashinals.js";
@@ -1861,8 +1863,8 @@ function r2CorsDenied(err) {
   return name === "AccessDenied" || /access denied/i.test(message);
 }
 
-// The app reads covers cross-origin into canvases (gif decode, video →
-// canvas blit for the animated polygon covers) — without CORS the canvas
+// The app reads covers cross-origin into canvases (video → canvas blit
+// for animated polygon covers) — without CORS the canvas
 // taints and every read throws. CORS is a BUCKET-level setting in S3/R2
 // (a CORS field on PutObject is silently ignored), so apply it on every
 // start — idempotent. A token that cannot write CORS must not stop the API.
@@ -2462,32 +2464,70 @@ app.post("/api/upload", async (req, res) => {
       return res.status(415).json({ ok: false, error: "File contents do not match the declared type" });
     }
     if (!takeUploadSlot(req, res, account, body.length)) return;
-    // New videos can carry their length in the object name. Images, and
-    // videos with no usable duration, keep the original key shape.
-    const seconds = isVideo
+    // A GIF is accepted as input and converted before it is stored.
+    // Animated → H.264 MP4 + first-frame poster. One frame → JPEG.
+    // ffmpeg failing rejects the upload. The .gif is never written.
+    let putBody = body;
+    let putType = type;
+    let putExt = ext;
+    let posterBody = null;
+    let seconds = isVideo
       ? resolvedUploadSeconds(ext, req.headers["x-media-duration"], body)
       : null;
-    const key = uploadObjectKey(ext, seconds, Date.now(), Math.random().toString(36).slice(2, 8));
+    if (type === "image/gif") {
+      const converted = await convertGifBytes(body, gifRole(req.headers["x-media-role"]));
+      if (!converted.ok || converted.ext === ".gif" || !converted.body) {
+        if (!res.headersSent) {
+          res.status(converted.status || 422).json({ ok: false, error: converted.error || GIF_CONVERT_ERROR });
+        }
+        return;
+      }
+      putBody = converted.body;
+      putType = converted.mime;
+      putExt = converted.ext;
+      posterBody = converted.poster || null;
+      if (putExt === ".mp4" && converted.seconds > 0) seconds = Math.round(converted.seconds);
+      else if (putExt !== ".mp4") seconds = null;
+    }
+    if (putExt === ".gif") {
+      if (!res.headersSent) res.status(422).json({ ok: false, error: GIF_CONVERT_ERROR });
+      return;
+    }
+    const key = uploadObjectKey(putExt, seconds, Date.now(), Math.random().toString(36).slice(2, 8));
+    const posterKey = posterBody ? key.replace(/\.mp4$/i, ".poster.jpg") : "";
     try {
       await r2.send(
         new PutObjectCommand({
           Bucket: R2_BUCKET,
           Key: key,
-          Body: body,
-          ContentType: type,
+          Body: putBody,
+          ContentType: putType,
           // Each key is markers/<timestamp>-<random><ext> and is never overwritten.
           CacheControl: "public, max-age=31536000, immutable",
           // CORS comes from the bucket-level rule set at startup above —
           // per-object CORS on PutObject does not exist in S3/R2.
         })
       );
+      if (posterKey && posterBody) {
+        await r2.send(
+          new PutObjectCommand({
+            Bucket: R2_BUCKET,
+            Key: posterKey,
+            Body: posterBody,
+            ContentType: "image/jpeg",
+            CacheControl: "public, max-age=31536000, immutable",
+          })
+        );
+      }
     } catch (err) {
       console.error("R2 upload failed:", err.message);
       if (!res.headersSent) res.status(502).json({ ok: false, error: "R2 upload failed" });
       return;
     }
-    addUploadBytes(account, body.length);
-    res.json({ ok: true, url: `${R2_PUBLIC_BASE}/${key}`, type });
+    addUploadBytes(account, putBody.length);
+    const payload = { ok: true, url: `${R2_PUBLIC_BASE}/${key}`, type: putType };
+    if (posterKey) payload.poster = `${R2_PUBLIC_BASE}/${posterKey}`;
+    res.json(payload);
   } catch (err) {
     if (res.headersSent) return;
     if (err && err.code === 413) return res.status(413).json({ ok: false, error: tooBigMessage(isVideo) });
@@ -2501,6 +2541,133 @@ app.post("/api/upload", async (req, res) => {
     res.status(400).json({ ok: false, error: "upload aborted" });
   } finally {
     releaseSlot();
+  }
+});
+
+const GIF_FETCH_MAX = R2_MAX_IMAGE;
+const gifJobs = new Map();
+
+async function r2Exists(key) {
+  try {
+    await r2.send(new HeadObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function r2Read(key) {
+  const out = await r2.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+  return Buffer.from(await out.Body.transformToByteArray());
+}
+
+async function r2Write(key, body, type) {
+  await r2.send(new PutObjectCommand({
+    Bucket: R2_BUCKET,
+    Key: key,
+    Body: body,
+    ContentType: type,
+    CacheControl: "public, max-age=31536000, immutable",
+  }));
+}
+
+function onceGif(key, job) {
+  const pending = gifJobs.get(key);
+  if (pending) return pending;
+  const next = job().finally(() => gifJobs.delete(key));
+  gifJobs.set(key, next);
+  return next;
+}
+
+async function fetchRemoteGif(start) {
+  let current = start;
+  for (let hop = 0; hop < 3; hop += 1) {
+    if (!(await remoteGifAllowed(current))) {
+      const err = new Error("blocked");
+      err.code = 400;
+      throw err;
+    }
+    const response = await fetch(current, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(20000),
+      headers: { accept: "image/gif,*/*" },
+    });
+    if (response.status >= 300 && response.status < 400) {
+      const loc = response.headers.get("location");
+      if (!loc) break;
+      current = new URL(loc, current).href;
+      continue;
+    }
+    if (!response.ok) {
+      const err = new Error("fetch");
+      err.code = 404;
+      throw err;
+    }
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (!bytes.length || bytes.length > GIF_FETCH_MAX) {
+      const err = new Error("size");
+      err.code = 413;
+      throw err;
+    }
+    if (!magicMatches("image/gif", bytes)) {
+      const err = new Error("type");
+      err.code = 415;
+      throw err;
+    }
+    return bytes;
+  }
+  const err = new Error("redirect");
+  err.code = 400;
+  throw err;
+}
+
+// Old GIF addresses. A file we host 301s to the sibling MP4 (or its poster).
+// A remote GIF is transcoded on the first request and cached in the bucket.
+app.get("/api/media/gif", async (req, res) => {
+  if (!r2 || !R2_PUBLIC_BASE) return res.status(503).json({ ok: false, error: "R2 not configured" });
+  if (uploadRequestLimited(req, res)) return;
+  const raw = req.query && req.query.url;
+  const source = typeof raw === "string" ? raw.trim() : "";
+  if (!source || source.length > 2000 || !/\.gif(?=$|[?#])/i.test(source)) {
+    return res.status(400).json({ ok: false, error: "GIF url required" });
+  }
+  const wantPoster = req.query.poster === "1" || req.query.poster === "true";
+  try {
+    const owned = ownGifKey(source, R2_PUBLIC_BASE);
+    const keys = owned
+      ? siblingKeys(owned)
+      : siblingKeys(`gif-cache/${crypto.createHash("sha256").update(source).digest("hex")}.gif`);
+    const ready = await onceGif(keys.video, async () => {
+      if (await r2Exists(keys.video) && await r2Exists(keys.poster)) return true;
+      const bytes = owned ? await r2Read(owned) : await fetchRemoteGif(source);
+      if (!magicMatches("image/gif", bytes)) {
+        const err = new Error("type");
+        err.code = 415;
+        throw err;
+      }
+      const converted = await convertGifBytes(bytes, "media", { forceVideo: true });
+      if (!converted.ok || converted.ext !== ".mp4" || !converted.poster) {
+        const err = new Error(converted.error || GIF_CONVERT_ERROR);
+        err.code = converted.status || 422;
+        throw err;
+      }
+      await r2Write(keys.video, converted.body, "video/mp4");
+      await r2Write(keys.poster, converted.poster, "image/jpeg");
+      return true;
+    });
+    if (!ready) return res.status(422).json({ ok: false, error: GIF_CONVERT_ERROR });
+    const target = wantPoster ? keys.poster : keys.video;
+    res.redirect(301, `${R2_PUBLIC_BASE}/${target}`);
+  } catch (err) {
+    if (res.headersSent) return;
+    const code = err && err.code;
+    if (code === 400) return res.status(400).json({ ok: false, error: "That GIF url is not allowed" });
+    if (code === 404) return res.status(404).json({ ok: false, error: "GIF not found" });
+    if (code === 413) return res.status(413).json({ ok: false, error: tooBigMessage(false) });
+    if (code === 415) return res.status(415).json({ ok: false, error: "File contents do not match the declared type" });
+    if (code === 422) return res.status(422).json({ ok: false, error: GIF_CONVERT_ERROR });
+    console.error("gif route failed:", err && err.message ? err.message : "error");
+    res.status(502).json({ ok: false, error: GIF_CONVERT_ERROR });
   }
 });
 

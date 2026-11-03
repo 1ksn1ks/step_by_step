@@ -9,6 +9,8 @@ import { paintProfileAvatar } from "./earlyhashinal.js";
 import { watchProfilePicture } from "./markertilt.js";
 import { syncPopupChrome } from "./loadprofilepopup.js";
 import { watchFollowPrefetch } from "./followtopic.js";
+import { resolveMediaUrl } from "./mediaurl.js";
+import { mountPicture } from "./loopmedia.js";
 
 const DEFAULT_PIC = "https://kiloscribe.com/api/inscription-cdn/0.0.4819119";
 
@@ -26,7 +28,12 @@ const COVER_PREVIEW = {
 };
 
 function isVideoUrl(url) {
-  return /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url || "");
+  return resolveMediaUrl(url).kind === "video";
+}
+
+function playable(url) {
+  const resolved = resolveMediaUrl(url);
+  return resolved.src || url;
 }
 
 function paintMedia(id, url, kind) {
@@ -53,8 +60,12 @@ function paintMedia(id, url, kind) {
     img.hidden = true;
     img.removeAttribute("src");
     video.hidden = false;
-    if (video.getAttribute("src") !== url) {
-      video.src = url;
+    const src = playable(url);
+    if (video.getAttribute("src") !== src) {
+      video.src = src;
+      video.muted = true;
+      video.playsInline = true;
+      video.loop = true;
       video.play().catch(() => {});
     }
   } else {
@@ -63,7 +74,8 @@ function paintMedia(id, url, kind) {
     video.removeAttribute("src");
     video.load();
     img.hidden = false;
-    if (img.getAttribute("src") !== url) img.src = url;
+    const src = playable(url);
+    if (img.getAttribute("src") !== src) img.src = src;
   }
 }
 
@@ -100,8 +112,12 @@ function paintCover(id, url, kind, fieldId) {
     img.hidden = true;
     img.removeAttribute("src");
     video.hidden = false;
-    if (video.getAttribute("src") !== url) {
-      video.src = url;
+    const src = playable(url);
+    if (video.getAttribute("src") !== src) {
+      video.src = src;
+      video.muted = true;
+      video.playsInline = true;
+      video.loop = true;
       video.play().catch(() => {});
     }
     return;
@@ -114,7 +130,8 @@ function paintCover(id, url, kind, fieldId) {
   }
   if (!img) return;
   img.hidden = false;
-  if (img.getAttribute("src") !== url) img.src = url;
+  const src = playable(url);
+  if (img.getAttribute("src") !== src) img.src = src;
 }
 
 export function paintDrawField(fieldId, url, kind) {
@@ -340,13 +357,30 @@ function pickerColor(id, fallback) {
 // account id, and the username that opens that account's link.
 export function paintDrawProfile(root, account = connectedAccount || "") {
   if (!root) return;
-  const img = root.querySelector(".popup-profile-bubble > img, .popup-profile-bubble > .early-hashinal > img");
+  const current = root.querySelector(".popup-profile-bubble > img, .popup-profile-bubble > video.loop-face, .popup-profile-bubble > .early-hashinal > img, .popup-profile-bubble > .early-hashinal > video.loop-face");
   const heading = root.querySelector(".popup-profile-bubble h2");
-  if (!img || !heading) return;
+  if (!current || !heading) return;
 
   const rawPic = httpPicture(account && profilePictures[account] && profilePictures[account].url);
-  const picture = rawPic && rawPic !== img.dataset.failedPic ? rawPic : DEFAULT_PIC;
-  if (img.getAttribute("src") !== picture) img.src = picture;
+  const picture = rawPic && rawPic !== current.dataset.failedPic ? rawPic : DEFAULT_PIC;
+  const img = mountPicture(current, picture, { className: current.className });
+  // mountPicture copies dataset onto a replacement, so a flag there would
+  // skip the listeners on the new node. An expando does not copy.
+  if (!img.__drawBound) {
+    img.__drawBound = true;
+    img.addEventListener("error", () => {
+      const failed = httpPicture(connectedAccount && profilePictures[connectedAccount] && profilePictures[connectedAccount].url) || "";
+      if (!failed || failed === DEFAULT_PIC) return;
+      const live = root.querySelector(".popup-profile-bubble > img, .popup-profile-bubble > video.loop-face, .popup-profile-bubble > .early-hashinal > img, .popup-profile-bubble > .early-hashinal > video.loop-face");
+      if (live) live.dataset.failedPic = failed;
+      paintDrawProfile(root);
+    });
+    img.addEventListener("click", (event) => {
+      if (!connectedAccount || typeof window.loadBio4PIC !== "function") return;
+      event.stopPropagation();
+      window.loadBio4PIC(connectedAccount);
+    });
+  }
 
   let idLink = heading.querySelector(".payer-info");
   if (!idLink) {
@@ -394,20 +428,6 @@ export function paintDrawProfile(root, account = connectedAccount || "") {
 function bindAccount(editorId) {
   const root = document.getElementById(editorId);
   if (!root) return;
-  const img = root.querySelector(".popup-profile-bubble > img, .popup-profile-bubble > .early-hashinal > img");
-  if (img) {
-    img.addEventListener("error", () => {
-      const failed = img.getAttribute("src");
-      if (!failed || failed === DEFAULT_PIC) return;
-      img.dataset.failedPic = failed;
-      img.src = DEFAULT_PIC;
-    });
-    img.addEventListener("click", (event) => {
-      if (!connectedAccount || typeof window.loadBio4PIC !== "function") return;
-      event.stopPropagation();
-      window.loadBio4PIC(connectedAccount);
-    });
-  }
   const paint = () => paintDrawProfile(root);
   paint();
   return paint;

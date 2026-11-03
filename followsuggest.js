@@ -6,6 +6,7 @@ import { connectedAccount } from './web3.js';
 import { usernames, profilePictures, profileTopics } from './loadalladata.js';
 import { fetchFollowing } from './msgbackend.js';
 import { safeHttpUrl } from './payerlink.js';
+import { pictureElement } from './loopmedia.js';
 import { openPicker } from './picker.js';
 import { createFollowingStore, FOLLOWING_UPDATED, seeAllQuery } from './followingstate.js';
 
@@ -196,12 +197,10 @@ function rowElement(item, query, index) {
   secondary.className = 'follow-suggest-id';
 
   if (item.kind === 'account') {
-    const img = document.createElement('img');
-    img.className = 'follow-suggest-avatar';
-    img.alt = '';
-    img.src = item.avatar;
-    img.addEventListener('error', () => {
-      if (img.src !== DEFAULT_AVATAR) img.src = DEFAULT_AVATAR;
+    const img = pictureElement(item.avatar, {
+      className: 'follow-suggest-avatar',
+      alt: '',
+      fallback: DEFAULT_AVATAR,
     });
     appendHighlighted(primary, item.username || item.id, query);
     appendHighlighted(secondary, item.id, query);

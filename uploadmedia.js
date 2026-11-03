@@ -2,12 +2,13 @@
 // Cloudflare R2 through /api/upload (server/index.js), and auto-fill the
 // form field, then show the file itself instead of the address.
 // Four uploaders (2026-10-06 layout):
-//   marker form:  "📎 Upload image / video" → Image URL (image/gif/mp4/webm)
-//                 "📎 Upload image (cover)" → Cover Image URL (stills + gif)
+//   marker form:  "📎 Upload image / video" → Image URL (gif input becomes mp4 or jpeg)
+//                 "📎 Upload image (cover)" → Cover Image URL (stills + gif input)
 //   polygon form: "📎 Upload cover (image / gif / video)" → Cover Image URL
 //                 "📎 Upload image / video" → Inside image URL (the popup)
 // A polygon cover video is max 30s and animates in the map (polygons.js
-// pump). The Inside field is what the popup plays and stays unlimited
+// pump). An animated GIF is converted on the server to that same MP4 loop.
+// The Inside field is what the popup plays and stays unlimited
 // (100 MB, any length). No automatic thumbnail.
 import { toast } from "./toast.js";
 import { connectedAccount, signer } from "./web3.js";
@@ -15,6 +16,7 @@ import { profilePictures } from "./loadalladata.js";
 import { paintDrawField } from "./drawpreview.js";
 import { rememberGrant, withUploadAuth } from "./uploadgrant.js";
 import { COVER_VIDEO_PROBE_MS, coverVideoReject } from "./covervideolimit.js";
+import { isGifUrl, resolveMediaUrl } from "./mediaurl.js";
 
 const VIDEO_MAX = 100 * 1024 * 1024;
 const IMAGE_MAX = 20 * 1024 * 1024;
@@ -22,8 +24,8 @@ const MEDIA_TYPES = new Set([
   "video/mp4", "video/webm", "video/quicktime",
   "image/png", "image/jpeg", "image/gif", "image/webp",
 ]);
-// Marker dot cover: stills + gif (a gif CSS background animates natively —
-// a video can't play inside a dot).
+// Marker dot cover: stills, plus a GIF file. The server stores an MP4 loop
+// (or a JPEG when the GIF has one frame). The dot plays that loop.
 const MARKER_COVER_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 // Polygon cover: stills, gif, and video. A cover video is max 30s and
 // animates in the map via the updateImage pump in polygons.js.
@@ -32,7 +34,7 @@ const POLYGON_COVER_TYPES = MEDIA_TYPES;
 // Cover stills are the only uploads shrunk before they reach R2: the map
 // fill (createResizedImage in polygons.js) caps textures at 512, so a
 // multi-MP phone photo would only cost bandwidth. Inside/popup media,
-// profile pictures, chat images, gif/video covers, and hand-typed remote
+// profile pictures, chat images, video covers, and hand-typed remote
 // URLs all keep full quality.
 const COVER_FIELD_IDS = new Set([
   "input-field-coverimage-marker",
@@ -404,12 +406,13 @@ function readVideoSeconds(localUrl) {
 
 // The 0% pill appears only once the bytes start moving. Signature, wallet,
 // and Turnstile failures never leave it on screen.
-function sendUpload(file, baseLabel, seconds, turnstile, uploadToken) {
+function sendUpload(file, baseLabel, seconds, turnstile, uploadToken, role) {
   const pill = progressPill(`${baseLabel} 0%`);
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/upload");
     xhr.responseType = "json";
+    if (role) xhr.setRequestHeader("X-Media-Role", role);
     if (Number.isInteger(seconds) && seconds > 0) xhr.setRequestHeader("X-Media-Duration", String(seconds));
     if (connectedAccount) xhr.setRequestHeader("X-Account", connectedAccount);
     if (uploadToken) xhr.setRequestHeader("X-Upload-Token", uploadToken);
@@ -438,9 +441,16 @@ function sendUpload(file, baseLabel, seconds, turnstile, uploadToken) {
 }
 
 // POST the file to /api/upload with progress events (XHR — fetch has none).
-async function uploadToR2(file, baseLabel, seconds, anchor) {
+function uploadRole(fieldId) {
+  if (fieldId === "input-field-coverimage-polygon") return "polygon-cover";
+  if (fieldId === "input-field-coverimage-marker") return "cover";
+  if (fieldId === "input-field-profile-picture") return "avatar";
+  return "media";
+}
+
+async function uploadToR2(file, baseLabel, seconds, anchor, role) {
   const turnstile = await ensureTurnstileToken(anchor);
-  const send = (uploadToken) => sendUpload(file, baseLabel, seconds, turnstile, uploadToken);
+  const send = (uploadToken) => sendUpload(file, baseLabel, seconds, turnstile, uploadToken, role || "media");
   const url = REQUIRE_UPLOAD_AUTH
     ? await withUploadAuth({
       account: connectedAccount,
@@ -470,7 +480,32 @@ const PREVIEW_FOR = {
 };
 
 function isVideoUrl(url) {
-  return /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url);
+  return resolveMediaUrl(url).kind === "video";
+}
+
+function previewSrc(url) {
+  const resolved = resolveMediaUrl(url);
+  return resolved.src || url;
+}
+
+// A local GIF must not play in an <img>. The first frame is a JPEG preview
+// until the server returns the MP4 or the still.
+async function gifStillPreview(file) {
+  if (!file || file.type !== "image/gif" || typeof createImageBitmap !== "function") return "";
+  let bmp = null;
+  try {
+    bmp = await createImageBitmap(file);
+    const canvas = document.createElement("canvas");
+    canvas.width = bmp.width || 1;
+    canvas.height = bmp.height || 1;
+    canvas.getContext("2d").drawImage(bmp, 0, 0);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+    return blob ? URL.createObjectURL(blob) : "";
+  } catch {
+    return "";
+  } finally {
+    if (bmp && bmp.close) bmp.close();
+  }
 }
 
 function previewBox(fieldId) {
@@ -493,15 +528,19 @@ function showFieldPreview(fieldId, url, kind) {
   if (!field || !box) return;
   const img = box.querySelector("img");
   const video = box.querySelector("video");
-  const videoMode = kind === "video" || isVideoUrl(url);
-  if (box.dataset.objectUrl && box.dataset.objectUrl !== url) revokePreviewUrl(box);
-  if (String(url).startsWith("blob:")) box.dataset.objectUrl = url;
-  if (videoMode) {
+  const shown = previewSrc(url);
+  const videoMode = kind === "video" || isVideoUrl(url) || isGifUrl(url);
+  if (box.dataset.objectUrl && box.dataset.objectUrl !== url && box.dataset.objectUrl !== shown) revokePreviewUrl(box);
+  if (String(url).startsWith("blob:") || String(shown).startsWith("blob:")) box.dataset.objectUrl = String(shown).startsWith("blob:") ? shown : url;
+  if (videoMode && !isGifUrl(shown)) {
     img.hidden = true;
     img.removeAttribute("src");
     video.hidden = false;
-    if (video.getAttribute("src") !== url) {
-      video.src = url;
+    if (video.getAttribute("src") !== shown) {
+      video.src = shown;
+      video.muted = true;
+      video.playsInline = true;
+      video.loop = true;
       video.play().catch(() => {});
     }
   } else {
@@ -510,10 +549,10 @@ function showFieldPreview(fieldId, url, kind) {
     video.removeAttribute("src");
     video.load();
     img.hidden = false;
-    if (img.getAttribute("src") !== url) img.src = url;
+    if (img.getAttribute("src") !== shown) img.src = shown;
   }
   box.hidden = false;
-  paintDrawField(fieldId, url, videoMode ? "video" : "image");
+  paintDrawField(fieldId, shown, videoMode && !isGifUrl(shown) ? "video" : "image");
 }
 
 function hideFieldPreview(fieldId) {
@@ -631,7 +670,13 @@ async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg
   const label = isVideo ? "video" : "image";
   const previous = document.getElementById(targetFieldId)?.value || "";
   const localUrl = URL.createObjectURL(file);
-  showFieldPreview(targetFieldId, localUrl, isVideo ? "video" : "image");
+  const stillUrl = file.type === "image/gif" ? await gifStillPreview(file) : "";
+  if (file.type === "image/gif") {
+    if (stillUrl) showFieldPreview(targetFieldId, stillUrl, "image");
+    URL.revokeObjectURL(localUrl);
+  } else {
+    showFieldPreview(targetFieldId, localUrl, isVideo ? "video" : "image");
+  }
   try {
     const length = isVideo ? await readVideoSeconds(localUrl) : null;
     // Inside and popup video stay uncapped. Only a polygon cover is limited,
@@ -648,9 +693,9 @@ async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg
       return;
     }
     const seconds = Number.isFinite(length) && length > 0 ? Math.round(length) : null;
-    const url = await uploadToR2(file, `Uploading ${label}`, seconds > 0 ? seconds : null, btn);
+    const url = await uploadToR2(file, `Uploading ${label}`, seconds > 0 ? seconds : null, btn, uploadRole(targetFieldId));
     fillField(targetFieldId, url);
-    showFieldPreview(targetFieldId, url, isVideo ? "video" : "image");
+    showFieldPreview(targetFieldId, url, resolveMediaUrl(url).kind === "video" ? "video" : "image");
     toast.success("Uploaded");
   } catch (err) {
     fillField(targetFieldId, previous);
@@ -687,7 +732,7 @@ export async function uploadChatImage(file, anchor) {
     throw new Error("Only PNG, JPG, WebP, GIF");
   }
   if (file.size > IMAGE_MAX) throw new Error("Image is too large");
-  return uploadToR2(file, "Uploading image", null, anchor);
+  return uploadToR2(file, "Uploading image", null, anchor, "media");
 }
 
 function showSavedProfilePreview() {

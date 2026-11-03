@@ -1,0 +1,4 @@
+# The API transcodes GIFs with ffmpeg. Nixpacks does not install it unless
+# it is listed here. Railway reads this file on the next image build.
+[phases.setup]
+aptPkgs = ["ffmpeg"]

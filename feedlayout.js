@@ -36,6 +36,8 @@ import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
 import { VIEW_SORT_BATCH, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs } from './viewsort.js';
 import { FEED_VIDEO_THRESHOLDS, feedAutoplayAllowed, pickFeedVideo } from './feedvideo.js';
+import { isGifUrl, resolveMediaUrl } from './mediaurl.js';
+import { mountPicture, pictureElement } from './loopmedia.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -838,7 +840,7 @@ function mediaOf(image) {
 }
 
 function isVideo(url) {
-  return /\.(mp4|webm)(\?|#|$)/i.test(url);
+  return resolveMediaUrl(url).kind === 'video';
 }
 
 // 1dvmin. clientX is CSS pixels, and 1dvmin is 1% of the shorter viewport side.
@@ -871,7 +873,7 @@ function feedActIdle(event) {
 function coverFeedPlayer(media, onTap) {
   const hit = document.createElement('div');
   hit.className = 'feed-media-hit';
-  if (media.querySelector('video')) hit.classList.add('is-video');
+  if (media.querySelector('video:not(.loop-face)')) hit.classList.add('is-video');
   let start = null;
   hit.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
@@ -2147,13 +2149,13 @@ function buildCard(post) {
   if (payer) {
     // The shared popup photo opens the map bio panel. This card uses the
     // feed account page instead, so that handler does not stay on it.
-    const profilePhoto = profile.querySelector('img');
+    const profilePhoto = profile.querySelector('img, video.loop-face');
     if (profilePhoto) profilePhoto.onclick = null;
     // Capture runs before the Hashpack and click2url anchors. preventDefault
     // keeps those links from navigating. stopPropagation keeps this tap from
     // reaching the document click that closes every panel.
     profile.addEventListener('click', (event) => {
-      const hit = event.target && event.target.closest && event.target.closest('img, h2');
+      const hit = event.target && event.target.closest && event.target.closest('img, video.loop-face, h2');
       if (!hit || !profile.contains(hit)) return;
       event.preventDefault();
       event.stopPropagation();
@@ -2168,18 +2170,31 @@ function buildCard(post) {
   if (src) {
     media = document.createElement('div');
     media.className = 'popup-media-card';
-    const video = isVideo(src);
-    const node = video ? document.createElement('video') : document.createElement('img');
-    if (video) {
+    const resolved = resolveMediaUrl(src);
+    const gifLoop = isGifUrl(src);
+    const video = resolved.kind === 'video' && !gifLoop;
+    const node = gifLoop
+      ? pictureElement(src, { alt: '' })
+      : (video ? document.createElement('video') : document.createElement('img'));
+    if (gifLoop) {
+      media.appendChild(node);
+      coverFeedPlayer(media, () => {
+        holdScroll();
+        openPreview(resolved.src, { video: true });
+      });
+    } else if (video) {
       node.controls = true;
       node.playsInline = true;
       node.setAttribute('playsinline', '');
       node.loop = true;
       node.muted = true;
       node.preload = 'none';
-      node.dataset.src = src;
-      const poster = mediaOf(record.coverimage);
-      if (poster && !isVideo(poster)) node.poster = poster;
+      node.dataset.src = resolved.src;
+      if (resolved.poster) node.poster = resolved.poster;
+      else {
+        const poster = mediaOf(record.coverimage);
+        if (poster && !isVideo(poster)) node.poster = poster;
+      }
       media.appendChild(node);
       bindFeedVideo(node);
       coverFeedPlayer(media, () => {
@@ -2198,12 +2213,12 @@ function buildCard(post) {
       node.draggable = false;
       node.loading = 'lazy';
       node.decoding = 'async';
-      node.src = src;
+      node.src = resolved.src;
       media.appendChild(node);
       // Tap opens this same original URL in the fullscreen viewer.
       coverFeedPlayer(media, () => {
         holdScroll();
-        openPreview(src);
+        openPreview(resolved.src);
       });
     }
   }
@@ -3593,11 +3608,7 @@ function paintNewFaces(list) {
   }
   newFaces.replaceChildren();
   for (const url of urls) {
-    const img = document.createElement('img');
-    img.className = 'feed-new-face';
-    img.alt = '';
-    img.decoding = 'async';
-    img.src = url;
+    const img = pictureElement(url, { className: 'feed-new-face', alt: '', fallback: DEFAULT_PIC });
     newFaces.appendChild(img);
   }
 }
@@ -5197,7 +5208,11 @@ function showProfileBanner() {
 function paintProfileBanner(payer) {
   const name = profileDisplayName(payer);
   const handle = payer;
-  bannerPic.src = profilePicUrl(payer);
+  const banner = mountPicture(profileBanner.querySelector('.feed-profile-banner-pic'), profilePicUrl(payer), {
+    className: 'feed-profile-banner-pic',
+    fallback: DEFAULT_PIC,
+  });
+  paintProfileAvatar(banner, payer);
   bannerName.textContent = name;
   bannerHandle.textContent = handle;
   const bioEl = profileBio.textContent || '';
@@ -5209,13 +5224,10 @@ function paintProfileBanner(payer) {
 
 function mountProfilePic(payer) {
   profilePicSlot.replaceChildren();
-  const img = document.createElement('img');
-  img.className = 'feed-profile-pic';
-  img.alt = '';
-  img.decoding = 'async';
-  img.src = profilePicUrl(payer);
-  img.addEventListener('error', () => {
-    if (img.src !== DEFAULT_PIC) img.src = DEFAULT_PIC;
+  const img = pictureElement(profilePicUrl(payer), {
+    className: 'feed-profile-pic',
+    alt: '',
+    fallback: DEFAULT_PIC,
   });
   profilePicSlot.appendChild(img);
   paintProfileAvatar(img, payer);
@@ -5229,7 +5241,7 @@ function paintProfileHolder(payer) {
 
 function paintOpenProfileChrome() {
   if (!profilePayer || profilePage.hidden) return;
-  const img = profilePicSlot.querySelector('img');
+  const img = profilePicSlot.querySelector('img, video.loop-face');
   if (img) paintProfileAvatar(img, profilePayer);
   paintProfileHolder(profilePayer);
 }
@@ -5604,9 +5616,7 @@ profileBanner.addEventListener('click', (event) => {
   event.stopPropagation();
   backToProfileAccount();
 });
-bannerPic.addEventListener('error', () => {
-  if (bannerPic.src !== DEFAULT_PIC) bannerPic.src = DEFAULT_PIC;
-});
+
 
 function openTopicChat() {
   if (navBusy()) return;
@@ -7052,12 +7062,7 @@ function buildAccountRow(spec) {
   mapAccountBtn = document.createElement('button');
   mapAccountBtn.type = 'button';
   mapAccountBtn.className = 'feed-menu-item feed-menu-account-btn';
-  mapAvatar = document.createElement('img');
-  mapAvatar.className = 'feed-menu-avatar';
-  mapAvatar.alt = '';
-  mapAvatar.addEventListener('error', () => {
-    if (mapAvatar.src !== DEFAULT_PIC) mapAvatar.src = DEFAULT_PIC;
-  });
+  mapAvatar = pictureElement(DEFAULT_PIC, { className: 'feed-menu-avatar', alt: '', fallback: DEFAULT_PIC });
   mapAccountId = document.createElement('span');
   mapAccountId.className = 'feed-menu-account-id';
   mapAccountBtn.append(mapAvatar, mapAccountId);
@@ -8182,7 +8187,10 @@ function paintMapAccount() {
   const label = document.getElementById('account-id');
   const text = id || (label && label.textContent.trim()) || 'Not connected';
   mapAccountId.textContent = text;
-  mapAvatar.src = id ? profilePicUrl(id) : DEFAULT_PIC;
+  mapAvatar = mountPicture(mapAvatar, id ? profilePicUrl(id) : DEFAULT_PIC, {
+    className: 'feed-menu-avatar',
+    fallback: DEFAULT_PIC,
+  });
   paintProfileAvatar(mapAvatar, id);
   mapAccountBtn.classList.toggle('is-connect', !id);
   mapAccountBtn.setAttribute('aria-label', id ? text + ', My profile' : 'My profile');

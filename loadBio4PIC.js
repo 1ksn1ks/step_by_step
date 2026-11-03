@@ -7,6 +7,7 @@ import { adjustTextareaHeight } from './adjusttextarea';
 import { fillTopicIds, useTopicId } from './topicidintext';
 import { payerUsernameNode } from './payerlink.js';
 import { paintProfileAvatar } from './earlyhashinal.js';
+import { pictureElement } from './loopmedia.js';
 import { forgetProfileTree } from './markertilt.js';
 import { paintEarlyProfile } from './loadprofilepopup.js';
 import { paintProfileStats } from './profilestats.js';
@@ -223,13 +224,11 @@ function showAccount(id) {
   const bubble = document.createElement('div');
   bubble.className = 'profile-live-bubble';
 
-  const img = document.createElement('img');
-  img.className = 'profile-live-pic';
-  img.alt = 'Profile photo';
   const rawPic = profilePictures[id] && profilePictures[id].url;
-  img.src = validUrl(rawPic) ? rawPic : DEFAULT_PIC;
-  img.addEventListener('error', () => {
-    if (img.src !== DEFAULT_PIC) img.src = DEFAULT_PIC;
+  const img = pictureElement(validUrl(rawPic) ? rawPic : DEFAULT_PIC, {
+    className: 'profile-live-pic',
+    alt: 'Profile photo',
+    fallback: DEFAULT_PIC,
   });
 
   const names = document.createElement('div');

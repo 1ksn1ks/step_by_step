@@ -5,6 +5,7 @@ import { sendMessage, messageSig, streamOnTopic, streamOnReconnect } from './msg
 import { getTopicData } from './topicdata';
 import { toast } from "./toast";
 import { profilePictures, usernames, click2url } from './loadalladata';
+import { pictureElement } from './loopmedia.js';
 import { 
   topicChatHeaderColor,
   headerFontSizeTopicChat,
@@ -465,10 +466,10 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
       currentGroupContainer.style.cssText = `position: relative; padding-left: 2.5em; min-height: 2.5em; border-color: ${innerContainerTopicChatColor};`;
 
       // Profile image
-      const img = document.createElement('img');
-      img.src = validPayerImage;
-      img.alt = 'Profile photo';
-      img.style.cssText = 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer;';
+      const img = pictureElement(validPayerImage, {
+        alt: 'Profile photo',
+        style: 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer; object-fit: cover;',
+      });
       img.dataset.payer = payer;
       img.className = 'profile-img-click';
       img.addEventListener('click', () => loadBio4PIC(payer));
@@ -937,20 +938,12 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         `;
   
         // Profile image
-        const img = document.createElement('img');
-        img.src = validPayerImage;
-        img.alt = 'Profile photo';
+        const img = pictureElement(validPayerImage, {
+          alt: 'Profile photo',
+          className: 'profile-img-click',
+          style: 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer; object-fit: cover;',
+        });
         img.dataset.payer = payer;
-        img.className = 'profile-img-click';
-        img.style.cssText = `
-          position: absolute;
-          left: 0.25em;
-          top: 0.5em;
-          width: 2em;
-          height: 2em;
-          border-radius: 1em;
-          cursor: pointer;
-        `;
         img.addEventListener('click', () => loadBio4PIC(payer));
         watchFollowPrefetch(img, payer);
         currentGroupDiv.appendChild(img);

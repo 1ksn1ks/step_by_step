@@ -19,6 +19,7 @@ import { prefetchPersonFollow } from './followtopic.js';
 import { watchMarkerTilt, forgetMarkerTilt } from './markertilt.js';
 import { fillMapTip } from './maptip.js';
 import { isPointerOnGlobe } from './onglobe.js';
+import { forgetLoop, pictureElement } from './loopmedia.js';
 
 
 
@@ -229,6 +230,8 @@ export function releaseTopicMarkers() {
   const hadMarkers = keptMarkers.size > 0;
   for (const entry of keptMarkers.values()) {
     forgetMarkerTilt(entry.face);
+    const loop = entry.face && entry.face.querySelector('video.loop-face');
+    if (loop) forgetLoop(loop);
     try { entry.marker.remove(); } catch { /* already gone */ }
   }
   keptMarkers.clear();
@@ -247,39 +250,47 @@ function syncKeptMarkers() {
   newExistingMarkers(list);
 }
 
-// The face sits in a MapLibre marker (transform, not scroll). Set the cover
-// URL directly. A viewport lazy observer never sees these on a phone.
+// The face sits in a MapLibre marker (transform, not scroll). A still is an
+// img. A GIF or video is a small muted loop that plays while the dot is on
+// the map and pauses when the tab is hidden.
 function paintMarkerPicture(entry, url) {
   const seq = (entry.pictureSeq || 0) + 1;
   entry.pictureSeq = seq;
   entry.pictureUrl = url || '';
   const face = entry.face;
-  let view = face.querySelector('img');
+  let view = face.querySelector('img, video.loop-face');
   if (!url) {
+    if (view && view.tagName === 'VIDEO') forgetLoop(view);
     if (view) view.remove();
     face.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
     return;
   }
-  if (!view) {
-    view = document.createElement('img');
-    view.alt = '';
-    view.draggable = false;
-    view.style.cssText = 'width:100%;height:100%;object-fit:cover;object-position:center;border-radius:50%;display:block;pointer-events:none;';
-    face.insertBefore(view, face.firstChild);
+  if (view) {
+    if (view.tagName === 'VIDEO') forgetLoop(view);
+    view.remove();
   }
-  view.loading = 'eager';
-  view.decoding = 'async';
-  view.onload = () => {
+  view = pictureElement(url, { alt: '', className: 'marker-loop' });
+  view.draggable = false;
+  const clear = () => {
     if (entry.pictureSeq !== seq) return;
     face.style.backgroundColor = '';
   };
-  view.onerror = () => {
+  const fail = () => {
     if (entry.pictureSeq !== seq) return;
+    if (view.tagName === 'VIDEO') forgetLoop(view);
     view.remove();
     face.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
   };
-  if (view.getAttribute('src') !== url) view.src = url;
-  else face.style.backgroundColor = '';
+  if (view.tagName === 'VIDEO') {
+    view.addEventListener('loadeddata', clear);
+    view.addEventListener('error', fail);
+  } else {
+    view.loading = 'eager';
+    view.decoding = 'async';
+    view.onload = clear;
+    view.onerror = fail;
+  }
+  face.insertBefore(view, face.firstChild);
 }
 
 function paintMarkerHashinal(entry) {

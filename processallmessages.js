@@ -17,6 +17,8 @@ import { confirmShare, unshareFromMyTopic, sharePin, followPersonControls, watch
 import { clearShareTopic, noteShare, shareState, shareMine, takeSharePin, takeUnsharePin } from './sharecount.js'
 import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
 import { openPreview } from './fullscreenmedia';
+import { isGifUrl, resolveMediaUrl } from './mediaurl.js';
+import { pictureElement } from './loopmedia.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
 import { isTyping } from './joystick.js';
 import { normalizeMessageNewlines, clipMessage, formatHcsUsage, utf8ByteLength, HCS_TOO_LONG, HCS_MESSAGE_MAX_BYTES } from './hcschunks.js';
@@ -1267,12 +1269,10 @@ function isValidUrl(url) {
 
 // Same video check the popup uses on the Image field. An array is the
 // first entry, the way a polygon popup reads image[0].
-const MEDIA_VIDEO = /\.(mp4|webm)(\?|#|$)/i;
-
 export function mediaKind(value) {
   const url = Array.isArray(value) ? value[0] : value;
   if (typeof url !== 'string' || !isValidUrl(url)) return 'none';
-  return MEDIA_VIDEO.test(url) ? 'video' : 'picture';
+  return resolveMediaUrl(url).kind === 'video' ? 'video' : 'picture';
 }
 
 // Phone swipe and keyboard arrows share one pager. A mouse drag is a text
@@ -1734,10 +1734,10 @@ export function buildPopupProfile({ profileUrl, payer, payerInfo, username, clic
   const profileSection = document.createElement('div');
   profileSection.className = 'popup-profile-bubble';
 
-  const profileImg = document.createElement('img');
-  profileImg.src = profileUrl;
-  profileImg.alt = 'Profile photo';
-  profileImg.style.cssText = 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; cursor: pointer; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);';
+  const profileImg = pictureElement(profileUrl, {
+    alt: 'Profile photo',
+    style: 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; cursor: pointer; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);',
+  });
   profileImg.onclick = (event) => {
     event.stopPropagation();
     const popupEl = profileImg.closest('.maplibregl-popup');
@@ -1906,6 +1906,44 @@ function popupSettingsGear(walk) {
   return btn;
 }
 
+// A GIF address is a silent loop, the same shape as a still. A real
+// video keeps the in-popup player. Tap a loop to open it full screen.
+function fillPopupMedia(imageDiv, url) {
+  const resolved = resolveMediaUrl(url);
+  if (isGifUrl(url)) {
+    const media = pictureElement(url, { alt: "" });
+    media.style.cursor = "zoom-in";
+    imageDiv.appendChild(media);
+    imageDiv.addEventListener("click", () => openPreview(resolved.src, { video: true }));
+    return;
+  }
+  const isVideo = resolved.kind === "video";
+  const media = isVideo ? document.createElement("video") : document.createElement("img");
+  if (isVideo) {
+    media.src = resolved.src;
+    if (resolved.poster) media.poster = resolved.poster;
+    media.controls = true;
+    media.playsInline = true;
+    media.preload = "metadata";
+  } else {
+    media.style.cursor = "zoom-in";
+    media.addEventListener("click", () => openPreview(url));
+    const chip = document.createElement("button");
+    chip.className = "popup-media-expand";
+    chip.title = "Expand";
+    chip.textContent = "⤢";
+    chip.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openPreview(url);
+    });
+    imageDiv.appendChild(chip);
+    media.decoding = "async";
+    media.loading = "eager";
+    media.src = resolved.src || url;
+  }
+  imageDiv.appendChild(media);
+}
+
 export function createMarkerPopupHTML(data) {
   const {
     markernumber,
@@ -1992,37 +2030,12 @@ export function createMarkerPopupHTML(data) {
 
   navSection.appendChild(popupNavArrow('next', goNextMarker));
 
-  // Image — or video when the user pasted a .mp4/.webm URL into the Image
-  // field (the dot still shows the Cover Image still, so no video ever loads
-  // into the marker DOM). The file itself downloads only on play.
+  // Image, a GIF loop, or a video when the Image field holds a real
+  // .mp4/.webm. The marker dot uses the cover, so this file stays in the popup.
   if (isValidUrl(image)) {
     const imageDiv = document.createElement('div');
     imageDiv.className = 'popup-media-card'; // glass media card (style.css)
-    const isVideo = /\.(mp4|webm)(\?|#|$)/i.test(image);
-    const media = isVideo ? document.createElement('video') : document.createElement('img');
-    if (isVideo) {
-      media.src = image;
-      media.controls = true;
-      media.playsInline = true; // iOS: play inline, no full-screen takeover
-      media.preload = 'metadata'; // opening the popup costs a few KB, not the file
-    } else {
-      // Tap the picture → fullscreen overlay (tap backdrop / × / Esc closes)
-      media.style.cursor = 'zoom-in';
-      media.addEventListener('click', () => openPreview(image));
-      const chip = document.createElement('button');
-      chip.className = 'popup-media-expand';
-      chip.title = 'Expand';
-      chip.textContent = '⤢';
-      chip.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openPreview(image);
-      });
-      imageDiv.appendChild(chip);
-      media.decoding = 'async';
-      media.loading = 'eager';
-      media.src = image;
-    }
-    imageDiv.appendChild(media);
+    fillPopupMedia(imageDiv, image);
     contentSection.appendChild(imageDiv);
   }
 
@@ -2179,39 +2192,13 @@ function createPolygonPopupHTML(data) {
   navSection.appendChild(popupNavArrow('next', goNextPolygon));
   container.appendChild(navSection);
 
-  // Image — or video when the Inside image URL field holds a .mp4/.webm
-  // (same behavior as marker popups: in-popup player with sound; the map
-  // cover stays the muted loop). The field arrives as an ARRAY (["url"]) —
-  // normalize before the url/regex checks.
+  // Image, a GIF loop, or a video. The field arrives as an ARRAY (["url"]).
+  // The map cover stays the muted 30s loop.
   const popupImageUrl = Array.isArray(image) ? image[0] : image;
   if (isValidUrl(popupImageUrl)) {
     const imageDiv = document.createElement('div');
     imageDiv.className = 'popup-media-card'; // glass media card (style.css)
-    const isVideo = /\.(mp4|webm)(\?|#|$)/i.test(popupImageUrl);
-    const media = isVideo ? document.createElement('video') : document.createElement('img');
-    if (isVideo) {
-      media.src = popupImageUrl;
-      media.controls = true;
-      media.playsInline = true; // iOS: play inline, no full-screen takeover
-      media.preload = 'metadata'; // opening the popup costs a few KB, not the file
-    } else {
-      // Tap the picture → fullscreen overlay (tap backdrop / × / Esc closes)
-      media.style.cursor = 'zoom-in';
-      media.addEventListener('click', () => openPreview(popupImageUrl));
-      const chip = document.createElement('button');
-      chip.className = 'popup-media-expand';
-      chip.title = 'Expand';
-      chip.textContent = '⤢';
-      chip.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openPreview(popupImageUrl);
-      });
-      imageDiv.appendChild(chip);
-      media.decoding = 'async';
-      media.loading = 'eager';
-      media.src = popupImageUrl;
-    }
-    imageDiv.appendChild(media);
+    fillPopupMedia(imageDiv, popupImageUrl);
     contentSection.appendChild(imageDiv);
   }
 
@@ -3763,10 +3750,10 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
 
     const payerImage = profilePictures[payer]?.url || defaultProfilePic;
     const validPayerImage = isValidUrl(payerImage) ? payerImage : defaultProfilePic;
-    const img = document.createElement('img');
-    img.src = validPayerImage;
-    img.alt = 'Profile photo';
-    img.style.cssText = 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer;';
+    const img = pictureElement(validPayerImage, {
+      alt: 'Profile photo',
+      style: 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer; object-fit: cover;',
+    });
     img.addEventListener('click', () => loadBio4PIC(payer));
     watchFollowPrefetch(img, payer);
     group.appendChild(img);
@@ -3822,11 +3809,11 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
       // color, username in the username color (was one same-color link before)
       const whoRow = document.createElement('div');
       whoRow.style.cssText = `display: inline-flex; align-items: center; gap: 0.3em; padding: 0.025em 0.1em 0.025em 0.1em; border-radius: 0.4em; font-size: calc(var(--u) * ${headerFontSizeTopicChat / 2});`;
-      const payerPic = document.createElement('img');
       const picUrl = profilePictures[node.payer]?.url || defaultProfilePic;
-      payerPic.src = isValidUrl(picUrl) ? picUrl : defaultProfilePic;
-      payerPic.alt = 'Profile photo';
-      payerPic.style.cssText = 'width: 1.2em; height: 1.2em; border-radius: 1em; object-fit: cover; border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.35); cursor: pointer;';
+      const payerPic = pictureElement(isValidUrl(picUrl) ? picUrl : defaultProfilePic, {
+        alt: 'Profile photo',
+        style: 'width: 1.2em; height: 1.2em; border-radius: 1em; object-fit: cover; border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.35); cursor: pointer;',
+      });
       payerPic.addEventListener('click', () => loadBio4PIC(node.payer));
       watchFollowPrefetch(payerPic, node.payer);
       whoRow.appendChild(payerPic);

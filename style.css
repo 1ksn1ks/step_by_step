@@ -3111,7 +3111,9 @@ html, body {
     flex: none !important;
 }
 #draw-column .popup-profile-bubble > img,
-#draw-column .popup-profile-bubble > .early-hashinal > img {
+#draw-column .popup-profile-bubble > video.loop-face,
+#draw-column .popup-profile-bubble > .early-hashinal > img,
+#draw-column .popup-profile-bubble > .early-hashinal > video.loop-face {
     width: calc(var(--u) * 7);
     height: calc(var(--u) * 7);
     flex-shrink: 0;
@@ -3845,7 +3847,9 @@ html, body {
   }
 
   .popup-profile-bubble > img,
-  .popup-profile-bubble > .early-hashinal > img {
+  .popup-profile-bubble > video.loop-face,
+  .popup-profile-bubble > .early-hashinal > img,
+  .popup-profile-bubble > .early-hashinal > video.loop-face {
     object-fit: cover;
     object-position: center;
   }
@@ -6995,6 +6999,7 @@ html, body {
   width: 100%;
   height: 100%;
   border-radius: 50%;
+  overflow: hidden;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -7006,7 +7011,18 @@ html, body {
   pointer-events: none;
   transform-origin: center center;
 }
+.marker-face > img,
+.marker-face > video.loop-face {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 50%;
+  display: block;
+  pointer-events: none;
+}
 .popup-profile-bubble > img,
+.popup-profile-bubble > video.loop-face,
 .popup-profile-bubble > .early-hashinal,
 .profile-live-bubble > .profile-live-pic,
 .profile-live-bubble > .early-hashinal {
@@ -7017,6 +7033,7 @@ html, body {
   .cluster-face,
   .moon-face,
   .popup-profile-bubble > img,
+  .popup-profile-bubble > video.loop-face,
   .popup-profile-bubble > .early-hashinal,
   .profile-live-bubble > .profile-live-pic,
   .profile-live-bubble > .early-hashinal { transform: none !important; }
@@ -7295,8 +7312,9 @@ a.payer-link {
   background-image: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
   animation: popupMediaIn 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-/* Video: stretched to (nearly) the full popup width, same height as the square card. */
-.popup-media-card:has(video) {
+/* Video: stretched to (nearly) the full popup width, same height as the square card.
+   A GIF loop stays on the square picture card. */
+.popup-media-card:has(video:not(.loop-face)) {
   width: 98%;
   aspect-ratio: auto;
   height: calc(var(--u) * 22);
@@ -7345,8 +7363,10 @@ a.payer-link {
   from { opacity: 0; transform: scale(0.94); }
 }
 @media (pointer: fine) {
-  .popup-media-card img { transition: transform 0.2s ease, filter 0.2s ease; }
-  .popup-media-card:hover img { transform: scale(1.03); filter: brightness(1.08); }
+  .popup-media-card img,
+  .popup-media-card video.loop-face { transition: transform 0.2s ease, filter 0.2s ease; }
+  .popup-media-card:hover img,
+  .popup-media-card:hover video.loop-face { transform: scale(1.03); filter: brightness(1.08); }
   .popup-media-expand:hover { transform: scale(1.08); filter: brightness(1.2); }
   .popup-media-expand:active { transform: scale(0.94); }
 }
@@ -9064,7 +9084,9 @@ a.payer-link {
   padding: 0.3dvmin;
 }
 .early-hashinal > img,
-.marker-face.early-hashinal > img {
+.early-hashinal > video.loop-face,
+.marker-face.early-hashinal > img,
+.marker-face.early-hashinal > video.loop-face {
   position: relative;
   z-index: 3;
   border-width: 0 !important;
@@ -10733,10 +10755,10 @@ html.feed-app #feed-search-page {
 :is(#feed-column, .feed-comments-stage) .popup-media-card object {
   pointer-events: none;
 }
-:is(#feed-column, .feed-comments-stage) .popup-media-card video {
+:is(#feed-column, .feed-comments-stage) .popup-media-card video:not(.loop-face) {
   pointer-events: auto;
 }
-:is(#feed-column, .feed-comments-stage) .popup-media-card:not(:has(video)) .feed-media-hit {
+:is(#feed-column, .feed-comments-stage) .popup-media-card:not(:has(video:not(.loop-face))) .feed-media-hit {
   cursor: zoom-in;
 }
 :is(#feed-column, .feed-comments-stage) .feed-media-hit {
@@ -13872,7 +13894,8 @@ html.feed-app #feed-chat > .load-options-page {
   display: block;
   box-sizing: border-box;
 }
-#feed-profile .feed-profile-pic-slot .early-hashinal > img {
+#feed-profile .feed-profile-pic-slot .early-hashinal > img,
+#feed-profile .feed-profile-pic-slot .early-hashinal > video.loop-face {
   width: 100%;
   height: 100%;
   border-radius: 50%;

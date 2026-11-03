@@ -6,6 +6,7 @@ import { getTopicData } from './topicdata';
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
 import { connectedAccount, signer } from './web3';
 import { profilePictures, usernames, click2url, profileTopics } from './loadalladata';
+import { pictureElement } from './loopmedia.js';
 import { isHederaAccount } from './handleallmessages';
 import { toast } from './toast'
 import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, formatHcsUsage, utf8ByteLength, normalizeMessageNewlines } from './hcschunks.js';
@@ -643,8 +644,7 @@ export async function appendEncryptedChatMessage(
         border-color: ${innerContainerTopicChatColor};
       `;
 
-      const img = document.createElement('img');
-      img.src = validPayerImage;
+      const img = pictureElement(validPayerImage, { alt: 'Profile photo' });
       img.alt = 'Profile photo';
       img.dataset.payer = payer;
       img.style.cssText = `
@@ -654,6 +654,7 @@ export async function appendEncryptedChatMessage(
         width: 2em;
         height: 2em;
         border-radius: 1em;
+        object-fit: cover;
         cursor: pointer;
       `;
       img.addEventListener('click', () => loadBio4PIC(payer));
@@ -1361,8 +1362,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
       `;
 
       // Profile image
-      const img = document.createElement('img');
-      img.src = validPayerImage;
+      const img = pictureElement(validPayerImage, { alt: 'Profile photo' });
       img.alt = 'Profile photo';
       img.dataset.payer = payer;
       img.style.cssText = `
@@ -1372,6 +1372,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
         width: 2em;
         height: 2em;
         border-radius: 1em;
+        object-fit: cover;
         cursor: pointer;
       `;
       img.addEventListener('click', () => loadBio4PIC(payer));

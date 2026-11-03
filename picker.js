@@ -12,6 +12,7 @@ import {
   followingCountText,
   followingEmptyText,
 } from './followsuggest.js';
+import { pictureElement } from './loopmedia.js';
 
 const RECENT_KEY = 'picker-recent-v1';
 const ROW_H = 56;
@@ -396,12 +397,10 @@ function entryNode(box) {
   const secondary = document.createElement('div');
   secondary.className = 'follow-suggest-id';
   if (item.kind === 'account') {
-    const img = document.createElement('img');
-    img.className = 'follow-suggest-avatar';
-    img.alt = '';
-    img.src = item.avatar || DEFAULT_AVATAR;
-    img.addEventListener('error', () => {
-      if (img.src !== DEFAULT_AVATAR) img.src = DEFAULT_AVATAR;
+    const img = pictureElement(item.avatar || DEFAULT_AVATAR, {
+      className: 'follow-suggest-avatar',
+      alt: '',
+      fallback: DEFAULT_AVATAR,
     });
     appendHighlighted(primary, item.username || item.id, query);
     appendHighlighted(secondary, item.id, query);

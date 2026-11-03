@@ -6,11 +6,10 @@ import { payerUsernameNode } from './payerlink.js';
 import { paintEarlyProfile } from './loadprofilepopup.js';
 import { paintProfileAvatar } from './earlyhashinal.js';
 import { watchProfilePicture } from './markertilt.js';
+import { mountPicture } from './loopmedia.js';
 
 const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 
-const picEl = document.getElementById('profile-live-pic');
-const circleEl = document.getElementById('profile-circle-preview-img');
 const accountEl = document.getElementById('profile-live-account');
 const nameEl = document.getElementById('profile-live-username');
 const bioEl = document.getElementById('profile-live-bio');
@@ -57,11 +56,18 @@ function colorOf(id, fallback) {
   return el && el.value ? el.value : fallback;
 }
 
+function paintLive(el, url) {
+  if (!el) return el;
+  return mountPicture(el, url, { className: el.className, fallback: DEFAULT_PIC });
+}
+
 function render() {
-  if (!picEl) return;
+  const live = document.getElementById('profile-live-pic');
+  const circle = document.getElementById('profile-circle-preview-img');
+  if (!live) return;
   const nextPic = pictureUrl();
-  if (picEl.getAttribute('src') !== nextPic) picEl.src = nextPic;
-  if (circleEl && circleEl.getAttribute('src') !== nextPic) circleEl.src = nextPic;
+  const shown = paintLive(live, nextPic);
+  paintLive(circle, nextPic);
 
   accountEl.textContent = connectedAccount || 'Not connected';
   accountEl.style.color = colorOf('color-picker-popup-accid', '#ffffff');
@@ -80,19 +86,23 @@ function render() {
   const hasBio = bio.trim().length > 0;
   bioEl.textContent = hasBio ? bio : 'No bio yet';
   bioEl.classList.toggle('is-empty', !hasBio);
-  paintProfileAvatar(picEl, connectedAccount || "");
-  watchProfilePicture(picEl);
-  paintEarlyProfile(picEl && picEl.closest(".profile-live-preview"), connectedAccount || "");
+  paintProfileAvatar(shown, connectedAccount || "");
+  watchProfilePicture(shown);
+  paintEarlyProfile(shown && shown.closest(".profile-live-preview"), connectedAccount || "");
 }
 
 function useFallback(src) {
   failedPic = src;
-  if (picEl.getAttribute('src') !== DEFAULT_PIC) picEl.src = DEFAULT_PIC;
-  if (circleEl && circleEl.getAttribute('src') !== DEFAULT_PIC) circleEl.src = DEFAULT_PIC;
+  const live = document.getElementById('profile-live-pic');
+  const circle = document.getElementById('profile-circle-preview-img');
+  paintLive(live, DEFAULT_PIC);
+  paintLive(circle, DEFAULT_PIC);
 }
 
-picEl.addEventListener('error', () => useFallback(picEl.src));
-if (circleEl) circleEl.addEventListener('error', () => useFallback(circleEl.src));
+const firstPic = document.getElementById('profile-live-pic');
+const firstCircle = document.getElementById('profile-circle-preview-img');
+if (firstPic) firstPic.addEventListener('error', () => useFallback(firstPic.src));
+if (firstCircle) firstCircle.addEventListener('error', () => useFallback(firstCircle.src));
 
 function keepDraft(event, input, apply) {
   // A save clears the box from code. That is not a new draft, so the card

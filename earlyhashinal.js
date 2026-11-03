@@ -115,7 +115,7 @@ export function paintProfileAvatar(img, account) {
 }
 
 function repaintProfiles() {
-  const nodes = document.querySelectorAll("img[data-early-account]");
+  const nodes = document.querySelectorAll("img[data-early-account], video.loop-face[data-early-account]");
   for (const img of nodes) {
     if (img.isConnected) syncProfileRing(img);
   }

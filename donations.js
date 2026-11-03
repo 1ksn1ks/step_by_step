@@ -7,6 +7,7 @@ import { connectedAccount } from './web3.js';
 import { sendHbarDonation } from './hedera.js';
 import { toast } from './toast.js';
 import { profilePictures, usernames } from './loadalladata.js';
+import { mountPicture, pictureElement } from './loopmedia.js';
 import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import {
   bareAccount,
@@ -333,11 +334,10 @@ function ensureSheet() {
 
   const head = document.createElement('div');
   head.className = 'donate-head';
-  const avatar = document.createElement('img');
-  avatar.className = 'donate-avatar';
-  avatar.alt = '';
-  avatar.addEventListener('error', () => {
-    if (!avatar.src.endsWith('/0.0.4819119')) avatar.src = DEFAULT_AVATAR;
+  const avatar = pictureElement(DEFAULT_AVATAR, {
+    className: 'donate-avatar',
+    alt: '',
+    fallback: DEFAULT_AVATAR,
   });
   const who = document.createElement('div');
   who.className = 'donate-who';
@@ -508,7 +508,7 @@ function showSheet(topicId, ts, account, host) {
     accountLine.textContent = showId ? account : '';
     accountLine.hidden = !showId;
   }
-  if (avatar) avatar.src = recipientAvatar(account);
+  if (avatar) mountPicture(avatar, recipientAvatar(account), { className: 'donate-avatar', fallback: DEFAULT_AVATAR });
   paintSheetChrome(host);
   lockFields(false);
   paintSend();
