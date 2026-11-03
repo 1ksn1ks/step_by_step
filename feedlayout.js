@@ -35,6 +35,7 @@ import { openPreview } from './fullscreenmedia.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
 import { VIEW_SORT_BATCH, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs } from './viewsort.js';
+import { FEED_VIDEO_THRESHOLDS, feedAutoplayAllowed, pickFeedVideo } from './feedvideo.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -47,7 +48,7 @@ const FEED_ZOOM_MIN = 0.5;
 const FEED_ZOOM_MAX = 1.5;
 const feedPrefs = {
   tab: 'all',
-  autoplay: false,
+  autoplay: true,
   dataSaver: false,
   zoom: 1,
 };
@@ -57,7 +58,7 @@ function readFeedPrefs() {
   try {
     const tab = localStorage.getItem(FEED_SETTING.tab);
     if (tab === 'all' || tab === 'following') feedPrefs.tab = tab;
-    feedPrefs.autoplay = localStorage.getItem(FEED_SETTING.autoplay) === 'on';
+    feedPrefs.autoplay = localStorage.getItem(FEED_SETTING.autoplay) !== 'off';
     feedPrefs.dataSaver = localStorage.getItem(FEED_SETTING.data) === 'on';
     const zoom = localStorage.getItem(FEED_SETTING.zoom);
     if (zoom != null) feedPrefs.zoom = clampFeedZoom(zoom);
@@ -1714,12 +1715,6 @@ function syncCardView(card) {
   else disarmView(card);
 }
 
-function warmFeedVideo(card) {
-  const video = card.querySelector('.popup-media-card video');
-  if (!video || video.preload !== 'none' || !video.paused) return;
-  video.preload = 'metadata';
-}
-
 function linkInfo() {
   return navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
 }
@@ -1736,45 +1731,207 @@ function connectionConstrained() {
 }
 
 function autoplayAllowed() {
-  if (!feedPrefs.autoplay) return false;
-  if (!feedPrefs.dataSaver) return true;
+  const net = linkInfo();
   const constrained = connectionConstrained();
-  if (constrained == null) return false;
-  return !constrained;
+  let reducedMotion = false;
+  try {
+    reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    reducedMotion = false;
+  }
+  return feedAutoplayAllowed({
+    autoplay: feedPrefs.autoplay,
+    reducedMotion,
+    saveData: !!(net && net.saveData),
+    dataSaver: feedPrefs.dataSaver,
+    connectionKnown: constrained != null,
+    constrained: constrained === true,
+  });
 }
 
-function startFeedVideo(video) {
-  video.playsInline = true;
-  if (video.preload === 'none') video.preload = 'metadata';
-  if (video.dataset.feedAuto !== '1') video.muted = true;
-  video.dataset.feedAuto = '1';
-  if (!video.paused) return;
-  const started = video.play();
-  if (started && typeof started.catch === 'function') {
-    started.catch(() => {
-      video.muted = true;
-      video.play().catch(() => {});
-    });
+// One observer for every feed-card video. The root is the scroller node, so
+// parking that node inside #feed-search-results keeps the same root.
+const feedVideoRatio = new Map();
+let feedVideoObserver = null;
+let activeFeedVideo = null;
+let preferredFeedVideo = null;
+let feedVideoFrame = 0;
+let feedVideoLock = 0;
+
+function feedVideoBlocked() {
+  if (document.visibilityState === 'hidden') return true;
+  if (!feedOn() || root.classList.contains('is-peek')) return true;
+  if (!profilePage.hidden || profilePage.classList.contains('nav-cover')) return true;
+  if (!settings.hidden || settingsOpen || settings.classList.contains('nav-cover')) return true;
+  if (!feedChat.hidden || feedChat.classList.contains('nav-cover')) return true;
+  if (!menu.hidden) return true;
+  if (filterCard.style.display === 'block') return true;
+  if (document.querySelector('.comments-modal')) return true;
+  if (document.getElementById('media-fullscreen')) return true;
+  return false;
+}
+
+function ensureFeedVideoSrc(video) {
+  if (video.getAttribute('src')) return;
+  const src = video.dataset.src;
+  if (!src) return;
+  video.preload = 'auto';
+  video.src = src;
+}
+
+function startFeedVideo(video, fromUser) {
+  if (!video || video.dataset.feedHold === '1') return;
+  feedVideoLock += 1;
+  try {
+    ensureFeedVideoSrc(video);
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.loop = true;
+    if (!fromUser && video.dataset.feedSound !== '1') video.muted = true;
+    video.dataset.feedAuto = fromUser ? 'user' : '1';
+    if (!video.paused) return;
+    const started = video.play();
+    if (started && typeof started.catch === 'function') {
+      started.catch(() => {
+        if (video.dataset.feedSound === '1') return;
+        video.muted = true;
+        video.play().catch(() => {});
+      });
+    }
+  } finally {
+    feedVideoLock -= 1;
   }
 }
 
-function syncFeedVideo(card) {
-  const video = card.querySelector('.popup-media-card video');
-  if (!video) return;
-  const allow = autoplayAllowed() && !settingsOpen && cardInView(card) && feedCovers();
-  if (allow && video.dataset.feedHold !== '1') {
-    startFeedVideo(video);
+function pauseFeedVideo(video) {
+  if (!video || video.paused) return;
+  feedVideoLock += 1;
+  try {
+    video.pause();
+  } finally {
+    feedVideoLock -= 1;
+  }
+}
+
+function releaseFeedVideo(video) {
+  if (feedVideoObserver) feedVideoObserver.unobserve(video);
+  feedVideoRatio.delete(video);
+  if (activeFeedVideo === video) activeFeedVideo = null;
+  if (preferredFeedVideo === video) preferredFeedVideo = null;
+  pauseFeedVideo(video);
+}
+
+function settleFeedVideos() {
+  scanFeedVideos();
+  for (const video of [...feedVideoRatio.keys()]) {
+    if (!video.isConnected) releaseFeedVideo(video);
+  }
+  if (preferredFeedVideo && !feedVideoRatio.has(preferredFeedVideo)) preferredFeedVideo = null;
+  if (feedVideoBlocked()) {
+    activeFeedVideo = null;
+    for (const video of feedVideoRatio.keys()) pauseFeedVideo(video);
     return;
   }
-  if (!allow && video.dataset.feedAuto === '1') {
-    delete video.dataset.feedHold;
-    delete video.dataset.feedAuto;
-    if (!video.paused) video.pause();
+  const allow = autoplayAllowed();
+  const candidates = [];
+  for (const [video, ratio] of feedVideoRatio) {
+    if (!video.closest('#feed-column')) {
+      pauseFeedVideo(video);
+      continue;
+    }
+    if (video.dataset.feedHold === '1' && video !== preferredFeedVideo) continue;
+    candidates.push({ id: video, ratio });
   }
+  let next = null;
+  if (allow || preferredFeedVideo) {
+    next = pickFeedVideo(candidates, {
+      preferred: preferredFeedVideo,
+      current: activeFeedVideo,
+    });
+  }
+  if (!allow && next !== preferredFeedVideo) next = null;
+  if (preferredFeedVideo && next !== preferredFeedVideo) {
+    const ratio = feedVideoRatio.get(preferredFeedVideo) || 0;
+    if (!(ratio > 0)) preferredFeedVideo = null;
+  }
+  for (const video of feedVideoRatio.keys()) {
+    if (video !== next) pauseFeedVideo(video);
+  }
+  activeFeedVideo = next;
+  if (next) startFeedVideo(next, next === preferredFeedVideo);
 }
 
 function syncFeedVideos() {
-  for (const card of column.querySelectorAll('.feed-card')) syncFeedVideo(card);
+  if (feedVideoFrame) {
+    cancelAnimationFrame(feedVideoFrame);
+    feedVideoFrame = 0;
+  }
+  settleFeedVideos();
+}
+
+function queueFeedVideos() {
+  if (feedVideoFrame) return;
+  feedVideoFrame = requestAnimationFrame(() => {
+    feedVideoFrame = 0;
+    settleFeedVideos();
+  });
+}
+
+function ensureFeedVideoObserver() {
+  if (feedVideoObserver) return feedVideoObserver;
+  feedVideoObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      feedVideoRatio.set(entry.target, entry.isIntersecting ? entry.intersectionRatio : 0);
+    }
+    queueFeedVideos();
+  }, { root: scroller, threshold: FEED_VIDEO_THRESHOLDS.slice() });
+  return feedVideoObserver;
+}
+
+function preferFeedVideo(video) {
+  preferredFeedVideo = video;
+  delete video.dataset.feedHold;
+  if (!video.muted) video.dataset.feedSound = '1';
+  syncFeedVideos();
+}
+
+function bindFeedVideo(video) {
+  if (!video || video.dataset.feedBound === '1') return;
+  if (video.closest('.comments-modal, #feed-chat, .feed-comments-stage')) return;
+  video.dataset.feedBound = '1';
+  video.controls = true;
+  video.playsInline = true;
+  video.setAttribute('playsinline', '');
+  video.loop = true;
+  video.preload = video.getAttribute('src') ? video.preload : 'none';
+  if (video.dataset.feedSound !== '1') video.muted = true;
+  video.addEventListener('play', () => {
+    if (feedVideoLock || video === activeFeedVideo) return;
+    preferFeedVideo(video);
+  });
+  video.addEventListener('volumechange', () => {
+    if (video.muted) {
+      delete video.dataset.feedSound;
+      return;
+    }
+    video.dataset.feedSound = '1';
+    if (feedVideoLock) return;
+    preferFeedVideo(video);
+  });
+  video.addEventListener('pause', () => {
+    if (feedVideoLock || feedVideoBlocked()) return;
+    if (video !== activeFeedVideo && video !== preferredFeedVideo) return;
+    video.dataset.feedHold = '1';
+    if (preferredFeedVideo === video) preferredFeedVideo = null;
+    if (activeFeedVideo === video) activeFeedVideo = null;
+    queueFeedVideos();
+  });
+  ensureFeedVideoObserver().observe(video);
+  if (!feedVideoRatio.has(video)) feedVideoRatio.set(video, 0);
+}
+
+function scanFeedVideos() {
+  for (const video of column.querySelectorAll('.popup-media-card video')) bindFeedVideo(video);
 }
 
 function syncVisibleViews() {
@@ -1785,7 +1942,6 @@ function syncVisibleViews() {
       continue;
     }
     syncCardView(card);
-    syncFeedVideo(card);
   }
 }
 
@@ -1817,12 +1973,10 @@ function ensureViewObserver() {
     for (const entry of entries) {
       if (entry.isIntersecting) {
         viewIntersecting.add(entry.target);
-        warmFeedVideo(entry.target);
         wantPlace(entry.target);
         noteVisibleDonation(entry.target);
       } else {
         viewIntersecting.delete(entry.target);
-        syncFeedVideo(entry.target);
       }
       syncCardView(entry.target);
     }
@@ -2019,20 +2173,25 @@ function buildCard(post) {
     if (video) {
       node.controls = true;
       node.playsInline = true;
+      node.setAttribute('playsinline', '');
+      node.loop = true;
+      node.muted = true;
       node.preload = 'none';
+      node.dataset.src = src;
       const poster = mediaOf(record.coverimage);
       if (poster && !isVideo(poster)) node.poster = poster;
-      node.src = src;
       media.appendChild(node);
+      bindFeedVideo(node);
       coverFeedPlayer(media, () => {
         if (node.paused) {
-          delete node.dataset.feedHold;
-          const started = node.play();
-          if (started && typeof started.catch === 'function') started.catch(() => {});
-        } else {
-          node.dataset.feedHold = '1';
-          node.pause();
+          preferFeedVideo(node);
+          return;
         }
+        node.dataset.feedHold = '1';
+        if (preferredFeedVideo === node) preferredFeedVideo = null;
+        if (activeFeedVideo === node) activeFeedVideo = null;
+        pauseFeedVideo(node);
+        queueFeedVideos();
       });
     } else {
       node.alt = '';
@@ -4161,12 +4320,22 @@ function syncSearchChrome() {
   if (!searchPage.hidden) revealSearchHead();
 }
 
+function reobserveFeedVideos() {
+  if (!feedVideoObserver) return;
+  for (const video of [...feedVideoRatio.keys()]) {
+    feedVideoObserver.unobserve(video);
+    if (video.isConnected) feedVideoObserver.observe(video);
+  }
+  queueFeedVideos();
+}
+
 function parkScroller() {
   if (scroller.parentNode === searchResults) return;
   const y = scroller.scrollTop;
   tabTrackHold = true;
   searchResults.appendChild(scroller);
   setFeedScroll(y);
+  reobserveFeedVideos();
 }
 
 function unparkScroller() {
@@ -4175,6 +4344,7 @@ function unparkScroller() {
   tabTrackHold = true;
   frame.insertBefore(scroller, menuDim);
   setFeedScroll(y);
+  reobserveFeedVideos();
 }
 
 function pinWindow() {
@@ -8418,7 +8588,21 @@ root.addEventListener('click', (event) => event.stopPropagation());
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') flushViewsNow();
+  syncFeedVideos();
 });
+try {
+  const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  if (motionQuery.addEventListener) motionQuery.addEventListener('change', syncFeedVideos);
+} catch {
+  /* matchMedia is missing */
+}
+const feedVideoShell = new MutationObserver(() => queueFeedVideos());
+for (const node of [profilePage, settings, feedChat, menu, root]) {
+  feedVideoShell.observe(node, { attributes: true, attributeFilter: ['hidden', 'class', 'style'] });
+}
+feedVideoShell.observe(filterCard, { attributes: true, attributeFilter: ['style'] });
+feedVideoShell.observe(document.body, { childList: true });
+feedVideoShell.observe(column, { childList: true, subtree: true });
 window.addEventListener('pagehide', flushViewsNow);
 
 allTab.addEventListener('click', () => { selectTab('all'); });
