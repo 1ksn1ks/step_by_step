@@ -3,6 +3,7 @@
 // The topic rule is the admin's autoplayNft plus a cached hold for the
 // polygon creator. The viewer's wallet is not an input.
 import { isHederaTokenId } from './loadcurrenttopic.js';
+import { retryAfterMs } from './viewsort.js';
 
 const MIRROR = 'https://mainnet.mirrornode.hedera.com';
 
@@ -21,10 +22,28 @@ const topicTokens = new Map();
 const holds = new Map();
 const inflight = new Map();
 
+// The public mirror is shared with the rest of the app. Four hold reads
+// run at once. A 429 waits out Retry-After, then that read is tried again
+// instead of being stored as a miss. Four 429s in a row give up.
+export const MIRROR_HOLD_LIMIT = 4;
+const MIRROR_HOLD_429_TRIES = 4;
+
+let mirrorActive = 0;
+const mirrorWaiters = [];
+let mirrorPauseUntil = 0;
+let mirrorPauseTimer = 0;
+
 export function clearAutoplayState() {
   topicTokens.clear();
   holds.clear();
   inflight.clear();
+  mirrorActive = 0;
+  mirrorWaiters.length = 0;
+  mirrorPauseUntil = 0;
+  if (mirrorPauseTimer) {
+    clearTimeout(mirrorPauseTimer);
+    mirrorPauseTimer = 0;
+  }
 }
 
 export function rememberTopicAutoplay(topicId, tokenId) {
@@ -118,6 +137,94 @@ export function tokenIsUniqueNft(info) {
   return !!info && info.deleted !== true && info.type === 'NON_FUNGIBLE_UNIQUE';
 }
 
+function retryAfterHeader(response) {
+  const headers = response && response.headers;
+  if (!headers) return null;
+  if (typeof headers.get === 'function') return headers.get('retry-after');
+  return headers['retry-after'] ?? headers['Retry-After'] ?? null;
+}
+
+function armMirrorPause() {
+  if (mirrorPauseTimer || !mirrorWaiters.length) return;
+  const wait = mirrorPauseUntil - Date.now();
+  if (wait <= 0) return;
+  mirrorPauseTimer = setTimeout(() => {
+    mirrorPauseTimer = 0;
+    pumpMirror();
+  }, wait);
+}
+
+// A free slot is taken now, so the fetch starts before lookupHolds yields.
+// Anything past the limit, or inside a 429 pause, waits for pumpMirror.
+function acquireMirror() {
+  if (mirrorActive < MIRROR_HOLD_LIMIT && Date.now() >= mirrorPauseUntil) {
+    mirrorActive += 1;
+    return null;
+  }
+  return new Promise((resolve) => {
+    mirrorWaiters.push(resolve);
+    armMirrorPause();
+  });
+}
+
+function pumpMirror() {
+  if (mirrorPauseTimer) return;
+  const wait = mirrorPauseUntil - Date.now();
+  if (wait > 0) {
+    armMirrorPause();
+    return;
+  }
+  while (mirrorWaiters.length && mirrorActive < MIRROR_HOLD_LIMIT) {
+    mirrorActive += 1;
+    const resume = mirrorWaiters.shift();
+    resume();
+  }
+}
+
+function releaseMirror() {
+  mirrorActive = Math.max(0, mirrorActive - 1);
+  pumpMirror();
+}
+
+function pauseMirror(ms) {
+  const until = Date.now() + Math.max(0, Number(ms) || 0);
+  if (until > mirrorPauseUntil) mirrorPauseUntil = until;
+}
+
+function readMirrorHold(account, token, fetchImpl, now) {
+  const key = holdKey(account, token);
+  return (async () => {
+    try {
+      for (let attempt = 0; attempt < MIRROR_HOLD_429_TRIES; attempt++) {
+        const wait = acquireMirror();
+        if (wait) await wait;
+        try {
+          const response = await fetchImpl(mirrorHoldUrl(account, token));
+          if (response && response.status === 429) {
+            pauseMirror(retryAfterMs(retryAfterHeader(response)));
+            continue;
+          }
+          if (!response || !response.ok) {
+            rememberHoldFailure(account, token, now);
+            return;
+          }
+          const body = await response.json();
+          rememberHold(account, token, holdsFromMirrorBody(body), now);
+          return;
+        } catch {
+          rememberHoldFailure(account, token, now);
+          return;
+        } finally {
+          releaseMirror();
+        }
+      }
+      rememberHoldFailure(account, token, now);
+    } finally {
+      inflight.delete(key);
+    }
+  })();
+}
+
 export async function lookupHolds(queries, fetchImpl = globalThis.fetch, now = Date.now()) {
   const jobs = [];
   for (const query of queries || []) {
@@ -129,21 +236,7 @@ export async function lookupHolds(queries, fetchImpl = globalThis.fetch, now = D
       jobs.push(inflight.get(key));
       continue;
     }
-    const job = (async () => {
-      try {
-        const response = await fetchImpl(mirrorHoldUrl(account, token));
-        if (!response || !response.ok) {
-          rememberHoldFailure(account, token, now);
-          return;
-        }
-        const body = await response.json();
-        rememberHold(account, token, holdsFromMirrorBody(body), now);
-      } catch {
-        rememberHoldFailure(account, token, now);
-      } finally {
-        inflight.delete(key);
-      }
-    })();
+    const job = readMirrorHold(account, token, fetchImpl, now);
     inflight.set(key, job);
     jobs.push(job);
   }

@@ -17,6 +17,7 @@ import {
   coverShouldRelease,
   holdQueriesFor,
   lookupHolds,
+  MIRROR_HOLD_LIMIT,
   mirrorHoldUrl,
   pickAutoplayCover,
   readUniqueNft,
@@ -160,6 +161,14 @@ test("a cover video does not take a src until play, except the one frame grab", 
   const grab = source.slice(grabAt, playAt);
   const play = source.slice(playAt, registerAt);
   const register = source.slice(registerAt, source.indexOf("function ensurePump", registerAt));
+  const scheduleAt = source.indexOf("function scheduleVisPass");
+  assert.ok(scheduleAt !== -1 && scheduleAt < registerAt);
+  const schedule = source.slice(scheduleAt, registerAt);
+  assert.match(schedule, /if \(visPassFrame\) return;/);
+  assert.match(schedule, /requestAnimationFrame/);
+  assert.match(schedule, /visPass\(\)/);
+  assert.match(register, /scheduleVisPass\(\)/);
+  assert.equal(register.includes("visPass()"), false);
   assert.match(grab, /preload = 'metadata'/);
   assert.match(grab, /currentTime = 0/);
   assert.match(grab, /removeAttribute\('src'\)/);
@@ -272,6 +281,110 @@ test("a failed holder lookup is not treated as a hold and retries later", async 
   assert.deepEqual(holdQueriesFor([{ topicId: "0.0.10", payer: "0.0.2" }], 10 + AUTOPLAY_HOLD_RETRY_MS - 1), []);
   assert.equal(holdQueriesFor([{ topicId: "0.0.10", payer: "0.0.2" }], 10 + AUTOPLAY_HOLD_RETRY_MS).length, 1);
   assert.equal(calls, 1);
+});
+
+function holdQueryList(count) {
+  const queries = [];
+  for (let i = 1; i <= count; i++) queries.push({ account: `0.0.${i}`, token: "0.0.77" });
+  return queries;
+}
+
+function mirrorOk(nfts) {
+  return { ok: true, json: async () => ({ nfts }) };
+}
+
+test("holder lookups keep four mirror reads in flight", async () => {
+  clearAutoplayState();
+  assert.equal(MIRROR_HOLD_LIMIT, 4);
+  let active = 0;
+  let maxActive = 0;
+  let started = 0;
+  const releasers = [];
+  const pending = lookupHolds(holdQueryList(6), () => {
+    active += 1;
+    started += 1;
+    if (active > maxActive) maxActive = active;
+    return new Promise((resolve) => {
+      releasers.push(() => {
+        active -= 1;
+        resolve(mirrorOk([]));
+      });
+    });
+  }, 1);
+  assert.equal(started, MIRROR_HOLD_LIMIT);
+  assert.equal(maxActive, MIRROR_HOLD_LIMIT);
+  while (started < 6) {
+    releasers.shift()();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(active <= MIRROR_HOLD_LIMIT, true);
+  }
+  assert.equal(started, 6);
+  assert.equal(maxActive, MIRROR_HOLD_LIMIT);
+  while (releasers.length) releasers.shift()();
+  await pending;
+  assert.equal(cachedHold("0.0.6", "0.0.77", 1), false);
+});
+
+test("a 429 waits out Retry-After and retries instead of caching a miss", async () => {
+  clearAutoplayState();
+  rememberTopicAutoplay("0.0.10", "0.0.77");
+  let calls = 0;
+  let secondStarted = false;
+  const pending = lookupHolds([
+    { account: "0.0.2", token: "0.0.77" },
+    { account: "0.0.3", token: "0.0.77" },
+    { account: "0.0.4", token: "0.0.77" },
+    { account: "0.0.5", token: "0.0.77" },
+    { account: "0.0.6", token: "0.0.77" },
+  ], (url) => {
+    calls += 1;
+    if (url.includes("/accounts/0.0.6/")) secondStarted = true;
+    if (url.includes("/accounts/0.0.2/") && calls === 1) {
+      return {
+        ok: false,
+        status: 429,
+        headers: { get: (name) => (String(name).toLowerCase() === "retry-after" ? "0.05" : null) },
+      };
+    }
+    return Promise.resolve(mirrorOk([]));
+  }, 20);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(secondStarted, false);
+  await pending;
+  assert.equal(secondStarted, true);
+  assert.equal(cachedHold("0.0.2", "0.0.77", 20), false);
+  assert.equal(shouldAutoplayCover({ topicId: "0.0.10", payer: "0.0.2" }, open, 20), false);
+  clearAutoplayState();
+  rememberTopicAutoplay("0.0.10", "0.0.77");
+  let retried = 0;
+  await lookupHolds([{ account: "0.0.2", token: "0.0.77" }], async () => {
+    retried += 1;
+    if (retried === 1) {
+      return {
+        ok: false,
+        status: 429,
+        headers: { get: () => "0" },
+      };
+    }
+    return mirrorOk([{ token_id: "0.0.77" }]);
+  }, 30);
+  assert.equal(retried, 2);
+  assert.equal(cachedHold("0.0.2", "0.0.77", 30), true);
+  assert.equal(shouldAutoplayCover({ topicId: "0.0.10", payer: "0.0.2" }, open, 30), true);
+});
+
+test("repeated 429s give up after four tries and are not a hold", async () => {
+  clearAutoplayState();
+  rememberTopicAutoplay("0.0.10", "0.0.77");
+  let calls = 0;
+  await lookupHolds([{ account: "0.0.2", token: "0.0.77" }], async () => {
+    calls += 1;
+    return { ok: false, status: 429, headers: { get: () => "0" } };
+  }, 40);
+  assert.equal(calls, 4);
+  assert.equal(cachedHold("0.0.2", "0.0.77", 40), null);
+  assert.equal(shouldAutoplayCover({ topicId: "0.0.10", payer: "0.0.2" }, open, 40), false);
+  assert.deepEqual(holdQueriesFor([{ topicId: "0.0.10", payer: "0.0.2" }], 40 + AUTOPLAY_HOLD_RETRY_MS - 1), []);
 });
 
 test("only a live NON_FUNGIBLE_UNIQUE token can be saved", async () => {

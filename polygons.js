@@ -920,6 +920,17 @@ function placeCoverButton(cov) {
   syncCoverButton(cov);
 }
 
+// Many covers can register in one turn. One visPass on the next frame
+// sees all of them. A pass that is already queued is left in place.
+let visPassFrame = 0;
+function scheduleVisPass() {
+  if (visPassFrame) return;
+  visPassFrame = requestAnimationFrame(() => {
+    visPassFrame = 0;
+    visPass();
+  });
+}
+
 // Register a video cover. The file stays unloaded until a tap. In view, the
 // texture becomes the poster or a cached frame 0. A topic reload drops the
 // previous entry so a stale video cannot block the new one.
@@ -945,7 +956,7 @@ function registerCover(sourceId, layerId, url, corners, polygon) {
   cov.inView = coverInView(corners, cameraState());
   mediaCovers.set(sourceId, cov);
   ensureVisTimer();
-  visPass();
+  scheduleVisPass();
 }
 
 // The shared pump blits only the cover that is playing. Off-view, hidden,
