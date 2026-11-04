@@ -7257,6 +7257,36 @@ html, body {
     animation: none;
   }
 }
+/* Holder ring on the shared play glass. Feed cards and map popups already
+   carry early-holder-popup. Topic chat and E2EE only carry
+   toolbar-group-messages; .early-hashinal is the holder class an avatar
+   in that group can already have. A polygon cover stays cyan unless its
+   container already has one of those classes. --eh-angle does not inherit,
+   so the glass runs early-hashinal-angle itself. */
+:is(.early-holder-popup, .early-holder-card) :is(.video-play-glass, .polygon-cover-play-glass),
+.toolbar-group-messages:has(.early-hashinal) :is(.video-play-glass, .polygon-cover-play-glass) {
+  border-color: transparent;
+  background-color: transparent;
+  background-image:
+    linear-gradient(rgba(8, 10, 18, 0.72), rgba(8, 10, 18, 0.72)),
+    conic-gradient(from var(--eh-angle), #f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  box-shadow:
+    0 0 calc(var(--fu) * 1.15) rgba(255, 74, 214, 0.45),
+    0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.35);
+  animation: early-hashinal-angle 4s linear infinite;
+}
+:is(.early-holder-popup, .early-holder-card) :is(.video-play-icon, .polygon-cover-play-icon) path,
+.toolbar-group-messages:has(.early-hashinal) :is(.video-play-icon, .polygon-cover-play-icon) path {
+  fill: #f6e27a;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.early-holder-popup, .early-holder-card) :is(.video-play-glass, .polygon-cover-play-glass),
+  .toolbar-group-messages:has(.early-hashinal) :is(.video-play-glass, .polygon-cover-play-glass) {
+    animation-duration: 8s;
+  }
+}
 html.feed-app .polygon-cover-play {
   visibility: hidden;
   pointer-events: none;
@@ -9558,7 +9588,9 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::before,
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::after,
   .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::before,
-  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::after {
+  .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::after,
+  :is(.early-holder-popup, .early-holder-card) :is(.video-play-glass, .polygon-cover-play-glass),
+  .toolbar-group-messages:has(.early-hashinal) :is(.video-play-glass, .polygon-cover-play-glass) {
     animation-duration: 8s;
   }
 }
@@ -14616,6 +14648,9 @@ html.feed-app .marker-title-tip.early::before,
 html.feed-app .marker-title-tip.early > .marker-tip-spin::before,
 html.feed-app #profile-live-preview.early-holder-card .profile-live-bubble,
 html.feed-app #profile-live-preview.early-holder-card .profile-live-bubble::before,
+html.feed-app .maplibregl-map .maplibregl-popup.early-holder-popup .video-play-glass,
+html.feed-app .maplibregl-map .maplibregl-popup.early-holder-popup .polygon-cover-play-glass,
+html.feed-app #profile-live-preview.early-holder-card :is(.video-play-glass, .polygon-cover-play-glass),
 html.eh-hidden .maplibregl-map .early-hashinal,
 html.eh-hidden .maplibregl-map .early-hashinal::before,
 html.eh-hidden .maplibregl-map .early-hashinal::after,
@@ -14639,7 +14674,12 @@ html.eh-hidden .marker-title-tip.early > .marker-tip-spin::before,
 html.eh-hidden #profile-live-preview.early-holder-card .profile-live-bubble,
 html.eh-hidden #profile-live-preview.early-holder-card .profile-live-bubble::before,
 html.eh-hidden #profile-live-preview.early-holder-card .profile-live-bubble::after,
+html.eh-hidden .maplibregl-map .maplibregl-popup.early-holder-popup .video-play-glass,
+html.eh-hidden .maplibregl-map .maplibregl-popup.early-holder-popup .polygon-cover-play-glass,
+html.eh-hidden #profile-live-preview.early-holder-card :is(.video-play-glass, .polygon-cover-play-glass),
+html.eh-hidden .toolbar-group-messages:has(.early-hashinal) :is(.video-play-glass, .polygon-cover-play-glass),
 .eh-off,
+.eh-off :is(.video-play-glass, .polygon-cover-play-glass),
 .eh-off::before,
 .eh-off::after,
 .eh-off > .early-hashinal-spin::before,

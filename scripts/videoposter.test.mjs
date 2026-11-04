@@ -760,3 +760,35 @@ test("the first two visible videos grab a frame on render and never upload it", 
     else globalThis.fetch = previousFetch;
   }
 });
+
+test("a holder play glass reuses the conic ring and the existing pause", () => {
+  const css = readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  const at = css.indexOf("/* Holder ring on the shared play glass.");
+  assert.ok(at !== -1);
+  const block = css.slice(at, css.indexOf("html.feed-app .polygon-cover-play {", at));
+  assert.match(block, /:is\(\.early-holder-popup, \.early-holder-card\) :is\(\.video-play-glass, \.polygon-cover-play-glass\)/);
+  assert.match(block, /\.toolbar-group-messages:has\(\.early-hashinal\) :is\(\.video-play-glass, \.polygon-cover-play-glass\)/);
+  assert.match(block, /conic-gradient\(from var\(--eh-angle\), #f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a\)/);
+  assert.match(block, /background-origin: border-box;/);
+  assert.match(block, /background-clip: padding-box, border-box;/);
+  assert.match(block, /rgba\(255, 74, 214, 0\.45\)/);
+  assert.equal(block.includes("34, 211, 238"), false);
+  assert.match(block, /animation: early-hashinal-angle 4s linear infinite;/);
+  assert.match(block, /fill: #f6e27a;/);
+  assert.match(block, /animation-duration: 8s;/);
+  assert.equal(block.includes("animation: none"), false);
+  assert.equal(/\bwidth:|\bheight:|\bborder-width:/.test(block), false);
+  const sharedAt = css.indexOf(":is(.polygon-cover-play-glass, .video-play-glass) {");
+  const shared = css.slice(sharedAt, css.indexOf(":is(.polygon-cover-play-icon, .video-play-icon)", sharedAt));
+  assert.match(shared, /#22D3EE/);
+  assert.match(shared, /rgba\(34, 211, 238, 0\.45\)/);
+  const pauseAt = css.indexOf("The feed covers the map");
+  const pause = css.slice(pauseAt, css.indexOf("animation-play-state: paused !important;", pauseAt));
+  assert.match(pause, /html\.feed-app \.maplibregl-map \.maplibregl-popup\.early-holder-popup \.video-play-glass/);
+  assert.match(pause, /html\.eh-hidden \.maplibregl-map \.maplibregl-popup\.early-holder-popup \.video-play-glass/);
+  assert.match(pause, /html\.eh-hidden \.maplibregl-map \.maplibregl-popup\.early-holder-popup \.polygon-cover-play-glass/);
+  assert.match(pause, /html\.eh-hidden \.toolbar-group-messages:has\(\.early-hashinal\) :is\(\.video-play-glass, \.polygon-cover-play-glass\)/);
+  assert.match(pause, /\.eh-off :is\(\.video-play-glass, \.polygon-cover-play-glass\)/);
+  assert.equal(pause.includes("#feed-column .video-play-glass"), false);
+  assert.equal(pause.includes("html.eh-hidden .feed-card"), false);
+});
