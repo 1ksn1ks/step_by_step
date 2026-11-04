@@ -4328,13 +4328,22 @@ function paintTopicTitle() {
   const topic = topicNow();
   const name = topicName(topic);
   const label = name || topic || '';
-  topicText.textContent = label;
   const showId = !!(name && topic);
-  topicIdLine.hidden = !showId;
-  topicIdLine.textContent = showId ? topic : '';
+  const idText = showId ? topic : '';
   const spoken = showId ? `${name}, ${topic}` : label;
+  const aria = spoken ? `Load ${spoken}` : 'Load topic';
+  if (
+    topicText.textContent === label
+    && topicIdLine.hidden === !showId
+    && topicIdLine.textContent === idText
+    && topicBtn.title === spoken
+    && topicBtn.getAttribute('aria-label') === aria
+  ) return;
+  topicText.textContent = label;
+  topicIdLine.hidden = !showId;
+  topicIdLine.textContent = idText;
   topicBtn.title = spoken;
-  topicBtn.setAttribute('aria-label', spoken ? `Load ${spoken}` : 'Load topic');
+  topicBtn.setAttribute('aria-label', aria);
 }
 
 function ensureTopic(opening) {
@@ -8997,7 +9006,30 @@ try {
 } catch {
   /* matchMedia is missing */
 }
-const feedVideoShell = new MutationObserver(() => queueFeedVideos());
+function feedVideoOverlayNode(node) {
+  if (!node || node.nodeType !== 1) return false;
+  if (node.id === 'media-fullscreen' || node.classList.contains('comments-modal')) return true;
+  return !!(node.querySelector && node.querySelector('#media-fullscreen, .comments-modal'));
+}
+
+const feedVideoShell = new MutationObserver((mutations) => {
+  for (const mutation of mutations) {
+    if (mutation.type !== 'childList' || mutation.target !== document.body) {
+      queueFeedVideos();
+      return;
+    }
+    for (const node of mutation.addedNodes) {
+      if (!feedVideoOverlayNode(node)) continue;
+      queueFeedVideos();
+      return;
+    }
+    for (const node of mutation.removedNodes) {
+      if (!feedVideoOverlayNode(node)) continue;
+      queueFeedVideos();
+      return;
+    }
+  }
+});
 for (const node of [profilePage, settings, feedChat, menu, root]) {
   feedVideoShell.observe(node, { attributes: true, attributeFilter: ['hidden', 'class', 'style'] });
 }
@@ -9347,6 +9379,7 @@ if (feedLink && typeof feedLink.addEventListener === 'function') {
 }
 
 setInterval(() => {
+  if (document.hidden) return;
   if (!feedOn() || root.classList.contains('is-peek')) return;
   ensureTopic(false);
 }, 2000);

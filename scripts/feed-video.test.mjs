@@ -100,6 +100,39 @@ test("a scroll frame measures visible videos plus the active and preferred ones"
   assert.deepEqual(feedVideosToMeasure([[a, 0.3], [a, 1]], null, null), [a]);
 });
 
+test("a hidden tab skips the topic poll and a toast does not settle feed video", () => {
+  const src = readFileSync(new URL("../feedlayout.js", import.meta.url), "utf8");
+  const intervalAt = src.indexOf("setInterval(() => {");
+  const intervalEnd = src.indexOf("function cmpNewestPosts");
+  assert.ok(intervalAt > 0 && intervalEnd > intervalAt);
+  const interval = src.slice(intervalAt, intervalEnd);
+  const hiddenAt = interval.indexOf("if (document.hidden) return;");
+  const ensureAt = interval.indexOf("ensureTopic(false)");
+  assert.ok(hiddenAt > 0 && ensureAt > hiddenAt);
+  assert.match(interval, /2000\)/);
+  const paintAt = src.indexOf("function paintTopicTitle");
+  const ensureFn = src.indexOf("function ensureTopic");
+  assert.ok(paintAt > 0 && ensureFn > paintAt);
+  const paint = src.slice(paintAt, ensureFn);
+  const guardAt = paint.indexOf("topicBtn.getAttribute('aria-label') === aria");
+  const writeAt = paint.indexOf("topicText.textContent = label");
+  assert.ok(guardAt > 0 && writeAt > guardAt);
+  assert.match(paint, /\) return;/);
+  const shellAt = src.indexOf("function feedVideoOverlayNode");
+  const pageHideAt = src.indexOf("window.addEventListener('pagehide'");
+  assert.ok(shellAt > 0 && pageHideAt > shellAt);
+  const shell = src.slice(shellAt, pageHideAt);
+  assert.match(shell, /node\.id === 'media-fullscreen'/);
+  assert.match(shell, /node\.classList\.contains\('comments-modal'\)/);
+  assert.match(shell, /#media-fullscreen, \.comments-modal/);
+  assert.match(shell, /mutation\.type !== 'childList' \|\| mutation\.target !== document\.body/);
+  assert.match(shell, /mutation\.addedNodes/);
+  assert.match(shell, /mutation\.removedNodes/);
+  assert.match(shell, /childList: true/);
+  const queueCalls = shell.match(/queueFeedVideos\(\)/g) || [];
+  assert.equal(queueCalls.length, 3);
+});
+
 test("feed video ratios refresh once per scroll frame", () => {
   const src = readFileSync(new URL("../feedlayout.js", import.meta.url), "utf8");
   const observerStart = src.indexOf("function ensureFeedVideoObserver");
