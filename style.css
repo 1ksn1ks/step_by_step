@@ -14542,6 +14542,37 @@ html.feed-app #feed-chat > .load-options-page {
     animation-duration: 8s;
   }
 }
+/* The feed covers the map, and a scrolled-away holder is off screen.
+   play-state keeps the same angle, spin, and glow while one is visible.
+   !important beats the animation shorthand, including :is(#feed-column). */
+html.feed-app .maplibregl-map .early-hashinal-spin::before,
+html.feed-app .maplibregl-map .early-hashinal-glow,
+html.feed-app .maplibregl-map .marker-face.early-hashinal::after,
+html.feed-app .maplibregl-map .maplibregl-popup.early-holder-popup,
+html.feed-app .maplibregl-map .maplibregl-popup.early-holder-popup::before,
+html.feed-app .maplibregl-map .popup-profile-bubble.early::before,
+html.feed-app .maplibregl-map .popup-profile-bubble.early > .popup-early-spin::before,
+html.feed-app .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::before,
+html.feed-app .maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::after,
+html.feed-app .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::before,
+html.feed-app .maplibregl-map .maplibregl-popup.early-holder-popup .popup-body::after,
+html.feed-app .marker-title-tip.early::before,
+html.feed-app .marker-title-tip.early > .marker-tip-spin::before,
+html.feed-app #profile-live-preview.early-holder-card .profile-live-bubble,
+html.feed-app #profile-live-preview.early-holder-card .profile-live-bubble::before,
+.eh-off,
+.eh-off::before,
+.eh-off::after,
+.eh-off > .early-hashinal-spin::before,
+.eh-off > .early-hashinal-glow,
+.eh-off > .popup-early-spin::before,
+.eh-off > .marker-tip-spin::before,
+.eh-off .popup-sheet::before,
+.eh-off .popup-sheet::after,
+.eh-off .popup-body::before,
+.eh-off .popup-body::after {
+  animation-play-state: paused !important;
+}
 #feed-profile button.feed-profile-value {
   appearance: none;
   margin: 0;

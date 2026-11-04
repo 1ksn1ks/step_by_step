@@ -167,3 +167,106 @@ function arm() {
 
 if (map.loaded()) arm();
 else map.on("load", arm);
+
+// Endless rings pause once they leave the viewport. The feed overlay is
+// CSS (html.feed-app): intersection does not see that cover. Donate is
+// not watched: its entrance and the ring share one animation, and pausing
+// the card would freeze the sheet below the screen.
+const EARLY_MOTION_HOST = [
+  ".early-hashinal",
+  ".maplibregl-popup.early-holder-popup",
+  ".popup-profile-bubble.early",
+  ".post-menu-pop[data-style='hashinals']",
+  ".marker-title-tip.early",
+  ".early-holder-card .profile-live-bubble",
+  ".feed-card.early-holder-popup",
+  "#feed-profile .feed-profile-identity.early-holder-card",
+  "#feed-profile.early-holder-card .feed-profile-row:has(> a.feed-profile-value)",
+].join(",");
+
+const earlyMotionSeen = new WeakSet();
+let earlyMotionIo = null;
+
+function watchEarlyMotion(el) {
+  if (!el || el.nodeType !== 1 || !el.isConnected || !earlyMotionIo) return;
+  if (earlyMotionSeen.has(el)) return;
+  if (!el.matches(EARLY_MOTION_HOST)) return;
+  earlyMotionSeen.add(el);
+  earlyMotionIo.observe(el);
+}
+
+function releaseEarlyMotion(el) {
+  if (!el || !earlyMotionSeen.has(el)) return;
+  earlyMotionSeen.delete(el);
+  earlyMotionIo.unobserve(el);
+  el.classList.remove("eh-off");
+}
+
+function forgetEarlyMotion(node) {
+  if (!node || node.nodeType !== 1) return;
+  releaseEarlyMotion(node);
+  if (!node.querySelectorAll) return;
+  const inner = node.querySelectorAll(EARLY_MOTION_HOST);
+  for (let i = 0; i < inner.length; i += 1) releaseEarlyMotion(inner[i]);
+}
+
+function syncEarlyMotionClass(el, oldValue) {
+  if (!el || el.nodeType !== 1) return;
+  if (el.matches(EARLY_MOTION_HOST)) watchEarlyMotion(el);
+  else releaseEarlyMotion(el);
+  const now = !!(el.classList && el.classList.contains("early-holder-card"));
+  const was = typeof oldValue === "string" && oldValue.split(/\s+/).indexOf("early-holder-card") !== -1;
+  if (!now && !was) return;
+  if (!el.querySelectorAll) return;
+  const kids = el.querySelectorAll(".profile-live-bubble, .feed-profile-identity, .feed-profile-row");
+  for (let i = 0; i < kids.length; i += 1) {
+    const child = kids[i];
+    if (child.matches(EARLY_MOTION_HOST)) watchEarlyMotion(child);
+    else releaseEarlyMotion(child);
+  }
+}
+
+function bootEarlyMotion() {
+  if (earlyMotionIo || typeof document === "undefined" || typeof IntersectionObserver !== "function") return;
+  if (!document.documentElement) return;
+  earlyMotionIo = new IntersectionObserver((entries) => {
+    for (let i = 0; i < entries.length; i += 1) {
+      const entry = entries[i];
+      const el = entry.target;
+      if (!earlyMotionSeen.has(el)) continue;
+      const off = !entry.isIntersecting;
+      if (el.classList.contains("eh-off") !== off) el.classList.toggle("eh-off", off);
+    }
+  });
+  const mo = new MutationObserver((records) => {
+    for (let i = 0; i < records.length; i += 1) {
+      const rec = records[i];
+      if (rec.type === "childList") {
+        const removed = rec.removedNodes;
+        for (let r = 0; r < removed.length; r += 1) forgetEarlyMotion(removed[r]);
+        const added = rec.addedNodes;
+        for (let a = 0; a < added.length; a += 1) {
+          const node = added[a];
+          if (!node || node.nodeType !== 1) continue;
+          watchEarlyMotion(node);
+          if (!node.querySelectorAll) continue;
+          const inner = node.querySelectorAll(EARLY_MOTION_HOST);
+          for (let n = 0; n < inner.length; n += 1) watchEarlyMotion(inner[n]);
+        }
+      } else if (rec.type === "attributes") {
+        syncEarlyMotionClass(rec.target, rec.attributeName === "class" ? rec.oldValue : "");
+      }
+    }
+  });
+  mo.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class", "data-style"],
+    attributeOldValue: true,
+  });
+  const found = document.querySelectorAll(EARLY_MOTION_HOST);
+  for (let i = 0; i < found.length; i += 1) watchEarlyMotion(found[i]);
+}
+
+bootEarlyMotion();
