@@ -7610,6 +7610,44 @@ a.payer-link {
   object-fit: contain;
   border-radius: inherit;
 }
+/* Android Chrome draws a centred broken-image overlay on a poster that
+   has no media data yet. The control bar is the play affordance. */
+video.has-poster:not([src])::-webkit-media-controls-overlay-enclosure,
+video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
+  display: none !important;
+}
+.video-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 3;
+  width: max(44px, calc(var(--fu, 16px) * 2.6));
+  height: max(44px, calc(var(--fu, 16px) * 2.6));
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  border: 0;
+  border-radius: 50%;
+  background: rgba(11, 13, 19, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  cursor: pointer;
+}
+.video-play[hidden] {
+  display: none;
+}
+.video-play::before {
+  content: "";
+  display: block;
+  width: 0;
+  height: 0;
+  margin-left: 3px;
+  border-style: solid;
+  border-width: 7px 0 7px 12px;
+  border-color: transparent transparent transparent #fff;
+}
 /* Letterbox must be solid. Draw-column previews stay on the shared rule above. */
 .popup-media-card:not(.draw-popup-media) img,
 .popup-media-card:not(.draw-popup-media) video {
@@ -10998,6 +11036,17 @@ html.feed-app #feed-search-page {
 }
 :is(#feed-column, .feed-comments-stage) .popup-media-card video:not(.loop-face) {
   pointer-events: auto;
+}
+/* A posterless video has no intrinsic box, so the grab and autoplay never
+   see it. Hold a 16:9 frame until the still arrives. */
+:is(#feed-column, .feed-comments-stage) .popup-media-card:has(video:not(.loop-face):not(.has-poster)) {
+  width: min(100%, calc(var(--fu, 16px) * 16));
+  aspect-ratio: 16 / 9;
+}
+:is(#feed-column, .feed-comments-stage) .popup-media-card:has(video:not(.loop-face):not(.has-poster)) > video:not(.loop-face) {
+  width: 100%;
+  height: 100%;
+  max-height: none;
 }
 :is(#feed-column, .feed-comments-stage) .popup-media-card:not(:has(video:not(.loop-face))) .feed-media-hit {
   cursor: zoom-in;

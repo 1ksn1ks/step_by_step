@@ -453,3 +453,307 @@ test("an e2ee thumbnail is inside the sealed payload and absent from the outer m
   const tooLong = save.indexOf("toast.error(HCS_TOO_LONG)");
   assert.ok(tooLong !== -1 && tooLong < save.indexOf(notice));
 });
+
+function posterVideo(src) {
+  const listeners = {};
+  const played = [];
+  const video = {
+    preload: "",
+    dataset: src ? { src } : {},
+    paused: true,
+    readyState: 0,
+    isConnected: true,
+    style: {},
+    failOnce: false,
+    classList: {
+      names: new Set(),
+      add(name) { this.names.add(name); },
+      contains(name) { return this.names.has(name); },
+    },
+    _src: "",
+    _poster: "",
+    set poster(value) { this._poster = value || ""; },
+    get poster() { return this._poster; },
+    set src(value) { this._src = value || ""; },
+    get src() { return this._src; },
+    getAttribute(name) {
+      if (name === "src") return this._src || null;
+      if (name === "poster") return this._poster || null;
+      return null;
+    },
+    removeAttribute(name) {
+      if (name === "src") this._src = "";
+      if (name === "poster") this._poster = "";
+    },
+    addEventListener(type, fn, capture) {
+      const key = type + (capture === true ? ":c" : "");
+      if (!listeners[key]) listeners[key] = [];
+      listeners[key].push(fn);
+    },
+    play() {
+      played.push(this.getAttribute("src"));
+      if (!this.getAttribute("src")) return Promise.reject(new Error("no src"));
+      if (this.failOnce) {
+        this.failOnce = false;
+        return Promise.reject(new Error("blocked"));
+      }
+      this.paused = false;
+      return Promise.resolve();
+    },
+  };
+  return { video, listeners, played };
+}
+
+test("a poster or loadeddata clears the centred placeholder", () => {
+  resetVideoFrames();
+  const clip = "https://cdn.example/clips/face.mp4";
+  const posted = posterVideo("");
+  bindVideoPoster(posted.video, clip, { poster: "blob:still" });
+  assert.equal(posted.video.poster, "blob:still");
+  assert.equal(posted.video.classList.contains("has-poster"), true);
+  assert.equal(posted.video.dataset.controlsWanted, undefined);
+  const waiting = posterVideo("");
+  bindVideoPoster(waiting.video, clip, { posterOff: true });
+  assert.equal(waiting.video.classList.contains("has-poster"), false);
+  waiting.video.readyState = 2;
+  waiting.listeners.loadeddata[0]();
+  assert.equal(waiting.video.classList.contains("has-poster"), true);
+  const css = readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  assert.match(css, /video\.has-poster:not\(\[src\]\)::-webkit-media-controls-overlay-enclosure,\s*video\.has-poster:not\(\[src\]\)::-webkit-media-controls-overlay-play-button \{\s*display: none !important;/);
+});
+
+test("a poster hides native controls until the play button starts the file", async () => {
+  const previousDoc = globalThis.document;
+  const previousFrame = globalThis.requestAnimationFrame;
+  let queued = null;
+  globalThis.requestAnimationFrame = (fn) => {
+    queued = fn;
+    return 1;
+  };
+  globalThis.document = {
+    createElement() {
+      return {
+        type: "",
+        className: "",
+        hidden: false,
+        setAttribute() {},
+        addEventListener(type, fn) { this["on" + type] = fn; },
+      };
+    },
+  };
+  const parent = {
+    children: [],
+    appendChild(node) { this.children.push(node); },
+    querySelector(sel) {
+      if (sel !== ":scope > .video-play") return null;
+      return this.children.find((node) => node.className === "video-play") || null;
+    },
+  };
+  const src = "https://cdn.example/clips/face.mp4";
+  const { video, played } = posterVideo(src);
+  video.controls = true;
+  video.parentElement = parent;
+  video.isConnected = true;
+  try {
+    resetVideoFrames();
+    bindVideoPoster(video, src, { poster: "blob:still" });
+    assert.equal(video.dataset.controlsWanted, "1");
+    assert.equal(video.controls, false);
+    video.controls = true;
+    assert.equal(typeof queued, "function");
+    queued();
+    assert.equal(video.controls, false);
+    const btn = parent.querySelector(":scope > .video-play");
+    assert.ok(btn);
+    assert.equal(btn.hidden, false);
+    btn.onclick({ preventDefault() {}, stopPropagation() {} });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(video.getAttribute("src"), src);
+    assert.equal(video.paused, false);
+    assert.equal(video.controls, true);
+    assert.equal(btn.hidden, true);
+    assert.deepEqual(played, [src]);
+  } finally {
+    resetVideoFrames();
+    if (previousDoc === undefined) delete globalThis.document;
+    else globalThis.document = previousDoc;
+    if (previousFrame === undefined) delete globalThis.requestAnimationFrame;
+    else globalThis.requestAnimationFrame = previousFrame;
+  }
+});
+
+test("a popup tap, key, and play event set src before play and catch errors", async () => {
+  resetVideoFrames();
+  const src = "https://cdn.example/clips/popup.mp4";
+  const { video, listeners, played } = posterVideo(src);
+  bindVideoPoster(video, src, { posterOff: true });
+  assert.equal(video.getAttribute("src"), null);
+  listeners["pointerdown:c"][0]({ type: "pointerdown" });
+  assert.equal(video.getAttribute("src"), src);
+  assert.deepEqual(played, []);
+  video._src = "";
+  listeners["keydown:c"][0]({ type: "keydown", key: "a" });
+  assert.equal(video.getAttribute("src"), null);
+  listeners["keydown:c"][0]({ type: "keydown", key: "Enter" });
+  assert.equal(video.getAttribute("src"), src);
+  listeners.keyup[0]({ type: "keyup", key: "a" });
+  assert.deepEqual(played, []);
+  listeners.keyup[0]({ type: "keyup", key: " " });
+  assert.deepEqual(played, [src]);
+  assert.equal(video.paused, false);
+  video.paused = true;
+  video._src = "";
+  listeners.play[0]();
+  assert.equal(played.at(-1), src);
+  assert.equal(video.paused, false);
+  video.paused = true;
+  video._src = "";
+  video.failOnce = true;
+  listeners["pointerdown:c"][0]({ type: "pointerdown" });
+  listeners.click[0]({ type: "click" });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(played.at(-1), src);
+  const afterCatch = played.length;
+  video.paused = true;
+  listeners.click[0]({ type: "click" });
+  assert.equal(played.length, afterCatch);
+  video.failOnce = true;
+  await assert.rejects(video.play(), /blocked/);
+  const held = posterVideo(src);
+  bindVideoPoster(held.video, src, { posterOff: true, holdSrc: true });
+  assert.equal(held.listeners["pointerdown:c"], undefined);
+  assert.equal(held.listeners.keydown, undefined);
+  held.video.play();
+  assert.deepEqual(held.played, [src]);
+});
+
+test("the first two visible videos grab a frame on render and never upload it", async () => {
+  const previousDoc = globalThis.document;
+  const previousIO = globalThis.IntersectionObserver;
+  const previousWindow = globalThis.window;
+  const previousFrame = globalThis.requestAnimationFrame;
+  const previousFetch = globalThis.fetch;
+  const uploads = [];
+  const captures = [];
+  const pages = [];
+  globalThis.fetch = (url) => {
+    uploads.push(String(url));
+    return Promise.reject(new Error("upload"));
+  };
+  globalThis.window = { innerWidth: 360, innerHeight: 740 };
+  globalThis.requestAnimationFrame = (fn) => {
+    fn();
+    return 1;
+  };
+  delete globalThis.IntersectionObserver;
+  function makeGrabVideo() {
+    return {
+      muted: false,
+      playsInline: false,
+      preload: "",
+      duration: 2,
+      videoWidth: 1000,
+      videoHeight: 400,
+      currentTime: 0,
+      onloadeddata: null,
+      onerror: null,
+      _src: "",
+      _crossOrigin: "",
+      set crossOrigin(value) { this._crossOrigin = value; },
+      get crossOrigin() { return this._crossOrigin; },
+      set src(value) { this._src = value; },
+      addEventListener(type, fn) {
+        if (type === "seeked") queueMicrotask(fn);
+      },
+      removeEventListener() {},
+      removeAttribute() {},
+      load() {},
+      release() {
+        if (typeof this.onloadeddata === "function") this.onloadeddata();
+      },
+    };
+  }
+  globalThis.document = {
+    createElement(tag) {
+      if (tag === "video") {
+        const video = makeGrabVideo();
+        captures.push(video);
+        return video;
+      }
+      if (tag === "canvas") {
+        return {
+          width: 0,
+          height: 0,
+          getContext() { return { drawImage() {} }; },
+          toBlob(cb) { cb(new Blob(["jpeg"], { type: "image/jpeg" })); },
+        };
+      }
+      return {};
+    },
+    querySelectorAll() { return pages.filter((video) => video.isConnected && video.getAttribute("poster")); },
+  };
+  const clip = (name) => `https://cdn.example/clips/${name}.mp4`;
+  const mount = (name) => {
+    const video = {
+      preload: "",
+      dataset: {},
+      isConnected: true,
+      style: {},
+      _poster: "",
+      _src: "",
+      set poster(value) { this._poster = value || ""; },
+      get poster() { return this._poster; },
+      set src(value) { this._src = value || ""; },
+      get src() { return this._src; },
+      getAttribute(name) {
+        if (name === "poster") return this._poster || null;
+        if (name === "src") return this._src || null;
+        return null;
+      },
+      removeAttribute(name) {
+        if (name === "poster") this._poster = "";
+        if (name === "src") this._src = "";
+      },
+      addEventListener() {},
+      getBoundingClientRect() {
+        return { top: 10, left: 10, right: 300, bottom: 200, width: 290, height: 190 };
+      },
+    };
+    pages.push(video);
+    bindVideoPoster(video, clip(name), null);
+    return video;
+  };
+  try {
+    resetVideoFrames();
+    const first = mount("a");
+    const second = mount("b");
+    const third = mount("c");
+    assert.deepEqual(captures.map((video) => video._src), [clip("a"), clip("b")]);
+    assert.equal(third.poster, "");
+    captures[0].release();
+    captures[1].release();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.match(first.poster, /^blob:/);
+    assert.match(second.poster, /^blob:/);
+    assert.equal(third.poster, "");
+    assert.deepEqual(uploads, []);
+    const source = readFileSync(new URL("../videoposter.js", import.meta.url), "utf8");
+    const pumpAt = source.indexOf("function pumpFrameGrabs(");
+    const pump = source.slice(pumpAt, source.indexOf("function videoShown(", pumpAt));
+    assert.equal(/postFile|posterPlan|\/api\/upload|rememberPosterEdit/.test(pump), false);
+    assert.match(pump, /URL\.createObjectURL/);
+  } finally {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    resetVideoFrames();
+    if (previousDoc === undefined) delete globalThis.document;
+    else globalThis.document = previousDoc;
+    if (previousIO === undefined) delete globalThis.IntersectionObserver;
+    else globalThis.IntersectionObserver = previousIO;
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+    if (previousFrame === undefined) delete globalThis.requestAnimationFrame;
+    else globalThis.requestAnimationFrame = previousFrame;
+    if (previousFetch === undefined) delete globalThis.fetch;
+    else globalThis.fetch = previousFetch;
+  }
+});

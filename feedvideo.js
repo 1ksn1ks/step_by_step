@@ -105,3 +105,14 @@ export function feedAutoplayAllowed(flags) {
   }
   return true;
 }
+
+// null: the browser has no Network Information API. True only for the
+// browser Save-Data hint or a 2g / slow-2g link. Unknown, 3g, 4g, and a
+// cellular type by itself are not constrained.
+export function connectionIsConstrained(net) {
+  if (!net || typeof net !== "object") return null;
+  if (net.saveData === true) return true;
+  const kind = typeof net.effectiveType === "string" ? net.effectiveType : "";
+  if (kind === "slow-2g" || kind === "2g") return true;
+  return false;
+}

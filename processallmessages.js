@@ -1996,6 +1996,7 @@ function fillPopupMedia(imageDiv, url, hint) {
     const media = document.createElement("video");
     media.controls = true;
     media.playsInline = true;
+    media.setAttribute("playsinline", "");
     media.preload = "none";
     media.dataset.src = resolved.src;
     bindVideoPoster(media, raw, hint);

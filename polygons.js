@@ -340,6 +340,7 @@ function detachCover(cov) {
     try { cov.video.pause(); } catch { /* already idle */ }
     cov.video.removeAttribute('src');
     delete cov.video.dataset.coverSrc;
+    delete cov.video.dataset.src;
     try { cov.video.load(); } catch { /* element is going away */ }
     cov.video.remove();
     cov.video = null;
@@ -579,6 +580,7 @@ function releaseCoverSrc(cov) {
     try { video.pause(); } catch { /* idle */ }
     video.removeAttribute('src');
     delete video.dataset.coverSrc;
+    delete video.dataset.src;
     try { video.load(); } catch { /* already clear */ }
   }
   const still = stillCache.get(cov.url) || cov.still;
@@ -780,6 +782,7 @@ function playCover(cov, auto) {
   }
   const video = ensureCoverVideo(cov);
   if (video.dataset.coverSrc !== cov.url) {
+    video.dataset.src = cov.url;
     video.src = cov.url;
     video.dataset.coverSrc = cov.url;
   }
@@ -984,6 +987,7 @@ function ensurePump() {
         }
         if (cov.video.currentTime >= COVER_VIDEO_MAX_SECONDS) cov.video.currentTime = 0;
         if (cov.video.paused) {
+          if (!cov.video.getAttribute('src') && cov.video.dataset.src) cov.video.src = cov.video.dataset.src;
           const pending = cov.video.play();
           if (pending && typeof pending.catch === 'function') pending.catch(() => {});
         }

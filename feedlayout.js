@@ -36,7 +36,7 @@ import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
 import { VIEW_SORT_BATCH, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs, zeroViewCounts } from './viewsort.js';
 import { FILL_PASSES, planFillDown } from './scrollfill.js';
-import { FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, feedAutoplayAllowed, feedVideoHeld, feedVideoPreloadOnPause, feedVideoShouldRelease, feedVideoStartDelay, feedVideosToMeasure, pickFeedVideo } from './feedvideo.js';
+import { FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, connectionIsConstrained, feedAutoplayAllowed, feedVideoHeld, feedVideoPreloadOnPause, feedVideoShouldRelease, feedVideoStartDelay, feedVideosToMeasure, pickFeedVideo } from './feedvideo.js';
 import { isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
 import { bindVideoPoster } from './videoposter.js';
 import { mountPicture, pictureElement, playStoredGif, presentImage } from './loopmedia.js';
@@ -1727,12 +1727,24 @@ function linkInfo() {
 
 // null means the browser has no Network Information API.
 function connectionConstrained() {
+  return connectionIsConstrained(linkInfo());
+}
+
+let autoplayLogged = '';
+
+function autoplayOnMobile() {
   const net = linkInfo();
-  if (!net) return null;
-  if (net.saveData) return true;
-  if (net.type === 'cellular') return true;
-  const kind = net.effectiveType;
-  if (kind === 'slow-2g' || kind === '2g') return true;
+  if (net && (net.type === 'cellular' || net.type === 'unknown')) return true;
+  try {
+    if (/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent || '')) return true;
+  } catch {
+    /* no user agent */
+  }
+  try {
+    if (window.matchMedia('(pointer: coarse)').matches) return true;
+  } catch {
+    /* no matchMedia */
+  }
   return false;
 }
 
@@ -1745,14 +1757,25 @@ function autoplayAllowed() {
   } catch {
     reducedMotion = false;
   }
-  return feedAutoplayAllowed({
+  const flags = {
     autoplay: feedPrefs.autoplay,
     reducedMotion,
     saveData: !!(net && net.saveData),
     dataSaver: feedPrefs.dataSaver,
     connectionKnown: constrained != null,
     constrained: constrained === true,
-  });
+  };
+  if (autoplayOnMobile()) {
+    const line = JSON.stringify(flags);
+    if (line !== autoplayLogged) {
+      autoplayLogged = line;
+      console.info('feedAutoplayAllowed', flags, {
+        effectiveType: net && net.effectiveType || '',
+        type: net && net.type || '',
+      });
+    }
+  }
+  return feedAutoplayAllowed(flags);
 }
 
 // One observer for every feed-card video. The root is the scroller node, so
@@ -1798,7 +1821,11 @@ function startFeedVideo(video, fromUser) {
     video.playsInline = true;
     video.setAttribute('playsinline', '');
     video.loop = true;
-    if (!fromUser && video.dataset.feedSound !== '1') video.muted = true;
+    if (!fromUser && video.dataset.feedSound !== '1') {
+      video.muted = true;
+      video.defaultMuted = true;
+      video.setAttribute('muted', '');
+    }
     video.dataset.feedAuto = fromUser ? 'user' : '1';
     if (!video.paused) return;
     const started = video.play();

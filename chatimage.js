@@ -196,6 +196,7 @@ function previewNode(src, className, forceVideo) {
     video.playsInline = true;
     video.loop = true;
     video.preload = "metadata";
+    video.dataset.src = src;
     video.src = src;
     video.play().catch(() => {});
     return video;

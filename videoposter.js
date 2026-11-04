@@ -12,6 +12,7 @@ const E2EE_SEAL_BYTES = 48;
 const FRAME_CACHE_MAX = 60;
 const VIEWER_GRAB_EDGE = 480;
 const VIEWER_GRAB_LIMIT = 2;
+const EAGER_GRAB_MAX = 2;
 
 // Newest last. A dropped still revokes its blob URL. A poster a connected
 // video still shows stays in the map until that video lets go of it.
@@ -19,6 +20,7 @@ const frameCache = new Map();
 const retainedFrames = new Set();
 const grabQueue = [];
 let grabsBusy = 0;
+let eagerUsed = 0;
 
 export function fitThumb(width, height, maxEdge = THUMB_EDGE) {
   const w = Math.max(0, Math.floor(Number(width) || 0));
@@ -110,6 +112,7 @@ export function rememberVideoFrame(url, blobUrl) {
 }
 
 export function resetVideoFrames() {
+  eagerUsed = 0;
   for (const [key, blobUrl] of [...frameCache]) {
     if (frameUrlInUse(blobUrl)) continue;
     frameCache.delete(key);
@@ -290,13 +293,187 @@ function pinBox(video, width, height) {
   video.style.aspectRatio = `${width} / ${height}`;
 }
 
+function hidePlayFace(video) {
+  const parent = video && video.parentElement;
+  if (!parent || typeof parent.querySelector !== "function") return;
+  const btn = parent.querySelector(":scope > .video-play");
+  if (btn) btn.hidden = true;
+}
+
+function revealControls(video) {
+  if (!video) return;
+  if (video.dataset && video.dataset.controlsWanted === "1") video.controls = true;
+  hidePlayFace(video);
+}
+
+// The centred picture is the native control overlay on a poster with no
+// source. Take those controls off and show one play button. Playback puts
+// the native bar back.
+function queuePlayFace(video) {
+  if (!video || !video.dataset || video.dataset.controlsWanted !== "1") return;
+  const mount = () => {
+    if (video.isConnected === false || !video.parentElement) return;
+    if (typeof video.getAttribute === "function" && video.getAttribute("src")) {
+      revealControls(video);
+      return;
+    }
+    // A later binder (the feed card) can turn controls back on in the same
+    // turn. The overlay is the broken picture, so they stay off until play.
+    video.controls = false;
+    const parent = video.parentElement;
+    if (!parent || typeof parent.querySelector !== "function") return;
+    let btn = parent.querySelector(":scope > .video-play");
+    if (!btn && typeof document !== "undefined" && typeof document.createElement === "function") {
+      btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "video-play";
+      btn.setAttribute("aria-label", "Play");
+      parent.appendChild(btn);
+      btn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const pending = typeof video.play === "function" ? video.play() : null;
+        if (pending && typeof pending.catch === "function") pending.catch(() => {});
+      });
+    }
+    if (btn) btn.hidden = false;
+  };
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(mount);
+  else mount();
+}
+
+// One hook for every surface. A poster, or the first decoded frame, drops
+// the centred broken-image overlay and shows the play button.
+export function showVideoFace(video) {
+  if (!video) return;
+  const attr = typeof video.getAttribute === "function" ? video.getAttribute("poster") || "" : "";
+  const prop = typeof video.poster === "string" ? video.poster : "";
+  const loaded = Number(video.readyState) >= 2;
+  if (!attr && !prop && !loaded) return;
+  if (video.classList && typeof video.classList.add === "function") video.classList.add("has-poster");
+  const hasSrc = typeof video.getAttribute === "function" && video.getAttribute("src");
+  if (hasSrc) {
+    revealControls(video);
+    return;
+  }
+  if (video.controls) {
+    if (video.dataset) video.dataset.controlsWanted = "1";
+    video.controls = false;
+  }
+  queuePlayFace(video);
+}
+
+export function watchVideoFace(video) {
+  if (!video) return video;
+  if (video.dataset && video.dataset.faceWatch === "1") {
+    showVideoFace(video);
+    return video;
+  }
+  if (video.dataset) video.dataset.faceWatch = "1";
+  showVideoFace(video);
+  if (typeof video.addEventListener === "function") {
+    video.addEventListener("loadeddata", () => showVideoFace(video));
+  }
+  return video;
+}
+
 function applyPoster(video, poster) {
   if (!video || !poster) return;
   video.poster = poster;
+  showVideoFace(video);
   if (typeof Image !== "function") return;
   const probe = new Image();
   probe.onload = () => pinBox(video, probe.naturalWidth, probe.naturalHeight);
   probe.src = poster;
+}
+
+// Copies dataset.src onto the element before a play. Already-set src stays.
+export function assignDeferredSrc(video) {
+  if (!video) return false;
+  const src = video.dataset && typeof video.dataset.src === "string" ? video.dataset.src : "";
+  if (!src) return false;
+  if (typeof video.getAttribute === "function" && video.getAttribute("src")) return false;
+  video.src = src;
+  return true;
+}
+
+const PLAY_KEYS = new Set([" ", "Enter", "MediaPlayPause"]);
+
+function isPlayKey(event) {
+  if (!event) return false;
+  if (PLAY_KEYS.has(event.key)) return true;
+  return event.code === "Space";
+}
+
+function nativePlay(video) {
+  const fn = video && video.__posterPlay;
+  if (typeof fn !== "function") return undefined;
+  return fn.call(video);
+}
+
+function playFromDataset(video) {
+  assignDeferredSrc(video);
+  revealControls(video);
+  let pending;
+  try {
+    pending = nativePlay(video);
+  } catch (err) {
+    return Promise.reject(err);
+  }
+  if (!pending || typeof pending.catch !== "function") return pending;
+  return pending.catch((err) => {
+    if (!assignDeferredSrc(video)) return Promise.reject(err);
+    try {
+      const again = nativePlay(video);
+      if (again && typeof again.catch === "function") return again.catch(() => {});
+      return again;
+    } catch (err2) {
+      return Promise.reject(err2);
+    }
+  });
+}
+
+// Pointer and keyboard set src before the native control plays. A tap that
+// is still paused after that control runs starts playback, and the rejection
+// is caught. holdSrc leaves the gesture to the caller (chat opens a preview).
+function armDeferredPlay(video, holdSrc) {
+  if (!video || (video.dataset && video.dataset.posterArmed === "1")) return;
+  if (video.dataset) video.dataset.posterArmed = "1";
+  if (typeof video.play === "function" && !video.__posterPlay) {
+    video.__posterPlay = video.play.bind(video);
+    video.play = function playWithSrc() {
+      return playFromDataset(video);
+    };
+  }
+  if (holdSrc || typeof video.addEventListener !== "function") return;
+  // primed is only the gesture that first copied dataset.src. A later tap
+  // is the native control's own play or pause, so it must not start again.
+  let primed = false;
+  const prime = (event) => {
+    if (event && event.type === "keydown" && !isPlayKey(event)) return;
+    primed = assignDeferredSrc(video);
+  };
+  const finish = (event) => {
+    if (event && (event.type === "keyup" || event.type === "keydown") && !isPlayKey(event)) return;
+    if (!primed) return;
+    primed = false;
+    if (video.paused === false) return;
+    const pending = playFromDataset(video);
+    if (pending && typeof pending.catch === "function") pending.catch(() => {});
+  };
+  video.addEventListener("pointerdown", prime, true);
+  video.addEventListener("keydown", prime, true);
+  video.addEventListener("click", finish);
+  video.addEventListener("keyup", finish);
+  video.addEventListener("play", () => {
+    if (!assignDeferredSrc(video)) return;
+    try {
+      const pending = nativePlay(video);
+      if (pending && typeof pending.catch === "function") pending.catch(() => {});
+    } catch {
+      /* the control already reported the failure */
+    }
+  });
 }
 
 function cancelFrameGrab(job) {
@@ -323,7 +500,7 @@ function pumpFrameGrabs() {
       const blob = URL.createObjectURL(file);
       rememberVideoFrame(job.raw, blob);
       if (job.video.isConnected) applyPoster(job.video, blob);
-      if (job.video.getAttribute("poster")) job.watch.disconnect();
+      if (job.video.getAttribute("poster") && job.watch && typeof job.watch.disconnect === "function") job.watch.disconnect();
     }).catch(() => {}).finally(() => {
       grabsBusy -= 1;
       job.controller = null;
@@ -333,37 +510,87 @@ function pumpFrameGrabs() {
   }
 }
 
+function videoShown(video) {
+  if (!video || video.isConnected === false) return false;
+  if (typeof video.getBoundingClientRect !== "function") return false;
+  let box = null;
+  try { box = video.getBoundingClientRect(); } catch { return false; }
+  if (!box || !(box.width > 0) || !(box.height > 0)) return false;
+  const w = typeof window !== "undefined" && window.innerWidth ? window.innerWidth : 0;
+  const h = typeof window !== "undefined" && window.innerHeight ? window.innerHeight : 0;
+  if (!w || !h) return false;
+  return box.bottom > 0 && box.right > 0 && box.top < h && box.left < w;
+}
+
+function beginGrab(video, raw, owner, watch) {
+  if (!owner || owner.current) return "";
+  if (typeof video.getAttribute === "function" && video.getAttribute("poster")) {
+    if (watch && typeof watch.disconnect === "function") watch.disconnect();
+    return "";
+  }
+  const again = cachedVideoFrame(raw);
+  if (again) {
+    applyPoster(video, again);
+    if (watch && typeof watch.disconnect === "function") watch.disconnect();
+    return "cached";
+  }
+  const job = { video, raw, dead: false, controller: null, owner, watch };
+  owner.current = job;
+  grabQueue.push(job);
+  pumpFrameGrabs();
+  return "grab";
+}
+
+function onFrame(fn) {
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(fn);
+  else queueMicrotask(fn);
+}
+
+// The first two videos already on screen start on the render frame.
+// The rest still wait until the observer says they are near the viewport.
+function eagerKick(video, raw, owner, watch, attempt) {
+  if (eagerUsed >= EAGER_GRAB_MAX) return;
+  onFrame(() => {
+    if (eagerUsed >= EAGER_GRAB_MAX || owner.current) return;
+    if (typeof video.getAttribute === "function" && video.getAttribute("poster")) return;
+    if (video.isConnected === false) {
+      if (attempt < 3) eagerKick(video, raw, owner, watch, attempt + 1);
+      return;
+    }
+    if (!videoShown(video)) {
+      let box = null;
+      if (typeof video.getBoundingClientRect === "function") {
+        try { box = video.getBoundingClientRect(); } catch { box = null; }
+      }
+      if (attempt < 3 && box && !(box.width > 0)) eagerKick(video, raw, owner, watch, attempt + 1);
+      return;
+    }
+    if (beginGrab(video, raw, owner, watch) === "grab") eagerUsed += 1;
+  });
+}
+
 function armFrameGrab(video, raw) {
-  if (!isVideoUrl(raw) || typeof IntersectionObserver !== "function") return;
+  if (!isVideoUrl(raw)) return;
   const owner = { current: null };
-  const watch = new IntersectionObserver((entries) => {
-    if (!entries.some((entry) => entry.isIntersecting)) {
-      cancelFrameGrab(owner.current);
-      owner.current = null;
-      return;
-    }
-    if (owner.current) return;
-    if (video.getAttribute("poster")) {
-      watch.disconnect();
-      return;
-    }
-    const again = cachedVideoFrame(raw);
-    if (again) {
-      applyPoster(video, again);
-      watch.disconnect();
-      return;
-    }
-    const job = { video, raw, dead: false, controller: null, owner, watch };
-    owner.current = job;
-    grabQueue.push(job);
-    pumpFrameGrabs();
-  }, { rootMargin: "15%" });
-  watch.observe(video);
+  let watch = null;
+  if (typeof IntersectionObserver === "function") {
+    watch = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) {
+        cancelFrameGrab(owner.current);
+        owner.current = null;
+        return;
+      }
+      beginGrab(video, raw, owner, watch);
+    }, { rootMargin: "15%" });
+    watch.observe(video);
+  }
+  eagerKick(video, raw, owner, watch, 0);
 }
 
 // Poster image only until the viewer plays. A sibling still is used when
 // it loads. A miss is grabbed near the viewport, two at a time, and kept
-// in memory. Leaving the viewport drops that grab. It is never uploaded.
+// in memory. The first two already on screen start on the render frame.
+// Leaving the viewport drops that grab. It is never uploaded.
 export function bindVideoPoster(video, videoUrl, hint) {
   if (!video) return video;
   const raw = typeof videoUrl === "string" ? videoUrl.trim() : "";
@@ -381,16 +608,7 @@ export function bindVideoPoster(video, videoUrl, hint) {
     probe.src = known;
   } else if (cached) applyPoster(video, cached);
   else armFrameGrab(video, raw);
-  const holdSrc = !!(hint && hint.holdSrc);
-  const armPlay = !holdSrc && !(hint && hint.armPlay === false);
-  if (!video.dataset.posterArmed) {
-    video.dataset.posterArmed = "1";
-    if (armPlay) {
-      video.addEventListener("pointerdown", () => {
-        const src = video.dataset.src || "";
-        if (src && !video.getAttribute("src")) video.src = src;
-      });
-    }
-  }
+  watchVideoFace(video);
+  armDeferredPlay(video, !!(hint && hint.holdSrc));
   return video;
 }

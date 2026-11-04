@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { FEED_VIDEO_DWELL_MS, FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, feedAutoplayAllowed, feedVideoHeld, feedVideoPreloadOnPause, feedVideoShouldRelease, feedVideoStartDelay, feedVideosToMeasure, pickFeedVideo } from "../feedvideo.js";
+import { FEED_VIDEO_DWELL_MS, FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, connectionIsConstrained, feedAutoplayAllowed, feedVideoHeld, feedVideoPreloadOnPause, feedVideoShouldRelease, feedVideoStartDelay, feedVideosToMeasure, pickFeedVideo } from "../feedvideo.js";
 
 test("the feed video observer thresholds include the 0.6 play line", () => {
   assert.equal(FEED_VIDEO_MIN, 0.6);
@@ -81,6 +81,73 @@ test("reduced motion and Save-Data refuse autoplay", () => {
   assert.equal(feedAutoplayAllowed({ autoplay: true, dataSaver: true, connectionKnown: false }), false);
   assert.equal(feedAutoplayAllowed({ autoplay: true, dataSaver: true, connectionKnown: true, constrained: true }), false);
   assert.equal(feedAutoplayAllowed({ autoplay: true, dataSaver: true, connectionKnown: true, constrained: false }), true);
+});
+
+test("a link is constrained only for Save-Data or 2g", () => {
+  assert.equal(connectionIsConstrained(null), null);
+  assert.equal(connectionIsConstrained(undefined), null);
+  assert.equal(connectionIsConstrained({}), false);
+  assert.equal(connectionIsConstrained({ effectiveType: "4g" }), false);
+  assert.equal(connectionIsConstrained({ effectiveType: "3g" }), false);
+  assert.equal(connectionIsConstrained({ type: "cellular", effectiveType: "4g" }), false);
+  assert.equal(connectionIsConstrained({ type: "cellular" }), false);
+  assert.equal(connectionIsConstrained({ effectiveType: "slow-2g" }), true);
+  assert.equal(connectionIsConstrained({ effectiveType: "2g" }), true);
+  assert.equal(connectionIsConstrained({ saveData: true, effectiveType: "4g" }), true);
+  assert.equal(connectionIsConstrained({ saveData: false, effectiveType: "4g" }), false);
+  assert.equal(feedAutoplayAllowed({ autoplay: false, constrained: false }), false);
+  assert.equal(feedAutoplayAllowed({ autoplay: true, dataSaver: true, connectionKnown: true, constrained: false }), true);
+  assert.equal(feedAutoplayAllowed({ autoplay: true, dataSaver: true, connectionKnown: true, constrained: true }), false);
+  assert.equal(feedAutoplayAllowed({ autoplay: true, saveData: true, constrained: false }), false);
+});
+
+test("mobile autoplay logs the flags and mutes before play", () => {
+  const src = readFileSync(new URL("../feedlayout.js", import.meta.url), "utf8");
+  const constrainedAt = src.indexOf("function connectionConstrained()");
+  const allowedAt = src.indexOf("function autoplayAllowed()");
+  assert.ok(constrainedAt > 0 && allowedAt > constrainedAt);
+  const constrained = src.slice(constrainedAt, src.indexOf("function autoplayOnMobile"));
+  assert.match(constrained, /connectionIsConstrained\(linkInfo\(\)\)/);
+  assert.equal(constrained.includes("cellular"), false);
+  const allowed = src.slice(allowedAt, src.indexOf("const feedVideoRatio"));
+  assert.match(allowed, /console\.info\('feedAutoplayAllowed', flags/);
+  assert.match(allowed, /feedPrefs\.autoplay/);
+  assert.match(allowed, /feedPrefs\.dataSaver/);
+  const startAt = src.indexOf("function startFeedVideo(");
+  const pauseAt = src.indexOf("function pauseFeedVideo(");
+  const start = src.slice(startAt, pauseAt);
+  const playAt = start.indexOf("video.play()");
+  assert.ok(playAt > start.indexOf("setAttribute('playsinline'"));
+  assert.ok(playAt > start.indexOf("video.muted = true"));
+  assert.ok(playAt > start.indexOf("setAttribute('muted'"));
+  const messages = readFileSync(new URL("../processallmessages.js", import.meta.url), "utf8");
+  const fillAt = messages.indexOf("function fillPopupMedia(");
+  const fill = messages.slice(fillAt, messages.indexOf("export function createMarkerPopupHTML", fillAt));
+  const dataAt = fill.indexOf("media.dataset.src = resolved.src");
+  const bindAt = fill.indexOf("bindVideoPoster(media, raw, hint)");
+  assert.ok(dataAt > 0 && bindAt > dataAt);
+  const polygons = readFileSync(new URL("../polygons.js", import.meta.url), "utf8");
+  const playAtPoly = polygons.indexOf("function playCover(");
+  const play = polygons.slice(playAtPoly, polygons.indexOf("function toggleCoverPlay(", playAtPoly));
+  const setData = play.indexOf("video.dataset.src = cov.url");
+  const setSrc = play.indexOf("video.src = cov.url");
+  assert.ok(setData > 0 && setSrc > setData);
+  assert.match(play, /pending\.catch/);
+  const preview = readFileSync(new URL("../fullscreenmedia.js", import.meta.url), "utf8");
+  const openAt = preview.indexOf("export function openPreview(");
+  const open = preview.slice(openAt, preview.indexOf("export function openMediaFullscreen(", openAt));
+  const previewData = open.indexOf("media.dataset.src = resolved.src");
+  const previewSrc = open.indexOf("media.src = resolved.src");
+  assert.ok(previewData > 0 && previewSrc > previewData);
+  assert.match(open, /watchVideoFace\(media\)/);
+  assert.match(open, /pending\.catch/);
+  const chat = readFileSync(new URL("../chatimage.js", import.meta.url), "utf8");
+  const nodeAt = chat.indexOf("function previewNode(");
+  const node = chat.slice(nodeAt, chat.indexOf("function showPreview(", nodeAt));
+  const chatData = node.indexOf("video.dataset.src = src");
+  const chatSrc = node.indexOf("video.src = src");
+  assert.ok(chatData > 0 && chatSrc > chatData);
+  assert.match(node, /\.catch\(\(\) => \{\}\)/);
 });
 
 test("a scroll frame measures visible videos plus the active and preferred ones", () => {

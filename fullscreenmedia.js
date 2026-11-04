@@ -1,7 +1,7 @@
 import { isTyping } from './joystick.js';
 import { presentImage } from './loopmedia.js';
 import { isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
-import { posterSrc } from './videoposter.js';
+import { posterSrc, watchVideoFace } from './videoposter.js';
 
 // One preview for every picture in the app (chat thumbnails, popup
 // pictures, and the next place that needs it). Call openPreview. Add the
@@ -100,6 +100,7 @@ export function openPreview(src, options = {}) {
   stage.className = 'media-preview-stage';
   const media = video ? document.createElement('video') : document.createElement('img');
   if (video) {
+    media.dataset.src = resolved.src;
     media.src = resolved.src;
     media.controls = true;
     media.playsInline = true;
@@ -107,6 +108,9 @@ export function openPreview(src, options = {}) {
     media.autoplay = true;
     const poster = posterSrc(resolved.src, options);
     if (poster) media.poster = poster;
+    watchVideoFace(media);
+    const pending = media.play();
+    if (pending && typeof pending.catch === 'function') pending.catch(() => {});
   }
   stage.appendChild(media);
   overlay.appendChild(stage);
