@@ -499,11 +499,13 @@ async function saveE2eeChatEdit() {
     // rides inside the sealed payload, the same as a normal send.
     let poster = e2eeDraftPoster(target);
     let payload = packChatPayload(raw, target.image || '', poster);
+    let droppedThumb = false;
     if (poster && utf8ByteLength(e2eeChatEditOutgoing(raw)) > HCS_MESSAGE_MAX_BYTES) {
       poster = '';
       target.posterMode = 'clear';
       target.posterData = '';
       payload = packChatPayload(raw, target.image || '', '');
+      droppedThumb = true;
     }
     let encryptedMessage;
     try {
@@ -531,6 +533,7 @@ async function saveE2eeChatEdit() {
       toast.error(HCS_TOO_LONG);
       return;
     }
+    if (droppedThumb) toast.info('Thumbnail too big for this message, sent without it');
     toast.info('Confirm in wallet 👛');
     await sendMessage(target.topicId, outgoing);
     // Apply locally right away; the topic stream confirms the same edit.

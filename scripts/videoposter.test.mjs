@@ -377,5 +377,14 @@ test("an e2ee thumbnail is inside the sealed payload and absent from the outer m
   const chat = readFileSync(new URL("../chatimage.js", import.meta.url), "utf8");
   assert.match(upload, /Sealed thumbs never become a public poster/);
   assert.match(chat, /packSealedThumb/);
-  assert.doesNotMatch(readFileSync(new URL("../encryptedtopicchat.js", import.meta.url), "utf8"), /x-poster-for/i);
+  const encrypted = readFileSync(new URL("../encryptedtopicchat.js", import.meta.url), "utf8");
+  assert.doesNotMatch(encrypted, /x-poster-for/i);
+  const saveAt = encrypted.indexOf("async function saveE2eeChatEdit");
+  const save = encrypted.slice(saveAt, encrypted.indexOf("const e2eeChatEditCancel", saveAt));
+  const dropped = save.indexOf("droppedThumb = true");
+  assert.ok(dropped !== -1);
+  const notice = "toast.info('Thumbnail too big for this message, sent without it')";
+  assert.ok(save.indexOf(notice, dropped) !== -1);
+  const tooLong = save.indexOf("toast.error(HCS_TOO_LONG)");
+  assert.ok(tooLong !== -1 && tooLong < save.indexOf(notice));
 });
