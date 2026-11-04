@@ -1,8 +1,17 @@
 // Poster follow-ups stay with the account that uploaded the video.
+// A later edit uses a stateless HMAC. The account is not stored.
 import test from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
-import { createPendingPosters, POSTER_WAIT_MS } from "../server/pendingposters.js";
+import { createPendingPosters, issuePosterEdit, posterEditMatches, POSTER_WAIT_MS } from "../server/pendingposters.js";
+
+const SECRET = "0123456789abcdef0123456789abcdef";
+
+function expectedToken(posterKey, account) {
+  const key = crypto.createHmac("sha256", SECRET).update("poster-edit").digest();
+  return crypto.createHmac("sha256", key).update(`${posterKey}\n${account}`).digest("base64url");
+}
 
 test("a poster follow-up is only accepted from the uploading account", () => {
   assert.equal(POSTER_WAIT_MS, 2 * 60 * 1000);
@@ -58,34 +67,70 @@ test("expired poster holds are dropped on the upload sweep", () => {
   assert.equal(posters.size(), 0);
 });
 
-test("a later poster edit arms only for the account that uploaded the video", () => {
+test("a verified poster edit arms the follow-up for that account", () => {
   const posters = createPendingPosters(() => 10);
-  assert.equal(posters.remember("markers/9-zz.mp4", ""), "");
-  assert.equal(posters.remember("markers/9-zz.mp4", null), "");
-  assert.equal(posters.remember("markers/9-zz.mov", "0.0.1"), "");
-  assert.equal(posters.arm("markers/9-zz.poster.jpg", "0.0.1"), false);
-  assert.equal(posters.remember("markers/9-zz.mp4", "0.0.1"), "markers/9-zz.poster.jpg");
-  assert.equal(posters.owner("markers/9-zz.poster.jpg"), "0.0.1");
-  assert.equal(posters.arm("markers/9-zz.poster.jpg", "0.0.2"), false);
-  assert.equal(posters.live("markers/9-zz.poster.jpg", "0.0.2"), false);
-  assert.equal(posters.size(), 0);
+  assert.equal(posters.arm("", "0.0.1"), false);
+  assert.equal(posters.arm("markers/9-zz.poster.jpg", ""), false);
+  assert.equal(posters.arm("markers/9-zz.poster.jpg", null), false);
   assert.equal(posters.arm("markers/9-zz.poster.jpg", "0.0.1"), true);
+  assert.equal(posters.live("markers/9-zz.poster.jpg", "0.0.2"), false);
+  assert.equal(posters.size(), 1);
   assert.equal(posters.live("markers/9-zz.poster.jpg", "0.0.1"), true);
   assert.equal(posters.consume("markers/9-zz.poster.jpg", "0.0.2"), false);
   assert.equal(posters.consume("markers/9-zz.poster.jpg", "0.0.1"), true);
+  assert.equal(posters.size(), 0);
 });
 
-test("the upload route checks the poster account and sweeps with the upload limits", () => {
+test("a poster edit token is an HMAC of the poster key and account", () => {
+  const posterKey = "markers/9-zz.poster.jpg";
+  const token = issuePosterEdit("markers/9-zz.mp4", "0.0.1", SECRET);
+  assert.equal(token, expectedToken(posterKey, "0.0.1"));
+  assert.equal(issuePosterEdit("markers/9-zz.webm", "0.0.1", SECRET), expectedToken("markers/9-zz.poster.jpg", "0.0.1"));
+  assert.equal(posterEditMatches(posterKey, "0.0.1", token, SECRET), true);
+  assert.equal(posterEditMatches(posterKey, "0.0.2", token, SECRET), false);
+  assert.equal(posterEditMatches("markers/8-yy.poster.jpg", "0.0.1", token, SECRET), false);
+  assert.equal(posterEditMatches(posterKey, "0.0.1", token.slice(0, -1), SECRET), false);
+  assert.equal(posterEditMatches(posterKey, "0.0.1", `${token}a`, SECRET), false);
+  assert.equal(posterEditMatches(posterKey, "0.0.1", "", SECRET), false);
+  assert.equal(posterEditMatches(posterKey, "0.0.1", token, SECRET + "x"), false);
+  assert.equal(issuePosterEdit("markers/9-zz.mov", "0.0.1", SECRET), "");
+  assert.equal(issuePosterEdit("markers/9-zz.mp4", "", SECRET), "");
+  assert.equal(issuePosterEdit("markers/9-zz.mp4", null, SECRET), "");
+  assert.equal(issuePosterEdit("markers/9-zz.mp4", "0.0.1", "short"), "");
+  assert.equal(token.includes("0.0.1"), false);
+  const posters = readFileSync(new URL("../server/pendingposters.js", import.meta.url), "utf8");
+  assert.match(posters, /timingSafeEqual\(given, expected\)/);
+  assert.doesNotMatch(posters, /owners/);
+});
+
+test("the upload route checks the poster token and sweeps with the upload limits", () => {
   const src = readFileSync(new URL("../server/index.js", import.meta.url), "utf8");
+  const client = readFileSync(new URL("../uploadmedia.js", import.meta.url), "utf8");
+  assert.match(src, /DROP TABLE IF EXISTS video_owners/);
+  assert.doesNotMatch(src, /CREATE TABLE IF NOT EXISTS video_owners/);
+  assert.doesNotMatch(src, /INSERT INTO video_owners/);
+  assert.doesNotMatch(src, /SELECT poster_key, account FROM video_owners/);
   assert.match(src, /notePendingPoster\(key, account\)/);
   assert.match(src, /posterFollowUpLive\(posterKey, account\)/);
   assert.match(src, /consumePendingPoster\(posterKey, account\)/);
   assert.match(src, /restorePendingPoster\(posterKey, account\)/);
   assert.match(src, /posterHolds\.sweep\(now\)/);
-  assert.match(src, /posterHolds\.remember\(key, account\)/);
   assert.match(src, /posterHolds\.arm\(posterKey, account\)/);
-  assert.match(src, /posterHolds\.owner\(posterKey\) !== account/);
+  assert.match(src, /issuePosterEdit\(key, account, uploadTokenSecret\(\)\)/);
+  assert.match(src, /posterEditMatches\(posterKey, account, posterEdit, uploadTokenSecret\(\)\)/);
+  assert.match(src, /x-poster-edit/);
+  assert.match(src, /x-sealed/);
+  assert.match(src, /uploaded\.posterEdit = posterEdit/);
+  assert.doesNotMatch(src, /posterHolds\.remember/);
+  assert.doesNotMatch(src, /posterHolds\.owner/);
   assert.match(src, /app\.post\("\/api\/upload\/poster"/);
   assert.match(src, /x-poster-clear/);
   assert.match(src, /error: "Bad poster"/);
+  assert.match(client, /X-Poster-Edit/);
+  assert.match(client, /X-Poster-For/);
+  assert.match(client, /X-Poster-Clear/);
+  assert.match(client, /X-Expect-Poster/);
+  assert.match(client, /X-Sealed/);
+  assert.match(client, /localStorage\.setItem\(POSTER_EDIT_STORE, JSON\.stringify\(map\)\)/);
+  assert.match(client, /xhr\.response\.posterEdit/);
 });

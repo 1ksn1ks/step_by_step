@@ -450,7 +450,35 @@ function readVideoSeconds(localUrl) {
   });
 }
 
-function postFile({ file, seconds, turnstile, uploadToken, role, posterFor, expectPoster, signal, onProgress }) {
+const POSTER_EDIT_STORE = "poster-edit";
+
+function rememberPosterEdit(url, token) {
+  const videoUrl = typeof url === "string" ? url.trim() : "";
+  const edit = typeof token === "string" ? token.trim() : "";
+  if (!videoUrl || !edit) return;
+  try {
+    const parsed = JSON.parse(localStorage.getItem(POSTER_EDIT_STORE) || "{}");
+    const map = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    map[videoUrl] = edit;
+    localStorage.setItem(POSTER_EDIT_STORE, JSON.stringify(map));
+  } catch {
+    /* private mode */
+  }
+}
+
+function posterEditFor(url) {
+  const videoUrl = typeof url === "string" ? url.trim() : "";
+  if (!videoUrl) return "";
+  try {
+    const parsed = JSON.parse(localStorage.getItem(POSTER_EDIT_STORE) || "{}");
+    const edit = parsed && typeof parsed === "object" ? parsed[videoUrl] : "";
+    return typeof edit === "string" ? edit : "";
+  } catch {
+    return "";
+  }
+}
+
+function postFile({ file, seconds, turnstile, uploadToken, role, posterFor, expectPoster, seal, signal, onProgress }) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     let settled = false;
@@ -477,6 +505,7 @@ function postFile({ file, seconds, turnstile, uploadToken, role, posterFor, expe
     if (Number.isInteger(seconds) && seconds > 0) xhr.setRequestHeader("X-Media-Duration", String(seconds));
     if (posterFor) xhr.setRequestHeader("X-Poster-For", posterFor);
     if (expectPoster) xhr.setRequestHeader("X-Expect-Poster", "1");
+    if (seal) xhr.setRequestHeader("X-Sealed", "1");
     if (connectedAccount) xhr.setRequestHeader("X-Account", connectedAccount);
     if (uploadToken) xhr.setRequestHeader("X-Upload-Token", uploadToken);
     if (turnstile) xhr.setRequestHeader("CF-Turnstile-Response", turnstile);
@@ -485,6 +514,7 @@ function postFile({ file, seconds, turnstile, uploadToken, role, posterFor, expe
     };
     xhr.onload = () => {
       if (xhr.status === 200 && xhr.response && xhr.response.ok && typeof xhr.response.url === "string") {
+        if (!seal && typeof xhr.response.posterEdit === "string") rememberPosterEdit(xhr.response.url, xhr.response.posterEdit);
         finish(resolve, xhr.response.url);
         return;
       }
@@ -515,6 +545,7 @@ function sendUpload(file, baseLabel, seconds, turnstile, uploadToken, role, extr
     uploadToken,
     role,
     expectPoster: !!(extra && extra.expectPoster),
+    seal: !!(extra && extra.seal),
     signal,
     onProgress(ratio) {
       if (!pill) return;
@@ -555,6 +586,8 @@ function postPosterArm(videoUrl, uploadToken, clear) {
     xhr.open("POST", "/api/upload/poster");
     xhr.responseType = "json";
     xhr.setRequestHeader("X-Poster-For", videoUrl);
+    const edit = posterEditFor(videoUrl);
+    if (edit) xhr.setRequestHeader("X-Poster-Edit", edit);
     if (clear) xhr.setRequestHeader("X-Poster-Clear", "1");
     if (connectedAccount) xhr.setRequestHeader("X-Account", connectedAccount);
     if (uploadToken) xhr.setRequestHeader("X-Upload-Token", uploadToken);
@@ -652,7 +685,7 @@ async function uploadToR2(file, baseLabel, seconds, anchor, role, extra) {
         turnstile,
         uploadToken,
         role || "media",
-        { gif, pill, signal: abort && abort.signal, expectPoster },
+        { gif, pill, signal: abort && abort.signal, expectPoster, seal },
       );
       await finishPoster({
         url,

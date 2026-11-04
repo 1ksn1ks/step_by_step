@@ -25,7 +25,7 @@ import { profileTopicAction } from "./profiletopic.js";
 import { hashtagsIn } from "../hashtag.js";
 import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { posterTargetKey } from "../mediaurl.js";
-import { createPendingPosters } from "./pendingposters.js";
+import { createPendingPosters, issuePosterEdit, posterEditMatches } from "./pendingposters.js";
 import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
 import { startEarlyHashinals } from "./hashinals.js";
@@ -133,6 +133,9 @@ try {
   process.exit(1);
 }
 db.exec("PRAGMA journal_mode = WAL");
+// Uploader accounts are not stored. This drops any copy so the nightly
+// snapshot of data.db cannot carry them.
+db.exec("DROP TABLE IF EXISTS video_owners");
 db.exec(`
   CREATE TABLE IF NOT EXISTS messages (
     topic_id TEXT NOT NULL,
@@ -1925,16 +1928,6 @@ const UPLOAD_HOUR_MS = 60 * 60 * 1000;
 const uploadsByAccount = new Map();
 const uploadsByIp = new Map();
 const posterHolds = createPendingPosters();
-db.exec(`CREATE TABLE IF NOT EXISTS video_owners (
-  poster_key TEXT PRIMARY KEY,
-  account TEXT NOT NULL
-)`);
-const saveVideoOwner = db.prepare(
-  "INSERT INTO video_owners (poster_key, account) VALUES (?, ?) ON CONFLICT(poster_key) DO UPDATE SET account = excluded.account"
-);
-for (const row of db.prepare("SELECT poster_key, account FROM video_owners").all()) {
-  posterHolds.rememberKey(row.poster_key, row.account);
-}
 
 function uploadDay(now) {
   return new Date(now).toISOString().slice(0, 10);
@@ -2421,7 +2414,8 @@ function restorePendingPoster(posterKey, account) {
 }
 
 // Replace or clear the still for a video this account already uploaded.
-// The JPEG itself still goes through the owner-checked poster upload.
+// The poster-edit HMAC arms the same two-minute follow-up. The account
+// is not stored.
 app.post("/api/upload/poster", async (req, res) => {
   if (!r2) return res.status(503).json({ ok: false, error: "R2 not configured — set R2_* in server/.env" });
   const account = REQUIRE_UPLOAD_AUTH
@@ -2431,7 +2425,8 @@ app.post("/api/upload/poster", async (req, res) => {
   if (uploadRequestLimited(req, res)) return;
   const posterHeader = typeof req.headers["x-poster-for"] === "string" ? req.headers["x-poster-for"].trim() : "";
   const posterKey = posterHeader ? posterTargetKey(R2_PUBLIC_BASE, posterHeader) : "";
-  if (!posterKey || posterHolds.owner(posterKey) !== account) {
+  const posterEdit = typeof req.headers["x-poster-edit"] === "string" ? req.headers["x-poster-edit"].trim() : "";
+  if (!posterKey || !posterEditMatches(posterKey, account, posterEdit, uploadTokenSecret())) {
     return res.status(400).json({ ok: false, error: "Bad poster" });
   }
   if (String(req.headers["x-poster-clear"] || "") === "1") {
@@ -2572,15 +2567,17 @@ app.post("/api/upload", async (req, res) => {
       if (!res.headersSent) res.status(502).json({ ok: false, error: "R2 upload failed" });
       return;
     }
+    const uploaded = { ok: true, url: `${R2_PUBLIC_BASE}/${key}`, type };
     if (isVideo && (ext === ".mp4" || ext === ".webm")) {
-      const owned = posterHolds.remember(key, account);
-      if (owned && account) {
-        try { saveVideoOwner.run(owned, account); } catch { /* the in-memory owner still stands */ }
-      }
       if (String(req.headers["x-expect-poster"] || "") === "1") notePendingPoster(key, account);
+      const sealed = String(req.headers["x-sealed"] || "") === "1";
+      if (!sealed && account) {
+        const posterEdit = issuePosterEdit(key, account, uploadTokenSecret());
+        if (posterEdit) uploaded.posterEdit = posterEdit;
+      }
     }
     addUploadBytes(account, body.length);
-    res.json({ ok: true, url: `${R2_PUBLIC_BASE}/${key}`, type });
+    res.json(uploaded);
   } catch (err) {
     if (res.headersSent) return;
     if (err && err.code === 413) return res.status(413).json({ ok: false, error: tooBigMessage(isVideo) });
