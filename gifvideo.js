@@ -5,6 +5,7 @@ import { coverVideoReject } from "./covervideolimit.js";
 
 export const GIF_BROWSER_ERROR = "This browser can't convert GIFs. Try Chrome or Safari";
 export const GIF_COVER_EDGE = 512;
+export const GIF_MEDIA_EDGE = 720;
 const JPEG_QUALITY = 0.85;
 const COVER_ROLES = new Set(["cover", "avatar", "polygon-cover"]);
 const MIME_CANDIDATES = [
@@ -26,8 +27,9 @@ export function evenFloor(n) {
 }
 
 // Cover, avatar, and polygon-cover: centre square, then an even edge of at
-// most 512. Media keeps its frame and only drops a pixel so both sides are
-// even. Still photos stay on shrinkCoverImage (long edge, no crop).
+// most 512. Media keeps the whole frame, evens both sides, and scales the
+// long edge down to 720. A large GIF is scaled, not rejected. Still photos
+// stay on shrinkCoverImage (long edge, no crop).
 export function frameBox(width, height, role) {
   const w = Math.max(0, Math.floor(Number(width) || 0));
   const h = Math.max(0, Math.floor(Number(height) || 0));
@@ -39,7 +41,16 @@ export function frameBox(width, height, role) {
     const out = evenFloor(capped);
     return { width: out, height: out, sx, sy, sw: side, sh: side };
   }
-  return { width: evenFloor(w), height: evenFloor(h), sx: 0, sy: 0, sw: w, sh: h };
+  const long = Math.max(w, h);
+  const scale = long > GIF_MEDIA_EDGE ? GIF_MEDIA_EDGE / long : 1;
+  return {
+    width: evenFloor(w * scale),
+    height: evenFloor(h * scale),
+    sx: 0,
+    sy: 0,
+    sw: w,
+    sh: h,
+  };
 }
 
 // One bar. Conversion fills 0–70. The upload fills 70–100.
@@ -167,28 +178,66 @@ function blitPatch(ctx, frame) {
   ctx.drawImage(patch, dims.left, dims.top);
 }
 
-function gifuctPainter(decoded) {
+// gifuct stores a missing or zero graphic-control delay as 100ms.
+function gifFrameDelayMs(frame) {
+  if (frame && frame.gce) return delayMs((frame.gce.delay || 10) * 10);
+  return delayMs(0);
+}
+
+function alignDelays(delays, count) {
+  const out = [];
+  for (let i = 0; i < count; i += 1) {
+    const n = delays && Number(delays[i]);
+    out.push(Number.isFinite(n) && n > 0 ? n : delayMs(0));
+  }
+  return out;
+}
+
+// ImageTrack lists frameCount, not per-frame times. A delay list on the
+// track wins when a browser exposes one. Otherwise the graphic-control
+// times from the parse are used, still without inflating pixels.
+function delaysFromTrack(track, count) {
+  const list = track && (track.frameDurations || track.delays);
+  if (!list || typeof list.length !== "number" || list.length < count) return null;
+  const out = [];
+  for (let i = 0; i < count; i += 1) {
+    const n = Number(list[i]);
+    if (!Number.isFinite(n) || n <= 0) {
+      out.push(delayMs(0));
+      continue;
+    }
+    out.push(delayMs(n >= 10000 ? n / 1000 : n));
+  }
+  return out;
+}
+
+function openGifuct(gif, rawFrames, delays, decompressFrame) {
+  const width = gif && gif.lsd ? gif.lsd.width : 0;
+  const height = gif && gif.lsd ? gif.lsd.height : 0;
   let comp = null;
   let ctx = null;
   let next = 0;
-  const ensure = () => {
-    if (comp) return;
-    comp = document.createElement("canvas");
-    comp.width = decoded.width;
-    comp.height = decoded.height;
-    ctx = comp.getContext("2d", { willReadFrequently: true });
-    next = 0;
-  };
+  let alive = rawFrames;
   return {
+    width,
+    height,
+    count: rawFrames.length,
+    delays,
     reset() {
       comp = null;
       ctx = null;
       next = 0;
     },
     paint(index, target, box) {
-      ensure();
-      const frame = decoded.frames[index];
-      if (!frame || index !== next) throw new Error(GIF_BROWSER_ERROR);
+      if (!alive || index !== next) throw new Error(GIF_BROWSER_ERROR);
+      const frame = decompressFrame(alive[index], gif.gct, true);
+      if (!frame || !frame.patch || !frame.dims) throw new Error(GIF_BROWSER_ERROR);
+      if (!comp) {
+        comp = document.createElement("canvas");
+        comp.width = width;
+        comp.height = height;
+        ctx = comp.getContext("2d", { willReadFrequently: true });
+      }
       const disposal = frame.disposalType || 0;
       const saved = disposal === 3 ? ctx.getImageData(0, 0, comp.width, comp.height) : null;
       blitPatch(ctx, frame);
@@ -197,26 +246,19 @@ function gifuctPainter(decoded) {
       else if (disposal === 3 && saved) ctx.putImageData(saved, 0, 0);
       next += 1;
     },
-  };
-}
-
-function imageDecoderPainter(decoded) {
-  return {
-    reset() {},
-    paint(index, target, box) {
-      const frame = decoded.frames[index];
-      if (!frame || !frame.image) throw new Error(GIF_BROWSER_ERROR);
-      paintOutput(target, frame.image, box);
+    close() {
+      alive = null;
+      comp = null;
+      ctx = null;
     },
   };
 }
 
-async function decodeWithImageDecoder(file) {
+async function openImageDecoder(data, width, height, parsedDelays) {
   if (typeof ImageDecoder !== "function") return null;
   let decoder = null;
-  const frames = [];
   try {
-    decoder = new ImageDecoder({ data: await file.arrayBuffer(), type: "image/gif" });
+    decoder = new ImageDecoder({ data, type: "image/gif" });
     await decoder.tracks.ready;
     const track = decoder.tracks.selectedTrack;
     const count = track && track.frameCount;
@@ -224,33 +266,28 @@ async function decodeWithImageDecoder(file) {
       try { decoder.close(); } catch { /* already closed */ }
       return null;
     }
-    for (let i = 0; i < count; i += 1) {
-      const result = await decoder.decode({ frameIndex: i });
-      const image = result && result.image;
-      if (!image) throw new Error("empty frame");
-      const micros = typeof image.duration === "number" ? image.duration / 1000 : 0;
-      frames.push({ image, delay: delayMs(micros) });
-    }
-    const first = frames[0].image;
-    const width = first.displayWidth || first.codedWidth || 0;
-    const height = first.displayHeight || first.codedHeight || 0;
-    if (!width || !height) throw new Error("empty frame");
+    const delays = alignDelays(delaysFromTrack(track, count) || parsedDelays, count);
     return {
       width,
       height,
-      frames,
-      painter: null,
-      close() {
-        for (const frame of frames) {
-          try { frame.image.close(); } catch { /* already closed */ }
+      count,
+      delays,
+      reset() {},
+      async paint(index, target, box) {
+        const result = await decoder.decode({ frameIndex: index });
+        const image = result && result.image;
+        if (!image) throw new Error(GIF_BROWSER_ERROR);
+        try {
+          paintOutput(target, image, box);
+        } finally {
+          try { image.close(); } catch { /* already closed */ }
         }
+      },
+      close() {
         try { decoder.close(); } catch { /* already closed */ }
       },
     };
   } catch {
-    for (const frame of frames) {
-      try { frame.image.close(); } catch { /* already closed */ }
-    }
     if (decoder) {
       try { decoder.close(); } catch { /* already closed */ }
     }
@@ -258,36 +295,20 @@ async function decodeWithImageDecoder(file) {
   }
 }
 
-async function decodeWithGifuct(file) {
-  const { parseGIF, decompressFrames } = await import("gifuct-js");
-  const gif = parseGIF(await file.arrayBuffer());
+// Parses the file once. Pixels stay compressed until paint() asks for one
+// frame. ImageDecoder is preferred. gifuct-js decompresses that same index.
+async function decodeGif(file) {
+  const data = await file.arrayBuffer();
+  const { parseGIF, decompressFrame } = await import("gifuct-js");
+  const gif = parseGIF(data);
   const width = gif && gif.lsd ? gif.lsd.width : 0;
   const height = gif && gif.lsd ? gif.lsd.height : 0;
-  const frames = decompressFrames(gif, true).filter((frame) => frame && frame.patch && frame.dims);
-  if (!width || !height || !frames.length) return null;
-  return {
-    width,
-    height,
-    frames: frames.map((frame) => ({
-      patch: frame.patch,
-      dims: frame.dims,
-      delay: delayMs(frame.delay),
-      disposalType: frame.disposalType || 0,
-    })),
-    close() {},
-  };
-}
-
-async function decodeGif(file) {
-  const native = await decodeWithImageDecoder(file);
-  if (native) {
-    native.painter = imageDecoderPainter(native);
-    return native;
-  }
-  const parsed = await decodeWithGifuct(file);
-  if (!parsed) return null;
-  parsed.painter = gifuctPainter(parsed);
-  return parsed;
+  const rawFrames = ((gif && gif.frames) || []).filter((frame) => frame && frame.image);
+  if (!width || !height || !rawFrames.length) return null;
+  const delays = rawFrames.map(gifFrameDelayMs);
+  const native = await openImageDecoder(data, width, height, delays);
+  if (native) return native;
+  return openGifuct(gif, rawFrames, delays, decompressFrame);
 }
 
 function stopTracks(stream) {
@@ -333,7 +354,8 @@ async function recordCanvas(canvas, mime, paintFrame, count, delays, signal, onP
     rec.start(100);
     for (let i = 0; i < count; i += 1) {
       throwIfAborted(signal);
-      paintFrame(i);
+      await paintFrame(i);
+      throwIfAborted(signal);
       const track = stream.getVideoTracks()[0];
       if (track && track.requestFrame) track.requestFrame();
       report(i + 1, Date.now() - started);
@@ -370,13 +392,12 @@ export async function convertGifFile(file, options) {
   }
   try {
     throwIfAborted(signal);
-    const frames = decoded && decoded.frames;
-    if (!frames || !frames.length || !decoded.painter) throw new Error(GIF_BROWSER_ERROR);
+    if (!decoded || !decoded.count || typeof decoded.paint !== "function") throw new Error(GIF_BROWSER_ERROR);
     const box = frameBox(decoded.width, decoded.height, role);
     if (!box.sw || !box.sh || !box.width || !box.height) throw new Error(GIF_BROWSER_ERROR);
-    const delays = frames.map((frame) => delayMs(frame.delay));
+    const delays = alignDelays(decoded.delays, decoded.count);
     const seconds = delays.reduce((sum, n) => sum + n, 0) / 1000;
-    if (frames.length > 1) {
+    if (decoded.count > 1) {
       const reason = gifDurationReject(role, seconds);
       if (reason) {
         const err = new Error(reason);
@@ -387,19 +408,19 @@ export async function convertGifFile(file, options) {
     canvas.width = box.width;
     canvas.height = box.height;
     const ctx = canvas.getContext("2d");
-    const paint = (index) => decoded.painter.paint(index, ctx, box);
-    decoded.painter.reset();
-    paint(0);
+    const paint = (index) => decoded.paint(index, ctx, box);
+    decoded.reset();
+    await paint(0);
     const posterBlob = await canvasJpeg(canvas);
     const name = baseName(file);
-    if (frames.length === 1) {
+    if (decoded.count === 1) {
       return {
         file: new File([posterBlob], `${name}.jpg`, { type: "image/jpeg", lastModified: Date.now() }),
         poster: null,
         seconds: 0,
       };
     }
-    decoded.painter.reset();
+    decoded.reset();
     const mime = pickRecorderMime(
       typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported
         ? (type) => MediaRecorder.isTypeSupported(type)
@@ -412,7 +433,7 @@ export async function convertGifFile(file, options) {
       canvas,
       mime,
       paint,
-      frames.length,
+      decoded.count,
       delays,
       signal,
       opts.onProgress,
@@ -428,13 +449,13 @@ export async function convertGifFile(file, options) {
   }
 }
 
-function paintFrameZero(decoded) {
-  if (!decoded || !decoded.painter || !decoded.width || !decoded.height) return null;
+async function paintFrameZero(decoded) {
+  if (!decoded || typeof decoded.paint !== "function" || !decoded.width || !decoded.height) return null;
   const canvas = document.createElement("canvas");
   canvas.width = decoded.width;
   canvas.height = decoded.height;
-  decoded.painter.reset();
-  decoded.painter.paint(0, canvas.getContext("2d"), {
+  decoded.reset();
+  await decoded.paint(0, canvas.getContext("2d"), {
     width: decoded.width,
     height: decoded.height,
     sx: 0,
@@ -482,10 +503,14 @@ export async function gifStillCanvas(file) {
   }
   let decoded = null;
   try {
-    decoded = await decodeWithGifuct(new File([data], "frame.gif", { type: "image/gif" }));
-    if (!decoded) return null;
-    decoded.painter = gifuctPainter(decoded);
-    return paintFrameZero(decoded);
+    const { parseGIF, decompressFrame } = await import("gifuct-js");
+    const gif = parseGIF(data);
+    const width = gif && gif.lsd ? gif.lsd.width : 0;
+    const height = gif && gif.lsd ? gif.lsd.height : 0;
+    const rawFrames = ((gif && gif.frames) || []).filter((frame) => frame && frame.image);
+    if (!width || !height || !rawFrames.length) return null;
+    decoded = openGifuct(gif, rawFrames, rawFrames.map(gifFrameDelayMs), decompressFrame);
+    return await paintFrameZero(decoded);
   } catch {
     return null;
   } finally {

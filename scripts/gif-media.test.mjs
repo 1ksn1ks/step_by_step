@@ -1,6 +1,7 @@
 // Device GIF geometry, progress, and the media-URL resolver. No browser and no network.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   classifyImageUrl,
   contentTypeVerdict,
@@ -15,6 +16,8 @@ import { presentImage } from "../loopmedia.js";
 import {
   GIF_BROWSER_ERROR,
   conversionRatio,
+  GIF_COVER_EDGE,
+  GIF_MEDIA_EDGE,
   frameBox,
   gifDurationReject,
   mapGifProgress,
@@ -44,7 +47,9 @@ test("cover roles centre-crop to an even edge of at most 512", () => {
   assert.equal(narrow.height % 2, 0);
 });
 
-test("media keeps its size and only evens each side", () => {
+test("media evens each side and caps the long edge at 720", () => {
+  assert.equal(GIF_COVER_EDGE, 512);
+  assert.equal(GIF_MEDIA_EDGE, 720);
   assert.deepEqual(frameBox(101, 51, "media"), {
     width: 100, height: 50, sx: 0, sy: 0, sw: 101, sh: 51,
   });
@@ -55,7 +60,51 @@ test("media keeps its size and only evens each side", () => {
   assert.equal(odd.sy, 0);
   assert.equal(odd.sw, 3);
   assert.equal(odd.sh, 5);
+  const wide = frameBox(1920, 1080, "media");
+  assert.equal(wide.width, 720);
+  assert.equal(wide.height, 404);
+  assert.equal(wide.sx, 0);
+  assert.equal(wide.sy, 0);
+  assert.equal(wide.sw, 1920);
+  assert.equal(wide.sh, 1080);
+  assert.equal(wide.width % 2, 0);
+  assert.equal(wide.height % 2, 0);
+  const tall = frameBox(1080, 1920, "media");
+  assert.equal(tall.width, 404);
+  assert.equal(tall.height, 720);
+  const exact = frameBox(720, 400, "media");
+  assert.equal(exact.width, 720);
+  assert.equal(exact.height, 400);
+  const square = frameBox(8000, 8000, "media");
+  assert.equal(square.width, 720);
+  assert.equal(square.height, 720);
+  assert.equal(square.sw, 8000);
+  assert.equal(square.sh, 8000);
+  assert.equal(frameBox(2000, 1000, "cover").width, 512);
+  assert.equal(frameBox(2000, 1000, "avatar").width, 512);
   assert.notEqual(frameBox(800, 200, "media").width, frameBox(800, 200, "cover").width);
+  assert.equal(Math.max(frameBox(800, 200, "media").width, frameBox(800, 200, "media").height), 720);
+});
+
+test("frames are decoded one at a time and a feed tap still converts", () => {
+  const source = readFileSync(new URL("../gifvideo.js", import.meta.url), "utf8");
+  const playback = readFileSync(new URL("../loopmedia.js", import.meta.url), "utf8");
+  assert.equal(source.includes("decompressFrames"), false);
+  assert.match(source, /decompressFrame\(alive\[index\]/);
+  assert.match(source, /decoder\.decode\(\{ frameIndex: index \}\)/);
+  assert.match(source, /image\.close\(\)/);
+  const recordAt = source.indexOf("async function recordCanvas");
+  const record = source.slice(recordAt, source.indexOf("export async function convertGifFile"));
+  assert.match(record, /await paintFrame\(i\)/);
+  assert.match(record, /opts\.onProgress|onProgress\)/);
+  assert.match(record, /throwIfAborted\(signal\)/);
+  assert.match(source, /gifCancelError\(\)/);
+  assert.match(source, /opts\.onProgress\) opts\.onProgress\(0\)/);
+  const tap = playback.slice(playback.indexOf("export function playStoredGif"));
+  assert.match(tap, /convertGifFile\(file, \{ role: "media", signal: ctrl\.signal \}\)/);
+  assert.equal(gifDurationReject("media", 90), "");
+  assert.equal(gifDurationReject("avatar", 90), "");
+  assert.equal(gifDurationReject("cover", 90), "");
 });
 
 test("conversion fills 0–70 and the upload fills 70–100", () => {
