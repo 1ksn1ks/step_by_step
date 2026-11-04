@@ -362,6 +362,71 @@ test("the frame cache keeps about 60 stills and revokes the ones it drops", () =
   }
 });
 
+test("an on-screen poster is not revoked", () => {
+  const revoked = [];
+  const previousRevoke = URL.revokeObjectURL;
+  URL.revokeObjectURL = (value) => { revoked.push(String(value)); };
+  const previousDoc = globalThis.document;
+  const videos = [];
+  globalThis.document = {
+    querySelectorAll(selector) {
+      if (selector !== "video[poster]") return [];
+      return videos.filter((video) => video.isConnected !== false && (video.getAttribute("poster") || video.poster));
+    },
+  };
+  const clip = (name) => `https://cdn.example/clips/${name}.mp4`;
+  const shown = "blob:frame-1";
+  function connectedVideo() {
+    const video = {
+      isConnected: true,
+      preload: "",
+      dataset: {},
+      style: {},
+      _poster: "",
+      set poster(value) { this._poster = value || ""; },
+      get poster() { return this._poster; },
+      getAttribute(name) {
+        if (name === "poster") return this._poster || null;
+        if (name === "src") return null;
+        return null;
+      },
+      removeAttribute() {},
+      addEventListener() {},
+    };
+    videos.push(video);
+    return video;
+  }
+  try {
+    resetVideoFrames();
+    revoked.length = 0;
+    rememberVideoFrame(clip("1"), shown);
+    const video = connectedVideo();
+    bindVideoPoster(video, clip("1"), null);
+    assert.equal(video.poster, shown);
+    for (let i = 2; i <= 60; i += 1) {
+      rememberVideoFrame(clip(String(i)), `blob:frame-${i}`);
+    }
+    rememberVideoFrame(clip("61"), "blob:frame-61");
+    assert.equal(revoked.includes(shown), false);
+    assert.deepEqual(revoked, ["blob:frame-2"]);
+    assert.equal(cachedVideoFrame(clip("1")), shown);
+    resetVideoFrames();
+    assert.equal(revoked.includes(shown), false);
+    assert.equal(cachedVideoFrame(clip("1")), shown);
+    assert.equal(cachedVideoFrame(clip("61")), "");
+    video.isConnected = false;
+    resetVideoFrames();
+    assert.equal(revoked.filter((url) => url === shown).length, 1);
+    assert.equal(cachedVideoFrame(clip("1")), "");
+  } finally {
+    try { resetVideoFrames(); } finally {
+      URL.revokeObjectURL = previousRevoke;
+      if (previousDoc === undefined) delete globalThis.document;
+      else globalThis.document = previousDoc;
+    }
+  }
+});
+
 test("an e2ee thumbnail is inside the sealed payload and absent from the outer message", () => {
   const thumb = "data:image/jpeg;base64,AAAA";
   const packed = packSealedThumb("hello", "https://cdn.example/markers/12-ab.mp4", thumb);

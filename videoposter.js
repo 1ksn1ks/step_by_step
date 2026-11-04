@@ -13,8 +13,10 @@ const FRAME_CACHE_MAX = 60;
 const VIEWER_GRAB_EDGE = 480;
 const VIEWER_GRAB_LIMIT = 2;
 
-// Newest last. A dropped still revokes its blob URL.
+// Newest last. A dropped still revokes its blob URL. A poster a connected
+// video still shows stays in the map until that video lets go of it.
 const frameCache = new Map();
+const retainedFrames = new Set();
 const grabQueue = [];
 let grabsBusy = 0;
 
@@ -48,9 +50,32 @@ export function posterSrc(videoUrl, hint) {
   return sibling;
 }
 
+function frameUrlInUse(blobUrl) {
+  if (!blobUrl || typeof document === "undefined" || typeof document.querySelectorAll !== "function") return false;
+  try {
+    const nodes = document.querySelectorAll("video[poster]");
+    if (!nodes) return false;
+    for (const video of nodes) {
+      if (!video || video.isConnected === false) continue;
+      const attr = typeof video.getAttribute === "function" ? video.getAttribute("poster") || "" : "";
+      const prop = typeof video.poster === "string" ? video.poster : "";
+      if (attr === blobUrl || prop === blobUrl) return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 function revokeFrameUrl(blobUrl) {
-  if (!blobUrl) return;
+  if (!blobUrl || frameUrlInUse(blobUrl)) return false;
   try { URL.revokeObjectURL(blobUrl); } catch { /* already revoked */ }
+  retainedFrames.delete(blobUrl);
+  return true;
+}
+
+function releaseRetainedFrames() {
+  for (const blobUrl of [...retainedFrames]) revokeFrameUrl(blobUrl);
 }
 
 export function cachedVideoFrame(url) {
@@ -68,21 +93,29 @@ export function rememberVideoFrame(url, blobUrl) {
   if (frameCache.has(key)) {
     const prev = frameCache.get(key);
     frameCache.delete(key);
-    if (prev !== blobUrl) revokeFrameUrl(prev);
+    if (prev !== blobUrl && !revokeFrameUrl(prev)) retainedFrames.add(prev);
   }
   frameCache.set(key, blobUrl);
-  while (frameCache.size > FRAME_CACHE_MAX) {
-    const oldest = frameCache.keys().next().value;
-    const dropped = frameCache.get(oldest);
-    frameCache.delete(oldest);
+  retainedFrames.delete(blobUrl);
+  for (const old of [...frameCache.keys()]) {
+    if (frameCache.size <= FRAME_CACHE_MAX) break;
+    if (old === key) continue;
+    const dropped = frameCache.get(old);
+    if (frameUrlInUse(dropped)) continue;
+    frameCache.delete(old);
     revokeFrameUrl(dropped);
   }
+  releaseRetainedFrames();
   return blobUrl;
 }
 
 export function resetVideoFrames() {
-  for (const blobUrl of frameCache.values()) revokeFrameUrl(blobUrl);
-  frameCache.clear();
+  for (const [key, blobUrl] of [...frameCache]) {
+    if (frameUrlInUse(blobUrl)) continue;
+    frameCache.delete(key);
+    revokeFrameUrl(blobUrl);
+  }
+  releaseRetainedFrames();
 }
 
 // Flags carried on an edit. Absent fields stay unset so a text-only edit
