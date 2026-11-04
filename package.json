@@ -12,7 +12,8 @@
     "build": "vite build",
     "start": "node server/boot.js",
     "preview": "vite preview",
-    "test:security": "node scripts/security-check.mjs"
+    "test:security": "node scripts/security-check.mjs",
+    "backfill:posters": "node server/scripts/backfill-posters.mjs"
   },
   "devDependencies": {
     "vite": "^7.2.4",
