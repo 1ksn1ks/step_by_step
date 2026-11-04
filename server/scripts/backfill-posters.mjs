@@ -8,21 +8,26 @@
 // the client.
 //
 // It lists markers/ only. A video whose poster object is already there is
-// skipped, so a stopped run continues without rewriting a still. Nothing
-// about uploaders, accounts, or topics is read or stored: the only pair
-// is the video key and the poster key from that name.
+// skipped, so a stopped run continues without rewriting a still.
 //
-// A new sealed chat object is markers/<digits>-<alnum> with no extension,
-// so posterKeyFor does not select it and no poster is written. Older
-// sealed uploads were real mp4 or webm files at the usual key. Those are
-// still listed. Bytes that are not an mp4 (ftyp) or webm (EBML) container
-// are skipped, which is how a non-video blob is told apart from a public
-// video.
+// A poster is written only when that video URL already appears in a public
+// plaintext message this server has stored. E2EE and ciphertext topics are
+// skipped whole, including a plaintext chat payload on that topic, so a
+// plain mp4 uploaded for sealed chat is not given a still. A public
+// message that set posterOff is skipped too. The allowlist is the set of
+// those video keys, kept for this process and then dropped. Uploader,
+// account, and topic records are not stored.
+//
+// An extensionless sealed object is not selected. A referenced object
+// whose bytes are not an mp4 (ftyp) or webm (EBML) container is still
+// skipped. Missing or unreadable messages fail closed: nothing is posted.
 
 import { spawn } from "node:child_process";
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   GetObjectCommand,
@@ -89,12 +94,225 @@ export function classifyKeys(keys) {
   return { counts, pending };
 }
 
+const CHAT_PREFIX = "\u001echat1\n";
+
+function isoOf(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString();
+}
+
+// The messages table stores the consensus timestamp. A poster clear names
+// the same instant as the ISO string the server already broadcasts.
+function consensusIso(ts) {
+  if (typeof ts === "number" && Number.isFinite(ts)) return isoOf(new Date(ts * 1000));
+  if (typeof ts !== "string") return "";
+  const text = ts.trim();
+  if (!text) return "";
+  if (text.includes("T")) return isoOf(text);
+  const n = Number(text);
+  if (!Number.isFinite(n)) return "";
+  return isoOf(new Date(n * 1000));
+}
+
+export function videoKeyFromUrl(value) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return "";
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return "";
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return "";
+  let pathname;
+  try {
+    pathname = decodeURIComponent(parsed.pathname);
+  } catch {
+    return "";
+  }
+  if (!pathname || pathname.includes("..") || pathname.includes("\\") || pathname.includes("\0")) return "";
+  const parts = pathname.split("/");
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const key = parts.slice(i).join("/");
+    if (posterKeyFor(key)) return key;
+  }
+  return "";
+}
+
+function collectVideoKeys(value, into) {
+  const list = typeof value === "string" ? [value] : Array.isArray(value) ? value : [];
+  for (const item of list) {
+    const key = videoKeyFromUrl(item);
+    if (key) into.add(key);
+  }
+}
+
+function posterCleared(data) {
+  if (!data || typeof data !== "object") return false;
+  return data.posterOff === true || data.posterOff === 1 || data.posterOff === "1";
+}
+
+function parsedBody(body) {
+  if (typeof body !== "string") return null;
+  const text = body.replace(/^\uFEFF/, "");
+  if (text.startsWith(CHAT_PREFIX)) return { e2ee: true };
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  if (data.encryptedMessage && typeof data.encryptedMessage === "object") return { e2ee: true };
+  const keys = Object.keys(data);
+  if (keys.length === 1 && keys[0] === "ciphertext" && typeof data.ciphertext === "string" && data.ciphertext) {
+    return { e2ee: true };
+  }
+  return { e2ee: false, data };
+}
+
+function videosInMessage(data) {
+  const keys = new Set();
+  let clear = false;
+  let namesIso = "";
+  const blocks = [];
+  if (data.marker && data.marker.data && typeof data.marker.data === "object") blocks.push(data.marker.data);
+  if (data.polygon && data.polygon.data && typeof data.polygon.data === "object") blocks.push(data.polygon.data);
+  for (const block of blocks) {
+    collectVideoKeys(block.image, keys);
+    collectVideoKeys(block.coverimage, keys);
+    if (!posterCleared(block)) continue;
+    clear = true;
+    const named = block.editMarkerCreated || block.editPolygonCreated;
+    if (typeof named === "string" && named) {
+      const iso = isoOf(named);
+      if (iso) namesIso = iso;
+    }
+  }
+  if (typeof data.userMessage === "string") collectVideoKeys(data.image, keys);
+  const edit = data.editUserMessage;
+  if (edit && typeof edit === "object" && !Array.isArray(edit)) {
+    collectVideoKeys(edit.image, keys);
+    if (posterCleared(edit)) {
+      clear = true;
+      if (typeof edit.created === "string" && edit.created) {
+        const iso = isoOf(edit.created);
+        if (iso) namesIso = iso;
+      }
+    }
+  }
+  return { keys, clear, namesIso };
+}
+
+// Video keys only. Topic ids are grouped for this call so a ciphertext
+// topic can be skipped whole, then dropped. Nothing else is retained.
+export function publicVideoAllowlist(rows) {
+  const topics = new Map();
+  for (const row of rows || []) {
+    if (!row || typeof row.topic_id !== "string" || !row.topic_id) continue;
+    let bucket = topics.get(row.topic_id);
+    if (!bucket) {
+      bucket = [];
+      topics.set(row.topic_id, bucket);
+    }
+    bucket.push(row);
+  }
+  const wanted = new Set();
+  const cleared = new Set();
+  for (const bucket of topics.values()) {
+    let e2ee = false;
+    const publicRows = [];
+    for (const row of bucket) {
+      const parsed = parsedBody(row.body);
+      if (parsed && parsed.e2ee) {
+        e2ee = true;
+        break;
+      }
+      if (parsed && parsed.data) publicRows.push({ ts: row.ts, data: parsed.data });
+    }
+    if (e2ee) continue;
+    const posts = [];
+    const clearIsos = new Set();
+    const namedClear = new Set();
+    for (const row of publicRows) {
+      const info = videosInMessage(row.data);
+      if (info.keys.size) posts.push({ iso: consensusIso(row.ts), keys: info.keys });
+      if (!info.clear) continue;
+      if (info.namesIso) clearIsos.add(info.namesIso);
+      for (const key of info.keys) namedClear.add(key);
+    }
+    const referenced = new Set();
+    const keep = new Set();
+    for (const post of posts) {
+      const killed = !!(post.iso && clearIsos.has(post.iso));
+      for (const key of post.keys) {
+        referenced.add(key);
+        if (!killed && !namedClear.has(key)) keep.add(key);
+      }
+    }
+    for (const key of namedClear) referenced.add(key);
+    for (const key of referenced) {
+      if (keep.has(key)) wanted.add(key);
+      else cleared.add(key);
+    }
+  }
+  for (const key of wanted) cleared.delete(key);
+  return { wanted, cleared };
+}
+
+export function loadPublicVideos(dbPath) {
+  const empty = { wanted: new Set(), cleared: new Set(), ok: false };
+  if (typeof dbPath !== "string" || !dbPath || !fsSync.existsSync(dbPath)) return empty;
+  let db;
+  try {
+    db = new DatabaseSync(dbPath, { readOnly: true });
+    const rows = db.prepare("SELECT topic_id, ts, body FROM messages").all();
+    const allow = publicVideoAllowlist(rows);
+    return { wanted: allow.wanted, cleared: allow.cleared, ok: true };
+  } catch {
+    return empty;
+  } finally {
+    if (db) {
+      try { db.close(); } catch { /* already closed */ }
+    }
+  }
+}
+
+export function applyAllowlist(classified, allowlist) {
+  const wanted = allowlist && allowlist.wanted instanceof Set ? allowlist.wanted : new Set();
+  const clearedKeys = allowlist && allowlist.cleared instanceof Set ? allowlist.cleared : new Set();
+  const pending = [];
+  let unreferenced = 0;
+  let cleared = 0;
+  for (const job of (classified && classified.pending) || []) {
+    if (wanted.has(job.videoKey)) {
+      pending.push({ videoKey: job.videoKey, posterKey: job.posterKey, referenced: true });
+      continue;
+    }
+    if (clearedKeys.has(job.videoKey)) cleared += 1;
+    else unreferenced += 1;
+  }
+  const counts = classified && classified.counts ? classified.counts : {};
+  return {
+    counts: {
+      ...counts,
+      pending: pending.length,
+      unreferenced,
+      cleared,
+    },
+    pending,
+  };
+}
+
 export function formatCounts(counts) {
   const lines = [
     `objects ${counts.objects}`,
     `videos ${counts.videos}`,
     `already ${counts.already}`,
     `skipped ${counts.skipped}`,
+    `unreferenced ${counts.unreferenced || 0}`,
+    `cleared ${counts.cleared || 0}`,
     `pending ${counts.pending}`,
   ];
   if (Object.prototype.hasOwnProperty.call(counts, "uploaded")) {
@@ -264,7 +482,9 @@ export async function runPool(items, limit, fn) {
 
 export async function backfillOne(client, bucket, job, extract) {
   try {
-    if (!job || posterKeyFor(job.videoKey) !== job.posterKey) return "failed";
+    if (!job || job.referenced !== true) return "unreferenced";
+    if (job.cleared === true) return "cleared";
+    if (posterKeyFor(job.videoKey) !== job.posterKey) return "failed";
     if (await objectExists(client, bucket, job.posterKey)) return "already";
     const bytes = await readFirstBytes(client, bucket, job.videoKey);
     if (!videoContainerKind(bytes)) return "encrypted";
@@ -284,8 +504,8 @@ export async function backfillOne(client, bucket, job, extract) {
   }
 }
 
-export async function runBackfill({ client, bucket, keys, dryRun, extract = extractFrame, onResult }) {
-  const { counts, pending } = classifyKeys(keys);
+export async function runBackfill({ client, bucket, keys, dryRun, extract = extractFrame, onResult, allowlist }) {
+  const { counts, pending } = applyAllowlist(classifyKeys(keys), allowlist);
   if (dryRun) return { counts, pending };
   const live = { ...counts, uploaded: 0, encrypted: 0, failed: 0 };
   await runPool(pending, CONCURRENCY, async (job) => {
@@ -327,6 +547,9 @@ async function main() {
     process.exitCode = 1;
     return;
   }
+  const dbPath = path.join(process.env.DATA_DIR || path.join(here, ".."), "data.db");
+  const allowlist = loadPublicVideos(dbPath);
+  if (!allowlist.ok) console.error("public messages unavailable");
   const client = clientFor(config);
   const keys = await listMarkerKeys(client, config.bucket);
   const outcome = await runBackfill({
@@ -334,6 +557,7 @@ async function main() {
     bucket: config.bucket,
     keys,
     dryRun,
+    allowlist,
     onResult(job, status) {
       if (status === "uploaded") console.log(`${job.videoKey} ${job.posterKey}`);
       else if (status === "encrypted" || status === "failed") console.error(`${status} ${job.videoKey}`);
