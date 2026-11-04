@@ -36,7 +36,7 @@ import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
 import { VIEW_SORT_BATCH, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs, zeroViewCounts } from './viewsort.js';
 import { FILL_PASSES, planFillDown } from './scrollfill.js';
-import { FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, feedAutoplayAllowed, feedVideoHeld, feedVideoPreloadOnPause, feedVideoShouldRelease, feedVideoStartDelay, pickFeedVideo } from './feedvideo.js';
+import { FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, feedAutoplayAllowed, feedVideoHeld, feedVideoPreloadOnPause, feedVideoShouldRelease, feedVideoStartDelay, feedVideosToMeasure, pickFeedVideo } from './feedvideo.js';
 import { isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
 import { bindVideoPoster } from './videoposter.js';
 import { mountPicture, pictureElement, playStoredGif, presentImage } from './loopmedia.js';
@@ -1990,10 +1990,10 @@ function queueFeedVideos() {
 
 // The intersection callback lags a fast flick. Measure against the scroller
 // immediately so a dwell cannot start a video that has already left.
-function feedVideoVisibleRatio(video) {
+function feedVideoVisibleRatio(video, scrollerRect) {
   if (!video || !video.isConnected) return 0;
   const vr = video.getBoundingClientRect();
-  const sr = scroller.getBoundingClientRect();
+  const sr = scrollerRect || scroller.getBoundingClientRect();
   const height = Math.max(0, Math.min(vr.bottom, sr.bottom) - Math.max(vr.top, sr.top));
   const width = Math.max(0, Math.min(vr.right, sr.right) - Math.max(vr.left, sr.left));
   const area = vr.width * vr.height;
@@ -2001,9 +2001,13 @@ function feedVideoVisibleRatio(video) {
   return (width * height) / area;
 }
 
-function refreshFeedVideoRatios() {
-  for (const video of feedVideoRatio.keys()) {
-    feedVideoRatio.set(video, feedVideoVisibleRatio(video));
+// One scroller box for the frame. Off-screen videos stay at 0 until the
+// observer reports them again.
+function refreshFeedVideoRatios(scrollerRect) {
+  const sr = scrollerRect || scroller.getBoundingClientRect();
+  for (const video of feedVideosToMeasure(feedVideoRatio, activeFeedVideo, preferredFeedVideo)) {
+    if (!feedVideoRatio.has(video)) continue;
+    feedVideoRatio.set(video, feedVideoVisibleRatio(video, sr));
   }
 }
 
@@ -2015,10 +2019,6 @@ function ensureFeedVideoObserver() {
     }
     queueFeedVideos();
   }, { root: scroller, threshold: FEED_VIDEO_THRESHOLDS.slice() });
-  scroller.addEventListener('scroll', () => {
-    refreshFeedVideoRatios();
-    queueFeedVideos();
-  }, { passive: true });
   return feedVideoObserver;
 }
 
@@ -2090,11 +2090,11 @@ function cardDrop(el) {
   return el.offsetHeight;
 }
 
-function readScrollGeometry() {
+function readScrollGeometry(scrollerRect) {
   const top = scroller.scrollTop;
   const height = scroller.scrollHeight;
   const view = scroller.clientHeight;
-  const far = scroller.getBoundingClientRect().top - view;
+  const far = (scrollerRect || scroller.getBoundingClientRect()).top - view;
   const sample = [];
   const farBoxes = [];
   const farCap = CARD_CAP + FILL_PASSES * RENDER_CHUNK;
@@ -2230,6 +2230,9 @@ function frameReveal(top) {
 // A sorted rebuild throws that snapshot away and fills on the next frame.
 function runScrollFrame() {
   scrollFrameQueued = false;
+  const scrollerRect = scroller.getBoundingClientRect();
+  refreshFeedVideoRatios(scrollerRect);
+  queueFeedVideos();
   if (root.classList.contains('is-peek')) {
     syncVisibleViews();
     clampPending();
@@ -2244,7 +2247,7 @@ function runScrollFrame() {
     clampPending();
     return;
   }
-  const geo = readScrollGeometry();
+  const geo = readScrollGeometry(scrollerRect);
   const placed = frameFillUp(geo.top, geo.height, geo.view, geo.far);
   let top = placed.top;
   let again = placed.again;

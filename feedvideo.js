@@ -43,6 +43,31 @@ export function feedVideoShouldRelease(state, now) {
   return at - since >= FEED_VIDEO_RELEASE_MS;
 }
 
+// A scroll frame remeasures videos the observer still reports, plus the one
+// playing and the one the user chose. A stored 0 stays 0 until the observer
+// sees the video again.
+export function feedVideosToMeasure(ratios, active, preferred) {
+  const list = [];
+  const seen = new Set();
+  const rows = ratios && typeof ratios[Symbol.iterator] === "function" ? ratios : [];
+  for (const row of rows) {
+    if (!row) continue;
+    const video = row[0];
+    const ratio = Number(row[1]);
+    if (video == null || seen.has(video)) continue;
+    if (ratio > 0 || video === active || video === preferred) {
+      seen.add(video);
+      list.push(video);
+    }
+  }
+  for (const extra of [active, preferred]) {
+    if (extra == null || seen.has(extra)) continue;
+    seen.add(extra);
+    list.push(extra);
+  }
+  return list;
+}
+
 // Highest ratio at or above the minimum. A user-chosen video stays while any
 // of it is still visible. An equal ratio keeps the video that is already playing.
 export function pickFeedVideo(candidates, options) {
