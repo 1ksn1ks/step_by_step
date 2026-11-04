@@ -11,6 +11,9 @@ const DATA_GIF = /^data:image\/gif/i;
 const DATA_IMAGE = /^data:image\//i;
 const STORE_KEY = "sbs-gif-sniff";
 const STORE_MAX = 200;
+// A host that has not answered by then is a failed check. The caller
+// paints a normal image and does not cache the miss.
+const SNIFF_MS = 4000;
 const GENERIC_TYPES = new Set([
   "application/octet-stream",
   "binary/octet-stream",
@@ -171,19 +174,58 @@ function usable(response, ranged) {
   return status === 200 || response.ok === true;
 }
 
+function sniffDeadline() {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), SNIFF_MS);
+  if (typeof timer.unref === "function") timer.unref();
+  return {
+    signal: ctrl.signal,
+    clear() { clearTimeout(timer); },
+  };
+}
+
+// Resolves with the check, or null when the deadline aborts. The listener
+// is removed when the check finishes so a success does not stay pending.
+function withinDeadline(work, signal) {
+  if (signal.aborted) return Promise.resolve(null);
+  return new Promise((resolve, reject) => {
+    const onAbort = () => resolve(null);
+    signal.addEventListener("abort", onAbort, { once: true });
+    Promise.resolve(work).then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (err) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(err);
+      },
+    );
+  });
+}
+
 // Range: bytes=0-5 first. A throw, or a status other than 200/206, falls
-// through to a normal GET. null means the check failed: do not paint.
-async function sniff(url, fetchImpl, ranged) {
+// through to a normal GET. An abort, or any other unfinished check, is
+// null. That miss is not cached.
+async function sniff(url, fetchImpl, ranged, signal) {
+  const init = { signal };
+  if (ranged) init.headers = { Range: "bytes=0-5" };
   let response;
   try {
-    response = await fetchImpl(url, ranged ? { headers: { Range: "bytes=0-5" } } : {});
+    response = await fetchImpl(url, init);
   } catch {
-    if (ranged) return sniff(url, fetchImpl, false);
+    if (signal && signal.aborted) return null;
+    if (ranged) return sniff(url, fetchImpl, false, signal);
+    return null;
+  }
+  if (signal && signal.aborted) {
+    await quietCancel(response);
     return null;
   }
   if (!usable(response, ranged)) {
     await quietCancel(response);
-    if (ranged) return sniff(url, fetchImpl, false);
+    if (signal && signal.aborted) return null;
+    if (ranged) return sniff(url, fetchImpl, false, signal);
     return null;
   }
   const verdict = contentTypeVerdict(headerType(response));
@@ -195,11 +237,13 @@ async function sniff(url, fetchImpl, ranged) {
   try {
     bytes = await firstSix(response);
   } catch {
-    if (ranged) return sniff(url, fetchImpl, false);
+    if (signal && signal.aborted) return null;
+    if (ranged) return sniff(url, fetchImpl, false, signal);
     return null;
   }
+  if (signal && signal.aborted) return null;
   if (!bytes || bytes.length < 6) {
-    if (ranged) return sniff(url, fetchImpl, false);
+    if (ranged) return sniff(url, fetchImpl, false, signal);
     return null;
   }
   return gifMagic(bytes);
@@ -220,7 +264,13 @@ export async function classifyImageUrl(url, options) {
   if (cached === true || cached === false) return cached;
   const fetchImpl = (options && options.fetch) || globalThis.fetch;
   if (typeof fetchImpl !== "function") return null;
-  const found = await sniff(raw, fetchImpl, true);
+  const deadline = sniffDeadline();
+  let found;
+  try {
+    found = await withinDeadline(sniff(raw, fetchImpl, true, deadline.signal), deadline.signal);
+  } finally {
+    deadline.clear();
+  }
   if (found == null) return null;
   writeGifCache(raw, found, storage);
   return found;

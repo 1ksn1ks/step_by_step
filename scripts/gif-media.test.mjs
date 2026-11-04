@@ -11,6 +11,7 @@ import {
   writeGifCache,
   posterTargetKey,
 } from "../mediaurl.js";
+import { presentImage } from "../loopmedia.js";
 import {
   GIF_BROWSER_ERROR,
   conversionRatio,
@@ -254,6 +255,85 @@ test("an extensionless gif is sniffed by content-type, else by a ranged read", a
     storage: box,
   }), null);
   assert.equal(readGifCache(down, box), null);
+  resetGifCache();
+});
+
+function fakeImg() {
+  const attrs = new Map();
+  const classes = new Set();
+  return {
+    dataset: {},
+    classList: {
+      add: (...names) => { for (const name of names) classes.add(name); },
+      remove: (...names) => { for (const name of names) classes.delete(name); },
+      contains: (name) => classes.has(name),
+    },
+    getAttribute: (key) => (attrs.has(key) ? attrs.get(key) : null),
+    setAttribute: (key, value) => attrs.set(key, String(value)),
+    removeAttribute: (key) => attrs.delete(key),
+    previousElementSibling: null,
+    parentNode: null,
+    isConnected: false,
+    closest: () => null,
+    get src() { return attrs.get("src") || ""; },
+    set src(value) { attrs.set("src", String(value)); },
+  };
+}
+
+function nextTurn() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+test("a null gif check paints the image and is not cached", async () => {
+  resetGifCache();
+  const url = "https://cdn.example/files/unchecked-null";
+  let calls = 0;
+  const previous = globalThis.fetch;
+  globalThis.fetch = async () => {
+    calls += 1;
+    throw new Error("offline");
+  };
+  try {
+    const img = fakeImg();
+    presentImage(img, url);
+    assert.equal(img.classList.contains("is-media-pending"), true);
+    assert.equal(img.getAttribute("src"), null);
+    await nextTurn();
+    assert.equal(img.classList.contains("is-media-pending"), false);
+    assert.equal(img.getAttribute("src"), url);
+    assert.equal(readGifCache(url), null);
+    const afterFirst = calls;
+    assert.ok(afterFirst >= 1);
+    presentImage(img, url);
+    await nextTurn();
+    assert.ok(calls > afterFirst);
+    assert.equal(readGifCache(url), null);
+    assert.equal(img.classList.contains("is-media-pending"), false);
+    assert.equal(img.getAttribute("src"), url);
+  } finally {
+    globalThis.fetch = previous;
+    resetGifCache();
+  }
+});
+
+test("a gif check that takes longer than 4 seconds is null and is not cached", { timeout: 8000 }, async () => {
+  resetGifCache();
+  const url = "https://cdn.example/files/slow-host";
+  const box = memStore();
+  const started = Date.now();
+  const found = await classifyImageUrl(url, {
+    fetch: (_url, init) => new Promise((_resolve, reject) => {
+      const signal = init && init.signal;
+      if (!signal) return;
+      if (signal.aborted) reject(new Error("aborted"));
+      else signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+    }),
+    storage: box,
+  });
+  const elapsed = Date.now() - started;
+  assert.equal(found, null);
+  assert.equal(readGifCache(url, box), null);
+  assert.ok(elapsed >= 3500 && elapsed < 7000, String(elapsed));
   resetGifCache();
 });
 

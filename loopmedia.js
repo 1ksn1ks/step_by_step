@@ -231,7 +231,9 @@ async function paintGifStill(img, url, seq, play) {
 
 // The one paint path for a user image. A known still extension is set
 // immediately. Anything else stays on the skeleton until classifyImageUrl
-// answers. A GIF becomes a canvas of frame 0.
+// answers. A GIF becomes a canvas of frame 0. null (the check failed,
+// was blocked, the device is offline, or the host was too slow) paints
+// the address as a normal image and is not cached.
 export function presentImage(img, url, options) {
   if (!img) return img;
   const opts = options || {};
@@ -271,13 +273,16 @@ export function presentImage(img, url, options) {
   }
   classifyImageUrl(painted).then((isGif) => {
     if (img.dataset.mediaSeq !== String(seq)) return;
-    if (isGif === false) {
-      dropStill(img);
-      assignSrc(img, painted);
+    if (isGif === true) {
+      paintGifStill(img, painted, seq, !!opts.play);
       return;
     }
-    if (isGif !== true) return;
-    paintGifStill(img, painted, seq, !!opts.play);
+    dropStill(img);
+    assignSrc(img, painted);
+  }, () => {
+    if (img.dataset.mediaSeq !== String(seq)) return;
+    dropStill(img);
+    assignSrc(img, painted);
   });
   return img;
 }
