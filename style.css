@@ -9777,10 +9777,12 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   --page-face: calc(var(--page-bar-h) * 0.72);
   --page-chip: max(44px, var(--page-face));
   --page-chip-icon: calc(var(--page-face) * 0.42);
-  /* Row 2 matches the search field. The 44px floor is the phone size.
-     A tall viewport's pill would otherwise stretch this row. */
-  --page-field-h: calc(max(44px, 1vh) * 0.9);
-  --page-field-font: calc(max(44px, 1vh) * 0.42);
+  /* Row 2 matches the search field. Type tracks the header unit and stays
+     with the title, so a tall screen does not stretch the row. The 44px
+     floor is the finished height only, and the old 0.9/0.42 proportion
+     still relates that height to the type. */
+  --page-field-font: min(calc(var(--header-fu) * 2.1), var(--page-title));
+  --page-field-h: max(44px, calc(var(--page-field-font) * 0.9 / 0.42));
   --page-field-mt: calc(var(--header-fu) * 0.8);
   --page-field-mb: calc(var(--header-fu) * 0.6);
   --feed-bar-h: var(--page-bar-h);
