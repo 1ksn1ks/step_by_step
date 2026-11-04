@@ -35,6 +35,7 @@ import { openPreview } from './fullscreenmedia.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
 import { VIEW_SORT_BATCH, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs, zeroViewCounts } from './viewsort.js';
+import { FILL_PASSES, planFillDown } from './scrollfill.js';
 import { FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, feedAutoplayAllowed, feedVideoHeld, feedVideoPreloadOnPause, feedVideoShouldRelease, feedVideoStartDelay, pickFeedVideo } from './feedvideo.js';
 import { isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
 import { bindVideoPoster } from './videoposter.js';
@@ -645,6 +646,9 @@ let revealToken = 0;
 let scrollIdle = 0;
 let viewObserver = null;
 let scrollFrameQueued = false;
+// Follow-up frames when one sample cannot prove the column is full.
+// A finger scroll resets it. Script scrolls do not, so the cap holds.
+let fillAgain = 0;
 const viewIntersecting = new Set();
 let viewFlushTimer = 0;
 let viewCountTimer = 0;
@@ -2074,11 +2078,207 @@ function syncVisibleViews() {
 function scheduleScrollFrame() {
   if (scrollFrameQueued) return;
   scrollFrameQueued = true;
-  requestAnimationFrame(() => {
-    scrollFrameQueued = false;
+  requestAnimationFrame(runScrollFrame);
+}
+
+// Card pitch for the fill estimate. The first cards that are still far
+// above the viewport are included so one trim pass can drop them later
+// without reading layout again.
+function cardDrop(el) {
+  const next = el.nextElementSibling;
+  if (next && next.classList.contains('feed-card')) return next.offsetTop - el.offsetTop;
+  return el.offsetHeight;
+}
+
+function readScrollGeometry() {
+  const top = scroller.scrollTop;
+  const height = scroller.scrollHeight;
+  const view = scroller.clientHeight;
+  const far = scroller.getBoundingClientRect().top - view;
+  const sample = [];
+  const farBoxes = [];
+  const farCap = CARD_CAP + FILL_PASSES * RENDER_CHUNK;
+  let el = column.firstElementChild;
+  let stillFar = true;
+  while (el && el.classList.contains('feed-card') && (stillFar || sample.length < 8) && farBoxes.length < farCap) {
+    const drop = cardDrop(el);
+    if (sample.length < 8 && drop > 0) sample.push(drop);
+    if (stillFar) {
+      if (el.getBoundingClientRect().bottom > far) stillFar = false;
+      else farBoxes.push({ el, drop });
+    }
+    const next = el.nextElementSibling;
+    if (!next || !next.classList.contains('feed-card')) break;
+    el = next;
+  }
+  let sum = 0;
+  for (const drop of sample) sum += drop;
+  return { top, height, view, far, farBoxes, avg: sample.length ? sum / sample.length : 0 };
+}
+
+function noteFillAgain() {
+  if (fillAgain >= FILL_PASSES) {
+    fillAgain = 0;
+    return;
+  }
+  fillAgain += 1;
+  scheduleScrollFrame();
+}
+
+// Prepend one chunk, then one scrollHeight read. Container-query card
+// heights are not known until the cards are in the column. The boxes for
+// a cap trim are taken from that same layout, before the scroll write.
+function frameFillUp(top, height, view, far) {
+  if (paging || top > view || rangeStart <= laneFloor()) return { top, height, again: false };
+  const add = Math.min(RENDER_CHUNK, rangeStart - laneFloor());
+  if (add <= 0) return { top, height, again: false };
+  const list = lane();
+  const frag = document.createDocumentFragment();
+  const cards = [];
+  for (let i = rangeStart - add; i < rangeStart; i++) {
+    const card = buildCard(list[i]);
+    cards.push(card);
+    frag.appendChild(card);
+  }
+  column.prepend(frag);
+  rangeStart -= add;
+  const nextHeight = scroller.scrollHeight;
+  const delta = nextHeight - height;
+  let drop = 0;
+  if (rangeEnd - rangeStart > CARD_CAP) {
+    const boxes = [];
+    let el = column.firstElementChild;
+    for (let i = 0; i < add && el && el.classList.contains('feed-card'); i++) {
+      const next = el.nextElementSibling;
+      const cardDropPx = next && next.classList.contains('feed-card') ? next.offsetTop - el.offsetTop : el.offsetHeight;
+      boxes.push({ el, bottom: el.getBoundingClientRect().bottom, drop: cardDropPx });
+      el = next;
+    }
+    for (const box of boxes) {
+      if (rangeEnd - rangeStart <= CARD_CAP) break;
+      if (box.bottom - delta > far) break;
+      if (column.firstElementChild !== box.el) break;
+      forgetCard(box.el);
+      box.el.remove();
+      rangeStart += 1;
+      drop += box.drop;
+    }
+  }
+  const nextTop = Math.max(0, top + delta - drop);
+  if (nextTop !== top) setFeedScroll(nextTop);
+  for (const card of cards) {
+    if (card.isConnected) watchCard(card);
+  }
+  requestAnimationFrame(clampPending);
+  return {
+    top: nextTop,
+    height: nextHeight - drop,
+    again: nextTop !== top && nextTop <= view && rangeStart > laneFloor(),
+  };
+}
+
+function applyFarTrim(boxes, top) {
+  if (!boxes || !boxes.length) return top;
+  let drop = 0;
+  for (const box of boxes) {
+    if (rangeEnd - rangeStart <= CARD_CAP) break;
+    if (!box.el.isConnected || column.firstElementChild !== box.el) break;
+    forgetCard(box.el);
+    box.el.remove();
+    rangeStart += 1;
+    drop += box.drop;
+  }
+  if (!(drop > 0)) return top;
+  const next = Math.max(0, top - drop);
+  if (next !== top) setFeedScroll(next);
+  return next;
+}
+
+// Parked posts land at the top. The final scroll is 0, so the prepend
+// does not read scrollHeight the way a mid-list insert does.
+function frameReveal(top) {
+  if (profileFilter || feedFiltering() || root.classList.contains('is-peek')) return;
+  const tab = feedTab;
+  const n = held[tab].length;
+  if (!n || top >= 2 || rangeStart !== n) return;
+  held[tab] = [];
+  const list = lane();
+  const count = Math.min(n, rangeStart, list.length);
+  if (count > 0) {
+    const note = column.querySelector('.feed-empty');
+    if (note) note.remove();
+    const frag = document.createDocumentFragment();
+    const cards = [];
+    for (let i = 0; i < count; i++) {
+      const card = buildCard(list[i]);
+      cards.push(card);
+      frag.appendChild(card);
+    }
+    column.prepend(frag);
+    rangeStart -= count;
+    for (const card of cards) watchCard(card);
+    requestAnimationFrame(clampPending);
+  }
+  setFeedScroll(0);
+  savedScroll = 0;
+  tabScroll[tab] = 0;
+  tabRange[tab] = { start: 0, end: rangeEnd };
+  paintNewPill();
+}
+
+// Fills once per frame. Geometry is read before the column is written.
+// A sorted rebuild throws that snapshot away and fills on the next frame.
+function runScrollFrame() {
+  scrollFrameQueued = false;
+  if (root.classList.contains('is-peek')) {
     syncVisibleViews();
     clampPending();
-  });
+    return;
+  }
+  const top0 = scroller.scrollTop;
+  if (sortPaintDirty && !sortHold && !keepScroll(top0)) {
+    paintSorted();
+    fillAgain = 0;
+    scheduleScrollFrame();
+    syncVisibleViews();
+    clampPending();
+    return;
+  }
+  const geo = readScrollGeometry();
+  const placed = frameFillUp(geo.top, geo.height, geo.view, geo.far);
+  let top = placed.top;
+  let again = placed.again;
+  if (!sortHold && feedOn() && !paging) {
+    if (followBlocked()) {
+      if (feedFiltering()) paintEmpty();
+    } else {
+      const list = lane();
+      const plan = planFillDown({
+        top,
+        height: placed.height,
+        view: geo.view,
+        rangeEnd,
+        listLen: list.length,
+        avg: geo.avg > 0 ? geo.avg * 0.85 : 0,
+        canPage: searchCanPage(),
+        ranked: rankedSort(),
+        chunk: RENDER_CHUNK,
+        cap: FILL_PASSES,
+      });
+      if (plan.chunks > 0 && rangeEnd < list.length) {
+        renderThrough(Math.min(list.length, rangeEnd + plan.chunks * RENDER_CHUNK));
+      }
+      top = applyFarTrim(geo.farBoxes, top);
+      if (plan.page) loadOlder();
+      else if (plan.empty) paintEmpty();
+      if (plan.again || (plan.chunks > 0 && rangeEnd < lane().length)) again = true;
+    }
+  }
+  frameReveal(top);
+  if (again) noteFillAgain();
+  else fillAgain = 0;
+  syncVisibleViews();
+  clampPending();
 }
 
 function viewObserverOptions() {
@@ -9119,13 +9319,11 @@ scroller.addEventListener('scroll', (event) => {
     tabLastY = y;
     queueTabFollow();
     armTabFinish();
+    fillAgain = 0;
   }
   savedScroll = y;
-  if (sortPaintDirty && !sortHold && !keepScroll(y)) paintSorted();
-  fillUp();
-  fillDown();
-  revealParked();
   // Captions can still be waiting on layout when a card is first built.
+  // Fills run in that frame, not on this event.
   scheduleScrollFrame();
   scheduleScrollWrite();
 }, { passive: true });
