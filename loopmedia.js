@@ -20,6 +20,43 @@ let visibilityBound = false;
 let playSeq = 0;
 let activePlay = null;
 const videoUrlCache = new Map();
+export const VIDEO_URL_CACHE_MAX = 4;
+
+// Keeps about four playback URLs. Anything dropped is revoked, except the
+// blob for the GIF that is playing now.
+export function storeVideoUrl(cache, url, objectUrl, playingUrl) {
+  const revoked = [];
+  const playing = typeof playingUrl === "string" ? playingUrl : "";
+  const playingBlob = playing && cache.has(playing) ? cache.get(playing) : "";
+  const prev = cache.has(url) ? cache.get(url) : undefined;
+  if (cache.has(url)) cache.delete(url);
+  cache.set(url, objectUrl);
+  const drop = (value) => {
+    if (typeof value !== "string" || value === playingBlob || value.slice(0, 5) !== "blob:") return;
+    revoked.push(value);
+  };
+  if (prev !== objectUrl && url !== playing) drop(prev);
+  while (cache.size > VIDEO_URL_CACHE_MAX) {
+    let evictKey = null;
+    for (const key of cache.keys()) {
+      if (key === playing) continue;
+      evictKey = key;
+      break;
+    }
+    if (!evictKey) break;
+    const evict = cache.get(evictKey);
+    cache.delete(evictKey);
+    drop(evict);
+  }
+  return revoked;
+}
+
+function rememberVideoUrl(url, objectUrl) {
+  const playing = activePlay && activePlay.url || "";
+  for (const blob of storeVideoUrl(videoUrlCache, url, objectUrl, playing)) {
+    try { URL.revokeObjectURL(blob); } catch { /* already revoked */ }
+  }
+}
 
 function pauseLoop(video) {
   if (!video || video.paused) return;
@@ -340,6 +377,7 @@ export function playStoredGif(img) {
   activePlay = { img, url, abort: ctrl, video: null, canvas: stillOf(img), seq };
   const cached = videoUrlCache.get(url);
   if (cached) {
+    rememberVideoUrl(url, cached);
     showGifVideo(img, cached, seq);
     return;
   }
@@ -349,12 +387,12 @@ export function playStoredGif(img) {
     const out = await convertGifFile(file, { role: "media", signal: ctrl.signal });
     if (!activePlay || activePlay.seq !== seq) return;
     if (!out || !out.file || String(out.file.type || "").startsWith("image/")) {
-      videoUrlCache.set(url, "");
+      rememberVideoUrl(url, "");
       if (activePlay && activePlay.seq === seq) activePlay = null;
       return;
     }
     const objectUrl = URL.createObjectURL(out.file);
-    videoUrlCache.set(url, objectUrl);
+    rememberVideoUrl(url, objectUrl);
     showGifVideo(img, objectUrl, seq);
   }).catch((err) => {
     if (err && err.code === "GIF_CANCEL") return;

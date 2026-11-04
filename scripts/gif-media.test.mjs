@@ -6,13 +6,17 @@ import {
   classifyImageUrl,
   contentTypeVerdict,
   gifMagic,
+  BYTE_CACHE_BYTES,
+  BYTE_CACHE_MAX,
+  GIF_BODY_MAX,
+  loadImageBytes,
   readGifCache,
   resetGifCache,
   resolveMediaUrl,
   writeGifCache,
   posterTargetKey,
 } from "../mediaurl.js";
-import { presentImage } from "../loopmedia.js";
+import { presentImage, storeVideoUrl, VIDEO_URL_CACHE_MAX } from "../loopmedia.js";
 import {
   GIF_BROWSER_ERROR,
   conversionRatio,
@@ -384,6 +388,119 @@ test("a gif check that takes longer than 4 seconds is null and is not cached", {
   assert.equal(readGifCache(url, box), null);
   assert.ok(elapsed >= 3500 && elapsed < 7000, String(elapsed));
   resetGifCache();
+});
+
+test("gif bytes stay in a small cache and a body past 15 MB is cancelled", async () => {
+  assert.equal(BYTE_CACHE_MAX, 8);
+  assert.equal(BYTE_CACHE_BYTES, 24 * 1024 * 1024);
+  assert.equal(GIF_BODY_MAX, 15 * 1024 * 1024);
+  resetGifCache();
+  const fetches = [];
+  const fetch = async (url) => {
+    fetches.push(url);
+    const n = Number(new URL(url).searchParams.get("n"));
+    return new Response(new Uint8Array(n), { status: 200 });
+  };
+  const urls = [];
+  for (let i = 0; i < 9; i += 1) {
+    const url = `https://cdn.example/bytes/${i}?n=4`;
+    urls.push(url);
+    const buf = await loadImageBytes(url, { fetch });
+    assert.equal(buf.byteLength, 4);
+  }
+  const afterFill = fetches.length;
+  await loadImageBytes(urls[8], { fetch });
+  assert.equal(fetches.length, afterFill);
+  await loadImageBytes(urls[0], { fetch });
+  assert.equal(fetches.length, afterFill + 1);
+
+  resetGifCache();
+  const kept = [];
+  for (let i = 0; i < 3; i += 1) {
+    const url = `https://cdn.example/budget/${i}?n=8`;
+    kept.push(url);
+    await loadImageBytes(url, { fetch, cacheBytes: 12 });
+  }
+  const beforeBudget = fetches.length;
+  await loadImageBytes(kept[2], { fetch, cacheBytes: 12 });
+  assert.equal(fetches.length, beforeBudget);
+  await loadImageBytes(kept[0], { fetch, cacheBytes: 12 });
+  assert.equal(fetches.length, beforeBudget + 1);
+
+  resetGifCache();
+  let cancelled = 0;
+  const huge = "https://cdn.example/bytes/huge";
+  await assert.rejects(loadImageBytes(huge, {
+    maxBytes: 10,
+    fetch: async () => new Response(streamOf([8, 8], () => { cancelled += 1; }), {
+      status: 200,
+      headers: { "content-length": "16" },
+    }),
+  }));
+  assert.equal(cancelled, 1);
+  let again = 0;
+  await assert.rejects(loadImageBytes(huge, {
+    maxBytes: 10,
+    fetch: async () => {
+      again += 1;
+      throw new Error("offline");
+    },
+  }));
+  assert.equal(again, 1);
+
+  resetGifCache();
+  let midCancel = 0;
+  await assert.rejects(loadImageBytes("https://cdn.example/bytes/mid", {
+    maxBytes: 10,
+    fetch: async () => new Response(streamOf([6, 6, 6], () => { midCancel += 1; }), { status: 200 }),
+  }));
+  assert.equal(midCancel, 1);
+  const exact = await loadImageBytes("https://cdn.example/bytes/exact", {
+    maxBytes: 8,
+    fetch: async () => new Response(streamOf([8], () => { throw new Error("cancelled"); }), { status: 200 }),
+  });
+  assert.equal(exact.byteLength, 8);
+  resetGifCache();
+});
+
+function streamOf(sizes, onCancel) {
+  let i = 0;
+  return new ReadableStream({
+    pull(controller) {
+      if (i >= sizes.length) {
+        controller.close();
+        return;
+      }
+      controller.enqueue(new Uint8Array(sizes[i]));
+      i += 1;
+    },
+    cancel() { onCancel(); },
+  });
+}
+
+test("playback urls stop at four and the playing one is not revoked", () => {
+  assert.equal(VIDEO_URL_CACHE_MAX, 4);
+  const cache = new Map();
+  const blobs = ["a", "b", "c", "d", "e"].map((name) => `blob:${name}`);
+  const urls = blobs.map((blob, i) => `https://cdn.example/play/${i}`);
+  let revoked = [];
+  for (let i = 0; i < 4; i += 1) revoked.push(...storeVideoUrl(cache, urls[i], blobs[i], ""));
+  assert.equal(revoked.length, 0);
+  assert.equal(cache.size, 4);
+  revoked = storeVideoUrl(cache, urls[4], blobs[4], "");
+  assert.deepEqual(revoked, [blobs[0]]);
+  assert.equal(cache.has(urls[0]), false);
+  assert.equal(cache.get(urls[4]), blobs[4]);
+
+  const kept = new Map();
+  for (let i = 0; i < 4; i += 1) storeVideoUrl(kept, urls[i], blobs[i], urls[0]);
+  const skipped = storeVideoUrl(kept, urls[4], blobs[4], urls[0]);
+  assert.deepEqual(skipped, [blobs[1]]);
+  assert.equal(kept.get(urls[0]), blobs[0]);
+  assert.equal(kept.has(urls[1]), false);
+  const miss = storeVideoUrl(kept, "https://cdn.example/play/none", "", urls[0]);
+  assert.equal(miss.includes(""), false);
+  assert.equal(miss.includes(blobs[0]), false);
 });
 
 test("a poster is stored only beside our own mp4 or webm", () => {

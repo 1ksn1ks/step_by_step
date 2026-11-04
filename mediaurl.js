@@ -25,6 +25,9 @@ const GENERIC_TYPES = new Set([
 
 const memory = new Map();
 const byteCache = new Map();
+export const BYTE_CACHE_MAX = 8;
+export const BYTE_CACHE_BYTES = 24 * 1024 * 1024;
+export const GIF_BODY_MAX = 15 * 1024 * 1024;
 
 export function isGifUrl(url) {
   return typeof url === "string" && GIF_URL.test(url);
@@ -276,24 +279,127 @@ export async function classifyImageUrl(url, options) {
   return found;
 }
 
+function byteCaps(options) {
+  const entries = Number(options && options.cacheEntries);
+  const bytes = Number(options && options.cacheBytes);
+  return {
+    entries: entries > 0 ? Math.floor(entries) : BYTE_CACHE_MAX,
+    bytes: bytes > 0 ? bytes : BYTE_CACHE_BYTES,
+  };
+}
+
+function byteTotal() {
+  let total = 0;
+  for (const entry of byteCache.values()) total += entry.bytes || 0;
+  return total;
+}
+
+// Oldest first. The newest entry stays even when it alone is over the
+// byte budget. A pending read counts toward the entry cap and toward the
+// budget only after its size is known.
+function trimByteCache(entries, bytes) {
+  let total = byteTotal();
+  while (byteCache.size > entries || total > bytes) {
+    if (byteCache.size <= 1) break;
+    const oldest = byteCache.keys().next().value;
+    const entry = byteCache.get(oldest);
+    byteCache.delete(oldest);
+    total -= entry && entry.bytes || 0;
+  }
+}
+
+function bodyLimit(options) {
+  const max = Number(options && options.maxBytes);
+  return max > 0 ? max : GIF_BODY_MAX;
+}
+
+// Reads the body, but not past the cap. A declared length or a running
+// total over the cap cancels the stream and fails the read. The caller
+// already treats that failure like any other missed GIF.
+async function readCappedBody(response, maxBytes) {
+  const declared = Number(
+    response && response.headers && typeof response.headers.get === "function"
+      ? response.headers.get("content-length")
+      : ""
+  );
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await quietCancel(response);
+    throw new Error("too large");
+  }
+  const body = response && response.body;
+  if (!body || typeof body.getReader !== "function") {
+    const buf = await response.arrayBuffer();
+    if (buf.byteLength > maxBytes) throw new Error("too large");
+    return buf;
+  }
+  const reader = body.getReader();
+  const parts = [];
+  let got = 0;
+  try {
+    while (true) {
+      const step = await reader.read();
+      if (step.done) break;
+      const chunk = step.value;
+      const n = chunk ? chunk.byteLength : 0;
+      if (got + n > maxBytes) {
+        await reader.cancel();
+        throw new Error("too large");
+      }
+      if (n) {
+        parts.push(chunk);
+        got += n;
+      }
+    }
+  } catch (err) {
+    try { await reader.cancel(); } catch { /* already closed */ }
+    throw err;
+  }
+  const out = new Uint8Array(got);
+  let off = 0;
+  for (const part of parts) {
+    out.set(part, off);
+    off += part.byteLength;
+  }
+  return out.buffer;
+}
+
 // Full body for a still frame or an in-memory playback. Not stored in
-// localStorage. A failed fetch is dropped so the next tap can retry.
+// localStorage. The cache keeps the last 8 bodies, or about 24 MB, whichever
+// is smaller. A failed fetch, including one stopped past 15 MB, is dropped
+// so the next tap can retry.
 export function loadImageBytes(url, options) {
   const key = typeof url === "string" ? url.trim() : "";
   if (!key) return Promise.reject(new Error("empty"));
-  if (byteCache.has(key)) return byteCache.get(key);
+  const caps = byteCaps(options);
+  if (byteCache.has(key)) {
+    const hit = byteCache.get(key);
+    byteCache.delete(key);
+    byteCache.set(key, hit);
+    return hit.promise;
+  }
   const fetchImpl = (options && options.fetch) || globalThis.fetch;
+  const maxBytes = bodyLimit(options);
   const pending = Promise.resolve()
     .then(() => fetchImpl(key))
     .then(async (response) => {
       if (!response || response.ok === false) throw new Error("fetch failed");
-      return response.arrayBuffer();
+      return readCappedBody(response, maxBytes);
+    })
+    .then((buf) => {
+      const current = byteCache.get(key);
+      if (current && current.promise === pending) {
+        current.bytes = buf.byteLength || 0;
+        trimByteCache(caps.entries, caps.bytes);
+      }
+      return buf;
     })
     .catch((err) => {
-      byteCache.delete(key);
+      const current = byteCache.get(key);
+      if (current && current.promise === pending) byteCache.delete(key);
       throw err;
     });
-  byteCache.set(key, pending);
+  byteCache.set(key, { promise: pending, bytes: 0 });
+  trimByteCache(caps.entries, caps.bytes);
   return pending;
 }
 
