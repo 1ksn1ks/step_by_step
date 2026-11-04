@@ -9670,20 +9670,17 @@ a.payer-link {
   --feed-col-width: 100dvw;
   --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
   --map-pill-h: max(44px, calc(1.725vh + 1.6vh + 2px));
-  /* Header unit. Floor is under a phone column. Ceiling is the 44px
-     bar's share, so wide and tall screens do not grow the title. */
-  --header-fu: clamp(
-    calc(max(44px, 1vh) * 0.12),
-    var(--fu),
-    calc(max(44px, 1vh) * 0.24)
-  );
+  /* Header unit. The column size, held between 0.9vh and 1.6vh.
+     px stays on the bare 44px floors below. */
+  --header-fu: clamp(0.9vh, var(--fu), 1.6vh);
   --ui-label: calc(var(--header-fu) * 1.8);
   --ui-small: calc(var(--header-fu) * 1.35);
-  --page-title: clamp(var(--ui-small), calc(var(--header-fu) * 2.1), calc(max(44px, var(--ui-label)) * 0.5));
+  --page-title: min(calc(var(--header-fu) * 2.1), calc(max(44px, var(--ui-label)) * 0.5));
   --page-icon: calc(var(--header-fu) * 2.2);
   --page-bar-h: max(44px, calc(var(--page-title) * 1.2));
-  --page-chip: max(44px, calc(var(--page-bar-h) * 0.72));
-  --page-chip-icon: calc(var(--page-chip) * 0.42);
+  --page-face: calc(var(--page-bar-h) * 0.72);
+  --page-chip: max(44px, var(--page-face));
+  --page-chip-icon: calc(var(--page-face) * 0.42);
   /* Row 2 matches the search field. The 44px floor is the phone size.
      A tall viewport's pill would otherwise stretch this row. */
   --page-field-h: calc(max(44px, 1vh) * 0.9);
@@ -9865,10 +9862,10 @@ html.feed-app #popup-settings-card {
   --press-ink: #083344;
   appearance: none;
   position: relative;
-  width: var(--page-chip);
-  height: var(--page-chip);
-  min-width: var(--page-chip);
-  min-height: var(--page-chip);
+  width: var(--page-face);
+  height: var(--page-face);
+  min-width: var(--page-face);
+  min-height: var(--page-face);
   margin: 0;
   padding: 0;
   flex: 0 0 auto;
@@ -9930,8 +9927,8 @@ html.feed-app #popup-settings-card {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: max(44px, var(--page-chip));
-  height: max(44px, var(--page-chip));
+  width: var(--page-chip);
+  height: var(--page-chip);
   transform: translate(-50%, -50%);
 }
 /* Sits on the chip's top-right. ::before is the hit area, so the dot is ::after. */
@@ -9941,8 +9938,8 @@ html.feed-app #popup-settings-card {
   z-index: 1;
   top: 0;
   right: 0;
-  width: calc(var(--page-chip) * 0.26);
-  height: calc(var(--page-chip) * 0.26);
+  width: calc(var(--page-face) * 0.26);
+  height: calc(var(--page-face) * 0.26);
   border-radius: 50%;
   background: #22D3EE;
   pointer-events: none;
@@ -10069,10 +10066,10 @@ html.feed-app #popup-settings-card {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: var(--page-chip);
-  height: var(--page-chip);
-  min-width: var(--page-chip);
-  min-height: var(--page-chip);
+  width: var(--page-face);
+  height: var(--page-face);
+  min-width: var(--page-face);
+  min-height: var(--page-face);
   margin: 0 0 0 calc(var(--fu) * 0.15);
   padding: 0;
   border: calc(var(--fu) * 0.08) solid var(--rest-border);
@@ -10089,8 +10086,8 @@ html.feed-app #popup-settings-card {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: max(44px, var(--page-chip));
-  height: max(44px, var(--page-chip));
+  width: var(--page-chip);
+  height: var(--page-chip);
   transform: translate(-50%, -50%);
 }
 #feed-search-gear svg {
@@ -11996,11 +11993,12 @@ html.feed-app :is(
   --fu: var(--header-fu);
   --ui-label: calc(var(--header-fu) * 1.8);
   --ui-small: calc(var(--header-fu) * 1.35);
-  --page-title: clamp(var(--ui-small), calc(var(--header-fu) * 2.1), calc(max(44px, var(--ui-label)) * 0.5));
+  --page-title: min(calc(var(--header-fu) * 2.1), calc(max(44px, var(--ui-label)) * 0.5));
   --page-icon: calc(var(--header-fu) * 2.2);
   --page-bar-h: max(44px, calc(var(--page-title) * 1.2));
-  --page-chip: max(44px, calc(var(--page-bar-h) * 0.72));
-  --page-chip-icon: calc(var(--page-chip) * 0.42);
+  --page-face: calc(var(--page-bar-h) * 0.72);
+  --page-chip: max(44px, var(--page-face));
+  --page-chip-icon: calc(var(--page-face) * 0.42);
   box-sizing: border-box;
   height: var(--page-bar-h);
 }
@@ -12122,11 +12120,12 @@ html.feed-app :is(
   --fu: var(--header-fu);
   --ui-label: calc(var(--header-fu) * 1.8);
   --ui-small: calc(var(--header-fu) * 1.35);
-  --page-title: clamp(var(--ui-small), calc(var(--header-fu) * 2.1), calc(max(44px, var(--ui-label)) * 0.5));
+  --page-title: min(calc(var(--header-fu) * 2.1), calc(max(44px, var(--ui-label)) * 0.5));
   --page-icon: calc(var(--header-fu) * 2.2);
   --page-bar-h: max(44px, calc(var(--page-title) * 1.2));
-  --page-chip: max(44px, calc(var(--page-bar-h) * 0.72));
-  --page-chip-icon: calc(var(--page-chip) * 0.42);
+  --page-face: calc(var(--page-bar-h) * 0.72);
+  --page-chip: max(44px, var(--page-face));
+  --page-chip-icon: calc(var(--page-face) * 0.42);
   height: var(--page-bar-h);
   align-items: center;
   padding-left: calc(env(safe-area-inset-left) + var(--fu) * 1.1);
@@ -12135,15 +12134,24 @@ html.feed-app :is(
 /* The menu button keeps the same glass circle as Search and New post.
    The page-bar rule above paints it as a bare 44px back control. */
 #feed-layout > #feed-toolbar #feed-back-btn.feed-chat-back {
-  width: var(--page-chip);
-  min-width: var(--page-chip);
-  height: var(--page-chip);
-  min-height: var(--page-chip);
+  width: var(--page-face);
+  min-width: var(--page-face);
+  height: var(--page-face);
+  min-height: var(--page-face);
   border: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.10);
   box-shadow: inset 0 calc(var(--fu) * 0.08) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--fu) * 0.2) calc(var(--fu) * 0.55) rgba(0, 0, 0, 0.35);
   color: #fff;
+}
+#feed-layout > #feed-toolbar #feed-back-btn.feed-chat-back::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--page-chip);
+  height: var(--page-chip);
+  transform: translate(-50%, -50%);
 }
 #feed-layout > #feed-toolbar #feed-back-btn.feed-chat-back svg {
   width: var(--page-chip-icon);
