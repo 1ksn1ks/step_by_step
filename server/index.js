@@ -25,6 +25,7 @@ import { profileTopicAction } from "./profiletopic.js";
 import { hashtagsIn } from "../hashtag.js";
 import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { posterTargetKey } from "../mediaurl.js";
+import { createPendingPosters } from "./pendingposters.js";
 import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
 import { startEarlyHashinals } from "./hashinals.js";
@@ -1923,6 +1924,7 @@ const R2_MAX_IMAGE = 20 * 1024 * 1024;
 const UPLOAD_HOUR_MS = 60 * 60 * 1000;
 const uploadsByAccount = new Map();
 const uploadsByIp = new Map();
+const posterHolds = createPendingPosters();
 
 function uploadDay(now) {
   return new Date(now).toISOString().slice(0, 10);
@@ -2002,6 +2004,7 @@ function sweepUploadLimits() {
       if (entry.times.length === 0 && entry.day !== day) bucket.delete(key);
     }
   }
+  posterHolds.sweep(now);
 }
 
 setInterval(sweepUploadLimits, UPLOAD_HOUR_MS);
@@ -2390,29 +2393,21 @@ app.post("/api/upload/auth", publicPostLimit, async (req, res) => {
 
 // A device-converted GIF uploads the video, then its first-frame JPEG.
 // The video request already passed Turnstile. The poster may follow for
-// two minutes, once, and only onto that object.
-const pendingPosters = new Map();
-const POSTER_WAIT_MS = 2 * 60 * 1000;
-
-function notePendingPoster(videoKey) {
-  const posterKey = String(videoKey || "").replace(/\.(mp4|webm)$/i, ".poster.jpg");
-  if (!posterKey || posterKey === videoKey) return;
-  pendingPosters.set(posterKey, Date.now() + POSTER_WAIT_MS);
+// two minutes, once, from the same account, and only onto that object.
+function notePendingPoster(videoKey, account) {
+  posterHolds.note(videoKey, account);
 }
 
-function posterFollowUpLive(key) {
-  const exp = pendingPosters.get(key);
-  if (!exp || exp < Date.now()) {
-    if (exp) pendingPosters.delete(key);
-    return false;
-  }
-  return true;
+function posterFollowUpLive(key, account) {
+  return posterHolds.live(key, account);
 }
 
-function consumePendingPoster(key) {
-  if (!posterFollowUpLive(key)) return false;
-  pendingPosters.delete(key);
-  return true;
+function consumePendingPoster(key, account) {
+  return posterHolds.consume(key, account);
+}
+
+function restorePendingPoster(posterKey, account) {
+  posterHolds.restore(posterKey, account);
 }
 
 app.post("/api/upload", async (req, res) => {
@@ -2459,7 +2454,7 @@ app.post("/api/upload", async (req, res) => {
   }
   const posterHeader = typeof req.headers["x-poster-for"] === "string" ? req.headers["x-poster-for"].trim() : "";
   const posterKey = posterHeader ? posterTargetKey(R2_PUBLIC_BASE, posterHeader) : "";
-  if (posterHeader && (!posterKey || type !== "image/jpeg" || !posterFollowUpLive(posterKey))) {
+  if (posterHeader && (!posterKey || type !== "image/jpeg" || !posterFollowUpLive(posterKey, account))) {
     req.resume();
     return res.status(400).json({ ok: false, error: "Bad poster" });
   }
@@ -2495,7 +2490,7 @@ app.post("/api/upload", async (req, res) => {
     // image/gif is not in R2_MIME_EXT, so it already returned 415.
     // A GIF converted on the device arrives as MP4, WebM, or JPEG.
     if (posterKey) {
-      if (!consumePendingPoster(posterKey)) {
+      if (!consumePendingPoster(posterKey, account)) {
         return res.status(400).json({ ok: false, error: "Bad poster" });
       }
       try {
@@ -2509,7 +2504,7 @@ app.post("/api/upload", async (req, res) => {
           })
         );
       } catch (err) {
-        pendingPosters.set(posterKey, Date.now() + POSTER_WAIT_MS);
+        restorePendingPoster(posterKey, account);
         console.error("R2 upload failed:", err.message);
         if (!res.headersSent) res.status(502).json({ ok: false, error: "R2 upload failed" });
         return;
@@ -2541,7 +2536,7 @@ app.post("/api/upload", async (req, res) => {
       return;
     }
     if (isVideo && (ext === ".mp4" || ext === ".webm") && String(req.headers["x-expect-poster"] || "") === "1") {
-      notePendingPoster(key);
+      notePendingPoster(key, account);
     }
     addUploadBytes(account, body.length);
     res.json({ ok: true, url: `${R2_PUBLIC_BASE}/${key}`, type });
