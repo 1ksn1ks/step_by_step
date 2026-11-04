@@ -162,7 +162,7 @@ test("the scroll listener records position and lets one frame fill", () => {
   assert.match(frame, /planFillDown\(/);
   assert.match(frame, /frameReveal\(/);
   assert.match(frame, /syncVisibleViews\(\)/);
-  assert.match(frame, /clampPending\(\)/);
+  assert.doesNotMatch(frame, /clampPending\(/);
   const restore = src.slice(src.indexOf("function restoreTabView"), src.indexOf("async function loadOlder"));
   assert.match(restore, /fillDown\(\)/);
   assert.match(restore, /fillUp\(\)/);
@@ -171,4 +171,25 @@ test("the scroll listener records position and lets one frame fill", () => {
   assert.match(finish, /sortHold = false/);
   assert.match(finish, /paintSorted\(\)/);
   assert.match(finish, /fillDown\(\)/);
+});
+
+test("caption clamp measures after the class write and only when cards are added", () => {
+  const src = readFileSync(new URL("../feedlayout.js", import.meta.url), "utf8");
+  const start = src.indexOf("function clampPending");
+  const end = src.indexOf("function topicNow");
+  assert.ok(start > 0 && end > start);
+  const body = src.slice(start, end);
+  assert.doesNotMatch(body, /getBoundingClientRect/);
+  const addAt = body.indexOf("classList.add('is-clamped')");
+  const readAt = body.indexOf("scrollHeight > text.clientHeight + 1");
+  const dropAt = body.indexOf("classList.remove('is-clamped')");
+  const moreAt = body.indexOf("textContent = 'Show more'");
+  assert.ok(addAt > 0 && readAt > addAt && dropAt > readAt && moreAt > readAt);
+  assert.match(body, /Show less/);
+  for (const name of ["function renderThrough", "function fillUp", "function frameFillUp", "function prependAbove", "function mountIncoming", "function frameReveal"]) {
+    const at = src.indexOf(name);
+    const next = src.indexOf("\nfunction ", at + name.length);
+    const fn = src.slice(at, next);
+    assert.match(fn, /requestAnimationFrame\(clampPending\)/);
+  }
 });

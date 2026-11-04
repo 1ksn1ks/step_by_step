@@ -2235,7 +2235,6 @@ function runScrollFrame() {
   queueFeedVideos();
   if (root.classList.contains('is-peek')) {
     syncVisibleViews();
-    clampPending();
     return;
   }
   const top0 = scroller.scrollTop;
@@ -2244,7 +2243,6 @@ function runScrollFrame() {
     fillAgain = 0;
     scheduleScrollFrame();
     syncVisibleViews();
-    clampPending();
     return;
   }
   const geo = readScrollGeometry(scrollerRect);
@@ -2281,7 +2279,6 @@ function runScrollFrame() {
   if (again) noteFillAgain();
   else fillAgain = 0;
   syncVisibleViews();
-  clampPending();
 }
 
 function viewObserverOptions() {
@@ -2658,16 +2655,21 @@ function buildCard(post) {
   return card;
 }
 
+// One class write, one overflow read, then the buttons. A height read
+// between the two class changes lays out every caption twice.
 function clampPending() {
-  column.querySelectorAll('.popup-text-bubble[data-clamp="1"]').forEach((text) => {
+  const pending = [...column.querySelectorAll('.popup-text-bubble[data-clamp="1"]')];
+  for (const text of pending) {
     delete text.dataset.clamp;
-    text.classList.remove('is-clamped');
-    const full = text.getBoundingClientRect().height;
     text.classList.add('is-clamped');
-    const clipped = text.getBoundingClientRect().height;
-    if (!(full > clipped + 1)) {
+  }
+  const keep = [];
+  for (const text of pending) keep.push(text.scrollHeight > text.clientHeight + 1);
+  for (let i = 0; i < pending.length; i++) {
+    const text = pending[i];
+    if (!keep[i]) {
       text.classList.remove('is-clamped');
-      return;
+      continue;
     }
     const more = document.createElement('button');
     more.type = 'button';
@@ -2679,7 +2681,7 @@ function clampPending() {
       more.textContent = clamped ? 'Show more' : 'Show less';
     });
     text.after(more);
-  });
+  }
 }
 
 function topicNow() {
