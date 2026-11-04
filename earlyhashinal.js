@@ -168,10 +168,11 @@ function arm() {
 if (map.loaded()) arm();
 else map.on("load", arm);
 
-// Endless rings pause once they leave the viewport. The feed overlay is
-// CSS (html.feed-app): intersection does not see that cover. Donate is
-// not watched: its entrance and the ring share one animation, and pausing
-// the card would freeze the sheet below the screen.
+// Endless rings pause once they leave the viewport. A hidden document and
+// the feed overlay (html.feed-app) also set html.eh-hidden: intersection
+// still reports the covered map as on screen. Donate is not watched: its
+// entrance and the ring share one animation, and pausing the card would
+// freeze the sheet below the screen.
 const EARLY_MOTION_HOST = [
   ".early-hashinal",
   ".maplibregl-popup.early-holder-popup",
@@ -185,19 +186,74 @@ const EARLY_MOTION_HOST = [
 ].join(",");
 
 const earlyMotionSeen = new WeakSet();
+const earlyMotionIn = new WeakMap();
+const earlyMotionList = new Set();
 let earlyMotionIo = null;
+let earlyMotionBooted = false;
+let earlyDocHidden = false;
+
+function likelyHostNode(el) {
+  const id = el.id;
+  if (id === "feed-profile" || id === "profile-live-preview") return true;
+  const raw = el.className;
+  const cls = typeof raw === "string" ? raw : "";
+  if (cls) {
+    if (cls.indexOf("early") !== -1) return true;
+    if (cls.indexOf("feed-card") !== -1) return true;
+    if (cls.indexOf("feed-profile") !== -1) return true;
+    if (cls.indexOf("popup-profile") !== -1) return true;
+    if (cls.indexOf("post-menu") !== -1) return true;
+    if (cls.indexOf("marker-title") !== -1) return true;
+    if (cls.indexOf("marker-face") !== -1) return true;
+    if (cls.indexOf("profile-live") !== -1) return true;
+    if (cls.indexOf("maplibregl-popup") !== -1) return true;
+  }
+  return !!(el.getAttribute && el.getAttribute("data-style") === "hashinals");
+}
+
+// Cheap walk. matches(EARLY_MOTION_HOST) is the expensive check, and it
+// includes :has(). Skip a target that is not the host or inside one.
+function insideLikelyHost(el) {
+  let node = el;
+  while (node && node.nodeType === 1 && node !== document.body && node !== document.documentElement) {
+    if (likelyHostNode(node)) return true;
+    node = node.parentElement;
+  }
+  return false;
+}
+
+function applyEarlyOff(el) {
+  if (!el || !el.classList) return;
+  const off = document.hidden || earlyMotionIn.get(el) === false;
+  if (el.classList.contains("eh-off") !== off) el.classList.toggle("eh-off", off);
+}
+
+function syncEarlyHidden() {
+  const root = document.documentElement;
+  if (!root) return;
+  const hidden = !!document.hidden;
+  root.classList.toggle("eh-hidden", hidden || root.classList.contains("feed-app"));
+  if (hidden === earlyDocHidden) return;
+  earlyDocHidden = hidden;
+  for (const el of earlyMotionList) applyEarlyOff(el);
+}
 
 function watchEarlyMotion(el) {
   if (!el || el.nodeType !== 1 || !el.isConnected || !earlyMotionIo) return;
   if (earlyMotionSeen.has(el)) return;
+  if (!insideLikelyHost(el)) return;
   if (!el.matches(EARLY_MOTION_HOST)) return;
   earlyMotionSeen.add(el);
+  earlyMotionList.add(el);
   earlyMotionIo.observe(el);
+  if (document.hidden) applyEarlyOff(el);
 }
 
 function releaseEarlyMotion(el) {
   if (!el || !earlyMotionSeen.has(el)) return;
   earlyMotionSeen.delete(el);
+  earlyMotionList.delete(el);
+  earlyMotionIn.delete(el);
   earlyMotionIo.unobserve(el);
   el.classList.remove("eh-off");
 }
@@ -227,46 +283,61 @@ function syncEarlyMotionClass(el, oldValue) {
 }
 
 function bootEarlyMotion() {
-  if (earlyMotionIo || typeof document === "undefined" || typeof IntersectionObserver !== "function") return;
-  if (!document.documentElement) return;
-  earlyMotionIo = new IntersectionObserver((entries) => {
-    for (let i = 0; i < entries.length; i += 1) {
-      const entry = entries[i];
-      const el = entry.target;
-      if (!earlyMotionSeen.has(el)) continue;
-      const off = !entry.isIntersecting;
-      if (el.classList.contains("eh-off") !== off) el.classList.toggle("eh-off", off);
-    }
-  });
+  if (earlyMotionBooted || typeof document === "undefined" || !document.documentElement) return;
+  earlyMotionBooted = true;
+  const root = document.documentElement;
+  const trackHosts = typeof IntersectionObserver === "function";
+  document.addEventListener("visibilitychange", syncEarlyHidden);
+  if (trackHosts) {
+    earlyMotionIo = new IntersectionObserver((entries) => {
+      for (let i = 0; i < entries.length; i += 1) {
+        const entry = entries[i];
+        const el = entry.target;
+        if (!earlyMotionSeen.has(el)) continue;
+        earlyMotionIn.set(el, !!entry.isIntersecting);
+        applyEarlyOff(el);
+      }
+    });
+  }
   const mo = new MutationObserver((records) => {
     for (let i = 0; i < records.length; i += 1) {
       const rec = records[i];
       if (rec.type === "childList") {
+        if (!trackHosts) continue;
         const removed = rec.removedNodes;
         for (let r = 0; r < removed.length; r += 1) forgetEarlyMotion(removed[r]);
         const added = rec.addedNodes;
         for (let a = 0; a < added.length; a += 1) {
           const node = added[a];
-          if (!node || node.nodeType !== 1) continue;
+          if (!node || node.nodeType !== 1 || !insideLikelyHost(node)) continue;
           watchEarlyMotion(node);
           if (!node.querySelectorAll) continue;
           const inner = node.querySelectorAll(EARLY_MOTION_HOST);
           for (let n = 0; n < inner.length; n += 1) watchEarlyMotion(inner[n]);
         }
       } else if (rec.type === "attributes") {
+        if (rec.target === root) {
+          if (rec.attributeName === "class") syncEarlyHidden();
+          continue;
+        }
+        if (!trackHosts) continue;
+        if (!insideLikelyHost(rec.target) && !earlyMotionSeen.has(rec.target)) continue;
         syncEarlyMotionClass(rec.target, rec.attributeName === "class" ? rec.oldValue : "");
       }
     }
   });
-  mo.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
+  mo.observe(root, {
+    childList: trackHosts,
+    subtree: trackHosts,
     attributes: true,
-    attributeFilter: ["class", "data-style"],
-    attributeOldValue: true,
+    attributeFilter: trackHosts ? ["class", "data-style"] : ["class"],
+    attributeOldValue: trackHosts,
   });
-  const found = document.querySelectorAll(EARLY_MOTION_HOST);
-  for (let i = 0; i < found.length; i += 1) watchEarlyMotion(found[i]);
+  if (trackHosts) {
+    const found = document.querySelectorAll(EARLY_MOTION_HOST);
+    for (let i = 0; i < found.length; i += 1) watchEarlyMotion(found[i]);
+  }
+  syncEarlyHidden();
 }
 
 bootEarlyMotion();
