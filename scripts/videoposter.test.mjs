@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   THUMB_EDGE,
+  captureVideoPoster,
   e2eeWireBytes,
   fitThumb,
   packSealedThumb,
@@ -58,6 +59,60 @@ test("a poster address is the sibling still, unless the sender turned it off", (
   assert.equal(posterSrc(video, { posterV: 9 }), "https://cdn.example/markers/12-ab.poster.jpg?v=9");
   assert.deepEqual(posterFlags({ posterOff: true, posterV: 9 }), { posterOff: true, posterV: 0 });
   assert.deepEqual(posterFlags({ posterV: 9 }), { posterOff: false, posterV: 9 });
+});
+
+test("a cross-origin poster url sets crossOrigin and a thrown toBlob is null", async () => {
+  const previous = globalThis.document;
+  const seen = [];
+  const video = {
+    muted: false,
+    playsInline: false,
+    preload: "",
+    duration: 2,
+    videoWidth: 320,
+    videoHeight: 180,
+    currentTime: 0,
+    onloadeddata: null,
+    onerror: null,
+    _crossOrigin: "",
+    set crossOrigin(value) { this._crossOrigin = value; },
+    get crossOrigin() { return this._crossOrigin; },
+    set src(value) {
+      seen.push(this._crossOrigin);
+      this._src = value;
+      queueMicrotask(() => {
+        if (typeof this.onloadeddata === "function") this.onloadeddata();
+      });
+    },
+    addEventListener(type, fn) {
+      if (type === "seeked") queueMicrotask(fn);
+    },
+    removeEventListener() {},
+    removeAttribute() {},
+    load() {},
+  };
+  globalThis.document = {
+    createElement(tag) {
+      if (tag === "video") return video;
+      if (tag === "canvas") {
+        return {
+          width: 0,
+          height: 0,
+          getContext() { return { drawImage() {} }; },
+          toBlob() { throw new Error("tainted"); },
+        };
+      }
+      return {};
+    },
+  };
+  try {
+    const file = await captureVideoPoster("https://cdn.example/markers/12-ab.mp4");
+    assert.equal(file, null);
+    assert.deepEqual(seen, ["anonymous"]);
+  } finally {
+    if (previous === undefined) delete globalThis.document;
+    else globalThis.document = previous;
+  }
 });
 
 test("an e2ee thumbnail is inside the sealed payload and absent from the outer message", () => {

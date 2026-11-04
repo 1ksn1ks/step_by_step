@@ -155,6 +155,7 @@ export async function captureVideoPoster(source, options) {
     if (typeof source === "string") url = source;
     else if (source) url = URL.createObjectURL(source);
     if (!url) return null;
+    const remote = typeof source === "string";
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error("timeout")), 8000);
       video.onloadeddata = () => {
@@ -165,6 +166,7 @@ export async function captureVideoPoster(source, options) {
         clearTimeout(timer);
         reject(new Error("decode"));
       };
+      if (remote) video.crossOrigin = "anonymous";
       video.src = url;
     });
     const dur = video.duration;
@@ -176,7 +178,7 @@ export async function captureVideoPoster(source, options) {
     canvas.width = box.width;
     canvas.height = box.height;
     canvas.getContext("2d").drawImage(video, 0, 0, box.width, box.height);
-    return jpegFile(canvas, "poster.jpg");
+    return await jpegFile(canvas, "poster.jpg");
   } catch {
     return null;
   } finally {
@@ -216,7 +218,7 @@ function armFrameGrab(video, raw) {
       const blob = URL.createObjectURL(file);
       rememberVideoFrame(raw, blob);
       if (video.isConnected) applyPoster(video, blob);
-    });
+    }).catch(() => {});
   }, { rootMargin: "15%" });
   watch.observe(video);
 }
