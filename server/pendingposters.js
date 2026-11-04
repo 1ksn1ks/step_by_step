@@ -5,9 +5,14 @@ import { uploadSecretOk } from "./uploadtoken.js";
 // The poster may follow for two minutes, once, from the same account,
 // and only onto that object. exp equal to now is still valid.
 // The uploader account is not written to disk. A later edit proves itself
-// with an HMAC over the poster key and the account, then arms this same hold.
+// with an HMAC over the poster key, the account, and the UTC day it was
+// issued, then arms this same hold. The token is "<issuedDay>.<hmac>".
+// Nothing about the edit is stored. A day more than 7 behind today, a
+// future day, or a malformed token does not match.
 
 export const POSTER_WAIT_MS = 2 * 60 * 1000;
+export const POSTER_EDIT_DAYS = 7;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function posterAccount(account) {
   return typeof account === "string" ? account : "";
@@ -24,27 +29,48 @@ function posterEditSecret(uploadSecret) {
   return crypto.createHmac("sha256", String(uploadSecret)).update("poster-edit").digest();
 }
 
-function posterEditDigest(posterKey, account, uploadSecret) {
+function posterEditDay(now) {
+  const at = typeof now === "number" ? now : Number(now);
+  if (!Number.isFinite(at)) return null;
+  const day = Math.floor(at / DAY_MS);
+  if (!Number.isSafeInteger(day) || day < 0) return null;
+  return day;
+}
+
+function posterEditDigest(posterKey, account, issuedDay, uploadSecret) {
   const key = String(posterKey || "");
   const who = posterAccount(account);
-  if (!key || !who || !uploadSecretOk(uploadSecret)) return null;
+  const day = Number(issuedDay);
+  if (!key || !who || !Number.isSafeInteger(day) || day < 0 || !uploadSecretOk(uploadSecret)) return null;
   return crypto.createHmac("sha256", posterEditSecret(uploadSecret))
-    .update(`${key}\n${who}`)
+    .update(`${key}\n${who}\n${day}`)
     .digest();
 }
 
-// Stateless. The token is the HMAC only, so the account is not inside it.
-export function issuePosterEdit(videoKey, account, uploadSecret) {
-  const digest = posterEditDigest(posterKeyForVideo(videoKey), account, uploadSecret);
-  return digest ? digest.toString("base64url") : "";
+// Stateless. The account is not inside the token. issuedDay is the UTC
+// day count, so a later check needs no stored row.
+export function issuePosterEdit(videoKey, account, uploadSecret, now = Date.now()) {
+  const day = posterEditDay(now);
+  if (day == null) return "";
+  const digest = posterEditDigest(posterKeyForVideo(videoKey), account, day, uploadSecret);
+  return digest ? `${day}.${digest.toString("base64url")}` : "";
 }
 
-export function posterEditMatches(posterKey, account, token, uploadSecret) {
-  const expected = posterEditDigest(posterKey, account, uploadSecret);
-  if (!expected) return false;
+export function posterEditMatches(posterKey, account, token, uploadSecret, now = Date.now()) {
+  const today = posterEditDay(now);
+  if (today == null) return false;
   const raw = typeof token === "string" ? token.trim() : "";
-  if (!raw || !/^[A-Za-z0-9_-]+$/.test(raw)) return false;
-  const given = Buffer.from(raw, "base64url");
+  const dot = raw.indexOf(".");
+  if (dot <= 0 || dot !== raw.lastIndexOf(".")) return false;
+  const dayText = raw.slice(0, dot);
+  const mac = raw.slice(dot + 1);
+  if (!/^[0-9]{1,16}$/.test(dayText) || (dayText.length > 1 && dayText.startsWith("0"))) return false;
+  if (!/^[A-Za-z0-9_-]+$/.test(mac)) return false;
+  const issuedDay = Number(dayText);
+  if (!Number.isSafeInteger(issuedDay) || issuedDay > today || today - issuedDay > POSTER_EDIT_DAYS) return false;
+  const expected = posterEditDigest(posterKey, account, issuedDay, uploadSecret);
+  if (!expected) return false;
+  const given = Buffer.from(mac, "base64url");
   if (given.length !== expected.length) return false;
   return crypto.timingSafeEqual(given, expected);
 }

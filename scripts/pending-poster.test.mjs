@@ -4,13 +4,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
-import { createPendingPosters, issuePosterEdit, posterEditMatches, POSTER_WAIT_MS } from "../server/pendingposters.js";
+import { createPendingPosters, issuePosterEdit, posterEditMatches, POSTER_EDIT_DAYS, POSTER_WAIT_MS } from "../server/pendingposters.js";
 
 const SECRET = "0123456789abcdef0123456789abcdef";
+const DAY_MS = 24 * 60 * 60 * 1000;
+const ISSUED = Date.UTC(2026, 0, 15);
 
-function expectedToken(posterKey, account) {
+function expectedToken(posterKey, account, now = ISSUED) {
+  const day = Math.floor(now / DAY_MS);
   const key = crypto.createHmac("sha256", SECRET).update("poster-edit").digest();
-  return crypto.createHmac("sha256", key).update(`${posterKey}\n${account}`).digest("base64url");
+  const mac = crypto.createHmac("sha256", key).update(`${posterKey}\n${account}\n${day}`).digest("base64url");
+  return `${day}.${mac}`;
 }
 
 test("a poster follow-up is only accepted from the uploading account", () => {
@@ -81,26 +85,58 @@ test("a verified poster edit arms the follow-up for that account", () => {
   assert.equal(posters.size(), 0);
 });
 
-test("a poster edit token is an HMAC of the poster key and account", () => {
+test("a poster edit token is an HMAC of the poster key, account, and issued day", () => {
   const posterKey = "markers/9-zz.poster.jpg";
-  const token = issuePosterEdit("markers/9-zz.mp4", "0.0.1", SECRET);
+  const token = issuePosterEdit("markers/9-zz.mp4", "0.0.1", SECRET, ISSUED);
+  assert.equal(POSTER_EDIT_DAYS, 7);
   assert.equal(token, expectedToken(posterKey, "0.0.1"));
-  assert.equal(issuePosterEdit("markers/9-zz.webm", "0.0.1", SECRET), expectedToken("markers/9-zz.poster.jpg", "0.0.1"));
-  assert.equal(posterEditMatches(posterKey, "0.0.1", token, SECRET), true);
-  assert.equal(posterEditMatches(posterKey, "0.0.2", token, SECRET), false);
-  assert.equal(posterEditMatches("markers/8-yy.poster.jpg", "0.0.1", token, SECRET), false);
-  assert.equal(posterEditMatches(posterKey, "0.0.1", token.slice(0, -1), SECRET), false);
-  assert.equal(posterEditMatches(posterKey, "0.0.1", `${token}a`, SECRET), false);
-  assert.equal(posterEditMatches(posterKey, "0.0.1", "", SECRET), false);
-  assert.equal(posterEditMatches(posterKey, "0.0.1", token, SECRET + "x"), false);
-  assert.equal(issuePosterEdit("markers/9-zz.mov", "0.0.1", SECRET), "");
-  assert.equal(issuePosterEdit("markers/9-zz.mp4", "", SECRET), "");
-  assert.equal(issuePosterEdit("markers/9-zz.mp4", null, SECRET), "");
-  assert.equal(issuePosterEdit("markers/9-zz.mp4", "0.0.1", "short"), "");
+  assert.match(token, /^\d+\.[A-Za-z0-9_-]+$/);
+  assert.equal(issuePosterEdit("markers/9-zz.webm", "0.0.1", SECRET, ISSUED), expectedToken("markers/9-zz.poster.jpg", "0.0.1"));
+  assert.equal(posterEditMatches(posterKey, "0.0.1", token, SECRET, ISSUED), true);
+  assert.equal(posterEditMatches(posterKey, "0.0.1", `  ${token}  `, SECRET, ISSUED), true);
+  assert.equal(posterEditMatches(posterKey, "0.0.2", token, SECRET, ISSUED), false);
+  assert.equal(posterEditMatches("markers/8-yy.poster.jpg", "0.0.1", token, SECRET, ISSUED), false);
+  assert.equal(posterEditMatches(posterKey, "0.0.1", token.slice(0, -1), SECRET, ISSUED), false);
+  assert.equal(posterEditMatches(posterKey, "0.0.1", `${token}a`, SECRET, ISSUED), false);
+  assert.equal(posterEditMatches(posterKey, "0.0.1", "", SECRET, ISSUED), false);
+  assert.equal(posterEditMatches(posterKey, "0.0.1", token, SECRET + "x", ISSUED), false);
+  const mac = token.slice(token.indexOf(".") + 1);
+  const day = Number(token.slice(0, token.indexOf(".")));
+  assert.equal(posterEditMatches(posterKey, "0.0.1", `${day - 1}.${mac}`, SECRET, ISSUED), false);
+  assert.equal(issuePosterEdit("markers/9-zz.mov", "0.0.1", SECRET, ISSUED), "");
+  assert.equal(issuePosterEdit("markers/9-zz.mp4", "", SECRET, ISSUED), "");
+  assert.equal(issuePosterEdit("markers/9-zz.mp4", null, SECRET, ISSUED), "");
+  assert.equal(issuePosterEdit("markers/9-zz.mp4", "0.0.1", "short", ISSUED), "");
+  assert.equal(issuePosterEdit("markers/9-zz.mp4", "0.0.1", SECRET, Number.NaN), "");
   assert.equal(token.includes("0.0.1"), false);
   const posters = readFileSync(new URL("../server/pendingposters.js", import.meta.url), "utf8");
   assert.match(posters, /timingSafeEqual\(given, expected\)/);
   assert.doesNotMatch(posters, /owners/);
+});
+
+test("a poster edit token older than 7 days, in the future, or malformed is rejected", () => {
+  const posterKey = "markers/9-zz.poster.jpg";
+  const token = issuePosterEdit("markers/9-zz.mp4", "0.0.1", SECRET, ISSUED);
+  assert.equal(posterEditMatches(posterKey, "0.0.1", token, SECRET, ISSUED + 7 * DAY_MS), true);
+  assert.equal(posterEditMatches(posterKey, "0.0.1", token, SECRET, ISSUED + 8 * DAY_MS - 1), true);
+  assert.equal(posterEditMatches(posterKey, "0.0.1", token, SECRET, ISSUED + 8 * DAY_MS), false);
+  const future = issuePosterEdit("markers/9-zz.mp4", "0.0.1", SECRET, ISSUED + 2 * DAY_MS);
+  assert.equal(posterEditMatches(posterKey, "0.0.1", future, SECRET, ISSUED), false);
+  assert.equal(posterEditMatches(posterKey, "0.0.1", future, SECRET, ISSUED + 2 * DAY_MS), true);
+  for (const bad of [
+    token.slice(token.indexOf(".") + 1),
+    token.replace(".", ""),
+    `${token}.extra`,
+    `.${token.slice(token.indexOf(".") + 1)}`,
+    `0${token}`,
+    token.slice(0, token.indexOf(".")) + ".",
+    "-1.abcd",
+    "nope",
+    "12 3.abcd",
+  ]) {
+    assert.equal(posterEditMatches(posterKey, "0.0.1", bad, SECRET, ISSUED), false, bad);
+  }
+  assert.equal(posterEditMatches(posterKey, "0.0.1", token, SECRET, Number.NaN), false);
 });
 
 test("the upload route checks the poster token and sweeps with the upload limits", () => {
@@ -127,6 +163,8 @@ test("the upload route checks the poster token and sweeps with the upload limits
   assert.match(src, /x-poster-clear/);
   assert.match(src, /error: "Bad poster"/);
   assert.match(client, /X-Poster-Edit/);
+  assert.match(client, /const edit = posterEditFor\(videoUrl\);\r?\n\s+if \(edit\) xhr\.setRequestHeader\("X-Poster-Edit", edit\)/);
+  assert.doesNotMatch(client, /issuedDay|posterEditDay/);
   assert.match(client, /X-Poster-For/);
   assert.match(client, /X-Poster-Clear/);
   assert.match(client, /X-Expect-Poster/);
