@@ -36,7 +36,8 @@ import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
 import { VIEW_SORT_BATCH, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs, zeroViewCounts } from './viewsort.js';
 import { FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, feedAutoplayAllowed, feedVideoHeld, feedVideoPreloadOnPause, feedVideoShouldRelease, feedVideoStartDelay, pickFeedVideo } from './feedvideo.js';
-import { classifyImageUrl, isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
+import { isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
+import { bindVideoPoster } from './videoposter.js';
 import { mountPicture, pictureElement, playStoredGif, presentImage } from './loopmedia.js';
 
 const LAYOUT_KEY = 'layoutMode';
@@ -834,10 +835,6 @@ function mediaOf(image) {
   const url = Array.isArray(image) ? image[0] : image;
   if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return '';
   return url;
-}
-
-function isVideo(url) {
-  return resolveMediaUrl(url).kind === 'video';
 }
 
 // 1dvmin. clientX is CSS pixels, and 1dvmin is 1% of the shorter viewport side.
@@ -2313,18 +2310,11 @@ function buildCard(post) {
       node.muted = true;
       node.preload = 'none';
       node.dataset.src = resolved.src;
-      if (resolved.poster) node.poster = resolved.poster;
-      else {
-        const poster = mediaOf(record.coverimage);
-        if (poster && !isVideo(poster) && !isGifUrl(poster)) {
-          if (!needsGifCheck(poster)) node.poster = poster;
-          else {
-            classifyImageUrl(poster).then((isGif) => {
-              if (isGif === false && node.isConnected) node.poster = poster;
-            });
-          }
-        }
-      }
+      bindVideoPoster(node, src, {
+        posterOff: !!record.posterOff,
+        posterV: record.posterV || 0,
+        armPlay: false,
+      });
       media.appendChild(node);
       bindFeedVideo(node);
       coverFeedPlayer(media, () => {
@@ -2774,6 +2764,8 @@ function markerPost(message, data) {
       coverimage: data.coverimage,
       msg: edit ? edit.msg : data.msg,
       edited: !!edit,
+      posterOff: !!(edit && edit.posterOff),
+      posterV: edit && edit.posterV || 0,
       timestamp: stampLabel,
       created,
       consensusTimestamp: consensusOf(message),
@@ -2830,6 +2822,8 @@ function polygonPost(message, data) {
       coverimage: data.coverimage,
       msg: edit ? edit.msg : data.msg,
       edited: !!edit,
+      posterOff: !!(edit && edit.posterOff),
+      posterV: edit && edit.posterV || 0,
       timestamp: stampLabel,
       created,
       consensusTimestamp: consensusOf(message),

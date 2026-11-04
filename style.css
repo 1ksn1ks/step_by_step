@@ -3239,6 +3239,56 @@ html, body {
 .draw-popup-media.has-media .draw-popup-media-hint {
     display: none;
 }
+.video-thumb-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 3;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: calc(var(--fu) * 0.35);
+    padding: calc(var(--fu) * 0.35);
+    pointer-events: none;
+}
+.video-thumb-btn {
+    pointer-events: auto;
+    min-height: max(44px, calc(var(--fu) * 2.2));
+    min-width: max(44px, calc(var(--fu) * 2.2));
+    padding: 0 calc(var(--fu) * 0.7);
+    border-radius: calc(var(--fu) * 0.8);
+    border: 1px solid rgba(34, 211, 238, 0.55);
+    background: rgba(8, 12, 18, 0.55);
+    color: #22d3ee;
+    font: inherit;
+    font-size: calc(var(--fu) * 0.75);
+    line-height: 1;
+    backdrop-filter: blur(calc(var(--fu) * 0.8));
+    -webkit-backdrop-filter: blur(calc(var(--fu) * 0.8));
+    box-shadow: 0 0 calc(var(--fu) * 0.7) rgba(34, 211, 238, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+}
+.video-thumb-clear[hidden] {
+    display: none;
+}
+.chat-attach-preview {
+    position: relative;
+    flex-wrap: wrap;
+}
+.chat-attach-preview .video-thumb-bar,
+.video-thumb-edit {
+    position: static;
+    width: 100%;
+    padding: calc(var(--fu) * 0.35) 0 0;
+    pointer-events: none;
+}
+.chat-attach-preview video {
+    width: 6vh;
+    height: 6vh;
+    object-fit: cover;
+    border-radius: 0.6vh;
+}
 .draw-popup-clear {
     position: absolute;
     top: calc(var(--u) * 0.4);

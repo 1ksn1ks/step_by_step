@@ -14,7 +14,9 @@ import { expandEncryptedChat, scheduleEncryptedChatLayout } from './cssLogic.js'
 import { fitChatComposer } from './chatcomposer.js';
 import { payerUsernameNode } from './payerlink.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
-import { fillChatMessage, packChatPayload, unpackChatPayload, pendingChatImage, chatImageBusy, clearPendingChatImage } from './chatimage.js';
+import { fillChatMessage, packChatPayload, unpackChatPayload, pendingChatImage, pendingChatPoster, chatImageBusy, clearPendingChatImage } from './chatimage.js';
+import { resolveMediaUrl } from './mediaurl.js';
+import { dataUrlForSeal, openCoverImagePicker, prepareThumbFile } from './uploadmedia.js';
 import { watchFollowPrefetch } from './followtopic.js';
 import { 
   topicChatHeaderColor,
@@ -79,7 +81,7 @@ export async function rememberE2eeEdit(payer, data, envelope, PrivateKey) {
   if (!at && prev) return null;
   // Latest wins: an older edit arriving late never replaces a newer one.
   if (prev && prev.at && at && at < prev.at) return null;
-  const entry = { text, image, at };
+  const entry = { text, image, poster: parts.poster || '', at };
   e2eeEditsByCreated.set(key, entry);
   applyE2eeEditToDom(payer, created, entry);
   return entry;
@@ -95,7 +97,7 @@ function applyE2eeEditToDom(payer, created, entry) {
   );
   for (const container of containers) {
     const text = container.querySelector('.chat-msg-text');
-    if (text) fillChatMessage(text, entry.text, entry.image);
+    if (text) fillChatMessage(text, entry.text, entry.image, e2eeStillHint(entry.poster));
     addE2eeEditedMark(container.querySelector('.chat-msg-time'));
   }
 }
@@ -175,7 +177,7 @@ function e2eeChatEditOutgoing(newText) {
   const target = e2eeChatEditTarget;
   // The image rides inside the sealed payload, the same as a normal send —
   // so it counts toward the outgoing size here too.
-  const sealedBytes = E2EE_SEAL_BYTES + utf8ByteLength(packChatPayload(newText, target.image || ''));
+  const sealedBytes = E2EE_SEAL_BYTES + utf8ByteLength(packChatPayload(newText, target.image || '', e2eeDraftPoster(target)));
   const data = {
     created: target.created,
     timestamp: target.stamp,
@@ -198,6 +200,75 @@ function clearE2eeChatEditMark() {
   });
 }
 
+function e2eeStillHint(poster) {
+  const still = typeof poster === 'string' && poster.startsWith('data:image/') ? poster : '';
+  return still ? { poster: still } : { posterOff: true };
+}
+
+function e2eeDraftPoster(target) {
+  if (!target || target.posterMode === 'clear') return '';
+  if (target.posterMode === 'custom') return target.posterData || '';
+  return target.existingPoster || '';
+}
+
+function e2eePosterChanged(target) {
+  return !!(target && (target.posterMode === 'clear' || (target.posterMode === 'custom' && target.posterData)));
+}
+
+function e2eePosterBar() {
+  let bar = document.getElementById('e2ee-chat-thumb');
+  if (bar) return bar;
+  const host = document.getElementById('e2ee-chat-editbar');
+  if (!host) return null;
+  bar = document.createElement('div');
+  bar.id = 'e2ee-chat-thumb';
+  bar.className = 'video-thumb-bar video-thumb-edit';
+  bar.hidden = true;
+  const pick = document.createElement('button');
+  pick.type = 'button';
+  pick.className = 'video-thumb-btn';
+  pick.textContent = 'Thumbnail';
+  const drop = document.createElement('button');
+  drop.type = 'button';
+  drop.className = 'video-thumb-btn';
+  drop.textContent = 'Remove';
+  pick.addEventListener('click', async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const target = e2eeChatEditTarget;
+    if (!target) return;
+    const picked = await openCoverImagePicker();
+    if (!picked) return;
+    const file = await prepareThumbFile(picked);
+    if (!file) {
+      toast.error('Could not read that picture');
+      return;
+    }
+    const field = document.getElementById('user-write-message-encrypted-chat');
+    const data = await dataUrlForSeal(file, target.image, field ? field.value : '');
+    if (!data) {
+      toast.error('That picture does not fit in the message');
+      return;
+    }
+    target.posterMode = 'custom';
+    target.posterFile = file;
+    target.posterData = data;
+    paintE2eeChatEditBytes();
+  });
+  drop.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!e2eeChatEditTarget) return;
+    e2eeChatEditTarget.posterMode = 'clear';
+    e2eeChatEditTarget.posterFile = null;
+    e2eeChatEditTarget.posterData = '';
+    paintE2eeChatEditBytes();
+  });
+  bar.append(pick, drop);
+  host.appendChild(bar);
+  return bar;
+}
+
 function e2eeEditQuote(text, image) {
   const line = String(text || '').replace(/\s+/g, ' ').trim();
   if (line) return line;
@@ -209,7 +280,14 @@ function paintE2eeChatEditBytes() {
   const save = document.getElementById('post-msg-encrypted-chat');
   const text = document.getElementById('user-write-message-encrypted-chat');
   if (!counter || !text || !e2eeChatEditTarget) return;
-  const usage = formatHcsUsage(utf8ByteLength(e2eeChatEditOutgoing(text.value)));
+  let bytes = utf8ByteLength(e2eeChatEditOutgoing(text.value));
+  if (bytes > HCS_MESSAGE_MAX_BYTES && e2eeDraftPoster(e2eeChatEditTarget)) {
+    const mode = e2eeChatEditTarget.posterMode;
+    e2eeChatEditTarget.posterMode = 'clear';
+    bytes = utf8ByteLength(e2eeChatEditOutgoing(text.value));
+    e2eeChatEditTarget.posterMode = mode;
+  }
+  const usage = formatHcsUsage(bytes);
   counter.hidden = false;
   counter.textContent = usage.text;
   counter.classList.toggle('hcs-warn', usage.warn);
@@ -219,7 +297,8 @@ function paintE2eeChatEditBytes() {
   // Unchanged or empty is a dead control.
   save.classList.toggle('hcs-send-blocked', usage.over);
   const unchanged = text.value === e2eeChatEditTarget.original;
-  save.disabled = unchanged || text.value.trim() === '';
+  const posterChanged = e2eePosterChanged(e2eeChatEditTarget);
+  save.disabled = !posterChanged && (unchanged || text.value.trim() === '');
 }
 
 function setE2eeChatEditing(on) {
@@ -236,6 +315,8 @@ function setE2eeChatEditing(on) {
       send.setAttribute('aria-label', 'Send');
     }
     if (quote) quote.textContent = '';
+    const thumb = document.getElementById('e2ee-chat-thumb');
+    if (thumb) thumb.hidden = true;
     return;
   }
   if (send) send.setAttribute('aria-label', 'Save edit');
@@ -271,7 +352,13 @@ function openE2eeChatEdit(payer, created) {
     image: imgEl ? (imgEl.dataset.fullSrc || imgEl.getAttribute('src') || '') : '',
     stamp: e2eeChatStamp(createdIso),
     original: currentText,
+    existingPoster: imgEl && typeof imgEl.poster === 'string' && imgEl.poster.startsWith('data:image/') ? imgEl.poster : '',
+    posterMode: 'keep',
+    posterFile: null,
+    posterData: '',
   };
+  const thumb = e2eePosterBar();
+  if (thumb) thumb.hidden = resolveMediaUrl(e2eeChatEditTarget.image).kind !== 'video';
   const quote = document.getElementById('e2ee-chat-edit-quote');
   if (quote) quote.textContent = e2eeEditQuote(currentText, e2eeChatEditTarget.image);
   clearE2eeChatEditMark();
@@ -384,8 +471,9 @@ async function saveE2eeChatEdit() {
   }
   const field = document.getElementById('user-write-message-encrypted-chat');
   const raw = field ? field.value : '';
-  if (!raw.trim() || raw === e2eeChatEditTarget.original) return;
   const target = e2eeChatEditTarget;
+  const posterChanged = e2eePosterChanged(target);
+  if ((!raw.trim() && !posterChanged) || (raw === target.original && !posterChanged)) return;
   // Same key discovery as a normal E2EE send: the admin-pinned public key,
   // cached per topic with a short lifetime (e2eePublicKeysByTopic above).
   const cached = cachedE2eeKey(target.topicId);
@@ -409,7 +497,14 @@ async function saveE2eeChatEdit() {
   try {
     // Encrypt before build: plaintext never enters the HCS JSON. The image
     // rides inside the sealed payload, the same as a normal send.
-    const payload = packChatPayload(raw, target.image || '');
+    let poster = e2eeDraftPoster(target);
+    let payload = packChatPayload(raw, target.image || '', poster);
+    if (poster && utf8ByteLength(e2eeChatEditOutgoing(raw)) > HCS_MESSAGE_MAX_BYTES) {
+      poster = '';
+      target.posterMode = 'clear';
+      target.posterData = '';
+      payload = packChatPayload(raw, target.image || '', '');
+    }
     let encryptedMessage;
     try {
       encryptedMessage = await encryptMessage(payload, PublicKey);
@@ -608,6 +703,7 @@ export async function appendEncryptedChatMessage(
     const fullMessage = {
       decryptedMessage: parts.text,
       image: parts.image,
+      poster: parts.poster || '',
       created: parsedMessage.created,
       payer
     };
@@ -724,11 +820,12 @@ export async function appendEncryptedChatMessage(
     const editHit = e2eeEditFor(payer, parsedMessage.created);
     const displayText = editHit ? editHit.text : parts.text;
     const displayImage = editHit ? editHit.image : parts.image;
+    const displayPoster = editHit ? editHit.poster : parts.poster;
 
     const contentDiv = document.createElement('div');
     contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
     contentDiv.className = 'chat-msg-text';
-    fillChatMessage(contentDiv, displayText, displayImage);
+    fillChatMessage(contentDiv, displayText, displayImage, e2eeStillHint(displayPoster));
 
     const timeSpan = document.createElement('span');
     timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
@@ -1184,29 +1281,38 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
       toast.error("Please enter a message.");
       return;
     }
-    const payload = packChatPayload(message, image);
+    let poster = pendingChatPoster("e2ee");
+    let payload = packChatPayload(message, image, poster);
     let encryptedMessage;
-    try {
-      encryptedMessage = await encryptMessage(payload, PublicKey);
-    } catch (error) {
-      // A bad cached key would fail every encrypt — drop it and look the
-      // pin up once more.
-      e2eePublicKeysByTopic.delete(topicId);
-      const lookedUp = await lookupE2eePublicKey(topicId);
-      PublicKey = lookedUp.key;
-      if (!PublicKey) {
-        toast.error("No public key found for this topic. The admin must pin one first.");
-        return;
+    const seal = async (body) => {
+      try {
+        return await encryptMessage(body, PublicKey);
+      } catch (error) {
+        // A bad cached key would fail every encrypt — drop it and look the
+        // pin up once more.
+        e2eePublicKeysByTopic.delete(topicId);
+        const lookedUp = await lookupE2eePublicKey(topicId);
+        PublicKey = lookedUp.key;
+        if (!PublicKey) {
+          toast.error("No public key found for this topic. The admin must pin one first.");
+          return null;
+        }
+        setCachedE2eeKey(topicId, PublicKey, lookedUp.keyCreated);
+        return encryptMessage(body, PublicKey);
       }
-      setCachedE2eeKey(topicId, PublicKey, lookedUp.keyCreated);
-      encryptedMessage = await encryptMessage(payload, PublicKey);
-    }
-
-    const meesageobject = {
-      encryptedMessage: encryptedMessage
     };
-    
-    const newMeesage = JSON.stringify(meesageobject);
+    encryptedMessage = await seal(payload);
+    if (!encryptedMessage) return;
+    let meesageobject = { encryptedMessage };
+    let newMeesage = JSON.stringify(meesageobject);
+    if (poster && utf8ByteLength(newMeesage) > HCS_MESSAGE_MAX_BYTES) {
+      poster = "";
+      payload = packChatPayload(message, image, "");
+      encryptedMessage = await seal(payload);
+      if (!encryptedMessage) return;
+      meesageobject = { encryptedMessage };
+      newMeesage = JSON.stringify(meesageobject);
+    }
     console.log('New Meesage:', newMeesage);
     if (utf8ByteLength(newMeesage) > HCS_MESSAGE_MAX_BYTES) {
       toast.error(HCS_TOO_LONG);
@@ -1446,7 +1552,12 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
     const contentDiv = document.createElement('div');
     contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
     contentDiv.className = 'chat-msg-text';
-    fillChatMessage(contentDiv, editHit ? editHit.text : decryptedMessage, editHit ? editHit.image : parsedMessage.image);
+    fillChatMessage(
+      contentDiv,
+      editHit ? editHit.text : decryptedMessage,
+      editHit ? editHit.image : parsedMessage.image,
+      e2eeStillHint(editHit ? editHit.poster : parsedMessage.poster)
+    );
 
     const timeSpan = document.createElement('span');
     timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;

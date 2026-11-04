@@ -10,15 +10,51 @@ function posterAccount(account) {
 
 export function createPendingPosters(nowFn = Date.now) {
   const pendingPosters = new Map();
+  const owners = new Map();
   const now = () => nowFn();
 
-  function note(videoKey, account) {
+  function posterKeyFor(videoKey) {
     const posterKey = String(videoKey || "").replace(/\.(mp4|webm)$/i, ".poster.jpg");
-    if (!posterKey || posterKey === videoKey) return;
+    if (!posterKey || posterKey === videoKey) return "";
+    return posterKey;
+  }
+
+  function rememberKey(posterKey, account) {
+    const key = String(posterKey || "");
+    const who = posterAccount(account);
+    if (!key || !who) return "";
+    owners.set(key, who);
+    return key;
+  }
+
+  function remember(videoKey, account) {
+    return rememberKey(posterKeyFor(videoKey), account);
+  }
+
+  function owner(posterKey) {
+    return owners.get(String(posterKey || "")) || "";
+  }
+
+  function hold(posterKey, account) {
     pendingPosters.set(posterKey, {
       exp: now() + POSTER_WAIT_MS,
       account: posterAccount(account),
     });
+  }
+
+  function note(videoKey, account) {
+    const posterKey = posterKeyFor(videoKey);
+    if (!posterKey) return;
+    hold(posterKey, account);
+  }
+
+  // A later edit may replace the still. Only the account that uploaded the video.
+  function arm(posterKey, account) {
+    const key = String(posterKey || "");
+    const who = posterAccount(account);
+    if (!key || !who || owners.get(key) !== who) return false;
+    hold(key, who);
+    return true;
   }
 
   function live(key, account) {
@@ -40,10 +76,7 @@ export function createPendingPosters(nowFn = Date.now) {
   // The JPEG put failed after the slot was taken. The same account may retry.
   function restore(posterKey, account) {
     if (!posterKey) return;
-    pendingPosters.set(posterKey, {
-      exp: now() + POSTER_WAIT_MS,
-      account: posterAccount(account),
-    });
+    hold(posterKey, account);
   }
 
   function sweep(at = now()) {
@@ -57,5 +90,5 @@ export function createPendingPosters(nowFn = Date.now) {
     return pendingPosters.size;
   }
 
-  return { note, live, consume, restore, sweep, size };
+  return { note, live, consume, restore, sweep, size, remember, rememberKey, owner, arm };
 }

@@ -19,7 +19,7 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { S3Client, PutObjectCommand, PutBucketCorsCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, PutBucketCorsCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { appIcon, APP_ICONS } from "./appicon.js";
 import { profileTopicAction } from "./profiletopic.js";
 import { hashtagsIn } from "../hashtag.js";
@@ -1925,6 +1925,16 @@ const UPLOAD_HOUR_MS = 60 * 60 * 1000;
 const uploadsByAccount = new Map();
 const uploadsByIp = new Map();
 const posterHolds = createPendingPosters();
+db.exec(`CREATE TABLE IF NOT EXISTS video_owners (
+  poster_key TEXT PRIMARY KEY,
+  account TEXT NOT NULL
+)`);
+const saveVideoOwner = db.prepare(
+  "INSERT INTO video_owners (poster_key, account) VALUES (?, ?) ON CONFLICT(poster_key) DO UPDATE SET account = excluded.account"
+);
+for (const row of db.prepare("SELECT poster_key, account FROM video_owners").all()) {
+  posterHolds.rememberKey(row.poster_key, row.account);
+}
 
 function uploadDay(now) {
   return new Date(now).toISOString().slice(0, 10);
@@ -2410,6 +2420,33 @@ function restorePendingPoster(posterKey, account) {
   posterHolds.restore(posterKey, account);
 }
 
+// Replace or clear the still for a video this account already uploaded.
+// The JPEG itself still goes through the owner-checked poster upload.
+app.post("/api/upload/poster", async (req, res) => {
+  if (!r2) return res.status(503).json({ ok: false, error: "R2 not configured — set R2_* in server/.env" });
+  const account = REQUIRE_UPLOAD_AUTH
+    ? accountFromUploadToken(req.headers["x-upload-token"])
+    : requireAccount(req);
+  if (!account) return res.status(401).json({ ok: false, error: "Upload authorization required" });
+  if (uploadRequestLimited(req, res)) return;
+  const posterHeader = typeof req.headers["x-poster-for"] === "string" ? req.headers["x-poster-for"].trim() : "";
+  const posterKey = posterHeader ? posterTargetKey(R2_PUBLIC_BASE, posterHeader) : "";
+  if (!posterKey || posterHolds.owner(posterKey) !== account) {
+    return res.status(400).json({ ok: false, error: "Bad poster" });
+  }
+  if (String(req.headers["x-poster-clear"] || "") === "1") {
+    try {
+      await r2.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: posterKey }));
+    } catch (err) {
+      console.error("R2 poster delete failed:", err.message);
+      return res.status(502).json({ ok: false, error: "R2 upload failed" });
+    }
+    return res.json({ ok: true, cleared: true });
+  }
+  if (!posterHolds.arm(posterKey, account)) return res.status(400).json({ ok: false, error: "Bad poster" });
+  res.json({ ok: true });
+});
+
 app.post("/api/upload", async (req, res) => {
   if (!r2) return res.status(503).json({ ok: false, error: "R2 not configured — set R2_* in server/.env" });
   let account = null;
@@ -2535,8 +2572,12 @@ app.post("/api/upload", async (req, res) => {
       if (!res.headersSent) res.status(502).json({ ok: false, error: "R2 upload failed" });
       return;
     }
-    if (isVideo && (ext === ".mp4" || ext === ".webm") && String(req.headers["x-expect-poster"] || "") === "1") {
-      notePendingPoster(key, account);
+    if (isVideo && (ext === ".mp4" || ext === ".webm")) {
+      const owned = posterHolds.remember(key, account);
+      if (owned && account) {
+        try { saveVideoOwner.run(owned, account); } catch { /* the in-memory owner still stands */ }
+      }
+      if (String(req.headers["x-expect-poster"] || "") === "1") notePendingPoster(key, account);
     }
     addUploadBytes(account, body.length);
     res.json({ ok: true, url: `${R2_PUBLIC_BASE}/${key}`, type });

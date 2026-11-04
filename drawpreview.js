@@ -319,11 +319,12 @@ function bindUpload(triggerId, pickerId, fieldId, paint) {
   if (!trigger || !picker || !field) return;
   const open = () => picker.click();
   trigger.addEventListener("click", (event) => {
-    if (event.target.closest(".draw-popup-clear")) return;
+    if (event.target.closest(".draw-popup-clear, .video-thumb-bar")) return;
     open();
   });
   if (trigger.tagName !== "BUTTON") {
     trigger.addEventListener("keydown", (event) => {
+      if (event.target.closest(".video-thumb-bar")) return;
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
       open();

@@ -9,21 +9,32 @@
 // A polygon cover video is max 30s and animates in the map (polygons.js
 // pump). An animated GIF is converted on this device to that same loop.
 // The Inside field is what the popup plays and stays unlimited
-// (100 MB, any length). No automatic thumbnail.
+// (100 MB, any length). A video can carry a JPEG poster: the picture
+// the sender picks, or one frame from the file.
 import { toast } from "./toast.js";
 import { connectedAccount, signer } from "./web3.js";
 import { profilePictures } from "./loadalladata.js";
 import { paintDrawField } from "./drawpreview.js";
 import { rememberGrant, withUploadAuth } from "./uploadgrant.js";
 import { COVER_VIDEO_PROBE_MS, coverVideoReject } from "./covervideolimit.js";
-import { isGifUrl, needsGifCheck, resolveMediaUrl } from "./mediaurl.js";
+import { isGifUrl, needsGifCheck, resolveMediaUrl, siblingPosterUrl } from "./mediaurl.js";
 import { presentImage } from "./loopmedia.js";
+import { HCS_MESSAGE_MAX_BYTES } from "./hcschunks.js";
 import {
   GIF_BROWSER_ERROR,
   convertGifFile,
   gifCancelError,
   mapGifProgress,
 } from "./gifvideo.js";
+import {
+  THUMB_EDGE,
+  THUMB_EDGES,
+  captureVideoPoster,
+  e2eeWireBytes,
+  fitThumb,
+  packSealedThumb,
+  posterPlan,
+} from "./videoposter.js";
 
 const VIDEO_MAX = 100 * 1024 * 1024;
 const IMAGE_MAX = 20 * 1024 * 1024;
@@ -50,6 +61,16 @@ const COVER_FIELD_IDS = new Set([
 const COVER_SHRINK_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const COVER_MAX_EDGE = 512;
 const COVER_JPEG_QUALITY = 0.85;
+const THUMB_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+const POSTER_FIELDS = new Set([
+  "input-field-image-marker",
+  "input-field-image-polygon",
+]);
+const DRAW_THUMB = {
+  "input-field-image-marker": "draw-marker-media",
+  "input-field-image-polygon": "draw-polygon-media",
+};
+const thumbs = new Map();
 
 let uploading = false;
 
@@ -486,35 +507,21 @@ function sendUpload(file, baseLabel, seconds, turnstile, uploadToken, role, extr
   const gif = !!(extra && extra.gif);
   const pill = gif ? extra.pill : progressPill(`${baseLabel} 0%`);
   const signal = extra && extra.signal;
-  const poster = extra && extra.poster;
   const ownPill = !gif;
-  const job = (async () => {
-    const url = await postFile({
-      file,
-      seconds,
-      turnstile,
-      uploadToken,
-      role,
-      expectPoster: !!(gif && poster),
-      signal,
-      onProgress(ratio) {
-        if (!pill) return;
-        if (gif) pill.set(`Uploading ${mapGifProgress("upload", ratio)}%`);
-        else pill.set(`${baseLabel} ${Math.round(ratio * 100)}%`);
-      },
-    });
-    if (gif && poster) {
-      if (pill) pill.set(`Uploading ${mapGifProgress("upload", 1)}%`);
-      await postFile({
-        file: poster,
-        turnstile,
-        uploadToken,
-        posterFor: url,
-        signal,
-      });
-    }
-    return url;
-  })();
+  const job = postFile({
+    file,
+    seconds,
+    turnstile,
+    uploadToken,
+    role,
+    expectPoster: !!(extra && extra.expectPoster),
+    signal,
+    onProgress(ratio) {
+      if (!pill) return;
+      if (gif) pill.set(`Uploading ${mapGifProgress("upload", ratio)}%`);
+      else pill.set(`${baseLabel} ${Math.round(ratio * 100)}%`);
+    },
+  });
   return job.finally(() => {
     if (ownPill && pill) pill.done();
   });
@@ -537,7 +544,58 @@ function outputTooBig(file) {
 
 // Convert a GIF here, then upload the MP4, WebM, or JPEG. The original
 // bytes are not sent. Cancel stops the recorder and aborts the request.
-async function uploadToR2(file, baseLabel, seconds, anchor, role) {
+function posterCapableFile(file) {
+  const type = file && file.type;
+  return type === "video/mp4" || type === "video/webm";
+}
+
+function postPosterArm(videoUrl, uploadToken, clear) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload/poster");
+    xhr.responseType = "json";
+    xhr.setRequestHeader("X-Poster-For", videoUrl);
+    if (clear) xhr.setRequestHeader("X-Poster-Clear", "1");
+    if (connectedAccount) xhr.setRequestHeader("X-Account", connectedAccount);
+    if (uploadToken) xhr.setRequestHeader("X-Upload-Token", uploadToken);
+    xhr.onload = () => {
+      if (xhr.status === 200 && xhr.response && xhr.response.ok) {
+        resolve(xhr.response);
+        return;
+      }
+      const serverError = xhr.response && typeof xhr.response.error === "string" ? xhr.response.error : "";
+      const err = new Error(xhr.status === 401 || !serverError ? UPLOAD_FAILED : serverError);
+      err.status = xhr.status;
+      reject(err);
+    };
+    xhr.onerror = () => reject(new Error(UPLOAD_FAILED));
+    xhr.send();
+  });
+}
+
+// A later edit replaces or deletes only the still. The JPEG still goes
+// through the owner-checked follow-up. Clear deletes the object.
+export async function replaceVideoPoster(videoUrl, file) {
+  const url = typeof videoUrl === "string" ? videoUrl.trim() : "";
+  if (!url || !siblingPosterUrl(url)) throw new Error(UPLOAD_FAILED);
+  const send = async (uploadToken) => {
+    await postPosterArm(url, uploadToken, !file);
+    if (!file) return { ok: true, cleared: true };
+    await postFile({ file, uploadToken, posterFor: url });
+    return { ok: true };
+  };
+  if (REQUIRE_UPLOAD_AUTH) {
+    return withUploadAuth({
+      account: connectedAccount,
+      storage: grantStorage,
+      sign: signUploadChallenge,
+      send,
+    });
+  }
+  return send("");
+}
+
+async function uploadToR2(file, baseLabel, seconds, anchor, role, extra) {
   const gif = !!(file && file.type === "image/gif");
   const abort = gif ? new AbortController() : null;
   let pill = null;
@@ -581,15 +639,32 @@ async function uploadToR2(file, baseLabel, seconds, anchor, role) {
     } else {
       turnstile = await ensureTurnstileToken(anchor);
     }
-    const send = (uploadToken) => sendUpload(
-      uploadFile,
-      baseLabel,
-      uploadSeconds,
-      turnstile,
-      uploadToken,
-      role || "media",
-      { gif, pill, poster, signal: abort && abort.signal },
-    );
+    const thumbKey = extra && extra.thumbKey || "";
+    const seal = !!(extra && extra.seal);
+    const send = async (uploadToken) => {
+      const state = thumbKey ? thumbs.get(thumbKey) : null;
+      const capable = posterCapableFile(uploadFile);
+      const expectPoster = capable && !seal && !(state && state.removed) && (thumbKey ? true : !!poster);
+      const url = await sendUpload(
+        uploadFile,
+        baseLabel,
+        uploadSeconds,
+        turnstile,
+        uploadToken,
+        role || "media",
+        { gif, pill, signal: abort && abort.signal, expectPoster },
+      );
+      await finishPoster({
+        url,
+        gifPoster: poster,
+        thumbKey,
+        seal,
+        turnstile,
+        uploadToken,
+        signal: abort && abort.signal,
+      });
+      return url;
+    };
     const sendJob = REQUIRE_UPLOAD_AUTH
       ? withUploadAuth({
         account: connectedAccount,
@@ -704,6 +779,7 @@ function showFieldPreview(fieldId, url, kind) {
     video.hidden = true;
     box.hidden = true;
     paintDrawField(fieldId, "");
+    if (POSTER_FIELDS.has(fieldId)) syncThumbBar(fieldId, false);
     return;
   }
   if (box.dataset.objectUrl && box.dataset.objectUrl !== url && box.dataset.objectUrl !== shown) revokePreviewUrl(box);
@@ -729,6 +805,9 @@ function showFieldPreview(fieldId, url, kind) {
   }
   box.hidden = false;
   paintDrawField(fieldId, shown, videoMode ? "video" : "image");
+  // A GIF still is the preview while the device converts it to video.
+  // The thumbnail control stays up so a custom picture can win.
+  if (POSTER_FIELDS.has(fieldId)) syncThumbBar(fieldId, videoMode || thumbs.has(fieldId));
 }
 
 function hideFieldPreview(fieldId) {
@@ -746,12 +825,32 @@ function hideFieldPreview(fieldId) {
   video.hidden = true;
   box.hidden = true;
   paintDrawField(fieldId, "");
+  if (POSTER_FIELDS.has(fieldId)) {
+    clearVideoThumb(fieldId);
+    syncThumbBar(fieldId, false);
+  }
 }
 
-// Shrink one cover still to COVER_MAX_EDGE on the long edge and re-encode
-// it as JPEG. Never upscales, and any decode/encode problem falls back to
-// the original file so the draw is never blocked.
-async function shrinkCoverImage(file) {
+// Shrink one still and re-encode it as JPEG. Covers stay at 512 and skip
+// the re-encode when they are already small. A thumbnail passes
+// { maxEdge: 720, even: true } so both sides stay even. Never upscales.
+// Any decode/encode problem falls back to the original file.
+async function shrinkCoverImage(file, options) {
+  const maxEdge = options && options.maxEdge > 0 ? options.maxEdge : COVER_MAX_EDGE;
+  const even = !!(options && options.even);
+  const boxFor = (w, h) => {
+    if (!w || !h) return null;
+    if (even) {
+      const box = fitThumb(w, h, maxEdge);
+      return box.width && box.height ? box : null;
+    }
+    if (Math.max(w, h) <= maxEdge) return null;
+    const scale = maxEdge / Math.max(w, h);
+    return {
+      width: Math.max(1, Math.round(w * scale)),
+      height: Math.max(1, Math.round(h * scale)),
+    };
+  };
   const encode = (source, tw, th) => new Promise((resolve, reject) => {
     const canvas = document.createElement("canvas");
     canvas.width = tw;
@@ -780,9 +879,9 @@ async function shrinkCoverImage(file) {
       const w = img.naturalWidth;
       const h = img.naturalHeight;
       URL.revokeObjectURL(url);
-      if (!w || !h || Math.max(w, h) <= COVER_MAX_EDGE) return file;
-      const scale = COVER_MAX_EDGE / Math.max(w, h);
-      return name(await encode(img, Math.max(1, Math.round(w * scale)), Math.max(1, Math.round(h * scale))));
+      const box = boxFor(w, h);
+      if (!box) return file;
+      return name(await encode(img, box.width, box.height));
     } catch {
       return file;
     }
@@ -792,12 +891,10 @@ async function shrinkCoverImage(file) {
   try {
     // Decode once for the native size — a small cover uploads untouched.
     native = await createImageBitmap(file);
-    const w = native.width;
-    const h = native.height;
-    if (!w || !h || Math.max(w, h) <= COVER_MAX_EDGE) return file;
-    const scale = COVER_MAX_EDGE / Math.max(w, h);
-    const tw = Math.max(1, Math.round(w * scale));
-    const th = Math.max(1, Math.round(h * scale));
+    const box = boxFor(native.width, native.height);
+    if (!box) return file;
+    const tw = box.width;
+    const th = box.height;
     // Prefer the downscale during decode; engines that ignore the resize
     // options (or return a different size) fall back to the native bitmap.
     // The re-encode is always a canvas draw — ImageBitmap.convertToBlob is
@@ -825,6 +922,351 @@ async function shrinkCoverImage(file) {
   }
 }
 
+// The same file input the cover buttons use: png, jpeg, webp, and gif.
+let coverPickInput = null;
+let coverPickResolve = null;
+
+export function openCoverImagePicker() {
+  return new Promise((resolve) => {
+    if (typeof document === "undefined") {
+      resolve(null);
+      return;
+    }
+    if (!coverPickInput) {
+      coverPickInput = document.createElement("input");
+      coverPickInput.type = "file";
+      coverPickInput.accept = "image/png,image/jpeg,image/webp,image/gif";
+      coverPickInput.hidden = true;
+      document.body.appendChild(coverPickInput);
+      coverPickInput.addEventListener("change", () => {
+        const picked = coverPickInput.files && coverPickInput.files[0];
+        const done = coverPickResolve;
+        coverPickResolve = null;
+        coverPickInput.value = "";
+        if (done) done(picked || null);
+      });
+    }
+    let settled = false;
+    const finish = (file) => {
+      if (settled) return;
+      settled = true;
+      if (coverPickResolve === finish) coverPickResolve = null;
+      resolve(file || null);
+    };
+    coverPickResolve = finish;
+    coverPickInput.click();
+    setTimeout(() => {
+      if (settled) return;
+      window.addEventListener("focus", () => {
+        setTimeout(() => finish(null), 400);
+      }, { once: true });
+    }, 0);
+  });
+}
+
+export async function prepareThumbFile(file) {
+  if (!file || !THUMB_TYPES.has(file.type)) return null;
+  const shrunk = await shrinkCoverImage(file, { maxEdge: THUMB_EDGE, even: true });
+  if (!shrunk || shrunk.type !== "image/jpeg") return null;
+  return shrunk;
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve) => {
+    if (!file || typeof FileReader === "undefined") {
+      resolve("");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+}
+
+// Shrink until the sealed topic message fits. A miss drops the still.
+export async function dataUrlForSeal(file, videoUrl, text) {
+  if (!file) return "";
+  const edges = THUMB_EDGES.slice();
+  for (const edge of edges) {
+    let next = file;
+    try {
+      next = await shrinkCoverImage(file, { maxEdge: edge, even: true });
+    } catch {
+      next = file;
+    }
+    if (!next || next.type !== "image/jpeg") continue;
+    const data = await fileToDataUrl(next);
+    if (!data.startsWith("data:image/")) continue;
+    const packed = packSealedThumb(text || "", videoUrl || "", data);
+    if (e2eeWireBytes(packed) <= HCS_MESSAGE_MAX_BYTES) return data;
+  }
+  return "";
+}
+
+function startThumbCapture(key, state, file) {
+  if (!state || state.capture) return;
+  const type = file && file.type;
+  if (type !== "video/mp4" && type !== "video/webm" && type !== "video/quicktime") return;
+  state.capture = captureVideoPoster(file).then((frame) => {
+    if (thumbs.get(key) !== state) return null;
+    state.captured = frame;
+    return frame;
+  }).catch(() => null);
+}
+
+function beginVideoThumb(key, file, options) {
+  const prev = thumbs.get(key);
+  const seal = !!(options && options.seal);
+  // Chat primes the thumb before the upload call. A second begin for the
+  // same attach must keep a picture the user already picked.
+  if (prev && !prev.videoUrl && !prev.posted) {
+    if (seal) prev.seal = true;
+    startThumbCapture(key, prev, file);
+    return prev;
+  }
+  if (prev && prev.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+  const state = {
+    removed: false,
+    custom: null,
+    captured: null,
+    capture: null,
+    previewUrl: "",
+    videoUrl: "",
+    posted: false,
+    seal,
+    dataUrl: "",
+  };
+  startThumbCapture(key, state, file);
+  thumbs.set(key, state);
+  return state;
+}
+
+// Topic and encrypted chat show the thumbnail control before uploadChatImage
+// runs. A still image clears any thumb left by the previous attach.
+export function primeChatVideoThumb(kind, file) {
+  if (kind !== "topic" && kind !== "e2ee") return;
+  const key = `chat:${kind}`;
+  const type = file && file.type;
+  const thumb = type === "video/mp4" || type === "video/webm" || type === "image/gif";
+  clearVideoThumb(key);
+  if (!thumb) return;
+  beginVideoThumb(key, file, { seal: kind === "e2ee" });
+}
+
+export function clearVideoThumb(key) {
+  const state = thumbs.get(key);
+  if (!state) return;
+  if (state.previewUrl) URL.revokeObjectURL(state.previewUrl);
+  thumbs.delete(key);
+}
+
+function refreshThumbBar(key) {
+  const state = thumbs.get(key);
+  const cards = thumbCards(key);
+  for (const card of cards) {
+    const drop = card.querySelector(".video-thumb-clear");
+    if (!drop) continue;
+    const show = !!(state && !state.removed && (state.custom || state.posted));
+    drop.hidden = !show;
+  }
+}
+
+function thumbCards(key) {
+  const id = DRAW_THUMB[key];
+  const nodes = [];
+  if (id) {
+    const card = document.getElementById(id);
+    if (card) nodes.push(card);
+  }
+  if (key === "chat:topic") {
+    const card = document.getElementById("topic-chat-image-preview");
+    if (card) nodes.push(card);
+  }
+  if (key === "chat:e2ee") {
+    const card = document.getElementById("encrypted-chat-image-preview");
+    if (card) nodes.push(card);
+  }
+  return nodes;
+}
+
+async function applyThumbChoice(key, file) {
+  const state = thumbs.get(key) || beginVideoThumb(key, null);
+  if (state.previewUrl) URL.revokeObjectURL(state.previewUrl);
+  state.removed = false;
+  state.custom = file;
+  state.previewUrl = URL.createObjectURL(file);
+  state.dataUrl = "";
+  if (state.videoUrl && !state.seal) {
+    try {
+      await replaceVideoPoster(state.videoUrl, file);
+      state.posted = true;
+      toast.success("Thumbnail saved");
+    } catch (err) {
+      toast.error(uploadFace(err), { hold: true });
+    }
+  } else if (state.seal && state.videoUrl) {
+    state.dataUrl = await dataUrlForSeal(file, state.videoUrl, "");
+  }
+  refreshThumbBar(key);
+  return state;
+}
+
+async function applyThumbRemoval(key) {
+  const state = thumbs.get(key);
+  if (!state) return null;
+  state.removed = true;
+  state.custom = null;
+  state.dataUrl = "";
+  if (state.previewUrl) {
+    URL.revokeObjectURL(state.previewUrl);
+    state.previewUrl = "";
+  }
+  if (state.videoUrl && state.posted && !state.seal) {
+    try {
+      await replaceVideoPoster(state.videoUrl, null);
+      state.posted = false;
+    } catch (err) {
+      toast.error(uploadFace(err), { hold: true });
+    }
+  }
+  refreshThumbBar(key);
+  return state;
+}
+
+export function mountThumbControls(card, key, onChange) {
+  if (!card) return null;
+  let bar = card.querySelector(".video-thumb-bar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.className = "video-thumb-bar";
+    const pick = document.createElement("button");
+    pick.type = "button";
+    pick.className = "video-thumb-btn";
+    pick.textContent = "Thumbnail";
+    const drop = document.createElement("button");
+    drop.type = "button";
+    drop.className = "video-thumb-btn video-thumb-clear";
+    drop.textContent = "Remove";
+    drop.hidden = true;
+    pick.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const picked = await openCoverImagePicker();
+      if (!picked) return;
+      if (!THUMB_TYPES.has(picked.type)) {
+        toast.error("Only PNG, JPG, WebP, GIF");
+        return;
+      }
+      const shrunk = await prepareThumbFile(picked);
+      if (!shrunk) {
+        toast.error("Could not read that picture");
+        return;
+      }
+      const state = await applyThumbChoice(key, shrunk);
+      if (onChange) onChange(state);
+    });
+    drop.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const state = await applyThumbRemoval(key);
+      if (onChange) onChange(state);
+    });
+    bar.append(pick, drop);
+    card.appendChild(bar);
+  }
+  bar.hidden = false;
+  refreshThumbBar(key);
+  return bar;
+}
+
+function syncThumbBar(fieldId, videoOn) {
+  const card = document.getElementById(DRAW_THUMB[fieldId] || "");
+  if (!card) return;
+  if (!videoOn) {
+    const bar = card.querySelector(".video-thumb-bar");
+    if (bar) bar.hidden = true;
+    return;
+  }
+  mountThumbControls(card, fieldId);
+}
+
+// Public poster after the video URL exists. A sealed chat keeps the still
+// on the thumb state and never posts it. A failed frame grab uploads nothing.
+async function finishPoster(job) {
+  const thumbKey = job.thumbKey || "";
+  const state = thumbKey ? thumbs.get(thumbKey) : null;
+  if (state) state.videoUrl = job.url || "";
+  if (!siblingPosterUrl(job.url || "")) {
+    if (state && job.seal && job.gifPoster && !state.custom && !state.removed && !state.captured) {
+      state.captured = job.gifPoster;
+    }
+    return;
+  }
+  // Sealed thumbs never become a public poster.
+  if (job.seal || (state && state.seal)) {
+    if (state && job.gifPoster && !state.custom && !state.removed && !state.captured) {
+      state.captured = job.gifPoster;
+    }
+    return;
+  }
+  if (!thumbKey) {
+    if (!job.gifPoster) return;
+    try {
+      await postFile({
+        file: job.gifPoster,
+        turnstile: job.turnstile,
+        uploadToken: job.uploadToken,
+        posterFor: job.url,
+        signal: job.signal,
+      });
+    } catch {
+      /* the video url still stands */
+    }
+    return;
+  }
+  if (state && !state.removed && !state.custom && state.capture) {
+    try { await state.capture; } catch { /* capture-failed */ }
+  }
+  const live = thumbs.get(thumbKey);
+  if (live !== state) return;
+  if (live && live.seal) return;
+  const plan = posterPlan({
+    custom: live && live.custom,
+    captured: (live && live.custom) ? null : (job.gifPoster || (live && live.captured) || null),
+    removed: !!(live && live.removed),
+  });
+  if (!plan.upload || !plan.file) return;
+  try {
+    await postFile({
+      file: plan.file,
+      turnstile: job.turnstile,
+      uploadToken: job.uploadToken,
+      posterFor: job.url,
+      signal: job.signal,
+    });
+    if (live) live.posted = true;
+    refreshThumbBar(thumbKey);
+  } catch {
+    /* the video url still stands */
+  }
+}
+
+export async function sealedThumbDataUrl(key, videoUrl, text) {
+  const state = thumbs.get(key);
+  if (!state || state.removed) return "";
+  if (!state.custom && state.capture) {
+    try { await state.capture; } catch { /* capture-failed */ }
+  }
+  const live = thumbs.get(key);
+  if (!live || live.removed) return "";
+  const source = live.custom || live.captured;
+  if (!source) return "";
+  const data = await dataUrlForSeal(source, videoUrl || live.videoUrl || "", text || "");
+  live.dataUrl = data;
+  return data;
+}
+
 async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg) {
   if (uploading) return;
   if (!allowedTypes.has(file.type)) {
@@ -844,6 +1286,8 @@ async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg
     file = await shrinkCoverImage(file);
   }
   const label = isVideo ? "video" : "image";
+  const posterField = POSTER_FIELDS.has(targetFieldId);
+  if (posterField && (isVideo || file.type === "image/gif")) beginVideoThumb(targetFieldId, file);
   const previous = document.getElementById(targetFieldId)?.value || "";
   const localUrl = URL.createObjectURL(file);
   const stillUrl = file.type === "image/gif" ? await gifStillPreview(file) : "";
@@ -869,7 +1313,14 @@ async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg
       return;
     }
     const seconds = Number.isFinite(length) && length > 0 ? Math.round(length) : null;
-    const url = await uploadToR2(file, `Uploading ${label}`, seconds > 0 ? seconds : null, btn, uploadRole(targetFieldId));
+    const url = await uploadToR2(
+      file,
+      `Uploading ${label}`,
+      seconds > 0 ? seconds : null,
+      btn,
+      uploadRole(targetFieldId),
+      posterField ? { thumbKey: targetFieldId } : null,
+    );
     fillField(targetFieldId, url);
     showFieldPreview(targetFieldId, url, resolveMediaUrl(url).kind === "video" ? "video" : "image");
     toast.success("Uploaded");
@@ -901,14 +1352,39 @@ bindUploader("upload-cover-polygon", "upload-cover-polygon-file", "input-field-c
 bindUploader("upload-media-polygon", "upload-media-polygon-file", "input-field-image-polygon", MEDIA_TYPES, "Only PNG, JPG, GIF, WebP, MP4, WebM");
 bindUploader("upload-profile-picture", "upload-profile-picture-file", "input-field-profile-picture", MARKER_COVER_TYPES, "Only PNG, JPG, WebP, GIF");
 
-// Topic chat and encrypted chat attach one still image. The address goes
-// in the message; the bytes stay on R2.
-export async function uploadChatImage(file, anchor) {
+// Topic chat and encrypted chat attach one image or a short video.
+// The address goes in the message. An E2EE thumbnail stays out of R2.
+export async function uploadChatImage(file, anchor, options) {
+  const kind = options && (options.kind === "topic" || options.kind === "e2ee") ? options.kind : "";
+  const video = file && (file.type === "video/mp4" || file.type === "video/webm");
+  const gif = file && file.type === "image/gif";
+  if (video) {
+    if (file.size > VIDEO_MAX) throw new Error("Too big — 100 MB max");
+    const key = kind ? `chat:${kind}` : "";
+    if (key) beginVideoThumb(key, file, { seal: kind === "e2ee" });
+    const local = URL.createObjectURL(file);
+    let seconds = null;
+    try {
+      const length = await readVideoSeconds(local);
+      seconds = Number.isFinite(length) && length > 0 ? Math.round(length) : null;
+    } finally {
+      URL.revokeObjectURL(local);
+    }
+    return uploadToR2(file, "Uploading video", seconds > 0 ? seconds : null, anchor, "media", {
+      thumbKey: key,
+      seal: kind === "e2ee",
+    });
+  }
   if (!file || !MARKER_COVER_TYPES.has(file.type)) {
-    throw new Error("Only PNG, JPG, WebP, GIF");
+    throw new Error("Only PNG, JPG, WebP, GIF, MP4, WebM");
   }
   if (file.size > IMAGE_MAX) throw new Error("Image is too large");
-  return uploadToR2(file, "Uploading image", null, anchor, "media");
+  const key = kind && gif ? `chat:${kind}` : "";
+  if (key) beginVideoThumb(key, file, { seal: kind === "e2ee" });
+  return uploadToR2(file, "Uploading image", null, anchor, "media", key ? {
+    thumbKey: key,
+    seal: kind === "e2ee",
+  } : null);
 }
 
 function showSavedProfilePreview() {
@@ -930,5 +1406,19 @@ for (const fieldId of Object.keys(PREVIEW_FOR)) {
     event.stopPropagation();
     fillField(fieldId, "");
     hideFieldPreview(fieldId);
+  });
+}
+
+for (const fieldId of POSTER_FIELDS) {
+  const field = document.getElementById(fieldId);
+  if (!field) continue;
+  field.addEventListener("input", () => {
+    const value = field.value.trim();
+    if (!value) {
+      clearVideoThumb(fieldId);
+      syncThumbBar(fieldId, false);
+      return;
+    }
+    syncThumbBar(fieldId, resolveMediaUrl(value).kind === "video");
   });
 }

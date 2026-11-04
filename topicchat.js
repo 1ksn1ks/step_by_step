@@ -23,6 +23,8 @@ import { fitChatComposer } from './chatcomposer.js';
 import { payerUsernameNode } from './payerlink.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
 import { fillChatMessage } from './chatimage.js';
+import { resolveMediaUrl } from './mediaurl.js';
+import { openCoverImagePicker, prepareThumbFile, replaceVideoPoster } from './uploadmedia.js';
 import { watchFollowPrefetch } from './followtopic.js';
 import { formatHcsUsage, utf8ByteLength, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, normalizeMessageNewlines } from './hcschunks.js';
 
@@ -59,7 +61,7 @@ export function rememberChatEdit(payer, data, envelope) {
   if (Array.isArray(userMessage)) userMessage = userMessage[0];
   userMessage = typeof userMessage === 'string' ? userMessage : userMessage == null ? '' : String(userMessage);
   const image = data.image ? String(data.image) : '';
-  if (!userMessage && !image) return null;
+  if (!userMessage && !image && !data.posterOff && !(Number(data.posterV) > 0)) return null;
   const at = chatCreatedIso(envelope) || '';
   // An edit that names a bubble from its own future is malformed noise.
   if (created && at && at <= created) return null;
@@ -70,6 +72,11 @@ export function rememberChatEdit(payer, data, envelope) {
   // Latest wins: an older edit arriving late never replaces a newer one.
   if (prev && prev.at && at && at < prev.at) return null;
   const entry = { userMessage, image, at };
+  if (data.posterOff === true || data.posterOff === 1 || data.posterOff === '1') entry.posterOff = true;
+  else if (prev && prev.posterOff) entry.posterOff = true;
+  const rev = Number(data.posterV);
+  if (!entry.posterOff && rev > 0) entry.posterV = Math.floor(rev);
+  else if (!entry.posterOff && prev && prev.posterV) entry.posterV = prev.posterV;
   chatEditsByCreated.set(key, entry);
   applyChatEditToDom(payer, created, entry);
   return entry;
@@ -85,7 +92,10 @@ function applyChatEditToDom(payer, created, entry) {
   );
   for (const container of containers) {
     const text = container.querySelector('.chat-msg-text');
-    if (text) fillChatMessage(text, entry.userMessage, entry.image);
+    if (text) fillChatMessage(text, entry.userMessage, entry.image, {
+      posterOff: !!entry.posterOff,
+      posterV: entry.posterV || 0,
+    });
     addChatEditedMark(container.querySelector('.chat-msg-time'));
   }
 }
@@ -145,7 +155,60 @@ function topicChatEditPayload(newText) {
   const data = { created: target.created };
   data.userMessage = normalizeMessageNewlines(newText || '');
   if (target.image) data.image = target.image;
+  if (target.posterMode === 'clear') data.posterOff = true;
+  if (target.posterMode === 'custom' && target.posterV) data.posterV = target.posterV;
   return { editUserMessage: data };
+}
+
+function topicPosterChanged(target) {
+  return !!(target && (target.posterMode === 'clear' || (target.posterMode === 'custom' && target.posterFile)));
+}
+
+function topicPosterBar() {
+  let bar = document.getElementById('topic-chat-thumb');
+  if (bar) return bar;
+  const host = document.getElementById('topic-chat-editbar');
+  if (!host) return null;
+  bar = document.createElement('div');
+  bar.id = 'topic-chat-thumb';
+  bar.className = 'video-thumb-bar video-thumb-edit';
+  bar.hidden = true;
+  const pick = document.createElement('button');
+  pick.type = 'button';
+  pick.className = 'video-thumb-btn';
+  pick.textContent = 'Thumbnail';
+  const drop = document.createElement('button');
+  drop.type = 'button';
+  drop.className = 'video-thumb-btn';
+  drop.textContent = 'Remove';
+  pick.addEventListener('click', async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!topicChatEditTarget) return;
+    const picked = await openCoverImagePicker();
+    if (!picked) return;
+    const file = await prepareThumbFile(picked);
+    if (!file) {
+      toast.error('Could not read that picture');
+      return;
+    }
+    topicChatEditTarget.posterMode = 'custom';
+    topicChatEditTarget.posterFile = file;
+    topicChatEditTarget.posterV = Date.now();
+    paintTopicChatEditBytes();
+  });
+  drop.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!topicChatEditTarget) return;
+    topicChatEditTarget.posterMode = 'clear';
+    topicChatEditTarget.posterFile = null;
+    topicChatEditTarget.posterV = 0;
+    paintTopicChatEditBytes();
+  });
+  bar.append(pick, drop);
+  host.appendChild(bar);
+  return bar;
 }
 
 function topicChatCompose() {
@@ -183,7 +246,8 @@ function paintTopicChatEditBytes() {
   // Unchanged or empty is a dead control.
   save.classList.toggle('hcs-send-blocked', usage.over);
   const unchanged = text.value === topicChatEditTarget.original;
-  save.disabled = unchanged || text.value.trim() === '';
+  const posterChanged = topicPosterChanged(topicChatEditTarget);
+  save.disabled = !posterChanged && (unchanged || text.value.trim() === '');
 }
 
 function setTopicChatEditing(on) {
@@ -200,6 +264,8 @@ function setTopicChatEditing(on) {
       send.setAttribute('aria-label', 'Send');
     }
     if (quote) quote.textContent = '';
+    const thumb = document.getElementById('topic-chat-thumb');
+    if (thumb) thumb.hidden = true;
     return;
   }
   if (send) send.setAttribute('aria-label', 'Save edit');
@@ -234,7 +300,12 @@ function openTopicChatEdit(payer, created) {
     // data-full-src is the original image URL. The bubble shows that same URL.
     image: imgEl ? (imgEl.dataset.fullSrc || imgEl.getAttribute('src') || '') : '',
     original: currentText,
+    posterMode: 'keep',
+    posterFile: null,
+    posterV: 0,
   };
+  const thumb = topicPosterBar();
+  if (thumb) thumb.hidden = resolveMediaUrl(topicChatEditTarget.image).kind !== 'video';
   const quote = document.getElementById('topic-chat-edit-quote');
   if (quote) quote.textContent = topicEditQuote(currentText, topicChatEditTarget.image);
   clearTopicChatEditMark();
@@ -292,8 +363,9 @@ async function saveTopicChatEdit() {
   }
   const text = document.getElementById('user-write-message');
   const raw = text ? text.value : '';
-  if (!raw.trim() || raw === topicChatEditTarget.original) return;
   const target = topicChatEditTarget;
+  const posterChanged = topicPosterChanged(target);
+  if ((!raw.trim() && !posterChanged) || (raw === target.original && !posterChanged)) return;
   const payload = topicChatEditPayload(raw);
   const outgoing = JSON.stringify(payload);
   if (utf8ByteLength(outgoing) > HCS_MESSAGE_MAX_BYTES) {
@@ -302,6 +374,15 @@ async function saveTopicChatEdit() {
   }
   topicChatEditBusy = true;
   try {
+    if (posterChanged && target.image) {
+      try {
+        await replaceVideoPoster(target.image, target.posterMode === 'clear' ? null : target.posterFile);
+      } catch (error) {
+        console.error('topic poster edit failed', error);
+        toast.error('Thumbnail was not saved');
+        return;
+      }
+    }
     toast.info('Confirm in wallet 👛');
     await sendMessage(target.topicId, outgoing);
     // Apply locally right away; the topic stream confirms the same edit.
@@ -530,7 +611,10 @@ async function appendTopicChatMessage(message, messagesContainer, topicAdmin, lo
     const messageText = document.createElement('div');
     messageText.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
     messageText.className = 'chat-msg-text';
-    fillChatMessage(messageText, displayText, displayImage);
+    fillChatMessage(messageText, displayText, displayImage, editHit ? {
+      posterOff: !!editHit.posterOff,
+      posterV: editHit.posterV || 0,
+    } : null);
     messageWrapper.appendChild(messageText);
 
     const timestampSpan = document.createElement('span');
@@ -1018,7 +1102,10 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
       const contentDiv = document.createElement('div');
       contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
       contentDiv.className = 'chat-msg-text';
-      fillChatMessage(contentDiv, displayText, displayImage);
+      fillChatMessage(contentDiv, displayText, displayImage, editHit ? {
+        posterOff: !!editHit.posterOff,
+        posterV: editHit.posterV || 0,
+      } : null);
 
       const timeSpan = document.createElement('span');
       timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;

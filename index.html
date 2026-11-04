@@ -1504,7 +1504,7 @@
               </div>
               <button type="button" id="post-msg" class="msg-send-btn" aria-label="Send"><span class="msg-send-mark" aria-hidden="true"><svg class="msg-send-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg></span><span class="msg-check-mark" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span></button>
             </div>
-            <input type="file" id="topic-chat-image-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+            <input type="file" id="topic-chat-image-file" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm" hidden>
           </div>
 
         </div>
@@ -1739,7 +1739,7 @@
               </div>
               <button type="button" id="post-msg-encrypted-chat" class="msg-send-btn" aria-label="Send"><span class="msg-send-mark" aria-hidden="true"><svg class="msg-send-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg></span><span class="msg-check-mark" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span></button>
             </div>
-            <input type="file" id="encrypted-chat-image-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+            <input type="file" id="encrypted-chat-image-file" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm" hidden>
           </div>
         </div>
 
@@ -2022,6 +2022,10 @@
       <div id="popup-settings-editbox" style="display: none;">
         <div class="popup-settings-label">Edit text</div>
         <textarea id="popup-settings-edit-text" aria-label="Edit message" rows="3" placeholder="Message text"></textarea>
+        <div id="popup-settings-thumb" class="video-thumb-bar video-thumb-edit" hidden>
+          <button type="button" id="popup-settings-thumb-pick" class="video-thumb-btn">Thumbnail</button>
+          <button type="button" id="popup-settings-thumb-clear" class="video-thumb-btn video-thumb-clear">Remove</button>
+        </div>
         <div id="popup-settings-edit-bytes" class="draw-byte-counter hcs-byte-counter">0 B / 18 KB</div>
         <div class="popup-settings-row"><button type="button" id="popup-settings-edit-save" class="toolbar-column-btns">Save</button></div>
       </div>

@@ -2,11 +2,12 @@
 // left of the compose row; Send stays on the right. The file is uploaded
 // when it is picked, and Send includes the address.
 import { toast } from "./toast.js";
-import { uploadChatImage } from "./uploadmedia.js";
+import { clearVideoThumb, mountThumbControls, primeChatVideoThumb, sealedThumbDataUrl, uploadChatImage } from "./uploadmedia.js";
 import { openPreview } from "./fullscreenmedia.js";
 import { pictureElement, stillObjectUrl } from "./loopmedia.js";
 import { resolveMediaUrl } from "./mediaurl.js";
-import { normalizeMessageNewlines, utf8ByteLength } from "./hcschunks.js";
+import { HCS_MESSAGE_MAX_BYTES, normalizeMessageNewlines, utf8ByteLength } from "./hcschunks.js";
+import { packSealedThumb, unpackSealedThumb } from "./videoposter.js";
 
 const CHAT_IMAGE_PREFIX = "\u001echat1\n";
 
@@ -18,6 +19,9 @@ const slots = {
 function slot(prefix) {
   return {
     url: "",
+    poster: "",
+    video: false,
+    thumb: false,
     uploading: false,
     objectUrl: "",
     gen: 0,
@@ -34,6 +38,11 @@ export function pendingChatImage(kind) {
   return s && s.url && !s.uploading ? s.url : "";
 }
 
+export function pendingChatPoster(kind) {
+  const s = slots[kind];
+  return s && !s.uploading && typeof s.poster === "string" ? s.poster : "";
+}
+
 export function chatImageBusy(kind) {
   return !!(slots[kind] && slots[kind].uploading);
 }
@@ -45,13 +54,19 @@ export function clearPendingChatImage(kind) {
   if (s.objectUrl) URL.revokeObjectURL(s.objectUrl);
   s.objectUrl = "";
   s.url = "";
+  s.poster = "";
+  s.video = false;
+  s.thumb = false;
   s.uploading = false;
+  clearVideoThumb(kind === "topic" || kind === "e2ee" ? `chat:${kind}` : "");
   if (s.img) {
     s.img.removeAttribute("src");
     delete s.img.dataset.src;
     if (s.img.pause) s.img.pause();
   }
   if (s.preview) {
+    const bar = s.preview.querySelector(".video-thumb-bar");
+    if (bar) bar.hidden = true;
     s.preview.hidden = true;
     s.preview.style.display = "none";
   }
@@ -73,11 +88,11 @@ function safeHttpUrl(value) {
 
 // Plain text stays plain. An image message is prefixed so older text
 // messages are never parsed as JSON.
-export function packChatPayload(text, imageUrl) {
+export function packChatPayload(text, imageUrl, poster) {
   const body = normalizeMessageNewlines(text || "");
   const image = safeHttpUrl(imageUrl);
   if (!image) return body;
-  return CHAT_IMAGE_PREFIX + JSON.stringify({ t: body, i: image });
+  return packSealedThumb(body, image, poster);
 }
 
 // Topic chat is one JSON object. A newline in userMessage is the two
@@ -92,7 +107,11 @@ export function topicChatWire(text, imageUrl) {
 
 export function composerWireBytes(kind, text) {
   if (kind === "topic") return utf8ByteLength(topicChatWire(text, pendingChatImage("topic")));
-  return utf8ByteLength(packChatPayload(text, pendingChatImage("e2ee")));
+  const image = pendingChatImage("e2ee");
+  const poster = pendingChatPoster("e2ee");
+  const packed = utf8ByteLength(packChatPayload(text, image, poster));
+  if (!poster || packed <= HCS_MESSAGE_MAX_BYTES) return packed;
+  return utf8ByteLength(packChatPayload(text, image, ""));
 }
 
 function notifyChatImage() {
@@ -100,17 +119,15 @@ function notifyChatImage() {
 }
 
 export function unpackChatPayload(raw) {
-  const text = typeof raw === "string" ? raw : "";
-  if (!text.startsWith(CHAT_IMAGE_PREFIX)) return { text, image: "" };
-  try {
-    const data = JSON.parse(text.slice(CHAT_IMAGE_PREFIX.length));
-    return {
-      text: typeof data.t === "string" ? data.t : "",
-      image: safeHttpUrl(data.i),
-    };
-  } catch {
-    return { text, image: "" };
+  const parts = unpackSealedThumb(raw);
+  if (typeof raw !== "string" || !raw.startsWith(CHAT_IMAGE_PREFIX)) {
+    return { text: parts.text, image: "", poster: "" };
   }
+  return {
+    text: parts.text,
+    image: safeHttpUrl(parts.image),
+    poster: parts.poster,
+  };
 }
 
 const CHAT_CLAMP_CHARS = 400;
@@ -128,9 +145,10 @@ function textIsLong(text) {
   return false;
 }
 
-export function fillChatMessage(el, text, imageUrl) {
+export function fillChatMessage(el, text, imageUrl, hint) {
   const body = text == null ? "" : String(text);
   const src = safeHttpUrl(imageUrl);
+  const posterHint = hint && typeof hint === "object" ? hint : null;
   el.replaceChildren();
   if (body) {
     const textEl = document.createElement("span");
@@ -155,25 +173,53 @@ export function fillChatMessage(el, text, imageUrl) {
   if (!src) return;
   if (body) el.appendChild(document.createElement("br"));
   const resolved = resolveMediaUrl(src);
-  const img = pictureElement(src, { className: "chat-msg-image", alt: "" });
+  const video = resolved.kind === "video";
+  const img = pictureElement(src, {
+    className: "chat-msg-image",
+    alt: "",
+    posterHold: video,
+    posterHint: video ? Object.assign({ holdSrc: true }, posterHint || {}) : null,
+  });
   img.dataset.fullSrc = src;
   img.addEventListener("click", (event) => {
     event.stopPropagation();
-    openPreview(src, { video: resolved.kind === "video" });
+    openPreview(src, Object.assign({ video }, posterHint || {}));
   });
   el.appendChild(img);
 }
 
+function previewNode(src, className, forceVideo) {
+  if (forceVideo && resolveMediaUrl(src).kind !== "video") {
+    const video = document.createElement("video");
+    video.className = className;
+    video.muted = true;
+    video.playsInline = true;
+    video.loop = true;
+    video.preload = "metadata";
+    video.src = src;
+    video.play().catch(() => {});
+    return video;
+  }
+  return pictureElement(src, { className, alt: "" });
+}
+
 function showPreview(s, src) {
   if (!s.preview) return;
-  const live = s.img && s.img.isConnected ? s.img : s.preview.querySelector("img, video.loop-face");
+  const live = s.img && s.img.isConnected ? s.img : s.preview.querySelector("img, video");
   if (!live) return;
-  const next = pictureElement(src, { className: live.className, alt: "" });
+  const next = previewNode(src, live.className, s.video);
   if (live.id) next.id = live.id;
   if (next !== live && live.parentNode) live.replaceWith(next);
   s.img = next;
   s.preview.hidden = false;
   s.preview.style.display = "flex";
+  if (s.thumb || s.video || resolveMediaUrl(src).kind === "video" || next.tagName === "VIDEO") {
+    const kind = s === slots.e2ee ? "e2ee" : "topic";
+    mountThumbControls(s.preview, `chat:${kind}`, (state) => {
+      s.poster = state && typeof state.dataUrl === "string" ? state.dataUrl : "";
+      if (kind === "e2ee") notifyChatImage();
+    });
+  }
 }
 
 function bind(kind) {
@@ -190,8 +236,22 @@ function bind(kind) {
     if (s.objectUrl) URL.revokeObjectURL(s.objectUrl);
     s.objectUrl = URL.createObjectURL(file);
     s.url = "";
+    s.poster = "";
+    s.video = file.type === "video/mp4" || file.type === "video/webm";
+    s.thumb = s.video || file.type === "image/gif";
+    primeChatVideoThumb(kind, file);
+    if (!s.thumb && s.preview) {
+      const bar = s.preview.querySelector(".video-thumb-bar");
+      if (bar) bar.hidden = true;
+    }
     s.uploading = true;
     s.btn.disabled = true;
+    if (s.thumb && s.preview) {
+      mountThumbControls(s.preview, `chat:${kind}`, (state) => {
+        s.poster = state && typeof state.dataUrl === "string" ? state.dataUrl : "";
+        if (kind === "e2ee") notifyChatImage();
+      });
+    }
     if (file.type === "image/gif") {
       // The chat preview stays a JPEG still. uploadChatImage converts the
       // GIF on this device and never sends the .gif.
@@ -203,13 +263,20 @@ function bind(kind) {
       showPreview(s, s.objectUrl);
     }
     try {
-      const url = await uploadChatImage(file, s.btn);
+      const url = await uploadChatImage(file, s.btn, { kind });
       if (mine !== s.gen) return;
       if (s.objectUrl) {
         URL.revokeObjectURL(s.objectUrl);
         s.objectUrl = "";
       }
       s.url = url;
+      if (kind === "e2ee") {
+        const field = document.getElementById("user-write-message-encrypted-chat");
+        const text = field ? field.value : "";
+        s.poster = await sealedThumbDataUrl(`chat:${kind}`, url, text);
+      } else {
+        s.poster = "";
+      }
       showPreview(s, s.url);
       notifyChatImage();
       toast.success("Uploaded");

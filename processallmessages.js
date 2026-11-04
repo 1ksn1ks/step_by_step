@@ -18,6 +18,7 @@ import { clearShareTopic, noteShare, shareState, shareMine, takeSharePin, takeUn
 import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
 import { openPreview } from './fullscreenmedia';
 import { isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
+import { bindVideoPoster } from './videoposter.js';
 import { pictureElement, playStoredGif, presentImage } from './loopmedia.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
 import { isTyping } from './joystick.js';
@@ -625,9 +626,25 @@ let popupEditBusy = false;
 // size for now), null = public topic, key = E2EE (counter shows the seal).
 let popupEditKey = null;
 
+let popupPosterDraft = null;
+
 function hideEditComposer() {
   const box = document.getElementById('popup-settings-editbox');
   if (box) box.style.display = 'none';
+  popupPosterDraft = null;
+  const row = document.getElementById('popup-settings-thumb');
+  if (row) row.hidden = true;
+}
+
+function firstMediaUrl(value) {
+  const url = Array.isArray(value) ? value[0] : value;
+  return typeof url === 'string' ? url.trim() : '';
+}
+
+function posterHintFor(payer, created, stamp) {
+  const hit = shapeEditFor(payer, created, stamp);
+  if (!hit) return null;
+  return { posterOff: !!hit.posterOff, posterV: hit.posterV || 0 };
 }
 
 // An E2EE topic (admin-pinned public key) takes the edit inside the seal
@@ -683,10 +700,12 @@ function paintEditButton() {
 }
 
 // The edit names the post, not its slot: same shape as the delete payload.
-function editPayload(walk, msg) {
+function editPayload(walk, msg, poster) {
   const created = messageCreated(walk.created || walk.authorCreated);
   const stamp = walk.timestamp ? String(walk.timestamp) : '';
   const fields = { msg };
+  if (poster && poster.posterOff) fields.posterOff = true;
+  if (poster && poster.posterV > 0) fields.posterV = Math.floor(poster.posterV);
   const polygon = walk.shape === 'polygon' || walk.kind === 'polygon';
   if (polygon) {
     if (created) fields.editPolygonCreated = created;
@@ -708,7 +727,7 @@ function paintEditBytes() {
   if (!counter || !text || !walk) return;
   // Same cleaning savePopupEdit sends, so the counter matches the payload.
   const cleaned = normalizeMessageNewlines(text.value).trim();
-  const body = editPayload(walk, cleaned);
+  const body = editPayload(walk, cleaned, popupPosterDraft);
   // E2EE topic: the outgoing message is the SEAL — the counter must show
   // what actually goes on the topic, not only the inner edit JSON.
   const outgoing = popupEditKey ? sealedEditOutgoing(body) : JSON.stringify(body);
@@ -736,6 +755,36 @@ function openEditComposer() {
   text.value = current;
   hideEditComposer();
   box.style.display = 'block';
+  popupPosterDraft = null;
+  const thumbRow = document.getElementById('popup-settings-thumb');
+  const videoUrl = firstMediaUrl(walk.image);
+  const video = !!(videoUrl && resolveMediaUrl(videoUrl).kind === 'video');
+  if (thumbRow) thumbRow.hidden = !video;
+  if (video && thumbRow && !thumbRow.dataset.bound) {
+    thumbRow.dataset.bound = '1';
+    const pick = document.getElementById('popup-settings-thumb-pick');
+    const drop = document.getElementById('popup-settings-thumb-clear');
+    if (pick) pick.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const { openCoverImagePicker, prepareThumbFile } = await import('./uploadmedia.js');
+      const picked = await openCoverImagePicker();
+      if (!picked) return;
+      const file = await prepareThumbFile(picked);
+      if (!file) {
+        toast.error('Could not read that picture');
+        return;
+      }
+      popupPosterDraft = { mode: 'custom', file };
+      paintEditBytes();
+    });
+    if (drop) drop.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      popupPosterDraft = { mode: 'clear', file: null };
+      paintEditBytes();
+    });
+  }
   // Is this an E2EE topic? Resolve in the background — the counter re-paints
   // with the sealed size once the admin pin is known (or stays plain).
   popupEditKey = undefined;
@@ -773,9 +822,25 @@ async function savePopupEdit() {
     toast.error('This post cannot be edited');
     return;
   }
-  const body = editPayload(walk, cleaned);
+  let poster = null;
+  const videoUrl = firstMediaUrl(walk.image);
+  if (popupPosterDraft && popupPosterDraft.mode === "clear") poster = { posterOff: true };
+  if (popupPosterDraft && popupPosterDraft.mode === "custom" && popupPosterDraft.file) {
+    poster = { posterV: Date.now() };
+  }
+  const body = editPayload(walk, cleaned, poster);
   popupEditBusy = true;
   try {
+    if (poster && videoUrl) {
+      const { replaceVideoPoster } = await import('./uploadmedia.js');
+      try {
+        await replaceVideoPoster(videoUrl, poster.posterOff ? null : popupPosterDraft.file);
+      } catch (error) {
+        console.error('poster edit failed', error);
+        toast.error('Thumbnail was not saved');
+        return;
+      }
+    }
     // E2EE topic: the edit rides inside the seal, the same way the create
     // does — the new text must not land on the topic in the clear. A
     // failed lookup aborts; it must never fall back to plaintext.
@@ -1415,7 +1480,17 @@ export function rememberShapeEdit(payer, data, envelope) {
     if (prev && prev.at && (!newestAt || prev.at > newestAt)) newestAt = prev.at;
   }
   if (newestAt && at && at < newestAt) return null;
+  let prev = null;
+  for (const [map, key] of slots) {
+    const hit = map.get(key);
+    if (hit && (!prev || (hit.at && (!prev.at || hit.at >= prev.at)))) prev = hit;
+  }
   const entry = { msg, at };
+  if (data.posterOff === true || data.posterOff === 1 || data.posterOff === "1") entry.posterOff = true;
+  else if (prev && prev.posterOff) entry.posterOff = true;
+  const rev = Number(data.posterV);
+  if (!entry.posterOff && rev > 0) entry.posterV = Math.floor(rev);
+  else if (!entry.posterOff && prev && prev.posterV) entry.posterV = prev.posterV;
   for (const [map, key] of slots) map.set(key, entry);
   applyShapeEditToDom(payer, created, stamp, msg);
   return entry;
@@ -1910,7 +1985,7 @@ function popupSettingsGear(walk) {
 
 // A GIF stays a still until a tap plays it in memory. The card's own
 // background is the skeleton while classifyImageUrl is still running.
-function fillPopupMedia(imageDiv, url) {
+function fillPopupMedia(imageDiv, url, hint) {
   if (!url) return;
   const resolved = resolveMediaUrl(url);
   const raw = String(url).trim();
@@ -1919,11 +1994,11 @@ function fillPopupMedia(imageDiv, url) {
   const isVideo = resolved.kind === "video";
   if (isVideo) {
     const media = document.createElement("video");
-    media.src = resolved.src;
-    if (resolved.poster) media.poster = resolved.poster;
     media.controls = true;
     media.playsInline = true;
-    media.preload = "metadata";
+    media.preload = "none";
+    media.dataset.src = resolved.src;
+    bindVideoPoster(media, raw, hint);
     imageDiv.appendChild(media);
     return;
   }
@@ -2047,7 +2122,7 @@ export function createMarkerPopupHTML(data) {
   if (isValidUrl(image)) {
     const imageDiv = document.createElement('div');
     imageDiv.className = 'popup-media-card'; // glass media card (style.css)
-    fillPopupMedia(imageDiv, image);
+    fillPopupMedia(imageDiv, image, posterHintFor(data.payer, data.created, data.timestamp));
     contentSection.appendChild(imageDiv);
   }
 
@@ -2210,7 +2285,7 @@ function createPolygonPopupHTML(data) {
   if (isValidUrl(popupImageUrl)) {
     const imageDiv = document.createElement('div');
     imageDiv.className = 'popup-media-card'; // glass media card (style.css)
-    fillPopupMedia(imageDiv, popupImageUrl);
+    fillPopupMedia(imageDiv, popupImageUrl, posterHintFor(data.payer, data.created, data.timestamp));
     contentSection.appendChild(imageDiv);
   }
 
@@ -3186,6 +3261,7 @@ function bindWalk(record, walk) {
     share: record.share || null,
     timestamp: record.timestamp || '',
     kind: record.kind === 'polygon' || walk.shape === 'polygon' ? 'polygon' : 'marker',
+    image: firstMediaUrl(record.image),
   };
   const step = record.walk;
   if (walk.shape === 'polygon') {

@@ -13,6 +13,7 @@ import {
   readGifCache,
   resolveMediaUrl,
 } from "./mediaurl.js";
+import { bindVideoPoster } from "./videoposter.js";
 
 const watching = new Set();
 let observer = null;
@@ -416,10 +417,14 @@ export function makeLoopVideo(url, options) {
   video.preload = "none";
   video.setAttribute("aria-label", opts.alt || "");
   if (opts.style) video.setAttribute("style", opts.style);
-  if (resolved.poster) video.poster = resolved.poster;
   video.dataset.src = resolved.src;
   if (opts.fallback) video.dataset.fallback = opts.fallback;
   armFallback(video, opts.fallback || "");
+  if (opts.posterHold) {
+    bindVideoPoster(video, typeof url === "string" ? url : resolved.src, opts.posterHint || null);
+    return video;
+  }
+  if (resolved.poster) video.poster = resolved.poster;
   watchLoop(video);
   return video;
 }

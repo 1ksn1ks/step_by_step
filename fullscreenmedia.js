@@ -1,6 +1,7 @@
 import { isTyping } from './joystick.js';
 import { presentImage } from './loopmedia.js';
 import { isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
+import { posterSrc } from './videoposter.js';
 
 // One preview for every picture in the app (chat thumbnails, popup
 // pictures, and the next place that needs it). Call openPreview. Add the
@@ -104,7 +105,8 @@ export function openPreview(src, options = {}) {
     media.playsInline = true;
     media.setAttribute('playsinline', '');
     media.autoplay = true;
-    if (resolved.poster) media.poster = resolved.poster;
+    const poster = posterSrc(resolved.src, options);
+    if (poster) media.poster = poster;
   }
   stage.appendChild(media);
   overlay.appendChild(stage);

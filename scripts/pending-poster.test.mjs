@@ -58,6 +58,23 @@ test("expired poster holds are dropped on the upload sweep", () => {
   assert.equal(posters.size(), 0);
 });
 
+test("a later poster edit arms only for the account that uploaded the video", () => {
+  const posters = createPendingPosters(() => 10);
+  assert.equal(posters.remember("markers/9-zz.mp4", ""), "");
+  assert.equal(posters.remember("markers/9-zz.mp4", null), "");
+  assert.equal(posters.remember("markers/9-zz.mov", "0.0.1"), "");
+  assert.equal(posters.arm("markers/9-zz.poster.jpg", "0.0.1"), false);
+  assert.equal(posters.remember("markers/9-zz.mp4", "0.0.1"), "markers/9-zz.poster.jpg");
+  assert.equal(posters.owner("markers/9-zz.poster.jpg"), "0.0.1");
+  assert.equal(posters.arm("markers/9-zz.poster.jpg", "0.0.2"), false);
+  assert.equal(posters.live("markers/9-zz.poster.jpg", "0.0.2"), false);
+  assert.equal(posters.size(), 0);
+  assert.equal(posters.arm("markers/9-zz.poster.jpg", "0.0.1"), true);
+  assert.equal(posters.live("markers/9-zz.poster.jpg", "0.0.1"), true);
+  assert.equal(posters.consume("markers/9-zz.poster.jpg", "0.0.2"), false);
+  assert.equal(posters.consume("markers/9-zz.poster.jpg", "0.0.1"), true);
+});
+
 test("the upload route checks the poster account and sweeps with the upload limits", () => {
   const src = readFileSync(new URL("../server/index.js", import.meta.url), "utf8");
   assert.match(src, /notePendingPoster\(key, account\)/);
@@ -65,5 +82,10 @@ test("the upload route checks the poster account and sweeps with the upload limi
   assert.match(src, /consumePendingPoster\(posterKey, account\)/);
   assert.match(src, /restorePendingPoster\(posterKey, account\)/);
   assert.match(src, /posterHolds\.sweep\(now\)/);
+  assert.match(src, /posterHolds\.remember\(key, account\)/);
+  assert.match(src, /posterHolds\.arm\(posterKey, account\)/);
+  assert.match(src, /posterHolds\.owner\(posterKey\) !== account/);
+  assert.match(src, /app\.post\("\/api\/upload\/poster"/);
+  assert.match(src, /x-poster-clear/);
   assert.match(src, /error: "Bad poster"/);
 });
