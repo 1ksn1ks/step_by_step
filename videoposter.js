@@ -328,6 +328,11 @@ function queuePlayFace(video) {
       btn.type = "button";
       btn.className = "video-play";
       btn.setAttribute("aria-label", "Play");
+      btn.innerHTML = '<span class="video-play-glass" aria-hidden="true">'
+        + '<svg class="video-play-icon" viewBox="0 0 24 24" focusable="false">'
+        + '<path class="is-play" d="M9 6.2v11.6l9.2-5.8z" fill="#22D3EE"></path>'
+        + '<path class="is-pause" d="M7 5.5h3.2v13H7zm6.8 0H17v13h-3.2z" fill="#22D3EE"></path>'
+        + '</svg></span>';
       parent.appendChild(btn);
       btn.addEventListener("click", (event) => {
         event.preventDefault();

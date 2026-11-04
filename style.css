@@ -7220,7 +7220,7 @@ html, body {
 .polygon-cover-play[hidden] {
   display: none;
 }
-.polygon-cover-play-glass {
+:is(.polygon-cover-play-glass, .video-play-glass) {
   width: calc(var(--fu) * 2.6);
   height: calc(var(--fu) * 2.6);
   display: flex;
@@ -7238,21 +7238,21 @@ html, body {
     0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.35);
   pointer-events: none;
 }
-.polygon-cover-play-icon {
+:is(.polygon-cover-play-icon, .video-play-icon) {
   width: calc(var(--fu) * 1.15);
   height: calc(var(--fu) * 1.15);
   display: block;
 }
-.polygon-cover-play .is-pause { display: none; }
+:is(.polygon-cover-play, .video-play) .is-pause { display: none; }
 .polygon-cover-play.is-playing .is-play { display: none; }
 .polygon-cover-play.is-playing .is-pause { display: block; }
-.polygon-cover-play:focus-visible {
+:is(.polygon-cover-play, .video-play):focus-visible {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.12);
 }
 @media (prefers-reduced-motion: reduce) {
-  .polygon-cover-play,
-  .polygon-cover-play-glass {
+  :is(.polygon-cover-play, .video-play),
+  :is(.polygon-cover-play-glass, .video-play-glass) {
     transition: none;
     animation: none;
   }
@@ -7617,12 +7617,15 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   display: none !important;
 }
 .video-play {
+  --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
+  --ui-label: calc(var(--fu) * 1.8);
+  --ui-small: calc(var(--fu) * 1.35);
   position: absolute;
   left: 50%;
   top: 50%;
   z-index: 3;
-  width: max(44px, calc(var(--fu, 16px) * 2.6));
-  height: max(44px, calc(var(--fu, 16px) * 2.6));
+  width: max(44px, calc(var(--fu) * 3.6));
+  height: max(44px, calc(var(--fu) * 3.6));
   margin: 0;
   padding: 0;
   display: flex;
@@ -7630,23 +7633,17 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   justify-content: center;
   transform: translate(-50%, -50%);
   border: 0;
-  border-radius: 50%;
-  background: rgba(11, 13, 19, 0.55);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  background: transparent;
+  color: #22D3EE;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
+  line-height: 1;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .video-play[hidden] {
   display: none;
-}
-.video-play::before {
-  content: "";
-  display: block;
-  width: 0;
-  height: 0;
-  margin-left: 3px;
-  border-style: solid;
-  border-width: 7px 0 7px 12px;
-  border-color: transparent transparent transparent #fff;
 }
 /* Letterbox must be solid. Draw-column previews stay on the shared rule above. */
 .popup-media-card:not(.draw-popup-media) img,

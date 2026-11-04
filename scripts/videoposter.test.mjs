@@ -566,6 +566,9 @@ test("a poster hides native controls until the play button starts the file", asy
     const btn = parent.querySelector(":scope > .video-play");
     assert.ok(btn);
     assert.equal(btn.hidden, false);
+    assert.match(btn.innerHTML, /class="video-play-glass"/);
+    assert.match(btn.innerHTML, /d="M9 6\.2v11\.6l9\.2-5\.8z"/);
+    assert.match(btn.innerHTML, /fill="#22D3EE"/);
     btn.onclick({ preventDefault() {}, stopPropagation() {} });
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(video.getAttribute("src"), src);
