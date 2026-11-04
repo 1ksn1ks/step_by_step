@@ -35,6 +35,14 @@ import {
   packSealedThumb,
   posterPlan,
 } from "./videoposter.js";
+import {
+  POSTER_EMBED_MAX,
+  SEALED_CONTENT_TYPE,
+  SEALED_MAX,
+  encryptStream,
+  packSealedMedia,
+  sealPosterBytes,
+} from "./e2eemedia.js";
 
 const VIDEO_MAX = 100 * 1024 * 1024;
 const IMAGE_MAX = 20 * 1024 * 1024;
@@ -564,11 +572,16 @@ function postFile({ file, seconds, turnstile, uploadToken, role, posterFor, expe
     }
     xhr.open("POST", "/api/upload");
     xhr.responseType = "json";
-    if (role && !posterFor) xhr.setRequestHeader("X-Media-Role", role);
-    if (Number.isInteger(seconds) && seconds > 0) xhr.setRequestHeader("X-Media-Duration", String(seconds));
-    if (posterFor) xhr.setRequestHeader("X-Poster-For", posterFor);
-    if (expectPoster) xhr.setRequestHeader("X-Expect-Poster", "1");
-    if (seal) xhr.setRequestHeader("X-Sealed", "1");
+    // A sealed body is ciphertext. Its original name, mime, size, and
+    // duration stay off this request. The blob type is octet-stream.
+    if (seal) {
+      xhr.setRequestHeader("X-Sealed", "1");
+    } else {
+      if (role && !posterFor) xhr.setRequestHeader("X-Media-Role", role);
+      if (Number.isInteger(seconds) && seconds > 0) xhr.setRequestHeader("X-Media-Duration", String(seconds));
+      if (posterFor) xhr.setRequestHeader("X-Poster-For", posterFor);
+      if (expectPoster) xhr.setRequestHeader("X-Expect-Poster", "1");
+    }
     if (connectedAccount) xhr.setRequestHeader("X-Account", connectedAccount);
     if (uploadToken) xhr.setRequestHeader("X-Upload-Token", uploadToken);
     if (turnstile) xhr.setRequestHeader("CF-Turnstile-Response", turnstile);
@@ -1448,10 +1461,172 @@ bindUploader("upload-cover-polygon", "upload-cover-polygon-file", "input-field-c
 bindUploader("upload-media-polygon", "upload-media-polygon-file", "input-field-image-polygon", MEDIA_TYPES, "Only PNG, JPG, GIF, WebP, MP4, WebM");
 bindUploader("upload-profile-picture", "upload-profile-picture-file", "input-field-profile-picture", MARKER_COVER_TYPES, "Only PNG, JPG, WebP, GIF");
 
+function measureLocalMedia(file) {
+  return new Promise((resolve) => {
+    const finish = (w, h) => resolve({
+      w: w > 0 ? Math.round(w) : 0,
+      h: h > 0 ? Math.round(h) : 0,
+    });
+    const type = file && file.type;
+    if (type === "video/mp4" || type === "video/webm") {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.muted = true;
+      const stop = (w, h) => {
+        video.removeAttribute("src");
+        try { video.load(); } catch { /* already released */ }
+        URL.revokeObjectURL(url);
+        finish(w, h);
+      };
+      video.onloadedmetadata = () => stop(video.videoWidth, video.videoHeight);
+      video.onerror = () => stop(0, 0);
+      video.src = url;
+      return;
+    }
+    if (typeof createImageBitmap === "function") {
+      createImageBitmap(file).then((bmp) => {
+        const box = { w: bmp.width, h: bmp.height };
+        if (bmp.close) bmp.close();
+        finish(box.w, box.h);
+      }).catch(() => finish(0, 0));
+      return;
+    }
+    finish(0, 0);
+  });
+}
+
+function postSealedBlob(blob, anchor, label, uploadToken) {
+  return ensureTurnstileToken(anchor).then((turnstile) => {
+    const pill = progressPill(`${label} 0%`);
+    return postFile({
+      file: blob,
+      turnstile,
+      uploadToken,
+      seal: true,
+      onProgress(ratio) {
+        if (pill) pill.set(`${label} ${Math.round(ratio * 100)}%`);
+      },
+    }).finally(() => {
+      if (pill) pill.done();
+    });
+  });
+}
+
+// The still is made on this device, then encrypted with its own key.
+// A small ciphertext rides inside the sealed message. A larger one is a
+// second octet-stream object. A clear JPEG is never posted.
+async function sealedChatPoster(key, gifPoster, media, anchor, uploadToken) {
+  const state = thumbs.get(key);
+  if (state && state.removed) return null;
+  if (state && !state.custom && state.capture) {
+    try { await state.capture; } catch { /* capture-failed */ }
+  }
+  const live = thumbs.get(key);
+  if (live && live.removed) return null;
+  const source = (live && (live.custom || live.captured)) || gifPoster;
+  if (!source) return null;
+  const field = document.getElementById("user-write-message-encrypted-chat");
+  const text = field ? field.value : "";
+  let fallback = null;
+  for (const edge of THUMB_EDGES) {
+    let shrunk = source;
+    try {
+      shrunk = await shrinkCoverImage(source, { maxEdge: edge, even: true });
+    } catch {
+      shrunk = source;
+    }
+    if (!shrunk) continue;
+    const plain = new Uint8Array(await shrunk.arrayBuffer());
+    const choice = await sealPosterBytes(plain, {
+      embedMax: POSTER_EMBED_MAX,
+      fits(poster) {
+        const packed = packSealedMedia(text, Object.assign({}, media, { poster }));
+        return !!packed && e2eeWireBytes(packed) <= HCS_MESSAGE_MAX_BYTES;
+      },
+    });
+    if (choice.mode === "embed") return choice.poster;
+    fallback = choice;
+  }
+  if (!fallback || !fallback.uploads.length) return null;
+  const upload = fallback.uploads[0];
+  const blob = new Blob([upload.body], { type: SEALED_CONTENT_TYPE });
+  const posterUrl = await postSealedBlob(blob, anchor, "Uploading image", uploadToken);
+  return {
+    url: posterUrl,
+    fileKey: fallback.poster.fileKey,
+    header: fallback.poster.header,
+    mime: "image/jpeg",
+    size: fallback.poster.size,
+  };
+}
+
+// Encrypt on this device, then upload only the ciphertext. Topic chat
+// does not use this path.
+async function uploadSealedChatMedia(file, anchor) {
+  let uploadFile = file;
+  let gifPoster = null;
+  if (file && file.type === "image/gif") {
+    const converted = await convertGifFile(file, { role: "media" });
+    uploadFile = converted.file;
+    gifPoster = converted.poster || null;
+    const tooBig = outputTooBig(uploadFile);
+    if (tooBig) throw new Error(tooBig);
+    if (!uploadFile || uploadFile.type === "image/gif") throw new Error(GIF_BROWSER_ERROR);
+  }
+  const video = !!(uploadFile && (uploadFile.type === "video/mp4" || uploadFile.type === "video/webm"));
+  const still = !!(uploadFile && (
+    uploadFile.type === "image/png"
+    || uploadFile.type === "image/jpeg"
+    || uploadFile.type === "image/webp"
+  ));
+  if (!video && !still) throw new Error("Only PNG, JPG, WebP, GIF, MP4, WebM");
+  if (video && uploadFile.size > VIDEO_MAX) throw new Error("Too big — 100 MB max");
+  if (!video && uploadFile.size > IMAGE_MAX) throw new Error("Image is too large");
+  const key = "chat:e2ee";
+  if (video || (file && file.type === "image/gif")) beginVideoThumb(key, file, { seal: true });
+  const dims = await measureLocalMedia(uploadFile);
+  const enc = await encryptStream(uploadFile);
+  if (enc.blob.size > SEALED_MAX) throw new Error(video ? "Too big — 100 MB max" : "Image is too large");
+  const send = async (uploadToken) => {
+    const url = await postSealedBlob(
+      enc.blob,
+      anchor,
+      video ? "Uploading video" : "Uploading image",
+      uploadToken,
+    );
+    const media = {
+      url,
+      fileKey: enc.fileKey,
+      header: enc.header,
+      mime: uploadFile.type,
+      size: uploadFile.size,
+      w: dims.w,
+      h: dims.h,
+    };
+    if (video || gifPoster) {
+      const poster = await sealedChatPoster(key, gifPoster, media, anchor, uploadToken);
+      if (poster) media.poster = poster;
+    }
+    return media;
+  };
+  if (REQUIRE_UPLOAD_AUTH) {
+    return withUploadAuth({
+      account: connectedAccount,
+      storage: grantStorage,
+      sign: signUploadChallenge,
+      send,
+    });
+  }
+  return send("");
+}
+
 // Topic chat and encrypted chat attach one image or a short video.
-// The address goes in the message. An E2EE thumbnail stays out of R2.
+// Topic chat stores the file. E2EE stores ciphertext and keeps the key
+// inside the sealed message.
 export async function uploadChatImage(file, anchor, options) {
   const kind = options && (options.kind === "topic" || options.kind === "e2ee") ? options.kind : "";
+  if (kind === "e2ee") return uploadSealedChatMedia(file, anchor);
   const video = file && (file.type === "video/mp4" || file.type === "video/webm");
   const gif = file && file.type === "image/gif";
   if (video) {

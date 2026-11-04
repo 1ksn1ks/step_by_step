@@ -308,6 +308,19 @@ test("the pool never runs more than its limit", async () => {
   assert.equal(max, 2);
 });
 
+test("an extensionless sealed object is not selected for a poster", () => {
+  const listed = classifyKeys([
+    "markers/1700000000000-ab12cd",
+    "markers/1700000000000-ab12cd.mp4",
+    "markers/9-zz.poster.jpg",
+  ]);
+  assert.equal(listed.counts.skipped, 2);
+  assert.equal(listed.counts.videos, 1);
+  assert.equal(listed.pending.length, 1);
+  assert.equal(listed.pending[0].videoKey, "markers/1700000000000-ab12cd.mp4");
+  assert.equal(posterKeyFor("markers/1700000000000-ab12cd"), "");
+});
+
 test("the npm script points at the backfill and a missing R2 config does not connect", () => {
   const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
   assert.equal(pkg.scripts["backfill:posters"], "node server/scripts/backfill-posters.mjs");

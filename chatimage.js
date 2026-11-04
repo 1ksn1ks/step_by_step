@@ -2,12 +2,14 @@
 // left of the compose row; Send stays on the right. The file is uploaded
 // when it is picked, and Send includes the address.
 import { toast } from "./toast.js";
-import { clearVideoThumb, mountThumbControls, primeChatVideoThumb, sealedThumbDataUrl, uploadChatImage } from "./uploadmedia.js";
+import { clearVideoThumb, mountThumbControls, primeChatVideoThumb, uploadChatImage } from "./uploadmedia.js";
 import { openPreview } from "./fullscreenmedia.js";
 import { pictureElement, stillObjectUrl } from "./loopmedia.js";
 import { resolveMediaUrl } from "./mediaurl.js";
 import { HCS_MESSAGE_MAX_BYTES, normalizeMessageNewlines, utf8ByteLength } from "./hcschunks.js";
 import { packSealedThumb, unpackSealedThumb } from "./videoposter.js";
+import { packSealedMedia, readSealedMedia } from "./e2eemedia.js";
+import { mountSealedMedia } from "./e2eechatview.js";
 
 const CHAT_IMAGE_PREFIX = "\u001echat1\n";
 
@@ -20,6 +22,7 @@ function slot(prefix) {
   return {
     url: "",
     poster: "",
+    media: null,
     video: false,
     thumb: false,
     uploading: false,
@@ -43,6 +46,11 @@ export function pendingChatPoster(kind) {
   return s && !s.uploading && typeof s.poster === "string" ? s.poster : "";
 }
 
+export function pendingChatMedia(kind) {
+  const s = slots[kind];
+  return s && !s.uploading && s.media ? s.media : null;
+}
+
 export function chatImageBusy(kind) {
   return !!(slots[kind] && slots[kind].uploading);
 }
@@ -55,6 +63,7 @@ export function clearPendingChatImage(kind) {
   s.objectUrl = "";
   s.url = "";
   s.poster = "";
+  s.media = null;
   s.video = false;
   s.thumb = false;
   s.uploading = false;
@@ -88,8 +97,12 @@ function safeHttpUrl(value) {
 
 // Plain text stays plain. An image message is prefixed so older text
 // messages are never parsed as JSON.
-export function packChatPayload(text, imageUrl, poster) {
+export function packChatPayload(text, imageUrl, poster, media) {
   const body = normalizeMessageNewlines(text || "");
+  if (media) {
+    const packed = packSealedMedia(body, media);
+    if (packed) return packed;
+  }
   const image = safeHttpUrl(imageUrl);
   if (!image) return body;
   return packSealedThumb(body, image, poster);
@@ -107,6 +120,14 @@ export function topicChatWire(text, imageUrl) {
 
 export function composerWireBytes(kind, text) {
   if (kind === "topic") return utf8ByteLength(topicChatWire(text, pendingChatImage("topic")));
+  const media = pendingChatMedia("e2ee");
+  if (media) {
+    const packed = utf8ByteLength(packChatPayload(text, "", "", media));
+    if (!media.poster || !media.poster.b64 || packed <= HCS_MESSAGE_MAX_BYTES) return packed;
+    const slim = Object.assign({}, media);
+    delete slim.poster;
+    return utf8ByteLength(packChatPayload(text, "", "", slim));
+  }
   const image = pendingChatImage("e2ee");
   const poster = pendingChatPoster("e2ee");
   const packed = utf8ByteLength(packChatPayload(text, image, poster));
@@ -119,14 +140,17 @@ function notifyChatImage() {
 }
 
 export function unpackChatPayload(raw) {
+  const sealed = readSealedMedia(raw);
+  if (sealed) return { text: sealed.text, image: "", poster: "", media: sealed.media };
   const parts = unpackSealedThumb(raw);
   if (typeof raw !== "string" || !raw.startsWith(CHAT_IMAGE_PREFIX)) {
-    return { text: parts.text, image: "", poster: "" };
+    return { text: parts.text, image: "", poster: "", media: null };
   }
   return {
     text: parts.text,
     image: safeHttpUrl(parts.image),
     poster: parts.poster,
+    media: null,
   };
 }
 
@@ -145,9 +169,9 @@ function textIsLong(text) {
   return false;
 }
 
-export function fillChatMessage(el, text, imageUrl, hint) {
+export function fillChatMessage(el, text, imageUrl, hint, media) {
   const body = text == null ? "" : String(text);
-  const src = safeHttpUrl(imageUrl);
+  const src = media ? "" : safeHttpUrl(imageUrl);
   const posterHint = hint && typeof hint === "object" ? hint : null;
   el.replaceChildren();
   if (body) {
@@ -169,6 +193,11 @@ export function fillChatMessage(el, text, imageUrl, hint) {
       });
       el.appendChild(more);
     }
+  }
+  if (media) {
+    if (body) el.appendChild(document.createElement("br"));
+    mountSealedMedia(el, media);
+    return;
   }
   if (!src) return;
   if (body) el.appendChild(document.createElement("br"));
@@ -238,6 +267,7 @@ function bind(kind) {
     s.objectUrl = URL.createObjectURL(file);
     s.url = "";
     s.poster = "";
+    s.media = null;
     s.video = file.type === "video/mp4" || file.type === "video/webm";
     s.thumb = s.video || file.type === "image/gif";
     primeChatVideoThumb(kind, file);
@@ -264,20 +294,24 @@ function bind(kind) {
       showPreview(s, s.objectUrl);
     }
     try {
-      const url = await uploadChatImage(file, s.btn, { kind });
+      const uploaded = await uploadChatImage(file, s.btn, { kind });
       if (mine !== s.gen) return;
+      if (kind === "e2ee") {
+        // The preview stays the local file. The remote object is ciphertext.
+        s.media = uploaded && uploaded.url ? uploaded : null;
+        s.url = "";
+        s.poster = "";
+        if (!s.media) throw new Error("Upload failed, please try again");
+        notifyChatImage();
+        toast.success("Uploaded");
+        return;
+      }
       if (s.objectUrl) {
         URL.revokeObjectURL(s.objectUrl);
         s.objectUrl = "";
       }
-      s.url = url;
-      if (kind === "e2ee") {
-        const field = document.getElementById("user-write-message-encrypted-chat");
-        const text = field ? field.value : "";
-        s.poster = await sealedThumbDataUrl(`chat:${kind}`, url, text);
-      } else {
-        s.poster = "";
-      }
+      s.url = uploaded;
+      s.poster = "";
       showPreview(s, s.url);
       notifyChatImage();
       toast.success("Uploaded");

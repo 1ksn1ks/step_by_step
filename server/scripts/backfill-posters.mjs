@@ -12,10 +12,12 @@
 // about uploaders, accounts, or topics is read or stored: the only pair
 // is the video key and the poster key from that name.
 //
-// A sealed chat upload is a normal mp4 at the same key. The bucket does
-// not keep the sealed flag. Bytes that are not an mp4 (ftyp) or webm
-// (EBML) container are skipped, which is how an encrypted blob is told
-// apart from a public video.
+// A new sealed chat object is markers/<digits>-<alnum> with no extension,
+// so posterKeyFor does not select it and no poster is written. Older
+// sealed uploads were real mp4 or webm files at the usual key. Those are
+// still listed. Bytes that are not an mp4 (ftyp) or webm (EBML) container
+// are skipped, which is how a non-video blob is told apart from a public
+// video.
 
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";

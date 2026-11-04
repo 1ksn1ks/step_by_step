@@ -24,6 +24,7 @@ import { appIcon, APP_ICONS } from "./appicon.js";
 import { profileTopicAction } from "./profiletopic.js";
 import { hashtagsIn } from "../hashtag.js";
 import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
+import { SEALED_MAX, sealedUploadPlan } from "./sealedupload.js";
 import { posterTargetKey } from "../mediaurl.js";
 import { createPendingPosters, issuePosterEdit, posterEditMatches } from "./pendingposters.js";
 import { startBackupSchedule } from "./backup.js";
@@ -2459,13 +2460,20 @@ app.post("/api/upload", async (req, res) => {
     account = requireAccount(req);
   }
   const type = (req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
-  const ext = R2_MIME_EXT[type];
-  if (!ext) {
+  const sealed = String(req.headers["x-sealed"] || "") === "1";
+  // Sealed chat is ciphertext. A readable image or video with this flag
+  // is refused, including a JPEG that would have been a poster.
+  if (sealed && type !== "application/octet-stream") {
+    req.resume();
+    return res.status(415).json({ ok: false, error: "Unsupported type — images and videos only" });
+  }
+  const ext = sealed ? "" : R2_MIME_EXT[type];
+  if (!sealed && !ext) {
     req.resume();
     return res.status(415).json({ ok: false, error: "Unsupported type — images and videos only" });
   }
   const isVideo = type.startsWith("video/");
-  const max = isVideo ? R2_MAX_VIDEO : R2_MAX_IMAGE;
+  const max = sealed ? SEALED_MAX : (isVideo ? R2_MAX_VIDEO : R2_MAX_IMAGE);
   const lengthHeader = req.headers["content-length"];
   const declared = lengthHeader == null || lengthHeader === "" ? null : Number(lengthHeader);
   if (declared != null && (!Number.isFinite(declared) || declared < 0)) {
@@ -2478,13 +2486,17 @@ app.post("/api/upload", async (req, res) => {
   }
   if (declared != null && declared > max) {
     req.resume();
-    return res.status(413).json({ ok: false, error: tooBigMessage(isVideo) });
+    return res.status(413).json({ ok: false, error: tooBigMessage(sealed || isVideo) });
   }
   if (uploadRequestLimited(req, res)) {
     req.resume();
     return;
   }
   const posterHeader = typeof req.headers["x-poster-for"] === "string" ? req.headers["x-poster-for"].trim() : "";
+  if (sealed && posterHeader) {
+    req.resume();
+    return res.status(400).json({ ok: false, error: "Bad poster" });
+  }
   const posterKey = posterHeader ? posterTargetKey(R2_PUBLIC_BASE, posterHeader) : "";
   if (posterHeader && (!posterKey || type !== "image/jpeg" || !posterFollowUpLive(posterKey, account))) {
     req.resume();
@@ -2514,6 +2526,39 @@ app.post("/api/upload", async (req, res) => {
   try {
     const body = await readUploadBody(req, max);
     if (!body.length) return res.status(400).json({ ok: false, error: "Empty file" });
+    if (sealed) {
+      // The in-memory daily cap still applies. It does not store this key,
+      // the account, or a topic next to the object.
+      if (!takeUploadSlot(req, res, account, body.length)) return;
+      const plan = sealedUploadPlan({
+        contentType: type,
+        sealed: true,
+        bytes: body.length,
+        now: Date.now(),
+        nonce: Math.random().toString(36).slice(2, 8),
+      });
+      if (!plan.ok) return res.status(plan.status).json({ ok: false, error: plan.error });
+      try {
+        await r2.send(
+          new PutObjectCommand({
+            Bucket: R2_BUCKET,
+            Key: plan.key,
+            Body: body,
+            ContentType: plan.contentType,
+            // markers/<timestamp>-<random> with no extension. No poster
+            // sibling, no duration, and no account or topic metadata.
+            CacheControl: plan.cacheControl,
+          })
+        );
+      } catch (err) {
+        console.error("R2 upload failed:", err.message);
+        if (!res.headersSent) res.status(502).json({ ok: false, error: "R2 upload failed" });
+        return;
+      }
+      addUploadBytes(account, body.length);
+      res.json({ ok: true, url: `${R2_PUBLIC_BASE}/${plan.key}`, type: plan.contentType });
+      return;
+    }
     if (!magicMatches(type, body)) {
       req.resume();
       return res.status(415).json({ ok: false, error: "File contents do not match the declared type" });
@@ -2580,7 +2625,7 @@ app.post("/api/upload", async (req, res) => {
     res.json(uploaded);
   } catch (err) {
     if (res.headersSent) return;
-    if (err && err.code === 413) return res.status(413).json({ ok: false, error: tooBigMessage(isVideo) });
+    if (err && err.code === 413) return res.status(413).json({ ok: false, error: tooBigMessage(sealed || isVideo) });
     if (err && err.code === 408) {
       res.status(408).json({ ok: false, error: "Upload timed out" });
       res.on("finish", () => {

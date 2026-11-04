@@ -14,7 +14,8 @@ import { expandEncryptedChat, scheduleEncryptedChatLayout } from './cssLogic.js'
 import { fitChatComposer } from './chatcomposer.js';
 import { payerUsernameNode } from './payerlink.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
-import { fillChatMessage, packChatPayload, unpackChatPayload, pendingChatImage, pendingChatPoster, chatImageBusy, clearPendingChatImage } from './chatimage.js';
+import { fillChatMessage, packChatPayload, unpackChatPayload, pendingChatImage, pendingChatPoster, pendingChatMedia, chatImageBusy, clearPendingChatImage } from './chatimage.js';
+import { rememberSealedChat, sealedChatMedia } from './e2eechatview.js';
 import { resolveMediaUrl } from './mediaurl.js';
 import { dataUrlForSeal, openCoverImagePicker, prepareThumbFile } from './uploadmedia.js';
 import { watchFollowPrefetch } from './followtopic.js';
@@ -70,8 +71,8 @@ export async function rememberE2eeEdit(payer, data, envelope, PrivateKey) {
   const text = typeof parts.text === 'string' ? parts.text : '';
   // The image rides inside the sealed payload; data.image is only a
   // fallback for edits that were already sent the old way.
-  const image = parts.image ? String(parts.image) : (data.image ? String(data.image) : '');
-  if (!text && !image) return null;
+  const image = parts.media ? '' : (parts.image ? String(parts.image) : (data.image ? String(data.image) : ''));
+  if (!text && !image && !parts.media) return null;
   const at = e2eeCreatedIso(envelope) || '';
   // An edit that names a bubble from its own future is malformed noise.
   if (created && at && at <= created) return null;
@@ -81,7 +82,8 @@ export async function rememberE2eeEdit(payer, data, envelope, PrivateKey) {
   if (!at && prev) return null;
   // Latest wins: an older edit arriving late never replaces a newer one.
   if (prev && prev.at && at && at < prev.at) return null;
-  const entry = { text, image, poster: parts.poster || '', at };
+  const entry = { text, image, poster: parts.media ? '' : (parts.poster || ''), media: parts.media || null, at };
+  if (entry.media) rememberSealedChat(payer, created, entry.media);
   e2eeEditsByCreated.set(key, entry);
   applyE2eeEditToDom(payer, created, entry);
   return entry;
@@ -97,7 +99,7 @@ function applyE2eeEditToDom(payer, created, entry) {
   );
   for (const container of containers) {
     const text = container.querySelector('.chat-msg-text');
-    if (text) fillChatMessage(text, entry.text, entry.image, e2eeStillHint(entry.poster));
+    if (text) fillChatMessage(text, entry.text, entry.image, e2eeStillHint(entry.poster), entry.media || null);
     addE2eeEditedMark(container.querySelector('.chat-msg-time'));
   }
 }
@@ -177,7 +179,12 @@ function e2eeChatEditOutgoing(newText) {
   const target = e2eeChatEditTarget;
   // The image rides inside the sealed payload, the same as a normal send —
   // so it counts toward the outgoing size here too.
-  const sealedBytes = E2EE_SEAL_BYTES + utf8ByteLength(packChatPayload(newText, target.image || '', e2eeDraftPoster(target)));
+  const sealedBytes = E2EE_SEAL_BYTES + utf8ByteLength(packChatPayload(
+    newText,
+    target.media ? '' : (target.image || ''),
+    target.media ? '' : e2eeDraftPoster(target),
+    target.media || null
+  ));
   const data = {
     created: target.created,
     timestamp: target.stamp,
@@ -287,6 +294,15 @@ function paintE2eeChatEditBytes() {
     bytes = utf8ByteLength(e2eeChatEditOutgoing(text.value));
     e2eeChatEditTarget.posterMode = mode;
   }
+  const sealedPoster = e2eeChatEditTarget.media && e2eeChatEditTarget.media.poster && e2eeChatEditTarget.media.poster.b64;
+  if (bytes > HCS_MESSAGE_MAX_BYTES && sealedPoster) {
+    const saved = e2eeChatEditTarget.media;
+    const slim = Object.assign({}, saved);
+    delete slim.poster;
+    e2eeChatEditTarget.media = slim;
+    bytes = utf8ByteLength(e2eeChatEditOutgoing(text.value));
+    e2eeChatEditTarget.media = saved;
+  }
   const usage = formatHcsUsage(bytes);
   counter.hidden = false;
   counter.textContent = usage.text;
@@ -342,6 +358,7 @@ function openE2eeChatEdit(payer, created) {
     : '';
   const imgEl = container && container.querySelector('.chat-msg-image');
   const field = document.getElementById('user-write-message-encrypted-chat');
+  const media = sealedChatMedia(payer, createdIso);
   // A second edit replaces the first and keeps the stashed draft.
   if (!e2eeChatEditTarget && field) e2eeChatComposeDraft = field.value;
   e2eeChatEditTarget = {
@@ -349,7 +366,9 @@ function openE2eeChatEdit(payer, created) {
     created: createdIso,
     topicId,
     // data-full-src is the original image URL. The bubble shows that same URL.
-    image: imgEl ? (imgEl.dataset.fullSrc || imgEl.getAttribute('src') || '') : '',
+    // A sealed file keeps its descriptor instead of that address.
+    image: media ? '' : (imgEl ? (imgEl.dataset.fullSrc || imgEl.getAttribute('src') || '') : ''),
+    media,
     stamp: e2eeChatStamp(createdIso),
     original: currentText,
     existingPoster: imgEl && typeof imgEl.poster === 'string' && imgEl.poster.startsWith('data:image/') ? imgEl.poster : '',
@@ -358,9 +377,9 @@ function openE2eeChatEdit(payer, created) {
     posterData: '',
   };
   const thumb = e2eePosterBar();
-  if (thumb) thumb.hidden = resolveMediaUrl(e2eeChatEditTarget.image).kind !== 'video';
+  if (thumb) thumb.hidden = !!media || resolveMediaUrl(e2eeChatEditTarget.image).kind !== 'video';
   const quote = document.getElementById('e2ee-chat-edit-quote');
-  if (quote) quote.textContent = e2eeEditQuote(currentText, e2eeChatEditTarget.image);
+  if (quote) quote.textContent = e2eeEditQuote(currentText, media ? 'photo' : e2eeChatEditTarget.image);
   clearE2eeChatEditMark();
   if (container) {
     container.classList.add('chat-msg-editing');
@@ -497,14 +516,21 @@ async function saveE2eeChatEdit() {
   try {
     // Encrypt before build: plaintext never enters the HCS JSON. The image
     // rides inside the sealed payload, the same as a normal send.
-    let poster = e2eeDraftPoster(target);
-    let payload = packChatPayload(raw, target.image || '', poster);
+    let poster = target.media ? '' : e2eeDraftPoster(target);
+    let payload = packChatPayload(raw, target.media ? '' : (target.image || ''), poster, target.media || null);
     let droppedThumb = false;
-    if (poster && utf8ByteLength(e2eeChatEditOutgoing(raw)) > HCS_MESSAGE_MAX_BYTES) {
+    if (!target.media && poster && utf8ByteLength(e2eeChatEditOutgoing(raw)) > HCS_MESSAGE_MAX_BYTES) {
       poster = '';
       target.posterMode = 'clear';
       target.posterData = '';
       payload = packChatPayload(raw, target.image || '', '');
+      droppedThumb = true;
+    }
+    if (target.media && target.media.poster && target.media.poster.b64 && utf8ByteLength(e2eeChatEditOutgoing(raw)) > HCS_MESSAGE_MAX_BYTES) {
+      const slim = Object.assign({}, target.media);
+      delete slim.poster;
+      target.media = slim;
+      payload = packChatPayload(raw, '', '', slim);
       droppedThumb = true;
     }
     let encryptedMessage;
@@ -701,12 +727,13 @@ export async function appendEncryptedChatMessage(
     // Decrypt the message
     const decryptedRaw = await decryptMessage(parsedMessage.encryptedMessage, PrivateKey);
     const parts = unpackChatPayload(decryptedRaw);
-    if (!parts.text && !parts.image) return;
+    if (!parts.text && !parts.image && !parts.media) return;
 
     const fullMessage = {
       decryptedMessage: parts.text,
-      image: parts.image,
-      poster: parts.poster || '',
+      image: parts.media ? '' : parts.image,
+      poster: parts.media ? '' : (parts.poster || ''),
+      media: parts.media || null,
       created: parsedMessage.created,
       payer
     };
@@ -822,13 +849,15 @@ export async function appendEncryptedChatMessage(
     // never changes the media, so the image stays the original's.
     const editHit = e2eeEditFor(payer, parsedMessage.created);
     const displayText = editHit ? editHit.text : parts.text;
-    const displayImage = editHit ? editHit.image : parts.image;
-    const displayPoster = editHit ? editHit.poster : parts.poster;
+    const displayMedia = (editHit && editHit.media) || parts.media || null;
+    const displayImage = displayMedia ? '' : (editHit ? editHit.image : parts.image);
+    const displayPoster = displayMedia ? '' : (editHit ? editHit.poster : parts.poster);
+    if (displayMedia) rememberSealedChat(payer, e2eeCreatedIso(parsedMessage.created), displayMedia);
 
     const contentDiv = document.createElement('div');
     contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
     contentDiv.className = 'chat-msg-text';
-    fillChatMessage(contentDiv, displayText, displayImage, e2eeStillHint(displayPoster));
+    fillChatMessage(contentDiv, displayText, displayImage, e2eeStillHint(displayPoster), displayMedia);
 
     const timeSpan = document.createElement('span');
     timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
@@ -1279,13 +1308,14 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
       toast.error("Wait for the image to finish uploading");
       return;
     }
-    const image = pendingChatImage("e2ee");
-    if (!message && !image) {
+    const media = pendingChatMedia("e2ee");
+    const image = media ? "" : pendingChatImage("e2ee");
+    if (!message && !image && !media) {
       toast.error("Please enter a message.");
       return;
     }
-    let poster = pendingChatPoster("e2ee");
-    let payload = packChatPayload(message, image, poster);
+    let poster = media ? "" : pendingChatPoster("e2ee");
+    let payload = packChatPayload(message, image, poster, media);
     let encryptedMessage;
     const seal = async (body) => {
       try {
@@ -1308,9 +1338,19 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
     if (!encryptedMessage) return;
     let meesageobject = { encryptedMessage };
     let newMeesage = JSON.stringify(meesageobject);
-    if (poster && utf8ByteLength(newMeesage) > HCS_MESSAGE_MAX_BYTES) {
+    if (!media && poster && utf8ByteLength(newMeesage) > HCS_MESSAGE_MAX_BYTES) {
       poster = "";
       payload = packChatPayload(message, image, "");
+      encryptedMessage = await seal(payload);
+      if (!encryptedMessage) return;
+      meesageobject = { encryptedMessage };
+      newMeesage = JSON.stringify(meesageobject);
+    }
+    if (media && media.poster && media.poster.b64 && utf8ByteLength(newMeesage) > HCS_MESSAGE_MAX_BYTES) {
+      const slim = Object.assign({}, media);
+      delete slim.poster;
+      payload = packChatPayload(message, "", "", slim);
+      toast.info("Thumbnail too big for this message, sent without it");
       encryptedMessage = await seal(payload);
       if (!encryptedMessage) return;
       meesageobject = { encryptedMessage };
@@ -1323,7 +1363,7 @@ document.getElementById("post-msg-encrypted-chat").addEventListener("click", asy
     }
     if (utf8ByteLength(newMeesage) <= HCS_CHUNK_SIZE) toast.info("Confirm in wallet 👛");
     const reciept = await sendMessage(topicId, newMeesage);
-    if (image) clearPendingChatImage("e2ee");
+    if (image || media) clearPendingChatImage("e2ee");
     console.log('Reciept:', reciept);
   } catch (error) {
     console.error('Error:', error.message);
@@ -1551,6 +1591,8 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
     // An edit names this row by created and carries the latest text; the
     // media stays the original's.
     const editHit = e2eeEditFor(payer, parsedMessage.created);
+    const displayMedia = (editHit && editHit.media) || parsedMessage.media || null;
+    if (displayMedia) rememberSealedChat(payer, e2eeCreatedIso(parsedMessage.created), displayMedia);
 
     const contentDiv = document.createElement('div');
     contentDiv.style.cssText = `color: ${textTopicChatColor}; font-size: ${textFontSizeTopicChat}vh;`;
@@ -1558,8 +1600,9 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
     fillChatMessage(
       contentDiv,
       editHit ? editHit.text : decryptedMessage,
-      editHit ? editHit.image : parsedMessage.image,
-      e2eeStillHint(editHit ? editHit.poster : parsedMessage.poster)
+      displayMedia ? '' : (editHit ? editHit.image : parsedMessage.image),
+      e2eeStillHint(displayMedia ? '' : (editHit ? editHit.poster : parsedMessage.poster)),
+      displayMedia
     );
 
     const timeSpan = document.createElement('span');
