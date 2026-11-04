@@ -133,4 +133,11 @@ test("the upload route checks the poster token and sweeps with the upload limits
   assert.match(client, /X-Sealed/);
   assert.match(client, /localStorage\.setItem\(POSTER_EDIT_STORE, JSON\.stringify\(map\)\)/);
   assert.match(client, /xhr\.response\.posterEdit/);
+  assert.match(client, /if \(!seal && typeof xhr\.response\.posterEdit === "string"\) rememberPosterEdit/);
+  assert.match(client, /const POSTER_EDIT_MAX = 50/);
+  assert.match(client, /const POSTER_EDIT_MS = 7 \* 24 \* 60 \* 60 \* 1000/);
+  assert.match(client, /\{ t: edit, at: now \}/);
+  assert.match(client, /localStorage\.removeItem\(POSTER_EDIT_STORE\)/);
+  assert.match(client, /getElementById\("account-id"\)/);
+  assert.match(client, /if \(left\) clearPosterEdits\(\)/);
 });

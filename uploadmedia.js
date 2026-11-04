@@ -451,31 +451,94 @@ function readVideoSeconds(localUrl) {
 }
 
 const POSTER_EDIT_STORE = "poster-edit";
+const POSTER_EDIT_MAX = 50;
+const POSTER_EDIT_MS = 7 * 24 * 60 * 60 * 1000;
 
-function rememberPosterEdit(url, token) {
-  const videoUrl = typeof url === "string" ? url.trim() : "";
-  const edit = typeof token === "string" ? token.trim() : "";
-  if (!videoUrl || !edit) return;
+function writePosterEdits(map) {
   try {
-    const parsed = JSON.parse(localStorage.getItem(POSTER_EDIT_STORE) || "{}");
-    const map = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
-    map[videoUrl] = edit;
     localStorage.setItem(POSTER_EDIT_STORE, JSON.stringify(map));
   } catch {
     /* private mode */
   }
 }
 
-function posterEditFor(url) {
+function loadPosterEdits(now = Date.now()) {
+  let stored = "{}";
+  try {
+    stored = localStorage.getItem(POSTER_EDIT_STORE) || "{}";
+  } catch {
+    return {};
+  }
+  let parsed = null;
+  try { parsed = JSON.parse(stored); } catch { parsed = null; }
+  const raw = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  const map = {};
+  let dropped = !parsed || typeof parsed !== "object" || Array.isArray(parsed);
+  for (const [url, row] of Object.entries(raw)) {
+    const videoUrl = String(url || "").trim();
+    const token = row && typeof row === "object" && !Array.isArray(row) && typeof row.t === "string" ? row.t.trim() : "";
+    const at = row && typeof row === "object" ? Number(row.at) : NaN;
+    if (!videoUrl || !token || !Number.isFinite(at) || now - at > POSTER_EDIT_MS) {
+      dropped = true;
+      continue;
+    }
+    map[videoUrl] = { t: token, at };
+  }
+  const rows = Object.entries(map).sort((a, b) => a[1].at - b[1].at);
+  while (rows.length > POSTER_EDIT_MAX) {
+    rows.shift();
+    dropped = true;
+  }
+  const kept = {};
+  for (const [key, row] of rows) kept[key] = row;
+  if (dropped) writePosterEdits(kept);
+  return kept;
+}
+
+function rememberPosterEdit(url, token, now = Date.now()) {
+  const videoUrl = typeof url === "string" ? url.trim() : "";
+  const edit = typeof token === "string" ? token.trim() : "";
+  if (!videoUrl || !edit) return;
+  const map = loadPosterEdits(now);
+  delete map[videoUrl];
+  const rows = Object.entries(map).sort((a, b) => a[1].at - b[1].at);
+  while (rows.length >= POSTER_EDIT_MAX) rows.shift();
+  const next = {};
+  for (const [key, row] of rows) next[key] = row;
+  next[videoUrl] = { t: edit, at: now };
+  writePosterEdits(next);
+}
+
+function posterEditFor(url, now = Date.now()) {
   const videoUrl = typeof url === "string" ? url.trim() : "";
   if (!videoUrl) return "";
+  const row = loadPosterEdits(now)[videoUrl];
+  return row ? row.t : "";
+}
+
+function clearPosterEdits() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(POSTER_EDIT_STORE) || "{}");
-    const edit = parsed && typeof parsed === "object" ? parsed[videoUrl] : "";
-    return typeof edit === "string" ? edit : "";
+    localStorage.removeItem(POSTER_EDIT_STORE);
   } catch {
-    return "";
+    /* private mode */
   }
+}
+
+function watchPosterEditWallet() {
+  const account = document.getElementById("account-id");
+  if (!account || account.dataset.posterEditWatch) return;
+  account.dataset.posterEditWatch = "1";
+  let last = "";
+  const text = account.textContent ? account.textContent.trim() : "";
+  if (/^\d+\.\d+\.\d+$/.test(text) && text.length <= 40) last = text;
+  new MutationObserver(() => {
+    const raw = account.textContent ? account.textContent.trim() : "";
+    const now = /^\d+\.\d+\.\d+$/.test(raw) && raw.length <= 40 ? raw : "";
+    if (now === last) return;
+    const left = !!last && now !== last;
+    last = now;
+    if (left) clearPosterEdits();
+  }).observe(account, { childList: true, characterData: true, subtree: true });
 }
 
 function postFile({ file, seconds, turnstile, uploadToken, role, posterFor, expectPoster, seal, signal, onProgress }) {
@@ -1441,6 +1504,8 @@ for (const fieldId of Object.keys(PREVIEW_FOR)) {
     hideFieldPreview(fieldId);
   });
 }
+
+watchPosterEditWallet();
 
 for (const fieldId of POSTER_FIELDS) {
   const field = document.getElementById(fieldId);
