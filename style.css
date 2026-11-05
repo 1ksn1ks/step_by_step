@@ -9920,14 +9920,14 @@ html.feed-app #popup-settings-card {
 }
 #feed-topic-btn .feed-topic-label {
   font-family: Inter, system-ui, sans-serif;
-  font-size: var(--page-title);
+  font-size: min(var(--page-title), calc(var(--page-bar-h) * 0.6));
   font-weight: 700;
   line-height: 1;
 }
 #feed-topic-btn .feed-topic-id {
   color: rgba(255, 255, 255, 0.45);
   font-family: Inter, system-ui, sans-serif;
-  font-size: var(--ui-small);
+  font-size: min(var(--ui-small), calc(var(--page-bar-h) * 0.4));
   font-weight: 500;
   line-height: 1;
 }
