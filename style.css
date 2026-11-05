@@ -12194,13 +12194,17 @@ html.feed-app :is(
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.15);
 }
+:is(#feed-menu .feed-menu-page, .drawer-screen):has(#Edit_Profile-column) {
+  --page-title: calc(var(--fu) * 2.1);
+}
 :is(
   #feed-profile > .feed-chat-bar,
   #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
   #feed-settings > .feed-settings-bar,
   #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar
-) :is(.feed-chat-title, .feed-settings-title, .feed-comments-title) {
+) :is(.feed-chat-title, .feed-settings-title, .feed-comments-title),
+:is(#feed-menu .feed-menu-page, .drawer-screen):has(#Edit_Profile-column) > .feed-menu-page-bar > .feed-menu-page-title {
   position: static;
   left: auto;
   flex: 1 1 auto;
