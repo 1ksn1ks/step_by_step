@@ -8063,8 +8063,6 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
     aspect-ratio: auto;
     margin: 0;
     overflow: hidden;
-    background: none;
-    background-image: none;
   }
 
   :is(#feed-column, .feed-comments-stage) .popup-sheet .popup-body > div:not(.popup-media-card) {
@@ -11077,41 +11075,67 @@ html.feed-app #feed-search-page {
 :is(#feed-column, .feed-comments-stage) .feed-card.early-holder-popup .text_color {
   color: #f4f1ea !important;
 }
+:is(#feed-column, .feed-comments-stage) .popup-sheet {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: none;
+  min-width: 0;
+  min-height: 0;
+}
 :is(#feed-column, .feed-comments-stage) .popup-body {
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   gap: calc(var(--fu) * 0.75);
   overflow: visible;
   overscroll-behavior: auto;
   max-height: none;
   min-height: 0;
 }
+/* Image-only (.feed-card > .popup-media-card) and text-plus-image
+   (.popup-sheet .popup-media-card) share this box. The landscape map grid
+   must not give the sheet a different width, padding, or clip. */
 :is(#feed-column, .feed-comments-stage) .popup-media-card,
+:is(#feed-column, .feed-comments-stage) .popup-sheet .popup-media-card,
+:is(#feed-column, .feed-comments-stage) .feed-card > .popup-media-card,
 :is(#feed-column, .feed-comments-stage) .popup-media-card:has(video),
 :is(#feed-column, .feed-comments-stage) .popup-media-card:has(iframe),
-:is(#feed-column, .feed-comments-stage) .popup-media-card:has(embed) {
+:is(#feed-column, .feed-comments-stage) .popup-media-card:has(embed),
+:is(#feed-column, .feed-comments-stage) .popup-sheet .popup-media-card:has(video),
+:is(#feed-column, .feed-comments-stage) .feed-card > .popup-media-card:has(video),
+:is(#feed-column, .feed-comments-stage) .popup-sheet .popup-media-card:has(iframe),
+:is(#feed-column, .feed-comments-stage) .feed-card > .popup-media-card:has(embed) {
+  box-sizing: border-box;
   width: 100%;
   max-width: 100%;
   height: auto;
   max-height: none;
+  min-width: 0;
+  min-height: 0;
   aspect-ratio: auto;
   margin: 0;
+  padding: calc(var(--fu) * 0.7);
   overflow: hidden;
-  border: 0;
+  border: calc(var(--fu) * 0.08) solid rgba(34, 211, 238, 0.72);
   border-radius: calc(var(--fu) * 1.2);
   box-shadow: none;
   animation: none;
   touch-action: pan-y;
   align-self: stretch;
   justify-self: stretch;
-  background: none;
-  background-image: none;
-}
-:is(#feed-column, .feed-comments-stage) .feed-card > .popup-media-card {
-  margin-inline: 0;
-  align-self: stretch;
-  justify-self: stretch;
+  grid-column: auto;
+  grid-row: auto;
+  background-color: #0b0d13;
+  background-image: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
 }
 :is(#feed-column, .feed-comments-stage) .popup-media-card img,
 :is(#feed-column, .feed-comments-stage) .popup-media-card canvas.media-still,
@@ -11122,14 +11146,17 @@ html.feed-app #feed-search-page {
   position: static;
   inset: auto;
   display: block;
+  box-sizing: border-box;
   width: 100%;
   height: auto;
   max-width: 100%;
-  max-height: 50dvh;
-  margin-inline: 0;
+  max-height: none;
+  margin: 0;
   object-fit: contain;
   object-position: center;
+  border-radius: calc(var(--fu) * 0.7);
   background: none;
+  transform: none;
   touch-action: pan-y;
 }
 :is(#feed-column, .feed-comments-stage) .popup-media-card img {
@@ -18901,11 +18928,13 @@ img.is-gif-hit {
   width: 100%;
   height: auto;
   max-width: 100%;
-  max-height: 50dvh;
-  margin-inline: 0;
+  max-height: none;
+  margin: 0;
   object-fit: contain;
   object-position: center;
+  border-radius: calc(var(--fu) * 0.7);
   background: none;
+  transform: none;
   pointer-events: none;
 }
 /* Map slot is definite (portrait leftover column, landscape left card).
