@@ -8520,13 +8520,20 @@ const VIS_ROWS = [
     ['path', { d: 'M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z' }],
     ['path', { d: 'm3.3 7 8.7 5 8.7-5' }],
     ['path', { d: 'M12 22V12' }],
-  ], true],
-  ['toggle-marker-visibility', NAV_ICONS['change-marker-options'], true],
+  ], true, 3],
+  ['toggle-marker-visibility', NAV_ICONS['change-marker-options'], true, 4],
   ['toggle-polygon-visibility', [
     ['path', { d: 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z' }],
-  ], true],
-  ['toggle-globe-mode', GLOBE_ICON, false],
+  ], true, 3],
+  ['toggle-globe-mode', GLOBE_ICON, false, 2],
 ];
+
+// One 24-unit window keeps stroke-width 2 at the same weight. The x shift
+// parks every outline's left edge on the same line (half the stroke, plus
+// one unit of pad) without scaling the shape.
+function frameVisIcon(svg, minX) {
+  svg.setAttribute('viewBox', (minX - 2) + ' 0 24 24');
+}
 
 const NAV_PANELS = {
   'change-marker-options': 'marker-options-column',
@@ -8582,14 +8589,16 @@ function syncVisRow(row) {
 }
 
 function dressVisibility() {
-  for (const [id, icon, binary] of VIS_ROWS) {
+  for (const [id, icon, binary, minX] of VIS_ROWS) {
     const button = document.getElementById(id);
     const row = button && button.closest('.mb-row');
     if (!row || row.dataset.dressed === '1') continue;
     row.dataset.dressed = '1';
     const ico = document.createElement('span');
     ico.className = 'set-nav-icon';
-    ico.appendChild(svgIcon(icon));
+    const svg = svgIcon(icon);
+    frameVisIcon(svg, minX);
+    ico.appendChild(svg);
     row.insertBefore(ico, row.firstChild);
     if (binary) {
       const sw = document.createElement('span');

@@ -12732,6 +12732,18 @@ html.feed-app :is(
 #feed-menu #visibility-controls.in-drawer .set-nav-icon {
   display: flex;
   order: 0;
+  flex: 0 0 calc(var(--fu) * 2.2);
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--fu) * 2.2);
+  height: calc(var(--fu) * 2.2);
+  margin: 0;
+}
+#feed-menu #visibility-controls.in-drawer .set-nav-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  margin: 0;
 }
 #feed-menu #visibility-controls.in-drawer .mb-row > .toolbar-column-btns {
   position: static;
@@ -12751,7 +12763,7 @@ html.feed-app :is(
   background-color: transparent !important;
   color: #22D3EE;
 }
-#feed-menu #visibility-controls.in-drawer .mb-row:has(> .toolbar-column-btns) > span {
+#feed-menu #visibility-controls.in-drawer .mb-row:has(> .toolbar-column-btns) > span:not(.set-nav-icon):not(.set-switch) {
   position: relative;
   z-index: 1;
   order: 2;
