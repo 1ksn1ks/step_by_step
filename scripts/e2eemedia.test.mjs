@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
@@ -6,13 +6,19 @@ import {
   SEALED_CONTENT_TYPE,
   SEALED_MAX,
   STREAM_CHUNK,
+  decryptSealedPart,
   decryptStream,
   encryptStream,
   packSealedMedia,
   readSealedMedia,
   sealPosterBytes,
+  sealedDownloadCap,
   sealedUploadHeaders,
 } from "../e2eemedia.js";
+
+// The upload route's public origin for this file. Fixtures below sit on it.
+process.env.R2_PUBLIC_BASE_URL = "https://cdn.example/media";
+const MEDIA_ORIGIN = "https://cdn.example/media";
 import { SEALED_MAX as SERVER_SEALED_MAX, sealedUploadPlan } from "../server/sealedupload.js";
 import { posterTargetKey } from "../mediaurl.js";
 
@@ -155,7 +161,7 @@ test("a poster is embedded or uploaded only as ciphertext", async () => {
   assert.equal(indexOfBytes(uploaded.uploads[0].body, new Uint8Array([0xff, 0xd8, 0xff])), -1);
 
   const packed = packSealedMedia("hello", {
-    url: "https://cdn.example/markers/1700000000000-ab12cd",
+    url: `${MEDIA_ORIGIN}/markers/1700000000000-ab12cd`,
     fileKey: embedded.poster.fileKey,
     header: embedded.poster.header,
     mime: "video/mp4",
@@ -211,4 +217,179 @@ test("the sealed client and server never attach a clear poster", () => {
   assert.doesNotMatch(block, /notePendingPoster|issuePosterEdit|posterEdit|resolvedUploadSeconds/);
   assert.match(server, /if \(sealed && type !== "application\/octet-stream"\)/);
   assert.match(server, /if \(sealed && posterHeader\)/);
+});
+
+describe("sealed media origin", { concurrency: 1 }, () => {
+  test("a foreign host is refused before download", async () => {
+    const server = readFileSync(new URL("../server/index.js", import.meta.url), "utf8");
+    const media = readFileSync(new URL("../e2eemedia.js", import.meta.url), "utf8");
+    assert.match(server, /const R2_PUBLIC_BASE = r2PublicBase\(\)/);
+    assert.match(server, /url: `\$\{R2_PUBLIC_BASE\}\/\$\{plan\.key\}`/);
+    assert.match(server, /globalThis\.__R2_PUBLIC_BASE=\$\{JSON\.stringify\(R2_PUBLIC_BASE\)\}/);
+    assert.match(media, /r2PublicBase\(\)/);
+
+    const plain = new Uint8Array([4, 5, 6, 7]);
+    const enc = await encryptStream(plain);
+    const good = `${MEDIA_ORIGIN}/markers/1700000000000-ab12cd`;
+    const packed = packSealedMedia("hi", {
+      url: good,
+      fileKey: enc.fileKey,
+      header: enc.header,
+      mime: "image/jpeg",
+      size: plain.byteLength,
+      poster: {
+        url: `${MEDIA_ORIGIN}/markers/1700000000000-poster`,
+        fileKey: enc.fileKey,
+        header: enc.header,
+        mime: "image/jpeg",
+        size: plain.byteLength,
+      },
+    });
+    const read = readSealedMedia(packed);
+    assert.equal(read.media.url, good);
+    assert.equal(read.media.poster.url, `${MEDIA_ORIGIN}/markers/1700000000000-poster`);
+
+    const rejectUrl = (url) => {
+      const body = packSealedMedia("hi", {
+        url,
+        fileKey: enc.fileKey,
+        header: enc.header,
+        mime: "image/jpeg",
+        size: plain.byteLength,
+      });
+      assert.equal(body, "");
+    };
+    rejectUrl("https://evil.example/media/markers/1-ab");
+    rejectUrl("http://cdn.example/media/markers/1-ab");
+    rejectUrl("https://cdn.example/markers/1-ab");
+    rejectUrl("https://user:pass@cdn.example/media/markers/1-ab");
+    rejectUrl("https://cdn.example/media/%2e%2e/secret");
+
+    const foreignPoster = packSealedMedia("hi", {
+      url: good,
+      fileKey: enc.fileKey,
+      header: enc.header,
+      mime: "image/jpeg",
+      size: plain.byteLength,
+      poster: {
+        url: "https://evil.example/poster.jpg",
+        fileKey: enc.fileKey,
+        header: enc.header,
+        mime: "image/jpeg",
+        size: plain.byteLength,
+      },
+    });
+    assert.equal(readSealedMedia(foreignPoster).media.poster, undefined);
+
+    const cipher = new Uint8Array(await enc.blob.arrayBuffer());
+    const calls = [];
+    const previous = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+      calls.push(String(url));
+      return {
+        ok: true,
+        headers: { get() { return null; } },
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(cipher);
+            controller.close();
+          },
+        }),
+      };
+    };
+    try {
+      await assert.rejects(
+        decryptSealedPart({
+          url: "https://evil.example/media/markers/1-ab",
+          fileKey: enc.fileKey,
+          header: enc.header,
+          size: plain.byteLength,
+        }),
+        (err) => err && err.message === "decrypt",
+      );
+      assert.deepEqual(calls, []);
+      const opened = await decryptSealedPart({
+        url: good,
+        fileKey: enc.fileKey,
+        header: enc.header,
+        mime: "image/jpeg",
+        size: plain.byteLength,
+      });
+      assert.deepEqual(new Uint8Array(await opened.arrayBuffer()), plain);
+      assert.deepEqual(calls, [good]);
+    } finally {
+      globalThis.fetch = previous;
+    }
+  });
+
+  test("an oversized body is aborted", async () => {
+    const plain = new Uint8Array([1, 2, 3]);
+    const enc = await encryptStream(plain);
+    const good = `${MEDIA_ORIGIN}/markers/1700000000000-big`;
+    const previous = globalThis.fetch;
+    try {
+      let reads = 0;
+      let cancelled = false;
+      globalThis.fetch = async () => ({
+        ok: true,
+        headers: { get(name) { return String(name).toLowerCase() === "content-length" ? String(SEALED_MAX + 1) : null; } },
+        body: {
+          getReader() {
+            reads += 1;
+            throw new Error("read");
+          },
+          cancel() {
+            cancelled = true;
+            return Promise.resolve();
+          },
+        },
+      });
+      await assert.rejects(
+        decryptSealedPart({
+          url: good,
+          fileKey: enc.fileKey,
+          header: enc.header,
+        }),
+        (err) => err && err.message === "decrypt",
+      );
+      assert.equal(reads, 0);
+      assert.equal(cancelled, true);
+
+      const cap = sealedDownloadCap(1);
+      assert.ok(cap < SEALED_MAX);
+      let streamed = 0;
+      cancelled = false;
+      const total = cap + 64;
+      globalThis.fetch = async () => ({
+        ok: true,
+        headers: { get() { return null; } },
+        body: new ReadableStream({
+          pull(controller) {
+            if (streamed >= total) {
+              controller.close();
+              return;
+            }
+            streamed += 1;
+            controller.enqueue(new Uint8Array(1));
+          },
+          cancel() { cancelled = true; },
+        }),
+      });
+      await assert.rejects(
+        decryptSealedPart({
+          url: good,
+          fileKey: enc.fileKey,
+          header: enc.header,
+          size: 1,
+        }),
+        (err) => err && err.message === "decrypt",
+      );
+      assert.equal(cancelled, true);
+      assert.ok(streamed > cap);
+      assert.ok(streamed <= cap + 2);
+      assert.ok(streamed < total);
+    } finally {
+      globalThis.fetch = previous;
+    }
+  });
 });

@@ -2,6 +2,7 @@
 // ever see the ciphertext blob. The 32-byte file key and the stream
 // header stay inside the topic-key sealed message.
 import _sodium from "libsodium-wrappers-sumo";
+import { r2PublicBase } from "./r2public.js";
 
 await _sodium.ready;
 const sodium = _sodium;
@@ -82,7 +83,7 @@ export async function encryptStream(source, keyBytes) {
 
 // Frames are STREAM_CHUNK + ABYTES, except the last which is shorter and
 // carries the final tag. Ciphertext is not kept after each frame opens.
-export async function decryptStream(source, fileKeyB64, headerB64) {
+export async function decryptStream(source, fileKeyB64, headerB64, cap = SEALED_MAX) {
   const key = sodium.from_base64(fileKeyB64);
   const header = sodium.from_base64(headerB64);
   if (key.length !== KEY_BYTES || header.length !== HEADER_BYTES) throw new Error("decrypt");
@@ -98,12 +99,20 @@ export async function decryptStream(source, fileKeyB64, headerB64) {
     if (opened.tag === TAG_FINAL) sawFinal = true;
   };
   const reader = readerOf(source);
+  const limit = Number(cap);
+  let seen = 0;
   let carry = new Uint8Array(0);
   while (true) {
     const step = await reader.read();
     if (step.done) break;
     if (!step.value || !step.value.length) continue;
-    carry = concat(carry, step.value);
+    const value = new Uint8Array(step.value);
+    seen += value.byteLength;
+    if (Number.isFinite(limit) && seen > limit) {
+      try { await reader.cancel(); } catch { /* already closed */ }
+      throw new Error("decrypt");
+    }
+    carry = concat(carry, value);
     while (carry.length >= frameBytes) {
       const frame = carry.slice(0, frameBytes);
       carry = carry.subarray(frameBytes);
@@ -120,21 +129,83 @@ export async function decryptStream(source, fileKeyB64, headerB64) {
   return new Blob(parts);
 }
 
-export async function decryptSealedPart({ url, b64, fileKey, header, mime }) {
-  if (!fileKey || !header) throw new Error("decrypt");
-  let source;
-  if (typeof b64 === "string" && b64) {
-    source = new Blob([sodium.from_base64(b64)]);
-  } else if (typeof url === "string" && url) {
-    const response = await fetch(url);
-    if (!response.ok || !response.body) throw new Error("decrypt");
-    source = response.body;
-  } else {
+// Plaintext size plus one authenticator per secretstream frame. The header
+// stays in the sealed message, so it is not part of the download. A missing
+// or empty declared size stops at SEALED_MAX. A known size stops earlier.
+export function sealedDownloadCap(size) {
+  const n = Number(size);
+  if (!Number.isFinite(n) || n <= 0) return SEALED_MAX;
+  const plain = Math.min(Math.floor(n), SEALED_MAX);
+  const frames = Math.ceil(plain / STREAM_CHUNK);
+  const overhead = frames * sodium.crypto_secretstream_xchacha20poly1305_ABYTES;
+  return Math.min(SEALED_MAX, plain + overhead);
+}
+
+function headerLength(response) {
+  const headers = response && response.headers;
+  if (!headers || typeof headers.get !== "function") return 0;
+  const raw = headers.get("content-length");
+  if (raw == null || raw === "") return 0;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return n;
+}
+
+async function fetchSealed(url, cap) {
+  const controller = new AbortController();
+  const stop = () => {
+    try { controller.abort(); } catch { /* already aborted */ }
+  };
+  let response;
+  try {
+    response = await fetch(url, {
+      signal: controller.signal,
+      redirect: "error",
+      credentials: "omit",
+    });
+  } catch {
+    stop();
     throw new Error("decrypt");
   }
-  const plain = await decryptStream(source, fileKey, header);
-  const type = typeof mime === "string" && mime ? mime : SEALED_CONTENT_TYPE;
-  return new Blob([plain], { type });
+  if (!response || !response.ok || !response.body) {
+    stop();
+    throw new Error("decrypt");
+  }
+  const announced = headerLength(response);
+  if (announced > cap) {
+    stop();
+    try { await response.body.cancel(); } catch { /* unread */ }
+    throw new Error("decrypt");
+  }
+  return { body: response.body, stop };
+}
+
+export async function decryptSealedPart({ url, b64, fileKey, header, mime, size }) {
+  if (!fileKey || !header) throw new Error("decrypt");
+  const cap = sealedDownloadCap(size);
+  let source;
+  let stop = () => {};
+  try {
+    if (typeof b64 === "string" && b64) {
+      let raw;
+      try { raw = sodium.from_base64(b64); } catch { throw new Error("decrypt"); }
+      if (!raw.length || raw.byteLength > cap) throw new Error("decrypt");
+      source = new Blob([raw]);
+    } else {
+      const href = sealedMediaUrl(url);
+      if (!href) throw new Error("decrypt");
+      const opened = await fetchSealed(href, cap);
+      stop = opened.stop;
+      source = opened.body;
+    }
+    const plain = await decryptStream(source, fileKey, header, cap);
+    const type = typeof mime === "string" && mime ? mime : SEALED_CONTENT_TYPE;
+    return new Blob([plain], { type });
+  } catch (err) {
+    try { stop(); } catch { /* already stopped */ }
+    if (err instanceof Error && err.message === "decrypt") throw err;
+    throw new Error("decrypt");
+  }
 }
 
 // Headers a sealed upload is allowed to send. No filename, duration,
@@ -150,15 +221,32 @@ export function sealedUploadHeaders(extra) {
   return headers;
 }
 
-function safeHttp(value) {
-  if (typeof value !== "string" || !value) return "";
+// https only, on the same origin the upload route returns. Anything else
+// is unusable, which the chat paints as "Can't decrypt".
+function sealedMediaUrl(value) {
+  const baseRaw = r2PublicBase();
+  if (!baseRaw || typeof value !== "string" || !value) return "";
+  let base;
+  let url;
   try {
-    const url = new URL(value);
-    if (url.protocol !== "https:" && url.protocol !== "http:") return "";
-    return url.href;
+    base = new URL(baseRaw);
+    url = new URL(value);
   } catch {
     return "";
   }
+  if (base.protocol !== "https:" || url.protocol !== "https:") return "";
+  if (url.username || url.password) return "";
+  if (url.origin !== base.origin) return "";
+  const prefix = base.pathname.replace(/\/+$/, "");
+  let path = url.pathname;
+  try { path = decodeURIComponent(url.pathname); } catch { return ""; }
+  if (!path || path.includes("\\") || path.includes("\0")) return "";
+  const segments = path.split("/");
+  if (segments.includes("..") || segments.includes(".")) return "";
+  if (prefix && path !== prefix && !path.startsWith(prefix + "/")) return "";
+  const key = path.slice(prefix.length).replace(/^\/+/, "");
+  if (!key || key.includes("..")) return "";
+  return url.origin + url.pathname;
 }
 
 function b64Field(value, bytes) {
@@ -208,14 +296,14 @@ function normalizePoster(poster) {
     }
     return { b64: poster.b64, fileKey, header, mime, size };
   }
-  const url = safeHttp(poster.url);
+  const url = sealedMediaUrl(poster.url);
   if (!url) return null;
   return { url, fileKey, header, mime, size };
 }
 
 export function normalizeMedia(media) {
   if (!media || typeof media !== "object") return null;
-  const url = safeHttp(media.url);
+  const url = sealedMediaUrl(media.url);
   const fileKey = b64Field(media.fileKey, KEY_BYTES);
   const header = b64Field(media.header, HEADER_BYTES);
   if (!url || !fileKey || !header) return null;

@@ -26,6 +26,7 @@ import { hashtagsIn } from "../hashtag.js";
 import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { SEALED_MAX, sealedUploadPlan } from "./sealedupload.js";
 import { posterTargetKey } from "../mediaurl.js";
+import { r2PublicBase } from "../r2public.js";
 import { createPendingPosters, issuePosterEdit, posterEditMatches } from "./pendingposters.js";
 import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
@@ -1834,7 +1835,7 @@ function streamLimit(req, res, next) {
 // stream straight into the bucket — nothing touches this disk. The
 // credentials come from server/.env (gitignored); nothing is ever logged.
 const R2_BUCKET = process.env.R2_BUCKET;
-const R2_PUBLIC_BASE = (process.env.R2_PUBLIC_BASE_URL || "").replace(/\/+$/, "");
+const R2_PUBLIC_BASE = r2PublicBase();
 const r2 =
   process.env.R2_ACCOUNT_ID &&
   process.env.R2_ACCESS_KEY_ID &&
@@ -3671,11 +3672,32 @@ app.get("/api/health", (req, res) => {
 // Registered before dist so a baked PNG in public/ is only the fallback.
 app.get(Object.keys(APP_ICONS).map((name) => "/icons/" + name), appIcon);
 
+// The browser allowlist has to be this same R2_PUBLIC_BASE. The script
+// is last in <head> so it wins over a copy baked at build time.
+function htmlWithMediaOrigin(html) {
+  const tag = `<script>globalThis.__R2_PUBLIC_BASE=${JSON.stringify(R2_PUBLIC_BASE)};</script>`;
+  return html.replace("</head>", `${tag}</head>`);
+}
+
+function sendAppHtml(res, next) {
+  fs.readFile(path.join(distDir, "index.html"), "utf8", (err, html) => {
+    if (err) return next(err);
+    res.setHeader("Cache-Control", "no-cache");
+    res.type("html").send(htmlWithMediaOrigin(html));
+  });
+}
+
 // Production: one process serves the built map and the API on the same
 // origin. /api routes above win. Local `npm run dev` still uses Vite.
 const distDir = path.join(__dirname, "..", "dist");
 if (fs.existsSync(distDir)) {
+  app.use((req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    if (req.path !== "/" && req.path !== "/index.html") return next();
+    sendAppHtml(res, next);
+  });
   app.use(express.static(distDir, {
+    index: false,
     setHeaders(res, filePath) {
       const base = path.basename(filePath);
       if (base === "sw.js") {
@@ -3692,9 +3714,7 @@ if (fs.existsSync(distDir)) {
   app.use((req, res, next) => {
     if (req.method !== "GET" && req.method !== "HEAD") return next();
     if (req.path.startsWith("/api")) return next();
-    res.sendFile(path.join(distDir, "index.html"), (err) => {
-      if (err) next(err);
-    });
+    sendAppHtml(res, next);
   });
 }
 

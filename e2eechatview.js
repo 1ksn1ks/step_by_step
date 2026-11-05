@@ -1,6 +1,8 @@
 // Paints one sealed chat file. The worker decrypts two jobs at a time.
 // A still waits until the bubble is near the encrypted list. Blob URLs
 // stay in memory and are revoked when the bubble leaves that list.
+import { r2PublicBase } from "./r2public.js";
+
 const PLAY_FACE = '<span class="video-play-glass" aria-hidden="true">'
   + '<svg class="video-play-icon" viewBox="0 0 24 24" focusable="false">'
   + '<path class="is-play" d="M9 6.2v11.6l9.2-5.8z" fill="#22D3EE"></path>'
@@ -121,6 +123,8 @@ function decryptJob(part) {
           fileKey: part.fileKey,
           header: part.header,
           mime: part.mime || "",
+          size: part.size,
+          publicBase: r2PublicBase(),
         });
       } catch (error) {
         jobs.delete(id);

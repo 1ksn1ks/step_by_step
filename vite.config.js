@@ -1,7 +1,16 @@
 // vite.config.js
 import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import dotenv from 'dotenv'
 import { defineConfig, loadEnv } from 'vite'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'  // ← Import here
+import { r2PublicBase } from './r2public.js'
+
+// Same server/.env the upload route reads. Only the public origin is
+// written into the page. Keys and the bucket name stay out of the bundle.
+const rootDir = path.dirname(fileURLToPath(import.meta.url))
+dotenv.config({ path: path.join(rootDir, 'server', '.env') })
 
 // Optional local HTTPS. WalletConnect accepts https or localhost.
 // The cert files stay on this machine and are gitignored, so a fresh
@@ -11,6 +20,18 @@ const keyFile = './certs/server.key'
 const https = fs.existsSync(certFile) && fs.existsSync(keyFile)
   ? { cert: certFile, key: keyFile }
   : undefined
+
+// Dev serves index.html from Vite, so the page gets the same origin the
+// upload route will return. Production overwrites this from the live const.
+function r2PublicBasePage() {
+  return {
+    name: 'r2-public-base',
+    transformIndexHtml(html) {
+      const tag = `<script>globalThis.__R2_PUBLIC_BASE=${JSON.stringify(r2PublicBase())};</script>`
+      return html.replace('</head>', `${tag}</head>`)
+    },
+  }
+}
 
 // The service worker and manifest must not sit in a long cache, or an
 // old worker keeps controlling the page after a deploy.
@@ -57,6 +78,7 @@ export default defineConfig(({ command, mode }) => {
   }
   return {
   plugins: [
+    r2PublicBasePage(),
     pwaHeaders(),
     nodePolyfills({
       // Polyfill only Buffer (and process if needed for SDK)
