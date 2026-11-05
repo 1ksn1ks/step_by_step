@@ -7829,8 +7829,7 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
     overflow: visible !important;
   }
 
-  .maplibregl-map .maplibregl-popup-content > .popup-sheet,
-  :is(#feed-column, .feed-comments-stage) .popup-sheet {
+  .maplibregl-map .maplibregl-popup-content > .popup-sheet {
     display: grid;
     isolation: isolate;
     position: relative;
@@ -7893,8 +7892,7 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
     width: calc(var(--u) * 0.8 + (100% - var(--u) * 2.8) * 0.45);
   }
 
-  .maplibregl-map .popup-body,
-  :is(#feed-column, .feed-comments-stage) .popup-body {
+  .maplibregl-map .popup-body {
     display: contents;
   }
 
@@ -8027,52 +8025,6 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
     max-height: none;
     overflow-y: auto;
     overscroll-behavior: contain;
-  }
-
-  /* Feed message column. The map sheet stays the two-card grid above. */
-  :is(#feed-column, .feed-comments-stage) .popup-sheet {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    width: 100%;
-    height: auto;
-    min-height: 0;
-    max-height: none;
-    gap: calc(var(--fu) * 0.75);
-    column-gap: 0;
-    row-gap: 0;
-  }
-
-  :is(#feed-column, .feed-comments-stage) .popup-sheet .popup-media-card,
-  :is(#feed-column, .feed-comments-stage) .feed-card > .popup-media-card,
-  :is(#feed-column, .feed-comments-stage) .popup-sheet .popup-media-card:has(video),
-  :is(#feed-column, .feed-comments-stage) .feed-card > .popup-media-card:has(video),
-  :is(#feed-column, .feed-comments-stage) .popup-sheet .popup-media-card:has(iframe),
-  :is(#feed-column, .feed-comments-stage) .popup-sheet .popup-media-card:has(embed) {
-    grid-column: 1;
-    grid-row: 1;
-    align-self: stretch;
-    justify-self: stretch;
-    box-sizing: border-box;
-    width: 100%;
-    height: auto;
-    max-width: 100%;
-    max-height: none;
-    min-width: 0;
-    min-height: 0;
-    aspect-ratio: auto;
-    margin: 0;
-    overflow: hidden;
-  }
-
-  :is(#feed-column, .feed-comments-stage) .popup-sheet .popup-body > div:not(.popup-media-card) {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: start;
-    height: auto;
-    max-height: none;
-    min-height: 0;
-    overflow: visible;
   }
 
   .maplibregl-map .popup-text-bubble {
@@ -11075,67 +11027,41 @@ html.feed-app #feed-search-page {
 :is(#feed-column, .feed-comments-stage) .feed-card.early-holder-popup .text_color {
   color: #f4f1ea !important;
 }
-:is(#feed-column, .feed-comments-stage) .popup-sheet {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  height: auto;
-  max-height: none;
-  min-width: 0;
-  min-height: 0;
-}
 :is(#feed-column, .feed-comments-stage) .popup-body {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
   gap: calc(var(--fu) * 0.75);
   overflow: visible;
   overscroll-behavior: auto;
   max-height: none;
   min-height: 0;
 }
-/* Image-only (.feed-card > .popup-media-card) and text-plus-image
-   (.popup-sheet .popup-media-card) share this box. The landscape map grid
-   must not give the sheet a different width, padding, or clip. */
 :is(#feed-column, .feed-comments-stage) .popup-media-card,
-:is(#feed-column, .feed-comments-stage) .popup-sheet .popup-media-card,
-:is(#feed-column, .feed-comments-stage) .feed-card > .popup-media-card,
 :is(#feed-column, .feed-comments-stage) .popup-media-card:has(video),
 :is(#feed-column, .feed-comments-stage) .popup-media-card:has(iframe),
-:is(#feed-column, .feed-comments-stage) .popup-media-card:has(embed),
-:is(#feed-column, .feed-comments-stage) .popup-sheet .popup-media-card:has(video),
-:is(#feed-column, .feed-comments-stage) .feed-card > .popup-media-card:has(video),
-:is(#feed-column, .feed-comments-stage) .popup-sheet .popup-media-card:has(iframe),
-:is(#feed-column, .feed-comments-stage) .feed-card > .popup-media-card:has(embed) {
-  box-sizing: border-box;
+:is(#feed-column, .feed-comments-stage) .popup-media-card:has(embed) {
   width: 100%;
   max-width: 100%;
   height: auto;
   max-height: none;
-  min-width: 0;
-  min-height: 0;
   aspect-ratio: auto;
   margin: 0;
-  padding: calc(var(--fu) * 0.7);
   overflow: hidden;
-  border: calc(var(--fu) * 0.08) solid rgba(34, 211, 238, 0.72);
+  border: 0;
   border-radius: calc(var(--fu) * 1.2);
   box-shadow: none;
   animation: none;
   touch-action: pan-y;
   align-self: stretch;
   justify-self: stretch;
-  grid-column: auto;
-  grid-row: auto;
-  background-color: #0b0d13;
-  background-image: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
+  background: none;
+  background-image: none;
+}
+:is(#feed-column, .feed-comments-stage) .feed-card > .popup-media-card {
+  margin-inline: 0;
+  align-self: stretch;
+  justify-self: stretch;
 }
 :is(#feed-column, .feed-comments-stage) .popup-media-card img,
 :is(#feed-column, .feed-comments-stage) .popup-media-card canvas.media-still,
@@ -11146,17 +11072,14 @@ html.feed-app #feed-search-page {
   position: static;
   inset: auto;
   display: block;
-  box-sizing: border-box;
-  width: 100%;
+  width: auto;
   height: auto;
   max-width: 100%;
-  max-height: none;
-  margin: 0;
+  max-height: 50dvh;
+  margin-inline: auto;
   object-fit: contain;
   object-position: center;
-  border-radius: calc(var(--fu) * 0.7);
   background: none;
-  transform: none;
   touch-action: pan-y;
 }
 :is(#feed-column, .feed-comments-stage) .popup-media-card img {
@@ -11174,26 +11097,18 @@ html.feed-app #feed-search-page {
   pointer-events: auto;
 }
 /* A posterless video has no intrinsic box, so the grab and autoplay never
-   see it. Hold a full-width 16:9 frame until the still arrives. Image-only
-   and text-plus-image use the same width and overflow. */
-:is(#feed-column, .feed-comments-stage) .popup-media-card:has(video:not(.loop-face):not(.has-poster)),
-:is(#feed-column, .feed-comments-stage) .popup-sheet .popup-media-card:has(video:not(.loop-face):not(.has-poster)),
-:is(#feed-column, .feed-comments-stage) .feed-card > .popup-media-card:has(video:not(.loop-face):not(.has-poster)) {
+   see it. Hold a 16:9 frame until the still arrives. */
+:is(#feed-column, .feed-comments-stage) .popup-media-card:has(video:not(.loop-face):not(.has-poster)) {
   width: 100%;
   max-width: 100%;
-  height: auto;
-  max-height: none;
+  max-height: 50dvh;
   aspect-ratio: 16 / 9;
-  margin: 0;
-  overflow: hidden;
-  align-self: stretch;
 }
 :is(#feed-column, .feed-comments-stage) .popup-media-card:has(video:not(.loop-face):not(.has-poster)) > video:not(.loop-face) {
   width: 100%;
   height: 100%;
   max-width: 100%;
-  max-height: none;
-  margin-inline: 0;
+  max-height: 100%;
   object-fit: contain;
 }
 :is(#feed-column, .feed-comments-stage) .popup-media-card:not(:has(video:not(.loop-face))) .feed-media-hit {
@@ -18882,12 +18797,8 @@ img.is-gif-hit {
   background-image: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
 }
 :is(#feed-column, .feed-comments-stage) .popup-media-card.is-media-pending {
-  width: 100%;
-  max-width: 100%;
-  height: auto;
-  max-height: 50dvh;
+  width: min(100%, calc(var(--fu) * 16));
   aspect-ratio: 1;
-  overflow: hidden;
   background-color: #0b0d13;
   background-image: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
 }
@@ -18925,21 +18836,19 @@ img.is-gif-hit {
 }
 :is(#feed-column, .feed-comments-stage) .popup-media-card > canvas.media-still,
 :is(#feed-column, .feed-comments-stage) .popup-media-card > video.media-gif-play {
-  width: 100%;
+  width: auto;
   height: auto;
   max-width: 100%;
-  max-height: none;
-  margin: 0;
+  max-height: 50dvh;
+  margin-inline: auto;
   object-fit: contain;
   object-position: center;
-  border-radius: calc(var(--fu) * 0.7);
   background: none;
-  transform: none;
   pointer-events: none;
 }
 /* Map slot is definite (portrait leftover column, landscape left card).
    The bitmap stays inside it: auto size, both max edges, contain.
-   Draw-column previews keep the square rule above. */
+   Feed cards keep the 50dvh rule above. Draw previews keep the square rule. */
 .maplibregl-map .popup-media-card:not(.draw-popup-media) > img,
 .maplibregl-map .popup-media-card:not(.draw-popup-media) > video,
 .maplibregl-map .popup-media-card:not(.draw-popup-media) > canvas.media-still {
@@ -18967,8 +18876,8 @@ img.is-gif-hit {
     filter: brightness(1.08);
   }
 }
-/* An image-only post still builds an empty bubble. Collapse it so the
-   picture can use that room. A bubble with text stays. */
+/* An image-only map post still builds an empty bubble. Collapse it so the
+   picture can use that room. A bubble with text stays. Feed cards do not. */
 .maplibregl-map .popup-body > div:not(.popup-media-card):has(> .popup-text-bubble:empty) {
   display: none;
 }
