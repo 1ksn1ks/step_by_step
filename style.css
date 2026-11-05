@@ -12290,7 +12290,7 @@ html.feed-app :is(
 :is(
   #feed-profile > .feed-chat-bar,
   #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar
-) .feed-chat-actions > :is(.feed-chat-icon, button) {
+) .feed-chat-actions > :is(.feed-chat-icon, button):not(#feed-profile-edit) {
   width: 44px !important;
   min-width: 44px !important;
   height: 44px !important;
@@ -12303,21 +12303,21 @@ html.feed-app :is(
 :is(
   #feed-profile > .feed-chat-bar,
   #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar
-) .feed-chat-actions .feed-chat-glyph {
+) .feed-chat-actions > :not(#feed-profile-edit) .feed-chat-glyph {
   width: 22px;
   height: 22px;
 }
 :is(
   #feed-profile > .feed-chat-bar,
   #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar
-) .feed-chat-actions > :is(.feed-chat-icon, button):focus {
+) .feed-chat-actions > :is(.feed-chat-icon, button):not(#feed-profile-edit):focus {
   outline: none;
   box-shadow: none;
 }
 :is(
   #feed-profile > .feed-chat-bar,
   #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar
-) .feed-chat-actions > :is(.feed-chat-icon, button):focus-visible {
+) .feed-chat-actions > :is(.feed-chat-icon, button):not(#feed-profile-edit):focus-visible {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.15);
 }
@@ -12356,7 +12356,8 @@ html.feed-app :is(
 :is(#feed-menu, .drawer-screen) .in-drawer .panel-close-btn {
   display: none !important;
 }
-:is(#feed-menu, .drawer-screen) .feed-menu-page-bar > .panel-help-btn.is-bar-help {
+:is(#feed-menu, .drawer-screen) .feed-menu-page-bar > .panel-help-btn.is-bar-help,
+#feed-profile > .feed-chat-bar > .feed-chat-actions > #feed-profile-edit {
   position: static !important;
   top: auto !important;
   right: auto !important;
@@ -12385,18 +12386,36 @@ html.feed-app :is(
   box-shadow: none;
   cursor: pointer;
 }
-:is(#feed-menu, .drawer-screen) .feed-menu-page-bar > .panel-help-btn.is-bar-help:is(:hover, :active) {
+:is(#feed-menu, .drawer-screen) .feed-menu-page-bar > .panel-help-btn.is-bar-help:is(:hover, :active),
+#feed-profile > .feed-chat-bar > .feed-chat-actions > #feed-profile-edit:is(:hover, :active) {
   color: #22D3EE;
   background: transparent;
   transform: none;
   filter: none;
 }
-:is(#feed-menu, .drawer-screen) .feed-menu-page-bar > .panel-help-btn.is-bar-help:focus {
+:is(#feed-menu, .drawer-screen) .feed-menu-page-bar > .panel-help-btn.is-bar-help:focus,
+#feed-profile > .feed-chat-bar > .feed-chat-actions > #feed-profile-edit:focus {
   outline: none;
 }
-:is(#feed-menu, .drawer-screen) .feed-menu-page-bar > .panel-help-btn.is-bar-help:focus-visible {
+:is(#feed-menu, .drawer-screen) .feed-menu-page-bar > .panel-help-btn.is-bar-help:focus-visible,
+#feed-profile > .feed-chat-bar > .feed-chat-actions > #feed-profile-edit:focus-visible {
   outline: none;
+  outline-offset: 0;
   box-shadow: inset 0 0 0 2px #22D3EE;
+}
+/* [hidden] has to beat the shared header display, or the pencil stays visible. */
+#feed-profile > .feed-chat-bar > .feed-chat-actions > #feed-profile-edit {
+  touch-action: manipulation;
+}
+#feed-profile-edit[hidden] {
+  display: none !important;
+}
+#feed-profile > .feed-chat-bar > .feed-chat-actions > #feed-profile-edit > .feed-chat-glyph {
+  width: 1em;
+  height: 1em;
+  display: block;
+  margin: 0;
+  pointer-events: none;
 }
 #toolbar .set-nav-icon,
 #toolbar .set-nav-chev,
@@ -13867,8 +13886,8 @@ html.feed-app #feed-chat > .load-options-page {
   gap: 4px;
   margin-left: auto;
 }
-.feed-chat-actions > .feed-chat-icon,
-.feed-chat-actions > button {
+.feed-chat-actions > .feed-chat-icon:not(#feed-profile-edit),
+.feed-chat-actions > button:not(#feed-profile-edit) {
   appearance: none;
   position: relative;
   flex: 0 0 auto;
