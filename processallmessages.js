@@ -2135,11 +2135,13 @@ export function createMarkerPopupHTML(data) {
   navSection.appendChild(popupNavArrow('next', goNextMarker));
 
   // Image, a GIF loop, or a video when the Image field holds a real
-  // .mp4/.webm. The marker dot uses the cover, so this file stays in the popup.
-  if (isValidUrl(image)) {
+  // .mp4/.webm. The field arrives as an array (["url"]), same as a polygon.
+  // The marker dot uses the cover, so this file stays in the popup.
+  const popupImageUrl = Array.isArray(image) ? image[0] : image;
+  if (isValidUrl(popupImageUrl)) {
     const imageDiv = document.createElement('div');
     imageDiv.className = 'popup-media-card'; // glass media card (style.css)
-    fillPopupMedia(imageDiv, image, posterHintFor(data.payer, data.created, data.timestamp));
+    fillPopupMedia(imageDiv, popupImageUrl, posterHintFor(data.payer, data.created, data.timestamp));
     contentSection.appendChild(imageDiv);
   }
 
