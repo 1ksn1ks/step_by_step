@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   keyboardOpen, nextStableHeight, KB_RATIO, visibleBottom, KB_OPEN_CLASS,
   SHELL_SELECTOR, pinFrame, fieldBelowVisible, pinHeld, restoredScrollTop, scrollCorrection, acceptsShell,
+  selectShell, shellAnchored, shellPlacement, settlesOnPin, isTextControl,
 } from "../keyboardlayout.js";
 
 function source(rel) {
@@ -91,13 +92,15 @@ test("a shell pins to the visible band and restores its scroll", () => {
   assert.equal(scrollCorrection(Number.NaN, 400, 342, 828), 0);
 });
 
-test("only a full-screen fixed or absolute shell is pinned", () => {
+test("any fixed shell is pinned, and absolute only inside the viewport", () => {
   assert.equal(acceptsShell("fixed", true, false), true);
   assert.equal(acceptsShell("fixed", false, true), true);
-  assert.equal(acceptsShell("fixed", false, false), false);
+  assert.equal(acceptsShell("fixed", false, false), true);
   assert.equal(acceptsShell("absolute", true, true), true);
+  assert.equal(acceptsShell("absolute", true, true, true), true);
   assert.equal(acceptsShell("absolute", true, false), false);
-  assert.equal(acceptsShell("absolute", false, true), false);
+  assert.equal(acceptsShell("absolute", false, true), true);
+  assert.equal(acceptsShell("absolute", false, true, true), false);
   assert.equal(acceptsShell("relative", true, true), false);
   assert.equal(KB_OPEN_CLASS, "kb-open");
   for (const id of [
@@ -155,6 +158,97 @@ test("the visible bottom includes the visual viewport offset", () => {
   assert.equal(fieldBelowVisible(700, edge), true);
   assert.equal(fieldBelowVisible(360, edge), false);
   assert.equal(fieldBelowVisible(260, edge), false);
+});
+
+test("a dynamically mounted bottom sheet is the shell without being listed", () => {
+  const view = { width: 360, height: 800 };
+  const sheet = {
+    id: "dyn-sheet",
+    position: "fixed",
+    named: false,
+    rect: { top: 520, left: 0, width: 360, height: 280, bottom: 800 },
+  };
+  const body = { id: "body", position: "fixed", named: false, pageRoot: true };
+  const picked = selectShell([
+    { position: "static", named: false },
+    sheet,
+    body,
+  ], view);
+  assert.equal(picked, sheet);
+  assert.equal(SHELL_SELECTOR.includes("#dyn-sheet"), false);
+  assert.equal(shellAnchored(sheet.rect, 800), true);
+  assert.deepEqual(
+    shellPlacement({ offsetTop: 0, viewH: 420, layoutH: 800, ownHeight: 280, bottomAnchored: true }),
+    { top: 140, height: 280, bottom: "auto" },
+  );
+  assert.deepEqual(
+    shellPlacement({ offsetTop: 12, viewH: 400, layoutH: 800, ownHeight: 520, bottomAnchored: true }),
+    { top: 12, height: 400, bottom: "auto" },
+  );
+});
+
+test("full-screen canvases stay put and named sheets still win", () => {
+  const view = { width: 360, height: 800 };
+  const full = { top: 0, left: 0, width: 360, height: 800, bottom: 800 };
+  const map = { id: "map", position: "absolute", named: false, rect: full, parentRect: full };
+  assert.equal(selectShell([map, { position: "fixed", pageRoot: true }], view), null);
+  const frame = { id: "feed-frame", position: "absolute", named: false, rect: full, parentRect: full };
+  const layout = { id: "feed-layout", position: "fixed", named: false, rect: full };
+  assert.equal(selectShell([frame, layout], view), layout);
+  const chat = { id: "feed-chat", position: "absolute", named: true, rect: full, parentRect: full };
+  assert.equal(selectShell([chat, frame, layout], view), chat);
+  const card = {
+    id: "comments-modal",
+    position: "absolute",
+    named: true,
+    rect: { top: 40, left: 180, width: 160, height: 400 },
+    parentRect: { top: 20, left: 20, width: 200, height: 420 },
+  };
+  const popup = { id: "popup", position: "fixed", named: false, rect: full };
+  assert.equal(selectShell([card, popup], view), popup);
+  assert.equal(shellAnchored(full, 800), false);
+  assert.deepEqual(
+    shellPlacement({ offsetTop: 0, viewH: 420, layoutH: 800, ownHeight: 800, bottomAnchored: false }),
+    { top: 0, height: 420, bottom: "auto" },
+  );
+});
+
+test("an inputmode=decimal field is a text control", () => {
+  const decimal = {
+    nodeType: 1,
+    tagName: "INPUT",
+    type: "text",
+    inputMode: "decimal",
+    isContentEditable: false,
+  };
+  assert.equal(isTextControl(decimal), true);
+  assert.equal(isTextControl({ ...decimal, type: "" }), true);
+  assert.equal(isTextControl({ ...decimal, type: "number" }), true);
+  assert.equal(isTextControl({ ...decimal, type: "checkbox" }), false);
+  assert.equal(isTextControl({ ...decimal, type: "hidden" }), false);
+  assert.equal(settlesOnPin({
+    animationName: "donate-sheet-up",
+    playState: "running",
+    timing: { iterations: 1 },
+    properties: ["transform"],
+  }), true);
+  assert.equal(settlesOnPin({
+    animationName: "early-hashinal-angle",
+    playState: "running",
+    timing: { iterations: Infinity },
+    properties: ["--eh-angle"],
+  }), false);
+  assert.equal(settlesOnPin({
+    animationName: "early-holder-glow",
+    playState: "running",
+    timing: { iterations: "infinite" },
+    properties: ["opacity"],
+  }), false);
+  assert.equal(settlesOnPin({
+    playState: "running",
+    timing: { iterations: 1 },
+    properties: ["opacity"],
+  }), false);
 });
 
 test("the dock lift and the padding hack are gone", () => {
