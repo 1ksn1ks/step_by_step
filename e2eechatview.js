@@ -1,18 +1,24 @@
-// Paints one sealed chat file. The worker decrypts. Blob URLs stay in
-// memory and are revoked when the bubble leaves the encrypted list.
+// Paints one sealed chat file. The worker decrypts two jobs at a time.
+// A still waits until the bubble is near the encrypted list. Blob URLs
+// stay in memory and are revoked when the bubble leaves that list.
 const PLAY_FACE = '<span class="video-play-glass" aria-hidden="true">'
   + '<svg class="video-play-icon" viewBox="0 0 24 24" focusable="false">'
   + '<path class="is-play" d="M9 6.2v11.6l9.2-5.8z" fill="#22D3EE"></path>'
   + '<path class="is-pause" d="M7 5.5h3.2v13H7zm6.8 0H17v13h-3.2z" fill="#22D3EE"></path>'
   + '</svg></span>';
 
+const DECRYPT_LIMIT = 2;
 const blobUrls = new WeakMap();
 const liveUrls = new Set();
 const mediaByKey = new Map();
+const waiting = new WeakMap();
 let observer = null;
+let nearObserver = null;
 let worker = null;
 let jobId = 0;
+let decryptBusy = 0;
 const jobs = new Map();
+const decryptWait = [];
 
 function track(el, url) {
   liveUrls.add(url);
@@ -21,8 +27,15 @@ function track(el, url) {
   blobUrls.set(el, list);
 }
 
+function cancelNear(node) {
+  if (!waiting.has(node)) return;
+  waiting.delete(node);
+  if (nearObserver) nearObserver.unobserve(node);
+}
+
 function releaseNode(node) {
   if (!node || node.nodeType !== 1) return;
+  cancelNear(node);
   const list = blobUrls.get(node);
   if (list) {
     for (const url of list) {
@@ -67,25 +80,54 @@ function workerOf() {
     else job.reject(new Error("decrypt"));
   };
   worker.onerror = () => {
-    for (const job of jobs.values()) job.reject(new Error("decrypt"));
+    const pending = [...jobs.values()];
     jobs.clear();
     worker = null;
+    for (const job of pending) job.reject(new Error("decrypt"));
   };
   return worker;
 }
 
+function settleDecrypt(fn, value) {
+  decryptBusy = Math.max(0, decryptBusy - 1);
+  try {
+    fn(value);
+  } finally {
+    pumpDecrypt();
+  }
+}
+
+function pumpDecrypt() {
+  while (decryptBusy < DECRYPT_LIMIT && decryptWait.length) {
+    const run = decryptWait.shift();
+    decryptBusy += 1;
+    run();
+  }
+}
+
 function decryptJob(part) {
-  const id = ++jobId;
   return new Promise((resolve, reject) => {
-    jobs.set(id, { resolve, reject });
-    workerOf().postMessage({
-      id,
-      url: part.url || "",
-      b64: part.b64 || "",
-      fileKey: part.fileKey,
-      header: part.header,
-      mime: part.mime || "",
+    decryptWait.push(() => {
+      const id = ++jobId;
+      jobs.set(id, {
+        resolve: (blob) => settleDecrypt(resolve, blob),
+        reject: (error) => settleDecrypt(reject, error),
+      });
+      try {
+        workerOf().postMessage({
+          id,
+          url: part.url || "",
+          b64: part.b64 || "",
+          fileKey: part.fileKey,
+          header: part.header,
+          mime: part.mime || "",
+        });
+      } catch (error) {
+        jobs.delete(id);
+        settleDecrypt(reject, error);
+      }
     });
+    pumpDecrypt();
   });
 }
 
@@ -108,6 +150,7 @@ export function sealedChatMedia(payer, created) {
 }
 
 async function revealStill(img, box, part) {
+  if (!box.isConnected) return;
   const blob = await decryptJob(part);
   if (!box.isConnected) return;
   const url = URL.createObjectURL(blob);
@@ -115,26 +158,105 @@ async function revealStill(img, box, part) {
   img.src = url;
 }
 
+function onNear(entries) {
+  for (const entry of entries) {
+    if (!entry.isIntersecting) continue;
+    const box = entry.target;
+    const run = waiting.get(box);
+    if (!run) continue;
+    waiting.delete(box);
+    if (nearObserver) nearObserver.unobserve(box);
+    run();
+  }
+}
+
+function ensureNear() {
+  if (nearObserver) return nearObserver;
+  if (typeof IntersectionObserver !== "function" || typeof document === "undefined") return null;
+  const root = document.getElementById("messages-from-encrypted-chat");
+  if (!root) return null;
+  const options = { root, rootMargin: "50dvh", threshold: 0 };
+  try {
+    nearObserver = new IntersectionObserver(onNear, options);
+  } catch {
+    const half = typeof window !== "undefined" && window.innerHeight
+      ? Math.round(window.innerHeight / 2)
+      : 0;
+    nearObserver = new IntersectionObserver(onNear, {
+      root,
+      rootMargin: half > 0 ? `${half}px` : "50vh",
+      threshold: 0,
+    });
+  }
+  return nearObserver;
+}
+
+function scheduleReveal(img, box, part, onFail) {
+  const run = () => {
+    if (!box.isConnected) return;
+    revealStill(img, box, part).catch(() => {
+      if (onFail && box.isConnected) onFail();
+    });
+  };
+  const watch = ensureNear();
+  if (!watch) {
+    run();
+    return;
+  }
+  waiting.set(box, run);
+  watch.observe(box);
+}
+
+function markPlayBusy(button) {
+  button.disabled = true;
+  button.classList.add("is-busy");
+  button.setAttribute("aria-busy", "true");
+}
+
+function restorePlay(button) {
+  button.disabled = false;
+  button.hidden = false;
+  button.classList.remove("is-busy");
+  button.removeAttribute("aria-busy");
+  button.innerHTML = PLAY_FACE;
+  button.setAttribute("aria-label", "Play");
+}
+
+function dropPlayFail(box) {
+  const next = box.nextElementSibling;
+  if (next && next.className === "chat-sealed-fail" && typeof next.remove === "function") next.remove();
+}
+
 async function playSealed(box, img, button, media) {
   if (button.disabled) return;
-  button.disabled = true;
+  markPlayBusy(button);
+  dropPlayFail(box);
+  let blob;
   try {
-    const blob = await decryptJob(media);
-    if (!box.isConnected) return;
-    const url = URL.createObjectURL(blob);
-    track(box, url);
-    const video = document.createElement("video");
-    video.className = "chat-msg-image";
-    video.playsInline = true;
-    video.controls = true;
-    video.src = url;
-    img.replaceWith(video);
-    button.hidden = true;
-    const pending = video.play();
-    if (pending && typeof pending.catch === "function") pending.catch(() => {});
+    blob = await decryptJob(media);
   } catch {
-    showFail(box);
+    restorePlay(button);
+    const fail = document.createElement("p");
+    fail.className = "chat-sealed-fail";
+    fail.textContent = "Can't decrypt";
+    if (box.parentNode && typeof box.insertAdjacentElement === "function") box.insertAdjacentElement("afterend", fail);
+    else box.appendChild(fail);
+    return;
   }
+  if (!box.isConnected) return;
+  const url = URL.createObjectURL(blob);
+  track(box, url);
+  const video = document.createElement("video");
+  video.className = "chat-msg-image";
+  video.playsInline = true;
+  video.controls = true;
+  video.src = url;
+  img.replaceWith(video);
+  button.classList.remove("is-busy");
+  button.removeAttribute("aria-busy");
+  button.hidden = true;
+  const pending = video.play();
+  if (pending && typeof pending.catch === "function") pending.catch(() => {});
 }
 
 export function mountSealedMedia(el, media) {
@@ -171,11 +293,6 @@ export function mountSealedMedia(el, media) {
   el.appendChild(box);
   const poster = media.poster;
   const posterOk = poster && poster.fileKey && poster.header && (poster.b64 || poster.url);
-  if (posterOk) {
-    revealStill(img, box, poster).catch(() => {
-      if (!video) showFail(box);
-    });
-  } else if (!video) {
-    revealStill(img, box, media).catch(() => showFail(box));
-  }
+  if (posterOk) scheduleReveal(img, box, poster, video ? null : () => showFail(box));
+  else if (!video) scheduleReveal(img, box, media, () => showFail(box));
 }
