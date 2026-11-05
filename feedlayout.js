@@ -37,7 +37,7 @@ import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, regi
 import { VIEW_SORT_BATCH, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs, zeroViewCounts } from './viewsort.js';
 import { FILL_PASSES, planFillDown } from './scrollfill.js';
 import { FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, connectionIsConstrained, feedAutoplayAllowed, feedVideoHeld, feedVideoPreloadOnPause, feedVideoShouldRelease, feedVideoStartDelay, feedVideosToMeasure, pickFeedVideo } from './feedvideo.js';
-import { isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
+import { isGifClipUrl, isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
 import { bindVideoPoster } from './videoposter.js';
 import { mountPicture, pictureElement, playStoredGif, presentImage } from './loopmedia.js';
 
@@ -1778,6 +1778,14 @@ function autoplayAllowed() {
   return feedAutoplayAllowed(flags);
 }
 
+function gifMotionOk() {
+  try {
+    return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return true;
+  }
+}
+
 // One observer for every feed-card video. The root is the scroller node, so
 // parking that node inside #feed-search-results keeps the same root.
 const feedVideoRatio = new Map();
@@ -1991,7 +1999,16 @@ function settleFeedVideos() {
       current: activeFeedVideo,
     });
   }
-  if (!allow && next !== preferredFeedVideo) next = null;
+  if (!allow && !(preferredFeedVideo && next === preferredFeedVideo)) {
+    next = null;
+    if (gifMotionOk()) {
+      const gifs = [];
+      for (const item of candidates) {
+        if (item.id && item.id.dataset && item.id.dataset.gif === '1') gifs.push(item);
+      }
+      next = pickFeedVideo(gifs, { preferred: null, current: activeFeedVideo });
+    }
+  }
   if (preferredFeedVideo && next !== preferredFeedVideo) {
     const ratio = feedVideoRatio.get(preferredFeedVideo) || 0;
     if (!(ratio > 0)) preferredFeedVideo = null;
@@ -2066,7 +2083,7 @@ function bindFeedVideo(video) {
   if (!video || video.dataset.feedBound === '1') return;
   if (video.closest('.comments-modal, #feed-chat, .feed-comments-stage')) return;
   video.dataset.feedBound = '1';
-  video.controls = true;
+  video.controls = video.dataset.gif === '1' ? false : true;
   video.playsInline = true;
   video.setAttribute('playsinline', '');
   video.loop = true;
@@ -2536,7 +2553,9 @@ function buildCard(post) {
     const video = resolved.kind === 'video';
     const node = video ? document.createElement('video') : document.createElement('img');
     if (video) {
-      node.controls = true;
+      const clip = isGifClipUrl(src);
+      if (clip) node.dataset.gif = '1';
+      node.controls = !clip;
       node.playsInline = true;
       node.setAttribute('playsinline', '');
       node.loop = true;

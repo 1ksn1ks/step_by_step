@@ -37,6 +37,30 @@ export function isVideoUrl(url) {
   return typeof url === "string" && VIDEO_URL.test(url);
 }
 
+// A converted GIF is a normal mp4 or webm plus this flag. The poster key
+// uses the path, so the query does not change the sibling still.
+export function isGifClipUrl(url) {
+  const raw = typeof url === "string" ? url.trim() : "";
+  if (!raw) return false;
+  try {
+    return new URL(raw).searchParams.get("gif") === "1";
+  } catch {
+    return /(?:\?|&)gif=1(?:&|$)/.test(raw);
+  }
+}
+
+export function withGifClip(url) {
+  const raw = typeof url === "string" ? url.trim() : "";
+  if (!raw || isGifClipUrl(raw)) return raw;
+  try {
+    const parsed = new URL(raw);
+    parsed.searchParams.set("gif", "1");
+    return parsed.toString();
+  } catch {
+    return raw;
+  }
+}
+
 // True when the bytes are not a known still or video. Those wait for
 // classifyImageUrl. A .gif suffix is already a GIF.
 export function needsGifCheck(url) {

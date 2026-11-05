@@ -318,6 +318,7 @@ export function normalizeMedia(media) {
   };
   const poster = normalizePoster(media.poster);
   if (poster) clean.poster = poster;
+  if (media.gif === 1 || media.gif === true) clean.gif = 1;
   return clean;
 }
 

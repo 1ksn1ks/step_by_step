@@ -17,9 +17,9 @@ import { confirmShare, unshareFromMyTopic, sharePin, followPersonControls, watch
 import { clearShareTopic, noteShare, shareState, shareMine, takeSharePin, takeUnsharePin } from './sharecount.js'
 import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
 import { openPreview } from './fullscreenmedia';
-import { isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
+import { isGifClipUrl, isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
 import { bindVideoPoster } from './videoposter.js';
-import { pictureElement, playStoredGif, presentImage } from './loopmedia.js';
+import { pictureElement, playStoredGif, presentImage, watchLoop } from './loopmedia.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
 import { isTyping } from './joystick.js';
 import { normalizeMessageNewlines, clipMessage, formatHcsUsage, utf8ByteLength, HCS_TOO_LONG, HCS_MESSAGE_MAX_BYTES } from './hcschunks.js';
@@ -1993,13 +1993,29 @@ function fillPopupMedia(imageDiv, url, hint) {
   if (!resolved.src && !gifLike) return;
   const isVideo = resolved.kind === "video";
   if (isVideo) {
+    const clip = isGifClipUrl(raw);
     const media = document.createElement("video");
-    media.controls = true;
     media.playsInline = true;
     media.setAttribute("playsinline", "");
     media.preload = "none";
     media.dataset.src = resolved.src;
+    if (clip) {
+      media.dataset.gif = "1";
+      media.muted = true;
+      media.defaultMuted = true;
+      media.loop = true;
+      media.controls = false;
+      media.setAttribute("muted", "");
+      media.setAttribute("loop", "");
+    } else {
+      media.controls = true;
+    }
     bindVideoPoster(media, raw, hint);
+    if (clip) {
+      let reduced = false;
+      try { reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { reduced = false; }
+      if (!reduced) watchLoop(media);
+    }
     imageDiv.appendChild(media);
     return;
   }

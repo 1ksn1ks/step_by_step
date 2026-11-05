@@ -2,11 +2,13 @@
 // a canvas of frame 0, never an <img> src. Feed and popup taps can play
 // that GIF through gifvideo.js in memory: muted, looping, one at a time.
 // Marker dots, avatars, and polygon covers stay on the still.
+import { GIF_FAR_PX, loopPlayback, viewDistance } from "./gifloop.js";
 import { gifStillCanvas, convertGifFile } from "./gifvideo.js";
 import { armIpfsAttempt, preferGateway } from "./ipfsimage.js";
 import { forgetProfilePicture, watchProfilePicture } from "./markertilt.js";
 import {
   classifyImageUrl,
+  isGifClipUrl,
   isGifUrl,
   loadImageBytes,
   needsGifCheck,
@@ -15,9 +17,33 @@ import {
 } from "./mediaurl.js";
 import { bindVideoPoster } from "./videoposter.js";
 
+export { GIF_FAR_PX, loopPlayback, viewDistance };
+
 const watching = new Set();
 let observer = null;
+let gifObserver = null;
 let visibilityBound = false;
+
+// Old GIF posts stay a still until the element is on screen. Reduced motion
+// never gets past that still.
+export function gifStillAction(state) {
+  if (!state || !state.visible) return "wait";
+  return state.reduced ? "still" : "play";
+}
+
+function reducedMotion() {
+  try {
+    return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
+  }
+}
+
+function viewportBox() {
+  const w = typeof window !== "undefined" ? window.innerWidth : 0;
+  const h = typeof window !== "undefined" ? window.innerHeight : 0;
+  return { top: 0, left: 0, right: w, bottom: h };
+}
 let playSeq = 0;
 let activePlay = null;
 const videoUrlCache = new Map();
@@ -66,6 +92,7 @@ function pauseLoop(video) {
 
 function playLoop(video) {
   if (!video || !video.isConnected || document.hidden) return;
+  if (reducedMotion()) return;
   if (video.dataset.loopOn === "0") return;
   if (!video.getAttribute("src")) {
     const src = video.dataset.src || "";
@@ -76,13 +103,34 @@ function playLoop(video) {
   if (video.paused) video.play().catch(() => {});
 }
 
+function unloadLoop(video) {
+  pauseLoop(video);
+  const src = video.getAttribute("src");
+  if (!src) return;
+  const keep = video.dataset.src || src;
+  const poster = video.getAttribute("poster");
+  video.removeAttribute("src");
+  video.preload = "none";
+  try { video.load(); } catch { /* already idle */ }
+  if (keep) video.dataset.src = keep;
+  if (poster) video.setAttribute("poster", poster);
+}
+
+function applyLoop(video, visible, distance) {
+  const action = loopPlayback({ reduced: reducedMotion(), visible, distance });
+  if (action === "play") playLoop(video);
+  else if (action === "unload" || action === "poster") unloadLoop(video);
+  else pauseLoop(video);
+}
+
 function ensureLoops() {
   if (!visibilityBound && typeof document !== "undefined") {
     visibilityBound = true;
     document.addEventListener("visibilitychange", () => {
       for (const video of watching) {
-        if (document.hidden) pauseLoop(video);
-        else playLoop(video);
+        if (reducedMotion()) unloadLoop(video);
+        else if (document.hidden) pauseLoop(video);
+        else if (video.dataset.loopOn === "1") playLoop(video);
       }
     });
   }
@@ -90,9 +138,10 @@ function ensureLoops() {
     observer = new IntersectionObserver((entries) => {
       for (const entry of entries) {
         const video = entry.target;
-        video.dataset.loopOn = entry.isIntersecting && entry.intersectionRatio > 0 ? "1" : "0";
-        if (video.dataset.loopOn === "1") playLoop(video);
-        else pauseLoop(video);
+        const visible = !!(entry.isIntersecting && entry.intersectionRatio > 0);
+        video.dataset.loopOn = visible ? "1" : "0";
+        const distance = visible ? 0 : viewDistance(entry.boundingClientRect, entry.rootBounds || viewportBox());
+        applyLoop(video, visible, distance);
       }
     }, { threshold: [0, 0.15] });
   }
@@ -119,9 +168,13 @@ export async function stillObjectUrl(file) {
 export function watchLoop(video) {
   if (!video) return video;
   ensureLoops();
-  if (!video.dataset.loopOn) video.dataset.loopOn = "1";
   watching.add(video);
-  if (observer) observer.observe(video);
+  if (observer) {
+    if (!video.dataset.loopOn) video.dataset.loopOn = "0";
+    observer.observe(video);
+    return video;
+  }
+  video.dataset.loopOn = "1";
   playLoop(video);
   return video;
 }
@@ -267,6 +320,54 @@ async function paintGifStill(img, url, seq, play) {
   showStill(img, canvas, play);
 }
 
+function onGifEntry(entry) {
+  const img = entry.target;
+  const visible = !!(entry.isIntersecting && entry.intersectionRatio > 0);
+  img.dataset.loopOn = visible ? "1" : "0";
+  const distance = visible ? 0 : viewDistance(entry.boundingClientRect, entry.rootBounds || viewportBox());
+  const reduced = reducedMotion();
+  if (img.dataset.mediaGif === "1") {
+    const action = loopPlayback({ reduced, visible, distance });
+    if (action === "play" && img.dataset.mediaPlay === "1") playStoredGif(img, { keep: true });
+    else if (activePlay && activePlay.img === img) stopGifPlay();
+    return;
+  }
+  const load = gifStillAction({ visible, reduced });
+  if (load === "wait" || img.dataset.gifArmed === "1") return;
+  img.dataset.gifArmed = "1";
+  const seq = img.dataset.mediaSeq;
+  const url = img.dataset.mediaUrl || "";
+  paintGifStill(img, url, seq, load === "play").then(() => {
+    if (img.dataset.mediaSeq !== String(seq) || load !== "play") return;
+    if (img.dataset.loopOn === "0") return;
+    playStoredGif(img, { keep: true });
+  });
+}
+
+function ensureGifObserver() {
+  if (gifObserver || typeof IntersectionObserver !== "function") return gifObserver;
+  gifObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) onGifEntry(entry);
+  }, { threshold: [0, 0.01] });
+  return gifObserver;
+}
+
+// The body stays unloaded until the still is on screen.
+function armGifLoad(img) {
+  const watch = ensureGifObserver();
+  if (!watch) {
+    const seq = img.dataset.mediaSeq;
+    const url = img.dataset.mediaUrl || "";
+    const play = img.dataset.mediaPlay === "1" && !reducedMotion();
+    paintGifStill(img, url, seq, play).then(() => {
+      if (img.dataset.mediaSeq !== String(seq) || !play) return;
+      playStoredGif(img, { keep: true });
+    });
+    return;
+  }
+  watch.observe(img);
+}
+
 // The one paint path for a user image. A known still extension is set
 // immediately. Anything else stays on the skeleton until classifyImageUrl
 // answers. A GIF becomes a canvas of frame 0. null (the check failed,
@@ -306,13 +407,13 @@ export function presentImage(img, url, options) {
   if (opts.play) img.dataset.mediaPlay = "1";
   else delete img.dataset.mediaPlay;
   if (cached === true) {
-    paintGifStill(img, painted, seq, !!opts.play);
+    armGifLoad(img);
     return img;
   }
   classifyImageUrl(painted).then((isGif) => {
     if (img.dataset.mediaSeq !== String(seq)) return;
     if (isGif === true) {
-      paintGifStill(img, painted, seq, !!opts.play);
+      armGifLoad(img);
       return;
     }
     dropStill(img);
@@ -363,9 +464,11 @@ function showGifVideo(img, objectUrl, seq) {
 }
 
 // In-memory playback for a feed or popup still. No upload. One at a time.
-export function playStoredGif(img) {
+export function playStoredGif(img, options) {
+  const keep = !!(options && options.keep);
   if (!img || img.dataset.mediaGif !== "1" || img.dataset.mediaPlay !== "1") return;
-  if (activePlay && activePlay.img === img && activePlay.video) {
+  if (activePlay && activePlay.img === img) {
+    if (keep) return;
     stopGifPlay();
     return;
   }
@@ -418,8 +521,15 @@ export function makeLoopVideo(url, options) {
   video.setAttribute("aria-label", opts.alt || "");
   if (opts.style) video.setAttribute("style", opts.style);
   video.dataset.src = resolved.src;
+  const clip = opts.gif === true || isGifClipUrl(url) || isGifClipUrl(resolved.src);
+  if (clip) video.dataset.gif = "1";
   if (opts.fallback) video.dataset.fallback = opts.fallback;
   armFallback(video, opts.fallback || "");
+  if (clip) {
+    bindVideoPoster(video, typeof url === "string" ? url : resolved.src, opts.posterHint || null);
+    if (!reducedMotion()) watchLoop(video);
+    return video;
+  }
   if (opts.posterHold) {
     bindVideoPoster(video, typeof url === "string" ? url : resolved.src, opts.posterHint || null);
     return video;

@@ -5,7 +5,7 @@ import { toast } from "./toast.js";
 import { clearVideoThumb, mountThumbControls, primeChatVideoThumb, uploadChatImage } from "./uploadmedia.js";
 import { openPreview } from "./fullscreenmedia.js";
 import { pictureElement, stillObjectUrl } from "./loopmedia.js";
-import { resolveMediaUrl } from "./mediaurl.js";
+import { isGifClipUrl, resolveMediaUrl } from "./mediaurl.js";
 import { HCS_MESSAGE_MAX_BYTES, normalizeMessageNewlines, utf8ByteLength } from "./hcschunks.js";
 import { packSealedThumb, unpackSealedThumb } from "./videoposter.js";
 import { packSealedMedia, readSealedMedia } from "./e2eemedia.js";
@@ -203,10 +203,11 @@ export function fillChatMessage(el, text, imageUrl, hint, media) {
   if (body) el.appendChild(document.createElement("br"));
   const resolved = resolveMediaUrl(src);
   const video = resolved.kind === "video";
+  const clip = isGifClipUrl(src);
   const img = pictureElement(src, {
     className: "chat-msg-image",
     alt: "",
-    posterHold: video,
+    posterHold: video && !clip,
     posterHint: video ? Object.assign({ holdSrc: true }, posterHint || {}) : null,
   });
   img.dataset.fullSrc = src;
@@ -285,7 +286,7 @@ function bind(kind) {
     }
     if (file.type === "image/gif") {
       // The chat preview stays a JPEG still. uploadChatImage converts the
-      // GIF on this device and never sends the .gif.
+      // GIF on this device before the file is encrypted or uploaded.
       const still = await stillObjectUrl(file);
       URL.revokeObjectURL(s.objectUrl);
       s.objectUrl = still;

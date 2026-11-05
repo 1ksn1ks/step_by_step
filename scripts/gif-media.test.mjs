@@ -19,16 +19,24 @@ import {
 import { presentImage, storeVideoUrl, VIDEO_URL_CACHE_MAX } from "../loopmedia.js";
 import {
   GIF_BROWSER_ERROR,
+  GIF_MAX_BYTES,
+  GIF_MAX_SECONDS,
+  GIF_TOO_BIG,
+  GIF_TOO_LONG,
+  conversionPlan,
   conversionRatio,
   GIF_COVER_EDGE,
   GIF_MEDIA_EDGE,
   frameBox,
   gifDurationReject,
+  gifSizeReject,
   mapGifProgress,
   pickRecorderMime,
   recorderFallback,
   storedType,
 } from "../gifvideo.js";
+import { GIF_FAR_PX, gifStillAction, loopPlayback, viewDistance } from "../loopmedia.js";
+import { isGifClipUrl, siblingPosterUrl, withGifClip } from "../mediaurl.js";
 
 test("cover roles centre-crop to an even edge of at most 512", () => {
   assert.deepEqual(frameBox(1000, 400, "cover"), {
@@ -106,9 +114,9 @@ test("frames are decoded one at a time and a feed tap still converts", () => {
   assert.match(source, /opts\.onProgress\) opts\.onProgress\(0\)/);
   const tap = playback.slice(playback.indexOf("export function playStoredGif"));
   assert.match(tap, /convertGifFile\(file, \{ role: "media", signal: ctrl\.signal \}\)/);
-  assert.equal(gifDurationReject("media", 90), "");
-  assert.equal(gifDurationReject("avatar", 90), "");
-  assert.equal(gifDurationReject("cover", 90), "");
+  assert.equal(gifDurationReject("media", 90), GIF_TOO_LONG);
+  assert.equal(gifDurationReject("avatar", 90), GIF_TOO_LONG);
+  assert.equal(gifDurationReject("cover", 90), GIF_TOO_LONG);
 });
 
 test("conversion fills 0–70 and the upload fills 70–100", () => {
@@ -143,13 +151,85 @@ test("an unsupported recorder refuses the upload and never stores a gif", () => 
   assert.equal(storedType("video/mp4").ext === ".gif", false);
 });
 
-test("only a polygon cover longer than 30 seconds is rejected", () => {
+test("a gif past 30 seconds or 8 MB is rejected with a clear error", () => {
   assert.equal(gifDurationReject("polygon-cover", 31), "Cover video max 30 seconds");
   assert.equal(gifDurationReject("polygon-cover", 30), "");
   assert.equal(gifDurationReject("polygon-cover", 30.5), "");
-  assert.equal(gifDurationReject("media", 31), "");
-  assert.equal(gifDurationReject("cover", 90), "");
-  assert.equal(gifDurationReject("avatar", 90), "");
+  assert.equal(GIF_MAX_SECONDS, 30);
+  assert.equal(GIF_MAX_BYTES, 8 * 1024 * 1024);
+  assert.equal(gifDurationReject("media", 30), "");
+  assert.equal(gifDurationReject("media", 31), GIF_TOO_LONG);
+  assert.equal(gifDurationReject("cover", 90), GIF_TOO_LONG);
+  assert.equal(gifDurationReject("avatar", 90), GIF_TOO_LONG);
+  assert.equal(gifSizeReject(GIF_MAX_BYTES), "");
+  assert.equal(gifSizeReject(GIF_MAX_BYTES + 1), GIF_TOO_BIG);
+  assert.equal(gifSizeReject(0), "");
+});
+
+test("neither encoder keeps the original gif", () => {
+  assert.equal(conversionPlan({ webCodecs: false, captureStream: false, mime: "" }), "original");
+  assert.equal(conversionPlan({ webCodecs: false, captureStream: true, mime: "" }), "original");
+  assert.equal(conversionPlan({ webCodecs: false, captureStream: true, mime: "image/gif" }), "original");
+  assert.equal(conversionPlan({ webCodecs: false, captureStream: true, mime: "video/webm" }), "recorder");
+  assert.equal(conversionPlan({ webCodecs: true, captureStream: false, mime: "" }), "webcodecs");
+  assert.equal(conversionPlan({ webCodecs: true, captureStream: true, mime: "video/mp4" }), "webcodecs");
+  const source = readFileSync(new URL("../gifvideo.js", import.meta.url), "utf8");
+  const start = source.indexOf("async function encodeClip");
+  const end = source.indexOf("export async function convertGifFile");
+  const fn = source.slice(start, end);
+  assert.ok(start > 0 && end > start);
+  const webAt = fn.indexOf("recordWebCodecs(");
+  const recAt = fn.indexOf("recordCanvas(");
+  assert.ok(webAt >= 0 && webAt < recAt);
+  assert.match(fn, /plan === "original"/);
+  const convert = source.slice(end, source.indexOf("async function paintFrameZero"));
+  assert.match(convert, /original: true/);
+  assert.match(convert, /gifSizeReject\(file && file\.size\)/);
+});
+
+test("a visible gif clip plays, an offscreen one pauses, and a far one unloads", () => {
+  assert.equal(loopPlayback({ reduced: false, visible: true, distance: 0 }), "play");
+  assert.equal(loopPlayback({ reduced: false, visible: false, distance: 40 }), "pause");
+  assert.equal(loopPlayback({ reduced: false, visible: false, distance: GIF_FAR_PX }), "pause");
+  assert.equal(loopPlayback({ reduced: false, visible: false, distance: GIF_FAR_PX + 1 }), "unload");
+  assert.equal(loopPlayback({ reduced: true, visible: true, distance: 0 }), "poster");
+  assert.equal(gifStillAction({ visible: false, reduced: false }), "wait");
+  assert.equal(gifStillAction({ visible: true, reduced: true }), "still");
+  assert.equal(gifStillAction({ visible: true, reduced: false }), "play");
+  assert.equal(viewDistance(
+    { top: 2000, bottom: 2200, left: 0, right: 100 },
+    { top: 0, bottom: 800, left: 0, right: 400 },
+  ), 1200);
+  const playback = readFileSync(new URL("../loopmedia.js", import.meta.url), "utf8");
+  assert.match(playback, /loopPlayback\(\{ reduced: reducedMotion\(\), visible, distance \}\)/);
+  assert.match(playback, /video\.dataset\.gif = "1"/);
+  assert.match(playback, /armGifLoad\(img\)/);
+  const clip = withGifClip("https://cdn.example/markers/1-ab.mp4");
+  assert.equal(isGifClipUrl(clip), true);
+  assert.equal(isGifClipUrl("https://cdn.example/markers/1-ab.mp4"), false);
+  assert.equal(siblingPosterUrl(clip), "https://cdn.example/markers/1-ab.poster.jpg");
+});
+
+test("a sealed gif is converted, then encrypted, then uploaded", () => {
+  const source = readFileSync(new URL("../uploadmedia.js", import.meta.url), "utf8");
+  const start = source.indexOf("async function uploadSealedChatMedia");
+  const end = source.indexOf("export async function uploadChatImage");
+  const fn = source.slice(start, end);
+  const convertAt = fn.indexOf("convertGifFile(");
+  const encryptAt = fn.indexOf("encryptStream(uploadFile)");
+  const uploadAt = fn.indexOf("postSealedBlob(");
+  assert.ok(start > 0 && end > start);
+  assert.ok(convertAt >= 0 && convertAt < encryptAt && encryptAt < uploadAt);
+  assert.match(fn, /converted\.original/);
+  assert.ok(fn.indexOf("media.gif = 1") > uploadAt);
+  const view = readFileSync(new URL("../e2eechatview.js", import.meta.url), "utf8");
+  const mount = view.slice(view.indexOf("export function mountSealedMedia"));
+  const clipAt = mount.indexOf("if (clip)");
+  const playAt = mount.indexOf('button.className = "video-play"');
+  assert.ok(clipAt >= 0 && playAt > clipAt);
+  assert.match(mount.slice(clipAt, playAt), /return;/);
+  assert.match(mount, /vid\.dataset\.gif = "1"/);
+  assert.match(view, /loopPlayback\(/);
 });
 
 test("a gif address is not rendered and other media stays put", () => {

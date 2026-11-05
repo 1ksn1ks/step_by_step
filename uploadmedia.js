@@ -8,8 +8,9 @@
 //                 "📎 Upload image / video" → Inside image URL (the popup)
 // A polygon cover video is max 30s and animates in the map (polygons.js
 // pump). An animated GIF is converted on this device to that same loop.
-// The Inside field is what the popup plays and stays unlimited
-// (100 MB, any length). A video can carry a JPEG poster: the picture
+// The Inside field is what the popup plays. A video stays at 100 MB.
+// A GIF is capped at 8 MB and 30 seconds, then becomes a muted clip
+// plus a JPEG poster. A video can carry a JPEG poster: the picture
 // the sender picks, or one frame from the file.
 import { toast } from "./toast.js";
 import { connectedAccount, signer } from "./web3.js";
@@ -17,13 +18,16 @@ import { profilePictures } from "./loadalladata.js";
 import { paintDrawField } from "./drawpreview.js";
 import { rememberGrant, withUploadAuth } from "./uploadgrant.js";
 import { COVER_VIDEO_PROBE_MS, coverVideoReject } from "./covervideolimit.js";
-import { isGifUrl, needsGifCheck, resolveMediaUrl, siblingPosterUrl } from "./mediaurl.js";
+import { isGifUrl, needsGifCheck, resolveMediaUrl, siblingPosterUrl, withGifClip } from "./mediaurl.js";
 import { presentImage } from "./loopmedia.js";
 import { HCS_MESSAGE_MAX_BYTES } from "./hcschunks.js";
 import {
   GIF_BROWSER_ERROR,
+  GIF_TOO_BIG,
+  GIF_TOO_LONG,
   convertGifFile,
   gifCancelError,
+  gifSizeReject,
   mapGifProgress,
 } from "./gifvideo.js";
 import {
@@ -207,6 +211,8 @@ const KEPT_UPLOAD_MESSAGES = new Set([
   "Couldn't read the video length. Try MP4/H.264",
   "Too big — 100 MB max",
   "Too big — 20 MB max",
+  GIF_TOO_BIG,
+  GIF_TOO_LONG,
   GIF_BROWSER_ERROR,
   HASHPACK_CANCEL,
   HASHPACK_TIMEOUT,
@@ -708,6 +714,7 @@ async function uploadToR2(file, baseLabel, seconds, anchor, role, extra) {
   const gif = !!(file && file.type === "image/gif");
   const abort = gif ? new AbortController() : null;
   let pill = null;
+  let gifClip = false;
   try {
     let uploadFile = file;
     let poster = null;
@@ -721,16 +728,23 @@ async function uploadToR2(file, baseLabel, seconds, anchor, role, extra) {
           pill.set(`Converting GIF ${mapGifProgress("convert", ratio)}%`);
         },
       });
-      uploadFile = converted.file;
-      poster = converted.poster;
-      uploadSeconds = uploadFile.type === "image/jpeg" || !(converted.seconds > 0)
-        ? null
-        : Math.round(converted.seconds);
-      if (uploadSeconds != null && uploadSeconds < 1) uploadSeconds = null;
-      const tooBig = outputTooBig(uploadFile);
-      if (tooBig) throw new Error(tooBig);
-      if (!uploadFile || uploadFile.type === "image/gif" || /\.gif$/i.test(uploadFile.name || "")) {
-        throw new Error(GIF_BROWSER_ERROR);
+      if (converted.original) {
+        uploadFile = file;
+        poster = null;
+        uploadSeconds = null;
+      } else {
+        uploadFile = converted.file;
+        poster = converted.poster;
+        uploadSeconds = uploadFile.type === "image/jpeg" || !(converted.seconds > 0)
+          ? null
+          : Math.round(converted.seconds);
+        if (uploadSeconds != null && uploadSeconds < 1) uploadSeconds = null;
+        const tooBig = outputTooBig(uploadFile);
+        if (tooBig) throw new Error(tooBig);
+        if (!uploadFile || uploadFile.type === "image/gif" || /\.gif$/i.test(uploadFile.name || "")) {
+          throw new Error(GIF_BROWSER_ERROR);
+        }
+        gifClip = (role || "media") === "media" && !!posterCapableFile(uploadFile);
       }
       pill.set(`Uploading ${mapGifProgress("upload", 0)}%`);
     }
@@ -803,7 +817,7 @@ async function uploadToR2(file, baseLabel, seconds, anchor, role, extra) {
       url = await sendJob;
     }
     dismissConnectToast();
-    return url;
+    return gifClip ? withGifClip(url) : url;
   } finally {
     if (pill) pill.done();
   }
@@ -1388,6 +1402,13 @@ async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg
     toast.error(`Too big — ${isVideo ? "100 MB" : "20 MB"} max`);
     return;
   }
+  if (file.type === "image/gif") {
+    const reason = gifSizeReject(file.size);
+    if (reason) {
+      toast.error(reason);
+      return;
+    }
+  }
   uploading = true;
   btn.disabled = true;
   // Cover stills only: the map texture is 512, so R2 stores the small JPEG.
@@ -1566,13 +1587,19 @@ async function sealedChatPoster(key, gifPoster, media, anchor, uploadToken) {
 async function uploadSealedChatMedia(file, anchor) {
   let uploadFile = file;
   let gifPoster = null;
+  let fromGif = false;
   if (file && file.type === "image/gif") {
     const converted = await convertGifFile(file, { role: "media" });
-    uploadFile = converted.file;
-    gifPoster = converted.poster || null;
+    if (converted.original) {
+      uploadFile = file;
+      gifPoster = null;
+    } else {
+      uploadFile = converted.file;
+      gifPoster = converted.poster || null;
+      if (!uploadFile || uploadFile.type === "image/gif") throw new Error(GIF_BROWSER_ERROR);
+    }
     const tooBig = outputTooBig(uploadFile);
     if (tooBig) throw new Error(tooBig);
-    if (!uploadFile || uploadFile.type === "image/gif") throw new Error(GIF_BROWSER_ERROR);
   }
   const video = !!(uploadFile && (uploadFile.type === "video/mp4" || uploadFile.type === "video/webm"));
   const still = !!(uploadFile && (
@@ -1580,7 +1607,9 @@ async function uploadSealedChatMedia(file, anchor) {
     || uploadFile.type === "image/jpeg"
     || uploadFile.type === "image/webp"
   ));
-  if (!video && !still) throw new Error("Only PNG, JPG, WebP, GIF, MP4, WebM");
+  const gifKept = !!(uploadFile && uploadFile.type === "image/gif");
+  if (!video && !still && !gifKept) throw new Error("Only PNG, JPG, WebP, GIF, MP4, WebM");
+  fromGif = !!(file && file.type === "image/gif" && video);
   if (video && uploadFile.size > VIDEO_MAX) throw new Error("Too big — 100 MB max");
   if (!video && uploadFile.size > IMAGE_MAX) throw new Error("Image is too large");
   const key = "chat:e2ee";
@@ -1608,6 +1637,7 @@ async function uploadSealedChatMedia(file, anchor) {
       const poster = await sealedChatPoster(key, gifPoster, media, anchor, uploadToken);
       if (poster) media.poster = poster;
     }
+    if (fromGif) media.gif = 1;
     return media;
   };
   if (REQUIRE_UPLOAD_AUTH) {

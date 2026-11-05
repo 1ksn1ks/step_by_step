@@ -35,6 +35,7 @@
     "sharp": "^0.35.5",
     "supercluster": "^8.0.1",
     "three": "^0.182.0",
-    "threebox-plugin": "^2.2.7"
+    "threebox-plugin": "^2.2.7",
+    "webm-muxer": "^5.1.4"
   }
 }

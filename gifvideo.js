@@ -1,11 +1,16 @@
-// A GIF is converted on the device before upload. Animated frames are drawn
-// at their real delays and recorded with MediaRecorder. One frame becomes a
-// JPEG. The .gif itself is never uploaded.
+// A GIF is converted on the device before upload. WebCodecs is tried first,
+// then a canvas stream recorded with MediaRecorder. If neither can encode,
+// the original GIF is uploaded unchanged. Nothing is converted on the server.
+// A converted clip also keeps a JPEG of frame 0 for the poster flow.
 import { coverVideoReject } from "./covervideolimit.js";
 
 export const GIF_BROWSER_ERROR = "This browser can't convert GIFs. Try Chrome or Safari";
 export const GIF_COVER_EDGE = 512;
 export const GIF_MEDIA_EDGE = 720;
+export const GIF_MAX_SECONDS = 30;
+export const GIF_MAX_BYTES = 8 * 1024 * 1024;
+export const GIF_TOO_LONG = "GIF max 30 seconds";
+export const GIF_TOO_BIG = "GIF max 8 MB";
 const JPEG_QUALITY = 0.85;
 const COVER_ROLES = new Set(["cover", "avatar", "polygon-cover"]);
 const MIME_CANDIDATES = [
@@ -94,10 +99,29 @@ export function recorderFallback(hasCaptureStream, mime) {
   return "";
 }
 
-// Polygon covers only. 30 seconds is allowed. 31 is not. Media is not capped.
+// Polygon covers use the cover-video sentence. Every other GIF, including
+// feed and chat media, stops at 30 seconds. 30 is allowed. 31 is not.
 export function gifDurationReject(role, seconds) {
-  if (normRole(role) !== "polygon-cover") return "";
-  return coverVideoReject(seconds);
+  if (normRole(role) === "polygon-cover") return coverVideoReject(seconds);
+  const n = Number(seconds);
+  if (Number.isFinite(n) && n > GIF_MAX_SECONDS) return GIF_TOO_LONG;
+  return "";
+}
+
+export function gifSizeReject(bytes) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= GIF_MAX_BYTES) return "";
+  return GIF_TOO_BIG;
+}
+
+// webcodecs, recorder, or original. Original means upload the GIF unchanged.
+export function conversionPlan(caps) {
+  const web = !!(caps && caps.webCodecs);
+  const mime = caps && caps.mime;
+  const rec = !!(caps && caps.captureStream && mime && storedType(mime));
+  if (web) return "webcodecs";
+  if (rec) return "recorder";
+  return "original";
 }
 
 export function gifCancelError() {
@@ -378,10 +402,115 @@ async function recordCanvas(canvas, mime, paintFrame, count, delays, signal, onP
   }
 }
 
+const WEB_CODECS = [
+  { encoder: "vp8", mux: "V_VP8" },
+  { encoder: "vp09.00.10.08", mux: "V_VP9" },
+];
+
+async function pickWebCodec(width, height) {
+  if (typeof VideoEncoder !== "function" || typeof VideoEncoder.isConfigSupported !== "function") return null;
+  for (const item of WEB_CODECS) {
+    try {
+      const support = await VideoEncoder.isConfigSupported({
+        codec: item.encoder,
+        width,
+        height,
+        bitrate: 1000000,
+      });
+      if (support && support.supported) return item;
+    } catch {
+      /* this codec is unusable */
+    }
+  }
+  return null;
+}
+
+async function recordWebCodecs(canvas, paint, count, delays, signal, onProgress) {
+  const codec = await pickWebCodec(canvas.width, canvas.height);
+  if (!codec || typeof VideoFrame !== "function") throw new Error(GIF_BROWSER_ERROR);
+  const mod = await import("webm-muxer");
+  const Muxer = mod.Muxer;
+  const Target = mod.ArrayBufferTarget;
+  if (typeof Muxer !== "function" || typeof Target !== "function") throw new Error(GIF_BROWSER_ERROR);
+  const target = new Target();
+  const muxer = new Muxer({
+    target,
+    video: { codec: codec.mux, width: canvas.width, height: canvas.height },
+    firstTimestampBehavior: "offset",
+  });
+  let failed = false;
+  const encoder = new VideoEncoder({
+    output(chunk, meta) {
+      try { muxer.addVideoChunk(chunk, meta); } catch { failed = true; }
+    },
+    error() { failed = true; },
+  });
+  encoder.configure({
+    codec: codec.encoder,
+    width: canvas.width,
+    height: canvas.height,
+    bitrate: 1000000,
+  });
+  const duration = delays.reduce((sum, n) => sum + n, 0);
+  const started = Date.now();
+  let timestamp = 0;
+  try {
+    for (let i = 0; i < count; i += 1) {
+      throwIfAborted(signal);
+      if (failed) throw new Error(GIF_BROWSER_ERROR);
+      await paint(i);
+      throwIfAborted(signal);
+      const frame = new VideoFrame(canvas, { timestamp, duration: delays[i] * 1000 });
+      try {
+        encoder.encode(frame, { keyFrame: i === 0 });
+      } finally {
+        frame.close();
+      }
+      timestamp += delays[i] * 1000;
+      if (onProgress) onProgress(conversionRatio(i + 1, count, Date.now() - started, duration));
+    }
+    await encoder.flush();
+    if (failed) throw new Error(GIF_BROWSER_ERROR);
+    muxer.finalize();
+    const buffer = target.buffer;
+    if (!buffer || !buffer.byteLength) throw new Error(GIF_BROWSER_ERROR);
+    return new Blob([buffer], { type: "video/webm" });
+  } finally {
+    try { encoder.close(); } catch { /* already closed */ }
+  }
+}
+
+// Null means neither encoder produced a clip. The caller keeps the GIF.
+async function encodeClip(canvas, mime, paint, count, delays, signal, onProgress) {
+  const plan = conversionPlan({
+    webCodecs: typeof VideoEncoder === "function",
+    captureStream: typeof canvas.captureStream === "function" && typeof MediaRecorder === "function",
+    mime,
+  });
+  if (plan === "original") return null;
+  if (plan === "webcodecs") {
+    try {
+      const blob = await recordWebCodecs(canvas, paint, count, delays, signal, onProgress);
+      if (blob && blob.size) return blob;
+    } catch (err) {
+      if (err && err.code === "GIF_CANCEL") throw err;
+    }
+  }
+  if (!mime || !storedType(mime)) return null;
+  try {
+    return await recordCanvas(canvas, mime, paint, count, delays, signal, onProgress);
+  } catch (err) {
+    if (err && err.code === "GIF_CANCEL") throw err;
+    return null;
+  }
+}
+
 export async function convertGifFile(file, options) {
   const opts = options || {};
   const signal = opts.signal;
   const role = normRole(opts.role) || "media";
+  const sizeReason = gifSizeReject(file && file.size);
+  if (sizeReason) throw new Error(sizeReason);
   let decoded = null;
   try {
     throwIfAborted(signal);
@@ -426,10 +555,8 @@ export async function convertGifFile(file, options) {
         ? (type) => MediaRecorder.isTypeSupported(type)
         : null,
     );
-    const kind = storedType(mime);
-    if (!kind) throw new Error(GIF_BROWSER_ERROR);
     if (opts.onProgress) opts.onProgress(0);
-    const videoBlob = await recordCanvas(
+    const videoBlob = await encodeClip(
       canvas,
       mime,
       paint,
@@ -438,11 +565,17 @@ export async function convertGifFile(file, options) {
       signal,
       opts.onProgress,
     );
+    if (!videoBlob || !videoBlob.size) {
+      return { file, poster: null, seconds, original: true };
+    }
+    const kind = storedType(videoBlob.type) || storedType(mime);
+    if (!kind) return { file, poster: null, seconds, original: true };
     const poster = new File([posterBlob], `${name}.poster.jpg`, { type: "image/jpeg", lastModified: Date.now() });
     return {
       file: new File([videoBlob], `${name}${kind.ext}`, { type: kind.type, lastModified: Date.now() }),
       poster,
       seconds,
+      original: false,
     };
   } finally {
     if (decoded && decoded.close) decoded.close();

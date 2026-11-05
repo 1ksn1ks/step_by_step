@@ -1,6 +1,8 @@
 // Paints one sealed chat file. The worker decrypts two jobs at a time.
 // A still waits until the bubble is near the encrypted list. Blob URLs
 // stay in memory and are revoked when the bubble leaves that list.
+import { gifStillCanvas } from "./gifvideo.js";
+import { loopPlayback, viewDistance } from "./gifloop.js";
 import { r2PublicBase } from "./r2public.js";
 
 const PLAY_FACE = '<span class="video-play-glass" aria-hidden="true">'
@@ -153,13 +155,137 @@ export function sealedChatMedia(payer, created) {
   return mediaByKey.get(`${payer}|${created}`) || null;
 }
 
+function motionReduced() {
+  try {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
+  }
+}
+
 async function revealStill(img, box, part) {
+  if (!box.isConnected) return;
+  const blob = await decryptJob(part);
+  if (!box.isConnected) return;
+  if (part && part.mime === "image/gif") {
+    const file = new File([blob], "frame.gif", { type: "image/gif" });
+    let canvas = null;
+    try { canvas = await gifStillCanvas(file); } catch { canvas = null; }
+    if (!box.isConnected) return;
+    if (canvas && img.parentNode) {
+      canvas.className = img.className || "";
+      img.replaceWith(canvas);
+      return;
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  track(box, url);
+  img.src = url;
+}
+
+async function revealClipPoster(video, box, part) {
   if (!box.isConnected) return;
   const blob = await decryptJob(part);
   if (!box.isConnected) return;
   const url = URL.createObjectURL(blob);
   track(box, url);
-  img.src = url;
+  video.poster = url;
+}
+
+const clipJobs = new WeakMap();
+const clipWatch = new WeakMap();
+let clipObserver = null;
+
+function dropClipSrc(video, box) {
+  clipJobs.delete(video);
+  const src = video.getAttribute("src");
+  try { video.pause(); } catch { /* already idle */ }
+  if (!src) return;
+  video.removeAttribute("src");
+  video.preload = "none";
+  const poster = video.getAttribute("poster");
+  try { video.load(); } catch { /* already idle */ }
+  if (poster) video.setAttribute("poster", poster);
+  if (src.startsWith("blob:")) {
+    URL.revokeObjectURL(src);
+    liveUrls.delete(src);
+    const list = blobUrls.get(box);
+    if (list) {
+      const at = list.indexOf(src);
+      if (at >= 0) list.splice(at, 1);
+    }
+  }
+}
+
+function runSealedClip(video, job, action) {
+  if (action === "play") {
+    video.dataset.loopOn = "1";
+    let pending = clipJobs.get(video);
+    if (!pending) {
+      let gate;
+      gate = decryptJob(job.media).then((blob) => {
+        if (!job.box.isConnected || clipJobs.get(video) !== gate) return;
+        const url = URL.createObjectURL(blob);
+        track(job.box, url);
+        video.src = url;
+      });
+      pending = gate;
+      clipJobs.set(video, pending);
+    }
+    pending.then(() => {
+      if (!video.isConnected || video.dataset.loopOn !== "1") return;
+      const started = video.play();
+      if (started && typeof started.catch === "function") started.catch(() => {});
+    }).catch(() => {});
+    return;
+  }
+  video.dataset.loopOn = "0";
+  try { video.pause(); } catch { /* already idle */ }
+  if (action === "unload" || action === "poster") dropClipSrc(video, job.box);
+}
+
+function ensureClipObserver() {
+  if (clipObserver || typeof IntersectionObserver !== "function") return clipObserver;
+  const root = document.getElementById("messages-from-encrypted-chat");
+  clipObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      const video = entry.target;
+      const job = clipWatch.get(video);
+      if (!job) continue;
+      const visible = !!(entry.isIntersecting && entry.intersectionRatio > 0);
+      video.dataset.loopOn = visible ? "1" : "0";
+      const view = entry.rootBounds || {
+        top: 0,
+        left: 0,
+        right: window.innerWidth || 0,
+        bottom: window.innerHeight || 0,
+      };
+      const distance = visible ? 0 : viewDistance(entry.boundingClientRect, view);
+      runSealedClip(video, job, loopPlayback({ reduced: motionReduced(), visible, distance }));
+    }
+  }, { root: root || null, threshold: [0, 0.15] });
+  return clipObserver;
+}
+
+function armSealedClip(video, box, media) {
+  clipWatch.set(video, { box, media });
+  const watch = ensureClipObserver();
+  if (watch) watch.observe(video);
+  else if (!motionReduced()) runSealedClip(video, { box, media }, "play");
+}
+
+function scheduleClipPoster(video, box, part) {
+  const run = () => {
+    if (!box.isConnected) return;
+    revealClipPoster(video, box, part).catch(() => {});
+  };
+  const watch = ensureNear();
+  if (!watch) {
+    run();
+    return;
+  }
+  waiting.set(box, run);
+  watch.observe(box);
 }
 
 function onNear(entries) {
@@ -275,6 +401,30 @@ export function mountSealedMedia(el, media) {
     return;
   }
   const video = typeof media.mime === "string" && media.mime.startsWith("video/");
+  const clip = video && (media.gif === 1 || media.gif === true);
+  const poster = media.poster;
+  const posterOk = poster && poster.fileKey && poster.header && (poster.b64 || poster.url);
+  if (clip) {
+    const box = document.createElement("div");
+    box.className = "chat-sealed";
+    const vid = document.createElement("video");
+    vid.className = "chat-msg-image";
+    vid.dataset.gif = "1";
+    vid.muted = true;
+    vid.defaultMuted = true;
+    vid.loop = true;
+    vid.playsInline = true;
+    vid.preload = "none";
+    vid.controls = false;
+    vid.setAttribute("muted", "");
+    vid.setAttribute("playsinline", "");
+    vid.setAttribute("loop", "");
+    box.appendChild(vid);
+    el.appendChild(box);
+    if (posterOk) scheduleClipPoster(vid, box, poster);
+    if (!motionReduced()) armSealedClip(vid, box, media);
+    return;
+  }
   const box = document.createElement("div");
   box.className = "chat-sealed";
   const img = document.createElement("img");
@@ -295,8 +445,6 @@ export function mountSealedMedia(el, media) {
     box.appendChild(button);
   }
   el.appendChild(box);
-  const poster = media.poster;
-  const posterOk = poster && poster.fileKey && poster.header && (poster.b64 || poster.url);
   if (posterOk) scheduleReveal(img, box, poster, video ? null : () => showFail(box));
   else if (!video) scheduleReveal(img, box, media, () => showFail(box));
 }

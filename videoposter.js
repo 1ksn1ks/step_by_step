@@ -351,6 +351,14 @@ function queuePlayFace(video) {
 // the centred broken-image overlay and shows the play button.
 export function showVideoFace(video) {
   if (!video) return;
+  // A GIF clip plays itself. The glass play button stays on real videos.
+  if (video.dataset && video.dataset.gif === "1") {
+    const posted = (typeof video.getAttribute === "function" && video.getAttribute("poster"))
+      || (typeof video.poster === "string" && video.poster)
+      || Number(video.readyState) >= 2;
+    if (posted && video.classList && typeof video.classList.add === "function") video.classList.add("has-poster");
+    return;
+  }
   const attr = typeof video.getAttribute === "function" ? video.getAttribute("poster") || "" : "";
   const prop = typeof video.poster === "string" ? video.poster : "";
   const loaded = Number(video.readyState) >= 2;
