@@ -12726,12 +12726,20 @@ html.feed-app :is(
   max-height: none;
   max-width: 100%;
 }
+/* Label, then one shared icon slot, then the value. The globe value is as
+   wide as the On column, the gap, the switch margin and the switch, so
+   Day-Night stays on the same right edge as the switches and the four
+   icons share one right edge. */
 #feed-menu #visibility-controls.in-drawer .mb-row:has(> .toolbar-column-btns) {
   position: relative;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: calc(var(--fu) * 0.8);
 }
 #feed-menu #visibility-controls.in-drawer .set-nav-icon {
   display: flex;
-  order: 0;
+  order: 2;
   flex: 0 0 calc(var(--fu) * 2.2);
   align-items: center;
   justify-content: center;
@@ -12748,12 +12756,14 @@ html.feed-app :is(
 #feed-menu #visibility-controls.in-drawer .mb-row > .toolbar-column-btns {
   position: static;
   order: 1;
-  display: flex !important;
-  align-items: center;
-  justify-content: flex-start;
+  display: block !important;
   flex: 1 1 auto;
   width: auto !important;
   min-width: 0;
+  height: max(44px, 6dvh) !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  line-height: max(44px, 6dvh);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -12766,10 +12776,10 @@ html.feed-app :is(
 #feed-menu #visibility-controls.in-drawer .mb-row:has(> .toolbar-column-btns) > span:not(.set-nav-icon):not(.set-switch) {
   position: relative;
   z-index: 1;
-  order: 2;
+  order: 3;
   flex: 0 0 auto;
   min-width: 4.5ch;
-  margin: 0 0 0 auto;
+  margin: 0;
   padding: 0 !important;
   overflow: visible;
   color: rgba(255, 255, 255, 0.45) !important;
@@ -12779,6 +12789,13 @@ html.feed-app :is(
   text-shadow: none !important;
   pointer-events: none;
   white-space: nowrap;
+}
+#feed-menu #visibility-controls.in-drawer .mb-row:not(.is-switch) > span:not(.set-nav-icon):not(.set-switch) {
+  width: calc(4.5ch + var(--fu) * 0.8 + var(--fu) * 0.55 + var(--fu) * 3.6);
+  min-width: calc(4.5ch + var(--fu) * 0.8 + var(--fu) * 0.55 + var(--fu) * 3.6);
+}
+#feed-menu #visibility-controls.in-drawer .set-switch {
+  order: 4;
 }
 #feed-menu #visibility-controls.in-drawer .mb-row:has(> .toolbar-column-btns) > span[id$="-value2"] {
   display: none !important;
