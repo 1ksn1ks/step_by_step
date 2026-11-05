@@ -71,6 +71,17 @@ function assertPublicViteEnv(names) {
   }
 }
 
+// Polyfill only Buffer (and process if needed for SDK). The page and the
+// ES decrypt worker share this. protocolImports covers 'buffer:' imports.
+const polyfillOptions = {
+  globals: {
+    Buffer: true,
+    global: true,
+    process: true,
+  },
+  protocolImports: true,
+}
+
 export default defineConfig(({ command, mode }) => {
   if (command === 'build') {
     const fromFiles = loadEnv(mode, process.cwd(), 'VITE_')
@@ -80,17 +91,16 @@ export default defineConfig(({ command, mode }) => {
   plugins: [
     r2PublicBasePage(),
     pwaHeaders(),
-    nodePolyfills({
-      // Polyfill only Buffer (and process if needed for SDK)
-      globals: {
-        Buffer: true,
-        global: true,  // Optional but good for SDK compat
-        process: true  // For process.env.NODE_ENV etc.
-      },
-      protocolImports: true  // For any 'buffer:' imports
-    }),
+    nodePolyfills(polyfillOptions),
     // Add any other plugins you have (e.g. react())
   ],
+  // The decrypt worker imports e2eemedia.js, which awaits libsodium at
+  // the top level. IIFE cannot emit that. ES keeps the module worker,
+  // and the same polyfills run inside it.
+  worker: {
+    format: 'es',
+    plugins: () => [nodePolyfills(polyfillOptions)],
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,
