@@ -252,6 +252,9 @@ function boot() {
   let debugEl = null;
   let pinned = null;
   let pinSaved = null;
+  let lastPin = null;
+  let geomFrame = 0;
+  let shellFor = null;
   // scrollTop from the moment the field was focused, before the browser
   // or this script scrolls it into view.
   let focusScroll = null;
@@ -367,10 +370,12 @@ function boot() {
     if (!shell || !saved) {
       pinned = null;
       pinSaved = null;
+      lastPin = null;
       return;
     }
     pinned = null;
     pinSaved = null;
+    lastPin = null;
     if (focusScroll && focusScroll.shell === shell) focusScroll = null;
     delete shell.dataset.kbPin;
     // Scroll anchoring would keep the focused field on screen and throw
@@ -516,11 +521,6 @@ function boot() {
     return null;
   }
 
-  // The field lives in the scrolling middle, not in a header or bottom bar.
-  function fieldInScroller(el, shell) {
-    return !!nearestScroller(el, shell);
-  }
-
   function applyPin(shell, metrics) {
     const probe = pinFrame(metrics.offsetTop, metrics.viewH, metrics.layoutH);
     if (!(probe.height > 0)) {
@@ -534,10 +534,12 @@ function boot() {
     ) {
       releasePin();
     }
-    // The card's translateY runs on a descendant. Finish it before the
-    // measurement, so a bottom sheet's height is the resting height.
-    settleEntry(shell);
     if (pinned !== shell) {
+      // The card's translateY runs on a descendant. Finish it before the
+      // measurement, so a bottom sheet's height is the resting height.
+      // Fresh pins only: getAnimations walks the subtree, and while the
+      // keyboard is moving the entry animation state cannot change.
+      settleEntry(shell);
       const rect = shell.getBoundingClientRect();
       const prior = focusScroll && focusScroll.shell === shell ? focusScroll.scroll : shell.scrollTop;
       pinned = shell;
@@ -566,6 +568,15 @@ function boot() {
       ownHeight: pinSaved.ownHeight,
       bottomAnchored: pinSaved.bottomAnchored,
     });
+    // Redundant events with the same band change nothing. Skipping the
+    // writes also skips the kbpin refit that follows them.
+    if (
+      lastPin && lastPin.shell === shell
+      && lastPin.top === frame.top
+      && lastPin.height === frame.height
+    ) {
+      return frame;
+    }
     // !important beats a stylesheet height of var(--app-h), inset: 0, and
     // the chat and settings rules that lock top and bottom. max-height and
     // min-height would otherwise keep a sheet in the covered band.
@@ -581,8 +592,21 @@ function boot() {
       shell.style.setProperty('padding-top', 'env(safe-area-inset-top, 0px)', 'important');
       shell.style.setProperty('padding-bottom', 'env(safe-area-inset-bottom, 0px)', 'important');
     }
+    lastPin = { shell, top: frame.top, height: frame.height };
     notifyPin();
     return frame;
+  }
+
+  // The shell and its nearest scroller are fixed for the whole focus
+  // session. Resolving them once keeps the ancestor walk and the
+  // per-ancestor style reads out of the keyboard animation loop.
+  function shellForField(el) {
+    if (shellFor && shellFor.el === el && shellFor.shell && shellFor.shell.isConnected) {
+      return shellFor;
+    }
+    const shell = findShell(el);
+    shellFor = { el, shell, scroller: shell ? nearestScroller(el, shell) : null };
+    return shellFor;
   }
 
   function place() {
@@ -615,7 +639,8 @@ function boot() {
       paintDebug(metrics, open, null);
       return;
     }
-    const shell = findShell(el);
+    const field = shellForField(el);
+    const shell = field.shell;
     if (!shell) {
       if (below) {
         try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (err) { /* older browsers */ }
@@ -624,21 +649,26 @@ function boot() {
       return;
     }
     const frame = applyPin(shell, metrics);
-    if (fieldInScroller(el, shell)) {
+    if (field.scroller) {
       try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (err) { /* older browsers */ }
-      const scroller = nearestScroller(el, shell);
-      if (scroller) {
-        const next = el.getBoundingClientRect();
-        const dy = scrollCorrection(next.top, next.bottom, metrics.offsetTop, edge);
-        if (dy) scroller.scrollTop += dy;
-      }
+      const next = el.getBoundingClientRect();
+      const dy = scrollCorrection(next.top, next.bottom, metrics.offsetTop, edge);
+      if (dy) field.scroller.scrollTop += dy;
     }
     paintDebug(metrics, open, frame);
   }
 
+  // The keyboard animation fires resize and scroll several times a frame.
+  // One geometry pass per frame still tracks the keyboard frame by frame,
+  // but each pass does a single layout instead of re-walking the shell
+  // ancestors on every event.
   function onGeometry() {
-    syncHeight();
-    place();
+    if (geomFrame) return;
+    geomFrame = requestAnimationFrame(() => {
+      geomFrame = 0;
+      syncHeight();
+      place();
+    });
   }
 
   function finishBlur() {
@@ -676,7 +706,7 @@ function boot() {
 
   function noteFocusScroll(el) {
     if (!isTextControl(el)) return;
-    const shell = findShell(el);
+    const shell = shellForField(el).shell;
     if (!shell) return;
     if (focusScroll && focusScroll.shell === shell) return;
     focusScroll = { shell, scroll: shell.scrollTop };
@@ -703,7 +733,7 @@ function boot() {
   window.addEventListener('resize', onGeometry, true);
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', onGeometry, true);
-    window.visualViewport.addEventListener('scroll', place, true);
+    window.visualViewport.addEventListener('scroll', onGeometry, true);
   }
   document.addEventListener('pointerdown', (event) => noteFocusScroll(event.target), true);
   // A tap records the scroll on pointerdown. A script calls focus()
