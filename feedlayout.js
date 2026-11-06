@@ -32,6 +32,7 @@ import { fillTopicIds, useTopicId } from './topicidintext.js';
 import { payerUsernameNode } from './payerlink.js';
 import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { openPreview } from './fullscreenmedia.js';
+import { collapseComposers } from './chatcomposer.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
 import { VIEW_SORT_BATCH, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs, zeroViewCounts } from './viewsort.js';
@@ -7128,6 +7129,8 @@ function clearDrawHeader() {
 }
 
 function clearFeedMessenger(panel) {
+  // A fullscreen composer goes back to its row with the page.
+  collapseComposers();
   unplaceFeedChat();
   clearLoadOptions();
   clearChatOptions();
@@ -7411,6 +7414,8 @@ function hideFeedChatPanel() {
 }
 
 function closeFeedChat() {
+  // The fullscreen composer's history entry sits on the chat's; drop it first.
+  collapseComposers();
   if (typeof window.closeTopicChatEdit === 'function') window.closeTopicChatEdit();
   if (typeof window.closeE2eeChatEdit === 'function') window.closeE2eeChatEdit();
   if (feedChatKind === 'load' && loadOptionsShown()) {

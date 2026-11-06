@@ -47,6 +47,14 @@ function twinFor(field) {
 function fitChatComposerWork(field) {
   if (!field || field.getClientRects().length === 0) return;
   const row = field.closest(".chat-compose-row");
+  const compose = field.closest(".chat-compose");
+  syncComposerDraft(field);
+  // Fullscreen: CSS fills the editor, so no measured height is written.
+  if (compose && compose.classList.contains("is-expanded")) {
+    if (field.style.getPropertyValue("height")) field.style.removeProperty("height");
+    if (field.style.overflowY !== "auto") field.style.overflowY = "auto";
+    return;
+  }
   const cs = getComputedStyle(field);
   const min = parseFloat(cs.minHeight);
   const floor = Number.isFinite(min) ? min : 0;
@@ -73,4 +81,128 @@ function fitChatComposerWork(field) {
   const overflow = full - next > 4 ? "auto" : "hidden";
   if (field.style.overflowY !== overflow) field.style.overflowY = overflow;
   if (row) row.classList.toggle("is-grown", full > floor + 4);
+}
+
+// has-draft on .chat-compose: there is text, an image, or an edit under
+// way. It shows the byte counter line and the fullscreen button (style.css).
+// Toggled only when that changes, so typing writes no class.
+export function syncComposerDraft(field) {
+  const compose = field && field.closest(".chat-compose");
+  if (!compose) return;
+  const draft = field.value !== ""
+    || compose.classList.contains("is-editing")
+    || !!compose.querySelector(":scope > .chat-attach-preview:not([hidden])");
+  compose.classList.toggle("has-draft", draft);
+}
+
+// Fullscreen composer, as Telegram has it. The byte counter moves to a
+// small line above the row (.chat-compose-caption), so the field keeps the
+// row's width, and a button in the field's top right corner opens the
+// editor over the chat (everything under the chat header). The same
+// button, Back, Escape, or Send closes it. Back is a history layer
+// ('composerfull') on the chat page.
+const EXPAND_ICON = '<path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/>';
+const COLLAPSE_ICON = '<path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="m14 10 7-7"/><path d="m3 21 7-7"/>';
+let expandedCompose = null;
+let lastExpanded = null;
+let layerDefined = false;
+
+function paintExpandButton(compose) {
+  const btn = compose && compose.querySelector(".chat-compose-expand");
+  if (!btn) return;
+  const on = compose.classList.contains("is-expanded");
+  const label = on ? "Exit full screen" : "Full screen";
+  btn.setAttribute("aria-label", label);
+  btn.title = label;
+  btn.setAttribute("aria-pressed", on ? "true" : "false");
+  btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + (on ? COLLAPSE_ICON : EXPAND_ICON) + "</svg>";
+}
+
+function defineComposerLayer() {
+  if (layerDefined || typeof window.defineLayer !== "function") return;
+  layerDefined = true;
+  window.defineLayer("composerfull", {
+    parent: "feedchat",
+    open() {
+      const compose = lastExpanded;
+      if (compose && compose.isConnected && compose.getClientRects().length) {
+        setComposerExpanded(compose, true, { fromHistory: true });
+      }
+    },
+    close() {
+      if (expandedCompose) setComposerExpanded(expandedCompose, false, { fromHistory: true });
+    },
+  });
+}
+
+export function setComposerExpanded(compose, on, { fromHistory = false } = {}) {
+  if (!compose) return;
+  const field = compose.querySelector("textarea");
+  const was = compose.classList.contains("is-expanded");
+  if (was === on) return;
+  if (on && expandedCompose && expandedCompose !== compose) setComposerExpanded(expandedCompose, false);
+  compose.classList.toggle("is-expanded", on);
+  expandedCompose = on ? compose : null;
+  if (on) lastExpanded = compose;
+  paintExpandButton(compose);
+  if (field) {
+    fitChatComposer(field);
+    if (field.isConnected && compose.getClientRects().length) {
+      try { field.focus({ preventScroll: true }); } catch { field.focus(); }
+      // Opening keeps the caret's line in view in the taller box.
+      if (on && field.selectionStart >= field.value.length) field.scrollTop = field.scrollHeight;
+    }
+  }
+  if (fromHistory) return;
+  defineComposerLayer();
+  if (on) {
+    if (window.layerOpened) window.layerOpened("composerfull");
+  } else if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen("composerfull")) {
+    window.layerClosedByUI("composerfull");
+  }
+}
+
+// The chat page closed under it: drop the fullscreen with no animation.
+export function collapseComposers() {
+  if (expandedCompose) setComposerExpanded(expandedCompose, false);
+}
+
+export function mountComposerExpand(field, counter, send) {
+  const compose = field && field.closest(".chat-compose");
+  const row = field && field.closest(".chat-compose-row");
+  if (!compose || !row || compose.dataset.expandMounted === "1") return;
+  compose.dataset.expandMounted = "1";
+  const caption = document.createElement("div");
+  caption.className = "chat-compose-caption";
+  if (counter) caption.appendChild(counter);
+  compose.insertBefore(caption, row);
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "chat-compose-expand";
+  field.after(btn);
+  paintExpandButton(compose);
+  // Keep the field focused, so the phone keyboard stays up.
+  btn.addEventListener("pointerdown", (event) => event.preventDefault());
+  btn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setComposerExpanded(compose, !compose.classList.contains("is-expanded"));
+  });
+  field.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !compose.classList.contains("is-expanded")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setComposerExpanded(compose, false);
+  });
+  // Send (or Save in an edit) closes it; a send the byte limit blocks does not.
+  if (send) {
+    send.addEventListener("click", () => {
+      if (!compose.classList.contains("is-expanded")) return;
+      if (send.classList.contains("hcs-send-blocked")) return;
+      setComposerExpanded(compose, false);
+    });
+  }
+  syncComposerDraft(field);
 }

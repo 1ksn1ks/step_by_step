@@ -20106,3 +20106,191 @@ img.is-gif-hit {
     transition: none;
   }
 }
+
+/* Topic and E2EE composer, roomier (chatcomposer.js mountComposerExpand).
+   The byte counter left the row for a small line above it
+   (.chat-compose-caption), shown while there is a draft, so the field
+   takes the row's whole width. The field grows to eight lines (at most a
+   third of the screen) and turns from a pill into a rounded box once it
+   wraps. A button in its top right corner (.chat-compose-expand) opens the
+   fullscreen editor (.is-expanded): it covers the chat under the header,
+   the text fills it, and the image button, counter and send sit along the
+   bottom. Text selectors carry both field ids to outrank the feed shell's
+   .toolbar-column:not(#input-field) height rule. */
+:is(#topic-chat-container, #encrypted-chat-container) {
+  /* About 1.4 x the 2dvh text (it was 1.1, lines touching). The one-line
+     padding is worked out from it, so a single line stays centred. */
+  --compose-line: 2.8dvh;
+  --compose-expand: max(26px, 3.2dvh);
+  --compose-field-pad: max(14px, 1.8dvh);
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose .chat-compose-field {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose .chat-compose-row textarea:is(#user-write-message, #user-write-message-encrypted-chat) {
+  flex: 1 1 auto;
+  width: auto !important;
+  max-height: min(calc(var(--compose-size) + var(--compose-line) * 7), calc(var(--app-h, 100dvh) * 0.35)) !important;
+  padding-left: var(--compose-field-pad) !important;
+  padding-right: calc(var(--compose-field-pad) + var(--compose-expand)) !important;
+  transition: border-radius 160ms ease;
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose .chat-compose-row.is-grown textarea:is(#user-write-message, #user-write-message-encrypted-chat) {
+  border-radius: max(16px, 2.2dvh) !important;
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose > .chat-compose-caption {
+  display: none;
+  align-items: center;
+  justify-content: flex-end;
+  margin: 0 0 calc(var(--compose-gap) * -0.5);
+  padding: 0 calc(var(--compose-size) * 0.3);
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose.has-draft > .chat-compose-caption {
+  display: flex;
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose .chat-compose-caption .hcs-byte-counter {
+  position: static;
+  height: auto;
+  max-width: none;
+  font-size: max(11px, 1.3dvh);
+  line-height: 1.2;
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose .chat-compose-expand {
+  appearance: none;
+  position: absolute;
+  z-index: 2;
+  top: calc((var(--compose-size) - var(--compose-expand)) / 2);
+  right: max(6px, 0.9dvh);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--compose-expand);
+  height: var(--compose-expand);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 160ms ease, background-color 160ms ease;
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose:is(.has-draft, .is-expanded) .chat-compose-expand {
+  display: inline-flex;
+}
+/* 44px touch target around the small icon. */
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose .chat-compose-expand::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(44px, 100%);
+  height: max(44px, 100%);
+  translate: -50% -50%;
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose .chat-compose-expand svg {
+  display: block;
+  width: 62%;
+  height: 62%;
+  pointer-events: none;
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose .chat-compose-expand:is(:hover, :active),
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose .chat-compose-expand[aria-pressed="true"] {
+  color: #22D3EE;
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose .chat-compose-expand:focus {
+  outline: none;
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose .chat-compose-expand:focus-visible {
+  outline: 2px solid #22D3EE;
+  outline-offset: 2px;
+}
+
+/* Fullscreen editor: over the chat under its header (the composer's
+   positioned parent, .chat-topic-chat-container, which the keyboard pin
+   also shrinks to the visible area). */
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose.is-expanded {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "preview preview preview"
+    "edit edit edit"
+    "field field field"
+    "image caption send";
+  gap: 0 var(--compose-gap);
+  box-sizing: border-box;
+  width: auto;
+  height: auto;
+  margin: 0 !important;
+  padding: var(--compose-pad) var(--compose-pad) calc(var(--compose-pad) + env(safe-area-inset-bottom));
+  border-top: 0;
+  background: #0a0a12;
+  animation: composerExpandIn 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose.is-expanded > .chat-compose-row {
+  display: contents;
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose.is-expanded > .chat-attach-preview {
+  grid-area: preview;
+  margin-bottom: var(--compose-gap);
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose.is-expanded > .chat-edit-bar {
+  grid-area: edit;
+  margin-bottom: var(--compose-gap);
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose.is-expanded > .chat-compose-caption {
+  grid-area: caption;
+  display: flex;
+  justify-content: flex-end;
+  margin: var(--compose-gap) 0 0;
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose.is-expanded .chat-compose-field {
+  grid-area: field;
+  flex-direction: column;
+  min-height: 0;
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose.is-expanded .msg-image-btn {
+  grid-area: image;
+  margin-top: var(--compose-gap);
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose.is-expanded .msg-send-btn {
+  grid-area: send;
+  margin-top: var(--compose-gap);
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose.is-expanded .chat-compose-row textarea:is(#user-write-message, #user-write-message-encrypted-chat) {
+  flex: 1 1 0;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding-top: max(12px, 1.6dvh) !important;
+  padding-bottom: max(12px, 1.6dvh) !important;
+  border-radius: max(16px, 2.2dvh) !important;
+  overflow-y: auto !important;
+}
+:is(#topic-chat-container, #encrypted-chat-container) .chat-compose.is-expanded .chat-compose-expand {
+  top: max(8px, 1dvh);
+}
+@keyframes composerExpandIn {
+  from { opacity: 0; translate: 0 2dvh; }
+  to { opacity: 1; translate: 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(#topic-chat-container, #encrypted-chat-container) .chat-compose.is-expanded {
+    animation: none;
+  }
+  :is(#topic-chat-container, #encrypted-chat-container) .chat-compose .chat-compose-row textarea:is(#user-write-message, #user-write-message-encrypted-chat),
+  :is(#topic-chat-container, #encrypted-chat-container) .chat-compose .chat-compose-expand {
+    transition: none;
+  }
+}

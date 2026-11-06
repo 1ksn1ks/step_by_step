@@ -15,7 +15,7 @@ import { renderLoadedTopics } from './handleallmessages.js';
 import { toast } from './toast.js';
 import { formatHcsUsage, HCS_TOO_LONG } from './hcschunks.js';
 import { composerWireBytes } from './chatimage.js';
-import { fitChatComposer } from './chatcomposer.js';
+import { fitChatComposer, mountComposerExpand, syncComposerDraft } from './chatcomposer.js';
 import { setTextInPlace } from './textinplace.js';
 import { closeDrawAnchor } from './drawhere.js';
 import { closePressAnchor } from './poiinfo.js';
@@ -849,7 +849,11 @@ export function CloseALL() {
     const counter = document.getElementById(counterId);
     const send = document.getElementById(sendId);
     containComposerTouch(ta);
+    // Counter line above the row and the fullscreen button (chatcomposer.js).
+    mountComposerExpand(ta, counter, send);
     const paintBytes = () => {
+      // An image added or cleared changes the draft without an input event.
+      syncComposerDraft(ta);
       if (!counter) return;
       // Edit mode paints the sealed edit size itself. A normal send count
       // would ignore the original image and the edit envelope.
