@@ -2332,6 +2332,65 @@
         </div>
       </div>
 
+      <!-- Help for the Options pages in the feed. The ? in each Options bar
+           (feedlayout.js optionsHelp) opens one; cssLogic.js gives each a
+           history layer, so Back closes it. -->
+      <div id="load-filters-help-overlay" class="info-overlay" style="display: none;">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+          <h3 class="info-overlay-title">Load options</h3>
+          <p class="info-overlay-subtitle">Choose which posts show on the map.</p>
+          <ul class="info-overlay-list">
+            <li><b>Unlock</b> — paste a topic's private key or password to read its locked posts. <b>all</b> loads every post and unlocks the locked ones. <b>few</b> shows only the locked posts.</li>
+            <li><b>Block</b> — hide posts from the accounts you list. Separate account IDs with commas.</li>
+            <li><b>Time</b> — show only posts from a date and time range. Tap <b>From</b> and <b>To</b> to pick them.</li>
+            <li><b>From</b> — show only posts from the accounts you list.</li>
+            <li><b>Apply Filter</b> — shows the result on the map. Nothing is sent.</li>
+            <li><b>Save Filters</b> — saves the filter as a public message on the topic, so you can bring it back on any device. Your wallet confirms it and pays a tiny HBAR fee.</li>
+            <li><b>Load Filters</b> — fills in the last filter you saved on this topic.</li>
+          </ul>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('load-filters-help-overlay').style.display='none'">Got it</button>
+          </div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('load-filters-help-overlay').style.display='none'">×</div>
+        </div>
+      </div>
+
+      <div id="topic-chat-options-help-overlay" class="info-overlay" style="display: none;">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+          <h3 class="info-overlay-title">Chat options</h3>
+          <p class="info-overlay-subtitle">Choose which messages this chat shows.</p>
+          <ul class="info-overlay-list">
+            <li><b>Block</b> — hide messages from the accounts you list. Separate account IDs with commas.</li>
+            <li><b>Time</b> — show only messages sent between <b>From</b> and <b>To</b>.</li>
+            <li><b>From</b> — show only messages from the accounts you list.</li>
+            <li><b>Apply Filter</b> — applies Block, Time, and From together to the loaded chat. Only your view changes.</li>
+            <li><b>Save Filters</b> — saves the filter as a public message on the topic, so it comes back on any device. Your wallet confirms it and pays a tiny HBAR fee.</li>
+            <li><b>Load Filters</b> — fills in the last filter you saved on this topic.</li>
+          </ul>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('topic-chat-options-help-overlay').style.display='none'">Got it</button>
+          </div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('topic-chat-options-help-overlay').style.display='none'">×</div>
+        </div>
+      </div>
+
+      <div id="e2ee-chat-options-help-overlay" class="info-overlay" style="display: none;">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+          <h3 class="info-overlay-title">E2EE chat options</h3>
+          <p class="info-overlay-subtitle">Filters, plus the keys that lock this chat.</p>
+          <ul class="info-overlay-list">
+            <li><b>Block</b>, <b>Time</b>, <b>From</b> — the same filters as in topic chat: hide accounts, keep a date and time range, or keep only some accounts. <b>Apply Filter</b> changes only your view. <b>Save Filters</b> saves it as a public message on the topic (your wallet confirms it), and <b>Load Filters</b> brings back your last saved one.</li>
+            <li><b>Pin Public Key</b> — for the topic admin: posts the chat's public key, so new messages are encrypted to it. Pinning a new key replaces the old one.</li>
+            <li><b>Set Password</b> — for the topic admin: locks the chat's private key with a password on this device and posts only the locked copy. Members then unlock the chat with that password.</li>
+            <li><b>Change Password</b> — for the topic admin: unlocks the saved key with the old password, locks it again with the new one, and posts that. The old password stops working for the new copy.</li>
+          </ul>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('e2ee-chat-options-help-overlay').style.display='none'">Got it</button>
+          </div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('e2ee-chat-options-help-overlay').style.display='none'">×</div>
+        </div>
+      </div>
+
   </body>
 
   <script type="module" src="/main.js"></script>

@@ -6653,7 +6653,7 @@ function mountChatOptions(kind, openId, closeId) {
   const title = document.createElement('h2');
   title.className = 'feed-chat-title';
   title.textContent = 'Options';
-  bar.append(back, title);
+  bar.append(back, title, optionsHelp(kind === 'e2ee' ? 'e2ee-chat-options-help-overlay' : 'topic-chat-options-help-overlay'));
   const body = document.createElement('div');
   body.className = 'chat-options-body';
   placeFeedNode(tabs, body);
@@ -6679,6 +6679,28 @@ function mountChatOptions(kind, openId, closeId) {
     slideChatOptions(tabs.style.display !== 'none');
   });
   chatOptionsWatch.observe(tabs, { attributes: true, attributeFilter: ['style'] });
+}
+
+// The ? on the right of an Options page bar (Load, topic chat, E2EE chat).
+// It opens that page's help overlay from index.html; cssLogic.js gives the
+// overlay its history layer, so Back closes it.
+function optionsHelp(overlayId) {
+  const actions = document.createElement('div');
+  actions.className = 'feed-chat-actions';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'options-help-btn';
+  btn.setAttribute('aria-label', 'Help');
+  btn.title = 'Help';
+  btn.textContent = '?';
+  bindPress(btn);
+  btn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const overlay = document.getElementById(overlayId);
+    if (overlay) overlay.style.display = 'block';
+  });
+  actions.appendChild(btn);
+  return actions;
 }
 
 function pressChatOptions(id) {
@@ -6742,7 +6764,7 @@ function mountLoadOptions() {
   const title = document.createElement('h2');
   title.className = 'feed-chat-title';
   title.textContent = 'Options';
-  bar.append(back, title);
+  bar.append(back, title, optionsHelp('load-filters-help-overlay'));
   const body = document.createElement('div');
   body.className = 'load-options-body';
   page.append(bar, body);

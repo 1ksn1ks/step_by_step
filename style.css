@@ -19532,3 +19532,41 @@ img.is-gif-hit {
     animation: none !important;
   }
 }
+
+/* The ? on the right of each Options page bar (feedlayout.js optionsHelp)
+   mirrors that bar's back arrow: the same 44px box, a ? as tall as the
+   arrow (2.2 x the bar's --fu), white at rest, cyan on press. */
+#feed-chat :is(.load-options-page, .chat-options-page) > .feed-chat-bar .feed-chat-actions > .options-help-btn {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 44px !important;
+  min-width: 44px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #fff !important;
+  font-family: Inter, system-ui, sans-serif !important;
+  font-size: calc(var(--fu) * 2.2) !important;
+  font-weight: 600;
+  line-height: 1 !important;
+  transform: none !important;
+  animation: none !important;
+  cursor: pointer;
+}
+#feed-chat :is(.load-options-page, .chat-options-page) > .feed-chat-bar .feed-chat-actions > .options-help-btn:is(:hover, :active, .is-hold) {
+  color: #22D3EE !important;
+}
+#feed-chat :is(.load-options-page, .chat-options-page) > .feed-chat-bar .feed-chat-actions > .options-help-btn:focus {
+  outline: none;
+}
+#feed-chat :is(.load-options-page, .chat-options-page) > .feed-chat-bar .feed-chat-actions > .options-help-btn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px #22D3EE !important;
+}

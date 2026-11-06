@@ -317,7 +317,14 @@ export function CloseALL() {
         restoreMapDrawer();
       },
     });
-    PANEL_HELP.forEach(([, overlayId]) => {
+    // The Options pages in the feed (Load, topic chat, E2EE chat) open
+    // their own help from a ? that feedlayout.js builds into their bar.
+    const OPTIONS_HELP = [
+      "load-filters-help-overlay",
+      "topic-chat-options-help-overlay",
+      "e2ee-chat-options-help-overlay",
+    ];
+    [...PANEL_HELP.map(([, overlayId]) => overlayId), ...OPTIONS_HELP].forEach((overlayId) => {
       const overlay = document.getElementById(overlayId);
       if (!overlay) return;
       const name = "overlay:" + overlayId;
