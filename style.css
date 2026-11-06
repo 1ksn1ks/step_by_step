@@ -20153,7 +20153,10 @@ img.is-gif-hit {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
 }
+/* Both on row 1. The counter comes first in the DOM but sits in column 3,
+   so auto-placement put the chevron (column 2) on a second row. */
 :is(#topic-chat-container, #encrypted-chat-container) .chat-compose .chat-compose-caption .hcs-byte-counter {
+  grid-row: 1;
   grid-column: 3;
   justify-self: end;
 }
@@ -20163,6 +20166,7 @@ img.is-gif-hit {
 :is(#topic-chat-container, #encrypted-chat-container) .chat-compose .chat-compose-drop {
   appearance: none;
   position: relative;
+  grid-row: 1;
   grid-column: 2;
   display: none;
   align-items: center;
