@@ -19178,3 +19178,36 @@ img.is-gif-hit {
     animation: none;
   }
 }
+
+/* Feed open / close (feedlayout.js playFeedMotion). The feed screen rises
+   in over the map and drops away to it, the same motion as the full-screen
+   post text. Closing writes display:none inline at once (that is the
+   state); .is-leaving keeps the screen painted, untouchable, until the
+   animation ends. */
+#feed-layout.is-leaving {
+  display: block !important;
+  pointer-events: none;
+}
+#feed-layout.is-leaving * {
+  pointer-events: none !important;
+}
+#feed-layout.is-entering {
+  animation: feedScreenIn 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+#feed-layout.is-leaving {
+  animation: feedScreenOut 220ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+@keyframes feedScreenIn {
+  from { opacity: 0; translate: 0 3vh; }
+  to { opacity: 1; translate: 0 0; }
+}
+@keyframes feedScreenOut {
+  from { opacity: 1; translate: 0 0; }
+  to { opacity: 0; translate: 0 3vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #feed-layout.is-entering,
+  #feed-layout.is-leaving {
+    animation: none;
+  }
+}

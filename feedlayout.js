@@ -4439,6 +4439,38 @@ function syncCover() {
   syncFeedVideos();
 }
 
+// Opening the feed rises it in over the map; closing drops it away to the
+// map. root.style.display stays the state (feedOn, the 'feed' history
+// watcher) and flips at once. .is-leaving only keeps the screen painted
+// while it goes, and html.feed-app stays on until then, so the header keeps
+// its feed sizes as it fades. Durations live in style.css (feedScreenIn /
+// feedScreenOut); the timer is a fallback. No motion for the startup
+// restore (before the first frame) or with reduced motion.
+let feedMotionReady = false;
+requestAnimationFrame(() => { feedMotionReady = true; });
+let feedMotionTimer = 0;
+
+function endFeedMotion() {
+  clearTimeout(feedMotionTimer);
+  feedMotionTimer = 0;
+  const leaving = root.classList.contains('is-leaving');
+  root.classList.remove('is-entering', 'is-leaving');
+  if (leaving) syncCover();
+}
+
+function playFeedMotion(kind) {
+  endFeedMotion();
+  if (!feedMotionReady || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+  root.classList.add(kind === 'in' ? 'is-entering' : 'is-leaving');
+  feedMotionTimer = setTimeout(endFeedMotion, 900);
+  return true;
+}
+
+root.addEventListener('animationend', (event) => {
+  if (event.target !== root) return;
+  if (event.animationName === 'feedScreenIn' || event.animationName === 'feedScreenOut') endFeedMotion();
+});
+
 function openLoadFromFeed() {
   openFeedChat('load');
 }
@@ -5319,6 +5351,8 @@ async function startPost() {
 }
 
 function applyFeed(on) {
+  // Only a feed that was on screen plays the close (a peeked one is hidden).
+  const wasCovering = feedCovers();
   paintToggle(on);
   writeMode(on ? 'feed' : 'map');
   if (!on) {
@@ -5349,6 +5383,8 @@ function applyFeed(on) {
     peek = false;
     root.classList.remove('is-peek');
     root.style.display = 'block';
+    if (opening) playFeedMotion('in');
+    else endFeedMotion();
     ensurePlacePack();
     showFeedTabs();
     measureTabHide();
@@ -5368,7 +5404,8 @@ function applyFeed(on) {
   rememberScroll();
   resetQueues();
   root.style.display = 'none';
-  syncCover();
+  // While it drops away, html.feed-app stays; endFeedMotion runs syncCover.
+  if (!(wasCovering && playFeedMotion('out'))) syncCover();
   if (streamOff) {
     streamOff();
     streamOff = null;
