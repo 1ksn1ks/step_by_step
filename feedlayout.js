@@ -6487,37 +6487,52 @@ let drawTitleWatch = null;
 let feedChatLive = false;
 let feedChatPlaced = [];
 
-const FEED_CHAT_SHEETS = {
-  topic: [
-    'options-from-topic-chat',
-    'time-from-topic-chat',
-    'time-from-topic-chat-filter',
-    'load-load-from-users-label-from-topic-chat',
-    'load-block-from-users-label-from-topic-chat',
-    'load-msgs-from-ids-from-topic-chat',
-    'load-blocks-from-ids-from-topic-chat',
-    'load-load-from-users-from-topic-chat',
-    'load-block-from-users-from-topic-chat',
-  ],
-  e2ee: [
-    'options-from-encrypted-chat',
-    'encrypted-chat-public-key',
-    'encrypted-chat-change-password-key-label',
-    'encrypted-chat-change-password-key',
-    'encrypted-chat-new-password-key-label',
-    'encrypted-chat-new-password-key',
-    'pin-public-key-from-encrypted-chat',
-    'change-password-encrypted-chat',
-    'set-password-encrypted-chat',
-    'time-from-encrypted-chat',
-    'time-from-encrypted-chat-filter',
-    'load-load-from-users-label-from-encrypted-chat',
-    'load-block-from-users-label-from-encrypted-chat',
-    'load-msgs-from-ids-from-encrypted-chat',
-    'load-blocks-from-ids-from-encrypted-chat',
-    'load-load-from-users-from-encrypted-chat',
-    'load-block-from-users-from-encrypted-chat',
-  ],
+// Topic and E2EE chat Options, a page of its own (mountChatOptions). tabs
+// is the panel of Block / Time / From (and the E2EE key rows) buttons that
+// cssLogic.js shows with the header Options button. Each card holds the
+// nodes one of those tabs shows; style.css shows a card while any of them is.
+const FEED_CHAT_OPTIONS = {
+  topic: {
+    tabs: 'options-from-topic-chat',
+    cards: [
+      ['Time range', ['time-from-topic-chat', 'time-from-topic-chat-filter']],
+      ['Show messages from', [
+        'load-load-from-users-label-from-topic-chat',
+        'load-msgs-from-ids-from-topic-chat',
+        'load-load-from-users-from-topic-chat',
+      ]],
+      ['Block users', [
+        'load-block-from-users-label-from-topic-chat',
+        'load-blocks-from-ids-from-topic-chat',
+        'load-block-from-users-from-topic-chat',
+      ]],
+    ],
+  },
+  e2ee: {
+    tabs: 'options-from-encrypted-chat',
+    cards: [
+      ['Public key', ['encrypted-chat-public-key', 'pin-public-key-from-encrypted-chat']],
+      ['Password', [
+        'encrypted-chat-change-password-key-label',
+        'encrypted-chat-change-password-key',
+        'encrypted-chat-new-password-key-label',
+        'encrypted-chat-new-password-key',
+        'change-password-encrypted-chat',
+        'set-password-encrypted-chat',
+      ]],
+      ['Time range', ['time-from-encrypted-chat', 'time-from-encrypted-chat-filter']],
+      ['Show messages from', [
+        'load-load-from-users-label-from-encrypted-chat',
+        'load-msgs-from-ids-from-encrypted-chat',
+        'load-load-from-users-from-encrypted-chat',
+      ]],
+      ['Block users', [
+        'load-block-from-users-label-from-encrypted-chat',
+        'load-blocks-from-ids-from-encrypted-chat',
+        'load-block-from-users-from-encrypted-chat',
+      ]],
+    ],
+  },
 };
 
 function placeFeedNode(node, parent) {
@@ -6556,7 +6571,14 @@ function loadOptionsShown() {
 // the page itself: prep, off to the right, then slide in. Back slides it
 // out onto Load.
 function slideLoadOptions(open) {
-  const page = feedChat.querySelector('.load-options-page');
+  slideSubPage(feedChat.querySelector('.load-options-page'), open, 'load');
+}
+
+// A page over the chat page (Load Options, chat Options): in from the
+// right while the chat slides a quarter left and dims, out the same way.
+// After it leaves, focus goes back to the chat's Back when kind is still
+// the open chat.
+function slideSubPage(page, open, kind) {
   if (!page) {
     feedChat.classList.remove('is-nav-under');
     return;
@@ -6592,8 +6614,109 @@ function slideLoadOptions(open) {
     page.hidden = true;
     page.classList.remove('nav-off', 'nav-prep', 'nav-cover');
     delete page.dataset.navLeaving;
-    if (feedChatKind === 'load') feedChatBack.focus({ preventScroll: true, focusVisible: false });
+    if (kind && feedChatKind === kind) feedChatBack.focus({ preventScroll: true, focusVisible: false });
   });
+}
+
+// Chat Options as a page. The tab panel and the section nodes move into it
+// (placeFeedNode, so closing the chat puts them back). cssLogic.js still
+// shows and hides all of them; the page follows the tab panel's display.
+// Back on the page and history Back both press the header's close button,
+// so cssLogic.js also resets the open section.
+let chatOptionsWatch = null;
+let chatOptionsOpenId = '';
+let chatOptionsCloseId = '';
+
+function mountChatOptions(kind, openId, closeId) {
+  const spec = FEED_CHAT_OPTIONS[kind];
+  const tabs = spec && document.getElementById(spec.tabs);
+  if (!tabs) return;
+  chatOptionsOpenId = openId;
+  chatOptionsCloseId = closeId;
+  // Left open on the map panel: the chat opens on the chat, not its options.
+  if (tabs.style.display !== 'none') pressChatOptions(closeId);
+  const page = document.createElement('div');
+  page.className = 'chat-options-page';
+  page.hidden = true;
+  page.setAttribute('role', 'dialog');
+  page.setAttribute('aria-label', 'Options');
+  const bar = document.createElement('div');
+  bar.className = 'feed-chat-bar';
+  const back = document.createElement('button');
+  back.type = 'button';
+  back.className = 'feed-chat-back';
+  back.setAttribute('aria-label', 'Back');
+  back.appendChild(svgIcon([
+    ['path', { d: 'm12 19-7-7 7-7' }],
+    ['path', { d: 'M19 12H5' }],
+  ]));
+  const title = document.createElement('h2');
+  title.className = 'feed-chat-title';
+  title.textContent = 'Options';
+  bar.append(back, title);
+  const body = document.createElement('div');
+  body.className = 'chat-options-body';
+  placeFeedNode(tabs, body);
+  for (const [label, ids] of spec.cards) {
+    const card = document.createElement('section');
+    card.className = 'chat-options-card';
+    const head = document.createElement('h3');
+    head.className = 'chat-options-card-title';
+    head.textContent = label;
+    card.appendChild(head);
+    for (const id of ids) placeFeedNode(document.getElementById(id), card);
+    body.appendChild(card);
+  }
+  page.append(bar, body);
+  feedChat.appendChild(page);
+  bindPress(back);
+  back.addEventListener('click', (event) => {
+    event.stopPropagation();
+    pressChatOptions(chatOptionsCloseId);
+  });
+  if (chatOptionsWatch) chatOptionsWatch.disconnect();
+  chatOptionsWatch = new MutationObserver(() => {
+    slideChatOptions(tabs.style.display !== 'none');
+  });
+  chatOptionsWatch.observe(tabs, { attributes: true, attributeFilter: ['style'] });
+}
+
+function pressChatOptions(id) {
+  const btn = id && document.getElementById(id);
+  if (btn) btn.click();
+}
+
+function slideChatOptions(open) {
+  const page = feedChat.querySelector('.chat-options-page');
+  if (!page) return;
+  const shown = !page.hidden && page.dataset.navLeaving !== '1';
+  if (open === shown) return;
+  slideSubPage(page, open, feedChatKind);
+  if (open) {
+    if (window.layerOpened) window.layerOpened('chatoptions');
+  } else if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('chatoptions')) {
+    window.layerClosedByUI('chatoptions');
+  }
+}
+
+// The chat is going away with Options still up: give back the Options
+// history entry first, so the chat's own entry is the top one it closes.
+function dropChatOptionsLayer() {
+  if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('chatoptions')) {
+    window.layerClosedByUI('chatoptions');
+  }
+}
+
+function clearChatOptions() {
+  if (chatOptionsWatch) {
+    chatOptionsWatch.disconnect();
+    chatOptionsWatch = null;
+  }
+  const page = feedChat.querySelector('.chat-options-page');
+  if (page) page.remove();
+  feedChat.classList.remove('is-nav-under');
+  chatOptionsOpenId = '';
+  chatOptionsCloseId = '';
 }
 
 function mountLoadOptions() {
@@ -6680,6 +6803,7 @@ function clearDrawHeader() {
 function clearFeedMessenger(panel) {
   unplaceFeedChat();
   clearLoadOptions();
+  clearChatOptions();
   clearDrawHeader();
   feedChatSearch.classList.remove('is-on');
   feedChatSearch.hidden = false;
@@ -6690,7 +6814,7 @@ function clearFeedMessenger(panel) {
   panel.classList.remove('is-search', 'is-locked');
   panel.querySelectorAll('.feed-chat-room').forEach((el) => el.classList.remove('feed-chat-room'));
   panel.querySelectorAll('.feed-chat-compose').forEach((el) => el.classList.remove('feed-chat-compose'));
-  panel.querySelectorAll('.feed-chat-sheet, .feed-chat-gate').forEach((el) => {
+  panel.querySelectorAll('.feed-chat-gate').forEach((el) => {
     const parent = el.parentNode;
     while (el.firstChild) parent.insertBefore(el.firstChild, el);
     el.remove();
@@ -6719,7 +6843,7 @@ function mountFeedMessenger(panel, kind) {
     return;
   }
   feedChatSearch.hidden = false;
-  if (panel.querySelector('.feed-chat-sheet')) return;
+  if (feedChat.querySelector('.chat-options-page')) return;
   const inner = panel.querySelector('.chat-topic-chat-container');
   if (!inner) return;
   const topic = document.getElementById(kind === 'e2ee' ? 'encrypted-chat-topic-id' : 'topic-chat-topic-id');
@@ -6733,10 +6857,7 @@ function mountFeedMessenger(panel, kind) {
   primeFeedOptionPair(openId, closeId, optionsId);
   placeFeedNode(document.getElementById(openId), feedChatActions);
   placeFeedNode(document.getElementById(closeId), feedChatActions);
-  const sheet = document.createElement('div');
-  sheet.className = 'feed-chat-sheet';
-  inner.appendChild(sheet);
-  for (const id of FEED_CHAT_SHEETS[kind]) placeFeedNode(document.getElementById(id), sheet);
+  mountChatOptions(kind, openId, closeId);
   feedChatUnlock.hidden = kind !== 'e2ee';
   if (kind !== 'e2ee') return;
   // Unlock field under the header (with gap), not a centered gate.
@@ -6932,6 +7053,7 @@ function hideE2eeWebNotice() {
 }
 
 function hideFeedChatPanel() {
+  dropChatOptionsLayer();
   hideE2eeWebNotice();
   feedChat.classList.remove('is-nav-under');
   feedChatLive = false;
@@ -8881,6 +9003,15 @@ if (window.defineLayer) {
       focusSearchPage();
     },
     close: () => closeSearchPage(),
+  });
+  // Chat Options page. Back closes it through the header's close button;
+  // Forward opens it the same way.
+  window.defineLayer('chatoptions', {
+    parent: 'feedchat',
+    open: () => {
+      if (feedChatKind === 'topic' || feedChatKind === 'e2ee') pressChatOptions(chatOptionsOpenId);
+    },
+    close: () => pressChatOptions(chatOptionsCloseId),
   });
   window.defineLayer('feedfilters', {
     parent: 'feedsearch',
