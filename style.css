@@ -8019,6 +8019,9 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
     touch-action: pan-y;
   }
 
+  /* height auto: the stretch fills the column inside the 0.8u top margin.
+     100% plus that margin ran 5px past the popup's bottom edge, which cut
+     off the bottom of Show more. */
   .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-body > div:not(.popup-media-card) {
     grid-column: 1;
     grid-row: 1 / -1;
@@ -8027,7 +8030,7 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
     display: flex;
     flex-direction: column;
     width: 100%;
-    height: 100%;
+    height: auto;
     min-height: 0;
     max-height: 100%;
     overflow: hidden;
@@ -18992,3 +18995,184 @@ img.is-gif-hit {
   display: none;
 }
 
+
+/* Map popup text (popuptext.js marks the message div .popup-msg).
+   Portrait, no picture: the bubble is as tall as its text, up to all of
+   the room above the hearts. With a picture the 36% share above stays.
+   Landscape already lets the text column fill. */
+@media (orientation: portrait) {
+  .maplibregl-map .popup-body:not(:has(> .popup-media-card)) > .popup-msg {
+    max-height: none;
+  }
+}
+/* Text longer than the bubble: no inner scroll. The text moves into
+   .popup-text-flow, which takes the bubble's content box, and its last
+   line fades under Show more. The bubble keeps its border and fill. */
+.popup-body > .popup-msg.is-more > .popup-text-bubble {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.popup-msg.is-more > .popup-text-bubble > .popup-text-flow {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent);
+}
+/* Same cyan link as the feed's Show more. */
+.popup-msg > .popup-more {
+  flex: 0 0 auto;
+  align-self: center;
+  margin: calc(var(--u) * 0.4) auto 0;
+  padding: calc(var(--u) * 0.35) calc(var(--u) * 1.2);
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: #22D3EE;
+  font-family: inherit;
+  font-size: calc(var(--u) * 1.6 * var(--popup-font-scale, 1));
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.popup-msg > .popup-more[hidden] {
+  display: none;
+}
+.popup-msg > .popup-more:hover {
+  color: #67e8f9;
+}
+.popup-msg > .popup-more:focus {
+  outline: none;
+}
+.popup-msg > .popup-more:focus-visible {
+  outline: calc(var(--u) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--u) * 0.1);
+}
+
+/* Full-screen post text (popuptext.js). Above the popup, the feed, and the
+   settings card; below the wallet sheet. Map-page unit, like the drawer. */
+#popup-text-page {
+  --u: calc(min(78dvw, calc(var(--app-h, 100dvh) * 0.42)) / 31.25);
+  position: fixed;
+  inset: 0;
+  z-index: 9050;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100dvw;
+  height: 100vh;
+  height: var(--app-h, 100dvh);
+  margin: 0;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: #0a0a12;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+}
+#popup-text-page[hidden] {
+  display: none;
+}
+/* Closed already (hidden), still painted until the leave ends. */
+#popup-text-page[hidden].is-leaving {
+  display: flex;
+  pointer-events: none;
+}
+.popup-text-page-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 0.8);
+  box-sizing: border-box;
+  min-height: max(44px, calc(var(--u) * 5));
+  padding: 0 calc(var(--u) * 1.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+}
+.popup-text-page-back {
+  appearance: none;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.popup-text-page-back svg {
+  width: max(22px, calc(var(--u) * 2.2));
+  height: max(22px, calc(var(--u) * 2.2));
+  display: block;
+  pointer-events: none;
+}
+.popup-text-page-back:is(:hover, :active) {
+  color: #22D3EE;
+}
+.popup-text-page-back:focus {
+  outline: none;
+}
+.popup-text-page-back:focus-visible {
+  outline: 2px solid #22D3EE;
+  outline-offset: 2px;
+}
+.popup-text-page-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: max(18px, calc(var(--u) * 2.1));
+  font-weight: 700;
+  line-height: 1.2;
+}
+.popup-text-page-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+.popup-text-page-text {
+  box-sizing: border-box;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: calc(var(--u) * 1.6) calc(var(--u) * 1.6) calc(var(--u) * 3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: max(18px, calc(var(--u) * 2));
+  line-height: 1.5;
+  text-align: start;
+  user-select: text;
+  -webkit-user-select: text;
+}
+/* Rises in; drops away on Back. */
+#popup-text-page.is-entering {
+  animation: popupTextPageIn 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+#popup-text-page.is-leaving {
+  animation: popupTextPageOut 180ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+@keyframes popupTextPageIn {
+  from { opacity: 0; translate: 0 4vh; }
+  to { opacity: 1; translate: 0 0; }
+}
+@keyframes popupTextPageOut {
+  from { opacity: 1; translate: 0 0; }
+  to { opacity: 0; translate: 0 4vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #popup-text-page.is-entering,
+  #popup-text-page.is-leaving {
+    animation: none;
+  }
+}

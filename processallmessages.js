@@ -21,6 +21,7 @@ import { isGifClipUrl, isGifUrl, needsGifCheck, resolveMediaUrl } from './mediau
 import { bindVideoPoster } from './videoposter.js';
 import { pictureElement, playStoredGif, presentImage, watchLoop } from './loopmedia.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
+import { watchPopupText, setPopupText } from './popuptext.js';
 import { isTyping } from './joystick.js';
 import { normalizeMessageNewlines, clipMessage, formatHcsUsage, utf8ByteLength, HCS_TOO_LONG, HCS_MESSAGE_MAX_BYTES } from './hcschunks.js';
 import maplibregl from 'maplibre-gl';
@@ -1507,7 +1508,8 @@ export function applyShapeEditToDom(payer, created, stamp, msg) {
   );
   for (const container of containers) {
     const text = container.querySelector('p.popup-text-bubble');
-    if (text) paintHashtags(text, msg);
+    // Through popuptext.js, so Show more and its full-screen text follow the edit.
+    if (text) setPopupText(text, msg);
     const stamps = [...container.querySelectorAll('.popup-timestamp')];
     const ts = stamps.find((el) => !el.classList.contains('popup-views'));
     if (ts && !ts.querySelector('.popup-edited-mark')) {
@@ -2152,6 +2154,8 @@ export function createMarkerPopupHTML(data) {
   paintHashtags(msgP, Array.isArray(msg) ? msg[0] : msg);
   msgDiv.appendChild(msgP);
   contentSection.appendChild(msgDiv);
+  // Fills the popup; longer text gets Show more (full-screen page).
+  watchPopupText(msgDiv, msgP, Array.isArray(msg) ? msg[0] : msg, title);
 
   // Title sits under the profile. The picture and text follow it.
   // The gap takes the spare room, so the hearts and the topic stay
@@ -2315,6 +2319,8 @@ function createPolygonPopupHTML(data) {
   paintHashtags(msgP, Array.isArray(msg) ? msg[0] : msg);
   msgDiv.appendChild(msgP);
   contentSection.appendChild(msgDiv);
+  // Fills the popup; longer text gets Show more (full-screen page).
+  watchPopupText(msgDiv, msgP, Array.isArray(msg) ? msg[0] : msg, title);
 
   container.appendChild(contentSection);
   const polygonGap = document.createElement('div');
