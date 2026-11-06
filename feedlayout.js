@@ -954,9 +954,20 @@ function coverFeedPlayer(media, onTap) {
 }
 
 // Every feed picture and video starts at one compact size (style.css
-// .popup-media-card). Two round buttons sit on its top right: one makes it
-// full width and back, one opens it fullscreen. They sit above the tap
-// layer, so a tap on them never plays, pauses, or opens the picture.
+// .popup-media-card). One round ··· button sits on its top right. It slides
+// out two more: one makes the media full width and back, one opens it
+// fullscreen. Picking one, a tap anywhere else, or Escape tucks them away.
+// They sit above the tap layer, so a tap on them never plays, pauses, or
+// opens the picture.
+const MEDIA_MORE_ICON = [
+  ['circle', { cx: '5', cy: '12', r: '1' }],
+  ['circle', { cx: '12', cy: '12', r: '1' }],
+  ['circle', { cx: '19', cy: '12', r: '1' }],
+];
+const MEDIA_CLOSE_ICON = [
+  ['path', { d: 'M18 6 6 18' }],
+  ['path', { d: 'm6 6 12 12' }],
+];
 const MEDIA_GROW_ICON = [
   ['path', { d: 'M15 3h6v6' }],
   ['path', { d: 'M9 21H3v-6' }],
@@ -1010,9 +1021,45 @@ function mountMediaBackdrop(media, source) {
   sync();
 }
 
+// The one open ··· group, if any. Opening another closes it.
+let openMediaTools = null;
+
+function setMediaToolsOpen(tools, open) {
+  if (!tools) return;
+  const more = tools.querySelector('.feed-media-more');
+  tools.classList.toggle('is-open', open);
+  if (more) {
+    more.setAttribute('aria-expanded', open ? 'true' : 'false');
+    more.setAttribute('aria-label', open ? 'Hide media options' : 'Media options');
+    more.title = open ? 'Hide' : 'Media options';
+    more.replaceChildren(svgIcon(open ? MEDIA_CLOSE_ICON : MEDIA_MORE_ICON));
+  }
+  if (open) {
+    if (openMediaTools && openMediaTools !== tools) setMediaToolsOpen(openMediaTools, false);
+    openMediaTools = tools;
+  } else if (openMediaTools === tools) {
+    openMediaTools = null;
+  }
+}
+
+// Capture, so a tap the feed stops on its way still closes the group.
+document.addEventListener('pointerdown', (event) => {
+  const tools = openMediaTools;
+  if (!tools) return;
+  if (!tools.isConnected) {
+    openMediaTools = null;
+    return;
+  }
+  if (!tools.contains(event.target)) setMediaToolsOpen(tools, false);
+}, true);
+
 function mountMediaTools(media, key, onFull) {
   const tools = document.createElement('div');
   tools.className = 'feed-media-tools';
+  const more = document.createElement('button');
+  more.type = 'button';
+  more.className = 'feed-media-tool feed-media-more';
+  more.setAttribute('aria-haspopup', 'true');
   const size = document.createElement('button');
   size.type = 'button';
   size.className = 'feed-media-tool feed-media-size';
@@ -1032,8 +1079,15 @@ function mountMediaTools(media, key, onFull) {
   };
   if (key && wideMedia.has(key)) media.classList.add('is-wide');
   paint();
+  tools.append(size, full, more);
+  setMediaToolsOpen(tools, false);
   // A keyboard click has detail 0 and no pointer, so only a tap is checked
   // for a drag.
+  more.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (event.detail > 0 && !feedActIdle(event)) return;
+    setMediaToolsOpen(tools, !tools.classList.contains('is-open'));
+  });
   size.addEventListener('click', (event) => {
     event.stopPropagation();
     if (event.detail > 0 && !feedActIdle(event)) return;
@@ -1044,13 +1098,21 @@ function mountMediaTools(media, key, onFull) {
       else wideMedia.delete(key);
     }
     paint();
+    setMediaToolsOpen(tools, false);
   });
   full.addEventListener('click', (event) => {
     event.stopPropagation();
     if (event.detail > 0 && !feedActIdle(event)) return;
+    setMediaToolsOpen(tools, false);
     onFull();
   });
-  tools.append(size, full);
+  tools.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !tools.classList.contains('is-open')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setMediaToolsOpen(tools, false);
+    more.focus();
+  });
   media.appendChild(tools);
 }
 

@@ -20046,9 +20046,44 @@ img.is-gif-hit {
   outline: 2px solid #22D3EE;
   outline-offset: 2px;
 }
+/* Only the ··· shows at rest. It slides the enlarge and fullscreen buttons
+   out to its left (nearest first) and turns into a cyan ×. visibility
+   keeps the tucked ones out of reach and out of the tab order. */
+:is(#feed-column, .feed-comments-stage) .feed-media-tools > .feed-media-tool:not(.feed-media-more) {
+  opacity: 0;
+  visibility: hidden;
+  translate: calc(var(--tool) * 0.7) 0;
+  scale: 0.7;
+  transition:
+    opacity 160ms ease,
+    translate 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    scale 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 220ms,
+    color 160ms ease,
+    border-color 160ms ease;
+}
+:is(#feed-column, .feed-comments-stage) .feed-media-tools.is-open > .feed-media-tool:not(.feed-media-more) {
+  opacity: 1;
+  visibility: visible;
+  translate: 0 0;
+  scale: 1;
+  transition-delay: 0s;
+}
+:is(#feed-column, .feed-comments-stage) .feed-media-tools.is-open > .feed-media-size {
+  transition-delay: 40ms, 40ms, 40ms, 0s, 0s, 0s;
+}
+:is(#feed-column, .feed-comments-stage) .feed-media-tools.is-open > .feed-media-tool:not(.feed-media-more):active {
+  scale: 0.92;
+}
+:is(#feed-column, .feed-comments-stage) .feed-media-more[aria-expanded="true"] {
+  border-color: rgba(34, 211, 238, 0.7);
+  background: rgba(8, 51, 68, 0.7);
+  color: #22D3EE;
+}
 @media (prefers-reduced-motion: reduce) {
   :is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card,
-  :is(#feed-column, .feed-comments-stage) .feed-media-tool {
+  :is(#feed-column, .feed-comments-stage) .feed-media-tool,
+  :is(#feed-column, .feed-comments-stage) .feed-media-tools > .feed-media-tool:not(.feed-media-more) {
     transition: none;
   }
 }
