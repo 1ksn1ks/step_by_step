@@ -10095,10 +10095,12 @@ html.feed-app #popup-settings-card {
   height: var(--page-field-h);
   /* The focus ring reaches 0.22fu past the border (outline-offset 0.1 +
      outline 0.12, :focus-within below). Top: as high as it goes with the
-     ring still 2px clear of the bar's bottom line. Bottom: 4px between the
-     ring and the filter chips; their row adds 0.2fu of padding itself. */
+     ring still 2px clear of the bar's bottom line. Bottom: the ring stays
+     4px inside the header row, so posts scrolled up under the header never
+     meet it when there are no chips. The chip row pulls itself up by its
+     own top padding (#feed-search-filters), so chips also sit 4px under. */
   --field-ring: calc(var(--fu) * 0.22);
-  margin: calc(var(--field-ring) + 2px) calc(var(--fu) * 0.8) calc(var(--field-ring) + 4px - var(--fu) * 0.2);
+  margin: calc(var(--field-ring) + 2px) calc(var(--fu) * 0.8) calc(var(--field-ring) + 4px);
   padding: 0 calc(var(--fu) * 0.35) 0 calc(var(--fu) * 0.7);
   border: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
   border-radius: calc(var(--page-field-h) * 0.45);
@@ -10353,7 +10355,9 @@ html.feed-app #feed-search-page {
   gap: calc(var(--fu) * 0.6);
   box-sizing: border-box;
   min-width: 0;
-  margin: 0 calc(var(--fu) * 0.8) calc(var(--fu) * 0.6);
+  /* Up by its own top padding, so the chip borders sit exactly the field's
+     4px under the field's focus ring (.feed-search-field margin). */
+  margin: calc(var(--fu) * -0.2) calc(var(--fu) * 0.8) calc(var(--fu) * 0.6);
   padding: calc(var(--fu) * 0.2) 0;
   overflow-x: auto;
   overflow-y: hidden;
