@@ -19211,3 +19211,47 @@ img.is-gif-hit {
     animation: none;
   }
 }
+
+/* Right-side header buttons on every page bar with a back arrow mirror
+   that arrow: the same 44px box, the same icon size (calc(var(--fu) * 2.2)
+   from each bar's own --fu, the size every bar draws its back arrow at),
+   white at rest, cyan on press. The bars pad both sides alike, so the right
+   edge mirrors the left. Topic and E2EE chat (search, options, unlock),
+   Profile (edit), Search (filters gear), Load and Draw (help), drawer pages
+   (help). The feed's top bar (menu, search, new post) is not one of these. */
+:is(#feed-chat, #feed-profile, #feed-search-page) > .feed-chat-bar .feed-chat-actions .feed-chat-glyph {
+  width: calc(var(--fu) * 2.2) !important;
+  height: calc(var(--fu) * 2.2) !important;
+}
+/* Text "?" help: a font size that draws the glyph as tall as the icons. */
+#feed-chat:is(.is-load, .is-draw) > .feed-chat-bar .feed-chat-actions > :is(#help-load-column, #help-draw-column),
+:is(#feed-menu, .drawer-screen) .feed-menu-page-bar > .panel-help-btn.is-bar-help {
+  font-size: calc(var(--fu) * 2.2) !important;
+}
+/* Search filters: the glass circle goes; the press spin and the cyan
+   "filters on" state stay, on the icon alone. */
+#feed-search-page > .feed-chat-bar #feed-search-gear {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #fff;
+}
+#feed-search-page > .feed-chat-bar #feed-search-gear::before {
+  content: none;
+}
+#feed-search-page > .feed-chat-bar #feed-search-gear svg {
+  width: calc(var(--fu) * 2.2);
+  height: calc(var(--fu) * 2.2);
+}
+#feed-search-page > .feed-chat-bar #feed-search-gear:is(:hover, .is-hold),
+#feed-search-page > .feed-chat-bar #feed-search-gear.is-spin,
+#feed-search-page > .feed-chat-bar #feed-search-gear.is-active:not(:hover):not(.is-hold):not(.is-spin) {
+  background-color: transparent;
+  border-color: transparent;
+  color: #22D3EE;
+}
