@@ -13929,6 +13929,15 @@ html.feed-app #feed-chat > .load-options-page {
   --feed-unit: calc(min(78dvw, calc(var(--app-h, 100dvh) * 0.42)) / 31.25);
   --fu: var(--feed-unit);
 }
+/* A map-hosted Draw page keeps the map unit until it is put away. Back from
+   the feed's + brings the feed (html.feed-app) back while this page is
+   still sliding off; the feed-app rules above would resize it mid-slide. */
+html.feed-app #feed-chat.is-draw.is-map-chat,
+html.feed-app #feed-chat.is-draw.is-map-chat > *,
+html.feed-app #feed-chat.is-draw.is-map-chat > .feed-chat-bar {
+  --feed-unit: calc(min(78dvw, calc(var(--app-h, 100dvh) * 0.42)) / 31.25);
+  --fu: var(--feed-unit);
+}
 @media (orientation: landscape) {
   html.feed-app .drawer-screen,
   html.feed-app #feed-chat.is-draw,
@@ -18815,8 +18824,13 @@ body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
    chat scroll arrows (index.html, inside .chat-messages-wrap).
    .maplibregl-ctrl-top-right is the compass and geolocate.
    #map-corner-buttons holds #layout-mode-btn and #search-toggle-btn. */
+/* Coming back (kb-open removed) fades opacity in; visibility flips at
+   once. A timed visibility here also ran on the feed's own hide and show
+   (#feed-layout.is-peek is inherited), so the tab row hung on screen for
+   200ms after the rest of the feed left and came back a frame after the
+   bar. The kb-open rule below keeps its own timed fade out. */
 #feed-tabs {
-  transition: opacity var(--press-dur, 200ms) var(--press-ease, ease), visibility var(--press-dur, 200ms) var(--press-ease, ease);
+  transition: opacity var(--press-dur, 200ms) var(--press-ease, ease), visibility 0s;
 }
 html.kb-open #feed-new-posts {
   animation: none;

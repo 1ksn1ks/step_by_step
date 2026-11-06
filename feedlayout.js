@@ -6921,6 +6921,12 @@ function hideFeedChatPanel() {
   }
   const leaveGen = ++feedChatLeaveGen;
   const covered = feedChat.classList.contains('nav-cover');
+  // Draw from the feed's + sits over a peeked feed. Bring the feed back
+  // under it now, so Back slides the page off onto the feed. Waiting for
+  // returnToFeed (after the slide, when the draw column is put away)
+  // showed the map first and then popped the feed back in. That cleanup
+  // still runs then; reveal() again there is harmless.
+  if (feedChatKind === 'draw' && placing && peek && feedOn()) reveal();
   concealCover(feedChat);
   const releaseChat = () => {
     if (leaveGen !== feedChatLeaveGen) return;
