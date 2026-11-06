@@ -7,7 +7,7 @@ import { COVER_RELEASE_MS, coverBatteryIsLow, coverHoldSrc, coverIdsToRelease, c
 import { gifStillCanvas } from './gifvideo.js';
 import { currentUfoModelInGLTF, polygons } from './letall';
 import { map } from './map'
-import { cameraState, earthOccludes } from './moon.js';
+import { cameraState, earthOccludes, moonScreen, onMoonScreen } from './moon.js';
 import { activeMarkerPopups } from './marker';
 import { polygonPopupNode } from './processallmessages.js';
 import { CloseALL, changePopupState } from './cssLogic';
@@ -897,6 +897,53 @@ function syncCoverButton(cov) {
   btn.setAttribute('aria-label', playing ? 'Pause cover' : 'Play cover');
 }
 
+// The full play glass in px, as style.css sizes it: 2.6 × --fu, where --fu
+// is 2.4% of the smaller of the viewport width and --app-h.
+function coverGlassPx() {
+  const appH = parseFloat(document.documentElement.style.getPropertyValue('--app-h')) || window.innerHeight;
+  const w = document.documentElement.clientWidth || window.innerWidth;
+  return Math.min(w, appH) * 0.024 * 2.6;
+}
+
+// The play glass shrinks with its cover as the map zooms out: at most 45% of
+// the cover's shorter on-screen side, never under 14px, never above its CSS
+// size. The whole button scales, so its tap area shrinks with it.
+const COVER_PLAY_MIN_PX = 14;
+const COVER_PLAY_SHARE = 0.45;
+function coverPlayScale(cov, full) {
+  if (!(full > 0)) return 1;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const pair of cov.corners || []) {
+    let p = null;
+    try { p = map.project(pair); } catch { p = null; }
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return 1;
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  if (!Number.isFinite(minX)) return 1;
+  const side = Math.min(maxX - minX, maxY - minY);
+  const px = Math.min(full, Math.max(COVER_PLAY_MIN_PX, side * COVER_PLAY_SHARE));
+  return px / full;
+}
+
+// Wherever the moon shows it is in front of the globe (moon.js hides it
+// once the Earth is between it and the camera). Any overlap hides the
+// button: the moon lets clicks through and leaves buttons alone, so a
+// button under its edge would still start a video nobody can see.
+function underMoon(x, y, r) {
+  const m = moonScreen;
+  if (!m || !(m.half > 0)) return false;
+  const reach = m.half + r;
+  const dx = x - m.x;
+  const dy = y - m.y;
+  return dx * dx + dy * dy < reach * reach;
+}
+
 function placeCoverButton(cov) {
   if (!coverOnScreen(cov)) {
     if (cov.btn) cov.btn.hidden = true;
@@ -916,10 +963,17 @@ function placeCoverButton(cov) {
     if (cov.btn) cov.btn.hidden = true;
     return;
   }
+  const full = coverGlassPx();
+  const scale = coverPlayScale(cov, full);
+  if (underMoon(point.x, point.y, (full * scale) / 2)) {
+    if (cov.btn) cov.btn.hidden = true;
+    return;
+  }
   const btn = ensureCoverButton(cov);
   btn.hidden = false;
   btn.style.left = `${point.x}px`;
   btn.style.top = `${point.y}px`;
+  btn.style.setProperty('--cover-play-scale', scale.toFixed(3));
   syncCoverButton(cov);
 }
 
@@ -1037,6 +1091,10 @@ function trackCoverButtons() {
 }
 
 map.on('move', trackCoverButtons);
+// The moon moves on the three.js frame, not on map move events.
+onMoonScreen(() => {
+  for (const cov of mediaCovers.values()) placeCoverButton(cov);
+});
 map.on('moveend', visPass);
 map.on('zoomend', visPass);
 document.addEventListener('visibilitychange', () => {

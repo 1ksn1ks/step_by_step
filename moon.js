@@ -140,6 +140,25 @@ let lastSizeVh = 0;
 // inside this circle, the same way the globe disc culls them.
 export let moonScreen = null;
 
+// Told when the disc moves, resizes, shows, or hides. updateMoon runs on
+// the three.js frame, apart from the map's move events, so polygons.js
+// re-places its cover play buttons here; otherwise the last frame of a
+// zoom could leave one on top of the moon.
+const moonListeners = new Set();
+export function onMoonScreen(fn) {
+  moonListeners.add(fn);
+}
+let lastMoonKey = '';
+function noteMoonScreen() {
+  const s = moonScreen;
+  const key = s ? `${Math.round(s.x)},${Math.round(s.y)},${Math.round(s.half)}` : 'none';
+  if (key === lastMoonKey) return;
+  lastMoonKey = key;
+  for (const fn of moonListeners) {
+    try { fn(); } catch (err) { console.error('moon listener failed:', err); }
+  }
+}
+
 // The moon stays pointer-events:none so a mouse drag or the scroll wheel
 // over it still reaches the map, same as over the globe. A one-finger touch
 // inside the visible disc is stopped before MapLibre's canvas listeners, at
@@ -338,6 +357,7 @@ export function updateMoon() {
     moonEl.style.left = '50%';
     moonEl.style.top = '50%';
     moonEl.style.transform = 'translate(-50%, -50%)';
+    noteMoonScreen();
     return;
   }
   const st = cameraState();
@@ -351,6 +371,7 @@ export function updateMoon() {
   if (z <= 0.01 || earthOccludes(C, m)) {
     moonScreen = null; // behind the Earth / out of view — no hit area
     moonEl.style.display = 'none';
+    noteMoonScreen();
     return;
   }
   const x = w / 2 + (f * dot3(wv, cam.right)) / z;
@@ -361,4 +382,5 @@ export function updateMoon() {
   moonEl.style.left = '0';
   moonEl.style.top = '0';
   moonEl.style.transform = `translate(${(x - half).toFixed(1)}px, ${(y - half).toFixed(1)}px)`;
+  noteMoonScreen();
 }

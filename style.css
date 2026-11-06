@@ -7295,7 +7295,9 @@ html, body {
   line-height: 1;
   cursor: pointer;
   touch-action: manipulation;
-  transform: translate(-50%, -50%);
+  /* --cover-play-scale: polygons.js (coverPlayScale) shrinks the button
+     with its cover as the map zooms out. */
+  transform: translate(-50%, -50%) scale(var(--cover-play-scale, 1));
   -webkit-tap-highlight-color: transparent;
 }
 .polygon-cover-play[hidden] {
