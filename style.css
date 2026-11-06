@@ -19219,9 +19219,15 @@ img.is-gif-hit {
    edge mirrors the left. Topic and E2EE chat (search, options, unlock),
    Profile (edit), Search (filters gear), Load and Draw (help), drawer pages
    (help). The feed's top bar (menu, search, new post) is not one of these. */
+/* margin 0: an auto margin is dropped once the icon is wider than its
+   44px box, which pinned search and unlock to the box top (16px low on a
+   1440px portrait screen). The buttons centre the glyph themselves
+   (align-items / justify-content: center), at any size. */
 :is(#feed-chat, #feed-profile, #feed-search-page) > .feed-chat-bar .feed-chat-actions .feed-chat-glyph {
   width: calc(var(--fu) * 2.2) !important;
   height: calc(var(--fu) * 2.2) !important;
+  margin: 0 !important;
+  flex: 0 0 auto;
 }
 /* The boxes stay 44px like the back arrow's, so on a wide column (a big
    portrait screen: 76px icons) the icons spill past them, as the arrow
@@ -19251,7 +19257,10 @@ img.is-gif-hit {
 #feed-search-page > .feed-chat-bar #feed-search-gear::before {
   content: none;
 }
+/* flex none: wider than the 44px box on a big screen, the flex item
+   shrank to 44px wide and drew a smaller gear. */
 #feed-search-page > .feed-chat-bar #feed-search-gear svg {
+  flex: 0 0 auto;
   width: calc(var(--fu) * 2.2);
   height: calc(var(--fu) * 2.2);
 }
