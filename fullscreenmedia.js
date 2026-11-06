@@ -116,7 +116,8 @@ export function openPreview(src, options = {}) {
   overlay.appendChild(stage);
   if (video) watchPreview(media);
   else {
-    presentImage(media, raw);
+    // A GIF animates here as a normal picture (a still with reduced motion).
+    presentImage(media, raw, { play: true });
     watchPreview(stage);
     stillWatch = new MutationObserver(() => placePreview());
     stillWatch.observe(stage, { childList: true, attributes: true, attributeFilter: ['src', 'class'] });

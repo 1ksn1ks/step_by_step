@@ -204,9 +204,11 @@ export function fillChatMessage(el, text, imageUrl, hint, media) {
   const resolved = resolveMediaUrl(src);
   const video = resolved.kind === "video";
   const clip = isGifClipUrl(src);
+  // play: a GIF animates as a normal picture (a still with reduced motion).
   const img = pictureElement(src, {
     className: "chat-msg-image",
     alt: "",
+    play: true,
     posterHold: video && !clip,
     posterHint: video ? Object.assign({ holdSrc: true }, posterHint || {}) : null,
   });
@@ -231,7 +233,7 @@ function previewNode(src, className, forceVideo) {
     video.play().catch(() => {});
     return video;
   }
-  return pictureElement(src, { className, alt: "" });
+  return pictureElement(src, { className, alt: "", play: true });
 }
 
 function showPreview(s, src) {

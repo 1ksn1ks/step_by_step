@@ -39,7 +39,7 @@ import { FILL_PASSES, planFillDown } from './scrollfill.js';
 import { FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, connectionIsConstrained, feedAutoplayAllowed, feedVideoHeld, feedVideoPreloadOnPause, feedVideoShouldRelease, feedVideoStartDelay, feedVideosToMeasure, pickFeedVideo } from './feedvideo.js';
 import { isGifClipUrl, isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
 import { bindVideoPoster } from './videoposter.js';
-import { mountPicture, pictureElement, playStoredGif, presentImage } from './loopmedia.js';
+import { mountPicture, pictureElement, presentImage } from './loopmedia.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -2594,14 +2594,11 @@ function buildCard(post) {
       node.decoding = 'async';
       media.appendChild(node);
       presentImage(node, src, { play: true });
-      // A still GIF plays here, muted and looping. Other pictures open
-      // the fullscreen viewer. A tap during the check does nothing.
+      // A GIF animates here as a normal picture (a still with reduced
+      // motion). Any picture opens the fullscreen viewer. A tap while the
+      // picture is still pending does nothing.
       coverFeedPlayer(media, () => {
         if (node.classList.contains('is-media-pending')) return;
-        if (node.dataset.mediaGif === '1') {
-          playStoredGif(node);
-          return;
-        }
         holdScroll();
         openPreview(resolved.src || src);
       });

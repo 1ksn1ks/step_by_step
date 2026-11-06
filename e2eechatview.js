@@ -167,7 +167,9 @@ async function revealStill(img, box, part) {
   if (!box.isConnected) return;
   const blob = await decryptJob(part);
   if (!box.isConnected) return;
-  if (part && part.mime === "image/gif") {
+  // A sealed GIF animates as a normal picture, like topic chat. Reduced
+  // motion keeps a still of frame 0.
+  if (part && part.mime === "image/gif" && motionReduced()) {
     const file = new File([blob], "frame.gif", { type: "image/gif" });
     let canvas = null;
     try { canvas = await gifStillCanvas(file); } catch { canvas = null; }

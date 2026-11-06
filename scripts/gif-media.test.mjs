@@ -16,7 +16,7 @@ import {
   writeGifCache,
   posterTargetKey,
 } from "../mediaurl.js";
-import { presentImage, storeVideoUrl, VIDEO_URL_CACHE_MAX } from "../loopmedia.js";
+import { presentImage } from "../loopmedia.js";
 import {
   GIF_BROWSER_ERROR,
   GIF_MAX_BYTES,
@@ -29,13 +29,14 @@ import {
   GIF_MEDIA_EDGE,
   frameBox,
   gifDurationReject,
+  gifFrameDelayMs,
   gifSizeReject,
   mapGifProgress,
   pickRecorderMime,
   recorderFallback,
   storedType,
 } from "../gifvideo.js";
-import { GIF_FAR_PX, gifStillAction, loopPlayback, viewDistance } from "../loopmedia.js";
+import { GIF_FAR_PX, loopPlayback, viewDistance } from "../loopmedia.js";
 import { isGifClipUrl, siblingPosterUrl, withGifClip } from "../mediaurl.js";
 
 test("cover roles centre-crop to an even edge of at most 512", () => {
@@ -98,7 +99,7 @@ test("media evens each side and caps the long edge at 720", () => {
   assert.equal(Math.max(frameBox(800, 200, "media").width, frameBox(800, 200, "media").height), 720);
 });
 
-test("frames are decoded one at a time and a feed tap still converts", () => {
+test("frames are decoded one at a time and viewing never converts", () => {
   const source = readFileSync(new URL("../gifvideo.js", import.meta.url), "utf8");
   const playback = readFileSync(new URL("../loopmedia.js", import.meta.url), "utf8");
   assert.equal(source.includes("decompressFrames"), false);
@@ -112,8 +113,9 @@ test("frames are decoded one at a time and a feed tap still converts", () => {
   assert.match(record, /throwIfAborted\(signal\)/);
   assert.match(source, /gifCancelError\(\)/);
   assert.match(source, /opts\.onProgress\) opts\.onProgress\(0\)/);
-  const tap = playback.slice(playback.indexOf("export function playStoredGif"));
-  assert.match(tap, /convertGifFile\(file, \{ role: "media", signal: ctrl\.signal \}\)/);
+  // A GIF that was not converted at upload plays as a normal picture.
+  assert.equal(playback.includes("convertGifFile"), false);
+  assert.equal(playback.includes("playStoredGif"), false);
   assert.equal(gifDurationReject("media", 90), GIF_TOO_LONG);
   assert.equal(gifDurationReject("avatar", 90), GIF_TOO_LONG);
   assert.equal(gifDurationReject("cover", 90), GIF_TOO_LONG);
@@ -193,9 +195,6 @@ test("a visible gif clip plays, an offscreen one pauses, and a far one unloads",
   assert.equal(loopPlayback({ reduced: false, visible: false, distance: GIF_FAR_PX }), "pause");
   assert.equal(loopPlayback({ reduced: false, visible: false, distance: GIF_FAR_PX + 1 }), "unload");
   assert.equal(loopPlayback({ reduced: true, visible: true, distance: 0 }), "poster");
-  assert.equal(gifStillAction({ visible: false, reduced: false }), "wait");
-  assert.equal(gifStillAction({ visible: true, reduced: true }), "still");
-  assert.equal(gifStillAction({ visible: true, reduced: false }), "play");
   assert.equal(viewDistance(
     { top: 2000, bottom: 2200, left: 0, right: 100 },
     { top: 0, bottom: 800, left: 0, right: 400 },
@@ -558,29 +557,73 @@ function streamOf(sizes, onCancel) {
   });
 }
 
-test("playback urls stop at four and the playing one is not revoked", () => {
-  assert.equal(VIDEO_URL_CACHE_MAX, 4);
-  const cache = new Map();
-  const blobs = ["a", "b", "c", "d", "e"].map((name) => `blob:${name}`);
-  const urls = blobs.map((blob, i) => `https://cdn.example/play/${i}`);
-  let revoked = [];
-  for (let i = 0; i < 4; i += 1) revoked.push(...storeVideoUrl(cache, urls[i], blobs[i], ""));
-  assert.equal(revoked.length, 0);
-  assert.equal(cache.size, 4);
-  revoked = storeVideoUrl(cache, urls[4], blobs[4], "");
-  assert.deepEqual(revoked, [blobs[0]]);
-  assert.equal(cache.has(urls[0]), false);
-  assert.equal(cache.get(urls[4]), blobs[4]);
+test("frame delays follow the browser: 0 or 1 hundredth shows for 100ms", () => {
+  assert.equal(gifFrameDelayMs({ gce: { delay: 0 } }), 100);
+  assert.equal(gifFrameDelayMs({ gce: { delay: 1 } }), 100);
+  assert.equal(gifFrameDelayMs({ gce: { delay: 2 } }), 20);
+  assert.equal(gifFrameDelayMs({ gce: { delay: 4 } }), 40);
+  assert.equal(gifFrameDelayMs({ gce: { delay: 10 } }), 100);
+  assert.equal(gifFrameDelayMs({}), 100);
+  assert.equal(gifFrameDelayMs(null), 100);
+});
 
-  const kept = new Map();
-  for (let i = 0; i < 4; i += 1) storeVideoUrl(kept, urls[i], blobs[i], urls[0]);
-  const skipped = storeVideoUrl(kept, urls[4], blobs[4], urls[0]);
-  assert.deepEqual(skipped, [blobs[1]]);
-  assert.equal(kept.get(urls[0]), blobs[0]);
-  assert.equal(kept.has(urls[1]), false);
-  const miss = storeVideoUrl(kept, "https://cdn.example/play/none", "", urls[0]);
-  assert.equal(miss.includes(""), false);
-  assert.equal(miss.includes(blobs[0]), false);
+test("webcodecs tries h.264 mp4 first, then webm", () => {
+  const source = readFileSync(new URL("../gifvideo.js", import.meta.url), "utf8");
+  const list = source.slice(source.indexOf("const WEB_CODECS"), source.indexOf("];", source.indexOf("const WEB_CODECS")));
+  const mp4 = list.indexOf('container: "mp4"');
+  const webm = list.indexOf('container: "webm"');
+  assert.ok(mp4 > 0 && webm > mp4);
+  assert.match(source, /import\("mp4-muxer"\)/);
+  assert.match(source, /mp4 \? "video\/mp4" : "video\/webm"/);
+});
+
+test("where a post is read a gif is a normal picture, elsewhere a still", async () => {
+  resetGifCache();
+  const url = "https://cdn.example/anim/party.gif";
+  const previous = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    throw new Error("offline");
+  };
+  try {
+    const read = fakeImg();
+    presentImage(read, url, { play: true });
+    assert.equal(read.getAttribute("src"), url);
+    assert.equal(read.classList.contains("is-media-pending"), false);
+    assert.equal(calls, 0);
+
+    const extensionless = fakeImg();
+    presentImage(extensionless, "https://cdn.example/files/maybe-gif", { play: true });
+    assert.equal(extensionless.getAttribute("src"), "https://cdn.example/files/maybe-gif");
+    assert.equal(calls, 0);
+
+    const avatar = fakeImg();
+    presentImage(avatar, url);
+    assert.equal(avatar.classList.contains("is-media-pending"), true);
+    assert.equal(avatar.getAttribute("src"), null);
+  } finally {
+    globalThis.fetch = previous;
+    resetGifCache();
+  }
+});
+
+test("a gif still that cannot be made shows the picture, not the skeleton", async () => {
+  resetGifCache();
+  const url = "https://blocked.example/no-cors.gif";
+  const previous = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("blocked"); };
+  try {
+    const img = fakeImg();
+    presentImage(img, url);
+    assert.equal(img.classList.contains("is-media-pending"), true);
+    for (let i = 0; i < 5 && img.getAttribute("src") == null; i += 1) await nextTurn();
+    assert.equal(img.getAttribute("src"), url);
+    assert.equal(img.classList.contains("is-media-pending"), false);
+  } finally {
+    globalThis.fetch = previous;
+    resetGifCache();
+  }
 });
 
 test("a poster is stored only beside our own mp4 or webm", () => {

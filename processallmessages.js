@@ -19,7 +19,7 @@ import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
 import { openPreview } from './fullscreenmedia';
 import { isGifClipUrl, isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
 import { bindVideoPoster } from './videoposter.js';
-import { pictureElement, playStoredGif, presentImage, watchLoop } from './loopmedia.js';
+import { pictureElement, presentImage, watchLoop } from './loopmedia.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
 import { watchPopupText, setPopupText } from './popuptext.js';
 import { isTyping } from './joystick.js';
@@ -2023,12 +2023,10 @@ function fillPopupMedia(imageDiv, url, hint) {
   }
   const media = document.createElement("img");
   media.style.cursor = "zoom-in";
+  // A GIF animates as a normal picture (a still with reduced motion). A tap
+  // or the expand chip opens it fullscreen like any picture.
   media.addEventListener("click", () => {
     if (media.classList.contains("is-media-pending")) return;
-    if (media.dataset.mediaGif === "1") {
-      playStoredGif(media);
-      return;
-    }
     openPreview(url);
   });
   const chip = document.createElement("button");
@@ -2037,10 +2035,6 @@ function fillPopupMedia(imageDiv, url, hint) {
   chip.textContent = "⤢";
   chip.addEventListener("click", (e) => {
     e.stopPropagation();
-    if (media.dataset.mediaGif === "1") {
-      playStoredGif(media);
-      return;
-    }
     openPreview(url);
   });
   imageDiv.appendChild(chip);

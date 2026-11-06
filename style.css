@@ -18924,8 +18924,7 @@ img.is-gif-hit {
   position: relative;
   z-index: 3;
 }
-.popup-media-card > canvas.media-still,
-.popup-media-card > video.media-gif-play {
+.popup-media-card > canvas.media-still {
   width: 100%;
   height: 100%;
   display: block;
@@ -18934,8 +18933,7 @@ img.is-gif-hit {
   background-color: #0b0d13;
   pointer-events: auto;
 }
-:is(#feed-column, .feed-comments-stage) .popup-media-card > canvas.media-still,
-:is(#feed-column, .feed-comments-stage) .popup-media-card > video.media-gif-play {
+:is(#feed-column, .feed-comments-stage) .popup-media-card > canvas.media-still {
   width: auto;
   height: auto;
   max-width: 100%;

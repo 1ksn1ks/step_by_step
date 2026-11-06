@@ -1,6 +1,8 @@
-// A GIF is converted on the device before upload. WebCodecs is tried first,
-// then a canvas stream recorded with MediaRecorder. If neither can encode,
-// the original GIF is uploaded unchanged. Nothing is converted on the server.
+// A GIF is converted on the device before upload. WebCodecs is tried first
+// (H.264 MP4, else WebM), then a canvas stream recorded with MediaRecorder.
+// If neither can encode, the original GIF is uploaded unchanged. Nothing is
+// converted on the server, and viewers never convert: a GIF that was not
+// converted plays as a normal picture (loopmedia.js).
 // A converted clip also keeps a JPEG of frame 0 for the poster flow.
 import { coverVideoReject } from "./covervideolimit.js";
 
@@ -202,10 +204,14 @@ function blitPatch(ctx, frame) {
   ctx.drawImage(patch, dims.left, dims.top);
 }
 
-// gifuct stores a missing or zero graphic-control delay as 100ms.
-function gifFrameDelayMs(frame) {
-  if (frame && frame.gce) return delayMs((frame.gce.delay || 10) * 10);
-  return delayMs(0);
+// The graphic-control delay is in hundredths of a second. Browsers show a
+// frame of 0 or 1 (10ms or less) for 100ms, and many "as fast as it goes"
+// GIFs count on that, so the clip does the same instead of playing about
+// ten times too fast. A missing delay is 100ms too.
+export function gifFrameDelayMs(frame) {
+  const hundredths = Number(frame && frame.gce && frame.gce.delay);
+  if (!Number.isFinite(hundredths) || hundredths <= 1) return 100;
+  return hundredths * 10;
 }
 
 function alignDelays(delays, count) {
@@ -402,21 +408,28 @@ async function recordCanvas(canvas, mime, paintFrame, count, delays, signal, onP
   }
 }
 
+// H.264 in MP4 first: it plays on every browser, older iPhones included.
+// Constrained baseline 3.1 covers the 720 edge at up to 50 frames a second
+// (the fastest GIF frame is 20ms). WebM (VP8, then VP9) is next where the
+// browser cannot encode H.264.
 const WEB_CODECS = [
-  { encoder: "vp8", mux: "V_VP8" },
-  { encoder: "vp09.00.10.08", mux: "V_VP9" },
+  { encoder: "avc1.42E01F", mux: "avc", container: "mp4" },
+  { encoder: "vp8", mux: "V_VP8", container: "webm" },
+  { encoder: "vp09.00.10.08", mux: "V_VP9", container: "webm" },
 ];
+
+function encoderConfig(item, width, height) {
+  const config = { codec: item.encoder, width, height, bitrate: 1000000 };
+  // MP4 wants length-prefixed NAL units with the decoder description.
+  if (item.container === "mp4") config.avc = { format: "avc" };
+  return config;
+}
 
 async function pickWebCodec(width, height) {
   if (typeof VideoEncoder !== "function" || typeof VideoEncoder.isConfigSupported !== "function") return null;
   for (const item of WEB_CODECS) {
     try {
-      const support = await VideoEncoder.isConfigSupported({
-        codec: item.encoder,
-        width,
-        height,
-        bitrate: 1000000,
-      });
+      const support = await VideoEncoder.isConfigSupported(encoderConfig(item, width, height));
       if (support && support.supported) return item;
     } catch {
       /* this codec is unusable */
@@ -428,7 +441,8 @@ async function pickWebCodec(width, height) {
 async function recordWebCodecs(canvas, paint, count, delays, signal, onProgress) {
   const codec = await pickWebCodec(canvas.width, canvas.height);
   if (!codec || typeof VideoFrame !== "function") throw new Error(GIF_BROWSER_ERROR);
-  const mod = await import("webm-muxer");
+  const mp4 = codec.container === "mp4";
+  const mod = mp4 ? await import("mp4-muxer") : await import("webm-muxer");
   const Muxer = mod.Muxer;
   const Target = mod.ArrayBufferTarget;
   if (typeof Muxer !== "function" || typeof Target !== "function") throw new Error(GIF_BROWSER_ERROR);
@@ -437,6 +451,8 @@ async function recordWebCodecs(canvas, paint, count, delays, signal, onProgress)
     target,
     video: { codec: codec.mux, width: canvas.width, height: canvas.height },
     firstTimestampBehavior: "offset",
+    // The whole clip is in memory, so the index can go up front.
+    ...(mp4 ? { fastStart: "in-memory" } : {}),
   });
   let failed = false;
   const encoder = new VideoEncoder({
@@ -445,12 +461,7 @@ async function recordWebCodecs(canvas, paint, count, delays, signal, onProgress)
     },
     error() { failed = true; },
   });
-  encoder.configure({
-    codec: codec.encoder,
-    width: canvas.width,
-    height: canvas.height,
-    bitrate: 1000000,
-  });
+  encoder.configure(encoderConfig(codec, canvas.width, canvas.height));
   const duration = delays.reduce((sum, n) => sum + n, 0);
   const started = Date.now();
   let timestamp = 0;
@@ -474,7 +485,7 @@ async function recordWebCodecs(canvas, paint, count, delays, signal, onProgress)
     muxer.finalize();
     const buffer = target.buffer;
     if (!buffer || !buffer.byteLength) throw new Error(GIF_BROWSER_ERROR);
-    return new Blob([buffer], { type: "video/webm" });
+    return new Blob([buffer], { type: mp4 ? "video/mp4" : "video/webm" });
   } finally {
     try { encoder.close(); } catch { /* already closed */ }
   }

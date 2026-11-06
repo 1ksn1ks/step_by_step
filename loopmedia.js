@@ -1,9 +1,11 @@
-// Pictures go through classifyImageUrl before they are painted. A GIF is
-// a canvas of frame 0, never an <img> src. Feed and popup taps can play
-// that GIF through gifvideo.js in memory: muted, looping, one at a time.
-// Marker dots, avatars, and polygon covers stay on the still.
+// Pictures go through here before they are painted. Where a post is read
+// (feed cards, popups, chat, the fullscreen viewer: presentImage with
+// play) a GIF is a normal <img> and the browser animates it. Everywhere
+// else (avatars, marker dots) and with reduced motion, a GIF is a canvas
+// of frame 0. A GIF uploaded through this app is already a muted clip
+// (gifvideo.js); nothing is converted while viewing.
 import { GIF_FAR_PX, loopPlayback, viewDistance } from "./gifloop.js";
-import { gifStillCanvas, convertGifFile } from "./gifvideo.js";
+import { gifStillCanvas } from "./gifvideo.js";
 import { armIpfsAttempt, preferGateway } from "./ipfsimage.js";
 import { forgetProfilePicture, watchProfilePicture } from "./markertilt.js";
 import {
@@ -24,13 +26,6 @@ let observer = null;
 let gifObserver = null;
 let visibilityBound = false;
 
-// Old GIF posts stay a still until the element is on screen. Reduced motion
-// never gets past that still.
-export function gifStillAction(state) {
-  if (!state || !state.visible) return "wait";
-  return state.reduced ? "still" : "play";
-}
-
 function reducedMotion() {
   try {
     return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -43,46 +38,6 @@ function viewportBox() {
   const w = typeof window !== "undefined" ? window.innerWidth : 0;
   const h = typeof window !== "undefined" ? window.innerHeight : 0;
   return { top: 0, left: 0, right: w, bottom: h };
-}
-let playSeq = 0;
-let activePlay = null;
-const videoUrlCache = new Map();
-export const VIDEO_URL_CACHE_MAX = 4;
-
-// Keeps about four playback URLs. Anything dropped is revoked, except the
-// blob for the GIF that is playing now.
-export function storeVideoUrl(cache, url, objectUrl, playingUrl) {
-  const revoked = [];
-  const playing = typeof playingUrl === "string" ? playingUrl : "";
-  const playingBlob = playing && cache.has(playing) ? cache.get(playing) : "";
-  const prev = cache.has(url) ? cache.get(url) : undefined;
-  if (cache.has(url)) cache.delete(url);
-  cache.set(url, objectUrl);
-  const drop = (value) => {
-    if (typeof value !== "string" || value === playingBlob || value.slice(0, 5) !== "blob:") return;
-    revoked.push(value);
-  };
-  if (prev !== objectUrl && url !== playing) drop(prev);
-  while (cache.size > VIDEO_URL_CACHE_MAX) {
-    let evictKey = null;
-    for (const key of cache.keys()) {
-      if (key === playing) continue;
-      evictKey = key;
-      break;
-    }
-    if (!evictKey) break;
-    const evict = cache.get(evictKey);
-    cache.delete(evictKey);
-    drop(evict);
-  }
-  return revoked;
-}
-
-function rememberVideoUrl(url, objectUrl) {
-  const playing = activePlay && activePlay.url || "";
-  for (const blob of storeVideoUrl(videoUrlCache, url, objectUrl, playing)) {
-    try { URL.revokeObjectURL(blob); } catch { /* already revoked */ }
-  }
 }
 
 function pauseLoop(video) {
@@ -209,7 +164,7 @@ function assignSrc(img, url) {
 
 function dropStill(img) {
   let prev = img.previousElementSibling;
-  while (prev && prev.classList && (prev.classList.contains("media-still") || prev.classList.contains("media-gif-play"))) {
+  while (prev && prev.classList && prev.classList.contains("media-still")) {
     const older = prev.previousElementSibling;
     prev.remove();
     prev = older;
@@ -245,13 +200,7 @@ function armFallback(el, fallback) {
   });
 }
 
-function stillOf(img) {
-  const prev = img.previousElementSibling;
-  if (prev && prev.classList && prev.classList.contains("media-still")) return prev;
-  return null;
-}
-
-function showStill(img, canvas, play) {
+function showStill(img, canvas) {
   if (!img.parentNode) return;
   clearPending(img);
   dropStill(img);
@@ -275,8 +224,6 @@ function showStill(img, canvas, play) {
   img.classList.add("is-gif-hit");
   img.removeAttribute("src");
   img.dataset.mediaGif = "1";
-  if (play) img.dataset.mediaPlay = "1";
-  else delete img.dataset.mediaPlay;
   const profile = img.closest && img.closest(".popup-profile-bubble, .profile-live-bubble");
   if (profile) {
     if (img.dataset.earlyAccount) canvas.dataset.earlyAccount = img.dataset.earlyAccount;
@@ -287,16 +234,12 @@ function showStill(img, canvas, play) {
   canvas.addEventListener("pointerdown", () => img.dispatchEvent(new Event("pointerdown")));
   canvas.addEventListener("click", (event) => {
     event.stopPropagation();
-    if (img.dataset.mediaPlay === "1") {
-      playStoredGif(img);
-      return;
-    }
     img.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
   });
   img.dispatchEvent(new Event("load"));
 }
 
-async function paintGifStill(img, url, seq, play) {
+async function paintGifStill(img, url, seq) {
   let canvas = null;
   try {
     const buf = await loadImageBytes(url);
@@ -307,41 +250,32 @@ async function paintGifStill(img, url, seq, play) {
   }
   if (img.dataset.mediaSeq !== String(seq)) return;
   if (!canvas) {
-    img.dispatchEvent(new Event("error"));
+    // No still: the host does not allow the read, the file is gone or past
+    // 15 MB, or it does not decode. Show the address as a normal picture
+    // instead of leaving the skeleton. If that fails too, the img fires its
+    // own error, which armFallback answers.
+    dropStill(img);
+    assignSrc(img, url);
     return;
   }
   if (!img.parentNode) {
     requestAnimationFrame(() => {
       if (img.dataset.mediaSeq !== String(seq) || !img.parentNode) return;
-      showStill(img, canvas, play);
+      showStill(img, canvas);
     });
     return;
   }
-  showStill(img, canvas, play);
+  showStill(img, canvas);
 }
 
+// The body loads once the element is on screen, then the element is done.
 function onGifEntry(entry) {
   const img = entry.target;
-  const visible = !!(entry.isIntersecting && entry.intersectionRatio > 0);
-  img.dataset.loopOn = visible ? "1" : "0";
-  const distance = visible ? 0 : viewDistance(entry.boundingClientRect, entry.rootBounds || viewportBox());
-  const reduced = reducedMotion();
-  if (img.dataset.mediaGif === "1") {
-    const action = loopPlayback({ reduced, visible, distance });
-    if (action === "play" && img.dataset.mediaPlay === "1") playStoredGif(img, { keep: true });
-    else if (activePlay && activePlay.img === img) stopGifPlay();
-    return;
-  }
-  const load = gifStillAction({ visible, reduced });
-  if (load === "wait" || img.dataset.gifArmed === "1") return;
+  if (!entry.isIntersecting || entry.intersectionRatio <= 0) return;
+  if (gifObserver) gifObserver.unobserve(img);
+  if (img.dataset.gifArmed === "1") return;
   img.dataset.gifArmed = "1";
-  const seq = img.dataset.mediaSeq;
-  const url = img.dataset.mediaUrl || "";
-  paintGifStill(img, url, seq, load === "play").then(() => {
-    if (img.dataset.mediaSeq !== String(seq) || load !== "play") return;
-    if (img.dataset.loopOn === "0") return;
-    playStoredGif(img, { keep: true });
-  });
+  paintGifStill(img, img.dataset.mediaUrl || "", img.dataset.mediaSeq);
 }
 
 function ensureGifObserver() {
@@ -352,27 +286,25 @@ function ensureGifObserver() {
   return gifObserver;
 }
 
-// The body stays unloaded until the still is on screen.
+// The body stays unloaded until the still is on screen. A new address on
+// the same element arms it again.
 function armGifLoad(img) {
+  delete img.dataset.gifArmed;
   const watch = ensureGifObserver();
   if (!watch) {
-    const seq = img.dataset.mediaSeq;
-    const url = img.dataset.mediaUrl || "";
-    const play = img.dataset.mediaPlay === "1" && !reducedMotion();
-    paintGifStill(img, url, seq, play).then(() => {
-      if (img.dataset.mediaSeq !== String(seq) || !play) return;
-      playStoredGif(img, { keep: true });
-    });
+    paintGifStill(img, img.dataset.mediaUrl || "", img.dataset.mediaSeq);
     return;
   }
   watch.observe(img);
 }
 
 // The one paint path for a user image. A known still extension is set
-// immediately. Anything else stays on the skeleton until classifyImageUrl
-// answers. A GIF becomes a canvas of frame 0. null (the check failed,
-// was blocked, the device is offline, or the host was too slow) paints
-// the address as a normal image and is not cached.
+// immediately, and so is anything where a post is read (options.play):
+// there a GIF simply animates as a normal picture, unless reduced motion
+// is on. Elsewhere an address that may be a GIF stays on the skeleton
+// until classifyImageUrl answers, and a GIF becomes a canvas of frame 0.
+// null (the check failed, was blocked, the device is offline, or the host
+// was too slow) paints the address as a normal image and is not cached.
 export function presentImage(img, url, options) {
   if (!img) return img;
   const opts = options || {};
@@ -381,31 +313,25 @@ export function presentImage(img, url, options) {
   const seq = (Number(img.dataset.mediaSeq) || 0) + 1;
   img.dataset.mediaSeq = String(seq);
   img.dataset.mediaUrl = painted;
-  if (activePlay && activePlay.img === img) stopGifPlay();
   if (!painted) {
     clearPending(img);
     dropStill(img);
     img.removeAttribute("src");
     return img;
   }
-  const knownStill = !needsGifCheck(painted);
-  if (knownStill) {
+  if (!needsGifCheck(painted) || (opts.play && !reducedMotion())) {
     dropStill(img);
-    delete img.dataset.mediaPlay;
     assignSrc(img, painted);
     return img;
   }
   const cached = isGifUrl(painted) ? true : readGifCache(painted);
   if (cached === false) {
     dropStill(img);
-    delete img.dataset.mediaPlay;
     assignSrc(img, painted);
     return img;
   }
   markPending(img);
   dropStill(img);
-  if (opts.play) img.dataset.mediaPlay = "1";
-  else delete img.dataset.mediaPlay;
   if (cached === true) {
     armGifLoad(img);
     return img;
@@ -424,84 +350,6 @@ export function presentImage(img, url, options) {
     assignSrc(img, painted);
   });
   return img;
-}
-
-function stopGifPlay() {
-  const cur = activePlay;
-  activePlay = null;
-  if (!cur) return;
-  if (cur.abort) cur.abort.abort();
-  if (cur.video) {
-    try { cur.video.pause(); } catch { /* already idle */ }
-    cur.video.remove();
-  }
-  if (cur.canvas) cur.canvas.hidden = false;
-}
-
-function showGifVideo(img, objectUrl, seq) {
-  if (!activePlay || activePlay.seq !== seq || !img.parentNode) return;
-  const canvas = stillOf(img);
-  const video = document.createElement("video");
-  video.className = "loop-face media-gif-play";
-  video.muted = true;
-  video.defaultMuted = true;
-  video.loop = true;
-  video.playsInline = true;
-  video.setAttribute("muted", "");
-  video.setAttribute("playsinline", "");
-  video.setAttribute("loop", "");
-  video.autoplay = true;
-  video.src = objectUrl;
-  video.addEventListener("click", (event) => {
-    event.stopPropagation();
-    playStoredGif(img);
-  });
-  img.parentNode.insertBefore(video, img);
-  if (canvas) canvas.hidden = true;
-  activePlay.video = video;
-  activePlay.canvas = canvas;
-  video.play().catch(() => {});
-}
-
-// In-memory playback for a feed or popup still. No upload. One at a time.
-export function playStoredGif(img, options) {
-  const keep = !!(options && options.keep);
-  if (!img || img.dataset.mediaGif !== "1" || img.dataset.mediaPlay !== "1") return;
-  if (activePlay && activePlay.img === img) {
-    if (keep) return;
-    stopGifPlay();
-    return;
-  }
-  const url = img.dataset.mediaUrl || "";
-  if (!url) return;
-  if (videoUrlCache.get(url) === "") return;
-  const seq = ++playSeq;
-  stopGifPlay();
-  const ctrl = new AbortController();
-  activePlay = { img, url, abort: ctrl, video: null, canvas: stillOf(img), seq };
-  const cached = videoUrlCache.get(url);
-  if (cached) {
-    rememberVideoUrl(url, cached);
-    showGifVideo(img, cached, seq);
-    return;
-  }
-  loadImageBytes(url).then(async (buf) => {
-    if (!activePlay || activePlay.seq !== seq) return;
-    const file = new File([buf], "clip.gif", { type: "image/gif" });
-    const out = await convertGifFile(file, { role: "media", signal: ctrl.signal });
-    if (!activePlay || activePlay.seq !== seq) return;
-    if (!out || !out.file || String(out.file.type || "").startsWith("image/")) {
-      rememberVideoUrl(url, "");
-      if (activePlay && activePlay.seq === seq) activePlay = null;
-      return;
-    }
-    const objectUrl = URL.createObjectURL(out.file);
-    rememberVideoUrl(url, objectUrl);
-    showGifVideo(img, objectUrl, seq);
-  }).catch((err) => {
-    if (err && err.code === "GIF_CANCEL") return;
-    if (activePlay && activePlay.seq === seq) stopGifPlay();
-  });
 }
 
 export function makeLoopVideo(url, options) {
