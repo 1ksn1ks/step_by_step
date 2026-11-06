@@ -19907,36 +19907,51 @@ img.is-gif-hit {
   background: #67e8f9 !important;
 }
 
-/* Feed pictures and videos: one compact size for all (a picture or video
-   used to show at its own file size, so a playing video jumped to its full
-   resolution). The enlarge button (.feed-media-tools, mountMediaTools)
-   makes it full width and back; the other opens it fullscreen. The frame
-   width is fixed, so a tall picture is letterboxed on the dark frame
-   instead of making the card tall. The second selector of each pair
-   matches the posterless-video rule (a 16:9 frame), which is more
-   specific. */
+/* Feed pictures and videos: one compact frame for all, the same width and
+   the same 16:9 shape (a picture or video used to show at its own file
+   size, so a playing video jumped to its full resolution and a tall
+   picture made its card tall). The media fills the frame (cover); a
+   picture of another shape loses its edges here, never in the wide view
+   or fullscreen. The enlarge button (.feed-media-tools, mountMediaTools)
+   makes it full width at its own shape and back; the other opens it
+   fullscreen. The second selector of each pair matches the
+   posterless-video rule (a 16:9 frame), which is more specific. */
 :is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card,
 :is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card:has(video:not(.loop-face):not(.has-poster)) {
-  --feed-media-h: 45dvh;
   width: max(min(100%, 240px), calc(var(--fu) * 16));
   max-width: 100%;
+  height: auto;
+  max-height: none;
+  aspect-ratio: 16 / 9;
   margin-inline: auto;
   align-self: center;
+  background-color: #0b0d13;
   transition: width 300ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide,
-:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide:has(video:not(.loop-face):not(.has-poster)) {
-  --feed-media-h: 80dvh;
-  width: 100%;
 }
 :is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card > :is(img, video:not(.loop-face), canvas.media-still) {
   width: 100%;
-  height: auto;
+  height: 100%;
   max-width: 100%;
-  max-height: var(--feed-media-h);
+  max-height: none;
   margin-inline: 0;
-  object-fit: contain;
+  object-fit: cover;
+  object-position: center;
   background-color: #0b0d13;
+}
+/* Wide: full width, the media's own shape, the whole of it in view. A
+   posterless video and a picture still loading keep the 16:9 frame. */
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide,
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide:has(video:not(.loop-face):not(.has-poster)) {
+  width: 100%;
+  aspect-ratio: auto;
+}
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide:is(.is-media-pending, :has(video:not(.loop-face):not(.has-poster))) {
+  aspect-ratio: 16 / 9;
+}
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide > :is(img, video:not(.loop-face), canvas.media-still) {
+  height: auto;
+  max-height: 80dvh;
+  object-fit: contain;
 }
 :is(#feed-column, .feed-comments-stage) .feed-media-tools {
   --tool: max(32px, calc(var(--fu) * 1.5));
