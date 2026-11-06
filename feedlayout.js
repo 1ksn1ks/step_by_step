@@ -945,7 +945,7 @@ function coverFeedPlayer(media, onTap) {
     const dx = event.clientX - from.x;
     const dy = event.clientY - from.y;
     if (Math.hypot(dx, dy) >= feedDragLimit() || !feedSelectionEmpty()) return;
-    onTap();
+    onTap(event);
   });
   hit.addEventListener('pointercancel', () => {
     start = null;
@@ -954,11 +954,10 @@ function coverFeedPlayer(media, onTap) {
 }
 
 // Every feed picture and video starts at one compact size (style.css
-// .popup-media-card). One round ··· button sits on its top right. It slides
-// out two more: one makes the media full width and back, one opens it
-// fullscreen. Picking one, a tap anywhere else, or Escape tucks them away.
-// They sit above the tap layer, so a tap on them never plays, pauses, or
-// opens the picture.
+// .popup-media-card). A round ··· on its top right (shown by a tap, see
+// mountMediaTools) slides out two more: one makes the media full width
+// and back, one opens it fullscreen. They sit above the tap layer, so a
+// tap on them never plays or pauses the video.
 const MEDIA_MORE_ICON = [
   ['circle', { cx: '5', cy: '12', r: '1' }],
   ['circle', { cx: '12', cy: '12', r: '1' }],
@@ -1021,39 +1020,21 @@ function mountMediaBackdrop(media, source) {
   sync();
 }
 
-// The one open ··· group, if any. Opening another closes it.
-let openMediaTools = null;
+// How long the ··· stays after the last touch or mouse move. Chrome's own
+// video control bar hides after the same 2.5 s, so on a video the two
+// come and go together, and a picture keeps the same rhythm.
+const MEDIA_TOOLS_IDLE_MS = 2500;
 
-function setMediaToolsOpen(tools, open) {
-  if (!tools) return;
-  const more = tools.querySelector('.feed-media-more');
-  tools.classList.toggle('is-open', open);
-  if (more) {
-    more.setAttribute('aria-expanded', open ? 'true' : 'false');
-    more.setAttribute('aria-label', open ? 'Hide media options' : 'Media options');
-    more.title = open ? 'Hide' : 'Media options';
-    more.replaceChildren(svgIcon(open ? MEDIA_CLOSE_ICON : MEDIA_MORE_ICON));
-  }
-  if (open) {
-    if (openMediaTools && openMediaTools !== tools) setMediaToolsOpen(openMediaTools, false);
-    openMediaTools = tools;
-  } else if (openMediaTools === tools) {
-    openMediaTools = null;
-  }
-}
-
-// Capture, so a tap the feed stops on its way still closes the group.
-document.addEventListener('pointerdown', (event) => {
-  const tools = openMediaTools;
-  if (!tools) return;
-  if (!tools.isConnected) {
-    openMediaTools = null;
-    return;
-  }
-  if (!tools.contains(event.target)) setMediaToolsOpen(tools, false);
-}, true);
-
-function mountMediaTools(media, key, onFull) {
+// The ··· is hidden at rest (.is-tools-shown on the media shows it).
+//   Picture: a tap shows it (a second tap hides it); a mouse shows it while
+//     it moves over the picture. It hides 2.5 s after the last of those.
+//   Video: it follows the native control bar. It shows while that bar is
+//     on and the video is paused, or for 2.5 s after a touch or mouse move
+//     while it plays. A tap still plays or pauses.
+//   Open (the ··· turned ×): it stays until × or Escape, then hides after
+//     the same 2.5 s. Make bigger keeps it open.
+// Returns tap(event) for the picture's tap layer.
+function mountMediaTools(media, key, onFull, video = null) {
   const tools = document.createElement('div');
   tools.className = 'feed-media-tools';
   const more = document.createElement('button');
@@ -1080,13 +1061,52 @@ function mountMediaTools(media, key, onFull) {
   if (key && wideMedia.has(key)) media.classList.add('is-wide');
   paint();
   tools.append(size, full, more);
-  setMediaToolsOpen(tools, false);
+
+  let recent = false;
+  let idleTimer = 0;
+  const isOpen = () => tools.classList.contains('is-open');
+  const paintShown = () => {
+    let shown = recent;
+    if (isOpen()) shown = true;
+    else if (video) shown = !!video.controls && (video.paused || recent);
+    media.classList.toggle('is-tools-shown', shown);
+  };
+  // Shown now, hidden MEDIA_TOOLS_IDLE_MS after the last call.
+  const wake = () => {
+    recent = true;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      idleTimer = 0;
+      recent = false;
+      paintShown();
+    }, MEDIA_TOOLS_IDLE_MS);
+    paintShown();
+  };
+  const sleepNow = () => {
+    clearTimeout(idleTimer);
+    idleTimer = 0;
+    recent = false;
+    paintShown();
+  };
+  const setOpen = (open) => {
+    tools.classList.toggle('is-open', open);
+    more.setAttribute('aria-expanded', open ? 'true' : 'false');
+    more.setAttribute('aria-label', open ? 'Hide media options' : 'Media options');
+    more.title = open ? 'Hide' : 'Media options';
+    more.replaceChildren(svgIcon(open ? MEDIA_CLOSE_ICON : MEDIA_MORE_ICON));
+    // Closing starts the countdown; open keeps it in view.
+    if (open) paintShown();
+    else wake();
+  };
+  setOpen(false);
+  sleepNow();
+
   // A keyboard click has detail 0 and no pointer, so only a tap is checked
   // for a drag.
   more.addEventListener('click', (event) => {
     event.stopPropagation();
     if (event.detail > 0 && !feedActIdle(event)) return;
-    setMediaToolsOpen(tools, !tools.classList.contains('is-open'));
+    setOpen(!isOpen());
   });
   size.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -1098,22 +1118,52 @@ function mountMediaTools(media, key, onFull) {
       else wideMedia.delete(key);
     }
     paint();
-    setMediaToolsOpen(tools, false);
   });
   full.addEventListener('click', (event) => {
     event.stopPropagation();
     if (event.detail > 0 && !feedActIdle(event)) return;
-    setMediaToolsOpen(tools, false);
+    setOpen(false);
     onFull();
   });
   tools.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || !tools.classList.contains('is-open')) return;
+    if (event.key !== 'Escape' || !isOpen()) return;
     event.preventDefault();
     event.stopPropagation();
-    setMediaToolsOpen(tools, false);
+    setOpen(false);
     more.focus();
   });
+  // A mouse shows it while it moves over the media and drops it on leave,
+  // as the native video bar does.
+  media.addEventListener('pointermove', (event) => {
+    if (event.pointerType === 'mouse') wake();
+  });
+  media.addEventListener('pointerleave', (event) => {
+    if (event.pointerType === 'mouse') sleepNow();
+  });
+  if (video) {
+    // Any touch on a video (the tap layer or the native bar) counts as use.
+    media.addEventListener('pointerdown', (event) => {
+      if (event.pointerType !== 'mouse') wake();
+    });
+    video.addEventListener('play', paintShown);
+    video.addEventListener('pause', paintShown);
+    // The poster face turns the native bar off until the first play.
+    new MutationObserver(paintShown).observe(video, { attributes: true, attributeFilter: ['controls'] });
+  }
   media.appendChild(tools);
+  paintShown();
+  return {
+    // The picture's tap: show or hide the ···; a click only shows it.
+    tap(event) {
+      if (isOpen()) return;
+      if (event && event.pointerType === 'mouse') {
+        wake();
+        return;
+      }
+      if (recent) sleepNow();
+      else wake();
+    },
+  };
 }
 
 function coordLabel(lngLat) {
@@ -2807,7 +2857,7 @@ function buildCard(post) {
           posterV: record.posterV || 0,
           time: node.currentTime || 0,
         });
-      });
+      }, node);
     } else {
       node.alt = '';
       node.draggable = false;
@@ -2817,15 +2867,15 @@ function buildCard(post) {
       presentImage(node, src, { play: true });
       mountMediaBackdrop(media, node);
       // A GIF animates here as a normal picture (a still with reduced
-      // motion). Any picture opens the fullscreen viewer. A tap while the
-      // picture is still pending does nothing.
+      // motion). A tap shows the ··· (mountMediaTools); its fullscreen
+      // button opens the viewer, except while the picture is still pending.
       const openFull = () => {
         if (node.classList.contains('is-media-pending')) return;
         holdScroll();
         openPreview(resolved.src || src);
       };
-      coverFeedPlayer(media, openFull);
-      mountMediaTools(media, post.key, openFull);
+      const mediaTools = mountMediaTools(media, post.key, openFull);
+      coverFeedPlayer(media, (event) => mediaTools.tap(event));
     }
   }
 

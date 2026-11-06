@@ -20075,6 +20075,24 @@ img.is-gif-hit {
 :is(#feed-column, .feed-comments-stage) .feed-media-tools.is-open > .feed-media-tool:not(.feed-media-more):active {
   scale: 0.92;
 }
+/* The whole group is hidden at rest. .is-tools-shown (mountMediaTools:
+   a tap, a mouse moving over it, a paused video's bar) or keyboard focus
+   (:focus-visible, not a tap's focus) shows it. Hidden, it lets taps through to the picture or video. */
+:is(#feed-column, .feed-comments-stage) .feed-media-tools {
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+:is(#feed-column, .feed-comments-stage) .popup-media-card.is-tools-shown > .feed-media-tools,
+:is(#feed-column, .feed-comments-stage) .feed-media-tools:has(:focus-visible) {
+  opacity: 1;
+}
+:is(#feed-column, .feed-comments-stage) .popup-media-card:not(.is-tools-shown) > .feed-media-tools:not(:has(:focus-visible)) > .feed-media-tool {
+  pointer-events: none;
+}
+/* A tap on a picture shows the ···; it no longer zooms. */
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card:not(:has(video:not(.loop-face))) .feed-media-hit {
+  cursor: default;
+}
 :is(#feed-column, .feed-comments-stage) .feed-media-more[aria-expanded="true"] {
   border-color: rgba(34, 211, 238, 0.7);
   background: rgba(8, 51, 68, 0.7);
@@ -20083,6 +20101,7 @@ img.is-gif-hit {
 @media (prefers-reduced-motion: reduce) {
   :is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card,
   :is(#feed-column, .feed-comments-stage) .feed-media-tool,
+  :is(#feed-column, .feed-comments-stage) .feed-media-tools,
   :is(#feed-column, .feed-comments-stage) .feed-media-tools > .feed-media-tool:not(.feed-media-more) {
     transition: none;
   }
