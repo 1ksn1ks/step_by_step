@@ -9796,11 +9796,10 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   --page-chip-icon: calc(var(--page-face) * 0.42);
   /* Both rows use the compact bar. Type stays with the title, and the
      44px floor is the finished row, so opening Search does not grow the
-     header or move the controls. The field sits a step below the bar. */
+     header or move the controls. The field's own margins (.feed-search-field)
+     keep its focus ring just clear of the bar line and the chips. */
   --page-field-font: min(calc(var(--header-fu) * 2.1), var(--page-title));
   --page-field-h: calc(var(--page-bar-h) * 0.85);
-  --page-field-mt: calc(var(--fu) * 0.8);
-  --page-field-mb: 0px;
   --feed-bar-h: var(--page-bar-h);
   --feed-tabs-h: var(--page-bar-h);
   position: fixed;
@@ -10094,7 +10093,12 @@ html.feed-app #popup-settings-card {
   gap: 0;
   box-sizing: border-box;
   height: var(--page-field-h);
-  margin: var(--page-field-mt) calc(var(--fu) * 0.8) var(--page-field-mb);
+  /* The focus ring reaches 0.22fu past the border (outline-offset 0.1 +
+     outline 0.12, :focus-within below). Top: as high as it goes with the
+     ring still 2px clear of the bar's bottom line. Bottom: 4px between the
+     ring and the filter chips; their row adds 0.2fu of padding itself. */
+  --field-ring: calc(var(--fu) * 0.22);
+  margin: calc(var(--field-ring) + 2px) calc(var(--fu) * 0.8) calc(var(--field-ring) + 4px - var(--fu) * 0.2);
   padding: 0 calc(var(--fu) * 0.35) 0 calc(var(--fu) * 0.7);
   border: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
   border-radius: calc(var(--page-field-h) * 0.45);
