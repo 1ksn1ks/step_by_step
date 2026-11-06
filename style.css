@@ -9776,10 +9776,10 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   --page-chip-icon: calc(var(--page-face) * 0.42);
   /* Both rows use the compact bar. Type stays with the title, and the
      44px floor is the finished row, so opening Search does not grow the
-     header or move the controls. */
+     header or move the controls. The field sits a step below the bar. */
   --page-field-font: min(calc(var(--header-fu) * 2.1), var(--page-title));
-  --page-field-h: var(--page-bar-h);
-  --page-field-mt: 0px;
+  --page-field-h: calc(var(--page-bar-h) * 0.85);
+  --page-field-mt: calc(var(--fu) * 0.8);
   --page-field-mb: 0px;
   --feed-bar-h: var(--page-bar-h);
   --feed-tabs-h: var(--page-bar-h);
