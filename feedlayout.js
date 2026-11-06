@@ -563,6 +563,13 @@ searchPage.append(searchBar, searchBody, filterBackdrop, filterCard);
 searchPage.addEventListener('click', (event) => event.stopPropagation());
 searchPage.addEventListener('pointerdown', (event) => event.stopPropagation());
 root.appendChild(searchPage);
+// Header drop/lift (playSearchMotion). Declared here, before any code
+// that can open or close the page, so the timer is never read too early.
+let searchMotionTimer = 0;
+searchPage.addEventListener('animationend', (event) => {
+  if (event.target !== searchBar) return;
+  if (event.animationName === 'feedSearchDrop' || event.animationName === 'feedSearchLift') endSearchMotion();
+});
 
 let posts = [];
 let shown = [];
@@ -4935,6 +4942,8 @@ function hideSearch() {
   searchInput.value = '';
   searchClear.hidden = true;
   if (wasOpen) searchPage.hidden = true;
+  // Leaving the feed hides the whole screen, so no lift is played.
+  endSearchMotion();
   unparkScroller();
   if (wasOpen) resetScrollChrome();
   syncSearchChrome();
@@ -4978,6 +4987,26 @@ function clearSearchBtnPress() {
   searchBtnFeed.classList.remove('is-active', 'is-open', 'is-hold');
 }
 
+// The header (bar + field row) drops in from above on open and lifts back
+// up on close. searchPage.hidden still flips at once, so every check of it
+// stays true to the state; .is-leaving only keeps the page painted while
+// the header leaves. The posts do not move: they are the feed scroller,
+// parked in and out of the page. Durations live in style.css
+// (feedSearchDrop / feedSearchLift); the timer is only a fallback.
+// searchMotionTimer and the animationend hook sit beside searchPage.
+function endSearchMotion() {
+  clearTimeout(searchMotionTimer);
+  searchMotionTimer = 0;
+  searchPage.classList.remove('is-entering', 'is-leaving');
+}
+
+function playSearchMotion(kind) {
+  endSearchMotion();
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  searchPage.classList.add(kind === 'in' ? 'is-entering' : 'is-leaving');
+  searchMotionTimer = setTimeout(endSearchMotion, 900);
+}
+
 function closeSearchPage() {
   if (filterCard.style.display === 'block' || filterBackdrop.style.display === 'block') closeFilterCard();
   if (searchPage.hidden) {
@@ -4986,6 +5015,7 @@ function closeSearchPage() {
   }
   flushSearchInput();
   searchPage.hidden = true;
+  playSearchMotion('out');
   unparkScroller();
   resetScrollChrome();
   syncSearchChrome();
@@ -5016,6 +5046,7 @@ function openSearch() {
   searchOpenedByPointer = fromPointer;
   holdScroll();
   searchPage.hidden = false;
+  playSearchMotion('in');
   parkScroller();
   syncSearchChrome();
   if (window.layerOpened) window.layerOpened('feedsearch');
@@ -8818,6 +8849,7 @@ if (window.defineLayer) {
     open: () => {
       if (!searchPage.hidden) return;
       searchPage.hidden = false;
+      playSearchMotion('in');
       parkScroller();
       syncSearchChrome();
       focusSearchPage();

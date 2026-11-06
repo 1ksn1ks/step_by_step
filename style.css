@@ -10271,6 +10271,54 @@ html.feed-app #feed-search-page {
 #feed-search-page[hidden] {
   display: none;
 }
+/* Open drops the header (bar + field row) in from above; Back lifts it out
+   the top. feedlayout.js (playSearchMotion) sets .is-entering/.is-leaving
+   and clears them on animationend. Both parts move by the same distance,
+   so they travel as one piece. The page itself stays see-through while it
+   moves, so the feed header shows under the header as it comes and goes;
+   the posts do not move (they are the same scroller, parked in the page). */
+#feed-search-page:is(.is-entering, .is-leaving) {
+  --feed-search-drop: calc(var(--page-bar-h) + var(--feed-search-head-h, calc(var(--page-bar-h) * 1.5)) + env(safe-area-inset-top) + 4px);
+  background-color: transparent;
+}
+/* Closed already (hidden), but still painted until the lift ends. */
+#feed-search-page[hidden].is-leaving {
+  display: flex;
+}
+#feed-search-page[hidden].is-leaving,
+#feed-search-page[hidden].is-leaving * {
+  pointer-events: none !important;
+}
+/* The field row lives in the body, which clips; let it travel above it. */
+#feed-search-page:is(.is-entering, .is-leaving) > .feed-search-body {
+  overflow: visible;
+}
+#feed-search-page:is(.is-entering, .is-leaving) .feed-search-head {
+  box-shadow: 0 calc(var(--fu) * 0.4) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.45);
+}
+#feed-search-page.is-entering > .feed-chat-bar,
+#feed-search-page.is-entering .feed-search-head {
+  animation: feedSearchDrop 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+#feed-search-page.is-leaving > .feed-chat-bar,
+#feed-search-page.is-leaving .feed-search-head {
+  animation: feedSearchLift 240ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+/* translate, not transform: the field row's scroll hide owns transform. */
+@keyframes feedSearchDrop {
+  from { translate: 0 calc(-1 * var(--feed-search-drop)); }
+  to { translate: 0 0; }
+}
+@keyframes feedSearchLift {
+  from { translate: 0 0; }
+  to { translate: 0 calc(-1 * var(--feed-search-drop)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #feed-search-page:is(.is-entering, .is-leaving) > .feed-chat-bar,
+  #feed-search-page:is(.is-entering, .is-leaving) .feed-search-head {
+    animation: none;
+  }
+}
 .feed-search-body {
   position: relative;
   flex: 1 1 auto;
