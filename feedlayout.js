@@ -474,26 +474,73 @@ filterClose.type = 'button';
 filterClose.className = 'panel-close-btn';
 filterClose.setAttribute('aria-label', 'Close');
 filterClose.textContent = '\u00d7';
-function filterToggle(key, label) {
+const filterHead = document.createElement('div');
+filterHead.className = 'feed-filter-head';
+const filterTitle = document.createElement('h2');
+filterTitle.className = 'feed-filter-title';
+filterTitle.textContent = 'Filters';
+filterHead.append(filterTitle, filterClose);
+// A row: icon tile, label, switch. The label alone names the button.
+function filterToggle(key, label, icon) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'feed-filter-toggle';
   btn.dataset.filter = key;
-  btn.textContent = label;
   btn.setAttribute('aria-pressed', 'false');
+  const tile = document.createElement('span');
+  tile.className = 'feed-filter-icon';
+  tile.appendChild(svgIcon(icon));
+  const name = document.createElement('span');
+  name.className = 'feed-filter-name';
+  name.textContent = label;
+  const knob = document.createElement('span');
+  knob.className = 'feed-filter-switch';
+  knob.setAttribute('aria-hidden', 'true');
+  btn.append(tile, name, knob);
   return btn;
 }
-const filterHasImage = filterToggle('hasImage', 'Has image');
-const filterOnlyText = filterToggle('onlyText', 'Text only');
-const filterMine = filterToggle('mine', 'Mine');
-const filterFollowing = filterToggle('following', 'Following');
+function filterSection(title, nodes, extraClass) {
+  const section = document.createElement('div');
+  section.className = 'feed-filter-section' + (extraClass ? ' ' + extraClass : '');
+  const heading = document.createElement('h3');
+  heading.className = 'feed-filter-section-title';
+  heading.textContent = title;
+  section.append(heading, ...nodes);
+  return section;
+}
+const filterHasImage = filterToggle('hasImage', 'Has image', [
+  ['rect', { x: '3', y: '3', width: '18', height: '18', rx: '2' }],
+  ['circle', { cx: '9', cy: '9', r: '2' }],
+  ['path', { d: 'm21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21' }],
+]);
+const filterOnlyText = filterToggle('onlyText', 'Text only', [
+  ['path', { d: 'M4 7V4h16v3' }],
+  ['path', { d: 'M9 20h6' }],
+  ['path', { d: 'M12 4v16' }],
+]);
+const filterMine = filterToggle('mine', 'Mine', [
+  ['path', { d: 'M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2' }],
+  ['circle', { cx: '12', cy: '7', r: '4' }],
+]);
+const filterFollowing = filterToggle('following', 'Following', [
+  ['path', { d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' }],
+  ['circle', { cx: '9', cy: '7', r: '4' }],
+  ['path', { d: 'M22 21v-2a4 4 0 0 0-3-3.87' }],
+  ['path', { d: 'M16 3.13a4 4 0 0 1 0 7.75' }],
+]);
 const filterWalletHint = document.createElement('p');
 filterWalletHint.id = 'feed-filter-wallet-hint';
 filterWalletHint.className = 'feed-filter-hint';
 filterWalletHint.hidden = true;
 filterWalletHint.textContent = 'Connect your wallet to use Mine and Following';
-const filterHashinal = filterToggle('hashinal', 'Early Hashinal holders');
-const filterComments = filterToggle('hasComments', 'Has comments');
+const filterHashinal = filterToggle('hashinal', 'Early Hashinal holders', [
+  ['path', { d: 'M6 3h12l4 6-10 13L2 9Z' }],
+  ['path', { d: 'M11 3 8 9l4 13 4-13-3-6' }],
+  ['path', { d: 'M2 9h20' }],
+]);
+const filterComments = filterToggle('hasComments', 'Has comments', [
+  ['path', { d: 'M7.9 20A9 9 0 1 0 4 16.1L2 22Z' }],
+]);
 const filterSort = document.createElement('select');
 filterSort.id = 'feed-filter-sort';
 filterSort.className = 'feed-filter-native';
@@ -539,26 +586,17 @@ function filterField(labelText, control) {
 }
 const filterBody = document.createElement('div');
 filterBody.className = 'feed-filter-body';
-const filterToggleSection = document.createElement('div');
-filterToggleSection.className = 'feed-filter-section';
-filterToggleSection.append(filterHasImage, filterOnlyText, filterMine, filterFollowing, filterWalletHint, filterHashinal, filterComments);
-const filterSortLabel = document.createElement('span');
-filterSortLabel.className = 'feed-filter-label';
-filterSortLabel.textContent = 'Sort';
-const filterSortRow = document.createElement('div');
-filterSortRow.className = 'feed-filter-row';
-filterSortRow.append(filterSortLabel, filterSortPills);
-const filterSortSection = document.createElement('div');
-filterSortSection.className = 'feed-filter-section';
-filterSortSection.append(filterSortRow, filterSort);
-const filterDateSection = document.createElement('div');
-filterDateSection.className = 'feed-filter-section';
-filterDateSection.append(filterField('From', filterFrom), filterField('To', filterTo));
-const filterCountrySection = document.createElement('div');
-filterCountrySection.className = 'feed-filter-section';
-filterCountrySection.append(filterField('Country', filterCountry));
-filterBody.append(filterToggleSection, filterSortSection, filterDateSection, filterCountrySection);
-filterCard.append(filterClose, filterBody);
+const filterDates = document.createElement('div');
+filterDates.className = 'feed-filter-dates';
+filterDates.append(filterField('From', filterFrom), filterField('To', filterTo));
+filterCountry.classList.add('feed-filter-field');
+filterBody.append(
+  filterSection('Show', [filterHasImage, filterOnlyText, filterMine, filterFollowing, filterWalletHint, filterHashinal, filterComments], 'is-toggles'),
+  filterSection('Sort by', [filterSortPills, filterSort]),
+  filterSection('Date', [filterDates]),
+  filterSection('Country', [filterCountry]),
+);
+filterCard.append(filterHead, filterBody);
 searchPage.append(searchBar, searchBody, filterBackdrop, filterCard);
 searchPage.addEventListener('click', (event) => event.stopPropagation());
 searchPage.addEventListener('pointerdown', (event) => event.stopPropagation());
@@ -569,6 +607,13 @@ let searchMotionTimer = 0;
 searchPage.addEventListener('animationend', (event) => {
   if (event.target !== searchBar) return;
   if (event.animationName === 'feedSearchDrop' || event.animationName === 'feedSearchLift') endSearchMotion();
+});
+// Filters sheet close motion (concealFilterCard). Opening needs no class:
+// the rise plays whenever the sheet's display turns on.
+let filterMotionTimer = 0;
+filterCard.addEventListener('animationend', (event) => {
+  if (event.target !== filterCard) return;
+  if (event.animationName === 'feedFilterDown' || event.animationName === 'feedFilterShrink') endFilterMotion();
 });
 
 let posts = [];
@@ -4788,11 +4833,15 @@ function syncFilterControls() {
   paintFilterToggle(filterComments, filters.hasComments === true);
   const sort = query.sort || 'newest';
   if (filterSort.value !== sort) filterSort.value = sort;
-  for (const pill of filterSortPills.children) {
+  let sortIndex = 0;
+  [...filterSortPills.children].forEach((pill, index) => {
     const on = pill.dataset.sort === sort;
+    if (on) sortIndex = index;
     pill.classList.toggle('is-active', on);
     pill.setAttribute('aria-pressed', on ? 'true' : 'false');
-  }
+  });
+  // The cyan block under the pills slides to this slot (style.css).
+  filterSortPills.style.setProperty('--sort-i', String(sortIndex));
   const from = typeof filters.dateFrom === 'string' ? filters.dateFrom : '';
   const to = typeof filters.dateTo === 'string' ? filters.dateTo : '';
   if (filterFrom.value !== from) filterFrom.value = from;
@@ -4963,7 +5012,7 @@ function hideSearch() {
   } finally {
     searchMute = false;
   }
-  concealFilterCard();
+  concealFilterCard(false);
   if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('feedfilters')) {
     window.layerClosedByUI('feedfilters');
   }
@@ -4987,11 +5036,38 @@ function hideSearch() {
   clearSearchBtnPress();
 }
 
+// Filters sheet motion. display stays the open/closed state and flips at
+// once; .is-leaving only keeps the sheet and its backdrop painted while
+// they slide and fade out (style.css feedFilterDown / feedFilterShrink).
+// The timer is a fallback for a missed animationend.
+function endFilterMotion() {
+  clearTimeout(filterMotionTimer);
+  filterMotionTimer = 0;
+  filterCard.classList.remove('is-leaving');
+  filterBackdrop.classList.remove('is-leaving');
+}
+
 // Back, Escape, and browser Back close the page and keep the query.
-function concealFilterCard() {
+// animate is false when the whole search page goes away with the sheet.
+function concealFilterCard(animate = true) {
+  const wasShown = filterCard.style.display === 'block';
   filterBackdrop.style.display = 'none';
   filterCard.style.display = 'none';
   searchGear.setAttribute('aria-expanded', 'false');
+  endFilterMotion();
+  if (!animate || !wasShown || searchPage.hidden) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  filterCard.classList.add('is-leaving');
+  filterBackdrop.classList.add('is-leaving');
+  filterMotionTimer = setTimeout(endFilterMotion, 600);
+}
+
+function showFilterCard() {
+  endFilterMotion();
+  syncFilterControls();
+  filterBackdrop.style.display = 'block';
+  filterCard.style.display = 'block';
+  searchGear.setAttribute('aria-expanded', 'true');
 }
 
 function closeFilterCard() {
@@ -5006,10 +5082,7 @@ function closeFilterCard() {
 function openFilterCard() {
   if (filterCard.style.display === 'block') return;
   if (searchPage.hidden) return;
-  syncFilterControls();
-  filterBackdrop.style.display = 'block';
-  filterCard.style.display = 'block';
-  searchGear.setAttribute('aria-expanded', 'true');
+  showFilterCard();
   if (window.layerOpened) window.layerOpened('feedfilters');
 }
 
@@ -9042,10 +9115,7 @@ if (window.defineLayer) {
     parent: 'feedsearch',
     open: () => {
       if (searchPage.hidden || filterCard.style.display === 'block') return;
-      syncFilterControls();
-      filterBackdrop.style.display = 'block';
-      filterCard.style.display = 'block';
-      searchGear.setAttribute('aria-expanded', 'true');
+      showFilterCard();
     },
     close: () => concealFilterCard(),
   });
@@ -9727,7 +9797,7 @@ registerFilter('country', (post, record, value) => {
 
 const countryBlank = document.createElement('option');
 countryBlank.value = '';
-countryBlank.textContent = 'Country';
+countryBlank.textContent = 'Any country';
 filterCountry.appendChild(countryBlank);
 for (const [code, name] of [...countryNameByCode.entries()].sort((a, b) => a[1].localeCompare(b[1]))) {
   const opt = document.createElement('option');
