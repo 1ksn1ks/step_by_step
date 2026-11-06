@@ -19910,9 +19910,10 @@ img.is-gif-hit {
 /* Feed pictures and videos: one compact frame for all, the same width and
    the same 16:9 shape (a picture or video used to show at its own file
    size, so a playing video jumped to its full resolution and a tall
-   picture made its card tall). The media fills the frame (cover); a
-   picture of another shape loses its edges here, never in the wide view
-   or fullscreen. The enlarge button (.feed-media-tools, mountMediaTools)
+   picture made its card tall). The whole picture is fitted inside
+   (contain), and a blurred, darkened copy of it fills the rest of the
+   frame (.feed-media-backdrop, mountMediaBackdrop), the blur fill most
+   feeds use. The enlarge button (.feed-media-tools, mountMediaTools)
    makes it full width at its own shape and back; the other opens it
    fullscreen. The second selector of each pair matches the
    posterless-video rule (a 16:9 frame), which is more specific. */
@@ -19928,15 +19929,42 @@ img.is-gif-hit {
   background-color: #0b0d13;
   transition: width 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card > :is(img, video:not(.loop-face), canvas.media-still) {
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card > :is(img:not(.feed-media-backdrop), video:not(.loop-face), canvas.media-still) {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   max-width: 100%;
   max-height: none;
   margin-inline: 0;
+  object-fit: contain;
+  object-position: center;
+  background-color: transparent;
+}
+/* The blur fill: the same picture, cropped to cover the frame, blurred and
+   dimmed, under the fitted one. Not drawn in the wide view (no empty
+   sides there) or behind a GIF still (it would animate). */
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card > img.feed-media-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
   object-fit: cover;
   object-position: center;
-  background-color: #0b0d13;
+  background: none;
+  filter: blur(max(12px, calc(var(--fu) * 0.7))) brightness(0.55) saturate(1.2);
+  transform: scale(1.2);
+  pointer-events: none;
+}
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card > img.feed-media-backdrop[hidden],
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide > img.feed-media-backdrop,
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card:has(> canvas.media-still) > img.feed-media-backdrop {
+  display: none;
 }
 /* Wide: full width, the media's own shape, the whole of it in view. A
    posterless video and a picture still loading keep the 16:9 frame. */
@@ -19948,7 +19976,7 @@ img.is-gif-hit {
 :is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide:is(.is-media-pending, :has(video:not(.loop-face):not(.has-poster))) {
   aspect-ratio: 16 / 9;
 }
-:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide > :is(img, video:not(.loop-face), canvas.media-still) {
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide > :is(img:not(.feed-media-backdrop), video:not(.loop-face), canvas.media-still) {
   height: auto;
   max-height: 80dvh;
   object-fit: contain;

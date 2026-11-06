@@ -976,6 +976,40 @@ const MEDIA_FULL_ICON = [
   ['path', { d: 'M16 21h3a2 2 0 0 0 2-2v-3' }],
 ];
 
+// Blur fill, as most feeds do it: the picture is fitted whole in the
+// compact frame and a blurred copy of it fills the rest (style.css
+// .feed-media-backdrop). The copy follows the picture's src, or the
+// video's poster, so a gateway retry or a late poster carries over. It
+// goes after the media, so a lookup of the card's first img still finds
+// the picture.
+function mountMediaBackdrop(media, source) {
+  const back = document.createElement('img');
+  back.className = 'feed-media-backdrop';
+  back.alt = '';
+  back.setAttribute('aria-hidden', 'true');
+  back.draggable = false;
+  back.decoding = 'async';
+  back.loading = 'lazy';
+  back.hidden = true;
+  const attr = source.tagName === 'VIDEO' ? 'poster' : 'src';
+  const sync = () => {
+    const url = source.getAttribute(attr) || '';
+    if (!url) {
+      back.hidden = true;
+      back.removeAttribute('src');
+      return;
+    }
+    if (back.getAttribute('src') !== url) back.src = url;
+    back.hidden = false;
+  };
+  back.addEventListener('error', () => {
+    back.hidden = true;
+  });
+  new MutationObserver(sync).observe(source, { attributes: true, attributeFilter: [attr] });
+  source.after(back);
+  sync();
+}
+
 function mountMediaTools(media, key, onFull) {
   const tools = document.createElement('div');
   tools.className = 'feed-media-tools';
@@ -2690,6 +2724,7 @@ function buildCard(post) {
         armPlay: false,
       });
       media.appendChild(node);
+      mountMediaBackdrop(media, node);
       bindFeedVideo(node);
       coverFeedPlayer(media, () => {
         if (node.paused) {
@@ -2718,6 +2753,7 @@ function buildCard(post) {
       node.decoding = 'async';
       media.appendChild(node);
       presentImage(node, src, { play: true });
+      mountMediaBackdrop(media, node);
       // A GIF animates here as a normal picture (a still with reduced
       // motion). Any picture opens the fullscreen viewer. A tap while the
       // picture is still pending does nothing.
