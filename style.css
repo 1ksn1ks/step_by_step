@@ -19223,6 +19223,13 @@ img.is-gif-hit {
   width: calc(var(--fu) * 2.2) !important;
   height: calc(var(--fu) * 2.2) !important;
 }
+/* The boxes stay 44px like the back arrow's, so on a wide column (a big
+   portrait screen: 76px icons) the icons spill past them, as the arrow
+   does. The gap grows by that spill plus 0.3fu, so neighbours never touch;
+   at the usual sizes the icon fits its box and the gap stays 4px. */
+:is(#feed-chat, #feed-profile, #feed-search-page) > .feed-chat-bar .feed-chat-actions {
+  gap: max(4px, calc(var(--fu) * 2.2 - 44px + var(--fu) * 0.3));
+}
 /* Text "?" help: a font size that draws the glyph as tall as the icons. */
 #feed-chat:is(.is-load, .is-draw) > .feed-chat-bar .feed-chat-actions > :is(#help-load-column, #help-draw-column),
 :is(#feed-menu, .drawer-screen) .feed-menu-page-bar > .panel-help-btn.is-bar-help {
