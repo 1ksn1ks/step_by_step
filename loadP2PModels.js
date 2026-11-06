@@ -853,6 +853,11 @@ export async function load3dModels() {
     render(gl, args) {
       if (!state.renderer || !state.map) return;
       const map = state.map;
+      // Feed mode covers the map. Skip the draw and the trailing repaint so
+      // MapLibre goes idle behind the feed — the repaint loop would otherwise
+      // starve typing in the chat. syncCover() kicks a frame when the feed
+      // closes, and the first rendered frame resumes this loop on its own.
+      if (document.documentElement.classList.contains('feed-app')) return;
       try {
         // Real frame dt — drives the load fade-in ramp (the drift itself is
         // uTime in the shader, smooth at any frame rate for free).
@@ -1041,6 +1046,10 @@ export function loadDayNight() {
     render(gl, args) {
       if (!state.renderer || !state.map) return;
       const map = state.map;
+      // Feed mode covers the map: same idle gate as the bot layer. The
+      // daynight terminator is the other thing that re-triggered every
+      // frame, so behind the feed it stops too.
+      if (document.documentElement.classList.contains('feed-app')) return;
       // The globe->flat transition MORPHS a single frame (the tile shaders
       // mix flat/globe positions with _globeness; z11 = pure globe, z12 =
       // pure flat — MapLibre's own ["interpolate", ["zoom"], 11, globe,

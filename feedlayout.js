@@ -4435,7 +4435,13 @@ function feedCovers() {
 }
 
 function syncCover() {
-  document.documentElement.classList.toggle('feed-app', feedCovers());
+  const covers = feedCovers();
+  const was = document.documentElement.classList.contains('feed-app');
+  document.documentElement.classList.toggle('feed-app', covers);
+  // The bot and daynight layers go idle while the feed covers the map
+  // (their render gates in loadP2PModels.js). One frame restarts their
+  // repaint loop the moment the map comes back.
+  if (!covers && was) map.triggerRepaint();
   syncFeedVideos();
 }
 
