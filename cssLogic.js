@@ -16,6 +16,7 @@ import { toast } from './toast.js';
 import { formatHcsUsage, HCS_TOO_LONG } from './hcschunks.js';
 import { composerWireBytes } from './chatimage.js';
 import { fitChatComposer } from './chatcomposer.js';
+import { setTextInPlace } from './textinplace.js';
 import { closeDrawAnchor } from './drawhere.js';
 import { closePressAnchor } from './poiinfo.js';
 
@@ -855,7 +856,7 @@ export function CloseALL() {
       if (ta.closest(".chat-compose")?.classList.contains("is-editing")) return;
       const usage = formatHcsUsage(composerWireBytes(kind, ta.value));
       counter.hidden = false;
-      counter.textContent = usage.text;
+      setTextInPlace(counter, usage.text);
       counter.classList.toggle("hcs-warn", usage.warn);
       counter.classList.toggle("hcs-over", usage.over);
       // A disabled control never receives the click, so the too-long toast

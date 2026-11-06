@@ -1,5 +1,6 @@
 import tzlookup from '@photostructure/tz-lookup';
 import { map } from './map.js';
+import { setTextInPlace } from './textinplace.js';
 
 const clockEl = document.getElementById('local-clock');
 
@@ -58,13 +59,13 @@ function updateClock() {
       const p = parts.find((x) => x.type === t);
       return p ? p.value : '';
     };
-    clockEl.textContent = `${get('hour')}:${get('minute')} ${get('day')} ${get('month')}`;
+    setTextInPlace(clockEl, `${get('hour')}:${get('minute')} ${get('day')} ${get('month')}`);
   } else {
     const local = new Date(Date.now() + lonOffset * 3600000);
     const hh = String(local.getUTCHours()).padStart(2, '0');
     const mm = String(local.getUTCMinutes()).padStart(2, '0');
     const dd = String(local.getUTCDate()).padStart(2, '0');
-    clockEl.textContent = `${hh}:${mm} ${dd} ${MONTHS[local.getUTCMonth()]}`;
+    setTextInPlace(clockEl, `${hh}:${mm} ${dd} ${MONTHS[local.getUTCMonth()]}`);
   }
 }
 
