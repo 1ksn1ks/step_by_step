@@ -19570,3 +19570,23 @@ img.is-gif-hit {
   outline: none;
   box-shadow: inset 0 0 0 2px #22D3EE !important;
 }
+
+/* Topic and E2EE chat message search row: the same height as the topic ID
+   row above it (--chat-field-h), field and A-Z / Z-A buttons alike. The
+   field took the 4.2fu chat-field minimum plus padding and grew past that
+   row (195px against 141px on a 1440px portrait screen). Load keeps its
+   own search sizes (#load-column rules). */
+#feed-chat :is(#topic-chat-container, #encrypted-chat-container) .loaded-topics-controls > :is(.loaded-topics-search, .loaded-topics-sort) {
+  box-sizing: border-box;
+  height: var(--chat-field-h) !important;
+  min-height: var(--chat-field-h) !important;
+  max-height: var(--chat-field-h) !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+#feed-chat :is(#topic-chat-container, #encrypted-chat-container) .loaded-topics-controls > .loaded-topics-sort {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
