@@ -664,6 +664,9 @@ const seenSeq = new Set();
 const seenSig = new Set();
 const seenPost = new Set();
 const actions = new Map();
+// Post keys whose picture or video the user made full width (mountMediaTools).
+// Cards are rebuilt as they scroll back in, so the choice lives here.
+const wideMedia = new Set();
 const likeCounts = new Map();
 const markerComments = new Map();
 const polygonComments = new Map();
@@ -948,6 +951,73 @@ function coverFeedPlayer(media, onTap) {
     start = null;
   });
   media.appendChild(hit);
+}
+
+// Every feed picture and video starts at one compact size (style.css
+// .popup-media-card). Two round buttons sit on its top right: one makes it
+// full width and back, one opens it fullscreen. They sit above the tap
+// layer, so a tap on them never plays, pauses, or opens the picture.
+const MEDIA_GROW_ICON = [
+  ['path', { d: 'M15 3h6v6' }],
+  ['path', { d: 'M9 21H3v-6' }],
+  ['path', { d: 'm21 3-7 7' }],
+  ['path', { d: 'm3 21 7-7' }],
+];
+const MEDIA_SHRINK_ICON = [
+  ['path', { d: 'M4 14h6v6' }],
+  ['path', { d: 'M20 10h-6V4' }],
+  ['path', { d: 'm14 10 7-7' }],
+  ['path', { d: 'm3 21 7-7' }],
+];
+const MEDIA_FULL_ICON = [
+  ['path', { d: 'M8 3H5a2 2 0 0 0-2 2v3' }],
+  ['path', { d: 'M21 8V5a2 2 0 0 0-2-2h-3' }],
+  ['path', { d: 'M3 16v3a2 2 0 0 0 2 2h3' }],
+  ['path', { d: 'M16 21h3a2 2 0 0 0 2-2v-3' }],
+];
+
+function mountMediaTools(media, key, onFull) {
+  const tools = document.createElement('div');
+  tools.className = 'feed-media-tools';
+  const size = document.createElement('button');
+  size.type = 'button';
+  size.className = 'feed-media-tool feed-media-size';
+  const full = document.createElement('button');
+  full.type = 'button';
+  full.className = 'feed-media-tool feed-media-full';
+  full.setAttribute('aria-label', 'Fullscreen');
+  full.title = 'Fullscreen';
+  full.appendChild(svgIcon(MEDIA_FULL_ICON));
+  const paint = () => {
+    const wide = media.classList.contains('is-wide');
+    const label = wide ? 'Make smaller' : 'Make bigger';
+    size.setAttribute('aria-pressed', wide ? 'true' : 'false');
+    size.setAttribute('aria-label', label);
+    size.title = label;
+    size.replaceChildren(svgIcon(wide ? MEDIA_SHRINK_ICON : MEDIA_GROW_ICON));
+  };
+  if (key && wideMedia.has(key)) media.classList.add('is-wide');
+  paint();
+  // A keyboard click has detail 0 and no pointer, so only a tap is checked
+  // for a drag.
+  size.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (event.detail > 0 && !feedActIdle(event)) return;
+    const wide = !media.classList.contains('is-wide');
+    media.classList.toggle('is-wide', wide);
+    if (key) {
+      if (wide) wideMedia.add(key);
+      else wideMedia.delete(key);
+    }
+    paint();
+  });
+  full.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (event.detail > 0 && !feedActIdle(event)) return;
+    onFull();
+  });
+  tools.append(size, full);
+  media.appendChild(tools);
 }
 
 function coordLabel(lngLat) {
@@ -2632,6 +2702,15 @@ function buildCard(post) {
         pauseFeedVideo(node);
         queueFeedVideos();
       });
+      mountMediaTools(media, post.key, () => {
+        holdScroll();
+        openPreview(src, {
+          video: true,
+          posterOff: !!record.posterOff,
+          posterV: record.posterV || 0,
+          time: node.currentTime || 0,
+        });
+      });
     } else {
       node.alt = '';
       node.draggable = false;
@@ -2642,11 +2721,13 @@ function buildCard(post) {
       // A GIF animates here as a normal picture (a still with reduced
       // motion). Any picture opens the fullscreen viewer. A tap while the
       // picture is still pending does nothing.
-      coverFeedPlayer(media, () => {
+      const openFull = () => {
         if (node.classList.contains('is-media-pending')) return;
         holdScroll();
         openPreview(resolved.src || src);
-      });
+      };
+      coverFeedPlayer(media, openFull);
+      mountMediaTools(media, post.key, openFull);
     }
   }
 

@@ -9,6 +9,7 @@ import { posterSrc, watchVideoFace } from './videoposter.js';
 //
 //   openPreview(src)
 //   openPreview(src, { video: true })
+//   openPreview(src, { video: true, time: 12.5 })   start the video there
 //
 // Backdrop tap, the ×, and Esc close it. A tap on the picture does not.
 //
@@ -108,6 +109,17 @@ export function openPreview(src, options = {}) {
     media.autoplay = true;
     const poster = posterSrc(resolved.src, options);
     if (poster) media.poster = poster;
+    // The feed's fullscreen button carries on from where the card was.
+    const start = Number(options.time);
+    if (Number.isFinite(start) && start > 0) {
+      media.addEventListener('loadedmetadata', () => {
+        try {
+          if (start < media.duration) media.currentTime = start;
+        } catch {
+          /* not seekable yet */
+        }
+      }, { once: true });
+    }
     watchVideoFace(media);
     const pending = media.play();
     if (pending && typeof pending.catch === 'function') pending.catch(() => {});

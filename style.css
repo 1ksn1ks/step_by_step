@@ -19906,3 +19906,106 @@ img.is-gif-hit {
   border-color: #67e8f9 !important;
   background: #67e8f9 !important;
 }
+
+/* Feed pictures and videos: one compact size for all (a picture or video
+   used to show at its own file size, so a playing video jumped to its full
+   resolution). The enlarge button (.feed-media-tools, mountMediaTools)
+   makes it full width and back; the other opens it fullscreen. The frame
+   width is fixed, so a tall picture is letterboxed on the dark frame
+   instead of making the card tall. The second selector of each pair
+   matches the posterless-video rule (a 16:9 frame), which is more
+   specific. */
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card,
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card:has(video:not(.loop-face):not(.has-poster)) {
+  --feed-media-h: 45dvh;
+  width: max(min(100%, 240px), calc(var(--fu) * 16));
+  max-width: 100%;
+  margin-inline: auto;
+  align-self: center;
+  transition: width 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide,
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide:has(video:not(.loop-face):not(.has-poster)) {
+  --feed-media-h: 80dvh;
+  width: 100%;
+}
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card > :is(img, video:not(.loop-face), canvas.media-still) {
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  max-height: var(--feed-media-h);
+  margin-inline: 0;
+  object-fit: contain;
+  background-color: #0b0d13;
+}
+:is(#feed-column, .feed-comments-stage) .feed-media-tools {
+  --tool: max(32px, calc(var(--fu) * 1.5));
+  position: absolute;
+  top: max(8px, calc(var(--fu) * 0.5));
+  right: max(8px, calc(var(--fu) * 0.5));
+  z-index: 4;
+  display: flex;
+  gap: max(12px, calc(var(--fu) * 0.5));
+  pointer-events: none;
+}
+:is(#feed-column, .feed-comments-stage) .feed-media-tool {
+  appearance: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--tool);
+  height: var(--tool);
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 50%;
+  background: rgba(10, 12, 18, 0.58);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  color: #fff;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 160ms ease, border-color 160ms ease, background-color 160ms ease, scale 120ms ease;
+}
+/* 44px touch target around the smaller round face. */
+:is(#feed-column, .feed-comments-stage) .feed-media-tool::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(44px, 100%);
+  height: max(44px, 100%);
+  translate: -50% -50%;
+}
+:is(#feed-column, .feed-comments-stage) .feed-media-tool svg {
+  display: block;
+  width: 52%;
+  height: 52%;
+  pointer-events: none;
+}
+:is(#feed-column, .feed-comments-stage) .feed-media-tool:is(:hover, :active),
+:is(#feed-column, .feed-comments-stage) .feed-media-size[aria-pressed="true"] {
+  border-color: rgba(34, 211, 238, 0.7);
+  color: #22D3EE;
+}
+:is(#feed-column, .feed-comments-stage) .feed-media-tool:active {
+  scale: 0.92;
+}
+:is(#feed-column, .feed-comments-stage) .feed-media-tool:focus {
+  outline: none;
+}
+:is(#feed-column, .feed-comments-stage) .feed-media-tool:focus-visible {
+  outline: 2px solid #22D3EE;
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card,
+  :is(#feed-column, .feed-comments-stage) .feed-media-tool {
+    transition: none;
+  }
+}
