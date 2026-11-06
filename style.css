@@ -12579,10 +12579,11 @@ html.feed-app :is(
   padding-left: calc(env(safe-area-inset-left) + 2px + 0.225vh);
   padding-right: calc(env(safe-area-inset-right) + var(--fu) * 1.1);
 }
-/* 2px down from the bar top, like the map bar's top: 2px. */
+/* Centred in the bar row, on the same line as the title and the search
+   icon (it sat 2px low when it copied the map bar's top: 2px). */
 #feed-layout > #feed-toolbar > .feed-menu-anchor {
-  align-self: flex-start;
-  margin-top: 2px;
+  align-self: center;
+  margin-top: 0;
 }
 /* The menu button matches the map's #map-menu-btn: no fill or ring, a
    full-row square (--page-bar-h equals --map-bar-h in feed mode), and
