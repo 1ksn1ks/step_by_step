@@ -14311,7 +14311,14 @@ html.feed-app #feed-chat.is-draw.is-map-chat > .feed-chat-bar {
 .feed-chat-actions > button[style*="display:none"] {
   display: none !important;
 }
-.feed-chat-actions > button:is(:hover, :active, .is-hold, .is-on) {
+/* Cyan on press and while a button's panel is open (.is-on: search row,
+   unlock field; the -btn twin of Options shows while its page is open).
+   The :not(#feed-profile-edit) copies match the white rule above, whose
+   :not(#id) counts as an ID and outranked this one. */
+.feed-chat-actions > button:is(:hover, :active, .is-hold, .is-on),
+.feed-chat-actions > .feed-chat-icon:not(#feed-profile-edit):is(:hover, :active, .is-hold, .is-on),
+.feed-chat-actions > button:not(#feed-profile-edit):is(:hover, :active, .is-hold, .is-on),
+.feed-chat-actions > button:not(#feed-profile-edit):is(#show-options-from-topic-chat-btn, #show-options-from-encrypted-chat-btn) {
   color: #22D3EE !important;
 }
 .feed-chat-actions > button:focus-visible {
