@@ -11,13 +11,16 @@ export function fitChatComposer(field) {
 function fitChatComposerWork(field) {
   if (!field || field.getClientRects().length === 0) return;
   const row = field.closest(".chat-compose-row");
-  const min = parseFloat(getComputedStyle(field).minHeight);
+  // One style read, one layout. The old min-height round trip forced an
+  // extra full relayout per keystroke and changed nothing: with the CSS
+  // min-height intact, scrollHeight is already at least the one-line floor,
+  // and the clamp below lands on the same value.
+  const cs = getComputedStyle(field);
+  const min = parseFloat(cs.minHeight);
   const floor = Number.isFinite(min) ? min : 0;
-  field.style.setProperty("min-height", "0px", "important");
+  const max = parseFloat(cs.maxHeight);
   field.style.setProperty("height", "0px", "important");
   const full = field.scrollHeight;
-  field.style.removeProperty("min-height");
-  const max = parseFloat(getComputedStyle(field).maxHeight);
   const cap = Number.isFinite(max) ? max : full;
   const next = Math.max(floor, Math.min(full, cap));
   field.style.setProperty("height", Math.ceil(next) + "px", "important");

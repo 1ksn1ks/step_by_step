@@ -410,6 +410,11 @@ function visPass() {
 }
 
 function visPassWork() {
+  // The feed covers the map: no cover's visibility can change while it is
+  // up, so the once-per-second projection pass over every cover is pure
+  // waste (measured at 400ms+ on the phone). coverFeedWatch runs a full
+  // pass the moment the map comes back.
+  if (document.documentElement.classList.contains('feed-app')) return;
   if (mediaCovers.size === 0 && pendingCovers.size === 0) { stopVisTimer(); return; }
   for (const sid of [...mediaCovers.keys()]) {
     if (!map.getSource(sid)) detachCover(mediaCovers.get(sid));
