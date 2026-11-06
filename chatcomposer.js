@@ -1,8 +1,14 @@
+import { perfJob } from './perf.js';
+
 // One autogrow for the topic and E2EE composers, on the map and in the feed.
 // CSS owns the one-line height and the five-line cap. This only writes the
 // measured height and marks the row once the field is taller than one line,
 // so the image and send buttons sit on the last line.
 export function fitChatComposer(field) {
+  return perfJob('fitChatComposer', () => fitChatComposerWork(field));
+}
+
+function fitChatComposerWork(field) {
   if (!field || field.getClientRects().length === 0) return;
   const row = field.closest(".chat-compose-row");
   const min = parseFloat(getComputedStyle(field).minHeight);

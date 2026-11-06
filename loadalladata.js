@@ -1,3 +1,4 @@
+import { perfJob } from './perf.js';
 import { getTopicData as getMessages } from "./topicdata";
 import { fetchUserSettings } from "./msgbackend";
 import { readSettings, writeSettings } from "./settingscache.js";
@@ -191,7 +192,7 @@ async function loadAllDataBody() {
 
 export function loadAllData() {
   if (inflight) return inflight;
-  inflight = loadAllDataBody().finally(() => {
+  inflight = perfJob('loadAllData', () => loadAllDataBody()).finally(() => {
     inflight = null;
   });
   return inflight;

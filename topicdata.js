@@ -19,6 +19,7 @@
 // loads run getTopicData (circular init).
 
 import { trackTopic, fetchMessagesBackend, takePopupViews } from './msgbackend';
+import { perfJob } from './perf.js';
 import {
   highestSequence,
   mergeMessages,
@@ -210,7 +211,11 @@ async function loadTopic(topicId, { limit, ttl }) {
   return { ...result, messages: messages.slice() };
 }
 
-export async function getTopicData(topicId, { limit = 20000, ttl = DEFAULT_TTL, force = false } = {}) {
+export async function getTopicData(topicId, opts = {}) {
+  return perfJob('getTopicData', () => getTopicDataWork(topicId, opts));
+}
+
+async function getTopicDataWork(topicId, { limit = 20000, ttl = DEFAULT_TTL, force = false } = opts) {
   const key = String(topicId || '');
   if (!key) return { messages: [], error: 'missing topic', viaBackend: false };
   if (!force) {

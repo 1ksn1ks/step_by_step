@@ -1,3 +1,4 @@
+import { perfJob } from './perf.js';
 import { applyAllStyles } from './loadprofilepopup';
 import { scene } from "./threejs";
 import maplibregl from 'maplibre-gl';
@@ -405,6 +406,10 @@ function refreshCoverHolds() {
 // Re-check every cover against ONE camera snapshot; drop covers whose
 // source was removed. Runs on moveend/zoomend and every second.
 function visPass() {
+  perfJob('visPass', () => visPassWork());
+}
+
+function visPassWork() {
   if (mediaCovers.size === 0 && pendingCovers.size === 0) { stopVisTimer(); return; }
   for (const sid of [...mediaCovers.keys()]) {
     if (!map.getSource(sid)) detachCover(mediaCovers.get(sid));

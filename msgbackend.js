@@ -6,6 +6,8 @@
 // NOTE: this module must keep ZERO static imports — hedera/web3 loop back
 // into the data loaders, and a static import here would put BACKEND_URL in
 // the temporal dead zone when their top-level loads run (circular init).
+// perf.js is exempt: it is a leaf (imports nothing), so it cannot loop.
+import { perfJob } from './perf.js';
 
 // Empty = same origin as the app. The dev server (vite.config.js) and the
 // production reverse proxy forward /api/* to the backend — the app never
@@ -278,7 +280,10 @@ export function startLiveTail(topicId, startSeq, onMessage, pollMs = 3000, initi
   let timer = null;
   const seen = new Set(initialMessages.map(messageSig));
   const pendingSigs = new Set();
-  const poll = async () => {
+  // perfJob is a leaf module (imports nothing), so it keeps the zero-static-
+  // import rule intact: no circular init.
+  const poll = () => perfJob('liveTail', () => pollWork());
+  const pollWork = async () => {
     if (stopped) return;
     try {
       const res = await fetch(

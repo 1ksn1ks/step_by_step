@@ -3,6 +3,7 @@ import { loadedDomains } from './loaddomains';
 import { getAccountNFTs, getTopicInfo, subscribeToTopic } from './hedera';
 import { sendMessage, messageSig, streamOnTopic, streamOnReconnect } from './msgbackend';
 import { getTopicData } from './topicdata';
+import { perfJob } from './perf.js';
 import { toast } from "./toast";
 import { profilePictures, usernames, click2url } from './loadalladata';
 import { pictureElement } from './loopmedia.js';
@@ -489,6 +490,11 @@ let currentGroupContainer = null;
 let currentMessagesGroupDiv = null;
 
 async function appendTopicChatMessage(message, messagesContainer, topicAdmin, loadedNFTsForTopicChat) {
+  return perfJob('appendTopicChatMessage', () =>
+    appendTopicChatMessageWork(message, messagesContainer, topicAdmin, loadedNFTsForTopicChat));
+}
+
+async function appendTopicChatMessageWork(message, messagesContainer, topicAdmin, loadedNFTsForTopicChat) {
   try {
     let parsedMessage = typeof message === 'string' ? JSON.parse(message) : message;
     const payer = parsedMessage.payer || 'Unknown';
