@@ -2384,54 +2384,73 @@ html, body {
     z-index: 0;
   }
 
-  /* One row, pre-declutter metrics: menu in the Disconnect slot
-     (2px + the wallet inset), clock beside it, coordinates at the
-     right edge sized to the text. The bar itself does not take hits. */
+  /* One row: menu in the Disconnect slot (2px + the wallet inset), clock
+     beside it, coordinates at the right edge sized to the text. The bar
+     itself does not take hits.
+     The height copies the feed's first row (#feed-toolbar in feed mode:
+     the page-bar tokens on #feed-layout and html.feed-app), so the map
+     row and the feed row are the same height in the same window. Keep
+     --map-bar-h in step with --page-bar-h there.
+     Contents fill the row: text at 0.78 of the height keeps the line box
+     (ascender to descender) just inside it. Clock plus the longest
+     coordinates are about 23em of Arial, so the 24 divisor shrinks the
+     text on narrow screens until the whole row fits the width. */
   #map-topbar {
+    --map-bar-col: 100dvw;
+    --map-bar-fu: calc(min(100dvw, var(--map-bar-col)) * 0.024);
+    --map-bar-h: max(44px, calc(var(--map-bar-fu) * 2.1 * 1.2));
+    --map-bar-text: min(
+      calc(var(--map-bar-h) * 0.78),
+      calc((100dvw - var(--map-bar-h) - 3vh - 12px) / 24)
+    );
     position: fixed;
     top: 2px;
     left: 2px;
     right: 2px;
     z-index: 1007;
     display: flex;
-    align-items: stretch;
+    align-items: center;
     gap: 0.5vh;
-    height: auto;
+    height: var(--map-bar-h);
     padding-left: 0.225vh;
     box-sizing: border-box;
     pointer-events: none;
+  }
+  @media (orientation: landscape) {
+    #map-topbar {
+      --map-bar-col: clamp(40dvw, 46dvw, 46dvw);
+    }
   }
   #map-menu-btn {
     appearance: none;
     flex: 0 0 auto;
     align-self: center;
+    position: relative;
     box-sizing: border-box;
-    width: calc(1lh + 0.8vh + 0.8vh + 1px + 1px);
-    height: calc(1lh + 0.8vh + 0.8vh + 1px + 1px);
+    width: var(--map-bar-h);
+    height: var(--map-bar-h);
     margin: 0;
-    padding: 0.8vh;
+    padding: 0;
     font-family: Arial, sans-serif;
     font-size: 1.5vh;
     line-height: normal;
     display: grid;
     place-items: center;
-    background-color: rgba(10, 10, 18, 0.88);
+    background-color: transparent;
     color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.25);
+    border: 1px solid transparent;
     border-radius: 50%;
     cursor: pointer;
     touch-action: manipulation;
     pointer-events: auto;
   }
+  /* The icon box fills the button. The three lines span about 3/4 of its
+     width and 3/5 of its height, close to the digit height beside it. */
   #map-menu-btn svg {
-    width: 1.5vh;
-    height: 1.5vh;
+    width: 100%;
+    height: 100%;
     display: block;
     pointer-events: none;
-  }
-  #map-menu-btn:hover {
-    background-color: rgba(30, 30, 42, 0.94);
-    border-color: rgba(255, 255, 255, 0.45);
   }
   #map-menu-btn:focus-visible {
     outline: 0.2dvh solid #22D3EE;
@@ -2449,18 +2468,19 @@ html, body {
   #map-topbar #local-clock,
   #map-topbar #coordinates-display {
     position: static;
-    height: auto;
+    /* Full row height; the 1px transparent border sits top and bottom. */
+    height: calc(var(--map-bar-h) - 2px);
     margin: 0;
     box-sizing: content-box;
-    padding: 0.8vh 0.45vh;
+    padding: 0 0.45vh;
     border-radius: 0.8vh;
     font-family: Arial, sans-serif;
-    font-size: 1.5vh;
+    font-size: var(--map-bar-text);
     line-height: normal;
     white-space: nowrap;
-    background-color: rgba(15, 15, 20, 0.86);
+    background-color: transparent;
     color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid transparent;
   }
   #map-topbar #local-clock {
     flex: 0 0 auto;

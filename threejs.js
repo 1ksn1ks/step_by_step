@@ -95,6 +95,12 @@ let targetRotationY = 0;
 let prevLng = 0;
 let prevLat = 0;
 let coordTextLen = -1;
+// The field's font changes without the text changing: the top-bar font
+// scales with the window, and feedlayout.js moves the field into the top
+// bar after the first frames have measured it under the smaller base rule.
+// A resize or a new parent forces the next frame to measure again.
+let coordParent = null;
+window.addEventListener('resize', () => { coordTextLen = -1; });
 const lerpFactor = 0.05; // Controls smoothness
 
 // Stars only show in space: the globe is a circle centered on the map center.
@@ -212,22 +218,25 @@ function animate(now) {
     const nextText = Date.now() < copiedUntil ? "Copyed!" : newCoords;
     if (coordinatesDisplay.value !== nextText) {
       coordinatesDisplay.value = nextText;
+    }
 
-      // Re-measure the field width only when the text length changes —
-      // measuring every frame forced a full layout pass on the main thread
-      if (nextText.length !== coordTextLen) {
-        coordTextLen = nextText.length;
-        const tempSpan = document.createElement("span");
-        tempSpan.style.visibility = "hidden";
-        tempSpan.style.position = "absolute";
-        tempSpan.style.whiteSpace = "nowrap";
-        tempSpan.style.font = window.getComputedStyle(coordinatesDisplay).font;
-        tempSpan.textContent = nextText;
-        document.body.appendChild(tempSpan);
+    // Re-measure the field width only when the text length changes, the
+    // window resized, or the field moved — measuring every frame forced a
+    // full layout pass on the main thread. Outside the value check, so a
+    // resize while the map is still re-measures on the next frame.
+    if (nextText.length !== coordTextLen || coordinatesDisplay.parentElement !== coordParent) {
+      coordTextLen = nextText.length;
+      coordParent = coordinatesDisplay.parentElement;
+      const tempSpan = document.createElement("span");
+      tempSpan.style.visibility = "hidden";
+      tempSpan.style.position = "absolute";
+      tempSpan.style.whiteSpace = "nowrap";
+      tempSpan.style.font = window.getComputedStyle(coordinatesDisplay).font;
+      tempSpan.textContent = nextText;
+      document.body.appendChild(tempSpan);
 
-        coordinatesDisplay.style.width = `${tempSpan.offsetWidth + 1}px`;
-        document.body.removeChild(tempSpan);
-      }
+      coordinatesDisplay.style.width = `${tempSpan.offsetWidth + 1}px`;
+      document.body.removeChild(tempSpan);
     }
   
     // Smooth longitude transition
