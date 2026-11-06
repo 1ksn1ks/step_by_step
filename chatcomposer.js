@@ -73,14 +73,20 @@ function fitChatComposerWork(field) {
   // Same box as the field at height 0: content plus padding.
   const full = twin.scrollHeight;
   const cap = Number.isFinite(max) ? max : full;
-  const next = Math.max(floor, Math.min(full, cap));
+  // Dropped (setComposerDropped): one line, whatever the draft's length.
+  const dropped = !!(compose && compose.classList.contains("is-dropped"));
+  const next = dropped ? floor : Math.max(floor, Math.min(full, cap));
   const height = Math.ceil(next) + "px";
   if (field.style.getPropertyValue("height") !== height || field.style.getPropertyPriority("height") !== "important") {
     field.style.setProperty("height", height, "important");
   }
-  const overflow = full - next > 4 ? "auto" : "hidden";
+  const overflow = !dropped && full - next > 4 ? "auto" : "hidden";
   if (field.style.overflowY !== overflow) field.style.overflowY = overflow;
-  if (row) row.classList.toggle("is-grown", full > floor + 4);
+  const tall = full > floor + 4;
+  if (row) row.classList.toggle("is-grown", tall && !dropped);
+  // A draft taller than one line can be dropped down: shows the chevron.
+  if (compose) compose.classList.toggle("is-tall", tall);
+  if (dropped && field.scrollTop) field.scrollTop = 0;
 }
 
 // has-draft on .chat-compose: there is text, an image, or an edit under
@@ -93,6 +99,10 @@ export function syncComposerDraft(field) {
     || compose.classList.contains("is-editing")
     || !!compose.querySelector(":scope > .chat-attach-preview:not([hidden])");
   compose.classList.toggle("has-draft", draft);
+  if (!draft && compose.classList.contains("is-dropped")) {
+    compose.classList.remove("is-dropped");
+    paintDropButton(compose);
+  }
 }
 
 // Fullscreen composer, as Telegram has it. The byte counter moves to a
@@ -143,6 +153,10 @@ export function setComposerExpanded(compose, on, { fromHistory = false } = {}) {
   const was = compose.classList.contains("is-expanded");
   if (was === on) return;
   if (on && expandedCompose && expandedCompose !== compose) setComposerExpanded(expandedCompose, false);
+  if (on && compose.classList.contains("is-dropped")) {
+    compose.classList.remove("is-dropped");
+    paintDropButton(compose);
+  }
   compose.classList.toggle("is-expanded", on);
   expandedCompose = on ? compose : null;
   if (on) lastExpanded = compose;
@@ -164,6 +178,82 @@ export function setComposerExpanded(compose, on, { fromHistory = false } = {}) {
   }
 }
 
+// Drop down: a draft taller than one line folds to one line, so the chat
+// shows above it, and the keyboard goes away. The text stays. It comes
+// back up with the chevron, a swipe up, a tap in the field, or typing.
+const DROP_ICON = '<path d="m6 9 6 6 6-6"/>';
+const RAISE_ICON = '<path d="m18 15-6-6-6 6"/>';
+
+function paintDropButton(compose) {
+  const btn = compose && compose.querySelector(".chat-compose-drop");
+  if (!btn) return;
+  const on = compose.classList.contains("is-dropped");
+  const label = on ? "Show the whole message" : "Drop the message down";
+  btn.setAttribute("aria-label", label);
+  btn.title = label;
+  btn.setAttribute("aria-pressed", on ? "true" : "false");
+  btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '
+    + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + (on ? RAISE_ICON : DROP_ICON) + "</svg>";
+}
+
+export function setComposerDropped(compose, on) {
+  if (!compose) return;
+  if (compose.classList.contains("is-dropped") === on) return;
+  if (on && compose.classList.contains("is-expanded")) return;
+  compose.classList.toggle("is-dropped", on);
+  paintDropButton(compose);
+  const field = compose.querySelector("textarea");
+  if (!field) return;
+  fitChatComposer(field);
+  if (on && document.activeElement === field) field.blur();
+}
+
+// A swipe down on the composer drops it, a swipe up brings it back. Inside
+// the field it waits until the text is scrolled to its top (or cannot
+// scroll), so scrolling a long draft still works, and a selection drag is
+// left alone.
+const SWIPE_PX = 28;
+
+function bindDropSwipe(compose, field) {
+  let start = null;
+  compose.addEventListener("touchstart", (event) => {
+    const touch = event.touches.length === 1 ? event.touches[0] : null;
+    if (!touch || compose.classList.contains("is-expanded")) {
+      start = null;
+      return;
+    }
+    const inField = event.target === field;
+    // A dropped field shows one line and does not scroll.
+    const still = !inField || compose.classList.contains("is-dropped");
+    start = {
+      x: touch.clientX,
+      y: touch.clientY,
+      inField,
+      atTop: still || field.scrollTop <= 0,
+      atBottom: still || field.scrollTop + field.clientHeight >= field.scrollHeight - 1,
+    };
+  }, { passive: true });
+  compose.addEventListener("touchmove", (event) => {
+    if (!start || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dx) > Math.abs(dy)) return;
+    if (start.inField && field.selectionStart !== field.selectionEnd) return;
+    const dropped = compose.classList.contains("is-dropped");
+    if (dy > SWIPE_PX && !dropped && start.atTop && compose.classList.contains("is-tall")) {
+      start = null;
+      setComposerDropped(compose, true);
+    } else if (dy < -SWIPE_PX && dropped && start.atBottom) {
+      start = null;
+      setComposerDropped(compose, false);
+    }
+  }, { passive: true });
+  compose.addEventListener("touchend", () => { start = null; }, { passive: true });
+  compose.addEventListener("touchcancel", () => { start = null; }, { passive: true });
+}
+
 // The chat page closed under it: drop the fullscreen with no animation.
 export function collapseComposers() {
   if (expandedCompose) setComposerExpanded(expandedCompose, false);
@@ -183,6 +273,20 @@ export function mountComposerExpand(field, counter, send) {
   btn.className = "chat-compose-expand";
   field.after(btn);
   paintExpandButton(compose);
+  const drop = document.createElement("button");
+  drop.type = "button";
+  drop.className = "chat-compose-drop";
+  caption.appendChild(drop);
+  paintDropButton(compose);
+  drop.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setComposerDropped(compose, !compose.classList.contains("is-dropped"));
+  });
+  // Typing, or coming back to the field, brings the whole draft back.
+  field.addEventListener("input", () => setComposerDropped(compose, false));
+  field.addEventListener("focus", () => setComposerDropped(compose, false));
+  bindDropSwipe(compose, field);
   // Keep the field focused, so the phone keyboard stays up.
   btn.addEventListener("pointerdown", (event) => event.preventDefault());
   btn.addEventListener("click", (event) => {
