@@ -9768,22 +9768,21 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   --header-fu: clamp(0.9vh, var(--fu), 1.6vh);
   --ui-label: calc(var(--header-fu) * 1.8);
   --ui-small: calc(var(--header-fu) * 1.35);
-  --page-title: min(calc(var(--header-fu) * 2.1), calc(max(44px, var(--ui-label)) * 0.5));
+  --page-title: calc(var(--fu) * 2.1);
   --page-icon: calc(var(--header-fu) * 2.2);
   --page-bar-h: max(44px, calc(var(--page-title) * 1.2));
   --page-face: calc(var(--page-bar-h) * 0.72);
   --page-chip: max(44px, var(--page-face));
   --page-chip-icon: calc(var(--page-face) * 0.42);
-  /* Row 2 matches the search field. Type tracks the header unit and stays
-     with the title, so a tall screen does not stretch the row. The 44px
-     floor is the finished height only, and the old 0.9/0.42 proportion
-     still relates that height to the type. */
+  /* Both rows use the compact bar. Type stays with the title, and the
+     44px floor is the finished row, so opening Search does not grow the
+     header or move the controls. */
   --page-field-font: min(calc(var(--header-fu) * 2.1), var(--page-title));
-  --page-field-h: max(44px, calc(var(--page-field-font) * 0.9 / 0.42));
-  --page-field-mt: calc(var(--header-fu) * 0.8);
-  --page-field-mb: calc(var(--header-fu) * 0.6);
+  --page-field-h: var(--page-bar-h);
+  --page-field-mt: 0px;
+  --page-field-mb: 0px;
   --feed-bar-h: var(--page-bar-h);
-  --feed-tabs-h: calc(var(--page-field-h) + var(--page-field-mt) + var(--page-field-mb));
+  --feed-tabs-h: var(--page-bar-h);
   position: fixed;
   inset: 0;
   width: 100dvw;
@@ -10078,14 +10077,14 @@ html.feed-app #popup-settings-card {
   margin: var(--page-field-mt) calc(var(--fu) * 0.8) var(--page-field-mb);
   padding: 0 calc(var(--fu) * 0.35) 0 calc(var(--fu) * 0.7);
   border: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
-  border-radius: calc(var(--map-pill-h) * 0.45);
+  border-radius: calc(var(--page-field-h) * 0.45);
   background: rgba(255, 255, 255, 0.06);
 }
 .feed-search-field::before {
   content: "";
   flex: 0 0 auto;
-  width: calc(var(--map-pill-h) * 0.42);
-  height: calc(var(--map-pill-h) * 0.42);
+  width: calc(var(--page-field-h) * 0.42);
+  height: calc(var(--page-field-h) * 0.42);
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") center / contain no-repeat;
   pointer-events: none;
 }
@@ -10102,8 +10101,8 @@ html.feed-app #popup-settings-card {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: calc(var(--map-pill-h) * 0.7);
-  height: calc(var(--map-pill-h) * 0.7);
+  width: calc(var(--page-field-h) * 0.7);
+  height: calc(var(--page-field-h) * 0.7);
   margin: 0 0 0 calc(var(--fu) * 0.15);
   padding: 0;
   border: 0;
@@ -10118,16 +10117,16 @@ html.feed-app #popup-settings-card {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: max(44px, calc(var(--map-pill-h) * 0.7));
-  height: max(44px, calc(var(--map-pill-h) * 0.7));
+  width: max(44px, calc(var(--page-field-h) * 0.7));
+  height: max(44px, calc(var(--page-field-h) * 0.7));
   transform: translate(-50%, -50%);
 }
 #feed-search-clear[hidden] {
   display: none;
 }
 #feed-search-clear svg {
-  width: calc(var(--map-pill-h) * 0.42);
-  height: calc(var(--map-pill-h) * 0.42);
+  width: calc(var(--page-field-h) * 0.42);
+  height: calc(var(--page-field-h) * 0.42);
   display: block;
   pointer-events: none;
 }
@@ -12096,24 +12095,6 @@ html.feed-app :is(
 ) {
   --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
 }
-/* Feed row and the Search page row share the capped header unit, so
-   opening Search does not resize the title or the glass buttons. */
-html.feed-app :is(
-  #feed-search-page > .feed-chat-bar,
-  #feed-layout > #feed-toolbar
-) {
-  --fu: var(--header-fu);
-  --ui-label: calc(var(--header-fu) * 1.8);
-  --ui-small: calc(var(--header-fu) * 1.35);
-  --page-title: min(calc(var(--header-fu) * 2.1), calc(max(44px, var(--ui-label)) * 0.5));
-  --page-icon: calc(var(--header-fu) * 2.2);
-  --page-bar-h: max(44px, calc(var(--page-title) * 1.2));
-  --page-face: calc(var(--page-bar-h) * 0.72);
-  --page-chip: max(44px, var(--page-face));
-  --page-chip-icon: calc(var(--page-face) * 0.42);
-  box-sizing: border-box;
-  height: var(--page-bar-h);
-}
 :is(
   #feed-profile > .feed-chat-bar,
   #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
@@ -12227,21 +12208,9 @@ html.feed-app :is(
   text-shadow: none;
   text-transform: uppercase;
 }
-/* The feed bar shares the page-bar box. Side safe areas live on the page
-   for Search, so the feed bar adds them itself. These tokens are set here,
-   not only under html.feed-app: the bar height is measured before that
-   class lands, and a tall screen would otherwise pin the tabs to the
-   uncapped drawer bar. */
+/* The feed bar shares the page-bar box and the page-bar tokens. Side safe
+   areas live on the page for Search, so the feed bar adds them itself. */
 #feed-layout > #feed-toolbar {
-  --fu: var(--header-fu);
-  --ui-label: calc(var(--header-fu) * 1.8);
-  --ui-small: calc(var(--header-fu) * 1.35);
-  --page-title: min(calc(var(--header-fu) * 2.1), calc(max(44px, var(--ui-label)) * 0.5));
-  --page-icon: calc(var(--header-fu) * 2.2);
-  --page-bar-h: max(44px, calc(var(--page-title) * 1.2));
-  --page-face: calc(var(--page-bar-h) * 0.72);
-  --page-chip: max(44px, var(--page-face));
-  --page-chip-icon: calc(var(--page-face) * 0.42);
   height: var(--page-bar-h);
   align-items: center;
   padding-left: calc(env(safe-area-inset-left) + var(--fu) * 1.1);
