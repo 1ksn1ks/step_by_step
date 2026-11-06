@@ -12230,42 +12230,41 @@ html.feed-app :is(
 }
 /* The feed bar shares the page-bar box and the page-bar tokens. Side safe
    areas live on the page for Search, so the feed bar adds them itself. */
+/* The left inset is the map bar's (2px + 0.225vh, #map-topbar), so the
+   menu button sits on the same spot in both views. */
 #feed-layout > #feed-toolbar {
   height: var(--page-bar-h);
   align-items: center;
-  padding-left: calc(env(safe-area-inset-left) + var(--fu) * 1.1);
+  padding-left: calc(env(safe-area-inset-left) + 2px + 0.225vh);
   padding-right: calc(env(safe-area-inset-right) + var(--fu) * 1.1);
 }
-/* The menu button keeps the same glass circle as Search and New post.
-   The page-bar rule above paints it as a bare 44px back control. */
+/* 2px down from the bar top, like the map bar's top: 2px. */
+#feed-layout > #feed-toolbar > .feed-menu-anchor {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+/* The menu button matches the map's #map-menu-btn: no fill or ring, a
+   full-row square (--page-bar-h equals --map-bar-h in feed mode), and
+   the icon fills it. Press only tints the lines cyan. */
 #feed-layout > #feed-toolbar #feed-back-btn.feed-chat-back {
-  width: var(--page-face);
-  min-width: var(--page-face);
-  height: var(--page-face);
-  min-height: var(--page-face);
-  border: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
+  width: var(--page-bar-h);
+  min-width: var(--page-bar-h);
+  height: var(--page-bar-h);
+  min-height: var(--page-bar-h);
+  border: 1px solid transparent;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.10);
-  box-shadow: inset 0 calc(var(--fu) * 0.08) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--fu) * 0.2) calc(var(--fu) * 0.55) rgba(0, 0, 0, 0.35);
+  background: transparent;
+  box-shadow: none;
   color: #fff;
 }
-#feed-layout > #feed-toolbar #feed-back-btn.feed-chat-back::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: var(--page-chip);
-  height: var(--page-chip);
-  transform: translate(-50%, -50%);
-}
 #feed-layout > #feed-toolbar #feed-back-btn.feed-chat-back svg {
-  width: var(--page-chip-icon);
-  height: var(--page-chip-icon);
+  width: 100%;
+  height: 100%;
 }
 #feed-layout > #feed-toolbar #feed-back-btn.feed-chat-back:is(:hover, :active, .is-hold) {
-  background-color: var(--press-bg, #22D3EE);
-  border-color: var(--press-border, #22D3EE);
-  color: var(--press-ink, #083344);
+  background-color: transparent;
+  border-color: transparent;
+  color: #22D3EE;
 }
 /* The column menu paints inside #feed-frame. Lift the frame over the
    full-width bar while that menu is open so the dim still covers it. */
@@ -13789,9 +13788,9 @@ html.drawer-page .info-overlay {
     color: #fff;
   }
   #feed-layout > #feed-toolbar #feed-back-btn.feed-chat-back:hover:not(.is-hold) {
-    background: rgba(255, 255, 255, 0.10);
-    background-color: rgba(255, 255, 255, 0.10);
-    border-color: rgba(255, 255, 255, 0.22);
+    background: transparent;
+    background-color: transparent;
+    border-color: transparent;
     color: #fff;
   }
   #feed-search-clear:hover:not(.is-hold) {
