@@ -115,6 +115,9 @@ const EXPAND_ICON = '<path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="m21 3-7
 const COLLAPSE_ICON = '<path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="m14 10 7-7"/><path d="m3 21 7-7"/>';
 let expandedCompose = null;
 let lastExpanded = null;
+// Composers that were dropped when fullscreen opened. Closing fullscreen
+// drops them again. A plain set: a data attribute would be a DOM write.
+const droppedBeforeFull = new WeakSet();
 let layerDefined = false;
 
 function paintExpandButton(compose) {
@@ -153,17 +156,38 @@ export function setComposerExpanded(compose, on, { fromHistory = false } = {}) {
   const was = compose.classList.contains("is-expanded");
   if (was === on) return;
   if (on && expandedCompose && expandedCompose !== compose) setComposerExpanded(expandedCompose, false);
-  if (on && compose.classList.contains("is-dropped")) {
-    compose.classList.remove("is-dropped");
-    paintDropButton(compose);
+  if (on) {
+    // Fullscreen shows the whole draft. Remember a drop for the way back.
+    if (compose.classList.contains("is-dropped")) {
+      droppedBeforeFull.add(compose);
+      compose.classList.remove("is-dropped");
+      paintDropButton(compose);
+    } else {
+      droppedBeforeFull.delete(compose);
+    }
   }
+  const redrop = !on && droppedBeforeFull.has(compose);
+  if (!on) droppedBeforeFull.delete(compose);
   compose.classList.toggle("is-expanded", on);
   expandedCompose = on ? compose : null;
   if (on) lastExpanded = compose;
+  if (redrop) {
+    compose.classList.add("is-dropped");
+    paintDropButton(compose);
+  }
   paintExpandButton(compose);
   if (field) {
     fitChatComposer(field);
-    if (field.isConnected && compose.getClientRects().length) {
+    // Back to dropped, unless the draft now fits on one line anyway.
+    if (redrop && !compose.classList.contains("is-tall")) {
+      compose.classList.remove("is-dropped");
+      paintDropButton(compose);
+      fitChatComposer(field);
+    }
+    if (compose.classList.contains("is-dropped")) {
+      // Dropped means put away: no focus, so the focus hook keeps it down.
+      if (document.activeElement === field) field.blur();
+    } else if (field.isConnected && compose.getClientRects().length) {
       try { field.focus({ preventScroll: true }); } catch { field.focus(); }
       // Opening keeps the caret's line in view in the taller box.
       if (on && field.selectionStart >= field.value.length) field.scrollTop = field.scrollHeight;
