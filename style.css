@@ -19590,3 +19590,22 @@ img.is-gif-hit {
   justify-content: center;
   line-height: 1;
 }
+
+/* The pressed sort (A-Z / Z-A in topic and E2EE chat, AZ / ZA on Load):
+   the app's cyan fill with dark text, like Load and Apply Filter. Pressing
+   it again turns the sort off and the fill goes (the scripts drop
+   .active). Before, the chat rules painted over .active, so a pressed
+   sort looked the same as an idle one. */
+#feed-chat :is(#topic-chat-container, #encrypted-chat-container, #load-column) .loaded-topics-controls > .loaded-topics-sort {
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+#feed-chat :is(#topic-chat-container, #encrypted-chat-container, #load-column) .loaded-topics-controls > .loaded-topics-sort.active {
+  border-color: #22D3EE !important;
+  background: #22D3EE !important;
+  box-shadow: none !important;
+  color: #083344 !important;
+}
+#feed-chat :is(#topic-chat-container, #encrypted-chat-container, #load-column) .loaded-topics-controls > .loaded-topics-sort.active:hover {
+  border-color: #67e8f9 !important;
+  background: #67e8f9 !important;
+}
