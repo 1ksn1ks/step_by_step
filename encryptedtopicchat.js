@@ -1148,7 +1148,17 @@ async function loadMessagesFromEncryptedChat() {
     // Live updates via the shared SSE stream — started after the private
     // key is ready so live messages can be decrypted as they arrive
     if (viaData.viaBackend) {
-      const seen = new Set(messages.map(messageSig));
+      // Confirmed rows dedupe on their stable sequence number: the
+      // reconnect re-fetch never re-stringifies the whole history (see
+      // topicchat). Only pending rows pay the content signature.
+      const seenSeqs = new Set();
+      for (const m of messages) {
+        const seq = Number(m.sequence_number) || 0;
+        if (seq > 0) seenSeqs.add(seq);
+      }
+      const seen = new Set(
+        messages.filter((m) => !(Number(m.sequence_number) > 0)).map(messageSig)
+      );
       const pendingSigs = new Set(messages.filter((m) => m.pending).map(messageSig));
       let liveReady = false;
       const renderLive = (m) =>
@@ -1162,6 +1172,8 @@ async function loadMessagesFromEncryptedChat() {
         );
       const handleStream = (evt) => {
         const m = evt.message;
+        const seq = Number(m.sequence_number) || 0;
+        if (seq > 0 && seenSeqs.has(seq)) return; // already delivered
         const sig = messageSig(m);
         if (evt.type === "pending") {
           if (seen.has(sig)) return;
@@ -1179,14 +1191,15 @@ async function loadMessagesFromEncryptedChat() {
             return;
           }
           seen.add(sig);
+          if (seq > 0) seenSeqs.add(seq);
           renderLive(m);
         } else if (evt.type === "confirmed") {
-          if (pendingSigs.has(sig)) {
+          if (pendingSigs.size > 0 && pendingSigs.has(sig)) {
             pendingSigs.delete(sig);
             annotateE2eeBubble(clearPendingMarker(messagesContainer, sig), m.payer, e2eeCreatedIso(m.created), false);
           }
         } else if (evt.type === "expired") {
-          if (pendingSigs.has(sig)) {
+          if (pendingSigs.size > 0 && pendingSigs.has(sig)) {
             pendingSigs.delete(sig);
             removePendingBubble(messagesContainer, sig);
           }
@@ -1200,9 +1213,12 @@ async function loadMessagesFromEncryptedChat() {
         }
         const fresh = await getTopicData(topicId, { force: true });
         for (const m of fresh.messages) {
+          const seq = Number(m.sequence_number) || 0;
+          if (seq > 0 && seenSeqs.has(seq)) continue;
           const sig = messageSig(m);
           if (seen.has(sig)) continue;
           seen.add(sig);
+          if (seq > 0) seenSeqs.add(seq);
           if (m.pending) pendingSigs.add(sig);
           renderLive(m);
         }

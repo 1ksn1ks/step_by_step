@@ -278,7 +278,18 @@ export function startLiveTail(topicId, startSeq, onMessage, pollMs = 3000, initi
   let lastSeq = startSeq || 0;
   let stopped = false;
   let timer = null;
-  const seen = new Set(initialMessages.map(messageSig));
+  // Confirmed rows dedupe on their stable sequence number: every 3s poll
+  // must not re-stringify the whole page of bodies (bodies can carry
+  // images). Only pending rows (no seq) pay the content signature.
+  const seenSeqs = new Set();
+  for (const m of initialMessages) {
+    const seq = Number(m && m.sequence_number) || 0;
+    if (seq > 0) seenSeqs.add(seq);
+  }
+  const seen = new Set();
+  for (const m of initialMessages) {
+    if (!((Number(m && m.sequence_number) || 0) > 0)) seen.add(messageSig(m));
+  }
   const pendingSigs = new Set();
   // perfJob is a leaf module (imports nothing), so it keeps the zero-static-
   // import rule intact: no circular init.
@@ -292,6 +303,23 @@ export function startLiveTail(topicId, startSeq, onMessage, pollMs = 3000, initi
       if (res.ok) {
         const data = await res.json();
         for (const m of data.messages || []) {
+          const seq = Number(m.sequence_number) || 0;
+          if (seq > 0) {
+            if (seenSeqs.has(seq)) continue;
+            seenSeqs.add(seq);
+            let confirm = false;
+            if (pendingSigs.size > 0) {
+              const sig = messageSig(m);
+              if (seen.has(sig) || pendingSigs.has(sig)) {
+                pendingSigs.delete(sig);
+                confirm = true;
+              }
+            }
+            if (seq > lastSeq) lastSeq = seq;
+            if (confirm && onConfirm) onConfirm(m);
+            else onMessage(m);
+            continue;
+          }
           const sig = messageSig(m);
           if (seen.has(sig)) {
             if (!m.pending && pendingSigs.has(sig)) {
@@ -302,7 +330,6 @@ export function startLiveTail(topicId, startSeq, onMessage, pollMs = 3000, initi
           }
           seen.add(sig);
           if (m.pending) pendingSigs.add(sig);
-          if (!m.pending && m.sequence_number > lastSeq) lastSeq = m.sequence_number;
           onMessage(m);
         }
       }

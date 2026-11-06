@@ -932,6 +932,15 @@ html, body {
     touch-action: auto; /* Enable touch interactions */
   }
 
+  /* Chat threads grow to hundreds of groups. Off-screen groups skip layout
+     and paint, so a keystroke (composer resize) does not relayout the whole
+     thread. The estimate keeps the scrollbar steady until first painted. */
+  #messages-from-topic-chat > .toolbar-group-messages,
+  #messages-from-encrypted-chat > .toolbar-group-messages {
+    content-visibility: auto;
+    contain-intrinsic-size: 8em;
+  }
+
   .toolbar-group-messages > img {
     object-fit: cover;
     border: 1px solid rgba(255, 255, 255, 0.35);

@@ -812,7 +812,9 @@ export function CloseALL() {
     let prevY = 0;
     let prevX = 0;
     syncComposerOverflow(el);
-    el.addEventListener("input", () => syncComposerOverflow(el));
+    // No input listener: fitChatComposer (same input event) already sets
+    // overflowY — a second scrollHeight read here forced an extra full
+    // layout per keystroke.
     el.addEventListener("touchstart", (event) => {
       const t = event.touches[0];
       if (!t) return;

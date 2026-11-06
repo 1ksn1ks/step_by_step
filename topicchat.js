@@ -796,12 +796,24 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
     const viaData = await getTopicData(topicId);
     if (viaData.viaBackend) {
       // Live via the shared SSE stream (no 3s polling): the server pushes
-      // new / pending / confirmed / expired events the moment they happen
-      const seen = new Set(viaData.messages.map(messageSig));
+      // new / pending / confirmed / expired events the moment they happen.
+      // Confirmed rows dedupe on their stable sequence number, so the
+      // reconnect re-fetch never re-stringifies the whole history (bodies
+      // can carry images). Only pending rows pay the content signature.
+      const seenSeqs = new Set();
+      for (const m of viaData.messages) {
+        const seq = Number(m.sequence_number) || 0;
+        if (seq > 0) seenSeqs.add(seq);
+      }
+      const seen = new Set(
+        viaData.messages.filter((m) => !(Number(m.sequence_number) > 0)).map(messageSig)
+      );
       const pendingSigs = new Set(viaData.messages.filter((m) => m.pending).map(messageSig));
       let liveReady = false;
       const handleStream = (evt) => {
         const m = evt.message;
+        const seq = Number(m.sequence_number) || 0;
+        if (seq > 0 && seenSeqs.has(seq)) return; // already delivered
         const sig = messageSig(m);
         if (evt.type === "pending") {
           if (seen.has(sig)) return; // the canonical row already arrived
@@ -817,14 +829,15 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
             return;
           }
           seen.add(sig);
+          if (seq > 0) seenSeqs.add(seq);
           onNewMsg(m);
         } else if (evt.type === "confirmed") {
-          if (pendingSigs.has(sig)) {
+          if (pendingSigs.size > 0 && pendingSigs.has(sig)) {
             pendingSigs.delete(sig);
             onConfirm(m);
           }
         } else if (evt.type === "expired") {
-          if (pendingSigs.has(sig)) {
+          if (pendingSigs.size > 0 && pendingSigs.has(sig)) {
             pendingSigs.delete(sig);
             onExpire(m);
           }
@@ -839,9 +852,12 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         // The stream just came back: absorb anything missed while down
         const fresh = await getTopicData(topicId, { force: true });
         for (const m of fresh.messages) {
+          const seq = Number(m.sequence_number) || 0;
+          if (seq > 0 && seenSeqs.has(seq)) continue;
           const sig = messageSig(m);
           if (seen.has(sig)) continue;
           seen.add(sig);
+          if (seq > 0) seenSeqs.add(seq);
           if (m.pending) pendingSigs.add(sig);
           await onNewMsg(m);
         }
