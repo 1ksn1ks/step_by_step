@@ -6400,6 +6400,17 @@ const FEED_CHATS = {
     expand() {},
   },
 };
+// Chat Options (sliders), two rows. Drawn on the 24-unit grid's middle
+// (rows at 8 and 16, knobs 6-10 and 14-18), like the search and key
+// beside it; the old rows at 4 and 12 sat 4 units high.
+const OPTIONS_ICON = [
+  ['line', { x1: '21', x2: '14', y1: '8', y2: '8' }],
+  ['line', { x1: '10', x2: '3', y1: '8', y2: '8' }],
+  ['line', { x1: '21', x2: '12', y1: '16', y2: '16' }],
+  ['line', { x1: '8', x2: '3', y1: '16', y2: '16' }],
+  ['line', { x1: '14', x2: '14', y1: '6', y2: '10' }],
+  ['line', { x1: '8', x2: '8', y1: '14', y2: '18' }],
+];
 const FEED_CHAT_ICONS = [
   ['go-to-top-msgs', [
     ['path', { d: 'm18 15-6-6-6 6' }],
@@ -6413,38 +6424,10 @@ const FEED_CHAT_ICONS = [
   ['go-to-bottom-msgs-encrypted-chat', [
     ['path', { d: 'm6 9 6 6 6-6' }],
   ]],
-  ['show-options-from-topic-chat', [
-    ['line', { x1: '21', x2: '14', y1: '4', y2: '4' }],
-    ['line', { x1: '10', x2: '3', y1: '4', y2: '4' }],
-    ['line', { x1: '21', x2: '12', y1: '12', y2: '12' }],
-    ['line', { x1: '8', x2: '3', y1: '12', y2: '12' }],
-    ['line', { x1: '14', x2: '14', y1: '2', y2: '6' }],
-    ['line', { x1: '8', x2: '8', y1: '10', y2: '14' }],
-  ]],
-  ['show-options-from-topic-chat-btn', [
-    ['line', { x1: '21', x2: '14', y1: '4', y2: '4' }],
-    ['line', { x1: '10', x2: '3', y1: '4', y2: '4' }],
-    ['line', { x1: '21', x2: '12', y1: '12', y2: '12' }],
-    ['line', { x1: '8', x2: '3', y1: '12', y2: '12' }],
-    ['line', { x1: '14', x2: '14', y1: '2', y2: '6' }],
-    ['line', { x1: '8', x2: '8', y1: '10', y2: '14' }],
-  ]],
-  ['show-options-from-encrypted-chat', [
-    ['line', { x1: '21', x2: '14', y1: '4', y2: '4' }],
-    ['line', { x1: '10', x2: '3', y1: '4', y2: '4' }],
-    ['line', { x1: '21', x2: '12', y1: '12', y2: '12' }],
-    ['line', { x1: '8', x2: '3', y1: '12', y2: '12' }],
-    ['line', { x1: '14', x2: '14', y1: '2', y2: '6' }],
-    ['line', { x1: '8', x2: '8', y1: '10', y2: '14' }],
-  ]],
-  ['show-options-from-encrypted-chat-btn', [
-    ['line', { x1: '21', x2: '14', y1: '4', y2: '4' }],
-    ['line', { x1: '10', x2: '3', y1: '4', y2: '4' }],
-    ['line', { x1: '21', x2: '12', y1: '12', y2: '12' }],
-    ['line', { x1: '8', x2: '3', y1: '12', y2: '12' }],
-    ['line', { x1: '14', x2: '14', y1: '2', y2: '6' }],
-    ['line', { x1: '8', x2: '8', y1: '10', y2: '14' }],
-  ]],
+  ['show-options-from-topic-chat', OPTIONS_ICON],
+  ['show-options-from-topic-chat-btn', OPTIONS_ICON],
+  ['show-options-from-encrypted-chat', OPTIONS_ICON],
+  ['show-options-from-encrypted-chat-btn', OPTIONS_ICON],
 ];
 
 const feedChat = document.createElement('div');
