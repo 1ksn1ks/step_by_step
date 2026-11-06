@@ -18853,6 +18853,19 @@ html.kb-open .chat-compose {
   }
 }
 
+/* The IME window can be taller than its visible keys: Samsung's keyboard
+   leaves a transparent strip above the key rows, and the visual viewport
+   stops above it, so the pinned sheet ends short of the visible keys and
+   the map shows through. The pin owns the sheet's content box, so stretch
+   its background under the strip instead: with content-box the pinned
+   height stays the content height (the composer never slips under the
+   keys) and the padding runs behind the keyboard, where it is invisible
+   on IMEs without the strip. */
+html.kb-open :is(#feed-chat, #topic-chat-container, #encrypted-chat-container)[data-kb-pin] {
+  box-sizing: content-box !important;
+  padding-bottom: calc(var(--app-h, 100dvh) * 0.1) !important;
+}
+
 /* A sniffed GIF is a canvas of frame 0. The img stays for taps and profile
    lookup, with no src, so the file is never an <img> or a CSS background.
    The pending card uses the same radial skeleton as .popup-media-card. */
