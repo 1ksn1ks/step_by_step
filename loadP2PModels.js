@@ -857,7 +857,10 @@ export async function load3dModels() {
       // MapLibre goes idle behind the feed — the repaint loop would otherwise
       // starve typing in the chat. syncCover() kicks a frame when the feed
       // closes, and the first rendered frame resumes this loop on its own.
-      if (document.documentElement.classList.contains('feed-app')) return;
+      // Picking a spot for the Draw form (drawhere.js) shows a clean map,
+      // so the models stay out of it the same way; endPick kicks a frame.
+      const shell = document.documentElement.classList;
+      if (shell.contains('feed-app') || shell.contains('is-draw-picking')) return;
       try {
         // Real frame dt — drives the load fade-in ramp (the drift itself is
         // uTime in the shader, smooth at any frame rate for free).

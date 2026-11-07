@@ -289,6 +289,7 @@ document.addEventListener('keydown', (e) => {
 // Pan and zoom still work while picking; markers let taps through.
 // The map starts clean: markers, clusters and polygons step out of the way
 // (setPostsShown), and the bar's eye button brings them back on demand.
+// The 3D models stay away for the whole pick (loadP2PModels.js).
 const PICK_FIELDS = {
   marker: ['input-field-2-3'],
   polygon: ['input-field-3-3', 'input-field-3-5'],
@@ -511,6 +512,9 @@ function endPick(done, { fromHistory = false } = {}) {
   map.off('styledata', onPickStyle);
   restorePostLayers();
   document.documentElement.classList.remove('is-draw-picking', 'is-pick-posts');
+  // The 3D models skip their draw while picking (loadP2PModels.js) and
+  // their loop waits for a frame: kick one so they come straight back.
+  map.triggerRepaint();
   if (pickBar) pickBar.hidden = true;
   if (!fromHistory && window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('drawpick')) {
     window.layerClosedByUI('drawpick');
