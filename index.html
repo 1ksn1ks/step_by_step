@@ -113,13 +113,30 @@
               <path d="M19 12H5"/>
             </svg>
           </button>
+          <h2 class="search-page-title">Search</h2>
+        </div>
+        <div class="search-page-head">
           <div class="search-field">
-            <input id="search-input" type="text" placeholder="Search city, street, or #tag" autocomplete="off"/>
-            <button type="button" id="search-clear-btn" title="Clear" style="display: none;">×</button>
+            <input id="search-input" type="text" placeholder="City, street, #tag or coordinates" aria-label="Search places" enterkeyhint="search" autocomplete="off"/>
+            <button type="button" id="search-clear-btn" title="Clear" aria-label="Clear" style="display: none;">×</button>
           </div>
         </div>
         <div id="search-sections">
-          <p class="search-empty">Search places, #tags or coordinates</p>
+          <div class="search-empty">
+            <p class="search-empty-title">You can search for</p>
+            <div class="search-hint is-place">
+              <span class="search-hint-icon" aria-hidden="true"></span>
+              <span class="search-hint-copy"><span class="search-hint-name">Places</span><span class="search-hint-note">A city, street or address</span></span>
+            </div>
+            <div class="search-hint is-tag">
+              <span class="search-hint-icon" aria-hidden="true"></span>
+              <span class="search-hint-copy"><span class="search-hint-name">#Tags</span><span class="search-hint-note">Posts that use the tag</span></span>
+            </div>
+            <div class="search-hint is-coords">
+              <span class="search-hint-icon" aria-hidden="true"></span>
+              <span class="search-hint-copy"><span class="search-hint-name">Coordinates</span><span class="search-hint-note">Like 45.81, 15.98 to fly there</span></span>
+            </div>
+          </div>
         </div>
         <div id="search-results" style="display: none;"></div>
       </div>

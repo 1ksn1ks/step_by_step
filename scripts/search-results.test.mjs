@@ -275,7 +275,9 @@ test("a different native name is shown and an identical one is not", () => {
 });
 
 test("result rows keep their size and use the cyan focus ring", () => {
-  assert.match(css, /#search-bar \.search-result-item \{[\s\S]*?height: 56px;\s*min-height: 56px;/);
+  // One row height per screen (--sp-row-h), never under 56px.
+  assert.match(css, /#search-bar \.search-result-item \{[\s\S]*?height: var\(--sp-row-h\);\s*min-height: var\(--sp-row-h\);/);
+  assert.match(css, /--sp-row-h: max\(56px,/);
   const ringAt = css.indexOf("#search-bar .search-result-item:focus-visible");
   assert.notEqual(ringAt, -1);
   const ring = css.slice(ringAt, ringAt + 180);
