@@ -4,6 +4,8 @@
 // a "Show more" under it opens the whole text on its own full-screen page.
 // Back (the arrow, Escape, or browser Back) closes that page.
 import { paintHashtags } from './hashtag.js';
+import { toast } from './toast.js';
+import { copyTextToClipboard } from './handleallmessages.js';
 
 // bubble -> { host, flow, more, text, title }
 const watched = new WeakMap();
@@ -129,16 +131,43 @@ function singleLine(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
-// Full-screen text page, built on first use.
+// Full-screen text page, built on first use. A reading view: a glass bar
+// (back, the post's title, copy) with a reading-progress line, the
+// author as the popup shows them (picture, name, account, time) with an
+// estimate of the reading time, the text on a glass card at a reading
+// size, and an end with the word count and a way back. ↑ returns to the
+// top of a long text.
 let page = null;
 let pageBack = null;
 let pageTitle = null;
 let pageScroll = null;
 let pageText = null;
+let pageProgress = null;
+let pageAuthor = null;
+let pageAvatar = null;
+let pageInitial = null;
+let pageName = null;
+let pageMeta = null;
+let pageRead = null;
+let pageWords = null;
+let pageTop = null;
 let lastOpen = null;
 let returnFocus = null;
 let motionTimer = 0;
 let layerDefined = false;
+let progressFrame = 0;
+
+const SVG = (paths) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+
+function chip(className, label, paths) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = `popup-text-page-chip ${className}`;
+  btn.setAttribute('aria-label', label);
+  btn.title = label;
+  btn.innerHTML = SVG(paths);
+  return btn;
+}
 
 function buildPage() {
   page = document.createElement('div');
@@ -147,27 +176,97 @@ function buildPage() {
   page.setAttribute('role', 'dialog');
   page.setAttribute('aria-modal', 'true');
   page.setAttribute('aria-label', 'Post text');
+
   const bar = document.createElement('div');
   bar.className = 'popup-text-page-bar';
-  pageBack = document.createElement('button');
-  pageBack.type = 'button';
-  pageBack.className = 'popup-text-page-back';
-  pageBack.setAttribute('aria-label', 'Back');
-  pageBack.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>';
+  pageBack = chip('popup-text-page-back', 'Back', '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>');
   pageTitle = document.createElement('h2');
   pageTitle.className = 'popup-text-page-title';
-  bar.append(pageBack, pageTitle);
+  const copy = chip('popup-text-page-copy', 'Copy text', '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>');
+  pageProgress = document.createElement('span');
+  pageProgress.className = 'popup-text-page-progress';
+  pageProgress.setAttribute('aria-hidden', 'true');
+  bar.append(pageBack, pageTitle, copy, pageProgress);
+
   pageScroll = document.createElement('div');
   pageScroll.className = 'popup-text-page-scroll';
+  const inner = document.createElement('div');
+  inner.className = 'popup-text-page-inner';
+
+  pageAuthor = document.createElement('div');
+  pageAuthor.className = 'popup-text-page-author';
+  const face = document.createElement('span');
+  face.className = 'popup-text-page-face';
+  pageAvatar = document.createElement('img');
+  pageAvatar.alt = '';
+  pageAvatar.decoding = 'async';
+  pageAvatar.addEventListener('error', () => { pageAvatar.hidden = true; pageInitial.hidden = false; });
+  pageInitial = document.createElement('span');
+  pageInitial.className = 'popup-text-page-initial';
+  face.append(pageAvatar, pageInitial);
+  const who = document.createElement('span');
+  who.className = 'popup-text-page-who';
+  pageName = document.createElement('span');
+  pageName.className = 'popup-text-page-name';
+  pageMeta = document.createElement('span');
+  pageMeta.className = 'popup-text-page-meta';
+  who.append(pageName, pageMeta);
+  pageRead = document.createElement('span');
+  pageRead.className = 'popup-text-page-read';
+  pageAuthor.append(face, who, pageRead);
+
+  const card = document.createElement('article');
+  card.className = 'popup-text-page-card';
   pageText = document.createElement('p');
   pageText.className = 'popup-text-page-text';
-  pageScroll.appendChild(pageText);
-  page.append(bar, pageScroll);
+  card.appendChild(pageText);
+
+  const end = document.createElement('div');
+  end.className = 'popup-text-page-end';
+  const dots = document.createElement('span');
+  dots.className = 'popup-text-page-dots';
+  dots.setAttribute('aria-hidden', 'true');
+  dots.textContent = '• • •';
+  pageWords = document.createElement('span');
+  pageWords.className = 'popup-text-page-words';
+  const done = document.createElement('button');
+  done.type = 'button';
+  done.className = 'popup-text-page-done';
+  done.innerHTML = SVG('<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>') + '<span>Back to post</span>';
+  end.append(dots, pageWords, done);
+
+  inner.append(pageAuthor, card, end);
+  pageScroll.appendChild(inner);
+  pageTop = chip('popup-text-page-top', 'Back to top', '<path d="m18 15-6-6-6 6"/>');
+  page.append(bar, pageScroll, pageTop);
 
   pageBack.addEventListener('click', (event) => {
     event.stopPropagation();
     closePopupText();
   });
+  done.addEventListener('click', (event) => {
+    event.stopPropagation();
+    closePopupText();
+  });
+  copy.addEventListener('click', async (event) => {
+    event.stopPropagation();
+    const text = lastOpen ? lastOpen.text : '';
+    try {
+      await copyTextToClipboard(text);
+      toast.success('Text copied');
+    } catch {
+      toast.error('Could not copy the text');
+    }
+  });
+  pageTop.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    pageScroll.scrollTo({ top: 0, behavior: smooth ? 'smooth' : 'auto' });
+  });
+  pageScroll.addEventListener('scroll', () => {
+    if (progressFrame) return;
+    progressFrame = requestAnimationFrame(paintProgress);
+  }, { passive: true });
   // A hashtag opens Search. Close first, so the results are not under here.
   page.addEventListener('click', (event) => {
     if (event.target.closest && event.target.closest('.post-hashtag')) closePopupText();
@@ -186,6 +285,16 @@ function buildPage() {
     closePopupText();
   }, true);
   document.body.appendChild(page);
+}
+
+// The bar's line fills as the text is read; ↑ shows once a screen down.
+function paintProgress() {
+  progressFrame = 0;
+  if (!pageScroll) return;
+  const room = pageScroll.scrollHeight - pageScroll.clientHeight;
+  const done = room > 1 ? Math.min(1, Math.max(0, pageScroll.scrollTop / room)) : 1;
+  pageProgress.style.transform = `scaleX(${done.toFixed(4)})`;
+  page.classList.toggle('is-scrolled', pageScroll.scrollTop > pageScroll.clientHeight * 0.6);
 }
 
 function ensureLayer() {
@@ -214,18 +323,58 @@ function playMotion(kind) {
 }
 
 function showPage(state) {
-  pageTitle.textContent = state.title;
-  pageTitle.hidden = !state.title;
+  pageTitle.textContent = state.title || 'Post';
+  pageTitle.classList.toggle('is-untitled', !state.title);
   paintHashtags(pageText, state.text);
-  // The popup's own text colour and size, never smaller than 18px.
+  // The popup's own text colour (popup settings); the size is the page's.
   if (state.color) pageText.style.color = state.color;
   else pageText.style.removeProperty('color');
-  if (state.size) pageText.style.fontSize = `max(18px, ${state.size})`;
-  else pageText.style.removeProperty('font-size');
+  const author = state.author;
+  pageAuthor.hidden = !author;
+  if (author) {
+    const label = author.name || author.account || '';
+    pageName.textContent = label;
+    pageMeta.textContent = [author.name && author.account ? author.account : '', author.time].filter(Boolean).join(' · ');
+    pageMeta.hidden = !pageMeta.textContent;
+    pageInitial.textContent = (label.replace(/^[^\p{L}\p{N}]+/u, '').charAt(0) || '•').toUpperCase();
+    if (author.picture) {
+      pageAvatar.hidden = false;
+      pageInitial.hidden = true;
+      if (pageAvatar.getAttribute('src') !== author.picture) pageAvatar.src = author.picture;
+    } else {
+      pageAvatar.hidden = true;
+      pageAvatar.removeAttribute('src');
+      pageInitial.hidden = false;
+    }
+  }
+  const words = state.text.trim() ? state.text.trim().split(/\s+/).length : 0;
+  const minutes = Math.max(1, Math.round(words / 220));
+  pageRead.textContent = `${minutes} min read`;
+  pageWords.textContent = words === 1 ? '1 word' : `${words.toLocaleString()} words`;
   page.hidden = false;
   pageScroll.scrollTop = 0;
+  page.classList.remove('is-scrolled');
+  paintProgress();
   playMotion('in');
   pageBack.focus({ preventScroll: true, focusVisible: false });
+}
+
+// Who wrote it, read off the popup the text came from.
+function authorOf(from) {
+  const sheet = from && from.closest ? from.closest('.popup-sheet, .maplibregl-popup-content') : null;
+  if (!sheet) return null;
+  const profile = sheet.querySelector('.popup-profile-bubble');
+  if (!profile) return null;
+  const pic = profile.querySelector(':scope > img, :scope > video, :scope > .early-hashinal > img, :scope > .early-hashinal > video');
+  let picture = '';
+  if (pic && pic.tagName === 'VIDEO') picture = pic.poster || '';
+  else if (pic) picture = pic.currentSrc || pic.getAttribute('src') || '';
+  if (!/^(https?:|data:image\/|blob:)/i.test(picture)) picture = '';
+  const name = singleLine(profile.querySelector('.username') && profile.querySelector('.username').textContent);
+  const account = singleLine(profile.querySelector('.payer-info') && profile.querySelector('.payer-info').textContent);
+  const time = singleLine(sheet.querySelector('.popup-timestamp') && sheet.querySelector('.popup-timestamp').textContent);
+  if (!name && !account) return null;
+  return { picture, name, account, time };
 }
 
 export function openPopupText({ text, title, from, opener }) {
@@ -236,7 +385,7 @@ export function openPopupText({ text, title, from, opener }) {
     text: String(text || ''),
     title: singleLine(title),
     color: cs ? cs.color : '',
-    size: cs ? cs.fontSize : '',
+    author: authorOf(from),
   };
   returnFocus = opener || null;
   showPage(lastOpen);

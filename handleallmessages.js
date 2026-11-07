@@ -57,17 +57,17 @@ export async function isHederaAccount(id) {
 
 // Copy text to the clipboard with an http-safe fallback: navigator.clipboard
 // only exists on HTTPS/localhost, so on a plain http origin (the dev remote)
-// a temporary textarea + execCommand is used instead.
-export function copyTextToClipboard(text) {
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    return navigator.clipboard.writeText(text);
-  }
+// a temporary textarea + execCommand is used instead. The same fallback runs
+// when writeText refuses (the document not focused, permission denied).
+function copyWithTextarea(text) {
   return new Promise((resolve, reject) => {
+    const before = document.activeElement;
     const ta = document.createElement('textarea');
     ta.value = text;
-    ta.style.cssText = 'position: fixed; opacity: 0;';
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position: fixed; top: 0; left: 0; opacity: 0;';
     document.body.appendChild(ta);
-    ta.focus();
+    ta.focus({ preventScroll: true });
     ta.select();
     try {
       const ok = document.execCommand('copy');
@@ -76,8 +76,16 @@ export function copyTextToClipboard(text) {
       reject(err);
     } finally {
       ta.remove();
+      if (before && before.focus && before !== document.body) before.focus({ preventScroll: true });
     }
   });
+}
+
+export function copyTextToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text).catch(() => copyWithTextarea(text));
+  }
+  return copyWithTextarea(text);
 }
 
 // null = numeric topic id order (set at load), 'az'/'za' = by topic name
