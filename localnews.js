@@ -14,6 +14,9 @@ import { isTopicLayerActive } from './marker.js';
 import { watchMarkerTilt, forgetMarkerTilt } from './markertilt.js';
 import { geojson } from './letall.js';
 import { watchFollowPrefetch } from './followtopic.js';
+import { fetchFollowing } from './msgbackend.js';
+import { earlyHashinalNumber, earlyHashinalReady, onOwnersChange } from './earlyhashinal.js';
+import { connectedAccount } from './web3.js';
 
 // Same key as marker.js topicPointKey — a live point matching a topic
 // point to 5 decimals is a duplicate of the topic layer: while the topic
@@ -58,7 +61,8 @@ const MAX_DOM_NODES = 800;
 
 let localNodes = []; // maplibregl.Marker instances (bubbles + dots)
 let localPopup = null; // the one shared popup for this overlay
-let localList = []; // the live markers (newest first)
+let liveAll = []; // every live marker for the place (newest first)
+let localList = []; // the ones in the chosen group: what the map shows
 let localIndex = -1; // which one has its popup open
 let layerActive = false; // moveend listener attached
 
@@ -101,12 +105,14 @@ export function clearLocalMarkers(silent = false) {
     localPopup = null;
   }
   localList = [];
+  liveAll = [];
   localIndex = -1;
   index.load([]);
   indexFilterKey = null;
   lastLocalSig = null;
   livePointCoords.clear();
   livePointTitles.clear();
+  hideLiveBar();
   if (!silent) document.dispatchEvent(new Event('live-dataset-changed')); // topic dots drop the border
   if (layerActive) {
     map.off('move', viewportLocalUpdate);
@@ -350,23 +356,234 @@ export function showLocalMarkers(markers) {
   clearLocalMarkers(true); // silent: one live-dataset-changed at the end
   if (!markers || markers.length === 0) return;
 
-  localList = markers;
+  liveAll = markers;
   localPopup = new maplibregl.Popup({ closeButton: true, offset: 18 });
+  map.on('move', viewportLocalUpdate);
+  map.on('moveend', viewportLocalUpdate);
+  layerActive = true;
+  paintLiveGroup(); // first paint now, not on the next moveend
+  if (liveGroup === 'following') {
+    const set = liveAll;
+    ensureFollowIds().then(() => {
+      if (liveAll === set && liveGroup === 'following') paintLiveGroup();
+    });
+  }
+}
+
+// ── Groups: whose live posts the map shows ─────────────────────────────
+// One choice at a time, kept for later searches: Everyone; Following (the
+// accounts this wallet follows, the same list as the feed's Following);
+// NFT holders (Early Hashinal holders, the feed's filter of that name);
+// Mine. A bar under the map's top bar picks the group and closes the live
+// overlay. Popup ◀️/▶️ walk the shown group only.
+const LIVE_GROUPS = [
+  ['all', 'Everyone'],
+  ['following', 'Following'],
+  ['holders', 'NFT holders'],
+  ['mine', 'Mine'],
+];
+const LIVE_GROUP_KEY = 'meritocracy-live-group';
+let liveGroup = readLiveGroup();
+let followIds = null; // Set of followed accounts, for followFor
+let followFor = '';
+let followLoad = null;
+let liveBar = null;
+let liveCount = null;
+const groupButtons = new Map();
+
+function readLiveGroup() {
+  try {
+    const saved = localStorage.getItem(LIVE_GROUP_KEY);
+    if (LIVE_GROUPS.some(([key]) => key === saved)) return saved;
+  } catch { /* private mode: Everyone */ }
+  return 'all';
+}
+
+function walletNow() {
+  const account = typeof connectedAccount === 'string' ? connectedAccount.trim() : '';
+  return /^\d+\.\d+\.\d+$/.test(account) ? account : '';
+}
+
+function ensureFollowIds() {
+  const me = walletNow();
+  if (!me) {
+    followIds = null;
+    followFor = '';
+    return Promise.resolve('nowallet');
+  }
+  if (followFor === me && followIds) return Promise.resolve('ready');
+  if (followFor === me && followLoad) return followLoad;
+  followFor = me;
+  followIds = null;
+  followLoad = fetchFollowing(me).then((data) => {
+    followLoad = null;
+    if (followFor !== me) return 'stale';
+    if (!data) {
+      followFor = ''; // offline: the next pick asks again
+      return 'offline';
+    }
+    const ids = new Set();
+    for (const entry of data.accounts || []) {
+      const raw = typeof entry === 'string' ? entry : entry && entry.id;
+      const id = typeof raw === 'string' ? raw.trim() : '';
+      if (/^\d+\.\d+\.\d+$/.test(id)) ids.add(id);
+    }
+    followIds = ids;
+    return ids.size ? 'ready' : 'empty';
+  }).catch(() => {
+    followLoad = null;
+    followFor = '';
+    return 'offline';
+  });
+  return followLoad;
+}
+
+function inLiveGroup(m) {
+  const payer = m && m.payer;
+  if (liveGroup === 'following') return !!(followIds && followFor === walletNow() && followIds.has(payer));
+  if (liveGroup === 'holders') return earlyHashinalNumber(payer) > 0;
+  if (liveGroup === 'mine') {
+    const me = walletNow();
+    return !!me && payer === me;
+  }
+  return true;
+}
+
+// The shown set from the full one: the map, the live borders on topic
+// dots and the popup walk all follow it.
+function paintLiveGroup() {
+  for (const node of localNodes) {
+    const el = node.getElement();
+    forgetMarkerTilt(el && el.querySelector(':scope > .cluster-face'));
+    node.remove();
+  }
+  localNodes = [];
+  if (localPopup) localPopup.remove();
+  localIndex = -1;
+  localList = liveAll.filter(inLiveGroup);
   livePointCoords.clear();
   livePointTitles.clear();
-  for (const m of markers) {
+  for (const m of localList) {
     const k = livePointKey([m.lng, m.lat]);
     livePointCoords.add(k);
     if (m.title) livePointTitles.set(k, m.title);
   }
   indexFilterKey = null; // rebuild the index against the current topic state
-
-  updateLocalClusters(); // first paint now, not on the next moveend
-  map.on('move', viewportLocalUpdate);
-  map.on('moveend', viewportLocalUpdate);
-  layerActive = true;
-  document.dispatchEvent(new Event('live-dataset-changed')); // topic dots pick up the border
+  lastLocalSig = null;
+  if (localList.length) updateLocalClusters();
+  else index.load([]);
+  paintLiveBar();
+  document.dispatchEvent(new Event('live-dataset-changed')); // topic dots follow the group
 }
+
+function liveCountText() {
+  const total = liveAll.length;
+  const shown = localList.length;
+  if (liveGroup === 'following' && walletNow() && followLoad) return 'Loading…';
+  if (liveGroup === 'holders' && !earlyHashinalReady()) return 'Loading…';
+  if (liveGroup === 'all') return total === 1 ? '1 post' : `${total} posts`;
+  return `${shown} of ${total}`;
+}
+
+function ensureLiveBar() {
+  if (liveBar) return liveBar;
+  liveBar = document.createElement('div');
+  liveBar.className = 'live-filter';
+  liveBar.hidden = true;
+  liveBar.setAttribute('role', 'region');
+  liveBar.setAttribute('aria-label', 'Live posts');
+
+  const head = document.createElement('div');
+  head.className = 'live-filter-head';
+  const tag = document.createElement('span');
+  tag.className = 'live-filter-tag';
+  const dot = document.createElement('span');
+  dot.className = 'live-filter-dot';
+  dot.setAttribute('aria-hidden', 'true');
+  tag.append(dot, document.createTextNode('Live'));
+  liveCount = document.createElement('span');
+  liveCount.className = 'live-filter-count';
+  liveCount.setAttribute('aria-live', 'polite');
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'live-filter-close';
+  close.setAttribute('aria-label', 'Hide live posts');
+  close.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+  close.addEventListener('click', (event) => {
+    event.stopPropagation();
+    clearLocalMarkers();
+  });
+  head.append(tag, liveCount, close);
+
+  const groups = document.createElement('div');
+  groups.className = 'live-filter-groups';
+  groups.setAttribute('role', 'radiogroup');
+  groups.setAttribute('aria-label', 'Whose live posts');
+  for (const [key, label] of LIVE_GROUPS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'live-filter-group';
+    btn.setAttribute('role', 'radio');
+    btn.dataset.group = key;
+    btn.textContent = label;
+    if (key === 'holders') btn.title = 'Early Hashinal holders';
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      pickLiveGroup(key);
+    });
+    groupButtons.set(key, btn);
+    groups.appendChild(btn);
+  }
+  liveBar.append(head, groups);
+  // The document click closes panels (CloseALL); the bar keeps itself.
+  liveBar.addEventListener('click', (event) => event.stopPropagation());
+  document.body.appendChild(liveBar);
+  return liveBar;
+}
+
+function paintLiveBar() {
+  if (!liveAll.length) {
+    hideLiveBar();
+    return;
+  }
+  ensureLiveBar();
+  liveBar.hidden = false;
+  for (const [key, btn] of groupButtons) {
+    const on = key === liveGroup;
+    btn.classList.toggle('is-on', on);
+    btn.setAttribute('aria-checked', on ? 'true' : 'false');
+    btn.tabIndex = on ? 0 : -1;
+  }
+  liveCount.textContent = liveCountText();
+}
+
+function hideLiveBar() {
+  if (liveBar) liveBar.hidden = true;
+}
+
+function pickLiveGroup(key) {
+  if (!LIVE_GROUPS.some(([k]) => k === key)) return;
+  liveGroup = key;
+  try { localStorage.setItem(LIVE_GROUP_KEY, key); } catch { /* this visit only */ }
+  if ((key === 'following' || key === 'mine') && !walletNow()) {
+    toast.info('Connect your wallet to see ' + (key === 'mine' ? 'your live posts' : 'people you follow'));
+  }
+  paintLiveGroup();
+  if (key === 'following' && walletNow()) {
+    const set = liveAll;
+    ensureFollowIds().then((state) => {
+      if (liveAll !== set || liveGroup !== 'following') return;
+      if (state === 'empty') toast.info('You do not follow anyone yet');
+      else if (state === 'offline') toast.error('Could not load who you follow');
+      paintLiveGroup();
+    });
+  }
+}
+
+// The holder list arrives after the globe draws and refreshes every 15 min.
+onOwnersChange(() => {
+  if (liveGroup === 'holders' && liveAll.length) paintLiveGroup();
+});
 
 // 24h markers for where the user is (geolocate control turned on):
 // reverse-geocode the fix in ENGLISH — the same side and language as the

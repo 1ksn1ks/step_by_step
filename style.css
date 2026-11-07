@@ -21570,3 +21570,166 @@ html.is-draw-picking #map-topbar {
 .marker-stack-empty[hidden] {
   display: none;
 }
+
+/* ── Live: whose posts the map shows (localnews.js) ────────────────────
+   Under the map's top bar (same height formula as #map-topbar), below
+   the panels (1002+) and the popups (1008), above the map. */
+.live-filter {
+  --live-col: 100dvw;
+  --live-bar-h: max(44px, calc(min(100dvw, var(--live-col)) * 0.024 * 2.1 * 1.2));
+  position: fixed;
+  top: calc(2px + var(--live-bar-h) + 8px);
+  left: 50%;
+  z-index: 1001;
+  width: min(420px, calc(100vw - 24px));
+  box-sizing: border-box;
+  transform: translateX(-50%);
+  padding: 8px 8px 8px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  background: rgba(10, 12, 20, 0.88);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.16), 0 10px 26px rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (orientation: landscape) {
+  .live-filter { --live-col: clamp(40dvw, 46dvw, 46dvw); }
+}
+.live-filter[hidden],
+html.feed-app .live-filter,
+html.is-draw-picking .live-filter {
+  display: none;
+}
+.live-filter-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+.live-filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fff;
+}
+.live-filter-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f43f5e;
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.22), 0 0 10px rgba(244, 63, 94, 0.7);
+  animation: liveDotPulse 1.8s ease-in-out infinite;
+}
+@keyframes liveDotPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-filter-dot { animation: none; }
+}
+.live-filter-count {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  font-variant-numeric: tabular-nums;
+}
+.live-filter-close {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.10);
+  color: #fff;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.live-filter-close svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  pointer-events: none;
+}
+.live-filter-close:active {
+  background: #22D3EE;
+  border-color: #22D3EE;
+  color: #083344;
+}
+@media (hover: hover) and (pointer: fine) {
+  .live-filter-close:hover {
+    background: #22D3EE;
+    border-color: #22D3EE;
+    color: #083344;
+  }
+}
+/* One choice: a segmented track, the same look as the popup settings.
+   Each segment takes its label's width plus a share of the rest, so
+   "NFT holders" fits on a phone. */
+.live-filter-groups {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.live-filter-group {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 36px;
+  margin: 0;
+  padding: 0 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .live-filter-group:hover:not(.is-on) {
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+  }
+}
+.live-filter-group.is-on {
+  background: rgba(34, 211, 238, 0.18);
+  border-color: rgba(34, 211, 238, 0.75);
+  color: #ECFEFF;
+  font-weight: 600;
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.32), inset 0 0 8px rgba(34, 211, 238, 0.16);
+}
+.live-filter-group:focus-visible,
+.live-filter-close:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 2px;
+}
+@media (max-width: 360px) {
+  .live-filter-group { font-size: 12px; padding: 0 4px; }
+}
