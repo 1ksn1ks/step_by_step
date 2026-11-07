@@ -19446,21 +19446,35 @@ img.is-gif-hit {
     max-height: none;
   }
 }
-/* Text longer than the bubble: no inner scroll. The text moves into
-   .popup-text-flow, which takes the bubble's content box, and its last
-   line fades under Show more. The bubble keeps its border and fill. */
+/* Text longer than the bubble: the text moves into .popup-text-flow, which
+   takes the bubble's content box and scrolls inside it; Show more under it
+   opens the whole text on its own page. An edge with more text past it
+   fades (popuptext.js marks .is-above / .is-below); at the top only the
+   bottom fades, at the end only the top. The bubble keeps its border and
+   fill and does not scroll itself. */
 .popup-body > .popup-msg.is-more > .popup-text-bubble {
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 .popup-msg.is-more > .popup-text-bubble > .popup-text-flow {
+  --flow-above: 0px;
+  --flow-below: 0px;
   display: block;
   flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--flow-above), #000 calc(100% - var(--flow-below)), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--flow-above), #000 calc(100% - var(--flow-below)), transparent);
+}
+.popup-msg.is-more > .popup-text-bubble > .popup-text-flow.is-above {
+  --flow-above: 1.2em;
+}
+.popup-msg.is-more > .popup-text-bubble > .popup-text-flow.is-below {
+  --flow-below: 1.5em;
 }
 /* Same cyan link as the feed's Show more. */
 .popup-msg > .popup-more {
@@ -19723,8 +19737,7 @@ img.is-gif-hit {
   white-space: nowrap;
 }
 
-/* The text on a glass card between quote marks: the opening one in the
-   top-left corner, the closing one in the bottom-right, mirrored. */
+/* The text on a glass card. */
 .popup-text-page-card {
   position: relative;
   box-sizing: border-box;
@@ -19735,28 +19748,8 @@ img.is-gif-hit {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 24px 60px rgba(0, 0, 0, 0.35);
   overflow: hidden;
 }
-.popup-text-page-card::before,
-.popup-text-page-card::after {
-  position: absolute;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: calc(var(--read) * 6);
-  line-height: 1;
-  color: rgba(34, 211, 238, 0.16);
-  pointer-events: none;
-}
-.popup-text-page-card::before {
-  content: "\201C";
-  top: calc(var(--read) * -0.35);
-  left: calc(var(--read) * 0.45);
-}
-.popup-text-page-card::after {
-  content: "\201D";
-  bottom: calc(var(--read) * -3.65);
-  right: calc(var(--read) * 0.45);
-}
 .popup-text-page-text {
   position: relative;
-  z-index: 1;
   box-sizing: border-box;
   width: 100%;
   max-width: none;

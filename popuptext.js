@@ -1,8 +1,9 @@
 // Map popup message text. The bubble takes as much of the popup as the
 // layout gives it (style.css, .popup-msg). When the text is longer than
-// that, the bubble stops scrolling inside itself: the last line fades and
-// a "Show more" under it opens the whole text on its own full-screen page.
-// Back (the arrow, Escape, or browser Back) closes that page.
+// that, it scrolls inside the bubble, the edges with more text past them
+// fade, and a "Show more" under it opens the whole text on its own
+// full-screen page. Back (the arrow, Escape, or browser Back) closes that
+// page.
 import { paintHashtags } from './hashtag.js';
 import { toast } from './toast.js';
 import { copyTextToClipboard } from './handleallmessages.js';
@@ -48,9 +49,24 @@ function syncMore(bubble) {
   const over = clipped
     ? state.flow.scrollHeight > state.flow.clientHeight + 1
     : bubble.scrollHeight > bubble.clientHeight + 1;
-  if (over === clipped) return;
-  state.host.classList.toggle('is-more', over);
-  state.more.hidden = !over;
+  if (over !== clipped) {
+    state.host.classList.toggle('is-more', over);
+    state.more.hidden = !over;
+  }
+  paintEdges(state);
+}
+
+// Fade the edge that has more text past it: none at the top, none at the
+// end. Writes only when an edge changes.
+function paintEdges(state) {
+  state.edgeFrame = 0;
+  const flow = state.flow;
+  const on = state.host.classList.contains('is-more');
+  const room = flow.scrollHeight - flow.clientHeight;
+  const above = on && flow.scrollTop > 1;
+  const below = on && flow.scrollTop < room - 1;
+  if (flow.classList.contains('is-above') !== above) flow.classList.toggle('is-above', above);
+  if (flow.classList.contains('is-below') !== below) flow.classList.toggle('is-below', below);
 }
 
 function queueSync(bubble) {
@@ -89,7 +105,11 @@ export function watchPopupText(host, bubble, text, title) {
     openPopupText({ text: state.text, title: state.title, from: bubble, opener: more });
   });
   host.appendChild(more);
-  watched.set(bubble, { host, flow, more, text: String(text || ''), title: singleLine(title) });
+  const state = { host, flow, more, text: String(text || ''), title: singleLine(title), edgeFrame: 0 };
+  flow.addEventListener('scroll', () => {
+    if (!state.edgeFrame) state.edgeFrame = requestAnimationFrame(() => paintEdges(state));
+  }, { passive: true });
+  watched.set(bubble, state);
   if (sizes) sizes.observe(bubble);
   else queueSync(bubble);
 }
