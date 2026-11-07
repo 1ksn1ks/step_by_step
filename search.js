@@ -25,6 +25,10 @@ searchInput.size = 30;
 
 let debounceTimer = null;
 let currentRequest = 0;
+// Opened from the map drawer's Search: going back (the arrow, Escape, the
+// browser's Back) opens that drawer again. Picking a place, flying to
+// coordinates, or a tap outside still lands on the map.
+let backToDrawer = false;
 
 function closeResults() {
   searchResults.style.display = 'none';
@@ -34,13 +38,24 @@ function closeResults() {
   searchInput.size = Math.max(searchInput.value.length + 1, 20);
 }
 
-// Hide the whole bar (results are closed first, typed text is kept)
-function closeSearchBar() {
+// Hide the whole bar (results are closed first, typed text is kept).
+// back: closed by going back, which returns to the drawer it came from.
+// fromHistory: the browser's Back. Its handler is still walking the
+// stack (historyLayers.js popstate) and would close a drawer opened inside
+// it, so the drawer opens one task later as a fresh entry.
+function closeSearchBar({ back = false, fromHistory = false } = {}) {
   const wasOpen = searchBar.style.display === 'block';
+  const toDrawer = wasOpen && back && backToDrawer;
+  backToDrawer = false;
   closeResults();
   searchBar.style.display = 'none';
   searchInput.blur();
   if (wasOpen) layerClosedByUI('search');
+  // Same gesture as the close, so the drawer takes over the search's
+  // history entry instead of stacking a new one (historyLayers.js).
+  if (!toDrawer || typeof window.openMapDrawer !== 'function') return;
+  if (fromHistory) setTimeout(() => window.openMapDrawer(), 0);
+  else window.openMapDrawer();
 }
 
 // 🔍 button: open the bar (below it, same height the topic chat opens) and
@@ -56,6 +71,7 @@ searchToggleBtn.addEventListener('click', (e) => {
   delete searchToggleBtn.dataset.fromDrawer;
   if (searchBar.style.display !== 'block') {
     if (!fromDrawer) CloseALL();
+    backToDrawer = fromDrawer;
     searchBar.style.display = 'block';
     searchInput.focus({ preventScroll: true });
     layerOpened('search', { query: searchInput.value });
@@ -69,7 +85,7 @@ searchToggleBtn.addEventListener('click', (e) => {
 if (window.defineLayer) {
   window.defineLayer('search', {
     open: () => searchToggleBtn.click(),
-    close: () => closeSearchBar(),
+    close: () => closeSearchBar({ back: true, fromHistory: true }),
   });
 }
 
@@ -117,7 +133,7 @@ function onResultKey(event, item) {
   }
   if (event.key === 'Escape') {
     event.preventDefault();
-    closeSearchBar();
+    closeSearchBar({ back: true });
     return;
   }
   if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
@@ -466,7 +482,7 @@ searchClearBtn.addEventListener('click', () => {
 searchBackBtn.addEventListener('click', (e) => {
   e.preventDefault();
   e.stopPropagation();
-  closeSearchBar();
+  closeSearchBar({ back: true });
 });
 
 // "45.81, 15.98" or "45.81 15.98" is lat, lng. If the first value only
@@ -525,7 +541,7 @@ searchInput.addEventListener('keydown', (e) => {
   }
   if (e.key === 'Escape') {
     e.preventDefault();
-    closeSearchBar();
+    closeSearchBar({ back: true });
   }
 });
 

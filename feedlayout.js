@@ -7887,6 +7887,9 @@ function openMapMenu() {
   paintMenu(true);
   if (window.layerOpened) window.layerOpened('feedmenu');
 }
+// The place search (search.js) opens the drawer again on its way back
+// when the drawer's Search opened it.
+window.openMapDrawer = openMapMenu;
 
 // Map tools leave the drawer. The original control still does the work.
 // Search skips its own CloseALL: that call commits the drawer's pending
