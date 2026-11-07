@@ -626,6 +626,85 @@ test("a gif still that cannot be made shows the picture, not the skeleton", asyn
   }
 });
 
+// The bytes are blocked (no CORS), but the browser can still load the
+// picture: the still is a canvas drawn from that load, so the GIF never
+// gets its address and never animates.
+test("a gif whose bytes are blocked is still a still, drawn from a plain image load", async () => {
+  resetGifCache();
+  const url = "https://blocked.example/no-cors-still.gif";
+  const saved = { fetch: globalThis.fetch, Image: globalThis.Image, document: globalThis.document };
+  const drawn = [];
+  const inserted = [];
+  globalThis.fetch = async () => { throw new Error("blocked"); };
+  globalThis.Image = class {
+    set src(value) {
+      this.loaded = value;
+      setTimeout(() => {
+        this.naturalWidth = 4;
+        this.naturalHeight = 2;
+        this.onload();
+      }, 0);
+    }
+  };
+  globalThis.document = {
+    createElement: () => ({
+      width: 0,
+      height: 0,
+      style: {},
+      dataset: {},
+      classList: { add() {} },
+      setAttribute() {},
+      addEventListener() {},
+      getContext: () => ({ drawImage: (source, x, y) => drawn.push([source.loaded, x, y]) }),
+    }),
+  };
+  try {
+    const img = fakeImg();
+    const parent = { classList: { contains: () => false }, insertBefore: (node) => inserted.push(node) };
+    img.parentNode = parent;
+    img.parentElement = parent;
+    img.className = "";
+    img.dispatchEvent = () => true;
+    presentImage(img, url);
+    for (let i = 0; i < 8 && !inserted.length; i += 1) await nextTurn();
+    assert.deepEqual(drawn, [[url, 0, 0]]);
+    assert.equal(inserted.length, 1);
+    assert.equal(inserted[0].width, 4);
+    assert.equal(inserted[0].height, 2);
+    assert.equal(img.getAttribute("src"), null);
+    assert.equal(img.classList.contains("is-media-pending"), false);
+    assert.equal(img.dataset.mediaGif, "1");
+  } finally {
+    globalThis.fetch = saved.fetch;
+    globalThis.Image = saved.Image;
+    globalThis.document = saved.document;
+    resetGifCache();
+  }
+});
+
+// Neither the bytes nor a plain load: the address goes on the img, which
+// retries the gateways and answers its own error.
+test("a gif the browser cannot load either falls back to the address", async () => {
+  resetGifCache();
+  const url = "https://gone.example/missing.gif";
+  const saved = { fetch: globalThis.fetch, Image: globalThis.Image };
+  globalThis.fetch = async () => { throw new Error("blocked"); };
+  globalThis.Image = class {
+    set src(value) { setTimeout(() => this.onerror(new Error(value)), 0); }
+  };
+  try {
+    const img = fakeImg();
+    presentImage(img, url);
+    for (let i = 0; i < 8 && img.getAttribute("src") == null; i += 1) await nextTurn();
+    assert.equal(img.getAttribute("src"), url);
+    assert.equal(img.classList.contains("is-media-pending"), false);
+  } finally {
+    globalThis.fetch = saved.fetch;
+    globalThis.Image = saved.Image;
+    resetGifCache();
+  }
+});
+
 test("a poster is stored only beside our own mp4 or webm", () => {
   const base = "https://pub-243.r2.dev";
   assert.equal(

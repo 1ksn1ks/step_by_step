@@ -7459,13 +7459,20 @@ html, body {
   line-height: 1;
   cursor: pointer;
   touch-action: manipulation;
-  /* --cover-play-scale: polygons.js (coverPlayScale) shrinks the button
-     with its cover as the map zooms out. */
-  transform: translate(-50%, -50%) scale(var(--cover-play-scale, 1));
+  /* The button is the tap area and keeps its size (round, at least 44px).
+     Only the glass inside shrinks with the cover as the map zooms out. */
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
   -webkit-tap-highlight-color: transparent;
 }
 .polygon-cover-play[hidden] {
   display: none;
+}
+/* --cover-play-scale: polygons.js (coverPlayScale). The glass keeps its
+   own box (no flex shrink) and scales from its centre. */
+.polygon-cover-play > .polygon-cover-play-glass {
+  flex: none;
+  transform: scale(var(--cover-play-scale, 1));
 }
 :is(.polygon-cover-play-glass, .video-play-glass) {
   width: calc(var(--fu) * 2.6);

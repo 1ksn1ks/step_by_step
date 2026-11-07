@@ -239,6 +239,39 @@ function showStill(img, canvas) {
   img.dispatchEvent(new Event("load"));
 }
 
+// Frame 0 drawn from a plain image load. A canvas draw of an animated
+// image takes a single frame. A host without CORS taints the canvas,
+// which only stops reading it back; it still shows.
+function elementStill(url) {
+  return new Promise((resolve) => {
+    if (!url || typeof Image !== "function") {
+      resolve(null);
+      return;
+    }
+    const probe = new Image();
+    probe.decoding = "async";
+    probe.onload = () => {
+      const w = probe.naturalWidth;
+      const h = probe.naturalHeight;
+      if (!w || !h) {
+        resolve(null);
+        return;
+      }
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d").drawImage(probe, 0, 0);
+        resolve(canvas);
+      } catch {
+        resolve(null);
+      }
+    };
+    probe.onerror = () => resolve(null);
+    probe.src = url;
+  });
+}
+
 async function paintGifStill(img, url, seq) {
   let canvas = null;
   try {
@@ -249,11 +282,16 @@ async function paintGifStill(img, url, seq) {
     canvas = null;
   }
   if (img.dataset.mediaSeq !== String(seq)) return;
+  // No bytes: the host does not allow the read, or the file is past 15 MB,
+  // or the decoder gave up. The browser can still load the picture, and a
+  // canvas copy of it is one frame, so it stays still.
+  if (!canvas) canvas = await elementStill(url);
+  if (img.dataset.mediaSeq !== String(seq)) return;
   if (!canvas) {
-    // No still: the host does not allow the read, the file is gone or past
-    // 15 MB, or it does not decode. Show the address as a normal picture
-    // instead of leaving the skeleton. If that fails too, the img fires its
-    // own error, which armFallback answers.
+    // The browser cannot load it either (gone, or a gateway that is down).
+    // Show the address as a normal picture instead of leaving the skeleton:
+    // the img retries the gateways and fires its own error at the end,
+    // which armFallback answers.
     dropStill(img);
     assignSrc(img, url);
     return;

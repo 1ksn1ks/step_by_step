@@ -933,15 +933,25 @@ function syncCoverButton(cov) {
 
 // The full play glass in px, as style.css sizes it: 2.6 × --fu, where --fu
 // is 2.4% of the smaller of the viewport width and --app-h.
-function coverGlassPx() {
+function coverFu() {
   const appH = parseFloat(document.documentElement.style.getPropertyValue('--app-h')) || window.innerHeight;
   const w = document.documentElement.clientWidth || window.innerWidth;
-  return Math.min(w, appH) * 0.024 * 2.6;
+  return Math.min(w, appH) * 0.024;
+}
+
+function coverGlassPx() {
+  return coverFu() * 2.6;
+}
+
+// The button's box: style.css .polygon-cover-play, max(44px, --fu * 3.6).
+function coverHitPx() {
+  return Math.max(44, coverFu() * 3.6);
 }
 
 // The play glass shrinks with its cover as the map zooms out: at most 45% of
 // the cover's shorter on-screen side, never under 14px, never above its CSS
-// size. The whole button scales, so its tap area shrinks with it.
+// size. Only the glass scales; the button around it, the tap area, keeps
+// its full size (coverHitPx), so a small cover is still easy to start.
 const COVER_PLAY_MIN_PX = 14;
 const COVER_PLAY_SHARE = 0.45;
 function coverPlayScale(cov, full) {
@@ -999,7 +1009,9 @@ function placeCoverButton(cov) {
   }
   const full = coverGlassPx();
   const scale = coverPlayScale(cov, full);
-  if (underMoon(point.x, point.y, (full * scale) / 2)) {
+  // The whole tap area counts: one under the moon's edge would still start
+  // a video nobody can see.
+  if (underMoon(point.x, point.y, coverHitPx() / 2)) {
     if (cov.btn) cov.btn.hidden = true;
     return;
   }
