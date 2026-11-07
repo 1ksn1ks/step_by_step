@@ -1267,6 +1267,9 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
       // Add interactivity (only if not already added)
       if (!addedLayers.has(maskLayerId)) {
         map.on('click', maskLayerId, (e) => {
+          // Picking a spot for the Draw form (drawhere.js): the tap is a
+          // coordinate, not a polygon open.
+          if (document.documentElement.classList.contains('is-draw-picking')) return;
           if (kind === 'video') toggleCoverPlay(mediaCovers.get(sourceId));
           hidePolygonTitle();
           const description = polygonPopupNode(polygon);

@@ -20536,3 +20536,205 @@ img.is-gif-hit {
     transition: none;
   }
 }
+
+/* Pick on the map from the Draw form (drawhere.js startPick). Each
+   coordinate field has a pin button at its right end. While picking, the
+   Draw page steps aside (it keeps everything typed) and a bar at the top
+   says what to tap. Markers let taps through to the map, so a spot under
+   one can still be picked. */
+.draw-coord-wrap {
+  --pick-size: max(32px, calc(var(--ui-label, 2vh) * 1.7));
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+.draw-coord-fields-pair .draw-coord-wrap {
+  flex: 1 1 0;
+}
+:is(#draw-column, #feed-chat) .draw-coord-fields .draw-coord-wrap > textarea.toolbar-column {
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: 0;
+  padding-right: calc(var(--pick-size) + 12px);
+}
+.draw-coord-pick {
+  appearance: none;
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--pick-size);
+  height: var(--pick-size);
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(34, 211, 238, 0.45);
+  border-radius: calc(var(--pick-size) * 0.3);
+  background: rgba(34, 211, 238, 0.12);
+  color: #22D3EE;
+  translate: 0 -50%;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 160ms ease, border-color 160ms ease, scale 120ms ease;
+}
+/* 44px touch target around a smaller button. */
+.draw-coord-pick::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(44px, 100%);
+  height: max(44px, 100%);
+  translate: -50% -50%;
+}
+.draw-coord-pick svg {
+  display: block;
+  width: 58%;
+  height: 58%;
+  pointer-events: none;
+}
+@media (hover: hover) {
+  .draw-coord-pick:hover {
+    border-color: #22D3EE;
+    background: rgba(34, 211, 238, 0.22);
+  }
+}
+.draw-coord-pick:active {
+  scale: 0.92;
+  background: rgba(34, 211, 238, 0.28);
+}
+.draw-coord-pick:focus {
+  outline: none;
+}
+.draw-coord-pick:focus-visible {
+  outline: 2px solid #22D3EE;
+  outline-offset: 2px;
+}
+
+html.is-draw-picking #feed-chat,
+html.is-draw-picking #draw-column {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+html.is-draw-picking .maplibregl-marker {
+  pointer-events: none !important;
+}
+/* The map's top bar (menu, coordinates, clock) would sit under the hint
+   bar and take taps meant for picking. */
+html.is-draw-picking #map-topbar {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+/* The corner already placed: a pin with no actions. */
+.draw-here-anchor.is-pick-corner,
+.draw-here-anchor.is-pick-corner * {
+  pointer-events: none;
+}
+
+#draw-pick-bar {
+  --pick-bar-font: max(14px, 1.8dvh);
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + max(10px, 1.4dvh));
+  left: 50%;
+  z-index: 9400;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--pick-bar-font) * 0.6);
+  box-sizing: border-box;
+  max-width: calc(100vw - 24px);
+  padding: calc(var(--pick-bar-font) * 0.45) calc(var(--pick-bar-font) * 0.45) calc(var(--pick-bar-font) * 0.45) calc(var(--pick-bar-font) * 0.9);
+  border: 1px solid rgba(34, 211, 238, 0.55);
+  border-radius: 999px;
+  background: rgba(10, 12, 18, 0.88);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0.6dvh 2.4dvh rgba(0, 0, 0, 0.5), 0 0 1.6dvh rgba(34, 211, 238, 0.25);
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--pick-bar-font);
+  font-weight: 600;
+  line-height: 1.25;
+  translate: -50% 0;
+}
+#draw-pick-bar[hidden] {
+  display: none;
+}
+#draw-pick-bar.is-step {
+  animation: drawPickIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.draw-pick-icon {
+  flex: 0 0 auto;
+  width: 1.3em;
+  height: 1.3em;
+  background: #22D3EE;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0'/><circle cx='12' cy='10' r='3'/></svg>") center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0'/><circle cx='12' cy='10' r='3'/></svg>") center / contain no-repeat;
+}
+.draw-pick-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.draw-pick-cancel {
+  appearance: none;
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: max(32px, calc(var(--pick-bar-font) * 2));
+  height: max(32px, calc(var(--pick-bar-font) * 2));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.draw-pick-cancel::before {
+  content: "";
+  width: 44%;
+  height: 44%;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M18 6 6 18'/><path d='m6 6 12 12'/></svg>") center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M18 6 6 18'/><path d='m6 6 12 12'/></svg>") center / contain no-repeat;
+}
+.draw-pick-cancel::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(44px, 100%);
+  height: max(44px, 100%);
+  translate: -50% -50%;
+}
+@media (hover: hover) {
+  .draw-pick-cancel:hover {
+    background: rgba(34, 211, 238, 0.18);
+    color: #22D3EE;
+  }
+}
+.draw-pick-cancel:active {
+  background: rgba(34, 211, 238, 0.24);
+  color: #22D3EE;
+}
+@keyframes drawPickIn {
+  from { opacity: 0; translate: -50% -1.2dvh; }
+  to { opacity: 1; translate: -50% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #draw-pick-bar.is-step {
+    animation: none;
+  }
+  .draw-coord-pick {
+    transition: none;
+  }
+}

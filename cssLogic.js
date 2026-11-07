@@ -238,6 +238,9 @@ export function CloseALL() {
   });
 
   document.addEventListener('click', function(event) {
+    // Picking a spot for the Draw form (drawhere.js): the form is only
+    // stepped aside, so a stray tap must not close it.
+    if (document.documentElement.classList.contains('is-draw-picking')) return;
     CloseALL();
   });
   

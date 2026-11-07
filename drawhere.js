@@ -240,6 +240,15 @@ canvas.addEventListener('click', (e) => {
   // isPointOnMapSurface does a ray/sphere intersection test (true in 2D mode).
   const rect = map.getContainer().getBoundingClientRect();
   const p = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  // Picking for the Draw form: every map tap stops here, so it opens
+  // nothing else and the document's CloseALL never closes the form. Any
+  // spot on the map counts, a polygon too; a tap past the globe does nothing.
+  if (pick) {
+    e.stopPropagation();
+    suppressClickUntil = Date.now() + 500;
+    if (map.transform.isPointOnMapSurface(p)) handlePickTap(locFromClient(e.clientX, e.clientY));
+    return;
+  }
   if (!map.transform.isPointOnMapSurface(p)) return;
   // Polygon taps open their own popup — don't add the pin on top of it
   const hits = map.queryRenderedFeatures([p.x, p.y]);
@@ -258,9 +267,222 @@ document.addEventListener('click', (e) => {
 // Esc closes / cancels / clears the placed rectangle
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
+  if (pick) {
+    endPick(false);
+    return;
+  }
   if (pinEl || anchorOpen || awaitingSecondCorner) {
     const wasAwaiting = awaitingSecondCorner;
     cleanup();
     if (wasAwaiting) toast.info('Polygon draw cancelled');
   }
 });
+
+// Pick on the map, from the Draw form. Each coordinate field has a pin
+// button. It steps the Draw page aside (html.is-draw-picking, style.css),
+// shows a bar with what to tap, and fills the field from the tap:
+//   Marker: one tap.
+//   Polygon: the corner whose button was pressed, then the other corner
+//   too while that one is still empty. The pair is then put in order:
+//   TOP LEFT is the north west corner, BOTTOM RIGHT the south east.
+// The bar's ×, Escape and Back go back to the form with nothing changed.
+// Pan and zoom still work while picking; markers let taps through.
+const PICK_FIELDS = {
+  marker: ['input-field-2-3'],
+  polygon: ['input-field-3-3', 'input-field-3-5'],
+};
+const PICK_LABEL = {
+  'input-field-2-3': 'Pick the spot on the map',
+  'input-field-3-3': 'Pick the top left corner on the map',
+  'input-field-3-5': 'Pick the bottom right corner on the map',
+};
+const PICK_PIN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+  + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+  + '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>'
+  + '<circle cx="12" cy="10" r="3"/></svg>';
+let pick = null; // { kind, steps: [field id], index, values: { id: loc } }
+let pickBar = null;
+
+function lngLatText(loc) {
+  return `${loc.lng.toFixed(5)},${loc.lat.toFixed(5)}`;
+}
+
+function readLngLat(text) {
+  const m = String(text || '').trim().match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+  if (!m) return null;
+  const lng = Number(m[1]);
+  const lat = Number(m[2]);
+  if (Math.abs(lng) > 180 || Math.abs(lat) > 90) return null;
+  return { lng, lat };
+}
+
+function pickPrompt() {
+  if (!pick) return '';
+  if (pick.kind === 'marker') return 'Tap the map to place the marker';
+  const id = pick.steps[pick.index];
+  const second = pick.index > 0;
+  if (id === 'input-field-3-3') return second ? 'Now tap the top left corner' : 'Tap the top left corner';
+  return second ? 'Now tap the bottom right corner' : 'Tap the bottom right corner';
+}
+
+function paintPickBar() {
+  if (!pickBar) {
+    pickBar = document.createElement('div');
+    pickBar.id = 'draw-pick-bar';
+    pickBar.setAttribute('role', 'status');
+    const icon = document.createElement('span');
+    icon.className = 'draw-pick-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    const text = document.createElement('span');
+    text.className = 'draw-pick-text';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'draw-pick-cancel';
+    cancel.setAttribute('aria-label', 'Cancel');
+    cancel.title = 'Cancel';
+    cancel.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      endPick(false);
+    });
+    pickBar.append(icon, text, cancel);
+    pickBar.addEventListener('click', (event) => event.stopPropagation());
+    document.body.appendChild(pickBar);
+  }
+  pickBar.querySelector('.draw-pick-text').textContent = pickPrompt();
+  pickBar.hidden = false;
+  // Replay the drop-in for each new step.
+  pickBar.classList.remove('is-step');
+  void pickBar.offsetWidth;
+  pickBar.classList.add('is-step');
+}
+
+// Show what is already in the fields, so a small fix starts close by.
+function framePickFields(kind) {
+  if (kind === 'marker') {
+    const at = readLngLat(document.getElementById('input-field-2-3').value);
+    if (at) map.easeTo({ center: [at.lng, at.lat], duration: 600, essential: true });
+    return;
+  }
+  const a = readLngLat(document.getElementById('input-field-3-3').value);
+  const b = readLngLat(document.getElementById('input-field-3-5').value);
+  if (a && b) {
+    map.fitBounds([
+      [Math.min(a.lng, b.lng), Math.min(a.lat, b.lat)],
+      [Math.max(a.lng, b.lng), Math.max(a.lat, b.lat)],
+    ], { padding: 80, duration: 600, maxZoom: 16, essential: true });
+  } else if (a || b) {
+    const at = a || b;
+    map.easeTo({ center: [at.lng, at.lat], duration: 600, essential: true });
+  }
+}
+
+function startPick(kind, fieldId) {
+  if (pick) endPick(false);
+  cleanup();
+  const steps = [fieldId];
+  if (kind === 'polygon') {
+    const other = fieldId === 'input-field-3-3' ? 'input-field-3-5' : 'input-field-3-3';
+    if (!readLngLat(document.getElementById(other).value)) steps.push(other);
+  }
+  pick = { kind, steps, index: 0, values: {} };
+  if (document.activeElement && typeof document.activeElement.blur === 'function') document.activeElement.blur();
+  document.documentElement.classList.add('is-draw-picking');
+  paintPickBar();
+  framePickFields(kind);
+  if (window.layerOpened) window.layerOpened('drawpick');
+}
+
+function handlePickTap(loc) {
+  if (!pick) return;
+  pick.values[pick.steps[pick.index]] = loc;
+  pick.index += 1;
+  if (pick.index < pick.steps.length) {
+    // Keep a pin on the corner just placed while the next one is picked.
+    makePinEl();
+    pinEl.classList.add('is-pick-corner');
+    pressLoc = loc;
+    anchorOpen = false;
+    onMapMove();
+    paintPickBar();
+    return;
+  }
+  fillPickedFields();
+  endPick(true);
+}
+
+function fillPickedFields() {
+  const ids = new Set(Object.keys(pick.values));
+  for (const [id, loc] of Object.entries(pick.values)) {
+    document.getElementById(id).value = lngLatText(loc);
+  }
+  if (pick.kind === 'polygon') {
+    const tl = document.getElementById('input-field-3-3');
+    const br = document.getElementById('input-field-3-5');
+    const a = readLngLat(tl.value);
+    const b = readLngLat(br.value);
+    if (a && b) {
+      // West is the corner the shorter way round is east of, so two taps
+      // either side of the 180° line keep the small box, not the long way
+      // round the globe. Values are only swapped, never shifted.
+      const eastward = ((((b.lng - a.lng) % 360) + 540) % 360) - 180 >= 0;
+      const west = eastward ? a.lng : b.lng;
+      const east = eastward ? b.lng : a.lng;
+      tl.value = lngLatText({ lng: west, lat: Math.max(a.lat, b.lat) });
+      br.value = lngLatText({ lng: east, lat: Math.min(a.lat, b.lat) });
+      ids.add('input-field-3-3');
+      ids.add('input-field-3-5');
+    }
+  }
+  // The form's own listeners (preview, field height) follow the input event.
+  for (const id of ids) document.getElementById(id).dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function endPick(done, { fromHistory = false } = {}) {
+  if (!pick) return;
+  const kind = pick.kind;
+  pick = null;
+  clearDrawPreview();
+  pressLoc = null;
+  document.documentElement.classList.remove('is-draw-picking');
+  if (pickBar) pickBar.hidden = true;
+  if (!fromHistory && window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('drawpick')) {
+    window.layerClosedByUI('drawpick');
+  }
+  if (done) toast.info(kind === 'marker' ? 'Marker spot set' : 'Polygon corners set');
+}
+
+if (window.defineLayer) {
+  window.defineLayer('drawpick', {
+    open() {},
+    close: () => endPick(false, { fromHistory: true }),
+  });
+}
+
+// One pin button inside each coordinate field. The field moves into a
+// wrapper (.draw-coord-wrap) so the button can sit at its right end.
+function mountPickButtons() {
+  for (const [kind, ids] of Object.entries(PICK_FIELDS)) {
+    for (const id of ids) {
+      const field = document.getElementById(id);
+      if (!field || (field.parentElement && field.parentElement.classList.contains('draw-coord-wrap'))) continue;
+      const wrap = document.createElement('span');
+      wrap.className = 'draw-coord-wrap';
+      field.before(wrap);
+      wrap.appendChild(field);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'draw-coord-pick';
+      btn.setAttribute('aria-label', PICK_LABEL[id]);
+      btn.title = PICK_LABEL[id];
+      btn.innerHTML = PICK_PIN_SVG;
+      btn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        startPick(kind, id);
+      });
+      wrap.appendChild(btn);
+    }
+  }
+}
+mountPickButtons();
