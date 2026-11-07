@@ -20621,14 +20621,14 @@ html.is-draw-picking #draw-column {
   visibility: hidden !important;
   pointer-events: none !important;
 }
-html.is-draw-picking .maplibregl-marker {
+html.is-draw-picking .maplibregl-marker:not(.draw-pick-handle) {
   pointer-events: none !important;
 }
 /* The map starts clean while picking: markers, clusters, local news, the
    polygon play buttons and the hover titles step out of the way. The
    bar's eye button (.is-pick-posts) brings them back; your own location
    dot always stays. Polygon pictures are map layers (drawhere.js). */
-html.is-draw-picking:not(.is-pick-posts) .maplibregl-marker:not(.maplibregl-user-location-dot):not(.maplibregl-user-location-accuracy-circle),
+html.is-draw-picking:not(.is-pick-posts) .maplibregl-marker:not(.maplibregl-user-location-dot):not(.maplibregl-user-location-accuracy-circle):not(.draw-pick-handle),
 html.is-draw-picking:not(.is-pick-posts) :is(.polygon-cover-play, .polygon-title-tip, .marker-title-tip) {
   visibility: hidden !important;
 }
@@ -20638,10 +20638,89 @@ html.is-draw-picking #map-topbar {
   visibility: hidden !important;
   pointer-events: none !important;
 }
-/* The corner already placed: a pin with no actions. */
-.draw-here-anchor.is-pick-corner,
-.draw-here-anchor.is-pick-corner * {
+/* Polygon corners while picking (drawhere.js makeCornerHandle): a cyan
+   dot you can drag, and a small bubble with that corner's coordinates
+   that stays with it on the map. Top left's bubble sits above its corner,
+   bottom right's below. */
+/* No position here: MapLibre's .maplibregl-marker is absolute, and a
+   relative one put the second handle in flow, one handle lower. */
+.draw-pick-handle {
+  --tip-font: clamp(11px, 1.25dvh, 16px);
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  cursor: grab;
+  touch-action: none;
+}
+.draw-pick-handle.is-dragging {
+  cursor: grabbing;
+}
+.draw-pick-dot {
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  border: 3px solid #0a0a12;
+  border-radius: 50%;
+  background: #22D3EE;
+  box-shadow: 0 0 0 2px #22D3EE, 0 0 14px rgba(34, 211, 238, 0.65);
+  transition: scale 140ms ease;
+}
+.draw-pick-handle.is-dragging .draw-pick-dot {
+  scale: 1.3;
+}
+.draw-pick-tip {
+  position: absolute;
+  bottom: calc(100% - 6px);
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  box-sizing: border-box;
+  padding: calc(var(--tip-font) * 0.35) calc(var(--tip-font) * 0.7);
+  border: 1px solid rgba(34, 211, 238, 0.6);
+  border-radius: calc(var(--tip-font) * 0.75);
+  background: rgba(10, 12, 18, 0.92);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--tip-font);
+  line-height: 1.2;
+  white-space: nowrap;
+  translate: -50% 0;
   pointer-events: none;
+}
+.draw-pick-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  border: 6px solid transparent;
+  border-top-color: rgba(34, 211, 238, 0.6);
+  translate: -50% 0;
+}
+.draw-pick-handle.is-below .draw-pick-tip {
+  top: calc(100% - 6px);
+  bottom: auto;
+}
+.draw-pick-handle.is-below .draw-pick-tip::after {
+  top: auto;
+  bottom: 100%;
+  border-top-color: transparent;
+  border-bottom-color: rgba(34, 211, 238, 0.6);
+}
+.draw-pick-tip-name {
+  color: #22D3EE;
+  font-size: 0.82em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.draw-pick-tip-coords {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 600;
 }
 
 #draw-pick-bar {
@@ -20690,7 +20769,8 @@ html.is-draw-picking #map-topbar {
   white-space: nowrap;
 }
 .draw-pick-cancel,
-.draw-pick-posts {
+.draw-pick-posts,
+.draw-pick-confirm {
   appearance: none;
   position: relative;
   flex: 0 0 auto;
@@ -20729,8 +20809,27 @@ html.is-draw-picking #map-topbar {
   box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.6);
   color: #22D3EE;
 }
+/* ✓ Use these corners: the main action once both corners are down. */
+.draw-pick-confirm {
+  background: #22D3EE;
+  color: #083344;
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.45);
+}
+.draw-pick-confirm[hidden] {
+  display: none;
+}
+.draw-pick-confirm svg {
+  display: block;
+  width: 52%;
+  height: 52%;
+  pointer-events: none;
+}
+.draw-pick-confirm:active {
+  scale: 0.92;
+}
 .draw-pick-cancel::after,
-.draw-pick-posts::after {
+.draw-pick-posts::after,
+.draw-pick-confirm::after {
   content: "";
   position: absolute;
   left: 50%;
