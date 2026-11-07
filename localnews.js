@@ -605,3 +605,42 @@ export async function showLocationMarkers(lat, lng) {
     // geocode failed / offline — leave whatever is currently shown
   }
 }
+
+// Dev server only (import.meta.env.DEV; the production build drops this):
+// https://localhost:5173/?livedemo shows five made-up live posts over
+// western Europe, one for each group in the bar, so the groups can be tried
+// without waiting for real 24h posts. Following and Mine read the wallet:
+// the Paris post is by 0.0.981180 (followed by 0.0.9779355, and an Early
+// Hashinal holder), Rome is by 0.0.9779355; Berlin and London are holders,
+// Madrid is nobody in particular.
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('livedemo')) {
+  const seed = () => {
+    const now = Date.now();
+    const post = (payer, lng, lat, title, hoursAgo) => ({
+      payer,
+      lng,
+      lat,
+      title,
+      topic: '0.0.9609912',
+      topicName: 'Freedom',
+      created: new Date(now - hoursAgo * 3600000).toISOString(),
+      lastSeen: now,
+      msg: title + ' (made-up live post)',
+      image: '',
+    });
+    // The bar lives on the map: leave the feed if it is covering it.
+    if (document.documentElement.classList.contains('feed-app')) document.getElementById('layout-mode-btn')?.click();
+    map.jumpTo({ center: [6, 47], zoom: 3.6 });
+    showLocalMarkers([
+      post('0.0.981180', 2.35, 48.85, 'Followed holder', 0),
+      post('0.0.805149', 13.40, 52.52, 'Holder Berlin', 1),
+      post('0.0.9779355', 12.49, 41.90, 'My post Rome', 2),
+      post('0.0.555555', -3.70, 40.42, 'Nobody Madrid', 3),
+      post('0.0.454863', -0.12, 51.50, 'Holder London', 4),
+    ]);
+  };
+  // After the map has loaded and the start-up camera has settled.
+  const start = () => map.once('idle', () => setTimeout(seed, 1200));
+  if (map.loaded()) start();
+  else map.once('load', start);
+}
