@@ -212,19 +212,61 @@ function markerFeatureKey(cluster) {
   return `p:${cluster.topicId || ''}:${cluster.payer || ''}:${num}:${topicPointKey(cluster.geometry.coordinates)}`;
 }
 
-// Dots on one spot. Past the cluster zoom (index maxZoom) every post is its
-// own dot, and dots closer than STACK_OVERLAP of a dot's width cover each
-// other, so only the top one could be tapped. Those draw as one bubble with
-// their count, like a cluster, and a tap lists them (markerstack.js); they
-// split again as zooming in pulls them apart. Clusters pass through.
+// Bubbles, one rule for all of them:
+//   tap        zooms in until the dots come apart (a cluster to where it
+//              splits, overlapping dots to where they stop covering each
+//              other). Dots on the very same spot never come apart: the
+//              tap takes them to street level, and once there, lists them.
+//   hold / right-click   lists the posts in the bubble straight away.
+// The list is markerstack.js (search, one row per post, pick to open).
+// Only a bubble whose dots cannot be pulled apart wears the stacked ring,
+// so the ring means "a tap lists these".
+//
+// Past the cluster zoom (index maxZoom) every post is its own dot, and
+// dots closer than STACK_OVERLAP of a dot's width cover each other, so only
+// the top one could be tapped: those draw as one bubble with their count,
+// and split again as zooming pulls them apart. Clusters pass through.
 const STACK_OVERLAP = 0.6;
+const STREET_ZOOM = 16;
+const RING_CHECK_MAX = 50; // larger clusters are never one spot in practice
+
+function stackReach() {
+  return (currentMarkerSize / 100) * window.innerHeight * STACK_OVERLAP;
+}
+
+// The zoom at which these dots stop covering each other, or null when even
+// the deepest zoom cannot pull them apart. The spread is the larger side of
+// their on-screen box, which some pair is at least that far apart along.
+function separateZoom(features) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const f of features) {
+    let p = null;
+    try { p = map.project(f.geometry.coordinates); } catch { p = null; }
+    if (!p) continue;
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const spread = Math.max(maxX - minX, maxY - minY);
+  if (!(spread > 1e-9)) return null;
+  const z = map.getZoom() + Math.log2(stackReach() / spread) + 0.2;
+  return z <= map.getMaxZoom() ? z : null;
+}
+
 function stackOverlaps(features) {
-  const reach = (currentMarkerSize / 100) * window.innerHeight * STACK_OVERLAP;
+  const reach = stackReach();
   const reach2 = reach * reach;
   const out = [];
   const spots = [];
   for (const f of features) {
     if (f.properties && f.properties.cluster) {
+      const n = f.properties.point_count || 0;
+      if (n > 1 && n <= RING_CHECK_MAX) {
+        let leaves = [];
+        try { leaves = index.getLeaves(f.properties.cluster_id, RING_CHECK_MAX); } catch { leaves = []; }
+        f.properties.oneSpot = leaves.length > 1 && separateZoom(leaves) == null;
+      }
       out.push(f);
       continue;
     }
@@ -258,6 +300,7 @@ function stackOverlaps(features) {
       properties: {
         cluster: false,
         stack: true,
+        oneSpot: separateZoom(spot.leaves) == null,
         point_count: spot.leaves.length,
         point_count_abbreviated: String(spot.leaves.length),
       },
@@ -267,22 +310,113 @@ function stackOverlaps(features) {
   return out;
 }
 
-// A cluster whose posts all lie within this of each other cannot be split
-// by zooming either: its tap lists them instead.
-const SAME_SPOT_M = 5;
-function withinMeters(features, meters) {
-  const [lng0, lat0] = features[0].geometry.coordinates;
-  const k = Math.cos((lat0 * Math.PI) / 180);
-  for (const f of features) {
-    const [lng, lat] = f.geometry.coordinates;
-    let dLng = lng - lng0;
-    if (dLng > 180) dLng -= 360;
-    if (dLng < -180) dLng += 360;
-    const dx = dLng * k * 111320;
-    const dy = (lat - lat0) * 110540;
-    if (dx * dx + dy * dy > meters * meters) return false;
+function bubbleLeaves(entry) {
+  if (entry.kind === 'stack') return entry.leaves || [];
+  try {
+    return index.getLeaves(entry.cluster.properties.cluster_id, Infinity);
+  } catch {
+    return [];
   }
-  return true;
+}
+
+function dropMarkerPopups() {
+  activePolygonPopups.forEach((p) => p.remove());
+  activeMarkerPopups.forEach((p) => p.remove());
+}
+
+// The tap: zoom in until they come apart; one spot lists at street level.
+function tapBubble(entry) {
+  if (isMarkerStackOpenFor(entry.el)) {
+    closeMarkerStack();
+    return;
+  }
+  const coords = entry.cluster.geometry.coordinates;
+  if (entry.kind === 'cluster') {
+    let expand = Infinity;
+    try { expand = index.getClusterExpansionZoom(entry.cluster.properties.cluster_id); } catch { expand = Infinity; }
+    if (expand <= index.options.maxZoom) {
+      dropMarkerPopups();
+      animateMapTo(map, coords, expand + 0.1);
+      return;
+    }
+  }
+  const leaves = bubbleLeaves(entry);
+  const zoom = map.getZoom();
+  const apart = leaves.length > 1 ? separateZoom(leaves) : null;
+  if (apart != null && apart > zoom + 0.05) {
+    dropMarkerPopups();
+    animateMapTo(map, coords, apart);
+    return;
+  }
+  if (apart == null && zoom < STREET_ZOOM - 0.05) {
+    dropMarkerPopups();
+    animateMapTo(map, coords, STREET_ZOOM);
+    return;
+  }
+  openSpotList(entry, leaves);
+}
+
+// Hold (touch / pen) or right-click: the list right away. The click that a
+// hold ends with is swallowed so the bubble does not zoom as well: until
+// the finger lifts, then briefly (a click lands just after pointerup).
+// Time-limited, so a later click without a press (keyboard, screen
+// reader) is never eaten.
+const HOLD_MS = 480;
+const SWALLOW_MS = 600;
+function bindBubbleList(entry) {
+  const el = entry.el;
+  let timer = 0;
+  let sx = 0;
+  let sy = 0;
+  entry.swallowUntil = 0;
+  const cancel = () => {
+    clearTimeout(timer);
+    timer = 0;
+  };
+  el.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    cancel();
+    if (entry.swallowUntil !== Infinity) entry.swallowUntil = performance.now() + SWALLOW_MS;
+    openSpotList(entry, bubbleLeaves(entry));
+  });
+  el.addEventListener('pointerdown', (e) => {
+    entry.swallowUntil = 0;
+    if (e.pointerType === 'mouse') return;
+    sx = e.clientX;
+    sy = e.clientY;
+    cancel();
+    timer = setTimeout(() => {
+      timer = 0;
+      entry.swallowUntil = Infinity;
+      openSpotList(entry, bubbleLeaves(entry));
+    }, HOLD_MS);
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (timer && Math.hypot(e.clientX - sx, e.clientY - sy) > 8) cancel();
+  });
+  const lift = () => {
+    cancel();
+    if (entry.swallowUntil === Infinity) entry.swallowUntil = performance.now() + SWALLOW_MS;
+  };
+  el.addEventListener('pointerup', lift);
+  el.addEventListener('pointercancel', lift);
+  el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (performance.now() < entry.swallowUntil) {
+      entry.swallowUntil = 0;
+      return;
+    }
+    entry.swallowUntil = 0;
+    tapBubble(entry);
+  });
+}
+
+function bubbleLabel(cluster) {
+  const n = cluster.properties.point_count || 0;
+  return cluster.properties.oneSpot
+    ? `${n} posts on one spot. Tap to zoom in and list them, or hold to list them now.`
+    : `${n} posts. Tap to zoom in, hold to list them.`;
 }
 
 function makeMarkerPopup() {
@@ -320,14 +454,11 @@ function openFeaturePopup(feature, popup) {
 
 // Picks from a list share one popup: those posts have no dot of their own.
 let stackPickPopup = null;
-function toggleSpotList(entry, leaves) {
-  if (isMarkerStackOpenFor(entry.el)) {
-    closeMarkerStack();
-    return;
-  }
+function openSpotList(entry, leaves) {
+  if (!leaves || leaves.length === 0) return;
+  if (isMarkerStackOpenFor(entry.el)) return;
   hideMarkerTitle();
-  activePolygonPopups.forEach((p) => p.remove());
-  activeMarkerPopups.forEach((p) => p.remove());
+  dropMarkerPopups();
   closeDrawAnchor();
   closePressAnchor();
   openMarkerStack(entry.el, leaves, (feature) => {
@@ -485,7 +616,7 @@ function createKeptMarker(cluster, key) {
   const isCluster = kind !== 'point';
   const el = document.createElement('div');
   el.className = isCluster ? 'cluster-bubble' : 'marker';
-  if (kind === 'stack') el.classList.add('is-stack');
+  if (isCluster) el.classList.toggle('is-stack', !!cluster.properties.oneSpot);
   applyMarkerBox(el, isCluster);
   const entry = { key, el, kind };
 
@@ -499,32 +630,10 @@ function createKeptMarker(cluster, key) {
     el.appendChild(face);
     entry.face = face;
     watchMarkerTilt(face);
-    if (kind === 'stack') {
-      entry.leaves = cluster.leaves;
-      el.setAttribute('role', 'button');
-      el.setAttribute('aria-label', `${cluster.leaves.length} posts on this spot`);
-      el.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleSpotList(entry, entry.leaves);
-      });
-    } else {
-      el.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const current = entry.cluster;
-        activePolygonPopups.forEach((popup) => popup.remove());
-        activeMarkerPopups.forEach((popup) => popup.remove());
-        const zoomTo = await index.getClusterExpansionZoom(current.id);
-        // Zooming cannot pull posts on one spot apart: list them instead.
-        if (zoomTo > index.options.maxZoom) {
-          const leaves = index.getLeaves(current.id, Infinity);
-          if (leaves.length > 1 && withinMeters(leaves, SAME_SPOT_M)) {
-            toggleSpotList(entry, leaves);
-            return;
-          }
-        }
-        animateMapTo(map, current.geometry.coordinates, zoomTo + 0.1);
-      });
-    }
+    if (kind === 'stack') entry.leaves = cluster.leaves;
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', bubbleLabel(cluster));
+    bindBubbleList(entry);
   } else {
     entry.feature = cluster;
     el._markerPayer = cluster.payer || '';
@@ -566,10 +675,9 @@ function refreshKeptMarker(entry, cluster) {
   placeKeptMarker(entry);
   if (entry.kind !== 'point') {
     entry.cluster = cluster;
-    if (entry.kind === 'stack') {
-      entry.leaves = cluster.leaves;
-      entry.el.setAttribute('aria-label', `${cluster.leaves.length} posts on this spot`);
-    }
+    if (entry.kind === 'stack') entry.leaves = cluster.leaves;
+    entry.el.classList.toggle('is-stack', !!cluster.properties.oneSpot);
+    entry.el.setAttribute('aria-label', bubbleLabel(cluster));
     const count = String(cluster.properties.point_count_abbreviated);
     if (entry.face && entry.face.textContent !== count) entry.face.textContent = count;
     return;

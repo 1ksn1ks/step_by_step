@@ -1,12 +1,12 @@
-// markerstack.js — topic markers that sit on one spot of the map.
+// markerstack.js — the list of posts in a marker bubble.
 //
-// Dots that cover each other cannot be told apart by tapping (only the top
-// one gets the tap) or, past the cluster zoom, by zooming. marker.js draws
-// them as one bubble with their count, like a cluster; a tap on it opens
-// this dropdown next to the bubble: a search box and one row per post (its
-// picture, title, who and when, a line of its text), newest first.
-// Picking a row opens that post's own popup. Escape, a tap anywhere else,
-// moving the map and Back close it.
+// marker.js decides when it opens (see its bubble rule): holding or
+// right-clicking any bubble, or tapping a bubble whose dots sit on one
+// spot once the map is at street level (a tap on any other bubble zooms
+// in to pull its dots apart). The list is a dropdown next to the bubble:
+// a search box and one row per post (its picture, title, who and when, a
+// line of its text), newest first. Picking a row opens that post's own
+// popup. Escape, a tap anywhere else, moving the map and Back close it.
 import { map } from './map';
 import { forgetLoop, pictureElement } from './loopmedia.js';
 
@@ -188,6 +188,8 @@ function buildRow(feature) {
   const url = (Array.isArray(props.imageUrl) ? props.imageUrl[0] : props.imageUrl) || record.profileUrl || '';
   const pic = url ? pictureElement(url, { className: 'marker-stack-pic', alt: '' }) : document.createElement('span');
   if (!url) pic.className = 'marker-stack-pic';
+  // A held cluster can list many posts: pictures load as rows scroll in.
+  if (pic.tagName === 'IMG') pic.loading = 'lazy';
   pic.setAttribute('aria-hidden', 'true');
 
   const body = document.createElement('span');
