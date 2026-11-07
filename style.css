@@ -7831,6 +7831,11 @@ a.payer-link {
   justify-content: center;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  /* Holding a bubble lists its posts (marker.js bindBubbleList): no text
+     selection or iOS callout while the finger rests on it. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .cluster-face {
   flex: 1 1 auto;
