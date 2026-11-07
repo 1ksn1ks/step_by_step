@@ -222,6 +222,141 @@ const patchOrbitDrift = (mat) => {
 };
 
 
+// ── Motion trails ──────────────────────────────────────────────────────
+// Each bot draws the stretch of orbit it just flew as a thin ribbon behind
+// it: bright at the model, tapering and fading to nothing at the tail, so
+// the direction and where it came from read at a glance. One instanced
+// ribbon per model group shares that group's instance matrices and orbit
+// buffer (same slots, same culling, same count), and the vertex shader
+// walks the SAME orbit formula as patchOrbitDrift back in time, so trails
+// cost no CPU per frame either.
+// The trail covers TRAIL_ARC radians of orbit, capped at TRAIL_MAX_PX on
+// screen (a city bot at street zoom would otherwise sweep a line across
+// the whole view). Trails too short to read (city bots seen from space)
+// fade out instead of leaving specks.
+// Colour hooks for later (rainbows, per-peer colours): uTrailHead /
+// uTrailTail and vAge (0 at the bot, 1 at the tail) in the fragment shader.
+const TRAIL_POINTS = 24;
+const TRAIL_ARC = 1.1;       // radians of orbit behind the bot (~63°)
+const TRAIL_MAX_PX = 90;     // longest trail on screen, CSS px
+const TRAIL_WIDTH_PX = 3.5;  // at the head; tapers toward the tail
+
+const trailUniforms = {
+  uTime,
+  uTrailArc: { value: TRAIL_ARC },
+  uTrailMaxPx: { value: TRAIL_MAX_PX },
+  uTrailWidth: { value: TRAIL_WIDTH_PX },
+  uViewport: { value: new THREE.Vector2(1, 1) },
+  uTrailHead: { value: new THREE.Color(0x22d3ee) },
+  uTrailTail: { value: new THREE.Color(0x0ea5e9) },
+  uTrailOpacity: { value: 0.95 },
+};
+
+const trailMaterial = new THREE.ShaderMaterial({
+  uniforms: trailUniforms,
+  transparent: true,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+  vertexShader: `
+    attribute vec2 aTrail;   // x: age 0 (bot) .. 1 (tail), y: side -1 / +1
+    attribute vec4 aOrbit;   // radius m, angular speed rad/s, phase, bob m
+    uniform float uTime;
+    uniform float uTrailArc;
+    uniform float uTrailMaxPx;
+    uniform float uTrailWidth;
+    uniform vec2 uViewport;
+    varying float vAge;
+    varying float vSide;
+    varying float vShow;
+
+    // The orbit displacement of patchOrbitDrift, at any time t.
+    vec3 orbitAt(mat4 m, float t) {
+      vec3 up = normalize(m[1].xyz);
+      vec3 east = normalize(m[0].xyz);
+      float tO = t * aOrbit.y + aOrbit.z;
+      vec3 p = m[3].xyz;
+      p += (east * cos(tO) + cross(up, east) * sin(tO)) * aOrbit.x / 6371008.8;
+      p += up * aOrbit.w * sin(t * aOrbit.y * 0.7 + aOrbit.z) / 6371008.8;
+      return p;
+    }
+    vec4 clipAt(float t) {
+      return projectionMatrix * modelViewMatrix * vec4(orbitAt(instanceMatrix, t), 1.0);
+    }
+    vec2 pxOf(vec4 c) {
+      return c.xy / c.w * 0.5 * uViewport;
+    }
+
+    void main() {
+      vAge = aTrail.x;
+      vSide = aTrail.y;
+      float spd = max(abs(aOrbit.y), 1e-6);
+      float eps = 0.02 / spd;            // a sliver of orbit, in seconds
+      // How fast the bot crosses the screen right now, so the time span of
+      // the trail can be capped to uTrailMaxPx: one span for every vertex.
+      vec4 h0 = clipAt(uTime);
+      vec4 h1 = clipAt(uTime - eps);
+      float pxPerSec = (h0.w > 0.0 && h1.w > 0.0) ? length(pxOf(h0) - pxOf(h1)) / eps : 0.0;
+      float span = uTrailArc / spd;
+      if (pxPerSec > 0.0) span = min(span, uTrailMaxPx / pxPerSec);
+      vShow = smoothstep(3.0, 12.0, pxPerSec * span);
+
+      float t = uTime - aTrail.x * span;
+      vec4 c = clipAt(t);
+      vec4 c2 = clipAt(t - eps);
+      if (c.w <= 0.0 || c2.w <= 0.0) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // behind the camera: off clip
+        return;
+      }
+      vec2 d = pxOf(c) - pxOf(c2);
+      float dl = length(d);
+      vec2 dir = dl > 1e-6 ? d / dl : vec2(1.0, 0.0);
+      vec2 n = vec2(-dir.y, dir.x);
+      float w = uTrailWidth * (1.0 - 0.75 * aTrail.x);
+      // Half the width each side, CSS px to clip space.
+      c.xy += n * aTrail.y * (w * 0.5) / (0.5 * uViewport) * c.w;
+      gl_Position = c;
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 uTrailHead;
+    uniform vec3 uTrailTail;
+    uniform float uTrailOpacity;
+    varying float vAge;
+    varying float vSide;
+    varying float vShow;
+    void main() {
+      float a = uTrailOpacity * vShow * pow(1.0 - vAge, 1.6);
+      if (a < 0.003) discard;
+      vec3 col = mix(uTrailHead, uTrailTail, vAge);
+      // A darker edge so the ribbon reads on light map styles too.
+      col = mix(col * 0.45, col, smoothstep(1.0, 0.45, abs(vSide)));
+      gl_FragColor = vec4(col, a);
+    }
+  `,
+});
+
+// One ribbon: TRAIL_POINTS pairs of vertices (both sides), a strip of quads.
+const trailTemplate = (() => {
+  const n = TRAIL_POINTS;
+  const geo = new THREE.BufferGeometry();
+  const trail = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) {
+    const age = i / (n - 1);
+    trail[i * 4] = age; trail[i * 4 + 1] = -1;
+    trail[i * 4 + 2] = age; trail[i * 4 + 3] = 1;
+  }
+  const index = [];
+  for (let i = 0; i < n - 1; i++) {
+    const a = i * 2;
+    index.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 2 * 3), 3));
+  geo.setAttribute('aTrail', new THREE.BufferAttribute(trail, 2));
+  geo.setIndex(index);
+  return geo;
+})();
+
+
 let P2Pcamera = new THREE.Camera();
 
 // ────────────────────────────────────────────────
@@ -445,8 +580,33 @@ export async function load3dModels() {
       state.scene.add(im);
       return { geo, mat: p.mat, imesh: im, buf: im.instanceMatrix.array };
     });
+    attachTrail(inst);
     inst.loaded = true;
     state.dirty = true;
+  };
+
+  // The group's trail ribbon. Its slots are the group's slots (part 0's
+  // instance matrices, the shared orbit buffer), so it shows exactly the
+  // bots that are drawn.
+  const attachTrail = (inst) => {
+    dropTrail(inst);
+    if (!inst.parts.length) return;
+    const geo = trailTemplate.clone();
+    geo.setAttribute('aOrbit', inst.aAttr);
+    const mesh = new THREE.InstancedMesh(geo, trailMaterial, inst.capacity);
+    mesh.instanceMatrix = inst.parts[0].imesh.instanceMatrix;
+    mesh.frustumCulled = false;
+    mesh.count = inst.parts[0].imesh.count;
+    mesh.renderOrder = 1;
+    state.scene.add(mesh);
+    inst.trail = mesh;
+  };
+
+  const dropTrail = (inst) => {
+    if (!inst.trail) return;
+    state.scene.remove(inst.trail);
+    inst.trail.geometry.dispose();
+    inst.trail = null;
   };
 
   const ensureGroup = (url) => {
@@ -496,6 +656,7 @@ export async function load3dModels() {
     });
     inst.capacity = newCap;
     for (const p of oldParts) { state.scene.remove(p.imesh); p.imesh.dispose(); }
+    attachTrail(inst);
   };
 
   // ── The heart of the 10k-bot path ──────────────────────────────────
@@ -804,6 +965,7 @@ export async function load3dModels() {
         p.imesh.count = inst.slotCount;
         p.imesh.instanceMatrix.needsUpdate = true;
       }
+      if (inst.trail) inst.trail.count = inst.slotCount;
       if (inst.aAttr) inst.aAttr.needsUpdate = true;
     }
     if (overflow) state.dirty = true; // recompute next frame with the grown capacity
@@ -846,6 +1008,11 @@ export async function load3dModels() {
         // attribute has no dispose() (it threw here, which left the
         // Visibility switch on after the models were gone).
         inst.aAttr = null;
+        if (inst.trail) {
+          state.scene.remove(inst.trail);
+          inst.trail.geometry.dispose();
+          inst.trail = null;
+        }
         inst.parts = [];
         inst.loaded = false;
       }
@@ -905,6 +1072,8 @@ export async function load3dModels() {
         );
         P2Pcamera.projectionMatrix = mapProjectionMatrix;
         P2Pcamera.matrixWorldInverse.identity();
+        const canvas = map.getCanvas();
+        trailUniforms.uViewport.value.set(canvas.clientWidth || 1, canvas.clientHeight || 1);
 
         state.renderer.resetState();
         state.renderer.render(state.scene, P2Pcamera);
