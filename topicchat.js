@@ -5,6 +5,7 @@ import { sendMessage, messageSig, streamOnTopic, streamOnReconnect } from './msg
 import { getTopicData } from './topicdata';
 import { perfJob } from './perf.js';
 import { toast } from "./toast";
+import { setMessageMeasure } from './bytecap.js';
 import { profilePictures, usernames, click2url } from './loadalladata';
 import { pictureElement } from './loopmedia.js';
 import { 
@@ -253,6 +254,10 @@ function paintTopicChatEditBytes() {
 
 function setTopicChatEditing(on) {
   const compose = topicChatCompose();
+  const field = document.getElementById('user-write-message');
+  setMessageMeasure(field, on
+    ? () => (topicChatEditTarget ? utf8ByteLength(JSON.stringify(topicChatEditPayload(field.value))) : 0)
+    : null);
   const bar = document.getElementById('topic-chat-editbar');
   const quote = document.getElementById('topic-chat-edit-quote');
   const send = document.getElementById('post-msg');

@@ -15,6 +15,7 @@ import { renderLoadedTopics } from './handleallmessages.js';
 import { toast } from './toast.js';
 import { formatHcsUsage, HCS_TOO_LONG } from './hcschunks.js';
 import { composerWireBytes } from './chatimage.js';
+import { capMessageField } from './bytecap.js';
 import { fitChatComposer, mountComposerExpand, syncComposerDraft } from './chatcomposer.js';
 import { setTextInPlace } from './textinplace.js';
 import { closeDrawAnchor } from './drawhere.js';
@@ -851,6 +852,8 @@ export function CloseALL() {
     const ta = document.getElementById(id);
     const counter = document.getElementById(counterId);
     const send = document.getElementById(sendId);
+    // Typing stops at 18 KB (an edit swaps in its own size, setMessageMeasure).
+    capMessageField(ta, () => composerWireBytes(kind, ta.value));
     containComposerTouch(ta);
     // Counter line above the row and the fullscreen button (chatcomposer.js).
     mountComposerExpand(ta, counter, send);

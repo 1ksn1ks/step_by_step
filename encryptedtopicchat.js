@@ -9,6 +9,7 @@ import { profilePictures, usernames, click2url, profileTopics } from './loadalla
 import { pictureElement } from './loopmedia.js';
 import { isHederaAccount } from './handleallmessages';
 import { toast } from './toast'
+import { setMessageMeasure } from './bytecap.js';
 import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, formatHcsUsage, utf8ByteLength, normalizeMessageNewlines } from './hcschunks.js';
 import { expandEncryptedChat, scheduleEncryptedChatLayout } from './cssLogic.js';
 import { fitChatComposer } from './chatcomposer.js';
@@ -282,16 +283,14 @@ function e2eeEditQuote(text, image) {
   return image ? 'Photo' : '';
 }
 
-function paintE2eeChatEditBytes() {
-  const counter = document.getElementById('char-counter-encrypted-chat');
-  const save = document.getElementById('post-msg-encrypted-chat');
-  const text = document.getElementById('user-write-message-encrypted-chat');
-  if (!counter || !text || !e2eeChatEditTarget) return;
-  let bytes = utf8ByteLength(e2eeChatEditOutgoing(text.value));
+// The sealed edit's size, the way the counter and the send measure it.
+function e2eeChatEditBytes(value) {
+  if (!e2eeChatEditTarget) return 0;
+  let bytes = utf8ByteLength(e2eeChatEditOutgoing(value));
   if (bytes > HCS_MESSAGE_MAX_BYTES && e2eeDraftPoster(e2eeChatEditTarget)) {
     const mode = e2eeChatEditTarget.posterMode;
     e2eeChatEditTarget.posterMode = 'clear';
-    bytes = utf8ByteLength(e2eeChatEditOutgoing(text.value));
+    bytes = utf8ByteLength(e2eeChatEditOutgoing(value));
     e2eeChatEditTarget.posterMode = mode;
   }
   const sealedPoster = e2eeChatEditTarget.media && e2eeChatEditTarget.media.poster && e2eeChatEditTarget.media.poster.b64;
@@ -300,9 +299,18 @@ function paintE2eeChatEditBytes() {
     const slim = Object.assign({}, saved);
     delete slim.poster;
     e2eeChatEditTarget.media = slim;
-    bytes = utf8ByteLength(e2eeChatEditOutgoing(text.value));
+    bytes = utf8ByteLength(e2eeChatEditOutgoing(value));
     e2eeChatEditTarget.media = saved;
   }
+  return bytes;
+}
+
+function paintE2eeChatEditBytes() {
+  const counter = document.getElementById('char-counter-encrypted-chat');
+  const save = document.getElementById('post-msg-encrypted-chat');
+  const text = document.getElementById('user-write-message-encrypted-chat');
+  if (!counter || !text || !e2eeChatEditTarget) return;
+  const bytes = e2eeChatEditBytes(text.value);
   const usage = formatHcsUsage(bytes);
   counter.hidden = false;
   counter.textContent = usage.text;
@@ -319,6 +327,8 @@ function paintE2eeChatEditBytes() {
 
 function setE2eeChatEditing(on) {
   const compose = e2eeChatCompose();
+  const field = document.getElementById('user-write-message-encrypted-chat');
+  setMessageMeasure(field, on ? () => e2eeChatEditBytes(field.value) : null);
   const bar = document.getElementById('e2ee-chat-editbar');
   const quote = document.getElementById('e2ee-chat-edit-quote');
   const send = document.getElementById('post-msg-encrypted-chat');

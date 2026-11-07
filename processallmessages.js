@@ -36,6 +36,7 @@ import { createPostMenu } from './postmenu.js';
 import { refitPopups } from './popupanim';
 import { copyTextToClipboard } from './handleallmessages';
 import { toast } from './toast'
+import { capMessageField } from './bytecap.js';
 import { videoSeconds } from './mediaduration.js'
 import { placeUrl } from './placeurl.js';
 import { stackedTopicRules, smallestPolygonSize } from './topicrules.js'
@@ -722,19 +723,25 @@ function editPayload(walk, msg, poster) {
     : { marker: { data: fields } };
 }
 
+// The edit's size as savePopupEdit sends it: the same cleaning, and on an
+// E2EE topic the SEAL — what actually goes on the topic.
+function editBytesNow() {
+  const text = document.getElementById('popup-settings-edit-text');
+  const walk = popupSettingsTarget;
+  if (!text || !walk) return 0;
+  const cleaned = normalizeMessageNewlines(text.value).trim();
+  const body = editPayload(walk, cleaned, popupPosterDraft);
+  const outgoing = popupEditKey ? sealedEditOutgoing(body) : JSON.stringify(body);
+  return utf8ByteLength(outgoing);
+}
+
 function paintEditBytes() {
   const counter = document.getElementById('popup-settings-edit-bytes');
   const save = document.getElementById('popup-settings-edit-save');
   const text = document.getElementById('popup-settings-edit-text');
   const walk = popupSettingsTarget;
   if (!counter || !text || !walk) return;
-  // Same cleaning savePopupEdit sends, so the counter matches the payload.
-  const cleaned = normalizeMessageNewlines(text.value).trim();
-  const body = editPayload(walk, cleaned, popupPosterDraft);
-  // E2EE topic: the outgoing message is the SEAL — the counter must show
-  // what actually goes on the topic, not only the inner edit JSON.
-  const outgoing = popupEditKey ? sealedEditOutgoing(body) : JSON.stringify(body);
-  const usage = formatHcsUsage(utf8ByteLength(outgoing));
+  const usage = formatHcsUsage(editBytesNow());
   counter.textContent = usage.text;
   counter.classList.toggle('hcs-warn', usage.warn);
   counter.classList.toggle('hcs-over', usage.over);
@@ -1111,7 +1118,11 @@ function bindPopupSettings() {
     openEditComposer();
   });
   const editText = document.getElementById('popup-settings-edit-text');
-  if (editText) editText.addEventListener('input', () => paintEditBytes());
+  if (editText) {
+    // Typing stops at 18 KB.
+    capMessageField(editText, editBytesNow);
+    editText.addEventListener('input', () => paintEditBytes());
+  }
   const editSave = document.getElementById('popup-settings-edit-save');
   if (editSave) editSave.addEventListener('click', (event) => {
     event.stopPropagation();

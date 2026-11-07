@@ -3,6 +3,7 @@
 import { connectedAccount } from "./web3.js";
 import { formatHcsUsage, HCS_TOO_LONG, utf8ByteLength, normalizeMessageNewlines } from "./hcschunks.js";
 import { toast } from "./toast.js";
+import { capMessageEditor } from "./bytecap.js";
 import { profilePictures, usernames, click2url } from "./loadalladata.js";
 import { payerUsernameNode, safeHttpUrl } from "./payerlink.js";
 import { paintProfileAvatar } from "./earlyhashinal.js";
@@ -255,7 +256,7 @@ function watchOverLimitSend(id) {
   }, true);
 }
 
-function bindEditable(editorId, fieldId, singleLine) {
+function bindEditable(editorId, fieldId, singleLine, measure) {
   const el = document.getElementById(editorId);
   const field = document.getElementById(fieldId);
   if (!el || !field) return;
@@ -297,6 +298,8 @@ function bindEditable(editorId, fieldId, singleLine) {
     write();
   });
   el.addEventListener("input", write);
+  // A post text stops at 18 KB: the post's whole size (title, media, place).
+  if (measure) capMessageEditor(el, field, measure, write);
   const shown = () => {
     let text = plainText(el).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
     if (singleLine) text = text.replace(/\n/g, "");
@@ -442,9 +445,9 @@ function bindAccount(editorId) {
 }
 
 bindEditable("draw-marker-title", "input-field-2-1", true);
-bindEditable("draw-marker-text", "input-field-2-2", false);
+bindEditable("draw-marker-text", "input-field-2-2", false, () => utf8ByteLength(markerWire()));
 bindEditable("draw-polygon-title", "input-field-3-1", true);
-bindEditable("draw-polygon-text", "input-field-3-2", false);
+bindEditable("draw-polygon-text", "input-field-3-2", false, () => utf8ByteLength(polygonWire()));
 for (const id of ["input-field-2-3", "input-field-image-marker", "input-field-coverimage-marker"]) {
   const node = document.getElementById(id);
   if (node) node.addEventListener("input", paintMarkerBytes);
