@@ -38,7 +38,7 @@ import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, regi
 import { VIEW_SORT_BATCH, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs, zeroViewCounts } from './viewsort.js';
 import { FILL_PASSES, planFillDown } from './scrollfill.js';
 import { FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, connectionIsConstrained, feedAutoplayAllowed, feedVideoHeld, feedVideoPreloadOnPause, feedVideoShouldRelease, feedVideoStartDelay, feedVideosToMeasure, pickFeedVideo } from './feedvideo.js';
-import { isGifClipUrl, isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
+import { isGifClipUrl, isGifUrl, needsGifCheck, readGifCache, resolveMediaUrl } from './mediaurl.js';
 import { bindVideoPoster } from './videoposter.js';
 import { mountPicture, pictureElement, presentImage } from './loopmedia.js';
 
@@ -987,24 +987,23 @@ const MEDIA_FULL_ICON = [
   ['path', { d: 'M16 21h3a2 2 0 0 0 2-2v-3' }],
 ];
 
-// Longest side of a picture's blur fill bitmap. The fill is blurred and
-// dimmed, so a small copy looks the same as a full one.
+// Longest side of a GIF's still fill. The fill is blurred and dimmed, so a
+// small copy looks the same as a full one.
 const BACKDROP_PX = 96;
 
 // Blur fill, as most feeds do it: the picture is fitted whole in the
 // compact frame and a blurred copy of it fills the rest (style.css
 // .feed-media-backdrop). It goes after the media, so a lookup of the
 // card's first img still finds the picture.
-//   Picture: a small canvas, painted once from the loaded picture and
-//   again after each load (a gateway retry). A GIF plays in the feed, and
-//   a second img with its address would decode it again and blur every
-//   frame; the canvas holds one still frame and fetches nothing.
+//   Picture: an img with the same address. The browser decodes it off the
+//   main thread (the file is already cached) and draws the blur once with
+//   the card, so a scroll only moves it. It follows the picture's src, so
+//   a gateway retry carries over.
+//   GIF: it plays in the feed, and an img copy would decode it a second
+//   time and blur every frame. Its fill is one still frame on a small
+//   canvas instead, drawn when the page is idle after the GIF has loaded.
 //   Video: an img that follows the poster, so a late poster carries over.
-function mountMediaBackdrop(media, source) {
-  if (source.tagName !== 'VIDEO') {
-    mountPictureBackdrop(source);
-    return;
-  }
+function backdropImg() {
   const back = document.createElement('img');
   back.className = 'feed-media-backdrop';
   back.alt = '';
@@ -1013,6 +1012,18 @@ function mountMediaBackdrop(media, source) {
   back.decoding = 'async';
   back.loading = 'lazy';
   back.hidden = true;
+  back.addEventListener('error', () => {
+    back.hidden = true;
+  });
+  return back;
+}
+
+function mountMediaBackdrop(media, source) {
+  if (source.tagName !== 'VIDEO') {
+    mountPictureBackdrop(source);
+    return;
+  }
+  const back = backdropImg();
   const sync = () => {
     const url = source.getAttribute('poster') || '';
     if (!url) {
@@ -1023,69 +1034,88 @@ function mountMediaBackdrop(media, source) {
     if (back.getAttribute('src') !== url) back.src = url;
     back.hidden = false;
   };
-  back.addEventListener('error', () => {
-    back.hidden = true;
-  });
   new MutationObserver(sync).observe(source, { attributes: true, attributeFilter: ['poster'] });
   source.after(back);
   sync();
 }
 
+// A GIF by its address, or an extensionless file already checked as one.
+function gifBackdropSource(url) {
+  if (isGifUrl(url) || /^data:image\/gif/i.test(url)) return true;
+  return needsGifCheck(url) && readGifCache(url) === true;
+}
+
 function mountPictureBackdrop(source) {
-  const back = document.createElement('canvas');
-  back.className = 'feed-media-backdrop';
-  back.setAttribute('aria-hidden', 'true');
-  back.hidden = true;
+  const back = backdropImg();
+  let still = null;
   let seq = 0;
-  const paint = async () => {
-    const run = ++seq;
+  const hideStill = () => {
+    if (still) still.hidden = true;
+  };
+  const dropImg = () => {
+    back.hidden = true;
+    if (back.hasAttribute('src')) back.removeAttribute('src');
+  };
+  const paintStill = (run) => {
     const w = source.naturalWidth;
     const h = source.naturalHeight;
-    if (!source.getAttribute('src') || !w || !h) {
-      back.hidden = true;
-      return;
+    if (run !== seq || !w || !h || !source.getAttribute('src')) return;
+    if (!still) {
+      still = document.createElement('canvas');
+      still.className = 'feed-media-backdrop';
+      still.setAttribute('aria-hidden', 'true');
+      still.hidden = true;
+      back.after(still);
     }
     const scale = Math.min(1, BACKDROP_PX / Math.max(w, h));
-    const bw = Math.max(1, Math.round(w * scale));
-    const bh = Math.max(1, Math.round(h * scale));
-    // Scaled off the main thread where the browser can; a cross-origin
-    // picture taints the canvas, which only stops reading it back.
-    let frame = source;
-    if (typeof createImageBitmap === 'function') {
-      try {
-        frame = await createImageBitmap(source, { resizeWidth: bw, resizeHeight: bh, resizeQuality: 'low' });
-      } catch {
-        frame = source;
-      }
+    try {
+      still.width = Math.max(1, Math.round(w * scale));
+      still.height = Math.max(1, Math.round(h * scale));
+      // A cross-origin GIF taints the canvas, which only stops reading it
+      // back. A canvas draw of an animated image takes one frame.
+      still.getContext('2d').drawImage(source, 0, 0, still.width, still.height);
+      still.hidden = false;
+    } catch {
+      still.hidden = true;
     }
-    if (run !== seq || !source.getAttribute('src')) {
-      if (frame !== source) frame.close();
+  };
+  const sync = () => {
+    const run = ++seq;
+    const url = source.getAttribute('src') || '';
+    if (!url) {
+      dropImg();
+      hideStill();
       return;
     }
-    const ctx = back.getContext('2d');
-    try {
-      back.width = bw;
-      back.height = bh;
-      ctx.drawImage(frame, 0, 0, bw, bh);
+    if (!gifBackdropSource(url)) {
+      hideStill();
+      if (back.getAttribute('src') !== url) back.src = url;
       back.hidden = false;
-    } catch {
-      back.hidden = true;
+      return;
     }
-    if (frame !== source) frame.close();
+    dropImg();
+    hideStill();
+    const loaded = () => {
+      if (run !== seq) return;
+      const idle = typeof requestIdleCallback === 'function'
+        ? (fn) => requestIdleCallback(fn, { timeout: 1500 })
+        : (fn) => setTimeout(fn, 200);
+      // decode() finishes off the main thread, so the draw reads a frame
+      // that is already decoded.
+      const ready = typeof source.decode === 'function' ? source.decode().catch(() => {}) : Promise.resolve();
+      ready.then(() => idle(() => paintStill(run)));
+    };
+    if (source.complete && source.naturalWidth) loaded();
+    else source.addEventListener('load', loaded, { once: true });
   };
-  source.addEventListener('load', paint);
   source.addEventListener('error', () => {
     seq++;
-    back.hidden = true;
+    dropImg();
+    hideStill();
   });
-  // A removed address (a skeleton, a GIF still) hides the fill at once.
-  new MutationObserver(() => {
-    if (source.getAttribute('src')) return;
-    seq++;
-    back.hidden = true;
-  }).observe(source, { attributes: true, attributeFilter: ['src'] });
+  new MutationObserver(sync).observe(source, { attributes: true, attributeFilter: ['src'] });
   source.after(back);
-  if (source.complete && source.naturalWidth) paint();
+  sync();
 }
 
 // How long the ··· stays after the last touch or mouse move. Chrome's own
@@ -2467,9 +2497,7 @@ function scheduleScrollFrame() {
   requestAnimationFrame(runScrollFrame);
 }
 
-// Card pitch for the fill estimate. The first cards that are still far
-// above the viewport are included so one trim pass can drop them later
-// without reading layout again.
+// Card pitch for the fill estimate, from the first cards of the column.
 function cardDrop(el) {
   const next = el.nextElementSibling;
   if (next && next.classList.contains('feed-card')) return next.offsetTop - el.offsetTop;
@@ -2482,24 +2510,35 @@ function readScrollGeometry(scrollerRect) {
   const view = scroller.clientHeight;
   const far = (scrollerRect || scroller.getBoundingClientRect()).top - view;
   const sample = [];
-  const farBoxes = [];
-  const farCap = CARD_CAP + FILL_PASSES * RENDER_CHUNK;
   let el = column.firstElementChild;
-  let stillFar = true;
-  while (el && el.classList.contains('feed-card') && (stillFar || sample.length < 8) && farBoxes.length < farCap) {
+  while (el && el.classList.contains('feed-card') && sample.length < 8) {
     const drop = cardDrop(el);
-    if (sample.length < 8 && drop > 0) sample.push(drop);
-    if (stillFar) {
-      if (el.getBoundingClientRect().bottom > far) stillFar = false;
-      else farBoxes.push({ el, drop });
-    }
+    if (drop > 0) sample.push(drop);
     const next = el.nextElementSibling;
     if (!next || !next.classList.contains('feed-card')) break;
     el = next;
   }
   let sum = 0;
   for (const drop of sample) sum += drop;
-  return { top, height, view, far, farBoxes, avg: sample.length ? sum / sample.length : 0 };
+  return { top, height, view, far, avg: sample.length ? sum / sample.length : 0 };
+}
+
+// The leading cards more than a screen above the viewport, for a cap trim.
+// Every one costs a layout read, and a scroll deep into the feed has
+// hundreds, so runScrollFrame asks only in a frame that can trim (the
+// column would pass CARD_CAP), still before it writes the column.
+function readFarBoxes(far) {
+  const boxes = [];
+  const cap = CARD_CAP + FILL_PASSES * RENDER_CHUNK;
+  let el = column.firstElementChild;
+  while (el && el.classList.contains('feed-card') && boxes.length < cap) {
+    if (el.getBoundingClientRect().bottom > far) break;
+    boxes.push({ el, drop: cardDrop(el) });
+    const next = el.nextElementSibling;
+    if (!next || !next.classList.contains('feed-card')) break;
+    el = next;
+  }
+  return boxes;
 }
 
 function noteFillAgain() {
@@ -2632,6 +2671,7 @@ function runScrollFrame() {
     return;
   }
   const geo = readScrollGeometry(scrollerRect);
+  const startBefore = rangeStart;
   const placed = frameFillUp(geo.top, geo.height, geo.view, geo.far);
   let top = placed.top;
   let again = placed.again;
@@ -2652,10 +2692,14 @@ function runScrollFrame() {
         chunk: RENDER_CHUNK,
         cap: FILL_PASSES,
       });
-      if (plan.chunks > 0 && rangeEnd < list.length) {
-        renderThrough(Math.min(list.length, rangeEnd + plan.chunks * RENDER_CHUNK));
-      }
-      top = applyFarTrim(geo.farBoxes, top);
+      const end = plan.chunks > 0 && rangeEnd < list.length
+        ? Math.min(list.length, rangeEnd + plan.chunks * RENDER_CHUNK)
+        : rangeEnd;
+      // A prepend above (frameFillUp) moved the first card, which ends a
+      // trim at once, so that frame does not read the far cards either.
+      const farBoxes = end - rangeStart > CARD_CAP && rangeStart === startBefore ? readFarBoxes(geo.far) : null;
+      if (end > rangeEnd) renderThrough(end);
+      top = applyFarTrim(farBoxes, top);
       if (plan.page) loadOlder();
       else if (plan.empty) paintEmpty();
       if (plan.again || (plan.chunks > 0 && rangeEnd < lane().length)) again = true;

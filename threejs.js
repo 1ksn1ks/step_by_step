@@ -198,11 +198,17 @@ function cullStarsToSpace() {
   stars.geometry.setDrawRange(0, n);
 }
 
+// The queued frame, 0 while the loop is stopped.
+let globeFrame = 0;
+
 function animate(now) {
-    requestAnimationFrame(animate);
-    // Feed mode covers the globe. Skip drawing and keyboard motion until
-    // the feed peeks or closes. The next frame resumes on its own.
+    globeFrame = 0;
+    // Feed mode covers the globe. No drawing or keyboard motion, and no
+    // next frame either, so the page sleeps between the feed's own frames
+    // instead of waking every refresh. The class watcher below (after the
+    // first frame) starts the loop again the moment the feed peeks or closes.
     if (document.documentElement.classList.contains('feed-app')) return;
+    globeFrame = requestAnimationFrame(animate);
     handleMovement();
   
     const center = map.getCenter();
@@ -314,5 +320,9 @@ function animate(now) {
     map.resize();
     resizeDirty = true;
   });
-  
+
   animate();
+  new MutationObserver(() => {
+    if (globeFrame || document.documentElement.classList.contains('feed-app')) return;
+    globeFrame = requestAnimationFrame(animate);
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });

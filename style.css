@@ -11455,6 +11455,15 @@ html.feed-app #feed-search-page {
   -webkit-user-select: text;
   user-select: text;
 }
+/* Main feed cards: no backdrop blur. They sit on the feed's own opaque
+   background (#feed-layout, #0a0a12), so the blur only ever blurred one
+   flat colour and looked the same without it, while a phone's GPU redid
+   it for every visible card on every scroll frame. The comments stage
+   keeps it. */
+#feed-column .feed-card {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
 :is(#feed-column, .feed-comments-stage) .popup-profile-bubble {
   box-sizing: border-box;
   width: 100%;
@@ -20105,9 +20114,10 @@ img.is-gif-hit {
   background-color: transparent;
 }
 /* The blur fill: the same picture, cropped to cover the frame, blurred and
-   dimmed, under the fitted one. A picture's is a small still canvas, a
-   video's an img of the poster. Not drawn in the wide view (no empty
-   sides there) or behind a GIF still (the picture has no address). */
+   dimmed, under the fitted one. A picture's is an img of the same file and
+   a video's an img of the poster; a GIF's is a small still canvas, so it
+   never animates. Not drawn in the wide view (no empty sides there) or
+   behind a GIF still (the picture has no address). */
 :is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card > .feed-media-backdrop {
   position: absolute;
   inset: 0;
