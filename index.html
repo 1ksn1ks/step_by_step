@@ -2072,6 +2072,39 @@
             <div id="popup-length-under" class="toolbar-column-btns">Under 30s</div>
             <div id="popup-length-mid" class="toolbar-column-btns">30s–2 min</div>
             <div id="popup-length-over" class="toolbar-column-btns">Over 2 min</div>
+            <div id="popup-length-custom" class="toolbar-column-btns">Custom</div>
+          </div>
+          <div id="popup-length-range" class="popup-settings-custom" hidden>
+            <div class="popup-settings-fields">
+              <label class="popup-settings-field">
+                <span class="popup-settings-field-name">From</span>
+                <input id="popup-length-min" class="popup-settings-input" type="text" placeholder="0:00" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-describedby="popup-length-note">
+              </label>
+              <span class="popup-settings-dash" aria-hidden="true">–</span>
+              <label class="popup-settings-field">
+                <span class="popup-settings-field-name">To</span>
+                <input id="popup-length-max" class="popup-settings-input" type="text" placeholder="no limit" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-describedby="popup-length-note">
+              </label>
+            </div>
+            <div id="popup-length-note" class="popup-settings-note">Minutes:seconds or seconds, like 1:30 or 90. Leave one empty for no limit.</div>
+          </div>
+          <div class="popup-settings-label">Distance</div>
+          <div class="popup-settings-row">
+            <div id="popup-radius-any" class="toolbar-column-btns is-on">Any</div>
+            <div id="popup-radius-1" class="toolbar-column-btns">1 km</div>
+            <div id="popup-radius-10" class="toolbar-column-btns">10 km</div>
+            <div id="popup-radius-100" class="toolbar-column-btns">100 km</div>
+            <div id="popup-radius-custom" class="toolbar-column-btns">Custom</div>
+          </div>
+          <div id="popup-radius-range" class="popup-settings-custom" hidden>
+            <div class="popup-settings-fields">
+              <label class="popup-settings-field">
+                <span class="popup-settings-field-name">Within</span>
+                <input id="popup-radius-km" class="popup-settings-input" type="text" inputmode="decimal" placeholder="25" autocomplete="off" spellcheck="false" enterkeyhint="done" aria-describedby="popup-radius-note">
+                <span class="popup-settings-unit">km</span>
+              </label>
+            </div>
+            <div id="popup-radius-note" class="popup-settings-note">Only posts this close to the one that is open.</div>
           </div>
         </div>
         <div class="popup-settings-row">

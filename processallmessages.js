@@ -46,6 +46,11 @@ import { payerUsernameNode } from './payerlink.js'
 import { paintProfileAvatar } from './earlyhashinal.js'
 import { watchProfilePicture, watchProfileTree, forgetProfileTree } from './markertilt.js'
 import { loadBio4PIC } from './loadBio4PIC.js';
+import {
+  secondsMatch, customLength, setCustomLength, parseDuration, formatDuration,
+  radiusMode, setRadiusMode, customRadius, setCustomRadius, parseKm, RADIUS_PRESETS,
+  withinRadius, radiusKm, radiusLabel,
+} from './arrowfilters.js';
 
 // A drawing counts toward the NFT allowance only when it is a real marker
 // or polygon. Likes, comments, deletes, and other messages do not.
@@ -415,7 +420,7 @@ export function mediaMode() {
 export function lengthMode() {
   try {
     const mode = localStorage.getItem(LENGTH_MODE_KEY);
-    if (mode === 'under' || mode === 'mid' || mode === 'over' || mode === 'any') return mode;
+    if (mode === 'under' || mode === 'mid' || mode === 'over' || mode === 'any' || mode === 'custom') return mode;
   } catch {
     // A blocked store just keeps the default for this visit.
   }
@@ -600,10 +605,103 @@ function paintMediaModes() {
 
 function paintLengthModes() {
   const mode = lengthMode();
-  for (const name of ['any', 'under', 'mid', 'over']) {
+  for (const name of ['any', 'under', 'mid', 'over', 'custom']) {
     const btn = document.getElementById('popup-length-' + name);
     if (btn) btn.classList.toggle('is-on', name === mode);
   }
+  // The From / To fields show while Custom is the choice.
+  const range = document.getElementById('popup-length-range');
+  if (range) range.hidden = mode !== 'custom';
+  const { min, max } = customLength();
+  paintField('popup-length-min', formatDuration(min));
+  paintField('popup-length-max', formatDuration(max));
+}
+
+function paintRadiusModes() {
+  const mode = radiusMode();
+  for (const name of [...RADIUS_PRESETS, 'custom']) {
+    const btn = document.getElementById('popup-radius-' + name);
+    if (btn) btn.classList.toggle('is-on', name === mode);
+  }
+  const range = document.getElementById('popup-radius-range');
+  if (range) range.hidden = mode !== 'custom';
+  const km = customRadius();
+  paintField('popup-radius-km', km == null ? '' : String(km));
+}
+
+// A field shows its saved value, except while it is being typed in.
+function paintField(id, value) {
+  const field = document.getElementById(id);
+  if (!field || document.activeElement === field) return;
+  field.value = value;
+  markField(field, false);
+}
+
+// The outline (the field's label) turns red for text that is not a
+// length or a distance.
+function markField(field, bad) {
+  const box = field.closest('.popup-settings-field') || field;
+  box.classList.toggle('is-invalid', bad);
+}
+
+// Custom length / distance fields: saved as they are typed when they read
+// as a length or a distance (empty is an open end), tidied on leaving.
+function bindCustomFields() {
+  const min = document.getElementById('popup-length-min');
+  const max = document.getElementById('popup-length-max');
+  const note = document.getElementById('popup-length-note');
+  const saveLength = (tidy) => {
+    const lo = parseDuration(min.value);
+    const hi = parseDuration(max.value);
+    markField(min, Number.isNaN(lo));
+    markField(max, Number.isNaN(hi));
+    const bad = Number.isNaN(lo) || Number.isNaN(hi);
+    if (note) note.classList.toggle('is-invalid', bad);
+    if (bad) return;
+    const saved = setCustomLength(lo, hi);
+    if (tidy) {
+      min.value = formatDuration(saved.min);
+      max.value = formatDuration(saved.max);
+    }
+  };
+  for (const field of [min, max]) {
+    if (!field) continue;
+    field.addEventListener('input', () => saveLength(false));
+    field.addEventListener('change', () => saveLength(true));
+    field.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        field.blur();
+      }
+    });
+  }
+  const km = document.getElementById('popup-radius-km');
+  if (km) {
+    const saveKm = (tidy) => {
+      const value = parseKm(km.value);
+      const bad = Number.isNaN(value) || value === 0;
+      markField(km, bad);
+      if (bad) return;
+      const saved = setCustomRadius(value);
+      if (tidy) km.value = saved == null ? '' : String(saved);
+    };
+    km.addEventListener('input', () => saveKm(false));
+    km.addEventListener('change', () => saveKm(true));
+    km.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        km.blur();
+      }
+    });
+  }
+}
+
+// Custom just picked with nothing in it yet: straight to the field (a
+// mouse; a phone keeps its keyboard down until the field is tapped).
+function focusEmptyField(id) {
+  const field = document.getElementById(id);
+  if (!field || field.value) return;
+  if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) field.focus({ preventScroll: true });
 }
 
 function paintDeleteButton() {
@@ -1099,14 +1197,25 @@ function bindPopupSettings() {
       paintMediaModes();
     });
   }
-  for (const mode of ['any', 'under', 'mid', 'over']) {
+  for (const mode of ['any', 'under', 'mid', 'over', 'custom']) {
     const btn = document.getElementById('popup-length-' + mode);
     if (!btn) continue;
     btn.addEventListener('click', () => {
       try { localStorage.setItem(LENGTH_MODE_KEY, mode); } catch { /* keep it for this visit */ }
       paintLengthModes();
+      if (mode === 'custom') focusEmptyField('popup-length-min');
     });
   }
+  for (const mode of [...RADIUS_PRESETS, 'custom']) {
+    const btn = document.getElementById('popup-radius-' + mode);
+    if (!btn) continue;
+    btn.addEventListener('click', () => {
+      setRadiusMode(mode);
+      paintRadiusModes();
+      if (mode === 'custom') focusEmptyField('popup-radius-km');
+    });
+  }
+  bindCustomFields();
   const del = document.getElementById('popup-settings-delete');
   if (del) del.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -1146,6 +1255,7 @@ window.openPopupSettings = function(target) {
       paintPagerModes();
       paintMediaModes();
       paintLengthModes();
+      paintRadiusModes();
       paintDeleteButton();
       hideEditComposer();
       paintEditButton();
@@ -3538,11 +3648,38 @@ function postSeconds(item) {
 function lengthMatches(item, mode) {
   if (mode === 'any') return true;
   if (postMedia(item) !== 'video') return true;
-  const seconds = postSeconds(item);
-  if (seconds == null) return false;
-  if (mode === 'under') return seconds < 30;
-  if (mode === 'mid') return seconds >= 30 && seconds <= 120;
-  return seconds > 120;
+  return secondsMatch(postSeconds(item), mode);
+}
+
+// Where a post is, for Distance: a marker's point, a shape's middle (the
+// mean of its ring, the closing point not counted twice).
+function postPoint(item) {
+  const point = item && item.geometry && item.geometry.type === 'Point' ? item.geometry.coordinates : null;
+  if (Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1])) return point;
+  const ring = item && Array.isArray(item.coordinates) ? item.coordinates[0] : null;
+  if (!Array.isArray(ring) || !ring.length) return null;
+  const pts = ring.filter((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]));
+  if (!pts.length) return null;
+  const last = pts[pts.length - 1];
+  const closed = pts.length > 1 && last[0] === pts[0][0] && last[1] === pts[0][1];
+  const use = closed ? pts.slice(0, -1) : pts;
+  let lng = 0;
+  let lat = 0;
+  for (const p of use) {
+    lng += p[0];
+    lat += p[1];
+  }
+  return [lng / use.length, lat / use.length];
+}
+
+// Every arrow choice at once: Type, Video length, and Distance from the
+// open post (origin; null when there is no open post to measure from).
+function stepMatches(item, origin) {
+  return mediaMatches(item, mediaMode()) && lengthMatches(item, lengthMode()) && withinRadius(origin, postPoint(item));
+}
+
+function arrowFiltersOff() {
+  return mediaMode() === 'all' && lengthMode() === 'any' && radiusKm() == null;
 }
 
 // The open pin, found even when the arrow was the fallback with no walk.
@@ -3584,34 +3721,40 @@ function uniquePosts(posts, payer, number, topicId, walk) {
 }
 
 // The open post stays in the list even when it does not match, so the step
-// can start there. Anything else has to match both Show and Length.
+// can start there. Anything else has to match Type, Video length and
+// Distance (measured from the open post).
 function filterMedia(posts, payer, number, topicId, walk) {
-  const mode = mediaMode();
-  const length = lengthMode();
-  if (mode === 'all' && length === 'any') return posts;
-  const filtered = posts.filter((item) => mediaMatches(item, mode) && lengthMatches(item, length));
+  if (arrowFiltersOff()) return posts;
   const openIdx = openIndex(posts, payer, number, topicId, walk);
-  if (openIdx === -1) return filtered;
-  const open = posts[openIdx];
+  const open = openIdx === -1 ? null : posts[openIdx];
+  const origin = open ? postPoint(open) : null;
+  const filtered = posts.filter((item) => stepMatches(item, origin));
+  if (!open) return filtered;
   if (!filtered.includes(open)) filtered.push(open);
   return filtered;
 }
 
+// "No more videos", "No more posts within 10 km", …
 function noMoreMediaLabel() {
   const mode = mediaMode();
-  if (mode === 'pictures') return 'No more pictures';
-  if (mode === 'videos') return 'No more videos';
-  return 'No more pictures or videos';
+  let base = 'No more posts';
+  if (mode === 'pictures') base = 'No more pictures';
+  else if (mode === 'videos') base = 'No more videos';
+  else if (mode === 'both') base = 'No more pictures or videos';
+  else if (lengthMode() !== 'any' && radiusKm() == null) base = 'No more posts of that length';
+  const near = radiusLabel();
+  return near ? `${base} ${near}` : base;
 }
 
 function noteNoMoreMedia(posts, payer, number, topicId, walk) {
-  if (mediaMode() === 'all' || !posts || !posts.length) return;
+  if (arrowFiltersOff() || !posts || !posts.length) return;
   const curIdx = openIndex(posts, payer, number, topicId, walk);
   if (curIdx === -1) return;
   const openKey = createdKey(posts[curIdx]);
+  const origin = postPoint(posts[curIdx]);
   for (let i = 0; i < posts.length; i++) {
     if (i === curIdx || createdKey(posts[i]) === openKey) continue;
-    if (mediaMatches(posts[i], mediaMode()) && lengthMatches(posts[i], lengthMode())) return;
+    if (stepMatches(posts[i], origin)) return;
   }
   toast.info(noMoreMediaLabel());
 }
@@ -3656,11 +3799,12 @@ export function stepPosts(posts, payer, number, topicId, direction, walk) {
   if (curIdx === -1) return null;
   const open = posts[curIdx];
   const openKey = createdKey(open);
+  const origin = postPoint(open);
   if (mode === 'random') {
     const choices = [];
     for (let i = 0; i < posts.length; i++) {
       if (i === curIdx || createdKey(posts[i]) === openKey) continue;
-      if (!mediaMatches(posts[i], mediaMode()) || !lengthMatches(posts[i], lengthMode())) continue;
+      if (!stepMatches(posts[i], origin)) continue;
       choices.push(posts[i]);
     }
     if (!choices.length) return null;
@@ -3672,7 +3816,7 @@ export function stepPosts(posts, payer, number, topicId, direction, walk) {
     idx = (idx + dir + posts.length) % posts.length;
     const item = posts[idx];
     if (createdKey(item) === openKey) continue;
-    if (!mediaMatches(item, mediaMode()) || !lengthMatches(item, lengthMode())) continue;
+    if (!stepMatches(item, origin)) continue;
     return item;
   }
   return null;

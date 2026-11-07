@@ -8838,6 +8838,88 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   }
 }
 
+/* Custom Video length (From / To) and Distance (Within … km): shown under
+   their track while Custom is the choice (processallmessages.js). */
+#popup-settings-card .popup-settings-custom {
+  margin: 0.8dvh 0 0;
+}
+#popup-settings-card .popup-settings-custom[hidden] {
+  display: none;
+}
+#popup-settings-card .popup-settings-custom + .popup-settings-label {
+  margin-top: 1.4vh;
+  margin-top: 1.4dvh;
+}
+#popup-settings-card .popup-settings-fields {
+  display: flex;
+  align-items: center;
+  gap: 0.8dvh;
+}
+#popup-settings-card .popup-settings-field {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.8dvh;
+  box-sizing: border-box;
+  height: 5dvh;
+  min-height: 36px;
+  padding: 0 1.6dvh;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0.12dvh 0.25dvh rgba(0, 0, 0, 0.35);
+  cursor: text;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+#popup-settings-card .popup-settings-field:focus-within {
+  border-color: rgba(var(--ps-accent-rgb), 0.7);
+  box-shadow: 0 0 0 0.35dvh rgba(var(--ps-accent-rgb), 0.15), inset 0 0.12dvh 0.25dvh rgba(0, 0, 0, 0.35);
+}
+#popup-settings-card .popup-settings-field.is-invalid {
+  border-color: rgba(248, 113, 113, 0.8);
+  box-shadow: 0 0 0 0.35dvh rgba(248, 113, 113, 0.14);
+}
+#popup-settings-card .popup-settings-field-name,
+#popup-settings-card .popup-settings-unit,
+#popup-settings-card .popup-settings-dash {
+  flex: none;
+  font-size: clamp(11px, 1.45dvh, 17px);
+  color: var(--ps-muted);
+  white-space: nowrap;
+}
+#popup-settings-card .popup-settings-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  /* 16px and up: iOS does not zoom the page into the field. */
+  font-size: max(16px, clamp(13px, 1.8dvh, 20px));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  caret-color: var(--ps-accent);
+}
+#popup-settings-card .popup-settings-input::placeholder {
+  color: rgba(255, 255, 255, 0.32);
+  font-weight: 500;
+}
+#popup-settings-card .popup-settings-note {
+  margin: 0.6dvh 0 0 0.5dvw;
+  font-size: clamp(10px, 1.3dvh, 15px);
+  line-height: 1.35;
+  color: var(--ps-muted);
+}
+#popup-settings-card .popup-settings-note.is-invalid {
+  color: #FCA5A5;
+}
+
 /* ---- Preview-open state: color chips, picker row, Save popup ---- */
 #popup-settings-card #popup-settings-preview {
   position: relative;

@@ -18,6 +18,7 @@ import { fetchFollowing } from './msgbackend.js';
 import { earlyHashinalNumber, earlyHashinalReady, onOwnersChange } from './earlyhashinal.js';
 import { connectedAccount } from './web3.js';
 import { liveGroup as groupNow, liveGroupName, setLiveGroup, openLiveGroupMenu, closeLiveGroupMenu } from './livegroups.js';
+import { secondsMatch, withinRadius, radiusKm, radiusLabel } from './arrowfilters.js';
 
 // Same key as marker.js topicPointKey — a live point matching a topic
 // point to 5 decimals is a duplicate of the topic layer: while the topic
@@ -241,8 +242,9 @@ document.addEventListener('topic-clusters-updated', () => {
   updateLocalClusters(false);
 });
 
-// Show / Video length, read from the same saved popup settings as topic posts.
-// An array image is its first entry, the same way videoSeconds reads it.
+// Type / Video length / Distance, read from the same saved popup settings
+// as topic posts (arrowfilters.js). An array image is its first entry, the
+// same way videoSeconds reads it.
 function localMedia(m) {
   const image = m && Array.isArray(m.image) ? m.image[0] : m && m.image;
   if (image == null || image === '') return 'none';
@@ -250,19 +252,23 @@ function localMedia(m) {
   return 'picture';
 }
 
-function localMatches(m) {
+function livePoint(m) {
+  const lng = Number(m && m.lng);
+  const lat = Number(m && m.lat);
+  return Number.isFinite(lng) && Number.isFinite(lat) ? [lng, lat] : null;
+}
+
+// origin: where the open live post is, for Distance.
+function localMatches(m, origin) {
   const show = mediaMode();
   const kind = localMedia(m);
   if (show === 'pictures' && kind !== 'picture') return false;
   if (show === 'videos' && kind !== 'video') return false;
   if (show === 'both' && kind !== 'picture' && kind !== 'video') return false;
+  if (!withinRadius(origin, livePoint(m))) return false;
   const length = lengthMode();
   if (length === 'any' || kind !== 'video') return true;
-  const seconds = videoSeconds(m && m.image);
-  if (seconds == null) return false;
-  if (length === 'under') return seconds < 30;
-  if (length === 'mid') return seconds >= 30 && seconds <= 120;
-  return seconds > 120;
+  return secondsMatch(videoSeconds(m && m.image), length);
 }
 
 function createdStamp(value) {
@@ -280,25 +286,31 @@ function sameLivePost(a, b) {
   return left !== '' && left === right;
 }
 
+// "No more videos", "No more posts within 10 km", …
 function localEndLabel() {
   const mode = mediaMode();
-  if (mode === 'pictures') return 'No more pictures';
-  if (mode === 'videos') return 'No more videos';
-  return 'No more pictures or videos';
+  let base = 'No more posts';
+  if (mode === 'pictures') base = 'No more pictures';
+  else if (mode === 'videos') base = 'No more videos';
+  else if (mode === 'both') base = 'No more pictures or videos';
+  else if (lengthMode() !== 'any' && radiusKm() == null) base = 'No more posts of that length';
+  const near = radiusLabel();
+  return near ? `${base} ${near}` : base;
 }
 
 // Newest-first, no wrap. The open post can be text; the arrow lands on the
-// nearest item that matches Show and Video length.
+// nearest item that matches Type, Video length and Distance.
 function step(direction) {
   const dir = direction < 0 ? -1 : 1;
   const open = localList[localIndex];
+  const origin = livePoint(open);
   for (let j = localIndex + dir; j >= 0 && j < localList.length; j += dir) {
     const item = localList[j];
-    if (!localMatches(item) || sameLivePost(item, open)) continue;
+    if (!localMatches(item, origin) || sameLivePost(item, open)) continue;
     navigateLocal(j);
     return;
   }
-  if (mediaMode() !== 'all') toast.info(localEndLabel());
+  if (mediaMode() !== 'all' || lengthMode() !== 'any' || radiusKm() != null) toast.info(localEndLabel());
 }
 
 // Popup for the marker at localList[j] — the SAME popup the regular topic
