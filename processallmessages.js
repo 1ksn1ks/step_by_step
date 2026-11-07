@@ -387,6 +387,8 @@ const MEDIA_MODE_KEY = 'meritocracy-media-mode';
 const LENGTH_MODE_KEY = 'meritocracy-length-mode';
 let popupSettingsTarget = null;
 let popupSettingsBound = false;
+// The gear that opened settings (popupSettingsGear), for placeSettingsBack.
+let popupSettingsGearEl = null;
 let popupDeleteBusy = false;
 
 function pagerMode() {
@@ -896,6 +898,76 @@ function syncSettingsOpen() {
   });
 }
 
+// The settings ‹ takes the place and size of the gear that opened it, so
+// the press that opened settings is where it closes again. The gear's box
+// (in the post popup, still laid out under the card) is copied onto the ‹,
+// again after a resize. With no gear on screen (Forward into settings
+// with the popup gone) the ‹ keeps its CSS place.
+const SETTINGS_BACK_PROPS = ['top', 'left', 'width', 'height', 'min-width', 'min-height'];
+function settingsGearOnScreen() {
+  const usable = (gear) => !!gear && gear.isConnected
+    && !gear.closest('#popup-settings-card, #popup-settings-preview, #draw-column')
+    && gear.getBoundingClientRect().width > 0;
+  if (usable(popupSettingsGearEl)) return popupSettingsGearEl;
+  return [...document.querySelectorAll('.maplibregl-popup .popup-settings-gear')].find(usable) || null;
+}
+
+function placeSettingsBack() {
+  const card = document.getElementById('popup-settings-card');
+  const back = card && card.querySelector(':scope > .comments-back-button');
+  if (!back) return;
+  // The keyboard pins the card to the visible area (keyboardlayout.js);
+  // the ‹ keeps its place in the card until that ends.
+  if (card.dataset.kbPin === '1') return;
+  const icon = back.querySelector('svg');
+  const gear = card.style.display === 'block' ? settingsGearOnScreen() : null;
+  if (!gear) {
+    for (const prop of SETTINGS_BACK_PROPS) back.style.removeProperty(prop);
+    if (icon) {
+      icon.style.removeProperty('width');
+      icon.style.removeProperty('height');
+    }
+    return;
+  }
+  // Sizes from layout: the press squeeze and the icon's spin are
+  // transforms, and only the centre of the box is read, which they keep.
+  const g = gear.getBoundingClientRect();
+  const w = gear.offsetWidth || g.width;
+  const h = gear.offsetHeight || g.height;
+  // Where the ‹'s left/top count from. Portrait: the card's padding box.
+  // Landscape: the right column's grid area (style.css grid-column: 2).
+  // Read off the ‹ itself, so either one, and the card's scroll, hold.
+  const b = back.getBoundingClientRect();
+  if (!(b.width > 0)) return;
+  const bs = getComputedStyle(back);
+  const bw = back.offsetWidth || b.width;
+  const bh = back.offsetHeight || b.height;
+  const originX = b.left + b.width / 2 - bw / 2 - (parseFloat(bs.left) || 0) - (parseFloat(bs.marginLeft) || 0);
+  const originY = b.top + b.height / 2 - bh / 2 - (parseFloat(bs.top) || 0) - (parseFloat(bs.marginTop) || 0);
+  const top = g.top + g.height / 2 - h / 2 - originY;
+  const left = g.left + g.width / 2 - w / 2 - originX;
+  const set = (prop, px) => back.style.setProperty(prop, px.toFixed(2) + 'px', 'important');
+  set('top', top);
+  set('left', left);
+  for (const prop of ['width', 'min-width']) set(prop, w);
+  for (const prop of ['height', 'min-height']) set(prop, h);
+  // The chevron at the gear icon's size.
+  const glyph = gear.querySelector('svg');
+  if (icon && glyph && glyph.clientWidth > 0) {
+    icon.style.setProperty('width', glyph.clientWidth + 'px', 'important');
+    icon.style.setProperty('height', glyph.clientHeight + 'px', 'important');
+  }
+}
+
+let settingsBackFrame = 0;
+function queueSettingsBack() {
+  if (settingsBackFrame) return;
+  settingsBackFrame = requestAnimationFrame(() => {
+    settingsBackFrame = 0;
+    placeSettingsBack();
+  });
+}
+
 function closePopupSettings() {
   const backdrop = document.getElementById('popup-settings-backdrop');
   const card = document.getElementById('popup-settings-card');
@@ -904,6 +976,7 @@ function closePopupSettings() {
   if (card) card.style.display = 'none';
   if (column) column.style.display = 'none';
   popupSettingsTarget = null;
+  popupSettingsGearEl = null;
   setPopupPreview(false);
   hideEditComposer();
   syncSettingsOpen();
@@ -935,6 +1008,12 @@ function bindPopupSettings() {
   }
   // CloseALL also hides the card, so watch it to clear the popup mark.
   if (card) new MutationObserver(syncSettingsOpen).observe(card, { attributes: true, attributeFilter: ['style'] });
+  // The popup refits on a resize or a turn; the ‹ follows its gear.
+  const followGear = () => {
+    if (card && card.style.display === 'block') queueSettingsBack();
+  };
+  window.addEventListener('resize', followGear);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', followGear);
   toggle.addEventListener('click', () => {
     const preview = document.getElementById('popup-settings-preview');
     if (!preview) return;
@@ -1008,6 +1087,8 @@ window.openPopupSettings = function(target) {
       layerOpened('popupsettings', { target: popupSettingsTarget || {} });
       syncSettingsOpen();
       refitPopups();
+      // After the refit, so the gear is measured where it now sits.
+      queueSettingsBack();
       removeUfoModel();
     }
   });
@@ -1955,6 +2036,7 @@ function popupSettingsGear(walk) {
   let spinning = false;
   btn.addEventListener('click', (event) => {
     event.stopPropagation();
+    popupSettingsGearEl = btn;
     window.openPopupSettings(walk);
     if (spinning || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const icon = btn.querySelector('svg');
