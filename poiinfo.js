@@ -1,12 +1,16 @@
 import { map } from './map.js';
 import { closeTransientMapUI } from './cssLogic.js';
+import { bindHoldMenu, openLiveGroupMenu, closeLiveGroupMenu, liveGroup, liveGroupName } from './livegroups.js';
 
 // Long-press (phone) / right-click (PC) on the map → the SAME pin as the
 // plain tap (drawhere.js), with two actions split around it:
 //   🗺 Open in Maps (left)  — that spot in the phone's default maps app
 //                              (geo:), or Google Maps web on a PC
 //   📡 Look for Live (right) — the 24h live markers of the country at that
-//                              spot (the exact view a country search shows)
+//                              spot (the exact view a country search shows),
+//                              from the chosen group (livegroups.js). Hold it
+//                              (phone) or right-click it (PC) for the list of
+//                              groups; a pick looks for live from that group.
 // The plain tap/click (the 📍/🔷 pin in drawhere.js) must keep working,
 // so the tap a hold generates is swallowed via holdJustHappened().
 
@@ -76,6 +80,7 @@ map.on('move', onMapMove);
 
 export function closePressAnchor() {
   if (pressAnchor) {
+    closeLiveGroupMenu({ within: pressAnchor });
     pressAnchor.remove();
     pressAnchor = null;
     // Back/Forward: pin tap, outside tap, Escape and closeTransientMapUI
@@ -115,21 +120,35 @@ function showPressAnchor(lngLat) {
   };
 
   const liveBtn = document.createElement('button');
-  liveBtn.className = 'draw-here-btn';
+  liveBtn.className = 'draw-here-btn draw-here-live';
   liveBtn.textContent = '📡 Look for Live';
-  liveBtn.onclick = (e) => {
-    e.stopPropagation();
+  // The group, when it is not Everyone, is a caption under the button
+  // (style.css): out of the row, so both buttons keep their width and the
+  // pin stays centred on the held point.
+  const group = liveGroup();
+  if (group !== 'all') liveBtn.dataset.group = liveGroupName(group);
+  liveBtn.title = 'Hold or right-click to choose whose live posts';
+  liveBtn.setAttribute('aria-haspopup', 'menu');
+  // The exact pipeline a country search uses: reverse-geocode the spot in
+  // ENGLISH (so the country string matches what /api/local stored), then
+  // show that country's 24h live markers. Dynamic: localnews pulls in
+  // processallmessages → threejs, which use `map` at MODULE LEVEL. A group
+  // from the list is set first (localnews says what a wallet-less pick
+  // cannot show).
+  const lookForLive = (pickedGroup) => {
     closePressAnchor();
-    // The exact pipeline a country search uses: reverse-geocode the spot in
-    // ENGLISH (so the country string matches what /api/local stored), then
-    // show that country's 24h live markers. Dynamic: localnews pulls in
-    // processallmessages → threejs, which use `map` at MODULE LEVEL.
     import('./localnews.js')
-      .then(({ showLocationMarkers }) =>
-        showLocationMarkers(lngLat.lat, lngLat.lng)
-      )
+      .then(({ showLocationMarkers, pickLiveGroup }) => {
+        if (pickedGroup) pickLiveGroup(pickedGroup);
+        return showLocationMarkers(lngLat.lat, lngLat.lng);
+      })
       .catch(() => {});
   };
+  liveBtn.onclick = (e) => {
+    e.stopPropagation();
+    lookForLive(null);
+  };
+  bindHoldMenu(liveBtn, () => openLiveGroupMenu(liveBtn, (key) => lookForLive(key)));
 
   // Same layout as the draw pin: left button, pin, right button
   anchor.insertBefore(mapsBtn, anchor.firstChild);

@@ -17,6 +17,7 @@ import { watchFollowPrefetch } from './followtopic.js';
 import { fetchFollowing } from './msgbackend.js';
 import { earlyHashinalNumber, earlyHashinalReady, onOwnersChange } from './earlyhashinal.js';
 import { connectedAccount } from './web3.js';
+import { liveGroup as groupNow, liveGroupName, setLiveGroup, openLiveGroupMenu, closeLiveGroupMenu } from './livegroups.js';
 
 // Same key as marker.js topicPointKey — a live point matching a topic
 // point to 5 decimals is a duplicate of the topic layer: while the topic
@@ -362,42 +363,27 @@ export function showLocalMarkers(markers) {
   map.on('moveend', viewportLocalUpdate);
   layerActive = true;
   paintLiveGroup(); // first paint now, not on the next moveend
-  if (liveGroup === 'following') {
+  if (groupNow() === 'following') {
     const set = liveAll;
     ensureFollowIds().then(() => {
-      if (liveAll === set && liveGroup === 'following') paintLiveGroup();
+      if (liveAll === set && groupNow() === 'following') paintLiveGroup();
     });
   }
 }
 
 // ── Groups: whose live posts the map shows ─────────────────────────────
-// One choice at a time, kept for later searches: Everyone; Following (the
-// accounts this wallet follows, the same list as the feed's Following);
-// NFT holders (Early Hashinal holders, the feed's filter of that name);
-// Mine. A bar under the map's top bar picks the group and closes the live
-// overlay. Popup ◀️/▶️ walk the shown group only.
-const LIVE_GROUPS = [
-  ['all', 'Everyone'],
-  ['following', 'Following'],
-  ['holders', 'NFT holders'],
-  ['mine', 'Mine'],
-];
-const LIVE_GROUP_KEY = 'meritocracy-live-group';
-let liveGroup = readLiveGroup();
+// The choice and its dropdown live in livegroups.js (Everyone, Following,
+// NFT holders, Mine; kept for later searches). The dropdown opens from
+// holding / right-clicking "Look for Live" (poiinfo.js) and from the group
+// pill on the bar under the map's top bar; the bar also counts the shown
+// posts and closes the live overlay. Popup ◀️/▶️ walk the shown group only.
 let followIds = null; // Set of followed accounts, for followFor
 let followFor = '';
 let followLoad = null;
 let liveBar = null;
 let liveCount = null;
-const groupButtons = new Map();
-
-function readLiveGroup() {
-  try {
-    const saved = localStorage.getItem(LIVE_GROUP_KEY);
-    if (LIVE_GROUPS.some(([key]) => key === saved)) return saved;
-  } catch { /* private mode: Everyone */ }
-  return 'all';
-}
+let livePill = null;
+let livePillName = null;
 
 function walletNow() {
   const account = typeof connectedAccount === 'string' ? connectedAccount.trim() : '';
@@ -440,9 +426,10 @@ function ensureFollowIds() {
 
 function inLiveGroup(m) {
   const payer = m && m.payer;
-  if (liveGroup === 'following') return !!(followIds && followFor === walletNow() && followIds.has(payer));
-  if (liveGroup === 'holders') return earlyHashinalNumber(payer) > 0;
-  if (liveGroup === 'mine') {
+  const group = groupNow();
+  if (group === 'following') return !!(followIds && followFor === walletNow() && followIds.has(payer));
+  if (group === 'holders') return earlyHashinalNumber(payer) > 0;
+  if (group === 'mine') {
     const me = walletNow();
     return !!me && payer === me;
   }
@@ -479,9 +466,10 @@ function paintLiveGroup() {
 function liveCountText() {
   const total = liveAll.length;
   const shown = localList.length;
-  if (liveGroup === 'following' && walletNow() && followLoad) return 'Loading…';
-  if (liveGroup === 'holders' && !earlyHashinalReady()) return 'Loading…';
-  if (liveGroup === 'all') return total === 1 ? '1 post' : `${total} posts`;
+  const group = groupNow();
+  if (group === 'following' && walletNow() && followLoad) return 'Loading…';
+  if (group === 'holders' && !earlyHashinalReady()) return 'Loading…';
+  if (group === 'all') return total === 1 ? '1 post' : `${total} posts`;
   return `${shown} of ${total}`;
 }
 
@@ -513,28 +501,24 @@ function ensureLiveBar() {
     event.stopPropagation();
     clearLocalMarkers();
   });
-  head.append(tag, liveCount, close);
-
-  const groups = document.createElement('div');
-  groups.className = 'live-filter-groups';
-  groups.setAttribute('role', 'radiogroup');
-  groups.setAttribute('aria-label', 'Whose live posts');
-  for (const [key, label] of LIVE_GROUPS) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'live-filter-group';
-    btn.setAttribute('role', 'radio');
-    btn.dataset.group = key;
-    btn.textContent = label;
-    if (key === 'holders') btn.title = 'Early Hashinal holders';
-    btn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      pickLiveGroup(key);
-    });
-    groupButtons.set(key, btn);
-    groups.appendChild(btn);
-  }
-  liveBar.append(head, groups);
+  // The group pill: the same dropdown as holding "Look for Live".
+  livePill = document.createElement('button');
+  livePill.type = 'button';
+  livePill.className = 'live-filter-pick';
+  livePill.setAttribute('aria-haspopup', 'menu');
+  livePillName = document.createElement('span');
+  livePillName.className = 'live-filter-pick-name';
+  const caret = document.createElement('span');
+  caret.className = 'live-filter-pick-caret';
+  caret.setAttribute('aria-hidden', 'true');
+  caret.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+  livePill.append(livePillName, caret);
+  livePill.addEventListener('click', (event) => {
+    event.stopPropagation();
+    openLiveGroupMenu(livePill, (key) => pickLiveGroup(key));
+  });
+  head.append(tag, livePill, liveCount, close);
+  liveBar.append(head);
   // The document click closes panels (CloseALL); the bar keeps itself.
   liveBar.addEventListener('click', (event) => event.stopPropagation());
   document.body.appendChild(liveBar);
@@ -548,23 +532,24 @@ function paintLiveBar() {
   }
   ensureLiveBar();
   liveBar.hidden = false;
-  for (const [key, btn] of groupButtons) {
-    const on = key === liveGroup;
-    btn.classList.toggle('is-on', on);
-    btn.setAttribute('aria-checked', on ? 'true' : 'false');
-    btn.tabIndex = on ? 0 : -1;
-  }
+  const name = liveGroupName();
+  livePillName.textContent = name;
+  livePill.setAttribute('aria-label', `Showing ${name}. Choose whose live posts`);
+  livePill.classList.toggle('is-filtered', groupNow() !== 'all');
   liveCount.textContent = liveCountText();
 }
 
 function hideLiveBar() {
-  if (liveBar) liveBar.hidden = true;
+  if (!liveBar) return;
+  closeLiveGroupMenu({ within: liveBar });
+  liveBar.hidden = true;
 }
 
-function pickLiveGroup(key) {
-  if (!LIVE_GROUPS.some(([k]) => k === key)) return;
-  liveGroup = key;
-  try { localStorage.setItem(LIVE_GROUP_KEY, key); } catch { /* this visit only */ }
+// Set the group (livegroups.js keeps it) and repaint what is shown.
+// poiinfo.js calls this for a pick from the "Look for Live" list before it
+// looks, so the toasts below cover that pick too.
+export function pickLiveGroup(key) {
+  if (!setLiveGroup(key)) return;
   if ((key === 'following' || key === 'mine') && !walletNow()) {
     toast.info('Connect your wallet to see ' + (key === 'mine' ? 'your live posts' : 'people you follow'));
   }
@@ -572,7 +557,7 @@ function pickLiveGroup(key) {
   if (key === 'following' && walletNow()) {
     const set = liveAll;
     ensureFollowIds().then((state) => {
-      if (liveAll !== set || liveGroup !== 'following') return;
+      if (liveAll !== set || groupNow() !== 'following') return;
       if (state === 'empty') toast.info('You do not follow anyone yet');
       else if (state === 'offline') toast.error('Could not load who you follow');
       paintLiveGroup();
@@ -582,7 +567,7 @@ function pickLiveGroup(key) {
 
 // The holder list arrives after the globe draws and refreshes every 15 min.
 onOwnersChange(() => {
-  if (liveGroup === 'holders' && liveAll.length) paintLiveGroup();
+  if (groupNow() === 'holders' && liveAll.length) paintLiveGroup();
 });
 
 // 24h markers for where the user is (geolocate control turned on):
@@ -604,43 +589,4 @@ export async function showLocationMarkers(lat, lng) {
   } catch {
     // geocode failed / offline — leave whatever is currently shown
   }
-}
-
-// Dev server only (import.meta.env.DEV; the production build drops this):
-// https://localhost:5173/?livedemo shows five made-up live posts over
-// western Europe, one for each group in the bar, so the groups can be tried
-// without waiting for real 24h posts. Following and Mine read the wallet:
-// the Paris post is by 0.0.981180 (followed by 0.0.9779355, and an Early
-// Hashinal holder), Rome is by 0.0.9779355; Berlin and London are holders,
-// Madrid is nobody in particular.
-if (import.meta.env.DEV && new URLSearchParams(location.search).has('livedemo')) {
-  const seed = () => {
-    const now = Date.now();
-    const post = (payer, lng, lat, title, hoursAgo) => ({
-      payer,
-      lng,
-      lat,
-      title,
-      topic: '0.0.9609912',
-      topicName: 'Freedom',
-      created: new Date(now - hoursAgo * 3600000).toISOString(),
-      lastSeen: now,
-      msg: title + ' (made-up live post)',
-      image: '',
-    });
-    // The bar lives on the map: leave the feed if it is covering it.
-    if (document.documentElement.classList.contains('feed-app')) document.getElementById('layout-mode-btn')?.click();
-    map.jumpTo({ center: [6, 47], zoom: 3.6 });
-    showLocalMarkers([
-      post('0.0.981180', 2.35, 48.85, 'Followed holder', 0),
-      post('0.0.805149', 13.40, 52.52, 'Holder Berlin', 1),
-      post('0.0.9779355', 12.49, 41.90, 'My post Rome', 2),
-      post('0.0.555555', -3.70, 40.42, 'Nobody Madrid', 3),
-      post('0.0.454863', -0.12, 51.50, 'Holder London', 4),
-    ]);
-  };
-  // After the map has loaded and the start-up camera has settled.
-  const start = () => map.once('idle', () => setTimeout(seed, 1200));
-  if (map.loaded()) start();
-  else map.once('load', start);
 }

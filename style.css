@@ -21852,7 +21852,7 @@ html.is-draw-picking .live-filter {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 8px;
+  margin: 0;
 }
 .live-filter-tag {
   display: inline-flex;
@@ -21925,57 +21925,205 @@ html.is-draw-picking .live-filter {
     color: #083344;
   }
 }
-/* One choice: a segmented track, the same look as the popup settings.
-   Each segment takes its label's width plus a share of the rest, so
-   "NFT holders" fits on a phone. */
-.live-filter-groups {
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
-}
-.live-filter-group {
-  flex: 1 1 auto;
+/* The group pill: whose posts are shown; it opens the group dropdown
+   (livegroups.js). Cyan once it filters (not Everyone). */
+.live-filter-pick {
+  flex: 0 1 auto;
   min-width: 0;
-  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
   margin: 0;
-  padding: 0 8px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  padding: 0 8px 0 12px;
   border-radius: 999px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
   font: inherit;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
-@media (hover: hover) and (pointer: fine) {
-  .live-filter-group:hover:not(.is-on) {
-    background: rgba(255, 255, 255, 0.07);
-    color: #fff;
-  }
-}
-.live-filter-group.is-on {
+.live-filter-pick.is-filtered {
   background: rgba(34, 211, 238, 0.18);
   border-color: rgba(34, 211, 238, 0.75);
   color: #ECFEFF;
-  font-weight: 600;
-  box-shadow: 0 0 12px rgba(34, 211, 238, 0.32), inset 0 0 8px rgba(34, 211, 238, 0.16);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.28), inset 0 0 8px rgba(34, 211, 238, 0.14);
 }
-.live-filter-group:focus-visible,
+@media (hover: hover) and (pointer: fine) {
+  .live-filter-pick:hover {
+    border-color: rgba(34, 211, 238, 0.75);
+  }
+}
+.live-filter-pick:active {
+  background: rgba(34, 211, 238, 0.3);
+}
+.live-filter-pick-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.live-filter-pick-caret {
+  flex: none;
+  display: block;
+  width: 16px;
+  height: 16px;
+  opacity: 0.8;
+}
+.live-filter-pick-caret svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.live-filter-pick:focus-visible,
 .live-filter-close:focus-visible {
   outline: 1px solid rgba(255, 255, 255, 0.6);
   outline-offset: 2px;
 }
-@media (max-width: 360px) {
-  .live-filter-group { font-size: 12px; padding: 0 4px; }
+
+/* "📡 Look for Live" is held for its group list: no callout, no text
+   selection, no magnifier. */
+.draw-here-btn.draw-here-live {
+  position: relative;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+/* The chosen group (not Everyone) under the button, outside the row so
+   the pin stays on its point. */
+.draw-here-btn.draw-here-live[data-group]::after {
+  content: attr(data-group);
+  position: absolute;
+  top: calc(100% + 0.5vh);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.2vh 0.9vh;
+  border-radius: 999px;
+  border: 0.06vh solid rgba(34, 211, 238, 0.7);
+  background: rgba(8, 51, 68, 0.92);
+  color: #A5F3FC;
+  font-size: 1.4vh;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* The group dropdown (livegroups.js), the marker list's glass: above the
+   map pin (6000) it drops from and the live bar. */
+.live-group-menu {
+  position: fixed;
+  z-index: 6001;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-sizing: border-box;
+  padding: 6px;
+  border-radius: 16px;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  background: rgba(10, 12, 20, 0.94);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.18), 0 12px 32px rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transform-origin: top center;
+  animation: markerStackIn 140ms ease-out;
+}
+.live-group-menu.is-above {
+  transform-origin: bottom center;
+}
+.live-group-menu[hidden] {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-group-menu { animation: none; }
+}
+.live-group-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+}
+.live-group-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .live-group-menu-row:hover {
+    background: rgba(255, 255, 255, 0.07);
+  }
+}
+.live-group-menu-row:active {
+  background: rgba(34, 211, 238, 0.22);
+}
+.live-group-menu-row.is-on {
+  background: rgba(34, 211, 238, 0.14);
+  border-color: rgba(34, 211, 238, 0.6);
+}
+.live-group-menu-row:focus {
+  outline: none;
+}
+.live-group-menu-row:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.6);
+  outline-offset: -1px;
+}
+.live-group-menu-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.live-group-menu-name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.live-group-menu-hint {
+  font-size: 12px;
+  line-height: 1.25;
+  color: rgba(255, 255, 255, 0.55);
+}
+.live-group-menu-check {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: #22D3EE;
+  opacity: 0;
+}
+.live-group-menu-row.is-on .live-group-menu-check {
+  opacity: 1;
+}
+.live-group-menu-check svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
