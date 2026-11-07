@@ -7,8 +7,11 @@ import { closeTransientMapUI } from './cssLogic.js';
 
 // Plain tap/click on the map (PC left-click, phone tap) → a pin with the
 // two actions split around it: 📍 Marker on the left, 🔷 Polygon on the
-// right. Picking polygon keeps the pin as TOP LEFT and the next tap places
-// the BOTTOM RIGHT corner, then the Draw column opens prefilled.
+// right. Either one starts the same pick as the Draw form's pin buttons
+// (startPick, origin 'map'): the tap is the marker, or a polygon's first
+// corner with the opposite one tapped next; each point is a draggable
+// handle with its coordinates, and the bar's ✓ opens the Draw column
+// prefilled.
 // Long-press (phone) / right-click (PC) → Google Maps question (poiinfo.js).
 
 const MOVE_TOLERANCE = 12; // px — finger moving more than this is a pan, not a tap
@@ -16,8 +19,6 @@ const MOVE_TOLERANCE = 12; // px — finger moving more than this is a pan, not 
 let suppressClickUntil = 0;
 
 let anchorOpen = false;          // buttons around the pin are visible
-let awaitingSecondCorner = false; // pin is TOP LEFT, waiting for BOTTOM RIGHT
-let corner1 = null;
 let pressLoc = null;             // geographic point under the pin
 let pinEl = null;                // fixed-position anchor (buttons + pin, or pin only)
 
@@ -36,8 +37,6 @@ function cleanup() {
   const wasOpen = pinEl !== null;
   clearDrawPreview();
   anchorOpen = false;
-  awaitingSecondCorner = false;
-  corner1 = null;
   pressLoc = null;
   // Back/Forward: pin tap, outside tap, Escape and closeTransientMapUI
   // all end here.
@@ -77,11 +76,7 @@ function makePinEl() {
   el.className = 'draw-here-anchor';
   const pin = document.createElement('div');
   pin.className = 'draw-here-pin';
-  pin.onclick = () => {
-    const wasAwaiting = awaitingSecondCorner;
-    cleanup();
-    if (wasAwaiting) toast.info('Polygon draw cancelled');
-  };
+  pin.onclick = () => cleanup();
   el.appendChild(pin);
   document.body.appendChild(el);
   pinEl = el;
@@ -99,7 +94,7 @@ function showAnchor(loc) {
   markerBtn.textContent = '📍 Marker';
   markerBtn.onclick = (e) => {
     e.stopPropagation();
-    startMarkerHere(loc);
+    startMapPick('marker', loc);
   };
 
   const polygonBtn = document.createElement('button');
@@ -107,7 +102,7 @@ function showAnchor(loc) {
   polygonBtn.textContent = '🔷 Polygon';
   polygonBtn.onclick = (e) => {
     e.stopPropagation();
-    startPolygonHere(loc);
+    startMapPick('polygon', loc);
   };
 
   pinEl.insertBefore(markerBtn, pinEl.firstChild);
@@ -116,45 +111,6 @@ function showAnchor(loc) {
   onMapMove();
   // Back/Forward: the pin is a layer; a re-tap replaces it in place.
   layerOpened('drawpin', { at: [loc.lng, loc.lat] });
-}
-
-function startMarkerHere(loc) {
-  const wasAwaiting = awaitingSecondCorner;
-  cleanup();
-  if (wasAwaiting) toast.info('Polygon draw cancelled');
-  openDrawColumn();
-  showMarkerForm();
-  const markerTopic = document.getElementById('input-field-2-0');
-  markerTopic.value = currentTopic();
-  markerTopic.dispatchEvent(new Event('input', { bubbles: true }));
-  document.getElementById('input-field-2-3').value = `${loc.lng.toFixed(5)},${loc.lat.toFixed(5)}`;
-  toast.info('Marker opened');
-}
-
-function startPolygonHere(loc) {
-  awaitingSecondCorner = true;
-  corner1 = loc;
-  // Drop the buttons, keep the pin (it is the TOP LEFT corner)
-  makePinEl();
-  pressLoc = loc;
-  anchorOpen = false;
-  onMapMove();
-  toast.info('Add bottom right 🔷');
-}
-
-function setSecondCorner(loc) {
-  const topLeft = corner1;
-  if (!topLeft) return;
-  // Clear instantly — no pins/box linger on the map while the form is open
-  cleanup();
-  openDrawColumn();
-  showPolygonForm();
-  const polygonTopic = document.getElementById('input-field-3-0');
-  polygonTopic.value = currentTopic();
-  polygonTopic.dispatchEvent(new Event('input', { bubbles: true }));
-  document.getElementById('input-field-3-3').value = `${topLeft.lng.toFixed(5)},${topLeft.lat.toFixed(5)}`;
-  document.getElementById('input-field-3-5').value = `${loc.lng.toFixed(5)},${loc.lat.toFixed(5)}`;
-  toast.info('Polygon opened');
 }
 
 // Search results: the same pin, but without the action buttons
@@ -168,10 +124,6 @@ export function showSearchPin(loc) {
 
 function handlePress(loc) {
   closePressAnchor(); // a plain tap replaces the open long-press 🗺/📡 anchor
-  if (awaitingSecondCorner) {
-    setSecondCorner(loc);
-    return;
-  }
   if (anchorOpen) {
     // Press again while the buttons are open: move them to the new spot
     pressLoc = loc;
@@ -253,7 +205,6 @@ canvas.addEventListener('click', (e) => {
   // Polygon taps open their own popup — don't add the pin on top of it
   const hits = map.queryRenderedFeatures([p.x, p.y]);
   if (hits.some((f) => f.layer && f.layer.id.includes('-mask-layer'))) return;
-  if (awaitingSecondCorner) e.stopPropagation();
   suppressClickUntil = Date.now() + 500; // swallow the document close on this same tap
   handlePress(locFromClient(e.clientX, e.clientY));
 });
@@ -268,7 +219,7 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && pick && pick.phase === 'adjust') {
     e.preventDefault();
-    confirmPolygonPick();
+    confirmPick();
     return;
   }
   if (e.key !== 'Escape') return;
@@ -276,17 +227,14 @@ document.addEventListener('keydown', (e) => {
     endPick(false);
     return;
   }
-  if (pinEl || anchorOpen || awaitingSecondCorner) {
-    const wasAwaiting = awaitingSecondCorner;
-    cleanup();
-    if (wasAwaiting) toast.info('Polygon draw cancelled');
-  }
+  if (pinEl || anchorOpen) cleanup();
 });
 
 // Pick on the map, from the Draw form. Each coordinate field has a pin
 // button. It steps the Draw page aside (html.is-draw-picking, style.css),
 // shows a bar with what to tap, and fills the field from the tap:
-//   Marker: one tap.
+//   Marker: one tap; the point stays as a draggable handle with its
+//   coordinates (a tap elsewhere moves it), and the bar's ✓ fills the field.
 //   Polygon: the corner whose button was pressed, then the other corner
 //   too while that one is still empty. Each corner stays on the map as a
 //   draggable handle with its coordinates in a small bubble, the box is
@@ -310,7 +258,7 @@ const PICK_PIN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
   + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
   + '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>'
   + '<circle cx="12" cy="10" r="3"/></svg>';
-let pick = null; // { kind, steps: [field id], index, phase: 'tap'|'adjust', corners, handles }
+let pick = null; // { kind, origin: 'form'|'map', steps, index, phase: 'tap'|'adjust', corners, handles }
 let pickBar = null;
 // Polygon picture layers hidden for the pick, with the visibility each had
 // (the Visibility panel can already have polygons off; that is kept).
@@ -380,8 +328,9 @@ function readLngLat(text) {
 
 function pickPrompt() {
   if (!pick) return '';
-  if (pick.kind === 'marker') return 'Tap to place the marker';
+  if (pick.kind === 'marker') return pick.phase === 'adjust' ? 'Drag or tap to move it' : 'Tap to place the marker';
   if (pick.phase === 'adjust') return 'Drag a corner to adjust';
+  if (pick.origin === 'map') return 'Now tap the opposite corner';
   const id = pick.steps[pick.index];
   const second = pick.index > 0;
   if (id === 'input-field-3-3') return second ? 'Now tap the top left corner' : 'Tap the top left corner';
@@ -421,21 +370,23 @@ function paintPickBar() {
     const confirm = document.createElement('button');
     confirm.type = 'button';
     confirm.className = 'draw-pick-confirm';
-    confirm.setAttribute('aria-label', 'Use these corners');
-    confirm.title = 'Use these corners';
     confirm.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" '
       + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + CHECK_ICON + '</svg>';
     confirm.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      confirmPolygonPick();
+      confirmPick();
     });
     pickBar.append(icon, text, posts, confirm, cancel);
     pickBar.addEventListener('click', (event) => event.stopPropagation());
     document.body.appendChild(pickBar);
   }
   pickBar.querySelector('.draw-pick-text').textContent = pickPrompt();
-  pickBar.querySelector('.draw-pick-confirm').hidden = !(pick && pick.phase === 'adjust');
+  const confirm = pickBar.querySelector('.draw-pick-confirm');
+  const label = pick && pick.kind === 'marker' ? 'Use this spot' : 'Use these corners';
+  confirm.setAttribute('aria-label', label);
+  confirm.title = label;
+  confirm.hidden = !(pick && pick.phase === 'adjust');
   pickBar.hidden = false;
   // Replay the drop-in for each new step.
   pickBar.classList.remove('is-step');
@@ -476,11 +427,11 @@ function orderCorners(a, b) {
   };
 }
 
-// ── Polygon pick: corners on the map ────────────────────────────────────
-// Each placed corner is a draggable handle with a small bubble holding its
-// coordinates; the box between them is drawn on the map. Both stay put on
-// the map while it pans and zooms. Once both corners are down the bar
-// says to drag a corner to adjust it and shows a ✓ (Enter works too).
+// ── Points on the map while picking ─────────────────────────────────────
+// Each placed point (the marker, or a polygon corner) is a draggable
+// handle with a small bubble holding its coordinates; a polygon's box is
+// drawn between its corners. They stay put on the map while it pans and
+// zooms. Once everything is down the bar shows a ✓ (Enter works too).
 const RECT_SOURCE = 'draw-pick-rect';
 const RECT_FILL = 'draw-pick-rect-fill';
 const RECT_LINE = 'draw-pick-rect-line';
@@ -533,18 +484,22 @@ function cornerText(loc) {
   return `${loc.lng.toFixed(5)}, ${loc.lat.toFixed(5)}`;
 }
 
-// Box and bubbles follow the corners (and, before the second tap, the mouse).
-function paintPolygonPick() {
-  if (!pick || pick.kind !== 'polygon') return;
-  const [a, b] = pick.corners;
-  const other = b || (pick.phase === 'tap' ? rectHover : null);
-  const src = map.getSource(RECT_SOURCE);
-  if (src) src.setData(rectData(a, other));
-  const order = a && b ? orderCorners(a, b) : null;
+// Handles, bubbles and the box follow the points (and, between a polygon's
+// two taps, the mouse).
+function paintPickShape() {
+  if (!pick) return;
+  let order = null;
+  if (pick.kind === 'polygon') {
+    const [a, b] = pick.corners;
+    const other = b || (pick.phase === 'tap' ? rectHover : null);
+    const src = map.getSource(RECT_SOURCE);
+    if (src) src.setData(rectData(a, other));
+    order = a && b ? orderCorners(a, b) : null;
+  }
   pick.handles.forEach((handle, i) => {
     const loc = pick.corners[i];
-    if (!loc) return;
-    let name = 'Corner';
+    if (!handle || !loc) return;
+    let name = pick.kind === 'marker' ? 'Marker' : 'Corner';
     if (order) name = (i === 0) === order.aIsWest ? 'Top left' : 'Bottom right';
     const el = handle.getElement();
     // Bottom right's bubble hangs below its corner, out of the box's way.
@@ -554,13 +509,13 @@ function paintPolygonPick() {
   });
 }
 
-function makeCornerHandle(index, loc) {
+function makePointHandle(index, loc) {
   const el = document.createElement('div');
   el.className = 'draw-pick-handle';
   el.innerHTML = '<span class="draw-pick-dot" aria-hidden="true"></span>'
     + '<span class="draw-pick-tip"><span class="draw-pick-tip-name"></span>'
     + '<span class="draw-pick-tip-coords"></span></span>';
-  el.setAttribute('aria-label', 'Corner, drag to move');
+  el.setAttribute('aria-label', pick.kind === 'marker' ? 'Marker, drag to move' : 'Corner, drag to move');
   const handle = new maplibregl.Marker({ element: el, draggable: true, anchor: 'center' })
     .setLngLat([loc.lng, loc.lat])
     .addTo(map);
@@ -568,7 +523,7 @@ function makeCornerHandle(index, loc) {
     if (!pick) return;
     const at = handle.getLngLat().wrap();
     pick.corners[index] = { lng: at.lng, lat: at.lat };
-    paintPolygonPick();
+    paintPickShape();
   };
   handle.on('dragstart', () => el.classList.add('is-dragging'));
   handle.on('drag', follow);
@@ -580,15 +535,16 @@ function makeCornerHandle(index, loc) {
   return handle;
 }
 
-function placeCorner(loc) {
+// One point down. A marker needs one, a polygon two; then the ✓ shows.
+function placePoint(loc) {
   const index = pick.corners.length;
   pick.corners.push(loc);
-  makeCornerHandle(index, loc);
-  if (pick.corners.length === 2) {
+  makePointHandle(index, loc);
+  if (pick.corners.length === (pick.kind === 'marker' ? 1 : 2)) {
     pick.phase = 'adjust';
     rectHover = null;
   }
-  paintPolygonPick();
+  paintPickShape();
   paintPickBar();
 }
 
@@ -602,63 +558,119 @@ function onPickHover(event) {
   rectHoverQueued = true;
   requestAnimationFrame(() => {
     rectHoverQueued = false;
-    paintPolygonPick();
+    paintPickShape();
   });
 }
 
-function confirmPolygonPick() {
-  if (!pick || pick.kind !== 'polygon' || pick.phase !== 'adjust') return;
-  const [a, b] = pick.corners;
-  const { tl, br } = orderCorners(a, b);
-  const fieldTL = document.getElementById('input-field-3-3');
-  const fieldBR = document.getElementById('input-field-3-5');
-  fieldTL.value = lngLatText(tl);
-  fieldBR.value = lngLatText(br);
+function fillField(id, value) {
+  const field = document.getElementById(id);
+  field.value = value;
   // The form's own listeners (preview, field height) follow the input event.
-  for (const field of [fieldTL, fieldBR]) field.dispatchEvent(new Event('input', { bubbles: true }));
+  field.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+// The map's own Marker / Polygon pick ends in the Draw form, opened with
+// the topic and the approved coordinates, as the old map flow did.
+function openDrawFromMap(kind, coords) {
+  openDrawColumn();
+  if (kind === 'marker') {
+    showMarkerForm();
+    fillField('input-field-2-0', currentTopic());
+    fillField('input-field-2-3', lngLatText(coords.point));
+    toast.info('Marker opened');
+    return;
+  }
+  showPolygonForm();
+  fillField('input-field-3-0', currentTopic());
+  fillField('input-field-3-3', lngLatText(coords.tl));
+  fillField('input-field-3-5', lngLatText(coords.br));
+  toast.info('Polygon opened');
+}
+
+function confirmPick() {
+  if (!pick || pick.phase !== 'adjust') return;
+  const { kind, origin } = pick;
+  let coords;
+  if (kind === 'marker') {
+    coords = { point: pick.corners[0] };
+  } else {
+    const [a, b] = pick.corners;
+    coords = orderCorners(a, b);
+  }
+  if (origin === 'map') {
+    endPick(false);
+    openDrawFromMap(kind, coords);
+    return;
+  }
+  if (kind === 'marker') {
+    fillField('input-field-2-3', lngLatText(coords.point));
+  } else {
+    fillField('input-field-3-3', lngLatText(coords.tl));
+    fillField('input-field-3-5', lngLatText(coords.br));
+  }
   endPick(true);
 }
 
-function startPick(kind, fieldId) {
+// origin 'form': a field's pin button in the Draw form. origin 'map': the
+// map tap's Marker / Polygon buttons, with that tap as the first point.
+function startPick(kind, fieldId, { origin = 'form', at = null } = {}) {
   if (pick) endPick(false);
   cleanup();
   const steps = [fieldId];
   let kept = null;
-  if (kind === 'polygon') {
-    const other = fieldId === 'input-field-3-3' ? 'input-field-3-5' : 'input-field-3-3';
-    kept = readLngLat(document.getElementById(other).value);
-    if (!kept) steps.push(other);
+  if (origin === 'form') {
+    if (kind === 'polygon') {
+      const other = fieldId === 'input-field-3-3' ? 'input-field-3-5' : 'input-field-3-3';
+      kept = readLngLat(document.getElementById(other).value);
+      if (!kept) steps.push(other);
+    } else {
+      // A marker that already has a spot starts there, ready to move or approve.
+      kept = readLngLat(document.getElementById('input-field-2-3').value);
+    }
   }
-  pick = { kind, steps, index: 0, phase: 'tap', corners: [], handles: [] };
+  pick = { kind, origin, steps, index: 0, phase: 'tap', corners: [], handles: [] };
   if (document.activeElement && typeof document.activeElement.blur === 'function') document.activeElement.blur();
   document.documentElement.classList.add('is-draw-picking');
   if (kind === 'polygon') {
     addPickRect();
     map.on('mousemove', onPickHover);
-    // The corner that is not being picked stays where it is, as a handle.
-    if (kept) placeCorner(kept);
+  }
+  // The point that is already known (the other corner, the marker's spot,
+  // or the map tap) is on the map as a handle from the start.
+  const first = origin === 'map' ? at : kept;
+  if (first) {
+    if (origin === 'map' && kind === 'polygon') pick.index = 1;
+    placePoint(first);
   }
   paintPickBar();
   setPostsShown(false);
   map.on('styledata', onPickStyle);
-  framePickFields(kind);
+  if (origin === 'form') framePickFields(kind);
   if (window.layerOpened) window.layerOpened('drawpick');
+}
+
+function startMapPick(kind, loc) {
+  startPick(kind, null, { origin: 'map', at: loc });
 }
 
 function handlePickTap(loc) {
   if (!pick) return;
   if (pick.kind === 'marker') {
-    const field = document.getElementById('input-field-2-3');
-    field.value = lngLatText(loc);
-    field.dispatchEvent(new Event('input', { bubbles: true }));
-    endPick(true);
+    if (!pick.corners.length) {
+      placePoint(loc);
+      return;
+    }
+    // A tap moves the marker there, as a drag would.
+    pick.corners[0] = loc;
+    pick.handles[0].setLngLat([loc.lng, loc.lat]);
+    paintPickShape();
     return;
   }
   // Polygon: taps place corners; with both down, taps only pan, and the
   // corners move by dragging their handles.
   if (pick.phase !== 'tap') return;
   pick.index += 1;
-  placeCorner(loc);
+  placePoint(loc);
 }
 
 function endPick(done, { fromHistory = false } = {}) {

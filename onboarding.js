@@ -19,8 +19,8 @@ const INTRO = [
     title: 'Marker & polygon',
     body: 'Tap (phone) or left-click (PC) anywhere on the map.',
     rows: [
-      { name: '📍 Marker', note: 'Opens a marker at this spot.' },
-      { name: '🔷 Polygon', note: 'First tap is the top left. The next tap is the bottom right.' }
+      { name: '📍 Marker', note: 'Puts a marker here. Drag it if needed, then ✓.' },
+      { name: '🔷 Polygon', note: 'This tap is one corner. Tap the opposite corner, drag to adjust, then ✓.' }
     ]
   },
   {
