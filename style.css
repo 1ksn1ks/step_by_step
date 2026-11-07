@@ -8607,9 +8607,11 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   display: block;
   pointer-events: none;
 }
-/* Hide the post popup's own × while settings is open. */
+/* Hide the post popup's own × while settings is open. Invisible, not
+   display: none: the settings header reads its seat (placeSettingsHead). */
 .maplibregl-popup.settings-open > .maplibregl-popup-content > .maplibregl-popup-close-button:not(.comments-back-button) {
-  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 /* Prev / next group: one glass panel holding Order, Type and Video length */
@@ -20927,5 +20929,408 @@ html.is-draw-picking #map-topbar {
   }
   .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-footer-row {
     margin-top: var(--popup-gap) !important;
+  }
+}
+
+/* ── Popup settings: header, edit box, colours ─────────────────────────
+   The ‹, pencil and trash are the post popup's own glass chips: the
+   gear's size (processallmessages.js placeSettingsHead seats them over
+   the gear, the ← and the ×), the same rest glass, and the same cyan
+   fill on press. The trash keeps its red. */
+#popup-settings-card > .panel-close-btn.comments-back-button,
+#popup-settings-card #popup-settings-edit,
+#popup-settings-card #popup-settings-delete {
+  --head-press-bg: #22D3EE;
+  --head-press-ink: #083344;
+  box-sizing: border-box;
+  padding: 0;
+  border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.10);
+  color: #fff;
+  box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  filter: none;
+  transform: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+}
+#popup-settings-card #popup-settings-delete {
+  --head-press-bg: #F87171;
+  --head-press-ink: #450A0A;
+  background: rgba(248, 113, 113, 0.14);
+  border-color: rgba(248, 113, 113, 0.55);
+  color: #FCA5A5;
+}
+/* The older hover scale sat outside a hover query and stuck after a tap. */
+#popup-settings-card #popup-settings-edit:hover,
+#popup-settings-card #popup-settings-delete:hover {
+  filter: none;
+  transform: none;
+}
+#popup-settings-card > .panel-close-btn.comments-back-button:active,
+#popup-settings-card #popup-settings-edit:active,
+#popup-settings-card #popup-settings-delete:active {
+  background-color: var(--head-press-bg);
+  border-color: var(--head-press-bg);
+  color: var(--head-press-ink);
+  filter: none;
+  transform: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  #popup-settings-card > .panel-close-btn.comments-back-button:hover,
+  #popup-settings-card #popup-settings-edit:hover,
+  #popup-settings-card #popup-settings-delete:hover {
+    background-color: var(--head-press-bg);
+    border-color: var(--head-press-bg);
+    color: var(--head-press-ink);
+    filter: none;
+    transform: none;
+  }
+}
+#popup-settings-card > .panel-close-btn.comments-back-button:focus-visible,
+#popup-settings-card #popup-settings-edit:focus-visible,
+#popup-settings-card #popup-settings-delete:focus-visible {
+  outline: calc(var(--u) * 0.12) solid #22D3EE;
+  outline-offset: calc(var(--u) * 0.12);
+}
+/* An open edit box lights the pencil, like a chosen option. The box is
+   the pencil's later sibling; a card-wide :has would restyle the whole
+   card, sample included, on every keystroke. */
+#popup-settings-card #popup-settings-edit:has(~ #popup-settings-editbox[style*="display: block"]) {
+  background: rgba(34, 211, 238, 0.18);
+  border-color: rgba(34, 211, 238, 0.75);
+  color: #ECFEFF;
+  box-shadow: 0 0 1.6dvh rgba(34, 211, 238, 0.35), inset 0 0 0.9dvh rgba(34, 211, 238, 0.18);
+}
+
+/* Edit box: the same glass panel as Prev / next arrows. */
+#popup-settings-card #popup-settings-editbox {
+  margin: 0 0 1.6dvh;
+  padding: 1.4dvh 1.6dvw 1.6dvh;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 2.2dvh;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+#popup-settings-card #popup-settings-editbox > .popup-settings-label {
+  display: flex;
+  align-items: center;
+  gap: 1dvh;
+  margin: 0 0 1.2dvh 0.4dvw;
+  font-size: clamp(10px, 1.35dvh, 17px);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.88);
+}
+#popup-settings-card #popup-settings-editbox > .popup-settings-label::before {
+  content: "";
+  width: max(12px, 1.9dvh);
+  height: max(12px, 1.9dvh);
+  flex: none;
+  background: var(--ps-accent);
+  filter: drop-shadow(0 0 0.6dvh rgba(var(--ps-accent-rgb), 0.5));
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 20h9'/><path d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/></svg>") center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 20h9'/><path d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/></svg>") center / contain no-repeat;
+}
+#popup-settings-card #popup-settings-edit-text {
+  min-height: 12dvh;
+  margin: 0;
+  padding: 1.3dvh 1.5dvh;
+  border-radius: 1.6dvh;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0.12dvh 0.25dvh rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: clamp(13px, 1.8dvh, 20px);
+  line-height: 1.45;
+  caret-color: #22D3EE;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+#popup-settings-card #popup-settings-edit-text::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+#popup-settings-card #popup-settings-edit-text:focus {
+  outline: none;
+  border-color: rgba(34, 211, 238, 0.7);
+  box-shadow: 0 0 0 0.35dvh rgba(34, 211, 238, 0.15), inset 0 0.12dvh 0.25dvh rgba(0, 0, 0, 0.35);
+}
+/* Thumbnail / Remove: only for a video post (processallmessages.js sets
+   hidden). The bar's own display: flex used to beat [hidden], so the two
+   showed, doing nothing, on every post. */
+#popup-settings-card #popup-settings-thumb[hidden] {
+  display: none !important;
+}
+#popup-settings-card #popup-settings-thumb {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.8dvh;
+  padding: 1dvh 0 0;
+  pointer-events: auto;
+}
+#popup-settings-card #popup-settings-thumb .video-thumb-btn {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8dvh;
+  min-width: 0;
+  min-height: max(44px, 4.4dvh);
+  padding: 0 1.2dvh;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  color: var(--ps-text);
+  font-family: inherit;
+  font-size: clamp(12px, 1.55dvh, 19px);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+#popup-settings-card #popup-settings-thumb .video-thumb-btn::before {
+  content: "";
+  width: max(12px, 1.9dvh);
+  height: max(12px, 1.9dvh);
+  flex: none;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect width='18' height='18' x='3' y='3' rx='2'/><circle cx='9' cy='9' r='2'/><path d='m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21'/></svg>") center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect width='18' height='18' x='3' y='3' rx='2'/><circle cx='9' cy='9' r='2'/><path d='m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21'/></svg>") center / contain no-repeat;
+}
+#popup-settings-card #popup-settings-thumb .video-thumb-btn:not(.video-thumb-clear) {
+  color: #ECFEFF;
+  border-color: rgba(34, 211, 238, 0.55);
+  background: rgba(34, 211, 238, 0.10);
+}
+#popup-settings-card #popup-settings-thumb .video-thumb-clear {
+  color: #FCA5A5;
+  border-color: rgba(248, 113, 113, 0.40);
+  background: rgba(248, 113, 113, 0.08);
+}
+#popup-settings-card #popup-settings-thumb .video-thumb-clear::before {
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 6 6 18'/><path d='m6 6 12 12'/></svg>") center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 6 6 18'/><path d='m6 6 12 12'/></svg>") center / contain no-repeat;
+}
+#popup-settings-card #popup-settings-thumb .video-thumb-btn:active {
+  transform: scale(0.97);
+}
+/* The counter keeps its colours (hcs-warn / hcs-over), right under the box. */
+#popup-settings-card #popup-settings-edit-bytes {
+  margin: 0.9dvh 0.6dvh 0;
+  text-align: right;
+  font-size: clamp(10px, 1.3dvh, 15px);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+/* Save sits on the panel, not in a segmented track. */
+#popup-settings-card #popup-settings-editbox > .popup-settings-row {
+  margin: 1.2dvh 0 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+
+/* Save and Save popup: one primary cyan button. */
+#popup-settings-card #popup-settings-edit-save,
+#popup-settings-card #savepopup3 {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1dvh;
+  width: 100%;
+  height: 5.4dvh;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 !important;
+  box-sizing: border-box;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--ps-accent-rgb), 0.70);
+  background: rgba(var(--ps-accent-rgb), 0.16);
+  box-shadow: 0 0 1.6dvh rgba(var(--ps-accent-rgb), 0.30), inset 0 0 0.9dvh rgba(var(--ps-accent-rgb), 0.15);
+  color: #ECFEFF;
+  font-family: inherit;
+  font-size: clamp(13px, 1.8dvh, 22px);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: center;
+  text-shadow: none !important;
+  animation: none;
+  filter: none;
+  transform: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+#popup-settings-card #savepopup3 {
+  margin-top: 1.4dvh;
+}
+#popup-settings-card #popup-settings-edit-save::before,
+#popup-settings-card #savepopup3::before {
+  content: "";
+  width: max(14px, 2dvh);
+  height: max(14px, 2dvh);
+  flex: none;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6 9 17l-5-5'/></svg>") center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6 9 17l-5-5'/></svg>") center / contain no-repeat;
+}
+@media (hover: hover) and (pointer: fine) {
+  #popup-settings-card #popup-settings-edit-save:hover,
+  #popup-settings-card #savepopup3:hover {
+    background: rgba(var(--ps-accent-rgb), 0.26);
+    filter: none;
+    transform: none;
+  }
+}
+#popup-settings-card #popup-settings-edit-save:active,
+#popup-settings-card #savepopup3:active {
+  filter: none;
+  transform: scale(0.98);
+}
+#popup-settings-card #popup-settings-edit-save:focus-visible,
+#popup-settings-card #savepopup3:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+}
+
+/* Colours: one glass panel, the same as Prev / next arrows, with a title
+   icon. Portrait shows it only with the sample (Preview). */
+@media (orientation: portrait) {
+  #popup-settings-card #popup-settings-colors:has(> #popup-column-2[style*="display: block"]) {
+    display: block;
+    margin-top: 1.6dvh;
+    padding: 1.4dvh 1.6dvw 1.6dvh;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 2.2dvh;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  #popup-settings-card #popup-settings-colors:has(> #popup-column-2[style*="display: block"]) > #popup-column-2 {
+    padding-top: 0;
+    border-top: 0;
+  }
+}
+#popup-settings-card #popup-settings-colors #popup-column-2::before {
+  display: flex;
+  align-items: center;
+  gap: 1dvh;
+  margin: 0 0 1.2dvh 0.4dvw;
+  padding-left: max(18px, 2.9dvh);
+  min-height: max(12px, 1.9dvh);
+  font-size: clamp(10px, 1.35dvh, 17px);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.88);
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322D3EE' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='13.5' cy='6.5' r='.5' fill='%2322D3EE'/><circle cx='17.5' cy='10.5' r='.5' fill='%2322D3EE'/><circle cx='8.5' cy='7.5' r='.5' fill='%2322D3EE'/><circle cx='6.5' cy='12.5' r='.5' fill='%2322D3EE'/><path d='M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z'/></svg>") left center / max(12px, 1.9dvh) max(12px, 1.9dvh) no-repeat;
+}
+/* Targets: one even grid, four across (two across in the narrower
+   landscape column). The part whose picker is open reads as chosen. */
+#popup-settings-card #popup-column-container-2 > div {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7dvh;
+  /* Landscape's container is a flex row; take its whole width. */
+  flex: 1 1 100%;
+  width: 100%;
+}
+#popup-settings-card #popup-column-container-2 > div > div {
+  display: contents !important;
+}
+@media (orientation: landscape) {
+  #popup-settings-card #popup-column-container-2 > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+#popup-settings-card #popup-column-container-2 .toolbar-column-btns {
+  width: auto !important;
+  max-width: none !important;
+  height: 4.6dvh;
+  min-height: 40px;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+#popup-settings-colors:has(#popup-column-3-border[style*="display: block"]) #popup-column-2-border,
+#popup-settings-colors:has(#popup-column-3-number[style*="display: block"]) #popup-column-2-number,
+#popup-settings-colors:has(#popup-column-3-close[style*="display: block"]) #popup-column-2-close,
+#popup-settings-colors:has(#popup-column-3-font[style*="display: block"]) #popup-column-2-font,
+#popup-settings-colors:has(#popup-column-3-accid[style*="display: block"]) #popup-column-2-accid,
+#popup-settings-colors:has(#popup-column-3-username[style*="display: block"]) #popup-column-2-username,
+#popup-settings-colors:has(#popup-column-3-titles[style*="display: block"]) #popup-column-2-titles,
+#popup-settings-colors:has(#popup-column-3-text[style*="display: block"]) #popup-column-2-text {
+  background: rgba(var(--ps-accent-rgb), 0.18) !important;
+  border-color: rgba(var(--ps-accent-rgb), 0.75) !important;
+  color: #ECFEFF !important;
+  font-weight: 600;
+  box-shadow: 0 0 1.6dvh rgba(var(--ps-accent-rgb), 0.35), inset 0 0 0.9dvh rgba(var(--ps-accent-rgb), 0.18) !important;
+}
+/* The open picker: a row on the panel, name left, control right. */
+#popup-settings-card #popup-column-container-3 > div[id^="popup-column-3-"][style*="display: block"] {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.2dvh;
+  margin-top: 1.2dvh;
+  padding: 0.9dvh 0.9dvh 0.9dvh 1.6dvh;
+  min-height: 0;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  box-shadow: inset 0 0.12dvh 0.25dvh rgba(0, 0, 0, 0.35);
+}
+#popup-settings-card #popup-column-container-3 > div[id^="popup-column-3-"]::after {
+  content: none;
+}
+#popup-settings-card #popup-column-container-3 input[type="color"],
+#popup-settings-card #popup-column-3-font > div {
+  float: none;
+}
+#popup-settings-card #popup-column-container-3 input[type="color"] {
+  width: 4.4dvh !important;
+  height: 4.4dvh !important;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0.35dvh !important;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 0.25dvh rgba(0, 0, 0, 0.25);
+}
+#popup-settings-card #popup-font-size {
+  width: 10dvh !important;
+  height: 4.4dvh !important;
+  min-height: 36px;
+  text-align: center;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+#popup-settings-card #popup-font-size:focus {
+  outline: none;
+  border-color: rgba(34, 211, 238, 0.7);
+}
+
+/* Landscape: the edit box heads the left column, above Colors, instead
+   of trailing below it; the arrows keep the full right column. */
+@media (orientation: landscape) {
+  #popup-settings-side {
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+  #popup-settings-card #popup-settings-editbox {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+    margin: 0 0 calc(var(--u) * 0.8);
+  }
+  #popup-settings-colors {
+    grid-row: 3;
+  }
+  #popup-settings-tools {
+    grid-row: 2 / -1;
   }
 }

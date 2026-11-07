@@ -387,7 +387,7 @@ const MEDIA_MODE_KEY = 'meritocracy-media-mode';
 const LENGTH_MODE_KEY = 'meritocracy-length-mode';
 let popupSettingsTarget = null;
 let popupSettingsBound = false;
-// The gear that opened settings (popupSettingsGear), for placeSettingsBack.
+// The gear that opened settings (popupSettingsGear), for placeSettingsHead.
 let popupSettingsGearEl = null;
 let popupDeleteBusy = false;
 
@@ -898,12 +898,16 @@ function syncSettingsOpen() {
   });
 }
 
-// The settings ‹ takes the place and size of the gear that opened it, so
-// the press that opened settings is where it closes again. The gear's box
-// (in the post popup, still laid out under the card) is copied onto the ‹,
-// again after a resize. With no gear on screen (Forward into settings
-// with the popup gone) the ‹ keeps its CSS place.
-const SETTINGS_BACK_PROPS = ['top', 'left', 'width', 'height', 'min-width', 'min-height'];
+// The settings header is the post popup's own top row, so the press that
+// opened settings is where it closes again: the ‹ takes the place and size
+// of the gear that opened it, the trash the ×'s seat, and the pencil the
+// seat left of the × (the ← back to the feed, when that is showing), all
+// at the gear's size; the title's text sits on the same line. The popup
+// is still laid out under the card (its × and ← only turn invisible), so
+// its boxes are read again after a resize. With no gear on screen
+// (Forward into settings with the popup gone) everything keeps its CSS
+// place.
+const SETTINGS_HEAD_PROPS = ['top', 'left', 'right', 'width', 'height', 'min-width', 'min-height'];
 function settingsGearOnScreen() {
   const usable = (gear) => !!gear && gear.isConnected
     && !gear.closest('#popup-settings-card, #popup-settings-preview, #draw-column')
@@ -912,59 +916,112 @@ function settingsGearOnScreen() {
   return [...document.querySelectorAll('.maplibregl-popup .popup-settings-gear')].find(usable) || null;
 }
 
-function placeSettingsBack() {
-  const card = document.getElementById('popup-settings-card');
-  const back = card && card.querySelector(':scope > .comments-back-button');
-  if (!back) return;
-  // The keyboard pins the card to the visible area (keyboardlayout.js);
-  // the ‹ keeps its place in the card until that ends.
-  if (card.dataset.kbPin === '1') return;
-  const icon = back.querySelector('svg');
-  const gear = card.style.display === 'block' ? settingsGearOnScreen() : null;
-  if (!gear) {
-    for (const prop of SETTINGS_BACK_PROPS) back.style.removeProperty(prop);
-    if (icon) {
-      icon.style.removeProperty('width');
-      icon.style.removeProperty('height');
-    }
-    return;
-  }
-  // Sizes from layout: the press squeeze and the icon's spin are
-  // transforms, and only the centre of the box is read, which they keep.
-  const g = gear.getBoundingClientRect();
-  const w = gear.offsetWidth || g.width;
-  const h = gear.offsetHeight || g.height;
-  // Where the ‹'s left/top count from. Portrait: the card's padding box.
-  // Landscape: the right column's grid area (style.css grid-column: 2).
-  // Read off the ‹ itself, so either one, and the card's scroll, hold.
-  const b = back.getBoundingClientRect();
-  if (!(b.width > 0)) return;
-  const bs = getComputedStyle(back);
-  const bw = back.offsetWidth || b.width;
-  const bh = back.offsetHeight || b.height;
-  const originX = b.left + b.width / 2 - bw / 2 - (parseFloat(bs.left) || 0) - (parseFloat(bs.marginLeft) || 0);
-  const originY = b.top + b.height / 2 - bh / 2 - (parseFloat(bs.top) || 0) - (parseFloat(bs.marginTop) || 0);
-  const top = g.top + g.height / 2 - h / 2 - originY;
-  const left = g.left + g.width / 2 - w / 2 - originX;
-  const set = (prop, px) => back.style.setProperty(prop, px.toFixed(2) + 'px', 'important');
-  set('top', top);
-  set('left', left);
-  for (const prop of ['width', 'min-width']) set(prop, w);
-  for (const prop of ['height', 'min-height']) set(prop, h);
-  // The chevron at the gear icon's size.
-  const glyph = gear.querySelector('svg');
-  if (icon && glyph && glyph.clientWidth > 0) {
-    icon.style.setProperty('width', glyph.clientWidth + 'px', 'important');
-    icon.style.setProperty('height', glyph.clientHeight + 'px', 'important');
+function clearSettingsSeat(el) {
+  if (!el) return;
+  for (const prop of SETTINGS_HEAD_PROPS) el.style.removeProperty(prop);
+  const icon = el.querySelector('svg');
+  if (icon) {
+    icon.style.removeProperty('width');
+    icon.style.removeProperty('height');
   }
 }
 
-let settingsBackFrame = 0;
-function queueSettingsBack() {
-  if (settingsBackFrame) return;
-  settingsBackFrame = requestAnimationFrame(() => {
-    settingsBackFrame = 0;
-    placeSettingsBack();
+// Centre el on (cx, cy) at w × h, the icon at iw × ih. Its left/top count
+// from its own containing block (portrait: the card's padding box;
+// landscape: a grid area), read off el itself, so either one and the
+// card's scroll hold. Sizes come from layout: the press squeeze and the
+// gear's spin are transforms, and only box centres are read.
+function seatSettingsButton(el, cx, cy, w, h, iw, ih) {
+  if (!el) return;
+  const b = el.getBoundingClientRect();
+  if (!(b.width > 0)) return;
+  const s = getComputedStyle(el);
+  const bw = el.offsetWidth || b.width;
+  const bh = el.offsetHeight || b.height;
+  const originX = b.left + b.width / 2 - bw / 2 - (parseFloat(s.left) || 0) - (parseFloat(s.marginLeft) || 0);
+  const originY = b.top + b.height / 2 - bh / 2 - (parseFloat(s.top) || 0) - (parseFloat(s.marginTop) || 0);
+  const set = (prop, value) => el.style.setProperty(prop, value, 'important');
+  set('top', (cy - h / 2 - originY).toFixed(2) + 'px');
+  set('left', (cx - w / 2 - originX).toFixed(2) + 'px');
+  set('right', 'auto');
+  set('width', w + 'px');
+  set('min-width', w + 'px');
+  set('height', h + 'px');
+  set('min-height', h + 'px');
+  const icon = el.querySelector('svg');
+  if (icon && iw > 0) {
+    icon.style.setProperty('width', iw + 'px', 'important');
+    icon.style.setProperty('height', ih + 'px', 'important');
+  }
+}
+
+function placeSettingsHead() {
+  const card = document.getElementById('popup-settings-card');
+  if (!card) return;
+  const back = card.querySelector(':scope > .comments-back-button');
+  const edit = document.getElementById('popup-settings-edit');
+  const trash = document.getElementById('popup-settings-delete');
+  const title = card.querySelector('.options-column-title');
+  // The keyboard pins the card to the visible area (keyboardlayout.js);
+  // the row keeps its place in the card until that ends.
+  if (card.dataset.kbPin === '1') return;
+  const gear = card.style.display === 'block' ? settingsGearOnScreen() : null;
+  if (!gear) {
+    for (const el of [back, edit, trash]) clearSettingsSeat(el);
+    if (title) {
+      title.style.removeProperty('margin-top');
+      title.style.removeProperty('translate');
+    }
+    return;
+  }
+  const g = gear.getBoundingClientRect();
+  const w = gear.offsetWidth || g.width;
+  const h = gear.offsetHeight || g.height;
+  const cy = g.top + g.height / 2;
+  const glyph = gear.querySelector('svg');
+  const iw = glyph ? glyph.clientWidth : 0;
+  const ih = glyph ? glyph.clientHeight : 0;
+  seatSettingsButton(back, g.left + g.width / 2, cy, w, h, iw, ih);
+  const content = gear.closest('.maplibregl-popup-content');
+  const shown = (el) => {
+    const r = el && el.getBoundingClientRect();
+    return r && r.width > 0 ? r : null;
+  };
+  const close = shown(content && content.querySelector(':scope > .maplibregl-popup-close-button:not(.feed-map-back):not(.comments-back-button)'));
+  if (close) {
+    const closeX = close.left + close.width / 2;
+    seatSettingsButton(trash, closeX, cy, w, h, iw, ih);
+    const feedBack = shown(content.querySelector(':scope > .maplibregl-popup-close-button.feed-map-back'));
+    const editX = feedBack ? feedBack.left + feedBack.width / 2 : closeX - close.width - w * 0.12;
+    seatSettingsButton(edit, editX, cy, w, h, iw, ih);
+  } else {
+    clearSettingsSeat(trash);
+    clearSettingsSeat(edit);
+  }
+  // The title's text on the row's line: by its own margin, so what is
+  // under it moves with it, or (landscape) by translate, since a sticky
+  // title at top: 0 cannot be pulled above the top by a margin.
+  if (title) {
+    title.style.removeProperty('margin-top');
+    title.style.removeProperty('translate');
+    const range = document.createRange();
+    range.selectNodeContents(title);
+    const text = range.getBoundingClientRect();
+    if (text.height > 0) {
+      const ts = getComputedStyle(title);
+      const shift = cy - (text.top + text.height / 2);
+      if (ts.position === 'sticky') title.style.setProperty('translate', '0 ' + shift.toFixed(2) + 'px', 'important');
+      else title.style.setProperty('margin-top', ((parseFloat(ts.marginTop) || 0) + shift).toFixed(2) + 'px', 'important');
+    }
+  }
+}
+
+let settingsHeadFrame = 0;
+function queueSettingsHead() {
+  if (settingsHeadFrame) return;
+  settingsHeadFrame = requestAnimationFrame(() => {
+    settingsHeadFrame = 0;
+    placeSettingsHead();
   });
 }
 
@@ -1010,7 +1067,7 @@ function bindPopupSettings() {
   if (card) new MutationObserver(syncSettingsOpen).observe(card, { attributes: true, attributeFilter: ['style'] });
   // The popup refits on a resize or a turn; the ‹ follows its gear.
   const followGear = () => {
-    if (card && card.style.display === 'block') queueSettingsBack();
+    if (card && card.style.display === 'block') queueSettingsHead();
   };
   window.addEventListener('resize', followGear);
   if (window.visualViewport) window.visualViewport.addEventListener('resize', followGear);
@@ -1088,7 +1145,7 @@ window.openPopupSettings = function(target) {
       syncSettingsOpen();
       refitPopups();
       // After the refit, so the gear is measured where it now sits.
-      queueSettingsBack();
+      queueSettingsHead();
       removeUfoModel();
     }
   });
