@@ -287,6 +287,8 @@ document.addEventListener('keydown', (e) => {
 //   TOP LEFT is the north west corner, BOTTOM RIGHT the south east.
 // The bar's ×, Escape and Back go back to the form with nothing changed.
 // Pan and zoom still work while picking; markers let taps through.
+// The map starts clean: markers, clusters and polygons step out of the way
+// (setPostsShown), and the bar's eye button brings them back on demand.
 const PICK_FIELDS = {
   marker: ['input-field-2-3'],
   polygon: ['input-field-3-3', 'input-field-3-5'],
@@ -302,6 +304,58 @@ const PICK_PIN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
   + '<circle cx="12" cy="10" r="3"/></svg>';
 let pick = null; // { kind, steps: [field id], index, values: { id: loc } }
 let pickBar = null;
+// Polygon picture layers hidden for the pick, with the visibility each had
+// (the Visibility panel can already have polygons off; that is kept).
+const POST_LAYER = /-image-layer$/;
+let hiddenPostLayers = null;
+const EYE_ICON = '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>';
+const EYE_OFF_ICON = '<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/>';
+
+// A polygon that loads during the pick stays out of the way too.
+function onPickStyle() {
+  if (pick && !postsShown()) hidePostLayers();
+}
+
+function postsShown() {
+  return document.documentElement.classList.contains('is-pick-posts');
+}
+
+function hidePostLayers() {
+  if (!hiddenPostLayers) hiddenPostLayers = new Map();
+  const style = map.getStyle && map.getStyle();
+  for (const layer of (style && style.layers) || []) {
+    if (!POST_LAYER.test(layer.id) || hiddenPostLayers.has(layer.id)) continue;
+    const before = map.getLayoutProperty(layer.id, 'visibility') || 'visible';
+    hiddenPostLayers.set(layer.id, before);
+    if (before !== 'none') map.setLayoutProperty(layer.id, 'visibility', 'none');
+  }
+}
+
+function restorePostLayers() {
+  if (!hiddenPostLayers) return;
+  for (const [id, before] of hiddenPostLayers) {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', before);
+  }
+  hiddenPostLayers = null;
+}
+
+// Markers, clusters and the polygon play buttons hide by CSS
+// (html.is-draw-picking without .is-pick-posts); polygon pictures are map
+// layers, so they are switched here.
+function setPostsShown(show) {
+  document.documentElement.classList.toggle('is-pick-posts', show);
+  if (show) restorePostLayers();
+  else hidePostLayers();
+  const btn = pickBar && pickBar.querySelector('.draw-pick-posts');
+  if (!btn) return;
+  const label = show ? 'Hide markers and polygons' : 'Show markers and polygons';
+  btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+  btn.setAttribute('aria-label', label);
+  btn.title = label;
+  btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + (show ? EYE_ICON : EYE_OFF_ICON) + '</svg>';
+}
 
 function lngLatText(loc) {
   return `${loc.lng.toFixed(5)},${loc.lat.toFixed(5)}`;
@@ -318,7 +372,7 @@ function readLngLat(text) {
 
 function pickPrompt() {
   if (!pick) return '';
-  if (pick.kind === 'marker') return 'Tap the map to place the marker';
+  if (pick.kind === 'marker') return 'Tap to place the marker';
   const id = pick.steps[pick.index];
   const second = pick.index > 0;
   if (id === 'input-field-3-3') return second ? 'Now tap the top left corner' : 'Tap the top left corner';
@@ -345,7 +399,15 @@ function paintPickBar() {
       event.stopPropagation();
       endPick(false);
     });
-    pickBar.append(icon, text, cancel);
+    const posts = document.createElement('button');
+    posts.type = 'button';
+    posts.className = 'draw-pick-posts';
+    posts.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setPostsShown(!postsShown());
+    });
+    pickBar.append(icon, text, posts, cancel);
     pickBar.addEventListener('click', (event) => event.stopPropagation());
     document.body.appendChild(pickBar);
   }
@@ -389,6 +451,8 @@ function startPick(kind, fieldId) {
   if (document.activeElement && typeof document.activeElement.blur === 'function') document.activeElement.blur();
   document.documentElement.classList.add('is-draw-picking');
   paintPickBar();
+  setPostsShown(false);
+  map.on('styledata', onPickStyle);
   framePickFields(kind);
   if (window.layerOpened) window.layerOpened('drawpick');
 }
@@ -444,7 +508,9 @@ function endPick(done, { fromHistory = false } = {}) {
   pick = null;
   clearDrawPreview();
   pressLoc = null;
-  document.documentElement.classList.remove('is-draw-picking');
+  map.off('styledata', onPickStyle);
+  restorePostLayers();
+  document.documentElement.classList.remove('is-draw-picking', 'is-pick-posts');
   if (pickBar) pickBar.hidden = true;
   if (!fromHistory && window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen('drawpick')) {
     window.layerClosedByUI('drawpick');
