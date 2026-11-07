@@ -23,6 +23,7 @@ import { applyAllStyles, paintEarlyProfile } from './loadprofilepopup.js';
 import { scene } from './threejs.js';
 import { profilePictures, usernames, click2url, loadTopicBio, profileTopics } from './loadalladata.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
+import { openPopupText } from './popuptext.js';
 import { consensusOf } from './donationmath.js';
 import { noteVisibleDonation } from './donations.js';
 import { paintProfileStats } from './profilestats.js';
@@ -3098,7 +3099,10 @@ function buildCard(post) {
 }
 
 // One class write, one overflow read, then the buttons. A height read
-// between the two class changes lays out every caption twice.
+// between the two class changes lays out every caption twice. Show more
+// opens the whole text on its own full-screen page, the same page as the
+// map popup's Show more (popuptext.js); the card stays clamped under it.
+// The text is read off the caption when tapped, so an edit is followed.
 function clampPending() {
   const pending = [...column.querySelectorAll('.popup-text-bubble[data-clamp="1"]')];
   for (const text of pending) {
@@ -3117,10 +3121,13 @@ function clampPending() {
     more.type = 'button';
     more.className = 'feed-more';
     more.textContent = 'Show more';
+    more.setAttribute('aria-haspopup', 'dialog');
     more.addEventListener('click', (event) => {
       event.stopPropagation();
-      const clamped = text.classList.toggle('is-clamped');
-      more.textContent = clamped ? 'Show more' : 'Show less';
+      holdScroll();
+      const card = text.closest('.feed-card');
+      const title = card && card.querySelector('.popup-title-bubble');
+      openPopupText({ text: text.textContent, title: title ? title.textContent : '', from: text, opener: more });
     });
     text.after(more);
   }

@@ -377,9 +377,12 @@ function showPage(state) {
   pageBack.focus({ preventScroll: true, focusVisible: false });
 }
 
-// Who wrote it, read off the popup the text came from.
+// Who wrote it, read off the popup or feed card the text came from. A feed
+// card with a picture has its own inner .popup-sheet without the author,
+// so the card is looked for first.
 function authorOf(from) {
-  const sheet = from && from.closest ? from.closest('.popup-sheet, .maplibregl-popup-content') : null;
+  if (!from || !from.closest) return null;
+  const sheet = from.closest('.feed-card') || from.closest('.popup-sheet, .maplibregl-popup-content');
   if (!sheet) return null;
   const profile = sheet.querySelector('.popup-profile-bubble');
   if (!profile) return null;
@@ -390,7 +393,9 @@ function authorOf(from) {
   if (!/^(https?:|data:image\/|blob:)/i.test(picture)) picture = '';
   const name = singleLine(profile.querySelector('.username') && profile.querySelector('.username').textContent);
   const account = singleLine(profile.querySelector('.payer-info') && profile.querySelector('.payer-info').textContent);
-  const time = singleLine(sheet.querySelector('.popup-timestamp') && sheet.querySelector('.popup-timestamp').textContent);
+  // A feed card's time has a long and a short form; the long one.
+  const stamp = sheet.querySelector('.feed-time-full') || sheet.querySelector('.popup-timestamp');
+  const time = singleLine(stamp && stamp.textContent);
   if (!name && !account) return null;
   return { picture, name, account, time };
 }

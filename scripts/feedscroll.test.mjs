@@ -185,7 +185,10 @@ test("caption clamp measures after the class write and only when cards are added
   const dropAt = body.indexOf("classList.remove('is-clamped')");
   const moreAt = body.indexOf("textContent = 'Show more'");
   assert.ok(addAt > 0 && readAt > addAt && dropAt > readAt && moreAt > readAt);
-  assert.match(body, /Show less/);
+  // Show more opens the full-screen text page, as in the popups; the card
+  // stays clamped (no inline Show less).
+  assert.match(body, /openPopupText\(/);
+  assert.doesNotMatch(body, /Show less/);
   for (const name of ["function renderThrough", "function fillUp", "function frameFillUp", "function prependAbove", "function mountIncoming", "function frameReveal"]) {
     const at = src.indexOf(name);
     const next = src.indexOf("\nfunction ", at + name.length);
