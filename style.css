@@ -21334,3 +21334,234 @@ html.is-draw-picking #map-topbar {
     grid-row: 2 / -1;
   }
 }
+
+/* ── Posts on one spot (marker.js stackOverlaps, markerstack.js) ───────
+   The bubble is the cluster bubble with a second ring offset behind it,
+   so it reads as "stacked here" rather than "zoom in". */
+.cluster-bubble.is-stack .cluster-face {
+  box-shadow:
+    0 0 10px rgba(34, 211, 238, 0.35),
+    3px 3px 0 -1px rgba(15, 23, 42, 0.92),
+    3px 3px 0 0 rgba(34, 211, 238, 0.55);
+}
+
+/* The dropdown under (or above) the bubble: a search box and the posts. */
+.marker-stack {
+  position: fixed;
+  z-index: 1006;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  background: rgba(10, 12, 20, 0.94);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.18), 0 12px 32px rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  transform-origin: top center;
+  animation: markerStackIn 140ms ease-out;
+}
+.marker-stack.is-above {
+  transform-origin: bottom center;
+}
+.marker-stack[hidden] {
+  display: none;
+}
+@keyframes markerStackIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marker-stack { animation: none; }
+}
+.marker-stack-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 8px 14px;
+}
+.marker-stack-count {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+}
+.marker-stack-close {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.10);
+  color: #fff;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.marker-stack-close svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  pointer-events: none;
+}
+.marker-stack-close:active {
+  background: #22D3EE;
+  border-color: #22D3EE;
+  color: #083344;
+}
+@media (hover: hover) and (pointer: fine) {
+  .marker-stack-close:hover {
+    background: #22D3EE;
+    border-color: #22D3EE;
+    color: #083344;
+  }
+}
+.marker-stack-search {
+  position: relative;
+  display: block;
+  margin: 0 10px 8px;
+}
+.marker-stack-search::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'/><path d='m21 21-4.3-4.3'/></svg>") center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'/><path d='m21 21-4.3-4.3'/></svg>") center / contain no-repeat;
+  pointer-events: none;
+}
+.marker-stack-search input {
+  display: block;
+  width: 100%;
+  height: 40px;
+  margin: 0;
+  padding: 0 14px 0 36px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  caret-color: #22D3EE;
+  touch-action: manipulation;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.marker-stack-search input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+.marker-stack-search input:focus {
+  outline: none;
+  border-color: rgba(34, 211, 238, 0.7);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.15);
+}
+.marker-stack-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 6px 8px;
+}
+/* The app-wide touch-action: none would stop a finger scroll here. */
+.marker-stack-list,
+.marker-stack-list * {
+  touch-action: pan-y;
+}
+.marker-stack-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  margin: 0;
+  padding: 7px 8px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.marker-stack-row[hidden] {
+  display: none;
+}
+.marker-stack-row:active,
+.marker-stack-row:focus-visible {
+  outline: none;
+  background: rgba(34, 211, 238, 0.14);
+  border-color: rgba(34, 211, 238, 0.45);
+}
+@media (hover: hover) and (pointer: fine) {
+  .marker-stack-row:hover {
+    background: rgba(255, 255, 255, 0.07);
+  }
+}
+.marker-stack-pic {
+  flex: none;
+  display: block;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-sizing: border-box;
+}
+.marker-stack-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.marker-stack-title,
+.marker-stack-meta,
+.marker-stack-text {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.marker-stack-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+.marker-stack-meta {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+.marker-stack-text {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+}
+.marker-stack-empty {
+  padding: 14px 14px 18px;
+  text-align: center;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+}
+.marker-stack-empty[hidden] {
+  display: none;
+}

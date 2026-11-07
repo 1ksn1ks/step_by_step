@@ -20,6 +20,7 @@ import { watchMarkerTilt, forgetMarkerTilt } from './markertilt.js';
 import { fillMapTip } from './maptip.js';
 import { isPointerOnGlobe } from './onglobe.js';
 import { forgetLoop, pictureElement } from './loopmedia.js';
+import { closeMarkerStack, isMarkerStackOpenFor, openMarkerStack } from './markerstack.js';
 
 
 
@@ -205,9 +206,134 @@ function bindMarkerTitle(el) {
 const keptMarkers = new Map();
 
 function markerFeatureKey(cluster) {
+  if (cluster.stack) return 's:' + markerFeatureKey(cluster.leaves[0]);
   if (cluster.properties.cluster) return 'c' + cluster.properties.cluster_id;
   const num = cluster.msgNumber != null ? cluster.msgNumber : '';
   return `p:${cluster.topicId || ''}:${cluster.payer || ''}:${num}:${topicPointKey(cluster.geometry.coordinates)}`;
+}
+
+// Dots on one spot. Past the cluster zoom (index maxZoom) every post is its
+// own dot, and dots closer than STACK_OVERLAP of a dot's width cover each
+// other, so only the top one could be tapped. Those draw as one bubble with
+// their count, like a cluster, and a tap lists them (markerstack.js); they
+// split again as zooming in pulls them apart. Clusters pass through.
+const STACK_OVERLAP = 0.6;
+function stackOverlaps(features) {
+  const reach = (currentMarkerSize / 100) * window.innerHeight * STACK_OVERLAP;
+  const reach2 = reach * reach;
+  const out = [];
+  const spots = [];
+  for (const f of features) {
+    if (f.properties && f.properties.cluster) {
+      out.push(f);
+      continue;
+    }
+    let p = null;
+    try { p = map.project(f.geometry.coordinates); } catch { p = null; }
+    if (!p) {
+      out.push(f);
+      continue;
+    }
+    let home = null;
+    for (const spot of spots) {
+      const dx = spot.x - p.x;
+      const dy = spot.y - p.y;
+      if (dx * dx + dy * dy <= reach2) {
+        home = spot;
+        break;
+      }
+    }
+    if (home) home.leaves.push(f);
+    else spots.push({ x: p.x, y: p.y, leaves: [f] });
+  }
+  for (const spot of spots) {
+    if (spot.leaves.length === 1) {
+      out.push(spot.leaves[0]);
+      continue;
+    }
+    out.push({
+      type: 'Feature',
+      stack: true,
+      leaves: spot.leaves,
+      properties: {
+        cluster: false,
+        stack: true,
+        point_count: spot.leaves.length,
+        point_count_abbreviated: String(spot.leaves.length),
+      },
+      geometry: { type: 'Point', coordinates: spot.leaves[0].geometry.coordinates },
+    });
+  }
+  return out;
+}
+
+// A cluster whose posts all lie within this of each other cannot be split
+// by zooming either: its tap lists them instead.
+const SAME_SPOT_M = 5;
+function withinMeters(features, meters) {
+  const [lng0, lat0] = features[0].geometry.coordinates;
+  const k = Math.cos((lat0 * Math.PI) / 180);
+  for (const f of features) {
+    const [lng, lat] = f.geometry.coordinates;
+    let dLng = lng - lng0;
+    if (dLng > 180) dLng -= 360;
+    if (dLng < -180) dLng += 360;
+    const dx = dLng * k * 111320;
+    const dy = (lat - lat0) * 110540;
+    if (dx * dx + dy * dy > meters * meters) return false;
+  }
+  return true;
+}
+
+function makeMarkerPopup() {
+  const popup = new maplibregl.Popup({ focusAfterOpen: false });
+  popup.on('close', () => {
+    changePopupState(false);
+    if (currentUfoModelInGLTF) {
+      scene.add(currentUfoModelInGLTF);
+      crosshair.style.display = 'block';
+    }
+  });
+  return popup;
+}
+
+// One post's popup: a dot's tap, or a pick from a spot's list.
+function openFeaturePopup(feature, popup) {
+  hideMarkerTitle();
+  const node = markerPopupNode(feature.properties, feature);
+  if (!node) return;
+  activePolygonPopups.forEach((p) => p.remove());
+  activeMarkerPopups.forEach((p) => p.remove());
+  activeMarkerPopups.push(popup);
+  CloseALL();
+  closeDrawAnchor();
+  closePressAnchor(); // a marker popup replaces the 🗺/📡 pin too
+  popup.setLngLat(feature.geometry.coordinates).addTo(map).setDOMContent(node);
+  animateMapTo(map, feature.geometry.coordinates, null);
+  applyAllStyles();
+  changePopupState(true);
+  if (currentUfoModelInGLTF) {
+    scene.remove(currentUfoModelInGLTF);
+    crosshair.style.display = 'none';
+  }
+}
+
+// Picks from a list share one popup: those posts have no dot of their own.
+let stackPickPopup = null;
+function toggleSpotList(entry, leaves) {
+  if (isMarkerStackOpenFor(entry.el)) {
+    closeMarkerStack();
+    return;
+  }
+  hideMarkerTitle();
+  activePolygonPopups.forEach((p) => p.remove());
+  activeMarkerPopups.forEach((p) => p.remove());
+  closeDrawAnchor();
+  closePressAnchor();
+  openMarkerStack(entry.el, leaves, (feature) => {
+    if (!stackPickPopup) stackPickPopup = makeMarkerPopup();
+    openFeaturePopup(feature, stackPickPopup);
+  });
 }
 
 function applyMarkerBox(el, isCluster) {
@@ -235,6 +361,7 @@ export function releaseTopicMarkers() {
     try { entry.marker.remove(); } catch { /* already gone */ }
   }
   keptMarkers.clear();
+  closeMarkerStack();
   newExistingMarkers([]);
   lastTopicSig = null;
   hideMarkerTitle();
@@ -295,7 +422,7 @@ function paintMarkerPicture(entry, url) {
 }
 
 function paintMarkerHashinal(entry) {
-  if (!entry || entry.kind === 'cluster') return;
+  if (!entry || entry.kind !== 'point') return;
   const face = entry.face;
   const el = entry.el;
   if (!face || !el) return;
@@ -354,11 +481,13 @@ function syncLiveFace(entry) {
 }
 
 function createKeptMarker(cluster, key) {
-  const isCluster = !!cluster.properties.cluster;
+  const kind = cluster.stack ? 'stack' : cluster.properties.cluster ? 'cluster' : 'point';
+  const isCluster = kind !== 'point';
   const el = document.createElement('div');
   el.className = isCluster ? 'cluster-bubble' : 'marker';
+  if (kind === 'stack') el.classList.add('is-stack');
   applyMarkerBox(el, isCluster);
-  const entry = { key, el, kind: isCluster ? 'cluster' : 'point' };
+  const entry = { key, el, kind };
 
   if (isCluster) {
     entry.cluster = cluster;
@@ -370,14 +499,32 @@ function createKeptMarker(cluster, key) {
     el.appendChild(face);
     entry.face = face;
     watchMarkerTilt(face);
-    el.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const current = entry.cluster;
-      activePolygonPopups.forEach((popup) => popup.remove());
-      activeMarkerPopups.forEach((popup) => popup.remove());
-      const expansionZoom = await index.getClusterExpansionZoom(current.id) + 0.1;
-      animateMapTo(map, current.geometry.coordinates, expansionZoom);
-    });
+    if (kind === 'stack') {
+      entry.leaves = cluster.leaves;
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', `${cluster.leaves.length} posts on this spot`);
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleSpotList(entry, entry.leaves);
+      });
+    } else {
+      el.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const current = entry.cluster;
+        activePolygonPopups.forEach((popup) => popup.remove());
+        activeMarkerPopups.forEach((popup) => popup.remove());
+        const zoomTo = await index.getClusterExpansionZoom(current.id);
+        // Zooming cannot pull posts on one spot apart: list them instead.
+        if (zoomTo > index.options.maxZoom) {
+          const leaves = index.getLeaves(current.id, Infinity);
+          if (leaves.length > 1 && withinMeters(leaves, SAME_SPOT_M)) {
+            toggleSpotList(entry, leaves);
+            return;
+          }
+        }
+        animateMapTo(map, current.geometry.coordinates, zoomTo + 0.1);
+      });
+    }
   } else {
     entry.feature = cluster;
     el._markerPayer = cluster.payer || '';
@@ -396,35 +543,11 @@ function createKeptMarker(cluster, key) {
     entry.pictureUrl = null;
     entry.pictureSeq = 0;
     entry.titleBound = false;
-    const popup = new maplibregl.Popup({ focusAfterOpen: false });
+    const popup = makeMarkerPopup();
     entry.popup = popup;
-    popup.on('close', () => {
-      changePopupState(false);
-      if (currentUfoModelInGLTF) {
-        scene.add(currentUfoModelInGLTF);
-        crosshair.style.display = 'block';
-      }
-    });
     el.addEventListener('click', (e) => {
       e.stopPropagation();
-      hideMarkerTitle();
-      const current = entry.feature;
-      const node = markerPopupNode(current.properties, current);
-      if (!node) return;
-      activePolygonPopups.forEach((popup) => popup.remove());
-      activeMarkerPopups.forEach((popup) => popup.remove());
-      activeMarkerPopups.push(popup);
-      CloseALL();
-      closeDrawAnchor();
-      closePressAnchor(); // a marker popup replaces the 🗺/📡 pin too
-      popup.setLngLat(current.geometry.coordinates).addTo(map).setDOMContent(node);
-      animateMapTo(map, current.geometry.coordinates, null);
-      applyAllStyles();
-      changePopupState(true);
-      if (currentUfoModelInGLTF) {
-        scene.remove(currentUfoModelInGLTF);
-        crosshair.style.display = 'none';
-      }
+      openFeaturePopup(entry.feature, popup);
     });
     syncLiveFace(entry);
     paintMarkerPicture(entry, markerPictureUrl(cluster.properties.imageUrl));
@@ -438,11 +561,15 @@ function createKeptMarker(cluster, key) {
 }
 
 function refreshKeptMarker(entry, cluster) {
-  applyMarkerBox(entry.el, entry.kind === 'cluster');
+  applyMarkerBox(entry.el, entry.kind !== 'point');
   entry.marker.setLngLat(cluster.geometry.coordinates);
   placeKeptMarker(entry);
-  if (entry.kind === 'cluster') {
+  if (entry.kind !== 'point') {
     entry.cluster = cluster;
+    if (entry.kind === 'stack') {
+      entry.leaves = cluster.leaves;
+      entry.el.setAttribute('aria-label', `${cluster.leaves.length} posts on this spot`);
+    }
     const count = String(cluster.properties.point_count_abbreviated);
     if (entry.face && entry.face.textContent !== count) entry.face.textContent = count;
     return;
@@ -476,9 +603,9 @@ export function updateClusters(force = true) {
     if (!Number.isFinite(treeZoom) || !index.trees[treeZoom]) return;
     // Drop points on the far side of the globe — they would project
     // through the sphere onto the visible disc
-    const clusters = index.getClusters(currentBounds, Math.floor(zoom)).filter(
+    const clusters = stackOverlaps(index.getClusters(currentBounds, Math.floor(zoom)).filter(
       (c) => isOnVisibleHemisphere(c.geometry.coordinates)
-    );
+    ));
     // Per-frame viewport path (force=false): re-render only on the exact
     // frame the cluster state changes — otherwise the markers are already
     // at their true coordinates and simply pan/zoom with the map.
@@ -505,7 +632,7 @@ export function updateClusters(force = true) {
       const entry = keptMarkers.get(key);
       if (entry) refreshKeptMarker(entry, cluster);
       else keptMarkers.set(key, createKeptMarker(cluster, key));
-      if (!cluster.properties.cluster) {
+      if (!cluster.properties.cluster && !cluster.stack) {
         unclusteredTopicPoints.add(topicPointKey(cluster.geometry.coordinates));
       }
     }
