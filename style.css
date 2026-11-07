@@ -12764,15 +12764,14 @@ html.feed-app :is(
   color: #22D3EE;
 }
 /* The column menu paints inside #feed-frame. Lift the frame over the
-   full-width bar while that menu is open so the dim still covers it. */
-#feed-layout:has(#feed-menu:not([hidden])) > #feed-frame {
+   full-width bar while that menu is open so the dim still covers it.
+   .has-menu and .has-page come from feedlayout.js (syncShellFlags): as
+   :has() rules on #feed-layout they restyled the whole feed on every
+   marker move. */
+#feed-layout.has-menu > #feed-frame {
   z-index: 5;
 }
-#feed-layout:is(
-  :has(> #feed-profile:not([hidden])),
-  :has(> #feed-chat:not([hidden])),
-  :has(> #feed-settings:not([hidden]))
-) > :is(#feed-toolbar, #feed-tabs) {
+#feed-layout.has-page > :is(#feed-toolbar, #feed-tabs) {
   visibility: hidden;
   pointer-events: none;
 }
@@ -15387,7 +15386,8 @@ html.feed-app #feed-chat.is-load > .feed-chat-bar {
   outline: none;
   box-shadow: inset 0 0 0 2px #22D3EE;
 }
-body:has(#feed-chat.is-load:not([hidden])) #load-options-help-overlay {
+/* html.feed-load-open: feedlayout.js syncShellFlags (was body:has()). */
+html.feed-load-open #load-options-help-overlay {
   position: fixed;
   inset: 0;
   top: 0;
@@ -16063,7 +16063,8 @@ html.feed-app #feed-chat.is-draw > .feed-chat-bar {
   outline: none;
   box-shadow: inset 0 0 0 2px #22D3EE;
 }
-body:has(#feed-chat.is-draw:not([hidden])) #map-draw-help-overlay {
+/* html.feed-draw-open: feedlayout.js syncShellFlags (was body:has()). */
+html.feed-draw-open #map-draw-help-overlay {
   position: fixed;
   inset: 0;
   top: 0;

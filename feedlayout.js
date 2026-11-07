@@ -6785,6 +6785,34 @@ feedChat.addEventListener('click', (event) => event.stopPropagation());
 feedChat.addEventListener('pointerdown', (event) => event.stopPropagation());
 root.appendChild(feedChat);
 
+// Page state as classes, for style.css. These were :has() rules with body
+// and #feed-layout as their subjects. A :has() subject that high makes
+// Chrome restyle everything under it on any style write below it, and
+// MapLibre writes every marker's transform each frame: ~2,800 elements a
+// frame with the feed's cards hidden underneath, so the map crawled while
+// it was shown over the feed (and typing in a chat lagged).
+//   #feed-layout.has-menu   the column menu is open inside the layout
+//   #feed-layout.has-page   a full page covers it: profile, chat, settings
+//   html.feed-load-open     the Load page is open (its help overlay)
+//   html.feed-draw-open     the Draw page is open (its help overlay)
+// Classes change only when a page opens or closes.
+function syncShellFlags() {
+  const chatOpen = !feedChat.hidden;
+  root.classList.toggle('has-menu', !menu.hidden && root.contains(menu));
+  root.classList.toggle('has-page', !profilePage.hidden || chatOpen || !settings.hidden);
+  const shell = document.documentElement.classList;
+  shell.toggle('feed-load-open', chatOpen && feedChat.classList.contains('is-load'));
+  shell.toggle('feed-draw-open', chatOpen && feedChat.classList.contains('is-draw'));
+}
+{
+  const watch = new MutationObserver(syncShellFlags);
+  // The menu changes class whenever it moves between the layout and body.
+  for (const el of [menu, profilePage, feedChat, settings]) {
+    watch.observe(el, { attributes: true, attributeFilter: ['hidden', 'class'] });
+  }
+  syncShellFlags();
+}
+
 let feedChatKind = '';
 let feedChatHome = null;
 let feedChatLeaveGen = 0;
