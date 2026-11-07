@@ -133,10 +133,10 @@ function singleLine(value) {
 
 // Full-screen text page, built on first use. A reading view: a glass bar
 // (back, the post's title, copy) with a reading-progress line, the
-// author as the popup shows them (picture, name, account, time) with an
-// estimate of the reading time, the text on a glass card at a reading
-// size, and an end with the word count and a way back. ↑ returns to the
-// top of a long text.
+// author as the popup shows them (picture, name, account, time) with the
+// reading time once it is 2 minutes or more, the text on a glass card at a
+// reading size between quote marks, and an end with a way back. ↑ returns
+// to the top of a long text.
 let page = null;
 let pageBack = null;
 let pageTitle = null;
@@ -149,7 +149,6 @@ let pageInitial = null;
 let pageName = null;
 let pageMeta = null;
 let pageRead = null;
-let pageWords = null;
 let pageTop = null;
 let lastOpen = null;
 let returnFocus = null;
@@ -227,13 +226,11 @@ function buildPage() {
   dots.className = 'popup-text-page-dots';
   dots.setAttribute('aria-hidden', 'true');
   dots.textContent = '• • •';
-  pageWords = document.createElement('span');
-  pageWords.className = 'popup-text-page-words';
   const done = document.createElement('button');
   done.type = 'button';
   done.className = 'popup-text-page-done';
   done.innerHTML = SVG('<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>') + '<span>Back to post</span>';
-  end.append(dots, pageWords, done);
+  end.append(dots, done);
 
   inner.append(pageAuthor, card, end);
   pageScroll.appendChild(inner);
@@ -348,9 +345,10 @@ function showPage(state) {
     }
   }
   const words = state.text.trim() ? state.text.trim().split(/\s+/).length : 0;
-  const minutes = Math.max(1, Math.round(words / 220));
+  // Under 2 minutes the estimate says nothing; the pill shows from there.
+  const minutes = Math.round(words / 220);
+  pageRead.hidden = minutes < 2;
   pageRead.textContent = `${minutes} min read`;
-  pageWords.textContent = words === 1 ? '1 word' : `${words.toLocaleString()} words`;
   page.hidden = false;
   pageScroll.scrollTop = 0;
   page.classList.remove('is-scrolled');
