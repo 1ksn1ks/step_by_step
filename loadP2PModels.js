@@ -479,7 +479,10 @@ export async function load3dModels() {
     const aAttr = new THREE.InstancedBufferAttribute(aOrbit, 4);
     aAttr.setUsage(THREE.DynamicDrawUsage);
     aAttr.needsUpdate = true;
-    if (inst.aAttr) inst.aAttr.dispose();
+    // A buffer attribute has no dispose() of its own; disposing the
+    // geometry frees every buffer it carries, the old orbit one included,
+    // and the next draw uploads it again with the new one.
+    for (const p of oldParts) p.geo.dispose();
     inst.aAttr = aAttr;
     inst.parts = oldParts.map((p) => {
       p.geo.setAttribute('aOrbit', aAttr);
@@ -839,7 +842,10 @@ export async function load3dModels() {
           p.imesh.dispose();
           p.geo.dispose(); // per-instance clone (the shared group geos stay cached)
         }
-        if (inst.aAttr) { inst.aAttr.dispose(); inst.aAttr = null; }
+        // The orbit buffer went with the geometries above: a buffer
+        // attribute has no dispose() (it threw here, which left the
+        // Visibility switch on after the models were gone).
+        inst.aAttr = null;
         inst.parts = [];
         inst.loaded = false;
       }

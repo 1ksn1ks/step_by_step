@@ -11,22 +11,25 @@ async function updateMapLayer() {
 }
 
 
+// The switch reads the value spans (feedlayout.js syncVisRow), and the
+// label stays "Show 3D models", like the markers and polygons rows. The
+// state follows the map even if the layer's own cleanup throws.
 document.getElementById("toggle-3d-model-visibility").addEventListener("click", async function() {
-    const button = this;
     const visibilityValue = document.getElementById("3d-model-visibility-value");
     const visibilityValue2 = document.getElementById("3d-model-visibility-value2");
+    const paint = (on) => {
+        visibilityValue.textContent = on ? "On" : "Off";
+        visibilityValue2.textContent = on ? "On" : "Off";
+    };
 
-    if (visibilityValue.textContent === "Off") {
+    if (visibilityValue.textContent.trim() === "Off") {
         await updateMapLayer(); // Show 3D models
-        visibilityValue.textContent = "On";
-        visibilityValue2.textContent = "On";
-        button.textContent = "Hide 3D models";
-    } else {
-        if (map.getLayer('3d-model')) {
-            map.removeLayer('3d-model'); // Hide 3D models
-        }
-        visibilityValue.textContent = "Off";
-        visibilityValue2.textContent = "Off";
-        button.textContent = "Show 3D models";
+        paint(true);
+        return;
+    }
+    try {
+        if (map.getLayer('3d-model')) map.removeLayer('3d-model'); // Hide 3D models
+    } finally {
+        paint(!!map.getLayer('3d-model'));
     }
 });
