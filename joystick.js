@@ -140,6 +140,11 @@ function getSpeedMultiplier() {
 }
 
 export function handleMovement() {
+  // This runs every animation frame. With no movement key held there is
+  // nothing to do, and the panel check below calls getComputedStyle on
+  // dozens of panels, which forced a style pass every frame while the
+  // map moved (MapLibre restyles its markers each frame).
+  if (!Object.values(keys).some(Boolean)) return;
 
   const isBlocked = [
     ...everythinginsideyourfov,

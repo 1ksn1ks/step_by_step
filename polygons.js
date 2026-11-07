@@ -140,7 +140,18 @@ function rasterize(source, sw, sh, maxWidth, maxHeight) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL('image/jpeg', 0.92);
+  // toBlob encodes the JPEG off the main thread. toDataURL encoded it on
+  // it: each cover held the map still for a moment, and the map coming back
+  // from the feed (or a pick) started many at once, so panning stuttered.
+  // A tainted canvas still throws here, at once, as toDataURL did, so the
+  // caller's one retry on the fallback keeps working.
+  let settle = null;
+  const done = new Promise((resolve, reject) => { settle = { resolve, reject }; });
+  canvas.toBlob((blob) => {
+    if (blob) settle.resolve(URL.createObjectURL(blob));
+    else settle.reject(new Error('cover encode'));
+  }, 'image/jpeg', 0.92);
+  return done;
 }
 
 function loadElementImage(imageUrl, maxWidth, maxHeight, fallbackUrl) {
@@ -442,6 +453,13 @@ function visPassWork() {
     settleCover(cov, viewer, !!winner && cov.sourceId === winner);
   }
   refreshCoverHolds();
+  // Picking a Draw spot with the polygons put away (drawhere.js): their
+  // covers wait, and load once they are on show again (this pass runs
+  // every second and on each camera stop).
+  if (coversPutAway()) {
+    ensurePump();
+    return;
+  }
   for (const [sid, cov] of [...pendingCovers]) {
     if (coverInView(cov.corners, st)) {
       pendingCovers.delete(sid);
@@ -449,6 +467,12 @@ function visPassWork() {
     }
   }
   ensurePump();
+}
+
+// The Draw pick hides polygon pictures until its eye button shows them.
+function coversPutAway() {
+  const shell = document.documentElement.classList;
+  return shell.contains('is-draw-picking') && !shell.contains('is-pick-posts');
 }
 
 function stopVisTimer() {
@@ -468,7 +492,7 @@ function queueCoverLoad(sourceId, url, corners, kind = 'still') {
   if (old) old.dead = true; // its in-flight fetch must not apply anymore
   pendingCovers.delete(sourceId);
   const cov = { url, corners, kind };
-  if (coverInView(corners, cameraState())) {
+  if (!coversPutAway() && coverInView(corners, cameraState())) {
     startPendingCover(sourceId, cov);
     return;
   }
