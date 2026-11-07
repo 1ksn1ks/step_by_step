@@ -987,13 +987,24 @@ const MEDIA_FULL_ICON = [
   ['path', { d: 'M16 21h3a2 2 0 0 0 2-2v-3' }],
 ];
 
+// Longest side of a picture's blur fill bitmap. The fill is blurred and
+// dimmed, so a small copy looks the same as a full one.
+const BACKDROP_PX = 96;
+
 // Blur fill, as most feeds do it: the picture is fitted whole in the
 // compact frame and a blurred copy of it fills the rest (style.css
-// .feed-media-backdrop). The copy follows the picture's src, or the
-// video's poster, so a gateway retry or a late poster carries over. It
-// goes after the media, so a lookup of the card's first img still finds
-// the picture.
+// .feed-media-backdrop). It goes after the media, so a lookup of the
+// card's first img still finds the picture.
+//   Picture: a small canvas, painted once from the loaded picture and
+//   again after each load (a gateway retry). A GIF plays in the feed, and
+//   a second img with its address would decode it again and blur every
+//   frame; the canvas holds one still frame and fetches nothing.
+//   Video: an img that follows the poster, so a late poster carries over.
 function mountMediaBackdrop(media, source) {
+  if (source.tagName !== 'VIDEO') {
+    mountPictureBackdrop(source);
+    return;
+  }
   const back = document.createElement('img');
   back.className = 'feed-media-backdrop';
   back.alt = '';
@@ -1002,9 +1013,8 @@ function mountMediaBackdrop(media, source) {
   back.decoding = 'async';
   back.loading = 'lazy';
   back.hidden = true;
-  const attr = source.tagName === 'VIDEO' ? 'poster' : 'src';
   const sync = () => {
-    const url = source.getAttribute(attr) || '';
+    const url = source.getAttribute('poster') || '';
     if (!url) {
       back.hidden = true;
       back.removeAttribute('src');
@@ -1016,9 +1026,66 @@ function mountMediaBackdrop(media, source) {
   back.addEventListener('error', () => {
     back.hidden = true;
   });
-  new MutationObserver(sync).observe(source, { attributes: true, attributeFilter: [attr] });
+  new MutationObserver(sync).observe(source, { attributes: true, attributeFilter: ['poster'] });
   source.after(back);
   sync();
+}
+
+function mountPictureBackdrop(source) {
+  const back = document.createElement('canvas');
+  back.className = 'feed-media-backdrop';
+  back.setAttribute('aria-hidden', 'true');
+  back.hidden = true;
+  let seq = 0;
+  const paint = async () => {
+    const run = ++seq;
+    const w = source.naturalWidth;
+    const h = source.naturalHeight;
+    if (!source.getAttribute('src') || !w || !h) {
+      back.hidden = true;
+      return;
+    }
+    const scale = Math.min(1, BACKDROP_PX / Math.max(w, h));
+    const bw = Math.max(1, Math.round(w * scale));
+    const bh = Math.max(1, Math.round(h * scale));
+    // Scaled off the main thread where the browser can; a cross-origin
+    // picture taints the canvas, which only stops reading it back.
+    let frame = source;
+    if (typeof createImageBitmap === 'function') {
+      try {
+        frame = await createImageBitmap(source, { resizeWidth: bw, resizeHeight: bh, resizeQuality: 'low' });
+      } catch {
+        frame = source;
+      }
+    }
+    if (run !== seq || !source.getAttribute('src')) {
+      if (frame !== source) frame.close();
+      return;
+    }
+    const ctx = back.getContext('2d');
+    try {
+      back.width = bw;
+      back.height = bh;
+      ctx.drawImage(frame, 0, 0, bw, bh);
+      back.hidden = false;
+    } catch {
+      back.hidden = true;
+    }
+    if (frame !== source) frame.close();
+  };
+  source.addEventListener('load', paint);
+  source.addEventListener('error', () => {
+    seq++;
+    back.hidden = true;
+  });
+  // A removed address (a skeleton, a GIF still) hides the fill at once.
+  new MutationObserver(() => {
+    if (source.getAttribute('src')) return;
+    seq++;
+    back.hidden = true;
+  }).observe(source, { attributes: true, attributeFilter: ['src'] });
+  source.after(back);
+  if (source.complete && source.naturalWidth) paint();
 }
 
 // How long the ··· stays after the last touch or mouse move. Chrome's own

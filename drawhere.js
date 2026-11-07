@@ -404,10 +404,11 @@ function framePickFields(kind) {
   const a = readLngLat(document.getElementById('input-field-3-3').value);
   const b = readLngLat(document.getElementById('input-field-3-5').value);
   if (a && b) {
-    map.fitBounds([
-      [Math.min(a.lng, b.lng), Math.min(a.lat, b.lat)],
-      [Math.max(a.lng, b.lng), Math.max(a.lat, b.lat)],
-    ], { padding: 80, duration: 600, maxZoom: 16, essential: true });
+    // Framed the short way round, as the box is drawn (orderCorners): a box
+    // over the 180° line has its east edge past 180 here.
+    const { tl, br } = orderCorners(a, b);
+    const east = br.lng < tl.lng ? br.lng + 360 : br.lng;
+    map.fitBounds([[tl.lng, br.lat], [east, tl.lat]], { padding: 80, duration: 600, maxZoom: 16, essential: true });
   } else if (a || b) {
     const at = a || b;
     map.easeTo({ center: [at.lng, at.lat], duration: 600, essential: true });

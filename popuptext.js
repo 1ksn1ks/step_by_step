@@ -7,6 +7,9 @@ import { paintHashtags } from './hashtag.js';
 
 // bubble -> { host, flow, more, text, title }
 const watched = new WeakMap();
+// An empty bubble (an image-only post) -> { host, title }, kept so an edit
+// that adds text can still start watching it.
+const parked = new WeakMap();
 
 // One observer for every popup bubble. The class change it makes resizes
 // the bubble, so the change waits for the next frame instead of looping
@@ -59,7 +62,11 @@ export function watchPopupText(host, bubble, text, title) {
   if (!host || !bubble || watched.has(bubble)) return;
   // An image-only post keeps an empty bubble; style.css hides it with
   // :empty, which a flow box inside would defeat.
-  if (!bubble.firstChild) return;
+  if (!bubble.firstChild) {
+    parked.set(bubble, { host, title });
+    return;
+  }
+  parked.delete(bubble);
   host.classList.add('popup-msg');
   // The text moves into a flow box so the fade covers only the text and the
   // bubble keeps its border and background.
@@ -86,17 +93,36 @@ export function watchPopupText(host, bubble, text, title) {
 }
 
 // Repaint a popup bubble (an edited post). Keeps the flow box and the
-// full-screen text in step with what is shown.
+// full-screen text in step with what is shown. An edit that empties the
+// text takes the flow box and Show more out again, so the bubble is
+// :empty and collapses; one that adds text to an empty bubble starts
+// watching it.
 export function setPopupText(bubble, text) {
   if (!bubble) return;
   const state = watched.get(bubble);
   if (!state) {
     paintHashtags(bubble, text);
+    const spot = parked.get(bubble);
+    if (spot && bubble.firstChild) watchPopupText(spot.host, bubble, text, spot.title);
     return;
   }
   state.text = String(text || '');
+  if (!state.text) {
+    unwatch(bubble, state);
+    return;
+  }
   paintHashtags(state.flow, state.text);
   queueSync(bubble);
+}
+
+function unwatch(bubble, state) {
+  if (sizes) sizes.unobserve(bubble);
+  queued.delete(bubble);
+  watched.delete(bubble);
+  state.more.remove();
+  state.host.classList.remove('popup-msg', 'is-more');
+  bubble.replaceChildren();
+  parked.set(bubble, { host: state.host, title: state.title });
 }
 
 function singleLine(value) {

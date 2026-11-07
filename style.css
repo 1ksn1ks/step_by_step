@@ -20098,9 +20098,10 @@ img.is-gif-hit {
   background-color: transparent;
 }
 /* The blur fill: the same picture, cropped to cover the frame, blurred and
-   dimmed, under the fitted one. Not drawn in the wide view (no empty
-   sides there) or behind a GIF still (it would animate). */
-:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card > img.feed-media-backdrop {
+   dimmed, under the fitted one. A picture's is a small still canvas, a
+   video's an img of the poster. Not drawn in the wide view (no empty
+   sides there) or behind a GIF still (the picture has no address). */
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card > .feed-media-backdrop {
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -20117,9 +20118,9 @@ img.is-gif-hit {
   transform: scale(1.2);
   pointer-events: none;
 }
-:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card > img.feed-media-backdrop[hidden],
-:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide > img.feed-media-backdrop,
-:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card:has(> canvas.media-still) > img.feed-media-backdrop {
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card > .feed-media-backdrop[hidden],
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide > .feed-media-backdrop,
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card:has(> canvas.media-still) > .feed-media-backdrop {
   display: none;
 }
 /* Wide: full width, the media's own shape, the whole of it in view. A
