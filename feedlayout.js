@@ -573,9 +573,48 @@ const filterTo = document.createElement('input');
 filterTo.id = 'feed-filter-to';
 filterTo.type = 'date';
 filterTo.setAttribute('aria-label', 'To');
+// Country: a field you type in, with the matching countries listed under
+// it. The hidden select stays the value the filter code reads and writes
+// (as the sort select does under its pills).
 const filterCountry = document.createElement('select');
 filterCountry.id = 'feed-filter-country';
-filterCountry.setAttribute('aria-label', 'Country');
+filterCountry.className = 'feed-filter-native';
+filterCountry.tabIndex = -1;
+filterCountry.setAttribute('aria-hidden', 'true');
+const countryBox = document.createElement('div');
+countryBox.className = 'feed-country';
+const countryInput = document.createElement('input');
+countryInput.id = 'feed-filter-country-input';
+countryInput.type = 'text';
+countryInput.className = 'feed-filter-field';
+countryInput.placeholder = 'Any country';
+countryInput.autocomplete = 'off';
+countryInput.spellcheck = false;
+countryInput.setAttribute('autocapitalize', 'off');
+countryInput.setAttribute('autocorrect', 'off');
+countryInput.setAttribute('enterkeyhint', 'done');
+countryInput.setAttribute('role', 'combobox');
+countryInput.setAttribute('aria-label', 'Country');
+countryInput.setAttribute('aria-autocomplete', 'list');
+countryInput.setAttribute('aria-expanded', 'false');
+countryInput.setAttribute('aria-controls', 'feed-country-list');
+const countryClear = document.createElement('button');
+countryClear.type = 'button';
+countryClear.className = 'feed-country-clear';
+countryClear.setAttribute('aria-label', 'Any country');
+countryClear.hidden = true;
+countryClear.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+const countryList = document.createElement('div');
+countryList.id = 'feed-country-list';
+countryList.className = 'feed-country-list';
+countryList.setAttribute('role', 'listbox');
+countryList.setAttribute('aria-label', 'Countries');
+countryList.hidden = true;
+const countryEmpty = document.createElement('div');
+countryEmpty.className = 'feed-country-empty';
+countryEmpty.textContent = 'No country matches';
+countryEmpty.hidden = true;
+countryBox.append(countryInput, countryClear, countryList, countryEmpty);
 function filterField(labelText, control) {
   const row = document.createElement('label');
   row.className = 'feed-filter-row';
@@ -591,12 +630,11 @@ filterBody.className = 'feed-filter-body';
 const filterDates = document.createElement('div');
 filterDates.className = 'feed-filter-dates';
 filterDates.append(filterField('From', filterFrom), filterField('To', filterTo));
-filterCountry.classList.add('feed-filter-field');
 filterBody.append(
   filterSection('Show', [filterHasImage, filterOnlyText, filterMine, filterFollowing, filterWalletHint, filterHashinal, filterComments], 'is-toggles'),
   filterSection('Sort by', [filterSortPills, filterSort]),
   filterSection('Date', [filterDates]),
-  filterSection('Country', [filterCountry]),
+  filterSection('Country', [countryBox, filterCountry]),
 );
 filterCard.append(filterHead, filterBody);
 searchPage.append(searchBar, searchBody, filterBackdrop, filterCard);
@@ -5200,6 +5238,7 @@ function syncFilterControls() {
   if (filterTo.value !== to) filterTo.value = to;
   const country = typeof filters.country === 'string' ? filters.country : '';
   if (filterCountry.value !== country) filterCountry.value = country;
+  paintCountryField();
 }
 
 function syncSearchChrome() {
@@ -9691,7 +9730,9 @@ document.addEventListener('keydown', (event) => {
   if (filterCard.style.display === 'block' && (!window.layerIsTop || window.layerIsTop('feedfilters'))) {
     event.preventDefault();
     event.stopPropagation();
-    closeFilterCard();
+    // An open country list closes first and keeps the chosen country.
+    if (countryBox.classList.contains('is-open')) closeCountryList();
+    else closeFilterCard();
     return;
   }
   if (!searchPage.hidden && (!window.layerIsTop || window.layerIsTop('feedsearch'))) {
@@ -10186,12 +10227,269 @@ const countryBlank = document.createElement('option');
 countryBlank.value = '';
 countryBlank.textContent = 'Any country';
 filterCountry.appendChild(countryBlank);
+
+// ── Country field ──────────────────────────────────────────────────────
+// Tap it: every country, the chosen one in view. Type: the countries that
+// match, best first: the exact code or name ("us", "uk", "uae"), a name
+// that starts with the text, another name that does, a word in the name
+// that starts with it, then the text anywhere in a name. Enter or a tap picks;
+// Escape or leaving the field keeps what was chosen. × goes back to Any.
+function foldCountry(text) {
+  return normPlaceName(text).normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+const countryAliases = new Map(); // code -> folded names
+for (const [name, code] of countryCodeByName) {
+  if (!countryAliases.has(code)) countryAliases.set(code, []);
+  countryAliases.get(code).push(foldCountry(name));
+}
+function countryRowEl(code, name) {
+  const row = document.createElement('div');
+  row.className = 'feed-country-option';
+  row.id = 'feed-country-' + (code || 'any').toLowerCase();
+  row.setAttribute('role', 'option');
+  row.setAttribute('aria-selected', 'false');
+  row.dataset.code = code;
+  const flag = code ? flagImg(code) : null;
+  if (flag) {
+    flag.className = 'feed-country-flag';
+    row.appendChild(flag);
+  } else {
+    const spacer = document.createElement('span');
+    spacer.className = 'feed-country-flag';
+    spacer.setAttribute('aria-hidden', 'true');
+    row.appendChild(spacer);
+  }
+  const label = document.createElement('span');
+  label.className = 'feed-country-name';
+  label.textContent = name;
+  row.appendChild(label);
+  return row;
+}
+const countryAny = { code: '', name: 'Any country', el: countryRowEl('', 'Any country') };
+const countryRows = [];
 for (const [code, name] of [...countryNameByCode.entries()].sort((a, b) => a[1].localeCompare(b[1]))) {
   const opt = document.createElement('option');
   opt.value = code;
   opt.textContent = name;
   filterCountry.appendChild(opt);
+  const label = foldCountry(name);
+  countryRows.push({
+    code,
+    name,
+    label,
+    words: label.split(/[\s,()'-]+/).filter(Boolean),
+    aliases: countryAliases.get(code) || [label],
+    el: countryRowEl(code, name),
+  });
 }
+const countryByEl = new Map([[countryAny.el, countryAny], ...countryRows.map((row) => [row.el, row])]);
+let countryShown = [];
+let countryActive = -1;
+
+function countryRank(row, q) {
+  if (row.code.toLowerCase() === q || row.aliases.includes(q)) return 0;
+  if (row.label.startsWith(q)) return 1;
+  if (row.aliases.some((name) => name.startsWith(q))) return 2;
+  if (row.words.some((word) => word.startsWith(q))) return 3;
+  if (row.aliases.some((name) => name.includes(q))) return 4;
+  return -1;
+}
+
+// The country a finished entry names: a full name, another name, or the code.
+function countryNamed(text) {
+  const q = foldCountry(text);
+  if (!q) return null;
+  return countryRows.find((row) => row.aliases.includes(q) || row.label === q || row.code.toLowerCase() === q) || null;
+}
+
+// The field shows the chosen country unless the list is open for typing.
+function paintCountryField() {
+  const code = filterCountry.value;
+  const name = code ? (countryNameByCode.get(code) || code) : '';
+  if (!countryBox.classList.contains('is-open')) countryInput.value = name;
+  countryClear.hidden = !code;
+  countryBox.classList.toggle('has-value', !!code);
+}
+
+function clearCountryActive() {
+  for (const el of countryList.querySelectorAll('.is-active')) el.classList.remove('is-active');
+  countryActive = -1;
+}
+
+function setCountryActive(index, scroll) {
+  if (countryShown[countryActive]) countryShown[countryActive].el.classList.remove('is-active');
+  countryActive = countryShown.length ? Math.max(0, Math.min(index, countryShown.length - 1)) : -1;
+  const row = countryShown[countryActive];
+  if (!row) {
+    countryInput.removeAttribute('aria-activedescendant');
+    return;
+  }
+  row.el.classList.add('is-active');
+  countryInput.setAttribute('aria-activedescendant', row.el.id);
+  if (!scroll) return;
+  // Only the list scrolls; scrollIntoView would move the sheet as well.
+  const top = row.el.offsetTop;
+  const bottom = top + row.el.offsetHeight;
+  if (scroll === 'center') countryList.scrollTop = top - (countryList.clientHeight - row.el.offsetHeight) / 2;
+  else if (top < countryList.scrollTop) countryList.scrollTop = top;
+  else if (bottom > countryList.scrollTop + countryList.clientHeight) countryList.scrollTop = bottom - countryList.clientHeight;
+}
+
+function paintCountryList(query) {
+  const q = foldCountry(query);
+  const chosen = filterCountry.value;
+  if (!q) {
+    countryShown = [countryAny, ...countryRows];
+  } else {
+    countryShown = countryRows
+      .map((row) => [countryRank(row, q), row])
+      .filter(([rank]) => rank >= 0)
+      .sort((a, b) => a[0] - b[0] || a[1].name.localeCompare(b[1].name))
+      .map(([, row]) => row);
+  }
+  for (const row of countryShown) row.el.setAttribute('aria-selected', row.code === chosen ? 'true' : 'false');
+  clearCountryActive();
+  countryList.replaceChildren(...countryShown.map((row) => row.el));
+  countryList.hidden = countryShown.length === 0;
+  countryEmpty.hidden = countryShown.length > 0;
+  if (q) {
+    countryList.scrollTop = 0;
+    setCountryActive(0, false);
+  } else {
+    setCountryActive(Math.max(0, countryShown.findIndex((row) => row.code === chosen)), 'center');
+  }
+}
+
+function openCountryList() {
+  countryInput.setAttribute('aria-expanded', 'true');
+  countryBox.classList.add('is-open');
+  countryList.hidden = false;
+  paintCountryList('');
+  // The list is the last thing in the sheet: bring it up to the field.
+  requestAnimationFrame(() => {
+    const body = countryBox.closest('.feed-filter-body');
+    if (!body || countryList.hidden) return;
+    const listBox = countryList.getBoundingClientRect();
+    const bodyBox = body.getBoundingClientRect();
+    if (listBox.bottom > bodyBox.bottom) body.scrollTop += listBox.bottom - bodyBox.bottom + 8;
+  });
+}
+
+function closeCountryList() {
+  countryInput.setAttribute('aria-expanded', 'false');
+  countryInput.removeAttribute('aria-activedescendant');
+  countryBox.classList.remove('is-open');
+  clearCountryActive();
+  countryList.hidden = true;
+  countryEmpty.hidden = true;
+  paintCountryField();
+}
+
+function pickCountry(code) {
+  closeCountryList();
+  if (filterCountry.value !== code) {
+    filterCountry.value = code;
+    filterCountry.dispatchEvent(new Event('change'));
+  }
+  paintCountryField();
+}
+
+countryInput.addEventListener('focus', () => {
+  if (!countryBox.classList.contains('is-open')) openCountryList();
+  countryInput.select();
+});
+countryInput.addEventListener('click', () => {
+  if (countryBox.classList.contains('is-open')) return;
+  openCountryList();
+  countryInput.select();
+});
+countryInput.addEventListener('input', () => {
+  if (!countryBox.classList.contains('is-open')) {
+    countryInput.setAttribute('aria-expanded', 'true');
+    countryBox.classList.add('is-open');
+  }
+  paintCountryList(countryInput.value);
+});
+countryInput.addEventListener('keydown', (event) => {
+  const open = countryBox.classList.contains('is-open');
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    if (!open) {
+      openCountryList();
+      return;
+    }
+    setCountryActive(countryActive + (event.key === 'ArrowDown' ? 1 : -1), true);
+  } else if (event.key === 'Enter') {
+    event.preventDefault();
+    if (!open) return;
+    const row = countryShown[countryActive];
+    if (row) pickCountry(row.code);
+    else if (!foldCountry(countryInput.value)) pickCountry('');
+    countryInput.blur(); // a phone drops its keyboard
+  }
+  // Escape: the page's capture handler closes the list first (closeCountryList).
+});
+// Leaving the field: a typed full name (or code) is picked, an emptied
+// field is Any country, anything else keeps the country already chosen.
+countryBox.addEventListener('focusout', () => {
+  setTimeout(() => {
+    if (countryBox.contains(document.activeElement) || !countryBox.classList.contains('is-open')) return;
+    const text = countryInput.value;
+    if (!foldCountry(text)) pickCountry('');
+    else {
+      const named = countryNamed(text);
+      if (named) pickCountry(named.code);
+      else closeCountryList();
+    }
+  }, 0);
+});
+// A press on a row keeps the focus in the field. The row is picked when
+// the finger lifts without having moved, before a phone moves the focus
+// (and this list closes); a drag scrolls the list (pointercancel) instead.
+let countryPress = null;
+function countryRowAt(target) {
+  const el = target && target.closest ? target.closest('.feed-country-option') : null;
+  return el ? countryByEl.get(el) || null : null;
+}
+countryList.addEventListener('pointerdown', (event) => {
+  event.preventDefault();
+  countryPress = event.isPrimary ? { id: event.pointerId, x: event.clientX, y: event.clientY, row: countryRowAt(event.target) } : null;
+});
+countryList.addEventListener('pointermove', (event) => {
+  if (countryPress && countryPress.id === event.pointerId
+    && Math.hypot(event.clientX - countryPress.x, event.clientY - countryPress.y) > 8) countryPress = null;
+});
+countryList.addEventListener('pointercancel', () => { countryPress = null; });
+countryList.addEventListener('pointerup', (event) => {
+  const press = countryPress;
+  countryPress = null;
+  if (!press || press.id !== event.pointerId || !press.row) return;
+  if (countryRowAt(document.elementFromPoint(event.clientX, event.clientY)) !== press.row) return;
+  event.preventDefault();
+  pickCountry(press.row.code);
+  countryInput.blur();
+});
+countryList.addEventListener('mousedown', (event) => event.preventDefault());
+// Assistive tech can click an option without a pointer.
+countryList.addEventListener('click', (event) => {
+  event.stopPropagation();
+  const row = countryRowAt(event.target);
+  if (!row || !countryBox.classList.contains('is-open')) return;
+  pickCountry(row.code);
+  countryInput.blur();
+});
+countryList.addEventListener('pointermove', (event) => {
+  if (event.pointerType !== 'mouse') return;
+  const el = event.target.closest('.feed-country-option');
+  const index = el ? countryShown.findIndex((row) => row.el === el) : -1;
+  if (index >= 0 && index !== countryActive) setCountryActive(index, false);
+});
+countryClear.addEventListener('pointerdown', (event) => event.preventDefault());
+countryClear.addEventListener('click', (event) => {
+  event.stopPropagation();
+  pickCountry('');
+});
+paintCountryField();
 
 placePackListeners.add(() => {
   if (!getQuery().filters.country || !feedOn()) return;

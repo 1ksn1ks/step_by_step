@@ -11346,20 +11346,149 @@ html.feed-app #feed-search-page {
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322D3EE' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4'/%3E%3Cpath d='M8 2v4'/%3E%3Cpath d='M3 10h18'/%3E%3C/svg%3E") center / contain no-repeat;
   cursor: pointer;
 }
-#feed-filter-country.feed-filter-field {
-  appearance: none;
-  padding-right: calc(var(--ff-pad) * 0.8 + 1.3em);
+/* Country: a field you type in (feedlayout.js), the matches listed under
+   it in the sheet. The select under it is hidden and holds the value. */
+#feed-filter-country.feed-filter-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+#feed-filter-card .feed-country {
+  position: relative;
+}
+#feed-filter-country-input.feed-filter-field {
+  padding-right: calc(var(--ff-field-h) * 0.9);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322D3EE' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  cursor: text;
+  -webkit-user-select: text;
+  user-select: text;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322D3EE' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right calc(var(--ff-pad) * 0.8) center;
-  background-size: 0.85em;
+  background-size: 0.95em;
 }
-#feed-filter-country option {
-  background: #11141c;
+#feed-filter-country-input.feed-filter-field::placeholder {
   color: #fff;
+  opacity: 1;
+}
+#feed-filter-card .feed-country.is-open #feed-filter-country-input.feed-filter-field::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+#feed-filter-card .feed-country.has-value:not(.is-open) #feed-filter-country-input.feed-filter-field {
+  background-image: none;
+}
+#feed-filter-card .feed-country-clear {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ff-field-h);
+  height: var(--ff-field-h);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ff-radius);
+  background: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: var(--ff-text);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#feed-filter-card .feed-country.is-open .feed-country-clear,
+#feed-filter-card .feed-country-clear[hidden] {
+  display: none;
+}
+#feed-filter-card .feed-country-clear svg {
+  width: 0.95em;
+  height: 0.95em;
+}
+#feed-filter-card .feed-country-clear:is(:hover, :active) {
+  color: #22D3EE;
+}
+#feed-filter-card .feed-country-clear:focus {
+  outline: none;
+}
+#feed-filter-card .feed-country-clear:focus-visible {
+  outline: 2px solid #22D3EE;
+  outline-offset: -2px;
+}
+#feed-filter-card .feed-country-list {
+  position: relative;
+  box-sizing: border-box;
+  max-height: calc(var(--ff-field-h) * 5.2);
+  margin-top: calc(var(--ff-gap) * 0.5);
+  padding: calc(var(--ff-gap) * 0.25) 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--ff-radius);
+  background: rgba(0, 0, 0, 0.32);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+/* The app-wide touch-action: none would stop a finger scroll here. */
+#feed-filter-card .feed-country-list,
+#feed-filter-card .feed-country-list * {
+  touch-action: pan-y;
+}
+#feed-filter-card .feed-country-list[hidden],
+#feed-filter-card .feed-country-empty[hidden] {
+  display: none;
+}
+#feed-filter-card .feed-country-option {
+  display: flex;
+  align-items: center;
+  gap: 0.65em;
+  box-sizing: border-box;
+  min-height: max(44px, calc(var(--ff-field-h) * 0.95));
+  padding: 0 calc(var(--ff-pad) * 0.8);
+  color: #fff;
+  font-size: calc(var(--ff-text) * 0.92);
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#feed-filter-card .feed-country-option.is-active {
+  background: rgba(34, 211, 238, 0.14);
+}
+#feed-filter-card .feed-country-option[aria-selected="true"] {
+  color: #22D3EE;
+  font-weight: 700;
+}
+#feed-filter-card .feed-country-flag {
+  flex: 0 0 auto;
+  width: 1.3em;
+  height: auto;
+  border-radius: 2px;
+}
+#feed-filter-card .feed-country-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#feed-filter-card .feed-country-empty {
+  margin-top: calc(var(--ff-gap) * 0.5);
+  padding: calc(var(--ff-gap) * 0.6) calc(var(--ff-pad) * 0.8);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: var(--ff-small);
 }
 
 @media (orientation: landscape) {
