@@ -4,9 +4,11 @@
 // right-clicking any bubble, or tapping a bubble whose dots sit on one
 // spot once the map is at street level (a tap on any other bubble zooms
 // in to pull its dots apart). The list is a dropdown next to the bubble:
-// a search box and one row per post (its picture, title, who and when, a
-// line of its text), newest first. Picking a row opens that post's own
-// popup. Escape, a tap anywhere else, moving the map and Back close it.
+// a search box and one row per post (its picture, title, name and when,
+// the poster's account ID), newest first. The search matches the title,
+// name, account ID, date and the post's text. Picking a row opens that
+// post's own popup. Escape, a tap anywhere else, moving the map and Back
+// close it.
 //
 // A cluster held from far out can hold thousands of posts, and each row
 // reads the post's record (popupData, built on demand) and makes a
@@ -68,18 +70,21 @@ function describe(feature) {
   const record = recordOf(feature);
   const props = feature.properties || {};
   const title = plainText(record.title) || plainText(props.title) || 'Untitled post';
-  const payer = record.payer || feature.payer || '';
+  // The poster's account ID (0.0.x). payerInfo can be a word ("Anonymous").
+  const ids = [record.payer, feature.payer, record.payerInfo].map(plainText);
+  const account = ids.find((id) => /^\d+\.\d+\.\d+$/.test(id)) || ids[0] || ids[1] || '';
   const name = plainText(record.username);
-  const who = name && name !== payer ? name : payer;
+  const who = name && name !== account ? name : '';
   const when = plainText(record.timestamp);
+  // The message is not shown on the row, but a search still finds it.
   const text = plainText(record.msg);
   info = {
     record,
     title,
     who,
+    account,
     when,
-    text,
-    hay: fold([title, who, payer, when, text, record.loadedTopicName].join(' ')),
+    hay: fold([title, who, account, when, text, record.loadedTopicName].join(' ')),
   };
   described.set(feature, info);
   return info;
@@ -125,8 +130,8 @@ function buildPanel() {
   search.className = 'marker-stack-search';
   input = document.createElement('input');
   input.type = 'search';
-  input.placeholder = 'Search posts here';
-  input.setAttribute('aria-label', 'Search posts on this spot');
+  input.placeholder = 'Search posts or account ID';
+  input.setAttribute('aria-label', 'Search posts on this spot by text, name or account ID');
   input.autocomplete = 'off';
   input.spellcheck = false;
   input.addEventListener('input', () => filterRows());
@@ -285,7 +290,7 @@ function filterRows() {
 }
 
 function buildRow(feature) {
-  const { record, title, who, when, text } = describe(feature);
+  const { record, title, who, account, when } = describe(feature);
   const props = feature.properties || {};
 
   const row = document.createElement('button');
@@ -309,10 +314,10 @@ function buildRow(feature) {
   meta.className = 'marker-stack-meta';
   meta.textContent = [who, when].filter(Boolean).join(' · ');
   body.append(titleEl, meta);
-  if (text && text !== title) {
+  if (account) {
     const line = document.createElement('span');
-    line.className = 'marker-stack-text';
-    line.textContent = text;
+    line.className = 'marker-stack-account';
+    line.textContent = account;
     body.appendChild(line);
   }
   row.append(pic, body);

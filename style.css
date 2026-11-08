@@ -22498,7 +22498,7 @@ html.is-draw-picking #map-topbar {
 }
 .marker-stack-title,
 .marker-stack-meta,
-.marker-stack-text {
+.marker-stack-account {
   display: block;
   overflow: hidden;
   white-space: nowrap;
@@ -22513,9 +22513,10 @@ html.is-draw-picking #map-topbar {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.55);
 }
-.marker-stack-text {
+.marker-stack-account {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.72);
+  font-variant-numeric: tabular-nums;
 }
 .marker-stack-empty {
   padding: 14px 14px 18px;
