@@ -481,6 +481,26 @@ export function reportMarker(topic, cord, title, image, msg, payer, number) {
   }).catch(() => {});
 }
 
+// Live markers within km of a point, in any country (Look for Live with a
+// distance). Same marker shape as fetchLocalMarkers.
+export async function fetchNearMarkers(lat, lng, km) {
+  if (![lat, lng, km].every(Number.isFinite) || km <= 0) return { markers: [], error: "bad place" };
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 2500);
+    const res = await fetch(
+      `${BACKEND_URL}/api/local?lat=${lat}&lng=${lng}&radius=${km}`,
+      { signal: ctrl.signal }
+    );
+    clearTimeout(t);
+    if (!res.ok) return { markers: [], error: "backend HTTP " + res.status };
+    const data = await res.json();
+    return { markers: data.markers || [], error: "" };
+  } catch (e) {
+    return { markers: [], error: e.message || String(e) };
+  }
+}
+
 // Live markers in one country: [{ lng, lat, title, image, msg, topic, lastSeen }]
 export async function fetchLocalMarkers(country) {
   if (!country) return { markers: [], error: "" };

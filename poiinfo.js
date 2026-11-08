@@ -1,6 +1,9 @@
 import { map } from './map.js';
 import { closeTransientMapUI } from './cssLogic.js';
-import { bindHoldMenu, openLiveGroupMenu, closeLiveGroupMenu, liveGroup, liveGroupName } from './livegroups.js';
+import {
+  bindHoldMenu, openLiveGroupMenu, closeLiveGroupMenu, liveChoiceCaption,
+  openLiveSettings, closeLiveSettings, LIVE_GEAR_ICON,
+} from './livegroups.js';
 
 // Long-press (phone) / right-click (PC) on the map → the SAME pin as the
 // plain tap (drawhere.js), with two actions split around it:
@@ -11,6 +14,9 @@ import { bindHoldMenu, openLiveGroupMenu, closeLiveGroupMenu, liveGroup, liveGro
 //                              from the chosen group (livegroups.js). Hold it
 //                              (phone) or right-click it (PC) for the list of
 //                              groups; a pick looks for live from that group.
+//                              Its ⚙ opens the live settings: the groups,
+//                              how far from the pin (the country, or a km
+//                              radius in any country), and Look for Live.
 // The plain tap/click (the 📍/🔷 pin in drawhere.js) must keep working,
 // so the tap a hold generates is swallowed via holdJustHappened().
 
@@ -81,6 +87,7 @@ map.on('move', onMapMove);
 export function closePressAnchor() {
   if (pressAnchor) {
     closeLiveGroupMenu({ within: pressAnchor });
+    closeLiveSettings({ within: pressAnchor });
     pressAnchor.remove();
     pressAnchor = null;
     // Back/Forward: pin tap, outside tap, Escape and closeTransientMapUI
@@ -122,11 +129,15 @@ function showPressAnchor(lngLat) {
   const liveBtn = document.createElement('button');
   liveBtn.className = 'draw-here-btn draw-here-live';
   liveBtn.textContent = '📡 Look for Live';
-  // The group, when it is not Everyone, is a caption under the button
-  // (style.css): out of the row, so both buttons keep their width and the
-  // pin stays centred on the held point.
-  const group = liveGroup();
-  if (group !== 'all') liveBtn.dataset.group = liveGroupName(group);
+  // The group and distance, when they are not Everyone and the country,
+  // are a caption under the button (style.css): out of the row, so both
+  // buttons keep their width and the pin stays centred on the held point.
+  const paintCaption = () => {
+    const caption = liveChoiceCaption();
+    if (caption) liveBtn.dataset.group = caption;
+    else delete liveBtn.dataset.group;
+  };
+  paintCaption();
   liveBtn.title = 'Hold or right-click to choose whose live posts';
   liveBtn.setAttribute('aria-haspopup', 'menu');
   // The exact pipeline a country search uses: reverse-geocode the spot in
@@ -150,9 +161,26 @@ function showPressAnchor(lngLat) {
   };
   bindHoldMenu(liveBtn, () => openLiveGroupMenu(liveBtn, (key) => lookForLive(key)));
 
+  // ⚙ live settings, beside the button but out of the row (style.css), so
+  // the pin stays centred on the held point.
+  const liveWrap = document.createElement('span');
+  liveWrap.className = 'draw-here-live-wrap';
+  const gearBtn = document.createElement('button');
+  gearBtn.type = 'button';
+  gearBtn.className = 'draw-here-live-gear';
+  gearBtn.setAttribute('aria-label', 'Live settings');
+  gearBtn.setAttribute('aria-haspopup', 'dialog');
+  gearBtn.title = 'Live settings';
+  gearBtn.innerHTML = LIVE_GEAR_ICON;
+  gearBtn.onclick = (e) => {
+    e.stopPropagation();
+    openLiveSettings(gearBtn, { onLook: (key) => lookForLive(key), onChange: paintCaption });
+  };
+  liveWrap.append(liveBtn, gearBtn);
+
   // Same layout as the draw pin: left button, pin, right button
   anchor.insertBefore(mapsBtn, anchor.firstChild);
-  anchor.appendChild(liveBtn);
+  anchor.appendChild(liveWrap);
   const p = map.project([lngLat.lng, lngLat.lat]);
   anchor.style.left = p.x + 'px';
   anchor.style.top = p.y + 'px';

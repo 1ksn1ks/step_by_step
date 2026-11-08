@@ -461,6 +461,13 @@ const q = {
     WHERE LOWER(country) = LOWER(?) AND last_seen > ?
     ORDER BY last_seen DESC
   `),
+  // A latitude band; /api/local keeps the rows within the radius. The
+  // table only holds the last 24 h, so the band is small enough to scan.
+  listLiveInLatBand: db.prepare(`
+    SELECT * FROM live_markers
+    WHERE lat BETWEEN ? AND ? AND last_seen > ?
+    ORDER BY last_seen DESC
+  `),
   deleteStaleLive: db.prepare("DELETE FROM live_markers WHERE last_seen < ?"),
   liveByGeokey: db.prepare("UPDATE live_markers SET country = ? WHERE geokey = ?"),
   getGeoCache: db.prepare("SELECT country, city, country_code, miss FROM geo_cache WHERE geokey = ?"),
@@ -3236,12 +3243,44 @@ app.post("/api/marker", publicPostLimit, (req, res) => {
   res.json({ ok: true });
 });
 
-// app: "show live markers in this country" (geographic search). Only the
-// 24h view — a marker here is still in its topic history regardless.
+// Live search radius, km: the Look for Live settings (livegroups.js) offer
+// presets and a custom value up to this.
+const LIVE_RADIUS_MAX_KM = 5000;
+const EARTH_KM = 6371.0088;
+
+function liveDistanceKm(lat1, lng1, lat2, lng2) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_KM * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+// Live rows within km of a point, any country: a latitude band from the
+// table, then the great-circle distance (so the 180° line needs nothing).
+function liveRowsNear(lat, lng, km) {
+  const band = (km / EARTH_KM) * (180 / Math.PI);
+  const rows = q.listLiveInLatBand.all(lat - band, lat + band, Date.now() - LIVE_TTL_MS);
+  return rows.filter((r) => liveDistanceKm(lat, lng, r.lat, r.lng) <= km);
+}
+
+// app: "show live markers in this country" (geographic search), or, with
+// lat, lng and radius (km), the live markers that close to that point in
+// any country (Look for Live with a distance). Only the 24h view — a
+// marker here is still in its topic history regardless.
 app.get("/api/local", publicPostLimit, (req, res) => {
   const country = String(req.query.country || "").trim();
-  if (!country) return res.json({ ok: true, markers: [] });
-  const rows = q.listLiveByCountry.all(country, Date.now() - LIVE_TTL_MS);
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  const radius = Number(req.query.radius);
+  const near = Number.isFinite(lat) && Math.abs(lat) <= 90
+    && Number.isFinite(lng) && Math.abs(lng) <= 180
+    && Number.isFinite(radius) && radius > 0;
+  if (!near && !country) return res.json({ ok: true, markers: [] });
+  const km = near ? Math.min(radius, LIVE_RADIUS_MAX_KM) : 0;
+  const rows = near
+    ? liveRowsNear(lat, lng, km)
+    : q.listLiveByCountry.all(country, Date.now() - LIVE_TTL_MS);
   // Resolve each distinct topic's name (empty while the topic is still
   // backfilling) and keep the topic warm so the poller finishes the job.
   const names = new Map();
@@ -3258,6 +3297,7 @@ app.get("/api/local", publicPostLimit, (req, res) => {
   }
   res.json({
     ok: true,
+    ...(near ? { radius: km } : {}),
     markers: rows.map((r) => {
       // The original message: exact (topic, cord, number) first, then the
       // most recent upload at that cord (rows predating number tracking).

@@ -4,7 +4,7 @@ import { map } from './map';
 import { createMarkerPopupHTML, mediaMode, lengthMode } from './processallmessages.js';
 import { videoSeconds } from './mediaduration.js';
 import { toast } from './toast.js';
-import { fetchLocalMarkers } from './msgbackend.js';
+import { fetchLocalMarkers, fetchNearMarkers } from './msgbackend.js';
 import { profilePictures, usernames, click2url } from './loadalladata.js';
 import { CloseALL, changePopupState } from './cssLogic.js';
 import { closeDrawAnchor } from './drawhere.js';
@@ -17,8 +17,8 @@ import { watchFollowPrefetch } from './followtopic.js';
 import { fetchFollowing } from './msgbackend.js';
 import { earlyHashinalNumber, earlyHashinalReady, onOwnersChange } from './earlyhashinal.js';
 import { connectedAccount } from './web3.js';
-import { liveGroup as groupNow, liveGroupName, setLiveGroup, openLiveGroupMenu, closeLiveGroupMenu } from './livegroups.js';
-import { secondsMatch, withinRadius, radiusKm, radiusLabel } from './arrowfilters.js';
+import { liveGroup as groupNow, liveGroupName, setLiveGroup, openLiveGroupMenu, closeLiveGroupMenu, liveRadius } from './livegroups.js';
+import { secondsMatch, withinRadius, radiusKm, radiusLabel, formatKm } from './arrowfilters.js';
 
 // Same key as marker.js topicPointKey — a live point matching a topic
 // point to 5 decimals is a duplicate of the topic layer: while the topic
@@ -610,6 +610,16 @@ onOwnersChange(() => {
 // search flow, so the country string always matches what /api/local stored.
 // Then the exact same country path the search results use.
 export async function showLocationMarkers(lat, lng) {
+  // Look for Live with a distance (livegroups.js): the live markers that
+  // close to the spot, in any country. No geocode needed.
+  const km = liveRadius();
+  if (km !== 'country') {
+    const { markers, error } = await fetchNearMarkers(Number(lat), Number(lng), km);
+    if (error) return; // offline: leave whatever is shown
+    showLocalMarkers(markers);
+    if (!markers.length) toast.info('No live posts within ' + formatKm(km));
+    return;
+  }
   try {
     const data = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=en`
