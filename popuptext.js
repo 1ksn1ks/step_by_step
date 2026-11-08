@@ -57,7 +57,8 @@ function syncMore(bubble) {
 }
 
 // Fade the edge that has more text past it: none at the top, none at the
-// end. Writes only when an edge changes.
+// end. The reading rail fills with how far through the text the scroll
+// is, like the Show more page's progress line. Writes only on a change.
 function paintEdges(state) {
   state.edgeFrame = 0;
   const flow = state.flow;
@@ -67,6 +68,19 @@ function paintEdges(state) {
   const below = on && flow.scrollTop < room - 1;
   if (flow.classList.contains('is-above') !== above) flow.classList.toggle('is-above', above);
   if (flow.classList.contains('is-below') !== below) flow.classList.toggle('is-below', below);
+  const read = on && room > 1 ? Math.min(1, Math.max(0, flow.scrollTop / room)).toFixed(3) : '0';
+  if (state.read !== read) {
+    state.read = read;
+    state.fill.style.transform = `scaleY(${read})`;
+  }
+}
+
+// The rail brightens while the text moves and settles once it stops.
+const RAIL_SETTLE_MS = 900;
+function markScrolling(state) {
+  if (!state.rail.classList.contains('is-scrolling')) state.rail.classList.add('is-scrolling');
+  clearTimeout(state.railTimer);
+  state.railTimer = setTimeout(() => state.rail.classList.remove('is-scrolling'), RAIL_SETTLE_MS);
 }
 
 function queueSync(bubble) {
@@ -105,9 +119,24 @@ export function watchPopupText(host, bubble, text, title) {
     openPopupText({ text: state.text, title: state.title, from: bubble, opener: more });
   });
   host.appendChild(more);
-  const state = { host, flow, more, text: String(text || ''), title: singleLine(title), edgeFrame: 0 };
+  // Reading rail down the bubble's right edge (style.css shows it only
+  // while the text is longer than the bubble). Outside the flow box, so
+  // the edge fade does not cover it.
+  const rail = document.createElement('span');
+  rail.className = 'popup-text-rail';
+  rail.setAttribute('aria-hidden', 'true');
+  const fill = document.createElement('span');
+  fill.className = 'popup-text-rail-fill';
+  rail.appendChild(fill);
+  bubble.appendChild(rail);
+  const state = {
+    host, flow, more, rail, fill,
+    text: String(text || ''), title: singleLine(title),
+    edgeFrame: 0, read: '', railTimer: 0,
+  };
   flow.addEventListener('scroll', () => {
     if (!state.edgeFrame) state.edgeFrame = requestAnimationFrame(() => paintEdges(state));
+    markScrolling(state);
   }, { passive: true });
   watched.set(bubble, state);
   if (sizes) sizes.observe(bubble);
@@ -141,6 +170,7 @@ function unwatch(bubble, state) {
   if (sizes) sizes.unobserve(bubble);
   queued.delete(bubble);
   watched.delete(bubble);
+  clearTimeout(state.railTimer);
   state.more.remove();
   state.host.classList.remove('popup-msg', 'is-more');
   bubble.replaceChildren();

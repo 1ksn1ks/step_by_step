@@ -2555,6 +2555,11 @@ html, body {
     visibility: hidden !important;
     pointer-events: none !important;
   }
+  /* The map's credit line sat across the popup's footer pills. The popup
+     covers the whole map, so the credit waits until it closes. */
+  html:has(.maplibregl-map > .maplibregl-popup:not([style*="display: none"])) .maplibregl-ctrl-attrib {
+    visibility: hidden !important;
+  }
   /* Settings, Visibility and Toolbar stay in the document so the drawer
      can show those panels. They are not part of the map. */
   #menu-buttons-group,
@@ -3261,8 +3266,15 @@ html, body {
     border: calc(var(--u) * 0.3) solid #ffffff;
     border-radius: calc(var(--u) * 2);
     /* Solid fill on the shell. A rounded content box inside the border
-       left a see-through crescent in the corners. */
-    background-color: rgba(15, 15, 20, 0.90);
+       left a see-through crescent in the corners. 0.96: at 0.90 map
+       labels showed through the text. */
+    background-color: rgba(15, 15, 20, 0.96);
+    /* The frame's inner edge: a dark hairline under the border, then a
+       soft glow of the frame's own colour, so it reads as a lit rim
+       rather than a flat line. */
+    box-shadow:
+      inset 0 0 0 calc(var(--u) * 0.1) rgba(0, 0, 0, 0.55),
+      inset 0 0 calc(var(--u) * 2) color-mix(in srgb, var(--popup-border-color, #ffffff) 12%, transparent);
     overflow: hidden !important;
     clip-path: inset(0 round calc(var(--u) * 2));
 }
@@ -8148,7 +8160,11 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
     box-sizing: border-box;
     border: calc(var(--u) * 0.3) solid var(--popup-border-color, #ffffff);
     border-radius: calc(var(--u) * 2);
-    background-color: rgba(15, 15, 20, 0.90);
+    /* Same fill and inner edge as the portrait frame. */
+    background-color: rgba(15, 15, 20, 0.96);
+    box-shadow:
+      inset 0 0 0 calc(var(--u) * 0.1) rgba(0, 0, 0, 0.55),
+      inset 0 0 calc(var(--u) * 2) color-mix(in srgb, var(--popup-border-color, #ffffff) 12%, transparent);
     pointer-events: none;
   }
 
@@ -20086,6 +20102,90 @@ img.is-gif-hit {
 .popup-msg > .popup-more:focus-visible {
   outline: calc(var(--u) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--u) * 0.1);
+}
+
+/* Reading rail: while a long message scrolls inside its bubble, a thin
+   line down the bubble's right edge fills top to bottom with how far
+   through the text you are, in the Show more page's cyan to violet
+   (popuptext.js sets the fill). It brightens while the text moves and
+   settles after. It sits in the bubble's right padding, clear of the
+   text and of the rounded corners. */
+.popup-msg.is-more > .popup-text-bubble {
+  position: relative;
+}
+.popup-text-rail {
+  display: none;
+}
+.popup-msg.is-more > .popup-text-bubble > .popup-text-rail {
+  display: block;
+  position: absolute;
+  top: calc(var(--u) * 1.1);
+  bottom: calc(var(--u) * 1.1);
+  right: calc(var(--u) * 0.45);
+  width: max(2px, calc(var(--u) * 0.3));
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  opacity: 0.55;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.popup-msg.is-more > .popup-text-bubble > .popup-text-rail.is-scrolling {
+  opacity: 1;
+  transition-duration: 0.12s;
+}
+.popup-text-rail > .popup-text-rail-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(180deg, #22D3EE, #A855F7);
+  box-shadow: 0 0 calc(var(--u) * 0.8) rgba(34, 211, 238, 0.55);
+  transform: scaleY(0);
+  transform-origin: center top;
+}
+/* An early holder's popup: the rail in the frame's gold to pink. */
+.maplibregl-popup.early-holder-popup .popup-text-rail > .popup-text-rail-fill {
+  background: linear-gradient(180deg, #f6e27a, #ff4ad6);
+  box-shadow: 0 0 calc(var(--u) * 0.8) rgba(246, 226, 122, 0.5);
+}
+@media (prefers-reduced-motion: reduce) {
+  .popup-msg.is-more > .popup-text-bubble > .popup-text-rail {
+    transition: none;
+  }
+}
+
+/* Popup bubbles: lit glass. The profile, title and message bubbles and
+   the footer's topic and time pills read as one set: a fill brighter at
+   the top, a rim lit from above (bright top edge, faint bottom) and a
+   soft shadow under it. The rim takes a little of the frame's colour
+   (Settings > Popups > Border, --popup-border-color), so a coloured
+   frame tints its bubbles; an early holder's take the frame's gold.
+   Real popups, the settings sample and the Draw copy all carry
+   .maplibregl-popup. An early holder's profile ring (.early) keeps its
+   own transparent border. The round chips keep their own fill, which
+   their pressed states change. */
+.maplibregl-popup :is(.popup-profile-bubble:not(.early), .popup-title-bubble, .popup-text-bubble, .popup-top-topic, .popup-timestamp) {
+  --bubble-rim: var(--popup-border-color, #ffffff);
+  background-color: rgba(255, 255, 255, 0.035);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0) 70%);
+  border-color: rgba(255, 255, 255, 0.30) rgba(255, 255, 255, 0.15) rgba(255, 255, 255, 0.07);
+  border-color:
+    color-mix(in srgb, var(--bubble-rim) 30%, transparent)
+    color-mix(in srgb, var(--bubble-rim) 15%, transparent)
+    color-mix(in srgb, var(--bubble-rim) 7%, transparent);
+  box-shadow:
+    inset 0 calc(var(--u) * 0.12) 0 rgba(255, 255, 255, 0.08),
+    0 calc(var(--u) * 0.45) calc(var(--u) * 1.2) rgba(0, 0, 0, 0.32);
+}
+.maplibregl-popup.early-holder-popup :is(.popup-profile-bubble:not(.early), .popup-title-bubble, .popup-text-bubble, .popup-top-topic, .popup-timestamp) {
+  --bubble-rim: #f6e27a;
+}
+/* An early holder's frame (the portrait shell, the landscape cards) glows
+   gold on the inside instead of in the Border colour. Landscape turns
+   the shell's own shadow off (box-shadow: none !important there). */
+.maplibregl-popup.early-holder-popup,
+.maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::before,
+.maplibregl-map .maplibregl-popup.early-holder-popup .popup-sheet::after {
+  box-shadow: inset 0 0 calc(var(--u) * 2) rgba(246, 226, 122, 0.14);
 }
 
 /* Full-screen post text (popuptext.js): a reading view. Above the popup,
