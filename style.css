@@ -11985,6 +11985,12 @@ html.feed-app #feed-search-page {
   text-align: left;
   touch-action: manipulation;
 }
+/* Show more sits in the middle under the caption, as in the map popup. */
+:is(#feed-column, .feed-comments-stage) .feed-more {
+  justify-content: center;
+  margin-inline: auto;
+  text-align: center;
+}
 :is(#feed-column, .feed-comments-stage) .feed-loc,
 :is(#feed-column, .feed-comments-stage) .feed-meta .popup-timestamp {
   font-size: calc(var(--fu) * 1.5);
