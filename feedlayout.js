@@ -6046,6 +6046,8 @@ const OPTION_PANELS = [
   'marker-column-save',
   'topic-chat-column',
   'topic-chat-save',
+  'popup-options-column',
+  'popup-options-save',
   'edit-profile-help-overlay',
   'load-options-help-overlay',
   'create-topic-help-overlay',
@@ -6060,6 +6062,7 @@ const OPTION_PANELS = [
   'crosshair-settings-help-overlay',
   'marker-size-help-overlay',
   'chat-style-help-overlay',
+  'popup-style-help-overlay',
   'visibility-help-overlay',
 ];
 let optionsOverFeed = false;
@@ -8264,7 +8267,7 @@ const DRAWER_CHILDREN = {
   ],
   'rotation-controls': [
     'model-column', 'crosshair-column', 'marker-options-column',
-    'topic-chat-column',
+    'topic-chat-column', 'popup-options-column',
   ],
 };
 const DRAWER_EXTRAS = {
@@ -8272,6 +8275,7 @@ const DRAWER_EXTRAS = {
   'crosshair-column': ['crosshair-column-save'],
   'marker-options-column': ['marker-column-save'],
   'topic-chat-column': ['topic-chat-save'],
+  'popup-options-column': ['popup-options-save'],
 };
 
 function panelShown(el) {
@@ -8327,6 +8331,7 @@ const DRAWER_ROOT_PAGES = {
 const DRAWER_LABELS = {
   'marker-options-column': 'Markers',
   'topic-chat-column': 'Chat',
+  'popup-options-column': 'Popups',
   'model-column': 'Model',
   'crosshair-column': 'Crosshair',
   'Edit_Profile-column': 'Edit profile',
@@ -9172,6 +9177,13 @@ const NAV_ICONS = {
     ['circle', { cx: '12', cy: '10', r: '3' }],
   ],
   'change-topic-chat-options': CHAT_ICON,
+  // A card with a header bar and lines of text: the post popup.
+  'change-popup-options': [
+    ['rect', { width: '18', height: '18', x: '3', y: '3', rx: '2' }],
+    ['path', { d: 'M3 9h18' }],
+    ['path', { d: 'M7 13h10' }],
+    ['path', { d: 'M7 17h6' }],
+  ],
   'change-model-settings': [
     ['path', { d: 'M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z' }],
     ['path', { d: 'm3.3 7 8.7 5 8.7-5' }],
@@ -9241,6 +9253,7 @@ function frameVisIcon(svg, minX) {
 const NAV_PANELS = {
   'change-marker-options': 'marker-options-column',
   'change-topic-chat-options': 'topic-chat-column',
+  'change-popup-options': 'popup-options-column',
   'change-model-settings': 'model-column',
   'change-crosshair-settings': 'crosshair-column',
   Edit_Profile: 'Edit_Profile-column',

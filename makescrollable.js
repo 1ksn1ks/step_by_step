@@ -339,5 +339,6 @@ export function makeScrollable(el) {
 
   // Settings panels (glass mb-panel cards)
   makeScrollable(document.getElementById('topic-chat-column-container'));
+  makeScrollable(document.getElementById('popup-options-column-container'));
   makeScrollable(document.getElementById('marker-options-column-container'));
   makeScrollable(document.getElementById('visibility-controls-container'));

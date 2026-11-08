@@ -156,6 +156,7 @@ const HISTORY_PANELS = [
   "rotation-controls", "model-column", "crosshair-column",
   "marker-options-column",
   "topic-chat-column",
+  "popup-options-column",
 ];
 const HISTORY_MEMO_SUBS = [
   "update-bio-from-memo", "memo-from-memo", "fee-from-memo", "topic-name-from-memo",
@@ -273,6 +274,7 @@ export function CloseALL() {
     ["crosshair-column", "crosshair-settings-help-overlay"],
     ["marker-options-column", "marker-size-help-overlay"],
     ["topic-chat-column", "chat-style-help-overlay"],
+    ["popup-options-column", "popup-style-help-overlay"],
     ["Edit_Profile-column", "edit-profile-help-overlay"],
     ["load-column", "load-options-help-overlay"],
     ["create-column", "create-topic-help-overlay"],
@@ -407,6 +409,8 @@ export function CloseALL() {
       ["marker-options-column-container", "marker-column-save", "marker-column-container-save"]);
     subColumn("topic-chat-column", "change-topic-chat-options", "rotation-controls", "toggle-your-fov-btn",
       ["topic-chat-column-container", "topic-chat-save", "topic-chat-container-save"]);
+    subColumn("popup-options-column", "change-popup-options", "rotation-controls", "toggle-your-fov-btn",
+      ["popup-options-column-container", "popup-options-save", "popup-options-container-save"]);
     // Memo sub-panels: the ✅/⛔ buttons are plain toggles — the watcher
     // records the open, and closing through the ⛔ button drops the entry.
     const memoSub = (id, triggerId) => {
@@ -435,6 +439,7 @@ export function CloseALL() {
     "crosshair-column",
     "marker-options-column",
     "topic-chat-column",
+    "popup-options-column",
     "popup-settings-card",
   ];
   PANELS_WITH_CLOSE.forEach(panelId => {
@@ -549,6 +554,20 @@ export function CloseALL() {
     removeUfoModel();
   });
   
+  // Popups: size and colours, with a real popup as the preview
+  // (loadprofilepopup.js, processallmessages.js fitPopupStylePreview).
+  document.getElementById("change-popup-options").addEventListener("click", (event) => {
+    event.stopPropagation();
+    CloseALL();
+    document.getElementById("popup-options-column").style.display = "block";
+    document.getElementById("popup-options-column-container").style.display = "block";
+    document.getElementById("popup-options-save").style.display = "block";
+    document.getElementById("popup-options-container-save").style.display = "block";
+
+    OpenToggleYourFov();
+    removeUfoModel();
+  });
+
   document.getElementById("toggle-toolbar-btn").addEventListener("click", (event) => {
     event.stopPropagation();
     CloseALL();
@@ -1338,65 +1357,6 @@ export function CloseALL() {
 
 
 
-  function closePopupColumn3options() {
-    document.getElementById("popup-column-3-border").style.display = "none";
-    document.getElementById("popup-column-3-number").style.display = "none";
-    document.getElementById("popup-column-3-close").style.display = "none";
-    document.getElementById("popup-column-3-accid").style.display = "none";
-    document.getElementById("popup-column-3-username").style.display = "none";
-    document.getElementById("popup-column-3-titles").style.display = "none";
-    document.getElementById("popup-column-3-text").style.display = "none";
-    document.getElementById("popup-column-3-font").style.display = "none";
-    removeUfoModel();
-  };
-  
-  document.getElementById("popup-column-2-border").addEventListener("click", (event) => {
-    event.stopPropagation();
-    closePopupColumn3options()
-    document.getElementById("popup-column-3-border").style.display = "block";
-  });
-  
-  document.getElementById("popup-column-2-number").addEventListener("click", (event) => {
-    event.stopPropagation();
-    closePopupColumn3options()
-    document.getElementById("popup-column-3-number").style.display = "block";
-  });
-  
-  document.getElementById("popup-column-2-close").addEventListener("click", (event) => {
-    event.stopPropagation();
-    closePopupColumn3options()
-    document.getElementById("popup-column-3-close").style.display = "block";
-  });
-  
-  document.getElementById("popup-column-2-accid").addEventListener("click", (event) => {
-    event.stopPropagation();
-    closePopupColumn3options()
-    document.getElementById("popup-column-3-accid").style.display = "block";
-  });
-  
-  document.getElementById("popup-column-2-username").addEventListener("click", (event) => {
-    event.stopPropagation();
-    closePopupColumn3options()
-    document.getElementById("popup-column-3-username").style.display = "block";
-  });
-  
-  document.getElementById("popup-column-2-titles").addEventListener("click", (event) => {
-    event.stopPropagation();
-    closePopupColumn3options()
-    document.getElementById("popup-column-3-titles").style.display = "block";
-  });
-  
-  document.getElementById("popup-column-2-text").addEventListener("click", (event) => {
-    event.stopPropagation();
-    closePopupColumn3options()
-    document.getElementById("popup-column-3-text").style.display = "block";
-  });
-  
-  document.getElementById("popup-column-2-font").addEventListener("click", (event) => {
-    event.stopPropagation();
-    closePopupColumn3options()
-    document.getElementById("popup-column-3-font").style.display = "block";
-  });
   
   
   

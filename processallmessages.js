@@ -434,15 +434,6 @@ function walkTarget(value) {
 
 const PREVIEW_PROFILE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23222833'/%3E%3Ccircle cx='32' cy='26' r='10' fill='%23c5cad6'/%3E%3Cellipse cx='32' cy='54' rx='16' ry='12' fill='%23c5cad6'/%3E%3C/svg%3E";
 
-function settingsUnit(card) {
-  const probe = document.createElement('div');
-  probe.style.cssText = 'position:absolute;left:0;top:0;width:var(--u);height:0;padding:0;border:0;visibility:hidden;pointer-events:none;';
-  card.appendChild(probe);
-  const u = probe.getBoundingClientRect().width;
-  probe.remove();
-  return u || 0;
-}
-
 function showPreviewFollowZero(root) {
   root.querySelectorAll('.topic-follow').forEach((box) => {
     box._refreshFollow = () => {};
@@ -515,77 +506,54 @@ function ensurePopupPreview(slot) {
   applyAllStyles();
 }
 
-// The sample is a full portrait popup. Scale it uniformly into the slot.
-// Landscape already sits 0.1u inside the left card's side and bottom
-// borders, so the tight axis uses the slot itself. Portrait grows the
-// slot so the same 0.1u remains on every side.
-function fitPopupPreview(retry) {
+// Settings > Popups preview (index.html #popup-settings-preview): one real
+// portrait popup at its natural size, scaled to the card's width; the
+// slot takes the scaled height. It is built when the page first shows and
+// fits again when the card resizes or the Size slider moves (the popup's
+// height follows --popup-size). Colours come from applyAllStyles.
+let stylePreviewFrame = 0;
+let stylePreviewWatch = null;
+function fitPopupStylePreview() {
+  stylePreviewFrame = 0;
   const slot = document.getElementById('popup-settings-preview');
-  const popup = slot && slot.querySelector(':scope > .maplibregl-popup');
-  const card = document.getElementById('popup-settings-card');
-  if (!slot || !popup || !card || slot.style.display === 'none') return;
-  const landscape = landscapeMQ.matches;
-  popup.style.removeProperty('height');
-  // Portrait only. The landscape sample is already the real popup size.
-  if (!landscape) {
-    const content = popup.querySelector('.maplibregl-popup-content');
-    const extra = content ? content.scrollHeight - content.clientHeight : 0;
-    if (extra > 1) popup.style.setProperty('height', (popup.offsetHeight + extra) + 'px', 'important');
-  }
+  if (!slot || !slot.isConnected || !slot.getClientRects().length) return;
+  ensurePopupPreview(slot);
+  const popup = slot.querySelector(':scope > .maplibregl-popup');
+  if (!popup) return;
+  const width = slot.clientWidth;
   const naturalW = popup.offsetWidth;
   const naturalH = popup.offsetHeight;
-  if (!naturalW || !naturalH) {
-    if (!retry) requestAnimationFrame(() => fitPopupPreview(true));
-    return;
-  }
-  const u = settingsUnit(card);
-  let availW;
-  let availH;
-  let shift = 0;
-  if (landscape) {
-    slot.style.height = '';
-    availW = slot.clientWidth;
-    availH = slot.clientHeight + u * 0.1;
-    shift = -u * 0.05;
-    let scale = Math.min(
-      naturalW ? availW / naturalW : 1,
-      naturalH ? availH / naturalH : 1
-    );
-    if (scale > 1 || ((naturalW - availW) <= 1 && (naturalH - availH) <= 1)) scale = 1;
-    popup.style.setProperty('--preview-scale', String(Math.max(0, scale)));
-    popup.style.setProperty('--preview-shift', shift + 'px');
-    popup.style.visibility = 'visible';
-    return;
-  } else {
-    const inset = u * 0.1;
-    availW = Math.max(0, slot.clientWidth - inset * 2);
-    const scaleW = naturalW ? availW / naturalW : 0;
-    slot.style.height = (naturalH * scaleW + inset * 2) + 'px';
-    availH = Math.max(0, slot.clientHeight - inset * 2);
-  }
-  const scale = Math.min(
-    naturalW ? availW / naturalW : 0,
-    naturalH ? availH / naturalH : 0
-  );
-  popup.style.setProperty('--preview-scale', String(Math.max(0, scale)));
-  popup.style.setProperty('--preview-shift', shift + 'px');
+  if (!width || !naturalW || !naturalH) return;
+  const scale = width / naturalW;
+  popup.style.setProperty('--preview-scale', String(scale));
+  slot.style.height = (naturalH * scale).toFixed(2) + 'px';
   popup.style.visibility = 'visible';
 }
-
-function setPopupPreview(open) {
-  const preview = document.getElementById('popup-settings-preview');
-  const toggle = document.getElementById('popup-settings-preview-toggle');
-  const colors = document.getElementById('popup-column-2');
-  const pickers = document.getElementById('popup-column-container-3');
-  if (open && preview) ensurePopupPreview(preview);
-  if (preview) preview.style.display = open ? 'flex' : 'none';
-  if (toggle) toggle.textContent = open ? 'Hide preview' : 'Preview';
-  // Border, Close, Font, and the other color buttons, plus Save popup,
-  // only belong next to the sample. They stay hidden until Preview is open.
-  if (colors) colors.style.display = open ? 'block' : 'none';
-  if (pickers) pickers.style.display = open ? 'block' : 'none';
-  if (open) requestAnimationFrame(() => fitPopupPreview());
+function queuePopupStylePreview() {
+  if (stylePreviewFrame) return;
+  stylePreviewFrame = requestAnimationFrame(fitPopupStylePreview);
 }
+function watchPopupStylePreview() {
+  const slot = document.getElementById('popup-settings-preview');
+  if (!slot || stylePreviewWatch) return;
+  if (typeof ResizeObserver === 'function') {
+    // Showing the page (display none to block) and the drawer's width both
+    // resize the slot; its own height change is skipped by the width check.
+    let lastWidth = -1;
+    stylePreviewWatch = new ResizeObserver((entries) => {
+      const width = Math.round(entries[entries.length - 1].contentRect.width);
+      if (width === lastWidth) return;
+      lastWidth = width;
+      queuePopupStylePreview();
+    });
+    stylePreviewWatch.observe(slot);
+  } else {
+    stylePreviewWatch = true;
+    window.addEventListener('resize', queuePopupStylePreview);
+  }
+}
+document.addEventListener('popup-size-change', queuePopupStylePreview);
+watchPopupStylePreview();
 
 function paintPagerModes() {
   const mode = pagerMode();
@@ -1133,23 +1101,19 @@ function queueSettingsHead() {
 function closePopupSettings() {
   const backdrop = document.getElementById('popup-settings-backdrop');
   const card = document.getElementById('popup-settings-card');
-  const column = document.getElementById('popup-column-container-3');
   if (backdrop) backdrop.style.display = 'none';
   if (card) card.style.display = 'none';
-  if (column) column.style.display = 'none';
   popupSettingsTarget = null;
   popupSettingsGearEl = null;
-  setPopupPreview(false);
   hideEditComposer();
   syncSettingsOpen();
 }
 
 function bindPopupSettings() {
   if (popupSettingsBound) return;
-  const toggle = document.getElementById('popup-settings-preview-toggle');
-  if (!toggle) return;
-  popupSettingsBound = true;
   const card = document.getElementById('popup-settings-card');
+  if (!card) return;
+  popupSettingsBound = true;
   // Document clicks run CloseALL, which hides this card. The trash has to
   // stay here, so a click inside the card stops there. The × still closes
   // because its own handler calls CloseALL.
@@ -1176,11 +1140,6 @@ function bindPopupSettings() {
   };
   window.addEventListener('resize', followGear);
   if (window.visualViewport) window.visualViewport.addEventListener('resize', followGear);
-  toggle.addEventListener('click', () => {
-    const preview = document.getElementById('popup-settings-preview');
-    if (!preview) return;
-    setPopupPreview(preview.style.display === 'none');
-  });
   for (const mode of ['account', 'time', 'random']) {
     const btn = document.getElementById('popup-pager-' + mode);
     if (!btn) continue;
@@ -1250,8 +1209,7 @@ window.openPopupSettings = function(target) {
     } else {
       bindPopupSettings();
       popupSettingsTarget = walkTarget(target);
-      placePopupSettingsPreview();
-      setPopupPreview(landscapeMQ.matches);
+      placePopupSettingsButtons();
       paintPagerModes();
       paintMediaModes();
       paintLengthModes();
@@ -2647,53 +2605,31 @@ const landscapeMQ = window.matchMedia('(orientation: landscape)');
 let landscapeCommentsBound = false;
 let popupSettingsOrientationBound = false;
 
-// Portrait keeps the sample between the tools and the colour rows.
-// Landscape gives it the left card, outside the right-hand scroller.
-function placePopupSettingsPreview() {
-  const preview = document.getElementById('popup-settings-preview');
+// Landscape seats the pencil and trash on the card itself, so the right
+// column can scroll without taking them along; portrait keeps them at the
+// top of the side column.
+function placePopupSettingsButtons() {
   const card = document.getElementById('popup-settings-card');
   const side = document.getElementById('popup-settings-side');
-  const tools = document.getElementById('popup-settings-tools');
-  const colors = document.getElementById('popup-column-2');
   const del = document.getElementById('popup-settings-delete');
   const edit = document.getElementById('popup-settings-edit');
-  if (!preview || !card || !side || !tools) return;
+  if (!card || !side) return;
   if (landscapeMQ.matches) {
-    // Trash, pencil, and the sample sit on the card, so the right column
-    // can scroll without taking them with it. The × is already a direct child.
     if (edit && edit.parentElement !== card) card.insertBefore(edit, side);
     if (del && del.parentElement !== card) card.insertBefore(del, side);
-    if (preview.parentElement !== card) card.insertBefore(preview, side);
     return;
   }
   if (edit && edit.parentElement !== side) side.insertBefore(edit, side.firstChild);
   if (del && (del.parentElement !== side || side.firstElementChild !== del)) side.insertBefore(del, side.firstChild);
-  if (preview.parentElement === side && preview.previousElementSibling === tools) return;
-  if (colors && colors.parentElement === side) side.insertBefore(preview, colors);
-  else tools.after(preview);
-}
-
-function syncPopupSettingsOrientation() {
-  placePopupSettingsPreview();
-  syncSettingsOpen();
-  const card = document.getElementById('popup-settings-card');
-  const open = !!(card && card.style.display === 'block');
-  if (landscapeMQ.matches) {
-    if (open) setPopupPreview(true);
-    return;
-  }
-  setPopupPreview(false);
 }
 
 if (!popupSettingsOrientationBound) {
   popupSettingsOrientationBound = true;
-  landscapeMQ.addEventListener('change', syncPopupSettingsOrientation);
-  window.addEventListener('resize', () => {
-    const preview = document.getElementById('popup-settings-preview');
-    if (!preview || preview.style.display === 'none') return;
-    fitPopupPreview();
+  landscapeMQ.addEventListener('change', () => {
+    placePopupSettingsButtons();
+    syncSettingsOpen();
   });
-  placePopupSettingsPreview();
+  placePopupSettingsButtons();
 }
 
 function commentsAreOpen(node) {

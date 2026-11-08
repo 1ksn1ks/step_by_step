@@ -3230,9 +3230,10 @@ html, body {
     flex-direction: column !important;
 
     /* --u is 1% of the card the way 1vh used to be on a phone, so the
-       content box and every chip inside it scale together. */
+       content box and every chip inside it scale together. --popup-size
+       is Settings > Popups > Size (loadprofilepopup.js), on the page root. */
     --card: var(--popup-card);
-    --u: calc(var(--card) * 0.024 * var(--fit));
+    --u: calc(var(--card) * 0.024 * var(--fit) * var(--popup-size, 1));
     --fit: 1;
     width: 100dvw !important;
     max-width: none !important;
@@ -3324,6 +3325,8 @@ html, body {
     transform: none !important;
     height: auto !important;
     padding: 0 !important;
+    /* The draw form keeps its own size; Settings > Popups > Size is for reading. */
+    --popup-size: 1;
     --card: 100cqi;
     width: 100% !important;
     max-width: 100% !important;
@@ -7155,13 +7158,13 @@ html, body {
 
   /* Reset and Save: one row under the settings (Chat, Marker), the way
      Stack pairs its buttons: Save in cyan, Reset outlined. */
-  :is(#topic-chat-save, #marker-column-save) > :is(#topic-chat-container-save, #marker-column-container-save):not([style*="display: none"]):not([style*="display:none"]) {
+  :is(#topic-chat-save, #marker-column-save, #popup-options-save) > :is(#topic-chat-container-save, #marker-column-container-save, #popup-options-container-save):not([style*="display: none"]):not([style*="display:none"]) {
     display: grid !important;
     grid-template-columns: 1fr 1fr;
     gap: var(--ui-gap, 1vh) !important;
     margin-top: var(--ui-gap, 1vh) !important;
   }
-  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) > :is(.mb-reset-btn, .save-settings-btn) {
+  :is(#topic-chat-save, #marker-column-save, #popup-options-save) :is(#topic-chat-container-save, #marker-column-container-save, #popup-options-container-save) > :is(.mb-reset-btn, .save-settings-btn) {
     display: flex !important;
     align-items: center;
     justify-content: center;
@@ -7190,49 +7193,49 @@ html, body {
     filter: none !important;
     cursor: pointer;
   }
-  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) > .mb-reset-btn {
+  :is(#topic-chat-save, #marker-column-save, #popup-options-save) :is(#topic-chat-container-save, #marker-column-container-save, #popup-options-container-save) > .mb-reset-btn {
     border: 1px solid #f07178 !important;
     background: transparent !important;
     background-color: transparent !important;
     box-shadow: none !important;
     color: #f07178 !important;
   }
-  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) > .mb-reset-btn:is(:hover, :active) {
+  :is(#topic-chat-save, #marker-column-save, #popup-options-save) :is(#topic-chat-container-save, #marker-column-container-save, #popup-options-container-save) > .mb-reset-btn:is(:hover, :active) {
     background: rgba(240, 113, 120, 0.14) !important;
     background-color: rgba(240, 113, 120, 0.14) !important;
   }
-  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) > .save-settings-btn {
+  :is(#topic-chat-save, #marker-column-save, #popup-options-save) :is(#topic-chat-container-save, #marker-column-container-save, #popup-options-container-save) > .save-settings-btn {
     border: 0 !important;
     background: #22D3EE !important;
     background-color: #22D3EE !important;
     box-shadow: 0 0 16px rgba(34, 211, 238, 0.45) !important;
     color: #0a0a12 !important;
   }
-  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) > .save-settings-btn:is(:hover, :active) {
+  :is(#topic-chat-save, #marker-column-save, #popup-options-save) :is(#topic-chat-container-save, #marker-column-container-save, #popup-options-container-save) > .save-settings-btn:is(:hover, :active) {
     filter: brightness(1.08) !important;
   }
-  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) > :is(.mb-reset-btn, .save-settings-btn):active {
+  :is(#topic-chat-save, #marker-column-save, #popup-options-save) :is(#topic-chat-container-save, #marker-column-container-save, #popup-options-container-save) > :is(.mb-reset-btn, .save-settings-btn):active {
     transform: scale(0.97) !important;
   }
-  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) > :is(.mb-reset-btn, .save-settings-btn):focus-visible {
+  :is(#topic-chat-save, #marker-column-save, #popup-options-save) :is(#topic-chat-container-save, #marker-column-container-save, #popup-options-container-save) > :is(.mb-reset-btn, .save-settings-btn):focus-visible {
     outline: 2px solid #fff;
     outline-offset: 2px;
   }
   /* Half a phone is too narrow for "Reset to defaults": "Reset" there,
      the whole label (and aria-label) everywhere. */
   @media (max-width: 520px) {
-    :is(#topic-chat-save, #marker-column-save) .mb-reset-more {
+    :is(#topic-chat-save, #marker-column-save, #popup-options-save) .mb-reset-more {
       display: none;
     }
   }
   /* The shared drawer rule ellipsizes the label; here it wraps. */
-  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) .mb-reset-btn > span:last-child {
+  :is(#topic-chat-save, #marker-column-save, #popup-options-save) :is(#topic-chat-container-save, #marker-column-container-save, #popup-options-container-save) .mb-reset-btn > span:last-child {
     min-width: 0;
     overflow: visible;
     text-overflow: clip;
     white-space: normal;
   }
-  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) .mb-reset-icon {
+  :is(#topic-chat-save, #marker-column-save, #popup-options-save) :is(#topic-chat-container-save, #marker-column-container-save, #popup-options-container-save) .mb-reset-icon {
     flex: 0 0 auto;
     line-height: 1;
   }
@@ -8062,7 +8065,8 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
     container-type: size;
     --fit: 1;
     --card: var(--popup-card);
-    --u: clamp(0.9dvh, min(calc(var(--popup-h) * 0.017), calc(var(--popup-w) * 0.0106)), 1.6dvh);
+    /* Times Settings > Popups > Size, as the portrait popup. */
+    --u: calc(clamp(0.9dvh, min(calc(var(--popup-h) * 0.017), calc(var(--popup-w) * 0.0106)), 1.6dvh) * var(--popup-size, 1));
     margin: 0 !important;
     padding-top: var(--popup-top) !important;
     padding-right: 0 !important;
@@ -8856,41 +8860,6 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   box-shadow: 0 0 1.6dvh rgba(var(--ps-accent-rgb), 0.35), inset 0 0 0.9dvh rgba(var(--ps-accent-rgb), 0.18);
 }
 
-/* Preview row: a single full-width glass button after the group, not a segmented track */
-#popup-settings-card .popup-settings-group + .popup-settings-row,
-#popup-settings-card .popup-settings-row:has(> #popup-settings-preview-toggle) {
-  margin-top: 1.6vh;
-  margin-top: 1.6dvh;
-  padding: 1.6vh 0 0;
-  padding: 1.6dvh 0 0;
-  background: none;
-  border: 0;
-  border-top: 1px solid var(--ps-divider);
-  border-radius: 0;
-  box-shadow: none;
-}
-#popup-settings-card #popup-settings-tools #popup-settings-preview-toggle {
-  gap: 1vh;
-  gap: 1dvh;
-  height: 5.4vh;
-  height: 5.4dvh;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
-}
-#popup-settings-card #popup-settings-preview-toggle::before {
-  content: "";
-  width: 2vh;
-  width: 2dvh;
-  height: 2vh;
-  height: 2dvh;
-  flex: none;
-  background: var(--ps-accent);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0'/><circle cx='12' cy='12' r='3'/></svg>") center / contain no-repeat;
-  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0'/><circle cx='12' cy='12' r='3'/></svg>") center / contain no-repeat;
-}
-
 /* Narrow phones: a little less side padding so "Pictures + videos" keeps fitting */
 @media (max-width: 360px) {
   #popup-settings-card #popup-settings-tools .toolbar-column-btns {
@@ -8982,187 +8951,10 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
 #popup-settings-card .popup-settings-note.is-invalid {
   color: #FCA5A5;
 }
-
-/* ---- Preview-open state: color chips, picker row, Save popup ---- */
-#popup-settings-card #popup-settings-preview {
-  position: relative;
-  box-sizing: border-box;
-  width: 100%;
-  overflow: hidden;
-  margin-top: 1.6vh;
-  margin-top: 1.6dvh;
-}
-#popup-settings-card #popup-column-2 {
-  margin-top: 0;
-  padding-top: 1.6vh;
-  padding-top: 1.6dvh;
-  border-top: 1px solid var(--ps-divider);
-}
-#popup-settings-card #popup-column-2::before {
-  content: "Colors";
-  display: block;
-  font-size: clamp(10px, 1.3vh, 16px);
-  font-size: clamp(10px, 1.3dvh, 16px);
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ps-muted);
-  margin: 0 0 0.9vh 0.5vw;
-  margin: 0 0 0.9dvh 0.5dvw;
-}
-#popup-settings-card #popup-column-container-2 > div > div {
-  gap: 0.7vh;
-  gap: 0.7dvh;
-  padding-bottom: 0.7vh !important;
-  padding-bottom: 0.7dvh !important;
-}
-#popup-settings-card #popup-column-container-2 .toolbar-column-btns {
-  flex: 1 1 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: auto;
-  min-width: 0;
-  height: 5vh;
-  height: 5dvh;
-  margin: 0 !important;          /* beats inline margin-left: 1vw */
-  padding: 0 0.8vw !important;   /* beats inline padding-top: 1vh */
-  padding: 0 0.8dvw !important;
-  box-sizing: border-box;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
-  color: var(--ps-text);
-  font-size: clamp(12px, 1.6vh, 20px);
-  font-size: clamp(12px, 1.6dvh, 20px);
-  font-weight: 500;
-  line-height: 1;
-  white-space: nowrap;
-  text-shadow: none !important;  /* beats inline text-shadow */
-  animation: none;
-  cursor: pointer;
-  /* Beat the global .toolbar-column-btns brightness and scale, including a sticky :hover. */
-  filter: none;
-  transform: none;
-}
-#popup-settings-card #popup-column-container-2 .toolbar-column-btns:focus {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--ps-text);
-  filter: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
-  outline: none;
-}
-#popup-settings-card #popup-column-container-2 .toolbar-column-btns:focus-visible {
-  outline: 1px solid rgba(255, 255, 255, 0.55);
-  outline-offset: 2px;
-}
-@media (hover: hover) and (pointer: fine) {
-  #popup-settings-card #popup-column-container-2 .toolbar-column-btns:hover {
-    background: rgba(255, 255, 255, 0.10);
-    color: #fff;
-    filter: none;
-    transform: none;
-  }
-}
-#popup-settings-card #popup-column-container-2 .toolbar-column-btns:active {
-  filter: none;
-  transform: scale(0.97);
-}
-/* Colour pills: press scale only, then the resting rule. */
-
-/* JS toggles these rows with inline display:block, so stay block-based */
-#popup-settings-card #popup-column-container-3 > div[id^="popup-column-3-"] {
-  margin-top: 1vh;
-  margin-top: 1dvh;
-  padding: 1vh 1vw 1vh 1.6vw;
-  padding: 1dvh 1dvw 1dvh 1.6dvw;
-  min-height: 6vh;
-  min-height: 6dvh;
-  box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 1.8vh;
-  border-radius: 1.8dvh;
-}
-#popup-settings-card #popup-column-container-3 > div[id^="popup-column-3-"]::after {
-  content: "";
-  display: block;
-  clear: both;
-}
-#popup-settings-card #popup-column-container-3 label {
-  display: inline-block;
-  line-height: 3.8vh;
-  line-height: 3.8dvh;
-  font-size: clamp(12px, 1.6vh, 20px) !important;    /* beats inline 1.5vh */
-  font-size: clamp(12px, 1.6dvh, 20px) !important;
-  font-weight: 500;
-  color: var(--ps-text);
-}
-/* .yourfov sets width: 100% !important, height: 5vh, margin-bottom: 0.5vh,
-   so these need !important to win inside the card */
-#popup-settings-card #popup-column-container-3 input[type="color"] {
-  float: right;
-  width: 6.5vh !important;
-  width: 6.5dvh !important;
-  height: 3.8vh !important;
-  height: 3.8dvh !important;
-  margin: 0 !important;
-  padding: 0.25vh !important;
-  padding: 0.25dvh !important;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  cursor: pointer;
-}
-#popup-settings-card #popup-column-container-3 input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
-#popup-settings-card #popup-column-container-3 input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 999px; }
-#popup-settings-card #popup-column-3-font > div { float: right; }
-#popup-settings-card #popup-font-size {
-  width: 8vh !important;
-  width: 8dvh !important;
-  height: 3.8vh !important;
-  height: 3.8dvh !important;
-  margin: 0 !important;
-  padding: 0 1.2vh !important;
-  padding: 0 1.2dvh !important;
-  box-sizing: border-box;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
-  font-family: Inter, system-ui, sans-serif;
-  font-size: clamp(12px, 1.6vh, 20px);
-  font-size: clamp(12px, 1.6dvh, 20px);
-  font-weight: 500;
-}
 /* Portrait: the wrappers do not generate a box, so the card's flow
-   stays delete, title, tools, preview, colours, pickers. */
-#popup-settings-side,
-#popup-settings-colors {
+   stays delete, title, tools. */
+#popup-settings-side {
   display: contents;
-}
-
-#popup-settings-card #savepopup3 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 5.4vh;
-  height: 5.4dvh;
-  margin: 1.4vh 0 0;
-  margin: 1.4dvh 0 0;
-  padding: 0 !important;
-  border-radius: 999px;
-  background: rgba(var(--ps-accent-rgb), 0.16);
-  border: 1px solid rgba(var(--ps-accent-rgb), 0.70);
-  box-shadow: 0 0 1.6vh rgba(var(--ps-accent-rgb), 0.30), inset 0 0 0.9vh rgba(var(--ps-accent-rgb), 0.15);
-  box-shadow: 0 0 1.6dvh rgba(var(--ps-accent-rgb), 0.30), inset 0 0 0.9dvh rgba(var(--ps-accent-rgb), 0.15);
-  color: #ECFEFF;
-  font-size: clamp(13px, 1.8vh, 22px);
-  font-size: clamp(13px, 1.8dvh, 22px);
-  font-weight: 600;
-  text-shadow: none !important;
-  animation: none;
 }
 
 /* Landscape only: the same frame as the post popup, split into two cards.
@@ -9261,18 +9053,6 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
     grid-row: 1;
   }
 
-  #popup-settings-colors {
-    display: flex;
-    flex-direction: column;
-    grid-column: 1;
-    grid-row: 2;
-    min-width: 0;
-    min-height: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
-
   #popup-settings-tools {
     grid-column: 2;
     grid-row: 2;
@@ -9282,42 +9062,6 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
-  }
-
-  #popup-settings-card #popup-column-2 {
-    width: auto !important;
-    margin-top: 0;
-    padding-top: 0;
-    border-top: 0;
-  }
-
-  #popup-settings-card #popup-column-container-2 > div,
-  #popup-settings-card #popup-column-container-2 > div > div {
-    display: contents !important;
-  }
-
-  #popup-settings-card #popup-column-container-2 {
-    display: flex;
-    flex-wrap: wrap;
-    align-content: flex-start;
-    gap: 0.7dvh;
-    min-width: 0;
-  }
-
-  #popup-settings-card #popup-column-container-2 .toolbar-column-btns {
-    flex: 0 0 calc(50% - 0.35dvh);
-    width: calc(50% - 0.35dvh) !important;
-    max-width: calc(50% - 0.35dvh);
-    min-width: 0;
-  }
-
-  #popup-settings-colors #popup-column-3,
-  #popup-settings-colors #popup-column-container-3,
-  #popup-settings-colors #savepopup3 {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
   }
 
   #popup-settings-card #popup-settings-tools .popup-settings-group {
@@ -9384,51 +9128,8 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   }
 
   /* The sample always has the left card, so the toggle row stays hidden. */
-  #popup-settings-card .popup-settings-row:has(> #popup-settings-preview-toggle) {
-    display: none;
-  }
 
-  #popup-settings-card #popup-settings-preview {
-    position: relative !important;
-    top: auto !important;
-    left: auto !important;
-    right: auto !important;
-    bottom: auto !important;
-    grid-column: 1;
-    grid-row: 1 / -1;
-    align-self: stretch;
-    justify-self: stretch;
-    box-sizing: border-box;
-    width: 100% !important;
-    max-width: 100% !important;
-    height: 100% !important;
-    max-height: 100% !important;
-    min-width: 0;
-    min-height: 0;
-    margin: 0 !important;
-    overflow: visible !important;
-    overscroll-behavior: contain;
-    border-width: 0 !important;
-    border-radius: 0 !important;
-    background: transparent !important;
-    background-color: transparent !important;
-    background-image: none !important;
-    box-shadow: none !important;
-    clip-path: none !important;
-    animation: none !important;
-    z-index: auto !important;
-    /* Block, not flex: the scaled portrait popup is taken out of flow. */
-    display: block !important;
-    pointer-events: auto !important;
-    scrollbar-width: none;
-  }
-
-  #popup-settings-card #popup-settings-preview * {
-    pointer-events: none !important;
-  }
-
-  #popup-settings-card #popup-settings-tools .toolbar-column-btns,
-  #popup-settings-card #popup-column-container-2 .toolbar-column-btns {
+  #popup-settings-card #popup-settings-tools .toolbar-column-btns {
     font-size: clamp(10px, 1.45dvh, 18px);
     padding-left: 0.35dvw !important;
     padding-right: 0.35dvw !important;
@@ -9437,129 +9138,95 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   }
 }
 
-/* Settings sample: a real portrait popup, scaled to the slot. It stays
-   outside .maplibregl-map, so the landscape two-card post rules miss it.
-   --u is the portrait one (2.4% of the popup width), not the card's 100cqi. */
-#popup-settings-card #popup-settings-preview > .maplibregl-popup {
+/* Size and colours (and their preview) live in Settings > Popups now, so
+   the landscape card is the right-hand card only: the post's own left card
+   stays in view beside it, and the arrows group fills the right card. */
+@media (orientation: landscape) {
+  #popup-settings-card::before {
+    display: none;
+  }
+
+  #popup-settings-tools {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Settings > Popups preview (processallmessages.js fitPopupStylePreview):
+   one real portrait popup at its natural size, scaled to the card's width.
+   The slot's height is the scaled popup's. It reads --popup-size like a
+   real popup, so the Size slider shows in it. */
+.mb-panel #popup-settings-preview {
+  position: relative;
+  box-sizing: border-box;
+  width: auto;
+  height: 0;
+  /* The rows' 16px side inset, so the sample lines up with them. It is a
+     portrait popup, so a wide page keeps it phone-sized and centred. */
+  margin: 4px max(16px, calc((100% - 420px) / 2)) 16px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.mb-panel #popup-settings-preview > .maplibregl-popup {
   position: absolute !important;
-  top: calc(50% + var(--preview-shift, 0px)) !important;
-  left: 50% !important;
+  top: 0 !important;
+  left: 0 !important;
   right: auto !important;
   bottom: auto !important;
   width: var(--popup-card) !important;
-  height: var(--popup-max-h) !important;
   max-width: none !important;
+  height: auto !important;
   max-height: none !important;
   margin: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
   --card: var(--popup-card);
   --fit: 1;
-  --u: calc(var(--card) * 0.024 * var(--fit));
-  transform: translate(-50%, -50%) scale(var(--preview-scale, 0.01)) !important;
-  transform-origin: center center;
+  --u: calc(var(--card) * 0.024 * var(--fit) * var(--popup-size, 1));
+  transform: scale(var(--preview-scale, 0.01)) !important;
+  transform-origin: 0 0;
   visibility: hidden;
   z-index: auto !important;
+  animation: none !important;
   pointer-events: none !important;
 }
-#popup-settings-card #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content {
-  display: flex !important;
-  flex-direction: column !important;
-  flex: 1 1 auto !important;
-  height: 100% !important;
-  max-height: 100% !important;
-  min-height: 0 !important;
-  overflow: hidden !important;
-  --card: var(--popup-card);
-  --fit: 1;
-  --u: calc(var(--card) * 0.024 * var(--fit));
-}
-#popup-settings-card #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content > .popup-sheet {
-  display: flex !important;
-  flex-direction: column !important;
-  flex: 1 1 auto !important;
-  height: 100% !important;
+.mb-panel #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content,
+.mb-panel #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content > .popup-sheet {
+  flex: 0 0 auto !important;
+  height: auto !important;
   min-height: 0 !important;
   max-height: none !important;
   overflow: visible !important;
-  --card: var(--popup-card);
-  --fit: 1;
-  --u: calc(var(--card) * 0.024 * var(--fit));
+  animation: none !important;
 }
-#popup-settings-card #popup-settings-preview > .maplibregl-popup .popup-body {
+.mb-panel #popup-settings-preview > .maplibregl-popup .popup-body {
   flex: 0 1 auto !important;
   height: auto !important;
   max-height: none !important;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
+  overflow: visible !important;
 }
-#popup-settings-card #popup-settings-preview > .maplibregl-popup .popup-gap {
-  flex: 1 1 auto !important;
-  min-height: 0 !important;
+.mb-panel #popup-settings-preview > .maplibregl-popup .popup-gap {
+  flex: 0 0 auto !important;
+  height: var(--u) !important;
+  min-height: var(--u) !important;
 }
+.mb-panel #popup-settings-preview * {
+  pointer-events: none !important;
+}
+/* An Early Hashinal holder's theme is locked: only Size moves. */
+.mb-panel .mb-swatch.is-locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Settings sample: a real portrait popup, scaled to the slot. It stays
+   outside .maplibregl-map, so the landscape two-card post rules miss it.
+   --u is the portrait one (2.4% of the popup width), not the card's 100cqi. */
 
 /* Portrait sample: fit to its content instead of the full popup height,
    so the action row and footer show without scrolling. ~1u text gap. */
-@media (orientation: portrait) {
-  #popup-settings-card #popup-settings-preview > .maplibregl-popup,
-  #popup-settings-card #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content,
-  #popup-settings-card #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content > .popup-sheet {
-    height: auto !important;
-    max-height: none !important;
-  }
-
-  #popup-settings-card #popup-settings-preview > .maplibregl-popup .popup-gap {
-    flex: 0 0 auto !important;
-    height: var(--u) !important;
-    min-height: var(--u) !important;
-  }
-}
 
 /* Landscape sample: the real post's --u, centred on the left card.
    0.1u inset. Scale stays 1 unless the card is actually too small. */
-@media (orientation: landscape) {
-  #popup-settings-card #popup-settings-preview > .maplibregl-popup,
-  #popup-settings-card #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content,
-  #popup-settings-card #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content > .popup-sheet {
-    --popup-h: calc(var(--app-h, 100dvh) - var(--popup-top) - var(--popup-bottom));
-    --popup-w: var(--popup-card);
-    --fit: 1;
-    --card: var(--popup-card);
-    --u: clamp(0.9dvh, min(calc(var(--popup-h) * 0.017), calc(var(--popup-w) * 0.0106)), 1.6dvh);
-  }
-
-  #popup-settings-card #popup-settings-preview,
-  #popup-settings-card #popup-settings-preview > .maplibregl-popup {
-    border-width: 0 !important;
-    border-style: none !important;
-    border-color: transparent !important;
-    border-image: none !important;
-    box-shadow: none !important;
-    outline: none !important;
-  }
-
-  #popup-settings-card #popup-settings-preview > .maplibregl-popup {
-    width: 100% !important;
-    height: calc(100% + var(--u) * 0.1) !important;
-    max-width: 100% !important;
-    max-height: none !important;
-    transform: translate(-50%, -50%) scale(var(--preview-scale, 1)) !important;
-    background-image: none !important;
-  }
-
-  #popup-settings-card #popup-settings-preview > .maplibregl-popup::before,
-  #popup-settings-card #popup-settings-preview > .maplibregl-popup::after {
-    border-width: 0 !important;
-    background-image: none !important;
-    box-shadow: none !important;
-  }
-
-  #popup-settings-card #popup-settings-preview > .maplibregl-popup .popup-body {
-    flex: 0 0 auto !important;
-    min-height: min-content !important;
-    height: auto !important;
-    max-height: none !important;
-    overflow: visible !important;
-  }
-}
 
 /* Message text: MapLibre's .maplibregl-map { font: 12px/20px } gives every
    popup a fixed 20px line-height, so line gaps ignored the Font setting.
@@ -9970,10 +9637,6 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
 .marker-face.early-hashinal::after {
   content: "";
 }
-#popup-column-3 input:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 #savepopup3.is-locked {
   opacity: 0.45;
   pointer-events: none;
@@ -10149,24 +9812,6 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
 }
 
 /* Landscape settings: Colors sits in the same bubble as Prev / next arrows. */
-@media (orientation: landscape) {
-  #popup-settings-card #popup-settings-colors {
-    align-self: start;
-    box-sizing: border-box;
-    padding: 1.4dvh 1.6dvw;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 2.2dvh;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  }
-
-  #popup-settings-card #popup-settings-colors #popup-column-2::before {
-    font-size: clamp(10px, 1.35dvh, 17px);
-    font-weight: 700;
-    color: rgba(255, 255, 255, 0.88);
-    margin: 0 0 1.4dvh 0.4dvw;
-  }
-}
 
 /* Feed layout. Map mode: the toggle is the first button in the search row.
    1px is the hairline those controls already use. Hiding it keeps that
@@ -22245,8 +21890,7 @@ html.is-draw-picking #map-topbar {
 }
 
 /* Save and Save popup: one primary cyan button. */
-#popup-settings-card #popup-settings-edit-save,
-#popup-settings-card #savepopup3 {
+#popup-settings-card #popup-settings-edit-save {
   flex: 1 1 auto;
   display: flex;
   align-items: center;
@@ -22275,11 +21919,7 @@ html.is-draw-picking #map-topbar {
   cursor: pointer;
   transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
 }
-#popup-settings-card #savepopup3 {
-  margin-top: 1.4dvh;
-}
-#popup-settings-card #popup-settings-edit-save::before,
-#popup-settings-card #savepopup3::before {
+#popup-settings-card #popup-settings-edit-save::before {
   content: "";
   width: max(14px, 2dvh);
   height: max(14px, 2dvh);
@@ -22289,138 +21929,26 @@ html.is-draw-picking #map-topbar {
   mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6 9 17l-5-5'/></svg>") center / contain no-repeat;
 }
 @media (hover: hover) and (pointer: fine) {
-  #popup-settings-card #popup-settings-edit-save:hover,
-  #popup-settings-card #savepopup3:hover {
+  #popup-settings-card #popup-settings-edit-save:hover {
     background: rgba(var(--ps-accent-rgb), 0.26);
     filter: none;
     transform: none;
   }
 }
-#popup-settings-card #popup-settings-edit-save:active,
-#popup-settings-card #savepopup3:active {
+#popup-settings-card #popup-settings-edit-save:active {
   filter: none;
   transform: scale(0.98);
 }
-#popup-settings-card #popup-settings-edit-save:focus-visible,
-#popup-settings-card #savepopup3:focus-visible {
+#popup-settings-card #popup-settings-edit-save:focus-visible {
   outline: 1px solid rgba(255, 255, 255, 0.55);
   outline-offset: 2px;
 }
 
 /* Colours: one glass panel, the same as Prev / next arrows, with a title
    icon. Portrait shows it only with the sample (Preview). */
-@media (orientation: portrait) {
-  #popup-settings-card #popup-settings-colors:has(> #popup-column-2[style*="display: block"]) {
-    display: block;
-    margin-top: 1.6dvh;
-    padding: 1.4dvh 1.6dvw 1.6dvh;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 2.2dvh;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  }
-  #popup-settings-card #popup-settings-colors:has(> #popup-column-2[style*="display: block"]) > #popup-column-2 {
-    padding-top: 0;
-    border-top: 0;
-  }
-}
-#popup-settings-card #popup-settings-colors #popup-column-2::before {
-  display: flex;
-  align-items: center;
-  gap: 1dvh;
-  margin: 0 0 1.2dvh 0.4dvw;
-  padding-left: max(18px, 2.9dvh);
-  min-height: max(12px, 1.9dvh);
-  font-size: clamp(10px, 1.35dvh, 17px);
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.88);
-  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322D3EE' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='13.5' cy='6.5' r='.5' fill='%2322D3EE'/><circle cx='17.5' cy='10.5' r='.5' fill='%2322D3EE'/><circle cx='8.5' cy='7.5' r='.5' fill='%2322D3EE'/><circle cx='6.5' cy='12.5' r='.5' fill='%2322D3EE'/><path d='M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z'/></svg>") left center / max(12px, 1.9dvh) max(12px, 1.9dvh) no-repeat;
-}
 /* Targets: one even grid, four across (two across in the narrower
    landscape column). The part whose picker is open reads as chosen. */
-#popup-settings-card #popup-column-container-2 > div {
-  display: grid !important;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.7dvh;
-  /* Landscape's container is a flex row; take its whole width. */
-  flex: 1 1 100%;
-  width: 100%;
-}
-#popup-settings-card #popup-column-container-2 > div > div {
-  display: contents !important;
-}
-@media (orientation: landscape) {
-  #popup-settings-card #popup-column-container-2 > div {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-#popup-settings-card #popup-column-container-2 .toolbar-column-btns {
-  width: auto !important;
-  max-width: none !important;
-  height: 4.6dvh;
-  min-height: 40px;
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-}
-#popup-settings-colors:has(#popup-column-3-border[style*="display: block"]) #popup-column-2-border,
-#popup-settings-colors:has(#popup-column-3-number[style*="display: block"]) #popup-column-2-number,
-#popup-settings-colors:has(#popup-column-3-close[style*="display: block"]) #popup-column-2-close,
-#popup-settings-colors:has(#popup-column-3-font[style*="display: block"]) #popup-column-2-font,
-#popup-settings-colors:has(#popup-column-3-accid[style*="display: block"]) #popup-column-2-accid,
-#popup-settings-colors:has(#popup-column-3-username[style*="display: block"]) #popup-column-2-username,
-#popup-settings-colors:has(#popup-column-3-titles[style*="display: block"]) #popup-column-2-titles,
-#popup-settings-colors:has(#popup-column-3-text[style*="display: block"]) #popup-column-2-text {
-  background: rgba(var(--ps-accent-rgb), 0.18) !important;
-  border-color: rgba(var(--ps-accent-rgb), 0.75) !important;
-  color: #ECFEFF !important;
-  font-weight: 600;
-  box-shadow: 0 0 1.6dvh rgba(var(--ps-accent-rgb), 0.35), inset 0 0 0.9dvh rgba(var(--ps-accent-rgb), 0.18) !important;
-}
 /* The open picker: a row on the panel, name left, control right. */
-#popup-settings-card #popup-column-container-3 > div[id^="popup-column-3-"][style*="display: block"] {
-  display: flex !important;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.2dvh;
-  margin-top: 1.2dvh;
-  padding: 0.9dvh 0.9dvh 0.9dvh 1.6dvh;
-  min-height: 0;
-  background: rgba(0, 0, 0, 0.22);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  box-shadow: inset 0 0.12dvh 0.25dvh rgba(0, 0, 0, 0.35);
-}
-#popup-settings-card #popup-column-container-3 > div[id^="popup-column-3-"]::after {
-  content: none;
-}
-#popup-settings-card #popup-column-container-3 input[type="color"],
-#popup-settings-card #popup-column-3-font > div {
-  float: none;
-}
-#popup-settings-card #popup-column-container-3 input[type="color"] {
-  width: 4.4dvh !important;
-  height: 4.4dvh !important;
-  min-width: 36px;
-  min-height: 36px;
-  padding: 0.35dvh !important;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: 0 0 0 0.25dvh rgba(0, 0, 0, 0.25);
-}
-#popup-settings-card #popup-font-size {
-  width: 10dvh !important;
-  height: 4.4dvh !important;
-  min-height: 36px;
-  text-align: center;
-  border-color: rgba(255, 255, 255, 0.25);
-}
-#popup-settings-card #popup-font-size:focus {
-  outline: none;
-  border-color: rgba(34, 211, 238, 0.7);
-}
 
 /* Landscape: the edit box heads the left column, above Colors, instead
    of trailing below it; the arrows keep the full right column. */
@@ -22433,9 +21961,6 @@ html.is-draw-picking #map-topbar {
     grid-row: 2;
     min-width: 0;
     margin: 0 0 calc(var(--u) * 0.8);
-  }
-  #popup-settings-colors {
-    grid-row: 3;
   }
   #popup-settings-tools {
     grid-row: 2 / -1;

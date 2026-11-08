@@ -8,8 +8,10 @@ import {
     EARLY_PROFILE_CLASS,
 } from "./earlypopup.js";
 import { accidColorOrDefault, usernameColorOrDefault } from "./letall.js";
+import { formatSliderValue, applySliderValueWidth } from "./slidervalue";
 
-const STYLE_INPUTS = [
+// Settings > Popups (index.html #popup-options-column).
+const COLOR_INPUTS = [
     "color-picker-popup-border",
     "color-picker-popup-number",
     "color-picker-popup-close",
@@ -17,10 +19,47 @@ const STYLE_INPUTS = [
     "color-picker-popup-username",
     "color-picker-popup-titles",
     "color-picker-popup-text",
-    "popup-font-size",
 ];
+const STYLE_INPUTS = [...COLOR_INPUTS, "popup-size"];
+const DEFAULT_COLOR = "#ffffff";
+
+// Size scales everything inside a popup: style.css multiplies the popup's
+// unit (--u) by --popup-size. The slider is in percent; 100 is the shipped
+// size. It replaced a text-only Font (1–3, 2 the default), so a style saved
+// with only that reads as Font / 2.
+const SIZE_MIN = 0.7;
+const SIZE_MAX = 1.5;
+
+function clampSize(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return 1;
+    return Math.min(Math.max(n, SIZE_MIN), SIZE_MAX);
+}
+
+function savedSize(data) {
+    if (data && data.popupSize != null && Number.isFinite(Number(data.popupSize))) return clampSize(data.popupSize);
+    const font = data ? parseFloat(data.popupFontSize) : NaN;
+    return Number.isFinite(font) ? clampSize(font / 2) : 1;
+}
+
+function readSize() {
+    const input = document.getElementById("popup-size");
+    return clampSize((parseFloat(input && input.value) || 100) / 100);
+}
+
+function setSizeInput(size) {
+    const input = document.getElementById("popup-size");
+    if (input) input.value = String(Math.round(clampSize(size) * 20) * 5);
+}
+
+function paintSwatch(id) {
+    const input = document.getElementById(id);
+    const swatch = document.getElementById(id + "-swatch");
+    if (input && swatch) swatch.style.background = input.value;
+}
 
 let styleAccount = "";
+let paintedSize = null; // the --popup-size last written
 
 document.getElementById("savepopup3").addEventListener("click", async (event) => {
     event.stopPropagation();
@@ -40,7 +79,7 @@ document.getElementById("savepopup3").addEventListener("click", async (event) =>
                 const hexColorUsername = document.getElementById('color-picker-popup-username').value;
                 const hexColorTitles = document.getElementById('color-picker-popup-titles').value;
                 const hexColorText = document.getElementById('color-picker-popup-text').value;
-                const popupFontSize = Math.min(Math.max(parseFloat(document.getElementById("popup-font-size").value) || 1, 1), 3);
+                const popupSize = readSize();
 
                 if (!hexColorBorder || !hexColorNumber || !hexColorClose || !hexColorAccid || !hexColorUsername || !hexColorTitles || !hexColorText) {
                     toast.error("Please fill in all color fields.");
@@ -56,7 +95,7 @@ document.getElementById("savepopup3").addEventListener("click", async (event) =>
                         colorAccid: hexColorAccid,
                         colorText: hexColorText,
                         colorTitles: hexColorTitles,
-                        popupFontSize: popupFontSize
+                        popupSize: popupSize
                     },
                 };
     
@@ -94,10 +133,11 @@ export async function loadProfilePopup(a) {
             // Check if the last message has valid data
             if (lastMessage && lastMessage.data) {
                 // Extract relevant data and clamp to max 255
-                const { colorBorder, colorNumber, colorClose, colorUsername, colorAccid, colorText, colorTitles, popupFontSize } = lastMessage.data;
+                const { colorBorder, colorNumber, colorClose, colorUsername, colorAccid, colorText, colorTitles } = lastMessage.data;
                 const shownAccid = accidColorOrDefault(colorAccid);
                 const shownUsername = usernameColorOrDefault(colorUsername);
-    
+                const popupSize = savedSize(lastMessage.data);
+
                 accountObjectSettings.push({
                     colorBorder: colorBorder,
                     colorNumber: colorNumber,
@@ -106,7 +146,7 @@ export async function loadProfilePopup(a) {
                     colorAccid: shownAccid,
                     colorText: colorText,
                     colorTitles: colorTitles,
-                    popupFontSize: popupFontSize
+                    popupSize: popupSize
                 });
     
                 document.getElementById("color-picker-popup-border").value = colorBorder;
@@ -116,8 +156,9 @@ export async function loadProfilePopup(a) {
                 document.getElementById("color-picker-popup-username").value = shownUsername;
                 document.getElementById("color-picker-popup-titles").value = colorTitles;
                 document.getElementById("color-picker-popup-text").value = colorText;
-                document.getElementById("popup-font-size").value = Math.min(Math.max(parseFloat(popupFontSize) || 1, 1), 3);
-    
+                setSizeInput(popupSize);
+                COLOR_INPUTS.forEach(paintSwatch);
+
                 updatePopupBorder();
                 updatePopupNumber();
                 updatePopupClose();
@@ -125,7 +166,7 @@ export async function loadProfilePopup(a) {
                 updatePopupUsername();
                 updatePopupTitles();
                 updatePopupText();
-                updatePopupFontSize();
+                updatePopupSize();
 
             }
     
@@ -174,8 +215,10 @@ export function syncEarlyStyleEditor(account) {
     const n = earlyHashinalNumber(styleAccount);
     for (const id of STYLE_INPUTS) {
         const el = document.getElementById(id);
-        // Font size is an eyesight setting, never part of the locked theme.
-        if (el) el.disabled = n > 0 && id !== "popup-font-size";
+        // Size is an eyesight setting, never part of the locked theme.
+        if (el) el.disabled = n > 0 && id !== "popup-size";
+        const swatch = document.getElementById(id + "-swatch");
+        if (swatch) swatch.classList.toggle("is-locked", n > 0 && id !== "popup-size");
     }
     const save = document.getElementById("savepopup3");
     if (save) {
@@ -200,9 +243,9 @@ export function applyAllStyles() {
         updatePopupUsername();
         updatePopupTitles();
         updatePopupText();
-        updatePopupFontSize();
+        updatePopupSize();
     }
-    
+
     function updatePopupBorder() {
       const color = document.getElementById('color-picker-popup-border').value;
       const popupContents = document.querySelectorAll('.maplibregl-popup');
@@ -278,15 +321,42 @@ export function applyAllStyles() {
     }
     document.getElementById('color-picker-popup-text').addEventListener('input', (event) => {updatePopupText();});
     
-    function updatePopupFontSize() {
-        const popupFontSize = document.getElementById("popup-font-size").value;
-        const popupFontSizeValue = Math.min(Math.max(parseFloat(popupFontSize) || 1, 1), 3);
-        const popupTexts = document.querySelectorAll('.maplibregl-popup-content');
-        popupTexts.forEach(text => {
-            text.style.fontSize = `calc(var(--u) * ${popupFontSizeValue})`;
-            // 2 is the default size. Rules with their own --u size
-            // (landscape text, name) multiply by this scale.
-            text.style.setProperty('--popup-font-scale', String(popupFontSizeValue / 2));
-        });
+    // One value on the page root: every popup's --u reads it (style.css),
+    // so popups opened later are already the right size.
+    function updatePopupSize() {
+        const size = readSize();
+        const pill = document.getElementById("popup-size-pill");
+        const input = document.getElementById("popup-size");
+        if (pill && input) {
+            pill.textContent = formatSliderValue(input, input.value);
+            applySliderValueWidth(input, pill);
+        }
+        if (size === paintedSize) return;
+        paintedSize = size;
+        if (size === 1) document.documentElement.style.removeProperty("--popup-size");
+        else document.documentElement.style.setProperty("--popup-size", String(size));
+        // The preview's height follows the size (processallmessages.js).
+        document.dispatchEvent(new Event("popup-size-change"));
     }
-    document.getElementById('popup-font-size').addEventListener('input', (event) => {updatePopupFontSize();});
+    document.getElementById('popup-size').addEventListener('input', () => { updatePopupSize(); });
+
+    for (const id of COLOR_INPUTS) {
+        document.getElementById(id).addEventListener('input', () => paintSwatch(id));
+    }
+    COLOR_INPUTS.forEach(paintSwatch);
+
+    // Reset: the shipped colors and size, until Save Settings keeps them.
+    // A locked Early Hashinal theme keeps its colors; only the size resets.
+    document.getElementById("reset-popup-style").addEventListener("click", (event) => {
+        event.stopPropagation();
+        const locked = earlyHashinalNumber(styleAccount) > 0;
+        if (!locked) {
+            for (const id of COLOR_INPUTS) {
+                document.getElementById(id).value = DEFAULT_COLOR;
+                paintSwatch(id);
+            }
+        }
+        setSizeInput(1);
+        applyAllStyles();
+        toast.info("Reset to defaults");
+    });
