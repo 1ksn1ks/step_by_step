@@ -2547,6 +2547,14 @@ html, body {
       transition: none;
     }
   }
+  /* A map popup covers the screen at 90% fill, so the menu, clock and
+     coordinates showed through it. Hide the row while one is open. A
+     popup another page has covered (inline display: none, loadBio4PIC.js)
+     gives the row back. */
+  html:has(.maplibregl-map > .maplibregl-popup:not([style*="display: none"])) #map-topbar {
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
   /* Settings, Visibility and Toolbar stay in the document so the drawer
      can show those panels. They are not part of the map. */
   #menu-buttons-group,
