@@ -12012,6 +12012,60 @@ html.feed-app #feed-search-page {
   display: none;
 }
 
+/* Place and time on two rows (feedlayout.js placePart, paintStampRows):
+   country over city on the left, date over time on the right. The first
+   row keeps the place it had as a single row: each side drops by half the
+   gap between the views chip and a text line, the height the old
+   centred row gave it, and the second row goes under it. The flag and the
+   views chip sit in the middle of the two rows. */
+:is(#feed-column, .feed-comments-stage) .feed-meta {
+  --meta-line: calc(var(--fu) * 1.5 * 1.3);
+  --meta-chip: calc(var(--fu) * 0.26 * 10);
+  align-items: flex-start;
+}
+:is(#feed-column, .feed-comments-stage) .feed-meta-left,
+:is(#feed-column, .feed-comments-stage) .feed-meta-right {
+  padding-top: max(0px, calc((var(--meta-chip) - var(--meta-line)) / 2));
+}
+:is(#feed-column, .feed-comments-stage) .feed-meta .feed-loc,
+:is(#feed-column, .feed-comments-stage) .feed-meta .popup-timestamp {
+  line-height: 1.3;
+}
+:is(#feed-column, .feed-comments-stage) .feed-loc-lines {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  overflow: hidden;
+}
+:is(#feed-column, .feed-comments-stage) .feed-loc-lines > span {
+  max-width: 100%;
+}
+:is(#feed-column, .feed-comments-stage) .feed-loc-city {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+/* The views chip is a little taller than a line; centred on the two rows. */
+:is(#feed-column, .feed-comments-stage) .feed-meta-right {
+  align-items: center;
+}
+:is(#feed-column, .feed-comments-stage) .feed-meta .popup-timestamp {
+  display: flex;
+  align-items: flex-end;
+}
+:is(#feed-column, .feed-comments-stage) .feed-time-full.is-rows {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+:is(#feed-column, .feed-comments-stage) .feed-time-full.is-rows > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Feed action row only. Map popups keep the glass heart, the count below it,
    and red / cyan / green. Here the same controls sit in an X-style row. */
 :is(#feed-column, .feed-comments-stage) .feed-actions .heart-like {
