@@ -20089,15 +20089,18 @@ img.is-gif-hit {
   --chip: max(40px, calc(var(--bar-h) * 0.74));
   --read: clamp(17px, calc(var(--u) * 1.15), 30px);
   --edge: max(12px, calc(var(--u) * 1.1));
+  /* The visible screen itself (inset: 0, no set height): a height measured
+     once (--app-h) can be taller than what Safari shows once its bottom bar
+     is up, and the end of the text sat under that bar. Nothing here takes
+     typing, so the keyboard rule behind --app-h is not needed. */
   position: fixed;
   inset: 0;
   z-index: 9050;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  width: 100dvw;
-  height: 100vh;
-  height: var(--app-h, 100dvh);
+  width: auto;
+  height: auto;
   margin: 0;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   background:
@@ -20410,6 +20413,19 @@ img.is-gif-hit {
   opacity: 1;
   transform: none;
   pointer-events: auto;
+}
+/* iPhone / iPad (only iOS WebKit has -webkit-touch-callout): Safari's
+   toolbar can float over the bottom of the screen, and this page scrolls
+   inside itself, so Safari leaves no room for the bar at the end. The end
+   of the text and Back to post get room to scroll above it, and ↑ sits
+   above it. */
+@supports (-webkit-touch-callout: none) {
+  .popup-text-page-inner {
+    padding-bottom: calc(var(--read) * 2.4 + 72px);
+  }
+  .popup-text-page-top {
+    bottom: calc(var(--edge) + env(safe-area-inset-bottom) + 56px);
+  }
 }
 
 /* Rises in; drops away on Back. */
