@@ -3446,8 +3446,11 @@ app.get("/api/turn", publicPostLimit, async (req, res) => {
 });
 
 app.get("/api/early-hashinals", publicPostLimit, (req, res) => {
-  res.setHeader("Cache-Control", "public, max-age=300");
-  res.json(earlyHashinals.snapshot());
+  const snapshot = earlyHashinals.snapshot();
+  // An empty list while the server is still building it is not cached,
+  // so the browser's retry reaches the list as soon as it is there.
+  res.setHeader("Cache-Control", snapshot.updatedAt ? "public, max-age=300" : "no-store");
+  res.json(snapshot);
 });
 
 // Finished place with nothing to show. Same object /api/place already

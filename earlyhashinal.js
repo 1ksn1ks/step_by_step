@@ -4,10 +4,17 @@ import { map } from "./map.js";
 import { forgetTilt, watchProfilePicture } from "./markertilt.js";
 
 const REFRESH_MS = 15 * 60 * 1000;
+// A pull that fails, is refused (429), or finds the server still building
+// its list is tried again soon, not at the next 15-minute refresh: the
+// rings would otherwise stay off for that long.
+const RETRY_MIN_MS = 10 * 1000;
+const RETRY_MAX_MS = 5 * 60 * 1000;
 
 let owners = new Map();
 let ownersReady = false;
 let armed = false;
+let retryMs = RETRY_MIN_MS;
+let retryTimer = 0;
 const ownerListeners = new Set();
 
 export function earlyHashinalNumber(account) {
@@ -132,30 +139,66 @@ function repaintProfiles() {
 
 document.addEventListener("early-hashinals", repaintProfiles);
 
+// false when the answer holds no list yet (the server is still building
+// it). Owners already shown are kept then, so a warming server does not
+// take every ring off.
 function applyOwners(body) {
   const raw = body && body.owners;
   if (!raw || typeof raw !== "object") {
     settleOwners();
-    return;
+    return false;
   }
   const next = new Map();
   for (const [id, value] of Object.entries(raw)) {
     const n = typeof value === "number" ? value : Number(value);
     if (/^0\.0\.\d+$/.test(id) && Number.isInteger(n) && n > 0) next.set(id, n);
   }
+  const listed = !!body.updatedAt || next.size > 0;
+  if (!listed) {
+    settleOwners();
+    return false;
+  }
   owners = next;
   document.dispatchEvent(new Event("early-hashinals"));
   settleOwners();
+  return true;
 }
 
-function pull() {
-  fetch("/api/early-hashinals", { headers: { accept: "application/json" } })
-    .then((res) => (res.ok ? res.json() : null))
-    .then((body) => {
-      if (body) applyOwners(body);
-      else settleOwners();
+// Seconds from a Retry-After header, else the doubling wait.
+function retryLater(res) {
+  if (retryTimer) return;
+  const after = res && res.headers ? Number(res.headers.get("Retry-After")) : NaN;
+  const wait = Number.isFinite(after) && after > 0 ? Math.min(RETRY_MAX_MS, after * 1000) : retryMs;
+  retryMs = Math.min(RETRY_MAX_MS, retryMs * 2);
+  retryTimer = setTimeout(() => {
+    retryTimer = 0;
+    pull(true);
+  }, wait);
+}
+
+// again: a retry asks the server, not a cached empty answer.
+function pull(again = false) {
+  fetch("/api/early-hashinals", {
+    headers: { accept: "application/json" },
+    cache: again ? "no-cache" : "default",
+  })
+    .then((res) => {
+      if (res.ok) return res.json();
+      retryLater(res);
+      return null;
     })
-    .catch(() => settleOwners());
+    .then((body) => {
+      if (!body) {
+        settleOwners();
+        return;
+      }
+      if (applyOwners(body)) retryMs = RETRY_MIN_MS;
+      else retryLater(null);
+    })
+    .catch(() => {
+      settleOwners();
+      retryLater(null);
+    });
 }
 
 function arm() {
@@ -165,8 +208,16 @@ function arm() {
   setInterval(pull, REFRESH_MS);
 }
 
-if (map.loaded()) arm();
-else map.on("load", arm);
+// After the globe has drawn. map.loaded() is false again while tiles load,
+// so a module that runs after the load event would wait for a load that
+// never comes: idle, and a timer, start it too (arm runs once).
+if (map.loaded()) {
+  arm();
+} else {
+  map.once("load", arm);
+  map.once("idle", arm);
+  setTimeout(arm, 8000);
+}
 
 // Endless rings pause once they leave the viewport. A hidden document and
 // the feed overlay (html.feed-app) also set html.eh-hidden: intersection
