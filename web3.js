@@ -83,7 +83,19 @@ const accountSpan = document.getElementById('account-id');
 const disconnectBtn = document.getElementById("disconnect-wallet-btn");
 const walletBtn = document.getElementById("wallet-wallet-btn")
 
+// Tells the rest of the app when the connected account changes, e.g. a
+// session restored after the page loaded (localnews.js repaints a
+// Following or Mine live overlay).
+let announcedAccount = null;
+function announceAccount() {
+  const account = connectedAccount || null;
+  if (account === announcedAccount) return;
+  announcedAccount = account;
+  document.dispatchEvent(new CustomEvent('wallet-account-changed', { detail: { account } }));
+}
+
 export function updateUI() {
+  announceAccount();
   if (connectedAccount) {
     accountSpan.textContent = connectedAccount;
     connectBtn.textContent = 'Connected ✓';  // Optional: hide or disable connect button
@@ -167,6 +179,7 @@ async function finishConnect(flight, settle) {
       disconnectBtn.style.display = "block";
       connectBtn.style.display = "none";
       disconnectBtn.textContent = 'Disconnect';
+      announceAccount();
 
       console.log('Signer stored globally:', signer);
     } else {

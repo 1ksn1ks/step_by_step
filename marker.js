@@ -234,6 +234,14 @@ function stackReach() {
   return (currentMarkerSize / 100) * window.innerHeight * STACK_OVERLAP;
 }
 
+// The zoom at which dots whose on-screen box has this larger side stop
+// covering each other, or null when even the deepest zoom cannot.
+function zoomForSpread(spread, reach = stackReach()) {
+  if (!(spread > 1e-9)) return null;
+  const z = map.getZoom() + Math.log2(reach / spread) + 0.2;
+  return z <= map.getMaxZoom() ? z : null;
+}
+
 // The zoom at which these dots stop covering each other, or null when even
 // the deepest zoom cannot pull them apart. The spread is the larger side of
 // their on-screen box, which some pair is at least that far apart along.
@@ -248,45 +256,114 @@ function separateZoom(features) {
     if (p.x > maxX) maxX = p.x;
     if (p.y > maxY) maxY = p.y;
   }
-  const spread = Math.max(maxX - minX, maxY - minY);
-  if (!(spread > 1e-9)) return null;
-  const z = map.getZoom() + Math.log2(stackReach() / spread) + 0.2;
-  return z <= map.getMaxZoom() ? z : null;
+  return zoomForSpread(Math.max(maxX - minX, maxY - minY));
 }
 
+// Whether a cluster's dots sit on one spot does not depend on the zoom, so
+// it is worked out once per cluster and kept until the posts reload
+// (index.load makes new trees) or the dot size changes. The test runs in
+// Mercator units at the deepest zoom, the same rule as separateZoom without
+// projecting every dot.
+const oneSpotByCluster = new Map();
+let oneSpotTrees = null;
+let oneSpotReach = 0;
+
+function mercatorXY(coords) {
+  const lng = Number(coords[0]);
+  const lat = Math.max(-85.051129, Math.min(85.051129, Number(coords[1])));
+  const sin = Math.sin((lat * Math.PI) / 180);
+  return [(lng + 180) / 360, 0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)];
+}
+
+function clusterOneSpot(cluster, reach) {
+  if (index.trees !== oneSpotTrees || reach !== oneSpotReach || oneSpotByCluster.size > 5000) {
+    oneSpotByCluster.clear();
+    oneSpotTrees = index.trees;
+    oneSpotReach = reach;
+  }
+  const id = cluster.properties.cluster_id;
+  const known = oneSpotByCluster.get(id);
+  if (known !== undefined) return known;
+  let leaves = [];
+  try { leaves = index.getLeaves(id, RING_CHECK_MAX); } catch { leaves = []; }
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const leaf of leaves) {
+    const [x, y] = mercatorXY(leaf.geometry.coordinates);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  // World width in pixels 0.2 below the deepest zoom (the +0.2 margin).
+  const world = 512 * Math.pow(2, map.getMaxZoom() - 0.2);
+  const spread = Math.max(maxX - minX, maxY - minY) * world;
+  const one = leaves.length > 1 && !(spread >= reach);
+  oneSpotByCluster.set(id, one);
+  return one;
+}
+
+// A number per grid cell. Cells far off screen could share one, which only
+// adds groups to the distance check, never hides one.
+function cellKey(cx, cy) {
+  return (cx + 0x8000) * 0x10000 + (cy + 0x8000);
+}
+
+// Dots past the cluster zoom join the first group (in the order groups
+// were made) within reach. Groups sit in a grid of reach-sized cells, so a
+// dot only checks the 3×3 cells around it rather than every group.
 function stackOverlaps(features) {
   const reach = stackReach();
   const reach2 = reach * reach;
+  const cell = reach > 0 ? reach : 1;
   const out = [];
   const spots = [];
+  const grid = new Map();
   for (const f of features) {
     if (f.properties && f.properties.cluster) {
       const n = f.properties.point_count || 0;
-      if (n > 1 && n <= RING_CHECK_MAX) {
-        let leaves = [];
-        try { leaves = index.getLeaves(f.properties.cluster_id, RING_CHECK_MAX); } catch { leaves = []; }
-        f.properties.oneSpot = leaves.length > 1 && separateZoom(leaves) == null;
-      }
+      if (n > 1 && n <= RING_CHECK_MAX) f.properties.oneSpot = clusterOneSpot(f, reach);
       out.push(f);
       continue;
     }
     let p = null;
     try { p = map.project(f.geometry.coordinates); } catch { p = null; }
-    if (!p) {
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) {
       out.push(f);
       continue;
     }
+    const cx = Math.floor(p.x / cell);
+    const cy = Math.floor(p.y / cell);
     let home = null;
-    for (const spot of spots) {
-      const dx = spot.x - p.x;
-      const dy = spot.y - p.y;
-      if (dx * dx + dy * dy <= reach2) {
-        home = spot;
-        break;
+    for (let gx = cx - 1; gx <= cx + 1; gx++) {
+      for (let gy = cy - 1; gy <= cy + 1; gy++) {
+        const bucket = grid.get(cellKey(gx, gy));
+        if (!bucket) continue;
+        for (const spot of bucket) {
+          if (home && spot.order > home.order) break;
+          const dx = spot.x - p.x;
+          const dy = spot.y - p.y;
+          if (dx * dx + dy * dy <= reach2) {
+            home = spot;
+            break;
+          }
+        }
       }
     }
-    if (home) home.leaves.push(f);
-    else spots.push({ x: p.x, y: p.y, leaves: [f] });
+    if (home) {
+      home.leaves.push(f);
+      if (p.x < home.minX) home.minX = p.x;
+      if (p.y < home.minY) home.minY = p.y;
+      if (p.x > home.maxX) home.maxX = p.x;
+      if (p.y > home.maxY) home.maxY = p.y;
+      continue;
+    }
+    const spot = { order: spots.length, x: p.x, y: p.y, minX: p.x, minY: p.y, maxX: p.x, maxY: p.y, leaves: [f] };
+    spots.push(spot);
+    const key = cellKey(cx, cy);
+    const bucket = grid.get(key);
+    if (bucket) bucket.push(spot);
+    else grid.set(key, [spot]);
   }
   for (const spot of spots) {
     if (spot.leaves.length === 1) {
@@ -300,7 +377,8 @@ function stackOverlaps(features) {
       properties: {
         cluster: false,
         stack: true,
-        oneSpot: separateZoom(spot.leaves) == null,
+        // The box of the projections above: separateZoom without projecting again.
+        oneSpot: zoomForSpread(Math.max(spot.maxX - spot.minX, spot.maxY - spot.minY), reach) == null,
         point_count: spot.leaves.length,
         point_count_abbreviated: String(spot.leaves.length),
       },
@@ -401,6 +479,15 @@ function bindBubbleList(entry) {
   };
   el.addEventListener('pointerup', lift);
   el.addEventListener('pointercancel', lift);
+  // Keyboard: Tab reaches the bubble, Enter or Space is the tap, and the
+  // menu key or Shift+F10 sends contextmenu, which lists the posts.
+  el.tabIndex = 0;
+  el.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    e.stopPropagation();
+    tapBubble(entry);
+  });
   el.addEventListener('click', (e) => {
     e.stopPropagation();
     if (performance.now() < entry.swallowUntil) {

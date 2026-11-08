@@ -7,6 +7,12 @@
 // a search box and one row per post (its picture, title, who and when, a
 // line of its text), newest first. Picking a row opens that post's own
 // popup. Escape, a tap anywhere else, moving the map and Back close it.
+//
+// A cluster held from far out can hold thousands of posts, and each row
+// reads the post's record (popupData, built on demand) and makes a
+// picture. So rows are made a page at a time as the list scrolls, and a
+// search reads the records a few milliseconds per frame, showing matches
+// as they are found.
 import { map } from './map';
 import { forgetLoop, pictureElement } from './loopmedia.js';
 
@@ -15,8 +21,16 @@ let countEl = null;
 let input = null;
 let list = null;
 let empty = null;
-let current = null; // { anchor, rows: [{ feature, el, hay }], onPick }
+// { anchor, onPick, features (newest first), matches, rendered (rows in
+//   the list, in order), limit, rowCache (feature -> row), words, searching }
+let current = null;
 let layerDefined = false;
+let searchRun = 0;
+
+const PAGE = 30; // rows made at a time
+const MORE_PX = 240; // the next page is made this near the end of the list
+const SEARCH_SLICE_MS = 8; // search work per frame
+const described = new WeakMap(); // feature -> what its row shows and is searched by
 
 // The record the post's popup is built from (popupData is lazy).
 function recordOf(feature) {
@@ -45,6 +59,30 @@ function fold(text) {
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase();
+}
+
+// What a row shows and the text a search matches, read once per post.
+function describe(feature) {
+  let info = described.get(feature);
+  if (info) return info;
+  const record = recordOf(feature);
+  const props = feature.properties || {};
+  const title = plainText(record.title) || plainText(props.title) || 'Untitled post';
+  const payer = record.payer || feature.payer || '';
+  const name = plainText(record.username);
+  const who = name && name !== payer ? name : payer;
+  const when = plainText(record.timestamp);
+  const text = plainText(record.msg);
+  info = {
+    record,
+    title,
+    who,
+    when,
+    text,
+    hay: fold([title, who, payer, when, text, record.loadedTopicName].join(' ')),
+  };
+  described.set(feature, info);
+  return info;
 }
 
 function createdMs(feature) {
@@ -115,9 +153,13 @@ function buildPanel() {
     if (at < 0) return;
     event.preventDefault();
     const next = event.key === 'ArrowDown' ? at + 1 : at - 1;
+    if (next >= rows.length) showMore(); // adds to the same rows array
     if (next < 0) input.focus();
     else if (rows[next]) rows[next].el.focus();
   });
+  list.addEventListener('scroll', () => {
+    if (current && nearEnd()) showMore();
+  }, { passive: true });
 
   empty = document.createElement('div');
   empty.className = 'marker-stack-empty';
@@ -152,33 +194,99 @@ function buildPanel() {
 }
 
 function visibleRows() {
-  return current ? current.rows.filter((row) => !row.el.hidden) : [];
+  return current ? current.rendered : [];
 }
 
+function nearEnd() {
+  return list.scrollHeight - list.scrollTop - list.clientHeight < MORE_PX;
+}
+
+function rowFor(feature) {
+  let row = current.rowCache.get(feature);
+  if (!row) {
+    row = buildRow(feature);
+    current.rowCache.set(feature, row);
+  }
+  return row;
+}
+
+// Adds rows for the matches up to the limit.
+function fillRows() {
+  if (!current) return;
+  const end = Math.min(current.limit, current.matches.length);
+  if (current.rendered.length >= end) return;
+  const batch = document.createDocumentFragment();
+  for (let i = current.rendered.length; i < end; i++) {
+    const row = rowFor(current.matches[i]);
+    current.rendered.push(row);
+    batch.appendChild(row.el);
+  }
+  list.appendChild(batch);
+}
+
+// The next page, when there are more matches than rows. false when none.
+function showMore() {
+  if (!current || current.rendered.length >= current.matches.length) return false;
+  current.limit = current.rendered.length + PAGE;
+  fillRows();
+  return true;
+}
+
+function paintCount() {
+  const total = current.features.length;
+  const searching = current.words.length > 0;
+  empty.hidden = !searching || current.searching || current.matches.length > 0;
+  countEl.textContent = searching
+    ? `${current.matches.length} of ${total} posts${current.searching ? '…' : ''}`
+    : `${total} posts here`;
+}
+
+// No words: every post, newest first. Words: the posts whose text has all
+// of them, read a slice per frame. A new keystroke starts over; records
+// already read are kept, so it is quicker each time.
 function filterRows() {
   if (!current) return;
+  const run = ++searchRun;
   const words = fold(input.value).split(/\s+/).filter(Boolean);
-  let shown = 0;
-  for (const row of current.rows) {
-    const hit = words.every((word) => row.hay.includes(word));
-    row.el.hidden = !hit;
-    if (hit) shown++;
+  current.words = words;
+  current.rendered = [];
+  current.limit = PAGE;
+  list.replaceChildren();
+  list.scrollTop = 0;
+  if (!words.length) {
+    current.matches = current.features;
+    current.searching = false;
+    fillRows();
+    paintCount();
+    return;
   }
-  empty.hidden = shown > 0;
-  countEl.textContent = words.length
-    ? `${shown} of ${current.rows.length} posts`
-    : `${current.rows.length} posts here`;
+  const features = current.features;
+  const matches = [];
+  current.matches = matches;
+  current.searching = true;
+  let at = 0;
+  const step = () => {
+    if (run !== searchRun || !current) return;
+    const until = performance.now() + SEARCH_SLICE_MS;
+    while (at < features.length) {
+      const feature = features[at++];
+      const { hay } = describe(feature);
+      if (words.every((word) => hay.includes(word))) matches.push(feature);
+      if (performance.now() >= until) break;
+    }
+    current.searching = at < features.length;
+    fillRows();
+    // Scrolled to the end while matches still arrive: no scroll event follows.
+    if (current.searching && current.rendered.length >= current.limit && nearEnd()) showMore();
+    paintCount();
+    if (current.searching) requestAnimationFrame(step);
+  };
+  step();
 }
 
 function buildRow(feature) {
-  const record = recordOf(feature);
+  const { record, title, who, when, text } = describe(feature);
   const props = feature.properties || {};
-  const title = plainText(record.title) || plainText(props.title) || 'Untitled post';
-  const payer = record.payer || feature.payer || '';
-  const name = plainText(record.username);
-  const who = name && name !== payer ? name : payer;
-  const when = plainText(record.timestamp);
-  const text = plainText(record.msg);
 
   const row = document.createElement('button');
   row.type = 'button';
@@ -209,7 +317,7 @@ function buildRow(feature) {
   }
   row.append(pic, body);
   row.addEventListener('click', () => pick(feature));
-  return { feature, el: row, hay: fold([title, who, payer, when, text, record.loadedTopicName].join(' ')) };
+  return { feature, el: row };
 }
 
 function place(anchor) {
@@ -254,11 +362,23 @@ export function openMarkerStack(anchor, features, onPick) {
   if (!panel) buildPanel();
   ensureLayer();
   const wasOpen = !!current;
-  dropRows();
-  const sorted = [...features].sort((a, b) => createdMs(b) - createdMs(a));
-  const rows = sorted.map(buildRow);
-  for (const row of rows) list.appendChild(row.el);
-  current = { anchor, rows, onPick };
+  dropRows(current);
+  // Each date is read once, not on every comparison.
+  const sorted = features
+    .map((feature) => [createdMs(feature), feature])
+    .sort((a, b) => b[0] - a[0])
+    .map((pair) => pair[1]);
+  current = {
+    anchor,
+    onPick,
+    features: sorted,
+    matches: sorted,
+    rendered: [],
+    limit: PAGE,
+    rowCache: new Map(),
+    words: [],
+    searching: false,
+  };
   input.value = '';
   filterRows();
   list.scrollTop = 0;
@@ -269,16 +389,24 @@ export function openMarkerStack(anchor, features, onPick) {
   if (!wasOpen && window.layerOpened) window.layerOpened('markerstack');
 }
 
-function dropRows() {
+// Rows a search took out of the list are still kept, so every row made
+// for this list lets go of its video.
+function dropRows(state) {
   if (!list) return;
-  for (const video of list.querySelectorAll('video')) forgetLoop(video);
+  if (state) {
+    for (const row of state.rowCache.values()) {
+      for (const video of row.el.querySelectorAll('video')) forgetLoop(video);
+    }
+  }
   list.replaceChildren();
 }
 
 export function closeMarkerStack({ fromHistory = false } = {}) {
   if (!current) return;
+  const was = current;
   current = null;
+  searchRun++;
   if (panel) panel.hidden = true;
-  dropRows();
+  dropRows(was);
   if (!fromHistory && window.layerClosedByUI) window.layerClosedByUI('markerstack');
 }

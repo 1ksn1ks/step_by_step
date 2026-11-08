@@ -1003,6 +1003,9 @@ const BACKDROP_PX = 96;
 //   GIF: it plays in the feed, and an img copy would decode it a second
 //   time and blur every frame. Its fill is one still frame on a small
 //   canvas instead, drawn when the page is idle after the GIF has loaded.
+//   An address with no picture extension (IPFS) that is not yet known to
+//   be a still is treated as a GIF: the feed paints it without checking,
+//   and a gateway retry changes the address the check was saved under.
 //   Video: an img that follows the poster, so a late poster carries over.
 function backdropImg() {
   const back = document.createElement('img');
@@ -1040,10 +1043,11 @@ function mountMediaBackdrop(media, source) {
   sync();
 }
 
-// A GIF by its address, or an extensionless file already checked as one.
+// A GIF by its address, or an extensionless file not already checked as a
+// still. Only a known still gets the img copy.
 function gifBackdropSource(url) {
   if (isGifUrl(url) || /^data:image\/gif/i.test(url)) return true;
-  return needsGifCheck(url) && readGifCache(url) === true;
+  return needsGifCheck(url) && readGifCache(url) !== false;
 }
 
 function mountPictureBackdrop(source) {

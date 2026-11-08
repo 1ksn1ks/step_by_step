@@ -375,11 +375,13 @@ export function showLocalMarkers(markers) {
   map.on('moveend', viewportLocalUpdate);
   layerActive = true;
   paintLiveGroup(); // first paint now, not on the next moveend
-  if (groupNow() === 'following') {
-    const set = liveAll;
-    ensureFollowIds().then(() => {
-      if (liveAll === set && groupNow() === 'following') paintLiveGroup();
-    });
+  // A Following or Mine kept from an earlier visit shows nothing without a
+  // wallet: say why, once per visit (the bar keeps saying it).
+  const group = groupNow();
+  if (needsWallet(group) && !walletNow()) {
+    if (walletToldFor !== group) walletToast(group);
+  } else if (group === 'following') {
+    paintFollowing();
   }
 }
 
@@ -396,10 +398,31 @@ let liveBar = null;
 let liveCount = null;
 let livePill = null;
 let livePillName = null;
+let walletToldFor = ''; // the group the "Connect your wallet" toast last named
 
 function walletNow() {
   const account = typeof connectedAccount === 'string' ? connectedAccount.trim() : '';
   return /^\d+\.\d+\.\d+$/.test(account) ? account : '';
+}
+
+function needsWallet(group) {
+  return group === 'following' || group === 'mine';
+}
+
+function walletToast(group) {
+  walletToldFor = group;
+  toast.info('Connect your wallet to see ' + (group === 'mine' ? 'your live posts' : 'people you follow'));
+}
+
+// Following waits for the accounts this wallet follows, then repaints.
+function paintFollowing() {
+  const set = liveAll;
+  ensureFollowIds().then((state) => {
+    if (liveAll !== set || groupNow() !== 'following') return;
+    if (state === 'empty') toast.info('You do not follow anyone yet');
+    else if (state === 'offline') toast.error('Could not load who you follow');
+    paintLiveGroup();
+  });
 }
 
 function ensureFollowIds() {
@@ -479,7 +502,8 @@ function liveCountText() {
   const total = liveAll.length;
   const shown = localList.length;
   const group = groupNow();
-  if (group === 'following' && walletNow() && followLoad) return 'Loading…';
+  if (needsWallet(group) && !walletNow()) return 'Connect wallet';
+  if (group === 'following' && followLoad) return 'Loading…';
   if (group === 'holders' && !earlyHashinalReady()) return 'Loading…';
   if (group === 'all') return total === 1 ? '1 post' : `${total} posts`;
   return `${shown} of ${total}`;
@@ -562,20 +586,19 @@ function hideLiveBar() {
 // looks, so the toasts below cover that pick too.
 export function pickLiveGroup(key) {
   if (!setLiveGroup(key)) return;
-  if ((key === 'following' || key === 'mine') && !walletNow()) {
-    toast.info('Connect your wallet to see ' + (key === 'mine' ? 'your live posts' : 'people you follow'));
-  }
+  if (needsWallet(key) && !walletNow()) walletToast(key);
   paintLiveGroup();
-  if (key === 'following' && walletNow()) {
-    const set = liveAll;
-    ensureFollowIds().then((state) => {
-      if (liveAll !== set || groupNow() !== 'following') return;
-      if (state === 'empty') toast.info('You do not follow anyone yet');
-      else if (state === 'offline') toast.error('Could not load who you follow');
-      paintLiveGroup();
-    });
-  }
+  if (key === 'following' && walletNow()) paintFollowing();
 }
+
+// A wallet that connects (or a session that restores after the page
+// loaded) fills a Following or Mine overlay; a disconnect empties it.
+document.addEventListener('wallet-account-changed', () => {
+  walletToldFor = '';
+  if (!liveAll.length || !needsWallet(groupNow())) return;
+  paintLiveGroup();
+  if (groupNow() === 'following' && walletNow()) paintFollowing();
+});
 
 // The holder list arrives after the globe draws and refreshes every 15 min.
 onOwnersChange(() => {
