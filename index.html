@@ -2218,14 +2218,13 @@
             </div>
           </div>
 
-          <button id="reset-marker-size" class="mb-reset-btn"><span class="mb-reset-icon" aria-hidden="true">↺</span><span>Reset to defaults</span></button>
-
         </div>
       </div>
       
       <div id="marker-column-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
         <div id="marker-column-container-save" class="save-settings-toolbar-containers" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
-      
+
+          <button id="reset-marker-size" class="mb-reset-btn" aria-label="Reset to defaults"><span class="mb-reset-icon" aria-hidden="true">↺</span><span>Reset<span class="mb-reset-more"> to defaults</span></span></button>
           <div id="save-marker-settings" class="toolbar-column-btns save-settings-btn" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save Settings
           </div>
       
@@ -2301,26 +2300,37 @@
 
           <div class="mb-card">
             <div class="mb-card-title">Preview</div>
-            <div class="mb-chat-preview" id="mb-chat-preview-outer">
-              <div class="mb-chat-header">
-                <span id="mb-chat-preview-accid">0.0.1234</span>
-                <span id="mb-chat-preview-username">username</span>
-                <span class="mb-chat-time" id="mb-chat-preview-time">12:34</span>
-              </div>
-              <div class="mb-chat-inner" id="mb-chat-preview-inner">
-                <div class="mb-chat-msg" id="mb-chat-preview-msg">Hello there 👋</div>
+            <!-- One message as the chat draws it (topicchat.js): the same
+                 group, avatar, header, bubble and time, inside a copy of
+                 the chat list. loadtopicchatset.js paints the sizes and
+                 colours being chosen. -->
+            <div class="mb-chat-preview" id="mb-chat-preview-outer" aria-hidden="true">
+              <div class="toolbar-group-messages mb-chat-preview-group">
+                <img class="mb-chat-preview-face" alt="" src="https://kiloscribe.com/api/inscription-cdn/0.0.4819119">
+                <div class="mb-chat-preview-content">
+                  <div class="mb-chat-preview-head">
+                    <div class="toolbar-group-messages-header" id="mb-chat-preview-header">
+                      <span id="mb-chat-preview-accid">0.0.1234</span>&nbsp;<span id="mb-chat-preview-username" class="username">username</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="mb-chat-preview-bubble">
+                      <div class="chat-msg-text" id="mb-chat-preview-msg">Hello there 👋</div>
+                      <span class="chat-msg-time" id="mb-chat-preview-time">01/01/2026, 12:34:56</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-
-          <button id="reset-topic-chat" class="mb-reset-btn"><span class="mb-reset-icon" aria-hidden="true">↺</span><span>Reset to defaults</span></button>
 
         </div>
       </div>
       
       <div id="topic-chat-save" style="position: fixed; bottom: 2.5vh; left: 0; width: 100vw; z-index: 1002; max-height: 50vh; overflow-y: auto;">
         <div id="topic-chat-container-save" class="save-settings-toolbar-containers" style="display: none; flex-direction: column;" onclick="event.stopPropagation();">
-      
+
+          <button id="reset-topic-chat" class="mb-reset-btn" aria-label="Reset to defaults"><span class="mb-reset-icon" aria-hidden="true">↺</span><span>Reset<span class="mb-reset-more"> to defaults</span></span></button>
           <div id="save-topic-chat-settings" class="toolbar-column-btns save-settings-btn" style="text-shadow: 0 0 0.5vh black; text-align: center; padding-top: 1vh;">Save Settings
           </div>
       

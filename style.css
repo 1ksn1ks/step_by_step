@@ -7090,75 +7090,151 @@ html, body {
     padding: 0;
   }
 
-  /* Chat panel preview: mini message, mirroring
-     .chat-container / .toolbar-group-messages / .chat-msg-text */
-  .mb-panel .mb-chat-preview {
+  /* Chat panel preview: one message in the chat's own markup and classes
+     (.toolbar-group-messages, its header, .chat-msg-text, .chat-msg-time),
+     on a copy of the chat list (#feed-chat .is-feed-shell
+     #messages-from-topic-chat): the same font, size and background, and
+     the inline values topicchat.js writes. The frame's border is the
+     Outer Container colour (the .chat-container border). */
+  .mb-panel #mb-chat-preview-outer {
+    box-sizing: border-box;
+    padding: 0.25em 0.1em;
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 1vh;
-    background: rgba(15, 15, 20, 0.45);
-    padding: 0.6vh 0.8vh;
+    background: #0a0a12;
+    color: #fff;
+    font-family: Inter, system-ui, sans-serif;
+    /* The chat page's own unit (#feed-chat: 2.4% of its column, the
+       whole width, or 46% of it on a wide screen), not the drawer's. A
+       wide screen also gets the chat column's width, centred. */
+    --chat-col: 100dvw;
+    font-size: calc(min(100dvw, var(--chat-col)) * 0.024 * 1.55);
+    max-width: var(--chat-col);
+    margin-inline: auto;
+    text-align: left;
+    pointer-events: none;
+  }
+  @media (orientation: landscape) {
+    .mb-panel #mb-chat-preview-outer {
+      --chat-col: clamp(40dvw, 46dvw, 46dvw);
+    }
+  }
+  .mb-panel #mb-chat-preview-outer * {
+    font-family: Inter, system-ui, sans-serif;
+  }
+  .mb-panel #mb-chat-preview-outer .mb-chat-preview-group {
+    position: relative;
+    min-height: 2.5em;
+    margin-bottom: 0;
+    padding-left: 2.5em;
+  }
+  .mb-panel #mb-chat-preview-outer .mb-chat-preview-face {
+    position: absolute;
+    left: 0.25em;
+    top: 0.5em;
+    width: 2em;
+    height: 2em;
+    border-radius: 1em;
+    object-fit: cover;
+  }
+  .mb-panel #mb-chat-preview-outer :is(.mb-chat-preview-content, .mb-chat-preview-bubble) {
     display: flex;
     flex-direction: column;
-    gap: 0.5vh;
   }
-
-  .mb-panel .mb-chat-header {
+  .mb-panel #mb-chat-preview-outer :is(.mb-chat-preview-head, #mb-chat-preview-header) {
     display: flex;
-    align-items: baseline;
-    gap: 0.6vh;
+    align-items: center;
+  }
+  .mb-panel #mb-chat-preview-outer .mb-chat-preview-bubble {
+    justify-content: center;
+    margin-top: 0.2em;
+  }
+  .mb-panel #mb-chat-preview-outer #mb-chat-preview-time {
+    color: gray;
   }
 
-  .mb-panel .mb-chat-time {
-    margin-left: auto;
-    opacity: 0.45;
+  /* Reset and Save: one row under the settings (Chat, Marker), the way
+     Stack pairs its buttons: Save in cyan, Reset outlined. */
+  :is(#topic-chat-save, #marker-column-save) > :is(#topic-chat-container-save, #marker-column-container-save):not([style*="display: none"]):not([style*="display:none"]) {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--ui-gap, 1vh) !important;
+    margin-top: var(--ui-gap, 1vh) !important;
   }
-
-  .mb-panel .mb-chat-inner {
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 0.8vh;
-    background: rgba(255, 255, 255, 0.05);
-    padding: 0.5vh 0.6vh;
-  }
-
-  .mb-panel .mb-chat-msg {
-    border-radius: 0.9vh;
-    background: rgba(255, 255, 255, 0.06);
-    padding: 0.25em 0.6em;
-    line-height: 1.35;
-    overflow: hidden;
-    white-space: pre-wrap;
-  }
-
-  .mb-panel .mb-reset-btn {
-    display: flex;
+  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) > :is(.mb-reset-btn, .save-settings-btn) {
+    display: flex !important;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    width: 100%;
-    margin-top: 0.4vh;
-    padding: 1vh;
-    font-size: 1.6vh;
+    box-sizing: border-box;
+    width: 100% !important;
+    min-width: 0;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: var(--ui-btn-h, 48px) !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 var(--ui-pad-x, 16px) !important;
+    border-radius: var(--ui-radius, 12px) !important;
+    font-family: Inter, system-ui, sans-serif !important;
+    font-size: var(--ui-label, 1.8vh) !important;
     font-weight: 600;
-    color: white;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 1.4vh;
+    line-height: 1.2;
+    text-align: center !important;
+    white-space: normal;
+    text-wrap: balance;
+    overflow: hidden;
+    text-shadow: none !important;
+    animation: none !important;
+    transform: none !important;
+    filter: none !important;
     cursor: pointer;
-    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s;
   }
-
-  .mb-panel .mb-reset-icon {
+  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) > .mb-reset-btn {
+    border: 1px solid #f07178 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    color: #f07178 !important;
+  }
+  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) > .mb-reset-btn:is(:hover, :active) {
+    background: rgba(240, 113, 120, 0.14) !important;
+    background-color: rgba(240, 113, 120, 0.14) !important;
+  }
+  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) > .save-settings-btn {
+    border: 0 !important;
+    background: #22D3EE !important;
+    background-color: #22D3EE !important;
+    box-shadow: 0 0 16px rgba(34, 211, 238, 0.45) !important;
+    color: #0a0a12 !important;
+  }
+  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) > .save-settings-btn:is(:hover, :active) {
+    filter: brightness(1.08) !important;
+  }
+  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) > :is(.mb-reset-btn, .save-settings-btn):active {
+    transform: scale(0.97) !important;
+  }
+  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) > :is(.mb-reset-btn, .save-settings-btn):focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+  /* Half a phone is too narrow for "Reset to defaults": "Reset" there,
+     the whole label (and aria-label) everywhere. */
+  @media (max-width: 520px) {
+    :is(#topic-chat-save, #marker-column-save) .mb-reset-more {
+      display: none;
+    }
+  }
+  /* The shared drawer rule ellipsizes the label; here it wraps. */
+  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) .mb-reset-btn > span:last-child {
+    min-width: 0;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+  :is(#topic-chat-save, #marker-column-save) :is(#topic-chat-container-save, #marker-column-container-save) .mb-reset-icon {
     flex: 0 0 auto;
     line-height: 1;
-  }
-
-  .mb-panel .mb-reset-btn:hover {
-    background: rgba(255, 255, 255, 0.14);
-    transform: scale(1.02);
-  }
-
-  .mb-panel .mb-reset-btn:active {
-    transform: scale(0.97);
   }
 
   .load-section-label {
@@ -13393,6 +13469,12 @@ html.feed-app :is(
   overflow: hidden;
   border-radius: max(0px, calc(var(--fu) * 1.4 - 16px));
 }
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card #mb-chat-preview-outer {
+  max-width: var(--chat-col, 100%);
+  margin: 0 auto;
+  padding: 0.25em 0.1em;
+  border-radius: 1vh;
+}
 :is(#feed-menu, .drawer-screen) .in-drawer #marker-options-column .mb-card:has(.mb-marker-preview) {
   box-sizing: border-box;
   height: calc(10vh + 36px + var(--fu) * 3);
@@ -13409,7 +13491,6 @@ html.feed-app :is(
   max-height: calc(10vh + 24px);
   background: #0a0a12;
 }
-:is(#feed-menu, .drawer-screen) .in-drawer .mb-chat-preview :is(.mb-chat-inner, .mb-chat-msg),
 :is(#feed-menu, .drawer-screen) .in-drawer .mb-poly-preview-bg {
   height: auto;
   max-height: none;

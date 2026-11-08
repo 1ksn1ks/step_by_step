@@ -23,6 +23,7 @@ const els = {
     timestampFontPill: $("timestamp-font-size-topic-chat-pill"),
     headerFont: $("header-font-size-topic-chat"),
     headerFontPill: $("header-font-size-topic-chat-pill"),
+    previewHeader: $("mb-chat-preview-header"),
     previewAccid: $("mb-chat-preview-accid"),
     previewUsername: $("mb-chat-preview-username"),
     previewTime: $("mb-chat-preview-time"),
@@ -95,8 +96,11 @@ function updatePills() {
     }
 }
 
+// The preview message is the chat's own markup (index.html); these are the
+// same inline values topicchat.js writes on a real message.
 function updatePreview() {
     const { textFont, timestampFont, headerFont, ...colors } = readControls();
+    if (els.previewHeader) els.previewHeader.style.fontSize = headerFont + "vh";
     els.previewAccid.style.color = colors.accid;
     els.previewAccid.style.fontSize = headerFont + "vh";
     els.previewUsername.style.color = colors.username;
@@ -105,6 +109,19 @@ function updatePreview() {
     els.previewMsg.style.color = colors.text;
     els.previewMsg.style.fontSize = textFont + "vh";
     els.previewOuter.style.borderColor = colors.outer;
+}
+
+// The time reads like a real message's (topicchat.js formats it this way).
+if (els.previewTime) {
+    els.previewTime.textContent = new Date().toLocaleString("en-US", {
+        hour12: false,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+    });
 }
 
 function updateTopicChatSettings() {
