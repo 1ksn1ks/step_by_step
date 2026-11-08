@@ -9247,6 +9247,46 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   cursor: not-allowed;
 }
 
+/* Settings > Popups colours: two columns of three. Children are the title
+   (1) and the six rows (2-7): left column 2, 4, 6; right column 3, 5, 7.
+   The drawer's one-line-between-rows rule would draw a line over the
+   top-right row, so the lines are drawn here instead: under the first
+   pair and the second, and down between the columns. */
+.mb-panel .mb-card.mb-color-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.mb-panel .mb-card.mb-color-grid > .mb-card-title {
+  grid-column: 1 / -1;
+}
+.mb-panel .mb-card.mb-color-grid > .mb-row {
+  min-width: 0;
+}
+/* The drawer rounds a card's first and last row (.is-row-first/-last).
+   In two columns the last row is the bottom-right cell, so its rounded
+   bottom-left bent the line between the columns. The card clips its own
+   corners, so the cells need none. */
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card.mb-color-grid > .mb-row {
+  border-radius: 0 !important;
+}
+.mb-panel .mb-card.mb-color-grid > .mb-row .mb-row-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card.mb-color-grid > .mb-row + .mb-row {
+  box-shadow: none;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card.mb-color-grid > .mb-row:nth-child(2n+4) {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card.mb-color-grid > .mb-row:nth-child(3) {
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.12);
+}
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card.mb-color-grid > .mb-row:nth-child(2n+5) {
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
 /* Settings sample: a real portrait popup, scaled to the slot. It stays
    outside .maplibregl-map, so the landscape two-card post rules miss it.
    --u is the portrait one (2.4% of the popup width), not the card's 100cqi. */

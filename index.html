@@ -2276,16 +2276,8 @@
 
           <div class="options-column-title">🗨 POPUPS</div>
 
-          <div class="mb-card">
-            <div class="mb-card-title">Size</div>
-            <div class="mb-row">
-              <span class="mb-row-label">Everything inside</span>
-              <input type="range" id="popup-size" class="mb-slider" min="70" max="150" step="5" value="100" aria-label="Popup size"/>
-              <span class="mb-value-pill" id="popup-size-pill">100%</span>
-            </div>
-          </div>
-
-          <div class="mb-card">
+          <!-- Two columns of three (style.css .mb-color-grid). -->
+          <div class="mb-card mb-color-grid">
             <div class="mb-card-title">Colors</div>
             <div class="mb-row">
               <label class="mb-swatch" id="color-picker-popup-border-swatch" for="color-picker-popup-border">
@@ -2325,6 +2317,15 @@
             </div>
             <!-- Saved with the others; the popup has no number to show it on. -->
             <input type="color" id="color-picker-popup-number" value="#ffffff" hidden/>
+          </div>
+
+          <div class="mb-card">
+            <div class="mb-card-title">Size</div>
+            <div class="mb-row">
+              <span class="mb-row-label">Everything inside</span>
+              <input type="range" id="popup-size" class="mb-slider" min="70" max="150" step="5" value="100" aria-label="Popup size"/>
+              <span class="mb-value-pill" id="popup-size-pill">100%</span>
+            </div>
           </div>
 
           <div class="mb-card">
