@@ -335,8 +335,6 @@ export function applyAllStyles() {
         paintedSize = size;
         if (size === 1) document.documentElement.style.removeProperty("--popup-size");
         else document.documentElement.style.setProperty("--popup-size", String(size));
-        // The preview's height follows the size (processallmessages.js).
-        document.dispatchEvent(new Event("popup-size-change"));
     }
     document.getElementById('popup-size').addEventListener('input', () => { updatePopupSize(); });
 

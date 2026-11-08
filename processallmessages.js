@@ -464,7 +464,11 @@ function ensurePopupPreview(slot) {
     payerInfo: account,
     username: 'username',
     title: 'message title',
-    msg: 'message text',
+    // A few lines, one long enough to wrap, so the preview shows how the
+    // chosen size changes the lines and how much of a post fits.
+    msg: 'This is how a post reads when its popup opens.\n'
+      + 'A longer message wraps onto more lines like this one, so you can see how much text fits at the size you choose.\n'
+      + 'Line breaks show as they were typed.',
     timestamp: '10/10/2026, 21:35',
     likeCountMarker: 0,
     likedByMe: false,
@@ -507,52 +511,30 @@ function ensurePopupPreview(slot) {
 }
 
 // Settings > Popups preview (index.html #popup-settings-preview): one real
-// portrait popup at its natural size, scaled to the card's width; the
-// slot takes the scaled height. It is built when the page first shows and
-// fits again when the card resizes or the Size slider moves (the popup's
-// height follows --popup-size). Colours come from applyAllStyles.
-let stylePreviewFrame = 0;
+// popup at the size it opens at. style.css gives it a real popup's unit
+// and the map popup rules, so the Size slider and the colours show in it
+// as they will on the map; nothing is scaled. It is built the first time
+// the page shows (the slot gets a width), not at load.
 let stylePreviewWatch = null;
-function fitPopupStylePreview() {
-  stylePreviewFrame = 0;
+function buildPopupStylePreview() {
   const slot = document.getElementById('popup-settings-preview');
-  if (!slot || !slot.isConnected || !slot.getClientRects().length) return;
+  if (!slot || !slot.isConnected || !slot.getClientRects().length) return false;
   ensurePopupPreview(slot);
-  const popup = slot.querySelector(':scope > .maplibregl-popup');
-  if (!popup) return;
-  const width = slot.clientWidth;
-  const naturalW = popup.offsetWidth;
-  const naturalH = popup.offsetHeight;
-  if (!width || !naturalW || !naturalH) return;
-  const scale = width / naturalW;
-  popup.style.setProperty('--preview-scale', String(scale));
-  slot.style.height = (naturalH * scale).toFixed(2) + 'px';
-  popup.style.visibility = 'visible';
-}
-function queuePopupStylePreview() {
-  if (stylePreviewFrame) return;
-  stylePreviewFrame = requestAnimationFrame(fitPopupStylePreview);
+  return !!slot.querySelector(':scope > .maplibregl-popup');
 }
 function watchPopupStylePreview() {
   const slot = document.getElementById('popup-settings-preview');
   if (!slot || stylePreviewWatch) return;
-  if (typeof ResizeObserver === 'function') {
-    // Showing the page (display none to block) and the drawer's width both
-    // resize the slot; its own height change is skipped by the width check.
-    let lastWidth = -1;
-    stylePreviewWatch = new ResizeObserver((entries) => {
-      const width = Math.round(entries[entries.length - 1].contentRect.width);
-      if (width === lastWidth) return;
-      lastWidth = width;
-      queuePopupStylePreview();
-    });
-    stylePreviewWatch.observe(slot);
-  } else {
+  if (typeof ResizeObserver !== 'function') {
     stylePreviewWatch = true;
-    window.addEventListener('resize', queuePopupStylePreview);
+    requestAnimationFrame(buildPopupStylePreview);
+    return;
   }
+  stylePreviewWatch = new ResizeObserver(() => {
+    if (buildPopupStylePreview()) stylePreviewWatch.disconnect();
+  });
+  stylePreviewWatch.observe(slot);
 }
-document.addEventListener('popup-size-change', queuePopupStylePreview);
 watchPopupStylePreview();
 
 function paintPagerModes() {

@@ -555,7 +555,7 @@ export function CloseALL() {
   });
   
   // Popups: size and colours, with a real popup as the preview
-  // (loadprofilepopup.js, processallmessages.js fitPopupStylePreview).
+  // (loadprofilepopup.js, processallmessages.js buildPopupStylePreview).
   document.getElementById("change-popup-options").addEventListener("click", (event) => {
     event.stopPropagation();
     CloseALL();

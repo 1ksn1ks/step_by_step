@@ -3952,13 +3952,13 @@ html, body {
 /* The picture takes the spare room. Text keeps its own height, up to a
    share of this column, and scrolls inside the bubble. Profile, arrows,
    hearts, and the timestamp sit outside this scroller. */
-.maplibregl-map .popup-body {
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body {
     flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
-.maplibregl-map .popup-body > .popup-media-card {
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > .popup-media-card {
     flex: 1 1 0%;
     align-self: stretch;
     box-sizing: border-box;
@@ -3974,7 +3974,7 @@ html, body {
     place-items: center;
     overflow: hidden;
 }
-.maplibregl-map .popup-body > div:not(.popup-media-card) {
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > div:not(.popup-media-card) {
     flex: 0 1 auto;
     min-height: 0;
     max-height: 36%;
@@ -4008,7 +4008,7 @@ html, body {
     flex: 1 1 auto;
     min-height: 0;
 }
-.maplibregl-map .popup-gap {
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-gap {
     flex: 0 0 auto;
     min-height: 0;
 }
@@ -4317,7 +4317,7 @@ html, body {
   /* Full-screen popup column. Same side inset as the title pill. The
      box fills down to the action row; short text stays at the top, and
      only a longer message scrolls. Feed cards keep the rule above. */
-  .maplibregl-map .popup-text-bubble {
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .popup-text-bubble {
     box-sizing: border-box;
     flex: 1 1 auto;
     align-self: stretch;
@@ -9151,28 +9151,47 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   }
 }
 
-/* Settings > Popups preview (processallmessages.js fitPopupStylePreview):
-   one real portrait popup at its natural size, scaled to the card's width.
-   The slot's height is the scaled popup's. It reads --popup-size like a
-   real popup, so the Size slider shows in it. */
+/* Settings > Popups preview (processallmessages.js ensurePopupPreview):
+   one real popup at the size it opens at. Its --u is a real popup's
+   (portrait: 2.4% of the screen width; landscape: the map popup's clamp),
+   times --popup-size, and the map popup rules apply to it too (their
+   selectors include :where(#popup-settings-preview)), so text, avatar,
+   buttons and the message box look as they will. A portrait popup is as
+   wide as the screen; the sample takes the card's whole width, the most
+   the drawer's scroller shows (a few px in from each edge). Only its
+   height differs: it is as tall as its content, not the screen. */
+
+.mb-panel .mb-card:has(> #popup-settings-preview) {
+  background: transparent;
+}
+
 .mb-panel #popup-settings-preview {
   position: relative;
   box-sizing: border-box;
   width: auto;
-  height: 0;
-  /* The rows' 16px side inset, so the sample lines up with them. It is a
-     portrait popup, so a wide page keeps it phone-sized and centred. */
-  margin: 4px max(16px, calc((100% - 420px) / 2)) 16px;
-  overflow: hidden;
+  /* Landscape: the real popup's text card is 55% of the screen, so the
+     message box here is as wide and wraps the same. */
+  max-width: min(100%, calc(var(--popup-card) * 0.55));
+  margin: 4px auto 16px;
   pointer-events: none;
 }
+
+@media (orientation: portrait) {
+  .mb-panel #popup-settings-preview {
+    width: 100%;
+    max-width: none;
+    margin-right: 0;
+    margin-left: 0;
+  }
+}
+
 .mb-panel #popup-settings-preview > .maplibregl-popup {
-  position: absolute !important;
-  top: 0 !important;
-  left: 0 !important;
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
   right: auto !important;
   bottom: auto !important;
-  width: var(--popup-card) !important;
+  width: 100% !important;
   max-width: none !important;
   height: auto !important;
   max-height: none !important;
@@ -9182,13 +9201,20 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   --card: var(--popup-card);
   --fit: 1;
   --u: calc(var(--card) * 0.024 * var(--fit) * var(--popup-size, 1));
-  transform: scale(var(--preview-scale, 0.01)) !important;
-  transform-origin: 0 0;
-  visibility: hidden;
+  transform: none !important;
   z-index: auto !important;
   animation: none !important;
   pointer-events: none !important;
 }
+
+@media (orientation: landscape) {
+  .mb-panel #popup-settings-preview > .maplibregl-popup {
+    --popup-h: calc(var(--app-h, 100dvh) - var(--popup-top) - var(--popup-bottom));
+    --popup-w: var(--popup-card);
+    --u: calc(clamp(0.9dvh, min(calc(var(--popup-h) * 0.017), calc(var(--popup-w) * 0.0106)), 1.6dvh) * var(--popup-size, 1));
+  }
+}
+
 .mb-panel #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content,
 .mb-panel #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content > .popup-sheet {
   flex: 0 0 auto !important;
@@ -9198,17 +9224,20 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   overflow: visible !important;
   animation: none !important;
 }
+
 .mb-panel #popup-settings-preview > .maplibregl-popup .popup-body {
   flex: 0 1 auto !important;
   height: auto !important;
   max-height: none !important;
   overflow: visible !important;
 }
+
 .mb-panel #popup-settings-preview > .maplibregl-popup .popup-gap {
   flex: 0 0 auto !important;
   height: var(--u) !important;
   min-height: var(--u) !important;
 }
+
 .mb-panel #popup-settings-preview * {
   pointer-events: none !important;
 }
@@ -19902,9 +19931,9 @@ img.is-gif-hit {
 /* Map slot is definite (portrait leftover column, landscape left card).
    The bitmap stays inside it: auto size, both max edges, contain.
    Feed cards keep the 50dvh rule above. Draw previews keep the square rule. */
-.maplibregl-map .popup-media-card:not(.draw-popup-media) > img,
-.maplibregl-map .popup-media-card:not(.draw-popup-media) > video,
-.maplibregl-map .popup-media-card:not(.draw-popup-media) > canvas.media-still {
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-media-card:not(.draw-popup-media) > img,
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-media-card:not(.draw-popup-media) > video,
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-media-card:not(.draw-popup-media) > canvas.media-still {
   position: static;
   inset: auto;
   display: block;
@@ -19922,16 +19951,16 @@ img.is-gif-hit {
   object-position: center;
 }
 @media (pointer: fine) {
-  .maplibregl-map .popup-media-card:not(.draw-popup-media):hover > img,
-  .maplibregl-map .popup-media-card:not(.draw-popup-media):hover > video.loop-face,
-  .maplibregl-map .popup-media-card:not(.draw-popup-media):hover > canvas.media-still {
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .popup-media-card:not(.draw-popup-media):hover > img,
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .popup-media-card:not(.draw-popup-media):hover > video.loop-face,
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .popup-media-card:not(.draw-popup-media):hover > canvas.media-still {
     transform: none;
     filter: brightness(1.08);
   }
 }
 /* An image-only map post still builds an empty bubble. Collapse it so the
    picture can use that room. A bubble with text stays. Feed cards do not. */
-.maplibregl-map .popup-body > div:not(.popup-media-card):has(> .popup-text-bubble:empty) {
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > div:not(.popup-media-card):has(> .popup-text-bubble:empty) {
   display: none;
 }
 
@@ -19941,7 +19970,7 @@ img.is-gif-hit {
    the room above the hearts. With a picture the 36% share above stays.
    Landscape already lets the text column fill. */
 @media (orientation: portrait) {
-  .maplibregl-map .popup-body:not(:has(> .popup-media-card)) > .popup-msg {
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body:not(:has(> .popup-media-card)) > .popup-msg {
     max-height: none;
   }
 }
@@ -21643,43 +21672,43 @@ html.is-draw-picking #map-topbar {
    2u of empty space above the footer. Inline styles on the docks need the
    !important. */
 @media (orientation: portrait) {
-  .maplibregl-map .maplibregl-popup-content > .popup-sheet {
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet {
     --popup-gap: calc(var(--u) * 0.4);
     --popup-edge: calc(var(--u) * -0.5);
   }
-  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-profile-bubble {
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-profile-bubble {
     margin: 0 var(--popup-edge) var(--popup-gap) !important;
   }
-  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-nav {
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-nav {
     margin: 0 var(--popup-edge) !important;
   }
   /* Width set to fill between the arrows: it was 100% minus the old 0.5u
      margins, which left the right gap wider than the left. */
-  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-nav .popup-title-bubble {
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-nav .popup-title-bubble {
     box-sizing: border-box;
     width: calc(100% - var(--popup-gap) * 2) !important;
     max-width: none !important;
     margin: 0 var(--popup-gap) !important;
   }
-  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-body {
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body {
     margin: var(--popup-gap) var(--popup-edge) 0 !important;
   }
-  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-body .popup-text-bubble {
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body .popup-text-bubble {
     width: auto !important;
     margin: 0 !important;
   }
   /* A picture and its text: one gap between them too. */
-  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-media-card + div {
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-media-card + div {
     margin-top: var(--popup-gap) !important;
   }
   /* The hearts are 3.8u circles set 0.15u down inside this row (inline
      top), so the row is 3.95u and starts 0.15u early: one gap above the
      circles and one below. */
-  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-dock:not(.popup-footer-row) {
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-dock:not(.popup-footer-row) {
     height: calc(var(--u) * 3.95) !important;
     margin-top: calc(var(--popup-gap) - var(--u) * 0.15) !important;
   }
-  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-footer-row {
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-footer-row {
     margin-top: var(--popup-gap) !important;
   }
 }
