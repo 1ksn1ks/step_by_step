@@ -29,6 +29,7 @@ import { resolveMediaUrl } from './mediaurl.js';
 import { openCoverImagePicker, prepareThumbFile, replaceVideoPoster } from './uploadmedia.js';
 import { watchFollowPrefetch } from './followtopic.js';
 import { formatHcsUsage, utf8ByteLength, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, normalizeMessageNewlines } from './hcschunks.js';
+import { chatDayKey, makeChatDay, fillChatTime, markChatPending, bindChatTimeTap, markChatSorted } from './chatlayout.js';
 
 
 export let allLoadedMessagesTopicChat = [];
@@ -491,6 +492,7 @@ const purifyConfig = {
 
 // Keep these outside so they persist between calls
 let previousPayerTopicChat = null;
+let previousDayTopicChat = '';
 let currentGroupContainer = null;
 let currentMessagesGroupDiv = null;
 
@@ -549,8 +551,18 @@ async function appendTopicChatMessageWork(message, messagesContainer, topicAdmin
     const click2link = message.payer && click2url[message.payer]?.click2url
       ? ` ${click2url[message.payer].click2url}` : '';
 
-    // ========== GROUPING LOGIC (same as original) ==========
-    if (payer !== previousPayerTopicChat) {
+    // ========== GROUPING LOGIC ==========
+    // A new run for a new sender, a new day (under its divider), or a list
+    // that was emptied since the last run (a new topic).
+    const freshList = !currentGroupContainer || !currentGroupContainer.isConnected;
+    if (freshList) previousDayTopicChat = '';
+    const day = chatDayKey(parsedMessage.created);
+    const newDay = !!day && day !== previousDayTopicChat;
+    if (payer !== previousPayerTopicChat || newDay || freshList) {
+      if (newDay) {
+        messagesContainer.appendChild(makeChatDay(parsedMessage.created));
+        previousDayTopicChat = day;
+      }
       // Create new group
       currentGroupContainer = document.createElement('div');
       currentGroupContainer.className = 'toolbar-group-messages';
@@ -581,6 +593,7 @@ async function appendTopicChatMessageWork(message, messagesContainer, topicAdmin
       header.style.cssText = `display: flex; align-items: center; border-color: ${topicChatHeaderColor}; font-size: ${headerFontSizeTopicChat}vh;`;
 
       const payerLink = document.createElement('a');
+      payerLink.className = 'chat-accid';
       payerLink.href = `https://explore.hashpack.app/${payerInfo}`;
       payerLink.target = '_blank';
       payerLink.style.cssText = `color: ${accidTopicChatColor}; text-decoration: none; font-size: ${headerFontSizeTopicChat}vh;`;
@@ -591,6 +604,7 @@ async function appendTopicChatMessageWork(message, messagesContainer, topicAdmin
 
       if (username.trim()) {
         header.appendChild(payerUsernameNode(username.trim(), click2link, {
+          className: 'chat-name',
           cssText: `color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;`
         }));
       }
@@ -601,6 +615,7 @@ async function appendTopicChatMessageWork(message, messagesContainer, topicAdmin
 
       // Messages container inside group
       currentMessagesGroupDiv = document.createElement('div');
+      currentMessagesGroupDiv.className = 'chat-run';
       contentWrapper.appendChild(currentMessagesGroupDiv);
 
       messagesContainer.appendChild(currentGroupContainer);
@@ -611,6 +626,7 @@ async function appendTopicChatMessageWork(message, messagesContainer, topicAdmin
 
     // ========== ADD MESSAGE TO CURRENT GROUP ==========
     const messageWrapper = document.createElement('div');
+    messageWrapper.className = 'chat-msg';
     messageWrapper.style.cssText = `display: flex; flex-direction: column; justify-content: center; margin-top: 0.2em;`;
 
     // An edit names this bubble by created and carries the latest text; it
@@ -631,9 +647,10 @@ async function appendTopicChatMessageWork(message, messagesContainer, topicAdmin
     const timestampSpan = document.createElement('span');
     timestampSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
     timestampSpan.className = 'chat-msg-time';
-    timestampSpan.textContent = message.pending ? `⏳ ${timestamp}` : timestamp;
+    fillChatTime(timestampSpan, parsedMessage.created, timestamp);
     if (editHit) addChatEditedMark(timestampSpan);
     messageWrapper.appendChild(timestampSpan);
+    markChatPending(messageWrapper, message.pending);
     if (message.pending) messageWrapper.dataset.sig = messageSig(message);
     annotateBubble(messageWrapper, payer, chatCreatedIso(parsedMessage.created), !!message.pending);
 
@@ -648,6 +665,9 @@ async function appendTopicChatMessageWork(message, messagesContainer, topicAdmin
     console.error("Error rendering message:", err);
   }
 }
+
+// A tap on a bubble shows its full time (chatlayout.js).
+bindChatTimeTap(document.getElementById('messages-from-topic-chat'));
 
 // Live search + sort for the topic chat message groups
 // (payer id = "topic id", username = "topic name")
@@ -678,6 +698,7 @@ function applyTopicChatMsgFilterSort() {
   }
   groups.forEach(g => g.style.display = 'none');
   visible.forEach(g => g.style.display = '');
+  markChatSorted(container, !!(query || topicChatMsgSortDir));
 
   if (topicChatMsgSortDir) {
     visible = [...visible].sort((a, b) =>
@@ -774,15 +795,15 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
       await appendTopicChatMessage(newMsg, messagesContainer, topicAdmin, loadedNFTsForTopicChat);
     };
     let rawResult;
-    // A pending bubble became canonical: clear its ⏳ marker, then tag the
-    // bubble and give it the edit control (a pending row has no created yet).
+    // A pending bubble became canonical: clear its pending look, then tag
+    // the bubble and give it the edit control (a pending row has no created
+    // yet).
     const onConfirm = (m) => {
       const sig = messageSig(m);
       for (const el of messagesContainer.querySelectorAll('[data-sig]')) {
         if (el.dataset.sig !== sig) continue;
         delete el.dataset.sig;
-        const t = el.querySelector('.chat-msg-time');
-        if (t) t.textContent = t.textContent.replace('⏳ ', '');
+        markChatPending(el, false);
         annotateBubble(el, m.payer, chatCreatedIso(m.created), false);
         break;
       }
@@ -1000,10 +1021,11 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
     const fragment = document.createDocumentFragment();
   
     let previousPayer = null;
+    let previousDay = '';
     let currentGroupDiv = null;
     let currentMessagesGroupDiv = null;
     let isFirstGroup = true;
-  
+
     filteredMessages.forEach(parsedMessage => {
       const userMessage = parsedMessage.userMessage;
       const hasText = userMessage != null && String(userMessage) !== '';
@@ -1029,15 +1051,21 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
       const click2link = parsedMessage.payer && click2url[parsedMessage.payer]?.click2url
         ? ` ${click2url[parsedMessage.payer].click2url}` : '';
   
-      // New payer → new group
-      if (payer !== previousPayer) {
+      // New payer or a new day (under its divider) → new group
+      const day = chatDayKey(parsedMessage.created);
+      const newDay = !!day && day !== previousDay;
+      if (payer !== previousPayer || newDay) {
         // Add <br> before new group (except first group)
         if (!isFirstGroup) {
           const br = document.createElement('br');
           fragment.appendChild(br);
         }
         isFirstGroup = false;
-  
+        if (newDay) {
+          fragment.appendChild(makeChatDay(parsedMessage.created));
+          previousDay = day;
+        }
+
         currentGroupDiv = document.createElement('div');
         currentGroupDiv.className = 'toolbar-group-messages';
         if (payer && payer === connectedAccount) currentGroupDiv.classList.add('chat-group-own');
@@ -1078,6 +1106,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         `;
   
         const accLink = document.createElement('a');
+        accLink.className = 'chat-accid';
         accLink.href = `https://explore.hashpack.app/${encodeURIComponent(payerInfo)}`;
         accLink.target = '_blank';
         accLink.rel = 'noopener noreferrer';
@@ -1088,14 +1117,15 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         `;
         accLink.textContent = payerInfo;
         headerDiv.appendChild(accLink);
-  
+
         // Add space
         headerDiv.appendChild(document.createTextNode('\u00A0'));
-  
+
         // Username link or span
         const trimmedUsername = username.trim();
         if (trimmedUsername) {
           headerDiv.appendChild(payerUsernameNode(trimmedUsername, click2link, {
+            className: 'chat-name',
             cssText: `color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;`
           }));
         }
@@ -1105,6 +1135,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
   
         // Messages group div (where messages will be appended)
         currentMessagesGroupDiv = document.createElement('div');
+        currentMessagesGroupDiv.className = 'chat-run';
         contentWrapper.appendChild(currentMessagesGroupDiv);
   
         currentGroupDiv.appendChild(contentWrapper);
@@ -1119,6 +1150,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
 
       // Message content
       const msgWrapper = document.createElement('div');
+      msgWrapper.className = 'chat-msg';
       msgWrapper.style.cssText = `
         display: flex;
         flex-direction: column;
@@ -1137,7 +1169,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
       const timeSpan = document.createElement('span');
       timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
       timeSpan.className = 'chat-msg-time';
-      timeSpan.textContent = timestamp;
+      fillChatTime(timeSpan, parsedMessage.created, timestamp);
       if (editHit) addChatEditedMark(timeSpan);
 
       msgWrapper.appendChild(contentDiv);

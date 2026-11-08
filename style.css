@@ -19170,6 +19170,262 @@ html.feed-draw-open #map-draw-help-overlay {
   align-self: flex-start;
 }
 
+/* ── Chat messages: topic chat, E2EE chat, and the chat settings preview ──
+   One layer: no card around a sender's run, only bubbles. A bubble is as
+   wide as its text (up to 80%). Others sit left in glass; your own sit
+   right in cyan (violet in E2EE, with a small lock by the time). Bubbles
+   of one run join (tight corners on the avatar's side), runs are spaced
+   apart, and days get a divider. The short time shows under the last
+   bubble of a run; a tap on a bubble shows its full time (and, on yours,
+   edit). Pending bubbles are faded with a clock. The chat settings
+   (sizes, colours) stay inline on the elements, as topicchat.js and
+   encryptedtopicchat.js write them; chatlayout.js has the logic. */
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) {
+  --bubble-r: 1.05em;
+  --bubble-t: 0.35em;
+  --bubble-bg: rgba(255, 255, 255, 0.07);
+  --bubble-line: rgba(255, 255, 255, 0.1);
+  --own-bg: rgba(34, 211, 238, 0.14);
+  --own-line: rgba(34, 211, 238, 0.42);
+}
+#messages-from-encrypted-chat {
+  --own-bg: rgba(168, 85, 247, 0.16);
+  --own-line: rgba(168, 85, 247, 0.5);
+}
+
+/* A sender's run: no card, just room for the avatar. */
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .toolbar-group-messages {
+  margin: 0 0 0.75em;
+  padding-top: 0.2em;
+  padding-bottom: 0.1em;
+  padding-right: 0.4em;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  background-color: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+/* Yours: the whole width, the avatar's room on the right. */
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .toolbar-group-messages.chat-group-own {
+  width: 100%;
+  max-width: none;
+  margin-left: 0;
+  padding-left: 0.4em !important;
+  padding-right: 2.5em;
+}
+/* The run and its rows span the column, so a bubble's 80% is of the
+   column, not of itself (an older rule shrink-wrapped them). */
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-group-own .chat-run,
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-group-own .chat-run > .chat-msg {
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+}
+
+/* Header: the name first and bold, the account id after it, smaller and
+   dimmer (both keep their chosen colour and the Header size). */
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .toolbar-group-messages-header {
+  flex-wrap: wrap;
+  gap: 0 0.4em;
+  margin: 0 0 0.2em;
+  padding: 0;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .toolbar-group-messages-header > .chat-name {
+  order: -1;
+  font-weight: 700;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .toolbar-group-messages-header > .chat-accid {
+  font-weight: 500;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .toolbar-group-messages-header > .chat-accid:has(~ .chat-name) {
+  font-size: 0.78em !important;
+  opacity: 0.6;
+}
+
+/* A message row: close to the one above in the same run. */
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-msg {
+  align-items: flex-start;
+  margin-top: 0.15em !important;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-group-own .chat-msg {
+  align-items: flex-end;
+}
+
+/* The bubble: as wide as its text. */
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-msg > .chat-msg-text {
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: min(80%, 36em);
+  margin: 0;
+  padding: 0.38em 0.8em;
+  border: 1px solid var(--bubble-line);
+  border-radius: var(--bubble-r);
+  background: var(--bubble-bg);
+  line-height: 1.38;
+  text-align: left;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-group-own .chat-msg > .chat-msg-text {
+  align-self: flex-end;
+  border-color: var(--own-line);
+  background: var(--own-bg);
+  text-align: left;
+}
+/* One run reads as one block: tight corners on the avatar's side. */
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-run > .chat-msg:not(:only-child):first-child > .chat-msg-text {
+  border-bottom-left-radius: var(--bubble-t);
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-run > .chat-msg:not(:first-child):not(:last-child) > .chat-msg-text {
+  border-top-left-radius: var(--bubble-t);
+  border-bottom-left-radius: var(--bubble-t);
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-run > .chat-msg:not(:only-child):last-child > .chat-msg-text {
+  border-top-left-radius: var(--bubble-t);
+}
+/* Your own: round on the left again (outweighs the rules above), tight on the right. */
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-group-own .chat-run > .chat-msg:nth-child(n) > .chat-msg-text {
+  border-top-left-radius: var(--bubble-r);
+  border-bottom-left-radius: var(--bubble-r);
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-group-own .chat-run > .chat-msg:not(:only-child):first-child > .chat-msg-text {
+  border-bottom-right-radius: var(--bubble-t);
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-group-own .chat-run > .chat-msg:not(:first-child):not(:last-child) > .chat-msg-text {
+  border-top-right-radius: var(--bubble-t);
+  border-bottom-right-radius: var(--bubble-t);
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-group-own .chat-run > .chat-msg:not(:only-child):last-child > .chat-msg-text {
+  border-top-right-radius: var(--bubble-t);
+}
+/* Text and a picture in one bubble: no blank line between them. */
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-msg-text > br {
+  display: none;
+}
+
+/* Pictures and videos: a real size, rounded like the bubble; a bubble
+   that is only a picture is the picture. */
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-msg-text > .chat-msg-image,
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-msg-text > .chat-sealed {
+  display: block;
+  width: min(15em, 62vw);
+  max-width: 100%;
+  height: auto;
+  max-height: 22em;
+  margin-top: 0.4em;
+  border-radius: calc(var(--bubble-r) * 0.75);
+  object-fit: cover;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-msg-text > .chat-sealed {
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-msg > .chat-msg-text.is-media-only {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: hidden;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-msg-text.is-media-only > :is(.chat-msg-image, .chat-sealed) {
+  margin-top: 0;
+  border-radius: inherit;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-msg-text.is-media-only > :is(.chat-msg-image, .chat-sealed) {
+  box-shadow: inset 0 0 0 1px var(--bubble-line);
+}
+
+/* Time: the short one under the last bubble of a run (and a pending or
+   tapped bubble); the full one on a tap. "Edited" sits next to it. */
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-msg > .chat-msg-time {
+  display: none;
+  align-self: flex-start;
+  align-items: center;
+  gap: 0.35em;
+  max-width: 100%;
+  margin: 0.2em 0.5em 0;
+  opacity: 0.55;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-group-own .chat-msg > .chat-msg-time {
+  align-self: flex-end;
+  justify-content: flex-end;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-run > .chat-msg:last-child > .chat-msg-time,
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-msg:is(.is-pending, .is-time-open) > .chat-msg-time {
+  display: flex;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-time-full,
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-msg.is-time-open .chat-time-short {
+  display: none;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-msg.is-time-open .chat-time-full {
+  display: inline;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-msg-time > .chat-edited-mark {
+  order: 0;
+  margin: 0;
+}
+/* Edit (your own bubbles): with the time, so not under every bubble. */
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-msg > .chat-edit-btn {
+  display: none;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-run > .chat-msg:last-child > .chat-edit-btn,
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-msg.is-time-open > .chat-edit-btn {
+  display: block;
+  align-self: flex-end;
+}
+/* Pending: faded, with a clock. */
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-msg.is-pending > .chat-msg-text {
+  opacity: 0.6;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-msg.is-pending > .chat-msg-time::before,
+#messages-from-encrypted-chat .chat-msg > .chat-msg-time::before {
+  content: "";
+  flex: none;
+  width: 1em;
+  height: 1em;
+  background: currentColor;
+  -webkit-mask: var(--chat-time-icon) center / contain no-repeat;
+  mask: var(--chat-time-icon) center / contain no-repeat;
+}
+#messages-from-encrypted-chat .chat-msg > .chat-msg-time {
+  --chat-time-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><rect width='16' height='11' x='4' y='11' rx='2'/><path d='M8 11V7a4 4 0 0 1 8 0v4'/></svg>");
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat) .chat-msg.is-pending > .chat-msg-time {
+  --chat-time-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='9'/><path d='M12 7v5l3 2'/></svg>");
+}
+
+/* Day divider: a small label on a hairline. Search and name sort move
+   runs out of time order, so the dividers step aside meanwhile. */
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-day {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  margin: 0.9em 0.5em 0.7em;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-day::before,
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-day::after {
+  content: "";
+  flex: 1 1 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat).is-chat-sorted > .chat-day {
+  display: none;
+}
+
 /* Following picker. Row stride is 56px so the virtual list stays in step. */
 .follow-pick-btn {
   appearance: none;

@@ -20,7 +20,8 @@ import { rememberSealedChat, sealedChatMedia } from './e2eechatview.js';
 import { resolveMediaUrl } from './mediaurl.js';
 import { dataUrlForSeal, openCoverImagePicker, prepareThumbFile } from './uploadmedia.js';
 import { watchFollowPrefetch } from './followtopic.js';
-import { 
+import { chatDayKey, makeChatDay, fillChatTime, markChatPending, bindChatTimeTap, markChatSorted } from './chatlayout.js';
+import {
   topicChatHeaderColor,
   headerFontSizeTopicChat,
   accidTopicChatColor,
@@ -678,6 +679,7 @@ document.getElementById("load-msgs-from-encrypted-chat").addEventListener("click
 
 // Grouping state for encrypted chat
 let previousPayerEncryptedChat = null;
+let previousDayEncryptedChat = '';
 let currentGroupContainerEncrypted = null;
 let currentMessagesGroupDivEncrypted = null;
 
@@ -769,7 +771,17 @@ export async function appendEncryptedChatMessage(
       ? ` ${click2url[message.payer].click2url}` : '';
 
     // ========== GROUPING ==========
-    if (payer !== previousPayerEncryptedChat) {
+    // A new run for a new sender, a new day (under its divider), or a list
+    // that was emptied since the last run.
+    const freshList = !currentGroupContainerEncrypted || !currentGroupContainerEncrypted.isConnected;
+    if (freshList) previousDayEncryptedChat = '';
+    const day = chatDayKey(parsedMessage.created);
+    const newDay = !!day && day !== previousDayEncryptedChat;
+    if (payer !== previousPayerEncryptedChat || newDay || freshList) {
+      if (newDay) {
+        messagesContainer.appendChild(makeChatDay(parsedMessage.created));
+        previousDayEncryptedChat = day;
+      }
       currentGroupContainerEncrypted = document.createElement('div');
       currentGroupContainerEncrypted.className = 'toolbar-group-messages';
       if (payer && payer === connectedAccount) currentGroupContainerEncrypted.classList.add('chat-group-own');
@@ -813,6 +825,7 @@ export async function appendEncryptedChatMessage(
       `;
 
       const accLink = document.createElement('a');
+      accLink.className = 'chat-accid';
       accLink.href = `https://explore.hashpack.app/${encodeURIComponent(payerInfo)}`;
       accLink.target = '_blank';
       accLink.rel = 'noopener noreferrer';
@@ -829,6 +842,7 @@ export async function appendEncryptedChatMessage(
       const trimmedUsername = username.trim();
       if (trimmedUsername) {
         headerDiv.appendChild(payerUsernameNode(trimmedUsername, click2link, {
+          className: 'chat-name',
           cssText: `color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;`
         }));
       }
@@ -837,6 +851,8 @@ export async function appendEncryptedChatMessage(
       contentWrapper.appendChild(headerContainer);
 
       currentMessagesGroupDivEncrypted = document.createElement('div');
+
+      currentMessagesGroupDivEncrypted.className = 'chat-run';
       contentWrapper.appendChild(currentMessagesGroupDivEncrypted);
 
       currentGroupContainerEncrypted.appendChild(contentWrapper);
@@ -848,6 +864,7 @@ export async function appendEncryptedChatMessage(
 
     // ========== ADD MESSAGE ==========
     const msgWrapper = document.createElement('div');
+    msgWrapper.className = 'chat-msg';
     msgWrapper.style.cssText = `
       display: flex;
       flex-direction: column;
@@ -872,8 +889,9 @@ export async function appendEncryptedChatMessage(
     const timeSpan = document.createElement('span');
     timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
     timeSpan.className = 'chat-msg-time';
-    timeSpan.textContent = message.pending ? `⏳ ${timestamp}` : timestamp;
+    fillChatTime(timeSpan, parsedMessage.created, timestamp);
     if (editHit) addE2eeEditedMark(timeSpan);
+    markChatPending(msgWrapper, message.pending);
     if (message.pending) msgWrapper.dataset.sig = messageSig(message);
 
     msgWrapper.appendChild(contentDiv);
@@ -896,8 +914,7 @@ function clearPendingMarker(container, sig) {
   for (const el of container.querySelectorAll('[data-sig]')) {
     if (el.dataset.sig !== sig) continue;
     delete el.dataset.sig;
-    const t = el.querySelector('.chat-msg-time');
-    if (t) t.textContent = t.textContent.replace('⏳ ', '');
+    markChatPending(el, false);
     return el;
   }
   return null;
@@ -911,6 +928,9 @@ function removePendingBubble(container, sig) {
     }
   }
 }
+
+// A tap on a bubble shows its full time (chatlayout.js).
+bindChatTimeTap(document.getElementById('messages-from-encrypted-chat'));
 
 // Live search + sort for the e2ee chat message groups
 // (payer id = "topic id", username = "topic name")
@@ -941,6 +961,7 @@ function applyEncryptedChatMsgFilterSort() {
   }
   groups.forEach(g => g.style.display = 'none');
   visible.forEach(g => g.style.display = '');
+  markChatSorted(container, !!(query || encryptedChatMsgSortDir));
 
   if (encryptedChatMsgSortDir) {
     visible = [...visible].sort((a, b) =>
@@ -1026,6 +1047,7 @@ async function loadMessagesFromEncryptedChat() {
 
     // Reset grouping state
     previousPayerEncryptedChat = null;
+    previousDayEncryptedChat = '';
     currentGroupContainerEncrypted = null;
     currentMessagesGroupDivEncrypted = null;
     storedMessagesEncryptedChat = [];
@@ -1490,6 +1512,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
   const fragment = document.createDocumentFragment();
 
   let previousPayer = null;
+  let previousDay = '';
   let currentGroupDiv = null;
   let currentMessagesGroupDiv = null;
   let isFirstGroup = true;
@@ -1517,14 +1540,20 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
     const click2link = parsedMessage.payer && click2url[parsedMessage.payer]?.click2url
       ? ` ${click2url[parsedMessage.payer].click2url}` : '';
 
-    // New payer → start new group
-    if (payer !== previousPayer) {
+    // New payer or a new day (under its divider) → start new group
+    const day = chatDayKey(parsedMessage.created);
+    const newDay = !!day && day !== previousDay;
+    if (payer !== previousPayer || newDay) {
       // Add <br> before new group (except first)
       if (!isFirstGroup) {
         const br = document.createElement('br');
         fragment.appendChild(br);
       }
       isFirstGroup = false;
+      if (newDay) {
+        fragment.appendChild(makeChatDay(parsedMessage.created));
+        previousDay = day;
+      }
 
       currentGroupDiv = document.createElement('div');
       currentGroupDiv.className = 'toolbar-group-messages';
@@ -1573,6 +1602,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
       `;
 
       const accLink = document.createElement('a');
+      accLink.className = 'chat-accid';
       accLink.href = `https://explore.hashpack.app/${encodeURIComponent(payerInfo)}`;
       accLink.target = '_blank';
       accLink.rel = 'noopener noreferrer';
@@ -1590,6 +1620,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
       const trimmedUsername = username.trim();
       if (trimmedUsername) {
         headerDiv.appendChild(payerUsernameNode(trimmedUsername, click2link, {
+          className: 'chat-name',
           cssText: `color: ${usernameTopicChatColor}; font-size: ${headerFontSizeTopicChat}vh;`
         }));
       }
@@ -1599,6 +1630,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
 
       // Messages group div
       currentMessagesGroupDiv = document.createElement('div');
+      currentMessagesGroupDiv.className = 'chat-run';
       contentWrapper.appendChild(currentMessagesGroupDiv);
 
       currentGroupDiv.appendChild(contentWrapper);
@@ -1607,6 +1639,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
 
     // Message content
     const msgWrapper = document.createElement('div');
+    msgWrapper.className = 'chat-msg';
     msgWrapper.style.cssText = `
       display: flex;
       flex-direction: column;
@@ -1634,8 +1667,9 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
     const timeSpan = document.createElement('span');
     timeSpan.style.cssText = `font-size: ${timestampFontSizeTopicChat}vh; color: gray;`;
     timeSpan.className = 'chat-msg-time';
-    timeSpan.textContent = parsedMessage.pending ? `⏳ ${timestamp}` : timestamp;
+    fillChatTime(timeSpan, parsedMessage.created, timestamp);
     if (editHit) addE2eeEditedMark(timeSpan);
+    markChatPending(msgWrapper, parsedMessage.pending);
     if (parsedMessage.pending) msgWrapper.dataset.sig = messageSig(parsedMessage);
 
     msgWrapper.appendChild(contentDiv);

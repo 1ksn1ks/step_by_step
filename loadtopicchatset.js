@@ -13,6 +13,7 @@ import {
 import { signer } from "./web3";
 import { toast } from "./toast";
 import { formatSliderValue, applySliderValueWidth } from "./slidervalue";
+import { fillChatTime } from "./chatlayout.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -111,9 +112,11 @@ function updatePreview() {
     els.previewOuter.style.borderColor = colors.outer;
 }
 
-// The time reads like a real message's (topicchat.js formats it this way).
+// The time reads like a real message's: the short time, the full one
+// (topicchat.js formats it this way) behind it (chatlayout.js).
 if (els.previewTime) {
-    els.previewTime.textContent = new Date().toLocaleString("en-US", {
+    const now = new Date();
+    fillChatTime(els.previewTime, now, now.toLocaleString("en-US", {
         hour12: false,
         year: "numeric",
         month: "2-digit",
@@ -121,7 +124,7 @@ if (els.previewTime) {
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
-    });
+    }));
 }
 
 function updateTopicChatSettings() {

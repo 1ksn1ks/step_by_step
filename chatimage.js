@@ -174,6 +174,8 @@ export function fillChatMessage(el, text, imageUrl, hint, media) {
   const src = media ? "" : safeHttpUrl(imageUrl);
   const posterHint = hint && typeof hint === "object" ? hint : null;
   el.replaceChildren();
+  // A bubble that is only a picture or a video is drawn as the picture.
+  el.classList.toggle("is-media-only", !body && !!(media || src));
   if (body) {
     const textEl = document.createElement("span");
     textEl.className = "chat-msg-body";
