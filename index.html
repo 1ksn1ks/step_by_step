@@ -3,6 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual" />
+    <script>
+      // iPhone / iPad: Safari zooms the whole page in when a field with text
+      // under 16px gets focus, and stays zoomed. maximum-scale=1 stops that,
+      // and iOS still lets people pinch-zoom. Android is left as it is: it
+      // does not zoom on focus, and there the tag would block pinch-zoom.
+      (function () {
+        var ios = /iPhone|iPad|iPod/.test(navigator.userAgent)
+          || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS reports a Mac
+        if (!ios) return;
+        var meta = document.querySelector('meta[name="viewport"]');
+        if (meta && !/maximum-scale/.test(meta.content)) meta.content += ', maximum-scale=1';
+      })();
+    </script>
     <title>Meritocracy</title>
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#0a0a0a" />
