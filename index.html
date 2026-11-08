@@ -724,20 +724,10 @@
             <div class="maplibregl-popup">
               <div class="maplibregl-popup-content">
                 <div class="popup-sheet">
-                  <div class="popup-profile-bubble">
-                    <img alt="Profile photo" src="https://kiloscribe.com/api/inscription-cdn/0.0.4819119">
-                    <div>
-                      <h2>
-                        <a class="payer-info" style="text-decoration: none;"></a><br>
-                      </h2>
-                    </div>
-                  </div>
                   <div class="popup-nav">
-                    <span class="popup-icon-chip" aria-hidden="true">←</span>
                     <div style="text-align: center; flex-grow: 1;">
                       <div id="draw-marker-title" class="title_color popup-title-bubble draw-popup-title" contenteditable="true" role="textbox" aria-label="Title" data-placeholder="Title" data-max="20"></div>
                     </div>
-                    <span class="popup-icon-chip" aria-hidden="true">→</span>
                   </div>
                   <div class="popup-body" style="text-align: center;">
                     <div id="draw-marker-media" class="popup-media-card draw-popup-media" role="button" tabindex="0" aria-label="Upload image or video">
@@ -752,13 +742,13 @@
                     </div>
                   </div>
                   <div class="popup-gap"></div>
-                  <div class="popup-dock draw-popup-topic-row">
-                    <span id="draw-marker-topic" class="popup-top-topic draw-popup-topic" contenteditable="true" role="textbox" aria-label="Topic" data-placeholder="Topic id/domain/account id" data-max="100"></span>
-                  </div>
                   <div class="draw-coord-fields">
-                    <textarea class="toolbar-column" type="text" id="input-field-2-3" placeholder="Coordinates long,lat"
+                    <textarea class="toolbar-column" type="text" rows="1" id="input-field-2-3" placeholder="Coordinates long,lat"
                     oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';" onclick="event.stopPropagation();"
                     ></textarea>
+                  </div>
+                  <div class="popup-dock draw-popup-topic-row">
+                    <span id="draw-marker-topic" class="popup-top-topic draw-popup-topic" contenteditable="true" role="textbox" aria-label="Topic" data-placeholder="Topic id/domain/account id" data-max="100"></span>
                   </div>
                 </div>
               </div>
@@ -805,20 +795,10 @@
             <div class="maplibregl-popup">
               <div class="maplibregl-popup-content">
                 <div class="popup-sheet">
-                  <div class="popup-profile-bubble">
-                    <img alt="Profile photo" src="https://kiloscribe.com/api/inscription-cdn/0.0.4819119">
-                    <div>
-                      <h2>
-                        <a class="payer-info" style="text-decoration: none;"></a><br>
-                      </h2>
-                    </div>
-                  </div>
                   <div class="popup-nav">
-                    <span class="popup-icon-chip" aria-hidden="true">←</span>
                     <div style="text-align: center; flex-grow: 1;">
                       <div id="draw-polygon-title" class="title_color popup-title-bubble draw-popup-title" contenteditable="true" role="textbox" aria-label="Title" data-placeholder="Title" data-max="20"></div>
                     </div>
-                    <span class="popup-icon-chip" aria-hidden="true">→</span>
                   </div>
                   <div class="popup-body" style="text-align: center;">
                     <div id="draw-polygon-media" class="popup-media-card draw-popup-media" role="button" tabindex="0" aria-label="Upload image or video">
@@ -833,16 +813,16 @@
                     </div>
                   </div>
                   <div class="popup-gap"></div>
+                  <div class="draw-coord-fields draw-coord-fields-pair">
+                    <textarea class="toolbar-column" type="text" rows="1" id="input-field-3-3" placeholder="TOP LEFT long,lat"
+                    onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+                    ></textarea>
+                    <textarea class="toolbar-column" type="text" rows="1" id="input-field-3-5" placeholder="BOTTOM RIGHT long,lat"
+                    onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
+                    ></textarea>
+                  </div>
                   <div class="popup-dock draw-popup-topic-row">
                     <span id="draw-polygon-topic" class="popup-top-topic draw-popup-topic" contenteditable="true" role="textbox" aria-label="Topic" data-placeholder="Topic id/domain/account id" data-max="100"></span>
-                  </div>
-                  <div class="draw-coord-fields draw-coord-fields-pair">
-                    <textarea class="toolbar-column" type="text" id="input-field-3-3" placeholder="TOP LEFT long,lat"
-                    onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-                    ></textarea>
-                    <textarea class="toolbar-column" type="text" id="input-field-3-5" placeholder="BOTTOM RIGHT long,lat"
-                    onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
-                    ></textarea>
                   </div>
                 </div>
               </div>

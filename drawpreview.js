@@ -4,16 +4,9 @@ import { connectedAccount } from "./web3.js";
 import { formatHcsUsage, HCS_TOO_LONG, utf8ByteLength, normalizeMessageNewlines } from "./hcschunks.js";
 import { toast } from "./toast.js";
 import { capMessageEditor } from "./bytecap.js";
-import { profilePictures, usernames, click2url } from "./loadalladata.js";
-import { payerUsernameNode, safeHttpUrl } from "./payerlink.js";
-import { paintProfileAvatar } from "./earlyhashinal.js";
-import { watchProfilePicture } from "./markertilt.js";
 import { syncPopupChrome } from "./loadprofilepopup.js";
-import { watchFollowPrefetch } from "./followtopic.js";
 import { isGifUrl, needsGifCheck, resolveMediaUrl } from "./mediaurl.js";
-import { mountPicture, presentImage } from "./loopmedia.js";
-
-const DEFAULT_PIC = "https://kiloscribe.com/api/inscription-cdn/0.0.4819119";
+import { presentImage } from "./loopmedia.js";
 
 const MEDIA = {
   "input-field-image-marker": "draw-marker-media",
@@ -343,94 +336,12 @@ function bindUpload(triggerId, pickerId, fieldId, paint) {
   });
 }
 
-function textOf(value) {
-  if (Array.isArray(value)) return String(value[0] || "");
-  return typeof value === "string" ? value : "";
-}
-
-function httpPicture(value) {
-  if (typeof value !== "string" || !value) return "";
-  try {
-    const url = new URL(value);
-    if (url.protocol === "http:" || url.protocol === "https:") return value;
-  } catch {
-    /* not a picture address */
-  }
-  return "";
-}
-
-function pickerColor(id, fallback) {
-  const el = document.getElementById(id);
-  return el && el.value ? el.value : fallback;
-}
-
-// Same bubble a posted popup paints for this account: picture, Hashpack
-// account id, and the username that opens that account's link.
+// The Draw copy of the popup shows only what can be typed (no profile,
+// no arrows), but it is still this account's popup: the sheet carries the
+// account, so the Early Hashinal holder look (syncPopupChrome) follows the
+// wallet that is logged in.
 export function paintDrawProfile(root, account = connectedAccount || "") {
   if (!root) return;
-  const current = root.querySelector(".popup-profile-bubble > img, .popup-profile-bubble > video.loop-face, .popup-profile-bubble > .early-hashinal > img, .popup-profile-bubble > .early-hashinal > video.loop-face");
-  const heading = root.querySelector(".popup-profile-bubble h2");
-  if (!current || !heading) return;
-
-  const rawPic = httpPicture(account && profilePictures[account] && profilePictures[account].url);
-  const picture = rawPic && rawPic !== current.dataset.failedPic ? rawPic : DEFAULT_PIC;
-  const img = mountPicture(current, picture, { className: current.className });
-  // mountPicture copies dataset onto a replacement, so a flag there would
-  // skip the listeners on the new node. An expando does not copy.
-  if (!img.__drawBound) {
-    img.__drawBound = true;
-    img.addEventListener("error", () => {
-      const failed = httpPicture(connectedAccount && profilePictures[connectedAccount] && profilePictures[connectedAccount].url) || "";
-      if (!failed || failed === DEFAULT_PIC) return;
-      const live = root.querySelector(".popup-profile-bubble > img, .popup-profile-bubble > video.loop-face, .popup-profile-bubble > .early-hashinal > img, .popup-profile-bubble > .early-hashinal > video.loop-face");
-      if (live) live.dataset.failedPic = failed;
-      paintDrawProfile(root);
-    });
-    img.addEventListener("click", (event) => {
-      if (!connectedAccount || typeof window.loadBio4PIC !== "function") return;
-      event.stopPropagation();
-      window.loadBio4PIC(connectedAccount);
-    });
-  }
-
-  let idLink = heading.querySelector(".payer-info");
-  if (!idLink) {
-    idLink = document.createElement("a");
-    idLink.className = "payer-info";
-    heading.prepend(idLink);
-  }
-  idLink.style.textDecoration = "none";
-  idLink.style.color = pickerColor("color-picker-popup-accid", "#ffffff");
-  if (account) {
-    idLink.href = `https://explore.hashpack.app/${encodeURIComponent(account)}`;
-    idLink.target = "_blank";
-    idLink.rel = "noopener noreferrer";
-    idLink.textContent = account;
-  } else {
-    idLink.removeAttribute("href");
-    idLink.removeAttribute("target");
-    idLink.removeAttribute("rel");
-    idLink.textContent = "";
-  }
-
-  const name = textOf(account && usernames[account] && usernames[account].username).trim();
-  const link = textOf(account && click2url[account] && click2url[account].click2url).trim();
-  const wantHref = safeHttpUrl(link);
-  let nameNode = heading.querySelector(".username");
-  const sameName = nameNode
-    && nameNode.textContent === name
-    && (nameNode.getAttribute("href") || "") === wantHref;
-  if (!name) {
-    if (nameNode) nameNode.remove();
-  } else if (!sameName) {
-    if (nameNode) nameNode.remove();
-    nameNode = payerUsernameNode(name, link, { className: "username" });
-    heading.appendChild(nameNode);
-  }
-  if (name && nameNode) nameNode.style.color = pickerColor("color-picker-popup-username", "#ffffff");
-  paintProfileAvatar(img, account);
-  watchProfilePicture(img);
-  watchFollowPrefetch(img, account);
   const sheet = root.querySelector(".popup-sheet");
   if (sheet) sheet.dataset.popupPayer = typeof account === "string" ? account : "";
   syncPopupChrome(root.querySelector(".maplibregl-popup"));

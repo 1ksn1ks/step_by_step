@@ -3339,20 +3339,6 @@ html, body {
     overflow: visible !important;
     flex: none !important;
 }
-#draw-column .popup-profile-bubble > img,
-#draw-column .popup-profile-bubble > video.loop-face,
-#draw-column .popup-profile-bubble > .early-hashinal > img,
-#draw-column .popup-profile-bubble > .early-hashinal > video.loop-face {
-    width: calc(var(--u) * 7);
-    height: calc(var(--u) * 7);
-    flex-shrink: 0;
-    border-radius: 50%;
-    object-fit: cover;
-    object-position: center;
-    cursor: pointer;
-    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25);
-    box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);
-}
 .draw-popup-title,
 .draw-popup-text,
 .draw-popup-topic {
@@ -3362,12 +3348,9 @@ html, body {
     user-select: text;
 }
 .draw-popup-topic {
-    display: block;
     box-sizing: border-box;
-    width: 100%;
     min-width: 0;
     max-width: 100%;
-    text-align: center;
 }
 .draw-popup-topic.popup-top-topic:empty::before {
     content: attr(data-placeholder);
@@ -3405,9 +3388,9 @@ html, body {
 }
 #draw-column .draw-byte-counter {
     position: absolute;
-    right: calc(var(--u) * 1.2);
-    bottom: calc(var(--u) * 0.4);
-    font-size: calc(var(--u) * 0.75);
+    right: calc(var(--u) * 1.6);
+    bottom: calc(var(--u) * 0.55);
+    font-size: calc(var(--u) * 1);
     line-height: 1;
     text-align: right;
     pointer-events: none;
@@ -3436,10 +3419,10 @@ html, body {
     content: attr(data-left);
     position: absolute;
     top: 50%;
-    right: calc(var(--u) * 0.7);
+    right: calc(var(--u) * 1.1);
     bottom: auto;
     transform: translateY(-50%);
-    font-size: calc(var(--u) * 0.7);
+    font-size: calc(var(--u) * 1);
     line-height: 1;
     font-weight: 700;
     color: #22d3ee;
@@ -3448,12 +3431,16 @@ html, body {
 .draw-popup-media {
     cursor: pointer;
 }
+/* The picture card spans the row like a posted popup's (the title
+   pill's side inset), picture or not. */
 #draw-column .popup-media-card.draw-popup-media,
 #draw-column .popup-media-card.draw-popup-media:has(video) {
-    width: 16vh;
-    height: 16vh;
-    max-width: 100%;
-    aspect-ratio: 1;
+    box-sizing: border-box;
+    width: calc(100% - var(--u));
+    max-width: none;
+    height: calc(var(--u) * 26);
+    aspect-ratio: auto;
+    margin: calc(var(--u) * 0.25) auto 0;
 }
 .draw-popup-media-hint {
     position: absolute;
@@ -3462,7 +3449,7 @@ html, body {
     align-items: center;
     justify-content: center;
     color: rgba(255, 255, 255, 0.72);
-    font-size: calc(var(--u) * 1.5);
+    font-size: calc(var(--u) * 2);
     pointer-events: none;
 }
 .draw-popup-media.has-media .draw-popup-media-hint {
@@ -9524,47 +9511,160 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   padding: calc(var(--u) * 0.35 * var(--popup-font-scale, 1)) calc(var(--u) * 1.5 * var(--popup-font-scale, 1));
 }
 
-/* Draw forms only. Map popups keep their own title, message, and profile pills.
-   The message matches the topic size, grows with the text, and reserves the
-   bottom of the bubble for the byte count. The title count sits on the
-   vertical middle of that pill. An empty account name drops the capsule. */
-.draw-popup-editor .draw-popup-title,
-.draw-popup-editor .draw-popup-text,
-.draw-popup-editor .draw-popup-topic {
-  font-size: calc(var(--u) * 1);
+/* Draw forms: the post is typed on a copy of its popup that holds only
+   what can be typed (title, picture / video, message, place, topic); no
+   profile, arrows, hearts, views or time. Same unit (--u) and the same
+   sizes as a posted popup: the title and the message take the popup's own
+   font (and its Font size setting), the picture card spans the row, the
+   topic is the footer chip, and the place sits as chips above it where
+   the hearts would be. On the Draw page the frame fills the page under
+   Cover, the way a popup fills the screen. */
+.draw-popup-editor .popup-nav {
+  margin-top: calc(var(--u) * 0.6);
 }
+/* Room on the right for the characters-left count. */
 .draw-popup-editor .draw-popup-title {
-  padding-inline-end: calc(var(--u) * 2.8);
+  padding-inline-end: calc(var(--u) * 3.2);
 }
+.draw-popup-editor .draw-text-wrap {
+  width: 100%;
+}
+/* The message bubble spans like a posted one, grows with the text, and
+   keeps its bottom for the byte count. */
 .draw-popup-editor .draw-popup-text {
   box-sizing: border-box;
-  width: 100%;
+  width: calc(100% - var(--u));
   min-width: 0;
-  max-width: 100%;
+  max-width: none;
+  min-height: calc(var(--u) * 6);
   max-height: none;
+  margin: calc(var(--u) * 0.25) auto 0;
   overflow: visible;
-  padding-bottom: calc(var(--u) * 1.7);
+  padding-bottom: calc(var(--u) * 2.3);
 }
-.draw-popup-editor .draw-popup-topic {
+/* Spare room goes to the picture card, not to an empty gap. */
+.draw-popup-editor .popup-gap {
+  flex: 0 0 0;
+}
+/* Place: the chip(s) above the footer, where a posted popup has its
+   hearts. A marker has one, centred; a shape has its two corners, one
+   over the other, so a whole long,lat fits in each. */
+.draw-popup-editor .draw-coord-fields {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 0.5);
+  margin: calc(var(--u) * 0.8) 0 calc(var(--u) * 0.5);
+}
+.draw-popup-editor .draw-coord-fields > * {
+  flex: none;
+  width: min(100%, calc(var(--u) * 28));
+  min-width: 0;
+}
+.draw-popup-editor .draw-coord-wrap {
+  --pick-size: calc(var(--u) * 3);
+}
+:is(#draw-column, #feed-chat) .draw-popup-editor .draw-coord-fields textarea.toolbar-column {
   display: block;
   box-sizing: border-box;
   width: 100%;
-  max-width: 100%;
-}
-.draw-popup-editor .popup-profile-bubble:has(.payer-info:empty) {
-  width: fit-content;
-  margin-inline: auto;
-  align-self: center;
-  gap: 0;
-  padding: 0;
+  height: auto;
   min-height: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  margin: 0;
+  padding: calc(var(--u) * 0.3) calc(var(--u) * 0.9);
+  border-radius: calc(var(--u) * 2);
+  border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.85);
+  font-family: inherit;
+  font-size: calc(var(--u) * 1.2);
+  font-variant-numeric: tabular-nums;
+  line-height: calc(var(--u) * 3);
+  letter-spacing: 0.03em;
+  text-align: center;
+  resize: none;
+  overflow: hidden;
 }
-.draw-popup-editor .popup-profile-bubble:has(.payer-info:empty) > div {
-  display: none;
+:is(#draw-column, #feed-chat) .draw-popup-editor .draw-coord-fields .draw-coord-wrap > textarea.toolbar-column {
+  padding-right: calc(var(--pick-size) + var(--u) * 0.8);
+  padding-left: calc(var(--u) * 0.9);
+}
+:is(#draw-column, #feed-chat) .draw-popup-editor .draw-coord-fields textarea.toolbar-column::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+:is(#draw-column, #feed-chat) .draw-popup-editor .draw-coord-fields textarea.toolbar-column:focus {
+  outline: none;
+  border-color: rgba(34, 211, 238, 0.7);
+}
+.draw-popup-editor .draw-coord-pick {
+  right: calc(var(--u) * 0.35);
+  border-radius: 50%;
+}
+/* Topic: the footer chip, bottom left, as wide as what is typed. */
+.draw-popup-editor .draw-popup-topic-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: calc(var(--u) * 4);
+  margin: 0 calc(var(--u) * -0.5) calc(var(--u) * -0.3);
+}
+.draw-popup-editor .draw-popup-topic {
+  display: inline-block;
+  width: auto;
+  min-width: calc(var(--u) * 14);
+  max-width: 100%;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.draw-popup-editor .draw-popup-topic:not(:empty) {
+  color: rgba(255, 255, 255, 0.85);
+}
+.draw-popup-editor .draw-popup-topic:focus {
+  border-color: rgba(34, 211, 238, 0.7);
+}
+/* A phone zooms the page into a field under 16px; the typed fields keep
+   at least that. */
+@media (hover: none) and (pointer: coarse) {
+  .draw-popup-editor .draw-popup-title,
+  .draw-popup-editor .draw-popup-text {
+    font-size: max(16px, calc(var(--u) * 2 * var(--popup-font-scale, 1)));
+  }
+  .draw-popup-editor .draw-popup-topic,
+  :is(#draw-column, #feed-chat) .draw-popup-editor .draw-coord-fields textarea.toolbar-column {
+    font-size: max(16px, calc(var(--u) * 1.2));
+  }
+}
+/* The Draw page: the frame grows to the bottom of the page and the
+   picture card takes the spare room, like a posted popup. */
+#feed-chat.is-draw .draw-popup-editor > .draw-form-scroll {
+  display: flex;
+  flex-direction: column;
+}
+#feed-chat.is-draw .draw-popup-editor > .draw-form-scroll > .maplibregl-popup {
+  flex: 1 0 auto;
+}
+#feed-chat.is-draw #draw-column .draw-popup-editor .maplibregl-popup-content,
+#feed-chat.is-draw #draw-column .draw-popup-editor .popup-sheet,
+#feed-chat.is-draw #draw-column .draw-popup-editor .popup-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto !important;
+}
+#feed-chat.is-draw #draw-column .draw-popup-editor .popup-body > .popup-media-card.draw-popup-media {
+  flex: 1 0 auto;
+  min-height: calc(var(--u) * 22);
+}
+/* A wide, short screen: a shorter picture card, so more of the form
+   shows before the page scrolls. */
+@media (orientation: landscape) {
+  #draw-column .draw-popup-editor .popup-body > .popup-media-card.draw-popup-media {
+    height: calc(var(--u) * 16);
+  }
+  #feed-chat.is-draw #draw-column .draw-popup-editor .popup-body > .popup-media-card.draw-popup-media {
+    min-height: calc(var(--u) * 14);
+  }
 }
 
 /* ===== Following suggestions ===== */
