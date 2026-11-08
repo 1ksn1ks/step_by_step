@@ -15103,6 +15103,40 @@ html.feed-app #feed-chat.is-draw.is-map-chat > .feed-chat-bar {
   width: 22px;
   height: 22px;
 }
+/* The rows above the messages (E2EE password, topic + Load, search)
+   slide up while reading older messages (chathead.js sets --chat-head-h,
+   their height, and --chat-head-y, how far they have slid). The message
+   box is pulled up under them and padded by their height, so it never
+   resizes while they move; they keep their solid background on top. */
+#feed-chat .is-feed-shell .chat-topic-chat-container {
+  --chat-head-h: 0px;
+  --chat-head-y: 0px;
+}
+#feed-chat .is-feed-shell .chat-topic-chat-container > :is(#encrypted-chat-private-key-container, .feed-chat-room, .loaded-topics-controls) {
+  transform: translateY(var(--chat-head-y));
+}
+#feed-chat .is-feed-shell .chat-topic-chat-container.is-head-hidden > :is(#encrypted-chat-private-key-container, .feed-chat-room, .loaded-topics-controls) {
+  visibility: hidden;
+  pointer-events: none;
+}
+#feed-chat .is-feed-shell .chat-topic-chat-container > .chat-messages-wrap {
+  margin-top: calc(-1 * var(--chat-head-h)) !important;
+}
+#feed-chat .is-feed-shell :is(#messages-from-topic-chat, #messages-from-encrypted-chat) {
+  padding-top: calc(var(--chat-head-h) + 0.25em) !important;
+  scroll-padding-top: var(--chat-head-h);
+}
+/* The password row sits on the same solid ground as the topic row, so no
+   message shows through it or the gap above it. */
+#feed-chat .is-feed-shell #encrypted-chat-private-key-container {
+  margin-top: 0 !important;
+  padding-top: var(--row-gap) !important;
+  background: #0a0a12 !important;
+}
+/* ⬆ stays just under the rows, wherever they are. */
+#feed-chat .is-feed-shell :is(#go-to-top-msgs, #go-to-top-msgs-encrypted-chat) {
+  top: calc(0.6vh + var(--chat-head-h) + var(--chat-head-y)) !important;
+}
 #feed-chat .is-feed-shell #go-to-top-msgs,
 #feed-chat .is-feed-shell #go-to-bottom-msgs,
 #feed-chat .is-feed-shell #go-to-top-msgs-encrypted-chat,

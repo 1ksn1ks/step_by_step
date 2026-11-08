@@ -37,6 +37,8 @@ import './topiccacheui.js'
 import './handlegofilter.js'
 import './search.js'
 import './caretview.js'
+// Chat pages: the rows above the messages slide away while reading up.
+import './chathead.js'
 import './followsuggest.js'
 import './domaintimeleft.js'
 import './perf.js'
