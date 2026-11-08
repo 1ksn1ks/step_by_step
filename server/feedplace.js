@@ -9,8 +9,7 @@
 //
 // place-pack.json is the device pack: country names plus every 0.05° cell
 // within 100 km of a listed city, mapped to that nearest city's country.
-// Feed cards read the pack for the country and ask /api/place only for
-// the city under it (feedlayout.js wantCity), which they keep per cell.
+// Feed cards read the pack and do not ask /api/place.
 //
 // City names are GeoNames places with population over 15,000 (CC-BY 4.0).
 // https://www.geonames.org/

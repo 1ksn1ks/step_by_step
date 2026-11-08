@@ -919,28 +919,6 @@ function clock(value) {
   );
 }
 
-// A card's time on two rows: the date, and under it the clock ("07/11/26"
-// over "22:16"). The rows are spans with a space between them, so the
-// element's text still reads "07/11/26 22:16" (popuptext.js reads it).
-// Text with no clock at its end stays on one row.
-const STAMP_CLOCK = /^(.*?)[,\s]+(\d{1,2}[:.]\d{2}(?:[:.]\d{2})?(?:\s?[AaPp]\.?[Mm]\.?)?)$/;
-function paintStampRows(el, value) {
-  const text = String(value || '').trim();
-  const match = STAMP_CLOCK.exec(text);
-  if (!match || !match[1]) {
-    el.textContent = text;
-    return;
-  }
-  const date = document.createElement('span');
-  date.className = 'feed-time-date';
-  date.textContent = match[1];
-  const time = document.createElement('span');
-  time.className = 'feed-time-clock';
-  time.textContent = match[2];
-  el.classList.add('is-rows');
-  el.replaceChildren(date, document.createTextNode(' '), time);
-}
-
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function shortClock(value) {
@@ -1896,8 +1874,6 @@ function countryOf(post) {
   return placeCountryCode(packCountry(key) || {});
 }
 
-// Flag (or emoji), then the name lines: the country, and under it the city
-// once paintCity has one. The flag sits in the middle of the lines.
 function placePart(className, mark, name) {
   const el = document.createElement('span');
   el.className = className;
@@ -1910,158 +1886,11 @@ function placePart(className, mark, name) {
     emoji.textContent = mark;
     el.appendChild(emoji);
   }
-  const lines = document.createElement('span');
-  lines.className = 'feed-loc-lines';
   const text = document.createElement('span');
   text.className = 'feed-loc-name';
   text.textContent = name;
-  lines.appendChild(text);
-  el.appendChild(lines);
+  el.appendChild(text);
   return el;
-}
-
-// ── City under the country ────────────────────────────────────────────
-// The device pack only knows countries. The city comes from /api/place
-// (server/feedplace.js: the nearest GeoNames city within 100 km, else
-// Nominatim for a cell that holds a post), up to 20 cells a request, and
-// is kept on the device per cell: a cell's city does not change.
-const CITY_STORE = 'feed-cities-v1';
-const CITY_STORE_MAX = 4000;
-const CITY_BATCH = 20;
-const CITY_RETRY_MS = 8000;
-const CITY_TRIES = 3;
-let cityCache = null; // geokey -> city ('' = none)
-let citySaveTimer = 0;
-const cityWanted = new Set();
-const cityTries = new Map();
-let cityTimer = 0;
-let cityBusy = false;
-let cityPauseUntil = 0;
-
-function cityStore() {
-  if (cityCache) return cityCache;
-  cityCache = new Map();
-  try {
-    const saved = JSON.parse(localStorage.getItem(CITY_STORE) || 'null');
-    if (saved && typeof saved === 'object') {
-      for (const [key, city] of Object.entries(saved)) {
-        if (typeof city === 'string') cityCache.set(key, city);
-      }
-    }
-  } catch { /* a bad or blocked store starts empty */ }
-  return cityCache;
-}
-
-function rememberCity(key, city) {
-  const store = cityStore();
-  store.delete(key);
-  store.set(key, city);
-  while (store.size > CITY_STORE_MAX) store.delete(store.keys().next().value);
-  if (citySaveTimer) return;
-  citySaveTimer = setTimeout(() => {
-    citySaveTimer = 0;
-    try { localStorage.setItem(CITY_STORE, JSON.stringify(Object.fromEntries(cityStore()))); } catch { /* this visit only */ }
-  }, 1500);
-}
-
-// The city line on every card in that cell. A city named like its country
-// (Singapore, Monaco) adds nothing, so it is left out.
-function paintCity(key, city) {
-  const name = String(city || '').trim();
-  for (const coords of document.querySelectorAll(`.feed-loc-coords[data-geokey="${CSS.escape(key)}"]`)) {
-    const where = coords.parentElement && coords.parentElement.querySelector('.feed-loc-where');
-    const lines = where && where.querySelector('.feed-loc-country.is-land .feed-loc-lines');
-    if (!lines) continue;
-    const country = lines.querySelector('.feed-loc-name');
-    let line = lines.querySelector('.feed-loc-city');
-    const show = name && normPlaceName(name) !== normPlaceName(country && country.textContent);
-    if (!show) {
-      if (line) line.remove();
-      where.classList.remove('has-city');
-      continue;
-    }
-    if (!line) {
-      line = document.createElement('span');
-      line.className = 'feed-loc-city';
-      lines.appendChild(line);
-    }
-    if (line.textContent !== name) line.textContent = name;
-    where.classList.add('has-city');
-  }
-}
-
-function wantCity(key) {
-  if (!key) return;
-  const store = cityStore();
-  if (store.has(key)) {
-    paintCity(key, store.get(key));
-    return;
-  }
-  cityWanted.add(key);
-  queueCityFetch(150);
-}
-
-function queueCityFetch(delay) {
-  if (cityTimer || cityBusy) return;
-  cityTimer = setTimeout(() => {
-    cityTimer = 0;
-    fetchCities();
-  }, Math.max(delay, cityPauseUntil - Date.now()));
-}
-
-async function fetchCities() {
-  if (cityBusy || !cityWanted.size) return;
-  cityBusy = true;
-  const keys = [...cityWanted].slice(0, CITY_BATCH);
-  for (const key of keys) cityWanted.delete(key);
-  const retry = [];
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/place?keys=${encodeURIComponent(keys.join(','))}`);
-    if (res.status === 429) {
-      const wait = Number(res.headers.get('Retry-After')) || 30;
-      cityPauseUntil = Date.now() + wait * 1000;
-      for (const key of keys) cityWanted.add(key);
-    } else if (res.ok) {
-      const data = await res.json();
-      const answered = new Set();
-      for (const place of (data && data.places) || []) {
-        if (!place || !place.geokey) continue;
-        answered.add(place.geokey);
-        if (place.pending) {
-          retry.push(place.geokey);
-          continue;
-        }
-        const city = typeof place.city === 'string' ? place.city.trim() : '';
-        rememberCity(place.geokey, city);
-        paintCity(place.geokey, city);
-      }
-      // A key the server skipped is not a feed cell it can name.
-      for (const key of keys) {
-        if (!answered.has(key)) rememberCity(key, '');
-      }
-    } else {
-      retry.push(...keys);
-    }
-  } catch {
-    retry.push(...keys); // offline: the country stays alone for now
-  } finally {
-    cityBusy = false;
-  }
-  // A cell the server is still naming (Nominatim), or a failed request, is
-  // asked again a few times, CITY_RETRY_MS apart; after that the card
-  // keeps the country alone for this visit.
-  const again = retry.filter((key) => {
-    const tries = (cityTries.get(key) || 0) + 1;
-    cityTries.set(key, tries);
-    return tries < CITY_TRIES;
-  });
-  if (again.length) {
-    setTimeout(() => {
-      for (const key of again) cityWanted.add(key);
-      queueCityFetch(0);
-    }, CITY_RETRY_MS);
-  }
-  if (cityWanted.size) queueCityFetch(150);
 }
 
 function showPlace(coords, hit) {
@@ -2084,11 +1913,9 @@ function showPlace(coords, hit) {
     coords.before(where);
   }
   where.replaceChildren();
-  where.classList.remove('has-city');
-  where.appendChild(placePart('feed-loc-country is-land', flagImg(code), name));
+  where.appendChild(placePart('feed-loc-country', flagImg(code), name));
   coords.hidden = true;
   coords.dataset.place = 'ready';
-  wantCity(coords.dataset.geokey);
 }
 
 function showOcean(coords, name) {
@@ -2101,7 +1928,6 @@ function showOcean(coords, name) {
     coords.before(where);
   }
   where.replaceChildren();
-  where.classList.remove('has-city');
   where.appendChild(placePart('feed-loc-country', '🌊', name));
   coords.hidden = true;
   coords.dataset.place = 'ready';
@@ -3293,7 +3119,7 @@ function buildCard(post) {
   time.className = 'popup-timestamp';
   const fullTime = document.createElement('span');
   fullTime.className = 'feed-time-full';
-  paintStampRows(fullTime, record.timestamp || clock(post.time));
+  fullTime.textContent = record.timestamp || clock(post.time);
   const briefTime = document.createElement('span');
   briefTime.className = 'feed-time-short';
   briefTime.textContent = shortClock(post.time) || fullTime.textContent;
