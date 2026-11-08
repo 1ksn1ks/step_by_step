@@ -1104,43 +1104,45 @@
           <textarea id="update-topic-target" class="toolbar-column" placeholder="Domain/Topic ID" aria-label="Domain or Topic ID"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"></textarea>
 
-          <div style="display: flex;">
-            <button id="show-update-bio-from-memo" class="toolbar-column-first-settings-btns">Update bio ✅
-            </button>
-            <button id="hide-update-bio-from-memo" style="display: none;" class="toolbar-column-first-settings-btns">Update bio ⛔
-            </button>
-            <button id="show-topic-name-from-memo" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Topic name ✅
-            </button>
-            <button id="hide-topic-name-from-memo" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Topic name ⛔
-            </button>
+          <!-- Two grouped columns, like the NFT page: what the topic says,
+               and its keys. -->
+          <div class="memo-toggle-grid">
+            <div class="memo-toggle-col">
+              <button id="show-update-bio-from-memo" class="toolbar-column-first-settings-btns">Update bio ✅
+              </button>
+              <button id="hide-update-bio-from-memo" style="display: none;" class="toolbar-column-first-settings-btns">Update bio ⛔
+              </button>
+              <button id="show-topic-name-from-memo" class="toolbar-column-settings-btns">Topic name ✅
+              </button>
+              <button id="hide-topic-name-from-memo" style="display: none;" class="toolbar-column-settings-btns">Topic name ⛔
+              </button>
+              <button id="show-memo-from-memo" class="toolbar-column-settings-btns">Memo ✅
+              </button>
+              <button id="hide-memo-from-memo" style="display: none;" class="toolbar-column-settings-btns">Memo ⛔
+              </button>
+              <button id="show-fee-from-memo" class="toolbar-column-settings-btns">Add fee ✅
+              </button>
+              <button id="hide-fee-from-memo" style="display: none;" class="toolbar-column-settings-btns">Add fee ⛔
+              </button>
+            </div>
+            <div class="memo-toggle-col">
+              <button id="show-pin-key-load" class="toolbar-column-first-settings-btns">Pin ✅
+              </button>
+              <button id="hide-pin-key-load" class="toolbar-column-first-settings-btns" style="display: none;">Pin ⛔
+              </button>
+              <button id="show-change-password-load" class="toolbar-column-settings-btns">Change Password ✅
+              </button>
+              <button id="hide-change-password-load" style="display: none;" class="toolbar-column-settings-btns">Change Password ⛔
+              </button>
+              <button id="show-set-password-load" class="toolbar-column-settings-btns">Set Password ✅
+              </button>
+              <button id="hide-set-password-load" style="display: none;" class="toolbar-column-settings-btns">Set Password ⛔
+              </button>
+            </div>
           </div>
 
-          <div style="display: flex;">
-            <button id="show-fee-from-memo" class="toolbar-column-first-settings-btns">Add fee ✅
-            </button>
-            <button id="hide-fee-from-memo" style="display: none;" class="toolbar-column-first-settings-btns">Add fee ⛔
-            </button>
-            <button id="show-memo-from-memo" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Memo ✅
-            </button>
-            <button id="hide-memo-from-memo" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Memo ⛔
-            </button>
-          </div>
-
-          <div class="memo-action-row" style="display: flex;">
-            <button id="show-pin-key-load" class="toolbar-column-first-settings-btns">Pin ✅
-            </button>
-            <button id="hide-pin-key-load" class="toolbar-column-first-settings-btns" style="display: none;">Pin ⛔
-            </button>
-            <button id="show-change-password-load" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Change Password ✅
-            </button>
-            <button id="hide-change-password-load" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Change Password ⛔
-            </button>
-            <button id="show-set-password-load" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Set Password ✅
-            </button>
-            <button id="hide-set-password-load" style="display: none; margin-left: 1vw;" class="toolbar-column-settings-btns">Set Password ⛔
-            </button>
-          </div>
-
+          <!-- Pin / password fields: one card, shown while any of them is. -->
+          <div class="memo-key-card">
           <textarea class="toolbar-column" type="text" id="publickkey-load" placeholder="Public Key" style="display: none;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-gramm="false"
           onclick="event.stopPropagation();" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"></textarea>
           <div id="encrypt-key-load-label" style="display: none;">
@@ -1159,6 +1161,7 @@
           </button>
           <button id="pin-publickkey-load" class="pin-public-key-from-encrypted-chat" style="display: none;"> Pin
           </button>
+          </div>
 
           <div id="update-bio-from-memo" style="display: none;">
             <textarea class="toolbar-column" type="text" id="input-field-topic-id-bio" placeholder="Domain/Topic ID" style="display: none;"
