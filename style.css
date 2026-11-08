@@ -11548,7 +11548,8 @@ html.feed-app #feed-search-page {
   gap: calc(var(--fu) * 0.8);
   box-sizing: border-box;
   margin: 0 0 calc(var(--fu) * 2.2);
-  padding: calc(var(--fu) * 1.6);
+  /* Less above the profile and under the place/time row than at the sides. */
+  padding: calc(var(--fu) * 1) calc(var(--fu) * 1.6);
   border: 1px solid rgba(34, 211, 238, 0.72);
   border-radius: calc(var(--fu) * 2.5);
   background: rgba(10, 10, 18, 0.62);
