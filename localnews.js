@@ -374,15 +374,15 @@ export function showLocalMarkers(markers) {
   map.on('move', viewportLocalUpdate);
   map.on('moveend', viewportLocalUpdate);
   layerActive = true;
-  paintLiveGroup(); // first paint now, not on the next moveend
   // A Following or Mine kept from an earlier visit shows nothing without a
   // wallet: say why, once per visit (the bar keeps saying it).
   const group = groupNow();
   if (needsWallet(group) && !walletNow()) {
     if (walletToldFor !== group) walletToast(group);
   } else if (group === 'following') {
-    paintFollowing();
+    paintFollowing(); // before the paint, so the bar says Loading…
   }
+  paintLiveGroup(); // first paint now, not on the next moveend
 }
 
 // ── Groups: whose live posts the map shows ─────────────────────────────
@@ -415,10 +415,14 @@ function walletToast(group) {
 }
 
 // Following waits for the accounts this wallet follows, then repaints.
+// Call it before the first paintLiveGroup(): it starts the load right
+// away, so that paint finds followLoad set and the bar reads Loading…
+// instead of "0 of N" until the list arrives.
 function paintFollowing() {
   const set = liveAll;
   ensureFollowIds().then((state) => {
-    if (liveAll !== set || groupNow() !== 'following') return;
+    // A stale load: the newer wallet's own paintFollowing repaints.
+    if (state === 'stale' || liveAll !== set || groupNow() !== 'following') return;
     if (state === 'empty') toast.info('You do not follow anyone yet');
     else if (state === 'offline') toast.error('Could not load who you follow');
     paintLiveGroup();
@@ -436,8 +440,10 @@ function ensureFollowIds() {
   if (followFor === me && followLoad) return followLoad;
   followFor = me;
   followIds = null;
-  followLoad = fetchFollowing(me).then((data) => {
-    followLoad = null;
+  // An older wallet's load finishing must not clear a newer one's
+  // followLoad, or the bar drops to "0 of N" while that one still loads.
+  const load = fetchFollowing(me).then((data) => {
+    if (followLoad === load) followLoad = null;
     if (followFor !== me) return 'stale';
     if (!data) {
       followFor = ''; // offline: the next pick asks again
@@ -452,11 +458,13 @@ function ensureFollowIds() {
     followIds = ids;
     return ids.size ? 'ready' : 'empty';
   }).catch(() => {
-    followLoad = null;
+    if (followLoad === load) followLoad = null;
+    if (followFor !== me) return 'stale';
     followFor = '';
     return 'offline';
   });
-  return followLoad;
+  followLoad = load;
+  return load;
 }
 
 function inLiveGroup(m) {
@@ -587,8 +595,8 @@ function hideLiveBar() {
 export function pickLiveGroup(key) {
   if (!setLiveGroup(key)) return;
   if (needsWallet(key) && !walletNow()) walletToast(key);
-  paintLiveGroup();
   if (key === 'following' && walletNow()) paintFollowing();
+  paintLiveGroup();
 }
 
 // A wallet that connects (or a session that restores after the page
@@ -596,8 +604,8 @@ export function pickLiveGroup(key) {
 document.addEventListener('wallet-account-changed', () => {
   walletToldFor = '';
   if (!liveAll.length || !needsWallet(groupNow())) return;
-  paintLiveGroup();
   if (groupNow() === 'following' && walletNow()) paintFollowing();
+  paintLiveGroup();
 });
 
 // The holder list arrives after the globe draws and refreshes every 15 min.
