@@ -19943,7 +19943,9 @@ img.is-gif-hit {
   line-height: 1.7;
   letter-spacing: 0.005em;
   color: rgba(255, 255, 255, 0.92);
-  text-align: start;
+  /* Centred, the same as the message in the popup: equal room on both
+     sides of every line. */
+  text-align: center;
   user-select: text;
   -webkit-user-select: text;
 }
