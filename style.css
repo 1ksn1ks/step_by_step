@@ -14384,6 +14384,17 @@ html.drawer-page .info-overlay {
   overflow: auto;
   overscroll-behavior: contain;
 }
+/* The post keeps the size it had in the feed. The modal is a full-window
+   size container, so 2.4cqi here would read the whole window (twice the
+   column on a wide screen), and the feed zoom lives on the feed scroller,
+   not up here. So the stage is the column's width and its unit is the
+   feed's: 2.4% of the column times the zoom, which processallmessages.js
+   copies from the post onto the modal as --post-zoom. */
+.comments-modal.comments-modal--feed > .feed-comments-stage {
+  --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024 * var(--post-zoom, 1));
+  width: min(100dvw, var(--feed-col-width));
+  margin-inline: auto;
+}
 .comments-modal--feed.is-flip .feed-comments-stage,
 .comments-modal--feed.is-flip-out .feed-comments-stage {
   max-height: none;

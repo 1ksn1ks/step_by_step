@@ -4806,6 +4806,10 @@ function showCommentsModal(section) {
   let pendingFlip = null;
   if (fromFeed) {
     wrapper.className = 'comments-modal comments-modal--feed';
+    // The post above the comments keeps the feed zoom (style.css
+    // .feed-comments-stage); the card inherits it from the feed scroller.
+    const zoom = sourceCard ? parseFloat(getComputedStyle(sourceCard).getPropertyValue('--feed-zoom')) : NaN;
+    if (Number.isFinite(zoom) && zoom > 0) wrapper.style.setProperty('--post-zoom', String(zoom));
     const bar = document.createElement('div');
     bar.className = 'feed-comments-bar';
     const back = document.createElement('button');
