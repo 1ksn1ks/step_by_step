@@ -22592,40 +22592,66 @@ html.is-draw-picking .live-filter {
   position: relative;
   display: inline-flex;
 }
+/* The badge wears the pin buttons' dark glass and thin white edge, a shade
+   lighter on top so it reads as raised; a dark ring parts it from the
+   button it sits on. Cyan only on press, hover and while its panel is
+   open (aria-expanded), and the gear turns a little when pressed. */
 .draw-here-live-gear {
+  --gear: max(26px, 3.2vh);
   position: absolute;
-  top: calc(max(28px, 3.4vh) / -2);
-  right: calc(max(28px, 3.4vh) / -3);
+  top: calc(var(--gear) * -0.45);
+  right: calc(var(--gear) * -0.35);
   z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: max(28px, 3.4vh);
-  height: max(28px, 3.4vh);
+  width: var(--gear);
+  height: var(--gear);
   margin: 0;
   padding: 0;
-  border: 1px solid rgba(34, 211, 238, 0.7);
+  border: 0.06vh solid rgba(255, 255, 255, 0.32);
   border-radius: 50%;
-  background: rgba(15, 15, 20, 0.96);
-  box-shadow: 0 0 1vh rgba(34, 211, 238, 0.35);
-  color: #A5F3FC;
+  background: linear-gradient(180deg, rgba(44, 48, 60, 0.98), rgba(18, 20, 28, 0.98));
+  box-shadow:
+    0 0 0 0.25vh rgba(8, 8, 12, 0.55),
+    0 0.35vh 0.9vh rgba(0, 0, 0, 0.5),
+    inset 0 0.08vh 0 rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  animation: drawHereGearIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  animation: drawHereGearIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) 0.05s both;
 }
 .draw-here-live-gear::before {
   content: "";
   position: absolute;
-  inset: -8px;
+  inset: -9px;
 }
 .draw-here-live-gear svg {
-  width: 62%;
-  height: 62%;
+  width: 60%;
+  height: 60%;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.draw-here-live-gear:active {
-  background: rgba(34, 211, 238, 0.35);
+@media (hover: hover) and (pointer: fine) {
+  .draw-here-live-gear:hover {
+    border-color: rgba(34, 211, 238, 0.7);
+    color: #22D3EE;
+  }
+  .draw-here-live-gear:hover svg {
+    transform: rotate(45deg);
+  }
+}
+.draw-here-live-gear:active,
+.draw-here-live-gear[aria-expanded="true"] {
+  border-color: rgba(34, 211, 238, 0.85);
+  background: linear-gradient(180deg, rgba(14, 116, 144, 0.98), rgba(8, 51, 68, 0.98));
+  color: #ECFEFF;
+}
+.draw-here-live-gear:active svg,
+.draw-here-live-gear[aria-expanded="true"] svg {
+  transform: rotate(60deg);
 }
 .draw-here-live-gear:focus {
   outline: none;
@@ -22635,8 +22661,15 @@ html.is-draw-picking .live-filter {
   outline-offset: 2px;
 }
 @keyframes drawHereGearIn {
-  from { opacity: 0; transform: scale(0.6); }
+  from { opacity: 0; transform: scale(0.5); }
   to { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .draw-here-live-gear,
+  .draw-here-live-gear svg {
+    animation: none;
+    transition: none;
+  }
 }
 
 /* Live settings (livegroups.js openLiveSettings): the group dropdown's

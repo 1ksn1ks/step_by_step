@@ -603,7 +603,9 @@ export function openLiveSettings(anchor, { onLook, onChange } = {}) {
   ensureSettingsLayer();
   closeLiveGroupMenu();
   const wasOpen = !!settingsFor;
+  if (settingsFor && settingsFor.anchor !== anchor) settingsFor.anchor.setAttribute('aria-expanded', 'false');
   settingsFor = { anchor, onLook, onChange };
+  anchor.setAttribute('aria-expanded', 'true');
   customOn = false;
   paintSettings();
   settings.hidden = false;
@@ -618,6 +620,7 @@ export function openLiveSettings(anchor, { onLook, onChange } = {}) {
 export function closeLiveSettings({ fromHistory = false, within = null } = {}) {
   if (!settingsFor) return;
   if (within && !(settingsFor.anchor && within.contains(settingsFor.anchor))) return;
+  if (settingsFor.anchor) settingsFor.anchor.setAttribute('aria-expanded', 'false');
   settingsFor = null;
   if (settings) settings.hidden = true;
   if (settings && settings.contains(document.activeElement)) document.activeElement.blur();

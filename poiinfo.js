@@ -170,6 +170,7 @@ function showPressAnchor(lngLat) {
   gearBtn.className = 'draw-here-live-gear';
   gearBtn.setAttribute('aria-label', 'Live settings');
   gearBtn.setAttribute('aria-haspopup', 'dialog');
+  gearBtn.setAttribute('aria-expanded', 'false');
   gearBtn.title = 'Live settings';
   gearBtn.innerHTML = LIVE_GEAR_ICON;
   gearBtn.onclick = (e) => {
