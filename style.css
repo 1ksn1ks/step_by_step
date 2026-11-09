@@ -20610,11 +20610,14 @@ img.is-gif-hit {
   overflow-wrap: anywhere;
   font-size: var(--read);
   line-height: 1.7;
-  letter-spacing: 0.005em;
   color: rgba(255, 255, 255, 0.92);
-  /* Centred, the same as the message in the popup: equal room on both
-     sides of every line. */
-  text-align: center;
+  /* Left-aligned, like any reading view. Centred, iPhone Safari drew the
+     last piece of a long unbroken run (a link, a hash, a row of 9s) too
+     far right, past the card's edge; a line that starts at the left edge
+     cannot be pushed out. The popup's short message stays centred. No
+     letter-spacing: this was the only text that had it, and it changed
+     nothing you could see. */
+  text-align: start;
   user-select: text;
   -webkit-user-select: text;
 }
