@@ -6188,6 +6188,8 @@ html, body {
     line-height: 1.5;
     opacity: 0.85;
     margin: 0 0 2.5vh;
+    /* Even lines, so a short last word does not sit alone. */
+    text-wrap: balance;
   }
 
   .onboard-rows {

@@ -70,6 +70,12 @@ function safariMajor(ua) {
   return m ? Number(m[1]) : 0;
 }
 
+// Under each guide's title: what installing gets you, not how the browser
+// works. (No "loads faster": sw.js caches only profile pictures, and it
+// does that in the browser too.)
+const PHONE_GAIN = 'Full screen, more room for the map, one tap to open.';
+const DESKTOP_GAIN = 'Its own window, more room for the map, one click to open.';
+
 // Said under every guide, so adding an icon does not feel like a risk.
 // store: the store this device would otherwise send you to.
 const reassure = (store) => `Just a shortcut to onlyonhbar.com. Free, no ${store}, and you can remove it any time like any app.`;
@@ -85,7 +91,7 @@ export function installSteps() {
     if (IN_APP_BROWSER.test(ua)) {
       return {
         title: 'Open in Safari first',
-        body: 'This app\'s built-in browser can\'t add to the Home Screen.',
+        body: 'Safari can add it to your Home Screen. This app\'s browser can\'t.',
         steps: [
           { icon: 'more', verb: 'Tap', key: '⋯', note: 'Or the compass, wherever this app puts its browser menu.' },
           { icon: 'safari', verb: 'Choose', key: 'Open in Safari', note: 'Some apps call it Open in Browser.' },
@@ -98,7 +104,7 @@ export function installSteps() {
     if (safari && safariMajor(ua) >= 26) {
       return {
         title: 'Add to Home Screen',
-        body: 'Four taps in Safari, about ten seconds.',
+        body: PHONE_GAIN,
         steps: [
           { icon: 'more', verb: 'Tap', key: '⋯', note: 'Next to onlyonhbar.com in the address bar.' },
           { icon: 'share', verb: 'Tap', key: 'Share', note: 'In the menu that opens.' },
@@ -111,7 +117,7 @@ export function installSteps() {
     if (safari) {
       return {
         title: 'Add to Home Screen',
-        body: 'Three taps in Safari, about ten seconds.',
+        body: PHONE_GAIN,
         steps: [
           { icon: 'share', verb: 'Tap', key: 'Share', note: 'The square with the arrow, in Safari\'s toolbar.' },
           { icon: 'addhome', verb: 'Tap', key: 'Add to Home Screen', note: 'Scroll down the list if you don\'t see it.' },
@@ -122,7 +128,7 @@ export function installSteps() {
     }
     return {
       title: 'Add to Home Screen',
-      body: 'A few taps in your browser, about ten seconds.',
+      body: PHONE_GAIN,
       steps: [
         { icon: 'share', verb: 'Tap', key: 'Share', note: 'By the address, or in the browser\'s ⋯ menu.' },
         { icon: 'addhome', verb: 'Tap', key: 'Add to Home Screen', note: 'If it isn\'t listed, tap Show More first.' },
@@ -135,7 +141,7 @@ export function installSteps() {
     if (/SamsungBrowser/i.test(ua)) {
       return {
         title: 'Add to Home screen',
-        body: 'Three taps in Samsung Internet.',
+        body: PHONE_GAIN,
         steps: [
           { icon: 'menu', verb: 'Tap', key: '≡', note: 'At the bottom right.' },
           { icon: 'addhome', verb: 'Tap', key: 'Add page to', note: 'Then choose Home screen.' },
@@ -146,7 +152,7 @@ export function installSteps() {
     }
     return {
       title: 'Add to Home screen',
-      body: 'Three taps in your browser.',
+      body: PHONE_GAIN,
       steps: [
         { icon: 'dots', verb: 'Tap', key: '⋮', note: 'At the top or bottom right.' },
         { icon: 'install', verb: 'Tap', key: 'Install app', note: 'Some browsers call it Add to Home screen.' },
@@ -157,8 +163,8 @@ export function installSteps() {
   }
   if (/Firefox\//.test(ua)) {
     return {
-      title: 'Install from Chrome or Edge',
-      body: 'Firefox on a computer can\'t install web apps.',
+      title: 'Get the app in Chrome or Edge',
+      body: 'There it gets its own window and more room for the map.',
       steps: [
         { icon: 'install', verb: 'Open', key: 'onlyonhbar.com', note: 'In Chrome or Edge, then click Install here again.' },
       ],
@@ -168,7 +174,7 @@ export function installSteps() {
   if (/Safari\//.test(ua) && !/Chrome|Chromium|Edg\//.test(ua)) {
     return {
       title: 'Add to Dock',
-      body: 'Two clicks in Safari on a Mac.',
+      body: DESKTOP_GAIN,
       steps: [
         { icon: 'menu', verb: 'Open', key: 'File', note: 'In the menu bar at the top of the screen.' },
         { icon: 'addhome', verb: 'Click', key: 'Add to Dock', note: 'Then Add. Meritocracy opens from the Dock.' },
@@ -177,8 +183,8 @@ export function installSteps() {
     };
   }
   return {
-    title: 'Install from the address bar',
-    body: 'Your browser didn\'t offer its install window here.',
+    title: 'Install the app',
+    body: DESKTOP_GAIN,
     steps: [
       { icon: 'install', verb: 'Click', key: 'Install', note: 'The screen with a ↓ at the right end of the address bar.' },
       { icon: 'dots', verb: 'Or open', key: '⋮', note: 'Then Install Meritocracy (under Save and share, or Apps).' },
