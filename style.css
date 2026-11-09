@@ -3295,12 +3295,20 @@ html, body {
     border-radius: var(--frame-r-top) var(--frame-r-top) var(--frame-r-bottom) var(--frame-r-bottom);
     clip-path: inset(0 round var(--frame-r-top) var(--frame-r-top) var(--frame-r-bottom) var(--frame-r-bottom));
   }
-  /* The footer's pills sit in the bottom corners: step them in so their
-     ends stay clear of the rounder curve (about 0.3 of how much rounder
-     it is: 0 on Android, ~11px on a 55px iPhone corner). */
+  /* The footer's pills sit in the bottom corners. Their round ends stay
+     inside the frame's curve, 3px clear, when they sit
+       (inner radius - pill radius) x (1 - 1/sqrt 2) + 3px
+     in from the side and from the bottom. The border is 0.3u, a pill is
+     about 3.8u tall (radius 1.9u). The side gap is padding; the bottom gap
+     is a margin, less the room already under the footer (the popup's
+     bottom padding and the content's 0.4u). No screen corner: 0. About
+     9px at a 40px corner (all of it a lift on Android); about 14px at an
+     iPhone's 57px, where the home-bar room already covers the bottom. */
   .maplibregl-map > .maplibregl-popup .maplibregl-popup-content > .popup-sheet > .popup-footer-row {
-    padding-left: calc(max(0px, var(--screen-r-bottom, 0px) - var(--u) * 2) * 0.3);
-    padding-right: calc(max(0px, var(--screen-r-bottom, 0px) - var(--u) * 2) * 0.3);
+    --corner-clear: max(0px, calc((var(--screen-r-bottom, 0px) - var(--u) * 2.2) * 0.293 + 3px));
+    padding-left: var(--corner-clear);
+    padding-right: var(--corner-clear);
+    margin-bottom: max(0px, calc(var(--corner-clear) - var(--popup-bottom) - var(--u) * 0.4)) !important;
     box-sizing: border-box;
   }
 }
@@ -13549,6 +13557,21 @@ html.feed-app :is(
 #screen-corner-guide.is-on {
   opacity: 1;
   transition-duration: 0.12s;
+}
+/* While the line shows (html.is-tuning-corners), everything on the
+   Popups page but the Screen corners card fades almost away: the page's
+   bar, the other cards and the preview popup, whose own border would be
+   one more line near the corners. */
+.feed-menu-page:has(.mb-corners-card) > .feed-menu-page-bar,
+#popup-options-column-container > :not(.mb-corners-card),
+#popup-options-column > .panel-help-btn {
+  transition: opacity 0.3s ease;
+}
+html.is-tuning-corners .feed-menu-page:has(.mb-corners-card) > .feed-menu-page-bar,
+html.is-tuning-corners #popup-options-column-container > :not(.mb-corners-card),
+html.is-tuning-corners #popup-options-column > .panel-help-btn {
+  opacity: 0.05;
+  transition-duration: 0.15s;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer .mb-value-pill {
   flex: 0 0 auto;

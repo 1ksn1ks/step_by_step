@@ -82,9 +82,13 @@ function setManual(px) {
 
 // The cyan line along the screen's edge, with the corners a popup now
 // gets: the bottom ones at this radius, the top ones only where the page
-// reaches the screen's top (--screen-r-top).
+// reaches the screen's top (--screen-r-top). While it shows, the rest of
+// the settings page fades (html.is-tuning-corners, style.css) so only the
+// slider and the line are left. It stays while the slider is held and
+// goes a moment after it is let go.
 let guide = null;
 let guideTimer = 0;
+let dragging = false;
 function showGuide() {
   if (!guide) {
     guide = document.createElement('div');
@@ -97,8 +101,23 @@ function showGuide() {
   const top = root.getPropertyValue('--screen-r-top').trim() || '0px';
   guide.style.borderRadius = `${top} ${top} ${bottom} ${bottom}`;
   guide.classList.add('is-on');
+  document.documentElement.classList.add('is-tuning-corners');
+  scheduleGuideEnd();
+}
+
+function scheduleGuideEnd() {
   clearTimeout(guideTimer);
-  guideTimer = setTimeout(() => guide.classList.remove('is-on'), GUIDE_MS);
+  if (dragging) return;
+  guideTimer = setTimeout(() => {
+    if (guide) guide.classList.remove('is-on');
+    document.documentElement.classList.remove('is-tuning-corners');
+  }, GUIDE_MS);
+}
+
+function endDrag() {
+  if (!dragging) return;
+  dragging = false;
+  scheduleGuideEnd();
 }
 
 let input = null;
@@ -121,8 +140,13 @@ function bindControl() {
   input.max = String(SCREEN_CORNER_MAX);
   paintControl();
   input.addEventListener('input', () => setManual(input.value));
-  // A tap on the slider without moving it still shows where the line is.
-  input.addEventListener('pointerdown', () => showGuide());
+  // A touch on the slider shows the line at once, even before it moves.
+  input.addEventListener('pointerdown', () => {
+    dragging = true;
+    showGuide();
+  });
+  window.addEventListener('pointerup', endDrag, true);
+  window.addEventListener('pointercancel', endDrag, true);
   autoBtn.addEventListener('click', (event) => {
     event.stopPropagation();
     setManual(null);

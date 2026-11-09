@@ -2289,6 +2289,19 @@
 
           <div class="options-column-title">🗨 POPUPS</div>
 
+          <!-- This device only (screencorners.js): how round a full-screen
+               popup's frame is where it meets the screen's corners. -->
+          <div class="mb-card mb-corners-card">
+            <div class="mb-card-title">Screen corners</div>
+            <div class="mb-row">
+              <span class="mb-row-label">Roundness</span>
+              <input type="range" id="screen-corners" class="mb-slider" min="0" max="72" step="1" value="0" aria-label="Screen corner roundness"/>
+              <span class="mb-value-pill" id="screen-corners-pill">Auto</span>
+            </div>
+            <p class="mb-corners-note">Drag until the cyan line follows your screen's rounded corners. Saved on this phone only.</p>
+            <button type="button" class="mb-corners-auto" id="screen-corners-auto" hidden>Back to Auto</button>
+          </div>
+
           <!-- Two columns of three (style.css .mb-color-grid). -->
           <div class="mb-card mb-color-grid">
             <div class="mb-card-title">Colors</div>
@@ -2339,19 +2352,6 @@
               <input type="range" id="popup-size" class="mb-slider" min="70" max="150" step="5" value="100" aria-label="Popup size"/>
               <span class="mb-value-pill" id="popup-size-pill">100%</span>
             </div>
-          </div>
-
-          <!-- This device only (screencorners.js): how round a full-screen
-               popup's frame is where it meets the screen's corners. -->
-          <div class="mb-card">
-            <div class="mb-card-title">Screen corners</div>
-            <div class="mb-row">
-              <span class="mb-row-label">Roundness</span>
-              <input type="range" id="screen-corners" class="mb-slider" min="0" max="72" step="1" value="0" aria-label="Screen corner roundness"/>
-              <span class="mb-value-pill" id="screen-corners-pill">Auto</span>
-            </div>
-            <p class="mb-corners-note">Drag until the cyan line follows your screen's rounded corners. Saved on this phone only.</p>
-            <button type="button" class="mb-corners-auto" id="screen-corners-auto" hidden>Back to Auto</button>
           </div>
 
           <div class="mb-card">
