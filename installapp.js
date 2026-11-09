@@ -73,8 +73,8 @@ function safariMajor(ua) {
 // Under each guide's title: what installing gets you, not how the browser
 // works. (No "loads faster": sw.js caches only profile pictures, and it
 // does that in the browser too.)
-const PHONE_GAIN = 'Full screen, more room for the map, one tap to open.';
-const DESKTOP_GAIN = 'Its own window, more room for the map, one click to open.';
+const PHONE_GAIN = 'enjoy it in fullscreen';
+const DESKTOP_GAIN = 'enjoy it in fullscreen';
 
 // Said under every guide, so adding an icon does not feel like a risk.
 // store: the store this device would otherwise send you to.
