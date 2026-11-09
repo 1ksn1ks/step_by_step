@@ -34,13 +34,15 @@ const INTRO = [
   }
 ];
 
+// The first page is this browser's Add to Home Screen guide (installapp.js
+// installSteps). A browser that hands over its own install dialog also
+// gets a one-tap Install there (paintInstallNav).
 function slidesForThisVisit() {
   return [
     {
       icon: '📲',
-      title: 'Install on homescreen?',
-      body: 'Installing removes this intro.',
-      install: true
+      install: true,
+      guide: installSteps()
     },
     ...INTRO
   ];
@@ -118,6 +120,21 @@ function renderGuide(guide) {
   rowsEl.appendChild(list);
 }
 
+// The guide page's buttons. With an install dialog to open (Chrome on
+// Android, desktop Chrome / Edge): Install, and Not now to move on.
+// Without one (iPhone, most other browsers): only Got it, after the steps.
+function paintInstallNav() {
+  const prompt = canPromptInstall();
+  installBtn.style.display = prompt ? '' : 'none';
+  notNowBtn.textContent = prompt ? 'Not now' : 'Got it';
+  notNowBtn.className = prompt ? 'onboard-prev' : 'onboard-next';
+}
+
+// Chrome can hand over its dialog after the intro is already up.
+window.addEventListener('install-prompt-ready', () => {
+  if (overlay && slides[slideIndex] && slides[slideIndex].install) paintInstallNav();
+});
+
 function renderSlide(direction = 1) {
   const slide = slides[slideIndex];
   iconEl.replaceChildren();
@@ -175,10 +192,7 @@ function renderSlide(direction = 1) {
   const installPage = !!slide.install;
   introNav.style.display = installPage ? 'none' : 'flex';
   installNav.style.display = installPage ? 'flex' : 'none';
-  // The steps page (no install dialog): one button that moves on.
-  installBtn.style.display = guide ? 'none' : '';
-  notNowBtn.textContent = guide ? 'Got it' : 'Not now';
-  notNowBtn.className = guide ? 'onboard-next' : 'onboard-prev';
+  paintInstallNav();
   overlay.querySelector('.onboard-card').classList.toggle('is-guide', !!guide);
   const lastSlide = slideIndex === slides.length - 1;
   nextBtn.textContent = lastSlide ? 'Got it' : 'Next ›';
@@ -313,18 +327,12 @@ function build() {
   installBtn = document.createElement('button');
   installBtn.className = 'onboard-next';
   installBtn.textContent = 'Install';
+  // Shown only while the browser has an install dialog to open.
   installBtn.onclick = async (e) => {
     e.stopPropagation();
-    // iPhone never hands over an install dialog (nor do some other
-    // browsers), so Install did nothing there. Show this browser's
-    // Add to Home Screen steps on the same page instead.
-    if (!canPromptInstall()) {
-      slides[slideIndex] = { ...slides[slideIndex], guide: installSteps() };
-      renderSlide(1);
-      return;
-    }
     const accepted = await runInstallPrompt();
     if (accepted) closeOnboarding();
+    else paintInstallNav(); // a dismissed dialog can't be opened again
   };
 
   installNav = document.createElement('div');

@@ -210,6 +210,8 @@ window.addEventListener("beforeinstallprompt", (event) => {
   }
   try { localStorage.removeItem(INSTALLED_KEY); } catch { /* private mode */ }
   deferredPrompt = event;
+  // The intro may already be up; it adds its one-tap Install now.
+  window.dispatchEvent(new Event('install-prompt-ready'));
 });
 
 window.addEventListener("appinstalled", () => {
