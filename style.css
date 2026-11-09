@@ -23037,6 +23037,55 @@ html.is-draw-picking .live-filter {
   position: relative;
   display: inline-flex;
 }
+/* The held spot (poiinfo.js .is-press): Look for Live's circle is drawn
+   around it (liveradius.js), so its pin is the circle's centre: a cyan dot
+   on the point itself, like the polygon picker's corner dots, instead of
+   a teardrop whose tip marks the point and whose body sat above the
+   centre. The buttons sit level with it on either side, and the 1fr
+   columns are equal, so the dot stays on the point whatever the two
+   buttons' widths. The tap-to-draw pin (drawhere.js) keeps its teardrop. */
+.draw-here-anchor.is-press {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  column-gap: 1.2vh;
+  /* Its own full width wherever it is held: a fixed box is otherwise
+     squeezed to the room between its left and the screen's right edge,
+     and the squeezed columns come out unequal. */
+  width: max-content;
+  transform: translate(-50%, -50%);
+}
+.draw-here-anchor.is-press > :first-child {
+  justify-self: end;
+}
+.draw-here-anchor.is-press > :last-child {
+  justify-self: start;
+}
+.draw-here-anchor.is-press > .draw-here-pin {
+  --dot: max(18px, 2.2vh);
+  position: relative;
+  box-sizing: border-box;
+  width: var(--dot);
+  height: var(--dot);
+  margin: 0;
+  border: max(3px, 0.35vh) solid #0a0a12;
+  border-radius: 50%;
+  background: #22D3EE;
+  box-shadow: 0 0 0 2px #22D3EE, 0 0 14px rgba(34, 211, 238, 0.65);
+  transform: none;
+  animation: pressDotIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* A finger-sized target: tapping the dot closes the pin. */
+.draw-here-anchor.is-press > .draw-here-pin::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+}
+@keyframes pressDotIn {
+  from { transform: scale(2); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
 /* The badge wears the pin buttons' dark glass and thin white edge, a shade
    lighter on top so it reads as raised; a dark ring parts it from the
    button it sits on. Cyan only on press, hover and while its panel is

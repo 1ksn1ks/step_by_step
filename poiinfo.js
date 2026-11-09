@@ -45,10 +45,21 @@ canvas.addEventListener('touchstart', (e) => {
   holdTimer = setTimeout(() => {
     holdTimer = null;
     suppressClickUntil = Date.now() + 600; // the hold became the pin, not a tap
+    holdOpenedPin = true;
     const rect = canvas.getBoundingClientRect();
     showPressAnchor(map.unproject([t.clientX - rect.left, t.clientY - rect.top]));
   }, HOLD_MS);
 }, { passive: true });
+
+// The pin's dot sits right under the finger that held, so lifting it taps
+// the dot, which would close the pin it just made. However long the hold
+// lasted, the tap that ends it is skipped.
+let holdOpenedPin = false;
+function endHoldTouch() {
+  if (!holdOpenedPin) return;
+  holdOpenedPin = false;
+  suppressClickUntil = Math.max(suppressClickUntil, Date.now() + 450);
+}
 
 canvas.addEventListener('touchmove', (e) => {
   if (!holdTimer || !holdStart) return;
@@ -64,6 +75,7 @@ canvas.addEventListener('touchend', () => {
     clearTimeout(holdTimer);
     holdTimer = null;
   }
+  endHoldTouch();
 }, { passive: true });
 
 canvas.addEventListener('touchcancel', () => {
@@ -71,6 +83,7 @@ canvas.addEventListener('touchcancel', () => {
     clearTimeout(holdTimer);
     holdTimer = null;
   }
+  holdOpenedPin = false;
 }, { passive: true });
 
 let pressAnchor = null; // the anchor element (left button, pin, right button)
@@ -105,12 +118,19 @@ function showPressAnchor(lngLat) {
   closeTransientMapUI();
   pressLoc = lngLat;
 
+  // is-press (style.css): the pin is a dot at the held point itself, the
+  // centre of Look for Live's circle, not a teardrop whose tip marks it.
   const anchor = document.createElement('div');
-  anchor.className = 'draw-here-anchor';
+  anchor.className = 'draw-here-anchor is-press';
 
   const pin = document.createElement('div');
   pin.className = 'draw-here-pin';
-  pin.onclick = closePressAnchor; // like the draw-here pin: tap closes
+  // Like the draw-here pin, a tap closes it; not the tap of the finger
+  // that held, which lifts right over the dot.
+  pin.onclick = () => {
+    if (holdJustHappened()) return;
+    closePressAnchor();
+  };
   anchor.appendChild(pin);
 
   const mapsBtn = document.createElement('button');
