@@ -60,6 +60,63 @@ let introNav = null;
 let installNav = null;
 let installBtn = null;
 let notNowBtn = null;
+let reassureEl = null;
+
+// Install steps (installapp.js installSteps): each icon looks like the
+// button the step taps, so the screen and the guide match.
+const STEP_ICONS = {
+  more: '<circle cx="6" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.6" fill="currentColor" stroke="none"/>',
+  dots: '<circle cx="12" cy="6" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="18" r="1.6" fill="currentColor" stroke="none"/>',
+  menu: '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>',
+  share: '<path d="M12 3v12"/><path d="m8 7 4-4 4 4"/><path d="M8 10H6.5A2.5 2.5 0 0 0 4 12.5v6A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5v-6a2.5 2.5 0 0 0-2.5-2.5H16"/>',
+  showmore: '<path d="m6 9 6 6 6-6"/>',
+  addhome: '<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8"/><path d="M8 12h8"/>',
+  confirm: '<path d="M20 6 9 17l-5-5"/>',
+  install: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
+  safari: '<circle cx="12" cy="12" r="9.5"/><path d="m15.8 8.2-2.1 5.5-5.5 2.1 2.1-5.5z"/>',
+};
+const SHIELD_ICON = '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>';
+
+function svg(paths) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+}
+
+// One numbered step per tap, top to bottom, joined by a thin line.
+function renderGuide(guide) {
+  const list = document.createElement('ol');
+  list.className = 'onboard-steps';
+  guide.steps.forEach((step, i) => {
+    const item = document.createElement('li');
+    item.className = 'onboard-step';
+    item.style.setProperty('--i', String(i));
+    const chip = document.createElement('span');
+    chip.className = 'onboard-step-icon';
+    chip.innerHTML = svg(STEP_ICONS[step.icon] || STEP_ICONS.confirm);
+    const num = document.createElement('span');
+    num.className = 'onboard-step-num';
+    num.textContent = String(i + 1);
+    chip.appendChild(num);
+    const text = document.createElement('span');
+    text.className = 'onboard-step-text';
+    const line = document.createElement('span');
+    line.className = 'onboard-step-line';
+    line.append(document.createTextNode(step.verb + ' '));
+    const key = document.createElement('span');
+    key.className = 'onboard-key';
+    key.textContent = step.key;
+    line.appendChild(key);
+    text.appendChild(line);
+    if (step.note) {
+      const note = document.createElement('span');
+      note.className = 'onboard-step-note';
+      note.textContent = step.note;
+      text.appendChild(note);
+    }
+    item.append(chip, text);
+    list.appendChild(item);
+  });
+  rowsEl.appendChild(list);
+}
 
 function renderSlide(direction = 1) {
   const slide = slides[slideIndex];
@@ -76,12 +133,26 @@ function renderSlide(direction = 1) {
     item.textContent = emoji;
     iconEl.appendChild(item);
   });
-  titleEl.textContent = slide.title;
-  bodyEl.textContent = slide.body || '';
-  bodyEl.style.display = slide.body ? '' : 'none';
-  bodyEl.style.marginBottom = slide.rows ? '1.2vh' : '';
+  const guide = slide.guide || null;
+  const title = guide ? guide.title : slide.title;
+  const body = guide ? guide.body : slide.body;
+  titleEl.textContent = title;
+  bodyEl.textContent = body || '';
+  bodyEl.style.display = body ? '' : 'none';
+  bodyEl.style.marginBottom = slide.rows || guide ? '1.8vh' : '';
   rowsEl.replaceChildren();
-  if (slide.rows && slide.rows.length) {
+  reassureEl.replaceChildren();
+  reassureEl.style.display = guide && guide.footer ? '' : 'none';
+  if (guide && guide.footer) {
+    reassureEl.innerHTML = svg(SHIELD_ICON);
+    const words = document.createElement('span');
+    words.textContent = guide.footer;
+    reassureEl.appendChild(words);
+  }
+  if (guide) {
+    rowsEl.style.display = '';
+    renderGuide(guide);
+  } else if (slide.rows && slide.rows.length) {
     rowsEl.style.display = '';
     for (const row of slide.rows) {
       const item = document.createElement('div');
@@ -105,9 +176,10 @@ function renderSlide(direction = 1) {
   introNav.style.display = installPage ? 'none' : 'flex';
   installNav.style.display = installPage ? 'flex' : 'none';
   // The steps page (no install dialog): one button that moves on.
-  installBtn.style.display = slide.steps ? 'none' : '';
-  notNowBtn.textContent = slide.steps ? 'Got it' : 'Not now';
-  notNowBtn.className = slide.steps ? 'onboard-next' : 'onboard-prev';
+  installBtn.style.display = guide ? 'none' : '';
+  notNowBtn.textContent = guide ? 'Got it' : 'Not now';
+  notNowBtn.className = guide ? 'onboard-next' : 'onboard-prev';
+  overlay.querySelector('.onboard-card').classList.toggle('is-guide', !!guide);
   const lastSlide = slideIndex === slides.length - 1;
   nextBtn.textContent = lastSlide ? 'Got it' : 'Next ›';
   nextBtn.classList.toggle('is-quiet', !lastSlide);
@@ -185,6 +257,11 @@ function build() {
   rowsEl = document.createElement('div');
   rowsEl.className = 'onboard-rows';
 
+  // Under the install steps: what adding the icon is, so it feels safe.
+  reassureEl = document.createElement('p');
+  reassureEl.className = 'onboard-reassure';
+  reassureEl.style.display = 'none';
+
   dotsEl = document.createElement('div');
   dotsEl.className = 'onboard-dots';
   slides.forEach(() => {
@@ -242,7 +319,7 @@ function build() {
     // browsers), so Install did nothing there. Show this browser's
     // Add to Home Screen steps on the same page instead.
     if (!canPromptInstall()) {
-      slides[slideIndex] = { ...slides[slideIndex], ...installSteps(), steps: true };
+      slides[slideIndex] = { ...slides[slideIndex], guide: installSteps() };
       renderSlide(1);
       return;
     }
@@ -254,7 +331,7 @@ function build() {
   installNav.className = 'onboard-nav';
   installNav.append(installBtn, notNowBtn);
 
-  content.append(iconEl, titleEl, bodyEl, rowsEl, dotsEl, introNav, installNav);
+  content.append(iconEl, titleEl, bodyEl, rowsEl, reassureEl, dotsEl, introNav, installNav);
   card.appendChild(content);
   document.body.appendChild(overlay);
   if (window.layerOpened) window.layerOpened("onboard");

@@ -63,9 +63,22 @@ function isIOS(ua) {
 // Social apps' built-in browsers: none of them can add to the Home Screen.
 const IN_APP_BROWSER = /FBAN|FBAV|FB_IAB|Instagram|LinkedInApp|Snapchat|TikTok|musical_ly|Line\/|Twitter|MicroMessenger/i;
 
-// When there is no install dialog to open: how this browser installs, as
-// onboarding rows ({ title, body, rows }). Read off the user agent; a
-// wrong guess still points at the right menu.
+// Safari 26 hides Share behind ⋯ next to the address. Its user agent
+// freezes the OS at 18_x, so Version/26 is the tell.
+function safariMajor(ua) {
+  const m = /Version\/(\d+)/.exec(ua);
+  return m ? Number(m[1]) : 0;
+}
+
+// Said under every guide, so adding an icon does not feel like a risk.
+// store: the store this device would otherwise send you to.
+const reassure = (store) => `Just a shortcut to onlyonhbar.com. Free, no ${store}, and you can remove it any time like any app.`;
+
+// When there is no install dialog to open: how this browser installs, for
+// the intro's steps page (onboarding.js draws it). Each step is
+// { icon, verb, key, note }: the icon looks like the button to tap and
+// key is that button's label, shown as a pill. Read off the user agent;
+// a wrong guess still points at the right menu.
 export function installSteps() {
   const ua = navigator.userAgent || '';
   if (isIOS(ua)) {
@@ -73,73 +86,104 @@ export function installSteps() {
       return {
         title: 'Open in Safari first',
         body: 'This app\'s built-in browser can\'t add to the Home Screen.',
-        rows: [
-          { name: '1. Open in Safari', note: 'Tap ⋯ or the compass and choose Open in Safari (or Open in Browser).' },
-          { name: '2. Tap Install again', note: 'This page then shows the next steps.' },
+        steps: [
+          { icon: 'more', verb: 'Tap', key: '⋯', note: 'Or the compass, wherever this app puts its browser menu.' },
+          { icon: 'safari', verb: 'Choose', key: 'Open in Safari', note: 'Some apps call it Open in Browser.' },
+          { icon: 'install', verb: 'Tap', key: 'Install', note: 'Here again, and the steps for Safari show.' },
         ],
+        footer: reassure('App Store'),
       };
     }
     const safari = !/CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo|YaBrowser|GSA\//.test(ua);
+    if (safari && safariMajor(ua) >= 26) {
+      return {
+        title: 'Add to Home Screen',
+        body: 'Four taps in Safari, about ten seconds.',
+        steps: [
+          { icon: 'more', verb: 'Tap', key: '⋯', note: 'Next to onlyonhbar.com in the address bar.' },
+          { icon: 'share', verb: 'Tap', key: 'Share', note: 'In the menu that opens.' },
+          { icon: 'showmore', verb: 'Tap', key: 'Show More', note: 'Under the first few options.' },
+          { icon: 'addhome', verb: 'Tap', key: 'Add to Home Screen', note: 'Then confirm at the top right.' },
+        ],
+        footer: reassure('App Store'),
+      };
+    }
+    if (safari) {
+      return {
+        title: 'Add to Home Screen',
+        body: 'Three taps in Safari, about ten seconds.',
+        steps: [
+          { icon: 'share', verb: 'Tap', key: 'Share', note: 'The square with the arrow, in Safari\'s toolbar.' },
+          { icon: 'addhome', verb: 'Tap', key: 'Add to Home Screen', note: 'Scroll down the list if you don\'t see it.' },
+          { icon: 'confirm', verb: 'Tap', key: 'Add', note: 'At the top right.' },
+        ],
+        footer: reassure('App Store'),
+      };
+    }
     return {
       title: 'Add to Home Screen',
-      body: safari
-        ? 'iPhone installs from Safari\'s Share menu.'
-        : 'iPhone installs from the browser\'s Share menu.',
-      rows: [
-        safari
-          ? { name: '1. Tap Share', note: 'The square with the arrow ↑. On newer iPhones it is in the ⋯ menu by the address.' }
-          : { name: '1. Tap Share', note: 'The ↑ by the address, or the browser menu (⋯ or ☰) → Share.' },
-        { name: '2. Add to Home Screen', note: 'Scroll down the list if you don\'t see it.' },
-        { name: '3. Tap Add', note: 'Meritocracy then opens from your Home Screen like an app.' },
+      body: 'A few taps in your browser, about ten seconds.',
+      steps: [
+        { icon: 'share', verb: 'Tap', key: 'Share', note: 'By the address, or in the browser\'s ⋯ menu.' },
+        { icon: 'addhome', verb: 'Tap', key: 'Add to Home Screen', note: 'If it isn\'t listed, tap Show More first.' },
+        { icon: 'confirm', verb: 'Confirm', key: 'Add', note: 'At the top right.' },
       ],
+      footer: reassure('App Store'),
     };
   }
   if (/Android/i.test(ua)) {
     if (/SamsungBrowser/i.test(ua)) {
       return {
         title: 'Add to Home screen',
-        body: 'Samsung Internet installs from its menu.',
-        rows: [
-          { name: '1. Open the menu', note: 'Tap ≡ at the bottom right.' },
-          { name: '2. Add page to', note: 'Choose Home screen, then Add.' },
+        body: 'Three taps in Samsung Internet.',
+        steps: [
+          { icon: 'menu', verb: 'Tap', key: '≡', note: 'At the bottom right.' },
+          { icon: 'addhome', verb: 'Tap', key: 'Add page to', note: 'Then choose Home screen.' },
+          { icon: 'confirm', verb: 'Tap', key: 'Add', note: 'The icon lands on your Home screen.' },
         ],
+        footer: reassure('Play Store'),
       };
     }
     return {
       title: 'Add to Home screen',
-      body: 'Your browser installs from its menu.',
-      rows: [
-        { name: '1. Open the menu', note: 'Tap ⋮ at the top or bottom right.' },
-        { name: '2. Install app', note: 'Or Add to Home screen, then Install or Add.' },
+      body: 'Three taps in your browser.',
+      steps: [
+        { icon: 'dots', verb: 'Tap', key: '⋮', note: 'At the top or bottom right.' },
+        { icon: 'install', verb: 'Tap', key: 'Install app', note: 'Some browsers call it Add to Home screen.' },
+        { icon: 'confirm', verb: 'Confirm', key: 'Install', note: 'Or Add. The icon lands on your Home screen.' },
       ],
+      footer: reassure('Play Store'),
     };
   }
   if (/Firefox\//.test(ua)) {
     return {
       title: 'Install from Chrome or Edge',
       body: 'Firefox on a computer can\'t install web apps.',
-      rows: [
-        { name: 'Open this page in Chrome or Edge', note: 'Then tap Install here again.' },
+      steps: [
+        { icon: 'install', verb: 'Open', key: 'onlyonhbar.com', note: 'In Chrome or Edge, then click Install here again.' },
       ],
+      footer: reassure('app store'),
     };
   }
   if (/Safari\//.test(ua) && !/Chrome|Chromium|Edg\//.test(ua)) {
     return {
       title: 'Add to Dock',
-      body: 'Safari on a Mac installs from the File menu.',
-      rows: [
-        { name: '1. File', note: 'In the menu bar at the top of the screen.' },
-        { name: '2. Add to Dock', note: 'Then Add. Meritocracy opens from the Dock.' },
+      body: 'Two clicks in Safari on a Mac.',
+      steps: [
+        { icon: 'menu', verb: 'Open', key: 'File', note: 'In the menu bar at the top of the screen.' },
+        { icon: 'addhome', verb: 'Click', key: 'Add to Dock', note: 'Then Add. Meritocracy opens from the Dock.' },
       ],
+      footer: reassure('App Store'),
     };
   }
   return {
     title: 'Install from the address bar',
-    body: 'Your browser didn\'t offer its install dialog here.',
-    rows: [
-      { name: 'Install icon', note: 'The screen with a ↓ at the right end of the address bar.' },
-      { name: 'Or the menu', note: '⋮ or ⋯ → Install Meritocracy (under Save and share, or Apps).' },
+    body: 'Your browser didn\'t offer its install window here.',
+    steps: [
+      { icon: 'install', verb: 'Click', key: 'Install', note: 'The screen with a ↓ at the right end of the address bar.' },
+      { icon: 'dots', verb: 'Or open', key: '⋮', note: 'Then Install Meritocracy (under Save and share, or Apps).' },
     ],
+    footer: reassure('app store'),
   };
 }
 
