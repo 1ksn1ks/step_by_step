@@ -4,19 +4,21 @@ import {
   bindHoldMenu, openLiveGroupMenu, closeLiveGroupMenu, liveChoiceCaption,
   openLiveSettings, closeLiveSettings, LIVE_GEAR_ICON,
 } from './livegroups.js';
+import { showRadiusPreview, hideRadiusPreview } from './liveradius.js';
 
 // Long-press (phone) / right-click (PC) on the map → the SAME pin as the
 // plain tap (drawhere.js), with two actions split around it:
 //   🗺 Open in Maps (left)  — that spot in the phone's default maps app
 //                              (geo:), or Google Maps web on a PC
-//   📡 Look for Live (right) — the 24h live markers of the country at that
-//                              spot (the exact view a country search shows),
-//                              from the chosen group (livegroups.js). Hold it
+//   📡 Look for Live (right) — the 24h live markers within the chosen
+//                              distance of that spot, in any country, from
+//                              the chosen group (livegroups.js). Hold it
 //                              (phone) or right-click it (PC) for the list of
 //                              groups; a pick looks for live from that group.
 //                              Its ⚙ opens the live settings: the groups,
-//                              how far from the pin (the country, or a km
-//                              radius in any country), and Look for Live.
+//                              how far from the pin (km), and Look for Live.
+//                              While the pin is up, that distance is a
+//                              circle on the map (liveradius.js).
 // The plain tap/click (the 📍/🔷 pin in drawhere.js) must keep working,
 // so the tap a hold generates is swallowed via holdJustHappened().
 
@@ -90,6 +92,7 @@ export function closePressAnchor() {
     closeLiveSettings({ within: pressAnchor });
     pressAnchor.remove();
     pressAnchor = null;
+    hideRadiusPreview();
     // Back/Forward: pin tap, outside tap, Escape and closeTransientMapUI
     // all end here.
     layerClosedByUI('presspin');
@@ -129,9 +132,9 @@ function showPressAnchor(lngLat) {
   const liveBtn = document.createElement('button');
   liveBtn.className = 'draw-here-btn draw-here-live';
   liveBtn.textContent = '📡 Look for Live';
-  // The group and distance, when they are not Everyone and the country,
-  // are a caption under the button (style.css): out of the row, so both
-  // buttons keep their width and the pin stays centred on the held point.
+  // The group (when it is not Everyone) and the distance are a caption
+  // under the button (style.css): out of the row, so both buttons keep
+  // their width and the pin stays centred on the held point.
   const paintCaption = () => {
     const caption = liveChoiceCaption();
     if (caption) liveBtn.dataset.group = caption;
@@ -140,9 +143,8 @@ function showPressAnchor(lngLat) {
   paintCaption();
   liveBtn.title = 'Hold or right-click to choose whose live posts';
   liveBtn.setAttribute('aria-haspopup', 'menu');
-  // The exact pipeline a country search uses: reverse-geocode the spot in
-  // ENGLISH (so the country string matches what /api/local stored), then
-  // show that country's 24h live markers. Dynamic: localnews pulls in
+  // The live markers within the distance of the spot (localnews.js
+  // showLocationMarkers), the same look a search pick runs. Dynamic: localnews pulls in
   // processallmessages → threejs, which use `map` at MODULE LEVEL. A group
   // from the list is set first (localnews says what a wallet-less pick
   // cannot show).
@@ -187,6 +189,8 @@ function showPressAnchor(lngLat) {
   anchor.style.top = p.y + 'px';
   document.body.appendChild(anchor);
   pressAnchor = anchor;
+  // How far Look for Live reaches from here; follows the Distance setting.
+  showRadiusPreview(lngLat);
   // Back/Forward: the pin is a layer at its saved point.
   layerOpened('presspin', { at: [lngLat.lng, lngLat.lat] });
 }

@@ -3,8 +3,7 @@ import { CloseALL } from './cssLogic.js';
 import { activeMarkerPopups } from './marker.js';
 import { activePolygonPopups } from './polygons.js';
 import { showSearchPin, closeDrawAnchor } from './drawhere.js';
-import { fetchLocalMarkers } from './msgbackend.js';
-import { showLocalMarkers } from './localnews.js';
+import { showLocationMarkers } from './localnews.js';
 import { cancelAnimateMapTo, animateMapTo } from './animatemapto.js';
 import { geojson, polygons } from './letall.js';
 import { hashtagQuery, hashtagsIn } from './hashtag.js';
@@ -248,14 +247,10 @@ function showResults(results, query) {
       // Picking a destination closes any open marker/polygon popups
       activePolygonPopups.forEach((popup) => popup.remove());
       activeMarkerPopups.forEach((popup) => popup.remove());
-      // Local news: show the 24h live markers for this result's country.
-      // A new pick swaps the set (showLocalMarkers clears the previous one).
-      const country = (r.address && r.address.country) || r.country_name || "";
-      if (country) {
-        fetchLocalMarkers(country).then(({ markers }) => showLocalMarkers(markers));
-      } else {
-        showLocalMarkers([]);
-      }
+      // Local news: the 24h live markers within the Look for Live distance
+      // of the picked place, with that circle on the map. A new pick swaps
+      // the set (showLocalMarkers clears the previous one).
+      showLocationMarkers(parseFloat(r.lat), parseFloat(r.lon));
       closeSearchBar();
     });
     bindResultKeys(item);

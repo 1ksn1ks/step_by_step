@@ -21862,6 +21862,48 @@ html.is-draw-picking #map-topbar {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-weight: 600;
 }
+/* Look for Live's reach (liveradius.js): the polygon corner bubble's
+   look, on the top edge of the dashed cyan circle, its arrow touching the
+   line. Taps go through to the map and the posts under it. */
+.live-radius-tag {
+  --tip-font: clamp(11px, 1.25dvh, 16px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  box-sizing: border-box;
+  padding: calc(var(--tip-font) * 0.35) calc(var(--tip-font) * 0.75);
+  border: 1px solid rgba(34, 211, 238, 0.6);
+  border-radius: calc(var(--tip-font) * 0.75);
+  background: rgba(10, 12, 18, 0.92);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--tip-font);
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.live-radius-tag::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  border: 6px solid transparent;
+  border-top-color: rgba(34, 211, 238, 0.6);
+  translate: -50% 0;
+}
+.live-radius-tag-name {
+  color: #22D3EE;
+  font-size: 0.82em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.live-radius-tag-km {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
 
 #draw-pick-bar {
   --pick-bar-font: max(14px, 1.8dvh);

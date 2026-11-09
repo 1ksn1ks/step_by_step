@@ -119,8 +119,8 @@ map.addControl(geolocate);
 
 geolocate._container.classList.add('custom-geolocate-position');
 
-// Turning location ON loads the 24h live markers of the user's country
-// (same view the geographic search shows). trackuserlocationstart fires on
+// Turning location ON loads the 24h live markers within the Look for Live
+// distance of the user (same view a search pick shows). trackuserlocationstart fires on
 // the button tap; the FIRST position fix after it does the loading, so
 // continuous tracking never re-fetches.
 let pendingLocation = false;

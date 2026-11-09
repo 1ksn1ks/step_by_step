@@ -456,13 +456,9 @@ const q = {
       -- timer only moves forward (a re-upload has a newer ts anyway)
       last_seen = MAX(excluded.last_seen, live_markers.last_seen)
   `),
-  listLiveByCountry: db.prepare(`
-    SELECT * FROM live_markers
-    WHERE LOWER(country) = LOWER(?) AND last_seen > ?
-    ORDER BY last_seen DESC
-  `),
   // A latitude band; /api/local keeps the rows within the radius. The
-  // table only holds the last 24 h, so the band is small enough to scan.
+  // table only holds the last 24 h, and the radius is at most 500 km, so
+  // the band is small enough to scan.
   listLiveInLatBand: db.prepare(`
     SELECT * FROM live_markers
     WHERE lat BETWEEN ? AND ? AND last_seen > ?
@@ -3244,8 +3240,9 @@ app.post("/api/marker", publicPostLimit, (req, res) => {
 });
 
 // Live search radius, km: the Look for Live settings (livegroups.js) offer
-// presets and a custom value up to this.
-const LIVE_RADIUS_MAX_KM = 5000;
+// presets and a custom value up to this. 500 km is a region, not half the
+// world: the latitude band scanned stays a few degrees tall.
+const LIVE_RADIUS_MAX_KM = 500;
 const EARTH_KM = 6371.0088;
 
 function liveDistanceKm(lat1, lng1, lat2, lng2) {
@@ -3264,30 +3261,30 @@ function liveRowsNear(lat, lng, km) {
   return rows.filter((r) => liveDistanceKm(lat, lng, r.lat, r.lng) <= km);
 }
 
-// app: "show live markers in this country" (geographic search), or, with
-// lat, lng and radius (km), the live markers that close to that point in
-// any country (Look for Live with a distance). Only the 24h view — a
-// marker here is still in its topic history regardless.
+// app: with lat, lng and radius (km), the live markers that close to that
+// point, in any country (Look for Live, a search pick, your location).
+// Only the 24h view — a marker here is still in its topic history
+// regardless. The old ?country= search is gone: a whole country could be
+// any size, so an app still sending it gets no markers.
 app.get("/api/local", publicPostLimit, (req, res) => {
-  const country = String(req.query.country || "").trim();
   const lat = Number(req.query.lat);
   const lng = Number(req.query.lng);
   const radius = Number(req.query.radius);
   const near = Number.isFinite(lat) && Math.abs(lat) <= 90
     && Number.isFinite(lng) && Math.abs(lng) <= 180
     && Number.isFinite(radius) && radius > 0;
-  if (!near && !country) return res.json({ ok: true, markers: [] });
-  const km = near ? Math.min(radius, LIVE_RADIUS_MAX_KM) : 0;
-  const rows = near
-    ? liveRowsNear(lat, lng, km)
-    : q.listLiveByCountry.all(country, Date.now() - LIVE_TTL_MS);
+  if (!near) return res.json({ ok: true, markers: [] });
+  const km = Math.min(radius, LIVE_RADIUS_MAX_KM);
+  const rows = liveRowsNear(lat, lng, km);
   // Resolve each distinct topic's name (empty while the topic is still
   // backfilling) and keep the topic warm so the poller finishes the job.
+  // Once per topic, not per marker: one topic's markers would each write
+  // the same "active now" again.
   const names = new Map();
   const viewMaps = new Map();
   for (const r of rows) {
-    q.upsertTopic.run(r.topic, Date.now());
     if (!names.has(r.topic)) {
+      q.upsertTopic.run(r.topic, Date.now());
       names.set(r.topic, getTopicName(r.topic));
       fetchTopicMemo(r.topic);
       const counts = new Map();
@@ -3297,7 +3294,7 @@ app.get("/api/local", publicPostLimit, (req, res) => {
   }
   res.json({
     ok: true,
-    ...(near ? { radius: km } : {}),
+    radius: km,
     markers: rows.map((r) => {
       // The original message: exact (topic, cord, number) first, then the
       // most recent upload at that cord (rows predating number tracking).

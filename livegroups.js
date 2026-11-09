@@ -53,16 +53,17 @@ export function setLiveGroup(key) {
 }
 
 // ── Distance ───────────────────────────────────────────────────────────
-// How far from the held spot Look for Live reaches: 'country' (the country
-// at the spot, as before) or a number of km, in any country
-// (/api/local?lat&lng&radius). Presets or a custom km; kept across visits.
-export const LIVE_RADII = ['country', 10, 50, 100, 500];
-export const LIVE_RADIUS_MAX_KM = 5000; // server/index.js LIVE_RADIUS_MAX_KM
+// How far from the held spot Look for Live reaches: a number of km, in any
+// country (/api/local?lat&lng&radius). Presets or a custom km, up to
+// LIVE_RADIUS_MAX_KM; kept across visits. liveradius.js draws it on the
+// map. (There was a 'country' choice: a saved one now reads as the default.)
+export const LIVE_RADII = [10, 50, 100, 250, 500];
+export const LIVE_RADIUS_DEFAULT_KM = 250;
+export const LIVE_RADIUS_MAX_KM = 500; // server/index.js LIVE_RADIUS_MAX_KM
 const RADIUS_KEY = 'meritocracy-live-radius';
 let radius = readRadius();
 
 function cleanRadius(value) {
-  if (value === 'country') return 'country';
   const km = Number(value);
   if (!Number.isFinite(km) || km <= 0) return null;
   return Math.min(Math.round(km * 10) / 10, LIVE_RADIUS_MAX_KM);
@@ -72,8 +73,8 @@ function readRadius() {
   try {
     const saved = cleanRadius(localStorage.getItem(RADIUS_KEY));
     if (saved != null) return saved;
-  } catch { /* private mode: the country */ }
-  return 'country';
+  } catch { /* private mode: the default */ }
+  return LIVE_RADIUS_DEFAULT_KM;
 }
 
 export function liveRadius() {
@@ -81,24 +82,26 @@ export function liveRadius() {
 }
 
 export function liveRadiusName(value = radius) {
-  return value === 'country' ? 'Country' : formatKm(value);
+  return formatKm(value);
 }
 
-// false for a value that is not a distance.
+// false for a value that is not a distance. The map's radius circle
+// (liveradius.js) follows each change.
 export function setLiveRadius(value) {
   const next = cleanRadius(value);
   if (next == null) return false;
   radius = next;
   try { localStorage.setItem(RADIUS_KEY, String(next)); } catch { /* this visit only */ }
+  document.dispatchEvent(new CustomEvent('live-radius-changed', { detail: next }));
   return true;
 }
 
-// What the caption under Look for Live says: the choices that are not the
-// defaults ("Following · 50 km"), '' when both are.
+// What the caption under Look for Live says: the group when it is not
+// Everyone, and always the distance ("Following · 50 km", "250 km").
 export function liveChoiceCaption() {
   const parts = [];
   if (current !== 'all') parts.push(liveGroupName(current));
-  if (radius !== 'country') parts.push(liveRadiusName(radius));
+  parts.push(liveRadiusName(radius));
   return parts.join(' · ');
 }
 
@@ -339,7 +342,7 @@ let settings = null;
 let settingsFor = null; // { anchor, onLook, onChange }
 let settingsLayer = false;
 const settingsRows = new Map(); // group key -> row
-const radiusPills = new Map(); // 'country' | km | 'custom' -> pill
+const radiusPills = new Map(); // km | 'custom' -> pill
 let customOn = false;
 let customBox = null;
 let customInput = null;
@@ -434,7 +437,7 @@ function buildSettings() {
   groups.appendChild(groupList);
 
   // Distance: presets and Custom as pills, the km field under them.
-  const distance = settingsSection('Distance', 'How far from the pin. Country is the whole country the pin is in.');
+  const distance = settingsSection('Distance', 'How far from the pin. The circle on the map shows it.');
   const pills = document.createElement('div');
   pills.className = 'live-settings-pills';
   pills.setAttribute('role', 'radiogroup');
@@ -479,10 +482,10 @@ function buildSettings() {
   customNote = document.createElement('div');
   customNote.className = 'live-settings-note';
   customNote.textContent = 'A number of km, up to ' + LIVE_RADIUS_MAX_KM + '.';
-  // Kept while it reads as a distance; red while it does not.
+  // Kept while it reads as a distance up to the cap; red while it does not.
   customInput.addEventListener('input', () => {
     const km = parseKm(customInput.value);
-    const ok = Number.isFinite(km) && km > 0;
+    const ok = Number.isFinite(km) && km > 0 && km <= LIVE_RADIUS_MAX_KM;
     const bad = !ok && customInput.value.trim() !== '';
     customBox.classList.toggle('is-invalid', bad);
     customNote.classList.toggle('is-invalid', bad);

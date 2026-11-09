@@ -4,7 +4,8 @@ import { map } from './map';
 import { createMarkerPopupHTML, mediaMode, lengthMode } from './processallmessages.js';
 import { videoSeconds } from './mediaduration.js';
 import { toast } from './toast.js';
-import { fetchLocalMarkers, fetchNearMarkers } from './msgbackend.js';
+import { fetchNearMarkers } from './msgbackend.js';
+import { showSearchArea, hideSearchArea } from './liveradius.js';
 import { profilePictures, usernames, click2url } from './loadalladata.js';
 import { CloseALL, changePopupState } from './cssLogic.js';
 import { closeDrawAnchor } from './drawhere.js';
@@ -115,6 +116,9 @@ export function clearLocalMarkers(silent = false) {
   livePointCoords.clear();
   livePointTitles.clear();
   hideLiveBar();
+  // The live bar's × (not a new set replacing this one) also takes the
+  // searched circle away.
+  if (!silent) hideSearchArea();
   if (!silent) document.dispatchEvent(new Event('live-dataset-changed')); // topic dots drop the border
   if (layerActive) {
     map.off('move', viewportLocalUpdate);
@@ -613,33 +617,20 @@ onOwnersChange(() => {
   if (groupNow() === 'holders' && liveAll.length) paintLiveGroup();
 });
 
-// 24h markers for where the user is (geolocate control turned on):
-// reverse-geocode the fix in ENGLISH — the same side and language as the
-// search flow, so the country string always matches what /api/local stored.
-// Then the exact same country path the search results use.
+// 24h live markers within the Look for Live distance (livegroups.js) of a
+// spot, in any country: the held pin (poiinfo.js), a search pick
+// (search.js), or your location once the geolocate control has a fix
+// (map.js). The searched circle stays on the map with them (liveradius.js);
+// with none found it shows for a moment beside the toast.
+let lookSeq = 0;
 export async function showLocationMarkers(lat, lng) {
-  // Look for Live with a distance (livegroups.js): the live markers that
-  // close to the spot, in any country. No geocode needed.
+  const at = { lat: Number(lat), lng: Number(lng) };
   const km = liveRadius();
-  if (km !== 'country') {
-    const { markers, error } = await fetchNearMarkers(Number(lat), Number(lng), km);
-    if (error) return; // offline: leave whatever is shown
-    showLocalMarkers(markers);
-    if (!markers.length) toast.info('No live posts within ' + formatKm(km));
-    return;
-  }
-  try {
-    const data = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=en`
-    ).then((r) => r.json());
-    const country = (data && data.address && data.address.country) || "";
-    if (country) {
-      const { markers } = await fetchLocalMarkers(country);
-      showLocalMarkers(markers);
-    } else {
-      showLocalMarkers([]);
-    }
-  } catch {
-    // geocode failed / offline — leave whatever is currently shown
-  }
+  const seq = ++lookSeq;
+  const { markers, error } = await fetchNearMarkers(at.lat, at.lng, km);
+  if (seq !== lookSeq) return; // a newer look took over
+  if (error) return; // offline: leave whatever is shown
+  showLocalMarkers(markers);
+  showSearchArea(at, km, { flash: !markers.length });
+  if (!markers.length) toast.info('No live posts within ' + formatKm(km));
 }
