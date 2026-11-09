@@ -1,5 +1,5 @@
 import { map } from './map.js';
-import { appAlreadyInstalled, runInstallPrompt } from './installapp.js';
+import { appAlreadyInstalled, runInstallPrompt, canPromptInstall, installSteps } from './installapp.js';
 
 // First-load onboarding. The install question is the first page.
 // An installed app skips the whole introduction.
@@ -58,6 +58,8 @@ let prevBtn = null;
 let nextBtn = null;
 let introNav = null;
 let installNav = null;
+let installBtn = null;
+let notNowBtn = null;
 
 function renderSlide(direction = 1) {
   const slide = slides[slideIndex];
@@ -102,6 +104,10 @@ function renderSlide(direction = 1) {
   const installPage = !!slide.install;
   introNav.style.display = installPage ? 'none' : 'flex';
   installNav.style.display = installPage ? 'flex' : 'none';
+  // The steps page (no install dialog): one button that moves on.
+  installBtn.style.display = slide.steps ? 'none' : '';
+  notNowBtn.textContent = slide.steps ? 'Got it' : 'Not now';
+  notNowBtn.className = slide.steps ? 'onboard-next' : 'onboard-prev';
   const lastSlide = slideIndex === slides.length - 1;
   nextBtn.textContent = lastSlide ? 'Got it' : 'Next ›';
   nextBtn.classList.toggle('is-quiet', !lastSlide);
@@ -214,7 +220,7 @@ function build() {
   introNav.className = 'onboard-nav';
   introNav.append(prevBtn, nextBtn);
 
-  const notNowBtn = document.createElement('button');
+  notNowBtn = document.createElement('button');
   notNowBtn.className = 'onboard-prev';
   notNowBtn.textContent = 'Not now';
   notNowBtn.onclick = (e) => {
@@ -227,11 +233,19 @@ function build() {
     }
   };
 
-  const installBtn = document.createElement('button');
+  installBtn = document.createElement('button');
   installBtn.className = 'onboard-next';
   installBtn.textContent = 'Install';
   installBtn.onclick = async (e) => {
     e.stopPropagation();
+    // iPhone never hands over an install dialog (nor do some other
+    // browsers), so Install did nothing there. Show this browser's
+    // Add to Home Screen steps on the same page instead.
+    if (!canPromptInstall()) {
+      slides[slideIndex] = { ...slides[slideIndex], ...installSteps(), steps: true };
+      renderSlide(1);
+      return;
+    }
     const accepted = await runInstallPrompt();
     if (accepted) closeOnboarding();
   };
