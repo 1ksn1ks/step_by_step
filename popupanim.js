@@ -84,6 +84,77 @@ maplibregl.Popup = Popup;
 const visualViewport = window.visualViewport;
 let scheduled = false;
 
+// The bottom safe area is the home bar's strip (34px on an iPhone).
+// Half of it keeps the footer clear of the bar and of the swipe home
+// without leaving the whole strip empty under the popup.
+const POPUP_BOTTOM = 'calc(env(safe-area-inset-bottom, 0px) * 0.5)';
+
+// iPhone screen corners, CSS px, by the screen's size in points. No
+// browser tells a page how round its screen's corners are, but iPhones
+// come in a few sizes with known corners; where two models share a size
+// the rounder one is used (a frame a hair inside the curve beats one the
+// curve cuts). Android has no such list, so it keeps the frame's own
+// corners. Measured by the community (Apple does not publish them).
+const IPHONE_CORNERS = {
+  '375x812': 44, // X, XS, 11 Pro (39) · 12 mini, 13 mini (44)
+  '414x896': 41.5, // XR, 11 (41.5) · XS Max, 11 Pro Max (39)
+  '390x844': 47.33, // 12, 12 Pro, 13, 13 Pro, 14, 16e
+  '428x926': 53.33, // 12 Pro Max, 13 Pro Max, 14 Plus
+  '393x852': 55, // 14 Pro, 15, 15 Pro, 16
+  '430x932': 55, // 14 Pro Max, 15 Plus, 15 Pro Max, 16 Plus
+  '402x874': 62, // 16 Pro, 17, 17 Pro
+  '420x912': 62, // Air
+  '440x956': 62, // 16 Pro Max, 17 Pro Max
+};
+
+function iphoneCorner() {
+  if (!/iPhone|iPod/.test(navigator.userAgent || '')) return 0;
+  const w = Math.min(screen.width, screen.height);
+  const h = Math.max(screen.width, screen.height);
+  const known = IPHONE_CORNERS[`${w}x${h}`];
+  if (known) return known;
+  return h >= 812 ? 55 : 0; // a newer model: about that; a Home-button iPhone: square
+}
+
+// Which edges the page reaches: a safe-area inset is only above 0 where
+// the page runs under the screen's edge (and so into its corners). In the
+// Home Screen app the top stops under the status bar; in Safari the
+// bottom may stop at the toolbar.
+let insetProbe = null;
+function safeInsets() {
+  if (!insetProbe) {
+    insetProbe = document.createElement('div');
+    insetProbe.setAttribute('aria-hidden', 'true');
+    insetProbe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;'
+      + 'padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)';
+    document.body.appendChild(insetProbe);
+  }
+  const cs = getComputedStyle(insetProbe);
+  return { top: parseFloat(cs.paddingTop) || 0, bottom: parseFloat(cs.paddingBottom) || 0 };
+}
+
+// --screen-r-top / --screen-r-bottom: the screen's corner where the
+// popup frame reaches it (style.css rounds the frame to match), portrait
+// only. bottomOff: the keyboard is up, so the frame ends above it.
+function paintScreenCorners(bottomOff = false) {
+  const root = document.documentElement.style;
+  const corner = iphoneCorner();
+  const portrait = window.innerHeight >= window.innerWidth;
+  if (!corner || !portrait) {
+    root.removeProperty('--screen-r-top');
+    root.removeProperty('--screen-r-bottom');
+    return;
+  }
+  const inset = safeInsets();
+  // 2px past the nominal radius: Apple's corners are a continuous curve,
+  // a little tighter than a circle along the diagonal.
+  const px = `${corner + 2}px`;
+  if (inset.top > 0) root.setProperty('--screen-r-top', px);
+  else root.removeProperty('--screen-r-top');
+  if (inset.bottom > 0 && !bottomOff) root.setProperty('--screen-r-bottom', px);
+  else root.removeProperty('--screen-r-bottom');
+}
+
 function fitPopupsToViewport() {
   const layoutH = window.innerHeight;
   const viewH = visualViewport ? visualViewport.height : layoutH;
@@ -98,12 +169,14 @@ function fitPopupsToViewport() {
   root.setProperty('--popup-right', '0px');
   if (!keyboard) {
     root.setProperty('--popup-top', 'env(safe-area-inset-top, 0px)');
-    root.setProperty('--popup-bottom', 'env(safe-area-inset-bottom, 0px)');
+    root.setProperty('--popup-bottom', POPUP_BOTTOM);
     root.setProperty('--popup-max-h', 'calc(var(--app-h, 100dvh) - var(--popup-top) - var(--popup-bottom))');
+    paintScreenCorners();
     clearPopupFit();
     pinSettingsCard();
     return;
   }
+  paintScreenCorners(true);
   // Shifted into the visible viewport. dvh stays the full screen, so the
   // covered strip under the keyboard is added by hand.
   const covered = Math.max(0, layoutH - (offsetTop + viewH));

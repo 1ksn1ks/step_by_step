@@ -3224,7 +3224,9 @@ html, body {
     --popup-top: env(safe-area-inset-top, 0px);
     --popup-left: 0px;
     --popup-right: 0px;
-    --popup-bottom: env(safe-area-inset-bottom, 0px);
+    /* Half the home bar's strip (popupanim.js POPUP_BOTTOM): the footer
+       clears the bar without the whole strip sitting empty. */
+    --popup-bottom: calc(env(safe-area-inset-bottom, 0px) * 0.5);
     --popup-card: 100vw;
     --popup-max-h: calc(var(--app-h, 100dvh) - var(--popup-top) - var(--popup-bottom));
   }
@@ -3277,6 +3279,30 @@ html, body {
       inset 0 0 calc(var(--u) * 2) color-mix(in srgb, var(--popup-border-color, #ffffff) 12%, transparent);
     overflow: hidden !important;
     clip-path: inset(0 round calc(var(--u) * 2));
+}
+
+/* An iPhone's screen corners are far rounder than the frame's 2u, so they
+   cut the border off at the corners. Where the frame runs to the screen's
+   edge (popupanim.js --screen-r-top / --screen-r-bottom: iPhones, portrait,
+   per edge) its corners take the screen's radius and the border follows
+   the glass. Real map popups only: the settings sample and the Draw copy
+   sit inside panels. Android has no known radius, so it keeps 2u. */
+@media (orientation: portrait) {
+  .maplibregl-map > .maplibregl-popup {
+    --frame-r: calc(var(--u) * 2);
+    --frame-r-top: max(var(--frame-r), var(--screen-r-top, 0px));
+    --frame-r-bottom: max(var(--frame-r), var(--screen-r-bottom, 0px));
+    border-radius: var(--frame-r-top) var(--frame-r-top) var(--frame-r-bottom) var(--frame-r-bottom);
+    clip-path: inset(0 round var(--frame-r-top) var(--frame-r-top) var(--frame-r-bottom) var(--frame-r-bottom));
+  }
+  /* The footer's pills sit in the bottom corners: step them in so their
+     ends stay clear of the rounder curve (about 0.3 of how much rounder
+     it is: 0 on Android, ~11px on a 55px iPhone corner). */
+  .maplibregl-map > .maplibregl-popup .maplibregl-popup-content > .popup-sheet > .popup-footer-row {
+    padding-left: calc(max(0px, var(--screen-r-bottom, 0px) - var(--u) * 2) * 0.3);
+    padding-right: calc(max(0px, var(--screen-r-bottom, 0px) - var(--u) * 2) * 0.3);
+    box-sizing: border-box;
+  }
 }
 
 /* Dummy preview popup inside the settings card: neutralize the fixed
