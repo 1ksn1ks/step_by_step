@@ -9950,8 +9950,15 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   border-radius: 50%;
   line-height: 0;
 }
+/* A map dot keeps its marker's box. .early-hashinal (above) is sized by
+   its picture (fit-content) for the popup's profile picture; on a dot that
+   made the face as tall or as wide as the picture's shape, an oval half
+   off the dot with its ring cut off, and next to nothing (no ring) while
+   the picture was still loading. */
 .marker-face.early-hashinal {
   box-sizing: border-box;
+  width: 100%;
+  height: 100%;
   padding: 0.3dvmin;
 }
 .early-hashinal > img,
