@@ -23391,3 +23391,169 @@ html.is-draw-picking .live-filter {
   outline: 2px solid #fff;
   outline-offset: 2px;
 }
+
+/* ── Field clear (fieldclear.js) ─────────────────────────────────────────
+   The × inside a text field's right end, ↶ for a while after a long text
+   was cleared. A layer, all !important: layered !important declarations
+   win over every unlayered !important one whatever its specificity, so no
+   panel's broad button rules restyle it. The script places it with inline
+   !important left/top/height, which win over this layer; a context that
+   places it here sets --clear-placed: 1 and the script stays out. */
+@layer fieldclear {
+  .field-clear {
+    --clear-face: 22px;
+    --clear-ring: rgba(255, 255, 255, 0.12);
+    position: absolute !important;
+    z-index: 3 !important;
+    display: block !important;
+    box-sizing: border-box !important;
+    width: 40px !important;
+    height: 40px;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: none !important;
+    box-shadow: none !important;
+    color: rgba(255, 255, 255, 0.85) !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
+    text-shadow: none !important;
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+    translate: none !important;
+    animation: none !important;
+    transition: color 160ms ease !important;
+    cursor: pointer !important;
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+  .field-clear[hidden] {
+    display: none !important;
+  }
+  /* The round face, then the glyph masked over it. --clear-face-y: the
+     face's middle in a textarea, level with its first line. */
+  .field-clear::before,
+  .field-clear::after {
+    content: "" !important;
+    position: absolute !important;
+    left: 50% !important;
+    top: var(--clear-face-y, 50%) !important;
+    translate: -50% -50% !important;
+    pointer-events: none !important;
+  }
+  .field-clear::before {
+    width: var(--clear-face) !important;
+    height: var(--clear-face) !important;
+    border-radius: 50% !important;
+    background: var(--clear-ring) !important;
+    transition: background-color 160ms ease !important;
+  }
+  .field-clear::after {
+    width: calc(var(--clear-face) * 0.5) !important;
+    height: calc(var(--clear-face) * 0.5) !important;
+    background: currentColor !important;
+    -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'><path d='M18 6 6 18'/><path d='m6 6 12 12'/></svg>") center / contain no-repeat !important;
+    mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'><path d='M18 6 6 18'/><path d='m6 6 12 12'/></svg>") center / contain no-repeat !important;
+  }
+  /* ↶: put the cleared text back. Cyan, so it reads as an offer. */
+  .field-clear.is-undo {
+    --clear-ring: rgba(34, 211, 238, 0.18);
+    color: #22D3EE !important;
+  }
+  .field-clear.is-undo::after {
+    width: calc(var(--clear-face) * 0.62) !important;
+    height: calc(var(--clear-face) * 0.62) !important;
+    -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'><path d='M9 14 4 9l5-5'/><path d='M4 9h10.5a5.5 5.5 0 0 1 0 11H11'/></svg>") !important;
+    mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'><path d='M9 14 4 9l5-5'/><path d='M4 9h10.5a5.5 5.5 0 0 1 0 11H11'/></svg>") !important;
+  }
+  .field-clear:active {
+    --clear-ring: rgba(34, 211, 238, 0.24);
+    color: #22D3EE !important;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .field-clear:hover {
+      --clear-ring: rgba(34, 211, 238, 0.18);
+      color: #22D3EE !important;
+    }
+  }
+  /* A search field's own clear would make two. */
+  input[type="search"][data-clear-shown]::-webkit-search-cancel-button {
+    -webkit-appearance: none !important;
+    display: none !important;
+  }
+
+  /* Load: the × takes Paste's spot while the field has text. Paste fills
+     an empty field and the × empties a full one, so one place serves
+     both; 👥 stays. */
+  #load-column #input-field[data-clear-shown] ~ #paste-topic-btn {
+    display: none !important;
+  }
+  #load-column #input-field ~ .field-clear {
+    --clear-placed: 1;
+    --clear-ring: transparent;
+    top: 0.5vh !important;
+    bottom: 0.5vh !important;
+    left: auto !important;
+    right: 0.5vh !important;
+    width: 44px !important;
+    height: auto !important;
+    border: 0.05vh solid rgba(255, 255, 255, 0.35) !important;
+    border-radius: 999px !important;
+    background: rgba(255, 255, 255, 0.12) !important;
+  }
+  #load-column #input-field ~ .field-clear::after {
+    width: 2vh !important;
+    height: 2vh !important;
+  }
+  :is(#feed-chat #load-column.is-feed-shell, :is(#feed-menu, .drawer-screen) #load-column.in-drawer) #input-field ~ .field-clear {
+    top: 50% !important;
+    bottom: auto !important;
+    right: var(--load-tool-gap) !important;
+    width: var(--load-tool) !important;
+    height: var(--load-tool) !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    border-radius: 50% !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    translate: 0 -50% !important;
+  }
+  :is(#feed-chat #load-column.is-feed-shell, :is(#feed-menu, .drawer-screen) #load-column.in-drawer) #input-field ~ .field-clear::after {
+    width: calc(var(--fu) * 1.5) !important;
+    height: calc(var(--fu) * 1.5) !important;
+  }
+  #load-column #input-field ~ .field-clear:active {
+    background: rgba(34, 211, 238, 0.16) !important;
+  }
+
+  /* Chat room fields: 👥 sits over the field's right end (one grid cell).
+     The × takes the far right in the same cell and 👥 steps left. */
+  :is(.chat-load-row, .e2ee-load-row, .feed-chat-room):has(> .follow-pick-btn) > .field-clear {
+    --clear-placed: 1;
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    justify-self: end !important;
+    align-self: center !important;
+    width: 40px !important;
+    height: 44px !important;
+  }
+  :is(.chat-load-row, .e2ee-load-row, .feed-chat-room):has(> [data-clear-shown]) > .follow-pick-btn {
+    margin-right: 40px !important;
+  }
+  :is(.chat-load-row, .e2ee-load-row):has(> .follow-pick-btn) > [data-clear-shown] {
+    padding-right: calc(max(44px, var(--e2ee-head-h, 44px)) + 0.6dvh + 40px) !important;
+  }
+  #feed-chat .is-feed-shell .feed-chat-room:has(> .follow-pick-btn) > [data-clear-shown] {
+    padding-right: calc(max(44px, var(--chat-field-h, 44px)) + 0.6dvh + 40px) !important;
+  }
+}

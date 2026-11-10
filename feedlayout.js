@@ -8353,6 +8353,8 @@ function chevronIcon() {
 
 function rowShown(el) {
   if (!el || el.hidden) return false;
+  // A field's × (fieldclear.js) is not a row of its group.
+  if (el.classList && el.classList.contains('field-clear')) return false;
   if (el.style.display === 'none') return false;
   return getComputedStyle(el).display !== 'none';
 }
