@@ -11,6 +11,11 @@ import { formatKm } from './arrowfilters.js';
 //   area    — the place that was searched (localnews.js), while its live
 //             posts are on the map; with none found it shows for a moment.
 // The preview wins while both exist; closing the pin brings the area back.
+//
+// The bubble rides the circle's top edge. The held-spot pin is drawn over
+// the map, so when the circle is small (a short distance, or zoomed out)
+// that edge falls under the pin: the bubble then lifts to just above the
+// pin's row (its buttons and the gear badge too), its arrow on the pin.
 
 const SOURCE = 'live-radius';
 const FILL = 'live-radius-fill';
@@ -18,11 +23,17 @@ const LINE = 'live-radius-line';
 const STEPS = 96;
 const EARTH_KM = 6371.0088;
 const FLASH_MS = 2600;
+const TAG_LIFT = 7; // px: the arrow's height, so its tip sits on the line
+const PIN_GAP = 4; // px between a lifted bubble's arrow and the pin's row
 
 let preview = null; // { at: { lng, lat }, km }
 let area = null;
 let tag = null; // maplibregl.Marker on the circle's top edge
 let tagKm = null;
+let tagAt = null; // [lng, lat] of that edge
+let tagOffset = -TAG_LIFT;
+let pinRow = null; // the held-spot pin (poiinfo.js), kept clear of
+let pinReach = 0; // px its row reaches above the held point
 let flashTimer = 0;
 
 // A geodesic circle. Longitudes stay continuous around the centre (no
@@ -91,8 +102,43 @@ function buildTag() {
   km.className = 'live-radius-tag-km';
   el.append(name, km);
   // Lifted by the arrow's height, so its tip sits on the line.
-  tag = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, -7] });
+  tag = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, -TAG_LIFT] });
+  tagOffset = -TAG_LIFT;
   tagKm = km;
+}
+
+// How far the pin's row reaches above its middle (the held point), from
+// layout offsets: its drop-in scale animation does not change them.
+function measurePin() {
+  pinReach = 0;
+  if (!pinRow || !pinRow.isConnected) return;
+  let top = 0;
+  for (const el of pinRow.querySelectorAll('*')) {
+    if (!(el instanceof HTMLElement) || !el.offsetParent) continue;
+    let y = 0;
+    let node = el;
+    while (node && node !== pinRow) {
+      y += node.offsetTop;
+      node = node.offsetParent;
+    }
+    if (node === pinRow && y < top) top = y;
+  }
+  pinReach = pinRow.offsetHeight / 2 - top;
+}
+
+// The bubble's arrow stays at least PIN_GAP above the pin's row.
+function liftTag() {
+  if (!tag || !tagAt) return;
+  let lift = 0;
+  if (preview && shape() === preview && pinRow && pinRow.isConnected && pinReach > 0) {
+    const edgeY = map.project(tagAt).y;
+    const pointY = map.project([preview.at.lng, preview.at.lat]).y;
+    lift = Math.max(0, edgeY - (pointY - pinReach - PIN_GAP));
+  }
+  const next = -(TAG_LIFT + Math.round(lift));
+  if (next === tagOffset) return;
+  tagOffset = next;
+  tag.setOffset([0, next]);
 }
 
 function paint() {
@@ -110,23 +156,37 @@ function paint() {
   });
   if (!tag) buildTag();
   tagKm.textContent = formatKm(now.km);
-  tag.setLngLat(points[0]).addTo(map); // bearing 0: the top edge
+  tagAt = points[0]; // bearing 0: the top edge
+  tag.setLngLat(tagAt).addTo(map);
+  liftTag();
 }
 
 // A style switch (globe on/off, theme) drops added layers.
 map.on('style.load', () => {
   if (shape()) paint();
 });
+// Zoom changes how far the edge sits from the pin on screen.
+map.on('move', liftTag);
+window.addEventListener('resize', () => {
+  if (!pinRow) return;
+  measurePin();
+  liftTag();
+});
 
-export function showRadiusPreview(at) {
+// pin: the held-spot pin's element, which the bubble keeps clear of.
+export function showRadiusPreview(at, pin = null) {
   if (!at) return;
   preview = { at: { lng: Number(at.lng), lat: Number(at.lat) }, km: liveRadius() };
+  pinRow = pin;
+  measurePin();
   paint();
 }
 
 export function hideRadiusPreview() {
   if (!preview) return;
   preview = null;
+  pinRow = null;
+  pinReach = 0;
   paint();
 }
 

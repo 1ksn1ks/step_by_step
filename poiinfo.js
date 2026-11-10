@@ -210,7 +210,8 @@ function showPressAnchor(lngLat) {
   document.body.appendChild(anchor);
   pressAnchor = anchor;
   // How far Look for Live reaches from here; follows the Distance setting.
-  showRadiusPreview(lngLat);
+  // Its bubble keeps clear of this pin (liveradius.js).
+  showRadiusPreview(lngLat, anchor);
   // Back/Forward: the pin is a layer at its saved point.
   layerOpened('presspin', { at: [lngLat.lng, lngLat.lat] });
 }
