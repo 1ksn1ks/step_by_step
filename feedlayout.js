@@ -49,6 +49,7 @@ const FEED_SETTING = {
   autoplay: 'feed-setting-autoplay',
   data: 'feed-setting-data',
   zoom: 'feed-setting-zoom',
+  fullTap: 'feed-setting-full-tap',
 };
 const FEED_ZOOM_MIN = 0.5;
 const FEED_ZOOM_MAX = 1.5;
@@ -57,6 +58,9 @@ const feedPrefs = {
   autoplay: true,
   dataSaver: false,
   zoom: 1,
+  // A tap on a picture or GIF opens it full size (fullscreenmedia.js)
+  // instead of showing its ···. Off: the tap shows the ···.
+  fullTap: false,
 };
 let settingsOpen = false;
 
@@ -66,6 +70,7 @@ function readFeedPrefs() {
     if (tab === 'all' || tab === 'following') feedPrefs.tab = tab;
     feedPrefs.autoplay = localStorage.getItem(FEED_SETTING.autoplay) !== 'off';
     feedPrefs.dataSaver = localStorage.getItem(FEED_SETTING.data) === 'on';
+    feedPrefs.fullTap = localStorage.getItem(FEED_SETTING.fullTap) === 'on';
     const zoom = localStorage.getItem(FEED_SETTING.zoom);
     if (zoom != null) feedPrefs.zoom = clampFeedZoom(zoom);
     localStorage.removeItem('feed-setting-density');
@@ -958,6 +963,11 @@ column.addEventListener('pointerdown', (event) => {
   feedPress = { x: event.clientX, y: event.clientY };
 });
 
+// A finger that comes down while the feed still moves only stops a fling:
+// coverFeedPlayer tells its tap so (glided), and nothing opens.
+const FLING_TAP_MS = 120;
+let feedUserScrollAt = 0;
+
 function feedActIdle(event) {
   if (!feedSelectionEmpty()) return false;
   if (!feedPress) return true;
@@ -968,7 +978,8 @@ function feedActIdle(event) {
 
 // Sits over a photo, or over a video above the native control strip.
 // Move and wheel listeners stay off this node so a drag still scrolls the feed.
-// A finger that stays inside 1dvmin plays or pauses.
+// A finger that stays inside 1dvmin plays or pauses. onTap(event, glided):
+// glided when the finger came down on a moving feed (it stopped a fling).
 function coverFeedPlayer(media, onTap) {
   const hit = document.createElement('div');
   hit.className = 'feed-media-hit';
@@ -976,7 +987,12 @@ function coverFeedPlayer(media, onTap) {
   let start = null;
   hit.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
-    start = { x: event.clientX, y: event.clientY, id: event.pointerId };
+    start = {
+      x: event.clientX,
+      y: event.clientY,
+      id: event.pointerId,
+      glided: performance.now() - feedUserScrollAt < FLING_TAP_MS,
+    };
   });
   hit.addEventListener('pointerup', (event) => {
     const from = start;
@@ -985,7 +1001,7 @@ function coverFeedPlayer(media, onTap) {
     const dx = event.clientX - from.x;
     const dy = event.clientY - from.y;
     if (Math.hypot(dx, dy) >= feedDragLimit() || !feedSelectionEmpty()) return;
-    onTap(event);
+    onTap(event, from.glided);
   });
   hit.addEventListener('pointercancel', () => {
     start = null;
@@ -1294,6 +1310,10 @@ function mountMediaTools(media, key, onFull, video = null) {
   media.appendChild(tools);
   paintShown();
   return {
+    // Show the ··· for a while (back from the full-size viewer).
+    show() {
+      if (!isOpen()) wake();
+    },
     // The picture's tap: show or hide the ···; a click only shows it.
     tap(event) {
       if (isOpen()) return;
@@ -2993,7 +3013,22 @@ function buildCard(post) {
       media.appendChild(node);
       mountMediaBackdrop(media, node);
       bindFeedVideo(node);
-      coverFeedPlayer(media, () => {
+      const openVideoFull = () => {
+        holdScroll();
+        openPreview(src, {
+          video: true,
+          posterOff: !!record.posterOff,
+          posterV: record.posterV || 0,
+          time: node.currentTime || 0,
+        });
+      };
+      coverFeedPlayer(media, (event, glided) => {
+        // A GIF is a picture to the eye: with Settings > Tap opens pictures
+        // full size, its tap opens the viewer instead of pausing it.
+        if (clip && feedPrefs.fullTap) {
+          if (!glided) openVideoFull();
+          return;
+        }
         if (node.paused) {
           preferFeedVideo(node);
           return;
@@ -3004,15 +3039,7 @@ function buildCard(post) {
         pauseFeedVideo(node);
         queueFeedVideos();
       });
-      mountMediaTools(media, post.key, () => {
-        holdScroll();
-        openPreview(src, {
-          video: true,
-          posterOff: !!record.posterOff,
-          posterV: record.posterV || 0,
-          time: node.currentTime || 0,
-        });
-      }, node);
+      mountMediaTools(media, post.key, openVideoFull, node);
     } else {
       node.alt = '';
       node.draggable = false;
@@ -3024,13 +3051,24 @@ function buildCard(post) {
       // A GIF animates here as a normal picture (a still with reduced
       // motion). A tap shows the ··· (mountMediaTools); its fullscreen
       // button opens the viewer, except while the picture is still pending.
+      // With Settings > Tap opens pictures full size, the tap itself opens
+      // the viewer, and the ··· shows for a while once it closes, so Make
+      // bigger is still a tap away.
+      let mediaTools = null;
+      const pending = () => node.classList.contains('is-media-pending');
       const openFull = () => {
-        if (node.classList.contains('is-media-pending')) return;
+        if (pending()) return;
         holdScroll();
-        openPreview(resolved.src || src);
+        openPreview(resolved.src || src, { onClose: () => mediaTools.show() });
       };
-      const mediaTools = mountMediaTools(media, post.key, openFull);
-      coverFeedPlayer(media, (event) => mediaTools.tap(event));
+      mediaTools = mountMediaTools(media, post.key, openFull);
+      coverFeedPlayer(media, (event, glided) => {
+        if (feedPrefs.fullTap && !pending()) {
+          if (!glided) openFull();
+          return;
+        }
+        mediaTools.tap(event);
+      });
     }
   }
 
@@ -6841,6 +6879,11 @@ mediaSection.append(
     writeFeedSetting(FEED_SETTING.data, on ? 'on' : 'off');
     syncFeedVideos();
   }),
+  // Read at each tap, so cards already in the feed follow it at once.
+  settingsSwitch('Tap opens pictures full size', () => feedPrefs.fullTap, (on) => {
+    feedPrefs.fullTap = on;
+    writeFeedSetting(FEED_SETTING.fullTap, on ? 'on' : 'off');
+  }),
 );
 const zoomSection = settingsSection('Zoom');
 zoomSection.appendChild(settingsZoom());
@@ -10138,6 +10181,7 @@ scroller.addEventListener('scroll', (event) => {
     }
   } else {
     // Hold this delta until the frame. A script scroll only moves tabLastY.
+    feedUserScrollAt = performance.now();
     tabPending += y - tabLastY;
     tabLastY = y;
     queueTabFollow();
