@@ -10,7 +10,6 @@ import { posterSrc, watchVideoFace } from './videoposter.js';
 //   openPreview(src)
 //   openPreview(src, { video: true })
 //   openPreview(src, { video: true, time: 12.5 })   start the video there
-//   openPreview(src, { onClose })   runs once when it closes, however
 //
 // Backdrop tap, the ×, and Esc close it. A tap on the picture does not.
 //
@@ -21,7 +20,6 @@ import { posterSrc, watchVideoFace } from './videoposter.js';
 // it. visualViewport is the area that is actually on screen. The picture
 // uses most of that area, with a margin so the × stays clear.
 let overlay = null;
-let closeHook = null;
 let fitted = null;
 let onFit = null;
 let stillWatch = null;
@@ -79,11 +77,6 @@ export function closePreview() {
   document.removeEventListener('keydown', onKey);
   // Back/Forward: the ×, the backdrop and Esc all end here.
   layerClosedByUI('media');
-  const hook = closeHook;
-  closeHook = null;
-  if (typeof hook === 'function') {
-    try { hook(); } catch (error) { console.error('Preview onClose failed:', error); }
-  }
 }
 
 function onKey(e) {
@@ -100,7 +93,6 @@ export function openPreview(src, options = {}) {
   if (video && !resolved.src) return;
   if (!video && !resolved.src && !gifLike) return;
   closePreview();
-  closeHook = typeof options.onClose === 'function' ? options.onClose : null;
 
   overlay = document.createElement('div');
   overlay.id = 'media-fullscreen';

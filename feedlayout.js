@@ -49,7 +49,7 @@ const FEED_SETTING = {
   autoplay: 'feed-setting-autoplay',
   data: 'feed-setting-data',
   zoom: 'feed-setting-zoom',
-  fullTap: 'feed-setting-full-tap',
+  picturesWide: 'feed-setting-pictures-wide',
 };
 const FEED_ZOOM_MIN = 0.5;
 const FEED_ZOOM_MAX = 1.5;
@@ -58,9 +58,8 @@ const feedPrefs = {
   autoplay: true,
   dataSaver: false,
   zoom: 1,
-  // A tap on a picture or GIF opens it full size (fullscreenmedia.js)
-  // instead of showing its ···. Off: the tap shows the ···.
-  fullTap: false,
+  // Pictures and GIFs start full width, as the ··· size button makes them.
+  picturesWide: false,
 };
 let settingsOpen = false;
 
@@ -70,7 +69,16 @@ function readFeedPrefs() {
     if (tab === 'all' || tab === 'following') feedPrefs.tab = tab;
     feedPrefs.autoplay = localStorage.getItem(FEED_SETTING.autoplay) !== 'off';
     feedPrefs.dataSaver = localStorage.getItem(FEED_SETTING.data) === 'on';
-    feedPrefs.fullTap = localStorage.getItem(FEED_SETTING.fullTap) === 'on';
+    // 'feed-setting-full-tap' was a first try at this switch (a tap opened
+    // the viewer): an "on" there means full size was wanted.
+    const oldFull = localStorage.getItem('feed-setting-full-tap');
+    if (oldFull != null) {
+      if (localStorage.getItem(FEED_SETTING.picturesWide) == null) {
+        localStorage.setItem(FEED_SETTING.picturesWide, oldFull === 'on' ? 'on' : 'off');
+      }
+      localStorage.removeItem('feed-setting-full-tap');
+    }
+    feedPrefs.picturesWide = localStorage.getItem(FEED_SETTING.picturesWide) === 'on';
     const zoom = localStorage.getItem(FEED_SETTING.zoom);
     if (zoom != null) feedPrefs.zoom = clampFeedZoom(zoom);
     localStorage.removeItem('feed-setting-density');
@@ -709,9 +717,17 @@ const seenSeq = new Set();
 const seenSig = new Set();
 const seenPost = new Set();
 const actions = new Map();
-// Post keys whose picture or video the user made full width (mountMediaTools).
-// Cards are rebuilt as they scroll back in, so the choice lives here.
+// Post keys whose picture or video the user made full width, or small
+// again (mountMediaTools). Cards are rebuilt as they scroll back in, so
+// the choice lives here. A post's own choice beats Show pictures full size.
 const wideMedia = new Set();
+const narrowMedia = new Set();
+
+function pictureStartsWide(key) {
+  if (key && wideMedia.has(key)) return true;
+  if (key && narrowMedia.has(key)) return false;
+  return feedPrefs.picturesWide;
+}
 const likeCounts = new Map();
 const markerComments = new Map();
 const polygonComments = new Map();
@@ -963,11 +979,6 @@ column.addEventListener('pointerdown', (event) => {
   feedPress = { x: event.clientX, y: event.clientY };
 });
 
-// A finger that comes down while the feed still moves only stops a fling:
-// coverFeedPlayer tells its tap so (glided), and nothing opens.
-const FLING_TAP_MS = 120;
-let feedUserScrollAt = 0;
-
 function feedActIdle(event) {
   if (!feedSelectionEmpty()) return false;
   if (!feedPress) return true;
@@ -978,8 +989,7 @@ function feedActIdle(event) {
 
 // Sits over a photo, or over a video above the native control strip.
 // Move and wheel listeners stay off this node so a drag still scrolls the feed.
-// A finger that stays inside 1dvmin plays or pauses. onTap(event, glided):
-// glided when the finger came down on a moving feed (it stopped a fling).
+// A finger that stays inside 1dvmin plays or pauses.
 function coverFeedPlayer(media, onTap) {
   const hit = document.createElement('div');
   hit.className = 'feed-media-hit';
@@ -987,12 +997,7 @@ function coverFeedPlayer(media, onTap) {
   let start = null;
   hit.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
-    start = {
-      x: event.clientX,
-      y: event.clientY,
-      id: event.pointerId,
-      glided: performance.now() - feedUserScrollAt < FLING_TAP_MS,
-    };
+    start = { x: event.clientX, y: event.clientY, id: event.pointerId };
   });
   hit.addEventListener('pointerup', (event) => {
     const from = start;
@@ -1001,7 +1006,7 @@ function coverFeedPlayer(media, onTap) {
     const dx = event.clientX - from.x;
     const dy = event.clientY - from.y;
     if (Math.hypot(dx, dy) >= feedDragLimit() || !feedSelectionEmpty()) return;
-    onTap(event, from.glided);
+    onTap(event);
   });
   hit.addEventListener('pointercancel', () => {
     start = null;
@@ -1191,7 +1196,9 @@ const MEDIA_TOOLS_IDLE_MS = 2500;
 //   Open (the ··· turned ×): it stays until × or Escape, then hides after
 //     the same 2.5 s. Make bigger keeps it open.
 // Returns tap(event) for the picture's tap layer.
-function mountMediaTools(media, key, onFull, video = null) {
+// picture: a photo or GIF, which Settings > Show pictures full size starts
+// full width (pictureStartsWide).
+function mountMediaTools(media, key, onFull, video = null, picture = false) {
   const tools = document.createElement('div');
   tools.className = 'feed-media-tools';
   const more = document.createElement('button');
@@ -1215,7 +1222,12 @@ function mountMediaTools(media, key, onFull, video = null) {
     size.title = label;
     size.replaceChildren(svgIcon(wide ? MEDIA_SHRINK_ICON : MEDIA_GROW_ICON));
   };
-  if (key && wideMedia.has(key)) media.classList.add('is-wide');
+  if (picture) {
+    media.dataset.picture = '1';
+    if (key) media.dataset.mediaKey = key;
+    media._paintSize = paint;
+  }
+  if (picture ? pictureStartsWide(key) : !!(key && wideMedia.has(key))) media.classList.add('is-wide');
   paint();
   tools.append(size, full, more);
 
@@ -1271,8 +1283,13 @@ function mountMediaTools(media, key, onFull, video = null) {
     const wide = !media.classList.contains('is-wide');
     media.classList.toggle('is-wide', wide);
     if (key) {
-      if (wide) wideMedia.add(key);
-      else wideMedia.delete(key);
+      if (wide) {
+        wideMedia.add(key);
+        narrowMedia.delete(key);
+      } else {
+        wideMedia.delete(key);
+        narrowMedia.add(key);
+      }
     }
     paint();
   });
@@ -1310,10 +1327,6 @@ function mountMediaTools(media, key, onFull, video = null) {
   media.appendChild(tools);
   paintShown();
   return {
-    // Show the ··· for a while (back from the full-size viewer).
-    show() {
-      if (!isOpen()) wake();
-    },
     // The picture's tap: show or hide the ···; a click only shows it.
     tap(event) {
       if (isOpen()) return;
@@ -3013,22 +3026,7 @@ function buildCard(post) {
       media.appendChild(node);
       mountMediaBackdrop(media, node);
       bindFeedVideo(node);
-      const openVideoFull = () => {
-        holdScroll();
-        openPreview(src, {
-          video: true,
-          posterOff: !!record.posterOff,
-          posterV: record.posterV || 0,
-          time: node.currentTime || 0,
-        });
-      };
-      coverFeedPlayer(media, (event, glided) => {
-        // A GIF is a picture to the eye: with Settings > Tap opens pictures
-        // full size, its tap opens the viewer instead of pausing it.
-        if (clip && feedPrefs.fullTap) {
-          if (!glided) openVideoFull();
-          return;
-        }
+      coverFeedPlayer(media, () => {
         if (node.paused) {
           preferFeedVideo(node);
           return;
@@ -3039,7 +3037,15 @@ function buildCard(post) {
         pauseFeedVideo(node);
         queueFeedVideos();
       });
-      mountMediaTools(media, post.key, openVideoFull, node);
+      mountMediaTools(media, post.key, () => {
+        holdScroll();
+        openPreview(src, {
+          video: true,
+          posterOff: !!record.posterOff,
+          posterV: record.posterV || 0,
+          time: node.currentTime || 0,
+        });
+      }, node, clip);
     } else {
       node.alt = '';
       node.draggable = false;
@@ -3051,24 +3057,13 @@ function buildCard(post) {
       // A GIF animates here as a normal picture (a still with reduced
       // motion). A tap shows the ··· (mountMediaTools); its fullscreen
       // button opens the viewer, except while the picture is still pending.
-      // With Settings > Tap opens pictures full size, the tap itself opens
-      // the viewer, and the ··· shows for a while once it closes, so Make
-      // bigger is still a tap away.
-      let mediaTools = null;
-      const pending = () => node.classList.contains('is-media-pending');
       const openFull = () => {
-        if (pending()) return;
+        if (node.classList.contains('is-media-pending')) return;
         holdScroll();
-        openPreview(resolved.src || src, { onClose: () => mediaTools.show() });
+        openPreview(resolved.src || src);
       };
-      mediaTools = mountMediaTools(media, post.key, openFull);
-      coverFeedPlayer(media, (event, glided) => {
-        if (feedPrefs.fullTap && !pending()) {
-          if (!glided) openFull();
-          return;
-        }
-        mediaTools.tap(event);
-      });
+      const mediaTools = mountMediaTools(media, post.key, openFull, null, true);
+      coverFeedPlayer(media, (event) => mediaTools.tap(event));
     }
   }
 
@@ -6879,12 +6874,38 @@ mediaSection.append(
     writeFeedSetting(FEED_SETTING.data, on ? 'on' : 'off');
     syncFeedVideos();
   }),
-  // Read at each tap, so cards already in the feed follow it at once.
-  settingsSwitch('Tap opens pictures full size', () => feedPrefs.fullTap, (on) => {
-    feedPrefs.fullTap = on;
-    writeFeedSetting(FEED_SETTING.fullTap, on ? 'on' : 'off');
+  settingsSwitch('Show pictures full size', () => feedPrefs.picturesWide, (on) => {
+    feedPrefs.picturesWide = on;
+    writeFeedSetting(FEED_SETTING.picturesWide, on ? 'on' : 'off');
+    resizeFeedPictures();
   }),
 );
+
+// Cards already built follow the switch; the card at the top of the feed
+// stays where it is on screen while the ones around it change height.
+function resizeFeedPictures() {
+  const view = scroller.getBoundingClientRect();
+  let anchor = null;
+  if (view.height > 0) {
+    for (const card of column.children) {
+      const box = card.getBoundingClientRect();
+      if (box.height > 0 && box.bottom > view.top + 1) {
+        anchor = { card, top: box.top };
+        break;
+      }
+    }
+  }
+  for (const media of root.querySelectorAll('.popup-media-card[data-picture]')) {
+    const wide = pictureStartsWide(media.dataset.mediaKey || '');
+    if (media.classList.contains('is-wide') === wide) continue;
+    media.classList.toggle('is-wide', wide);
+    if (typeof media._paintSize === 'function') media._paintSize();
+  }
+  if (anchor && anchor.card.isConnected) {
+    const moved = anchor.card.getBoundingClientRect().top - anchor.top;
+    if (Math.abs(moved) >= 1) setFeedScroll(scroller.scrollTop + moved);
+  }
+}
 const zoomSection = settingsSection('Zoom');
 zoomSection.appendChild(settingsZoom());
 settingsBody.append(tabSection, mediaSection, zoomSection);
@@ -10181,7 +10202,6 @@ scroller.addEventListener('scroll', (event) => {
     }
   } else {
     // Hold this delta until the frame. A script scroll only moves tabLastY.
-    feedUserScrollAt = performance.now();
     tabPending += y - tabLastY;
     tabLastY = y;
     queueTabFollow();
