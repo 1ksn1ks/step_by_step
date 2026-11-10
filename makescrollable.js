@@ -305,8 +305,18 @@ export function makeScrollable(el) {
     el.removeEventListener('mouseleave', onMouseLeave);
     el.removeEventListener('wheel', onWheel);
   };
-  el.pauseSmoothScroll = disarm;
-  el.resumeSmoothScroll = arm;
+  // Each caller pauses under its own name ('feed' shell, 'drawer' page), so
+  // one resuming does not re-arm a list another still holds.
+  const holds = new Set();
+  el.pauseSmoothScroll = (why = 'feed') => {
+    holds.add(why);
+    disarm();
+  };
+  el.resumeSmoothScroll = (why = 'feed') => {
+    holds.delete(why);
+    if (!holds.size) arm();
+  };
+  el.dataset.smoothScroll = '';
 
   // Initial state
   target = el.scrollTop;

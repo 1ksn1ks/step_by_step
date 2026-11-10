@@ -8300,6 +8300,17 @@ function showForDrawer(el) {
   el.style.display = 'block';
 }
 
+// makescrollable.js scrolls map panels by hand (the map eats native
+// gestures): half speed once the panel itself cannot scroll, and no fling.
+// A drawer page is not over the map, so its body scrolls natively, like
+// the feed (style.css .feed-menu-page-body), and that layer comes off.
+function holdPanelScroll(el, hold) {
+  for (const list of [el, ...el.querySelectorAll('[data-smooth-scroll]')]) {
+    const fn = hold ? list.pauseSmoothScroll : list.resumeSmoothScroll;
+    if (typeof fn === 'function') fn('drawer');
+  }
+}
+
 function hostDrawer(el) {
   if (!el || !drawerPageBody) return;
   // A child parked in the page underneath still has to move onto the new page.
@@ -8309,6 +8320,7 @@ function hostDrawer(el) {
   }
   drawerHosted.set(el, { parent: el.parentNode, next: el.nextSibling });
   el.classList.add('in-drawer');
+  holdPanelScroll(el, true);
   drawerPageBody.appendChild(el);
 }
 
@@ -8316,6 +8328,7 @@ function unhostDrawer(el, hide) {
   const spot = drawerHosted.get(el);
   drawerHosted.delete(el);
   el.classList.remove('in-drawer');
+  holdPanelScroll(el, false);
   if (hide) hideForDrawer(el);
   if (!spot || !spot.parent || !spot.parent.isConnected) return;
   const next = spot.next && spot.next.parentNode === spot.parent ? spot.next : null;

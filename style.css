@@ -13197,12 +13197,23 @@ html.feed-app :is(
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.15);
 }
+/* Scrolls natively, like #feed-scroll: 1:1 under the finger, with fling.
+   The global * rule sets touch-action: none, and one none between the
+   finger and this scroller cancels the pan, so everything inside allows
+   pan-y. :where() keeps it at zero specificity: a control with its own
+   touch-action keeps it. feedlayout.js holdPanelScroll takes the hand-driven
+   map scroller off a panel while it sits here. */
 :is(#feed-menu, .drawer-screen) .feed-menu-page-body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   padding: calc(var(--fu) * 0.8) calc(var(--fu) * 0.7) calc(var(--fu) * 1.2);
+}
+:where(#feed-menu, .drawer-screen) :where(.feed-menu-page-body) * {
+  touch-action: pan-y;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer {
   position: relative !important;
