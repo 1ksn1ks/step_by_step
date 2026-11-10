@@ -272,8 +272,11 @@ function onListPointerDown(event) {
   }
 }
 
+// A finger scrolls the list natively (style.css: pan-y), and the browser
+// cancels the press (pointercancel) as the pan starts. Only a mouse drag
+// is scrolled by hand.
 function onListPointerMove(event) {
-  if (!drag || event.pointerId !== drag.id) return;
+  if (!drag || event.pointerId !== drag.id || event.pointerType !== 'mouse') return;
   const dy = event.clientY - drag.y;
   if (!drag.moved && Math.abs(dy) <= 8) return;
   drag.moved = true;

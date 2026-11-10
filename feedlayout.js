@@ -7420,19 +7420,17 @@ function feedChatScrollers(panel) {
   return [...panel.querySelectorAll('#messages-from-topic-chat, #messages-from-encrypted-chat, #load-column-container, #loaded-topics, #marker-column-container, #polygon-column-container')];
 }
 
-// The map scroller fights native fling. Inside the feed shell the list is
-// not over the map, so that layer comes off until the panel goes back.
+// Inside the feed shell the lists take the shell's height, not the one the
+// map panel set; it comes back when the panel goes home.
 function pauseFeedChatScroll(panel) {
   for (const list of feedChatScrollers(panel)) {
     feedScrollHeight.set(list, list.style.height || '');
     if (list.style.height) list.style.height = '';
-    if (typeof list.pauseSmoothScroll === 'function') list.pauseSmoothScroll();
   }
 }
 
 function resumeFeedChatScroll(panel) {
   for (const list of feedChatScrollers(panel)) {
-    if (typeof list.resumeSmoothScroll === 'function') list.resumeSmoothScroll();
     if (!feedScrollHeight.has(list)) continue;
     list.style.height = feedScrollHeight.get(list);
     feedScrollHeight.delete(list);
@@ -8300,17 +8298,6 @@ function showForDrawer(el) {
   el.style.display = 'block';
 }
 
-// makescrollable.js scrolls map panels by hand (the map eats native
-// gestures): half speed once the panel itself cannot scroll, and no fling.
-// A drawer page is not over the map, so its body scrolls natively, like
-// the feed (style.css .feed-menu-page-body), and that layer comes off.
-function holdPanelScroll(el, hold) {
-  for (const list of [el, ...el.querySelectorAll('[data-smooth-scroll]')]) {
-    const fn = hold ? list.pauseSmoothScroll : list.resumeSmoothScroll;
-    if (typeof fn === 'function') fn('drawer');
-  }
-}
-
 function hostDrawer(el) {
   if (!el || !drawerPageBody) return;
   // A child parked in the page underneath still has to move onto the new page.
@@ -8320,7 +8307,6 @@ function hostDrawer(el) {
   }
   drawerHosted.set(el, { parent: el.parentNode, next: el.nextSibling });
   el.classList.add('in-drawer');
-  holdPanelScroll(el, true);
   drawerPageBody.appendChild(el);
 }
 
@@ -8328,7 +8314,6 @@ function unhostDrawer(el, hide) {
   const spot = drawerHosted.get(el);
   drawerHosted.delete(el);
   el.classList.remove('in-drawer');
-  holdPanelScroll(el, false);
   if (hide) hideForDrawer(el);
   if (!spot || !spot.parent || !spot.parent.isConnected) return;
   const next = spot.next && spot.next.parentNode === spot.parent ? spot.next : null;

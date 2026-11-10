@@ -1279,7 +1279,6 @@ async function loadMessagesFromEncryptedChat() {
 
 document.getElementById('go-to-top-msgs-encrypted-chat').addEventListener('click', function() {
   const container = document.getElementById('messages-from-encrypted-chat');
-  container.stopSmoothScroll?.();
   container.scrollTop = 0;
 });
 
@@ -1304,7 +1303,6 @@ e2eeMessages.addEventListener('scroll', updateE2eeArrows, { passive: true });
 
 document.getElementById('go-to-bottom-msgs-encrypted-chat').addEventListener('click', function() {
   const container = document.getElementById('messages-from-encrypted-chat');
-  container.stopSmoothScroll?.();
   container.scrollTop = container.scrollHeight;
 });
 

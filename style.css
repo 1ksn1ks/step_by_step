@@ -2075,7 +2075,10 @@ html, body {
     box-sizing: border-box;
     margin-bottom: 0.5vh;
     height: 5vh;
-    max-height: 50vh; /* Set maximum height */
+    /* Grows with its text (adjustTextareaHeight) and the panel scrolls.
+       A cap would clip the rest: a box that scrolls itself by its 2px of
+       border would catch the panel's swipes. */
+    max-height: none;
     border: 1px solid rgba(255, 255, 255, 0.3);
     overflow: hidden; /* Hide scrollbars */
     resize: none; /* Prevent manual resizing */
@@ -2083,7 +2086,7 @@ html, body {
     touch-action: auto; /* Enable touch interactions */
     animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
-  
+
   .topic-chat-container {
     background-color: rgba(15, 15, 20, 0.90);
     color: white;
@@ -5639,12 +5642,56 @@ html, body {
     -webkit-tap-highlight-color: transparent;
   }
 
+  /* Every scroller scrolls natively: the browser's own pan, 1:1 under the
+     finger, with its fling. The touch-action: none above keeps touches
+     for the map and the app, but one none between the finger and its
+     scroller cancels the pan, so each scroller and everything inside it
+     allows pan-y. :where() keeps this at zero specificity (it beats the
+     rule above only by coming after it), so a control with its own
+     touch-action (a slider, a sideways strip, a drag handle) keeps it.
+     A new scroller goes in both lists. */
+  :where(
+    .toolbar-containers, .save-settings-toolbar-containers,
+    #model-column-save, #crosshair-column-save, #marker-column-save, #topic-chat-save, #popup-options-save,
+    .info-overlay-list, .chat-container, #messages-from-topic-chat, #messages-from-encrypted-chat,
+    #loaded-topics, #loaded-topics-list, #feed-menu, .feed-menu-page-body, #feed-scroll,
+    .feed-profile-body, .feed-filter-body, .feed-country-list, .feed-settings-body,
+    .chat-options-body, .load-options-body, .draw-form-scroll, .comments-scroll, .feed-comments-stage,
+    #search-sections, #search-results, #popup-settings-card, #popup-settings-tools,
+    .popup-body, .popup-text-bubble, .popup-text-flow, .popup-text-page-scroll,
+    .maplibregl-popup-content > :not(.maplibregl-popup-close-button):not(.popup-sheet),
+    .donate-card, .draw-date-card, .follow-suggest, .live-settings, .marker-stack-list,
+    .onboard-card, .picker-scroll
+  ),
+  :where(
+    .toolbar-containers, .save-settings-toolbar-containers,
+    #model-column-save, #crosshair-column-save, #marker-column-save, #topic-chat-save, #popup-options-save,
+    .info-overlay-list, .chat-container, #messages-from-topic-chat, #messages-from-encrypted-chat,
+    #loaded-topics, #loaded-topics-list, #feed-menu, .feed-menu-page-body, #feed-scroll,
+    .feed-profile-body, .feed-filter-body, .feed-country-list, .feed-settings-body,
+    .chat-options-body, .load-options-body, .draw-form-scroll, .comments-scroll, .feed-comments-stage,
+    #search-sections, #search-results, #popup-settings-card, #popup-settings-tools,
+    .popup-body, .popup-text-bubble, .popup-text-flow, .popup-text-page-scroll,
+    .maplibregl-popup-content > :not(.maplibregl-popup-close-button):not(.popup-sheet),
+    .donate-card, .draw-date-card, .follow-suggest, .live-settings, .marker-stack-list,
+    .onboard-card, .picker-scroll
+  ) * {
+    touch-action: pan-y;
+  }
+
+  /* A scroller at its end hands the rest of the swipe to the page, which
+     does not scroll: no pull-to-refresh, no bounce of the whole app. */
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+
   *::-webkit-scrollbar {
     display: none;
     width: 0;
     height: 0;
   }
-  
+
   input, textarea {
     -webkit-user-select: text;
     -khtml-user-select: text;
@@ -13197,23 +13244,15 @@ html.feed-app :is(
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.15);
 }
-/* Scrolls natively, like #feed-scroll: 1:1 under the finger, with fling.
-   The global * rule sets touch-action: none, and one none between the
-   finger and this scroller cancels the pan, so everything inside allows
-   pan-y. :where() keeps it at zero specificity: a control with its own
-   touch-action keeps it. feedlayout.js holdPanelScroll takes the hand-driven
-   map scroller off a panel while it sits here. */
+/* Native pan for it and its contents: the scroller list after the global
+   * rule. */
 :is(#feed-menu, .drawer-screen) .feed-menu-page-body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  touch-action: pan-y;
   padding: calc(var(--fu) * 0.8) calc(var(--fu) * 0.7) calc(var(--fu) * 1.2);
-}
-:where(#feed-menu, .drawer-screen) :where(.feed-menu-page-body) * {
-  touch-action: pan-y;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer {
   position: relative !important;

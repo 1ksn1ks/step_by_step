@@ -10,7 +10,6 @@ import './cssLogic.js'
 import './marker.js';
 import './joystick.js';
 import './threejs.js';
-import './makescrollable.js';
 import './web3.js'
 import './coorddisplay.js'
 import './localtime.js'
