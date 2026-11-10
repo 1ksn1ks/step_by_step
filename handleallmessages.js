@@ -328,8 +328,12 @@ export async function handleAllMessages() {
       console.error("Error getting topic info:", error);
       return;
           }
-  
-  
+
+      // The topic exists. A press on Load closes the Load page and the
+      // drawer behind it now (feedlayout.js), so the map or the feed shows
+      // the topic while its messages come in.
+      window.dispatchEvent(new CustomEvent("topic-load-valid", { detail: { topicId } }));
+
       newGlobalLoadedTopicIdsWithNames([]);
       let loadedTopicsIds = [];
       newActiveMarkerPopups([]);

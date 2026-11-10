@@ -9694,13 +9694,29 @@ if (drawColumn) {
   }).observe(drawColumn, { attributes: true, attributeFilter: ['style'] });
 }
 
+// Load with a topic that exists closes the Load page and the drawer that
+// led to it: the map (or the feed, when Load was opened from it) shows the
+// topic as it loads. An invalid ID keeps the page open with its message,
+// and an account ID still opens that profile. Only a press counts: the
+// startup load and other loads close nothing. The wait covers the click
+// debounce, the wallet's NFT check and the topic lookup.
+const LOAD_CLOSE_MS = 20000;
+let loadPressedAt = 0;
 const loadTrigger = document.getElementById('toolbar-load');
 if (loadTrigger) {
   loadTrigger.addEventListener('click', () => {
+    loadPressedAt = performance.now();
     if (!feedOn() || root.classList.contains('is-peek')) return;
     ensureTopic(false);
   });
 }
+window.addEventListener('topic-load-valid', () => {
+  const pressed = loadPressedAt;
+  loadPressedAt = 0;
+  if (!pressed || performance.now() - pressed > LOAD_CLOSE_MS) return;
+  if (feedChatKind !== 'load' || feedChat.hidden) return;
+  closeFeedOverlays();
+});
 
 window.addEventListener('topics-ready', paintTopicTitle);
 const loadedList = document.getElementById('loaded-topics-list');
