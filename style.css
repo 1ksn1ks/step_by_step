@@ -23268,15 +23268,11 @@ html.is-draw-picking .live-filter {
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
-.live-settings-hint,
-.live-settings-note {
+.live-settings-hint {
   padding: 0 6px;
   color: rgba(255, 255, 255, 0.55);
   font-size: 12px;
   line-height: 1.3;
-}
-.live-settings-note.is-invalid {
-  color: #FCA5A5;
 }
 .live-settings-groups {
   display: flex;
@@ -23318,53 +23314,6 @@ html.is-draw-picking .live-filter {
 .live-settings-pill:focus-visible {
   outline: 1px solid rgba(255, 255, 255, 0.6);
   outline-offset: 1px;
-}
-.live-settings-custom {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  box-sizing: border-box;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.32);
-  cursor: text;
-}
-.live-settings-custom[hidden],
-.live-settings-note[hidden] {
-  display: none;
-}
-.live-settings-custom:focus-within {
-  border-color: #22D3EE;
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.2);
-}
-.live-settings-custom.is-invalid {
-  border-color: #F87171;
-}
-.live-settings-custom input {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  outline: none;
-  background: transparent;
-  color: #fff;
-  font: inherit;
-  /* 16px: a phone does not zoom into the field. */
-  font-size: 16px;
-  -webkit-user-select: text;
-  user-select: text;
-}
-.live-settings-custom input::placeholder {
-  color: rgba(255, 255, 255, 0.35);
-}
-.live-settings-unit {
-  flex: none;
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 14px;
 }
 .live-settings-look {
   flex: none;

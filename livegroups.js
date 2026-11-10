@@ -16,7 +16,7 @@
 // the same groups, the distance (how far from the held spot), and a Look
 // for Live button that searches with them.
 import { map } from './map.js';
-import { formatKm, parseKm } from './arrowfilters.js';
+import { formatKm } from './arrowfilters.js';
 
 export const LIVE_GROUPS = [
   ['all', 'Everyone', 'Every live post here'],
@@ -54,19 +54,21 @@ export function setLiveGroup(key) {
 
 // ── Distance ───────────────────────────────────────────────────────────
 // How far from the held spot Look for Live reaches: a number of km, in any
-// country (/api/local?lat&lng&radius). Presets or a custom km, up to
-// LIVE_RADIUS_MAX_KM; kept across visits. liveradius.js draws it on the
-// map. (There was a 'country' choice: a saved one now reads as the default.)
-export const LIVE_RADII = [10, 50, 100, 250, 500];
-export const LIVE_RADIUS_DEFAULT_KM = 250;
-export const LIVE_RADIUS_MAX_KM = 500; // server/index.js LIVE_RADIUS_MAX_KM
+// country (/api/local?lat&lng&radius). One of LIVE_RADII, the last being
+// the most; kept across visits. liveradius.js draws it on the map. (There
+// was a 'country' choice: a saved one now reads as the default.)
+export const LIVE_RADII = [10, 25, 50, 100];
+export const LIVE_RADIUS_DEFAULT_KM = 50;
+export const LIVE_RADIUS_MAX_KM = 100; // server/index.js LIVE_RADIUS_MAX_KM
 const RADIUS_KEY = 'meritocracy-live-radius';
 let radius = readRadius();
 
+// The nearest preset: a value saved before (a custom km, 250, 500) snaps
+// to one of today's choices.
 function cleanRadius(value) {
   const km = Number(value);
   if (!Number.isFinite(km) || km <= 0) return null;
-  return Math.min(Math.round(km * 10) / 10, LIVE_RADIUS_MAX_KM);
+  return LIVE_RADII.reduce((best, r) => (Math.abs(r - km) < Math.abs(best - km) ? r : best));
 }
 
 function readRadius() {
@@ -97,7 +99,7 @@ export function setLiveRadius(value) {
 }
 
 // What the caption under Look for Live says: the group when it is not
-// Everyone, and always the distance ("Following · 50 km", "250 km").
+// Everyone, and always the distance ("Following · 50 km", "100 km").
 export function liveChoiceCaption() {
   const parts = [];
   if (current !== 'all') parts.push(liveGroupName(current));
@@ -333,20 +335,15 @@ export function bindHoldMenu(el, open) {
 }
 
 // ── Live settings (the ⚙ beside Look for Live) ─────────────────────────
-// Posts from (the groups above) and Distance (LIVE_RADII or a custom km),
-// then Look for Live. A choice is kept as soon as it is made; onChange
-// lets the pin repaint its caption. Escape, a tap anywhere else, moving
-// the map and Back close it; the keyboard rising for the km field only
-// moves it.
+// Posts from (the groups above) and Distance (LIVE_RADII), then Look for
+// Live. A choice is kept as soon as it is made; onChange lets the pin
+// repaint its caption. Escape, a tap anywhere else, moving the map and
+// Back close it.
 let settings = null;
 let settingsFor = null; // { anchor, onLook, onChange }
 let settingsLayer = false;
 const settingsRows = new Map(); // group key -> row
-const radiusPills = new Map(); // km | 'custom' -> pill
-let customOn = false;
-let customBox = null;
-let customInput = null;
-let customNote = null;
+const radiusPills = new Map(); // km -> pill
 
 export const LIVE_GEAR_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>';
 
@@ -436,28 +433,20 @@ function buildSettings() {
   }
   groups.appendChild(groupList);
 
-  // Distance: presets and Custom as pills, the km field under them.
+  // Distance: the presets as pills.
   const distance = settingsSection('Distance', 'How far from the pin. The circle on the map shows it.');
   const pills = document.createElement('div');
   pills.className = 'live-settings-pills';
   pills.setAttribute('role', 'radiogroup');
   pills.setAttribute('aria-label', 'Distance');
-  for (const value of [...LIVE_RADII, 'custom']) {
+  for (const value of LIVE_RADII) {
     const pill = document.createElement('button');
     pill.type = 'button';
     pill.className = 'live-settings-pill';
     pill.setAttribute('role', 'radio');
-    pill.textContent = value === 'custom' ? 'Custom' : liveRadiusName(value);
+    pill.textContent = liveRadiusName(value);
     pill.addEventListener('click', (event) => {
       event.stopPropagation();
-      if (value === 'custom') {
-        customOn = true;
-        paintSettings();
-        customInput.focus();
-        customInput.select();
-        return;
-      }
-      customOn = false;
       setLiveRadius(value);
       paintSettings();
       settingsChanged();
@@ -465,41 +454,7 @@ function buildSettings() {
     radiusPills.set(value, pill);
     pills.appendChild(pill);
   }
-  customBox = document.createElement('label');
-  customBox.className = 'live-settings-custom';
-  customInput = document.createElement('input');
-  customInput.type = 'text';
-  customInput.inputMode = 'decimal';
-  customInput.autocomplete = 'off';
-  customInput.spellcheck = false;
-  customInput.setAttribute('enterkeyhint', 'done');
-  customInput.placeholder = '25';
-  customInput.setAttribute('aria-label', 'Distance in km');
-  const unit = document.createElement('span');
-  unit.className = 'live-settings-unit';
-  unit.textContent = 'km';
-  customBox.append(customInput, unit);
-  customNote = document.createElement('div');
-  customNote.className = 'live-settings-note';
-  customNote.textContent = 'A number of km, up to ' + LIVE_RADIUS_MAX_KM + '.';
-  // Kept while it reads as a distance up to the cap; red while it does not.
-  customInput.addEventListener('input', () => {
-    const km = parseKm(customInput.value);
-    const ok = Number.isFinite(km) && km > 0 && km <= LIVE_RADIUS_MAX_KM;
-    const bad = !ok && customInput.value.trim() !== '';
-    customBox.classList.toggle('is-invalid', bad);
-    customNote.classList.toggle('is-invalid', bad);
-    if (!ok) return;
-    setLiveRadius(km);
-    paintSettings({ keepField: true });
-    settingsChanged();
-  });
-  customInput.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    customInput.blur();
-  });
-  distance.append(pills, customBox, customNote);
+  distance.append(pills);
 
   const look = document.createElement('button');
   look.type = 'button';
@@ -548,30 +503,21 @@ function settingsChanged() {
   if (typeof onChange === 'function') onChange();
 }
 
-function paintSettings({ keepField = false } = {}) {
+function paintSettings() {
   for (const [key, row] of settingsRows) {
     const on = key === current;
     row.classList.toggle('is-on', on);
     row.setAttribute('aria-checked', on ? 'true' : 'false');
   }
-  const preset = LIVE_RADII.includes(radius);
-  const custom = customOn || !preset;
   for (const [value, pill] of radiusPills) {
-    const on = value === 'custom' ? custom : (!custom && value === radius);
+    const on = value === radius;
     pill.classList.toggle('is-on', on);
     pill.setAttribute('aria-checked', on ? 'true' : 'false');
-  }
-  customBox.hidden = !custom;
-  customNote.hidden = !custom;
-  if (!keepField && document.activeElement !== customInput) {
-    customInput.value = !preset ? String(radius) : '';
-    customBox.classList.remove('is-invalid');
-    customNote.classList.remove('is-invalid');
   }
 }
 
 // Under the ⚙, or above it when there is more room there; inside the
-// visible area when a phone keyboard is up.
+// visible area.
 function placeSettings(anchor) {
   const view = window.visualViewport;
   const vw = window.innerWidth;
@@ -609,7 +555,6 @@ export function openLiveSettings(anchor, { onLook, onChange } = {}) {
   if (settingsFor && settingsFor.anchor !== anchor) settingsFor.anchor.setAttribute('aria-expanded', 'false');
   settingsFor = { anchor, onLook, onChange };
   anchor.setAttribute('aria-expanded', 'true');
-  customOn = false;
   paintSettings();
   settings.hidden = false;
   placeSettings(anchor);

@@ -457,7 +457,7 @@ const q = {
       last_seen = MAX(excluded.last_seen, live_markers.last_seen)
   `),
   // A latitude band; /api/local keeps the rows within the radius. The
-  // table only holds the last 24 h, and the radius is at most 500 km, so
+  // table only holds the last 24 h, and the radius is at most 100 km, so
   // the band is small enough to scan.
   listLiveInLatBand: db.prepare(`
     SELECT * FROM live_markers
@@ -3240,9 +3240,8 @@ app.post("/api/marker", publicPostLimit, (req, res) => {
 });
 
 // Live search radius, km: the Look for Live settings (livegroups.js) offer
-// presets and a custom value up to this. 500 km is a region, not half the
-// world: the latitude band scanned stays a few degrees tall.
-const LIVE_RADIUS_MAX_KM = 500;
+// 10, 25, 50 and this, the most. A larger radius sent is cut to it.
+const LIVE_RADIUS_MAX_KM = 100;
 const EARTH_KM = 6371.0088;
 
 function liveDistanceKm(lat1, lng1, lat2, lng2) {
