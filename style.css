@@ -4873,6 +4873,20 @@ html, body {
     margin: 0.4vh 0 1vh;
   }
 
+  .swap-bio-field {
+    position: relative;
+  }
+
+  .swap-bio-count {
+    position: absolute;
+    right: 1.2dvw;
+    bottom: 0.6dvh;
+    font-size: 2dvh;
+    line-height: 1;
+    color: #22d3ee;
+    pointer-events: none;
+  }
+
   #edit-profile-key-note,
   #edit-profile-swap-note,
   #edit-profile-swap-assoc {
@@ -7318,6 +7332,19 @@ html, body {
   .swap-x:focus-visible {
     outline: 0.2dvh solid #22D3EE;
     outline-offset: 0.2dvh;
+  }
+
+  .swap-bio {
+    margin: 0;
+    font-size: 1.7dvh;
+    line-height: 1.35;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .swap-bio[hidden] {
+    display: none;
   }
 
   .swap-note {

@@ -1,5 +1,5 @@
-// Current username, picture link, CLICK2LINK, bio, connected topic, and swap
-// for each account. Kept until this phone clears everything saved. One card
+// Current username, picture link, CLICK2LINK, bio, connected topic, swap,
+// and swap bio for each account. Kept until this phone clears everything saved. One card
 // per account. The revision is the server's write counter, not a message clock.
 import { normalizeSwap } from './server/swapprofile.js';
 
@@ -86,6 +86,7 @@ export async function writeSettings(generation, revision, rows, replace) {
         bio: row.bio || '',
         topic: row.topic || '',
         swap: normalizeSwap(row.swap),
+        swapBio: typeof row.swapBio === "string" ? row.swapBio : "",
         updatedAt: Number(row.updatedAt) || 0,
       });
     }

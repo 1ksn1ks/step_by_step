@@ -96,7 +96,10 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
   pop.setAttribute('aria-label', 'Post');
   pop.hidden = true;
 
-  const followItem = menuItem('post-menu-follow', 'Follow');
+  const copyItem = menuItem('post-menu-copy', 'Copy link');
+  const followItem = menuItem('post-menu-follow', 'Follow user');
+  const swapItem = menuItem('post-menu-swap', 'Swap tokens');
+  swapItem.hidden = true;
   const donateItem = menuItem('post-menu-donate', '');
   const donateLabel = document.createElement('span');
   donateLabel.className = 'post-menu-label';
@@ -106,10 +109,7 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
   donateAmount.hidden = true;
   donateItem.append(donateLabel, donateAmount);
   const canDonate = bindDonationTarget(donateItem, donation);
-  const swapItem = menuItem('post-menu-swap', 'Swap');
-  swapItem.hidden = true;
-  const copyItem = menuItem('post-menu-copy', 'Copy link');
-  pop.append(followItem, donateItem, swapItem, copyItem);
+  pop.append(copyItem, followItem, swapItem, donateItem);
 
   const home = document.createElement('span');
   home.hidden = true;
@@ -158,7 +158,7 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
     donateItem.hidden = own || !canDonate;
     swapItem.hidden = own || !swapReady;
     if (followBtn && !followItem.hidden) {
-      const label = followBtn.getAttribute('aria-label') === 'Unfollow' ? 'Unfollow' : 'Follow';
+      const label = followBtn.getAttribute('aria-label') === 'Unfollow' ? 'Unfollow user' : 'Follow user';
       followItem.textContent = label;
       followItem.disabled = !!followBtn.disabled;
     }

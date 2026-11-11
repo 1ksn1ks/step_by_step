@@ -12,6 +12,10 @@ import {
   swapButtonShows,
   associationMirrorPaths,
   swapNotice,
+  swapBioText,
+  swapFeeShare,
+  swapSafetyLine,
+  swapSheetText,
   swapOfferFromProfile,
   swapReturnTarget,
   swapSuccessToast,
@@ -37,6 +41,8 @@ import {
   Transaction,
   TransactionId,
 } from "@hiero-ledger/sdk";
+import { swapProfileAction } from "../server/swapprofile.js";
+import { foldSwapBio, swapBioAction, swapBioFromRow } from "../server/swapbio.js";
 
 const AUTHOR = "0.0.200";
 const VIEWER = "0.0.100";
@@ -591,4 +597,119 @@ test("a frozen swap lists several mainnet nodes", () => {
   const wallet = fs.readFileSync(new URL("../swapwallet.js", import.meta.url), "utf8");
   assert.match(wallet, /SWAP_MAINNET_NODES\.map\(\(id\) => AccountId\.fromString\(id\)\)/);
   assert.equal(wallet.includes('AccountId.fromString("0.0.3")'), false);
+});
+
+test("the post menu lists Copy link, Follow user, Swap tokens, then Donate HBAR", () => {
+  const menu = fs.readFileSync(new URL("../postmenu.js", import.meta.url), "utf8");
+  const appended = menu.match(/pop\.append\(([^)]+)\)/);
+  assert.ok(appended);
+  assert.equal(appended[1], "copyItem, followItem, swapItem, donateItem");
+  assert.match(menu, /menuItem\('post-menu-copy', 'Copy link'\)/);
+  assert.match(menu, /menuItem\('post-menu-follow', 'Follow user'\)/);
+  assert.match(menu, /menuItem\('post-menu-swap', 'Swap tokens'\)/);
+  assert.match(menu, /menuItem\('post-menu-donate', ''\)/);
+  assert.match(menu, /donateLabel\.textContent = 'Donate HBAR'/);
+  assert.match(menu, /donateAmount\.className = 'donate-amount'/);
+  assert.match(menu, /'Unfollow user' : 'Follow user'/);
+  assert.match(menu, /followItem\.hidden = !followBtn \|\| own/);
+  assert.match(menu, /donateItem\.hidden = own \|\| !canDonate/);
+  assert.match(menu, /swapItem\.hidden = own \|\| !swapReady/);
+});
+
+test("a swap bio folds into its own column and stops at 280 characters", () => {
+  const note = "Buying the poster token.";
+  assert.equal(swapBioAction({ swap: { enabled: true, tokenId: SAUCE, feeBps: 40 } }), null);
+  assert.equal(swapProfileAction({ swapBio: note }), null);
+  assert.deepEqual(swapBioAction({ swapBio: note }), { text: note });
+  assert.deepEqual(swapBioAction({ swapBio: "" }), { text: "" });
+  assert.deepEqual(swapBioAction({ swapBio: "a".repeat(280) }), { text: "a".repeat(280) });
+  assert.deepEqual(swapBioAction({ swapBio: "a".repeat(281) }), { error: "length" });
+  assert.deepEqual(swapBioAction({ swapBio: 12 }), { error: "swapBio" });
+
+  const swapRow = { account_id: AUTHOR, swap_on: 1, swap_token: SAUCE, swap_fee: 40, swap_bio: null };
+  const ignored = foldSwapBio(swapRow, { swap: { enabled: true, tokenId: SAUCE, feeBps: 40 } });
+  assert.equal(ignored.wrote, false);
+  assert.equal(ignored.row.swap_on, 1);
+  assert.equal(ignored.row.swap_token, SAUCE);
+
+  const saved = foldSwapBio(swapRow, { swapBio: note });
+  assert.equal(saved.wrote, true);
+  assert.equal(saved.row.swap_bio, note);
+  assert.equal(saved.row.swap_fee, 40);
+  assert.equal(swapBioFromRow(saved.row), note);
+  assert.equal(foldSwapBio(saved.row, { swapBio: note }).wrote, false);
+
+  const cleared = foldSwapBio(saved.row, { swapBio: "" });
+  assert.equal(cleared.wrote, true);
+  assert.equal(cleared.row.swap_bio, "");
+  assert.equal(swapBioFromRow(cleared.row), "");
+  assert.equal(foldSwapBio({ swap_bio: null }, { swapBio: "" }).wrote, false);
+  assert.equal(foldSwapBio(null, { swapBio: "" }).wrote, false);
+  assert.equal(foldSwapBio(saved.row, { swapBio: "a".repeat(281) }).wrote, false);
+  assert.equal(foldSwapBio(saved.row, { swapBio: "a".repeat(281) }).row.swap_bio, note);
+
+  const server = fs.readFileSync(new URL("../server/index.js", import.meta.url), "utf8");
+  assert.match(server, /ADD COLUMN swap_bio TEXT/);
+  assert.match(server, /settingSwapBio/);
+  assert.match(server, /saveSwapBio\(payer, swapBio\.text, tsMs\)/);
+  assert.match(server, /swapBio: swapBioFromRow\(row\)/);
+  const cache = fs.readFileSync(new URL("../settingscache.js", import.meta.url), "utf8");
+  assert.match(cache, /swapBio: typeof row\.swapBio === "string" \? row\.swapBio : ""/);
+});
+
+test("the swap sheet shows the creator bio above the safety line", () => {
+  const buying = "You're buying SAUCE (0.0.731861), not donating. Tokens can lose value.";
+  const html = "<a href=\"https://example.test\">click</a>";
+  const shown = swapSheetText({
+    bio: html,
+    symbol: "SAUCE",
+    tokenId: SAUCE,
+    dueDiligenceComplete: false,
+    feeBps: 40,
+  });
+  assert.equal(shown.bio, html);
+  assert.equal(shown.safety, buying + " Not reviewed by SaucerSwap. 0.4% goes to the poster.");
+  assert.equal(shown.safety.startsWith(buying), true);
+  assert.equal(swapBioText(html), html);
+  assert.equal(swapSheetText({
+    bio: "",
+    symbol: "SAUCE",
+    tokenId: SAUCE,
+    dueDiligenceComplete: true,
+    feeBps: 0,
+  }).safety, buying);
+  assert.equal(swapFeeShare(1), "0.01% goes to the poster.");
+  assert.equal(swapFeeShare(25), "0.25% goes to the poster.");
+  assert.equal(swapFeeShare(100), "1% goes to the poster.");
+  assert.equal(swapFeeShare(500), "5% goes to the poster.");
+  assert.equal(swapFeeShare(0), "");
+  assert.equal(swapSafetyLine({ symbol: "SAUCE", tokenId: SAUCE, feeBps: 10 }), buying + " 0.1% goes to the poster.");
+  assert.equal(swapSheetText({ bio: "a".repeat(281), symbol: "SAUCE", tokenId: SAUCE, feeBps: 40 }).bio, "");
+
+  const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
+  const appended = sheet.match(/card\.append\(([^)]+)\)/);
+  assert.ok(appended);
+  assert.equal(appended[1], "head, bio, note, error, slot");
+  assert.match(sheet, /bio\.textContent = lines\.bio/);
+  assert.match(sheet, /note\.textContent = lines\.safety/);
+  assert.equal(sheet.includes("innerHTML"), false);
+
+  const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  const bioCss = css.slice(css.indexOf(".swap-bio {"), css.indexOf(".swap-note {"));
+  assert.equal(bioCss.includes("px"), false);
+  const countCss = css.slice(css.indexOf(".swap-bio-count {"), css.indexOf("#edit-profile-key-note"));
+  assert.equal(countCss.includes("px"), false);
+
+  const page = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const column = page.slice(page.indexOf('id="show-public-key-from-edit-profile"'), page.indexOf('id="edit-profile-picture"'));
+  assert.match(column, /id="show-swap-bio-from-edit-profile"/);
+  assert.match(column, /Swap bio ✅/);
+  assert.match(column, /Swap bio ⛔/);
+  const editor = page.slice(page.indexOf('id="edit-profile-swap-bio"'), page.indexOf('id="domain-help-overlay"'));
+  assert.match(editor, /maxlength="280"/);
+  assert.match(editor, /id="swap-bio-count"/);
+  assert.match(editor, />Save</);
+  assert.equal(editor.includes("px"), false);
+  const rest = fs.readFileSync(new URL("../rest.js", import.meta.url), "utf8");
+  assert.match(rest, /JSON\.stringify\(\{ data: \{ swapBio: parsed\.text \} \}\)/);
 });

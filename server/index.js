@@ -23,6 +23,7 @@ import { S3Client, PutObjectCommand, PutBucketCorsCommand, DeleteObjectCommand }
 import { appIcon, APP_ICONS } from "./appicon.js";
 import { profileTopicAction } from "./profiletopic.js";
 import { swapProfileAction } from "./swapprofile.js";
+import { nextSwapBio, swapBioAction, swapBioFromRow } from "./swapbio.js";
 import { createSwapTokenLookup, swapTokenRoute } from "./swaptoken.js";
 import { hashtagsIn } from "../hashtag.js";
 import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
@@ -273,6 +274,7 @@ for (const migration of [
   "ALTER TABLE user_settings ADD COLUMN swap_on INTEGER",
   "ALTER TABLE user_settings ADD COLUMN swap_token TEXT",
   "ALTER TABLE user_settings ADD COLUMN swap_fee INTEGER",
+  "ALTER TABLE user_settings ADD COLUMN swap_bio TEXT",
   "ALTER TABLE geo_cache ADD COLUMN city TEXT",
   "ALTER TABLE geo_cache ADD COLUMN country_code TEXT",
   "ALTER TABLE geo_cache ADD COLUMN miss INTEGER NOT NULL DEFAULT 0",
@@ -514,6 +516,13 @@ const q = {
       swap_on = excluded.swap_on,
       swap_token = excluded.swap_token,
       swap_fee = excluded.swap_fee,
+      updated_at = excluded.updated_at,
+      revision = excluded.revision
+  `),
+  settingSwapBio: db.prepare(`
+    INSERT INTO user_settings (account_id, swap_bio, updated_at, revision) VALUES (?, ?, ?, ?)
+    ON CONFLICT(account_id) DO UPDATE SET
+      swap_bio = excluded.swap_bio,
       updated_at = excluded.updated_at,
       revision = excluded.revision
   `),
@@ -812,6 +821,14 @@ function saveSwap(accountId, swap, tsMs) {
   q.settingSwap.run(accountId, on, token, fee, tsMs, revision);
 }
 
+function saveSwapBio(accountId, text, tsMs) {
+  const row = q.getUserSetting.get(accountId);
+  if (nextSwapBio(row ? row.swap_bio : null, text) === undefined) return;
+  q.bumpSettingsRevision.run();
+  const revision = q.readSettingsRevision.get().revision;
+  q.settingSwapBio.run(accountId, text, tsMs, revision);
+}
+
 function extractUserSettings(topicId, payer, body, tsMs) {
   if (!(topicId in PROFILE_TOPICS)) return;
   let data;
@@ -842,6 +859,10 @@ function extractUserSettings(topicId, payer, body, tsMs) {
     // invalid swap is not stored. No swap key means the profile stays off.
     const swap = swapProfileAction(d);
     if (swap && !swap.error) saveSwap(payer, swap, tsMs);
+    // Swap bio is its own message. A swap, a bio, or a topic link leaves it
+    // alone. An empty string clears it. Over 280 characters is not stored.
+    const swapBio = swapBioAction(d);
+    if (swapBio && !swapBio.error) saveSwapBio(payer, swapBio.text, tsMs);
   }
 }
 
@@ -3359,10 +3380,11 @@ app.get("/api/local", publicPostLimit, (req, res) => {
 });
 
 // app: "give me the current per-account settings" — one row per user
-// (latest valid username / profile pic / click2url / bio / topic / swap).
-// `ready` is true only once all four profile topics are backfilled, so the
-// app never trusts a half-built table. Swap columns are null until that
-// account sends a swap message, and the payload then says swap is off.
+// (latest valid username / profile pic / click2url / bio / topic / swap /
+// swap bio). `ready` is true only once all four profile topics are
+// backfilled, so the app never trusts a half-built table. Swap columns are
+// null until that account sends a swap message, and the payload then says
+// swap is off. swapBio is "" until a swap-bio message is stored.
 function userSettingPayload(row) {
   return {
     accountId: row.account_id,
@@ -3376,6 +3398,7 @@ function userSettingPayload(row) {
       tokenId: row.swap_token || "",
       feeBps: Number.isInteger(row.swap_fee) ? row.swap_fee : 0,
     },
+    swapBio: swapBioFromRow(row),
     updatedAt: row.updated_at || 0,
   };
 }

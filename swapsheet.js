@@ -8,12 +8,14 @@ import { PROJECT_ID } from "./web3.js";
 import { EARLY_POPUP_CLASS } from "./earlypopup.js";
 import { toast } from "./toast.js";
 import { globeSwapWallet } from "./swapwallet.js";
+import { bareAccount } from "./donationmath.js";
+import { profileSwapBios } from "./loadalladata.js";
 import {
   deepActiveElement,
   fillSwapWidget,
   mountSwapWidgetScript,
-  swapNotice,
   swapReturnTarget,
+  swapSheetText,
   swapSuccessToast,
   swapTabbables,
   swapTabDestination,
@@ -184,6 +186,10 @@ function ensureSheet() {
   cancel.textContent = "×";
   head.append(title, cancel);
 
+  const bio = document.createElement("p");
+  bio.className = "swap-bio";
+  bio.hidden = true;
+
   const note = document.createElement("p");
   note.className = "swap-note";
 
@@ -195,7 +201,7 @@ function ensureSheet() {
   const slot = document.createElement("div");
   slot.className = "swap-widget";
 
-  card.append(head, note, error, slot);
+  card.append(head, bio, note, error, slot);
   root.append(trapSentinel("start"), card, trapSentinel("end"));
 
   cancel.addEventListener("click", (event) => {
@@ -250,14 +256,21 @@ export async function openSwapSheet(details) {
     feeBps: offer.feeBps,
     account: offer.account,
   });
-  const note = root.querySelector(".swap-note");
-  if (note) {
-    note.textContent = swapNotice({
-      symbol: offer.symbol,
-      tokenId: offer.tokenId,
-      dueDiligenceComplete: offer.dueDiligenceComplete,
-    });
+  const author = bareAccount(offer.account);
+  const lines = swapSheetText({
+    bio: author && typeof profileSwapBios[author] === "string" ? profileSwapBios[author] : "",
+    symbol: offer.symbol,
+    tokenId: offer.tokenId,
+    dueDiligenceComplete: offer.dueDiligenceComplete,
+    feeBps: offer.feeBps,
+  });
+  const bio = root.querySelector(".swap-bio");
+  if (bio) {
+    bio.textContent = lines.bio;
+    bio.hidden = !lines.bio;
   }
+  const note = root.querySelector(".swap-note");
+  if (note) note.textContent = lines.safety;
   const error = root.querySelector(".swap-error");
   if (error) {
     error.textContent = "";

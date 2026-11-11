@@ -1768,6 +1768,7 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("edit-profile-swap"),
     document.getElementById("edit-profile-topic"),
     document.getElementById("edit-profile-public-key"),
+    document.getElementById("edit-profile-swap-bio"),
   ];
 
   const insideEditProfileShowOptions = [
@@ -1778,6 +1779,7 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("show-swap-from-edit-profile"),
     document.getElementById("show-topic-from-edit-profile"),
     document.getElementById("show-public-key-from-edit-profile"),
+    document.getElementById("show-swap-bio-from-edit-profile"),
   ];
 
 
@@ -1789,6 +1791,7 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("hide-swap-from-edit-profile"),
     document.getElementById("hide-topic-from-edit-profile"),
     document.getElementById("hide-public-key-from-edit-profile"),
+    document.getElementById("hide-swap-bio-from-edit-profile"),
   ];
   
   
@@ -1936,6 +1939,24 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("hide-public-key-from-edit-profile").style.display = "none";
     document.getElementById("show-public-key-from-edit-profile").style.display = "block";
     document.getElementById("edit-profile-public-key").style.display = "none";
+  });
+
+  document.getElementById("show-swap-bio-from-edit-profile").addEventListener("click", (event) => {
+    editProfileEverything()
+    editProfileShowOptions()
+    editProfileHideOptions()
+    document.getElementById("hide-swap-bio-from-edit-profile").style.display = "block";
+    document.getElementById("show-swap-bio-from-edit-profile").style.display = "none";
+    document.getElementById("edit-profile-swap-bio").style.display = "block";
+  });
+
+  document.getElementById("hide-swap-bio-from-edit-profile").addEventListener("click", (event) => {
+    editProfileEverything()
+    editProfileShowOptions()
+    editProfileHideOptions()
+    document.getElementById("hide-swap-bio-from-edit-profile").style.display = "none";
+    document.getElementById("show-swap-bio-from-edit-profile").style.display = "block";
+    document.getElementById("edit-profile-swap-bio").style.display = "none";
   });
   
   const allLoadColumns = [

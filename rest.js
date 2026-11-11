@@ -7,8 +7,9 @@ import { sendMessage, reportMarker, BACKEND_URL } from './msgbackend'
 import { getTopicData as getMessages } from './topicdata'
 import {adjustTextareaHeight} from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
-import { loadAllData, showOwnProfile, profileTopics, profileSwaps } from './loadalladata';
+import { loadAllData, showOwnProfile, profileTopics, profileSwaps, profileSwapBios } from './loadalladata';
 import { swapProfileAction } from './server/swapprofile.js';
+import { swapBioAction } from './server/swapbio.js';
 import { associationCutWarning, associationMirrorPaths } from './swapoffer.js';
 import { bareAccount } from './donationmath.js';
 import { connectProfileTopic, removeProfileTopic } from './followtopic';
@@ -2143,6 +2144,52 @@ document.getElementById("button_for_swap").addEventListener("click", async (even
     debounce(loadAllData(), 10000);
   } catch (error) {
     console.error("Error updating profile swap:", error);
+  }
+});
+
+function showProfileSwapBio() {
+  const field = document.getElementById("edit-profile-swap-bio-input");
+  const count = document.getElementById("swap-bio-count");
+  if (!field) return;
+  const me = bareAccount(connectedAccount) || connectedAccount;
+  const saved = me && profileSwapBios[me];
+  field.value = typeof saved === "string" ? saved : "";
+  if (count) count.textContent = field.value.length + "/280";
+}
+
+document.getElementById("show-swap-bio-from-edit-profile").addEventListener("click", () => {
+  showProfileSwapBio();
+});
+
+document.getElementById("edit-profile-swap-bio-input").addEventListener("input", (event) => {
+  const count = document.getElementById("swap-bio-count");
+  if (count) count.textContent = event.currentTarget.value.length + "/280";
+});
+
+document.getElementById("button_for_swap_bio").addEventListener("click", async (event) => {
+  event.stopPropagation();
+  const field = document.getElementById("edit-profile-swap-bio-input");
+  const text = field ? field.value : "";
+  const parsed = swapBioAction({ swapBio: text });
+  if (!parsed || parsed.error) {
+    toast.error("Swap bio is 280 characters at most.");
+    return;
+  }
+  if (!signer) {
+    toast.error("Connect wallet first");
+    return;
+  }
+  try {
+    const topicId = "0.0.9759201";
+    const message = JSON.stringify({ data: { swapBio: parsed.text } });
+    toast.info("Confirm in wallet 👛");
+    const receipt = await sendMessage(topicId, message);
+    console.log("Swap bio updated successfully:", receipt);
+    showOwnProfile(bareAccount(connectedAccount) || connectedAccount, { swapBio: parsed.text });
+    showProfileSwapBio();
+    debounce(loadAllData(), 10000);
+  } catch (error) {
+    console.error("Error updating swap bio:", error);
   }
 });
 

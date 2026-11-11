@@ -210,6 +210,7 @@
             <li><b>Your topic</b> — the topic connected to this account. Share posts land here. Followers follow this topic. Connect saves the topic id. The × next to a connected id takes that connection off.</li>
             <li><b>Public key</b> — pin your Ed25519 public key to your connected topic. Anyone can then send you an encrypted message just by your payer id.</li>
             <li><b>Swap</b> — optional. Turn it on, set a token id like 0.0.x, and a fee from 0 to 500 bps (0–5% to your account). The token needs a SaucerSwap pool with HBAR.</li>
+            <li><b>Swap bio</b> — up to 280 characters, shown above the swap warning. An empty save clears it.</li>
             <li><b>Preview</b> — the card updates as you change the picture, name, bio, and link.</li>
           </ul>
           <div class="info-overlay-actions">
@@ -269,6 +270,10 @@
             <button id="show-public-key-from-edit-profile" class="toolbar-column-settings-btns">Public key ✅
             </button>
             <button id="hide-public-key-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Public key ⛔
+            </button>
+            <button id="show-swap-bio-from-edit-profile" class="toolbar-column-settings-btns">Swap bio ✅
+            </button>
+            <button id="hide-swap-bio-from-edit-profile" style="display: none;" class="toolbar-column-settings-btns">Swap bio ⛔
             </button>
           </div>
           </div>
@@ -367,6 +372,16 @@
             <div id="edit-profile-swap-note">0–500 bps is 0–5% to your account. The token needs a SaucerSwap pool with HBAR.</div>
             <div id="edit-profile-swap-assoc" role="status" hidden></div>
             <button class="toolbar-column-btns" id="button_for_swap" type="button">Save swap</button>
+          </div>
+
+          <div id="edit-profile-swap-bio" style="display: none;">
+            <div class="swap-bio-field">
+              <textarea id="edit-profile-swap-bio-input" placeholder="Swap bio" maxlength="280"
+              class="toolbar-column" onclick="event.stopPropagation();"
+              ></textarea>
+              <div id="swap-bio-count" class="swap-bio-count">0/280</div>
+            </div>
+            <button class="toolbar-column-btns" id="button_for_swap_bio" type="button">Save</button>
           </div>
       
         </div>

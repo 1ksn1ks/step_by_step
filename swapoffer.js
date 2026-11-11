@@ -54,6 +54,37 @@ export function swapNotice({ symbol, tokenId, dueDiligenceComplete }) {
   return line;
 }
 
+const SWAP_BIO_MAX = 280;
+
+// Plain text only. Over the limit stays blank so it is never shown as HTML.
+export function swapBioText(value) {
+  if (typeof value !== "string" || value.length > SWAP_BIO_MAX) return "";
+  return value;
+}
+
+// "" when there is no cut. 40 bps is 0.4%. Trailing zeros are dropped.
+export function swapFeeShare(feeBps) {
+  if (!Number.isInteger(feeBps) || feeBps <= 0) return "";
+  const percent = (feeBps / 100).toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+  return percent + "% goes to the poster.";
+}
+
+export function swapSafetyLine(details) {
+  const info = details || {};
+  const share = swapFeeShare(info.feeBps);
+  const line = swapNotice(info);
+  return share ? line + " " + share : line;
+}
+
+// bio is the creator note. safety is the line that always stays.
+export function swapSheetText(details) {
+  const info = details || {};
+  return {
+    bio: swapBioText(info.bio),
+    safety: swapSafetyLine(info),
+  };
+}
+
 // Fee attributes are omitted at 0. The widget would otherwise charge a cut.
 export function swapWidgetConfig({ projectId, tokenId, feeBps, account }) {
   const config = {
