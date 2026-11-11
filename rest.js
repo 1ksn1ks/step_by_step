@@ -7,7 +7,8 @@ import { sendMessage, reportMarker } from './msgbackend'
 import { getTopicData as getMessages } from './topicdata'
 import {adjustTextareaHeight} from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
-import { loadAllData, showOwnProfile, profileTopics } from './loadalladata';
+import { loadAllData, showOwnProfile, profileTopics, profileSwaps } from './loadalladata';
+import { swapProfileAction } from './server/swapprofile.js';
 import { connectProfileTopic, removeProfileTopic } from './followtopic';
 import { debounce } from './debounce';
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
@@ -1934,6 +1935,70 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
      console.error("Error updating profile topic_bio:", error);
    }
  });
+
+function showProfileSwap() {
+  const btn = document.getElementById("edit-profile-swap-enabled");
+  const token = document.getElementById("edit-profile-swap-token");
+  const fee = document.getElementById("edit-profile-swap-fee");
+  if (!btn || !token || !fee) return;
+  const saved = connectedAccount && profileSwaps[connectedAccount];
+  const on = !!(saved && saved.enabled);
+  btn.setAttribute("aria-pressed", on ? "true" : "false");
+  btn.textContent = on ? "Swap on" : "Swap off";
+  token.value = saved && saved.tokenId ? saved.tokenId : "";
+  fee.value = saved ? String(saved.feeBps) : "";
+}
+
+document.getElementById("show-swap-from-edit-profile").addEventListener("click", () => {
+  showProfileSwap();
+});
+
+document.getElementById("edit-profile-swap-enabled").addEventListener("click", (event) => {
+  event.stopPropagation();
+  const on = event.currentTarget.getAttribute("aria-pressed") !== "true";
+  event.currentTarget.setAttribute("aria-pressed", on ? "true" : "false");
+  event.currentTarget.textContent = on ? "Swap on" : "Swap off";
+});
+
+document.getElementById("button_for_swap").addEventListener("click", async (event) => {
+  event.stopPropagation();
+  const tokenField = document.getElementById("edit-profile-swap-token");
+  const feeField = document.getElementById("edit-profile-swap-fee");
+  const enabled = document.getElementById("edit-profile-swap-enabled").getAttribute("aria-pressed") === "true";
+  const feeText = feeField.value.trim();
+  const parsed = swapProfileAction({
+    swap: {
+      enabled,
+      tokenId: tokenField.value.trim(),
+      feeBps: feeText === "" ? 0 : feeText,
+    },
+  });
+  if (!parsed || parsed.error === "fee") {
+    toast.error("Fee is 0 to 500 bps (0–5%).");
+    return;
+  }
+  if (parsed.error) {
+    toast.error("Token id looks like 0.0.123.");
+    return;
+  }
+  if (!signer) {
+    toast.error("Connect wallet first");
+    return;
+  }
+  try {
+    const topicId = "0.0.9759201";
+    const swap = { enabled: parsed.enabled, tokenId: parsed.tokenId, feeBps: parsed.feeBps };
+    const message = JSON.stringify({ data: { swap } });
+    toast.info("Confirm in wallet 👛");
+    const receipt = await sendMessage(topicId, message);
+    console.log("Profile swap updated successfully:", receipt);
+    showOwnProfile(connectedAccount, { swap });
+    showProfileSwap();
+    debounce(loadAllData(), 10000);
+  } catch (error) {
+    console.error("Error updating profile swap:", error);
+  }
+});
 
 function profileTopicFromInput() {
   const field = document.getElementById("edit-profile-topic-input");

@@ -4,6 +4,7 @@ import { fetchUserSettings } from "./msgbackend";
 import { readSettings, writeSettings } from "./settingscache.js";
 import { profilePictureUrls, publishProfilePictures } from "./picturecache.js";
 import { profileTopicAction } from "./server/profiletopic.js";
+import { normalizeSwap, sameSwapProfile, swapProfileAction } from "./server/swapprofile.js";
 
 export let profilePictures = [];
 export let usernames = [];
@@ -11,6 +12,8 @@ export let click2url = [];
 export let topicBio = [];
 // The topic connected to an account. Shares land there. Followers follow it.
 export let profileTopics = {};
+// Optional swap on an account. Missing means off (enabled false, fee 0).
+export let profileSwaps = {};
 
 // A change this phone just sent. It is shown immediately and is not written
 // into the saved copy. The next server card that matches it removes it. If
@@ -66,6 +69,7 @@ function applyAccounts(accounts) {
   const links = {};
   const bios = {};
   const topics = {};
+  const swaps = {};
   for (const row of accounts || []) {
     if (!row || !row.accountId) continue;
     if (row.profilePic) pics[row.accountId] = { url: row.profilePic, timestamp: row.updatedAt };
@@ -73,12 +77,15 @@ function applyAccounts(accounts) {
     if (row.click2url) links[row.accountId] = { click2url: row.click2url, timestamp: row.updatedAt };
     if (row.bio) bios[row.accountId] = { topic_bio: row.bio, timestamp: row.updatedAt };
     if (row.topic) topics[row.accountId] = row.topic;
+    // An old saved card has no swap key. Leave it out so the profile stays off.
+    if (row.swap && typeof row.swap === "object") swaps[row.accountId] = normalizeSwap(row.swap);
   }
   profilePictures = pics;
   usernames = names;
   click2url = links;
   topicBio = bios;
   profileTopics = topics;
+  profileSwaps = swaps;
 }
 
 function mergeAccounts(local, incoming) {
@@ -105,7 +112,10 @@ function reconcileOverlay(accounts) {
     if (patch.click2url && row.click2url === patch.click2url) delete patch.click2url;
     if (patch.bio && row.bio === patch.bio) delete patch.bio;
     if ('topic' in patch && (row.topic || '') === (patch.topic || '')) delete patch.topic;
-    if (!patch.username && !patch.profilePic && !patch.click2url && !patch.bio && !('topic' in patch)) ownOverlay.delete(accountId);
+    // A card from before swap existed has no swap key. Keep the local edit
+    // until a server card actually carries swap and it matches.
+    if (patch.swap && Object.prototype.hasOwnProperty.call(row, "swap") && sameSwapProfile(row.swap, patch.swap)) delete patch.swap;
+    if (!patch.username && !patch.profilePic && !patch.click2url && !patch.bio && !('topic' in patch) && !patch.swap) ownOverlay.delete(accountId);
   }
 }
 
@@ -119,6 +129,7 @@ function applyOverlay() {
       if (patch.topic) profileTopics[accountId] = patch.topic;
       else delete profileTopics[accountId];
     }
+    if (patch.swap) profileSwaps[accountId] = normalizeSwap(patch.swap);
   }
 }
 
@@ -185,6 +196,7 @@ async function loadAllDataBody() {
   click2url = await loadCLICK2URL();
   topicBio = await loadTopicBio();
   profileTopics = bioTopicLinks;
+  profileSwaps = bioSwapLinks;
   applyOverlay();
   document.dispatchEvent(new CustomEvent('profiles-loaded'));
   return snapshot();
@@ -339,11 +351,13 @@ try {
 
 // Last bio-topic walk. Used only when the settings server is not ready.
 let bioTopicLinks = {};
+let bioSwapLinks = {};
 
 export async function loadTopicBio() {
 const topicId = "0.0.9759201";
 const accountTopicBio = {}; // Dictionary to store account IDs and their bios
 const links = {};
+const swaps = {};
 
 try {
   const rawResult = await getMessages(topicId);
@@ -352,6 +366,7 @@ try {
   if (!rawResult || !Array.isArray(rawResult.messages)) {
     console.log("No topic_bio found, using defaults");
     bioTopicLinks = {};
+    bioSwapLinks = {};
     return {};
   }
 
@@ -371,13 +386,17 @@ try {
       if (link.action === "set") links[message.payer] = link.topic;
       else delete links[message.payer];
     }
+    const swap = swapProfileAction(message && message.data);
+    if (swap && !swap.error && message.payer) swaps[message.payer] = normalizeSwap(swap);
   });
 
   bioTopicLinks = links;
+  bioSwapLinks = swaps;
   return accountTopicBio;
 
 } catch (error) {
   console.log("Error in loadTopicBio:", error);
+  bioSwapLinks = {};
   return {}; // Return empty object instead of throwing error
 }
 }

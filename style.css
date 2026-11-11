@@ -4873,7 +4873,8 @@ html, body {
     margin: 0.4vh 0 1vh;
   }
 
-  #edit-profile-key-note {
+  #edit-profile-key-note,
+  #edit-profile-swap-note {
     font-size: 1.5vh;
     color: #8d93a5;
     text-align: center;
@@ -16804,7 +16805,7 @@ html.feed-draw-open #map-draw-help-overlay {
   touch-action: pan-y;
 }
 
-/* Profile drawer toggles: two columns of three rows. The open row is the
+/* Profile drawer toggles: two columns of settings rows. The open row is the
    visible hide button, same cyan as a settings row press.
    The preview bio matches a row label. The name keeps its own size. */
 #profile-live-bio {
@@ -16965,7 +16966,8 @@ html.feed-draw-open #map-draw-help-overlay {
 #edit-profile-bio:not([style*="display: none"]):not([style*="display:none"]),
 #edit-profile-click2link:not([style*="display: none"]):not([style*="display:none"]),
 #edit-profile-topic:not([style*="display: none"]):not([style*="display:none"]),
-#edit-profile-public-key:not([style*="display: none"]):not([style*="display:none"]) {
+#edit-profile-public-key:not([style*="display: none"]):not([style*="display:none"]),
+#edit-profile-swap:not([style*="display: none"]):not([style*="display:none"]) {
   display: flex !important;
   flex-direction: column;
   align-items: stretch;
@@ -17004,7 +17006,9 @@ html.feed-draw-open #map-draw-help-overlay {
 #Edit_Profile-bio,
 #edit-profile-click2link-input,
 #edit-profile-topic-input,
-#edit-profile-public-key-input {
+#edit-profile-public-key-input,
+#edit-profile-swap-token,
+#edit-profile-swap-fee {
   box-sizing: border-box;
   display: block;
   width: 100%;
@@ -17035,7 +17039,9 @@ html.feed-draw-open #map-draw-help-overlay {
 #Edit_Profile-bio:focus,
 #edit-profile-click2link-input:focus,
 #edit-profile-topic-input:focus,
-#edit-profile-public-key-input:focus {
+#edit-profile-public-key-input:focus,
+#edit-profile-swap-token:focus,
+#edit-profile-swap-fee:focus {
   outline: none;
   box-shadow: inset 0 0 0 2px #22D3EE !important;
 }
@@ -17045,6 +17051,8 @@ html.feed-draw-open #map-draw-help-overlay {
 #button_for_click_url,
 #connect-profile-topic,
 #pin-profile-public-key,
+#edit-profile-swap-enabled,
+#button_for_swap,
 #upload-profile-picture,
 #remove-profile-topic {
   box-sizing: border-box;
@@ -17098,7 +17106,9 @@ html.feed-draw-open #map-draw-help-overlay {
 #button_for_bio:is(:hover, :active),
 #button_for_click_url:is(:hover, :active),
 #connect-profile-topic:is(:hover, :active),
-#pin-profile-public-key:is(:hover, :active) {
+#pin-profile-public-key:is(:hover, :active),
+#edit-profile-swap-enabled:is(:hover, :active),
+#button_for_swap:is(:hover, :active) {
   background: #22D3EE;
   background-color: #22D3EE;
   color: #0a0a12;
@@ -17128,6 +17138,8 @@ html.feed-draw-open #map-draw-help-overlay {
 #button_for_click_url:disabled,
 #connect-profile-topic:disabled,
 #pin-profile-public-key:disabled,
+#edit-profile-swap-enabled:disabled,
+#button_for_swap:disabled,
 #upload-profile-picture:disabled,
 #remove-profile-topic:disabled,
 #clear-profile-topic:disabled {
@@ -17139,7 +17151,8 @@ html.feed-draw-open #map-draw-help-overlay {
   #edit-profile-bio,
   #edit-profile-click2link,
   #edit-profile-topic,
-  #edit-profile-public-key
+  #edit-profile-public-key,
+  #edit-profile-swap
 ):not([style*="display: none"]):not([style*="display:none"]) {
   border-radius: var(--ui-card-radius) !important;
 }
@@ -17163,7 +17176,9 @@ html.feed-draw-open #map-draw-help-overlay {
   #Edit_Profile-bio,
   #edit-profile-click2link-input,
   #edit-profile-topic-input,
-  #edit-profile-public-key-input
+  #edit-profile-public-key-input,
+  #edit-profile-swap-token,
+  #edit-profile-swap-fee
 ) {
   width: 100% !important;
   max-width: 100% !important;
@@ -17192,7 +17207,9 @@ html.feed-draw-open #map-draw-help-overlay {
   #Edit_Profile-bio,
   #edit-profile-click2link-input,
   #edit-profile-topic-input,
-  #edit-profile-public-key-input
+  #edit-profile-public-key-input,
+  #edit-profile-swap-token,
+  #edit-profile-swap-fee
 ):focus {
   outline: none;
   box-shadow: inset 0 0 0 2px #22D3EE !important;
@@ -17204,6 +17221,8 @@ html.feed-draw-open #map-draw-help-overlay {
   #button_for_click_url,
   #connect-profile-topic,
   #pin-profile-public-key,
+  #edit-profile-swap-enabled,
+  #button_for_swap,
   #upload-profile-picture,
   #remove-profile-topic
 ) {
@@ -17234,7 +17253,9 @@ html.feed-draw-open #map-draw-help-overlay {
   #button_for_bio,
   #button_for_click_url,
   #connect-profile-topic,
-  #pin-profile-public-key
+  #pin-profile-public-key,
+  #edit-profile-swap-enabled,
+  #button_for_swap
 ) {
   background: #22D3EE !important;
   background-color: #22D3EE !important;
@@ -17256,7 +17277,9 @@ html.feed-draw-open #map-draw-help-overlay {
   #button_for_bio,
   #button_for_click_url,
   #connect-profile-topic,
-  #pin-profile-public-key
+  #pin-profile-public-key,
+  #edit-profile-swap-enabled,
+  #button_for_swap
 ):is(:hover, :active) {
   background: #22D3EE !important;
   background-color: #22D3EE !important;
@@ -17280,6 +17303,28 @@ html.feed-draw-open #map-draw-help-overlay {
   transform: none !important;
   filter: none !important;
   box-shadow: none !important;
+}
+#edit-profile-swap-enabled[aria-pressed="false"] {
+  background: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #22D3EE;
+}
+#edit-profile-swap-enabled[aria-pressed="false"]:is(:hover, :active) {
+  background: rgba(34, 211, 238, 0.12);
+  background-color: rgba(34, 211, 238, 0.12);
+  color: #22D3EE;
+  filter: none;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer #edit-profile-swap-enabled[aria-pressed="false"] {
+  background: rgba(255, 255, 255, 0.06) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: #22D3EE !important;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer #edit-profile-swap-enabled[aria-pressed="false"]:is(:hover, :active) {
+  background: rgba(34, 211, 238, 0.12) !important;
+  background-color: rgba(34, 211, 238, 0.12) !important;
+  color: #22D3EE !important;
+  filter: none !important;
 }
 
 /* Create page only. .toolbar-group stays shared with chat. */

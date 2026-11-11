@@ -22,6 +22,7 @@ import { fileURLToPath } from "url";
 import { S3Client, PutObjectCommand, PutBucketCorsCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { appIcon, APP_ICONS } from "./appicon.js";
 import { profileTopicAction } from "./profiletopic.js";
+import { swapProfileAction } from "./swapprofile.js";
 import { hashtagsIn } from "../hashtag.js";
 import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { SEALED_MAX, sealedUploadPlan } from "./sealedupload.js";
@@ -268,6 +269,9 @@ for (const migration of [
   "ALTER TABLE live_markers ADD COLUMN number TEXT",
   "ALTER TABLE user_settings ADD COLUMN revision INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE user_settings ADD COLUMN topic TEXT",
+  "ALTER TABLE user_settings ADD COLUMN swap_on INTEGER",
+  "ALTER TABLE user_settings ADD COLUMN swap_token TEXT",
+  "ALTER TABLE user_settings ADD COLUMN swap_fee INTEGER",
   "ALTER TABLE geo_cache ADD COLUMN city TEXT",
   "ALTER TABLE geo_cache ADD COLUMN country_code TEXT",
   "ALTER TABLE geo_cache ADD COLUMN miss INTEGER NOT NULL DEFAULT 0",
@@ -501,6 +505,17 @@ const q = {
   clearTopic: db.prepare(
     "UPDATE user_settings SET topic = '', updated_at = ?, revision = ? WHERE account_id = ? AND topic IS NOT NULL AND topic != ''"
   ),
+  // Swap is one setting: the three columns move together. enabled false and
+  // fee 0 are real values, so this does not go through saveSetting.
+  settingSwap: db.prepare(`
+    INSERT INTO user_settings (account_id, swap_on, swap_token, swap_fee, updated_at, revision) VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(account_id) DO UPDATE SET
+      swap_on = excluded.swap_on,
+      swap_token = excluded.swap_token,
+      swap_fee = excluded.swap_fee,
+      updated_at = excluded.updated_at,
+      revision = excluded.revision
+  `),
   followTopic: db.prepare(
     "INSERT OR IGNORE INTO topic_follows (topic_id, account_id) VALUES (?, ?)"
   ),
@@ -768,7 +783,8 @@ const pendingToAppMessage = (p) => {
   };
 };
 
-// Profile-data topics are mixed (the bio topic also carries the linked topic),
+// Profile-data topics are mixed (the bio topic also carries the linked topic
+// and swap),
 // so extract ONLY the relevant field per account. storePage feeds rows
 // oldest→newest, so the last valid value for each field wins.
 // A repeat of the same value does not move the revision, so a phone that
@@ -780,6 +796,19 @@ function saveSetting(statement, accountId, column, value, tsMs) {
   q.bumpSettingsRevision.run();
   const revision = q.readSettingsRevision.get().revision;
   statement.run(accountId, value, tsMs, revision);
+}
+
+function saveSwap(accountId, swap, tsMs) {
+  const row = q.getUserSetting.get(accountId);
+  const on = swap.enabled ? 1 : 0;
+  const token = swap.tokenId || "";
+  const fee = swap.feeBps;
+  const neverSet = !row || row.swap_on == null;
+  if (neverSet && !on && !token && fee === 0) return;
+  if (!neverSet && row.swap_on === on && (row.swap_token || "") === token && row.swap_fee === fee) return;
+  q.bumpSettingsRevision.run();
+  const revision = q.readSettingsRevision.get().revision;
+  q.settingSwap.run(accountId, on, token, fee, tsMs, revision);
 }
 
 function extractUserSettings(topicId, payer, body, tsMs) {
@@ -808,6 +837,10 @@ function extractUserSettings(topicId, payer, body, tsMs) {
     const link = profileTopicAction(d);
     if (link && link.action === "set") saveSetting(q.settingTopic, payer, "topic", link.topic, tsMs);
     else if (link && link.action === "clear") clearTopicSetting(payer, tsMs);
+    // Swap is its own message. A bio or a topic link leaves it alone, and an
+    // invalid swap is not stored. No swap key means the profile stays off.
+    const swap = swapProfileAction(d);
+    if (swap && !swap.error) saveSwap(payer, swap, tsMs);
   }
 }
 
@@ -3325,9 +3358,10 @@ app.get("/api/local", publicPostLimit, (req, res) => {
 });
 
 // app: "give me the current per-account settings" — one row per user
-// (latest valid username / profile pic / click2url / bio). `ready` is true
-// only once all four profile topics are backfilled, so the app never trusts
-// a half-built table.
+// (latest valid username / profile pic / click2url / bio / topic / swap).
+// `ready` is true only once all four profile topics are backfilled, so the
+// app never trusts a half-built table. Swap columns are null until that
+// account sends a swap message, and the payload then says swap is off.
 function userSettingPayload(row) {
   return {
     accountId: row.account_id,
@@ -3336,6 +3370,11 @@ function userSettingPayload(row) {
     click2url: row.click2url || "",
     bio: row.bio || "",
     topic: row.topic || "",
+    swap: {
+      enabled: row.swap_on === 1,
+      tokenId: row.swap_token || "",
+      feeBps: Number.isInteger(row.swap_fee) ? row.swap_fee : 0,
+    },
     updatedAt: row.updated_at || 0,
   };
 }

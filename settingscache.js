@@ -1,6 +1,7 @@
-// Current username, picture link, CLICK2LINK, and bio for each account.
-// Kept until this phone clears everything saved. One card per account.
-// The revision is the server's write counter, not a message clock.
+// Current username, picture link, CLICK2LINK, bio, connected topic, and swap
+// for each account. Kept until this phone clears everything saved. One card
+// per account. The revision is the server's write counter, not a message clock.
+import { normalizeSwap } from './server/swapprofile.js';
 
 const DB_NAME = 'meritocracy-user-settings';
 const ACCOUNTS = 'accounts';
@@ -84,6 +85,7 @@ export async function writeSettings(generation, revision, rows, replace) {
         click2url: row.click2url || '',
         bio: row.bio || '',
         topic: row.topic || '',
+        swap: normalizeSwap(row.swap),
         updatedAt: Number(row.updatedAt) || 0,
       });
     }

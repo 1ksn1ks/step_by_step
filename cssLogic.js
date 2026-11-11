@@ -1765,6 +1765,7 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("edit-profile-username"),
     document.getElementById("edit-profile-click2link"),
     document.getElementById("edit-profile-bio"),
+    document.getElementById("edit-profile-swap"),
     document.getElementById("edit-profile-topic"),
     document.getElementById("edit-profile-public-key"),
   ];
@@ -1774,6 +1775,7 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("show-username-from-edit-profile"),
     document.getElementById("show-click2link-from-edit-profile"),
     document.getElementById("show-bio-from-edit-profile"),
+    document.getElementById("show-swap-from-edit-profile"),
     document.getElementById("show-topic-from-edit-profile"),
     document.getElementById("show-public-key-from-edit-profile"),
   ];
@@ -1784,6 +1786,7 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("hide-username-from-edit-profile"),
     document.getElementById("hide-click2link-from-edit-profile"),
     document.getElementById("hide-bio-from-edit-profile"),
+    document.getElementById("hide-swap-from-edit-profile"),
     document.getElementById("hide-topic-from-edit-profile"),
     document.getElementById("hide-public-key-from-edit-profile"),
   ];
@@ -1879,6 +1882,24 @@ document.getElementById("hide-topic-name-from-memo").addEventListener("click", (
     document.getElementById("hide-bio-from-edit-profile").style.display = "none";
     document.getElementById("show-bio-from-edit-profile").style.display = "block";
     document.getElementById("edit-profile-bio").style.display = "none";
+  });
+
+  document.getElementById("show-swap-from-edit-profile").addEventListener("click", (event) => {
+    editProfileEverything()
+    editProfileShowOptions()
+    editProfileHideOptions()
+    document.getElementById("hide-swap-from-edit-profile").style.display = "block";
+    document.getElementById("show-swap-from-edit-profile").style.display = "none";
+    document.getElementById("edit-profile-swap").style.display = "block";
+  });
+
+  document.getElementById("hide-swap-from-edit-profile").addEventListener("click", (event) => {
+    editProfileEverything()
+    editProfileShowOptions()
+    editProfileHideOptions()
+    document.getElementById("hide-swap-from-edit-profile").style.display = "none";
+    document.getElementById("show-swap-from-edit-profile").style.display = "block";
+    document.getElementById("edit-profile-swap").style.display = "none";
   });
 
   document.getElementById("show-topic-from-edit-profile").addEventListener("click", (event) => {
