@@ -5939,6 +5939,21 @@ html, body {
     text-overflow: ellipsis;
   }
 
+  .toast.toast-action {
+    pointer-events: auto;
+    max-width: 92dvw;
+  }
+
+  .toast-action .swap-tx-link {
+    min-width: 0;
+    overflow: hidden;
+    color: #22d3ee;
+    font-weight: 700;
+    text-decoration: underline;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
   /* Upload steps that have to stay readable. Existing toasts are unchanged. */
   .toast.toast-hold {
     max-width: 78dvw;
@@ -7075,7 +7090,7 @@ html, body {
     margin: 0;
     padding: 1dvh 2dvw;
     border: 0.15dvh solid rgba(255, 255, 255, 0.28);
-    border-radius: 999px;
+    border-radius: 999dvh;
     background: transparent;
     color: #fff;
     font: inherit;
@@ -7331,7 +7346,19 @@ html, body {
   .swap-widget saucerswap-widget {
     display: block;
     width: 100%;
+    max-width: 100%;
     min-width: 0;
+  }
+
+  .swap-trap {
+    position: absolute;
+    width: 0.1dvh;
+    height: 0.1dvh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    border: 0;
   }
 
   .swap-card.early-holder-popup {

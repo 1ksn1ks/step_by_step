@@ -10,8 +10,16 @@ import {
   mountSwapWidgetScript,
   resolveSwapButton,
   swapButtonShows,
+  associationMirrorPaths,
   swapNotice,
   swapOfferFromProfile,
+  swapReturnTarget,
+  swapSuccessToast,
+  swapTabbables,
+  swapTabDestination,
+  swapTabWrap,
+  widgetCallData,
+  widgetEntityId,
   swapWidgetConfig,
 } from "../swapoffer.js";
 
@@ -287,15 +295,110 @@ test("the widget is mainnet HBAR to the author's token, and the fee is set only 
   assert.equal(swapWidgetConfig({ projectId, tokenId: SAUCE, feeBps: 40, account: "" }).integratorFeeBps, undefined);
 });
 
-test("the association warning shows only when the mirror value is not unlimited", () => {
-  assert.equal(associationCutWarning(-1), "");
-  assert.equal(associationCutWarning("-1"), "");
-  assert.equal(associationCutWarning(null), "");
-  assert.equal(associationCutWarning(undefined), "");
-  assert.equal(associationCutWarning(1.5), "");
-  for (const max of [0, 10, "0", "10"]) {
-    assert.equal(associationCutWarning(max), ASSOCIATION_CUT_WARNING);
-  }
+test("the association warning stays quiet when the token is associated, slots are free, or the read is unknown", () => {
+  const quiet = { associated: false, count: 0 };
+  assert.equal(associationCutWarning({ ...quiet, max: -1 }), "");
+  assert.equal(associationCutWarning({ ...quiet, max: "-1" }), "");
+  assert.equal(associationCutWarning({ max: 0, associated: true, count: 0 }), "");
+  assert.equal(associationCutWarning({ max: 10, associated: false, count: 3 }), "");
+  assert.equal(associationCutWarning({ max: "10", associated: false, count: "9" }), "");
+  assert.equal(associationCutWarning({ max: null, associated: false, count: 0 }), "");
+  assert.equal(associationCutWarning({ max: 10, associated: null, count: 10 }), "");
+  assert.equal(associationCutWarning({ max: 10, associated: false, count: null }), "");
+  assert.equal(associationCutWarning({ max: 1.5, associated: false, count: 0 }), "");
+  assert.equal(associationCutWarning(), "");
+
+  assert.equal(associationCutWarning({ max: 0, associated: false, count: 0 }), ASSOCIATION_CUT_WARNING);
+  assert.equal(associationCutWarning({ max: "0", associated: false, count: 0 }), ASSOCIATION_CUT_WARNING);
+  assert.equal(associationCutWarning({ max: 10, associated: false, count: 10 }), ASSOCIATION_CUT_WARNING);
+  assert.equal(associationCutWarning({ max: "10", associated: false, count: "10" }), ASSOCIATION_CUT_WARNING);
+  assert.equal(associationCutWarning({ max: 10, associated: false, count: 11 }), ASSOCIATION_CUT_WARNING);
+
+  const paths = associationMirrorPaths("0.0.200-abc", SAUCE);
+  assert.equal(paths.account, "/api/v1/accounts/0.0.200");
+  assert.equal(paths.token, "/api/v1/accounts/0.0.200/tokens?token.id=0.0.731861&limit=1");
+  assert.equal(paths.list, "/api/v1/accounts/0.0.200/tokens?limit=100");
+  assert.equal(associationMirrorPaths("", SAUCE), null);
+});
+
+test("a successful swap toasts the transaction id and a HashScan link", () => {
+  assert.deepEqual(swapSuccessToast(null), { text: "Swap sent", id: "", href: "" });
+  assert.deepEqual(swapSuccessToast({}), { text: "Swap sent", id: "", href: "" });
+  assert.deepEqual(swapSuccessToast({ transactionId: "  " }), { text: "Swap sent", id: "", href: "" });
+  const id = "0.0.100@1780000000.000000000";
+  assert.deepEqual(swapSuccessToast({ transactionId: " " + id + " " }), {
+    text: "Swap sent",
+    id,
+    href: "https://hashscan.io/mainnet/transaction/" + encodeURIComponent(id),
+  });
+});
+
+test("Tab stays in the dialog and focus returns to the control that opened it", () => {
+  const close = { disabled: false, hidden: false, tabIndex: 0, classList: { contains() { return false; } }, shadowRoot: null };
+  const inner = { disabled: false, hidden: false, tabIndex: 0, classList: { contains() { return false; } }, shadowRoot: null };
+  const widget = {
+    disabled: false,
+    hidden: false,
+    tabIndex: -1,
+    classList: { contains() { return false; } },
+    shadowRoot: { querySelectorAll() { return [inner]; } },
+  };
+  const trap = {
+    disabled: false,
+    hidden: false,
+    tabIndex: 0,
+    classList: { contains(name) { return name === "swap-trap"; } },
+    shadowRoot: null,
+  };
+  const root = { querySelectorAll() { return [trap, close, widget]; } };
+  assert.deepEqual(swapTabbables(root), [close, inner]);
+  assert.equal(swapTabWrap([close, inner], close, false), null);
+  assert.equal(swapTabWrap([close, inner], inner, false), close);
+  assert.equal(swapTabWrap([close, inner], close, true), inner);
+  assert.equal(swapTabWrap([close, inner], inner, true), null);
+  assert.equal(swapTabDestination([close], close, false, true), null);
+  assert.equal(swapTabDestination([close], close, true, true), null);
+  assert.equal(swapTabDestination([close, inner], inner, false, false), close);
+
+  const visible = { hidden: false, parentElement: null, disabled: false, isConnected: true };
+  assert.equal(swapReturnTarget(visible), visible);
+  assert.equal(swapReturnTarget({ isConnected: false }), null);
+  const trigger = { hidden: false, parentElement: null, disabled: false, isConnected: true };
+  const menu = {
+    hidden: false,
+    parentElement: null,
+    querySelector(sel) { return sel === ".post-menu-btn" ? trigger : null; },
+  };
+  const pop = { hidden: true, parentElement: menu, disabled: false, isConnected: true };
+  const item = {
+    hidden: false,
+    parentElement: pop,
+    disabled: false,
+    isConnected: true,
+    closest(sel) { return sel === ".post-menu" ? menu : null; },
+  };
+  assert.equal(swapReturnTarget(item), trigger);
+  const hiddenSheet = { hidden: true, parentElement: null };
+  const donateSwap = {
+    hidden: false,
+    parentElement: hiddenSheet,
+    disabled: false,
+    isConnected: true,
+    closest() { return null; },
+  };
+  assert.equal(swapReturnTarget(donateSwap), null);
+});
+
+test("widget addresses become Hedera ids and calldata stays bytes", () => {
+  assert.equal(widgetEntityId("0.0.731861"), SAUCE);
+  assert.equal(widgetEntityId("hedera:mainnet:0.0.731861"), SAUCE);
+  assert.equal(widgetEntityId("0x0df73542cc68bdc01b361d231c60f726b0e0bc05"), "0.0.10495847");
+  const sauceHex = "0x" + (731861).toString(16).padStart(40, "0");
+  assert.equal(widgetEntityId(sauceHex), SAUCE);
+  assert.equal(widgetEntityId("0xabc"), "");
+  assert.deepEqual([...widgetCallData("0xabcd")], [0xab, 0xcd]);
+  assert.equal(widgetCallData("").length, 0);
+  assert.equal(widgetCallData("0xzz"), null);
 });
 
 test("the widget script tag is created once and only from the sheet opener", () => {
@@ -320,14 +423,33 @@ test("the widget script tag is created once and only from the sheet opener", () 
 
   const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
   const offer = fs.readFileSync(new URL("../swapoffer.js", import.meta.url), "utf8");
+  const wallet = fs.readFileSync(new URL("../swapwallet.js", import.meta.url), "utf8");
+  const rest = fs.readFileSync(new URL("../rest.js", import.meta.url), "utf8");
+  const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
   assert.equal(sheet.includes("/api/donations"), false);
   assert.equal(offer.includes("/api/donations"), false);
+  assert.equal(wallet.includes("/api/donations"), false);
   assert.match(sheet, /loadWidgetScript\(\)/);
   assert.match(sheet, /mountSwapWidgetScript\(document\)/);
+  assert.match(sheet, /swap-success/);
+  assert.match(sheet, /swapSuccessToast\(event && event\.detail\)/);
+  assert.match(sheet, /externalWallet/);
+  assert.match(sheet, /walletconnect-request/);
+  assert.match(sheet, /swapReturnTarget/);
+  assert.match(sheet, /swap-trap/);
+  assert.match(sheet, /globeSwapWallet/);
+  assert.match(wallet, /signer\.call/);
+  assert.match(wallet, /isEvm: false/);
+  assert.match(rest, /associationMirrorPaths/);
+  assert.match(rest, /associationCutWarning\(\{ max, associated, count \}\)/);
+  const donateSwap = css.slice(css.indexOf(".donate-swap {"), css.indexOf(".donate-swap[hidden]"));
+  assert.equal(donateSwap.includes("px"), false);
+  assert.match(donateSwap, /border-radius: 999dvh/);
   const menu = fs.readFileSync(new URL("../postmenu.js", import.meta.url), "utf8");
   const donations = fs.readFileSync(new URL("../donations.js", import.meta.url), "utf8");
   assert.match(menu, /post-menu-swap/);
   assert.match(menu, /swapItem\.hidden = own \|\| !swapReady/);
+  assert.match(menu, /opener: swapItem/);
   assert.match(donations, /donate-swap/);
   assert.match(donations, /openSwapSheet\(/);
 });

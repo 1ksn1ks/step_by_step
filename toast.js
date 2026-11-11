@@ -45,7 +45,10 @@ function show(message, type = "info", options = null) {
     el.remove();
   };
 
+  if (options && options.action) el.classList.add("toast-action");
+
   if (!stay) {
+    const life = options && Number.isFinite(options.ms) ? options.ms : DURATION;
     setTimeout(() => {
       if (removed) return;
       el.classList.remove("toast-show");
@@ -53,13 +56,13 @@ function show(message, type = "info", options = null) {
       el.addEventListener("transitionend", () => el.remove(), { once: true });
       el.addEventListener("animationend", () => el.remove(), { once: true });
       setTimeout(() => el.remove(), 700);
-    }, DURATION);
+    }, life);
   }
   return { done };
 }
 
 export const toast = {
-  success: (msg) => show(msg, "success"),
+  success: (msg, options) => show(msg, "success", options),
   error: (msg, options) => show(msg, "error", options),
   info: (msg) => show(msg, "info"),
   loaded: (msg) => show(msg, "loaded"),

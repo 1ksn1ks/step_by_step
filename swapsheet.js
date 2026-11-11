@@ -7,10 +7,16 @@
 import { PROJECT_ID } from "./web3.js";
 import { EARLY_POPUP_CLASS } from "./earlypopup.js";
 import { toast } from "./toast.js";
+import { globeSwapWallet } from "./swapwallet.js";
 import {
+  deepActiveElement,
   fillSwapWidget,
   mountSwapWidgetScript,
   swapNotice,
+  swapReturnTarget,
+  swapSuccessToast,
+  swapTabbables,
+  swapTabDestination,
   swapWidgetConfig,
 } from "./swapoffer.js";
 
@@ -20,6 +26,7 @@ let sheet = null;
 let scriptFlight = null;
 let openGen = 0;
 let fitted = false;
+let returnFocus = null;
 
 const refreshes = new Set();
 let watchInstalled = false;
@@ -116,6 +123,13 @@ function paintChrome(host) {
   card.style.fontFamily = host ? (getComputedStyle(host).fontFamily || "") : "";
 }
 
+function focusReturn() {
+  const opener = returnFocus;
+  returnFocus = null;
+  const target = swapReturnTarget(opener);
+  if (target && typeof target.focus === "function") target.focus({ preventScroll: true });
+}
+
 function closeSheet() {
   if (!sheet) return;
   openGen += 1;
@@ -123,6 +137,26 @@ function closeSheet() {
   stopFit();
   const slot = sheetPart(".swap-widget");
   if (slot) slot.replaceChildren();
+  focusReturn();
+}
+
+function trapSentinel(which) {
+  const el = document.createElement("span");
+  el.className = "swap-trap";
+  el.tabIndex = 0;
+  el.dataset.swapTrap = which;
+  el.setAttribute("aria-hidden", "true");
+  return el;
+}
+
+function txLink(notice) {
+  const link = document.createElement("a");
+  link.className = "swap-tx-link";
+  link.href = notice.href;
+  link.target = "_blank";
+  link.rel = "noopener";
+  link.textContent = notice.id;
+  return link;
 }
 
 function ensureSheet() {
@@ -162,11 +196,18 @@ function ensureSheet() {
   slot.className = "swap-widget";
 
   card.append(head, note, error, slot);
-  root.appendChild(card);
+  root.append(trapSentinel("start"), card, trapSentinel("end"));
 
   cancel.addEventListener("click", (event) => {
     event.preventDefault();
     closeSheet();
+  });
+  root.addEventListener("focusin", (event) => {
+    const which = event.target && event.target.dataset ? event.target.dataset.swapTrap : "";
+    if (which !== "start" && which !== "end") return;
+    const items = swapTabbables(card);
+    const next = which === "start" ? items[items.length - 1] : items[0];
+    if (next && next !== event.target) next.focus({ preventScroll: true });
   });
   root.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -174,11 +215,23 @@ function ensureSheet() {
   });
   card.addEventListener("click", (event) => event.stopPropagation());
   document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || !sheet || sheet.hidden) return;
+    if (!sheet || sheet.hidden) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      closeSheet();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const items = swapTabbables(card);
+    const widget = card.querySelector("saucerswap-widget");
+    const closedShadow = !!(widget && !widget.shadowRoot);
+    const next = swapTabDestination(items, deepActiveElement(document), event.shiftKey, closedShadow);
+    if (!next) return;
     event.preventDefault();
     event.stopPropagation();
-    event.stopImmediatePropagation();
-    closeSheet();
+    next.focus({ preventScroll: true });
   }, true);
 
   document.body.appendChild(root);
@@ -190,6 +243,7 @@ export async function openSwapSheet(details) {
   const gen = ++openGen;
   const root = ensureSheet();
   const offer = details || {};
+  returnFocus = offer.opener || null;
   const config = swapWidgetConfig({
     projectId: PROJECT_ID,
     tokenId: offer.tokenId,
@@ -221,6 +275,19 @@ export async function openSwapSheet(details) {
     if (gen !== openGen || root.hidden || !slot) return;
     const el = document.createElement(WIDGET);
     fillSwapWidget(el, config);
+    let wallet = null;
+    try { wallet = globeSwapWallet(); } catch { wallet = null; }
+    if (wallet) el.externalWallet = wallet;
+    el.addEventListener("walletconnect-request", (event) => {
+      if (wallet && wallet.isConnected) event.preventDefault();
+    });
+    el.addEventListener("swap-success", (event) => {
+      if (gen !== openGen) return;
+      const notice = swapSuccessToast(event && event.detail);
+      if (notice.href) toast.success(notice.text, { action: txLink(notice), ms: 6000 });
+      else toast.success(notice.text);
+      closeSheet();
+    });
     slot.replaceChildren(el);
   } catch {
     if (gen !== openGen || root.hidden) return;

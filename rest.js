@@ -9,7 +9,7 @@ import {adjustTextareaHeight} from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
 import { loadAllData, showOwnProfile, profileTopics, profileSwaps } from './loadalladata';
 import { swapProfileAction } from './server/swapprofile.js';
-import { associationCutWarning } from './swapoffer.js';
+import { associationCutWarning, associationMirrorPaths } from './swapoffer.js';
 import { bareAccount } from './donationmath.js';
 import { connectProfileTopic, removeProfileTopic } from './followtopic';
 import { debounce } from './debounce';
@@ -1988,28 +1988,64 @@ function feeDraft() {
 
 let assocGen = 0;
 
+function tokenDraft() {
+  const token = document.getElementById("edit-profile-swap-token");
+  return bareAccount(token ? token.value : "");
+}
+
+const MIRROR_ORIGIN = "https://mainnet.mirrornode.hedera.com";
+
+async function associatedTokenCount(listPath, slots) {
+  let url = MIRROR_ORIGIN + listPath;
+  let count = 0;
+  for (let page = 0; page < 20; page += 1) {
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || !Array.isArray(data.tokens)) return null;
+    count += data.tokens.length;
+    if (count >= slots) return count;
+    const next = data.links && typeof data.links.next === "string" ? data.links.next : "";
+    if (!next) return count;
+    url = next.startsWith("http") ? next : MIRROR_ORIGIN + next;
+  }
+  return null;
+}
+
 async function refreshSwapAssociation() {
   const gen = ++assocGen;
   const fee = feeDraft();
-  if (!(fee > 0)) {
+  const tokenId = tokenDraft();
+  if (!(fee > 0) || !tokenId) {
     if (gen === assocGen) showAssocWarning("");
     return "";
   }
   const account = bareAccount(connectedAccount);
-  if (!account) {
+  const paths = account ? associationMirrorPaths(account, tokenId) : null;
+  if (!paths) {
     if (gen === assocGen) showAssocWarning("");
     return "";
   }
   let text = "";
   try {
-    const res = await fetch(
-      `https://mainnet.mirrornode.hedera.com/api/v1/accounts/${encodeURIComponent(account)}`,
-      { signal: AbortSignal.timeout(4000) }
-    );
-    const data = await res.json().catch(() => null);
-    if (res.ok && data && Object.prototype.hasOwnProperty.call(data, "max_automatic_token_associations")) {
-      text = associationCutWarning(data.max_automatic_token_associations);
+    const [accountRes, tokenRes] = await Promise.all([
+      fetch(MIRROR_ORIGIN + paths.account, { signal: AbortSignal.timeout(4000) }),
+      fetch(MIRROR_ORIGIN + paths.token, { signal: AbortSignal.timeout(4000) }),
+    ]);
+    const accountData = await accountRes.json().catch(() => null);
+    const tokenData = await tokenRes.json().catch(() => null);
+    const max = accountRes.ok && accountData && Object.prototype.hasOwnProperty.call(accountData, "max_automatic_token_associations")
+      ? accountData.max_automatic_token_associations
+      : null;
+    const associated = tokenRes.ok && tokenData && Array.isArray(tokenData.tokens)
+      ? tokenData.tokens.length > 0
+      : null;
+    let count = null;
+    const slots = typeof max === "string" && /^\d+$/.test(max.trim()) ? Number(max.trim()) : max;
+    if (associated === false && Number.isInteger(slots) && slots > 0) {
+      count = await associatedTokenCount(paths.list, slots);
     }
+    if (gen !== assocGen) return "";
+    text = associationCutWarning({ max, associated, count });
   } catch {
     text = "";
   }
@@ -2049,6 +2085,10 @@ document.getElementById("edit-profile-swap-enabled").addEventListener("click", (
 });
 
 document.getElementById("edit-profile-swap-fee").addEventListener("input", () => {
+  scheduleSwapAssociation();
+});
+
+document.getElementById("edit-profile-swap-token").addEventListener("input", () => {
   scheduleSwapAssociation();
 });
 

@@ -304,6 +304,7 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
       symbol: swapReady.token.symbol,
       dueDiligenceComplete: swapReady.token.dueDiligenceComplete,
       host: root.closest('.' + EARLY_POPUP_CLASS),
+      opener: swapItem,
     });
   });
   pick(copyItem, () => {

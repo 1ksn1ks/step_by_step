@@ -406,7 +406,7 @@ function ensureSheet() {
   swap.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    openDonateSwap();
+    openDonateSwap(event.currentTarget);
   });
   actions.append(send, swap);
   form.append(chips, amount, memoField, error, actions);
@@ -547,11 +547,11 @@ function showSheet(topicId, ts, account, host) {
   if (amount) amount.focus({ preventScroll: true });
 }
 
-function openDonateSwap() {
+function openDonateSwap(opener) {
   if (sheetBusy || !donateSwap) return;
   const payload = donateSwap;
   closeSheet();
-  openSwapSheet(payload);
+  openSwapSheet({ ...payload, opener: opener || null });
 }
 
 async function loadDonateSwap() {
