@@ -772,11 +772,16 @@ test("the swap sheet shows the creator bio above the safety line", () => {
   assert.match(column, /id="show-swap-bio-from-edit-profile"/);
   assert.match(column, /Swap bio ✅/);
   assert.match(column, /Swap bio ⛔/);
+  const swapFields = page.slice(page.indexOf('id="edit-profile-swap-token"'), page.indexOf('id="edit-profile-swap-bio"'));
+  assert.match(swapFields, /placeholder="Token ID \(0\.0\.x\)" aria-label="Token ID \(0\.0\.x\)"/);
+  assert.match(swapFields, /placeholder="Fee bps, 0–500" aria-label="Fee bps, 0–500"/);
   const editor = page.slice(page.indexOf('id="edit-profile-swap-bio"'), page.indexOf('id="domain-help-overlay"'));
+  assert.match(editor, /placeholder="Swap bio" aria-label="Swap bio" aria-describedby="swap-bio-count"/);
+  assert.match(editor, /id="swap-bio-count" class="swap-bio-count" aria-live="polite"/);
   assert.match(editor, /maxlength="280"/);
-  assert.match(editor, /id="swap-bio-count"/);
   assert.match(editor, />Save</);
   assert.equal(editor.includes("px"), false);
   const rest = fs.readFileSync(new URL("../rest.js", import.meta.url), "utf8");
   assert.match(rest, /JSON\.stringify\(\{ data: \{ swapBio: parsed\.text \} \}\)/);
+  assert.match(rest, /toast\.error\("Swap bio not saved"\)/);
 });

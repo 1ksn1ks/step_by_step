@@ -2190,6 +2190,7 @@ document.getElementById("button_for_swap_bio").addEventListener("click", async (
     debounce(loadAllData(), 10000);
   } catch (error) {
     console.error("Error updating swap bio:", error);
+    toast.error("Swap bio not saved");
   }
 });
 

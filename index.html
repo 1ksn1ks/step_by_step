@@ -361,11 +361,11 @@
 
           <div id="edit-profile-swap" style="display: none;">
             <button id="edit-profile-swap-enabled" class="toolbar-column-btns" type="button" aria-pressed="false">Swap off</button>
-            <textarea id="edit-profile-swap-token" placeholder="Token ID (0.0.x)"
+            <textarea id="edit-profile-swap-token" placeholder="Token ID (0.0.x)" aria-label="Token ID (0.0.x)"
             class="toolbar-column" onclick="event.stopPropagation();"
             oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
-            <textarea id="edit-profile-swap-fee" placeholder="Fee bps, 0–500" inputmode="numeric"
+            <textarea id="edit-profile-swap-fee" placeholder="Fee bps, 0–500" aria-label="Fee bps, 0–500" inputmode="numeric"
             class="toolbar-column" onclick="event.stopPropagation();"
             oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
@@ -376,10 +376,10 @@
 
           <div id="edit-profile-swap-bio" style="display: none;">
             <div class="swap-bio-field">
-              <textarea id="edit-profile-swap-bio-input" placeholder="Swap bio" maxlength="280"
+              <textarea id="edit-profile-swap-bio-input" placeholder="Swap bio" aria-label="Swap bio" aria-describedby="swap-bio-count" maxlength="280"
               class="toolbar-column" onclick="event.stopPropagation();"
               ></textarea>
-              <div id="swap-bio-count" class="swap-bio-count">0/280</div>
+              <div id="swap-bio-count" class="swap-bio-count" aria-live="polite">0/280</div>
             </div>
             <button class="toolbar-column-btns" id="button_for_swap_bio" type="button">Save</button>
           </div>
