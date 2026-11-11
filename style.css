@@ -7253,6 +7253,12 @@ html, body {
   }
 
   .swap-card {
+    /* Bottom edge meets the screen. Its own radius is square; where
+       --screen-r-bottom is set (portrait, keyboard down) it follows that
+       curve, and the bottom content steps in like a popup footer. */
+    --swap-r: 0dvh;
+    --swap-r-bottom: max(var(--swap-r), var(--screen-r-bottom, 0dvh));
+    --corner-clear: max(0dvh, calc((var(--screen-r-bottom, 0dvh) - 2.2dvh) * 0.293 + 0.4dvh));
     width: 100%;
     max-height: 100%;
     box-sizing: border-box;
@@ -7263,9 +7269,12 @@ html, body {
     overflow: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
-    padding: 1.6dvh 4dvw calc(2.2dvh + env(safe-area-inset-bottom, 0));
+    padding-top: 1.6dvh;
+    padding-right: calc(4dvw + var(--corner-clear));
+    padding-bottom: calc(2.2dvh + env(safe-area-inset-bottom, 0) + max(0dvh, var(--corner-clear) - 2.2dvh));
+    padding-left: calc(4dvw + var(--corner-clear));
     border: 0.12dvh solid rgba(255, 255, 255, 0.16);
-    border-radius: 2.4dvh 2.4dvh 0 0;
+    border-radius: 2.4dvh 2.4dvh var(--swap-r-bottom) var(--swap-r-bottom);
     background: rgb(15, 15, 20);
     box-shadow: inset 0 0.12dvh 0 rgba(255, 255, 255, 0.12), 0 -1.2dvh 3dvh rgba(0, 0, 0, 0.45);
     color: #fff;

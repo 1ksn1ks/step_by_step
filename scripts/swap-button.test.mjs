@@ -762,6 +762,13 @@ test("the swap sheet shows the creator bio above the safety line", () => {
   assert.equal(sheet.includes("innerHTML"), false);
 
   const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  const cardAt = css.indexOf("  .swap-card {");
+  const cardCss = css.slice(cardAt, css.indexOf("  @media (min-width: 100dvh)", cardAt));
+  assert.match(cardCss, /--swap-r-bottom: max\(var\(--swap-r\), var\(--screen-r-bottom, 0dvh\)\)/);
+  assert.match(cardCss, /border-radius: 2\.4dvh 2\.4dvh var\(--swap-r-bottom\) var\(--swap-r-bottom\)/);
+  assert.match(cardCss, /--corner-clear: max\(0dvh, calc\(\(var\(--screen-r-bottom, 0dvh\) - 2\.2dvh\) \* 0\.293 \+ 0\.4dvh\)\)/);
+  assert.match(cardCss, /env\(safe-area-inset-bottom, 0\)/);
+  assert.equal(cardCss.includes("px"), false);
   const bioCss = css.slice(css.indexOf(".swap-bio {"), css.indexOf(".swap-note {"));
   assert.equal(bioCss.includes("px"), false);
   const countCss = css.slice(css.indexOf(".swap-bio-count {"), css.indexOf("#edit-profile-key-note"));
