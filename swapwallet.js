@@ -18,20 +18,17 @@ import {
 } from "@hiero-ledger/sdk";
 import { connectedAccount, signer } from "./web3.js";
 import { bareAccount } from "./donationmath.js";
-import { widgetCallData, widgetEntityId } from "./swapoffer.js";
+import {
+  SWAP_MAINNET_NODES,
+  prepareSwapContract,
+  swapAllowanceLong,
+  widgetEntityId,
+} from "./swapoffer.js";
 
 function live() {
   const id = bareAccount(connectedAccount);
   if (!id || !signer) return null;
   return { id, signer };
-}
-
-function contractIdOf(to) {
-  const id = widgetEntityId(to);
-  if (id) return ContractId.fromString(id);
-  const raw = String(to == null ? "" : to).trim().replace(/^hedera:(mainnet|testnet):/i, "");
-  if (/^0x[0-9a-f]{40}$/i.test(raw)) return ContractId.fromEvmAddress(0, 0, raw);
-  return null;
 }
 
 function feeFor(request) {
@@ -43,7 +40,8 @@ function feeFor(request) {
 
 function freezeFor(tx, accountId) {
   tx.setTransactionId(TransactionId.generate(AccountId.fromString(accountId)));
-  tx.setNodeAccountIds([AccountId.fromString("0.0.3")]);
+  // The signer sends this frozen list on. It does not fill in nodes itself.
+  tx.setNodeAccountIds(SWAP_MAINNET_NODES.map((id) => AccountId.fromString(id)));
   tx.freeze();
   return tx;
 }
@@ -62,16 +60,14 @@ async function submit(tx, onStatusChange) {
 
 async function executeContract(request) {
   const call = request || {};
-  const contract = contractIdOf(call.to);
-  const data = widgetCallData(call.data);
-  if (!contract || !data) throw new Error("Swap transaction could not be built");
+  const prepared = prepareSwapContract(call);
   const tx = new ContractExecuteTransaction()
-    .setContractId(contract)
-    .setGas(call.gasLimit || 1200000)
-    .setFunctionParameters(data)
+    .setContractId(ContractId.fromString(prepared.contractId))
+    .setGas(prepared.gasLimit)
+    .setFunctionParameters(prepared.data)
     .setMaxTransactionFee(feeFor(call));
-  if (typeof call.valueTinybar === "bigint" && call.valueTinybar > 0n) {
-    tx.setPayableAmount(Hbar.fromTinybars(call.valueTinybar.toString()));
+  if (prepared.payableTinybars != null) {
+    tx.setPayableAmount(Hbar.fromTinybars(prepared.payableTinybars.toString()));
   }
   return submit(tx, call.onStatusChange);
 }
@@ -91,12 +87,12 @@ async function associate(tokenId, onStatusChange) {
 async function approve(tokenId, spenderId, amount, onStatusChange) {
   const session = live();
   if (!session) throw new Error("Connect wallet first");
-  if (typeof amount !== "bigint" || amount <= 0n) throw new Error("Allowance amount must be greater than zero");
+  const allowance = swapAllowanceLong(amount);
   const token = widgetEntityId(tokenId);
   const spender = widgetEntityId(spenderId);
   if (!token || !spender) throw new Error("Wallet does not support token approval");
   const tx = new AccountAllowanceApproveTransaction()
-    .approveTokenAllowance(TokenId.fromString(token), AccountId.fromString(session.id), AccountId.fromString(spender), amount)
+    .approveTokenAllowance(TokenId.fromString(token), AccountId.fromString(session.id), AccountId.fromString(spender), allowance)
     .setMaxTransactionFee(new Hbar(5));
   return submit(tx, onStatusChange);
 }

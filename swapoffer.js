@@ -3,6 +3,7 @@
 // stays hidden until GET /api/swap/token/:tokenId says pool is true.
 // A swap is not a donation. Nothing here posts to the donations API.
 
+import Long from "long";
 import { normalizeSwap } from "./server/swapprofile.js";
 import { bareAccount } from "./donationmath.js";
 
@@ -119,7 +120,15 @@ export function associationMirrorPaths(account, tokenId) {
 
 const ROUTER_EVM = "0x0df73542cc68bdc01b361d231c60f726b0e0bc05";
 const ROUTER_ID = "0.0.10495847";
+const UNIVERSAL_ROUTER_ID = "0.0.10628061";
 const LONG_ZERO = /^0x0{24}[0-9a-f]{16}$/i;
+const TINYBAR_TEXT = /^(0|[1-9]\d*)$/;
+const MAX_TINYBAR = 9223372036854775807n;
+const SWAP_ROUTER_IDS = new Set([ROUTER_ID, UNIVERSAL_ROUTER_ID]);
+
+// These three are in the SDK mainnet address book. DAppSigner.call does not
+// choose a node; it signs whatever list was frozen.
+export const SWAP_MAINNET_NODES = ["0.0.3", "0.0.4", "0.0.6"];
 
 // Hedera id for a widget address. "" when it is some other 0x contract.
 export function widgetEntityId(value) {
@@ -137,6 +146,60 @@ export function widgetCallData(data) {
   const out = new Uint8Array(hex.length / 2);
   for (let i = 0; i < out.length; i += 1) out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   return out;
+}
+
+// null when nothing is payable. A value that is present but not an exact
+// non-negative tinybar amount throws, so the wallet does not send 0 HBAR.
+export function swapPayableTinybars(value) {
+  if (value == null) return null;
+  let tiny;
+  if (typeof value === "bigint") tiny = value;
+  else if (typeof value === "number") {
+    if (!Number.isSafeInteger(value)) throw new Error("Swap amount could not be read");
+    tiny = BigInt(value);
+  } else if (typeof value === "string" && TINYBAR_TEXT.test(value.trim())) {
+    tiny = BigInt(value.trim());
+  } else {
+    throw new Error("Swap amount could not be read");
+  }
+  if (tiny < 0n || tiny > MAX_TINYBAR) throw new Error("Swap amount could not be read");
+  return tiny === 0n ? null : tiny;
+}
+
+// "" when no address was given. Any other address that is not one of the
+// widget's routers throws.
+export function swapRouterId(to) {
+  const raw = String(to == null ? "" : to).trim();
+  if (!raw) return "";
+  if (/^hedera:testnet:/i.test(raw)) throw new Error("Swap contract not allowed");
+  const id = widgetEntityId(raw);
+  if (!SWAP_ROUTER_IDS.has(id)) throw new Error("Swap contract not allowed");
+  return id;
+}
+
+export function prepareSwapContract(call) {
+  const request = call && typeof call === "object" ? call : {};
+  const contractId = swapRouterId(request.to);
+  const data = widgetCallData(request.data);
+  if (!contractId || !data) throw new Error("Swap transaction could not be built");
+  return {
+    contractId,
+    data,
+    payableTinybars: swapPayableTinybars(request.valueTinybar),
+    gasLimit: request.gasLimit || 1200000,
+  };
+}
+
+// The SDK stores the allowance as a Long. fromString wraps past 64 bits,
+// so the text has to come back unchanged.
+export function swapAllowanceLong(amount) {
+  if (typeof amount !== "bigint" || amount <= 0n) {
+    throw new Error("Allowance amount must be greater than zero");
+  }
+  const text = amount.toString();
+  const long = Long.fromString(text);
+  if (long.toString() !== text) throw new Error("Allowance amount must be greater than zero");
+  return long;
 }
 
 // Toast copy for swap-success. No href when the event has no transaction id.

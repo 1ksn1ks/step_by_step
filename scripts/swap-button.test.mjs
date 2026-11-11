@@ -21,7 +21,22 @@ import {
   widgetCallData,
   widgetEntityId,
   swapWidgetConfig,
+  SWAP_MAINNET_NODES,
+  prepareSwapContract,
+  swapAllowanceLong,
+  swapPayableTinybars,
+  swapRouterId,
 } from "../swapoffer.js";
+import {
+  AccountAllowanceApproveTransaction,
+  AccountId,
+  ContractExecuteTransaction,
+  ContractId,
+  Hbar,
+  TokenId,
+  Transaction,
+  TransactionId,
+} from "@hiero-ledger/sdk";
 
 const AUTHOR = "0.0.200";
 const VIEWER = "0.0.100";
@@ -452,4 +467,128 @@ test("the widget script tag is created once and only from the sheet opener", () 
   assert.match(menu, /opener: swapItem/);
   assert.match(donations, /donate-swap/);
   assert.match(donations, /openSwapSheet\(/);
+});
+
+const UNIVERSAL = "0.0.10628061";
+const UNIVERSAL_EVM = "0x0000000000000000000000000000000000a22bdd";
+const ROUTER = "0.0.10495847";
+const ROUTER_EVM = "0x0df73542cc68bdc01b361d231c60f726b0e0bc05";
+const AMOUNT_ERROR = /Swap amount could not be read/;
+const CONTRACT_ERROR = /Swap contract not allowed/;
+
+test("a swap amount is a bigint, an integer, or a decimal string", () => {
+  assert.equal(swapPayableTinybars(undefined), null);
+  assert.equal(swapPayableTinybars(null), null);
+  assert.equal(swapPayableTinybars(0n), null);
+  assert.equal(swapPayableTinybars(0), null);
+  assert.equal(swapPayableTinybars("0"), null);
+  assert.equal(swapPayableTinybars(150n), 150n);
+  assert.equal(swapPayableTinybars(150), 150n);
+  assert.equal(swapPayableTinybars("150"), 150n);
+  assert.equal(swapPayableTinybars(" 150 "), 150n);
+  const wide = 9007199254740993n;
+  assert.equal(swapPayableTinybars(wide), wide);
+  assert.equal(swapPayableTinybars(wide.toString()), wide);
+  for (const bad of ["", "   ", "1.5", "0x10", "01", "+15", "-1", "1e2", true, 1.5, -1, -1n, 2 ** 53, {}, [], "9007199254740993.0"]) {
+    assert.throws(() => swapPayableTinybars(bad), AMOUNT_ERROR);
+  }
+  assert.throws(() => swapPayableTinybars(9223372036854775808n), AMOUNT_ERROR);
+
+  const prepared = prepareSwapContract({
+    to: UNIVERSAL,
+    data: "0xabcd",
+    valueTinybar: wide.toString(),
+  });
+  assert.equal(prepared.contractId, UNIVERSAL);
+  assert.equal(prepared.payableTinybars, wide);
+  const tx = new ContractExecuteTransaction()
+    .setPayableAmount(Hbar.fromTinybars(prepared.payableTinybars.toString()));
+  assert.equal(tx.payableAmount.toTinybars().toString(), wide.toString());
+
+  const zero = prepareSwapContract({ to: UNIVERSAL_EVM, data: "0x", valueTinybar: 0n });
+  assert.equal(zero.contractId, UNIVERSAL);
+  assert.equal(zero.payableTinybars, null);
+  assert.throws(() => prepareSwapContract({
+    to: UNIVERSAL,
+    data: "0xabcd",
+    valueTinybar: "nope",
+  }), AMOUNT_ERROR);
+
+  const wallet = fs.readFileSync(new URL("../swapwallet.js", import.meta.url), "utf8");
+  assert.match(wallet, /prepareSwapContract\(call\)/);
+  assert.match(wallet, /prepared\.payableTinybars != null/);
+  assert.match(wallet, /Hbar\.fromTinybars\(prepared\.payableTinybars\.toString\(\)\)/);
+  assert.equal(wallet.includes('typeof call.valueTinybar === "bigint"'), false);
+});
+
+test("a swap contract call is limited to the widget routers", () => {
+  assert.equal(swapRouterId(ROUTER), ROUTER);
+  assert.equal(swapRouterId(ROUTER_EVM), ROUTER);
+  assert.equal(swapRouterId("hedera:mainnet:" + ROUTER), ROUTER);
+  assert.equal(swapRouterId(UNIVERSAL), UNIVERSAL);
+  assert.equal(swapRouterId(UNIVERSAL_EVM), UNIVERSAL);
+  assert.equal(swapRouterId("hedera:mainnet:" + UNIVERSAL_EVM), UNIVERSAL);
+  assert.equal(swapRouterId(""), "");
+  assert.equal(swapRouterId(null), "");
+  for (const blocked of [
+    "0.0.3045981",
+    "0.0.3949434",
+    "0.0.6755814",
+    "0.0.10527448",
+    "0.0.731861",
+    "0x8d53a86b10b503f284a0ea9e8316bc6081432a96",
+    "0xabc",
+    "hedera:testnet:" + UNIVERSAL,
+  ]) {
+    assert.throws(() => swapRouterId(blocked), CONTRACT_ERROR);
+  }
+  assert.throws(() => prepareSwapContract({ to: "0.0.3", data: "0xab", valueTinybar: 1n }), CONTRACT_ERROR);
+  assert.throws(() => prepareSwapContract({ to: "", data: "0xab" }), /Swap transaction could not be built/);
+  assert.equal(prepareSwapContract({ to: ROUTER_EVM, data: "0xab" }).contractId, ROUTER);
+
+  const wallet = fs.readFileSync(new URL("../swapwallet.js", import.meta.url), "utf8");
+  assert.equal(wallet.includes("fromEvmAddress"), false);
+});
+
+test("an allowance bigint round-trips as the SDK Long", () => {
+  const amount = 9007199254740993n;
+  const long = swapAllowanceLong(amount);
+  assert.equal(long.toString(), amount.toString());
+  const tx = new AccountAllowanceApproveTransaction().approveTokenAllowance(
+    TokenId.fromString(SAUCE),
+    AccountId.fromString(VIEWER),
+    AccountId.fromString(ROUTER),
+    long,
+  );
+  assert.equal(tx.tokenApprovals.length, 1);
+  assert.equal(tx.tokenApprovals[0].amount.toString(), amount.toString());
+  assert.throws(() => swapAllowanceLong(0n), /Allowance amount must be greater than zero/);
+  assert.throws(() => swapAllowanceLong(-1n), /Allowance amount must be greater than zero/);
+  assert.throws(() => swapAllowanceLong(1), /Allowance amount must be greater than zero/);
+  const overflow = 9223372036854775808n;
+  assert.throws(() => swapAllowanceLong(overflow), /Allowance amount must be greater than zero/);
+
+  const wallet = fs.readFileSync(new URL("../swapwallet.js", import.meta.url), "utf8");
+  assert.match(wallet, /swapAllowanceLong\(amount\)/);
+  assert.match(wallet, /approveTokenAllowance\(TokenId\.fromString\(token\), AccountId\.fromString\(session\.id\), AccountId\.fromString\(spender\), allowance\)/);
+});
+
+test("a frozen swap lists several mainnet nodes", () => {
+  assert.deepEqual(SWAP_MAINNET_NODES, ["0.0.3", "0.0.4", "0.0.6"]);
+  const tx = new ContractExecuteTransaction()
+    .setContractId(ContractId.fromString(UNIVERSAL))
+    .setGas(1200000)
+    .setFunctionParameters(new Uint8Array([0xab]))
+    .setTransactionId(TransactionId.generate(AccountId.fromString(VIEWER)))
+    .setNodeAccountIds(SWAP_MAINNET_NODES.map((id) => AccountId.fromString(id)))
+    .setPayableAmount(Hbar.fromTinybars("100"));
+  tx.freeze();
+  const parsed = Transaction.fromBytes(tx.toBytes());
+  assert.deepEqual(parsed.nodeAccountIds.map((id) => id.toString()), SWAP_MAINNET_NODES);
+  assert.equal(parsed.contractId.toString(), UNIVERSAL);
+  assert.equal(parsed.payableAmount.toTinybars().toString(), "100");
+
+  const wallet = fs.readFileSync(new URL("../swapwallet.js", import.meta.url), "utf8");
+  assert.match(wallet, /SWAP_MAINNET_NODES\.map\(\(id\) => AccountId\.fromString\(id\)\)/);
+  assert.equal(wallet.includes('AccountId.fromString("0.0.3")'), false);
 });
