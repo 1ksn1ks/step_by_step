@@ -209,7 +209,7 @@
             <li><b>CLICK2LINK</b> — attach any URL to your username.</li>
             <li><b>Your topic</b> — the topic connected to this account. Share posts land here. Followers follow this topic. Connect saves the topic id. The × next to a connected id takes that connection off.</li>
             <li><b>Public key</b> — pin your Ed25519 public key to your connected topic. Anyone can then send you an encrypted message just by your payer id.</li>
-            <li><b>Swap</b> — optional. Turn it on, set a token id like 0.0.x, and a fee from 0 to 500 bps (0–5% to your account).</li>
+            <li><b>Swap</b> — optional. Turn it on, set a token id like 0.0.x, and a fee from 0 to 500 bps (0–5% to your account). The token needs a SaucerSwap pool with HBAR.</li>
             <li><b>Preview</b> — the card updates as you change the picture, name, bio, and link.</li>
           </ul>
           <div class="info-overlay-actions">
@@ -364,7 +364,7 @@
             class="toolbar-column" onclick="event.stopPropagation();"
             oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';"
             ></textarea>
-            <div id="edit-profile-swap-note">0–500 bps is 0–5% to your account.</div>
+            <div id="edit-profile-swap-note">0–500 bps is 0–5% to your account. The token needs a SaucerSwap pool with HBAR.</div>
             <button class="toolbar-column-btns" id="button_for_swap" type="button">Save swap</button>
           </div>
       

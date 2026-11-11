@@ -3,7 +3,7 @@ import {
     generatePrivateAndPublicKey,
      createTopic,
       updateTopic} from './hedera'
-import { sendMessage, reportMarker } from './msgbackend'
+import { sendMessage, reportMarker, BACKEND_URL } from './msgbackend'
 import { getTopicData as getMessages } from './topicdata'
 import {adjustTextareaHeight} from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
@@ -1936,6 +1936,37 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
    }
  });
 
+async function swapTokenAllowed(tokenId) {
+  let res;
+  try {
+    res = await fetch(`${BACKEND_URL}/api/swap/token/${encodeURIComponent(tokenId)}`);
+  } catch {
+    toast.error("Could not check this token. Try again.");
+    return false;
+  }
+  const data = await res.json().catch(() => null);
+  if (res.status === 404) {
+    toast.error("That token was not found on Hedera.");
+    return false;
+  }
+  if (res.status === 429) {
+    toast.error("Too many token checks. Try again in a minute.");
+    return false;
+  }
+  if (!res.ok || !data || data.pool !== true) {
+    if (res.ok && data && data.pool === false) {
+      const symbol = typeof data.symbol === "string" ? data.symbol.trim() : "";
+      toast.error(symbol
+        ? `No SaucerSwap pool pairs ${symbol} with HBAR.`
+        : "No SaucerSwap pool pairs this token with HBAR.");
+    } else {
+      toast.error("Could not check this token. Try again.");
+    }
+    return false;
+  }
+  return true;
+}
+
 function showProfileSwap() {
   const btn = document.getElementById("edit-profile-swap-enabled");
   const token = document.getElementById("edit-profile-swap-token");
@@ -1980,6 +2011,10 @@ document.getElementById("button_for_swap").addEventListener("click", async (even
   if (parsed.error) {
     toast.error("Token id looks like 0.0.123.");
     return;
+  }
+  if (parsed.enabled) {
+    const allowed = await swapTokenAllowed(parsed.tokenId);
+    if (!allowed) return;
   }
   if (!signer) {
     toast.error("Connect wallet first");

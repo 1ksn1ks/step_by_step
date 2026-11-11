@@ -23,6 +23,7 @@ import { S3Client, PutObjectCommand, PutBucketCorsCommand, DeleteObjectCommand }
 import { appIcon, APP_ICONS } from "./appicon.js";
 import { profileTopicAction } from "./profiletopic.js";
 import { swapProfileAction } from "./swapprofile.js";
+import { createSwapTokenLookup, swapTokenRoute } from "./swaptoken.js";
 import { hashtagsIn } from "../hashtag.js";
 import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { SEALED_MAX, sealedUploadPlan } from "./sealedupload.js";
@@ -3399,6 +3400,11 @@ app.get("/api/user-settings", publicPostLimit, (req, res) => {
     settings: rows.map(userSettingPayload),
   });
 });
+
+// Profile Swap calls this before it saves. Same public rate limit as the
+// other read routes. The answer is cached inside the lookup for a few minutes.
+const swapTokenLookup = createSwapTokenLookup({ mirror: MIRROR });
+app.get("/api/swap/token/:tokenId", publicPostLimit, swapTokenRoute(swapTokenLookup));
 
 // app: history (latest N below before_seq) or live tail (rows after after_seq)
 app.get("/api/messages", publicPostLimit, (req, res) => {
