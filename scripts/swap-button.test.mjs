@@ -35,6 +35,7 @@ import {
   swapApprovalToken,
   swapRouterId,
   swapSpenderId,
+  createSwapSheetMotion,
 } from "../swapoffer.js";
 import {
   AccountAllowanceApproveTransaction,
@@ -791,4 +792,106 @@ test("the swap sheet shows the creator bio above the safety line", () => {
   const rest = fs.readFileSync(new URL("../rest.js", import.meta.url), "utf8");
   assert.match(rest, /JSON\.stringify\(\{ data: \{ swapBio: parsed\.text \} \}\)/);
   assert.match(rest, /toast\.error\("Swap bio not saved"\)/);
+});
+
+function animHost() {
+  let handler = null;
+  return {
+    addEventListener(type, fn) {
+      assert.equal(type, "animationend");
+      handler = fn;
+    },
+    removeEventListener(type, fn) {
+      if (handler === fn) handler = null;
+    },
+    fire(event) {
+      if (handler) handler(event);
+    },
+  };
+}
+
+function motionHarness(fallbackMs) {
+  const card = animHost();
+  const flags = { reduced: false };
+  let cleaned = 0;
+  const motion = createSwapSheetMotion({
+    reduced: () => flags.reduced,
+    target: () => card,
+    listen(fn) { card.addEventListener("animationend", fn); },
+    unlisten(fn) { card.removeEventListener("animationend", fn); },
+    cleanup() { cleaned += 1; },
+    fallbackMs,
+  });
+  return { card, flags, motion, cleaned: () => cleaned };
+}
+
+test("swap close runs cleanup only after the slide, and a reopen cancels it", async () => {
+  const slide = motionHarness(500);
+  slide.motion.open();
+  slide.motion.close();
+  slide.motion.close();
+  assert.equal(slide.cleaned(), 0);
+  slide.card.fire({ animationName: "swap-backdrop-out", target: slide.card });
+  slide.card.fire({ animationName: "swap-sheet-down", target: {} });
+  assert.equal(slide.cleaned(), 0);
+  slide.card.fire({ animationName: "swap-sheet-down", target: slide.card });
+  assert.equal(slide.cleaned(), 1);
+  slide.card.fire({ animationName: "swap-sheet-down", target: slide.card });
+  assert.equal(slide.cleaned(), 1);
+
+  const reopened = motionHarness(40);
+  reopened.motion.open();
+  reopened.motion.close();
+  reopened.motion.open();
+  reopened.card.fire({ animationName: "swap-sheet-down", target: reopened.card });
+  await new Promise((resolve) => setTimeout(resolve, 70));
+  assert.equal(reopened.cleaned(), 0);
+
+  const missed = motionHarness(30);
+  missed.motion.open();
+  missed.motion.close();
+  assert.equal(missed.cleaned(), 0);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(missed.cleaned(), 1);
+
+  const reduced = motionHarness(500);
+  reduced.flags.reduced = true;
+  reduced.motion.open();
+  reduced.motion.close();
+  assert.equal(reduced.cleaned(), 1);
+  reduced.card.fire({ animationName: "swap-sheet-down", target: reduced.card });
+  assert.equal(reduced.cleaned(), 1);
+});
+
+test("the swap sheet preloads the widget and reserves its height", () => {
+  const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
+  const offer = fs.readFileSync(new URL("../swapoffer.js", import.meta.url), "utf8");
+  const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  const closeFn = sheet.slice(sheet.indexOf("function closeSheet"), sheet.indexOf("function swapLoadingNote"));
+  assert.equal(closeFn.includes("sheet.hidden = true"), false);
+  assert.match(closeFn, /if \(!sheet \|\| sheet\.hidden\) return/);
+  assert.match(closeFn, /is-closing/);
+  assert.match(closeFn, /sheetMotion\(\)\.close\(\)/);
+  assert.match(sheet, /createSwapSheetMotion\(/);
+  assert.match(sheet, /addEventListener\("animationend", fn\)/);
+  assert.match(sheet, /sheetMotion\(\)\.open\(\)/);
+  assert.match(sheet, /Loading swap…/);
+  assert.match(sheet, /prefers-reduced-motion: reduce/);
+  assert.match(sheet, /function finishClose\(\)[\s\S]*sheet\.hidden = true/);
+  assert.match(offer, /if \(show\) preloadSwapWidget\(\)/);
+  assert.match(offer, /import\("\.\/swapsheet\.js"\)\.then\(\(mod\) => mod\.loadWidgetScript\(\)\)\.catch\(\(\) => \{\}\)/);
+
+  assert.match(css, /animation: swap-sheet-up 0\.28s ease-out/);
+  assert.match(css, /animation: swap-sheet-down 0\.28s ease-out forwards/);
+  assert.match(css, /animation: swap-backdrop-in 0\.28s ease-out/);
+  assert.match(css, /animation: swap-backdrop-out 0\.28s ease-out forwards/);
+  assert.match(css, /@keyframes swap-sheet-up \{\s*from \{ transform: translateY\(100%\); \}/);
+  assert.match(css, /animation-name: donate-pop/);
+  const widgetCss = css.slice(css.indexOf("  .swap-widget {"), css.indexOf("  .swap-trap {"));
+  assert.match(widgetCss, /min-height: 60\.43dvh/);
+  assert.equal(widgetCss.includes("px"), false);
+  const cardAt = css.indexOf("  .swap-card {");
+  const cardCss = css.slice(cardAt, css.indexOf("  @media (min-width: 100dvh)", cardAt));
+  assert.match(cardCss, /max-height: 100%/);
+  assert.equal(cardCss.includes("px"), false);
 });

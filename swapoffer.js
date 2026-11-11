@@ -364,6 +364,87 @@ export function deepActiveElement(doc) {
   return el;
 }
 
+const SWAP_CLOSE_ANIMATION = "swap-sheet-down";
+
+// Wait for the close slide, then run cleanup once. A cancel (the sheet
+// opened again) drops the slide so cleanup does not hide the new open.
+// Reduced motion cleans up immediately. A missed animationend uses the timer.
+export function armSwapClose({ reduced, listen, unlisten, after, target, fallbackMs = 450 }) {
+  if (reduced) {
+    after();
+    return { waiting: false, cancel() {} };
+  }
+  let settled = false;
+  let timer = 0;
+  const finish = (event) => {
+    if (settled) return;
+    if (event) {
+      if (event.animationName !== SWAP_CLOSE_ANIMATION) return;
+      if (target && event.target !== target) return;
+    }
+    settled = true;
+    clearTimeout(timer);
+    unlisten(finish);
+    after();
+  };
+  listen(finish);
+  timer = setTimeout(() => finish(), fallbackMs);
+  return {
+    waiting: true,
+    cancel() {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      unlisten(finish);
+    },
+  };
+}
+
+// Open bumps the generation and cancels a close that has not finished.
+// Close bumps it too, so an in-flight open will not mount into a sheet
+// that is leaving. Cleanup runs only for the close that is still current.
+export function createSwapSheetMotion({ reduced, listen, unlisten, cleanup, target, fallbackMs }) {
+  let epoch = 0;
+  let arm = null;
+
+  function disarm() {
+    if (!arm) return;
+    const current = arm;
+    arm = null;
+    current.cancel();
+  }
+
+  return {
+    generation() {
+      return epoch;
+    },
+    open() {
+      epoch += 1;
+      disarm();
+      return epoch;
+    },
+    close() {
+      if (arm) return epoch;
+      const gen = ++epoch;
+      const host = typeof target === "function" ? target() : target;
+      const mine = armSwapClose({
+        reduced: typeof reduced === "function" ? reduced() : !!reduced,
+        listen,
+        unlisten,
+        target: host,
+        fallbackMs,
+        after() {
+          arm = null;
+          if (gen !== epoch) return;
+          cleanup();
+        },
+      });
+      arm = mine.waiting ? mine : null;
+      return gen;
+    },
+  };
+}
+
 export function mountSwapWidgetScript(doc) {
   const found = doc.querySelector && doc.querySelector(`script[src="${SWAP_WIDGET_SRC}"]`);
   if (found) return found;
@@ -430,9 +511,15 @@ export async function resolveSwapButton({ author, viewer, swap, ...rest }) {
     return { show: false, offer: null, token: null };
   }
   const token = await fetchSwapToken(offer.tokenId, rest);
-  return {
-    show: swapButtonShows({ author, viewer, offer, token }),
-    offer,
-    token,
-  };
+  const show = swapButtonShows({ author, viewer, offer, token });
+  if (show) preloadSwapWidget();
+  return { show, offer, token };
+}
+
+// The sheet opener also loads the widget. Starting it when the button
+// first appears means the script is usually ready before the tap.
+// Failures stay quiet; the opener shows the error if it still cannot load.
+function preloadSwapWidget() {
+  if (typeof document === "undefined") return;
+  import("./swapsheet.js").then((mod) => mod.loadWidgetScript()).catch(() => {});
 }

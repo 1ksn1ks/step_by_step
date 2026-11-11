@@ -11,6 +11,7 @@ import { globeSwapWallet } from "./swapwallet.js";
 import { bareAccount } from "./donationmath.js";
 import { profileSwapBios } from "./loadalladata.js";
 import {
+  createSwapSheetMotion,
   deepActiveElement,
   fillSwapWidget,
   mountSwapWidgetScript,
@@ -26,7 +27,7 @@ const WIDGET = "saucerswap-widget";
 
 let sheet = null;
 let scriptFlight = null;
-let openGen = 0;
+let motion = null;
 let fitted = false;
 let returnFocus = null;
 
@@ -47,7 +48,7 @@ export function watchSwapProfiles(refresh) {
   return () => refreshes.delete(refresh);
 }
 
-function loadWidgetScript() {
+export function loadWidgetScript() {
   if (typeof customElements !== "undefined" && customElements.get(WIDGET)) return Promise.resolve();
   if (scriptFlight) return scriptFlight;
   const script = mountSwapWidgetScript(document);
@@ -132,14 +133,54 @@ function focusReturn() {
   if (target && typeof target.focus === "function") target.focus({ preventScroll: true });
 }
 
-function closeSheet() {
+function reducedMotion() {
+  return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+}
+
+function finishClose() {
   if (!sheet) return;
-  openGen += 1;
   sheet.hidden = true;
+  sheet.classList.remove("is-closing");
   stopFit();
   const slot = sheetPart(".swap-widget");
   if (slot) slot.replaceChildren();
   focusReturn();
+}
+
+function sheetMotion() {
+  if (motion) return motion;
+  motion = createSwapSheetMotion({
+    reduced() {
+      return reducedMotion() || !sheetPart(".swap-card");
+    },
+    target() {
+      return sheetPart(".swap-card");
+    },
+    listen(fn) {
+      const card = sheetPart(".swap-card");
+      if (card) card.addEventListener("animationend", fn);
+    },
+    unlisten(fn) {
+      const card = sheetPart(".swap-card");
+      if (card) card.removeEventListener("animationend", fn);
+    },
+    cleanup: finishClose,
+  });
+  return motion;
+}
+
+function closeSheet() {
+  if (!sheet || sheet.hidden) return;
+  const card = sheetPart(".swap-card");
+  if (card && !reducedMotion()) sheet.classList.add("is-closing");
+  sheetMotion().close();
+}
+
+function swapLoadingNote() {
+  const note = document.createElement("p");
+  note.className = "swap-widget-placeholder";
+  note.textContent = "Loading swap…";
+  return note;
 }
 
 function trapSentinel(which) {
@@ -200,6 +241,7 @@ function ensureSheet() {
 
   const slot = document.createElement("div");
   slot.className = "swap-widget";
+  slot.append(swapLoadingNote());
 
   card.append(head, bio, note, error, slot);
   root.append(trapSentinel("start"), card, trapSentinel("end"));
@@ -246,8 +288,9 @@ function ensureSheet() {
 }
 
 export async function openSwapSheet(details) {
-  const gen = ++openGen;
+  const gen = sheetMotion().open();
   const root = ensureSheet();
+  root.classList.remove("is-closing");
   const offer = details || {};
   returnFocus = offer.opener || null;
   const config = swapWidgetConfig({
@@ -277,7 +320,7 @@ export async function openSwapSheet(details) {
     error.hidden = true;
   }
   const slot = root.querySelector(".swap-widget");
-  if (slot) slot.replaceChildren();
+  if (slot) slot.replaceChildren(swapLoadingNote());
   paintChrome(offer.host);
   root.hidden = false;
   startFit();
@@ -285,7 +328,7 @@ export async function openSwapSheet(details) {
   if (closeBtn) closeBtn.focus({ preventScroll: true });
   try {
     await loadWidgetScript();
-    if (gen !== openGen || root.hidden || !slot) return;
+    if (gen !== sheetMotion().generation() || root.hidden || !slot) return;
     const el = document.createElement(WIDGET);
     fillSwapWidget(el, config);
     let wallet = null;
@@ -295,7 +338,7 @@ export async function openSwapSheet(details) {
       if (wallet && wallet.isConnected) event.preventDefault();
     });
     el.addEventListener("swap-success", (event) => {
-      if (gen !== openGen) return;
+      if (gen !== sheetMotion().generation()) return;
       const notice = swapSuccessToast(event && event.detail);
       if (notice.href) toast.success(notice.text, { action: txLink(notice), ms: 6000 });
       else toast.success(notice.text);
@@ -303,7 +346,8 @@ export async function openSwapSheet(details) {
     });
     slot.replaceChildren(el);
   } catch {
-    if (gen !== openGen || root.hidden) return;
+    if (gen !== sheetMotion().generation() || root.hidden) return;
+    if (slot) slot.replaceChildren();
     if (error) {
       error.textContent = "Could not open Swap. Try again.";
       error.hidden = false;
