@@ -1,7 +1,10 @@
-// Cap the device pixel ratio for every canvas backend (MapLibre + three.js):
-// phones report 2-3x, which means 4-9x more pixels than the eye can use.
-// Must be imported first in main.js, before map.js / threejs.js read it.
-const _nativeDPR = window.devicePixelRatio;
+// Draw every screen at the same fraction of its real pixels. A fixed cap of
+// 1.5 left a 3× iPhone at half resolution and a 2× screen at three quarters.
+// 75% is what that 2× screen already got. A 1× screen stays at 1, since
+// drawing fewer CSS pixels would only make it softer. MapLibre and three.js
+// both read this. Must be imported first in main.js, before they do.
+const _nativeDPR = window.devicePixelRatio || 1;
+const _cappedDPR = Math.min(_nativeDPR, Math.max(1, _nativeDPR * 0.75));
 Object.defineProperty(window, "devicePixelRatio", {
-  get: () => Math.min(_nativeDPR, 1.5),
+  get: () => _cappedDPR,
 });
