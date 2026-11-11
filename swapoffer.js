@@ -197,15 +197,41 @@ export function swapPayableTinybars(value) {
   return tiny === 0n ? null : tiny;
 }
 
+// "" when no address was given. A testnet prefix is refused before the id is
+// read, because widgetEntityId would strip it and keep the number.
+function allowlistedRouter(value, error) {
+  const raw = String(value == null ? "" : value).trim();
+  if (!raw) return "";
+  if (/^hedera:testnet:/i.test(raw)) throw new Error(error);
+  const id = widgetEntityId(raw);
+  if (!SWAP_ROUTER_IDS.has(id)) throw new Error(error);
+  return id;
+}
+
 // "" when no address was given. Any other address that is not one of the
 // widget's routers throws.
 export function swapRouterId(to) {
-  const raw = String(to == null ? "" : to).trim();
-  if (!raw) return "";
-  if (/^hedera:testnet:/i.test(raw)) throw new Error("Swap contract not allowed");
-  const id = widgetEntityId(raw);
-  if (!SWAP_ROUTER_IDS.has(id)) throw new Error("Swap contract not allowed");
+  return allowlistedRouter(to, "Swap contract not allowed");
+}
+
+// Same routers as swapRouterId. An empty spender is refused.
+export function swapSpenderId(spender) {
+  const id = allowlistedRouter(spender, "Swap spender not allowed");
+  if (!id) throw new Error("Swap spender not allowed");
   return id;
+}
+
+// An approval may name only the creator's configured output token.
+export function swapApprovalToken(configured, requested) {
+  const raw = String(requested == null ? "" : requested).trim();
+  const allowedRaw = String(configured == null ? "" : configured).trim();
+  if (!raw || /^hedera:testnet:/i.test(raw) || /^hedera:testnet:/i.test(allowedRaw)) {
+    throw new Error("Swap token not allowed");
+  }
+  const want = widgetEntityId(allowedRaw);
+  const got = widgetEntityId(raw);
+  if (!want || got !== want) throw new Error("Swap token not allowed");
+  return got;
 }
 
 export function prepareSwapContract(call) {

@@ -289,7 +289,7 @@ export async function openSwapSheet(details) {
     const el = document.createElement(WIDGET);
     fillSwapWidget(el, config);
     let wallet = null;
-    try { wallet = globeSwapWallet(); } catch { wallet = null; }
+    try { wallet = globeSwapWallet(config.outputToken); } catch { wallet = null; }
     if (wallet) el.externalWallet = wallet;
     el.addEventListener("walletconnect-request", (event) => {
       if (wallet && wallet.isConnected) event.preventDefault();

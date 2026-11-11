@@ -29,7 +29,9 @@ import {
   prepareSwapContract,
   swapAllowanceLong,
   swapPayableTinybars,
+  swapApprovalToken,
   swapRouterId,
+  swapSpenderId,
 } from "../swapoffer.js";
 import {
   AccountAllowanceApproveTransaction,
@@ -554,6 +556,30 @@ test("a swap contract call is limited to the widget routers", () => {
 
   const wallet = fs.readFileSync(new URL("../swapwallet.js", import.meta.url), "utf8");
   assert.equal(wallet.includes("fromEvmAddress"), false);
+});
+
+test("an approval spender is a SaucerSwap router, and the token is the creator's", () => {
+  assert.equal(swapSpenderId(ROUTER), ROUTER);
+  assert.equal(swapSpenderId(ROUTER_EVM), ROUTER);
+  assert.equal(swapSpenderId("hedera:mainnet:" + UNIVERSAL), UNIVERSAL);
+  assert.equal(swapSpenderId(UNIVERSAL_EVM), UNIVERSAL);
+  assert.throws(() => swapSpenderId("0.0.10527448"), /Swap spender not allowed/);
+  assert.throws(() => swapSpenderId("0.0.731861"), /Swap spender not allowed/);
+  assert.throws(() => swapSpenderId("hedera:testnet:" + UNIVERSAL), /Swap spender not allowed/);
+  assert.throws(() => swapSpenderId(""), /Swap spender not allowed/);
+
+  assert.equal(swapApprovalToken(SAUCE, SAUCE), SAUCE);
+  assert.equal(swapApprovalToken(SAUCE, "hedera:mainnet:" + SAUCE), SAUCE);
+  assert.throws(() => swapApprovalToken(SAUCE, "0.0.0"), /Swap token not allowed/);
+  assert.throws(() => swapApprovalToken(SAUCE, "hedera:testnet:" + SAUCE), /Swap token not allowed/);
+  assert.throws(() => swapApprovalToken("", SAUCE), /Swap token not allowed/);
+
+  const wallet = fs.readFileSync(new URL("../swapwallet.js", import.meta.url), "utf8");
+  const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
+  assert.match(wallet, /swapSpenderId\(spenderId\)/);
+  assert.match(wallet, /swapApprovalToken\(configuredToken, tokenId\)/);
+  assert.match(wallet, /approve\(outputToken, tokenId, spenderId, amount, onStatusChange\)/);
+  assert.match(sheet, /globeSwapWallet\(config\.outputToken\)/);
 });
 
 test("an allowance bigint round-trips as the SDK Long", () => {

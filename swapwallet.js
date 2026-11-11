@@ -22,6 +22,8 @@ import {
   SWAP_MAINNET_NODES,
   prepareSwapContract,
   swapAllowanceLong,
+  swapApprovalToken,
+  swapSpenderId,
   widgetEntityId,
 } from "./swapoffer.js";
 
@@ -84,13 +86,12 @@ async function associate(tokenId, onStatusChange) {
   return submit(tx, onStatusChange);
 }
 
-async function approve(tokenId, spenderId, amount, onStatusChange) {
+async function approve(configuredToken, tokenId, spenderId, amount, onStatusChange) {
   const session = live();
   if (!session) throw new Error("Connect wallet first");
   const allowance = swapAllowanceLong(amount);
-  const token = widgetEntityId(tokenId);
-  const spender = widgetEntityId(spenderId);
-  if (!token || !spender) throw new Error("Wallet does not support token approval");
+  const spender = swapSpenderId(spenderId);
+  const token = swapApprovalToken(configuredToken, tokenId);
   const tx = new AccountAllowanceApproveTransaction()
     .approveTokenAllowance(TokenId.fromString(token), AccountId.fromString(session.id), AccountId.fromString(spender), allowance)
     .setMaxTransactionFee(new Hbar(5));
@@ -98,7 +99,9 @@ async function approve(tokenId, spenderId, amount, onStatusChange) {
 }
 
 // null when Globe has no signer. The sheet then keeps the widget modal.
-export function globeSwapWallet() {
+// outputToken is the creator's configured swap token. Approvals for any
+// other token are refused.
+export function globeSwapWallet(outputToken) {
   const session = live();
   if (!session) return null;
   return {
@@ -128,7 +131,7 @@ export function globeSwapWallet() {
       return associate(tokenId, onStatusChange);
     },
     approveToken(tokenId, spenderId, amount, onStatusChange) {
-      return approve(tokenId, spenderId, amount, onStatusChange);
+      return approve(outputToken, tokenId, spenderId, amount, onStatusChange);
     },
   };
 }
