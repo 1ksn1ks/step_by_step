@@ -1,13 +1,15 @@
 // Profile Swap asks this before a token is saved. The mirror says the token
-// exists. SaucerSwap's public lists say whether a pool pairs it with HBAR.
-// No API key: GET /tokens and GET /v2/pools on the public REST host.
+// exists. SaucerSwap's public lists say whether a V1 or V2 pool pairs it
+// with WHBAR. No API key: GET /tokens, GET /pools, and GET /v2/pools.
 // Answers are reused for a few minutes so a retry does not download the
-// full lists again.
+// full lists again. The answer map is capped so unknown token ids cannot
+// grow it without limit.
 
 export const SAUCER_API = "https://api.saucerswap.finance";
 export const SWAP_TOKEN_CACHE_MS = 5 * 60 * 1000;
-// Current WHBAR and the deprecated WHBAR token. SaucerSwap pools use one
-// of these as the HBAR side. A side whose symbol is HBAR or WHBAR counts too.
+export const SWAP_TOKEN_CACHE_MAX = 2000;
+// Current WHBAR and the deprecated WHBAR token. Only these ids are the
+// HBAR side. A different token that uses the symbol HBAR or WHBAR is not.
 export const WHBAR_TOKEN_IDS = ["0.0.1456986", "0.0.1062664"];
 
 const TOKEN_ID = /^\d+\.\d+\.\d+$/;
@@ -30,18 +32,16 @@ function decimalsOf(...values) {
 }
 
 export function isHbarSide(token) {
-  if (!token || typeof token !== "object") return false;
-  if (WHBAR.has(text(token.id))) return true;
-  const symbol = text(token.symbol).toUpperCase();
-  return symbol === "HBAR" || symbol === "WHBAR";
+  return !!token && typeof token === "object" && WHBAR.has(text(token.id));
 }
 
 function tokenIdOf(token) {
   return token && typeof token === "object" ? text(token.id) : "";
 }
 
-// One pass over the public lists. `paired` is every token that sits across
-// from WHBAR or HBAR. The token's own record supplies dueDiligenceComplete.
+// One pass over the public lists. V1 (`/pools`) and V2 (`/v2/pools`) both
+// use tokenA and tokenB. `paired` is every token that sits across from a
+// WHBAR token id. The token's own record supplies dueDiligenceComplete.
 export function readSaucerLists(tokens, pools) {
   const byId = new Map();
   if (Array.isArray(tokens)) {
@@ -93,6 +93,7 @@ export function createSwapTokenLookup({
   fetchImpl = fetch,
   now = Date.now,
   cacheMs = SWAP_TOKEN_CACHE_MS,
+  cacheMax = SWAP_TOKEN_CACHE_MAX,
   mirror = "https://mainnet.mirrornode.hedera.com",
   saucer = SAUCER_API,
 } = {}) {
@@ -102,7 +103,13 @@ export function createSwapTokenLookup({
   let listsFlight = null;
 
   function remember(id, status, body) {
+    // Storing again moves this id to the end. Past the cap, the earliest goes.
+    if (answers.has(id)) answers.delete(id);
     answers.set(id, { at: now(), status, body });
+    while (answers.size > cacheMax) {
+      const oldest = answers.keys().next().value;
+      answers.delete(oldest);
+    }
     return { status, body };
   }
 
@@ -111,10 +118,11 @@ export function createSwapTokenLookup({
     if (!listsFlight) {
       listsFlight = Promise.all([
         getJson(fetchImpl, `${saucer}/tokens`),
+        getJson(fetchImpl, `${saucer}/pools`),
         getJson(fetchImpl, `${saucer}/v2/pools`),
-      ]).then(([tokens, pools]) => {
-        if (!Array.isArray(tokens) || !Array.isArray(pools)) throw new Error("lookup");
-        lists = { at: now(), ...readSaucerLists(tokens, pools) };
+      ]).then(([tokens, poolsV1, poolsV2]) => {
+        if (!Array.isArray(tokens) || !Array.isArray(poolsV1) || !Array.isArray(poolsV2)) throw new Error("lookup");
+        lists = { at: now(), ...readSaucerLists(tokens, poolsV1.concat(poolsV2)) };
         return lists;
       }).finally(() => {
         listsFlight = null;

@@ -43,6 +43,7 @@ function world(options = {}) {
     mirror: options.mirror || {},
     tokens: options.tokens || [],
     pools: options.pools || [],
+    poolsV1: options.poolsV1 || [],
     fail: options.fail || null,
   };
   const fetchImpl = async (url) => {
@@ -56,6 +57,7 @@ function world(options = {}) {
     }
     if (url.endsWith("/tokens")) return jsonResponse(200, state.tokens);
     if (url.endsWith("/v2/pools")) return jsonResponse(200, state.pools);
+    if (url.endsWith("/pools")) return jsonResponse(200, state.poolsV1);
     throw new Error("unexpected " + url);
   };
   return { fetchImpl, calls, state };
@@ -66,6 +68,7 @@ function lookupOf(env, extra = {}) {
     fetchImpl: env.fetchImpl,
     now: extra.now || (() => extra.clock ?? 1_000),
     cacheMs: extra.cacheMs ?? 1_000,
+    cacheMax: extra.cacheMax,
     mirror: "https://mirror.test",
     saucer: "https://saucer.test",
   });
@@ -105,25 +108,54 @@ test("a WHBAR pool returns name, symbol, decimals, the pool, and due diligence",
   });
 });
 
-test("a pool against the legacy WHBAR token or an HBAR symbol counts", async () => {
+test("a pool against the legacy WHBAR token counts", async () => {
   const legacy = world({
     mirror: { [SAUCE]: mirrorRow(SAUCE) },
     tokens: [{ id: SAUCE, dueDiligenceComplete: false }],
     pools: [{ tokenA: side(OLD_WHBAR, { symbol: "WHBAR" }), tokenB: side(SAUCE) }],
   });
-  const bySymbol = world({
+  const result = await lookupOf(legacy).lookup(SAUCE);
+  assert.equal(result.body.pool, true);
+  assert.equal(result.body.dueDiligenceComplete, false);
+});
+
+test("a symbol of HBAR or WHBAR is not the HBAR side", async () => {
+  assert.equal(isHbarSide(side("0.0.999", { symbol: "HBAR" })), false);
+  assert.equal(isHbarSide(side("0.0.999", { symbol: "WHBAR" })), false);
+  assert.equal(isHbarSide(side(WHBAR, { symbol: "SAUCE" })), true);
+  const env = world({
     mirror: { [USDC]: mirrorRow(USDC, { name: "USD Coin", symbol: "USDC", decimals: "6" }) },
     tokens: [],
     pools: [{ tokenA: side(USDC, { due: true }), tokenB: side("0.0.999", { symbol: "HBAR" }) }],
   });
-  const legacyResult = await lookupOf(legacy).lookup(SAUCE);
-  const symbolResult = await lookupOf(bySymbol).lookup(USDC);
-  assert.equal(legacyResult.body.pool, true);
-  assert.equal(legacyResult.body.dueDiligenceComplete, false);
-  assert.equal(symbolResult.body.pool, true);
-  assert.equal(symbolResult.body.dueDiligenceComplete, true);
-  assert.equal(symbolResult.body.name, "USD Coin");
-  assert.equal(symbolResult.body.decimals, 6);
+  const result = await lookupOf(env).lookup(USDC);
+  assert.equal(result.body.pool, false);
+  assert.equal(result.body.dueDiligenceComplete, false);
+  assert.equal(result.body.name, "USD Coin");
+  assert.equal(result.body.decimals, 6);
+});
+
+test("a V1 pool with WHBAR counts and the LP token does not", async () => {
+  const lp = "0.0.1465866";
+  const env = world({
+    mirror: {
+      [SAUCE]: mirrorRow(SAUCE),
+      [lp]: mirrorRow(lp, { name: "LP", symbol: "LP" }),
+    },
+    tokens: [],
+    pools: [],
+    poolsV1: [{
+      tokenA: side(SAUCE),
+      tokenB: side(WHBAR),
+      lpToken: { id: lp, symbol: "SAUCE - WHBAR" },
+    }],
+  });
+  const lookup = lookupOf(env);
+  const sauce = await lookup.lookup(SAUCE);
+  const lpResult = await lookup.lookup(lp);
+  assert.equal(sauce.body.pool, true);
+  assert.equal(lpResult.body.pool, false);
+  assert.equal(env.calls.filter((url) => url.endsWith("/pools") && !url.endsWith("/v2/pools")).length, 1);
 });
 
 test("a pool that is not paired with HBAR does not count", async () => {
@@ -138,7 +170,7 @@ test("a pool that is not paired with HBAR does not count", async () => {
   assert.equal(result.body.symbol, "SAUCE");
 });
 
-test("WHBAR itself is the HBAR side, not a token paired with HBAR", () => {
+test("WHBAR itself is the HBAR side, not a token paired with WHBAR", () => {
   assert.equal(isHbarSide(side(WHBAR, { symbol: "HBAR" })), true);
   const lists = readSaucerLists(
     [],
@@ -174,6 +206,22 @@ test("a result is reused until the cache window passes", async () => {
   assert.ok(env.calls.length > afterFirst);
 });
 
+test("the answer cache drops the oldest entry past the cap", async () => {
+  const env = world();
+  let clock = 1_000;
+  const lookup = lookupOf(env, { now: () => clock, cacheMs: 60_000, cacheMax: 2 });
+  await lookup.lookup("0.0.1");
+  await lookup.lookup("0.0.2");
+  await lookup.lookup("0.0.3");
+  const callsFor = (id) => env.calls.filter((url) => url.endsWith("/" + id)).length;
+  assert.equal(callsFor("0.0.1"), 1);
+  const beforeKept = env.calls.length;
+  await lookup.lookup("0.0.2");
+  assert.equal(env.calls.length, beforeKept);
+  await lookup.lookup("0.0.1");
+  assert.equal(callsFor("0.0.1"), 2);
+});
+
 test("a failed lookup is not cached", async () => {
   const env = world({
     mirror: { [SAUCE]: mirrorRow(SAUCE) },
@@ -205,6 +253,7 @@ test("two checks for one token share one mirror read", async () => {
     if (url.endsWith("/v2/pools")) {
       return jsonResponse(200, [{ tokenA: side(SAUCE), tokenB: side(WHBAR, { symbol: "HBAR" }) }]);
     }
+    if (url.endsWith("/pools")) return jsonResponse(200, []);
     throw new Error(url);
   };
   const lookup = createSwapTokenLookup({
