@@ -7410,6 +7410,8 @@ html, body {
     width: 100%;
     min-width: 0;
     flex: 0 0 auto;
+    display: flex;
+    justify-content: center;
     /* Usual rendered height of the swap widget on a phone-sized viewport. */
     min-height: 60.43dvh;
   }
@@ -7430,10 +7432,12 @@ html, body {
 
   .swap-widget saucerswap-widget {
     display: block;
-    width: 100%;
+    /* Shadow panel max-width, so the host is no wider than the panel. */
+    width: min(100%, 23.75rem);
     max-width: 100%;
     min-width: 0;
     min-height: 60.43dvh;
+    margin-inline: auto;
   }
 
   .swap-trap {
