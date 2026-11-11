@@ -4874,11 +4874,20 @@ html, body {
   }
 
   #edit-profile-key-note,
-  #edit-profile-swap-note {
+  #edit-profile-swap-note,
+  #edit-profile-swap-assoc {
     font-size: 1.5vh;
     color: #8d93a5;
     text-align: center;
     padding: 0.3vh 0 0.6vh;
+  }
+
+  #edit-profile-swap-assoc {
+    color: #fda4af;
+  }
+
+  #edit-profile-swap-assoc[hidden] {
+    display: none;
   }
 
   /* Action chips: nav arrows, ⚙️, and 💬 in the bottom row */
@@ -7046,6 +7055,44 @@ html, body {
     outline-offset: 2px;
   }
 
+  .donate-actions {
+    display: flex;
+    align-items: stretch;
+    gap: 1dvh;
+    min-width: 0;
+  }
+
+  .donate-actions .donate-send,
+  .donate-actions .donate-swap {
+    width: auto;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .donate-swap {
+    appearance: none;
+    min-height: 6dvh;
+    margin: 0;
+    padding: 1dvh 2dvw;
+    border: 0.15dvh solid rgba(255, 255, 255, 0.28);
+    border-radius: 999px;
+    background: transparent;
+    color: #fff;
+    font: inherit;
+    font-size: 1.9dvh;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .donate-swap[hidden] {
+    display: none;
+  }
+
+  .donate-swap:focus-visible {
+    outline: 0.2dvh solid #22D3EE;
+    outline-offset: 0.2dvh;
+  }
+
   .donate-done {
     display: flex;
     flex-direction: column;
@@ -7134,8 +7181,191 @@ html, body {
     border-color: #f6e27a;
     color: #0c0c12;
   }
+
+  .donate-card.early-holder-popup .donate-swap {
+    background: transparent;
+    border-color: #f6e27a;
+    color: #f6e27a;
+  }
   @media (prefers-reduced-motion: reduce) {
     .donate-card.early-holder-popup {
+      animation-duration: 0.01s, 8s;
+    }
+  }
+
+  #swap-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: var(--swap-top, 0);
+    width: 100dvw;
+    height: var(--swap-h, var(--app-h, 100dvh));
+    margin: 0;
+    z-index: 9900;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(1.6dvh);
+    -webkit-backdrop-filter: blur(1.6dvh);
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  #swap-sheet[hidden] {
+    display: none;
+  }
+
+  .swap-card,
+  .swap-card button {
+    font-family: inherit;
+  }
+
+  .swap-card {
+    width: 100%;
+    max-height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 1.4dvh;
+    margin: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 1.6dvh 4dvw calc(2.2dvh + env(safe-area-inset-bottom, 0));
+    border: 0.12dvh solid rgba(255, 255, 255, 0.16);
+    border-radius: 2.4dvh 2.4dvh 0 0;
+    background: rgb(15, 15, 20);
+    box-shadow: inset 0 0.12dvh 0 rgba(255, 255, 255, 0.12), 0 -1.2dvh 3dvh rgba(0, 0, 0, 0.45);
+    color: #fff;
+    animation: donate-sheet-up 0.28s ease;
+  }
+
+  @media (min-width: 100dvh) {
+    #swap-sheet {
+      align-items: center;
+      padding-top: calc(4dvh + env(safe-area-inset-top));
+      padding-right: 4dvw;
+      padding-bottom: calc(4dvh + env(safe-area-inset-bottom));
+      padding-left: 4dvw;
+    }
+
+    .swap-card {
+      width: min(86dvw, 56dvh);
+      border-radius: 2.2dvh;
+      animation-name: donate-pop;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .swap-card {
+      animation: none;
+    }
+  }
+
+  .swap-head {
+    display: flex;
+    align-items: center;
+    gap: 1.4dvh;
+    min-width: 0;
+  }
+
+  .swap-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    font-size: 2.1dvh;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .swap-x {
+    appearance: none;
+    flex: 0 0 auto;
+    width: 5.5dvh;
+    height: 5.5dvh;
+    margin: 0;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 2.8dvh;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .swap-x:focus-visible {
+    outline: 0.2dvh solid #22D3EE;
+    outline-offset: 0.2dvh;
+  }
+
+  .swap-note {
+    margin: 0;
+    font-size: 1.6dvh;
+    line-height: 1.35;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .swap-error {
+    margin: 0;
+    font-size: 1.5dvh;
+    line-height: 1.3;
+    color: #fda4af;
+  }
+
+  .swap-error[hidden] {
+    display: none;
+  }
+
+  .swap-widget {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .swap-widget saucerswap-widget {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .swap-card.early-holder-popup {
+    position: relative;
+    border-color: transparent;
+    border-width: 0.3dvh;
+    background-color: transparent;
+    background-image:
+      linear-gradient(rgba(12, 12, 18, 0.94), rgba(12, 12, 18, 0.94)),
+      conic-gradient(from var(--eh-angle), #f6e27a, #ff4ad6, #e879f9, #7c3aed, #f6e27a);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    box-shadow: none;
+    color: #f4f1ea;
+    isolation: isolate;
+    animation-name: donate-sheet-up, early-hashinal-angle;
+    animation-duration: 0.28s, 4s;
+    animation-timing-function: ease, linear;
+    animation-iteration-count: 1, infinite;
+  }
+
+  @media (min-width: 100dvh) {
+    .swap-card.early-holder-popup {
+      animation-name: donate-pop, early-hashinal-angle;
+    }
+  }
+
+  .swap-card.early-holder-popup .swap-title,
+  .swap-card.early-holder-popup .swap-x {
+    color: #f6e27a;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .swap-card.early-holder-popup {
       animation-duration: 0.01s, 8s;
     }
   }

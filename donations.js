@@ -6,7 +6,9 @@ import { BACKEND_URL } from './msgbackend.js';
 import { connectedAccount } from './web3.js';
 import { sendHbarDonation } from './hedera.js';
 import { toast } from './toast.js';
-import { profilePictures, usernames } from './loadalladata.js';
+import { profilePictures, profileSwaps, usernames } from './loadalladata.js';
+import { profileSwapOf, resolveSwapButton } from './swapoffer.js';
+import { openSwapSheet, watchSwapProfiles } from './swapsheet.js';
 import { mountPicture, pictureElement } from './loopmedia.js';
 import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import {
@@ -37,6 +39,9 @@ let sheetSent = false;
 let sheetOpenId = 0;
 let sheetCloseTimer = 0;
 let pendingTx = null;
+let sheetHost = null;
+let donateSwap = null;
+let donateSwapGen = 0;
 
 const DEFAULT_AVATAR = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const PRESETS = ['1', '5', '10', '25'];
@@ -391,7 +396,24 @@ function ensureSheet() {
   send.className = 'donate-send';
   send.textContent = 'Donate';
   send.disabled = true;
-  form.append(chips, amount, memoField, error, send);
+  const actions = document.createElement('div');
+  actions.className = 'donate-actions';
+  const swap = document.createElement('button');
+  swap.type = 'button';
+  swap.className = 'donate-swap';
+  swap.textContent = 'Swap';
+  swap.hidden = true;
+  swap.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openDonateSwap();
+  });
+  actions.append(send, swap);
+  form.append(chips, amount, memoField, error, actions);
+  watchSwapProfiles(() => {
+    if (!sheet || sheet.hidden || !sheetAccount) return;
+    loadDonateSwap();
+  });
 
   const done = document.createElement('div');
   done.className = 'donate-done';
@@ -462,8 +484,13 @@ function closeSheet() {
   sheetTopic = '';
   sheetTs = '';
   sheetAccount = '';
+  sheetHost = null;
   sheetSent = false;
   pendingTx = null;
+  donateSwap = null;
+  donateSwapGen += 1;
+  const swapBtn = sheetPart('.donate-swap');
+  if (swapBtn) swapBtn.hidden = true;
 }
 
 function hashinalHost(el) {
@@ -511,8 +538,54 @@ function showSheet(topicId, ts, account, host) {
   paintSheetChrome(host);
   lockFields(false);
   paintSend();
+  sheetHost = host || null;
+  const swapBtn = root.querySelector('.donate-swap');
+  if (swapBtn) swapBtn.hidden = true;
+  donateSwap = null;
   root.hidden = false;
+  loadDonateSwap();
   if (amount) amount.focus({ preventScroll: true });
+}
+
+function openDonateSwap() {
+  if (sheetBusy || !donateSwap) return;
+  const payload = donateSwap;
+  closeSheet();
+  openSwapSheet(payload);
+}
+
+async function loadDonateSwap() {
+  const gen = ++donateSwapGen;
+  const account = sheetAccount;
+  const host = sheetHost;
+  const button = sheetPart('.donate-swap');
+  if (!account) return;
+  let result = null;
+  try {
+    result = await resolveSwapButton({
+      author: account,
+      viewer: connectedAccount,
+      swap: profileSwapOf(profileSwaps, account),
+      backend: BACKEND_URL,
+    });
+  } catch {
+    result = null;
+  }
+  if (gen !== donateSwapGen || !sheet || sheet.hidden || sheetAccount !== account) return;
+  if (!result || !result.show || !result.offer || !result.token) {
+    donateSwap = null;
+    if (button) button.hidden = true;
+    return;
+  }
+  donateSwap = {
+    account,
+    tokenId: result.offer.tokenId,
+    feeBps: result.offer.feeBps,
+    symbol: result.token.symbol,
+    dueDiligenceComplete: result.token.dueDiligenceComplete,
+    host,
+  };
+  if (button) button.hidden = false;
 }
 
 async function resolveTimestamp(pill) {

@@ -19,7 +19,7 @@ import { handleAllMessages } from './handleallmessages';
 import {debounce} from './debounce'
 
 
-const PROJECT_ID = "fdd65bec25e85908fecf7561fe42b41f";
+export const PROJECT_ID = "fdd65bec25e85908fecf7561fe42b41f";
 
 const metadata = {
   name: "Meritocracy",

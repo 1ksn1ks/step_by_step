@@ -9,6 +9,8 @@ import {adjustTextareaHeight} from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
 import { loadAllData, showOwnProfile, profileTopics, profileSwaps } from './loadalladata';
 import { swapProfileAction } from './server/swapprofile.js';
+import { associationCutWarning } from './swapoffer.js';
+import { bareAccount } from './donationmath.js';
 import { connectProfileTopic, removeProfileTopic } from './followtopic';
 import { debounce } from './debounce';
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
@@ -1967,6 +1969,59 @@ async function swapTokenAllowed(tokenId) {
   return true;
 }
 
+function showAssocWarning(text) {
+  const note = document.getElementById("edit-profile-swap-assoc");
+  if (!note) return;
+  note.textContent = text || "";
+  note.hidden = !text;
+}
+
+function feeDraft() {
+  const enabled = document.getElementById("edit-profile-swap-enabled");
+  const feeField = document.getElementById("edit-profile-swap-fee");
+  if (!enabled || enabled.getAttribute("aria-pressed") !== "true") return 0;
+  const feeText = feeField ? feeField.value.trim() : "";
+  if (!/^\d+$/.test(feeText)) return 0;
+  const n = Number(feeText);
+  return n > 0 && n <= 500 ? n : 0;
+}
+
+let assocGen = 0;
+
+async function refreshSwapAssociation() {
+  const gen = ++assocGen;
+  const fee = feeDraft();
+  if (!(fee > 0)) {
+    if (gen === assocGen) showAssocWarning("");
+    return "";
+  }
+  const account = bareAccount(connectedAccount);
+  if (!account) {
+    if (gen === assocGen) showAssocWarning("");
+    return "";
+  }
+  let text = "";
+  try {
+    const res = await fetch(
+      `https://mainnet.mirrornode.hedera.com/api/v1/accounts/${encodeURIComponent(account)}`,
+      { signal: AbortSignal.timeout(4000) }
+    );
+    const data = await res.json().catch(() => null);
+    if (res.ok && data && Object.prototype.hasOwnProperty.call(data, "max_automatic_token_associations")) {
+      text = associationCutWarning(data.max_automatic_token_associations);
+    }
+  } catch {
+    text = "";
+  }
+  if (gen !== assocGen) return "";
+  showAssocWarning(text);
+  return text;
+}
+
+const scheduleSwapAssociation = debounce(() => {
+  refreshSwapAssociation();
+}, 400);
+
 function showProfileSwap() {
   const btn = document.getElementById("edit-profile-swap-enabled");
   const token = document.getElementById("edit-profile-swap-token");
@@ -1978,6 +2033,7 @@ function showProfileSwap() {
   btn.textContent = on ? "Swap on" : "Swap off";
   token.value = saved && saved.tokenId ? saved.tokenId : "";
   fee.value = saved ? String(saved.feeBps) : "";
+  refreshSwapAssociation();
 }
 
 document.getElementById("show-swap-from-edit-profile").addEventListener("click", () => {
@@ -1989,6 +2045,17 @@ document.getElementById("edit-profile-swap-enabled").addEventListener("click", (
   const on = event.currentTarget.getAttribute("aria-pressed") !== "true";
   event.currentTarget.setAttribute("aria-pressed", on ? "true" : "false");
   event.currentTarget.textContent = on ? "Swap on" : "Swap off";
+  refreshSwapAssociation();
+});
+
+document.getElementById("edit-profile-swap-fee").addEventListener("input", () => {
+  scheduleSwapAssociation();
+});
+
+document.addEventListener("wallet-account-changed", () => {
+  const box = document.getElementById("edit-profile-swap");
+  if (!box || box.style.display === "none") return;
+  refreshSwapAssociation();
 });
 
 document.getElementById("button_for_swap").addEventListener("click", async (event) => {
@@ -2015,6 +2082,10 @@ document.getElementById("button_for_swap").addEventListener("click", async (even
   if (parsed.enabled) {
     const allowed = await swapTokenAllowed(parsed.tokenId);
     if (!allowed) return;
+  }
+  if (parsed.enabled && parsed.feeBps > 0) {
+    const warning = await refreshSwapAssociation();
+    if (warning) toast.info(warning);
   }
   if (!signer) {
     toast.error("Connect wallet first");
