@@ -234,6 +234,29 @@ export function swapApprovalToken(configured, requested) {
   return got;
 }
 
+const SWAP_GAS_DEFAULT = 1200000;
+const SWAP_GAS_MAX = 3000000;
+const SWAP_FEE_CAP_HBAR = 10;
+const SWAP_FEE_CAP_TINYBAR = 1000000000n;
+
+// 1,200,000 unless the widget sent a positive safe integer up to 3,000,000.
+export function swapGasLimit(value) {
+  if (!Number.isSafeInteger(value) || value < 1 || value > SWAP_GAS_MAX) return SWAP_GAS_DEFAULT;
+  return value;
+}
+
+// null when this is not a usable fee. Otherwise HBAR, never above 10.
+export function swapCappedFeeHbar(amount) {
+  if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0) return null;
+  return Math.min(SWAP_FEE_CAP_HBAR, amount);
+}
+
+// null when this is not a usable tinybar count. Otherwise never above 10 HBAR.
+export function swapCappedFeeTinybars(tinybars) {
+  if (typeof tinybars !== "bigint" || tinybars < 0n) return null;
+  return tinybars > SWAP_FEE_CAP_TINYBAR ? SWAP_FEE_CAP_TINYBAR : tinybars;
+}
+
 export function prepareSwapContract(call) {
   const request = call && typeof call === "object" ? call : {};
   const contractId = swapRouterId(request.to);
@@ -243,7 +266,7 @@ export function prepareSwapContract(call) {
     contractId,
     data,
     payableTinybars: swapPayableTinybars(request.valueTinybar),
-    gasLimit: request.gasLimit || 1200000,
+    gasLimit: swapGasLimit(request.gasLimit),
   };
 }
 

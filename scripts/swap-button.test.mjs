@@ -27,6 +27,9 @@ import {
   swapWidgetConfig,
   SWAP_MAINNET_NODES,
   prepareSwapContract,
+  swapCappedFeeHbar,
+  swapCappedFeeTinybars,
+  swapGasLimit,
   swapAllowanceLong,
   swapPayableTinybars,
   swapApprovalToken,
@@ -527,6 +530,44 @@ test("a swap amount is a bigint, an integer, or a decimal string", () => {
   assert.match(wallet, /prepared\.payableTinybars != null/);
   assert.match(wallet, /Hbar\.fromTinybars\(prepared\.payableTinybars\.toString\(\)\)/);
   assert.equal(wallet.includes('typeof call.valueTinybar === "bigint"'), false);
+});
+
+test("the swap fee stays at or below 10 HBAR and gas stays within the cap", () => {
+  assert.equal(swapGasLimit(1), 1);
+  assert.equal(swapGasLimit(1200000), 1200000);
+  assert.equal(swapGasLimit(3000000), 3000000);
+  for (const bad of [0, -1, 1.5, 3000001, 2 ** 53, "1200000", null, undefined, true]) {
+    assert.equal(swapGasLimit(bad), 1200000);
+  }
+  const prepared = prepareSwapContract({ to: UNIVERSAL, data: "0xab", gasLimit: 2500000 });
+  assert.equal(prepared.gasLimit, 2500000);
+  assert.equal(prepareSwapContract({ to: UNIVERSAL, data: "0xab", gasLimit: 9000000 }).gasLimit, 1200000);
+  assert.equal(prepareSwapContract({ to: UNIVERSAL, data: "0xab" }).gasLimit, 1200000);
+
+  assert.equal(swapCappedFeeHbar(4), 4);
+  assert.equal(swapCappedFeeHbar(10), 10);
+  assert.equal(swapCappedFeeHbar(25), 10);
+  assert.equal(swapCappedFeeHbar(0), 0);
+  assert.equal(swapCappedFeeHbar(-1), null);
+  assert.equal(swapCappedFeeHbar(Number.POSITIVE_INFINITY), null);
+  assert.equal(swapCappedFeeHbar("10"), null);
+
+  const cap = 1000000000n;
+  const over = BigInt(new Hbar(25).toTinybars().toString());
+  const under = BigInt(new Hbar(2).toTinybars().toString());
+  assert.equal(swapCappedFeeTinybars(over), cap);
+  assert.equal(swapCappedFeeTinybars(under), 200000000n);
+  assert.equal(swapCappedFeeTinybars(cap), cap);
+  assert.equal(swapCappedFeeTinybars(-1n), null);
+  assert.equal(Hbar.fromTinybars(swapCappedFeeTinybars(over).toString()).toTinybars().toString(), cap.toString());
+
+  const wallet = fs.readFileSync(new URL("../swapwallet.js", import.meta.url), "utf8");
+  assert.match(wallet, /supplied instanceof Hbar/);
+  assert.match(wallet, /swapCappedFeeTinybars\(tiny\)/);
+  assert.match(wallet, /Hbar\.fromTinybars\(capped\.toString\(\)\)/);
+  assert.match(wallet, /swapCappedFeeHbar\(supplied\)/);
+  assert.match(wallet, /new Hbar\(capped\)/);
+  assert.equal(wallet.includes("return request.maxTransactionFee"), false);
 });
 
 test("a swap contract call is limited to the widget routers", () => {

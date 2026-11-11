@@ -23,6 +23,9 @@ import {
   prepareSwapContract,
   swapAllowanceLong,
   swapApprovalToken,
+  swapCappedFeeHbar,
+  swapCappedFeeTinybars,
+  swapGasLimit,
   swapSpenderId,
   widgetEntityId,
 } from "./swapoffer.js";
@@ -33,11 +36,26 @@ function live() {
   return { id, signer };
 }
 
-function feeFor(request) {
-  if (request && request.maxTransactionFee instanceof Hbar) return request.maxTransactionFee;
-  if (request && typeof request.maxTransactionFee === "number") return new Hbar(request.maxTransactionFee);
-  const gas = request && request.gasLimit ? request.gasLimit : 1200000;
+function feeFromGas(request) {
+  const gas = swapGasLimit(request && request.gasLimit);
   return new Hbar(Math.min(10, Math.max(5, Math.ceil(gas / 1000000 * 1.5) + 1)));
+}
+
+function feeFor(request) {
+  const supplied = request && request.maxTransactionFee;
+  if (supplied instanceof Hbar) {
+    let tiny = null;
+    try { tiny = BigInt(supplied.toTinybars().toString()); } catch { tiny = null; }
+    const capped = swapCappedFeeTinybars(tiny);
+    if (capped == null) return feeFromGas(request);
+    if (capped !== tiny) return Hbar.fromTinybars(capped.toString());
+    return supplied;
+  }
+  if (typeof supplied === "number") {
+    const capped = swapCappedFeeHbar(supplied);
+    if (capped != null) return new Hbar(capped);
+  }
+  return feeFromGas(request);
 }
 
 function freezeFor(tx, accountId) {
