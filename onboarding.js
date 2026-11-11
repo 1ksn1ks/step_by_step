@@ -29,7 +29,7 @@ const INTRO = [
     body: 'Right-click (PC) or hold (phone) on the map.',
     rows: [
       { name: '🗺 Open in Maps', note: 'Opens this spot in your maps app.' },
-      { name: '📡 Look for Live', note: 'Shows live posts from the last 24 hours around that spot. ⚙ sets how far.' }
+      { name: '📡 Look for Live', note: 'Shows live posts from the last chosen hours around that spot, up to 24. ⚙ sets how far and how recent.' }
     ]
   }
 ];

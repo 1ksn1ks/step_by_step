@@ -18,7 +18,7 @@ import { watchFollowPrefetch } from './followtopic.js';
 import { fetchFollowing } from './msgbackend.js';
 import { earlyHashinalNumber, earlyHashinalReady, onOwnersChange } from './earlyhashinal.js';
 import { connectedAccount } from './web3.js';
-import { liveGroup as groupNow, liveGroupName, setLiveGroup, openLiveGroupMenu, closeLiveGroupMenu, liveRadius } from './livegroups.js';
+import { liveGroup as groupNow, liveGroupName, setLiveGroup, openLiveGroupMenu, closeLiveGroupMenu, liveRadius, liveHours, liveHoursName, LIVE_HOURS_DEFAULT } from './livegroups.js';
 import { secondsMatch, withinRadius, radiusKm, radiusLabel, formatKm } from './arrowfilters.js';
 
 // Same key as marker.js topicPointKey — a live point matching a topic
@@ -617,20 +617,32 @@ onOwnersChange(() => {
   if (groupNow() === 'holders' && liveAll.length) paintLiveGroup();
 });
 
-// 24h live markers within the Look for Live distance (livegroups.js) of a
-// spot, in any country: the held pin (poiinfo.js), a search pick
-// (search.js), or your location once the geolocate control has a fix
-// (map.js). The searched circle stays on the map with them (liveradius.js);
-// with none found it shows for a moment beside the toast.
+// Live markers within the Look for Live distance (livegroups.js) of a
+// spot, in any country, from the last chosen hours: the held pin
+// (poiinfo.js), a search pick (search.js), or your location once the
+// geolocate control has a fix (map.js). The server only has the last 24
+// hours; a shorter choice is kept here. The searched circle stays on the
+// map with them (liveradius.js); with none found it shows for a moment
+// beside the toast.
 let lookSeq = 0;
 export async function showLocationMarkers(lat, lng) {
   const at = { lat: Number(lat), lng: Number(lng) };
   const km = liveRadius();
+  const within = liveHours();
   const seq = ++lookSeq;
   const { markers, error } = await fetchNearMarkers(at.lat, at.lng, km);
   if (seq !== lookSeq) return; // a newer look took over
   if (error) return; // offline: leave whatever is shown
-  showLocalMarkers(markers);
-  showSearchArea(at, km, { flash: !markers.length });
-  if (!markers.length) toast.info('No live posts within ' + formatKm(km));
+  const cutoff = Date.now() - within * 3600 * 1000;
+  const recent = within >= LIVE_HOURS_DEFAULT
+    ? markers
+    : markers.filter((m) => Number(m.lastSeen) >= cutoff);
+  showLocalMarkers(recent);
+  showSearchArea(at, km, { flash: !recent.length });
+  if (!recent.length) {
+    const where = within >= LIVE_HOURS_DEFAULT
+      ? formatKm(km)
+      : formatKm(km) + ' in the last ' + liveHoursName(within);
+    toast.info('No live posts within ' + where);
+  }
 }

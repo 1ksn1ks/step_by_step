@@ -5,6 +5,7 @@ import {
   openLiveSettings, closeLiveSettings, LIVE_GEAR_ICON,
 } from './livegroups.js';
 import { showRadiusPreview, hideRadiusPreview } from './liveradius.js';
+import { hitsMoon, onMoonScreen } from './moon.js';
 
 // Long-press (phone) / right-click (PC) on the map → the SAME pin as the
 // plain tap (drawhere.js), with two actions split around it:
@@ -96,8 +97,11 @@ function onMapMove() {
   const p = map.project(pressLoc);
   pressAnchor.style.left = p.x + 'px';
   pressAnchor.style.top = p.y + 'px';
+  // The pin row paints above the moon. Hide it while any of it meets the disc.
+  pressAnchor.style.visibility = hitsMoon(pressAnchor.getBoundingClientRect()) ? 'hidden' : 'visible';
 }
 map.on('move', onMapMove);
+onMoonScreen(onMapMove);
 
 export function closePressAnchor() {
   if (pressAnchor) {

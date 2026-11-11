@@ -22055,9 +22055,13 @@ html.is-draw-picking #map-topbar {
 }
 /* Look for Live's reach (liveradius.js): the polygon corner bubble's
    look, on the top edge of the dashed cyan circle, its arrow touching the
-   line. Taps go through to the map and the posts under it. */
+   line. Taps go through to the map and the posts under it.
+   z-index 1: topic dots and cluster bubbles are the same kind of marker
+   and get re-added on top of this label. 1 stays under the moon (2),
+   the polygon handles (5) and popups. */
 .live-radius-tag {
   --tip-font: clamp(11px, 1.25dvh, 16px);
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -23250,7 +23254,7 @@ html.is-draw-picking .live-filter {
 }
 
 /* Live settings (livegroups.js openLiveSettings): the group dropdown's
-   glass, with Posts from, Distance and Look for Live. */
+   glass, with Posts from, Distance, Time and Look for Live. */
 .live-settings {
   position: fixed;
   z-index: 6001;
@@ -23371,6 +23375,36 @@ html.is-draw-picking .live-filter {
 .live-settings-pill:focus-visible {
   outline: 1px solid rgba(255, 255, 255, 0.6);
   outline-offset: 1px;
+}
+/* Custom hours, in the same pill row. The number is the only thing you
+   type; the h sits beside it. */
+.live-settings-hours {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: text;
+}
+.live-settings-hours-input {
+  width: 3ch;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  text-align: right;
+  user-select: text;
+  -moz-appearance: textfield;
+}
+.live-settings-hours-input::-webkit-outer-spin-button,
+.live-settings-hours-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.live-settings-hours-input:focus {
+  outline: none;
 }
 .live-settings-look {
   flex: none;

@@ -148,6 +148,23 @@ const moonListeners = new Set();
 export function onMoonScreen(fn) {
   moonListeners.add(fn);
 }
+
+// True when a viewport box meets the moon's disc. Click pins are z-index
+// 6000, above the moon, so a zoom-out would leave them on its face.
+export function hitsMoon(rect) {
+  if (!moonEl || moonEl.style.display === 'none' || !rect) return false;
+  if (!(rect.width > 0) || !(rect.height > 0)) return false;
+  const box = moonEl.getBoundingClientRect();
+  const half = box.width / 2;
+  if (!(half > 0)) return false;
+  const mx = box.left + half;
+  const my = box.top + box.height / 2;
+  const cx = Math.max(rect.left, Math.min(mx, rect.right));
+  const cy = Math.max(rect.top, Math.min(my, rect.bottom));
+  const dx = cx - mx;
+  const dy = cy - my;
+  return dx * dx + dy * dy < half * half;
+}
 let lastMoonKey = '';
 function noteMoonScreen() {
   const s = moonScreen;

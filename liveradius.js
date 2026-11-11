@@ -2,6 +2,7 @@ import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
 import { liveRadius } from './livegroups.js';
 import { formatKm } from './arrowfilters.js';
+import { hitsMoon, onMoonScreen } from './moon.js';
 
 // Look for Live's reach, drawn on the map: a circle of the chosen radius
 // around the spot, in the polygon picker's cyan fill and dashed line
@@ -12,10 +13,10 @@ import { formatKm } from './arrowfilters.js';
 //             posts are on the map; with none found it shows for a moment.
 // The preview wins while both exist; closing the pin brings the area back.
 //
-// The bubble rides the circle's top edge. The held-spot pin is drawn over
-// the map, so when the circle is small (a short distance, or zoomed out)
-// that edge falls under the pin: the bubble then lifts to just above the
-// pin's row (its buttons and the gear badge too), its arrow on the pin.
+// The bubble rides the circle's top edge, so zoomed in its arrow touches
+// the line. Zoomed out that edge falls on the held dot and the bubble used
+// to jump clear of the whole button row. It now stops just above the dot,
+// with a gap, and comes back to the line once the circle grows past it.
 
 const SOURCE = 'live-radius';
 const FILL = 'live-radius-fill';
@@ -24,16 +25,17 @@ const STEPS = 96;
 const EARTH_KM = 6371.0088;
 const FLASH_MS = 2600;
 const TAG_LIFT = 7; // px: the arrow's height, so its tip sits on the line
-const PIN_GAP = 4; // px between a lifted bubble's arrow and the pin's row
+const DOT_GAP = 10; // px of space between the dot's edge and the arrow
+const FAR_ZOOM = 6; // below this the circle is small, so the bubble stays by the dot
 
 let preview = null; // { at: { lng, lat }, km }
 let area = null;
 let tag = null; // maplibregl.Marker on the circle's top edge
 let tagKm = null;
 let tagAt = null; // [lng, lat] of that edge
+let tagOffsetX = 0;
 let tagOffset = -TAG_LIFT;
-let pinRow = null; // the held-spot pin (poiinfo.js), kept clear of
-let pinReach = 0; // px its row reaches above the held point
+let pinRow = null; // the held-spot pin (poiinfo.js), while its circle is up
 let flashTimer = 0;
 
 // A geodesic circle. Longitudes stay continuous around the centre (no
@@ -107,38 +109,45 @@ function buildTag() {
   tagKm = km;
 }
 
-// How far the pin's row reaches above its middle (the held point), from
-// layout offsets: its drop-in scale animation does not change them.
-function measurePin() {
-  pinReach = 0;
-  if (!pinRow || !pinRow.isConnected) return;
-  let top = 0;
-  for (const el of pinRow.querySelectorAll('*')) {
-    if (!(el instanceof HTMLElement) || !el.offsetParent) continue;
-    let y = 0;
-    let node = el;
-    while (node && node !== pinRow) {
-      y += node.offsetTop;
-      node = node.offsetParent;
-    }
-    if (node === pinRow && y < top) top = y;
-  }
-  pinReach = pinRow.offsetHeight / 2 - top;
+// Half the held dot, in px. The bubble clears this, not the buttons beside it.
+// offsetHeight, not the border box: the dot scales in from twice its size
+// (pressDotIn), and that animated box parked the bubble high until the
+// next zoom remeasured the settled dot.
+function dotHalf() {
+  const dot = pinRow && pinRow.querySelector('.draw-here-pin');
+  if (!dot || !dot.isConnected) return 11;
+  const h = dot.offsetHeight;
+  return (h > 0 ? h : 22) / 2;
 }
 
-// The bubble's arrow stays at least PIN_GAP above the pin's row.
+// Zoomed in: the arrow stays on the radius line. Zoomed out, or whenever
+// that line would cover the dot, the arrow stops DOT_GAP past the dot.
 function liftTag() {
   if (!tag || !tagAt) return;
-  let lift = 0;
-  if (preview && shape() === preview && pinRow && pinRow.isConnected && pinReach > 0) {
-    const edgeY = map.project(tagAt).y;
-    const pointY = map.project([preview.at.lng, preview.at.lat]).y;
-    lift = Math.max(0, edgeY - (pointY - pinReach - PIN_GAP));
+  let offsetX = 0;
+  let offsetY = -TAG_LIFT;
+  if (preview && shape() === preview) {
+    const edge = map.project(tagAt);
+    const point = map.project([preview.at.lng, preview.at.lat]);
+    const dx = edge.x - point.x;
+    const dy = edge.y - point.y;
+    const dist = Math.hypot(dx, dy);
+    const near = dotHalf() + DOT_GAP;
+    if (map.getZoom() < FAR_ZOOM && dist > near) {
+      const tipX = point.x + (dx / dist) * near;
+      const tipY = point.y + (dy / dist) * near;
+      offsetX = Math.round(tipX - edge.x);
+      offsetY = Math.round(tipY - edge.y);
+    } else if (dist > 0) {
+      const borderTip = edge.y - TAG_LIFT;
+      const nearTip = point.y - near;
+      if (borderTip > nearTip) offsetY = -(TAG_LIFT + Math.round(borderTip - nearTip));
+    }
   }
-  const next = -(TAG_LIFT + Math.round(lift));
-  if (next === tagOffset) return;
-  tagOffset = next;
-  tag.setOffset([0, next]);
+  if (offsetX === tagOffsetX && offsetY === tagOffset) return;
+  tagOffsetX = offsetX;
+  tagOffset = offsetY;
+  tag.setOffset([offsetX, offsetY]);
 }
 
 function paint() {
@@ -159,6 +168,15 @@ function paint() {
   tagAt = points[0]; // bearing 0: the top edge
   tag.setLngLat(tagAt).addTo(map);
   liftTag();
+  keepTagOffMoon();
+}
+
+// The bubble is a map marker. Hide it while it meets the moon; the circle
+// itself is on the map canvas, already under the moon.
+function keepTagOffMoon() {
+  const el = tag && tag.getElement();
+  if (!el) return;
+  el.style.visibility = hitsMoon(el.getBoundingClientRect()) ? 'hidden' : 'visible';
 }
 
 // A style switch (globe on/off, theme) drops added layers.
@@ -166,19 +184,18 @@ map.on('style.load', () => {
   if (shape()) paint();
 });
 // Zoom changes how far the edge sits from the pin on screen.
-map.on('move', liftTag);
-window.addEventListener('resize', () => {
-  if (!pinRow) return;
-  measurePin();
+map.on('move', () => {
   liftTag();
+  keepTagOffMoon();
 });
+onMoonScreen(keepTagOffMoon);
+window.addEventListener('resize', liftTag);
 
-// pin: the held-spot pin's element, which the bubble keeps clear of.
+// pin: the held-spot pin. Zoomed out, the bubble stops just above its dot.
 export function showRadiusPreview(at, pin = null) {
   if (!at) return;
   preview = { at: { lng: Number(at.lng), lat: Number(at.lat) }, km: liveRadius() };
   pinRow = pin;
-  measurePin();
   paint();
 }
 
@@ -186,7 +203,6 @@ export function hideRadiusPreview() {
   if (!preview) return;
   preview = null;
   pinRow = null;
-  pinReach = 0;
   paint();
 }
 

@@ -13,8 +13,9 @@
 // Light on purpose: poiinfo.js loads it with the map, localnews.js later.
 //
 // The ⚙ beside Look for Live opens the live settings (openLiveSettings):
-// the same groups, the distance (how far from the held spot), and a Look
-// for Live button that searches with them.
+// the same groups, the distance (how far from the held spot), how recent
+// (up to 24 hours, which is all the server keeps), and a Look for Live
+// button that searches with them.
 import { map } from './map.js';
 import { formatKm } from './arrowfilters.js';
 
@@ -98,12 +99,57 @@ export function setLiveRadius(value) {
   return true;
 }
 
+// ── Time ───────────────────────────────────────────────────────────────
+// How recent a live post must be. The server drops a marker 24 hours after
+// its last upload (server/index.js LIVE_TTL_MS), so a longer window would
+// still come back empty. Kept across visits. localnews.js filters the
+// markers the server already returned.
+export const LIVE_HOURS = [1, 6, 12, 24];
+export const LIVE_HOURS_DEFAULT = 24;
+export const LIVE_HOURS_MAX = 24; // server/index.js LIVE_TTL_MS
+const HOURS_KEY = 'meritocracy-live-hours';
+let hours = readHours();
+
+function cleanHours(value) {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n) || n < 1 || n > LIVE_HOURS_MAX) return null;
+  return n;
+}
+
+function readHours() {
+  try {
+    const saved = cleanHours(localStorage.getItem(HOURS_KEY));
+    if (saved != null) return saved;
+  } catch { /* private mode: the default */ }
+  return LIVE_HOURS_DEFAULT;
+}
+
+export function liveHours() {
+  return hours;
+}
+
+export function liveHoursName(value = hours) {
+  return value + ' h';
+}
+
+// false when it is not a number. Above 24 hours clamps to the server's cap.
+export function setLiveHours(value) {
+  let n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return false;
+  n = Math.min(LIVE_HOURS_MAX, Math.max(1, n));
+  hours = n;
+  try { localStorage.setItem(HOURS_KEY, String(n)); } catch { /* this visit only */ }
+  return true;
+}
+
 // What the caption under Look for Live says: the group when it is not
-// Everyone, and always the distance ("Following · 50 km", "100 km").
+// Everyone, always the distance, and the time when it is not 24 hours
+// ("Following · 50 km", "100 km · 6 h").
 export function liveChoiceCaption() {
   const parts = [];
   if (current !== 'all') parts.push(liveGroupName(current));
   parts.push(liveRadiusName(radius));
+  if (hours !== LIVE_HOURS_DEFAULT) parts.push(liveHoursName(hours));
   return parts.join(' · ');
 }
 
@@ -335,8 +381,9 @@ export function bindHoldMenu(el, open) {
 }
 
 // ── Live settings (the ⚙ beside Look for Live) ─────────────────────────
-// Posts from (the groups above) and Distance (LIVE_RADII), then Look for
-// Live. A choice is kept as soon as it is made; onChange lets the pin
+// Posts from (the groups above), Distance (LIVE_RADII) and Time
+// (LIVE_HOURS, or a custom number of hours), then Look for Live. A choice
+// is kept as soon as it is made; onChange lets the pin
 // repaint its caption. Escape, a tap anywhere else, moving the map and
 // Back close it.
 let settings = null;
@@ -344,6 +391,9 @@ let settingsFor = null; // { anchor, onLook, onChange }
 let settingsLayer = false;
 const settingsRows = new Map(); // group key -> row
 const radiusPills = new Map(); // km -> pill
+const hoursPills = new Map(); // hours -> pill
+let hoursInput = null;
+let hoursCustom = null;
 
 export const LIVE_GEAR_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>';
 
@@ -456,6 +506,57 @@ function buildSettings() {
   }
   distance.append(pills);
 
+  // Time: the same kind of pills, plus a custom number of hours. The
+  // server only keeps 24, so the field cannot ask for more.
+  const time = settingsSection('Time', 'How recent. The server keeps the last 24 hours.');
+  const timePills = document.createElement('div');
+  timePills.className = 'live-settings-pills';
+  timePills.setAttribute('role', 'radiogroup');
+  timePills.setAttribute('aria-label', 'Time');
+  for (const value of LIVE_HOURS) {
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'live-settings-pill';
+    pill.setAttribute('role', 'radio');
+    pill.textContent = liveHoursName(value);
+    pill.addEventListener('click', (event) => {
+      event.stopPropagation();
+      setLiveHours(value);
+      paintSettings();
+      settingsChanged();
+    });
+    hoursPills.set(value, pill);
+    timePills.appendChild(pill);
+  }
+  hoursCustom = document.createElement('label');
+  hoursCustom.className = 'live-settings-pill live-settings-hours';
+  hoursInput = document.createElement('input');
+  hoursInput.type = 'number';
+  hoursInput.min = '1';
+  hoursInput.max = String(LIVE_HOURS_MAX);
+  hoursInput.step = '1';
+  hoursInput.inputMode = 'numeric';
+  hoursInput.className = 'live-settings-hours-input';
+  hoursInput.setAttribute('aria-label', 'Custom hours, up to 24');
+  const unit = document.createElement('span');
+  unit.textContent = 'h';
+  hoursCustom.append(hoursInput, unit);
+  const commitHours = () => {
+    const raw = hoursInput.value.trim();
+    if (raw === '' || !setLiveHours(raw)) hoursInput.value = String(hours);
+    paintSettings();
+    settingsChanged();
+  };
+  hoursInput.addEventListener('change', commitHours);
+  hoursInput.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    hoursInput.blur();
+  });
+  hoursInput.addEventListener('wheel', (event) => event.stopPropagation());
+  timePills.appendChild(hoursCustom);
+  time.append(timePills);
+
   const look = document.createElement('button');
   look.type = 'button';
   look.className = 'live-settings-look';
@@ -467,7 +568,7 @@ function buildSettings() {
     if (typeof onLook === 'function') onLook(current);
   });
 
-  settings.append(head, groups, distance, look);
+  settings.append(head, groups, distance, time, look);
   // The document click closes panels and the map pin; this keeps itself.
   settings.addEventListener('click', (event) => event.stopPropagation());
   settings.addEventListener('pointerdown', (event) => event.stopPropagation());
@@ -514,6 +615,14 @@ function paintSettings() {
     pill.classList.toggle('is-on', on);
     pill.setAttribute('aria-checked', on ? 'true' : 'false');
   }
+  const custom = !LIVE_HOURS.includes(hours);
+  for (const [value, pill] of hoursPills) {
+    const on = value === hours;
+    pill.classList.toggle('is-on', on);
+    pill.setAttribute('aria-checked', on ? 'true' : 'false');
+  }
+  if (hoursCustom) hoursCustom.classList.toggle('is-on', custom);
+  if (hoursInput && document.activeElement !== hoursInput) hoursInput.value = String(hours);
 }
 
 // Under the ⚙, or above it when there is more room there; inside the

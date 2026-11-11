@@ -3,6 +3,7 @@ import { map } from './map.js';
 import { toast } from './toast.js';
 import { initialTopicId } from './extracttopic.js';
 import { holdJustHappened, closePressAnchor } from './poiinfo.js';
+import { hitsMoon, onMoonScreen } from './moon.js';
 import { closeTransientMapUI } from './cssLogic.js';
 
 // Plain tap/click on the map (PC left-click, phone tap) → a pin with the
@@ -67,8 +68,11 @@ function onMapMove() {
   const p = map.project(pressLoc);
   pinEl.style.left = p.x + 'px';
   pinEl.style.top = p.y + 'px';
+  // The pin row paints above the moon. Hide it while any of it meets the disc.
+  pinEl.style.visibility = hitsMoon(pinEl.getBoundingClientRect()) ? 'hidden' : 'visible';
 }
 map.on('move', onMapMove);
+onMoonScreen(onMapMove);
 
 function makePinEl() {
   if (pinEl) pinEl.remove();
