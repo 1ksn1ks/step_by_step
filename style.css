@@ -7466,13 +7466,13 @@ html, body {
 
   @media not ((hover: hover) and (pointer: fine)) {
     .swap-card {
-      padding-left: var(--swap-side-gap);
-      padding-right: var(--swap-side-gap);
+      padding-left: max(var(--swap-side-gap), var(--corner-clear));
+      padding-right: max(var(--swap-side-gap), var(--corner-clear));
       overflow-x: hidden;
     }
 
     .swap-column {
-      align-self: flex-start;
+      align-self: center;
       width: 23.75rem;
     }
   }

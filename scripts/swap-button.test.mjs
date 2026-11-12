@@ -988,8 +988,8 @@ test("the swap sheet shows the creator bio above the safety line", () => {
   assert.match(linksCss, /\.swap-links\[hidden\]/);
   assert.match(linksCss, /text-overflow: ellipsis/);
   assert.match(css, /--swap-side-gap: 0\.75rem/);
-  assert.match(css, /padding-left: var\(--swap-side-gap\)/);
-  assert.match(css, /padding-right: var\(--swap-side-gap\)/);
+  assert.match(css, /padding-left: max\(var\(--swap-side-gap\), var\(--corner-clear\)\)/);
+  assert.match(css, /padding-right: max\(var\(--swap-side-gap\), var\(--corner-clear\)\)/);
   const cardAt = css.indexOf("  .swap-card {");
   const cardCss = css.slice(cardAt, css.indexOf("  @media (hover: hover) and (pointer: fine)", cardAt));
   assert.match(cardCss, /--swap-r-bottom: max\(var\(--swap-r\), var\(--screen-r-bottom, 0dvh\)\)/);
@@ -1151,6 +1151,8 @@ test("the swap sheet preloads the widget and reserves its height", () => {
   assert.equal(columnCss.includes("max-width: 100%"), false);
   assert.match(columnCss, /gap: 0\.75rem/);
   assert.equal(columnCss.includes("dvh"), false);
+  assert.equal(columnCss.includes("align-self: flex-start"), false);
+  assert.match(columnCss, /align-self: center/);
   assert.match(sheet, /const side = padX \+ edgePx\(pad\.borderLeftWidth\) \+ edgePx\(pad\.borderRightWidth\)/);
   assert.match(sheet, /card\.style\.width = \(swapCardWidth\(naturalW, zoom, side\) \/ rootPx\) \+ "rem"/);
   assert.match(sheet, /if \(!swapWidgetResizeNeedsFit\(widgetNaturalH, current\.offsetHeight, scale, slack\)\) return/);

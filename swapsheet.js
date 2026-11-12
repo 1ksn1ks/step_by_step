@@ -181,7 +181,8 @@ function fitColumnZoom() {
     const freeW = maxCard - padX;
     zoom = swapColumnZoom(naturalW, naturalH, freeW, freeH);
   } else {
-    // --swap-side-gap is the padding on each side. The border sits outside it.
+    // Each side is max(--swap-side-gap, --corner-clear). freeW uses that
+    // same resolved padding. The border sits outside it.
     const gap = edgePx(pad.paddingLeft);
     const borderX = edgePx(pad.borderLeftWidth) + edgePx(pad.borderRightWidth);
     const freeW = viewW - 2 * gap - borderX;
