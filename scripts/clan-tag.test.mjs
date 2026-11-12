@@ -276,6 +276,15 @@ function domNode(tag) {
     child.isConnected = parent.isConnected;
     parent.children.splice(at + 1, 0, child);
   };
+  node.remove = () => {
+    const parent = node.parentNode;
+    if (!parent) return;
+    const at = parent.children.indexOf(node);
+    if (at >= 0) parent.children.splice(at, 1);
+    node.parentNode = null;
+    node.parentElement = null;
+    node.isConnected = false;
+  };
   node.querySelector = (sel) => {
     const want = sel.match(/^\[data-swap-stat="([^"]+)"\]$/);
     const walk = (current) => {
@@ -379,6 +388,122 @@ test("the opened clan card shows the five stats from the lookup", async () => {
     assert.equal(valueOf(tiles[4]), formatSwapStat(null, false));
     assert.equal(tiles[4].title, "Total supply minus the treasury account's balance");
     assert.equal(fetches, 1);
+  } finally {
+    globalThis.document = previous.document;
+    globalThis.requestAnimationFrame = previous.requestAnimationFrame;
+  }
+});
+
+test("an unreviewed clan token shows the SaucerSwap notice under the card", async () => {
+  const clan = fs.readFileSync(new URL("../clantag.js", import.meta.url), "utf8");
+  const build = clan.slice(clan.indexOf("function buildCard"), clan.indexOf("function openCard"));
+  assert.match(build, /if \(token && token\.dueDiligenceComplete === false\) clip\.append\(inner, clanReviewNote\(\), stats\)/);
+  assert.match(build, /else clip\.append\(inner, stats\)/);
+  assert.match(clan, /className = "swap-note"/);
+  assert.match(clan, /className = "swap-note-text"/);
+  assert.match(clan, /textContent = "Not reviewed by SaucerSwap\."/);
+
+  const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  const clanCss = css.slice(css.indexOf(".popup-profile-bubble .payer-row"), css.indexOf("Early holder: the pill border"));
+  const note = clanCss.match(/\.clan-token \.swap-note \{[^}]*\}/);
+  const icon = clanCss.match(/\.clan-token \.swap-note \.swap-ico \{[^}]*\}/);
+  assert.ok(note);
+  assert.ok(icon);
+  assert.match(note[0], /font-size: calc\(var\(--fu, var\(--u\)\) \* 1\.25\)/);
+  assert.match(note[0], /gap: calc\(var\(--fu, var\(--u\)\) \* 0\.65\)/);
+  assert.match(note[0], /line-height: 1\.35/);
+  assert.match(note[0], /color: rgba\(255, 255, 255, 0\.5\)/);
+  assert.match(icon[0], /width: calc\(var\(--fu, var\(--u\)\) \* 1\.45\)/);
+  assert.match(icon[0], /height: calc\(var\(--fu, var\(--u\)\) \* 1\.45\)/);
+  assert.match(icon[0], /margin-top: calc\(var\(--fu, var\(--u\)\) \* 0\.18\)/);
+  assert.equal(note[0].includes("px"), false);
+  assert.equal(icon[0].includes("px"), false);
+
+  const previous = {
+    document: globalThis.document,
+    requestAnimationFrame: globalThis.requestAnimationFrame,
+  };
+  globalThis.document = {
+    addEventListener() {},
+    createElement(tag) { return domNode(tag); },
+    createElementNS(_ns, tag) { return domNode(tag); },
+  };
+  globalThis.requestAnimationFrame = (fn) => {
+    fn();
+    return 0;
+  };
+
+  async function openCard(payer, tokenId, token) {
+    await clanTokenLookup(tokenId, async () => token);
+    const parent = domNode("div");
+    parent.isConnected = true;
+    const bubble = domNode("section");
+    parent.appendChild(bubble);
+    const h2 = domNode("h2");
+    const payerLink = domNode("a");
+    h2.appendChild(payerLink);
+    bubble.appendChild(h2);
+    mountClanTag({
+      bubble,
+      payerLink,
+      payer,
+      swaps: () => ({ [payer]: { enabled: true, tokenId, feeBps: 40 } }),
+      createCard() { return domNode("div"); },
+      paintToken() {},
+      paintLinks() {},
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const button = (() => {
+      const walk = (node) => {
+        if (node.className === "clan-tag") return node;
+        for (const child of node.children) {
+          const hit = walk(child);
+          if (hit) return hit;
+        }
+        return null;
+      };
+      return walk(bubble);
+    })();
+    assert.ok(button);
+    for (const fn of button.listeners.click) fn({ preventDefault() {}, stopPropagation() {} });
+    const card = parent.children.find((child) => child.className.split(/\s+/).includes("clan-token"));
+    assert.ok(card);
+    const clip = card.children.find((child) => child.className === "clan-token-clip");
+    assert.ok(clip);
+    return clip;
+  }
+
+  function noteText(clip) {
+    const row = clip.children.find((child) => child.className === "swap-note");
+    if (!row) return "";
+    const text = row.children.find((child) => child.className === "swap-note-text");
+    return text ? text.textContent : "";
+  }
+
+  try {
+    const unreviewed = await openCard("0.0.515151", "0.0.616161", {
+      tokenId: "0.0.616161",
+      symbol: "gib",
+      dueDiligenceComplete: false,
+    });
+    assert.deepEqual(unreviewed.children.map((child) => child.className), ["", "swap-note", "swap-stats"]);
+    assert.equal(noteText(unreviewed), "Not reviewed by SaucerSwap.");
+
+    const reviewed = await openCard("0.0.515152", "0.0.616162", {
+      tokenId: "0.0.616162",
+      symbol: "gib",
+      dueDiligenceComplete: true,
+    });
+    assert.deepEqual(reviewed.children.map((child) => child.className), ["", "swap-stats"]);
+    assert.equal(noteText(reviewed), "");
+
+    const unknown = await openCard("0.0.515153", "0.0.616163", {
+      tokenId: "0.0.616163",
+      symbol: "gib",
+    });
+    assert.deepEqual(unknown.children.map((child) => child.className), ["", "swap-stats"]);
+    assert.equal(noteText(unknown), "");
+    await new Promise((resolve) => setTimeout(resolve, 450));
   } finally {
     globalThis.document = previous.document;
     globalThis.requestAnimationFrame = previous.requestAnimationFrame;

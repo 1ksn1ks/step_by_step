@@ -77,6 +77,35 @@ export function clanTokenLookup(tokenId, fetchToken = fetchSwapToken, cache = lo
   return run;
 }
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function svgEl(name, attrs) {
+  const el = document.createElementNS(SVG_NS, name);
+  for (const key of Object.keys(attrs)) el.setAttribute(key, attrs[key]);
+  return el;
+}
+
+// Same info mark as the Swap sheet notice.
+function clanInfoIcon() {
+  const svg = svgEl("svg", { viewBox: "0 0 24 24", "aria-hidden": "true", class: "swap-ico" });
+  svg.append(
+    svgEl("circle", { cx: "12", cy: "12", r: "9", fill: "none", stroke: "currentColor", "stroke-width": "1.8" }),
+    svgEl("path", { d: "M12 11v6", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round" }),
+    svgEl("circle", { cx: "12", cy: "8", r: "1.1", fill: "currentColor" }),
+  );
+  return svg;
+}
+
+function clanReviewNote() {
+  const row = document.createElement("p");
+  row.className = "swap-note";
+  const text = document.createElement("span");
+  text.className = "swap-note-text";
+  text.textContent = "Not reviewed by SaucerSwap.";
+  row.append(clanInfoIcon(), text);
+  return row;
+}
+
 function prefersReduced() {
   return !!(typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 }
@@ -194,7 +223,8 @@ export function mountClanTag({ bubble, payerLink, payer, swaps, createCard, pain
       paintLinks(inner.querySelector(".swap-links"), token && token.links);
       const stats = createSwapStats();
       paintSwapStats(stats, token);
-      clip.append(inner, stats);
+      if (token && token.dueDiligenceComplete === false) clip.append(inner, clanReviewNote(), stats);
+      else clip.append(inner, stats);
       wrap.append(clip);
       wrap.addEventListener("click", (event) => event.stopPropagation());
       wrap.addEventListener("pointerdown", (event) => event.stopPropagation());
