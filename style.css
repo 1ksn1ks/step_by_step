@@ -7283,6 +7283,7 @@ html, body {
     --swap-r-bottom: max(var(--swap-r), var(--screen-r-bottom, 0dvh));
     --corner-clear: max(0dvh, calc((var(--screen-r-bottom, 0dvh) - 2.2dvh) * 0.293 + 0.4dvh));
     width: 100%;
+    height: auto;
     max-height: 100%;
     box-sizing: border-box;
     display: flex;
@@ -7412,8 +7413,6 @@ html, body {
     flex: 0 0 auto;
     display: flex;
     justify-content: center;
-    /* Usual rendered height of the swap widget on a phone-sized viewport. */
-    min-height: 60.43dvh;
   }
 
   .swap-widget-placeholder {
@@ -7436,7 +7435,6 @@ html, body {
     width: min(100%, 23.75rem);
     max-width: 100%;
     min-width: 0;
-    min-height: 60.43dvh;
     margin-inline: auto;
   }
 

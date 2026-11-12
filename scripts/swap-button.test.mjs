@@ -323,6 +323,7 @@ test("the widget is mainnet HBAR to the author's token, and the fee is set only 
     inputToken: "0.0.0",
     outputToken: SAUCE,
     theme: "dark",
+    themeAccent: "#22D3EE",
   });
   const paid = swapWidgetConfig({ projectId, tokenId: SAUCE, feeBps: 40, account: AUTHOR });
   assert.equal(paid.integratorFeeBps, 40);
@@ -340,6 +341,7 @@ test("the widget is mainnet HBAR to the author's token, and the fee is set only 
   assert.equal(el.getAttribute("input-token"), "0.0.0");
   assert.equal(el.getAttribute("output-token"), SAUCE);
   assert.equal(el.getAttribute("theme"), "dark");
+  assert.equal(el.getAttribute("theme-accent"), "#22D3EE");
   assert.equal(el.getAttribute("integrator-fee-bps"), "40");
   assert.equal(el.getAttribute("integrator-fee-recipient"), AUTHOR);
   fillSwapWidget(el, free);
@@ -349,11 +351,13 @@ test("the widget is mainnet HBAR to the author's token, and the fee is set only 
 
   const defaults = swapWidgetConfig({ projectId, tokenId: "", feeBps: 40, account: AUTHOR });
   assert.equal(defaults.inputToken, "0.0.0");
+  assert.equal(defaults.themeAccent, "#22D3EE");
   assert.equal(defaults.outputToken, undefined);
   assert.equal(defaults.integratorFeeBps, undefined);
   assert.equal(defaults.integratorFeeRecipient, undefined);
   fillSwapWidget(el, defaults);
   assert.equal(el.getAttribute("input-token"), "0.0.0");
+  assert.equal(el.getAttribute("theme-accent"), "#22D3EE");
   assert.equal(el.getAttribute("output-token"), null);
   assert.equal(el.getAttribute("integrator-fee-bps"), null);
   assert.equal(el.getAttribute("integrator-fee-recipient"), null);
@@ -932,7 +936,8 @@ test("the swap sheet preloads the widget and reserves its height", () => {
   assert.match(css, /@keyframes swap-sheet-up \{\s*from \{ transform: translateY\(100%\); \}/);
   assert.match(css, /animation-name: donate-pop/);
   const widgetCss = css.slice(css.indexOf("  .swap-widget {"), css.indexOf("  .swap-trap {"));
-  assert.match(widgetCss, /min-height: 60\.43dvh/);
+  assert.equal(widgetCss.includes("60.43dvh"), false);
+  assert.match(sheet, /slot\.style\.minHeight = \(naturalH \/ rootPx\) \+ "rem"/);
   assert.equal(widgetCss.includes("px"), false);
   const cardAt = css.indexOf("  .swap-card {");
   const cardCss = css.slice(cardAt, css.indexOf("  @media (min-width: 100dvh)", cardAt));

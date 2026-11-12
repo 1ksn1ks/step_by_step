@@ -82,12 +82,53 @@ function visibleBox() {
   return { height, top };
 }
 
+function edgePx(value) {
+  const n = parseFloat(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+// The widget's own box stays its natural size. zoom scales that box into
+// spare room in the sheet. Reset to 1 before measuring so a later fit does
+// not multiply the previous scale. Never shrink a portrait phone.
+function fitWidgetZoom() {
+  const slot = sheetPart(".swap-widget");
+  const card = sheetPart(".swap-card");
+  const widget = slot && slot.querySelector(WIDGET);
+  if (!slot || !card || !widget) return;
+  widget.style.zoom = "1";
+  // Drop the reserved floor so this read is the widget's own height, not
+  // the space it was given last time. The floor is put back in rem.
+  const previous = slot.style.minHeight;
+  slot.style.minHeight = "0";
+  const naturalW = widget.offsetWidth;
+  const naturalH = widget.offsetHeight;
+  if (!(naturalW > 0) || !(naturalH > 0)) {
+    if (previous && previous !== "0") slot.style.minHeight = previous;
+    else slot.style.removeProperty("min-height");
+    return;
+  }
+  const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  if (rootPx > 0) slot.style.minHeight = (naturalH / rootPx) + "rem";
+  else if (previous && previous !== "0") slot.style.minHeight = previous;
+  else slot.style.removeProperty("min-height");
+  const cs = getComputedStyle(sheet);
+  const room = sheet.clientHeight - edgePx(cs.paddingTop) - edgePx(cs.paddingBottom);
+  const extra = Math.max(0, room - card.offsetHeight);
+  const freeW = slot.clientWidth;
+  const freeH = slot.clientHeight + extra;
+  let zoom = Math.min(freeW / naturalW, freeH / naturalH);
+  if (!Number.isFinite(zoom) || zoom < 1) zoom = 1;
+  if (zoom > 1.6) zoom = 1.6;
+  widget.style.zoom = String(zoom);
+}
+
 function fitSwapSheet() {
   if (!sheet || sheet.hidden) return;
   const box = visibleBox();
   if (!(box.height > 0)) return;
   sheet.style.setProperty("--swap-top", box.top + "px");
   sheet.style.setProperty("--swap-h", box.height + "px");
+  fitWidgetZoom();
 }
 
 function onFit() {
@@ -99,6 +140,8 @@ function startFit() {
   if (fitted) return;
   fitted = true;
   window.addEventListener("resize", onFit);
+  window.addEventListener("orientationchange", onFit);
+  document.addEventListener("wallet-account-changed", onFit);
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", onFit);
     window.visualViewport.addEventListener("scroll", onFit);
@@ -109,11 +152,15 @@ function stopFit() {
   if (fitted) {
     fitted = false;
     window.removeEventListener("resize", onFit);
+    window.removeEventListener("orientationchange", onFit);
+    document.removeEventListener("wallet-account-changed", onFit);
     if (window.visualViewport) {
       window.visualViewport.removeEventListener("resize", onFit);
       window.visualViewport.removeEventListener("scroll", onFit);
     }
   }
+  const widget = sheetPart(".swap-widget " + WIDGET);
+  if (widget) widget.style.zoom = "1";
   if (!sheet) return;
   sheet.style.removeProperty("--swap-top");
   sheet.style.removeProperty("--swap-h");
@@ -345,6 +392,8 @@ export async function openSwapSheet(details) {
       closeSheet();
     });
     slot.replaceChildren(el);
+    fitSwapSheet();
+    requestAnimationFrame(() => fitSwapSheet());
   } catch {
     if (gen !== sheetMotion().generation() || root.hidden) return;
     if (slot) slot.replaceChildren();
