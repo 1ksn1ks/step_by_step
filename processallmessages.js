@@ -1546,7 +1546,8 @@ export function mediaKind(value) {
 
 // Phone swipe and keyboard arrows share one pager. A mouse drag is a text
 // selection, so it never turns the page. Left is the previous message,
-// right is the next one, matching the ← → chips.
+// right is the next one, matching the ← → chips. A swipe on the picture,
+// GIF, or video uses that same prev/next.
 const popupPagers = new Set();
 let popupKeysBound = false;
 let popupStepQueue = 0;
@@ -1829,12 +1830,47 @@ function paintPopupView(el, topicId, created, fallback) {
   el.classList.add('is-shown');
 }
 
+// Native controls sit on the bottom of a real video. A swipe on the picture
+// still turns the page; a drag on that bar keeps seeking.
+function touchOnVideoControls(e) {
+  const node = e.target;
+  const video = node && node.closest && node.closest('video');
+  if (!video || !video.controls || video.classList.contains('loop-face')) return false;
+  const box = video.getBoundingClientRect();
+  if (box.height < 1) return false;
+  const strip = Math.min(56, Math.max(36, box.height * 0.18));
+  return e.clientY > box.bottom - strip;
+}
+
+// The page rebuilds the popup before this gesture's click arrives. That
+// click would open the new post's picture. Swallow one click on the media.
+function armPopupMediaClickSwallow() {
+  let pending = true;
+  let timer = 0;
+  const swallow = (event) => {
+    if (!pending) return;
+    pending = false;
+    document.removeEventListener('click', swallow, true);
+    clearTimeout(timer);
+    const target = event.target;
+    if (!target || !target.closest || !target.closest('.popup-media-card')) return;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  document.addEventListener('click', swallow, true);
+  timer = setTimeout(() => {
+    pending = false;
+    document.removeEventListener('click', swallow, true);
+  }, 500);
+}
+
 function bindPopupPager(container, goPrev, goNext) {
   let swipeX = null;
   let swipeY = null;
   container.addEventListener('pointerdown', (e) => {
     if (e.pointerType !== 'touch') return;
-    if (e.target.closest('.popup-media-card, .payer-link, .comments-modal--in-card, textarea')) return;
+    if (e.target.closest('.payer-link, .comments-modal--in-card, textarea')) return;
+    if (touchOnVideoControls(e)) return;
     swipeX = e.clientX;
     swipeY = e.clientY;
   });
@@ -1845,6 +1881,7 @@ function bindPopupPager(container, goPrev, goNext) {
     swipeX = swipeY = null;
     if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
     closeCommentsForPage(container);
+    armPopupMediaClickSwallow();
     if (dx < 0) goNext();
     else goPrev();
   });
