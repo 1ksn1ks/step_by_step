@@ -61,9 +61,10 @@ export function clanTagLabel(symbol) {
   return "Clan tag: " + symbol + ", show token";
 }
 
-// One flight per token, including a failed lookup. The default cache is the
-// module map, so every bubble shares it. fetchSwapToken still keeps a hit
-// for the rest of the app.
+// One flight per token. The default cache is the module map, so every bubble
+// shares it. A token body stays cached. Null or a throw is dropped, so the
+// next profiles-loaded event or bubble can retry. fetchSwapToken still keeps
+// a hit for the rest of the app.
 export function clanTokenLookup(tokenId, fetchToken = fetchSwapToken, cache = lookups) {
   const id = bareAccount(tokenId);
   if (!id) return Promise.resolve(null);
@@ -71,8 +72,15 @@ export function clanTokenLookup(tokenId, fetchToken = fetchSwapToken, cache = lo
   if (hit) return hit;
   const run = Promise.resolve()
     .then(() => fetchToken(id))
-    .then((body) => (body && typeof body === "object" ? body : null))
-    .catch(() => null);
+    .then((body) => {
+      const token = body && typeof body === "object" ? body : null;
+      if (!token && cache.get(id) === run) cache.delete(id);
+      return token;
+    })
+    .catch(() => {
+      if (cache.get(id) === run) cache.delete(id);
+      return null;
+    });
   cache.set(id, run);
   return run;
 }

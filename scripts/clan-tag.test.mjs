@@ -36,13 +36,11 @@ test("the chip needs a symbol, and an icon is optional", () => {
   assert.equal(clanTagLabel("gib"), "Clan tag: gib, show token");
 });
 
-test("the token lookup is fetched once and reused, including a failure", async () => {
+test("the token lookup is fetched once and reused", async () => {
   const cache = new Map();
   const calls = [];
   const fetchToken = async (id) => {
     calls.push(id);
-    if (id === "0.0.9") return null;
-    if (id === "0.0.8") throw new Error("down");
     return { tokenId: id, symbol: "gib", icon: "https://cdn.example/g.png" };
   };
   const first = clanTokenLookup(SAUCE, fetchToken, cache);
@@ -55,15 +53,63 @@ test("the token lookup is fetched once and reused, including a failure", async (
   const other = await clanTokenLookup("0.0.731862", fetchToken, cache);
   assert.equal(other.symbol, "gib");
   assert.equal(calls.length, 2);
-
-  assert.equal(await clanTokenLookup("0.0.9", fetchToken, cache), null);
-  assert.equal(await clanTokenLookup("0.0.9", fetchToken, cache), null);
   assert.equal(clanChipModel(null), null);
-  assert.equal(calls.filter((id) => id === "0.0.9").length, 1);
+});
 
-  assert.equal(await clanTokenLookup("0.0.8", fetchToken, cache), null);
-  assert.equal(await clanTokenLookup("0.0.8", fetchToken, cache), null);
-  assert.equal(calls.filter((id) => id === "0.0.8").length, 1);
+test("a null or thrown clan token lookup is dropped so the next call can retry", async () => {
+  const cache = new Map();
+  const calls = [];
+  let pending = null;
+  const fetchToken = (id) => {
+    calls.push(id);
+    return new Promise((resolve, reject) => {
+      pending = { resolve, reject };
+    });
+  };
+
+  const id = "0.0.717171";
+  const first = clanTokenLookup(id, fetchToken, cache);
+  const second = clanTokenLookup(id, fetchToken, cache);
+  assert.equal(first, second);
+  assert.equal(cache.get(id), first);
+  await Promise.resolve();
+  assert.deepEqual(calls, [id]);
+  pending.resolve(null);
+  assert.equal(await first, null);
+  assert.equal(await second, null);
+  assert.equal(cache.has(id), false);
+
+  const third = clanTokenLookup(id, fetchToken, cache);
+  assert.notEqual(third, first);
+  assert.equal(cache.get(id), third);
+  await Promise.resolve();
+  assert.deepEqual(calls, [id, id]);
+  pending.resolve({ tokenId: id, symbol: "gib" });
+  assert.equal((await third).symbol, "gib");
+  assert.equal(cache.get(id), third);
+  assert.equal(clanTokenLookup(id, fetchToken, cache), third);
+  assert.deepEqual(calls, [id, id]);
+
+  const bad = "0.0.717172";
+  const thrown = clanTokenLookup(bad, fetchToken, cache);
+  const thrownAgain = clanTokenLookup(bad, fetchToken, cache);
+  assert.equal(thrown, thrownAgain);
+  assert.equal(cache.get(bad), thrown);
+  await Promise.resolve();
+  assert.equal(calls.filter((item) => item === bad).length, 1);
+  pending.reject(new Error("down"));
+  assert.equal(await thrown, null);
+  assert.equal(await thrownAgain, null);
+  assert.equal(cache.has(bad), false);
+  assert.equal(cache.get(id), third);
+
+  const retry = clanTokenLookup(bad, fetchToken, cache);
+  assert.notEqual(retry, thrown);
+  await Promise.resolve();
+  pending.resolve(null);
+  assert.equal(await retry, null);
+  assert.equal(calls.filter((item) => item === bad).length, 2);
+  assert.equal(cache.has(bad), false);
 });
 
 test("token card links use the real website host and x.com handle", () => {
