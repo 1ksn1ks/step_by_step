@@ -134,6 +134,16 @@ test("the popup puts the display name above the account id and shares the feed r
   assert.match(clanCss, /rgba\(34, 211, 238, 0\.35\)/);
   assert.match(clanCss, /flex: 0 100 auto/);
   assert.match(clanCss, /flex-flow: row nowrap/);
+  assert.match(clanCss, /gap: calc\(var\(--fu, var\(--u\)\) \* 0\.6\)/);
+  assert.match(clanCss, /\.clan-tag \{[^}]*align-self: stretch/);
+  assert.match(clanCss, /\.clan-tag \{[^}]*flex: 0 0 auto/);
+  assert.match(clanCss, /font-size: calc\(var\(--fu, var\(--u\)\) \* 1\.68\)/);
+  assert.match(clanCss, /\.clan-tag-symbol \{[^}]*line-height: 1\.3/);
+  assert.match(clanCss, /\.clan-tag-symbol \{[^}]*padding-top: 0\.1em/);
+  assert.match(clanCss, /\* 0\.85\)/);
+  assert.match(clan, /className = "payer-names"/);
+  assert.match(clan, /names\.append\(payerLink\)/);
+  assert.match(clan, /row\.append\(names, button\)/);
   assert.match(clanCss, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(clanCss, /transition: none/);
   assert.match(clanCss, /margin-left: var\(--popup-edge, 0\)/);

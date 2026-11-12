@@ -170,10 +170,17 @@ export function mountClanTag({ bubble, payerLink, payer, swaps, createCard, pain
     symbol.textContent = model.symbol;
     button.append(symbol);
 
+    const h2 = payerLink.parentElement;
+    if (!h2) return;
+    const names = document.createElement("span");
+    names.className = "payer-names";
+    const username = h2.querySelector(".username");
+    if (username) names.append(username);
+    names.append(payerLink);
     const row = document.createElement("span");
     row.className = "payer-row";
-    payerLink.replaceWith(row);
-    row.append(payerLink, button);
+    row.append(names, button);
+    h2.append(row);
 
     const state = { button, card: null, open: false };
     function buildCard() {
