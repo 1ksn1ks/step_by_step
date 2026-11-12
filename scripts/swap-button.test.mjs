@@ -7,7 +7,12 @@ import {
   associationCutWarning,
   fetchSwapToken,
   fillSwapWidget,
+  formatSwapStat,
+  swapCardWidth,
+  swapColumnZoom,
   swapKeptLinks,
+  swapKeptStats,
+  swapWidgetResizeNeedsFit,
   mountSwapWidgetScript,
   resolveSwapButton,
   swapButtonShows,
@@ -927,8 +932,10 @@ test("creator token links stay https on the way to the sheet", async () => {
   const donate = fs.readFileSync(new URL("../donations.js", import.meta.url), "utf8");
   assert.match(menu, /links: creator \? swapReady\.token\.links : null/);
   assert.match(menu, /icon: creator \? swapReady\.token\.icon : ""/);
+  assert.match(menu, /stats: creator \? swapReady\.token\.stats : null/);
   assert.match(donate, /links: creator \? result\.token\.links : null/);
   assert.match(donate, /icon: creator \? result\.token\.icon : ""/);
+  assert.match(donate, /stats: creator \? result\.token\.stats : null/);
 });
 
 test("the swap sheet shows the creator bio above the safety line", () => {
@@ -964,7 +971,7 @@ test("the swap sheet shows the creator bio above the safety line", () => {
   const appended = sheet.match(/card\.append\(([^)]+)\)/);
   assert.ok(appended);
   assert.equal(appended[1], "column");
-  assert.match(sheet, /column\.append\(head, token, bio, noteRow, error, slot\)/);
+  assert.match(sheet, /column\.append\(head, token, stats, bio, noteRow, error, slot\)/);
   assert.equal(sheet.includes("swap-grab"), false);
   assert.match(sheet, /bio\.textContent = lines\.bio/);
   assert.match(sheet, /note\.textContent = lines\.safety/);
@@ -1122,19 +1129,25 @@ test("the swap sheet preloads the widget and reserves its height", () => {
   assert.equal(swapCss.includes("min-width: 100dvh"), false);
   const widgetCss = css.slice(css.indexOf("  .swap-widget {"), css.indexOf("  .swap-trap {"));
   assert.equal(widgetCss.includes("60.43dvh"), false);
-  assert.match(sheet, /slot\.style\.minHeight = \(naturalH \/ rootPx\) \+ "rem"/);
+  assert.match(sheet, /slot\.style\.minHeight = \(widgetH \/ rootPx\) \+ "rem"/);
   assert.match(sheet, /column\.style\.zoom = "1"/);
-  assert.match(sheet, /let zoom = Math\.min\(freeW \/ columnW, freeH \/ columnH\)/);
-  assert.match(sheet, /if \(zoom > 2\.4\) zoom = 2\.4/);
+  assert.match(sheet, /card\.style\.removeProperty\("width"\)/);
+  assert.match(sheet, /const zoom = swapColumnZoom\(naturalW, naturalH, freeW, freeH\)/);
+  assert.match(offer, /let zoom = Math\.min\(freeW \/ naturalW, freeH \/ naturalH\)/);
+  assert.match(offer, /if \(zoom > 2\.4\) zoom = 2\.4/);
   assert.match(sheet, /column\.style\.zoom = String\(zoom\)/);
   assert.equal(sheet.includes("widget.style.zoom"), false);
   assert.equal(sheet.includes("zoom > 1.6"), false);
   const columnCss = css.slice(css.indexOf("  .swap-column {"), css.indexOf("  .swap-head {"));
   assert.equal(columnCss.includes("px"), false);
-  assert.match(columnCss, /width: min\(100%, 23\.75rem\)/);
+  assert.match(columnCss, /width: min\(23\.75rem, calc\(100dvw - 2 \* var\(--swap-pad\)\)\)/);
+  assert.equal(columnCss.includes("max-width: 100%"), false);
   assert.match(columnCss, /gap: 0\.75rem/);
   assert.equal(columnCss.includes("dvh"), false);
-  assert.match(sheet, /card\.style\.width = \(\(rendered \+ side\) \/ rootPx\) \+ "rem"/);
+  assert.match(sheet, /const side = padX \+ edgePx\(pad\.borderLeftWidth\) \+ edgePx\(pad\.borderRightWidth\)/);
+  assert.match(sheet, /card\.style\.width = \(swapCardWidth\(naturalW, zoom, side\) \/ rootPx\) \+ "rem"/);
+  assert.match(sheet, /if \(!swapWidgetResizeNeedsFit\(widgetNaturalH, current\.offsetHeight, scale, slack\)\) return/);
+  assert.match(stopFn, /widgetNaturalH = 0/);
   assert.match(css, /--swap-pad: 1\.6dvh;\s*width: min\(86dvw, 56dvh\);\s*max-width: min\(86dvw, 56dvh\);\s*padding: var\(--swap-pad\)/);
   assert.equal(css.includes(".swap-grab"), false);
   assert.match(sheet, /slot\.replaceChildren\(el\);\s*paintSwapButtonInk\(el\)/);
@@ -1147,4 +1160,50 @@ test("the swap sheet preloads the widget and reserves its height", () => {
   const cardCss = css.slice(cardAt, css.indexOf("  @media (hover: hover) and (pointer: fine)", cardAt));
   assert.match(cardCss, /max-height: 100%/);
   assert.equal(cardCss.includes("px"), false);
+});
+
+test("the card width is the natural column times zoom plus padding, and a zoom-only resize is skipped", () => {
+  assert.equal(swapCardWidth(200, 1.5, 32), 200 * 1.5 + 32);
+  assert.equal(swapCardWidth(23.75, 2.4, 8), 23.75 * 2.4 + 8);
+  assert.equal(swapColumnZoom(100, 80, 200, 240), 2);
+  assert.equal(swapColumnZoom(100, 80, 50, 240), 1);
+  assert.equal(swapColumnZoom(10, 10, 100, 100), 2.4);
+  assert.equal(swapColumnZoom(10, 10, -4, 100), 1);
+  assert.equal(swapColumnZoom(0, 0, 20, 20), 1);
+
+  const slack = 16 * 0.1;
+  assert.equal(swapWidgetResizeNeedsFit(100, 200, 2, slack), false);
+  assert.equal(swapWidgetResizeNeedsFit(100, 260, 2, slack), true);
+  assert.equal(swapWidgetResizeNeedsFit(100, 130, 1, slack), true);
+  assert.equal(swapWidgetResizeNeedsFit(100, 100.1, 1, slack), false);
+  assert.equal(swapWidgetResizeNeedsFit(0, 100, 1, slack), true);
+
+  assert.equal(formatSwapStat(0.0016, true), "$0.0016");
+  assert.equal(formatSwapStat(1.58e6, true), "$1.58M");
+  assert.equal(formatSwapStat(980e6, false), "980M");
+  assert.equal(formatSwapStat(null, true), "–");
+  assert.equal(formatSwapStat(Number.NaN, false), "–");
+  assert.deepEqual(swapKeptStats({ priceUsd: -1, totalSupply: "980", marketCapUsd: 1.5 }), {
+    totalSupply: null,
+    circulating: null,
+    liquidityUsd: null,
+    marketCapUsd: 1.5,
+    priceUsd: null,
+  });
+
+  const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
+  const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  assert.match(sheet, /if \(!id\) \{\s*grid\.hidden = true;/);
+  assert.match(sheet, /stats\.hidden = true/);
+  assert.match(sheet, /tile\.title = "Total supply minus the treasury account's balance"/);
+  assert.match(sheet, /paintSwapStats\(root\.querySelector\("\.swap-stats"\), offer\)/);
+  const statsCss = css.slice(css.indexOf("  .swap-stats {"), css.indexOf("  .swap-note {"));
+  assert.equal(statsCss.includes("px"), false);
+  assert.match(statsCss, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+  assert.match(statsCss, /width: min\(100%, 23\.75rem\)/);
+  assert.match(sheet, /\["price", "Price", true\]/);
+  assert.match(sheet, /\["cap", "Market cap", true\]/);
+  assert.match(sheet, /\["liquidity", "Liquidity", true\]/);
+  assert.match(sheet, /\["supply", "Total supply", false\]/);
+  assert.match(sheet, /\["circulating", "Circulating", false\]/);
 });

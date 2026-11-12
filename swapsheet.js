@@ -16,13 +16,17 @@ import {
   deepActiveElement,
   fillSwapWidget,
   mountSwapWidgetScript,
+  formatSwapStat,
+  swapCardWidth,
+  swapColumnZoom,
+  swapKeptLinks,
   swapReturnTarget,
   swapSheetText,
   swapSuccessToast,
   swapTabbables,
-  swapKeptLinks,
   swapTabDestination,
   swapWidgetConfig,
+  swapWidgetResizeNeedsFit,
 } from "./swapoffer.js";
 
 const WIDGET = "saucerswap-widget";
@@ -92,6 +96,7 @@ function edgePx(value) {
 // One fit per frame. A second request before that frame runs is skipped.
 let fitFrame = 0;
 let widgetObserver = null;
+let widgetNaturalH = 0;
 
 function scheduleFit() {
   if (fitFrame) return;
@@ -115,6 +120,15 @@ function watchWidgetSize() {
   if (widgetObserver) widgetObserver.disconnect();
   else {
     widgetObserver = new ResizeObserver(() => {
+      const live = sheetPart(".swap-widget");
+      const current = live && live.querySelector(WIDGET);
+      const column = sheetPart(".swap-column");
+      if (!current || !column) return;
+      const zoom = parseFloat(column.style.zoom);
+      const scale = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+      const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      const slack = (rootPx > 0 ? rootPx : 16) * 0.1;
+      if (!swapWidgetResizeNeedsFit(widgetNaturalH, current.offsetHeight, scale, slack)) return;
       scheduleFit();
     });
   }
@@ -137,37 +151,37 @@ function fitColumnZoom() {
   // the space it was given last time. The floor is put back in rem.
   const previous = slot.style.minHeight;
   slot.style.minHeight = "0";
-  const columnW = column.offsetWidth;
-  const columnH = column.offsetHeight;
-  const naturalH = widget.offsetHeight;
-  if (!(columnW > 0) || !(columnH > 0) || !(naturalH > 0)) {
+  const naturalW = column.offsetWidth;
+  const naturalH = column.offsetHeight;
+  const widgetH = widget.offsetHeight;
+  if (!(naturalW > 0) || !(naturalH > 0) || !(widgetH > 0)) {
     if (previous && previous !== "0") slot.style.minHeight = previous;
     else slot.style.removeProperty("min-height");
     return;
   }
   const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
-  if (rootPx > 0) slot.style.minHeight = (naturalH / rootPx) + "rem";
+  if (rootPx > 0) slot.style.minHeight = (widgetH / rootPx) + "rem";
   else if (previous && previous !== "0") slot.style.minHeight = previous;
   else slot.style.removeProperty("min-height");
-  const cs = getComputedStyle(sheet);
-  const room = sheet.clientHeight - edgePx(cs.paddingTop) - edgePx(cs.paddingBottom);
-  const extra = Math.max(0, room - card.offsetHeight);
-  const cardCs = getComputedStyle(card);
-  const freeW = card.clientWidth - edgePx(cardCs.paddingLeft) - edgePx(cardCs.paddingRight);
-  const freeH = column.clientHeight + extra;
-  let zoom = Math.min(freeW / columnW, freeH / columnH);
-  if (!Number.isFinite(zoom) || zoom < 1) zoom = 1;
-  if (zoom > 2.4) zoom = 2.4;
+  widgetNaturalH = widgetH;
+  const view = visibleBox();
+  const viewW = window.innerWidth || 0;
+  const viewH = view.height;
+  const maxCard = Math.min(viewW * 0.86, viewH * 0.56);
+  const pad = getComputedStyle(card);
+  const padX = edgePx(pad.paddingLeft) + edgePx(pad.paddingRight);
+  const padY = edgePx(pad.paddingTop) + edgePx(pad.paddingBottom);
+  const sheetCs = getComputedStyle(sheet);
+  const sheetY = edgePx(sheetCs.paddingTop) + edgePx(sheetCs.paddingBottom);
+  const freeW = maxCard - padX;
+  const freeH = viewH - sheetY - padY;
+  const zoom = swapColumnZoom(naturalW, naturalH, freeW, freeH);
   column.style.zoom = String(zoom);
-  // Measured at the card's available width. Then hug the zoomed column so
-  // the side padding matches the top and bottom, with no empty strip.
+  // offsetWidth stayed the unzoomed size, so the card adds the scale.
   const fine = window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   if (fine && rootPx > 0) {
-    const pad = getComputedStyle(card);
-    const side = edgePx(pad.paddingLeft) + edgePx(pad.paddingRight)
-      + edgePx(pad.borderLeftWidth) + edgePx(pad.borderRightWidth);
-    const rendered = column.offsetWidth;
-    if (rendered > 0) card.style.width = ((rendered + side) / rootPx) + "rem";
+    const side = padX + edgePx(pad.borderLeftWidth) + edgePx(pad.borderRightWidth);
+    card.style.width = (swapCardWidth(naturalW, zoom, side) / rootPx) + "rem";
   }
 }
 
@@ -203,6 +217,7 @@ function stopFit() {
     cancelAnimationFrame(fitFrame);
     fitFrame = 0;
   }
+  widgetNaturalH = 0;
   if (fitted) {
     fitted = false;
     window.removeEventListener("resize", scheduleFit);
@@ -446,6 +461,36 @@ function paintSwapToken(card, offer) {
   }
 }
 
+const SWAP_STATS = [
+  ["price", "Price", true],
+  ["cap", "Market cap", true],
+  ["liquidity", "Liquidity", true],
+  ["supply", "Total supply", false],
+  ["circulating", "Circulating", false],
+];
+
+function paintSwapStats(grid, offer) {
+  if (!grid) return;
+  const id = bareAccount(offer && offer.tokenId);
+  if (!id) {
+    grid.hidden = true;
+    return;
+  }
+  grid.hidden = false;
+  const stats = offer && offer.stats && typeof offer.stats === "object" ? offer.stats : {};
+  const values = {
+    price: formatSwapStat(stats.priceUsd, true),
+    cap: formatSwapStat(stats.marketCapUsd, true),
+    liquidity: formatSwapStat(stats.liquidityUsd, true),
+    supply: formatSwapStat(stats.totalSupply, false),
+    circulating: formatSwapStat(stats.circulating, false),
+  };
+  for (const [key] of SWAP_STATS) {
+    const node = grid.querySelector('[data-swap-stat="' + key + '"]');
+    if (node) node.textContent = values[key];
+  }
+}
+
 function paintSwapLinks(row, links) {
   if (!row) return;
   row.replaceChildren();
@@ -547,6 +592,24 @@ function ensureSheet() {
   links.hidden = true;
   token.append(icon, meta, links);
 
+  const stats = document.createElement("div");
+  stats.className = "swap-stats";
+  stats.hidden = true;
+  for (const [key, label] of SWAP_STATS) {
+    const tile = document.createElement("div");
+    tile.className = "swap-stat";
+    if (key === "circulating") tile.title = "Total supply minus the treasury account's balance";
+    const name = document.createElement("p");
+    name.className = "swap-stat-label";
+    name.textContent = label;
+    const value = document.createElement("p");
+    value.className = "swap-stat-value";
+    value.dataset.swapStat = key;
+    value.textContent = "–";
+    tile.append(name, value);
+    stats.append(tile);
+  }
+
   const bio = document.createElement("p");
   bio.className = "swap-bio";
   bio.hidden = true;
@@ -568,7 +631,7 @@ function ensureSheet() {
 
   const column = document.createElement("div");
   column.className = "swap-column";
-  column.append(head, token, bio, noteRow, error, slot);
+  column.append(head, token, stats, bio, noteRow, error, slot);
   card.append(column);
   root.append(trapSentinel("start"), card, trapSentinel("end"));
 
@@ -641,6 +704,7 @@ export async function openSwapSheet(details) {
   const note = root.querySelector(".swap-note-text");
   if (note) note.textContent = lines.safety;
   paintSwapToken(root.querySelector(".swap-token"), offer);
+  paintSwapStats(root.querySelector(".swap-stats"), offer);
   paintSwapLinks(root.querySelector(".swap-links"), bareAccount(offer.tokenId) ? offer.links : null);
   const error = root.querySelector(".swap-error");
   if (error) {

@@ -4,11 +4,13 @@ import fs from "node:fs";
 import express from "express";
 import {
   createSwapTokenLookup,
+  EMPTY_SWAP_STATS,
   isHbarSide,
   readSaucerLists,
   swapHttpsLink,
   swapTokenLinks,
   swapTokenRoute,
+  swapTokenStats,
   swapTwitterLink,
   WHBAR_TOKEN_IDS,
 } from "../server/swaptoken.js";
@@ -29,12 +31,14 @@ function side(id, extra = {}) {
 }
 
 function mirrorRow(id, extra = {}) {
+  const { name, symbol, decimals, ...rest } = extra;
   return {
     token_id: id,
-    name: extra.name ?? "Sauce",
-    symbol: extra.symbol ?? "SAUCE",
-    decimals: extra.decimals ?? "6",
+    name: name ?? "Sauce",
+    symbol: symbol ?? "SAUCE",
+    decimals: decimals ?? "6",
     type: "FUNGIBLE_COMMON",
+    ...rest,
   };
 }
 
@@ -54,16 +58,30 @@ function world(options = {}) {
     pools: options.pools || [],
     poolsV1: options.poolsV1 || [],
     details: options.details || {},
+    balances: options.balances || {},
+    prices: options.prices || {},
     fail: options.fail || null,
   };
   const fetchImpl = async (url) => {
     calls.push(url);
     if (state.fail && state.fail(url)) return jsonResponse(503, {});
+    const balances = url.match(/\/api\/v1\/tokens\/([^/]+)\/balances\?/);
+    if (balances) {
+      const id = decodeURIComponent(balances[1]);
+      if (!Object.prototype.hasOwnProperty.call(state.balances, id)) return jsonResponse(404, {});
+      return jsonResponse(200, state.balances[id]);
+    }
     if (url.includes("/api/v1/tokens/")) {
       const id = decodeURIComponent(url.split("/api/v1/tokens/")[1]);
       const row = state.mirror[id];
       if (!row) return jsonResponse(404, { _status: { messages: [{ message: "Not found" }] } });
       return jsonResponse(200, row);
+    }
+    const prices = url.match(/\/tokens\/prices\/([^/?#]+)/);
+    if (prices) {
+      const id = decodeURIComponent(prices[1]);
+      if (!Object.prototype.hasOwnProperty.call(state.prices, id)) return jsonResponse(404, {});
+      return jsonResponse(200, state.prices[id]);
     }
     const detail = url.match(/\/tokens\/([^/?#]+)$/);
     if (detail) {
@@ -123,6 +141,7 @@ test("a WHBAR pool returns name, symbol, decimals, the pool, and due diligence",
     dueDiligenceComplete: true,
     icon: "",
     links: {},
+    stats: { ...EMPTY_SWAP_STATS },
   });
 });
 
@@ -327,6 +346,7 @@ test("GET /api/swap/token/:tokenId returns the lookup", async () => {
         x: "https://x.com/sauce",
         discord: "https://discord.com/invite/sauce",
       },
+      stats: { ...EMPTY_SWAP_STATS },
     });
     const missing = await fetch(`http://127.0.0.1:${port}/api/swap/token/nope`);
     assert.equal(missing.status, 400);
@@ -461,4 +481,125 @@ test("the server route uses the public rate limit", () => {
     source,
     /app\.get\("\/api\/swap\/token\/:tokenId", publicPostLimit, swapTokenRoute\(swapTokenLookup\)\)/
   );
+});
+
+test("circulating supply is total minus treasury, and market cap is price times circulating", () => {
+  const stats = swapTokenStats({
+    supplyRaw: 1_000_000_000_000_000n,
+    treasury: 20_000_000_000_000n,
+    decimals: 6,
+    priceUsd: 0.0016,
+    liquidityUsd: 2500,
+  });
+  assert.equal(stats.totalSupply, 1_000_000_000);
+  assert.equal(stats.circulating, 980_000_000);
+  assert.equal(stats.marketCapUsd, 0.0016 * 980_000_000);
+  assert.equal(stats.priceUsd, 0.0016);
+  assert.equal(stats.liquidityUsd, 2500);
+
+  const noTreasury = swapTokenStats({ supplyRaw: 5000n, decimals: 2, priceUsd: 3 });
+  assert.equal(noTreasury.totalSupply, 50);
+  assert.equal(noTreasury.circulating, null);
+  assert.equal(noTreasury.marketCapUsd, null);
+  assert.equal(noTreasury.priceUsd, 3);
+
+  const over = swapTokenStats({
+    supplyRaw: 100n,
+    treasury: 101n,
+    decimals: 0,
+    priceUsd: 2,
+    liquidityUsd: -1,
+  });
+  assert.equal(over.totalSupply, 100);
+  assert.equal(over.circulating, null);
+  assert.equal(over.marketCapUsd, null);
+  assert.equal(over.liquidityUsd, null);
+
+  const noPrice = swapTokenStats({
+    supplyRaw: 10n,
+    treasury: 4n,
+    decimals: 0,
+    priceUsd: null,
+    liquidityUsd: "12.5",
+  });
+  assert.equal(noPrice.circulating, 6);
+  assert.equal(noPrice.marketCapUsd, null);
+  assert.equal(noPrice.liquidityUsd, 12.5);
+
+  const full = swapTokenStats({ supplyRaw: 980n, treasury: 0n, decimals: 0, priceUsd: 1 });
+  assert.equal(full.circulating, 980);
+  assert.equal(full.marketCapUsd, 980);
+
+  assert.deepEqual(swapTokenStats({ supplyRaw: "nope", priceUsd: "bad", liquidityUsd: -4 }), EMPTY_SWAP_STATS);
+});
+
+test("token stats use the mirror supply, the treasury balance, and the latest candle", async () => {
+  const nowMs = 1_700_000_000_000;
+  const env = world({
+    mirror: {
+      [SAUCE]: mirrorRow(SAUCE, {
+        decimals: "6",
+        total_supply: "1000000000000000",
+        treasury_account_id: "0.0.98",
+      }),
+    },
+    tokens: [{ id: SAUCE, dueDiligenceComplete: true }],
+    pools: [{ tokenA: side(SAUCE), tokenB: side(WHBAR, { symbol: "HBAR" }) }],
+    details: { [SAUCE]: { priceUsd: 0.0016 } },
+    balances: { [SAUCE]: { balances: [{ account: "0.0.98", balance: "20000000000000" }] } },
+    prices: {
+      [SAUCE]: [
+        { timestampSeconds: 10, liquidityUsd: 100 },
+        { timestampSeconds: 50, liquidityUsd: 2500.5 },
+        { timestampSeconds: 40, liquidityUsd: 9 },
+      ],
+    },
+  });
+  const lookup = lookupOf(env, { now: () => nowMs, cacheMs: 1_000 });
+  const result = await lookup.lookup(SAUCE);
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body.stats, {
+    totalSupply: 1_000_000_000,
+    circulating: 980_000_000,
+    liquidityUsd: 2500.5,
+    marketCapUsd: 0.0016 * 980_000_000,
+    priceUsd: 0.0016,
+  });
+  const to = Math.floor(nowMs / 1000);
+  const from = to - 2 * 24 * 60 * 60;
+  const prices = env.calls.find((url) => url.includes("/tokens/prices/"));
+  assert.equal(prices.includes("interval=DAY"), true);
+  assert.equal(prices.includes(`from=${from}`), true);
+  assert.equal(prices.includes(`to=${to}`), true);
+  const balances = env.calls.find((url) => url.includes("/balances"));
+  assert.equal(balances.includes("account.id=0.0.98"), true);
+  const before = env.calls.length;
+  await lookup.lookup(SAUCE);
+  assert.equal(env.calls.length, before);
+});
+
+test("a failed stats read leaves that field null and still returns the token", async () => {
+  const env = world({
+    mirror: {
+      [SAUCE]: mirrorRow(SAUCE, {
+        decimals: "6",
+        total_supply: "1000000",
+        treasury_account_id: "0.0.98",
+      }),
+    },
+    tokens: [{ id: SAUCE, dueDiligenceComplete: true }],
+    pools: [{ tokenA: side(SAUCE), tokenB: side(WHBAR, { symbol: "HBAR" }) }],
+    details: { [SAUCE]: { priceUsd: "nope" } },
+    fail: (url) => url.includes("/balances") || url.includes("/tokens/prices/"),
+  });
+  const result = await lookupOf(env).lookup(SAUCE);
+  assert.equal(result.status, 200);
+  assert.equal(result.body.pool, true);
+  assert.deepEqual(result.body.stats, {
+    totalSupply: 1,
+    circulating: null,
+    liquidityUsd: null,
+    marketCapUsd: null,
+    priceUsd: null,
+  });
 });

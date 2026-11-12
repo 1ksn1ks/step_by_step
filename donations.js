@@ -636,6 +636,7 @@ async function loadDonateSwap() {
     dueDiligenceComplete: creator ? result.token.dueDiligenceComplete : false,
     icon: creator ? result.token.icon : "",
     links: creator ? result.token.links : null,
+    stats: creator ? result.token.stats : null,
     host,
   };
   if (button) button.hidden = false;

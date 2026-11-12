@@ -489,6 +489,66 @@ export function mountSwapWidgetScript(doc) {
 
 const SWAP_LINK_KEYS = ["website", "x", "telegram", "discord"];
 
+function statNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+// Drop anything that is not a finite amount. A missing stats object is all null.
+export function swapKeptStats(stats) {
+  const src = stats && typeof stats === "object" ? stats : {};
+  return {
+    totalSupply: statNumber(src.totalSupply),
+    circulating: statNumber(src.circulating),
+    liquidityUsd: statNumber(src.liquidityUsd),
+    marketCapUsd: statNumber(src.marketCapUsd),
+    priceUsd: statNumber(src.priceUsd),
+  };
+}
+
+function compactStat(value) {
+  const digits = value >= 100 ? 0 : value >= 10 ? 1 : 2;
+  return value.toFixed(digits).replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1");
+}
+
+// $0.0016, $1.58M, 980M. Null is an en dash.
+export function formatSwapStat(value, money) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "–";
+  const negative = value < 0;
+  const abs = Math.abs(value);
+  let body;
+  if (abs >= 1e9) body = compactStat(abs / 1e9) + "B";
+  else if (abs >= 1e6) body = compactStat(abs / 1e6) + "M";
+  else if (abs >= 1e3) body = compactStat(abs / 1e3) + "K";
+  else if (abs >= 1) body = compactStat(abs);
+  else if (abs === 0) body = "0";
+  else body = String(Number(abs.toPrecision(4)));
+  return (negative ? "-" : "") + (money ? "$" : "") + body;
+}
+
+// Zoom of the swap column into the free viewport box. Never below 1, never above 2.4.
+export function swapColumnZoom(naturalW, naturalH, freeW, freeH) {
+  let zoom = Math.min(freeW / naturalW, freeH / naturalH);
+  if (!Number.isFinite(zoom) || zoom < 1) zoom = 1;
+  if (zoom > 2.4) zoom = 2.4;
+  return zoom;
+}
+
+// offsetWidth is the unzoomed column, so the card has to add the scale itself.
+export function swapCardWidth(naturalW, zoom, side) {
+  return naturalW * zoom + side;
+}
+
+// True when the widget's own height changed. A zoom-scaled box that still
+// matches the remembered zoom-1 height does not.
+export function swapWidgetResizeNeedsFit(remembered, offsetHeight, zoom, slack) {
+  if (!(remembered > 0) || !(offsetHeight > 0)) return true;
+  const limit = slack > 0 ? slack : 0;
+  const rawMoved = Math.abs(offsetHeight - remembered) > limit;
+  const undone = zoom > 0 ? offsetHeight / zoom : offsetHeight;
+  const undoneMoved = Math.abs(undone - remembered) > limit;
+  return rawMoved && undoneMoved;
+}
+
 // The server already checked these. Check again so a bad body cannot
 // become a javascript: link in the sheet.
 export function swapKeptLinks(links) {
@@ -511,6 +571,7 @@ function tokenBody(id, data) {
     dueDiligenceComplete: !!(data && data.dueDiligenceComplete === true),
     icon: swapHttpsLink(data && data.icon),
     links: swapKeptLinks(data && data.links),
+    stats: swapKeptStats(data && data.stats),
   };
 }
 

@@ -67,6 +67,82 @@ function decimalsOf(...values) {
   return 0;
 }
 
+function rawAmount(value) {
+  if (typeof value === "bigint" && value >= 0n) return value;
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return BigInt(value);
+  if (typeof value === "string" && /^(0|[1-9]\d*)$/.test(value.trim())) return BigInt(value.trim());
+  return null;
+}
+
+function finiteUsd(value) {
+  const n = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value.trim()) : NaN;
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+}
+
+function scaledUnits(raw, decimals) {
+  const scale = 10n ** BigInt(decimals);
+  const whole = raw / scale;
+  const frac = raw % scale;
+  const value = Number(whole) + Number(frac) / Number(scale);
+  return Number.isFinite(value) ? value : null;
+}
+
+export const EMPTY_SWAP_STATS = {
+  totalSupply: null,
+  circulating: null,
+  liquidityUsd: null,
+  marketCapUsd: null,
+  priceUsd: null,
+};
+
+// circulating is total supply minus the treasury balance, both in whole tokens.
+// A missing piece stays null and does not blank the pieces that did load.
+export function swapTokenStats({ supplyRaw, treasury, decimals, priceUsd, liquidityUsd } = {}) {
+  const stats = {
+    ...EMPTY_SWAP_STATS,
+    priceUsd: finiteUsd(priceUsd),
+    liquidityUsd: finiteUsd(liquidityUsd),
+  };
+  if (typeof supplyRaw !== "bigint" || supplyRaw < 0n) return stats;
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 255) return stats;
+  stats.totalSupply = scaledUnits(supplyRaw, decimals);
+  if (stats.totalSupply == null) return stats;
+  if (typeof treasury === "bigint" && treasury >= 0n && treasury <= supplyRaw) {
+    stats.circulating = scaledUnits(supplyRaw - treasury, decimals);
+  }
+  if (stats.circulating != null && stats.priceUsd != null) {
+    const cap = stats.priceUsd * stats.circulating;
+    stats.marketCapUsd = Number.isFinite(cap) ? cap : null;
+  }
+  return stats;
+}
+
+function treasuryBalance(body, treasuryId) {
+  const rows = body && Array.isArray(body.balances) ? body.balances : null;
+  if (!rows) return null;
+  if (!rows.length) return 0n;
+  const row = rows.find((item) => text(item && item.account) === treasuryId) || rows[0];
+  return rawAmount(row && row.balance);
+}
+
+function latestLiquidity(body) {
+  const rows = Array.isArray(body) ? body : null;
+  if (!rows || !rows.length) return null;
+  let best = null;
+  let bestTs = -Infinity;
+  for (const row of rows) {
+    const ts = row && Number(row.timestampSeconds);
+    if (!Number.isFinite(ts)) continue;
+    if (ts >= bestTs) {
+      bestTs = ts;
+      best = row;
+    }
+  }
+  if (!best) best = rows[rows.length - 1];
+  return finiteUsd(best && best.liquidityUsd);
+}
+
 export function isHbarSide(token) {
   return !!token && typeof token === "object" && WHBAR.has(text(token.id));
 }
@@ -178,14 +254,17 @@ export function createSwapTokenLookup({
       : saucerLists.poolDue.get(id) === true;
     let links = {};
     let icon = "";
+    let detail = null;
     try {
-      const detail = await getJson(fetchImpl, `${saucer}/tokens/${encodeURIComponent(id)}`, { notFound: true });
+      detail = await getJson(fetchImpl, `${saucer}/tokens/${encodeURIComponent(id)}`, { notFound: true });
       links = swapTokenLinks(detail);
       icon = swapHttpsLink(detail && detail.icon);
     } catch {
       links = {};
       icon = "";
+      detail = null;
     }
+    const stats = await readStats(id, row, detail);
     return remember(id, 200, {
       tokenId: id,
       name: text(row.name) || text(listed && listed.name),
@@ -195,7 +274,43 @@ export function createSwapTokenLookup({
       dueDiligenceComplete: due,
       icon,
       links,
+      stats,
     });
+  }
+
+  // Stats never fail the lookup. Each source that errors becomes null.
+  async function readStats(id, row, detail) {
+    const decimals = decimalsOf(row && row.decimals);
+    const supplyRaw = rawAmount(row && row.total_supply);
+    const priceUsd = finiteUsd(detail && detail.priceUsd);
+    let treasury = null;
+    const treasuryId = text(row && row.treasury_account_id);
+    if (supplyRaw != null && treasuryId) {
+      try {
+        const body = await getJson(
+          fetchImpl,
+          `${mirror}/api/v1/tokens/${encodeURIComponent(id)}/balances?account.id=${encodeURIComponent(treasuryId)}&limit=1`,
+          { notFound: true },
+        );
+        treasury = body == null ? null : treasuryBalance(body, treasuryId);
+      } catch {
+        treasury = null;
+      }
+    }
+    let liquidityUsd = null;
+    try {
+      const to = Math.floor(now() / 1000);
+      const from = to - 2 * 24 * 60 * 60;
+      const body = await getJson(
+        fetchImpl,
+        `${saucer}/tokens/prices/${encodeURIComponent(id)}?interval=DAY&from=${from}&to=${to}`,
+        { notFound: true },
+      );
+      liquidityUsd = latestLiquidity(body);
+    } catch {
+      liquidityUsd = null;
+    }
+    return swapTokenStats({ supplyRaw, treasury, decimals, priceUsd, liquidityUsd });
   }
 
   return {
