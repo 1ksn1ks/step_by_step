@@ -19,6 +19,7 @@ import {
   swapSheetText,
   swapSuccessToast,
   swapTabbables,
+  swapKeptLinks,
   swapTabDestination,
   swapWidgetConfig,
 } from "./swapoffer.js";
@@ -239,6 +240,34 @@ function trapSentinel(which) {
   return el;
 }
 
+const SWAP_LINK_LABELS = [
+  ["website", "Website"],
+  ["x", "X"],
+  ["telegram", "Telegram"],
+  ["discord", "Discord"],
+];
+
+function paintSwapLinks(row, links) {
+  if (!row) return;
+  row.replaceChildren();
+  const kept = swapKeptLinks(links);
+  const entries = SWAP_LINK_LABELS.filter(([key]) => kept[key]);
+  if (!entries.length) {
+    row.hidden = true;
+    return;
+  }
+  for (const [key, label] of entries) {
+    const link = document.createElement("a");
+    link.className = "swap-link";
+    link.href = kept[key];
+    link.target = "_blank";
+    link.rel = "noopener noreferrer nofollow";
+    link.textContent = label;
+    row.append(link);
+  }
+  row.hidden = false;
+}
+
 function txLink(notice) {
   const link = document.createElement("a");
   link.className = "swap-tx-link";
@@ -281,6 +310,10 @@ function ensureSheet() {
   const note = document.createElement("p");
   note.className = "swap-note";
 
+  const links = document.createElement("div");
+  links.className = "swap-links";
+  links.hidden = true;
+
   const error = document.createElement("p");
   error.className = "swap-error";
   error.setAttribute("role", "alert");
@@ -290,7 +323,7 @@ function ensureSheet() {
   slot.className = "swap-widget";
   slot.append(swapLoadingNote());
 
-  card.append(head, bio, note, error, slot);
+  card.append(head, bio, note, links, error, slot);
   root.append(trapSentinel("start"), card, trapSentinel("end"));
 
   cancel.addEventListener("click", (event) => {
@@ -361,6 +394,7 @@ export async function openSwapSheet(details) {
   }
   const note = root.querySelector(".swap-note");
   if (note) note.textContent = lines.safety;
+  paintSwapLinks(root.querySelector(".swap-links"), bareAccount(offer.tokenId) ? offer.links : null);
   const error = root.querySelector(".swap-error");
   if (error) {
     error.textContent = "";

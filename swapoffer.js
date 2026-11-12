@@ -6,6 +6,7 @@
 
 import Long from "long";
 import { normalizeSwap } from "./server/swapprofile.js";
+import { swapHttpsLink } from "./server/swaptoken.js";
 import { bareAccount } from "./donationmath.js";
 
 export const SWAP_WIDGET_SRC = "https://widget.saucerswap.finance/widget.js";
@@ -470,6 +471,20 @@ export function mountSwapWidgetScript(doc) {
   return script;
 }
 
+const SWAP_LINK_KEYS = ["website", "x", "telegram", "discord"];
+
+// The server already checked these. Check again so a bad body cannot
+// become a javascript: link in the sheet.
+export function swapKeptLinks(links) {
+  const src = links && typeof links === "object" ? links : {};
+  const out = {};
+  for (const key of SWAP_LINK_KEYS) {
+    const href = swapHttpsLink(src[key]);
+    if (href) out[key] = href;
+  }
+  return out;
+}
+
 function tokenBody(id, data) {
   return {
     tokenId: data && typeof data.tokenId === "string" && data.tokenId ? data.tokenId : id,
@@ -478,6 +493,7 @@ function tokenBody(id, data) {
     decimals: data ? data.decimals : 0,
     pool: !!(data && data.pool === true),
     dueDiligenceComplete: !!(data && data.dueDiligenceComplete === true),
+    links: swapKeptLinks(data && data.links),
   };
 }
 

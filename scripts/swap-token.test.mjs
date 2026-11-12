@@ -2,7 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import express from "express";
-import { createSwapTokenLookup, isHbarSide, readSaucerLists, swapTokenRoute, WHBAR_TOKEN_IDS } from "../server/swaptoken.js";
+import {
+  createSwapTokenLookup,
+  isHbarSide,
+  readSaucerLists,
+  swapHttpsLink,
+  swapTokenLinks,
+  swapTokenRoute,
+  swapTwitterLink,
+  WHBAR_TOKEN_IDS,
+} from "../server/swaptoken.js";
 
 const SAUCE = "0.0.731861";
 const WHBAR = WHBAR_TOKEN_IDS[0];
@@ -44,6 +53,7 @@ function world(options = {}) {
     tokens: options.tokens || [],
     pools: options.pools || [],
     poolsV1: options.poolsV1 || [],
+    details: options.details || {},
     fail: options.fail || null,
   };
   const fetchImpl = async (url) => {
@@ -54,6 +64,12 @@ function world(options = {}) {
       const row = state.mirror[id];
       if (!row) return jsonResponse(404, { _status: { messages: [{ message: "Not found" }] } });
       return jsonResponse(200, row);
+    }
+    const detail = url.match(/\/tokens\/([^/?#]+)$/);
+    if (detail) {
+      const id = decodeURIComponent(detail[1]);
+      if (!Object.prototype.hasOwnProperty.call(state.details, id)) return jsonResponse(404, {});
+      return jsonResponse(200, state.details[id]);
     }
     if (url.endsWith("/tokens")) return jsonResponse(200, state.tokens);
     if (url.endsWith("/v2/pools")) return jsonResponse(200, state.pools);
@@ -105,6 +121,7 @@ test("a WHBAR pool returns name, symbol, decimals, the pool, and due diligence",
     decimals: 6,
     pool: true,
     dueDiligenceComplete: true,
+    links: {},
   });
 });
 
@@ -250,6 +267,7 @@ test("two checks for one token share one mirror read", async () => {
     if (url.includes("/api/v1/tokens/")) await gate;
     if (url.includes("/api/v1/tokens/")) return jsonResponse(200, mirrorRow(SAUCE));
     if (url.endsWith("/tokens")) return jsonResponse(200, [{ id: SAUCE, dueDiligenceComplete: false }]);
+    if (/\/tokens\/[^/]+$/.test(url)) return jsonResponse(404, {});
     if (url.endsWith("/v2/pools")) {
       return jsonResponse(200, [{ tokenA: side(SAUCE), tokenB: side(WHBAR, { symbol: "HBAR" }) }]);
     }
@@ -276,6 +294,14 @@ test("GET /api/swap/token/:tokenId returns the lookup", async () => {
     mirror: { [SAUCE]: mirrorRow(SAUCE, { name: "SAUCE", symbol: "SAUCE", decimals: "6" }) },
     tokens: [{ id: SAUCE, dueDiligenceComplete: true }],
     pools: [{ tokenA: side(SAUCE), tokenB: side(WHBAR, { symbol: "WHBAR" }) }],
+    details: {
+      [SAUCE]: {
+        website: " https://sauce.example ",
+        twitterHandle: "@sauce",
+        telegram: "http://t.me/nope",
+        discord: "https://discord.com/invite/sauce",
+      },
+    },
   });
   const app = express();
   app.get("/api/swap/token/:tokenId", swapTokenRoute(lookupOf(env)));
@@ -293,6 +319,11 @@ test("GET /api/swap/token/:tokenId returns the lookup", async () => {
       decimals: 6,
       pool: true,
       dueDiligenceComplete: true,
+      links: {
+        website: "https://sauce.example",
+        x: "https://x.com/sauce",
+        discord: "https://discord.com/invite/sauce",
+      },
     });
     const missing = await fetch(`http://127.0.0.1:${port}/api/swap/token/nope`);
     assert.equal(missing.status, 400);
@@ -322,6 +353,103 @@ test("the route handler turns a thrown lookup into 502", async () => {
   } finally {
     await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
+});
+
+test("a website, telegram, or discord value is kept only as an https URL", () => {
+  assert.equal(swapHttpsLink("  https://sauce.example/docs  "), "https://sauce.example/docs");
+  assert.equal(swapHttpsLink("https://sauce.example"), "https://sauce.example");
+  assert.equal(swapHttpsLink("http://sauce.example"), "");
+  assert.equal(swapHttpsLink("javascript:alert(1)"), "");
+  assert.equal(swapHttpsLink("https://"), "");
+  assert.equal(swapHttpsLink("https://ok.example/a b"), "");
+  assert.equal(swapHttpsLink("https://ok.example/\npath"), "");
+  assert.equal(swapHttpsLink(""), "");
+  assert.equal(swapHttpsLink(null), "");
+  assert.equal(swapHttpsLink("ftp://sauce.example"), "");
+});
+
+test("a twitter handle becomes an x.com link and anything else is dropped", () => {
+  assert.equal(swapTwitterLink("@SaucerSwap"), "https://x.com/SaucerSwap");
+  assert.equal(swapTwitterLink("  sauce_token  "), "https://x.com/sauce_token");
+  assert.equal(swapTwitterLink("a"), "https://x.com/a");
+  assert.equal(swapTwitterLink("a".repeat(15)), "https://x.com/" + "a".repeat(15));
+  assert.equal(swapTwitterLink("bad-name"), "");
+  assert.equal(swapTwitterLink("a".repeat(16)), "");
+  assert.equal(swapTwitterLink("https://x.com/SaucerSwap"), "");
+  assert.equal(swapTwitterLink("@"), "");
+  assert.equal(swapTwitterLink("@@sauce"), "");
+  assert.equal(swapTwitterLink("sauce token"), "");
+  assert.equal(swapTwitterLink(""), "");
+  assert.equal(swapTwitterLink(null), "");
+});
+
+test("token links keep a trimmed https website, telegram, and discord, plus an x handle", () => {
+  assert.deepEqual(swapTokenLinks({
+    website: " https://sauce.example ",
+    twitterHandle: "@sauce",
+    telegram: "https://t.me/sauce",
+    discord: "http://discord.gg/nope",
+  }), {
+    website: "https://sauce.example",
+    x: "https://x.com/sauce",
+    telegram: "https://t.me/sauce",
+  });
+  assert.deepEqual(swapTokenLinks({
+    website: "javascript:alert(1)",
+    twitterHandle: "https://x.com/sauce",
+    telegram: " https://t.me/a b ",
+    discord: "",
+  }), {});
+  assert.deepEqual(swapTokenLinks(null), {});
+});
+
+test("token links come from the SaucerSwap token record and stay in the cache", async () => {
+  let clock = 5_000;
+  const env = world({
+    mirror: { [SAUCE]: mirrorRow(SAUCE) },
+    tokens: [{ id: SAUCE, dueDiligenceComplete: true }],
+    pools: [{ tokenA: side(SAUCE), tokenB: side(WHBAR, { symbol: "HBAR" }) }],
+    details: {
+      [SAUCE]: {
+        website: " https://sauce.example/docs ",
+        twitterHandle: "@sauce_token",
+        telegram: "https://t.me/sauce",
+        discord: "not a url",
+      },
+    },
+  });
+  const lookup = lookupOf(env, { now: () => clock, cacheMs: 1_000 });
+  const result = await lookup.lookup(SAUCE);
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body.links, {
+    website: "https://sauce.example/docs",
+    x: "https://x.com/sauce_token",
+    telegram: "https://t.me/sauce",
+  });
+  const detailCalls = () => env.calls.filter((url) => url === `https://saucer.test/tokens/${SAUCE}`).length;
+  assert.equal(detailCalls(), 1);
+  await lookup.lookup(SAUCE);
+  assert.equal(detailCalls(), 1);
+  clock += 1_001;
+  await lookup.lookup(SAUCE);
+  assert.equal(detailCalls(), 2);
+});
+
+test("a failed token-link read still returns the pool with no links", async () => {
+  const env = world({
+    mirror: { [SAUCE]: mirrorRow(SAUCE) },
+    tokens: [{ id: SAUCE, dueDiligenceComplete: true }],
+    pools: [{ tokenA: side(SAUCE), tokenB: side(WHBAR, { symbol: "HBAR" }) }],
+    fail: (url) => url.startsWith("https://saucer.test/tokens/"),
+  });
+  const lookup = lookupOf(env);
+  const result = await lookup.lookup(SAUCE);
+  assert.equal(result.status, 200);
+  assert.equal(result.body.pool, true);
+  assert.deepEqual(result.body.links, {});
+  const before = env.calls.length;
+  await lookup.lookup(SAUCE);
+  assert.equal(env.calls.length, before);
 });
 
 test("the server route uses the public rate limit", () => {

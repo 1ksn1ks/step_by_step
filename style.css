@@ -7395,6 +7395,32 @@ html, body {
     color: rgba(255, 255, 255, 0.82);
   }
 
+  .swap-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.4dvh 1.6dvh;
+    margin: 0;
+    min-width: 0;
+    font-size: 1.6dvh;
+    line-height: 1.35;
+  }
+
+  .swap-links[hidden] {
+    display: none;
+  }
+
+  .swap-link {
+    color: #22D3EE;
+    text-decoration: none;
+  }
+
+  .swap-link:focus-visible {
+    outline: 0.2dvh solid #22D3EE;
+    outline-offset: 0.2dvh;
+  }
+
   .swap-error {
     margin: 0;
     font-size: 1.5dvh;

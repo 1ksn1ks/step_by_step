@@ -304,6 +304,7 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
       feeBps: creator ? swapReady.offer.feeBps : 0,
       symbol: creator ? swapReady.token.symbol : "",
       dueDiligenceComplete: creator ? swapReady.token.dueDiligenceComplete : false,
+      links: creator ? swapReady.token.links : null,
       host: root.closest('.' + EARLY_POPUP_CLASS),
       opener: swapItem,
     });

@@ -7,6 +7,7 @@ import {
   associationCutWarning,
   fetchSwapToken,
   fillSwapWidget,
+  swapKeptLinks,
   mountSwapWidgetScript,
   resolveSwapButton,
   swapButtonShows,
@@ -773,6 +774,49 @@ test("a swap bio folds into its own column and stops at 280 characters", () => {
   assert.match(cache, /swapBio: typeof row\.swapBio === "string" \? row\.swapBio : ""/);
 });
 
+test("creator token links stay https on the way to the sheet", async () => {
+  assert.deepEqual(swapKeptLinks({
+    website: " https://sauce.example ",
+    x: "https://x.com/sauce",
+    telegram: "javascript:alert(1)",
+    discord: "http://discord.gg/no",
+  }), {
+    website: "https://sauce.example",
+    x: "https://x.com/sauce",
+  });
+  assert.deepEqual(swapKeptLinks("@sauce"), {});
+  assert.deepEqual(swapKeptLinks(null), {});
+
+  const { fetchImpl } = tokenFetch({
+    tokenId: SAUCE,
+    symbol: "SAUCE",
+    pool: true,
+    links: {
+      website: "https://sauce.example",
+      x: "https://x.com/sauce",
+      telegram: "https://t.me/sauce",
+      discord: "javascript:alert(1)",
+    },
+  });
+  const result = await resolveSwapButton({
+    author: AUTHOR,
+    viewer: VIEWER,
+    swap: ON,
+    fetchImpl,
+    ...isolated(),
+  });
+  assert.deepEqual(result.token.links, {
+    website: "https://sauce.example",
+    x: "https://x.com/sauce",
+    telegram: "https://t.me/sauce",
+  });
+
+  const menu = fs.readFileSync(new URL("../postmenu.js", import.meta.url), "utf8");
+  const donate = fs.readFileSync(new URL("../donations.js", import.meta.url), "utf8");
+  assert.match(menu, /links: creator \? swapReady\.token\.links : null/);
+  assert.match(donate, /links: creator \? result\.token\.links : null/);
+});
+
 test("the swap sheet shows the creator bio above the safety line", () => {
   const buying = "You're buying SAUCE (0.0.731861), not donating. Tokens can lose value.";
   const html = "<a href=\"https://example.test\">click</a>";
@@ -805,12 +849,19 @@ test("the swap sheet shows the creator bio above the safety line", () => {
   const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
   const appended = sheet.match(/card\.append\(([^)]+)\)/);
   assert.ok(appended);
-  assert.equal(appended[1], "head, bio, note, error, slot");
+  assert.equal(appended[1], "head, bio, note, links, error, slot");
   assert.match(sheet, /bio\.textContent = lines\.bio/);
   assert.match(sheet, /note\.textContent = lines\.safety/);
+  assert.match(sheet, /link\.textContent = label/);
+  assert.match(sheet, /link\.rel = "noopener noreferrer nofollow"/);
+  assert.match(sheet, /link\.target = "_blank"/);
+  assert.match(sheet, /bareAccount\(offer\.tokenId\) \? offer\.links : null/);
   assert.equal(sheet.includes("innerHTML"), false);
 
   const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  const linksCss = css.slice(css.indexOf("  .swap-links {"), css.indexOf("  .swap-error {"));
+  assert.equal(linksCss.includes("px"), false);
+  assert.match(linksCss, /\.swap-links\[hidden\]/);
   const cardAt = css.indexOf("  .swap-card {");
   const cardCss = css.slice(cardAt, css.indexOf("  @media (min-width: 100dvh)", cardAt));
   assert.match(cardCss, /--swap-r-bottom: max\(var\(--swap-r\), var\(--screen-r-bottom, 0dvh\)\)/);

@@ -1,6 +1,7 @@
 // Profile Swap asks this before a token is saved. The mirror says the token
 // exists. SaucerSwap's public lists say whether a V1 or V2 pool pairs it
-// with WHBAR. No API key: GET /tokens, GET /pools, and GET /v2/pools.
+// with WHBAR. GET /tokens/<id> supplies the creator's public links.
+// No API key: GET /tokens, GET /tokens/<id>, GET /pools, and GET /v2/pools.
 // Answers are reused for a few minutes so a retry does not download the
 // full lists again. The answer map is capped so unknown token ids cannot
 // grow it without limit.
@@ -18,6 +19,41 @@ const LOOKUP_TIMEOUT_MS = 12_000;
 
 function text(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+const TWITTER_HANDLE = /^[A-Za-z0-9_]{1,15}$/;
+
+// A website, telegram, or discord value is kept only as an https URL.
+export function swapHttpsLink(value) {
+  const raw = text(value);
+  if (!raw || /\s/.test(raw) || !/^https:\/\//i.test(raw)) return "";
+  let url;
+  try { url = new URL(raw); } catch { return ""; }
+  if (url.protocol !== "https:" || !url.hostname) return "";
+  return raw;
+}
+
+// A twitter handle becomes https://x.com/<handle>. A leading @ is removed.
+// Anything that is not the handle itself is dropped.
+export function swapTwitterLink(value) {
+  let handle = text(value);
+  if (handle.startsWith("@")) handle = handle.slice(1);
+  if (!TWITTER_HANDLE.test(handle)) return "";
+  return "https://x.com/" + handle;
+}
+
+export function swapTokenLinks(row) {
+  if (!row || typeof row !== "object") return {};
+  const links = {};
+  const website = swapHttpsLink(row.website);
+  const x = swapTwitterLink(row.twitterHandle);
+  const telegram = swapHttpsLink(row.telegram);
+  const discord = swapHttpsLink(row.discord);
+  if (website) links.website = website;
+  if (x) links.x = x;
+  if (telegram) links.telegram = telegram;
+  if (discord) links.discord = discord;
+  return links;
 }
 
 function decimalsOf(...values) {
@@ -140,6 +176,13 @@ export function createSwapTokenLookup({
     const due = listed
       ? listed.dueDiligenceComplete === true
       : saucerLists.poolDue.get(id) === true;
+    let links = {};
+    try {
+      const detail = await getJson(fetchImpl, `${saucer}/tokens/${encodeURIComponent(id)}`, { notFound: true });
+      links = swapTokenLinks(detail);
+    } catch {
+      links = {};
+    }
     return remember(id, 200, {
       tokenId: id,
       name: text(row.name) || text(listed && listed.name),
@@ -147,6 +190,7 @@ export function createSwapTokenLookup({
       decimals: decimalsOf(row.decimals, listed && listed.decimals),
       pool: saucerLists.paired.has(id),
       dueDiligenceComplete: due,
+      links,
     });
   }
 
