@@ -99,6 +99,7 @@ export function swapWidgetConfig({ projectId, tokenId, feeBps, account } = {}) {
     projectId: typeof projectId === "string" ? projectId : "",
     inputToken: "0.0.0",
     theme: "dark",
+    themeAccent: "#22D3EE",
   };
   const outputToken = bareAccount(tokenId);
   if (outputToken) config.outputToken = outputToken;
@@ -121,6 +122,7 @@ export function fillSwapWidget(el, config) {
   set("input-token", config.inputToken || "0.0.0");
   set("output-token", config.outputToken);
   set("theme", config.theme || "dark");
+  set("theme-accent", config.themeAccent);
   set("integrator-fee-bps", config.integratorFeeBps);
   set("integrator-fee-recipient", config.integratorFeeRecipient);
 }
