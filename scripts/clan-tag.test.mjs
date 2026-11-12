@@ -178,6 +178,24 @@ test("the popup puts the display name above the account id and shares the feed r
   assert.equal(swapTokenCss.includes("--fu"), false);
 });
 
+test("a profile bubble without a username keeps the named name-block height", () => {
+  const src = fs.readFileSync(new URL("../processallmessages.js", import.meta.url), "utf8");
+  const body = src.slice(src.indexOf("export function buildPopupProfile"), src.indexOf("const POPUP_GEAR"));
+  const branch = body.slice(body.indexOf("if (trimmedUsername)"), body.indexOf("const payerLink"));
+  assert.match(branch, /if \(trimmedUsername\) \{\s*h2\.appendChild\(payerUsernameNode\(trimmedUsername, click2link, \{ className: 'username' \}\)\)/);
+  assert.equal(branch.slice(0, branch.indexOf("} else")).includes("no-username"), false);
+  assert.match(branch, /\} else \{\s*profileSection\.classList\.add\('no-username'\)/);
+  assert.equal(body.includes("createElement('br')"), false);
+
+  const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  const rule = css.match(/\.popup-profile-bubble\.no-username h2,[\s\S]*?justify-content: center;\s*\}/);
+  assert.ok(rule);
+  assert.match(rule[0], /\.popup-profile-bubble\.no-username h2,\s*\.popup-profile-bubble\.no-username \.payer-names \{/);
+  assert.match(rule[0], /min-height: calc\(var\(--fu, var\(--u\)\) \* \(1\.85 \* 1\.25 \+ 0\.08 \+ 1\.4 \* 1\.25\)\)/);
+  assert.equal(rule[0].includes("px"), false);
+  assert.equal(rule[0].includes("#feed-column"), false);
+});
+
 test("removed bubbles for authors without Swap leave no watchers after a sweep", () => {
   assert.equal(clanWatcherCount(), 0);
   const bubbles = [];

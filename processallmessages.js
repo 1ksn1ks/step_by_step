@@ -2040,9 +2040,9 @@ export function buildPopupProfile({ profileUrl, payer, payerInfo, username, clic
   const trimmedUsername = String(username || '').trim();
   if (trimmedUsername) {
     h2.appendChild(payerUsernameNode(trimmedUsername, click2link, { className: 'username' }));
+  } else {
+    profileSection.classList.add('no-username');
   }
-
-  h2.appendChild(document.createElement('br'));
 
   const payerLink = document.createElement('a');
   payerLink.href = `https://explore.hashpack.app/${encodeURIComponent(payerInfo)}`;

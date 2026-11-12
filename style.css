@@ -12820,8 +12820,12 @@ html.feed-app #feed-search-page {
   font-weight: 700;
   line-height: 1.25;
 }
-.popup-profile-bubble h2 br {
-  display: none;
+/* No name: keep the same stack as a username line, the gap, and the id line.
+   The id sits in the middle. The clan chip still stretches over both rows. */
+.popup-profile-bubble.no-username h2,
+.popup-profile-bubble.no-username .payer-names {
+  min-height: calc(var(--fu, var(--u)) * (1.85 * 1.25 + 0.08 + 1.4 * 1.25));
+  justify-content: center;
 }
 .popup-profile-bubble .username {
   order: -1;
