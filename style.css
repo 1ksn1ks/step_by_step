@@ -7309,7 +7309,7 @@ html, body {
     animation: swap-sheet-down 0.28s ease-out forwards;
   }
 
-  @media (min-width: 100dvh) {
+  @media (hover: hover) and (pointer: fine) {
     #swap-sheet {
       align-items: center;
       padding-top: calc(4dvh + env(safe-area-inset-top));
@@ -7640,7 +7640,7 @@ html, body {
     animation-iteration-count: 1, infinite;
   }
 
-  @media (min-width: 100dvh) {
+  @media (hover: hover) and (pointer: fine) {
     .swap-card.early-holder-popup {
       animation-name: donate-pop, early-hashinal-angle;
       animation-timing-function: ease, linear;

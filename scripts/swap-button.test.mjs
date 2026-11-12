@@ -937,7 +937,7 @@ test("the swap sheet shows the creator bio above the safety line", () => {
   assert.equal(linksCss.includes("px"), false);
   assert.match(linksCss, /\.swap-links\[hidden\]/);
   const cardAt = css.indexOf("  .swap-card {");
-  const cardCss = css.slice(cardAt, css.indexOf("  @media (min-width: 100dvh)", cardAt));
+  const cardCss = css.slice(cardAt, css.indexOf("  @media (hover: hover) and (pointer: fine)", cardAt));
   assert.match(cardCss, /--swap-r-bottom: max\(var\(--swap-r\), var\(--screen-r-bottom, 0dvh\)\)/);
   assert.match(cardCss, /border-radius: 2\.4dvh 2\.4dvh var\(--swap-r-bottom\) var\(--swap-r-bottom\)/);
   assert.match(cardCss, /--corner-clear: max\(0dvh, calc\(\(var\(--screen-r-bottom, 0dvh\) - 2\.2dvh\) \* 0\.293 \+ 0\.4dvh\)\)/);
@@ -1060,6 +1060,10 @@ test("the swap sheet preloads the widget and reserves its height", () => {
   assert.match(css, /animation: swap-backdrop-out 0\.28s ease-out forwards/);
   assert.match(css, /@keyframes swap-sheet-up \{\s*from \{ transform: translateY\(100%\); \}/);
   assert.match(css, /animation-name: donate-pop/);
+  assert.match(css, /@media \(hover: hover\) and \(pointer: fine\) \{\s*#swap-sheet \{\s*align-items: center;/);
+  assert.match(css, /@media \(hover: hover\) and \(pointer: fine\) \{\s*\.swap-card\.early-holder-popup \{\s*animation-name: donate-pop, early-hashinal-angle;/);
+  const swapCss = css.slice(css.indexOf("  #swap-sheet {"), css.indexOf("  .profile-live-bio {"));
+  assert.equal(swapCss.includes("min-width: 100dvh"), false);
   const widgetCss = css.slice(css.indexOf("  .swap-widget {"), css.indexOf("  .swap-trap {"));
   assert.equal(widgetCss.includes("60.43dvh"), false);
   assert.match(sheet, /slot\.style\.minHeight = \(naturalH \/ rootPx\) \+ "rem"/);
@@ -1080,7 +1084,7 @@ test("the swap sheet preloads the widget and reserves its height", () => {
   assert.match(sheet, /\{color:#000\}/);
   assert.equal(widgetCss.includes("px"), false);
   const cardAt = css.indexOf("  .swap-card {");
-  const cardCss = css.slice(cardAt, css.indexOf("  @media (min-width: 100dvh)", cardAt));
+  const cardCss = css.slice(cardAt, css.indexOf("  @media (hover: hover) and (pointer: fine)", cardAt));
   assert.match(cardCss, /max-height: 100%/);
   assert.equal(cardCss.includes("px"), false);
 });
