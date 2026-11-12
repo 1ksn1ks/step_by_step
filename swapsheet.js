@@ -100,6 +100,7 @@ function fitColumnZoom() {
   const widget = slot && slot.querySelector(WIDGET);
   if (!column || !slot || !card || !widget) return;
   column.style.zoom = "1";
+  card.style.removeProperty("width");
   // Drop the reserved floor so this read is the widget's own height, not
   // the space it was given last time. The floor is put back in rem.
   const previous = slot.style.minHeight;
@@ -126,6 +127,16 @@ function fitColumnZoom() {
   if (!Number.isFinite(zoom) || zoom < 1) zoom = 1;
   if (zoom > 2.4) zoom = 2.4;
   column.style.zoom = String(zoom);
+  // Measured at the card's available width. Then hug the zoomed column so
+  // the side padding matches the top and bottom, with no empty strip.
+  const fine = window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  if (fine && rootPx > 0) {
+    const pad = getComputedStyle(card);
+    const side = edgePx(pad.paddingLeft) + edgePx(pad.paddingRight)
+      + edgePx(pad.borderLeftWidth) + edgePx(pad.borderRightWidth);
+    const rendered = column.offsetWidth;
+    if (rendered > 0) card.style.width = ((rendered + side) / rootPx) + "rem";
+  }
 }
 
 function fitSwapSheet() {
@@ -167,6 +178,8 @@ function stopFit() {
   }
   const column = sheetPart(".swap-column");
   if (column) column.style.zoom = "1";
+  const card = sheetPart(".swap-card");
+  if (card) card.style.removeProperty("width");
   if (!sheet) return;
   sheet.style.removeProperty("--swap-top");
   sheet.style.removeProperty("--swap-h");
