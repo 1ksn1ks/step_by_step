@@ -144,10 +144,8 @@ async function approve(configuredToken, tokenId, spenderId, amount, onStatusChan
   if (!session) throw new Error("Connect wallet first");
   const spender = swapSpenderId(spenderId);
   const token = swapApprovalToken(configuredToken, tokenId);
-  const configured = String(configuredToken == null ? "" : configuredToken).trim();
-  const allowance = configured
-    ? swapAllowanceLong(amount)
-    : swapAllowanceLong(amount, await mirrorTokenBalance(session.id, token));
+  const balance = await mirrorTokenBalance(session.id, token);
+  const allowance = swapAllowanceLong(amount, balance);
   const tx = new AccountAllowanceApproveTransaction()
     .approveTokenAllowance(TokenId.fromString(token), AccountId.fromString(session.id), AccountId.fromString(spender), allowance)
     .setMaxTransactionFee(new Hbar(5));

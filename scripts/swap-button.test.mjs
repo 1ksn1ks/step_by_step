@@ -764,11 +764,11 @@ test("an allowance bigint round-trips as the SDK Long", () => {
   assert.throws(() => swapAllowanceLong(overflow), /Allowance amount must be greater than zero/);
 
   const wallet = fs.readFileSync(new URL("../swapwallet.js", import.meta.url), "utf8");
-  assert.match(wallet, /swapAllowanceLong\(amount\)/);
+  assert.match(wallet, /swapAllowanceLong\(amount, balance\)/);
   assert.match(wallet, /approveTokenAllowance\(TokenId\.fromString\(token\), AccountId\.fromString\(session\.id\), AccountId\.fromString\(spender\), allowance\)/);
 });
 
-test("the default widget refuses an oversized or max allowance and keeps a normal one", () => {
+test("the default widget and the creator token refuse an oversized or max allowance", () => {
   const max256 = (1n << 256n) - 1n;
   const max64 = (1n << 63n) - 1n;
   assert.throws(() => swapAllowanceLong(5n, 4n), /Allowance is larger than the token balance/);
@@ -779,11 +779,13 @@ test("the default widget refuses an oversized or max allowance and keeps a norma
   assert.equal(swapAllowanceLong(max64).toString(), max64.toString());
 
   const wallet = fs.readFileSync(new URL("../swapwallet.js", import.meta.url), "utf8");
-  const approveFn = wallet.slice(wallet.indexOf("const MIRROR_NODE"), wallet.indexOf("export function globeSwapWallet"));
+  const approveFn = wallet.slice(wallet.indexOf("async function approve"), wallet.indexOf("export function globeSwapWallet"));
   assert.match(approveFn, /swapSpenderId\(spenderId\)/);
   assert.match(approveFn, /swapApprovalToken\(configuredToken, tokenId\)/);
-  assert.match(approveFn, /https:\/\/mainnet\.mirrornode\.hedera\.com/);
-  assert.match(approveFn, /configured\s*\?\s*swapAllowanceLong\(amount\)\s*:\s*swapAllowanceLong\(amount, await mirrorTokenBalance\(session\.id, token\)\)/);
+  assert.match(approveFn, /const balance = await mirrorTokenBalance\(session\.id, token\)/);
+  assert.match(approveFn, /const allowance = swapAllowanceLong\(amount, balance\)/);
+  assert.equal(/swapAllowanceLong\(amount\)/.test(approveFn), false);
+  assert.match(wallet, /https:\/\/mainnet\.mirrornode\.hedera\.com/);
 });
 
 test("a frozen swap lists several mainnet nodes", () => {

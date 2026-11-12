@@ -293,10 +293,10 @@ function maxUintStyle(amount) {
 }
 
 // The SDK stores the allowance as a Long. fromString wraps past 64 bits,
-// so the text has to come back unchanged. The creator-token path calls this
-// with the amount only. The default widget also passes the account's mirror
-// balance: the amount cannot exceed it, and a max-uint amount is refused
-// even when the balance is larger.
+// so the text has to come back unchanged. Approve passes the account's
+// mirror balance for the creator token and the default widget: the amount
+// cannot exceed it, and a max-uint amount is refused even when the balance
+// is larger.
 export function swapAllowanceLong(amount, balance) {
   if (typeof amount !== "bigint" || amount <= 0n) {
     throw new Error("Allowance amount must be greater than zero");
