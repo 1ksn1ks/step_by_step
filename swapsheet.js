@@ -579,12 +579,6 @@ function ensureSheet() {
   bio.className = "swap-bio";
   bio.hidden = true;
 
-  const noteRow = document.createElement("p");
-  noteRow.className = "swap-note";
-  const note = document.createElement("span");
-  note.className = "swap-note-text";
-  noteRow.append(infoIcon(), note);
-
   const error = document.createElement("p");
   error.className = "swap-error";
   error.setAttribute("role", "alert");
@@ -596,7 +590,7 @@ function ensureSheet() {
 
   const column = document.createElement("div");
   column.className = "swap-column";
-  column.append(head, token, stats, bio, noteRow, error, slot);
+  column.append(head, token, stats, bio, error, slot);
   card.append(column);
   root.append(trapSentinel("start"), card, trapSentinel("end"));
 
@@ -658,7 +652,6 @@ export async function openSwapSheet(details) {
     bio: author && typeof profileSwapBios[author] === "string" ? profileSwapBios[author] : "",
     symbol: offer.symbol,
     tokenId: offer.tokenId,
-    dueDiligenceComplete: offer.dueDiligenceComplete,
     feeBps: offer.feeBps,
   });
   const bio = root.querySelector(".swap-bio");
@@ -666,8 +659,22 @@ export async function openSwapSheet(details) {
     bio.textContent = lines.bio;
     bio.hidden = !lines.bio;
   }
-  const note = root.querySelector(".swap-note-text");
-  if (note) note.textContent = lines.safety;
+  let noteRow = root.querySelector(".swap-note");
+  if (!lines.safety) {
+    if (noteRow) noteRow.remove();
+  } else {
+    if (!noteRow) {
+      noteRow = document.createElement("p");
+      noteRow.className = "swap-note";
+      const note = document.createElement("span");
+      note.className = "swap-note-text";
+      noteRow.append(infoIcon(), note);
+      const errorSlot = root.querySelector(".swap-error");
+      if (errorSlot) errorSlot.before(noteRow);
+    }
+    const note = noteRow.querySelector(".swap-note-text");
+    if (note) note.textContent = lines.safety;
+  }
   paintSwapToken(root.querySelector(".swap-token"), offer);
   paintSwapStats(root.querySelector(".swap-stats"), offer);
   paintSwapLinks(root.querySelector(".swap-links"), bareAccount(offer.tokenId) ? offer.links : null);

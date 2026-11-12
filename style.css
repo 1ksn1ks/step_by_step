@@ -4553,27 +4553,6 @@ html, body {
     transform: translateY(calc(-100% - var(--fu, var(--u)) * 0.4));
   }
 
-  /* Same notice as the Swap sheet, in the bubble's unit. */
-  .clan-token .swap-note {
-    display: flex;
-    align-items: flex-start;
-    gap: calc(var(--fu, var(--u)) * 0.65);
-    box-sizing: border-box;
-    width: 100%;
-    max-width: none;
-    margin: 0;
-    font-size: calc(var(--fu, var(--u)) * 1.25);
-    line-height: 1.35;
-    color: rgba(255, 255, 255, 0.5);
-  }
-
-  .clan-token .swap-note .swap-ico {
-    width: calc(var(--fu, var(--u)) * 1.45);
-    height: calc(var(--fu, var(--u)) * 1.45);
-    margin-top: calc(var(--fu, var(--u)) * 0.18);
-    flex: 0 0 auto;
-  }
-
   /* Five labels fit above this width. Below it, three tiles then two,
      instead of squeezing the words. */
   @container clan-card (max-width: calc(var(--fu, var(--u)) * 46)) {

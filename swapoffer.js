@@ -47,15 +47,6 @@ export function swapButtonShows({ author, viewer, offer, token }) {
   return true;
 }
 
-export function swapNotice({ symbol, tokenId, dueDiligenceComplete }) {
-  const id = bareAccount(tokenId) || String(tokenId == null ? "" : tokenId).trim();
-  const name = typeof symbol === "string" ? symbol.trim() : "";
-  const who = name || "this token";
-  let line = `You're buying ${who} (${id}), not donating.`;
-  if (dueDiligenceComplete === false) line += " Not reviewed by SaucerSwap.";
-  return line;
-}
-
 const SWAP_BIO_MAX = 280;
 
 // Plain text only. Over the limit stays blank so it is never shown as HTML.
@@ -71,21 +62,18 @@ export function swapFeeShare(feeBps) {
   return percent + "% goes to the poster.";
 }
 
-const DEFAULT_SAFETY = "Not reviewed by SaucerSwap.";
-
+// The poster's cut, or "" when there is no cut or this is the default widget.
 export function swapSafetyLine(details) {
   const info = details || {};
-  if (!bareAccount(info.tokenId)) return DEFAULT_SAFETY;
-  const share = swapFeeShare(info.feeBps);
-  const line = swapNotice(info);
-  return share ? line + " " + share : line;
+  if (!bareAccount(info.tokenId)) return "";
+  return swapFeeShare(info.feeBps);
 }
 
-// bio is the creator note. safety is the line that always stays.
-// No token means the default widget: no bio, and only the review line.
+// bio is the creator note. safety is only the cut line. Blank means the
+// sheet renders no note row.
 export function swapSheetText(details) {
   const info = details || {};
-  if (!bareAccount(info.tokenId)) return { bio: "", safety: DEFAULT_SAFETY };
+  if (!bareAccount(info.tokenId)) return { bio: "", safety: "" };
   return {
     bio: swapBioText(info.bio),
     safety: swapSafetyLine(info),

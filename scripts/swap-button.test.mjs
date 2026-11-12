@@ -18,7 +18,6 @@ import {
   resolveSwapButton,
   swapButtonShows,
   associationMirrorPaths,
-  swapNotice,
   swapBioText,
   swapFeeShare,
   swapSafetyLine,
@@ -133,19 +132,18 @@ test("your own post uses your token without a cut, and no Swap setting stays the
   assert.equal(result.token.dueDiligenceComplete, false);
   assert.deepEqual(result.token.links, { website: "https://sauce.example" });
   assert.equal(calls.length, 1);
-  const buying = "You're buying SAUCE (0.0.731861), not donating.";
   assert.equal(swapSafetyLine({
     symbol: "SAUCE",
     tokenId: SAUCE,
     dueDiligenceComplete: false,
     feeBps: 0,
-  }), buying + " Not reviewed by SaucerSwap.");
+  }), "");
   assert.equal(swapSafetyLine({
     symbol: result.token.symbol,
     tokenId: result.offer.tokenId,
     dueDiligenceComplete: true,
     feeBps: 0,
-  }), buying);
+  }), "");
   const config = swapWidgetConfig({
     projectId: "project-from-web3",
     tokenId: result.offer.tokenId,
@@ -369,19 +367,44 @@ test("a failed lookup is not cached", async () => {
   assert.equal(calls.length, 2);
 });
 
-test("the notice names the token and adds the review line only when the flag is false", () => {
-  assert.equal(
-    swapNotice({ symbol: "SAUCE", tokenId: SAUCE, dueDiligenceComplete: true }),
-    "You're buying SAUCE (0.0.731861), not donating."
-  );
-  assert.equal(
-    swapNotice({ symbol: "SAUCE", tokenId: SAUCE, dueDiligenceComplete: false }),
-    "You're buying SAUCE (0.0.731861), not donating. Not reviewed by SaucerSwap."
-  );
-  assert.equal(
-    swapNotice({ symbol: "  ", tokenId: SAUCE, dueDiligenceComplete: true }),
-    "You're buying this token (0.0.731861), not donating."
-  );
+test("the sheet shows no notice row without a cut and only the fee line with a cut", () => {
+  assert.equal(swapSafetyLine({ symbol: "SAUCE", tokenId: SAUCE, dueDiligenceComplete: false, feeBps: 0 }), "");
+  assert.equal(swapSafetyLine({ symbol: "SAUCE", tokenId: SAUCE, feeBps: 40 }), "0.4% goes to the poster.");
+  assert.equal(swapSheetText({
+    bio: "Buying the poster token.",
+    symbol: "SAUCE",
+    tokenId: "",
+    feeBps: 40,
+  }).safety, "");
+  const cut = swapSheetText({
+    bio: "Buying the poster token.",
+    symbol: "SAUCE",
+    tokenId: SAUCE,
+    dueDiligenceComplete: false,
+    feeBps: 40,
+  });
+  assert.equal(cut.safety, "0.4% goes to the poster.");
+  assert.equal(cut.safety.includes("buying"), false);
+  assert.equal(cut.safety.includes("Not reviewed"), false);
+  assert.equal(swapSheetText({
+    symbol: "SAUCE",
+    tokenId: SAUCE,
+    dueDiligenceComplete: false,
+    feeBps: 0,
+  }).safety, "");
+
+  const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
+  const offer = fs.readFileSync(new URL("../swapoffer.js", import.meta.url), "utf8");
+  assert.match(sheet, /column\.append\(head, token, stats, bio, error, slot\)/);
+  assert.match(sheet, /if \(!lines\.safety\) \{\s*if \(noteRow\) noteRow\.remove\(\)/);
+  assert.match(sheet, /note\.textContent = lines\.safety/);
+  assert.match(sheet, /errorSlot\.before\(noteRow\)/);
+  assert.equal(sheet.includes("You're buying"), false);
+  assert.equal(sheet.includes("Not reviewed by SaucerSwap."), false);
+  assert.equal(offer.includes("You're buying"), false);
+  assert.equal(offer.includes("Not reviewed by SaucerSwap."), false);
+  assert.equal(offer.includes("DEFAULT_SAFETY"), false);
+  assert.equal(offer.includes("function swapNotice"), false);
 });
 
 test("the widget is mainnet HBAR to the author's token, and the fee is set only above 0", () => {
@@ -432,8 +455,9 @@ test("the widget is mainnet HBAR to the author's token, and the fee is set only 
   assert.equal(el.getAttribute("integrator-fee-bps"), null);
   assert.equal(el.getAttribute("integrator-fee-recipient"), null);
   assert.equal(swapSheetText({ bio: "Buying the poster token.", symbol: "SAUCE", tokenId: "", feeBps: 40 }).bio, "");
-  assert.equal(swapSafetyLine({ symbol: "SAUCE", tokenId: "", feeBps: 40 }), "Not reviewed by SaucerSwap.");
-  assert.equal(swapSafetyLine({}).includes("buying"), false);
+  assert.equal(swapSheetText({ bio: "Buying the poster token.", symbol: "SAUCE", tokenId: "", feeBps: 40 }).safety, "");
+  assert.equal(swapSafetyLine({ symbol: "SAUCE", tokenId: "", feeBps: 40 }), "");
+  assert.equal(swapSafetyLine({}), "");
 });
 
 test("the association warning stays quiet when the token is associated, slots are free, or the read is unknown", () => {
@@ -941,8 +965,7 @@ test("creator token links stay https on the way to the sheet", async () => {
   assert.match(donate, /stats: creator \? result\.token\.stats : null/);
 });
 
-test("the swap sheet shows the creator bio above the safety line", () => {
-  const buying = "You're buying SAUCE (0.0.731861), not donating.";
+test("the swap sheet shows the creator bio above the fee line", () => {
   const html = "<a href=\"https://example.test\">click</a>";
   const shown = swapSheetText({
     bio: html,
@@ -952,8 +975,7 @@ test("the swap sheet shows the creator bio above the safety line", () => {
     feeBps: 40,
   });
   assert.equal(shown.bio, html);
-  assert.equal(shown.safety, buying + " Not reviewed by SaucerSwap. 0.4% goes to the poster.");
-  assert.equal(shown.safety.startsWith(buying), true);
+  assert.equal(shown.safety, "0.4% goes to the poster.");
   assert.equal(swapBioText(html), html);
   assert.equal(swapSheetText({
     bio: "",
@@ -961,20 +983,22 @@ test("the swap sheet shows the creator bio above the safety line", () => {
     tokenId: SAUCE,
     dueDiligenceComplete: true,
     feeBps: 0,
-  }).safety, buying);
+  }).safety, "");
   assert.equal(swapFeeShare(1), "0.01% goes to the poster.");
   assert.equal(swapFeeShare(25), "0.25% goes to the poster.");
   assert.equal(swapFeeShare(100), "1% goes to the poster.");
   assert.equal(swapFeeShare(500), "5% goes to the poster.");
   assert.equal(swapFeeShare(0), "");
-  assert.equal(swapSafetyLine({ symbol: "SAUCE", tokenId: SAUCE, feeBps: 10 }), buying + " 0.1% goes to the poster.");
+  assert.equal(swapSafetyLine({ symbol: "SAUCE", tokenId: SAUCE, feeBps: 10 }), "0.1% goes to the poster.");
   assert.equal(swapSheetText({ bio: "a".repeat(281), symbol: "SAUCE", tokenId: SAUCE, feeBps: 40 }).bio, "");
 
   const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
   const appended = sheet.match(/card\.append\(([^)]+)\)/);
   assert.ok(appended);
   assert.equal(appended[1], "column");
-  assert.match(sheet, /column\.append\(head, token, stats, bio, noteRow, error, slot\)/);
+  assert.match(sheet, /column\.append\(head, token, stats, bio, error, slot\)/);
+  assert.match(sheet, /if \(!lines\.safety\) \{\s*if \(noteRow\) noteRow\.remove\(\)/);
+  assert.match(sheet, /errorSlot\.before\(noteRow\)/);
   assert.equal(sheet.includes("swap-grab"), false);
   assert.match(sheet, /bio\.textContent = lines\.bio/);
   assert.match(sheet, /note\.textContent = lines\.safety/);

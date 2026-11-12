@@ -448,30 +448,20 @@ test("the opened clan card shows the five stats from the lookup", async () => {
   }
 });
 
-test("an unreviewed clan token shows the SaucerSwap notice under the card", async () => {
+test("a clan token card has no review note", async () => {
   const clan = fs.readFileSync(new URL("../clantag.js", import.meta.url), "utf8");
   const build = clan.slice(clan.indexOf("function buildCard"), clan.indexOf("function openCard"));
-  assert.match(build, /if \(token && token\.dueDiligenceComplete === false\) clip\.append\(inner, clanReviewNote\(\), stats\)/);
-  assert.match(build, /else clip\.append\(inner, stats\)/);
-  assert.match(clan, /className = "swap-note"/);
-  assert.match(clan, /className = "swap-note-text"/);
-  assert.match(clan, /textContent = "Not reviewed by SaucerSwap\."/);
+  assert.match(build, /clip\.append\(inner, stats\)/);
+  assert.equal(build.includes("clanReviewNote"), false);
+  assert.equal(build.includes("swap-note"), false);
+  assert.equal(clan.includes("clanReviewNote"), false);
+  assert.equal(clan.includes("clanInfoIcon"), false);
+  assert.equal(clan.includes("Not reviewed by SaucerSwap."), false);
 
   const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
   const clanCss = css.slice(css.indexOf(".popup-profile-bubble .payer-row"), css.indexOf("Early holder: the pill border"));
-  const note = clanCss.match(/\.clan-token \.swap-note \{[^}]*\}/);
-  const icon = clanCss.match(/\.clan-token \.swap-note \.swap-ico \{[^}]*\}/);
-  assert.ok(note);
-  assert.ok(icon);
-  assert.match(note[0], /font-size: calc\(var\(--fu, var\(--u\)\) \* 1\.25\)/);
-  assert.match(note[0], /gap: calc\(var\(--fu, var\(--u\)\) \* 0\.65\)/);
-  assert.match(note[0], /line-height: 1\.35/);
-  assert.match(note[0], /color: rgba\(255, 255, 255, 0\.5\)/);
-  assert.match(icon[0], /width: calc\(var\(--fu, var\(--u\)\) \* 1\.45\)/);
-  assert.match(icon[0], /height: calc\(var\(--fu, var\(--u\)\) \* 1\.45\)/);
-  assert.match(icon[0], /margin-top: calc\(var\(--fu, var\(--u\)\) \* 0\.18\)/);
-  assert.equal(note[0].includes("px"), false);
-  assert.equal(icon[0].includes("px"), false);
+  assert.equal(clanCss.includes(".clan-token .swap-note"), false);
+  assert.equal(clanCss.includes("px"), false);
 
   const previous = {
     document: globalThis.document,
@@ -529,11 +519,10 @@ test("an unreviewed clan token shows the SaucerSwap notice under the card", asyn
     return clip;
   }
 
-  function noteText(clip) {
-    const row = clip.children.find((child) => child.className === "swap-note");
-    if (!row) return "";
-    const text = row.children.find((child) => child.className === "swap-note-text");
-    return text ? text.textContent : "";
+  function hasNote(node) {
+    const name = typeof node.className === "string" ? node.className : "";
+    if (name.split(/\s+/).includes("swap-note")) return true;
+    return (node.children || []).some(hasNote);
   }
 
   try {
@@ -542,8 +531,8 @@ test("an unreviewed clan token shows the SaucerSwap notice under the card", asyn
       symbol: "gib",
       dueDiligenceComplete: false,
     });
-    assert.deepEqual(unreviewed.children.map((child) => child.className), ["", "swap-note", "swap-stats"]);
-    assert.equal(noteText(unreviewed), "Not reviewed by SaucerSwap.");
+    assert.deepEqual(unreviewed.children.map((child) => child.className), ["", "swap-stats"]);
+    assert.equal(hasNote(unreviewed), false);
 
     const reviewed = await openCard("0.0.515152", "0.0.616162", {
       tokenId: "0.0.616162",
@@ -551,14 +540,14 @@ test("an unreviewed clan token shows the SaucerSwap notice under the card", asyn
       dueDiligenceComplete: true,
     });
     assert.deepEqual(reviewed.children.map((child) => child.className), ["", "swap-stats"]);
-    assert.equal(noteText(reviewed), "");
+    assert.equal(hasNote(reviewed), false);
 
     const unknown = await openCard("0.0.515153", "0.0.616163", {
       tokenId: "0.0.616163",
       symbol: "gib",
     });
     assert.deepEqual(unknown.children.map((child) => child.className), ["", "swap-stats"]);
-    assert.equal(noteText(unknown), "");
+    assert.equal(hasNote(unknown), false);
     await new Promise((resolve) => setTimeout(resolve, 450));
   } finally {
     for (const bubble of bubbles) bubble.isConnected = false;
