@@ -7335,13 +7335,16 @@ html, body {
     }
   }
 
-  .swap-grab {
-    width: 2.5rem;
-    height: 0.25rem;
-    margin: 0 auto;
+  .swap-column {
+    align-self: center;
+    box-sizing: border-box;
+    display: flex;
     flex: 0 0 auto;
-    border-radius: 999rem;
-    background: rgba(255, 255, 255, 0.18);
+    flex-direction: column;
+    gap: 1.4dvh;
+    width: min(100%, 23.75rem);
+    max-width: 100%;
+    min-width: 0;
   }
 
   .swap-head {

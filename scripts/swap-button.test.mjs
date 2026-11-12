@@ -582,10 +582,14 @@ test("the widget script tag is created once and only from the sheet opener", () 
   const menu = fs.readFileSync(new URL("../postmenu.js", import.meta.url), "utf8");
   const donations = fs.readFileSync(new URL("../donations.js", import.meta.url), "utf8");
   assert.match(menu, /post-menu-swap/);
+  assert.match(menu, /let swapReady = \{ show: true, offer: null, token: null \}/);
   assert.match(menu, /swapItem\.hidden = !swapReady/);
+  assert.match(menu, /setTimeout\(resolve, 1500\)/);
   assert.match(menu, /opener: swapItem/);
   assert.match(donations, /donate-swap/);
   assert.match(donations, /openSwapSheet\(/);
+  assert.match(donations, /swapBtn\.hidden = false/);
+  assert.match(donations, /setTimeout\(resolve, 1500\)/);
 });
 
 const UNIVERSAL = "0.0.10628061";
@@ -792,7 +796,9 @@ test("the post menu lists Copy link, Follow user, Swap tokens, then Donate HBAR"
   assert.match(menu, /'Unfollow user' : 'Follow user'/);
   assert.match(menu, /followItem\.hidden = !followBtn \|\| own/);
   assert.match(menu, /donateItem\.hidden = own \|\| !canDonate/);
+  assert.match(menu, /let swapReady = \{ show: true, offer: null, token: null \}/);
   assert.match(menu, /swapItem\.hidden = !swapReady/);
+  assert.match(menu, /setTimeout\(resolve, 1500\)/);
 });
 
 test("a swap bio folds into its own column and stops at 280 characters", () => {
@@ -915,7 +921,9 @@ test("the swap sheet shows the creator bio above the safety line", () => {
   const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
   const appended = sheet.match(/card\.append\(([^)]+)\)/);
   assert.ok(appended);
-  assert.equal(appended[1], "grab, head, token, bio, noteRow, error, slot");
+  assert.equal(appended[1], "column");
+  assert.match(sheet, /column\.append\(head, token, bio, noteRow, error, slot\)/);
+  assert.equal(sheet.includes("swap-grab"), false);
   assert.match(sheet, /bio\.textContent = lines\.bio/);
   assert.match(sheet, /note\.textContent = lines\.safety/);
   assert.match(sheet, /link\.textContent = label/);
@@ -1055,6 +1063,16 @@ test("the swap sheet preloads the widget and reserves its height", () => {
   const widgetCss = css.slice(css.indexOf("  .swap-widget {"), css.indexOf("  .swap-trap {"));
   assert.equal(widgetCss.includes("60.43dvh"), false);
   assert.match(sheet, /slot\.style\.minHeight = \(naturalH \/ rootPx\) \+ "rem"/);
+  assert.match(sheet, /column\.style\.zoom = "1"/);
+  assert.match(sheet, /let zoom = Math\.min\(freeW \/ columnW, freeH \/ columnH\)/);
+  assert.match(sheet, /if \(zoom > 2\.4\) zoom = 2\.4/);
+  assert.match(sheet, /column\.style\.zoom = String\(zoom\)/);
+  assert.equal(sheet.includes("widget.style.zoom"), false);
+  assert.equal(sheet.includes("zoom > 1.6"), false);
+  const columnCss = css.slice(css.indexOf("  .swap-column {"), css.indexOf("  .swap-head {"));
+  assert.equal(columnCss.includes("px"), false);
+  assert.match(columnCss, /width: min\(100%, 23\.75rem\)/);
+  assert.equal(css.includes(".swap-grab"), false);
   assert.match(sheet, /slot\.replaceChildren\(el\);\s*paintSwapButtonInk\(el\)/);
   assert.match(sheet, /style\[data-swap-ink\]/);
   assert.match(sheet, /"\.ss-primary-btn:disabled"/);

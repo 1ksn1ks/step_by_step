@@ -42,6 +42,20 @@ let pendingTx = null;
 let sheetHost = null;
 let donateSwap = null;
 let donateSwapGen = 0;
+let donateSwapFlight = null;
+
+function emptyDonateSwap(host) {
+  return {
+    account: "",
+    tokenId: "",
+    feeBps: 0,
+    symbol: "",
+    dueDiligenceComplete: false,
+    icon: "",
+    links: null,
+    host: host || null,
+  };
+}
 
 const DEFAULT_AVATAR = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const PRESETS = ['1', '5', '10', '25'];
@@ -489,6 +503,7 @@ function closeSheet() {
   pendingTx = null;
   donateSwap = null;
   donateSwapGen += 1;
+  donateSwapFlight = null;
   const swapBtn = sheetPart('.donate-swap');
   if (swapBtn) swapBtn.hidden = true;
 }
@@ -540,8 +555,8 @@ function showSheet(topicId, ts, account, host) {
   paintSend();
   sheetHost = host || null;
   const swapBtn = root.querySelector('.donate-swap');
-  if (swapBtn) swapBtn.hidden = true;
-  donateSwap = null;
+  donateSwap = emptyDonateSwap(host);
+  if (swapBtn) swapBtn.hidden = false;
   root.hidden = false;
   loadDonateSwap();
   if (amount) amount.focus({ preventScroll: true });
@@ -549,9 +564,26 @@ function showSheet(topicId, ts, account, host) {
 
 function openDonateSwap(opener) {
   if (sheetBusy || !donateSwap) return;
-  const payload = donateSwap;
-  closeSheet();
-  openSwapSheet({ ...payload, opener: opener || null });
+  const flight = donateSwapFlight;
+  const opened = sheetOpenId;
+  const go = () => {
+    if (sheetBusy || !sheet || sheet.hidden || sheetOpenId !== opened || !donateSwap) return;
+    const payload = donateSwap;
+    closeSheet();
+    openSwapSheet({ ...payload, opener: opener || null });
+  };
+  if (!flight) {
+    go();
+    return;
+  }
+  let timer = 0;
+  Promise.race([
+    flight.then(() => {}, () => {}),
+    new Promise((resolve) => { timer = setTimeout(resolve, 1500); }),
+  ]).then(() => {
+    clearTimeout(timer);
+    go();
+  });
 }
 
 async function loadDonateSwap() {
@@ -560,21 +592,27 @@ async function loadDonateSwap() {
   const host = sheetHost;
   const button = sheetPart('.donate-swap');
   if (!account) return;
+  const flight = resolveSwapButton({
+    author: account,
+    viewer: connectedAccount,
+    swap: profileSwapOf(profileSwaps, account),
+    backend: BACKEND_URL,
+  }).then(
+    (value) => value,
+    () => null,
+  );
+  donateSwapFlight = flight;
   let result = null;
   try {
-    result = await resolveSwapButton({
-      author: account,
-      viewer: connectedAccount,
-      swap: profileSwapOf(profileSwaps, account),
-      backend: BACKEND_URL,
-    });
+    result = await flight;
   } catch {
     result = null;
   }
+  if (donateSwapFlight === flight) donateSwapFlight = null;
   if (gen !== donateSwapGen || !sheet || sheet.hidden || sheetAccount !== account) return;
   if (!result || !result.show) {
-    donateSwap = null;
-    if (button) button.hidden = true;
+    donateSwap = emptyDonateSwap(host);
+    if (button) button.hidden = false;
     return;
   }
   const creator = result.offer && result.token;

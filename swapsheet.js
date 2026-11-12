@@ -89,22 +89,25 @@ function edgePx(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-// The widget's own box stays its natural size. zoom scales that box into
-// spare room in the sheet. Reset to 1 before measuring so a later fit does
-// not multiply the previous scale. Never shrink a portrait phone.
-function fitWidgetZoom() {
+// The centred column stays its natural size. zoom scales the header, token
+// card, bio, note and widget together into spare room in the sheet. Reset
+// to 1 before measuring so a later fit does not multiply the previous
+// scale. Never shrink a portrait phone.
+function fitColumnZoom() {
+  const column = sheetPart(".swap-column");
   const slot = sheetPart(".swap-widget");
   const card = sheetPart(".swap-card");
   const widget = slot && slot.querySelector(WIDGET);
-  if (!slot || !card || !widget) return;
-  widget.style.zoom = "1";
+  if (!column || !slot || !card || !widget) return;
+  column.style.zoom = "1";
   // Drop the reserved floor so this read is the widget's own height, not
   // the space it was given last time. The floor is put back in rem.
   const previous = slot.style.minHeight;
   slot.style.minHeight = "0";
-  const naturalW = widget.offsetWidth;
+  const columnW = column.offsetWidth;
+  const columnH = column.offsetHeight;
   const naturalH = widget.offsetHeight;
-  if (!(naturalW > 0) || !(naturalH > 0)) {
+  if (!(columnW > 0) || !(columnH > 0) || !(naturalH > 0)) {
     if (previous && previous !== "0") slot.style.minHeight = previous;
     else slot.style.removeProperty("min-height");
     return;
@@ -116,12 +119,13 @@ function fitWidgetZoom() {
   const cs = getComputedStyle(sheet);
   const room = sheet.clientHeight - edgePx(cs.paddingTop) - edgePx(cs.paddingBottom);
   const extra = Math.max(0, room - card.offsetHeight);
-  const freeW = slot.clientWidth;
-  const freeH = slot.clientHeight + extra;
-  let zoom = Math.min(freeW / naturalW, freeH / naturalH);
+  const cardCs = getComputedStyle(card);
+  const freeW = card.clientWidth - edgePx(cardCs.paddingLeft) - edgePx(cardCs.paddingRight);
+  const freeH = column.clientHeight + extra;
+  let zoom = Math.min(freeW / columnW, freeH / columnH);
   if (!Number.isFinite(zoom) || zoom < 1) zoom = 1;
-  if (zoom > 1.6) zoom = 1.6;
-  widget.style.zoom = String(zoom);
+  if (zoom > 2.4) zoom = 2.4;
+  column.style.zoom = String(zoom);
 }
 
 function fitSwapSheet() {
@@ -130,7 +134,7 @@ function fitSwapSheet() {
   if (!(box.height > 0)) return;
   sheet.style.setProperty("--swap-top", box.top + "px");
   sheet.style.setProperty("--swap-h", box.height + "px");
-  fitWidgetZoom();
+  fitColumnZoom();
 }
 
 function onFit() {
@@ -161,8 +165,8 @@ function stopFit() {
       window.visualViewport.removeEventListener("scroll", onFit);
     }
   }
-  const widget = sheetPart(".swap-widget " + WIDGET);
-  if (widget) widget.style.zoom = "1";
+  const column = sheetPart(".swap-column");
+  if (column) column.style.zoom = "1";
   if (!sheet) return;
   sheet.style.removeProperty("--swap-top");
   sheet.style.removeProperty("--swap-h");
@@ -435,10 +439,6 @@ function ensureSheet() {
   card.setAttribute("aria-modal", "true");
   card.setAttribute("aria-labelledby", "swap-title");
 
-  const grab = document.createElement("div");
-  grab.className = "swap-grab";
-  grab.setAttribute("aria-hidden", "true");
-
   const head = document.createElement("div");
   head.className = "swap-head";
   const title = document.createElement("h2");
@@ -514,7 +514,10 @@ function ensureSheet() {
   slot.className = "swap-widget";
   slot.append(swapLoadingNote());
 
-  card.append(grab, head, token, bio, noteRow, error, slot);
+  const column = document.createElement("div");
+  column.className = "swap-column";
+  column.append(head, token, bio, noteRow, error, slot);
+  card.append(column);
   root.append(trapSentinel("start"), card, trapSentinel("end"));
 
   cancel.addEventListener("click", (event) => {

@@ -1,7 +1,7 @@
 // One three-dot menu per post, in the spot the Follow button used to take.
 // Follow, donate, swap, and copy link stay the actions they already were.
-// Swap stays hidden until the author's token has a SaucerSwap pool, and on
-// your own posts the same way Donate does.
+// Swap tokens is listed as soon as the menu is built. The creator's token
+// fills in when the lookup returns, and a fast tap waits briefly for it.
 
 import { connectedAccount } from './web3.js';
 import { bareAccount } from './donationmath.js';
@@ -99,7 +99,6 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
   const copyItem = menuItem('post-menu-copy', 'Copy link');
   const followItem = menuItem('post-menu-follow', 'Follow user');
   const swapItem = menuItem('post-menu-swap', 'Swap tokens');
-  swapItem.hidden = true;
   const donateItem = menuItem('post-menu-donate', '');
   const donateLabel = document.createElement('span');
   donateLabel.className = 'post-menu-label';
@@ -123,11 +122,13 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
   }
 
   let swapGen = 0;
-  let swapReady = null;
+  let swapReady = { show: true, offer: null, token: null };
+  let swapFlight = null;
 
   // The menu node is still detached while the post is being built, so the
   // first check has to run anyway. A later check drops the watch once the
-  // post is gone.
+  // post is gone. The menu item stays on the default result until this
+  // lookup swaps in the creator's offer and token.
   async function refreshSwap(force) {
     if (!force && !root.isConnected) {
       unwatch();
@@ -135,19 +136,20 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
     }
     const gen = ++swapGen;
     const author = bareAccount(payer);
-    let result = { show: false, offer: null, token: null };
-    try {
-      result = await resolveSwapButton({
-        author,
-        viewer: connectedAccount,
-        swap: profileSwapOf(profileSwaps, author),
-        backend: BACKEND_URL,
-      });
-    } catch {
-      result = { show: false, offer: null, token: null };
-    }
+    const flight = resolveSwapButton({
+      author,
+      viewer: connectedAccount,
+      swap: profileSwapOf(profileSwaps, author),
+      backend: BACKEND_URL,
+    }).then(
+      (result) => (result && result.show ? result : { show: true, offer: null, token: null }),
+      () => ({ show: true, offer: null, token: null }),
+    );
+    swapFlight = flight;
+    const result = await flight;
+    if (swapFlight === flight) swapFlight = null;
     if (gen !== swapGen) return;
-    swapReady = result.show ? result : null;
+    swapReady = result;
     syncItems();
     if (openPanel === panel && !pop.hidden) place();
   }
@@ -295,7 +297,16 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
   pick(donateItem, () => {
     openDonation(donateItem);
   });
-  pick(swapItem, () => {
+  async function openSwapItem() {
+    const flight = swapFlight;
+    if (flight) {
+      let timer = 0;
+      await Promise.race([
+        flight.then(() => {}, () => {}),
+        new Promise((resolve) => { timer = setTimeout(resolve, 1500); }),
+      ]);
+      clearTimeout(timer);
+    }
     if (!swapReady) return;
     const creator = swapReady.offer && swapReady.token;
     openSwapSheet({
@@ -309,6 +320,10 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
       host: root.closest('.' + EARLY_POPUP_CLASS),
       opener: swapItem,
     });
+  }
+
+  pick(swapItem, () => {
+    openSwapItem();
   });
   pick(copyItem, () => {
     if (typeof onCopy === 'function') onCopy();
