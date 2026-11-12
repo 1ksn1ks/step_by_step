@@ -89,6 +89,38 @@ function edgePx(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+// One fit per frame. A second request before that frame runs is skipped.
+let fitFrame = 0;
+let widgetObserver = null;
+
+function scheduleFit() {
+  if (fitFrame) return;
+  fitFrame = requestAnimationFrame(() => {
+    fitFrame = 0;
+    fitSwapSheet();
+  });
+}
+
+function onViewportScroll() {
+  if (!sheet || sheet.hidden) return;
+  const box = visibleBox();
+  sheet.style.setProperty("--swap-top", box.top + "px");
+}
+
+function watchWidgetSize() {
+  if (typeof ResizeObserver !== "function") return;
+  const slot = sheetPart(".swap-widget");
+  const widget = slot && slot.querySelector(WIDGET);
+  if (!widget) return;
+  if (widgetObserver) widgetObserver.disconnect();
+  else {
+    widgetObserver = new ResizeObserver(() => {
+      scheduleFit();
+    });
+  }
+  widgetObserver.observe(widget);
+}
+
 // The centred column stays its natural size. zoom scales the header, token
 // card, bio, note and widget together into spare room in the sheet. Reset
 // to 1 before measuring so a later fit does not multiply the previous
@@ -148,32 +180,37 @@ function fitSwapSheet() {
   fitColumnZoom();
 }
 
-function onFit() {
-  fitSwapSheet();
-}
-
 function startFit() {
-  fitSwapSheet();
+  scheduleFit();
+  watchWidgetSize();
   if (fitted) return;
   fitted = true;
-  window.addEventListener("resize", onFit);
-  window.addEventListener("orientationchange", onFit);
-  document.addEventListener("wallet-account-changed", onFit);
+  window.addEventListener("resize", scheduleFit);
+  window.addEventListener("orientationchange", scheduleFit);
+  document.addEventListener("wallet-account-changed", scheduleFit);
   if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", onFit);
-    window.visualViewport.addEventListener("scroll", onFit);
+    window.visualViewport.addEventListener("resize", scheduleFit);
+    window.visualViewport.addEventListener("scroll", onViewportScroll);
   }
 }
 
 function stopFit() {
+  if (widgetObserver) {
+    widgetObserver.disconnect();
+    widgetObserver = null;
+  }
+  if (fitFrame) {
+    cancelAnimationFrame(fitFrame);
+    fitFrame = 0;
+  }
   if (fitted) {
     fitted = false;
-    window.removeEventListener("resize", onFit);
-    window.removeEventListener("orientationchange", onFit);
-    document.removeEventListener("wallet-account-changed", onFit);
+    window.removeEventListener("resize", scheduleFit);
+    window.removeEventListener("orientationchange", scheduleFit);
+    document.removeEventListener("wallet-account-changed", scheduleFit);
     if (window.visualViewport) {
-      window.visualViewport.removeEventListener("resize", onFit);
-      window.visualViewport.removeEventListener("scroll", onFit);
+      window.visualViewport.removeEventListener("resize", scheduleFit);
+      window.visualViewport.removeEventListener("scroll", onViewportScroll);
     }
   }
   const column = sheetPart(".swap-column");
@@ -246,6 +283,8 @@ function swapLoadingNote() {
   const note = document.createElement("p");
   note.className = "swap-widget-placeholder";
   note.textContent = "Loading swap…";
+  note.setAttribute("role", "status");
+  note.setAttribute("aria-live", "polite");
   return note;
 }
 
@@ -635,8 +674,8 @@ export async function openSwapSheet(details) {
     });
     slot.replaceChildren(el);
     paintSwapButtonInk(el);
-    fitSwapSheet();
-    requestAnimationFrame(() => fitSwapSheet());
+    watchWidgetSize();
+    scheduleFit();
   } catch {
     if (gen !== sheetMotion().generation() || root.hidden) return;
     if (slot) slot.replaceChildren();

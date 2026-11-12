@@ -51,7 +51,7 @@ export function swapNotice({ symbol, tokenId, dueDiligenceComplete }) {
   const id = bareAccount(tokenId) || String(tokenId == null ? "" : tokenId).trim();
   const name = typeof symbol === "string" ? symbol.trim() : "";
   const who = name || "this token";
-  let line = `You're buying ${who} (${id}), not donating. Tokens can lose value.`;
+  let line = `You're buying ${who} (${id}), not donating.`;
   if (dueDiligenceComplete === false) line += " Not reviewed by SaucerSwap.";
   return line;
 }
@@ -285,11 +285,27 @@ export function prepareSwapContract(call) {
   };
 }
 
+// 2^n-1 at the int64 width or wider: the unlimited sentinels (int64 max,
+// uint64, uint128, uint256). A real allowance is not all-ones at that width.
+function maxUintStyle(amount) {
+  const width = amount + 1n;
+  return width >= (1n << 63n) && (width & (width - 1n)) === 0n;
+}
+
 // The SDK stores the allowance as a Long. fromString wraps past 64 bits,
-// so the text has to come back unchanged.
-export function swapAllowanceLong(amount) {
+// so the text has to come back unchanged. The creator-token path calls this
+// with the amount only. The default widget also passes the account's mirror
+// balance: the amount cannot exceed it, and a max-uint amount is refused
+// even when the balance is larger.
+export function swapAllowanceLong(amount, balance) {
   if (typeof amount !== "bigint" || amount <= 0n) {
     throw new Error("Allowance amount must be greater than zero");
+  }
+  if (arguments.length > 1) {
+    if (maxUintStyle(amount)) throw new Error("Allowance amount is not allowed");
+    if (typeof balance !== "bigint" || balance < 0n || amount > balance) {
+      throw new Error("Allowance is larger than the token balance");
+    }
   }
   const text = amount.toString();
   const long = Long.fromString(text);

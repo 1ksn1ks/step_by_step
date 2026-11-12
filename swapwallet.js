@@ -104,12 +104,50 @@ async function associate(tokenId, onStatusChange) {
   return submit(tx, onStatusChange);
 }
 
+const MIRROR_NODE = "https://mainnet.mirrornode.hedera.com";
+
+function exactTokenBalance(value) {
+  if (typeof value === "bigint") return value >= 0n ? value : null;
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value) || value < 0) return null;
+    return BigInt(value);
+  }
+  if (typeof value === "string" && /^(0|[1-9]\d*)$/.test(value)) return BigInt(value);
+  return null;
+}
+
+// Fail closed. An empty token list is a balance of zero. A bad read throws
+// so the default widget cannot approve without a current mirror balance.
+async function mirrorTokenBalance(accountId, tokenId) {
+  const url = `${MIRROR_NODE}/api/v1/accounts/${encodeURIComponent(accountId)}/tokens?token.id=${encodeURIComponent(tokenId)}&limit=1`;
+  let response;
+  try {
+    response = await fetch(url, { signal: AbortSignal.timeout(4000) });
+  } catch {
+    throw new Error("Token balance could not be read");
+  }
+  if (!response || !response.ok) throw new Error("Token balance could not be read");
+  let data = null;
+  try { data = await response.json(); } catch { data = null; }
+  const rows = data && Array.isArray(data.tokens) ? data.tokens : null;
+  if (!rows) throw new Error("Token balance could not be read");
+  if (!rows.length) return 0n;
+  const row = rows[0];
+  if (!row || String(row.token_id || "") !== tokenId) throw new Error("Token balance could not be read");
+  const balance = exactTokenBalance(row.balance);
+  if (balance == null) throw new Error("Token balance could not be read");
+  return balance;
+}
+
 async function approve(configuredToken, tokenId, spenderId, amount, onStatusChange) {
   const session = live();
   if (!session) throw new Error("Connect wallet first");
-  const allowance = swapAllowanceLong(amount);
   const spender = swapSpenderId(spenderId);
   const token = swapApprovalToken(configuredToken, tokenId);
+  const configured = String(configuredToken == null ? "" : configuredToken).trim();
+  const allowance = configured
+    ? swapAllowanceLong(amount)
+    : swapAllowanceLong(amount, await mirrorTokenBalance(session.id, token));
   const tx = new AccountAllowanceApproveTransaction()
     .approveTokenAllowance(TokenId.fromString(token), AccountId.fromString(session.id), AccountId.fromString(spender), allowance)
     .setMaxTransactionFee(new Hbar(5));

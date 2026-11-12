@@ -124,6 +124,7 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
   let swapGen = 0;
   let swapReady = { show: true, offer: null, token: null };
   let swapFlight = null;
+  let swapOpening = false;
 
   // The menu node is still detached while the post is being built, so the
   // first check has to run anyway. A later check drops the watch once the
@@ -298,14 +299,22 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
     openDonation(donateItem);
   });
   async function openSwapItem() {
+    if (swapOpening) return;
     const flight = swapFlight;
     if (flight) {
+      swapOpening = true;
+      swapItem.setAttribute('aria-busy', 'true');
       let timer = 0;
-      await Promise.race([
-        flight.then(() => {}, () => {}),
-        new Promise((resolve) => { timer = setTimeout(resolve, 1500); }),
-      ]);
-      clearTimeout(timer);
+      try {
+        await Promise.race([
+          flight.then(() => {}, () => {}),
+          new Promise((resolve) => { timer = setTimeout(resolve, 1500); }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+        swapOpening = false;
+        swapItem.removeAttribute('aria-busy');
+      }
     }
     if (!swapReady) return;
     const creator = swapReady.offer && swapReady.token;

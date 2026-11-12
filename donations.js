@@ -43,6 +43,7 @@ let sheetHost = null;
 let donateSwap = null;
 let donateSwapGen = 0;
 let donateSwapFlight = null;
+let donateSwapOpening = 0;
 
 function emptyDonateSwap(host) {
   return {
@@ -504,8 +505,12 @@ function closeSheet() {
   donateSwap = null;
   donateSwapGen += 1;
   donateSwapFlight = null;
+  donateSwapOpening = 0;
   const swapBtn = sheetPart('.donate-swap');
-  if (swapBtn) swapBtn.hidden = true;
+  if (swapBtn) {
+    swapBtn.hidden = true;
+    swapBtn.removeAttribute('aria-busy');
+  }
 }
 
 function hashinalHost(el) {
@@ -563,7 +568,7 @@ function showSheet(topicId, ts, account, host) {
 }
 
 function openDonateSwap(opener) {
-  if (sheetBusy || !donateSwap) return;
+  if (sheetBusy || !donateSwap || donateSwapOpening) return;
   const flight = donateSwapFlight;
   const opened = sheetOpenId;
   const go = () => {
@@ -576,12 +581,19 @@ function openDonateSwap(opener) {
     go();
     return;
   }
+  const generation = opened;
+  donateSwapOpening = generation;
+  const button = sheetPart('.donate-swap');
+  if (button) button.setAttribute('aria-busy', 'true');
   let timer = 0;
   Promise.race([
     flight.then(() => {}, () => {}),
     new Promise((resolve) => { timer = setTimeout(resolve, 1500); }),
   ]).then(() => {
     clearTimeout(timer);
+    if (donateSwapOpening !== generation) return;
+    donateSwapOpening = 0;
+    if (button) button.removeAttribute('aria-busy');
     go();
   });
 }

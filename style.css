@@ -5319,6 +5319,10 @@ html, body {
     background-color: transparent;
     transform: none;
   }
+  .post-menu-item[aria-busy="true"] {
+    opacity: 0.6;
+    cursor: wait;
+  }
   .post-menu-label {
     flex: 1 1 auto;
     min-width: 0;
@@ -7120,6 +7124,11 @@ html, body {
   .donate-swap:focus-visible {
     outline: 0.2dvh solid #22D3EE;
     outline-offset: 0.2dvh;
+  }
+
+  .donate-swap[aria-busy="true"] {
+    opacity: 0.6;
+    cursor: wait;
   }
 
   .donate-done {

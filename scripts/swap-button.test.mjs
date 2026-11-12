@@ -126,7 +126,7 @@ test("your own post uses your token without a cut, and no Swap setting stays the
   assert.equal(result.token.dueDiligenceComplete, false);
   assert.deepEqual(result.token.links, { website: "https://sauce.example" });
   assert.equal(calls.length, 1);
-  const buying = "You're buying SAUCE (0.0.731861), not donating. Tokens can lose value.";
+  const buying = "You're buying SAUCE (0.0.731861), not donating.";
   assert.equal(swapSafetyLine({
     symbol: "SAUCE",
     tokenId: SAUCE,
@@ -365,15 +365,15 @@ test("a failed lookup is not cached", async () => {
 test("the notice names the token and adds the review line only when the flag is false", () => {
   assert.equal(
     swapNotice({ symbol: "SAUCE", tokenId: SAUCE, dueDiligenceComplete: true }),
-    "You're buying SAUCE (0.0.731861), not donating. Tokens can lose value."
+    "You're buying SAUCE (0.0.731861), not donating."
   );
   assert.equal(
     swapNotice({ symbol: "SAUCE", tokenId: SAUCE, dueDiligenceComplete: false }),
-    "You're buying SAUCE (0.0.731861), not donating. Tokens can lose value. Not reviewed by SaucerSwap."
+    "You're buying SAUCE (0.0.731861), not donating. Not reviewed by SaucerSwap."
   );
   assert.equal(
     swapNotice({ symbol: "  ", tokenId: SAUCE, dueDiligenceComplete: true }),
-    "You're buying this token (0.0.731861), not donating. Tokens can lose value."
+    "You're buying this token (0.0.731861), not donating."
   );
 });
 
@@ -762,6 +762,24 @@ test("an allowance bigint round-trips as the SDK Long", () => {
   assert.match(wallet, /approveTokenAllowance\(TokenId\.fromString\(token\), AccountId\.fromString\(session\.id\), AccountId\.fromString\(spender\), allowance\)/);
 });
 
+test("the default widget refuses an oversized or max allowance and keeps a normal one", () => {
+  const max256 = (1n << 256n) - 1n;
+  const max64 = (1n << 63n) - 1n;
+  assert.throws(() => swapAllowanceLong(5n, 4n), /Allowance is larger than the token balance/);
+  assert.throws(() => swapAllowanceLong(max256, max256), /Allowance amount is not allowed/);
+  assert.throws(() => swapAllowanceLong(max64, max64), /Allowance amount is not allowed/);
+  assert.equal(swapAllowanceLong(5n, 5n).toString(), "5");
+  assert.equal(swapAllowanceLong(5n, 9n).toString(), "5");
+  assert.equal(swapAllowanceLong(max64).toString(), max64.toString());
+
+  const wallet = fs.readFileSync(new URL("../swapwallet.js", import.meta.url), "utf8");
+  const approveFn = wallet.slice(wallet.indexOf("const MIRROR_NODE"), wallet.indexOf("export function globeSwapWallet"));
+  assert.match(approveFn, /swapSpenderId\(spenderId\)/);
+  assert.match(approveFn, /swapApprovalToken\(configuredToken, tokenId\)/);
+  assert.match(approveFn, /https:\/\/mainnet\.mirrornode\.hedera\.com/);
+  assert.match(approveFn, /configured\s*\?\s*swapAllowanceLong\(amount\)\s*:\s*swapAllowanceLong\(amount, await mirrorTokenBalance\(session\.id, token\)\)/);
+});
+
 test("a frozen swap lists several mainnet nodes", () => {
   assert.deepEqual(SWAP_MAINNET_NODES, ["0.0.3", "0.0.4", "0.0.6"]);
   const tx = new ContractExecuteTransaction()
@@ -799,6 +817,30 @@ test("the post menu lists Copy link, Follow user, Swap tokens, then Donate HBAR"
   assert.match(menu, /let swapReady = \{ show: true, offer: null, token: null \}/);
   assert.match(menu, /swapItem\.hidden = !swapReady/);
   assert.match(menu, /setTimeout\(resolve, 1500\)/);
+});
+
+test("a second tap while the token lookup is waiting does not open another sheet", () => {
+  const menu = fs.readFileSync(new URL("../postmenu.js", import.meta.url), "utf8");
+  const donations = fs.readFileSync(new URL("../donations.js", import.meta.url), "utf8");
+  const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  const openSwap = menu.slice(menu.indexOf("async function openSwapItem"), menu.indexOf("pick(swapItem"));
+  assert.match(openSwap, /if \(swapOpening\) return/);
+  assert.match(openSwap, /swapItem\.setAttribute\('aria-busy', 'true'\)/);
+  assert.match(openSwap, /swapItem\.removeAttribute\('aria-busy'\)/);
+  assert.equal(openSwap.split("openSwapSheet(").length - 1, 1);
+  const openDonate = donations.slice(donations.indexOf("function openDonateSwap"), donations.indexOf("async function loadDonateSwap"));
+  assert.match(openDonate, /if \(sheetBusy \|\| !donateSwap \|\| donateSwapOpening\) return/);
+  assert.match(openDonate, /setAttribute\('aria-busy', 'true'\)/);
+  assert.match(openDonate, /removeAttribute\('aria-busy'\)/);
+  assert.equal(openDonate.split("openSwapSheet(").length - 1, 1);
+  const menuBusy = css.slice(css.indexOf('.post-menu-item[aria-busy="true"]'), css.indexOf("  .post-menu-label {"));
+  assert.match(menuBusy, /opacity: 0\.6/);
+  assert.match(menuBusy, /cursor: wait/);
+  assert.equal(menuBusy.includes("px"), false);
+  const donateBusy = css.slice(css.indexOf('.donate-swap[aria-busy="true"]'), css.indexOf("  .donate-done {"));
+  assert.match(donateBusy, /opacity: 0\.6/);
+  assert.match(donateBusy, /cursor: wait/);
+  assert.equal(donateBusy.includes("px"), false);
 });
 
 test("a swap bio folds into its own column and stops at 280 characters", () => {
@@ -890,7 +932,7 @@ test("creator token links stay https on the way to the sheet", async () => {
 });
 
 test("the swap sheet shows the creator bio above the safety line", () => {
-  const buying = "You're buying SAUCE (0.0.731861), not donating. Tokens can lose value.";
+  const buying = "You're buying SAUCE (0.0.731861), not donating.";
   const html = "<a href=\"https://example.test\">click</a>";
   const shown = swapSheetText({
     bio: html,
@@ -1049,6 +1091,20 @@ test("the swap sheet preloads the widget and reserves its height", () => {
   assert.match(sheet, /addEventListener\("animationend", fn\)/);
   assert.match(sheet, /sheetMotion\(\)\.open\(\)/);
   assert.match(sheet, /Loading swap…/);
+  assert.match(sheet, /note\.setAttribute\("role", "status"\)/);
+  assert.match(sheet, /note\.setAttribute\("aria-live", "polite"\)/);
+  assert.match(sheet, /if \(fitFrame\) return/);
+  assert.match(sheet, /requestAnimationFrame\(\(\) => \{\s*fitFrame = 0;\s*fitSwapSheet\(\);/);
+  assert.match(sheet, /new ResizeObserver/);
+  const scrollFn = sheet.slice(sheet.indexOf("function onViewportScroll"), sheet.indexOf("function watchWidgetSize"));
+  assert.equal(scrollFn.includes("fitColumnZoom"), false);
+  assert.equal(scrollFn.includes("fitSwapSheet"), false);
+  assert.equal(scrollFn.includes("--swap-h"), false);
+  assert.match(scrollFn, /--swap-top/);
+  assert.match(sheet, /visualViewport\.addEventListener\("scroll", onViewportScroll\)/);
+  const stopFn = sheet.slice(sheet.indexOf("function stopFit"), sheet.indexOf("function paintChrome"));
+  assert.match(stopFn, /widgetObserver\.disconnect\(\)/);
+  assert.match(stopFn, /cancelAnimationFrame\(fitFrame\)/);
   assert.match(sheet, /prefers-reduced-motion: reduce/);
   assert.match(sheet, /function finishClose\(\)[\s\S]*sheet\.hidden = true/);
   assert.match(offer, /if \(show\) preloadSwapWidget\(\)/);
