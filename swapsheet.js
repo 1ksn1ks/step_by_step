@@ -423,7 +423,7 @@ function paintSwapButtonInk(widget) {
   root.appendChild(style);
 }
 
-function paintSwapToken(card, offer) {
+export function paintSwapToken(card, offer) {
   if (!card) return;
   const id = bareAccount(offer && offer.tokenId);
   const icon = card.querySelector(".swap-token-icon");
@@ -485,7 +485,7 @@ function paintSwapStats(grid, offer) {
   }
 }
 
-function paintSwapLinks(row, links) {
+export function paintSwapLinks(row, links) {
   if (!row) return;
   row.replaceChildren();
   const kept = swapKeptLinks(links);
@@ -526,31 +526,10 @@ function txLink(notice) {
   return link;
 }
 
-function ensureSheet() {
-  if (sheet) return sheet;
-  const root = document.createElement("div");
-  root.id = "swap-sheet";
-  root.hidden = true;
-
-  const card = document.createElement("div");
-  card.className = "swap-card";
-  card.setAttribute("role", "dialog");
-  card.setAttribute("aria-modal", "true");
-  card.setAttribute("aria-labelledby", "swap-title");
-
-  const head = document.createElement("div");
-  head.className = "swap-head";
-  const title = document.createElement("h2");
-  title.id = "swap-title";
-  title.className = "swap-title";
-  title.textContent = "Swap";
-  const cancel = document.createElement("button");
-  cancel.type = "button";
-  cancel.className = "swap-x";
-  cancel.setAttribute("aria-label", "Close");
-  cancel.textContent = "×";
-  head.append(title, cancel);
-
+// The same token card the sheet shows: round icon, bold symbol, monospace
+// id with copy, and the website / X row. Callers paint it with
+// paintSwapToken and paintSwapLinks.
+export function createSwapTokenCard() {
   const token = document.createElement("div");
   token.className = "swap-token";
   token.hidden = true;
@@ -593,6 +572,35 @@ function ensureSheet() {
   links.className = "swap-links";
   links.hidden = true;
   token.append(icon, meta, links);
+  return token;
+}
+
+function ensureSheet() {
+  if (sheet) return sheet;
+  const root = document.createElement("div");
+  root.id = "swap-sheet";
+  root.hidden = true;
+
+  const card = document.createElement("div");
+  card.className = "swap-card";
+  card.setAttribute("role", "dialog");
+  card.setAttribute("aria-modal", "true");
+  card.setAttribute("aria-labelledby", "swap-title");
+
+  const head = document.createElement("div");
+  head.className = "swap-head";
+  const title = document.createElement("h2");
+  title.id = "swap-title";
+  title.className = "swap-title";
+  title.textContent = "Swap";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "swap-x";
+  cancel.setAttribute("aria-label", "Close");
+  cancel.textContent = "×";
+  head.append(title, cancel);
+
+  const token = createSwapTokenCard();
 
   const stats = document.createElement("div");
   stats.className = "swap-stats";

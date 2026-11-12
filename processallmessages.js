@@ -12,7 +12,7 @@ import { polygons, geojson, storedMarkers, storedPolygons, storedMarkersFiltered
 import {updateRulesForModelNFTState} from './confirmnft'
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto';
 import { ringCenter, zoomForPolygon } from './polygonframe.js';
-import { profilePictures, usernames, click2url, profileTopics } from './loadalladata'
+import { profilePictures, usernames, click2url, profileTopics, profileSwaps } from './loadalladata'
 import { confirmShare, unshareFromMyTopic, sharePin, followPersonControls, watchFollowPrefetch, bindPressFeedback } from './followtopic'
 import { clearShareTopic, noteShare, shareState, shareMine, takeSharePin, takeUnsharePin } from './sharecount.js'
 import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
@@ -33,6 +33,8 @@ import { signer, connectedAccount } from './web3';
 import { consensusOf } from './donationmath.js';
 import { noteVisibleDonation } from './donations.js';
 import { createPostMenu } from './postmenu.js';
+import { createSwapTokenCard, paintSwapLinks, paintSwapToken } from './swapsheet.js';
+import { mountClanTag } from './clantag.js';
 import { refitPopups } from './popupanim';
 import { copyTextToClipboard } from './handleallmessages';
 import { toast } from './toast'
@@ -2006,7 +2008,7 @@ function appendShareFeature(features, ctx) {
 // Helper function to create marker popup HTML using DOM
 // (exported so the 24h local-news markers reuse the exact same popup)
 // The marker and polygon popups, and the feed card, share this header.
-// Account on the first line, display name on the second, the post menu
+// Display name on the first line, account id on the second, the post menu
 // on the right where Follow used to sit.
 export function buildPopupProfile({ profileUrl, payer, payerInfo, username, click2link, donation, copyKind }) {
   const profileSection = document.createElement('div');
@@ -2035,6 +2037,13 @@ export function buildPopupProfile({ profileUrl, payer, payerInfo, username, clic
   const headerDiv = document.createElement('div');
   const h2 = document.createElement('h2');
 
+  const trimmedUsername = String(username || '').trim();
+  if (trimmedUsername) {
+    h2.appendChild(payerUsernameNode(trimmedUsername, click2link, { className: 'username' }));
+  }
+
+  h2.appendChild(document.createElement('br'));
+
   const payerLink = document.createElement('a');
   payerLink.href = `https://explore.hashpack.app/${encodeURIComponent(payerInfo)}`;
   payerLink.target = '_blank';
@@ -2043,13 +2052,6 @@ export function buildPopupProfile({ profileUrl, payer, payerInfo, username, clic
   payerLink.style.textDecoration = 'none';
   payerLink.textContent = payerInfo;
   h2.appendChild(payerLink);
-
-  h2.appendChild(document.createElement('br'));
-
-  const trimmedUsername = String(username || '').trim();
-  if (trimmedUsername) {
-    h2.appendChild(payerUsernameNode(trimmedUsername, click2link, { className: 'username' }));
-  }
 
   headerDiv.appendChild(h2);
   profileSection.appendChild(headerDiv);
@@ -2069,6 +2071,15 @@ export function buildPopupProfile({ profileUrl, payer, payerInfo, username, clic
   if (followBtn) followBtn.before(menu);
   else follow.appendChild(menu);
   profileSection.appendChild(follow);
+  mountClanTag({
+    bubble: profileSection,
+    payerLink,
+    payer,
+    swaps: () => profileSwaps,
+    createCard: createSwapTokenCard,
+    paintToken: paintSwapToken,
+    paintLinks: paintSwapLinks,
+  });
   return profileSection;
 }
 

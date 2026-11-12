@@ -2987,6 +2987,7 @@ function buildCard(post) {
     // keeps those links from navigating. stopPropagation keeps this tap from
     // reaching the document click that closes every panel.
     profile.addEventListener('click', (event) => {
+      if (event.target && event.target.closest && event.target.closest('.clan-tag')) return;
       const hit = event.target && event.target.closest && event.target.closest('img, video.loop-face, h2');
       if (!hit || !profile.contains(hit)) return;
       event.preventDefault();
