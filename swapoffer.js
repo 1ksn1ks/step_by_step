@@ -531,6 +531,61 @@ const SWAP_STATS = [
   ["circulating", "Circulating", false],
 ];
 
+let swapStatTipSeq = 0;
+
+// title stays for desktop hover. Touch and keyboards open the same sentence
+// in a tooltip the screen reader can reach through aria-describedby.
+function bindCirculatingTip(tile) {
+  const tipId = "swap-circulating-tip-" + (++swapStatTipSeq);
+  const tip = document.createElement("span");
+  tip.id = tipId;
+  tip.className = "swap-stat-tip";
+  tip.hidden = true;
+  tip.setAttribute("role", "tooltip");
+  tip.textContent = tile.title;
+  tile.tabIndex = 0;
+  tile.setAttribute("aria-describedby", tipId);
+  tile.append(tip);
+  let openedOnFocus = false;
+  const place = (open) => {
+    tip.hidden = !open;
+    if (!open) {
+      if (tip.parentNode !== tile) tile.append(tip);
+      return;
+    }
+    const body = typeof document !== "undefined" ? document.body : null;
+    if (!body || typeof tile.getBoundingClientRect !== "function") return;
+    if (tile.closest && tile.closest(".clan-token") && typeof getComputedStyle === "function") {
+      const view = getComputedStyle(tile);
+      const fu = view.getPropertyValue("--fu").trim();
+      const unit = view.getPropertyValue("--u").trim();
+      if (fu) tip.style.setProperty("--fu", fu);
+      if (unit) tip.style.setProperty("--u", unit);
+      tip.classList.add("is-clan");
+    }
+    const box = tile.getBoundingClientRect();
+    body.append(tip);
+    tip.style.left = box.left + "px";
+    tip.style.top = box.top + "px";
+  };
+  tile.addEventListener("focus", () => {
+    openedOnFocus = true;
+    place(true);
+  });
+  tile.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (openedOnFocus) {
+      openedOnFocus = false;
+      return;
+    }
+    place(tip.hidden);
+  });
+  tile.addEventListener("blur", () => {
+    openedOnFocus = false;
+    place(false);
+  });
+}
+
 // The five tiles under the token card. The sheet and the clan tag share this.
 export function createSwapStats() {
   const stats = document.createElement("div");
@@ -548,6 +603,7 @@ export function createSwapStats() {
     value.dataset.swapStat = key;
     value.textContent = "–";
     tile.append(name, value);
+    if (key === "circulating") bindCirculatingTip(tile);
     stats.append(tile);
   }
   return stats;

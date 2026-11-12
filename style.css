@@ -4544,6 +4544,15 @@ html, body {
     white-space: nowrap;
   }
 
+  .swap-stat-tip.is-clan {
+    max-width: calc(var(--fu, var(--u)) * 28);
+    padding: calc(var(--fu, var(--u)) * 0.5) calc(var(--fu, var(--u)) * 0.8);
+    border-width: calc(var(--fu, var(--u)) * 0.08);
+    border-radius: calc(var(--fu, var(--u)) * 0.8);
+    font-size: calc(var(--fu, var(--u)) * 1.25);
+    transform: translateY(calc(-100% - var(--fu, var(--u)) * 0.4));
+  }
+
   /* Same notice as the Swap sheet, in the bubble's unit. */
   .clan-token .swap-note {
     display: flex;
@@ -7815,6 +7824,35 @@ html, body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .swap-stat:focus-visible {
+    outline: 0.2dvh solid #22D3EE;
+    outline-offset: 0.15dvh;
+  }
+
+  .swap-stat-tip {
+    position: fixed;
+    z-index: 9950;
+    box-sizing: border-box;
+    width: max-content;
+    max-width: 42dvw;
+    margin: 0;
+    padding: 0.6dvh 1.2dvw;
+    border: 0.15dvh solid rgba(255, 255, 255, 0.14);
+    border-radius: 0.8dvh;
+    background: #17171a;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 1.5dvh;
+    font-weight: 500;
+    line-height: 1.35;
+    white-space: normal;
+    transform: translateY(calc(-100% - 0.6dvh));
+    pointer-events: none;
+  }
+
+  .swap-stat-tip[hidden] {
+    display: none;
   }
 
   .swap-note {

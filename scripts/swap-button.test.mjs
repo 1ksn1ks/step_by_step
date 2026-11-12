@@ -43,6 +43,7 @@ import {
   swapRouterId,
   swapSpenderId,
   createSwapSheetMotion,
+  createSwapStats,
 } from "../swapoffer.js";
 import {
   AccountAllowanceApproveTransaction,
@@ -1233,4 +1234,93 @@ test("the card width is the natural column times zoom plus padding, and a zoom-o
   assert.match(statsSrc, /\["liquidity", "Liquidity", true\]/);
   assert.match(statsSrc, /\["supply", "Total supply", false\]/);
   assert.match(statsSrc, /\["circulating", "Circulating", false\]/);
+});
+
+test("the circulating tile explains itself on focus and tap", () => {
+  const src = fs.readFileSync(new URL("../swapoffer.js", import.meta.url), "utf8");
+  const body = src.slice(src.indexOf("function bindCirculatingTip"), src.indexOf("export function paintSwapStats"));
+  assert.match(body, /tile\.title = "Total supply minus the treasury account's balance"/);
+  assert.match(body, /tile\.tabIndex = 0/);
+  assert.match(body, /setAttribute\("aria-describedby", tipId\)/);
+  assert.match(body, /setAttribute\("role", "tooltip"\)/);
+  assert.match(body, /addEventListener\("focus"/);
+  assert.match(body, /addEventListener\("click"/);
+  assert.match(body, /addEventListener\("blur"/);
+
+  const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  const tip = css.match(/\.swap-stat-tip \{[^}]*\}/);
+  const clanTip = css.match(/\.swap-stat-tip\.is-clan \{[^}]*\}/);
+  assert.ok(tip);
+  assert.ok(clanTip);
+  assert.match(tip[0], /font-size: 1\.5dvh/);
+  assert.match(tip[0], /max-width: 42dvw/);
+  assert.match(tip[0], /padding: 0\.6dvh 1\.2dvw/);
+  assert.match(clanTip[0], /font-size: calc\(var\(--fu, var\(--u\)\) \* 1\.25\)/);
+  assert.match(clanTip[0], /max-width: calc\(var\(--fu, var\(--u\)\) \* 28\)/);
+  assert.equal(tip[0].includes("px"), false);
+  assert.equal(clanTip[0].includes("px"), false);
+
+  function el(tag) {
+    const node = {
+      tag,
+      className: "",
+      id: "",
+      title: "",
+      hidden: false,
+      textContent: "",
+      tabIndex: -1,
+      dataset: {},
+      children: [],
+      listeners: {},
+      attrs: {},
+      classList: { add() {} },
+    };
+    node.setAttribute = (name, value) => {
+      node.attrs[name] = value;
+    };
+    node.addEventListener = (type, fn) => {
+      (node.listeners[type] = node.listeners[type] || []).push(fn);
+    };
+    node.append = (...kids) => {
+      for (const child of kids) {
+        child.parentNode = node;
+        node.children.push(child);
+      }
+    };
+    return node;
+  }
+  const previous = globalThis.document;
+  globalThis.document = { createElement: el };
+  try {
+    const stats = createSwapStats();
+    const tiles = stats.children;
+    assert.equal(tiles.length, 5);
+    for (const tile of tiles.slice(0, 4)) {
+      assert.equal(tile.title, "");
+      assert.equal(tile.tabIndex, -1);
+      assert.equal(tile.attrs["aria-describedby"], undefined);
+    }
+    const tile = tiles[4];
+    const note = tile.children[2];
+    assert.equal(tile.title, "Total supply minus the treasury account's balance");
+    assert.equal(tile.tabIndex, 0);
+    assert.equal(tile.attrs["aria-describedby"], note.id);
+    assert.equal(note.attrs.role, "tooltip");
+    assert.equal(note.textContent, tile.title);
+    assert.equal(note.hidden, true);
+
+    tile.listeners.focus[0]();
+    assert.equal(note.hidden, false);
+    tile.listeners.click[0]({ stopPropagation() {} });
+    assert.equal(note.hidden, false);
+    tile.listeners.click[0]({ stopPropagation() {} });
+    assert.equal(note.hidden, true);
+    tile.listeners.click[0]({ stopPropagation() {} });
+    assert.equal(note.hidden, false);
+    tile.listeners.blur[0]();
+    assert.equal(note.hidden, true);
+    assert.equal(note.parentNode, tile);
+  } finally {
+    globalThis.document = previous;
+  }
 });
