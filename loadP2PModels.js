@@ -173,7 +173,7 @@ generateModels();
 // ── GPU-side drift (mass scale: zero per-frame CPU at any bot count) ─────
 // Each bot orbits its static home point, evaluated in the VERTEX SHADER from
 // uTime — no per-frame CPU integration, no buffer re-uploads while the
-// camera is still (the map repaints for the shader; the matrices sit
+// camera is still (an idle tick advances uTime; the matrices sit
 // untouched). The instance matrix carries the home pose, so the shader reads
 // the bot's local frame straight off it (col0 = east·k, col1 = up·k) and
 // displaces the translation along east/north/up:
@@ -542,6 +542,7 @@ export async function load3dModels() {
     cv: null,            // camera-derived values, cached per cvKey
     cvKey: '',
     lastT: 0,            // last render timestamp — drives the load-fade dt
+    idleTimer: 0,        // slow crawl tick while the camera is still
     t0: 0,               // onAdd timestamp — origin of the shader drift clock
     lastLen: -1,
     lastVersion: -1,
@@ -971,6 +972,29 @@ export async function load3dModels() {
     if (overflow) state.dirty = true; // recompute next frame with the grown capacity
   };
 
+  // Orbit periods are 40s and up, so 5 ticks a second looks like the old
+  // every-refresh crawl. A moving camera, and the 0.6s load fade, still
+  // paint on every frame. The clock is absolute, so a late tick lands the
+  // bots where they belong instead of stepping them.
+  const IDLE_DRIFT_MS = 200;
+
+  const stopIdleDrift = () => {
+    if (!state.idleTimer) return;
+    clearTimeout(state.idleTimer);
+    state.idleTimer = 0;
+  };
+
+  const queueIdleDrift = (map) => {
+    if (state.idleTimer) return;
+    state.idleTimer = setTimeout(() => {
+      state.idleTimer = 0;
+      const shell = document.documentElement.classList;
+      if (state.map !== map) return;
+      if (shell.contains('feed-app') || shell.contains('is-draw-picking')) return;
+      map.triggerRepaint();
+    }, IDLE_DRIFT_MS);
+  };
+
   const customLayer = {
     id: "3d-model",
     type: "custom",
@@ -1017,6 +1041,7 @@ export async function load3dModels() {
         inst.loaded = false;
       }
       if (state.onResize) { map.off('resize', state.onResize); state.onResize = null; }
+      stopIdleDrift();
       if (state.renderer) state.renderer.dispose();
       state.renderer = null;
       state.map = null;
@@ -1026,14 +1051,17 @@ export async function load3dModels() {
     render(gl, args) {
       if (!state.renderer || !state.map) return;
       const map = state.map;
-      // Feed mode covers the map. Skip the draw and the trailing repaint so
-      // MapLibre goes idle behind the feed — the repaint loop would otherwise
+      // Feed mode covers the map. Skip the draw and don't queue another
+      // tick, so MapLibre goes idle behind the feed — a running tick would
       // starve typing in the chat. syncCover() kicks a frame when the feed
-      // closes, and the first rendered frame resumes this loop on its own.
-      // Picking a spot for the Draw form (drawhere.js) shows a clean map,
-      // so the models stay out of it the same way; endPick kicks a frame.
+      // closes, and that frame queues the crawl again. Picking a spot for
+      // the Draw form (drawhere.js) shows a clean map, so the models stay
+      // out of it the same way; endPick kicks a frame.
       const shell = document.documentElement.classList;
-      if (shell.contains('feed-app') || shell.contains('is-draw-picking')) return;
+      if (shell.contains('feed-app') || shell.contains('is-draw-picking')) {
+        stopIdleDrift();
+        return;
+      }
       try {
         // Real frame dt — drives the load fade-in ramp (the drift itself is
         // uTime in the shader, smooth at any frame rate for free).
@@ -1077,7 +1105,12 @@ export async function load3dModels() {
 
         state.renderer.resetState();
         state.renderer.render(state.scene, P2Pcamera);
-        map.triggerRepaint();
+        if (camChanged || fadeActive) {
+          stopIdleDrift();
+          map.triggerRepaint();
+        } else {
+          queueIdleDrift(map);
+        }
       } catch (err) {
         console.error('3d-model render error', err);
       }
@@ -1091,9 +1124,10 @@ export async function load3dModels() {
 // Day/night shade — its own custom 3D layer
 //
 // Split out of the bot layer so it survives hiding the 3D models: the
-// "Hide 3D models" toggle removes/re-adds only the "3d-model" layer, so the
-// terminator keeps tracking the sun (and light/dark/daynight keeps working)
-// even when the bots are off. It must stay the TOPMOST 3D layer so its shade
+// "Hide 3D models" toggle removes/re-adds only the "3d-model" layer. The
+// shade draws on frames the map already has (a pan, a model tick, a mode
+// change) and does not ask for its own, so with the models hidden the
+// shadow holds until the camera moves. It must stay the TOPMOST 3D layer so its shade
 // (depthTest off) blends over the bots.
 //
 // Same per-pixel fragment-shader sphere as before: a unit sphere at the origin
@@ -1224,9 +1258,8 @@ export function loadDayNight() {
     render(gl, args) {
       if (!state.renderer || !state.map) return;
       const map = state.map;
-      // Feed mode covers the map: same idle gate as the bot layer. The
-      // daynight terminator is the other thing that re-triggered every
-      // frame, so behind the feed it stops too.
+      // Feed mode covers the map: same gate as the bot layer. This layer
+      // does not request frames, so behind the feed there is nothing to stop.
       if (document.documentElement.classList.contains('feed-app')) return;
       // The globe->flat transition MORPHS a single frame (the tile shaders
       // mix flat/globe positions with _globeness; z11 = pure globe, z12 =
@@ -1258,7 +1291,6 @@ export function loadDayNight() {
           dnCamera.matrixWorldInverse.identity();
           state.renderer.resetState();
           state.renderer.render(state.scene, dnCamera);
-          if (!nightOnly) map.triggerRepaint(); // only daynight animates; dark is static
         }
         if (tintVisible) {
           state.renderer.resetState();
