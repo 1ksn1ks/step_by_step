@@ -301,7 +301,7 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
     openSwapSheet({
       account: creator ? bareAccount(payer) : "",
       tokenId: creator ? swapReady.offer.tokenId : "",
-      feeBps: creator ? swapReady.offer.feeBps : 0,
+      feeBps: creator && !swapReady.own ? swapReady.offer.feeBps : 0,
       symbol: creator ? swapReady.token.symbol : "",
       dueDiligenceComplete: creator ? swapReady.token.dueDiligenceComplete : false,
       links: creator ? swapReady.token.links : null,

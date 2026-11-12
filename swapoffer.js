@@ -1,8 +1,8 @@
 // Whether a post opens the creator's swap or the default widget, and the
-// lines the sheet needs. Someone else's valid token keeps their output
-// token, cut, and bio. No setting, a bad token, or your own post opens
-// SaucerSwap with its defaults. A swap is not a donation. Nothing here
-// posts to the donations API.
+// lines the sheet needs. A valid token keeps that output token, bio, and
+// links. Your own post keeps the same setup and drops the cut. No setting
+// or a bad token opens SaucerSwap with its defaults. A swap is not a
+// donation. Nothing here posts to the donations API.
 
 import Long from "long";
 import { normalizeSwap } from "./server/swapprofile.js";
@@ -538,10 +538,13 @@ export async function resolveSwapButton({ author, viewer, swap, ...rest }) {
   const them = bareAccount(author);
   const me = bareAccount(viewer);
   const own = !!(them && me && me === them);
-  let result = { show: true, offer: null, token: null };
-  if (offer && them && !own) {
+  let result = { show: true, offer: null, token: null, own: false };
+  if (offer && them) {
     const token = await fetchSwapToken(offer.tokenId, rest);
-    if (swapButtonShows({ author, viewer, offer, token })) result = { show: true, offer, token };
+    const ready = !!(token && token.pool === true && (!token.tokenId || token.tokenId === offer.tokenId));
+    if (ready && (own || swapButtonShows({ author, viewer, offer, token }))) {
+      result = { show: true, offer, token, own };
+    }
   }
   const show = result.show;
   if (show) preloadSwapWidget();

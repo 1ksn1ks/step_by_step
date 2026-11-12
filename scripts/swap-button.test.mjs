@@ -104,8 +104,14 @@ test("no Swap setting or a bad token id opens the default widget and does not as
   }
 });
 
-test("your own post opens the default widget and does not ask the token route", async () => {
-  const { fetchImpl, calls } = tokenFetch({ pool: true, symbol: "SAUCE" });
+test("your own post uses your token without a cut, and no Swap setting stays the default widget", async () => {
+  const { fetchImpl, calls } = tokenFetch({
+    pool: true,
+    symbol: "SAUCE",
+    tokenId: SAUCE,
+    dueDiligenceComplete: false,
+    links: { website: "https://sauce.example", x: "javascript:alert(1)" },
+  });
   const result = await resolveSwapButton({
     author: "0.0.200-abc",
     viewer: AUTHOR,
@@ -114,13 +120,38 @@ test("your own post opens the default widget and does not ask the token route", 
     ...isolated(),
   });
   assert.equal(result.show, true);
-  assert.equal(result.offer, null);
-  assert.equal(result.token, null);
-  assert.equal(calls.length, 0);
+  assert.equal(result.own, true);
+  assert.deepEqual(result.offer, { tokenId: SAUCE, feeBps: 40 });
+  assert.equal(result.token.symbol, "SAUCE");
+  assert.equal(result.token.dueDiligenceComplete, false);
+  assert.deepEqual(result.token.links, { website: "https://sauce.example" });
+  assert.equal(calls.length, 1);
+  const buying = "You're buying SAUCE (0.0.731861), not donating. Tokens can lose value.";
+  assert.equal(swapSafetyLine({
+    symbol: "SAUCE",
+    tokenId: SAUCE,
+    dueDiligenceComplete: false,
+    feeBps: 0,
+  }), buying + " Not reviewed by SaucerSwap.");
+  assert.equal(swapSafetyLine({
+    symbol: result.token.symbol,
+    tokenId: result.offer.tokenId,
+    dueDiligenceComplete: true,
+    feeBps: 0,
+  }), buying);
+  const config = swapWidgetConfig({
+    projectId: "project-from-web3",
+    tokenId: result.offer.tokenId,
+    feeBps: 0,
+    account: AUTHOR,
+  });
+  assert.equal(config.outputToken, SAUCE);
+  assert.equal(config.integratorFeeBps, undefined);
+  assert.equal(config.integratorFeeRecipient, undefined);
   assert.equal(swapButtonShows({
     author: AUTHOR,
     viewer: AUTHOR,
-    offer: { tokenId: SAUCE, feeBps: 0 },
+    offer: { tokenId: SAUCE, feeBps: 40 },
     token: { pool: true, tokenId: SAUCE },
   }), false);
   assert.equal(swapButtonShows({
@@ -129,6 +160,37 @@ test("your own post opens the default widget and does not ask the token route", 
     offer: { tokenId: SAUCE, feeBps: 0 },
     token: { pool: true, tokenId: SAUCE },
   }), true);
+
+  const off = tokenFetch({ pool: true, symbol: "SAUCE", tokenId: SAUCE });
+  const plain = await resolveSwapButton({
+    author: AUTHOR,
+    viewer: AUTHOR,
+    swap: { enabled: false, tokenId: SAUCE, feeBps: 40 },
+    fetchImpl: off.fetchImpl,
+    ...isolated(),
+  });
+  assert.equal(plain.show, true);
+  assert.equal(plain.offer, null);
+  assert.equal(plain.token, null);
+  assert.equal(plain.own, false);
+  assert.equal(off.calls.length, 0);
+
+  const bad = tokenFetch({ pool: false, tokenId: SAUCE, symbol: "SAUCE" });
+  const hidden = await resolveSwapButton({
+    author: AUTHOR,
+    viewer: AUTHOR,
+    swap: ON,
+    fetchImpl: bad.fetchImpl,
+    ...isolated(),
+  });
+  assert.equal(hidden.offer, null);
+  assert.equal(hidden.token, null);
+  assert.equal(bad.calls.length, 1);
+
+  const menu = fs.readFileSync(new URL("../postmenu.js", import.meta.url), "utf8");
+  const donate = fs.readFileSync(new URL("../donations.js", import.meta.url), "utf8");
+  assert.match(menu, /feeBps: creator && !swapReady\.own \? swapReady\.offer\.feeBps : 0/);
+  assert.match(donate, /feeBps: creator && !result\.own \? result\.offer\.feeBps : 0/);
 });
 
 test("a real pool uses the author's token, and any other token answer opens the default widget", async () => {

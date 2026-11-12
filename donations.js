@@ -581,7 +581,7 @@ async function loadDonateSwap() {
   donateSwap = {
     account: creator ? account : "",
     tokenId: creator ? result.offer.tokenId : "",
-    feeBps: creator ? result.offer.feeBps : 0,
+    feeBps: creator && !result.own ? result.offer.feeBps : 0,
     symbol: creator ? result.token.symbol : "",
     dueDiligenceComplete: creator ? result.token.dueDiligenceComplete : false,
     links: creator ? result.token.links : null,
