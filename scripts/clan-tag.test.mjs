@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { clanChipModel, clanOfferOf, clanTagLabel, clanTokenLookup, clanWatcherCount, mountClanTag, sweepClanWatchers } from "../clantag.js";
+import { clanChipModel, clanOfferOf, clanTagLabel, clanTokenLookup, clanWatcherCount, mountClanTag, refreshClanWatchers, sweepClanWatchers } from "../clantag.js";
 import { formatSwapStat } from "../swapoffer.js";
 import { swapWebsiteLabel, swapXLabel } from "../server/swaptoken.js";
 
@@ -304,6 +304,11 @@ function domNode(tag) {
     (node.listeners[type] = node.listeners[type] || []).push(fn);
   };
   node.appendChild = (child) => {
+    const old = child.parentNode;
+    if (old) {
+      const at = old.children.indexOf(child);
+      if (at >= 0) old.children.splice(at, 1);
+    }
     child.parentNode = node;
     child.parentElement = node;
     child.isConnected = node.isConnected;
@@ -379,10 +384,11 @@ test("the opened clan card shows the five stats from the lookup", async () => {
     fn();
     return 0;
   };
+  let bubble = null;
   try {
     const parent = domNode("div");
     parent.isConnected = true;
-    const bubble = domNode("section");
+    bubble = domNode("section");
     parent.appendChild(bubble);
     const h2 = domNode("h2");
     const payerLink = domNode("a");
@@ -435,6 +441,8 @@ test("the opened clan card shows the five stats from the lookup", async () => {
     assert.equal(tiles[4].title, "Total supply minus the treasury account's balance");
     assert.equal(fetches, 1);
   } finally {
+    if (bubble) bubble.isConnected = false;
+    sweepClanWatchers();
     globalThis.document = previous.document;
     globalThis.requestAnimationFrame = previous.requestAnimationFrame;
   }
@@ -479,11 +487,13 @@ test("an unreviewed clan token shows the SaucerSwap notice under the card", asyn
     return 0;
   };
 
+  const bubbles = [];
   async function openCard(payer, tokenId, token) {
     await clanTokenLookup(tokenId, async () => token);
     const parent = domNode("div");
     parent.isConnected = true;
     const bubble = domNode("section");
+    bubbles.push(bubble);
     parent.appendChild(bubble);
     const h2 = domNode("h2");
     const payerLink = domNode("a");
@@ -551,6 +561,133 @@ test("an unreviewed clan token shows the SaucerSwap notice under the card", asyn
     assert.equal(noteText(unknown), "");
     await new Promise((resolve) => setTimeout(resolve, 450));
   } finally {
+    for (const bubble of bubbles) bubble.isConnected = false;
+    sweepClanWatchers();
+    globalThis.document = previous.document;
+    globalThis.requestAnimationFrame = previous.requestAnimationFrame;
+  }
+});
+
+test("a connected bubble keeps its clan watcher and follows Swap token changes", async () => {
+  const clan = fs.readFileSync(new URL("../clantag.js", import.meta.url), "utf8");
+  const mount = clan.slice(clan.indexOf("export function mountClanTag"));
+  assert.match(mount, /let paintedId = ""/);
+  assert.match(mount, /clanTokenLookup\(offer\.tokenId\)/);
+  assert.match(mount, /if \(armed && !bubble\.isConnected\) \{\s*forget\(\)/);
+  assert.equal(mount.includes("started = true"), false);
+  assert.equal(mount.match(/forget\(\)/g).length, 1);
+  assert.match(clan, /WATCH_SWEEP_MS = 30000/);
+
+  const payer = "0.0.818181";
+  const firstId = "0.0.919191";
+  const secondId = "0.0.919192";
+  await clanTokenLookup(firstId, async () => ({ tokenId: firstId, symbol: "gib" }));
+  await clanTokenLookup(secondId, async () => ({ tokenId: secondId, symbol: "zip" }));
+  const profile = { enabled: true, tokenId: firstId, feeBps: 40 };
+  const swaps = { [payer]: profile };
+
+  const previous = {
+    document: globalThis.document,
+    requestAnimationFrame: globalThis.requestAnimationFrame,
+  };
+  globalThis.document = {
+    addEventListener() {},
+    createElement(tag) { return domNode(tag); },
+  };
+  globalThis.requestAnimationFrame = (fn) => {
+    fn();
+    return 0;
+  };
+
+  const parent = domNode("div");
+  parent.isConnected = true;
+  const bubble = domNode("section");
+  parent.appendChild(bubble);
+  const h2 = domNode("h2");
+  const username = domNode("span");
+  username.className = "username";
+  username.textContent = "Ada";
+  const payerLink = domNode("a");
+  h2.append(username, payerLink);
+  bubble.appendChild(h2);
+
+  function chips() {
+    const found = [];
+    const walk = (node) => {
+      if (node.className === "clan-tag") found.push(node);
+      for (const child of node.children) walk(child);
+    };
+    walk(bubble);
+    return found;
+  }
+  function symbolOf(button) {
+    const text = button.children.find((child) => child.className === "clan-tag-symbol");
+    return text ? text.textContent : "";
+  }
+
+  try {
+    assert.equal(clanWatcherCount(), 0);
+    mountClanTag({
+      bubble,
+      payerLink,
+      payer,
+      swaps: () => swaps,
+      createCard() { return domNode("div"); },
+      paintToken() {},
+      paintLinks() {},
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const painted = chips();
+    assert.equal(painted.length, 1);
+    assert.equal(symbolOf(painted[0]), "gib");
+    assert.equal(clanWatcherCount(), 1);
+    const row = h2.children.find((child) => child.className === "payer-row");
+    assert.ok(row);
+    assert.equal(username.parentElement, row.children.find((child) => child.className === "payer-names"));
+
+    for (const fn of painted[0].listeners.click) fn({ preventDefault() {}, stopPropagation() {} });
+    const card = parent.children.find((child) => child.className.split(/\s+/).includes("clan-token"));
+    assert.ok(card);
+    assert.equal(card.isConnected, true);
+
+    refreshClanWatchers();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(chips()[0], painted[0]);
+    assert.equal(card.isConnected, true);
+
+    profile.tokenId = secondId;
+    refreshClanWatchers();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const replaced = chips();
+    assert.equal(replaced.length, 1);
+    assert.notEqual(replaced[0], painted[0]);
+    assert.equal(symbolOf(replaced[0]), "zip");
+    assert.equal(card.isConnected, false);
+    assert.equal(parent.children.includes(card), false);
+    assert.equal(clanWatcherCount(), 1);
+    assert.equal(h2.children.filter((child) => child.className === "payer-row").length, 1);
+
+    profile.enabled = false;
+    refreshClanWatchers();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(chips().length, 0);
+    assert.equal(h2.children.some((child) => child.className === "payer-row"), false);
+    assert.equal(username.parentElement, h2);
+    assert.equal(payerLink.parentElement, h2);
+    assert.deepEqual(h2.children, [username, payerLink]);
+    assert.equal(clanWatcherCount(), 1);
+
+    profile.enabled = true;
+    refreshClanWatchers();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(chips().length, 1);
+    assert.equal(symbolOf(chips()[0]), "zip");
+    assert.equal(clanWatcherCount(), 1);
+  } finally {
+    bubble.isConnected = false;
+    sweepClanWatchers();
+    assert.equal(clanWatcherCount(), 0);
     globalThis.document = previous.document;
     globalThis.requestAnimationFrame = previous.requestAnimationFrame;
   }

@@ -26,7 +26,7 @@ function stopWatcherSweep() {
 }
 
 // One pass over bubbles that have left the page. The timer runs only while
-// at least one watcher is still waiting for a Swap setting.
+// at least one bubble is still watched.
 export function sweepClanWatchers() {
   for (const [tick, bubble] of watchers) {
     if (bubble && bubble.isConnected) continue;
@@ -43,6 +43,12 @@ function startWatcherSweep() {
   if (sweepTimer != null || watchers.size === 0) return;
   sweepTimer = setInterval(sweepClanWatchers, WATCH_SWEEP_MS);
   if (sweepTimer && typeof sweepTimer.unref === "function") sweepTimer.unref();
+}
+
+// profiles-loaded, and the detached-bubble sweep, share this pass.
+export function refreshClanWatchers() {
+  sweepClanWatchers();
+  for (const tick of [...watchers.keys()]) tick();
 }
 
 export function clanOfferOf(swaps, author) {
@@ -122,8 +128,7 @@ function watchProfiles(fn, bubble) {
   if (typeof document !== "undefined" && !watching) {
     watching = true;
     document.addEventListener("profiles-loaded", () => {
-      sweepClanWatchers();
-      for (const tick of [...watchers.keys()]) tick();
+      refreshClanWatchers();
     });
   }
   watchers.set(fn, bubble);
@@ -157,33 +162,71 @@ function closeClan(state, immediate) {
 }
 
 // Paint nothing until a lookup returns a symbol. Authors without Swap never
-// get a row, a chip, or a card.
+// get a row, a chip, or a card. The watcher stays while the bubble is
+// connected. A later tick removes or replaces the chip when that Swap token
+// changes or is turned off.
 export function mountClanTag({ bubble, payerLink, payer, swaps, createCard, paintToken, paintLinks }) {
   if (!bubble || !payerLink || typeof createCard !== "function") return;
   const swapsOf = typeof swaps === "function" ? swaps : () => swaps;
-  let started = false;
   let armed = false;
   let forget = () => {};
+  let paintedId = "";
+  let pendingId = "";
+  let flight = 0;
+  let row = null;
+  let chip = null;
+
+  function clearChip() {
+    if (chip) {
+      closeClan(chip, true);
+      chip = null;
+    }
+    const held = row;
+    row = null;
+    paintedId = "";
+    if (!held) return;
+    const h2 = held.parentElement;
+    const names = held.querySelector(".payer-names");
+    const username = names && names.querySelector(".username");
+    if (h2) {
+      if (username) h2.append(username);
+      h2.append(payerLink);
+    }
+    held.remove();
+  }
 
   function sync() {
-    if (started) return;
     if (armed && !bubble.isConnected) {
       forget();
       return;
     }
     const offer = clanOfferOf(swapsOf(), payer);
-    if (!offer) return;
-    started = true;
-    forget();
+    const nextId = offer ? offer.tokenId : "";
+    if (!nextId && !paintedId && !chip) return;
+    if (nextId && (nextId === paintedId || nextId === pendingId)) return;
+    const generation = ++flight;
+    pendingId = nextId;
+    if (chip || row) clearChip();
+    if (!offer) {
+      pendingId = "";
+      return;
+    }
     clanTokenLookup(offer.tokenId).then((token) => {
-      if (!bubble.isConnected) return;
+      if (generation !== flight || !bubble.isConnected) return;
       const model = clanChipModel(token);
+      if (pendingId === nextId && !model) pendingId = "";
       if (!model) return;
-      placeChip(model, token);
+      const current = clanOfferOf(swapsOf(), payer);
+      if (!current || current.tokenId !== nextId) {
+        if (pendingId === nextId) pendingId = "";
+        return;
+      }
+      placeChip(model, token, nextId);
+      if (pendingId === nextId) pendingId = "";
     });
   }
 
-  function placeChip(model, token) {
+  function placeChip(model, token, tokenId) {
     const id = "clan-token-" + (++seq);
     const button = document.createElement("button");
     button.type = "button";
@@ -214,12 +257,14 @@ export function mountClanTag({ bubble, payerLink, payer, swaps, createCard, pain
     const username = h2.querySelector(".username");
     if (username) names.append(username);
     names.append(payerLink);
-    const row = document.createElement("span");
+    row = document.createElement("span");
     row.className = "payer-row";
     row.append(names, button);
     h2.append(row);
 
     const state = { button, card: null, open: false };
+    chip = state;
+    paintedId = tokenId;
     function buildCard() {
       const wrap = document.createElement("div");
       wrap.className = "clan-token";
