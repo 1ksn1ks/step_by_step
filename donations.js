@@ -572,17 +572,18 @@ async function loadDonateSwap() {
     result = null;
   }
   if (gen !== donateSwapGen || !sheet || sheet.hidden || sheetAccount !== account) return;
-  if (!result || !result.show || !result.offer || !result.token) {
+  if (!result || !result.show) {
     donateSwap = null;
     if (button) button.hidden = true;
     return;
   }
+  const creator = result.offer && result.token;
   donateSwap = {
-    account,
-    tokenId: result.offer.tokenId,
-    feeBps: result.offer.feeBps,
-    symbol: result.token.symbol,
-    dueDiligenceComplete: result.token.dueDiligenceComplete,
+    account: creator ? account : "",
+    tokenId: creator ? result.offer.tokenId : "",
+    feeBps: creator ? result.offer.feeBps : 0,
+    symbol: creator ? result.token.symbol : "",
+    dueDiligenceComplete: creator ? result.token.dueDiligenceComplete : false,
     host,
   };
   if (button) button.hidden = false;

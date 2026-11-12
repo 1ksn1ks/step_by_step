@@ -1,7 +1,8 @@
-// Whether a post may show Swap, and the lines the sheet needs.
-// A profile can say Swap is on without this app's pool check, so the button
-// stays hidden until GET /api/swap/token/:tokenId says pool is true.
-// A swap is not a donation. Nothing here posts to the donations API.
+// Whether a post opens the creator's swap or the default widget, and the
+// lines the sheet needs. Someone else's valid token keeps their output
+// token, cut, and bio. No setting, a bad token, or your own post opens
+// SaucerSwap with its defaults. A swap is not a donation. Nothing here
+// posts to the donations API.
 
 import Long from "long";
 import { normalizeSwap } from "./server/swapprofile.js";
@@ -69,34 +70,41 @@ export function swapFeeShare(feeBps) {
   return percent + "% goes to the poster.";
 }
 
+const DEFAULT_SAFETY = "Not reviewed by SaucerSwap.";
+
 export function swapSafetyLine(details) {
   const info = details || {};
+  if (!bareAccount(info.tokenId)) return DEFAULT_SAFETY;
   const share = swapFeeShare(info.feeBps);
   const line = swapNotice(info);
   return share ? line + " " + share : line;
 }
 
 // bio is the creator note. safety is the line that always stays.
+// No token means the default widget: no bio, and only the review line.
 export function swapSheetText(details) {
   const info = details || {};
+  if (!bareAccount(info.tokenId)) return { bio: "", safety: DEFAULT_SAFETY };
   return {
     bio: swapBioText(info.bio),
     safety: swapSafetyLine(info),
   };
 }
 
-// Fee attributes are omitted at 0. The widget would otherwise charge a cut.
-export function swapWidgetConfig({ projectId, tokenId, feeBps, account }) {
+// Fee attributes are omitted at 0, and omitted entirely when the buyer
+// picks the token. The widget would otherwise charge a cut.
+export function swapWidgetConfig({ projectId, tokenId, feeBps, account } = {}) {
   const config = {
     network: "mainnet",
     projectId: typeof projectId === "string" ? projectId : "",
     inputToken: "0.0.0",
-    outputToken: bareAccount(tokenId),
     theme: "dark",
   };
+  const outputToken = bareAccount(tokenId);
+  if (outputToken) config.outputToken = outputToken;
   const fee = Number.isInteger(feeBps) ? feeBps : 0;
   const recipient = bareAccount(account);
-  if (fee > 0 && recipient) {
+  if (outputToken && fee > 0 && recipient) {
     config.integratorFeeBps = fee;
     config.integratorFeeRecipient = recipient;
   }
@@ -221,15 +229,19 @@ export function swapSpenderId(spender) {
   return id;
 }
 
-// An approval may name only the creator's configured output token.
+// With a creator token, an approval may name only that token. With none,
+// the default widget may approve the token it asks for. The spender is
+// checked separately and stays a SaucerSwap router.
 export function swapApprovalToken(configured, requested) {
   const raw = String(requested == null ? "" : requested).trim();
   const allowedRaw = String(configured == null ? "" : configured).trim();
   if (!raw || /^hedera:testnet:/i.test(raw) || /^hedera:testnet:/i.test(allowedRaw)) {
     throw new Error("Swap token not allowed");
   }
-  const want = widgetEntityId(allowedRaw);
   const got = widgetEntityId(raw);
+  if (!got) throw new Error("Swap token not allowed");
+  if (!allowedRaw) return got;
+  const want = widgetEntityId(allowedRaw);
   if (!want || got !== want) throw new Error("Swap token not allowed");
   return got;
 }
@@ -507,13 +519,15 @@ export async function resolveSwapButton({ author, viewer, swap, ...rest }) {
   const offer = swapOfferFromProfile(swap);
   const them = bareAccount(author);
   const me = bareAccount(viewer);
-  if (!offer || !them || (me && me === them)) {
-    return { show: false, offer: null, token: null };
+  const own = !!(them && me && me === them);
+  let result = { show: true, offer: null, token: null };
+  if (offer && them && !own) {
+    const token = await fetchSwapToken(offer.tokenId, rest);
+    if (swapButtonShows({ author, viewer, offer, token })) result = { show: true, offer, token };
   }
-  const token = await fetchSwapToken(offer.tokenId, rest);
-  const show = swapButtonShows({ author, viewer, offer, token });
+  const show = result.show;
   if (show) preloadSwapWidget();
-  return { show, offer, token };
+  return result;
 }
 
 // The sheet opener also loads the widget. Starting it when the button

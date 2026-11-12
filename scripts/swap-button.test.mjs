@@ -77,7 +77,7 @@ function tokenFetch(body, status = 200) {
   return { fetchImpl, calls };
 }
 
-test("Swap stays hidden when the profile is off or the token id is bad", async () => {
+test("no Swap setting or a bad token id opens the default widget and does not ask the token route", async () => {
   const cases = [
     null,
     {},
@@ -96,12 +96,14 @@ test("Swap stays hidden when the profile is off or the token id is bad", async (
       fetchImpl,
       ...isolated(),
     });
-    assert.equal(result.show, false);
+    assert.equal(result.show, true);
+    assert.equal(result.offer, null);
+    assert.equal(result.token, null);
     assert.equal(calls.length, 0);
   }
 });
 
-test("Swap stays hidden on your own post and does not ask the token route", async () => {
+test("your own post opens the default widget and does not ask the token route", async () => {
   const { fetchImpl, calls } = tokenFetch({ pool: true, symbol: "SAUCE" });
   const result = await resolveSwapButton({
     author: "0.0.200-abc",
@@ -110,8 +112,16 @@ test("Swap stays hidden on your own post and does not ask the token route", asyn
     fetchImpl,
     ...isolated(),
   });
-  assert.equal(result.show, false);
+  assert.equal(result.show, true);
+  assert.equal(result.offer, null);
+  assert.equal(result.token, null);
   assert.equal(calls.length, 0);
+  assert.equal(swapButtonShows({
+    author: AUTHOR,
+    viewer: AUTHOR,
+    offer: { tokenId: SAUCE, feeBps: 0 },
+    token: { pool: true, tokenId: SAUCE },
+  }), false);
   assert.equal(swapButtonShows({
     author: AUTHOR,
     viewer: "",
@@ -120,7 +130,7 @@ test("Swap stays hidden on your own post and does not ask the token route", asyn
   }), true);
 });
 
-test("Swap shows only when the token route says pool is true", async () => {
+test("a real pool uses the author's token, and any other token answer opens the default widget", async () => {
   const ready = tokenFetch({
     tokenId: SAUCE,
     symbol: "SAUCE",
@@ -147,8 +157,9 @@ test("Swap shows only when the token route says pool is true", async () => {
     fetchImpl: none.fetchImpl,
     ...isolated(),
   });
-  assert.equal(hidden.show, false);
-  assert.equal(hidden.token.pool, false);
+  assert.equal(hidden.show, true);
+  assert.equal(hidden.offer, null);
+  assert.equal(hidden.token, null);
 
   const missing = tokenFetch({ error: "not found" }, 404);
   const gone = await resolveSwapButton({
@@ -158,7 +169,8 @@ test("Swap shows only when the token route says pool is true", async () => {
     fetchImpl: missing.fetchImpl,
     ...isolated(),
   });
-  assert.equal(gone.show, false);
+  assert.equal(gone.show, true);
+  assert.equal(gone.offer, null);
   assert.equal(gone.token, null);
 
   const down = tokenFetch(null, 0);
@@ -169,11 +181,12 @@ test("Swap shows only when the token route says pool is true", async () => {
     fetchImpl: down.fetchImpl,
     ...isolated(),
   });
-  assert.equal(failed.show, false);
+  assert.equal(failed.show, true);
+  assert.equal(failed.offer, null);
   assert.equal(failed.token, null);
 });
 
-test("a pool flag that is not strictly true stays hidden", async () => {
+test("a pool flag that is not strictly true opens the default widget", async () => {
   const { fetchImpl } = tokenFetch({ pool: "true", symbol: "SAUCE", tokenId: SAUCE });
   const result = await resolveSwapButton({
     author: AUTHOR,
@@ -182,16 +195,29 @@ test("a pool flag that is not strictly true stays hidden", async () => {
     fetchImpl,
     ...isolated(),
   });
-  assert.equal(result.show, false);
+  assert.equal(result.show, true);
+  assert.equal(result.offer, null);
+  assert.equal(result.token, null);
 });
 
-test("a looked-up token that is not the profile token stays hidden", () => {
+test("a looked-up token that is not the profile token opens the default widget", async () => {
   assert.equal(swapButtonShows({
     author: AUTHOR,
     viewer: VIEWER,
     offer: { tokenId: SAUCE, feeBps: 40 },
     token: { pool: true, tokenId: "0.0.1" },
   }), false);
+  const { fetchImpl } = tokenFetch({ pool: true, symbol: "OTHER", tokenId: "0.0.1" });
+  const result = await resolveSwapButton({
+    author: AUTHOR,
+    viewer: VIEWER,
+    swap: ON,
+    fetchImpl,
+    ...isolated(),
+  });
+  assert.equal(result.show, true);
+  assert.equal(result.offer, null);
+  assert.equal(result.token, null);
 });
 
 test("an unreviewed token still shows Swap", async () => {
@@ -320,6 +346,20 @@ test("the widget is mainnet HBAR to the author's token, and the fee is set only 
   assert.equal(el.getAttribute("integrator-fee-bps"), null);
   assert.equal(el.getAttribute("integrator-fee-recipient"), null);
   assert.equal(swapWidgetConfig({ projectId, tokenId: SAUCE, feeBps: 40, account: "" }).integratorFeeBps, undefined);
+
+  const defaults = swapWidgetConfig({ projectId, tokenId: "", feeBps: 40, account: AUTHOR });
+  assert.equal(defaults.inputToken, "0.0.0");
+  assert.equal(defaults.outputToken, undefined);
+  assert.equal(defaults.integratorFeeBps, undefined);
+  assert.equal(defaults.integratorFeeRecipient, undefined);
+  fillSwapWidget(el, defaults);
+  assert.equal(el.getAttribute("input-token"), "0.0.0");
+  assert.equal(el.getAttribute("output-token"), null);
+  assert.equal(el.getAttribute("integrator-fee-bps"), null);
+  assert.equal(el.getAttribute("integrator-fee-recipient"), null);
+  assert.equal(swapSheetText({ bio: "Buying the poster token.", symbol: "SAUCE", tokenId: "", feeBps: 40 }).bio, "");
+  assert.equal(swapSafetyLine({ symbol: "SAUCE", tokenId: "", feeBps: 40 }), "Not reviewed by SaucerSwap.");
+  assert.equal(swapSafetyLine({}).includes("buying"), false);
 });
 
 test("the association warning stays quiet when the token is associated, slots are free, or the read is unknown", () => {
@@ -475,7 +515,7 @@ test("the widget script tag is created once and only from the sheet opener", () 
   const menu = fs.readFileSync(new URL("../postmenu.js", import.meta.url), "utf8");
   const donations = fs.readFileSync(new URL("../donations.js", import.meta.url), "utf8");
   assert.match(menu, /post-menu-swap/);
-  assert.match(menu, /swapItem\.hidden = own \|\| !swapReady/);
+  assert.match(menu, /swapItem\.hidden = !swapReady/);
   assert.match(menu, /opener: swapItem/);
   assert.match(donations, /donate-swap/);
   assert.match(donations, /openSwapSheet\(/);
@@ -614,7 +654,11 @@ test("an approval spender is a SaucerSwap router, and the token is the creator's
   assert.equal(swapApprovalToken(SAUCE, "hedera:mainnet:" + SAUCE), SAUCE);
   assert.throws(() => swapApprovalToken(SAUCE, "0.0.0"), /Swap token not allowed/);
   assert.throws(() => swapApprovalToken(SAUCE, "hedera:testnet:" + SAUCE), /Swap token not allowed/);
-  assert.throws(() => swapApprovalToken("", SAUCE), /Swap token not allowed/);
+  assert.equal(swapApprovalToken("", SAUCE), SAUCE);
+  assert.equal(swapApprovalToken(null, "hedera:mainnet:" + SAUCE), SAUCE);
+  assert.throws(() => swapApprovalToken("", ""), /Swap token not allowed/);
+  assert.throws(() => swapApprovalToken("", "0xabc"), /Swap token not allowed/);
+  assert.throws(() => swapApprovalToken("", "hedera:testnet:" + SAUCE), /Swap token not allowed/);
 
   const wallet = fs.readFileSync(new URL("../swapwallet.js", import.meta.url), "utf8");
   const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
@@ -681,7 +725,7 @@ test("the post menu lists Copy link, Follow user, Swap tokens, then Donate HBAR"
   assert.match(menu, /'Unfollow user' : 'Follow user'/);
   assert.match(menu, /followItem\.hidden = !followBtn \|\| own/);
   assert.match(menu, /donateItem\.hidden = own \|\| !canDonate/);
-  assert.match(menu, /swapItem\.hidden = own \|\| !swapReady/);
+  assert.match(menu, /swapItem\.hidden = !swapReady/);
 });
 
 test("a swap bio folds into its own column and stops at 280 characters", () => {

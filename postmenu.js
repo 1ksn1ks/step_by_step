@@ -147,7 +147,7 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
       result = { show: false, offer: null, token: null };
     }
     if (gen !== swapGen) return;
-    swapReady = result.show && result.offer && result.token ? result : null;
+    swapReady = result.show ? result : null;
     syncItems();
     if (openPanel === panel && !pop.hidden) place();
   }
@@ -156,7 +156,7 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
     const own = isOwn();
     followItem.hidden = !followBtn || own;
     donateItem.hidden = own || !canDonate;
-    swapItem.hidden = own || !swapReady;
+    swapItem.hidden = !swapReady;
     if (followBtn && !followItem.hidden) {
       const label = followBtn.getAttribute('aria-label') === 'Unfollow' ? 'Unfollow user' : 'Follow user';
       followItem.textContent = label;
@@ -296,13 +296,14 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
     openDonation(donateItem);
   });
   pick(swapItem, () => {
-    if (!swapReady || !swapReady.offer || !swapReady.token) return;
+    if (!swapReady) return;
+    const creator = swapReady.offer && swapReady.token;
     openSwapSheet({
-      account: bareAccount(payer),
-      tokenId: swapReady.offer.tokenId,
-      feeBps: swapReady.offer.feeBps,
-      symbol: swapReady.token.symbol,
-      dueDiligenceComplete: swapReady.token.dueDiligenceComplete,
+      account: creator ? bareAccount(payer) : "",
+      tokenId: creator ? swapReady.offer.tokenId : "",
+      feeBps: creator ? swapReady.offer.feeBps : 0,
+      symbol: creator ? swapReady.token.symbol : "",
+      dueDiligenceComplete: creator ? swapReady.token.dueDiligenceComplete : false,
       host: root.closest('.' + EARLY_POPUP_CLASS),
       opener: swapItem,
     });

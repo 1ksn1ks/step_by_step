@@ -117,8 +117,10 @@ async function approve(configuredToken, tokenId, spenderId, amount, onStatusChan
 }
 
 // null when Globe has no signer. The sheet then keeps the widget modal.
-// outputToken is the creator's configured swap token. Approvals for any
-// other token are refused.
+// outputToken is the creator's configured swap token. When it is set,
+// approvals for any other token are refused. When it is empty, the default
+// widget may approve the token it asks for. The spender is still only a
+// SaucerSwap router.
 export function globeSwapWallet(outputToken) {
   const session = live();
   if (!session) return null;
