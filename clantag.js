@@ -5,6 +5,7 @@
 // added when the lookup returns.
 
 import { bareAccount } from "./donationmath.js";
+import { EARLY_POPUP_CLASS } from "./earlypopup.js";
 import { profileSwapOf, swapOfferFromProfile, fetchSwapToken, createSwapStats, paintSwapStats } from "./swapoffer.js";
 import { swapHttpsLink } from "./server/swaptoken.js";
 
@@ -16,6 +17,17 @@ let watching = false;
 let sweepTimer = null;
 let openClan = null;
 let seq = 0;
+let clanSwapOpen = null;
+
+// swapsheet pulls the wallet in at load. A static import here would cycle
+// through the profile builder, so the Buy button loads it on the first tap.
+function openClanSwapSheet(details) {
+  const flight = clanSwapOpen || import("./swapsheet.js").then((mod) => {
+    clanSwapOpen = mod.openSwapSheet;
+    return clanSwapOpen;
+  });
+  return Promise.resolve(flight).then((open) => open(details));
+}
 
 const WATCH_SWEEP_MS = 30000;
 
@@ -136,7 +148,7 @@ function closeClan(state, immediate) {
 // get a row, a chip, or a card. The watcher stays while the bubble is
 // connected. A later tick removes or replaces the chip when that Swap token
 // changes or is turned off.
-export function mountClanTag({ bubble, payerLink, payer, swaps, createCard, paintToken, paintLinks }) {
+export function mountClanTag({ bubble, payerLink, payer, swaps, viewer, openSwap, createCard, paintToken, paintLinks }) {
   if (!bubble || !payerLink || typeof createCard !== "function") return;
   const swapsOf = typeof swaps === "function" ? swaps : () => swaps;
   let armed = false;
@@ -236,6 +248,7 @@ export function mountClanTag({ bubble, payerLink, payer, swaps, createCard, pain
     const state = { button, card: null, open: false };
     chip = state;
     paintedId = tokenId;
+    const openSheet = typeof openSwap === "function" ? openSwap : openClanSwapSheet;
     function buildCard() {
       const wrap = document.createElement("div");
       wrap.className = "clan-token";
@@ -245,6 +258,51 @@ export function mountClanTag({ bubble, payerLink, payer, swaps, createCard, pain
       const inner = createCard();
       paintToken(inner, token);
       paintLinks(inner.querySelector(".swap-links"), token && token.links);
+      const buy = document.createElement("button");
+      buy.type = "button";
+      buy.className = "clan-buy";
+      buy.textContent = "Buy";
+      buy.setAttribute("aria-label", "Buy " + model.symbol);
+      const links = inner.querySelector(".swap-links");
+      if (links && typeof links.before === "function") links.before(buy);
+      else inner.append(buy);
+      let opening = false;
+      buy.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (opening) return;
+        opening = true;
+        buy.setAttribute("aria-busy", "true");
+        const current = clanOfferOf(swapsOf(), payer);
+        const me = bareAccount(typeof viewer === "function" ? viewer() : viewer);
+        const them = bareAccount(payer);
+        const own = !!(me && them && me === them);
+        const details = {
+          account: bareAccount(payer),
+          tokenId: (current && current.tokenId) || bareAccount(token && token.tokenId) || "",
+          feeBps: current && !own ? current.feeBps : 0,
+          symbol: typeof token.symbol === "string" ? token.symbol : "",
+          dueDiligenceComplete: !!(token && token.dueDiligenceComplete === true),
+          icon: token && token.icon ? token.icon : "",
+          links: token && token.links ? token.links : null,
+          stats: token && token.stats ? token.stats : null,
+          host: typeof bubble.closest === "function" ? bubble.closest("." + EARLY_POPUP_CLASS) : null,
+          opener: buy,
+        };
+        let pending;
+        try {
+          pending = openSheet(details);
+        } catch (err) {
+          pending = Promise.reject(err);
+        }
+        Promise.resolve(pending).finally(() => {
+          opening = false;
+          buy.removeAttribute("aria-busy");
+        });
+      });
+      buy.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+      });
       const stats = createSwapStats();
       paintSwapStats(stats, token);
       clip.append(inner, stats);

@@ -2113,6 +2113,7 @@ export function buildPopupProfile({ profileUrl, payer, payerInfo, username, clic
     payerLink,
     payer,
     swaps: () => profileSwaps,
+    viewer: () => connectedAccount,
     createCard: createSwapTokenCard,
     paintToken: paintSwapToken,
     paintLinks: paintSwapLinks,

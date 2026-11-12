@@ -147,7 +147,10 @@ test("the popup puts the display name above the account id and shares the feed r
   assert.match(clan, /const stats = createSwapStats\(\)/);
   assert.match(clan, /paintSwapStats\(stats, token\)/);
   assert.match(clan, /prefers-reduced-motion: reduce/);
-  assert.equal(clan.includes("openSwapSheet"), false);
+  assert.equal(clan.includes('from "./swapsheet.js"'), false);
+  assert.equal(clan.includes("from './swapsheet.js'"), false);
+  assert.match(clan, /import\("\.\/swapsheet\.js"\)/);
+  assert.match(clan, /clanSwapOpen = mod\.openSwapSheet/);
   assert.match(clan, /if \(!model\) return/);
 
   const feed = fs.readFileSync(new URL("../feedlayout.js", import.meta.url), "utf8");
@@ -299,7 +302,32 @@ function domNode(tag) {
       node.className = node.className.split(/\s+/).filter((token) => token && token !== name).join(" ");
     },
   };
-  node.setAttribute = () => {};
+  node.attrs = {};
+  node.setAttribute = (name, value) => {
+    node.attrs[name] = String(value);
+  };
+  node.removeAttribute = (name) => {
+    delete node.attrs[name];
+  };
+  node.getAttribute = (name) => (Object.prototype.hasOwnProperty.call(node.attrs, name) ? node.attrs[name] : null);
+  node.before = (...kids) => {
+    const parent = node.parentNode;
+    if (!parent) return;
+    let at = parent.children.indexOf(node);
+    for (const child of kids) {
+      const old = child.parentNode;
+      if (old) {
+        const oldAt = old.children.indexOf(child);
+        if (oldAt >= 0) old.children.splice(oldAt, 1);
+        if (old === parent && oldAt < at) at -= 1;
+      }
+      child.parentNode = parent;
+      child.parentElement = parent;
+      child.isConnected = parent.isConnected;
+      parent.children.splice(at, 0, child);
+      at += 1;
+    }
+  };
   node.addEventListener = (type, fn) => {
     (node.listeners[type] = node.listeners[type] || []).push(fn);
   };
@@ -549,6 +577,180 @@ test("a clan token card has no review note", async () => {
     assert.deepEqual(unknown.children.map((child) => child.className), ["", "swap-stats"]);
     assert.equal(hasNote(unknown), false);
     await new Promise((resolve) => setTimeout(resolve, 450));
+  } finally {
+    for (const bubble of bubbles) bubble.isConnected = false;
+    sweepClanWatchers();
+    globalThis.document = previous.document;
+    globalThis.requestAnimationFrame = previous.requestAnimationFrame;
+  }
+});
+
+test("the clan Buy button opens the author's swap sheet", async () => {
+  const clan = fs.readFileSync(new URL("../clantag.js", import.meta.url), "utf8");
+  const build = clan.slice(clan.indexOf("function buildCard"), clan.indexOf("function openCard"));
+  assert.match(build, /className = "clan-buy"/);
+  assert.match(build, /aria-label", "Buy " \+ model\.symbol/);
+  assert.match(build, /if \(opening\) return/);
+  assert.match(build, /feeBps: current && !own \? current\.feeBps : 0/);
+  assert.match(build, /opener: buy/);
+  assert.match(build, /links\.before\(buy\)/);
+
+  const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  const clanCss = css.slice(css.indexOf(".popup-profile-bubble .payer-row"), css.indexOf("Early holder: the pill border"));
+  const rule = clanCss.match(/\.clan-token \.clan-buy \{[^}]*\}/);
+  assert.ok(rule);
+  assert.match(rule[0], /background: #22D3EE/);
+  assert.match(rule[0], /color: #06202a/);
+  assert.match(rule[0], /font-weight: 800/);
+  assert.match(rule[0], /font-size: calc\(var\(--fu, var\(--u\)\) \* 1\.25\)/);
+  assert.match(rule[0], /height: calc\(var\(--fu, var\(--u\)\) \* 2\.05\)/);
+  assert.match(rule[0], /padding: 0 calc\(var\(--fu, var\(--u\)\) \* 1\.6\)/);
+  assert.match(rule[0], /border: 0/);
+  assert.match(rule[0], /border-radius: 999rem/);
+  assert.match(rule[0], /align-self: flex-start/);
+  assert.equal(rule[0].includes("px"), false);
+  assert.match(clanCss, /\.clan-token \.clan-buy:active \{[^}]*transform: scale\(0\.92\)/);
+  assert.match(clanCss, /\.clan-token \.clan-buy:focus-visible \{[^}]*outline: calc\(var\(--fu, var\(--u\)\) \* 0\.16\) solid #22D3EE/);
+  assert.match(clanCss, /\.clan-token \.clan-buy:active \{\s*transform: none;/);
+  assert.equal(clanCss.includes("px"), false);
+
+  const payer = "0.0.424200";
+  const tokenId = "0.0.424299";
+  const token = {
+    tokenId,
+    symbol: "gib",
+    dueDiligenceComplete: false,
+    icon: "https://cdn.example/g.png",
+    links: { website: "https://gib.news" },
+    stats: { priceUsd: 1 },
+  };
+  await clanTokenLookup(tokenId, async () => token);
+  const calls = [];
+  let release = () => {};
+  const host = { className: "early-holder-popup" };
+  const bubbles = [];
+
+  function find(root, className) {
+    const walk = (node) => {
+      const name = typeof node.className === "string" ? node.className : "";
+      if (name.split(/\s+/).includes(className)) return node;
+      for (const child of node.children || []) {
+        const hit = walk(child);
+        if (hit) return hit;
+      }
+      return null;
+    };
+    return walk(root);
+  }
+
+  function mount(who, viewerId) {
+    const parent = domNode("div");
+    parent.isConnected = true;
+    const bubble = domNode("section");
+    bubble.closest = (sel) => (sel === ".early-holder-popup" ? host : null);
+    bubbles.push(bubble);
+    parent.appendChild(bubble);
+    const h2 = domNode("h2");
+    const payerLink = domNode("a");
+    h2.appendChild(payerLink);
+    bubble.appendChild(h2);
+    mountClanTag({
+      bubble,
+      payerLink,
+      payer: who,
+      viewer: () => viewerId,
+      swaps: () => ({ [who]: { enabled: true, tokenId, feeBps: 40 } }),
+      openSwap(details) {
+        calls.push(details);
+        return new Promise((resolve) => { release = resolve; });
+      },
+      createCard() {
+        const card = domNode("div");
+        card.className = "swap-token";
+        const icon = domNode("img");
+        icon.className = "swap-token-icon";
+        const meta = domNode("div");
+        meta.className = "swap-token-meta";
+        const links = domNode("div");
+        links.className = "swap-links";
+        card.append(icon, meta, links);
+        return card;
+      },
+      paintToken() {},
+      paintLinks() {},
+    });
+    return parent;
+  }
+
+  const previous = {
+    document: globalThis.document,
+    requestAnimationFrame: globalThis.requestAnimationFrame,
+  };
+  globalThis.document = {
+    addEventListener() {},
+    createElement(tag) { return domNode(tag); },
+  };
+  globalThis.requestAnimationFrame = (fn) => {
+    fn();
+    return 0;
+  };
+
+  try {
+    const parent = mount(payer, "0.0.100");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const chip = find(parent, "clan-tag");
+    assert.ok(chip);
+    for (const fn of chip.listeners.click) fn({ preventDefault() {}, stopPropagation() {} });
+    const card = find(parent, "swap-token");
+    assert.ok(card);
+    assert.deepEqual(card.children.map((child) => child.className), [
+      "swap-token-icon",
+      "swap-token-meta",
+      "clan-buy",
+      "swap-links",
+    ]);
+    const buy = card.children[2];
+    assert.equal(buy.type, "button");
+    assert.equal(buy.textContent, "Buy");
+    assert.equal(buy.attrs["aria-label"], "Buy gib");
+
+    let stopped = 0;
+    const event = { preventDefault() {}, stopPropagation() { stopped += 1; } };
+    buy.listeners.click[0](event);
+    assert.equal(stopped, 1);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].account, payer);
+    assert.equal(calls[0].tokenId, tokenId);
+    assert.equal(calls[0].feeBps, 40);
+    assert.equal(calls[0].symbol, "gib");
+    assert.equal(calls[0].dueDiligenceComplete, false);
+    assert.equal(calls[0].icon, token.icon);
+    assert.equal(calls[0].links, token.links);
+    assert.equal(calls[0].stats, token.stats);
+    assert.equal(calls[0].host, host);
+    assert.equal(calls[0].opener, buy);
+    assert.equal(buy.attrs["aria-busy"], "true");
+    buy.listeners.click[0](event);
+    assert.equal(calls.length, 1);
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(buy.attrs["aria-busy"], undefined);
+
+    const ownPayer = "0.0.424300";
+    const ownParent = mount(ownPayer, ownPayer);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const ownChip = find(ownParent, "clan-tag");
+    for (const fn of ownChip.listeners.click) fn({ preventDefault() {}, stopPropagation() {} });
+    const ownBuy = find(ownParent, "clan-buy");
+    assert.equal(ownBuy.attrs["aria-label"], "Buy gib");
+    ownBuy.listeners.click[0]({ preventDefault() {}, stopPropagation() {} });
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].account, ownPayer);
+    assert.equal(calls[1].tokenId, tokenId);
+    assert.equal(calls[1].feeBps, 0);
+    assert.equal(calls[1].opener, ownBuy);
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 0));
   } finally {
     for (const bubble of bubbles) bubble.isConnected = false;
     sweepClanWatchers();

@@ -4450,6 +4450,9 @@ html, body {
     font-size: calc(var(--fu, var(--u)) * 1.85);
     font-weight: 700;
     line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .clan-token .swap-token-id {
@@ -4471,6 +4474,48 @@ html, body {
   .clan-token .swap-copy .swap-ico {
     width: calc(var(--fu, var(--u)) * 1.15);
     height: calc(var(--fu, var(--u)) * 1.15);
+  }
+
+  .clan-token .swap-token-id-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .clan-token .clan-buy {
+    appearance: none;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    flex: 0 0 auto;
+    height: calc(var(--fu, var(--u)) * 2.05);
+    margin: 0 0 0 auto;
+    padding: 0 calc(var(--fu, var(--u)) * 1.6);
+    border: 0;
+    border-radius: 999rem;
+    background: #22D3EE;
+    color: #06202a;
+    box-shadow: 0 0 calc(var(--fu, var(--u)) * 0.9) rgba(34, 211, 238, 0.45);
+    font-family: inherit;
+    font-size: calc(var(--fu, var(--u)) * 1.25);
+    font-weight: 800;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.16s ease;
+  }
+
+  .clan-token .clan-buy:active {
+    transform: scale(0.92);
+  }
+
+  .clan-token .clan-buy:focus-visible {
+    outline: calc(var(--fu, var(--u)) * 0.16) solid #22D3EE;
+    outline-offset: calc(var(--fu, var(--u)) * 0.16);
   }
 
   .clan-token .swap-links {
@@ -4601,8 +4646,14 @@ html, body {
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .clan-token {
+    .clan-token,
+    .clan-token .clan-buy,
+    .clan-token .clan-buy:active {
       transition: none;
+    }
+
+    .clan-token .clan-buy:active {
+      transform: none;
     }
   }
 
