@@ -4411,6 +4411,11 @@ html, body {
     overflow: hidden;
     min-height: 0;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--fu, var(--u)) * 1.25);
+    container-type: inline-size;
+    container-name: clan-card;
   }
 
   .clan-token .swap-token {
@@ -4422,11 +4427,10 @@ html, body {
     width: 100%;
     max-width: none;
     margin: 0;
-    padding: calc(var(--fu, var(--u)) * 0.35) calc(var(--fu, var(--u)) * 1.5);
-    border: calc(var(--fu, var(--u)) * 0.12) solid rgba(255, 255, 255, 0.22);
-    border-radius: 999rem;
-    background: rgba(255, 255, 255, 0.10);
-    box-shadow: inset 0 calc(var(--fu, var(--u)) * 0.15) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--fu, var(--u)) * 0.4) calc(var(--fu, var(--u)) * 1) rgba(0, 0, 0, 0.35);
+    padding: calc(var(--fu, var(--u)) * 1.25) calc(var(--fu, var(--u)) * 1.45);
+    border: 0.0625rem solid rgba(255, 255, 255, 0.07);
+    border-radius: calc(var(--fu, var(--u)) * 1.7);
+    background: #17171a;
   }
 
   .clan-token .swap-token-icon {
@@ -4436,8 +4440,8 @@ html, body {
   }
 
   .clan-token .swap-token-meta {
-    flex: 1 1 calc(var(--fu, var(--u)) * 8);
-    min-width: calc(var(--fu, var(--u)) * 5);
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .clan-token .swap-token-symbol {
@@ -4451,7 +4455,8 @@ html, body {
   .clan-token .swap-token-id {
     margin-top: calc(var(--fu, var(--u)) * 0.08);
     gap: calc(var(--fu, var(--u)) * 0.28);
-    color: rgba(255, 255, 255, 0.55);
+    color: rgba(255, 255, 255, 0.5);
+    font-family: ui-monospace, monospace;
     font-size: calc(var(--fu, var(--u)) * 1.4);
     font-weight: 500;
     line-height: 1.25;
@@ -4469,7 +4474,7 @@ html, body {
   }
 
   .clan-token .swap-links {
-    flex: 0 0 auto;
+    flex: 1 0 100%;
     flex-wrap: nowrap;
     justify-content: flex-end;
     align-items: center;
@@ -4499,6 +4504,60 @@ html, body {
   .clan-token .swap-link .swap-ico {
     width: calc(var(--fu, var(--u)) * 1.35);
     height: calc(var(--fu, var(--u)) * 1.35);
+  }
+
+  .clan-token .swap-stats {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: calc(var(--fu, var(--u)) * 0.6);
+    box-sizing: border-box;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+  }
+
+  .clan-token .swap-stat {
+    min-width: 0;
+    padding: calc(var(--fu, var(--u)) * 0.65) calc(var(--fu, var(--u)) * 0.5);
+    border: 0.0625rem solid rgba(255, 255, 255, 0.07);
+    border-radius: calc(var(--fu, var(--u)) * 1);
+    background: #17171a;
+  }
+
+  .clan-token .swap-stat-label {
+    margin: 0;
+    font-size: calc(var(--fu, var(--u)) * 1.1);
+    line-height: 1.2;
+    color: rgba(255, 255, 255, 0.5);
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
+  .clan-token .swap-stat-value {
+    margin: calc(var(--fu, var(--u)) * 0.25) 0 0;
+    font-size: calc(var(--fu, var(--u)) * 1.25);
+    font-weight: 700;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Five labels fit above this width. Below it, three tiles then two,
+     instead of squeezing the words. */
+  @container clan-card (max-width: calc(var(--fu, var(--u)) * 46)) {
+    .clan-token .swap-stats {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+
+    .clan-token .swap-stat:nth-child(-n + 3) {
+      grid-column: span 2;
+    }
+
+    .clan-token .swap-stat:nth-child(n + 4) {
+      grid-column: span 3;
+    }
   }
 
   @media (orientation: landscape) {

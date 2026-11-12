@@ -16,7 +16,8 @@ import {
   deepActiveElement,
   fillSwapWidget,
   mountSwapWidgetScript,
-  formatSwapStat,
+  createSwapStats,
+  paintSwapStats,
   swapCardWidth,
   swapColumnZoom,
   swapKeptLinks,
@@ -456,36 +457,6 @@ export function paintSwapToken(card, offer) {
   }
 }
 
-const SWAP_STATS = [
-  ["price", "Price", true],
-  ["cap", "Market cap", true],
-  ["liquidity", "Liquidity", true],
-  ["supply", "Total supply", false],
-  ["circulating", "Circulating", false],
-];
-
-function paintSwapStats(grid, offer) {
-  if (!grid) return;
-  const id = bareAccount(offer && offer.tokenId);
-  if (!id) {
-    grid.hidden = true;
-    return;
-  }
-  grid.hidden = false;
-  const stats = offer && offer.stats && typeof offer.stats === "object" ? offer.stats : {};
-  const values = {
-    price: formatSwapStat(stats.priceUsd, true),
-    cap: formatSwapStat(stats.marketCapUsd, true),
-    liquidity: formatSwapStat(stats.liquidityUsd, true),
-    supply: formatSwapStat(stats.totalSupply, false),
-    circulating: formatSwapStat(stats.circulating, false),
-  };
-  for (const [key] of SWAP_STATS) {
-    const node = grid.querySelector('[data-swap-stat="' + key + '"]');
-    if (node) node.textContent = values[key];
-  }
-}
-
 export function paintSwapLinks(row, links) {
   if (!row) return;
   row.replaceChildren();
@@ -602,24 +573,7 @@ function ensureSheet() {
   head.append(title, cancel);
 
   const token = createSwapTokenCard();
-
-  const stats = document.createElement("div");
-  stats.className = "swap-stats";
-  stats.hidden = true;
-  for (const [key, label] of SWAP_STATS) {
-    const tile = document.createElement("div");
-    tile.className = "swap-stat";
-    if (key === "circulating") tile.title = "Total supply minus the treasury account's balance";
-    const name = document.createElement("p");
-    name.className = "swap-stat-label";
-    name.textContent = label;
-    const value = document.createElement("p");
-    value.className = "swap-stat-value";
-    value.dataset.swapStat = key;
-    value.textContent = "–";
-    tile.append(name, value);
-    stats.append(tile);
-  }
+  const stats = createSwapStats();
 
   const bio = document.createElement("p");
   bio.className = "swap-bio";

@@ -5,7 +5,7 @@
 // added when the lookup returns.
 
 import { bareAccount } from "./donationmath.js";
-import { profileSwapOf, swapOfferFromProfile, fetchSwapToken } from "./swapoffer.js";
+import { profileSwapOf, swapOfferFromProfile, fetchSwapToken, createSwapStats, paintSwapStats } from "./swapoffer.js";
 import { swapHttpsLink } from "./server/swaptoken.js";
 
 const lookups = new Map();
@@ -192,7 +192,9 @@ export function mountClanTag({ bubble, payerLink, payer, swaps, createCard, pain
       const inner = createCard();
       paintToken(inner, token);
       paintLinks(inner.querySelector(".swap-links"), token && token.links);
-      clip.append(inner);
+      const stats = createSwapStats();
+      paintSwapStats(stats, token);
+      clip.append(inner, stats);
       wrap.append(clip);
       wrap.addEventListener("click", (event) => event.stopPropagation());
       wrap.addEventListener("pointerdown", (event) => event.stopPropagation());

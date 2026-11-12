@@ -1215,18 +1215,20 @@ test("the card width is the natural column times zoom plus padding, and a zoom-o
   });
 
   const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
+  const statsSrc = fs.readFileSync(new URL("../swapoffer.js", import.meta.url), "utf8");
   const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
-  assert.match(sheet, /if \(!id\) \{\s*grid\.hidden = true;/);
-  assert.match(sheet, /stats\.hidden = true/);
-  assert.match(sheet, /tile\.title = "Total supply minus the treasury account's balance"/);
+  assert.match(statsSrc, /if \(!id\) \{\s*grid\.hidden = true;/);
+  assert.match(statsSrc, /stats\.hidden = true/);
+  assert.match(statsSrc, /tile\.title = "Total supply minus the treasury account's balance"/);
   assert.match(sheet, /paintSwapStats\(root\.querySelector\("\.swap-stats"\), offer\)/);
+  assert.match(sheet, /const stats = createSwapStats\(\)/);
   const statsCss = css.slice(css.indexOf("  .swap-stats {"), css.indexOf("  .swap-note {"));
   assert.equal(statsCss.includes("px"), false);
   assert.match(statsCss, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
   assert.match(statsCss, /width: min\(100%, 23\.75rem\)/);
-  assert.match(sheet, /\["price", "Price", true\]/);
-  assert.match(sheet, /\["cap", "Market cap", true\]/);
-  assert.match(sheet, /\["liquidity", "Liquidity", true\]/);
-  assert.match(sheet, /\["supply", "Total supply", false\]/);
-  assert.match(sheet, /\["circulating", "Circulating", false\]/);
+  assert.match(statsSrc, /\["price", "Price", true\]/);
+  assert.match(statsSrc, /\["cap", "Market cap", true\]/);
+  assert.match(statsSrc, /\["liquidity", "Liquidity", true\]/);
+  assert.match(statsSrc, /\["supply", "Total supply", false\]/);
+  assert.match(statsSrc, /\["circulating", "Circulating", false\]/);
 });
