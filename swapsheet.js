@@ -247,6 +247,25 @@ const SWAP_LINK_LABELS = [
   ["discord", "Discord"],
 ];
 
+// The widget hard-codes white letters on .ss-primary-btn. The fill stays
+// the theme accent. This style is appended after the widget's own sheet
+// so the same selectors win.
+const SWAP_BUTTON_INK = [
+  ".ss-primary-btn",
+  ".ss-primary-btn:disabled",
+  ".ss-primary-btn.ss-primary-btn-loading",
+  ".ss-primary-btn.ss-primary-btn-loading:disabled",
+].join(",") + "{color:#000}";
+
+function paintSwapButtonInk(widget) {
+  const root = widget && widget.shadowRoot;
+  if (!root || root.querySelector("style[data-swap-ink]")) return;
+  const style = document.createElement("style");
+  style.setAttribute("data-swap-ink", "");
+  style.textContent = SWAP_BUTTON_INK;
+  root.appendChild(style);
+}
+
 function paintSwapLinks(row, links) {
   if (!row) return;
   row.replaceChildren();
@@ -426,6 +445,7 @@ export async function openSwapSheet(details) {
       closeSheet();
     });
     slot.replaceChildren(el);
+    paintSwapButtonInk(el);
     fitSwapSheet();
     requestAnimationFrame(() => fitSwapSheet());
   } catch {

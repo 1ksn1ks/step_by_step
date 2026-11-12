@@ -989,6 +989,11 @@ test("the swap sheet preloads the widget and reserves its height", () => {
   const widgetCss = css.slice(css.indexOf("  .swap-widget {"), css.indexOf("  .swap-trap {"));
   assert.equal(widgetCss.includes("60.43dvh"), false);
   assert.match(sheet, /slot\.style\.minHeight = \(naturalH \/ rootPx\) \+ "rem"/);
+  assert.match(sheet, /slot\.replaceChildren\(el\);\s*paintSwapButtonInk\(el\)/);
+  assert.match(sheet, /style\[data-swap-ink\]/);
+  assert.match(sheet, /"\.ss-primary-btn:disabled"/);
+  assert.match(sheet, /"\.ss-primary-btn\.ss-primary-btn-loading:disabled"/);
+  assert.match(sheet, /\{color:#000\}/);
   assert.equal(widgetCss.includes("px"), false);
   const cardAt = css.indexOf("  .swap-card {");
   const cardCss = css.slice(cardAt, css.indexOf("  @media (min-width: 100dvh)", cardAt));
