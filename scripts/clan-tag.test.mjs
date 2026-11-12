@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { clanChipModel, clanOfferOf, clanTagLabel, clanTokenLookup } from "../clantag.js";
+import { clanChipModel, clanOfferOf, clanTagLabel, clanTokenLookup, clanWatcherCount, mountClanTag, sweepClanWatchers } from "../clantag.js";
 import { swapWebsiteLabel, swapXLabel } from "../server/swaptoken.js";
 
 const SAUCE = "0.0.731861";
@@ -136,4 +136,36 @@ test("the popup puts the display name above the account id and shares the feed r
   assert.match(clanCss, /flex-flow: row nowrap/);
   assert.match(clanCss, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(clanCss, /transition: none/);
+});
+
+test("removed bubbles for authors without Swap leave no watchers after a sweep", () => {
+  assert.equal(clanWatcherCount(), 0);
+  const bubbles = [];
+  for (let i = 0; i < 40; i++) {
+    const bubble = { isConnected: true };
+    mountClanTag({
+      bubble,
+      payerLink: { replaceWith() {} },
+      payer: "0.0." + (5000 + i),
+      swaps: () => ({}),
+      createCard() { return {}; },
+      paintToken() {},
+      paintLinks() {},
+    });
+    bubbles.push(bubble);
+  }
+  const stay = bubbles.pop();
+  assert.equal(clanWatcherCount(), 40);
+  for (const bubble of bubbles) bubble.isConnected = false;
+  sweepClanWatchers();
+  assert.equal(clanWatcherCount(), 1);
+  stay.isConnected = false;
+  sweepClanWatchers();
+  assert.equal(clanWatcherCount(), 0);
+
+  const clan = fs.readFileSync(new URL("../clantag.js", import.meta.url), "utf8");
+  assert.match(clan, /WATCH_SWEEP_MS = 30000/);
+  assert.match(clan, /setInterval\(sweepClanWatchers, WATCH_SWEEP_MS\)/);
+  assert.match(clan, /clearInterval\(sweepTimer\)/);
+  assert.match(clan, /sweepClanWatchers\(\);\s*for \(const tick of \[\.\.\.watchers\.keys\(\)\]\) tick\(\)/);
 });

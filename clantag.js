@@ -9,10 +9,41 @@ import { profileSwapOf, swapOfferFromProfile, fetchSwapToken } from "./swapoffer
 import { swapHttpsLink } from "./server/swaptoken.js";
 
 const lookups = new Map();
-const watchers = new Set();
+// Watcher function to its bubble, so a sweep can drop detached bubbles
+// without calling sync() and holding the DOM until the next profile load.
+const watchers = new Map();
 let watching = false;
+let sweepTimer = null;
 let openClan = null;
 let seq = 0;
+
+const WATCH_SWEEP_MS = 30000;
+
+function stopWatcherSweep() {
+  if (sweepTimer == null) return;
+  clearInterval(sweepTimer);
+  sweepTimer = null;
+}
+
+// One pass over bubbles that have left the page. The timer runs only while
+// at least one watcher is still waiting for a Swap setting.
+export function sweepClanWatchers() {
+  for (const [tick, bubble] of watchers) {
+    if (bubble && bubble.isConnected) continue;
+    watchers.delete(tick);
+  }
+  if (watchers.size === 0) stopWatcherSweep();
+}
+
+export function clanWatcherCount() {
+  return watchers.size;
+}
+
+function startWatcherSweep() {
+  if (sweepTimer != null || watchers.size === 0) return;
+  sweepTimer = setInterval(sweepClanWatchers, WATCH_SWEEP_MS);
+  if (sweepTimer && typeof sweepTimer.unref === "function") sweepTimer.unref();
+}
 
 export function clanOfferOf(swaps, author) {
   return swapOfferFromProfile(profileSwapOf(swaps, author));
@@ -50,15 +81,20 @@ function prefersReduced() {
   return !!(typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 }
 
-function watchProfiles(fn) {
+function watchProfiles(fn, bubble) {
   if (typeof document !== "undefined" && !watching) {
     watching = true;
     document.addEventListener("profiles-loaded", () => {
-      for (const tick of [...watchers]) tick();
+      sweepClanWatchers();
+      for (const tick of [...watchers.keys()]) tick();
     });
   }
-  watchers.add(fn);
-  return () => watchers.delete(fn);
+  watchers.set(fn, bubble);
+  startWatcherSweep();
+  return () => {
+    watchers.delete(fn);
+    if (watchers.size === 0) stopWatcherSweep();
+  };
 }
 
 function closeClan(state, immediate) {
@@ -183,7 +219,7 @@ export function mountClanTag({ bubble, payerLink, payer, swaps, createCard, pain
     });
   }
 
-  forget = watchProfiles(sync);
+  forget = watchProfiles(sync, bubble);
   sync();
   queueMicrotask(() => {
     armed = true;
