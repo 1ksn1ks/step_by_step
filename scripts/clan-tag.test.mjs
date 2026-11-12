@@ -136,6 +136,19 @@ test("the popup puts the display name above the account id and shares the feed r
   assert.match(clanCss, /flex-flow: row nowrap/);
   assert.match(clanCss, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(clanCss, /transition: none/);
+  assert.match(clanCss, /margin-left: var\(--popup-edge, 0\)/);
+  assert.match(clanCss, /margin-right: var\(--popup-edge, 0\)/);
+  assert.match(clanCss, /\.clan-token \.swap-token \{[\s\S]*?width: 100%/);
+  assert.match(clanCss, /calc\(var\(--fu, var\(--u\)\) \* 4\.2\)/);
+  assert.match(clanCss, /font-size: calc\(var\(--fu, var\(--u\)\) \* 1\.85\)/);
+  assert.match(clanCss, /font-weight: 700/);
+  assert.match(clanCss, /font-size: calc\(var\(--fu, var\(--u\)\) \* 1\.4\)/);
+  assert.match(clanCss, /height: calc\(var\(--fu, var\(--u\)\) \* 1\.85\)/);
+  assert.match(clanCss, /flex-wrap: wrap/);
+  assert.match(clanCss, /margin: 0 0 0 auto/);
+  const swapTokenCss = css.slice(css.indexOf("  .swap-token {"), css.indexOf("  .swap-token[hidden]"));
+  assert.match(swapTokenCss, /width: min\(100%, 23\.75rem\)/);
+  assert.equal(swapTokenCss.includes("--fu"), false);
 });
 
 test("removed bubbles for authors without Swap leave no watchers after a sweep", () => {
