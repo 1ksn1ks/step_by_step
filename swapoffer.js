@@ -493,6 +493,7 @@ function tokenBody(id, data) {
     decimals: data ? data.decimals : 0,
     pool: !!(data && data.pool === true),
     dueDiligenceComplete: !!(data && data.dueDiligenceComplete === true),
+    icon: swapHttpsLink(data && data.icon),
     links: swapKeptLinks(data && data.links),
   };
 }

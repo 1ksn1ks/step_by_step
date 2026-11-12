@@ -7335,10 +7335,23 @@ html, body {
     }
   }
 
+  .swap-grab {
+    width: 2.5rem;
+    height: 0.25rem;
+    margin: 0 auto;
+    flex: 0 0 auto;
+    border-radius: 999rem;
+    background: rgba(255, 255, 255, 0.18);
+  }
+
   .swap-head {
     display: flex;
     align-items: center;
-    gap: 1.4dvh;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: min(100%, 23.75rem);
+    max-width: 100%;
+    margin-inline: auto;
     min-width: 0;
   }
 
@@ -7346,16 +7359,16 @@ html, body {
     flex: 1 1 auto;
     min-width: 0;
     margin: 0;
-    font-size: 2.1dvh;
-    font-weight: 700;
+    font-size: 1.375rem;
+    font-weight: 600;
     line-height: 1.2;
   }
 
   .swap-x {
     appearance: none;
     flex: 0 0 auto;
-    width: 5.5dvh;
-    height: 5.5dvh;
+    width: 2.25rem;
+    height: 2.25rem;
     margin: 0;
     padding: 0;
     display: inline-flex;
@@ -7363,9 +7376,9 @@ html, body {
     justify-content: center;
     border: 0;
     border-radius: 50%;
-    background: transparent;
+    background: rgba(255, 255, 255, 0.06);
     color: rgba(255, 255, 255, 0.82);
-    font-size: 2.8dvh;
+    font-size: 1.25rem;
     line-height: 1;
     cursor: pointer;
   }
@@ -7376,12 +7389,14 @@ html, body {
   }
 
   .swap-bio {
-    margin: 0;
-    font-size: 1.7dvh;
+    width: min(100%, 23.75rem);
+    max-width: 100%;
+    margin: 0 auto;
+    font-size: 0.875rem;
     line-height: 1.35;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    color: rgba(255, 255, 255, 0.92);
+    color: rgba(255, 255, 255, 0.82);
   }
 
   .swap-bio[hidden] {
@@ -7389,22 +7404,126 @@ html, body {
   }
 
   .swap-note {
-    margin: 0;
-    font-size: 1.6dvh;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    width: min(100%, 23.75rem);
+    max-width: 100%;
+    margin: 0 auto;
+    font-size: 0.78rem;
     line-height: 1.35;
-    color: rgba(255, 255, 255, 0.82);
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .swap-note .swap-ico {
+    width: 0.9rem;
+    height: 0.9rem;
+    margin-top: 0.12rem;
+  }
+
+  .swap-token {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.625rem 0.75rem;
+    box-sizing: border-box;
+    width: min(100%, 23.75rem);
+    max-width: 100%;
+    margin-inline: auto;
+    padding: 0.75rem 0.875rem;
+    border: 0.0625rem solid rgba(255, 255, 255, 0.07);
+    border-radius: 1rem;
+    background: #17171a;
+  }
+
+  .swap-token[hidden] {
+    display: none;
+  }
+
+  .swap-token-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    object-fit: cover;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .swap-token-icon[hidden] {
+    display: none;
+  }
+
+  .swap-token-meta {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .swap-token-symbol {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .swap-token-id {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
+    margin-top: 0.15rem;
+    color: rgba(255, 255, 255, 0.5);
+    font-family: ui-monospace, monospace;
+    font-size: 0.75rem;
+    line-height: 1.2;
+  }
+
+  .swap-token-id-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .swap-copy {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    margin: 0;
+    padding: 0;
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+  }
+
+  .swap-copy .swap-ico {
+    width: 0.85rem;
+    height: 0.85rem;
+  }
+
+  .swap-copy:focus-visible {
+    outline: 0.2dvh solid #22D3EE;
+    outline-offset: 0.2dvh;
   }
 
   .swap-links {
     display: flex;
     flex-wrap: wrap;
-    justify-content: center;
+    justify-content: flex-end;
     align-items: center;
-    gap: 0.4dvh 1.6dvh;
-    margin: 0;
+    gap: 0.4rem;
+    margin: 0 0 0 auto;
     min-width: 0;
-    font-size: 1.6dvh;
-    line-height: 1.35;
+    font-size: 0.75rem;
+    line-height: 1;
   }
 
   .swap-links[hidden] {
@@ -7412,8 +7531,28 @@ html, body {
   }
 
   .swap-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    height: 2rem;
+    margin: 0;
+    padding: 0 0.7rem;
+    box-sizing: border-box;
+    border: 0.0625rem solid rgba(34, 211, 238, 0.35);
+    border-radius: 999rem;
+    background: rgba(34, 211, 238, 0.08);
     color: #22D3EE;
+    font-size: 0.75rem;
+    line-height: 1;
     text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .swap-ico {
+    width: 0.9rem;
+    height: 0.9rem;
+    flex: 0 0 auto;
+    display: block;
   }
 
   .swap-link:focus-visible {
@@ -7422,8 +7561,10 @@ html, body {
   }
 
   .swap-error {
-    margin: 0;
-    font-size: 1.5dvh;
+    width: min(100%, 23.75rem);
+    max-width: 100%;
+    margin: 0 auto;
+    font-size: 0.78rem;
     line-height: 1.3;
     color: #fda4af;
   }
@@ -7434,8 +7575,10 @@ html, body {
 
   .swap-widget {
     position: relative;
-    width: 100%;
+    width: min(100%, 23.75rem);
+    max-width: 100%;
     min-width: 0;
+    margin-inline: auto;
     flex: 0 0 auto;
     display: flex;
     justify-content: center;

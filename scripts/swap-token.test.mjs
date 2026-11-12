@@ -121,6 +121,7 @@ test("a WHBAR pool returns name, symbol, decimals, the pool, and due diligence",
     decimals: 6,
     pool: true,
     dueDiligenceComplete: true,
+    icon: "",
     links: {},
   });
 });
@@ -300,6 +301,7 @@ test("GET /api/swap/token/:tokenId returns the lookup", async () => {
         twitterHandle: "@sauce",
         telegram: "http://t.me/nope",
         discord: "https://discord.com/invite/sauce",
+        icon: " https://cdn.example/sauce.png ",
       },
     },
   });
@@ -319,6 +321,7 @@ test("GET /api/swap/token/:tokenId returns the lookup", async () => {
       decimals: 6,
       pool: true,
       dueDiligenceComplete: true,
+      icon: "https://cdn.example/sauce.png",
       links: {
         website: "https://sauce.example",
         x: "https://x.com/sauce",

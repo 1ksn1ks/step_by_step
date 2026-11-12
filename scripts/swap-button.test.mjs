@@ -859,6 +859,7 @@ test("creator token links stay https on the way to the sheet", async () => {
       telegram: "https://t.me/sauce",
       discord: "javascript:alert(1)",
     },
+    icon: " https://cdn.example/sauce.png ",
   });
   const result = await resolveSwapButton({
     author: AUTHOR,
@@ -872,11 +873,14 @@ test("creator token links stay https on the way to the sheet", async () => {
     x: "https://x.com/sauce",
     telegram: "https://t.me/sauce",
   });
+  assert.equal(result.token.icon, "https://cdn.example/sauce.png");
 
   const menu = fs.readFileSync(new URL("../postmenu.js", import.meta.url), "utf8");
   const donate = fs.readFileSync(new URL("../donations.js", import.meta.url), "utf8");
   assert.match(menu, /links: creator \? swapReady\.token\.links : null/);
+  assert.match(menu, /icon: creator \? swapReady\.token\.icon : ""/);
   assert.match(donate, /links: creator \? result\.token\.links : null/);
+  assert.match(donate, /icon: creator \? result\.token\.icon : ""/);
 });
 
 test("the swap sheet shows the creator bio above the safety line", () => {
@@ -911,7 +915,7 @@ test("the swap sheet shows the creator bio above the safety line", () => {
   const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
   const appended = sheet.match(/card\.append\(([^)]+)\)/);
   assert.ok(appended);
-  assert.equal(appended[1], "head, bio, note, links, error, slot");
+  assert.equal(appended[1], "grab, head, token, bio, noteRow, error, slot");
   assert.match(sheet, /bio\.textContent = lines\.bio/);
   assert.match(sheet, /note\.textContent = lines\.safety/);
   assert.match(sheet, /link\.textContent = label/);

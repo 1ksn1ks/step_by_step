@@ -10,6 +10,7 @@ import { toast } from "./toast.js";
 import { globeSwapWallet } from "./swapwallet.js";
 import { bareAccount } from "./donationmath.js";
 import { profileSwapBios } from "./loadalladata.js";
+import { swapHttpsLink } from "./server/swaptoken.js";
 import {
   createSwapSheetMotion,
   deepActiveElement,
@@ -247,6 +248,97 @@ const SWAP_LINK_LABELS = [
   ["discord", "Discord"],
 ];
 
+function swapSvg(name, attrs) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", name);
+  for (const key of Object.keys(attrs)) el.setAttribute(key, attrs[key]);
+  return el;
+}
+
+function swapIcon(children) {
+  const svg = swapSvg("svg", { viewBox: "0 0 24 24", "aria-hidden": "true", class: "swap-ico" });
+  for (const child of children) svg.append(child);
+  return svg;
+}
+
+function stroke(name, attrs) {
+  return swapSvg(name, Object.assign({ fill: "none", stroke: "currentColor", "stroke-width": "1.8" }, attrs));
+}
+
+function globeIcon() {
+  return swapIcon([
+    stroke("circle", { cx: "12", cy: "12", r: "9" }),
+    stroke("path", { d: "M3 12h18", "stroke-linecap": "round" }),
+    stroke("path", { d: "M12 3c2.4 2.6 3.6 5.6 3.6 9s-1.2 6.4-3.6 9c-2.4-2.6-3.6-5.6-3.6-9s1.2-6.4 3.6-9z" }),
+  ]);
+}
+
+function xIcon() {
+  return swapIcon([
+    swapSvg("path", { fill: "currentColor", d: "M14.7 3h2.6l-5.7 6.5L18.5 21h-2.7l-4.2-5.5L6.6 21H4l6.1-7L4.2 3h2.8l3.8 5L14.7 3zm-1 16.2h1.4L7.5 4.7H6L13.7 19.2z" }),
+  ]);
+}
+
+function telegramIcon() {
+  return swapIcon([
+    swapSvg("path", { fill: "currentColor", d: "M20.7 4.3 3.4 11c-1.2.5-1.2 1.1-.2 1.4l4.4 1.4 1.7 5.2c.2.6.1.8.7.8.4 0 .6-.2.8-.4l2.4-2.3 4.9 3.6c.9.5 1.5.2 1.7-.8l3.1-14.6c.3-1.3-.5-1.9-1.4-1.5zM9.2 14.2l8.8-5.5c.4-.3.8-.1.5.2l-7.1 6.4-.3 3.1-1.9-4.2z" }),
+  ]);
+}
+
+function discordIcon() {
+  return swapIcon([
+    swapSvg("path", { fill: "currentColor", d: "M17.6 5.4A15 15 0 0 0 14.2 4l-.3.6a13.8 13.8 0 0 0-4 0L9.6 4a15 15 0 0 0-3.4 1.4C4 8.5 3.4 11.6 3.7 14.6A15.4 15.4 0 0 0 8.2 17l.6-1a9.8 9.8 0 0 1-1.5-.7l.4-.3c2.9 1.3 6 1.3 8.8 0l.3.3c-.5.3-1 .5-1.5.7l.6 1a15.4 15.4 0 0 0 4.5-2.4c.4-3.3-.6-6.4-2.8-9.2zM9.2 13.2c-.7 0-1.3-.7-1.3-1.5s.6-1.5 1.3-1.5 1.3.7 1.3 1.5-.6 1.5-1.3 1.5zm5.6 0c-.7 0-1.3-.7-1.3-1.5s.6-1.5 1.3-1.5 1.3.7 1.3 1.5-.6 1.5-1.3 1.5z" }),
+  ]);
+}
+
+function infoIcon() {
+  return swapIcon([
+    stroke("circle", { cx: "12", cy: "12", r: "9" }),
+    stroke("path", { d: "M12 11v6", "stroke-linecap": "round" }),
+    swapSvg("circle", { cx: "12", cy: "8", r: "1.1", fill: "currentColor" }),
+  ]);
+}
+
+function copyIcon() {
+  return swapIcon([
+    stroke("rect", { x: "8", y: "8", width: "12", height: "12", rx: "2" }),
+    stroke("path", { d: "M6 16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1", "stroke-linecap": "round" }),
+  ]);
+}
+
+const SWAP_LINK_ICONS = {
+  website: globeIcon,
+  x: xIcon,
+  telegram: telegramIcon,
+  discord: discordIcon,
+};
+
+function copySwapId(text) {
+  const write = navigator.clipboard && navigator.clipboard.writeText;
+  if (write) return write.call(navigator.clipboard, text).catch(() => copySwapIdFallback(text));
+  return copySwapIdFallback(text);
+}
+
+function copySwapIdFallback(text) {
+  return new Promise((resolve, reject) => {
+    const before = document.activeElement;
+    const field = document.createElement("textarea");
+    field.value = text;
+    field.setAttribute("readonly", "");
+    field.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+    document.body.appendChild(field);
+    field.focus({ preventScroll: true });
+    field.select();
+    try {
+      document.execCommand("copy") ? resolve() : reject(new Error("copy"));
+    } catch (err) {
+      reject(err);
+    } finally {
+      field.remove();
+      if (before && before.focus && before !== document.body) before.focus({ preventScroll: true });
+    }
+  });
+}
+
 // The widget hard-codes white letters on .ss-primary-btn. The fill stays
 // the theme accent. This style is appended after the widget's own sheet
 // so the same selectors win.
@@ -266,6 +358,38 @@ function paintSwapButtonInk(widget) {
   root.appendChild(style);
 }
 
+function paintSwapToken(card, offer) {
+  if (!card) return;
+  const id = bareAccount(offer && offer.tokenId);
+  const icon = card.querySelector(".swap-token-icon");
+  const copy = card.querySelector(".swap-copy");
+  if (!id) {
+    card.hidden = true;
+    if (copy) copy.hidden = true;
+    if (icon) {
+      icon.hidden = true;
+      icon.removeAttribute("src");
+    }
+    return;
+  }
+  card.hidden = false;
+  if (copy) copy.hidden = false;
+  const symbol = card.querySelector(".swap-token-symbol");
+  if (symbol) symbol.textContent = typeof offer.symbol === "string" ? offer.symbol.trim() : "";
+  const idText = card.querySelector(".swap-token-id-text");
+  if (idText) idText.textContent = id;
+  const src = swapHttpsLink(offer.icon);
+  if (icon) {
+    if (src) {
+      icon.hidden = false;
+      icon.src = src;
+    } else {
+      icon.hidden = true;
+      icon.removeAttribute("src");
+    }
+  }
+}
+
 function paintSwapLinks(row, links) {
   if (!row) return;
   row.replaceChildren();
@@ -282,6 +406,8 @@ function paintSwapLinks(row, links) {
     link.target = "_blank";
     link.rel = "noopener noreferrer nofollow";
     link.textContent = label;
+    const mark = SWAP_LINK_ICONS[key];
+    if (mark) link.prepend(mark());
     row.append(link);
   }
   row.hidden = false;
@@ -309,6 +435,10 @@ function ensureSheet() {
   card.setAttribute("aria-modal", "true");
   card.setAttribute("aria-labelledby", "swap-title");
 
+  const grab = document.createElement("div");
+  grab.className = "swap-grab";
+  grab.setAttribute("aria-hidden", "true");
+
   const head = document.createElement("div");
   head.className = "swap-head";
   const title = document.createElement("h2");
@@ -322,16 +452,58 @@ function ensureSheet() {
   cancel.textContent = "×";
   head.append(title, cancel);
 
+  const token = document.createElement("div");
+  token.className = "swap-token";
+  token.hidden = true;
+  const icon = document.createElement("img");
+  icon.className = "swap-token-icon";
+  icon.alt = "";
+  icon.hidden = true;
+  icon.addEventListener("error", () => {
+    icon.hidden = true;
+    icon.removeAttribute("src");
+  });
+  const meta = document.createElement("div");
+  meta.className = "swap-token-meta";
+  const symbol = document.createElement("p");
+  symbol.className = "swap-token-symbol";
+  const idRow = document.createElement("div");
+  idRow.className = "swap-token-id";
+  const idText = document.createElement("span");
+  idText.className = "swap-token-id-text";
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.className = "swap-copy";
+  copy.setAttribute("aria-label", "Copy token ID");
+  copy.append(copyIcon());
+  copy.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const value = idText.textContent;
+    if (!value) return;
+    try {
+      await copySwapId(value);
+      toast.success("Copied token id");
+    } catch {
+      toast.error("Could not copy");
+    }
+  });
+  idRow.append(idText, copy);
+  meta.append(symbol, idRow);
+  const links = document.createElement("div");
+  links.className = "swap-links";
+  links.hidden = true;
+  token.append(icon, meta, links);
+
   const bio = document.createElement("p");
   bio.className = "swap-bio";
   bio.hidden = true;
 
-  const note = document.createElement("p");
-  note.className = "swap-note";
-
-  const links = document.createElement("div");
-  links.className = "swap-links";
-  links.hidden = true;
+  const noteRow = document.createElement("p");
+  noteRow.className = "swap-note";
+  const note = document.createElement("span");
+  note.className = "swap-note-text";
+  noteRow.append(infoIcon(), note);
 
   const error = document.createElement("p");
   error.className = "swap-error";
@@ -342,7 +514,7 @@ function ensureSheet() {
   slot.className = "swap-widget";
   slot.append(swapLoadingNote());
 
-  card.append(head, bio, note, links, error, slot);
+  card.append(grab, head, token, bio, noteRow, error, slot);
   root.append(trapSentinel("start"), card, trapSentinel("end"));
 
   cancel.addEventListener("click", (event) => {
@@ -411,8 +583,9 @@ export async function openSwapSheet(details) {
     bio.textContent = lines.bio;
     bio.hidden = !lines.bio;
   }
-  const note = root.querySelector(".swap-note");
+  const note = root.querySelector(".swap-note-text");
   if (note) note.textContent = lines.safety;
+  paintSwapToken(root.querySelector(".swap-token"), offer);
   paintSwapLinks(root.querySelector(".swap-links"), bareAccount(offer.tokenId) ? offer.links : null);
   const error = root.querySelector(".swap-error");
   if (error) {

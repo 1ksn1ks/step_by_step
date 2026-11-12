@@ -1,6 +1,6 @@
 // Profile Swap asks this before a token is saved. The mirror says the token
 // exists. SaucerSwap's public lists say whether a V1 or V2 pool pairs it
-// with WHBAR. GET /tokens/<id> supplies the creator's public links.
+// with WHBAR. GET /tokens/<id> supplies the creator's public links and icon.
 // No API key: GET /tokens, GET /tokens/<id>, GET /pools, and GET /v2/pools.
 // Answers are reused for a few minutes so a retry does not download the
 // full lists again. The answer map is capped so unknown token ids cannot
@@ -177,11 +177,14 @@ export function createSwapTokenLookup({
       ? listed.dueDiligenceComplete === true
       : saucerLists.poolDue.get(id) === true;
     let links = {};
+    let icon = "";
     try {
       const detail = await getJson(fetchImpl, `${saucer}/tokens/${encodeURIComponent(id)}`, { notFound: true });
       links = swapTokenLinks(detail);
+      icon = swapHttpsLink(detail && detail.icon);
     } catch {
       links = {};
+      icon = "";
     }
     return remember(id, 200, {
       tokenId: id,
@@ -190,6 +193,7 @@ export function createSwapTokenLookup({
       decimals: decimalsOf(row.decimals, listed && listed.decimals),
       pool: saucerLists.paired.has(id),
       dueDiligenceComplete: due,
+      icon,
       links,
     });
   }
