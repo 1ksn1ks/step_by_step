@@ -6,7 +6,7 @@
 
 import Long from "long";
 import { normalizeSwap } from "./server/swapprofile.js";
-import { swapHttpsLink } from "./server/swaptoken.js";
+import { swapHttpsLink, swapTwitterLink } from "./server/swaptoken.js";
 import { bareAccount } from "./donationmath.js";
 
 export const SWAP_WIDGET_SRC = "https://widget.saucerswap.finance/widget.js";
@@ -487,8 +487,6 @@ export function mountSwapWidgetScript(doc) {
   return script;
 }
 
-const SWAP_LINK_KEYS = ["website", "x", "telegram", "discord"];
-
 function statNumber(value) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
 }
@@ -533,6 +531,20 @@ export function swapColumnZoom(naturalW, naturalH, freeW, freeH) {
   return zoom;
 }
 
+// Phone and touch sheets. Width zoom fills the screen minus the side gap.
+// Height still wins when it is smaller, so the sheet does not grow past the
+// space it has. Below 1 only when that is what fits the width.
+export function swapPhoneColumnZoom(naturalW, naturalH, freeW, freeH) {
+  const widthZoom = freeW / naturalW;
+  const heightZoom = freeH / naturalH;
+  let zoom = Math.min(widthZoom, heightZoom);
+  if (!Number.isFinite(zoom)) zoom = 1;
+  if (zoom > 2.4) zoom = 2.4;
+  if (!(widthZoom < 1) && zoom < 1) zoom = 1;
+  if (!(zoom > 0)) zoom = 1;
+  return zoom;
+}
+
 // offsetWidth is the unzoomed column, so the card has to add the scale itself.
 export function swapCardWidth(naturalW, zoom, side) {
   return naturalW * zoom + side;
@@ -554,10 +566,10 @@ export function swapWidgetResizeNeedsFit(remembered, offsetHeight, zoom, slack) 
 export function swapKeptLinks(links) {
   const src = links && typeof links === "object" ? links : {};
   const out = {};
-  for (const key of SWAP_LINK_KEYS) {
-    const href = swapHttpsLink(src[key]);
-    if (href) out[key] = href;
-  }
+  const website = swapHttpsLink(src.website);
+  const x = swapTwitterLink(src.x);
+  if (website) out.website = website;
+  if (x) out.x = x;
   return out;
 }
 

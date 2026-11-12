@@ -23,7 +23,7 @@ function text(value) {
 
 const TWITTER_HANDLE = /^[A-Za-z0-9_]{1,15}$/;
 
-// A website, telegram, or discord value is kept only as an https URL.
+// A website value is kept only as an https URL.
 export function swapHttpsLink(value) {
   const raw = text(value);
   if (!raw || /\s/.test(raw) || !/^https:\/\//i.test(raw)) return "";
@@ -33,13 +33,44 @@ export function swapHttpsLink(value) {
   return raw;
 }
 
-// A twitter handle becomes https://x.com/<handle>. A leading @ is removed.
-// Anything that is not the handle itself is dropped.
+const X_HOSTS = new Set(["x.com", "twitter.com"]);
+
+// A handle, or an https x.com / twitter.com profile URL, becomes
+// https://x.com/<handle>. A leading @ is removed. Anything else is dropped.
 export function swapTwitterLink(value) {
   let handle = text(value);
+  if (!handle) return "";
   if (handle.startsWith("@")) handle = handle.slice(1);
+  if (/^https:\/\//i.test(handle)) {
+    const href = swapHttpsLink(handle);
+    if (!href) return "";
+    let url;
+    try { url = new URL(href); } catch { return ""; }
+    const host = url.hostname.replace(/^www\./i, "");
+    if (!X_HOSTS.has(host)) return "";
+    const parts = url.pathname.split("/").filter(Boolean);
+    if (parts.length !== 1) return "";
+    handle = parts[0];
+  }
   if (!TWITTER_HANDLE.test(handle)) return "";
   return "https://x.com/" + handle;
+}
+
+// "gib.news". The www prefix and any path are not part of the label.
+export function swapWebsiteLabel(value) {
+  const href = swapHttpsLink(value);
+  if (!href) return "";
+  let host = "";
+  try { host = new URL(href).hostname; } catch { return ""; }
+  return host.replace(/^www\./i, "");
+}
+
+// "x.com/gib_plz" from a handle or an x.com / twitter.com profile URL.
+export function swapXLabel(value) {
+  const href = swapTwitterLink(value);
+  if (!href) return "";
+  const handle = href.slice("https://x.com/".length);
+  return handle ? "x.com/" + handle : "";
 }
 
 export function swapTokenLinks(row) {
@@ -47,12 +78,8 @@ export function swapTokenLinks(row) {
   const links = {};
   const website = swapHttpsLink(row.website);
   const x = swapTwitterLink(row.twitterHandle);
-  const telegram = swapHttpsLink(row.telegram);
-  const discord = swapHttpsLink(row.discord);
   if (website) links.website = website;
   if (x) links.x = x;
-  if (telegram) links.telegram = telegram;
-  if (discord) links.discord = discord;
   return links;
 }
 

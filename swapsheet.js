@@ -10,7 +10,7 @@ import { toast } from "./toast.js";
 import { globeSwapWallet } from "./swapwallet.js";
 import { bareAccount } from "./donationmath.js";
 import { profileSwapBios } from "./loadalladata.js";
-import { swapHttpsLink } from "./server/swaptoken.js";
+import { swapHttpsLink, swapWebsiteLabel, swapXLabel } from "./server/swaptoken.js";
 import {
   createSwapSheetMotion,
   deepActiveElement,
@@ -20,6 +20,7 @@ import {
   swapCardWidth,
   swapColumnZoom,
   swapKeptLinks,
+  swapPhoneColumnZoom,
   swapReturnTarget,
   swapSheetText,
   swapSuccessToast,
@@ -136,9 +137,9 @@ function watchWidgetSize() {
 }
 
 // The centred column stays its natural size. zoom scales the header, token
-// card, bio, note and widget together into spare room in the sheet. Reset
-// to 1 before measuring so a later fit does not multiply the previous
-// scale. Never shrink a portrait phone.
+// card, bio, note and widget together. Reset to 1 before measuring so a
+// later fit does not multiply the previous scale. A phone may zoom below 1
+// when that is what fits the screen width.
 function fitColumnZoom() {
   const column = sheetPart(".swap-column");
   const slot = sheetPart(".swap-widget");
@@ -167,18 +168,27 @@ function fitColumnZoom() {
   const view = visibleBox();
   const viewW = window.innerWidth || 0;
   const viewH = view.height;
-  const maxCard = Math.min(viewW * 0.86, viewH * 0.56);
   const pad = getComputedStyle(card);
   const padX = edgePx(pad.paddingLeft) + edgePx(pad.paddingRight);
   const padY = edgePx(pad.paddingTop) + edgePx(pad.paddingBottom);
   const sheetCs = getComputedStyle(sheet);
   const sheetY = edgePx(sheetCs.paddingTop) + edgePx(sheetCs.paddingBottom);
-  const freeW = maxCard - padX;
   const freeH = viewH - sheetY - padY;
-  const zoom = swapColumnZoom(naturalW, naturalH, freeW, freeH);
-  column.style.zoom = String(zoom);
-  // offsetWidth stayed the unzoomed size, so the card adds the scale.
   const fine = window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  let zoom;
+  if (fine) {
+    const maxCard = Math.min(viewW * 0.86, viewH * 0.56);
+    const freeW = maxCard - padX;
+    zoom = swapColumnZoom(naturalW, naturalH, freeW, freeH);
+  } else {
+    // --swap-side-gap is the padding on each side. The border sits outside it.
+    const gap = edgePx(pad.paddingLeft);
+    const borderX = edgePx(pad.borderLeftWidth) + edgePx(pad.borderRightWidth);
+    const freeW = viewW - 2 * gap - borderX;
+    zoom = swapPhoneColumnZoom(naturalW, naturalH, freeW, freeH);
+  }
+  column.style.zoom = String(zoom);
+  // offsetWidth stayed the unzoomed size, so the desktop card adds the scale.
   if (fine && rootPx > 0) {
     const side = padX + edgePx(pad.borderLeftWidth) + edgePx(pad.borderRightWidth);
     card.style.width = (swapCardWidth(naturalW, zoom, side) / rootPx) + "rem";
@@ -315,8 +325,6 @@ function trapSentinel(which) {
 const SWAP_LINK_LABELS = [
   ["website", "Website"],
   ["x", "X"],
-  ["telegram", "Telegram"],
-  ["discord", "Discord"],
 ];
 
 function swapSvg(name, attrs) {
@@ -349,18 +357,6 @@ function xIcon() {
   ]);
 }
 
-function telegramIcon() {
-  return swapIcon([
-    swapSvg("path", { fill: "currentColor", d: "M20.7 4.3 3.4 11c-1.2.5-1.2 1.1-.2 1.4l4.4 1.4 1.7 5.2c.2.6.1.8.7.8.4 0 .6-.2.8-.4l2.4-2.3 4.9 3.6c.9.5 1.5.2 1.7-.8l3.1-14.6c.3-1.3-.5-1.9-1.4-1.5zM9.2 14.2l8.8-5.5c.4-.3.8-.1.5.2l-7.1 6.4-.3 3.1-1.9-4.2z" }),
-  ]);
-}
-
-function discordIcon() {
-  return swapIcon([
-    swapSvg("path", { fill: "currentColor", d: "M17.6 5.4A15 15 0 0 0 14.2 4l-.3.6a13.8 13.8 0 0 0-4 0L9.6 4a15 15 0 0 0-3.4 1.4C4 8.5 3.4 11.6 3.7 14.6A15.4 15.4 0 0 0 8.2 17l.6-1a9.8 9.8 0 0 1-1.5-.7l.4-.3c2.9 1.3 6 1.3 8.8 0l.3.3c-.5.3-1 .5-1.5.7l.6 1a15.4 15.4 0 0 0 4.5-2.4c.4-3.3-.6-6.4-2.8-9.2zM9.2 13.2c-.7 0-1.3-.7-1.3-1.5s.6-1.5 1.3-1.5 1.3.7 1.3 1.5-.6 1.5-1.3 1.5zm5.6 0c-.7 0-1.3-.7-1.3-1.5s.6-1.5 1.3-1.5 1.3.7 1.3 1.5-.6 1.5-1.3 1.5z" }),
-  ]);
-}
-
 function infoIcon() {
   return swapIcon([
     stroke("circle", { cx: "12", cy: "12", r: "9" }),
@@ -379,8 +375,6 @@ function copyIcon() {
 const SWAP_LINK_ICONS = {
   website: globeIcon,
   x: xIcon,
-  telegram: telegramIcon,
-  discord: discordIcon,
 };
 
 function copySwapId(text) {
@@ -495,20 +489,28 @@ function paintSwapLinks(row, links) {
   if (!row) return;
   row.replaceChildren();
   const kept = swapKeptLinks(links);
-  const entries = SWAP_LINK_LABELS.filter(([key]) => kept[key]);
+  const entries = SWAP_LINK_LABELS.map(([key, kind]) => {
+    const href = kept[key];
+    const text = key === "x" ? swapXLabel(href) : swapWebsiteLabel(href);
+    return text ? [key, kind, text] : null;
+  }).filter(Boolean);
   if (!entries.length) {
     row.hidden = true;
     return;
   }
-  for (const [key, label] of entries) {
+  for (const [key, kind, text] of entries) {
     const link = document.createElement("a");
     link.className = "swap-link";
     link.href = kept[key];
     link.target = "_blank";
     link.rel = "noopener noreferrer nofollow";
-    link.textContent = label;
+    link.setAttribute("aria-label", kind + ": " + text);
     const mark = SWAP_LINK_ICONS[key];
-    if (mark) link.prepend(mark());
+    if (mark) link.append(mark());
+    const name = document.createElement("span");
+    name.className = "swap-link-label";
+    name.textContent = text;
+    link.append(name);
     row.append(link);
   }
   row.hidden = false;

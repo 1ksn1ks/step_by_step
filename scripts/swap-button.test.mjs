@@ -11,6 +11,7 @@ import {
   swapCardWidth,
   swapColumnZoom,
   swapKeptLinks,
+  swapPhoneColumnZoom,
   swapKeptStats,
   swapWidgetResizeNeedsFit,
   mountSwapWidgetScript,
@@ -892,12 +893,12 @@ test("a swap bio folds into its own column and stops at 280 characters", () => {
 test("creator token links stay https on the way to the sheet", async () => {
   assert.deepEqual(swapKeptLinks({
     website: " https://sauce.example ",
-    x: "https://x.com/sauce",
-    telegram: "javascript:alert(1)",
-    discord: "http://discord.gg/no",
+    x: "https://twitter.com/gib_plz",
+    telegram: "https://t.me/sauce",
+    discord: "https://discord.com/invite/sauce",
   }), {
     website: "https://sauce.example",
-    x: "https://x.com/sauce",
+    x: "https://x.com/gib_plz",
   });
   assert.deepEqual(swapKeptLinks("@sauce"), {});
   assert.deepEqual(swapKeptLinks(null), {});
@@ -907,10 +908,10 @@ test("creator token links stay https on the way to the sheet", async () => {
     symbol: "SAUCE",
     pool: true,
     links: {
-      website: "https://sauce.example",
-      x: "https://x.com/sauce",
+      website: "https://www.gib.news/",
+      x: "https://twitter.com/gib_plz",
       telegram: "https://t.me/sauce",
-      discord: "javascript:alert(1)",
+      discord: "https://discord.com/invite/sauce",
     },
     icon: " https://cdn.example/sauce.png ",
   });
@@ -922,9 +923,8 @@ test("creator token links stay https on the way to the sheet", async () => {
     ...isolated(),
   });
   assert.deepEqual(result.token.links, {
-    website: "https://sauce.example",
-    x: "https://x.com/sauce",
-    telegram: "https://t.me/sauce",
+    website: "https://www.gib.news/",
+    x: "https://x.com/gib_plz",
   });
   assert.equal(result.token.icon, "https://cdn.example/sauce.png");
 
@@ -975,7 +975,8 @@ test("the swap sheet shows the creator bio above the safety line", () => {
   assert.equal(sheet.includes("swap-grab"), false);
   assert.match(sheet, /bio\.textContent = lines\.bio/);
   assert.match(sheet, /note\.textContent = lines\.safety/);
-  assert.match(sheet, /link\.textContent = label/);
+  assert.match(sheet, /name\.textContent = text/);
+  assert.match(sheet, /aria-label", kind \+ ": " \+ text/);
   assert.match(sheet, /link\.rel = "noopener noreferrer nofollow"/);
   assert.match(sheet, /link\.target = "_blank"/);
   assert.match(sheet, /bareAccount\(offer\.tokenId\) \? offer\.links : null/);
@@ -985,6 +986,10 @@ test("the swap sheet shows the creator bio above the safety line", () => {
   const linksCss = css.slice(css.indexOf("  .swap-links {"), css.indexOf("  .swap-error {"));
   assert.equal(linksCss.includes("px"), false);
   assert.match(linksCss, /\.swap-links\[hidden\]/);
+  assert.match(linksCss, /text-overflow: ellipsis/);
+  assert.match(css, /--swap-side-gap: 0\.75rem/);
+  assert.match(css, /padding-left: var\(--swap-side-gap\)/);
+  assert.match(css, /padding-right: var\(--swap-side-gap\)/);
   const cardAt = css.indexOf("  .swap-card {");
   const cardCss = css.slice(cardAt, css.indexOf("  @media (hover: hover) and (pointer: fine)", cardAt));
   assert.match(cardCss, /--swap-r-bottom: max\(var\(--swap-r\), var\(--screen-r-bottom, 0dvh\)\)/);
@@ -1132,7 +1137,9 @@ test("the swap sheet preloads the widget and reserves its height", () => {
   assert.match(sheet, /slot\.style\.minHeight = \(widgetH \/ rootPx\) \+ "rem"/);
   assert.match(sheet, /column\.style\.zoom = "1"/);
   assert.match(sheet, /card\.style\.removeProperty\("width"\)/);
-  assert.match(sheet, /const zoom = swapColumnZoom\(naturalW, naturalH, freeW, freeH\)/);
+  assert.match(sheet, /zoom = swapColumnZoom\(naturalW, naturalH, freeW, freeH\)/);
+  assert.match(sheet, /const freeW = viewW - 2 \* gap - borderX/);
+  assert.match(sheet, /zoom = swapPhoneColumnZoom\(naturalW, naturalH, freeW, freeH\)/);
   assert.match(offer, /let zoom = Math\.min\(freeW \/ naturalW, freeH \/ naturalH\)/);
   assert.match(offer, /if \(zoom > 2\.4\) zoom = 2\.4/);
   assert.match(sheet, /column\.style\.zoom = String\(zoom\)/);
@@ -1170,6 +1177,14 @@ test("the card width is the natural column times zoom plus padding, and a zoom-o
   assert.equal(swapColumnZoom(10, 10, 100, 100), 2.4);
   assert.equal(swapColumnZoom(10, 10, -4, 100), 1);
   assert.equal(swapColumnZoom(0, 0, 20, 20), 1);
+
+  const narrowW = 320 - 2 * 0.75 * 16;
+  assert.equal(swapPhoneColumnZoom(23.75 * 16, 640, narrowW, 700), narrowW / (23.75 * 16));
+  assert.ok(swapPhoneColumnZoom(380, 400, 300, 900) < 1);
+  assert.equal(swapPhoneColumnZoom(380, 800, 420, 600), 1);
+  assert.equal(swapPhoneColumnZoom(380, 500, 760, 600), 1.2);
+  assert.equal(swapPhoneColumnZoom(100, 100, 1000, 1000), 2.4);
+  assert.equal(swapPhoneColumnZoom(380, 800, 300, 400), 0.5);
 
   const slack = 16 * 0.1;
   assert.equal(swapWidgetResizeNeedsFit(100, 200, 2, slack), false);

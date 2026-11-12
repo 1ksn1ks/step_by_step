@@ -12,6 +12,8 @@ import {
   swapTokenRoute,
   swapTokenStats,
   swapTwitterLink,
+  swapWebsiteLabel,
+  swapXLabel,
   WHBAR_TOKEN_IDS,
 } from "../server/swaptoken.js";
 
@@ -344,7 +346,6 @@ test("GET /api/swap/token/:tokenId returns the lookup", async () => {
       links: {
         website: "https://sauce.example",
         x: "https://x.com/sauce",
-        discord: "https://discord.com/invite/sauce",
       },
       stats: { ...EMPTY_SWAP_STATS },
     });
@@ -398,7 +399,12 @@ test("a twitter handle becomes an x.com link and anything else is dropped", () =
   assert.equal(swapTwitterLink("a".repeat(15)), "https://x.com/" + "a".repeat(15));
   assert.equal(swapTwitterLink("bad-name"), "");
   assert.equal(swapTwitterLink("a".repeat(16)), "");
-  assert.equal(swapTwitterLink("https://x.com/SaucerSwap"), "");
+  assert.equal(swapTwitterLink("https://x.com/SaucerSwap"), "https://x.com/SaucerSwap");
+  assert.equal(swapTwitterLink("https://twitter.com/gib_plz"), "https://x.com/gib_plz");
+  assert.equal(swapTwitterLink("https://www.x.com/gib_plz/"), "https://x.com/gib_plz");
+  assert.equal(swapTwitterLink("https://twitter.com/gib_plz/status/1"), "");
+  assert.equal(swapTwitterLink("http://x.com/gib_plz"), "");
+  assert.equal(swapTwitterLink("https://example.com/gib_plz"), "");
   assert.equal(swapTwitterLink("@"), "");
   assert.equal(swapTwitterLink("@@sauce"), "");
   assert.equal(swapTwitterLink("sauce token"), "");
@@ -406,24 +412,31 @@ test("a twitter handle becomes an x.com link and anything else is dropped", () =
   assert.equal(swapTwitterLink(null), "");
 });
 
-test("token links keep a trimmed https website, telegram, and discord, plus an x handle", () => {
+test("token links keep a trimmed https website and an x handle, not telegram or discord", () => {
   assert.deepEqual(swapTokenLinks({
-    website: " https://sauce.example ",
-    twitterHandle: "@sauce",
+    website: " https://www.gib.news/ ",
+    twitterHandle: "@gib_plz",
     telegram: "https://t.me/sauce",
-    discord: "http://discord.gg/nope",
+    discord: "https://discord.com/invite/sauce",
   }), {
-    website: "https://sauce.example",
-    x: "https://x.com/sauce",
-    telegram: "https://t.me/sauce",
+    website: "https://www.gib.news/",
+    x: "https://x.com/gib_plz",
   });
   assert.deepEqual(swapTokenLinks({
     website: "javascript:alert(1)",
-    twitterHandle: "https://x.com/sauce",
+    twitterHandle: "https://twitter.com/gib_plz",
     telegram: " https://t.me/a b ",
     discord: "",
-  }), {});
+  }), {
+    x: "https://x.com/gib_plz",
+  });
   assert.deepEqual(swapTokenLinks(null), {});
+  assert.equal(swapWebsiteLabel("https://www.gib.news/"), "gib.news");
+  assert.equal(swapWebsiteLabel("https://gib.news/docs"), "gib.news");
+  assert.equal(swapWebsiteLabel("http://gib.news"), "");
+  assert.equal(swapXLabel("@gib_plz"), "x.com/gib_plz");
+  assert.equal(swapXLabel("https://twitter.com/gib_plz"), "x.com/gib_plz");
+  assert.equal(swapXLabel("https://x.com/gib_plz/"), "x.com/gib_plz");
 });
 
 test("token links come from the SaucerSwap token record and stay in the cache", async () => {
@@ -447,7 +460,6 @@ test("token links come from the SaucerSwap token record and stay in the cache", 
   assert.deepEqual(result.body.links, {
     website: "https://sauce.example/docs",
     x: "https://x.com/sauce_token",
-    telegram: "https://t.me/sauce",
   });
   const detailCalls = () => env.calls.filter((url) => url === `https://saucer.test/tokens/${SAUCE}`).length;
   assert.equal(detailCalls(), 1);
