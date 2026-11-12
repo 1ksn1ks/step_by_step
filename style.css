@@ -4464,7 +4464,7 @@ html, body {
   }
 
   .clan-token .swap-link {
-    height: calc(var(--fu, var(--u)) * 1.85);
+    height: calc(var(--fu, var(--u)) * 2.05);
     gap: calc(var(--fu, var(--u)) * 0.35);
     padding: 0 calc(var(--fu, var(--u)) * 0.8);
     border: calc(var(--fu, var(--u)) * 0.08) solid rgba(34, 211, 238, 0.35);
@@ -4472,6 +4472,12 @@ html, body {
     background: rgba(34, 211, 238, 0.08);
     color: #22D3EE;
     font-size: calc(var(--fu, var(--u)) * 1.25);
+  }
+
+  .clan-token .swap-link-label {
+    line-height: 1.3;
+    padding-top: 0.1em;
+    padding-bottom: 0.1em;
   }
 
   .clan-token .swap-link .swap-ico {
@@ -7869,6 +7875,9 @@ html, body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    line-height: 1.3;
+    padding-top: 0.1em;
+    padding-bottom: 0.1em;
   }
 
   .swap-ico {

@@ -143,7 +143,9 @@ test("the popup puts the display name above the account id and shares the feed r
   assert.match(clanCss, /font-size: calc\(var\(--fu, var\(--u\)\) \* 1\.85\)/);
   assert.match(clanCss, /font-weight: 700/);
   assert.match(clanCss, /font-size: calc\(var\(--fu, var\(--u\)\) \* 1\.4\)/);
-  assert.match(clanCss, /height: calc\(var\(--fu, var\(--u\)\) \* 1\.85\)/);
+  assert.match(clanCss, /height: calc\(var\(--fu, var\(--u\)\) \* 2\.05\)/);
+  assert.match(clanCss, /\.clan-token \.swap-link-label \{[^}]*line-height: 1\.3/);
+  assert.match(clanCss, /\.clan-token \.swap-link-label \{[^}]*padding-top: 0\.1em/);
   assert.match(clanCss, /flex-wrap: wrap/);
   assert.match(clanCss, /margin: 0 0 0 auto/);
   const swapTokenCss = css.slice(css.indexOf("  .swap-token {"), css.indexOf("  .swap-token[hidden]"));

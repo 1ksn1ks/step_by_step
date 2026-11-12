@@ -987,6 +987,12 @@ test("the swap sheet shows the creator bio above the safety line", () => {
   assert.equal(linksCss.includes("px"), false);
   assert.match(linksCss, /\.swap-links\[hidden\]/);
   assert.match(linksCss, /text-overflow: ellipsis/);
+  assert.match(linksCss, /\.swap-link-label \{[^}]*line-height: 1\.3/);
+  assert.match(linksCss, /padding-top: 0\.1em/);
+  assert.match(linksCss, /padding-bottom: 0\.1em/);
+  assert.match(sheet, /M18\.244 2\.25h3\.308l-7\.227 8\.26 8\.502 11\.24H16\.17l-5\.214-6\.817L4\.99 21\.75H1\.68l7\.73-8\.835L1\.254 2\.25H8\.08l4\.713 6\.231zm-1\.161 17\.52h1\.833L7\.084 4\.126H5\.117z/);
+  assert.match(sheet, /fill: "currentColor"/);
+  assert.equal(sheet.includes('stroke: "currentColor", d: "M18.244'), false);
   assert.match(css, /--swap-side-gap: 0\.75rem/);
   assert.match(css, /padding-left: max\(var\(--swap-side-gap\), var\(--corner-clear\)\)/);
   assert.match(css, /padding-right: max\(var\(--swap-side-gap\), var\(--corner-clear\)\)/);
