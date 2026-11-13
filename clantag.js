@@ -8,6 +8,7 @@ import { bareAccount } from "./donationmath.js";
 import { EARLY_POPUP_CLASS } from "./earlypopup.js";
 import { profileSwapOf, swapOfferFromProfile, fetchSwapToken, createSwapStats, paintSwapStats } from "./swapoffer.js";
 import { swapHttpsLink } from "./server/swaptoken.js";
+import { ensureSwapAck } from "./swapwarning.js";
 
 const lookups = new Map();
 // Watcher function to its bubble, so a sweep can drop detached bubbles
@@ -267,7 +268,7 @@ export function mountClanTag({ bubble, payerLink, payer, swaps, viewer, openSwap
       if (links && typeof links.before === "function") links.before(buy);
       else inner.append(buy);
       let opening = false;
-      buy.addEventListener("click", (event) => {
+      buy.addEventListener("click", async (event) => {
         event.preventDefault();
         event.stopPropagation();
         if (opening) return;
@@ -289,16 +290,12 @@ export function mountClanTag({ bubble, payerLink, payer, swaps, viewer, openSwap
           host: typeof bubble.closest === "function" ? bubble.closest("." + EARLY_POPUP_CLASS) : null,
           opener: buy,
         };
-        let pending;
         try {
-          pending = openSheet(details);
-        } catch (err) {
-          pending = Promise.reject(err);
-        }
-        Promise.resolve(pending).finally(() => {
+          if (await ensureSwapAck(buy)) await openSheet(details);
+        } finally {
           opening = false;
           buy.removeAttribute("aria-busy");
-        });
+        }
       });
       buy.addEventListener("pointerdown", (event) => {
         event.stopPropagation();

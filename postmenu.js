@@ -9,6 +9,7 @@ import { BACKEND_URL } from './msgbackend.js';
 import { profileSwaps } from './loadalladata.js';
 import { profileSwapOf, resolveSwapButton } from './swapoffer.js';
 import { openSwapSheet, watchSwapProfiles } from './swapsheet.js';
+import { ensureSwapAck } from './swapwarning.js';
 import { bindDonationTarget, openDonation } from './donations.js';
 import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { bindPressFeedback } from './followtopic.js';
@@ -300,36 +301,40 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
   });
   async function openSwapItem() {
     if (swapOpening) return;
-    const flight = swapFlight;
-    if (flight) {
-      swapOpening = true;
-      swapItem.setAttribute('aria-busy', 'true');
-      let timer = 0;
-      try {
-        await Promise.race([
-          flight.then(() => {}, () => {}),
-          new Promise((resolve) => { timer = setTimeout(resolve, 1500); }),
-        ]);
-      } finally {
-        clearTimeout(timer);
-        swapOpening = false;
-        swapItem.removeAttribute('aria-busy');
+    swapOpening = true;
+    swapItem.setAttribute('aria-busy', 'true');
+    try {
+      const flight = swapFlight;
+      if (flight) {
+        let timer = 0;
+        try {
+          await Promise.race([
+            flight.then(() => {}, () => {}),
+            new Promise((resolve) => { timer = setTimeout(resolve, 1500); }),
+          ]);
+        } finally {
+          clearTimeout(timer);
+        }
       }
+      if (!swapReady) return;
+      if (!(await ensureSwapAck(swapItem))) return;
+      const creator = swapReady.offer && swapReady.token;
+      openSwapSheet({
+        account: creator ? bareAccount(payer) : "",
+        tokenId: creator ? swapReady.offer.tokenId : "",
+        feeBps: creator && !swapReady.own ? swapReady.offer.feeBps : 0,
+        symbol: creator ? swapReady.token.symbol : "",
+        dueDiligenceComplete: creator ? swapReady.token.dueDiligenceComplete : false,
+        icon: creator ? swapReady.token.icon : "",
+        links: creator ? swapReady.token.links : null,
+        stats: creator ? swapReady.token.stats : null,
+        host: root.closest('.' + EARLY_POPUP_CLASS),
+        opener: swapItem,
+      });
+    } finally {
+      swapOpening = false;
+      swapItem.removeAttribute('aria-busy');
     }
-    if (!swapReady) return;
-    const creator = swapReady.offer && swapReady.token;
-    openSwapSheet({
-      account: creator ? bareAccount(payer) : "",
-      tokenId: creator ? swapReady.offer.tokenId : "",
-      feeBps: creator && !swapReady.own ? swapReady.offer.feeBps : 0,
-      symbol: creator ? swapReady.token.symbol : "",
-      dueDiligenceComplete: creator ? swapReady.token.dueDiligenceComplete : false,
-      icon: creator ? swapReady.token.icon : "",
-      links: creator ? swapReady.token.links : null,
-      stats: creator ? swapReady.token.stats : null,
-      host: root.closest('.' + EARLY_POPUP_CLASS),
-      opener: swapItem,
-    });
   }
 
   pick(swapItem, () => {

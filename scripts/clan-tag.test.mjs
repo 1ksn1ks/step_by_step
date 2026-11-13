@@ -686,6 +686,7 @@ test("the clan Buy button opens the author's swap sheet", async () => {
   const previous = {
     document: globalThis.document,
     requestAnimationFrame: globalThis.requestAnimationFrame,
+    localStorage: globalThis.localStorage,
   };
   globalThis.document = {
     addEventListener() {},
@@ -694,6 +695,18 @@ test("the clan Buy button opens the author's swap sheet", async () => {
   globalThis.requestAnimationFrame = (fn) => {
     fn();
     return 0;
+  };
+  const ackStore = { "swap-warning-v1": "1" };
+  globalThis.localStorage = {
+    getItem(key) {
+      return Object.prototype.hasOwnProperty.call(ackStore, key) ? ackStore[key] : null;
+    },
+    setItem(key, value) {
+      ackStore[key] = String(value);
+    },
+    removeItem(key) {
+      delete ackStore[key];
+    },
   };
 
   try {
@@ -719,6 +732,8 @@ test("the clan Buy button opens the author's swap sheet", async () => {
     const event = { preventDefault() {}, stopPropagation() { stopped += 1; } };
     buy.listeners.click[0](event);
     assert.equal(stopped, 1);
+    assert.equal(buy.attrs["aria-busy"], "true");
+    await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(calls.length, 1);
     assert.equal(calls[0].account, payer);
     assert.equal(calls[0].tokenId, tokenId);
@@ -745,6 +760,7 @@ test("the clan Buy button opens the author's swap sheet", async () => {
     const ownBuy = find(ownParent, "clan-buy");
     assert.equal(ownBuy.attrs["aria-label"], "Buy gib");
     ownBuy.listeners.click[0]({ preventDefault() {}, stopPropagation() {} });
+    await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(calls.length, 2);
     assert.equal(calls[1].account, ownPayer);
     assert.equal(calls[1].tokenId, tokenId);
@@ -757,6 +773,7 @@ test("the clan Buy button opens the author's swap sheet", async () => {
     sweepClanWatchers();
     globalThis.document = previous.document;
     globalThis.requestAnimationFrame = previous.requestAnimationFrame;
+    globalThis.localStorage = previous.localStorage;
   }
 });
 
