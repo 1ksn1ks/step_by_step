@@ -4427,7 +4427,7 @@ html, body {
     width: 100%;
     max-width: none;
     margin: 0;
-    padding: calc(var(--fu, var(--u)) * 1.25) calc(var(--fu, var(--u)) * 1.45);
+    padding: var(--swap-corner-inset-y) var(--swap-corner-inset-x);
     border: 0.0625rem solid rgba(255, 255, 255, 0.07);
     border-radius: calc(var(--fu, var(--u)) * 1.7);
     background: #17171a;
@@ -4495,7 +4495,7 @@ html, body {
     justify-content: center;
     align-self: flex-start;
     flex: 0 0 auto;
-    height: calc(var(--fu, var(--u)) * 2.05);
+    height: var(--swap-corner-size);
     margin: 0 0 0 auto;
     padding: 0 calc(var(--fu, var(--u)) * 1.6);
     border: 0;
@@ -7660,6 +7660,7 @@ html, body {
   }
 
   #swap-sheet {
+    --fu: calc(23.75rem * 0.024);
     position: fixed;
     left: 0;
     right: 0;
@@ -7777,6 +7778,19 @@ html, body {
     }
   }
 
+  /* One inset and one corner size for the clan Buy button and the sheet close. */
+  .clan-token,
+  #swap-sheet {
+    --swap-corner-size: calc(var(--fu, var(--u)) * 2.05);
+    --swap-corner-inset-y: calc(var(--fu, var(--u)) * 1.25);
+    --swap-corner-inset-x: calc(var(--fu, var(--u)) * 1.45);
+  }
+
+  .clan-token .swap-token,
+  #swap-sheet .swap-token {
+    padding: var(--swap-corner-inset-y) var(--swap-corner-inset-x);
+  }
+
   .swap-column {
     align-self: center;
     box-sizing: border-box;
@@ -7801,41 +7815,22 @@ html, body {
     }
   }
 
-  .swap-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    width: min(100%, 23.75rem);
-    max-width: 100%;
-    margin-inline: auto;
-    min-width: 0;
-  }
-
-  .swap-title {
-    flex: 1 1 auto;
-    min-width: 0;
-    margin: 0;
-    font-size: 1.375rem;
-    font-weight: 600;
-    line-height: 1.2;
-  }
-
   .swap-x {
     appearance: none;
-    flex: 0 0 auto;
-    width: 2.25rem;
-    height: 2.25rem;
-    margin: 0;
-    padding: 0;
+    box-sizing: border-box;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    flex: 0 0 auto;
+    width: var(--swap-corner-size);
+    height: var(--swap-corner-size);
+    margin: 0;
+    padding: 0;
     border: 0;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.06);
     color: rgba(255, 255, 255, 0.82);
-    font-size: 1.25rem;
+    font-size: calc(var(--swap-corner-size) * 0.72);
     line-height: 1;
     cursor: pointer;
   }
@@ -7843,6 +7838,17 @@ html, body {
   .swap-x:focus-visible {
     outline: 0.2dvh solid #22D3EE;
     outline-offset: 0.2dvh;
+  }
+
+  .clan-token .clan-buy,
+  #swap-sheet .swap-token > .swap-x {
+    align-self: flex-start;
+    flex: 0 0 auto;
+    margin: 0 0 0 auto;
+  }
+
+  #swap-sheet .swap-column > .swap-x {
+    align-self: flex-end;
   }
 
   .swap-bio {
@@ -7958,7 +7964,6 @@ html, body {
     width: min(100%, 23.75rem);
     max-width: 100%;
     margin-inline: auto;
-    padding: 0.75rem 0.875rem;
     border: 0.0625rem solid rgba(255, 255, 255, 0.07);
     border-radius: 1rem;
     background: #17171a;
@@ -8057,6 +8062,10 @@ html, body {
 
   .swap-links[hidden] {
     display: none;
+  }
+
+  #swap-sheet .swap-token > .swap-links {
+    flex: 1 0 100%;
   }
 
   .swap-link {
@@ -8186,7 +8195,6 @@ html, body {
     }
   }
 
-  .swap-card.early-holder-popup .swap-title,
   .swap-card.early-holder-popup .swap-x {
     color: #f6e27a;
   }

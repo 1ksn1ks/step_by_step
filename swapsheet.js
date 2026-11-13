@@ -498,6 +498,26 @@ function txLink(notice) {
   return link;
 }
 
+// "Swap <symbol>" when the offer names one, otherwise "Swap". The visible
+// title row is gone, so this is the dialog's accessible name.
+function swapDialogLabel(offer) {
+  const symbol = offer && typeof offer.symbol === "string" ? offer.symbol.trim() : "";
+  return symbol ? "Swap " + symbol : "Swap";
+}
+
+// Buy's corner when the token card is open. With no creator token the card
+// is hidden, and the same button is the first child of the column.
+function placeSwapClose(column, token, cancel) {
+  if (!cancel || !column) return;
+  if (token && !token.hidden) {
+    const links = token.querySelector(".swap-links");
+    if (links) links.before(cancel);
+    else token.append(cancel);
+    return;
+  }
+  column.insertBefore(cancel, column.firstChild);
+}
+
 // The same token card the sheet shows: round icon, bold symbol, monospace
 // id with copy, and the website / X row. Callers paint it with
 // paintSwapToken and paintSwapLinks.
@@ -557,20 +577,13 @@ function ensureSheet() {
   card.className = "swap-card";
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-modal", "true");
-  card.setAttribute("aria-labelledby", "swap-title");
+  card.setAttribute("aria-label", "Swap");
 
-  const head = document.createElement("div");
-  head.className = "swap-head";
-  const title = document.createElement("h2");
-  title.id = "swap-title";
-  title.className = "swap-title";
-  title.textContent = "Swap";
   const cancel = document.createElement("button");
   cancel.type = "button";
   cancel.className = "swap-x";
-  cancel.setAttribute("aria-label", "Close");
+  cancel.setAttribute("aria-label", "Close Swap");
   cancel.textContent = "×";
-  head.append(title, cancel);
 
   const token = createSwapTokenCard();
   const stats = createSwapStats();
@@ -590,7 +603,8 @@ function ensureSheet() {
 
   const column = document.createElement("div");
   column.className = "swap-column";
-  column.append(head, token, stats, bio, error, slot);
+  column.append(token, stats, bio, error, slot);
+  placeSwapClose(column, token, cancel);
   card.append(column);
   root.append(trapSentinel("start"), card, trapSentinel("end"));
 
@@ -676,6 +690,12 @@ export async function openSwapSheet(details) {
     if (note) note.textContent = lines.safety;
   }
   paintSwapToken(root.querySelector(".swap-token"), offer);
+  const dialog = root.querySelector(".swap-card");
+  if (dialog) {
+    dialog.removeAttribute("aria-labelledby");
+    dialog.setAttribute("aria-label", swapDialogLabel(offer));
+  }
+  placeSwapClose(root.querySelector(".swap-column"), root.querySelector(".swap-token"), root.querySelector(".swap-x"));
   paintSwapStats(root.querySelector(".swap-stats"), offer);
   paintSwapLinks(root.querySelector(".swap-links"), bareAccount(offer.tokenId) ? offer.links : null);
   const error = root.querySelector(".swap-error");

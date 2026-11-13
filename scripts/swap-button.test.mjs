@@ -395,7 +395,7 @@ test("the sheet shows no notice row without a cut and only the fee line with a c
 
   const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
   const offer = fs.readFileSync(new URL("../swapoffer.js", import.meta.url), "utf8");
-  assert.match(sheet, /column\.append\(head, token, stats, bio, error, slot\)/);
+  assert.match(sheet, /column\.append\(token, stats, bio, error, slot\)/);
   assert.match(sheet, /if \(!lines\.safety\) \{\s*if \(noteRow\) noteRow\.remove\(\)/);
   assert.match(sheet, /note\.textContent = lines\.safety/);
   assert.match(sheet, /errorSlot\.before\(noteRow\)/);
@@ -996,7 +996,7 @@ test("the swap sheet shows the creator bio above the fee line", () => {
   const appended = sheet.match(/card\.append\(([^)]+)\)/);
   assert.ok(appended);
   assert.equal(appended[1], "column");
-  assert.match(sheet, /column\.append\(head, token, stats, bio, error, slot\)/);
+  assert.match(sheet, /column\.append\(token, stats, bio, error, slot\)/);
   assert.match(sheet, /if \(!lines\.safety\) \{\s*if \(noteRow\) noteRow\.remove\(\)/);
   assert.match(sheet, /errorSlot\.before\(noteRow\)/);
   assert.equal(sheet.includes("swap-grab"), false);
@@ -1178,7 +1178,7 @@ test("the swap sheet preloads the widget and reserves its height", () => {
   assert.match(sheet, /column\.style\.zoom = String\(zoom\)/);
   assert.equal(sheet.includes("widget.style.zoom"), false);
   assert.equal(sheet.includes("zoom > 1.6"), false);
-  const columnCss = css.slice(css.indexOf("  .swap-column {"), css.indexOf("  .swap-head {"));
+  const columnCss = css.slice(css.indexOf("  .swap-column {"), css.indexOf("  .swap-x {"));
   assert.equal(columnCss.includes("px"), false);
   assert.match(columnCss, /width: min\(23\.75rem, calc\(100dvw - 2 \* var\(--swap-pad\)\)\)/);
   assert.equal(columnCss.includes("max-width: 100%"), false);
@@ -1347,4 +1347,57 @@ test("the circulating tile explains itself on focus and tap", () => {
   } finally {
     globalThis.document = previous;
   }
+});
+
+test("the swap sheet has no title row and the close button sits on the token card", () => {
+  const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
+  const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  const factory = sheet.slice(sheet.indexOf("export function createSwapTokenCard"), sheet.indexOf("function ensureSheet"));
+  const openFn = sheet.slice(sheet.indexOf("export async function openSwapSheet"));
+
+  assert.equal(sheet.includes("swap-head"), false);
+  assert.equal(sheet.includes("swap-title"), false);
+  assert.equal(sheet.includes('textContent = "Swap"'), false);
+  assert.equal(css.includes(".swap-head"), false);
+  assert.equal(css.includes(".swap-title"), false);
+  assert.equal(factory.includes("swap-x"), false);
+
+  assert.match(sheet, /aria-label", "Close Swap"/);
+  assert.match(sheet, /function swapDialogLabel\(offer\) \{[\s\S]*?symbol \? "Swap " \+ symbol : "Swap"/);
+  assert.match(openFn, /removeAttribute\("aria-labelledby"\)/);
+  assert.match(openFn, /setAttribute\("aria-label", swapDialogLabel\(offer\)\)/);
+  const paintAt = openFn.indexOf("paintSwapToken(");
+  const placeAt = openFn.indexOf("placeSwapClose(");
+  assert.ok(paintAt >= 0 && placeAt > paintAt);
+
+  const place = sheet.slice(sheet.indexOf("function placeSwapClose"), sheet.indexOf("export function createSwapTokenCard"));
+  assert.match(place, /if \(token && !token\.hidden\)/);
+  assert.match(place, /links\.before\(cancel\)/);
+  assert.match(place, /column\.insertBefore\(cancel, column\.firstChild\)/);
+  assert.match(sheet, /cancel\.addEventListener\("click"[\s\S]*?closeSheet\(\)/);
+  assert.match(sheet, /event\.key === "Escape"[\s\S]*?closeSheet\(\)/);
+  assert.match(openFn, /closeBtn\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(openFn, /returnFocus = offer\.opener/);
+
+  assert.equal(css.split("--swap-corner-size:").length - 1, 1);
+  assert.match(css, /--swap-corner-size: calc\(var\(--fu, var\(--u\)\) \* 2\.05\)/);
+  assert.match(css, /--swap-corner-inset-y: calc\(var\(--fu, var\(--u\)\) \* 1\.25\)/);
+  assert.match(css, /--swap-corner-inset-x: calc\(var\(--fu, var\(--u\)\) \* 1\.45\)/);
+  const closeRule = css.match(/\.swap-x \{[^}]*\}/);
+  assert.ok(closeRule);
+  assert.match(closeRule[0], /border-radius: 50%/);
+  assert.match(closeRule[0], /background: rgba\(255, 255, 255, 0\.06\)/);
+  assert.match(closeRule[0], /width: var\(--swap-corner-size\)/);
+  assert.match(closeRule[0], /height: var\(--swap-corner-size\)/);
+  assert.equal(closeRule[0].includes("px"), false);
+  assert.equal(closeRule[0].includes("position: absolute"), false);
+  assert.match(css, /\.swap-x:focus-visible \{[^}]*outline: 0\.2dvh solid #22D3EE/);
+  assert.match(css, /\.clan-token \.clan-buy,\s*#swap-sheet \.swap-token > \.swap-x \{[^}]*align-self: flex-start/);
+  assert.match(css, /\.clan-token \.clan-buy,\s*#swap-sheet \.swap-token > \.swap-x \{[^}]*margin: 0 0 0 auto/);
+  assert.match(css, /#swap-sheet \.swap-column > \.swap-x \{[^}]*align-self: flex-end/);
+  assert.match(css, /#swap-sheet \.swap-token > \.swap-links \{[^}]*flex: 1 0 100%/);
+  assert.match(css, /\.swap-token-meta \{[^}]*min-width: 0/);
+  assert.match(css, /\.swap-token-symbol \{[^}]*text-overflow: ellipsis/);
+  assert.match(css, /\.swap-card\.early-holder-popup \.swap-x \{[^}]*color: #f6e27a/);
+  assert.match(css, /--swap-pad: 1\.6dvh;\s*width: min\(86dvw, 56dvh\);\s*max-width: min\(86dvw, 56dvh\);\s*padding: var\(--swap-pad\)/);
 });

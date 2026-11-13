@@ -603,7 +603,8 @@ test("the clan Buy button opens the author's swap sheet", async () => {
   assert.match(rule[0], /color: #06202a/);
   assert.match(rule[0], /font-weight: 800/);
   assert.match(rule[0], /font-size: calc\(var\(--fu, var\(--u\)\) \* 1\.25\)/);
-  assert.match(rule[0], /height: calc\(var\(--fu, var\(--u\)\) \* 2\.05\)/);
+  assert.match(rule[0], /height: var\(--swap-corner-size\)/);
+  assert.match(css, /--swap-corner-size: calc\(var\(--fu, var\(--u\)\) \* 2\.05\)/);
   assert.match(rule[0], /padding: 0 calc\(var\(--fu, var\(--u\)\) \* 1\.6\)/);
   assert.match(rule[0], /border: 0/);
   assert.match(rule[0], /border-radius: 999rem/);
