@@ -18,6 +18,7 @@ import { earlyHashinalNumber } from './earlyhashinal.js';
 import { prefetchPersonFollow } from './followtopic.js';
 import { watchMarkerTilt, forgetMarkerTilt } from './markertilt.js';
 import { fillMapTip } from './maptip.js';
+import { bindMarkerHold, holdMoveLimit } from './markerhold.js';
 import { isPointerOnGlobe } from './onglobe.js';
 import { forgetLoop, pictureElement } from './loopmedia.js';
 import { closeMarkerStack, isMarkerStackOpenFor, openMarkerStack } from './markerstack.js';
@@ -86,10 +87,13 @@ function notifyTopicClustersUpdated() {
 
 let lastTopicSig = null;
 
-// Title pill just above the cursor on a device that can hover. A phone tap
-// always opens the marker. Live twins already wear a permanent label.
+// Title pill just above the pointer. A mouse hover shows it. A touch or pen
+// hold shows the same pill and does not open the post. A short tap still does.
+// Live twins already wear a permanent label under the dot.
 let markerTitleTip = null;
 let markerTitleHideTimer = 0;
+const HOLD_TIP_MS = 2500;
+const cancelMarkerHolds = new Set();
 
 function ensureMarkerTitleTip() {
   if (markerTitleTip) return markerTitleTip;
@@ -105,14 +109,15 @@ function hideMarkerTitle() {
   if (!markerTitleTip) return;
   markerTitleTip.hidden = true;
   markerTitleTip._tipEl = null;
+  markerTitleTip._held = false;
   markerTitleTip.classList.remove("early");
   const spin = markerTitleTip.querySelector(":scope > .marker-tip-spin");
   if (spin) spin.remove();
 }
 
-// Desktop hover only. The class tracks the marker payer, and the next
-// non-early marker takes it off. fillMapTip replaces the tip's children,
-// so the spinning border is put back after that fill.
+// The class tracks the marker payer, and the next non-early marker takes
+// it off. fillMapTip replaces the tip's children, so the spinning border
+// is put back after that fill. Hover and a touch hold both use this.
 function syncMarkerTipEarly(tip, el) {
   const early = !!(el && earlyHashinalNumber(el._markerPayer || ""));
   tip.classList.toggle("early", early);
@@ -141,27 +146,43 @@ function markerCanvasPoint(x, y) {
 function showMarkerTitle(el, x, y) {
   if (!el || !Number.isFinite(x) || !Number.isFinite(y)) {
     hideMarkerTitle();
-    return;
+    return false;
   }
   if (!isPointerOnGlobe(markerCanvasPoint(x, y), markerLngLat(el))) {
     hideMarkerTitle();
     el.style.cursor = '';
-    return;
+    return false;
   }
   el.style.cursor = 'pointer';
   const tip = ensureMarkerTitleTip();
   if (tip._tipEl !== el) {
     if (!fillMapTip(tip, el._markerTip)) {
       hideMarkerTitle();
-      return;
+      return false;
     }
     tip._tipEl = el;
   }
   syncMarkerTipEarly(tip, el);
   clearTimeout(markerTitleHideTimer);
+  tip._held = false;
   tip.hidden = false;
   tip.style.left = `${x}px`;
   tip.style.top = `${y}px`;
+  return true;
+}
+
+// The desktop rule pins the pill above the point with translate(-50%, -100% - 14px).
+// A hold passes the press point, so the same offset clears the finger.
+function showHeldMarkerTitle(el, x, y) {
+  if (!showMarkerTitle(el, x, y)) return false;
+  markerTitleTip._held = true;
+  markerTitleHideTimer = setTimeout(hideMarkerTitle, HOLD_TIP_MS);
+  return true;
+}
+
+function markerHoldMoveLimit() {
+  const root = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  return holdMoveLimit(root);
 }
 
 function markerCanHover() {
@@ -170,10 +191,28 @@ function markerCanHover() {
 
 map.on("movestart", () => {
   hideMarkerTitle();
+  for (const cancel of cancelMarkerHolds) cancel();
 });
 
+// A tap after the finger has lifted. The press that opened the pill already
+// happened, so this is the next one. A mouse hover never sets _held.
+document.addEventListener("pointerdown", () => {
+  if (!markerTitleTip || markerTitleTip.hidden || !markerTitleTip._held) return;
+  hideMarkerTitle();
+}, true);
+
+function releaseMarkerHold(entry) {
+  const release = entry && entry.el && entry.el._releaseTitleHold;
+  if (release) release();
+}
+
 function bindMarkerTitle(el) {
+  el.style.webkitTouchCallout = "none";
+  el.style.webkitUserSelect = "none";
+  el.style.userSelect = "none";
+  const hoverOwnsTip = () => !(markerTitleTip && markerTitleTip._held);
   el.addEventListener("mouseenter", (event) => {
+    if (!hoverOwnsTip()) return;
     if (!isPointerOnGlobe(markerCanvasPoint(event.clientX, event.clientY), markerLngLat(el))) {
       hideMarkerTitle();
       el.style.cursor = '';
@@ -183,6 +222,7 @@ function bindMarkerTitle(el) {
     if (markerCanHover()) showMarkerTitle(el, event.clientX, event.clientY);
   });
   el.addEventListener("mousemove", (event) => {
+    if (!hoverOwnsTip()) return;
     if (!isPointerOnGlobe(markerCanvasPoint(event.clientX, event.clientY), markerLngLat(el))) {
       hideMarkerTitle();
       el.style.cursor = '';
@@ -191,12 +231,25 @@ function bindMarkerTitle(el) {
     if (markerCanHover()) showMarkerTitle(el, event.clientX, event.clientY);
   });
   el.addEventListener("mouseleave", () => {
+    if (!hoverOwnsTip()) return;
     if (markerCanHover()) hideMarkerTitle();
   });
   el.addEventListener("contextmenu", (event) => event.preventDefault());
-  el.addEventListener("touchstart", () => {
+  el.addEventListener("touchstart", (event) => {
     prefetchPersonFollow(el._markerPayer);
+    // This touch is the marker's. The map long-press is a canvas listener,
+    // and the map's own pan handler sits on the parent of this element.
+    event.stopPropagation();
   }, { passive: true });
+  const hold = bindMarkerHold(el, {
+    show: showHeldMarkerTitle,
+    moveLimit: markerHoldMoveLimit,
+  });
+  cancelMarkerHolds.add(hold.cancelPending);
+  el._releaseTitleHold = () => {
+    hold.endHold();
+    cancelMarkerHolds.delete(hold.cancelPending);
+  };
 }
 
 // Dots that are still on screen stay. A cluster change only adds the
@@ -573,6 +626,7 @@ export function releaseTopicMarkers() {
   const hadPoints = unclusteredTopicPoints.size > 0;
   const hadMarkers = keptMarkers.size > 0;
   for (const entry of keptMarkers.values()) {
+    releaseMarkerHold(entry);
     forgetMarkerTilt(entry.face);
     const loop = entry.face && entry.face.querySelector('video.loop-face');
     if (loop) forgetLoop(loop);
@@ -817,6 +871,7 @@ export function updateClusters(force = true) {
     for (const key of [...keptMarkers.keys()]) {
       if (wanted.has(key)) continue;
       const gone = keptMarkers.get(key);
+      releaseMarkerHold(gone);
       forgetMarkerTilt(gone.face);
       gone.marker.remove();
       keptMarkers.delete(key);

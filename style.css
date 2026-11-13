@@ -8713,6 +8713,14 @@ html, body {
 .local-marker-box {
   position: relative;
 }
+/* Topic dot. MapLibre positions this element. A touch hold shows the title
+   pill (marker.js): no iOS/Android callout or text selection while the
+   finger rests. The face already opts out; the hit target is this box. */
+.marker {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
 /* The topic face: inner visual element that fills the (sized) marker
    element. position:relative anchors the live title label; the label is
    absolute, so the box stays exactly the face. */
