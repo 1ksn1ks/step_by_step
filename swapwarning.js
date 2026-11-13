@@ -4,9 +4,9 @@
 const ACK_KEY = "swap-warning-v1";
 
 const PARAS = [
-  "Hedera Globe doesn't endorse, review or recommend any token, creator or trade. Swaps run on SaucerSwap through your own wallet. We never hold your funds.",
+  "Hedera Globe doesn't endorse, review or recommend any token, creator or trade.",
+  "Swaps run on SaucerSwap through your own wallet. We never hold your funds.",
   "You're responsible for checking that what you do here is legal where you live.",
-  "Hedera Globe is open-source code, and code is words. It's built to connect people, not to harm anyone. Use it at your own risk.",
 ];
 
 let pending = null;

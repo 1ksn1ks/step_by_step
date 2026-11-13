@@ -6,9 +6,9 @@ import { ensureSwapAck } from "../swapwarning.js";
 
 const KEY = "swap-warning-v1";
 const PARAS = [
-  "Hedera Globe doesn't endorse, review or recommend any token, creator or trade. Swaps run on SaucerSwap through your own wallet. We never hold your funds.",
+  "Hedera Globe doesn't endorse, review or recommend any token, creator or trade.",
+  "Swaps run on SaucerSwap through your own wallet. We never hold your funds.",
   "You're responsible for checking that what you do here is legal where you live.",
-  "Hedera Globe is open-source code, and code is words. It's built to connect people, not to harm anyone. Use it at your own risk.",
 ];
 
 function memoryStore(seed) {
@@ -203,7 +203,11 @@ test("the first Swap tap shows the warning and I understand opens the sheet", as
     assert.equal(dialog.attrs["aria-labelledby"], "swap-warning-title");
     assert.equal(byText(env.doc, "Before you swap").className, "onboard-title");
     assert.equal(byText(env.doc, "Before you swap").id, "swap-warning-title");
-    for (const text of PARAS) assert.equal(byText(env.doc, text).className, "onboard-body");
+    const bodies = [];
+    walk(dialog, (node) => {
+      if (node.className === "onboard-body") bodies.push(node.textContent);
+    });
+    assert.deepEqual(bodies, PARAS);
     assert.equal(byText(env.doc, "Not now").className, "onboard-prev");
     assert.equal(byText(env.doc, "I understand").className, "onboard-next");
     assert.equal(env.doc.activeElement, byText(env.doc, "I understand"));
@@ -356,6 +360,9 @@ test("Swap and Buy wait for the warning, and the intro classes are reused", () =
   assert.equal(src.includes("from \"./swapsheet.js\""), false);
   assert.equal(src.includes("from './swapsheet.js'"), false);
   assert.match(src, /ACK_KEY = "swap-warning-v1"/);
+  assert.equal(src.includes("open-source code"), false);
+  assert.match(src, /doesn't endorse, review or recommend any token, creator or trade\./);
+  assert.match(src, /Swaps run on SaucerSwap through your own wallet\. We never hold your funds\./);
   assert.match(src, /className = "onboard-overlay"/);
   assert.match(src, /className = "onboard-scrim"/);
   assert.match(src, /className = "onboard-card"/);
