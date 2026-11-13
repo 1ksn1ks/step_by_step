@@ -1000,7 +1000,7 @@ test("the swap sheet shows the creator bio above the fee line", () => {
   assert.match(sheet, /if \(!lines\.safety\) \{\s*if \(noteRow\) noteRow\.remove\(\)/);
   assert.match(sheet, /errorSlot\.before\(noteRow\)/);
   assert.equal(sheet.includes("swap-grab"), false);
-  assert.match(sheet, /bio\.textContent = lines\.bio/);
+  assert.match(sheet, /paintSwapBio\(root\.querySelector\("\.swap-bio"\), author, lines\.bio\)/);
   assert.match(sheet, /note\.textContent = lines\.safety/);
   assert.match(sheet, /name\.textContent = text/);
   assert.match(sheet, /aria-label", kind \+ ": " \+ text/);
@@ -1400,4 +1400,54 @@ test("the swap sheet has no title row and the close button sits on the token car
   assert.match(css, /\.swap-token-symbol \{[^}]*text-overflow: ellipsis/);
   assert.match(css, /\.swap-card\.early-holder-popup \.swap-x \{[^}]*color: #f6e27a/);
   assert.match(css, /--swap-pad: 1\.6dvh;\s*width: min\(86dvw, 56dvh\);\s*max-width: min\(86dvw, 56dvh\);\s*padding: var\(--swap-pad\)/);
+});
+
+test("the swap bio is the author's banner, and it stays hidden without a bio", () => {
+  const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
+  const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  const offer = fs.readFileSync(new URL("../swapoffer.js", import.meta.url), "utf8");
+  const build = sheet.slice(sheet.indexOf("function createSwapBio"), sheet.indexOf("function paintSwapBio"));
+  const paint = sheet.slice(sheet.indexOf("function paintSwapBio"), sheet.indexOf("function ensureSheet"));
+
+  assert.match(build, /className = "swap-bio"/);
+  assert.match(build, /className = "feed-profile-banner-pic"/);
+  assert.match(build, /className = "feed-profile-banner-name"/);
+  assert.match(build, /className = "feed-profile-banner-handle"/);
+  assert.match(build, /className = "feed-profile-banner-bio"/);
+  assert.equal(build.includes("feed-profile-banner-back"), false);
+  assert.match(build, /banner\.append\(open, body\)/);
+  const closeAt = build.indexOf("closeSheet()");
+  const profileAt = build.indexOf("openProfileFromPopup");
+  assert.ok(closeAt > 0 && profileAt > closeAt);
+  assert.match(build, /window\.openProfileFromPopup \|\| window\.openFeedProfile/);
+
+  assert.match(paint, /if \(!text\) \{[\s\S]*banner\.hidden = true/);
+  assert.match(paint, /profileUsername\(author\)/);
+  assert.match(paint, /stored \? profileDisplayName\(author\) : ""/);
+  assert.match(paint, /nameEl\.textContent = name/);
+  assert.match(paint, /handleEl\.textContent = author \|\| ""/);
+  assert.match(paint, /body\.textContent = text/);
+  assert.match(paint, /banner\.classList\.toggle\("no-username", !name\)/);
+  assert.match(paint, /setAttribute\("aria-label", "Bio from " \+ who\)/);
+  assert.match(paint, /mountPicture\(pic, profilePicUrl\(author\)/);
+  assert.match(paint, /fallback: DEFAULT_PIC/);
+  assert.match(paint, /paintProfileAvatar\(mounted, author\)/);
+  assert.match(sheet, /paintSwapBio\(root\.querySelector\("\.swap-bio"\), author, lines\.bio\)/);
+  assert.match(sheet, /column\.append\(token, stats, bio, error, slot\)/);
+  assert.match(offer, /if \(!bareAccount\(info\.tokenId\)\) return \{ bio: "", safety: "" \}/);
+
+  const bioCss = css.slice(css.indexOf("  .swap-bio {"), css.indexOf("  .swap-stats {"));
+  assert.equal(bioCss.includes("px"), false);
+  assert.match(bioCss, /background: #17171a/);
+  assert.match(bioCss, /border: 0\.0625rem solid rgba\(255, 255, 255, 0\.07\)/);
+  assert.match(bioCss, /border-radius: 1rem/);
+  assert.match(bioCss, /padding: var\(--swap-corner-inset-y\) var\(--swap-corner-inset-x\)/);
+  assert.match(bioCss, /white-space: pre-wrap/);
+  assert.match(bioCss, /font-family: ui-monospace, monospace/);
+  assert.match(bioCss, /no-username[\s\S]*justify-content: center/);
+  assert.equal(bioCss.includes("position: absolute"), false);
+  assert.equal(bioCss.includes("--feed-banner-y"), false);
+  assert.equal(bioCss.includes("feed-profile-banner-back"), false);
+  assert.match(css, /\.feed-profile-banner-name \{[^}]*font-weight: 700/);
+  assert.match(css, /\.feed-profile-banner-pic \{[^}]*width: calc\(var\(--fu\) \* 4\.2\)/);
 });

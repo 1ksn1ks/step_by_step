@@ -22,6 +22,7 @@ import { closePressAnchor } from './poiinfo.js';
 import { applyAllStyles, paintEarlyProfile } from './loadprofilepopup.js';
 import { scene } from './threejs.js';
 import { profilePictures, usernames, click2url, loadTopicBio, profileTopics } from './loadalladata.js';
+import { DEFAULT_PIC, profileDisplayName, profilePicUrl } from './profileface.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
 import { openPopupText } from './popuptext.js';
 import { consensusOf } from './donationmath.js';
@@ -125,7 +126,6 @@ const VIEW_POST_BATCH = 50;
 const VIEW_GET_BATCH = 40;
 const VIEWER_KEY = 'feedViewerId';
 const MIRROR = 'https://mainnet.mirrornode.hedera.com';
-const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 const root = document.createElement('div');
@@ -6155,16 +6155,6 @@ function httpUrl(value) {
   } catch {
     return '';
   }
-}
-
-function profilePicUrl(payer) {
-  const raw = profilePictures[payer] && profilePictures[payer].url;
-  return httpUrl(raw) || DEFAULT_PIC;
-}
-
-function profileDisplayName(payer) {
-  const name = textOf(usernames[payer] && usernames[payer].username).trim();
-  return name || 'Anonymous';
 }
 
 function profileBioText(row) {

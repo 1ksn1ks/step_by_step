@@ -7852,18 +7852,76 @@ html, body {
   }
 
   .swap-bio {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    box-sizing: border-box;
     width: min(100%, 23.75rem);
     max-width: 100%;
     margin: 0 auto;
-    font-size: 0.875rem;
-    line-height: 1.35;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
+    padding: var(--swap-corner-inset-y) var(--swap-corner-inset-x);
+    border: 0.0625rem solid rgba(255, 255, 255, 0.07);
+    border-radius: 1rem;
+    background: #17171a;
     color: rgba(255, 255, 255, 0.82);
   }
 
   .swap-bio[hidden] {
     display: none;
+  }
+
+  .swap-bio-open {
+    appearance: none;
+    display: flex;
+    align-items: center;
+    gap: calc(var(--fu, var(--u)) * 0.7);
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .swap-bio-open[hidden] {
+    display: none;
+  }
+
+  .swap-bio-open:focus-visible {
+    outline: 0.2dvh solid #22D3EE;
+    outline-offset: 0.2dvh;
+  }
+
+  #swap-sheet .swap-bio .feed-profile-banner-handle {
+    color: rgba(255, 255, 255, 0.55);
+    font-family: ui-monospace, monospace;
+    font-weight: 500;
+  }
+
+  #swap-sheet .swap-bio .feed-profile-banner-bio {
+    margin: 0;
+    overflow: visible;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  #swap-sheet .swap-bio.no-username .feed-profile-banner-name {
+    display: none;
+  }
+
+  #swap-sheet .swap-bio.no-username .feed-profile-banner-copy {
+    min-height: calc(var(--fu, var(--u)) * (1.55 * 1.15 + 0.08 + 1.2 * 1.15));
+    justify-content: center;
   }
 
   .swap-stats {

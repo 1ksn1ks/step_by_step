@@ -10,6 +10,9 @@ import { toast } from "./toast.js";
 import { globeSwapWallet } from "./swapwallet.js";
 import { bareAccount } from "./donationmath.js";
 import { profileSwapBios } from "./loadalladata.js";
+import { DEFAULT_PIC, profileDisplayName, profilePicUrl, profileUsername } from "./profileface.js";
+import { mountPicture } from "./loopmedia.js";
+import { paintProfileAvatar } from "./earlyhashinal.js";
 import { swapHttpsLink, swapWebsiteLabel, swapXLabel } from "./server/swaptoken.js";
 import {
   createSwapSheetMotion,
@@ -567,6 +570,88 @@ export function createSwapTokenCard() {
   return token;
 }
 
+// The author's face, name, and account id, then their Swap bio. Same row
+// as the feed banner, without its back arrow. The bio is the note under it.
+function createSwapBio() {
+  const banner = document.createElement("div");
+  banner.className = "swap-bio";
+  banner.hidden = true;
+  banner.setAttribute("role", "group");
+
+  const open = document.createElement("button");
+  open.type = "button";
+  open.className = "swap-bio-open";
+  open.hidden = true;
+
+  const pic = document.createElement("img");
+  pic.className = "feed-profile-banner-pic";
+  pic.alt = "";
+  const copy = document.createElement("span");
+  copy.className = "feed-profile-banner-copy";
+  const name = document.createElement("span");
+  name.className = "feed-profile-banner-name";
+  const handle = document.createElement("span");
+  handle.className = "feed-profile-banner-handle";
+  copy.append(name, handle);
+  open.append(pic, copy);
+  open.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const account = open.dataset.account || "";
+    returnFocus = null;
+    closeSheet();
+    const jump = window.openProfileFromPopup || window.openFeedProfile;
+    if (account && typeof jump === "function") jump(account);
+  });
+
+  const body = document.createElement("p");
+  body.className = "feed-profile-banner-bio";
+  banner.append(open, body);
+  return banner;
+}
+
+function paintSwapBio(banner, author, text) {
+  if (!banner) return;
+  const body = banner.querySelector(".feed-profile-banner-bio");
+  const open = banner.querySelector(".swap-bio-open");
+  const nameEl = banner.querySelector(".feed-profile-banner-name");
+  const handleEl = banner.querySelector(".feed-profile-banner-handle");
+  if (!text) {
+    banner.hidden = true;
+    banner.classList.remove("no-username");
+    banner.removeAttribute("aria-label");
+    if (body) body.textContent = "";
+    if (open) {
+      open.hidden = true;
+      delete open.dataset.account;
+    }
+    return;
+  }
+  const stored = profileUsername(author);
+  const name = stored ? profileDisplayName(author) : "";
+  const who = name || author || "";
+  banner.hidden = false;
+  banner.classList.toggle("no-username", !name);
+  banner.setAttribute("aria-label", "Bio from " + who);
+  if (nameEl) {
+    nameEl.textContent = name;
+    nameEl.hidden = !name;
+  }
+  if (handleEl) handleEl.textContent = author || "";
+  if (body) body.textContent = text;
+  if (open) {
+    open.hidden = false;
+    open.dataset.account = author || "";
+  }
+  const pic = banner.querySelector(".feed-profile-banner-pic");
+  const mounted = mountPicture(pic, profilePicUrl(author), {
+    className: "feed-profile-banner-pic",
+    fallback: DEFAULT_PIC,
+    alt: "",
+  });
+  paintProfileAvatar(mounted, author);
+}
+
 function ensureSheet() {
   if (sheet) return sheet;
   const root = document.createElement("div");
@@ -588,9 +673,7 @@ function ensureSheet() {
   const token = createSwapTokenCard();
   const stats = createSwapStats();
 
-  const bio = document.createElement("p");
-  bio.className = "swap-bio";
-  bio.hidden = true;
+  const bio = createSwapBio();
 
   const error = document.createElement("p");
   error.className = "swap-error";
@@ -668,11 +751,7 @@ export async function openSwapSheet(details) {
     tokenId: offer.tokenId,
     feeBps: offer.feeBps,
   });
-  const bio = root.querySelector(".swap-bio");
-  if (bio) {
-    bio.textContent = lines.bio;
-    bio.hidden = !lines.bio;
-  }
+  paintSwapBio(root.querySelector(".swap-bio"), author, lines.bio);
   let noteRow = root.querySelector(".swap-note");
   if (!lines.safety) {
     if (noteRow) noteRow.remove();
