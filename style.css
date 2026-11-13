@@ -4442,6 +4442,8 @@ html, body {
   .clan-token .swap-token-meta {
     flex: 1 1 auto;
     min-width: 0;
+    /* Room for the Buy glow. The clip stays; the text stops before the halo. */
+    padding-right: calc(var(--fu, var(--u)) * 0.75);
   }
 
   .clan-token .swap-token-symbol {
@@ -4485,6 +4487,8 @@ html, body {
 
   .clan-token .clan-buy {
     appearance: none;
+    position: relative;
+    isolation: isolate;
     box-sizing: border-box;
     display: inline-flex;
     align-items: center;
@@ -4498,7 +4502,6 @@ html, body {
     border-radius: 999rem;
     background: #22D3EE;
     color: #06202a;
-    box-shadow: 0 0 calc(var(--fu, var(--u)) * 0.9) rgba(34, 211, 238, 0.45);
     font-family: inherit;
     font-size: calc(var(--fu, var(--u)) * 1.25);
     font-weight: 800;
@@ -4509,6 +4512,26 @@ html, body {
     transition: transform 0.16s ease;
   }
 
+  /* Two cyan halos behind the label. Opacity breathes; the box does not. */
+  .clan-token .clan-buy::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow:
+      0 0 calc(var(--fu, var(--u)) * 0.32) calc(var(--fu, var(--u)) * 0.08) #22D3EE,
+      0 0 calc(var(--fu, var(--u)) * 0.85) calc(var(--fu, var(--u)) * 0.14) rgba(34, 211, 238, 0.72);
+    opacity: 0.72;
+    animation: clan-buy-glow 2.4s ease-in-out infinite alternate;
+  }
+
+  @keyframes clan-buy-glow {
+    from { opacity: 0.55; }
+    to { opacity: 0.9; }
+  }
+
   .clan-token .clan-buy:active {
     transform: scale(0.92);
   }
@@ -4516,6 +4539,23 @@ html, body {
   .clan-token .clan-buy:focus-visible {
     outline: calc(var(--fu, var(--u)) * 0.16) solid #22D3EE;
     outline-offset: calc(var(--fu, var(--u)) * 0.16);
+  }
+
+  .clan-token .clan-buy:focus-visible::after {
+    animation: none;
+    opacity: 1;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .clan-token .clan-buy:hover::after {
+      animation: none;
+      opacity: 1;
+    }
+  }
+
+  .clan-token .clan-buy:active::after {
+    animation: none;
+    opacity: 0.6;
   }
 
   .clan-token .swap-links {
@@ -4648,8 +4688,14 @@ html, body {
   @media (prefers-reduced-motion: reduce) {
     .clan-token,
     .clan-token .clan-buy,
+    .clan-token .clan-buy::after,
     .clan-token .clan-buy:active {
       transition: none;
+    }
+
+    .clan-token .clan-buy::after {
+      animation: none;
+      opacity: 0.72;
     }
 
     .clan-token .clan-buy:active {
