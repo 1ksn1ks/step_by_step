@@ -50,7 +50,8 @@ const FEED_SETTING = {
   autoplay: 'feed-setting-autoplay',
   data: 'feed-setting-data',
   zoom: 'feed-setting-zoom',
-  picturesWide: 'feed-setting-pictures-wide',
+  // The stored name stays pictures-wide, so a switch already on stays on.
+  mediaWide: 'feed-setting-pictures-wide',
 };
 const FEED_ZOOM_MIN = 0.5;
 const FEED_ZOOM_MAX = 1.5;
@@ -59,8 +60,8 @@ const feedPrefs = {
   autoplay: true,
   dataSaver: false,
   zoom: 1,
-  // Pictures and GIFs start full width, as the ··· size button makes them.
-  picturesWide: false,
+  // Feed media starts full width, as the ··· size button makes it.
+  mediaWide: false,
 };
 let settingsOpen = false;
 
@@ -74,12 +75,12 @@ function readFeedPrefs() {
     // the viewer): an "on" there means full size was wanted.
     const oldFull = localStorage.getItem('feed-setting-full-tap');
     if (oldFull != null) {
-      if (localStorage.getItem(FEED_SETTING.picturesWide) == null) {
-        localStorage.setItem(FEED_SETTING.picturesWide, oldFull === 'on' ? 'on' : 'off');
+      if (localStorage.getItem(FEED_SETTING.mediaWide) == null) {
+        localStorage.setItem(FEED_SETTING.mediaWide, oldFull === 'on' ? 'on' : 'off');
       }
       localStorage.removeItem('feed-setting-full-tap');
     }
-    feedPrefs.picturesWide = localStorage.getItem(FEED_SETTING.picturesWide) === 'on';
+    feedPrefs.mediaWide = localStorage.getItem(FEED_SETTING.mediaWide) === 'on';
     const zoom = localStorage.getItem(FEED_SETTING.zoom);
     if (zoom != null) feedPrefs.zoom = clampFeedZoom(zoom);
     localStorage.removeItem('feed-setting-density');
@@ -717,16 +718,16 @@ const seenSeq = new Set();
 const seenSig = new Set();
 const seenPost = new Set();
 const actions = new Map();
-// Post keys whose picture or video the user made full width, or small
-// again (mountMediaTools). Cards are rebuilt as they scroll back in, so
-// the choice lives here. A post's own choice beats Show pictures full size.
+// Post keys whose media the user made full width, or small again
+// (mountMediaTools). Cards are rebuilt as they scroll back in, so the
+// choice lives here. A post's own choice beats Show media full size.
 const wideMedia = new Set();
 const narrowMedia = new Set();
 
-function pictureStartsWide(key) {
+function mediaStartsWide(key) {
   if (key && wideMedia.has(key)) return true;
   if (key && narrowMedia.has(key)) return false;
-  return feedPrefs.picturesWide;
+  return feedPrefs.mediaWide;
 }
 const likeCounts = new Map();
 const markerComments = new Map();
@@ -1196,9 +1197,9 @@ const MEDIA_TOOLS_IDLE_MS = 2500;
 //   Open (the ··· turned ×): it stays until × or Escape, then hides after
 //     the same 2.5 s. Make bigger keeps it open.
 // Returns tap(event) for the picture's tap layer.
-// picture: a photo or GIF, which Settings > Show pictures full size starts
-// full width (pictureStartsWide).
-function mountMediaTools(media, key, onFull, video = null, picture = false) {
+// Every media type starts full width when Settings > Show media full size
+// is on (mediaStartsWide). The post's own size button wins for the session.
+function mountMediaTools(media, key, onFull, video = null) {
   const tools = document.createElement('div');
   tools.className = 'feed-media-tools';
   const more = document.createElement('button');
@@ -1222,12 +1223,11 @@ function mountMediaTools(media, key, onFull, video = null, picture = false) {
     size.title = label;
     size.replaceChildren(svgIcon(wide ? MEDIA_SHRINK_ICON : MEDIA_GROW_ICON));
   };
-  if (picture) {
-    media.dataset.picture = '1';
-    if (key) media.dataset.mediaKey = key;
-    media._paintSize = paint;
-  }
-  if (picture ? pictureStartsWide(key) : !!(key && wideMedia.has(key))) media.classList.add('is-wide');
+  // data-picture marks every feed media card the size switch resizes.
+  media.dataset.picture = '1';
+  if (key) media.dataset.mediaKey = key;
+  media._paintSize = paint;
+  if (mediaStartsWide(key)) media.classList.add('is-wide');
   paint();
   tools.append(size, full, more);
 
@@ -3046,7 +3046,7 @@ function buildCard(post) {
           posterV: record.posterV || 0,
           time: node.currentTime || 0,
         });
-      }, node, clip);
+      }, node);
     } else {
       node.alt = '';
       node.draggable = false;
@@ -3063,7 +3063,7 @@ function buildCard(post) {
         holdScroll();
         openPreview(resolved.src || src);
       };
-      const mediaTools = mountMediaTools(media, post.key, openFull, null, true);
+      const mediaTools = mountMediaTools(media, post.key, openFull, null);
       coverFeedPlayer(media, (event) => mediaTools.tap(event));
     }
   }
@@ -6865,16 +6865,18 @@ mediaSection.append(
     writeFeedSetting(FEED_SETTING.data, on ? 'on' : 'off');
     syncFeedVideos();
   }),
-  settingsSwitch('Show pictures full size', () => feedPrefs.picturesWide, (on) => {
-    feedPrefs.picturesWide = on;
-    writeFeedSetting(FEED_SETTING.picturesWide, on ? 'on' : 'off');
-    resizeFeedPictures();
+  settingsSwitch('Show media full size', () => feedPrefs.mediaWide, (on) => {
+    feedPrefs.mediaWide = on;
+    writeFeedSetting(FEED_SETTING.mediaWide, on ? 'on' : 'off');
+    resizeFeedMedia();
   }),
 );
 
-// Cards already built follow the switch; the card at the top of the feed
-// stays where it is on screen while the ones around it change height.
-function resizeFeedPictures() {
+// Cards already built follow the switch, videos included. The card at the
+// top of the feed stays where it is. Only the is-wide class changes, so a
+// playing video keeps playing, keeps its place in the file, and the control
+// strip stays under the same tap layer.
+function resizeFeedMedia() {
   const view = scroller.getBoundingClientRect();
   let anchor = null;
   if (view.height > 0) {
@@ -6887,7 +6889,7 @@ function resizeFeedPictures() {
     }
   }
   for (const media of root.querySelectorAll('.popup-media-card[data-picture]')) {
-    const wide = pictureStartsWide(media.dataset.mediaKey || '');
+    const wide = mediaStartsWide(media.dataset.mediaKey || '');
     if (media.classList.contains('is-wide') === wide) continue;
     media.classList.toggle('is-wide', wide);
     if (typeof media._paintSize === 'function') media._paintSize();

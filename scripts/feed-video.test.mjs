@@ -227,3 +227,66 @@ test("feed video ratios refresh once per scroll frame", () => {
   assert.match(refresh, /feedVideosToMeasure\(feedVideoRatio, activeFeedVideo, preferredFeedVideo\)/);
   assert.match(refresh, /if \(!feedVideoRatio\.has\(video\)\) continue/);
 });
+
+test("show media full size starts a video wide, and its size button can shrink it", () => {
+  const src = readFileSync(new URL("../feedlayout.js", import.meta.url), "utf8");
+  assert.equal(src.includes("Show pictures full size"), false);
+  assert.equal(src.includes("pictureStartsWide"), false);
+  assert.equal(src.includes("picturesWide"), false);
+  assert.equal(src.includes("feed-setting-media-wide"), false);
+  assert.match(src, /mediaWide: 'feed-setting-pictures-wide'/);
+
+  const read = src.slice(src.indexOf("function readFeedPrefs"), src.indexOf("function clampFeedZoom"));
+  assert.match(read, /localStorage\.getItem\('feed-setting-full-tap'\)/);
+  assert.match(read, /localStorage\.getItem\(FEED_SETTING\.mediaWide\) == null/);
+  assert.match(read, /localStorage\.setItem\(FEED_SETTING\.mediaWide, oldFull === 'on' \? 'on' : 'off'\)/);
+  assert.match(read, /localStorage\.removeItem\('feed-setting-full-tap'\)/);
+  assert.match(read, /feedPrefs\.mediaWide = localStorage\.getItem\(FEED_SETTING\.mediaWide\) === 'on'/);
+
+  const starts = src.slice(src.indexOf("function mediaStartsWide"), src.indexOf("const likeCounts"));
+  assert.match(starts, /if \(key && wideMedia\.has\(key\)\) return true/);
+  assert.match(starts, /if \(key && narrowMedia\.has\(key\)\) return false/);
+  assert.match(starts, /return feedPrefs\.mediaWide/);
+
+  const tools = src.slice(src.indexOf("function mountMediaTools"), src.indexOf("function coordLabel"));
+  assert.equal(/if \(picture/.test(tools), false);
+  assert.match(tools, /media\.dataset\.picture = '1'/);
+  assert.match(tools, /if \(key\) media\.dataset\.mediaKey = key/);
+  assert.match(tools, /media\._paintSize = paint/);
+  assert.match(tools, /if \(mediaStartsWide\(key\)\) media\.classList\.add\('is-wide'\)/);
+  assert.match(tools, /media\.classList\.toggle\('is-wide', wide\)/);
+  assert.match(tools, /wideMedia\.add\(key\)/);
+  assert.match(tools, /narrowMedia\.add\(key\)/);
+  const choice = tools.slice(tools.indexOf("size.addEventListener('click'"), tools.indexOf("full.addEventListener"));
+  const shrinkAt = choice.indexOf("narrowMedia.add(key)");
+  const growAt = choice.indexOf("wideMedia.add(key)");
+  assert.ok(growAt > 0 && shrinkAt > growAt);
+
+  const video = src.slice(src.indexOf("const node = video ? document.createElement('video')"), src.indexOf("node.alt = ''"));
+  assert.match(video, /node\.loop = true/);
+  assert.match(video, /bindVideoPoster\(node, src/);
+  assert.match(video, /coverFeedPlayer\(media,/);
+  assert.match(video, /mountMediaTools\(media, post\.key, \(\) => \{[\s\S]*\}, node\);/);
+  assert.equal(/mountMediaTools\([\s\S]*?, clip\)/.test(video), false);
+  const picture = src.slice(src.indexOf("node.alt = ''"), src.indexOf("let text = null"));
+  assert.match(picture, /mountMediaTools\(media, post\.key, openFull, null\);/);
+
+  const resize = src.slice(src.indexOf("function resizeFeedMedia"), src.indexOf("const zoomSection"));
+  assert.match(resize, /anchor = \{ card, top: box\.top \}/);
+  assert.match(resize, /setFeedScroll\(scroller\.scrollTop \+ moved\)/);
+  assert.match(resize, /\.popup-media-card\[data-picture\]/);
+  assert.match(resize, /mediaStartsWide\(media\.dataset\.mediaKey \|\| ''\)/);
+  assert.match(resize, /media\.classList\.toggle\('is-wide', wide\)/);
+  assert.match(resize, /media\._paintSize\(\)/);
+  assert.equal(resize.includes("wideMedia"), false);
+  assert.equal(resize.includes("narrowMedia"), false);
+  assert.equal(resize.includes("currentTime"), false);
+  assert.equal(resize.includes(".pause("), false);
+  assert.equal(resize.includes(".play("), false);
+  assert.equal(resize.includes("coverFeedPlayer"), false);
+  assert.match(src, /settingsSwitch\('Show media full size', \(\) => feedPrefs\.mediaWide/);
+  assert.match(src, /writeFeedSetting\(FEED_SETTING\.mediaWide, on \? 'on' : 'off'\)/);
+  assert.match(src, /resizeFeedMedia\(\)/);
+  assert.match(src, /settingsSwitch\('Autoplay videos'/);
+  assert.match(src, /settingsSwitch\('Data saver'/);
+});
