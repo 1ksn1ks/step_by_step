@@ -242,9 +242,8 @@ test("show media full size starts a video wide, and its size button can shrink i
   assert.match(read, /localStorage\.setItem\(FEED_SETTING\.mediaWide, oldFull === 'on' \? 'on' : 'off'\)/);
   assert.match(read, /localStorage\.removeItem\('feed-setting-full-tap'\)/);
   assert.match(read, /feedPrefs\.mediaWide = localStorage\.getItem\(FEED_SETTING\.mediaWide\) === 'on'/);
-  // Map popups start from the same switch.
-  assert.match(read, /setMediaWideDefault\(feedPrefs\.mediaWide\)/);
-  assert.match(src, /feedPrefs\.mediaWide = on;\s*setMediaWideDefault\(on\);/);
+  // The feed's switch is the feed's only: map popups have their own.
+  assert.equal(src.includes("setMediaWideDefault"), false);
 
   const starts = src.slice(src.indexOf("function mediaStartsWide"), src.indexOf("const likeCounts"));
   assert.match(starts, /if \(key && wideMedia\.has\(key\)\) return true/);
@@ -270,7 +269,7 @@ test("show media full size starts a video wide, and its size button can shrink i
   assert.ok(growAt > 0 && shrinkAt > growAt);
   const hooks = src.slice(src.indexOf("function feedMediaFrame"), src.indexOf("const likeCounts"));
   assert.match(hooks, /canAct: feedActIdle, startsWide: mediaStartsWide, remember: rememberMediaSize/);
-  assert.match(src, /import \{ mountMediaBackdrop, mountMediaTools, setMediaWideDefault \} from '\.\/mediaframe\.js'/);
+  assert.match(src, /import \{ mountMediaBackdrop, mountMediaTools \} from '\.\/mediaframe\.js'/);
   assert.equal(src.includes("function mountMediaTools"), false);
   assert.equal(src.includes("function mountMediaBackdrop"), false);
 

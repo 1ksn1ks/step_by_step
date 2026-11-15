@@ -8,8 +8,9 @@ test("feed cards and map popups share one media frame module", () => {
   const frame = read("../mediaframe.js");
   assert.match(frame, /export function mountMediaBackdrop\(media, source\)/);
   assert.match(frame, /export function mountMediaTools\(media, \{/);
-  assert.match(frame, /export function setMediaWideDefault\(on\)/);
-  assert.match(frame, /export function mediaWideDefault\(\)/);
+  // No shared start size: the feed and popups each pass their own.
+  assert.equal(frame.includes("MediaWideDefault"), false);
+  assert.match(frame, /startsWide = \(\) => false,/);
   // No feed-only names leak into the shared module.
   for (const name of ["feedActIdle", "wideMedia", "narrowMedia", "holdScroll", "mediaStartsWide("]) {
     assert.equal(frame.includes(name), false, name);
@@ -21,7 +22,7 @@ test("feed cards and map popups share one media frame module", () => {
 
 test("every popup media kind gets the frame, the blur fill and the ···", () => {
   const src = read("../processallmessages.js");
-  assert.match(src, /import \{ mediaWideDefault, mountMediaBackdrop, mountMediaTools \} from '\.\/mediaframe\.js'/);
+  assert.match(src, /import \{ mountMediaBackdrop, mountMediaTools \} from '\.\/mediaframe\.js'/);
   const fillAt = src.indexOf("function fillPopupMedia(imageDiv, url, hint, key)");
   assert.ok(fillAt > 0);
   const fill = src.slice(fillAt, src.indexOf("export function createMarkerPopupHTML", fillAt));
@@ -42,7 +43,7 @@ test("every popup media kind gets the frame, the blur fill and the ···", () =
   const starts = src.slice(src.indexOf("function popupMediaStartsWide"), src.indexOf("function rememberPopupMediaSize"));
   assert.match(starts, /if \(key && popupWideMedia\.has\(key\)\) return true/);
   assert.match(starts, /if \(key && popupNarrowMedia\.has\(key\)\) return false/);
-  assert.match(starts, /return mediaWideDefault\(\)/);
+  assert.match(starts, /return popupMediaWideOn;/);
   // Each post keeps its own size choice across the popup's rebuilds.
   assert.match(src, /fillPopupMedia\(imageDiv, popupImageUrl, posterHintFor\(data\.payer, data\.created, data\.timestamp\), \['m', topicId, data\.payer, data\.created, markernumber\]\.join\(':'\)\)/);
   assert.match(src, /fillPopupMedia\(imageDiv, popupImageUrl, posterHintFor\(data\.payer, data\.created, data\.timestamp\), \['p', topicId, data\.payer, data\.created, polygonnumber\]\.join\(':'\)\)/);
@@ -132,4 +133,35 @@ test("the reading ring runs round a box's border, clockwise (popup text and Swap
   // Hidden until its box shows it.
   assert.match(css, /\.reading-ring \{[^}]*display: none;/);
   assert.match(css, /\.popup-msg\.is-more > \.popup-text-bubble > \.popup-text-rail \{\s*display: block;/);
+});
+
+test("popups have their own Show media full size switch, apart from the feed's", () => {
+  const page = read("../index.html");
+  const panel = page.slice(page.indexOf('id="popup-options-column"'), page.indexOf('id="popup-settings-preview"'));
+  assert.match(panel, /<div class="mb-card-title">Media<\/div>\s*<button type="button" id="popup-media-wide" class="feed-settings-switch" role="switch" aria-checked="false"><span>Show media full size<\/span><span class="feed-settings-switch-ui" aria-hidden="true"><\/span><\/button>/);
+  const help = page.slice(page.indexOf('id="popup-style-help-overlay"'), page.indexOf('id="popup-options-column"'));
+  assert.match(help, /Show media full size starts every picture and video in a popup big/);
+
+  const src = read("../processallmessages.js");
+  // Its own key on this device, not the feed's feed-setting-pictures-wide.
+  assert.match(src, /const POPUP_MEDIA_WIDE_KEY = 'meritocracy-popup-media-wide'/);
+  assert.equal(src.includes("feed-setting-pictures-wide"), false);
+  assert.match(src, /localStorage\.setItem\(POPUP_MEDIA_WIDE_KEY, on \? 'on' : 'off'\)/);
+  // The switch paints its state, flips it, and resizes popups already open.
+  const bind = src.slice(src.indexOf("function bindPopupMediaWide"), src.indexOf("bindPopupMediaWide();"));
+  assert.match(bind, /button\.setAttribute\('aria-checked', popupMediaWideOn \? 'true' : 'false'\)/);
+  assert.match(bind, /setPopupMediaWide\(!popupMediaWideOn\);\s*paint\(\);\s*resizePopupMedia\(\);/);
+  const resize = src.slice(src.indexOf("function resizePopupMedia"), src.indexOf("function bindPopupMediaWide"));
+  assert.match(resize, /\.maplibregl-popup \.popup-media-card\[data-picture\]/);
+  assert.match(resize, /popupMediaStartsWide\(media\.dataset\.mediaKey \|\| ''\)/);
+  assert.match(resize, /media\._paintSize\(\)/);
+  assert.equal(resize.includes(".pause("), false);
+
+  const feed = read("../feedlayout.js");
+  assert.equal(feed.includes("meritocracy-popup-media-wide"), false);
+
+  // Laid out as one of the page's rows: same height, padding and label size.
+  const css = read("../style.css");
+  assert.match(css, /\.in-drawer \.mb-media-card > \.feed-settings-switch \{\s*box-sizing: border-box;\s*min-height: max\(44px, 6dvh\);\s*margin: 0;\s*padding: 0 16px;\s*gap: 12px;\s*font-size: calc\(var\(--fu\) \* 1\.6\);\s*font-weight: 400;/);
+  assert.match(css, /\.in-drawer \.mb-row \{\s*box-sizing: border-box;\s*min-height: max\(44px, 6dvh\);\s*margin: 0;\s*padding: 0 16px;/);
 });

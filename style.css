@@ -14816,6 +14816,21 @@ html.feed-app :is(
 :is(#feed-menu, .drawer-screen) .in-drawer .mb-row-label {
   font-size: calc(var(--fu) * 1.6);
 }
+/* Settings > Popups > Media: the feed's switch, laid out as one of this
+   page's rows (the same height, side padding, label size and hover). The
+   switch keeps the feed's track and knob. */
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-media-card > .feed-settings-switch {
+  box-sizing: border-box;
+  min-height: max(44px, 6dvh);
+  margin: 0;
+  padding: 0 16px;
+  gap: 12px;
+  font-size: calc(var(--fu) * 1.6);
+  font-weight: 400;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-media-card > .feed-settings-switch:is(:hover, :active) {
+  background: rgba(34, 211, 238, 0.12);
+}
 /* Settings > Popups > Screen corners (screencorners.js): a note under
    the slider, and a way back to Auto once it was set by hand. */
 .mb-panel .mb-corners-note {

@@ -2307,7 +2307,8 @@
           <ul class="info-overlay-list">
             <li>Size makes everything inside a popup bigger or smaller: text, pictures, buttons and the profile.</li>
             <li>Colors change the border, the close button, the account ID, the username, the title and the text.</li>
-            <li>Save Settings keeps them with your wallet.</li>
+            <li>Show media full size starts every picture and video in a popup big, like Make bigger. It is apart from the feed's switch and kept on this device. A post's own size button still wins.</li>
+            <li>Save Settings keeps size and colors with your wallet.</li>
           </ul>
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('popup-style-help-overlay').style.display='none'">Got it</button>
@@ -2385,6 +2386,13 @@
               <input type="range" id="popup-size" class="mb-slider" min="70" max="150" step="5" value="100" aria-label="Popup size"/>
               <span class="mb-value-pill" id="popup-size-pill">100%</span>
             </div>
+          </div>
+
+          <!-- This device only, apart from the feed's own switch
+               (processallmessages.js popupMediaWide). -->
+          <div class="mb-card mb-media-card">
+            <div class="mb-card-title">Media</div>
+            <button type="button" id="popup-media-wide" class="feed-settings-switch" role="switch" aria-checked="false"><span>Show media full size</span><span class="feed-settings-switch-ui" aria-hidden="true"></span></button>
           </div>
 
           <div class="mb-card">

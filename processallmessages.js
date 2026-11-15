@@ -20,7 +20,7 @@ import { openPreview } from './fullscreenmedia';
 import { isGifClipUrl, isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
 import { bindVideoPoster } from './videoposter.js';
 import { pictureElement, presentImage, watchLoop } from './loopmedia.js';
-import { mediaWideDefault, mountMediaBackdrop, mountMediaTools } from './mediaframe.js';
+import { mountMediaBackdrop, mountMediaTools } from './mediaframe.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
 import { watchPopupText, setPopupText } from './popuptext.js';
 import { isTyping } from './joystick.js';
@@ -2235,17 +2235,62 @@ function popupSettingsGear(walk) {
   return btn;
 }
 
+// Settings > Popups > Show media full size: popups' own switch, apart from
+// the feed's (feedlayout.js), kept on this device. On, every picture and
+// video in a popup starts full size, as Make bigger makes it.
+const POPUP_MEDIA_WIDE_KEY = 'meritocracy-popup-media-wide';
+let popupMediaWideOn = false;
+try {
+  popupMediaWideOn = localStorage.getItem(POPUP_MEDIA_WIDE_KEY) === 'on';
+} catch {
+  // A blocked store keeps it off; the switch still works for this visit.
+}
+
+function setPopupMediaWide(on) {
+  popupMediaWideOn = !!on;
+  try { localStorage.setItem(POPUP_MEDIA_WIDE_KEY, on ? 'on' : 'off'); } catch { /* keep it for this visit */ }
+}
+
 // Posts whose popup media the user made full size, or small again, this
 // session (mediaframe.js). The popup is rebuilt on every page and refresh,
-// so the choice lives here. Settings > Show media full size is the default.
+// so the choice lives here. A post's own choice beats the switch.
 const popupWideMedia = new Set();
 const popupNarrowMedia = new Set();
 
 function popupMediaStartsWide(key) {
   if (key && popupWideMedia.has(key)) return true;
   if (key && popupNarrowMedia.has(key)) return false;
-  return mediaWideDefault();
+  return popupMediaWideOn;
 }
+
+// Popups already open follow the switch. Only the is-wide class changes, so
+// a playing video keeps playing.
+function resizePopupMedia() {
+  for (const media of document.querySelectorAll('.maplibregl-popup .popup-media-card[data-picture]')) {
+    const wide = popupMediaStartsWide(media.dataset.mediaKey || '');
+    if (media.classList.contains('is-wide') === wide) continue;
+    media.classList.toggle('is-wide', wide);
+    if (typeof media._paintSize === 'function') media._paintSize();
+  }
+}
+
+function bindPopupMediaWide() {
+  const button = document.getElementById('popup-media-wide');
+  if (!button || button.dataset.bound === '1') return;
+  button.dataset.bound = '1';
+  const paint = () => {
+    button.classList.toggle('is-on', popupMediaWideOn);
+    button.setAttribute('aria-checked', popupMediaWideOn ? 'true' : 'false');
+  };
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setPopupMediaWide(!popupMediaWideOn);
+    paint();
+    resizePopupMedia();
+  });
+  paint();
+}
+bindPopupMediaWide();
 
 function rememberPopupMediaSize(key, wide) {
   if (wide) {

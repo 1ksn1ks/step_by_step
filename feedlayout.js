@@ -43,7 +43,7 @@ import { FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, connectio
 import { isGifClipUrl, isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
 import { bindVideoPoster } from './videoposter.js';
 import { mountPicture, pictureElement, presentImage } from './loopmedia.js';
-import { mountMediaBackdrop, mountMediaTools, setMediaWideDefault } from './mediaframe.js';
+import { mountMediaBackdrop, mountMediaTools } from './mediaframe.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -82,8 +82,6 @@ function readFeedPrefs() {
       localStorage.removeItem('feed-setting-full-tap');
     }
     feedPrefs.mediaWide = localStorage.getItem(FEED_SETTING.mediaWide) === 'on';
-    // Map popups use the same switch (mediaframe.js).
-    setMediaWideDefault(feedPrefs.mediaWide);
     const zoom = localStorage.getItem(FEED_SETTING.zoom);
     if (zoom != null) feedPrefs.zoom = clampFeedZoom(zoom);
     localStorage.removeItem('feed-setting-density');
@@ -6590,7 +6588,6 @@ mediaSection.append(
   }),
   settingsSwitch('Show media full size', () => feedPrefs.mediaWide, (on) => {
     feedPrefs.mediaWide = on;
-    setMediaWideDefault(on);
     writeFeedSetting(FEED_SETTING.mediaWide, on ? 'on' : 'off');
     resizeFeedMedia();
   }),

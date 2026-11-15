@@ -5,15 +5,16 @@
 // blurred, darkened copy fills the rest of the frame (mountMediaBackdrop).
 // A round ··· on its top right (mountMediaTools) slides out two more: one
 // makes the media full size at its own shape and back, one opens it
-// fullscreen. Settings > Show media full size (feedlayout.js) starts every
-// frame full size; a post's own size button wins for the session.
+// fullscreen. The feed and popups each have their own Show media full size
+// switch (feedlayout.js, processallmessages.js), which starts every frame
+// full size; a post's own size button wins for the session.
 //
 // The caller passes what differs between the feed and a popup:
 //   key        the post's id for its size choice
 //   onFull     opens the fullscreen viewer
 //   video      the <video> when the ··· follows the native control bar
 //   canAct     false for a tap that was really a drag (feed scrolling)
-//   startsWide whether this post starts full size
+//   startsWide whether this post starts full size (its switch, its choice)
 //   remember   keeps the post's size choice
 
 import { isGifUrl, needsGifCheck, readGifCache } from './mediaurl.js';
@@ -36,18 +37,6 @@ function svgIcon(parts) {
     svg.appendChild(node);
   }
   return svg;
-}
-
-// Settings > Show media full size. feedlayout.js reads and writes the
-// stored switch and sets it here, so a popup opened later starts the same.
-let wideByDefault = false;
-
-export function setMediaWideDefault(on) {
-  wideByDefault = !!on;
-}
-
-export function mediaWideDefault() {
-  return wideByDefault;
 }
 
 // The ··· buttons sit above the card's tap layer, so a tap on them never
@@ -236,7 +225,7 @@ export function mountMediaTools(media, {
   onFull,
   video = null,
   canAct = () => true,
-  startsWide = () => wideByDefault,
+  startsWide = () => false,
   remember = () => {},
 } = {}) {
   const tools = document.createElement('div');
