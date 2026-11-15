@@ -73,20 +73,23 @@ test("popup media starts in the feed's compact 16:9 frame and the text gets the 
   assert.equal(css.includes("popup-media-expand"), false);
 });
 
-test("wide screens show a post with media as one card", () => {
+test("wide screens keep the two cards, the media filling the left one", () => {
   const css = read("../style.css");
-  const at = css.indexOf("/* Wide screens: one card.");
+  // No one-card layout: the popup is not narrowed and the left card stays.
+  assert.equal(css.includes("--popup-two-card-w"), false);
+  assert.equal(/\.popup-sheet:has\(\.popup-media-card\)::before \{\s*display: none/.test(css), false);
+  assert.equal(css.includes("grid-template-columns: 0 minmax(0, 1fr)"), false);
+  // The landscape rules still put the media in column 1 across every row.
+  assert.match(css, /\.maplibregl-map \.popup-media-card:has\(video\) \{\s*grid-column: 1;\s*grid-row: 1 \/ -1;/);
+  const at = css.indexOf("/* Wide screens keep their two cards");
   assert.ok(at > 0);
   const block = css.slice(at, css.indexOf("/* Text longer than the bubble", at));
   assert.match(block, /@media \(orientation: landscape\)/);
-  // The popup starts where the right card did; the left card is gone.
-  assert.match(block, /left: calc\(var\(--popup-left\) \+ env\(safe-area-inset-left\) \+ var\(--popup-two-card-w\) \* 0\.55 \+ var\(--u\) \* 0\.46\) !important/);
-  assert.match(block, /\.popup-sheet:has\(\.popup-media-card\)::before \{\s*display: none;/);
-  assert.match(block, /grid-template-columns: 0 minmax\(0, 1fr\)/);
-  // Frame above the text, footer last.
-  assert.match(block, /\.popup-media-card:not\(\.draw-popup-media\) \{\s*grid-column: 2;\s*grid-row: 4;/);
-  assert.match(block, /> div:not\(\.popup-media-card\) \{\s*grid-row: 5;/);
-  assert.match(block, /> \.popup-dock:has\(\.popup-top-topic\) \{\s*grid-row: 6;/);
-  // Text-only posts keep the two cards (their rules still target :not(:has(media))).
-  assert.match(css, /\.maplibregl-map \.popup-sheet:not\(:has\(\.popup-media-card\)\) \.popup-body > div:not\(\.popup-media-card\) \{\s*grid-column: 1;/);
+  // The compact frame is undone there: the media fills the card again.
+  assert.match(block, /\.maplibregl-map \.popup-body > \.popup-media-card:not\(\.draw-popup-media\),\s*\.maplibregl-map \.popup-body > \.popup-media-card\.is-wide:not\(\.draw-popup-media\) \{[^}]*height: 100%;[^}]*aspect-ratio: auto;/);
+  assert.match(block, /max-height: 100%;\s*\}/);
+  // Make bigger has nothing to grow into, so only Fullscreen shows.
+  assert.match(block, /\.feed-media-tools > \.feed-media-size \{\s*display: none !important;/);
+  // It comes after the phone frame rules, which it has to override.
+  assert.ok(at > css.indexOf("/* ── Map popup media: the feed's frame"));
 });

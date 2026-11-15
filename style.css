@@ -21766,56 +21766,34 @@ img.is-gif-hit {
   justify-content: center;
 }
 
-/* Wide screens: one card. A post with media no longer has its own media
-   card on the left; the frame sits in the post card above the text, and
-   the map shows where the media card was. The popup starts where the
-   right card did: 0.55 of the two-card width (W) plus 0.46u, the left
-   card and the gap (0.4u padding, 0.4u of the card margin, 2u gap, less
-   0.45 of the 2.8u taken out of both cards). Text-only posts keep their
-   two cards. */
+/* Wide screens keep their two cards: the media fills the left card as it
+   always has (the landscape rules above place it), with the blurred copy
+   where the dark letterbox was. The compact frame is for the one-column
+   phone popup. Make bigger has nothing to grow into here, so the ··· only
+   has Fullscreen. */
 @media (orientation: landscape) {
-  .maplibregl-map .maplibregl-popup:has(.popup-sheet .popup-media-card) {
-    --popup-two-card-w: calc(100vw - var(--popup-left) - var(--popup-right) - env(safe-area-inset-left) - env(safe-area-inset-right));
-    left: calc(var(--popup-left) + env(safe-area-inset-left) + var(--popup-two-card-w) * 0.55 + var(--u) * 0.46) !important;
-  }
-  .maplibregl-map .maplibregl-popup-content > .popup-sheet:has(.popup-media-card) {
-    grid-template-columns: 0 minmax(0, 1fr);
-    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
-    column-gap: 0;
-  }
-  .maplibregl-map .popup-sheet:has(.popup-media-card)::before {
-    display: none;
-  }
-  .maplibregl-map .popup-sheet:has(.popup-media-card)::after,
-  .maplibregl-map .popup-sheet:has(.popup-media-card) > .comments-modal--in-card {
-    left: 0;
-    width: auto;
-  }
-  .maplibregl-map .popup-sheet:has(.popup-media-card) .popup-body > .popup-media-card:not(.draw-popup-media) {
-    grid-column: 2;
-    grid-row: 4;
-    justify-self: center;
-    align-self: start;
-    height: auto;
-    margin-top: calc(var(--u) * 0.8);
-  }
-  .maplibregl-map .popup-sheet:has(.popup-media-card) .popup-body > div:not(.popup-media-card) {
-    grid-row: 5;
-  }
-  .maplibregl-map .popup-sheet:has(.popup-media-card) > .popup-dock:has(.popup-top-topic) {
-    grid-row: 6;
-  }
-  /* Full size here: the card's width at the media's own shape, up to a
-     bit over half the popup's height (it is a size container), so the
-     text keeps a row under it. */
-  .maplibregl-map .popup-sheet:has(.popup-media-card) .popup-body > .popup-media-card.is-wide:not(.draw-popup-media) {
+  .maplibregl-map .popup-body > .popup-media-card:not(.draw-popup-media),
+  .maplibregl-map .popup-body > .popup-media-card.is-wide:not(.draw-popup-media) {
+    flex: none;
+    align-self: stretch;
     justify-self: stretch;
+    display: grid;
+    place-items: center;
     width: auto;
-    max-height: 55cqh;
+    height: 100%;
+    max-height: 100%;
+    aspect-ratio: auto;
   }
-  .maplibregl-map .popup-sheet:has(.popup-media-card) .popup-body > .popup-media-card.is-wide:not(.draw-popup-media) > :is(img:not(.feed-media-backdrop), video, canvas.media-still) {
+  .maplibregl-map .popup-body > .popup-media-card:not(.draw-popup-media) > :is(img:not(.feed-media-backdrop), video, canvas.media-still),
+  .maplibregl-map .popup-body > .popup-media-card.is-wide:not(.draw-popup-media) > :is(img:not(.feed-media-backdrop), video, canvas.media-still) {
+    width: auto;
+    height: auto;
     max-width: 100%;
-    max-height: 55cqh;
+    max-height: 100%;
+  }
+  /* The tool rules carry an id (#feed-column) in their scope. */
+  .maplibregl-map .popup-media-card .feed-media-tools > .feed-media-size {
+    display: none !important;
   }
 }
 /* Text longer than the bubble: the text moves into .popup-text-flow, which
