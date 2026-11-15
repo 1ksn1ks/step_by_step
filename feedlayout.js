@@ -6607,6 +6607,38 @@ function openProfileEdit() {
   if (drawerStack[drawerStack.length - 1] !== 'Edit_Profile-column') profileEditCover = false;
 }
 
+// Resolves true once ready() holds, false after ms.
+function waitUntil(ready, ms) {
+  return new Promise((resolve) => {
+    const until = Date.now() + ms;
+    const tick = () => {
+      if (ready()) resolve(true);
+      else if (Date.now() > until) resolve(false);
+      else setTimeout(tick, 40);
+    };
+    tick();
+  });
+}
+
+// The Swap sheet's pen on your own bio: your profile, its pencil page
+// (Edit profile), then the Swap bio section, the same steps as tapping
+// them. Each step waits for the slide before it, since a tap mid-slide is
+// dropped. Back goes Edit profile → your profile → where the sheet was.
+window.openSwapBioEditor = async () => {
+  const me = walletNow();
+  if (!me || !window.openProfileFromPopup(me)) return false;
+  const onProfile = await waitUntil(() => !navBusy() && !profilePage.hidden && profilePayer === me, 3000);
+  if (!onProfile) return false;
+  if (drawerStack[drawerStack.length - 1] !== 'Edit_Profile-column') openProfileEdit();
+  const onEdit = await waitUntil(() => !navBusy() && drawerStack[drawerStack.length - 1] === 'Edit_Profile-column', 3000);
+  if (!onEdit) return false;
+  const show = document.getElementById('show-swap-bio-from-edit-profile');
+  if (show && show.style.display !== 'none') show.click();
+  const section = document.getElementById('edit-profile-swap-bio');
+  if (section) section.scrollIntoView({ block: 'nearest' });
+  return true;
+};
+
 bindPress(profileBack);
 profileBack.addEventListener('click', (event) => {
   event.stopPropagation();

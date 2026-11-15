@@ -1116,6 +1116,42 @@ test("the swap sheet shows the start of a long bio and Show more opens the rest"
   assert.match(reader, /author: author \|\| authorOf\(from\)/);
 });
 
+test("your own swap bio has a pen that opens Edit profile on the Swap bio section", () => {
+  const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
+  const build = sheet.slice(sheet.indexOf("function createSwapBio"), sheet.indexOf("function paintSwapBio"));
+  const paint = sheet.slice(sheet.indexOf("function paintSwapBio"), sheet.indexOf("function ensureSheet"));
+  assert.match(build, /edit\.className = "swap-bio-edit"/);
+  assert.match(build, /edit\.setAttribute\("aria-label", "Edit swap bio"\)/);
+  assert.match(build, /edit\.append\(penIcon\(\)\)/);
+  // The sheet closes first, then the editor opens.
+  const closeAt = build.indexOf("closeSheet();", build.indexOf("edit.addEventListener"));
+  const openAt = build.indexOf("window.openSwapBioEditor()");
+  assert.ok(closeAt > 0 && openAt > closeAt);
+  // Only on your own bio.
+  assert.match(paint, /const mine = !!text && !!author && bareAccount\(connectedAccount\) === author/);
+  assert.match(paint, /edit\.hidden = !mine/);
+  assert.match(sheet, /import \{ PROJECT_ID, connectedAccount \} from "\.\/web3\.js"/);
+
+  const feed = fs.readFileSync(new URL("../feedlayout.js", import.meta.url), "utf8");
+  const opener = feed.slice(feed.indexOf("window.openSwapBioEditor = async"), feed.indexOf("bindPress(profileBack)"));
+  const steps = [
+    "window.openProfileFromPopup(me)",
+    "openProfileEdit()",
+    "getElementById('show-swap-bio-from-edit-profile')",
+    "show.click()",
+  ].map((step) => opener.indexOf(step));
+  assert.ok(steps.every((at) => at > 0));
+  assert.deepEqual([...steps].sort((a, b) => a - b), steps);
+  assert.match(opener, /!navBusy\(\) && !profilePage\.hidden && profilePayer === me/);
+
+  const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  const penCss = css.slice(css.indexOf("  .swap-bio-edit {"), css.indexOf("  .swap-bio-edit[hidden]"));
+  assert.match(penCss, /align-self: start/);
+  assert.match(penCss, /width: var\(--swap-corner-size\)/);
+  assert.match(css, /\.swap-bio\.has-edit \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) auto;/);
+  assert.equal(penCss.includes("px"), false);
+});
+
 function animHost() {
   let handler = null;
   return {
@@ -1477,7 +1513,7 @@ test("the swap bio is the author's banner, and it stays hidden without a bio", (
   assert.match(build, /className = "feed-profile-banner-handle"/);
   assert.match(build, /className = "feed-profile-banner-bio"/);
   assert.equal(build.includes("feed-profile-banner-back"), false);
-  assert.match(build, /banner\.append\(open, body, more\)/);
+  assert.match(build, /banner\.append\(open, edit, body, more\)/);
   const closeAt = build.indexOf("closeSheet()");
   const profileAt = build.indexOf("openProfileFromPopup");
   assert.ok(closeAt > 0 && profileAt > closeAt);

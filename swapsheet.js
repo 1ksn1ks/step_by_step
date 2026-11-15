@@ -4,7 +4,7 @@
 // The sheet follows the visible viewport so a phone keyboard and the
 // homescreen safe area do not cover the widget.
 
-import { PROJECT_ID } from "./web3.js";
+import { PROJECT_ID, connectedAccount } from "./web3.js";
 import { EARLY_POPUP_CLASS } from "./earlypopup.js";
 import { toast } from "./toast.js";
 import { globeSwapWallet } from "./swapwallet.js";
@@ -371,6 +371,14 @@ function infoIcon() {
   ]);
 }
 
+// The profile page's pencil.
+function penIcon() {
+  return swapIcon([
+    stroke("path", { d: "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z", "stroke-linecap": "round", "stroke-linejoin": "round" }),
+    stroke("path", { d: "m15 5 4 4", "stroke-linecap": "round" }),
+  ]);
+}
+
 function copyIcon() {
   return swapIcon([
     stroke("rect", { x: "8", y: "8", width: "12", height: "12", rx: "2" }),
@@ -647,7 +655,24 @@ function createSwapBio() {
     }).catch(() => toast.error("Could not open the bio"));
   });
 
-  banner.append(open, body, more);
+  // Your own bio only: the pen in the top-right corner closes the sheet and
+  // opens Edit profile on the Swap bio section (feedlayout.js).
+  const edit = document.createElement("button");
+  edit.type = "button";
+  edit.className = "swap-bio-edit";
+  edit.hidden = true;
+  edit.setAttribute("aria-label", "Edit swap bio");
+  edit.title = "Edit swap bio";
+  edit.append(penIcon());
+  edit.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    returnFocus = null;
+    closeSheet();
+    if (typeof window.openSwapBioEditor === "function") window.openSwapBioEditor();
+  });
+
+  banner.append(open, edit, body, more);
   return banner;
 }
 
@@ -656,11 +681,15 @@ function paintSwapBio(banner, author, text) {
   const body = banner.querySelector(".feed-profile-banner-bio");
   const open = banner.querySelector(".swap-bio-open");
   const more = banner.querySelector(".swap-bio-more");
+  const edit = banner.querySelector(".swap-bio-edit");
   const nameEl = banner.querySelector(".feed-profile-banner-name");
   const handleEl = banner.querySelector(".feed-profile-banner-handle");
   const preview = swapBioPreview(text);
   swapBioFull.set(banner, text || "");
   if (more) more.hidden = !preview.more;
+  const mine = !!text && !!author && bareAccount(connectedAccount) === author;
+  if (edit) edit.hidden = !mine;
+  banner.classList.toggle("has-edit", mine);
   if (!text) {
     banner.hidden = true;
     banner.classList.remove("no-username");

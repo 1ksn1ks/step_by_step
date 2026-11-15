@@ -7944,6 +7944,60 @@ html, body {
     outline-offset: 0;
   }
 
+  /* Your own bio: a pen in the top-right corner, the same chip and inset as
+     the token card's ×. A grid puts it beside the name row; the text and
+     Show more take the full width under them. */
+  .swap-bio.has-edit {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+  }
+
+  .swap-bio.has-edit > :not(.swap-bio-open):not(.swap-bio-edit) {
+    grid-column: 1 / -1;
+  }
+
+  .swap-bio.has-edit > .swap-bio-more {
+    justify-self: center;
+  }
+
+  .swap-bio-edit {
+    appearance: none;
+    align-self: start;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--swap-corner-size);
+    height: var(--swap-corner-size);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.82);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .swap-bio-edit[hidden] {
+    display: none;
+  }
+
+  .swap-bio-edit .swap-ico {
+    width: 55%;
+    height: 55%;
+  }
+
+  .swap-bio-edit:hover {
+    color: #22D3EE;
+  }
+
+  .swap-bio-edit:focus-visible {
+    outline: 0.2dvh solid #22D3EE;
+    outline-offset: 0.2dvh;
+  }
+
   #swap-sheet .swap-bio.no-username .feed-profile-banner-name {
     display: none;
   }
