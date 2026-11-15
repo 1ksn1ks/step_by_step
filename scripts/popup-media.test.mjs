@@ -54,9 +54,12 @@ test("popup media starts in the feed's compact 16:9 frame and the text gets the 
   assert.ok(at > 0);
   const block = css.slice(at, css.indexOf("/* Text longer than the bubble", at));
   const card = block.slice(block.indexOf(".popup-body > .popup-media-card:not(.draw-popup-media) {"));
-  // Same size as a feed card's frame.
-  assert.match(card, /width: max\(min\(100%, 240px\), calc\(var\(--fu\) \* 16\)\)/);
-  assert.match(css, /\.feed-card \.popup-media-card:has\(video:not\(\.loop-face\):not\(\.has-poster\)\) \{\s*width: max\(min\(100%, 240px\), calc\(var\(--fu\) \* 16\)\)/);
+  // A share of the popup, not of the screen: 62.5% is the feed's 240px
+  // frame in a 384px phone popup, so a big popup gets a big frame.
+  const width = card.slice(0, card.indexOf("}")).match(/\n\s*width: ([^;]+);/);
+  assert.ok(width);
+  assert.equal(width[1], "62.5%");
+  assert.equal(card.slice(0, card.indexOf("}")).includes("var(--fu) * 16"), false);
   assert.match(card, /aspect-ratio: 16 \/ 9/);
   assert.match(card, /flex: 0 0 auto/);
   assert.match(block, /object-fit: contain/);
@@ -66,6 +69,10 @@ test("popup media starts in the feed's compact 16:9 frame and the text gets the 
   assert.match(block, /\.popup-media-card\.is-wide:not\(\.draw-popup-media\) \{\s*flex: 1 1 0%/);
   // The compact frame lifts the 36% cap on the text.
   assert.match(block, /\.popup-body:has\(> \.popup-media-card:not\(\.is-wide\):not\(\.draw-popup-media\)\) > div:not\(\.popup-media-card\) \{\s*max-height: none;/);
+  // A post with no text keeps its frame under the title, like any post.
+  assert.equal(block.includes("justify-content: center"), false);
+  // Make bigger fits the media to the room, never its smaller pixel size.
+  assert.match(block, /\.popup-media-card\.is-wide:not\(\.draw-popup-media\) > :is\(img:not\(\.feed-media-backdrop\), video, canvas\.media-still\) \{\s*width: 100%;\s*height: 100%;/);
   // The ··· styles reach map popups.
   assert.match(css, /:is\(#feed-column, \.feed-comments-stage, \.maplibregl-map, #popup-settings-preview\) \.feed-media-tools \{/);
   assert.match(css, /:is\(#feed-column, \.feed-comments-stage, \.maplibregl-map, #popup-settings-preview\) \.popup-media-card\.is-tools-shown > \.feed-media-tools/);

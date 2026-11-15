@@ -21686,7 +21686,10 @@ img.is-gif-hit {
    rest. It used to take all the room the text left, mostly as an empty
    dark letterbox. The text now gets that room. The ··· makes it full size
    (.is-wide): the old fill-the-room view, with the blur instead of the
-   letterbox. Draw's preview keeps its own square card. */
+   letterbox. Draw's preview keeps its own square card.
+   Its width is a share of the popup, not of the screen: 62.5%, what the
+   feed's 240px frame is of a 384px phone popup. A big popup (a desktop
+   window, Settings > Popups > Size) gets a frame to match. */
 :is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > .popup-media-card:not(.draw-popup-media) {
   --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
   position: relative;
@@ -21694,7 +21697,7 @@ img.is-gif-hit {
   align-self: center;
   display: block;
   box-sizing: border-box;
-  width: max(min(100%, 240px), calc(var(--fu) * 16));
+  width: 62.5%;
   max-width: 100%;
   height: auto;
   max-height: none;
@@ -21741,29 +21744,26 @@ img.is-gif-hit {
 :is(.maplibregl-map, :where(#popup-settings-preview)) .popup-media-card:not(.draw-popup-media):has(> canvas.media-still) > .feed-media-backdrop {
   display: none;
 }
-/* Full size: the frame takes the room again and the media keeps its own
-   shape inside it, the blur filling the sides. */
+/* Full size: the frame takes the room again and the media is fitted to it
+   at its own shape, the blur filling the sides. Fitted, not its own pixel
+   size: on a big popup a small file would come out smaller than the
+   compact frame showed it. */
 :is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > .popup-media-card.is-wide:not(.draw-popup-media) {
   flex: 1 1 0%;
   align-self: stretch;
-  display: grid;
-  place-items: center;
+  display: block;
   width: auto;
   max-height: 100%;
   aspect-ratio: auto;
 }
 :is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > .popup-media-card.is-wide:not(.draw-popup-media) > :is(img:not(.feed-media-backdrop), video, canvas.media-still) {
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
   max-height: 100%;
 }
 /* The text takes the room the compact frame leaves (it was held to 36%). */
 :is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body:has(> .popup-media-card:not(.is-wide):not(.draw-popup-media)) > div:not(.popup-media-card) {
   max-height: none;
-}
-/* A post with no text: the frame sits in the middle of the room. */
-:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body:has(> .popup-media-card:not(.is-wide):not(.draw-popup-media)):not(:has(> div:not(.popup-media-card) > .popup-text-bubble:not(:empty))) {
-  justify-content: center;
 }
 
 /* Wide screens keep their two cards: the media fills the left card as it
