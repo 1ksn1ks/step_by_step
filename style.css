@@ -5305,14 +5305,18 @@ html, body {
     position: relative;
   }
 
-  /* Same spot and size as the BIO counter (#char-counter-bio). The colour
+  /* Its own line right under the box, like the post editor's counter
+     (#popup-settings-edit-bytes), so it never covers the text. The colour
      is .hcs-byte-counter's: cyan, amber near 18 KB, red over it. */
   .swap-bio-count {
-    position: absolute;
-    right: 0.625rem;
-    bottom: 0.3125rem;
-    font-size: 2vh;
-    line-height: 1;
+    position: static;
+    margin: 0.9dvh 0.6dvh 0;
+    text-align: right;
+    font-size: clamp(0.625rem, 1.3dvh, 0.9375rem);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
     pointer-events: none;
   }
 
@@ -18557,28 +18561,27 @@ html.feed-draw-open #map-draw-help-overlay {
   filter: none !important;
 }
 
-/* An 18 KB swap bio grows to 40dvh, then scrolls. The field's box is drawn
-   on its wrapper, so the text scrolls above the counter strip instead of
-   under the counter. Looks the same as the BIO field. */
+/* An 18 KB swap bio grows to 40dvh, then scrolls. Its byte counter sits on
+   its own line under the box, like the post editor's (#popup-settings-edit-
+   bytes), so no text runs under it. The × is the Load field's round chip
+   (the fieldclear layer below), sized from the page: --clear-chip. One line
+   sits in the middle of the first row, level with the ×; the right padding
+   keeps the text clear of it. */
 #edit-profile-swap-bio .swap-bio-field {
-  box-sizing: border-box;
-  padding-bottom: 28px;
-  border-radius: var(--ui-radius);
-  background: rgba(255, 255, 255, 0.06);
-}
-#edit-profile-swap-bio .swap-bio-field:focus-within {
-  box-shadow: inset 0 0 0 2px #22D3EE;
+  --clear-chip: max(44px, calc(var(--ui-btn-h, 48px) - var(--ui-gap, 8px) * 2));
 }
 #edit-profile-swap-bio-input,
 :is(#feed-menu, .drawer-screen) .in-drawer #edit-profile-swap-bio-input {
   max-height: 40dvh;
   overflow-y: auto;
-  padding-right: 72px !important;
-  background: transparent !important;
-  background-color: transparent !important;
+  padding-top: calc((var(--ui-btn-h, 48px) - 1.3em) / 2) !important;
+  padding-bottom: calc((var(--ui-btn-h, 48px) - 1.3em) / 2) !important;
+  padding-right: calc(var(--clear-chip) + var(--ui-gap, 8px) * 2) !important;
 }
-#edit-profile-swap-bio-input:focus {
+#edit-profile-swap-bio-input:focus,
+:is(#feed-menu, .drawer-screen) .in-drawer #edit-profile-swap-bio-input:focus {
   outline: none;
+  box-shadow: inset 0 0 0 2px #22D3EE !important;
 }
 
 /* Create page only. .toolbar-group stays shared with chat. */
@@ -24874,6 +24877,34 @@ html.is-draw-picking .live-filter {
     height: calc(var(--fu) * 1.5) !important;
   }
   #load-column #input-field ~ .field-clear:active {
+    background: rgba(34, 211, 238, 0.16) !important;
+  }
+
+  /* Swap bio (Edit profile): the Load field's round ×, in the top right
+     corner of the first row. --clear-chip is on the field's wrapper, so it
+     grows with the page on a tall screen. */
+  #edit-profile-swap-bio .swap-bio-field > .field-clear {
+    --clear-placed: 1;
+    --clear-ring: transparent;
+    top: calc((var(--ui-btn-h, 48px) - var(--clear-chip)) / 2) !important;
+    right: var(--ui-gap, 8px) !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: var(--clear-chip) !important;
+    height: var(--clear-chip) !important;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    border-radius: 50% !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+  }
+  #edit-profile-swap-bio .swap-bio-field > .field-clear::before,
+  #edit-profile-swap-bio .swap-bio-field > .field-clear::after {
+    top: 50% !important;
+  }
+  #edit-profile-swap-bio .swap-bio-field > .field-clear::after {
+    width: calc(var(--fu, 1.2vh) * 1.5) !important;
+    height: calc(var(--fu, 1.2vh) * 1.5) !important;
+  }
+  #edit-profile-swap-bio .swap-bio-field > .field-clear:active {
     background: rgba(34, 211, 238, 0.16) !important;
   }
 

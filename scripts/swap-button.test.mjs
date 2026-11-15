@@ -1116,6 +1116,27 @@ test("the swap sheet shows the start of a long bio and Show more opens the rest"
   assert.match(reader, /author: author \|\| authorOf\(from\)/);
 });
 
+test("the swap bio counter sits under the box and its × is the Load field's round chip", () => {
+  const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  // Its own line under the box, like the post editor's counter: never over the text.
+  const countCss = css.slice(css.indexOf(".swap-bio-count {"), css.indexOf("#edit-profile-key-note"));
+  assert.match(countCss, /position: static/);
+  assert.match(countCss, /text-align: right/);
+  assert.equal(countCss.includes("position: absolute"), false);
+  assert.match(css, /#popup-settings-card #popup-settings-edit-bytes \{[^}]*text-align: right/);
+  // The × is restyled inside the fieldclear layer (layered !important wins),
+  // placed by CSS, and sized from the page.
+  const layer = css.slice(css.indexOf("@layer fieldclear {"));
+  const xCss = layer.slice(layer.indexOf("#edit-profile-swap-bio .swap-bio-field > .field-clear {"));
+  assert.ok(layer.indexOf("#edit-profile-swap-bio .swap-bio-field > .field-clear {") > 0);
+  assert.match(xCss, /--clear-placed: 1;/);
+  assert.match(xCss, /width: var\(--clear-chip\) !important/);
+  assert.match(xCss, /border-radius: 50% !important/);
+  assert.match(xCss, /\.field-clear::after \{\s*width: calc\(var\(--fu, 1\.2vh\) \* 1\.5\) !important/);
+  assert.match(css, /--clear-chip: max\(44px, calc\(var\(--ui-btn-h, 48px\) - var\(--ui-gap, 8px\) \* 2\)\)/);
+  assert.match(css, /padding-right: calc\(var\(--clear-chip\) \+ var\(--ui-gap, 8px\) \* 2\) !important/);
+});
+
 test("your own swap bio has a pen that opens Edit profile on the Swap bio section", () => {
   const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
   const build = sheet.slice(sheet.indexOf("function createSwapBio"), sheet.indexOf("function paintSwapBio"));
