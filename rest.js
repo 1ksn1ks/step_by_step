@@ -2155,6 +2155,8 @@ function showProfileSwapBio() {
   const saved = me && profileSwapBios[me];
   field.value = typeof saved === "string" ? saved : "";
   if (count) count.textContent = field.value.length + "/280";
+  // Grows with its text like the BIO field. Next frame: the card may still be hidden here.
+  requestAnimationFrame(() => adjustTextareaHeight(field));
 }
 
 document.getElementById("show-swap-bio-from-edit-profile").addEventListener("click", () => {
@@ -2164,6 +2166,7 @@ document.getElementById("show-swap-bio-from-edit-profile").addEventListener("cli
 document.getElementById("edit-profile-swap-bio-input").addEventListener("input", (event) => {
   const count = document.getElementById("swap-bio-count");
   if (count) count.textContent = event.currentTarget.value.length + "/280";
+  adjustTextareaHeight(event.currentTarget);
 });
 
 document.getElementById("button_for_swap_bio").addEventListener("click", async (event) => {
