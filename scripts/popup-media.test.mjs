@@ -100,3 +100,28 @@ test("wide screens keep the two cards, the media filling the left one", () => {
   // It comes after the phone frame rules, which it has to override.
   assert.ok(at > css.indexOf("/* ── Map popup media: the feed's frame"));
 });
+
+test("the popup text reading ring runs round the bubble's border, clockwise", () => {
+  const js = read("../popuptext.js");
+  // One rounded rect on the border's centre line with the bubble's corners;
+  // a rect's outline starts after the top-left curve and runs clockwise.
+  const layout = js.slice(js.indexOf("function layoutRail"), js.indexOf("// Fade the edge"));
+  assert.match(layout, /ring\.setAttribute\('x', String\(half\)\)/);
+  assert.match(layout, /const rx = Math\.max\(0, Math\.min\(radius - half, rw \/ 2, rh \/ 2\)\)/);
+  assert.match(layout, /state\.perim = 2 \* \(rw \+ rh\) - \(8 - 2 \* Math\.PI\) \* rx/);
+  assert.match(layout, /rail\.style\.left = `\$\{-bw\}px`/);
+  const paint = js.slice(js.indexOf("function paintEdges"), js.indexOf("// The rail brightens"));
+  assert.match(paint, /state\.ring\.style\.strokeDasharray = `\$\{lit\} \$\{perim \+ 1\}`/);
+  assert.match(paint, /state\.ring\.style\.visibility = lit > 0 \? 'visible' : 'hidden'/);
+  // No straight bar any more (the full-screen page keeps its own scaleX bar).
+  assert.equal(paint.includes("scaleX("), false);
+  assert.equal(paint.includes("scaleY("), false);
+  // Resizes re-measure it.
+  assert.match(js.slice(js.indexOf("function syncMore"), js.indexOf("function paintEdges")), /layoutRail\(state\);\s*paintEdges\(state\);/);
+
+  const css = read("../style.css");
+  // Nothing between the ring and the popup frame clips it or its glow.
+  assert.match(css, /\.popup-body > \.popup-msg\.is-more > \.popup-text-bubble \{\s*display: flex;\s*flex-direction: column;\s*overflow: visible;/);
+  assert.match(css, /\.popup-body:has\(> \.popup-msg\.is-more\),\s*:is\(\.maplibregl-map, :where\(#popup-settings-preview\)\) \.popup-sheet \.popup-body > div\.popup-msg\.is-more \{\s*overflow: visible;/);
+  assert.match(css, /\.popup-text-rail > \.popup-text-rail-fill \{\s*fill: none;/);
+});

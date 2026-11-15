@@ -53,13 +53,83 @@ function syncMore(bubble) {
     state.host.classList.toggle('is-more', over);
     state.more.hidden = !over;
   }
+  layoutRail(state);
   paintEdges(state);
 }
 
+// The reading ring: the bubble's own border, lit as you read. One rounded
+// rect on the border's centre line with the bubble's corners. An SVG
+// rect's outline starts where the top-left curve ends and runs clockwise,
+// so a dash that grows with the reading goes once round the bubble: the
+// whole loop is the end of the text.
+const SVG_NS = 'http://www.w3.org/2000/svg';
+let railIds = 0;
+
+function makeRail() {
+  const id = 'popup-rail-grad-' + (++railIds);
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('class', 'popup-text-rail');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  const defs = document.createElementNS(SVG_NS, 'defs');
+  const grad = document.createElementNS(SVG_NS, 'linearGradient');
+  grad.setAttribute('id', id);
+  grad.setAttribute('x1', '0');
+  grad.setAttribute('y1', '0');
+  grad.setAttribute('x2', '1');
+  grad.setAttribute('y2', '1');
+  for (const [offset, name] of [['0', 'rail-stop-a'], ['1', 'rail-stop-b']]) {
+    const stop = document.createElementNS(SVG_NS, 'stop');
+    stop.setAttribute('offset', offset);
+    stop.setAttribute('class', name);
+    grad.appendChild(stop);
+  }
+  defs.appendChild(grad);
+  const ring = document.createElementNS(SVG_NS, 'rect');
+  ring.setAttribute('class', 'popup-text-rail-fill');
+  ring.setAttribute('stroke', `url(#${id})`);
+  svg.append(defs, ring);
+  return { svg, ring };
+}
+
+// Size the ring to the bubble's border box, on the border line, with the
+// border's corners. Runs on a resize; the dash is repainted for the new
+// length. Writes only on a change.
+function layoutRail(state) {
+  const { bubble, rail, ring } = state;
+  const w = bubble.offsetWidth;
+  const h = bubble.offsetHeight;
+  if (!w || !h) return;
+  const cs = getComputedStyle(bubble);
+  const bw = parseFloat(cs.borderTopWidth) || 0;
+  const radius = parseFloat(cs.borderTopLeftRadius) || 0;
+  const key = `${w}:${h}:${bw}:${radius}`;
+  if (state.railKey === key) return;
+  state.railKey = key;
+  const half = bw / 2;
+  const rw = Math.max(0, w - bw);
+  const rh = Math.max(0, h - bw);
+  const rx = Math.max(0, Math.min(radius - half, rw / 2, rh / 2));
+  rail.setAttribute('width', String(w));
+  rail.setAttribute('height', String(h));
+  rail.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  // Absolute in the bubble's padding box: back out over the border.
+  rail.style.left = `${-bw}px`;
+  rail.style.top = `${-bw}px`;
+  ring.setAttribute('x', String(half));
+  ring.setAttribute('y', String(half));
+  ring.setAttribute('width', String(rw));
+  ring.setAttribute('height', String(rh));
+  ring.setAttribute('rx', String(rx));
+  ring.setAttribute('ry', String(rx));
+  state.perim = 2 * (rw + rh) - (8 - 2 * Math.PI) * rx;
+  state.read = '';
+}
+
 // Fade the edge that has more text past it: none at the top, none at the
-// end. The reading rail along the bubble's top border fills left to right
-// with how far through the text the scroll is, like the Show more page's
-// progress line. Writes only on a change.
+// end. The reading ring goes round the bubble's border, clockwise from its
+// top left, as far as the scroll is through the text, like the Show more
+// page's progress line. Writes only on a change.
 function paintEdges(state) {
   state.edgeFrame = 0;
   const flow = state.flow;
@@ -72,7 +142,11 @@ function paintEdges(state) {
   const read = on && room > 1 ? Math.min(1, Math.max(0, flow.scrollTop / room)).toFixed(3) : '0';
   if (state.read !== read) {
     state.read = read;
-    state.fill.style.transform = `scaleX(${read})`;
+    const perim = state.perim || 0;
+    const lit = Number(read) * perim;
+    state.ring.style.strokeDasharray = `${lit} ${perim + 1}`;
+    // A zero-length dash still draws its round cap as a dot.
+    state.ring.style.visibility = lit > 0 ? 'visible' : 'hidden';
   }
 }
 
@@ -120,20 +194,15 @@ export function watchPopupText(host, bubble, text, title) {
     openPopupText({ text: state.text, title: state.title, from: bubble, opener: more });
   });
   host.appendChild(more);
-  // Reading rail along the bubble's top border (style.css shows it only
-  // while the text is longer than the bubble). Outside the flow box, so
-  // the edge fade does not cover it.
-  const rail = document.createElement('span');
-  rail.className = 'popup-text-rail';
-  rail.setAttribute('aria-hidden', 'true');
-  const fill = document.createElement('span');
-  fill.className = 'popup-text-rail-fill';
-  rail.appendChild(fill);
+  // Reading ring on the bubble's border (style.css shows it only while the
+  // text is longer than the bubble). Outside the flow box, so the edge
+  // fade does not cover it.
+  const { svg: rail, ring } = makeRail();
   bubble.appendChild(rail);
   const state = {
-    host, flow, more, rail, fill,
+    bubble, host, flow, more, rail, ring,
     text: String(text || ''), title: singleLine(title),
-    edgeFrame: 0, read: '', railTimer: 0,
+    edgeFrame: 0, read: '', railTimer: 0, railKey: '', perim: 0,
   };
   flow.addEventListener('scroll', () => {
     if (!state.edgeFrame) state.edgeFrame = requestAnimationFrame(() => paintEdges(state));
