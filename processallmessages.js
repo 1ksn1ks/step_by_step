@@ -20,6 +20,7 @@ import { openPreview } from './fullscreenmedia';
 import { isGifClipUrl, isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
 import { bindVideoPoster } from './videoposter.js';
 import { pictureElement, presentImage, watchLoop } from './loopmedia.js';
+import { mediaWideDefault, mountMediaBackdrop, mountMediaTools } from './mediaframe.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
 import { watchPopupText, setPopupText } from './popuptext.js';
 import { isTyping } from './joystick.js';
@@ -2234,14 +2235,47 @@ function popupSettingsGear(walk) {
   return btn;
 }
 
+// Posts whose popup media the user made full size, or small again, this
+// session (mediaframe.js). The popup is rebuilt on every page and refresh,
+// so the choice lives here. Settings > Show media full size is the default.
+const popupWideMedia = new Set();
+const popupNarrowMedia = new Set();
+
+function popupMediaStartsWide(key) {
+  if (key && popupWideMedia.has(key)) return true;
+  if (key && popupNarrowMedia.has(key)) return false;
+  return mediaWideDefault();
+}
+
+function rememberPopupMediaSize(key, wide) {
+  if (wide) {
+    popupWideMedia.add(key);
+    popupNarrowMedia.delete(key);
+  } else {
+    popupWideMedia.delete(key);
+    popupNarrowMedia.add(key);
+  }
+}
+
+// Popup media is the feed's frame (mediaframe.js): every picture, GIF and
+// video starts in one compact 16:9 frame, fitted whole over a blurred copy
+// of itself. The ··· makes it full size or opens it fullscreen. A tap on a
+// picture or GIF shows the ···; a video's ··· follows its control bar.
 // A GIF stays a still until a tap plays it in memory. The card's own
 // background is the skeleton while classifyImageUrl is still running.
-function fillPopupMedia(imageDiv, url, hint) {
+function fillPopupMedia(imageDiv, url, hint, key) {
   if (!url) return;
   const resolved = resolveMediaUrl(url);
   const raw = String(url).trim();
   const gifLike = isGifUrl(raw) || needsGifCheck(raw);
   if (!resolved.src && !gifLike) return;
+  const frame = (onFull, video) => ({
+    key,
+    onFull,
+    video,
+    startsWide: popupMediaStartsWide,
+    remember: rememberPopupMediaSize,
+  });
   const isVideo = resolved.kind === "video";
   if (isVideo) {
     const clip = isGifClipUrl(raw);
@@ -2268,29 +2302,36 @@ function fillPopupMedia(imageDiv, url, hint) {
       if (!reduced) watchLoop(media);
     }
     imageDiv.appendChild(media);
+    mountMediaBackdrop(imageDiv, media);
+    // Fullscreen carries on from where the popup was. The popup's copy
+    // pauses, so a video with sound does not play twice.
+    const openFull = () => {
+      const time = media.currentTime || 0;
+      if (!media.paused) media.pause();
+      openPreview(raw, Object.assign({ video: true, time }, hint || {}));
+    };
+    if (clip) {
+      // A GIF clip has no control bar: a tap shows the ··· as on a picture.
+      const tools = mountMediaTools(imageDiv, frame(openFull, null));
+      imageDiv.addEventListener("click", (event) => tools.tap(event));
+    } else {
+      mountMediaTools(imageDiv, frame(openFull, media));
+    }
     return;
   }
   const media = document.createElement("img");
-  media.style.cursor = "zoom-in";
-  // A GIF animates as a normal picture (a still with reduced motion). A tap
-  // or the expand chip opens it fullscreen like any picture.
-  media.addEventListener("click", () => {
-    if (media.classList.contains("is-media-pending")) return;
-    openPreview(url);
-  });
-  const chip = document.createElement("button");
-  chip.className = "popup-media-expand";
-  chip.title = "Expand";
-  chip.textContent = "⤢";
-  chip.addEventListener("click", (e) => {
-    e.stopPropagation();
-    openPreview(url);
-  });
-  imageDiv.appendChild(chip);
   media.decoding = "async";
   media.loading = "eager";
   imageDiv.appendChild(media);
   presentImage(media, raw, { play: true });
+  mountMediaBackdrop(imageDiv, media);
+  // A GIF animates as a normal picture (a still with reduced motion). Its
+  // fullscreen button opens the viewer, except while it is still pending.
+  const tools = mountMediaTools(imageDiv, frame(() => {
+    if (media.classList.contains("is-media-pending")) return;
+    openPreview(url);
+  }, null));
+  imageDiv.addEventListener("click", (event) => tools.tap(event));
 }
 
 export function createMarkerPopupHTML(data) {
@@ -2386,7 +2427,7 @@ export function createMarkerPopupHTML(data) {
   if (isValidUrl(popupImageUrl)) {
     const imageDiv = document.createElement('div');
     imageDiv.className = 'popup-media-card'; // glass media card (style.css)
-    fillPopupMedia(imageDiv, popupImageUrl, posterHintFor(data.payer, data.created, data.timestamp));
+    fillPopupMedia(imageDiv, popupImageUrl, posterHintFor(data.payer, data.created, data.timestamp), ['m', topicId, data.payer, data.created, markernumber].join(':'));
     contentSection.appendChild(imageDiv);
   }
 
@@ -2551,7 +2592,7 @@ function createPolygonPopupHTML(data) {
   if (isValidUrl(popupImageUrl)) {
     const imageDiv = document.createElement('div');
     imageDiv.className = 'popup-media-card'; // glass media card (style.css)
-    fillPopupMedia(imageDiv, popupImageUrl, posterHintFor(data.payer, data.created, data.timestamp));
+    fillPopupMedia(imageDiv, popupImageUrl, posterHintFor(data.payer, data.created, data.timestamp), ['p', topicId, data.payer, data.created, polygonnumber].join(':'));
     contentSection.appendChild(imageDiv);
   }
 

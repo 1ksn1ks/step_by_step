@@ -9523,29 +9523,6 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   opacity: 1;
   mix-blend-mode: normal;
 }
-/* ⤢ expand — hidden: tapping the picture already opens fullscreen */
-.popup-media-expand {
-  display: none;
-  position: absolute;
-  top: calc(var(--u) * 0.5);
-  right: calc(var(--u) * 0.5);
-  z-index: 2;
-  width: calc(var(--u) * 3.8);
-  height: calc(var(--u) * 3.8);
-  padding: 0;
-  border-radius: 50%;
-  border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.10);
-  color: white;
-  font-size: calc(var(--u) * 1.5);
-  line-height: 1;
-  align-items: center;
-  justify-content: center;
-  box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.18), 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.35);
-  cursor: pointer;
-  transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
-}
 @keyframes popupMediaIn {
   from { opacity: 0; transform: scale(0.94); }
 }
@@ -9554,8 +9531,6 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   .popup-media-card video.loop-face { transition: transform 0.2s ease, filter 0.2s ease; }
   .popup-media-card:hover img,
   .popup-media-card:hover video.loop-face { transform: scale(1.03); filter: brightness(1.08); }
-  .popup-media-expand:hover { transform: scale(1.08); filter: brightness(1.2); }
-  .popup-media-expand:active { transform: scale(0.94); }
 }
 
 /* Landscape only: the same full-screen frame as portrait. Top and bottom
@@ -21703,6 +21678,146 @@ img.is-gif-hit {
     max-height: none;
   }
 }
+
+/* ── Map popup media: the feed's frame ─────────────────────────────────
+   Every picture, GIF and video starts in the feed's compact 16:9 frame
+   (mediaframe.js; the feed rules are under "Feed pictures and videos"):
+   the whole of it fitted inside, a blurred, darkened copy filling the
+   rest. It used to take all the room the text left, mostly as an empty
+   dark letterbox. The text now gets that room. The ··· makes it full size
+   (.is-wide): the old fill-the-room view, with the blur instead of the
+   letterbox. Draw's preview keeps its own square card. */
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > .popup-media-card:not(.draw-popup-media) {
+  --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
+  position: relative;
+  flex: 0 0 auto;
+  align-self: center;
+  display: block;
+  box-sizing: border-box;
+  width: max(min(100%, 240px), calc(var(--fu) * 16));
+  max-width: 100%;
+  height: auto;
+  max-height: none;
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+  cursor: default;
+  background-color: #0b0d13;
+  transition: width 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > .popup-media-card:not(.draw-popup-media) > :is(img:not(.feed-media-backdrop), video, canvas.media-still) {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: none;
+  margin: 0;
+  transform: none;
+  object-fit: contain;
+  object-position: center;
+  background-color: transparent;
+}
+/* The blur fill, as in the feed. Hidden behind a GIF still (the picture
+   has no address). The ⤢ chip is gone: the ··· has Fullscreen. */
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-media-card:not(.draw-popup-media) > :is(img, canvas).feed-media-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  object-fit: cover;
+  object-position: center;
+  background: none;
+  filter: blur(max(12px, calc(var(--fu) * 0.7))) brightness(0.55) saturate(1.2);
+  transform: scale(1.2);
+  pointer-events: none;
+}
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-media-card:not(.draw-popup-media) > .feed-media-backdrop[hidden],
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-media-card:not(.draw-popup-media):has(> canvas.media-still) > .feed-media-backdrop {
+  display: none;
+}
+/* Full size: the frame takes the room again and the media keeps its own
+   shape inside it, the blur filling the sides. */
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > .popup-media-card.is-wide:not(.draw-popup-media) {
+  flex: 1 1 0%;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  width: auto;
+  max-height: 100%;
+  aspect-ratio: auto;
+}
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > .popup-media-card.is-wide:not(.draw-popup-media) > :is(img:not(.feed-media-backdrop), video, canvas.media-still) {
+  width: auto;
+  height: auto;
+  max-height: 100%;
+}
+/* The text takes the room the compact frame leaves (it was held to 36%). */
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body:has(> .popup-media-card:not(.is-wide):not(.draw-popup-media)) > div:not(.popup-media-card) {
+  max-height: none;
+}
+/* A post with no text: the frame sits in the middle of the room. */
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body:has(> .popup-media-card:not(.is-wide):not(.draw-popup-media)):not(:has(> div:not(.popup-media-card) > .popup-text-bubble:not(:empty))) {
+  justify-content: center;
+}
+
+/* Wide screens: one card. A post with media no longer has its own media
+   card on the left; the frame sits in the post card above the text, and
+   the map shows where the media card was. The popup starts where the
+   right card did: 0.55 of the two-card width (W) plus 0.46u, the left
+   card and the gap (0.4u padding, 0.4u of the card margin, 2u gap, less
+   0.45 of the 2.8u taken out of both cards). Text-only posts keep their
+   two cards. */
+@media (orientation: landscape) {
+  .maplibregl-map .maplibregl-popup:has(.popup-sheet .popup-media-card) {
+    --popup-two-card-w: calc(100vw - var(--popup-left) - var(--popup-right) - env(safe-area-inset-left) - env(safe-area-inset-right));
+    left: calc(var(--popup-left) + env(safe-area-inset-left) + var(--popup-two-card-w) * 0.55 + var(--u) * 0.46) !important;
+  }
+  .maplibregl-map .maplibregl-popup-content > .popup-sheet:has(.popup-media-card) {
+    grid-template-columns: 0 minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+    column-gap: 0;
+  }
+  .maplibregl-map .popup-sheet:has(.popup-media-card)::before {
+    display: none;
+  }
+  .maplibregl-map .popup-sheet:has(.popup-media-card)::after,
+  .maplibregl-map .popup-sheet:has(.popup-media-card) > .comments-modal--in-card {
+    left: 0;
+    width: auto;
+  }
+  .maplibregl-map .popup-sheet:has(.popup-media-card) .popup-body > .popup-media-card:not(.draw-popup-media) {
+    grid-column: 2;
+    grid-row: 4;
+    justify-self: center;
+    align-self: start;
+    height: auto;
+    margin-top: calc(var(--u) * 0.8);
+  }
+  .maplibregl-map .popup-sheet:has(.popup-media-card) .popup-body > div:not(.popup-media-card) {
+    grid-row: 5;
+  }
+  .maplibregl-map .popup-sheet:has(.popup-media-card) > .popup-dock:has(.popup-top-topic) {
+    grid-row: 6;
+  }
+  /* Full size here: the card's width at the media's own shape, up to a
+     bit over half the popup's height (it is a size container), so the
+     text keeps a row under it. */
+  .maplibregl-map .popup-sheet:has(.popup-media-card) .popup-body > .popup-media-card.is-wide:not(.draw-popup-media) {
+    justify-self: stretch;
+    width: auto;
+    max-height: 55cqh;
+  }
+  .maplibregl-map .popup-sheet:has(.popup-media-card) .popup-body > .popup-media-card.is-wide:not(.draw-popup-media) > :is(img:not(.feed-media-backdrop), video, canvas.media-still) {
+    max-width: 100%;
+    max-height: 55cqh;
+  }
+}
 /* Text longer than the bubble: the text moves into .popup-text-flow, which
    takes the bubble's content box and scrolls inside it; Show more under it
    opens the whole text on its own page. An edge with more text past it
@@ -22774,7 +22889,7 @@ img.is-gif-hit {
   max-height: 80dvh;
   object-fit: contain;
 }
-:is(#feed-column, .feed-comments-stage) .feed-media-tools {
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tools {
   --tool: max(32px, calc(var(--fu) * 1.5));
   position: absolute;
   top: max(8px, calc(var(--fu) * 0.5));
@@ -22784,7 +22899,7 @@ img.is-gif-hit {
   gap: max(12px, calc(var(--fu) * 0.5));
   pointer-events: none;
 }
-:is(#feed-column, .feed-comments-stage) .feed-media-tool {
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tool {
   appearance: none;
   position: relative;
   display: inline-flex;
@@ -22809,7 +22924,7 @@ img.is-gif-hit {
   transition: color 160ms ease, border-color 160ms ease, background-color 160ms ease, scale 120ms ease;
 }
 /* 44px touch target around the smaller round face. */
-:is(#feed-column, .feed-comments-stage) .feed-media-tool::after {
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tool::after {
   content: "";
   position: absolute;
   left: 50%;
@@ -22818,31 +22933,31 @@ img.is-gif-hit {
   height: max(44px, 100%);
   translate: -50% -50%;
 }
-:is(#feed-column, .feed-comments-stage) .feed-media-tool svg {
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tool svg {
   display: block;
   width: 52%;
   height: 52%;
   pointer-events: none;
 }
-:is(#feed-column, .feed-comments-stage) .feed-media-tool:is(:hover, :active),
-:is(#feed-column, .feed-comments-stage) .feed-media-size[aria-pressed="true"] {
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tool:is(:hover, :active),
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-size[aria-pressed="true"] {
   border-color: rgba(34, 211, 238, 0.7);
   color: #22D3EE;
 }
-:is(#feed-column, .feed-comments-stage) .feed-media-tool:active {
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tool:active {
   scale: 0.92;
 }
-:is(#feed-column, .feed-comments-stage) .feed-media-tool:focus {
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tool:focus {
   outline: none;
 }
-:is(#feed-column, .feed-comments-stage) .feed-media-tool:focus-visible {
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tool:focus-visible {
   outline: 2px solid #22D3EE;
   outline-offset: 2px;
 }
 /* Only the ··· shows at rest. It slides the enlarge and fullscreen buttons
    out to its left (nearest first) and turns into a cyan ×. visibility
    keeps the tucked ones out of reach and out of the tab order. */
-:is(#feed-column, .feed-comments-stage) .feed-media-tools > .feed-media-tool:not(.feed-media-more) {
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tools > .feed-media-tool:not(.feed-media-more) {
   opacity: 0;
   visibility: hidden;
   translate: calc(var(--tool) * 0.7) 0;
@@ -22855,47 +22970,47 @@ img.is-gif-hit {
     color 160ms ease,
     border-color 160ms ease;
 }
-:is(#feed-column, .feed-comments-stage) .feed-media-tools.is-open > .feed-media-tool:not(.feed-media-more) {
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tools.is-open > .feed-media-tool:not(.feed-media-more) {
   opacity: 1;
   visibility: visible;
   translate: 0 0;
   scale: 1;
   transition-delay: 0s;
 }
-:is(#feed-column, .feed-comments-stage) .feed-media-tools.is-open > .feed-media-size {
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tools.is-open > .feed-media-size {
   transition-delay: 40ms, 40ms, 40ms, 0s, 0s, 0s;
 }
-:is(#feed-column, .feed-comments-stage) .feed-media-tools.is-open > .feed-media-tool:not(.feed-media-more):active {
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tools.is-open > .feed-media-tool:not(.feed-media-more):active {
   scale: 0.92;
 }
 /* The whole group is hidden at rest. .is-tools-shown (mountMediaTools:
    a tap, a mouse moving over it, a paused video's bar) or keyboard focus
    (:focus-visible, not a tap's focus) shows it. Hidden, it lets taps through to the picture or video. */
-:is(#feed-column, .feed-comments-stage) .feed-media-tools {
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tools {
   opacity: 0;
   transition: opacity 220ms ease;
 }
-:is(#feed-column, .feed-comments-stage) .popup-media-card.is-tools-shown > .feed-media-tools,
-:is(#feed-column, .feed-comments-stage) .feed-media-tools:has(:focus-visible) {
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .popup-media-card.is-tools-shown > .feed-media-tools,
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tools:has(:focus-visible) {
   opacity: 1;
 }
-:is(#feed-column, .feed-comments-stage) .popup-media-card:not(.is-tools-shown) > .feed-media-tools:not(:has(:focus-visible)) > .feed-media-tool {
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .popup-media-card:not(.is-tools-shown) > .feed-media-tools:not(:has(:focus-visible)) > .feed-media-tool {
   pointer-events: none;
 }
 /* A tap on a picture shows the ···; it no longer zooms. */
 :is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card:not(:has(video:not(.loop-face))) .feed-media-hit {
   cursor: default;
 }
-:is(#feed-column, .feed-comments-stage) .feed-media-more[aria-expanded="true"] {
+:is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-more[aria-expanded="true"] {
   border-color: rgba(34, 211, 238, 0.7);
   background: rgba(8, 51, 68, 0.7);
   color: #22D3EE;
 }
 @media (prefers-reduced-motion: reduce) {
   :is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card,
-  :is(#feed-column, .feed-comments-stage) .feed-media-tool,
-  :is(#feed-column, .feed-comments-stage) .feed-media-tools,
-  :is(#feed-column, .feed-comments-stage) .feed-media-tools > .feed-media-tool:not(.feed-media-more) {
+  :is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tool,
+  :is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tools,
+  :is(#feed-column, .feed-comments-stage, .maplibregl-map, #popup-settings-preview) .feed-media-tools > .feed-media-tool:not(.feed-media-more) {
     transition: none;
   }
 }

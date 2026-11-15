@@ -242,34 +242,46 @@ test("show media full size starts a video wide, and its size button can shrink i
   assert.match(read, /localStorage\.setItem\(FEED_SETTING\.mediaWide, oldFull === 'on' \? 'on' : 'off'\)/);
   assert.match(read, /localStorage\.removeItem\('feed-setting-full-tap'\)/);
   assert.match(read, /feedPrefs\.mediaWide = localStorage\.getItem\(FEED_SETTING\.mediaWide\) === 'on'/);
+  // Map popups start from the same switch.
+  assert.match(read, /setMediaWideDefault\(feedPrefs\.mediaWide\)/);
+  assert.match(src, /feedPrefs\.mediaWide = on;\s*setMediaWideDefault\(on\);/);
 
   const starts = src.slice(src.indexOf("function mediaStartsWide"), src.indexOf("const likeCounts"));
   assert.match(starts, /if \(key && wideMedia\.has\(key\)\) return true/);
   assert.match(starts, /if \(key && narrowMedia\.has\(key\)\) return false/);
   assert.match(starts, /return feedPrefs\.mediaWide/);
 
-  const tools = src.slice(src.indexOf("function mountMediaTools"), src.indexOf("function coordLabel"));
+  // The frame and its ··· are shared with map popups (mediaframe.js). The
+  // feed passes its drag check, its start size and its per-post memory.
+  const frameSrc = readFileSync(new URL("../mediaframe.js", import.meta.url), "utf8");
+  const tools = frameSrc.slice(frameSrc.indexOf("export function mountMediaTools"));
   assert.equal(/if \(picture/.test(tools), false);
   assert.match(tools, /media\.dataset\.picture = '1'/);
   assert.match(tools, /if \(key\) media\.dataset\.mediaKey = key/);
   assert.match(tools, /media\._paintSize = paint/);
-  assert.match(tools, /if \(mediaStartsWide\(key\)\) media\.classList\.add\('is-wide'\)/);
+  assert.match(tools, /if \(startsWide\(key\)\) media\.classList\.add\('is-wide'\)/);
   assert.match(tools, /media\.classList\.toggle\('is-wide', wide\)/);
-  assert.match(tools, /wideMedia\.add\(key\)/);
-  assert.match(tools, /narrowMedia\.add\(key\)/);
-  const choice = tools.slice(tools.indexOf("size.addEventListener('click'"), tools.indexOf("full.addEventListener"));
-  const shrinkAt = choice.indexOf("narrowMedia.add(key)");
-  const growAt = choice.indexOf("wideMedia.add(key)");
+  assert.match(tools, /if \(key\) remember\(key, wide\)/);
+  assert.equal(tools.includes("feedActIdle"), false);
+  assert.match(tools, /if \(event\.detail > 0 && !canAct\(event\)\) return/);
+  const remember = src.slice(src.indexOf("function rememberMediaSize"), src.indexOf("function feedMediaFrame"));
+  const shrinkAt = remember.indexOf("narrowMedia.add(key)");
+  const growAt = remember.indexOf("wideMedia.add(key)");
   assert.ok(growAt > 0 && shrinkAt > growAt);
+  const hooks = src.slice(src.indexOf("function feedMediaFrame"), src.indexOf("const likeCounts"));
+  assert.match(hooks, /canAct: feedActIdle, startsWide: mediaStartsWide, remember: rememberMediaSize/);
+  assert.match(src, /import \{ mountMediaBackdrop, mountMediaTools, setMediaWideDefault \} from '\.\/mediaframe\.js'/);
+  assert.equal(src.includes("function mountMediaTools"), false);
+  assert.equal(src.includes("function mountMediaBackdrop"), false);
 
   const video = src.slice(src.indexOf("const node = video ? document.createElement('video')"), src.indexOf("node.alt = ''"));
   assert.match(video, /node\.loop = true/);
   assert.match(video, /bindVideoPoster\(node, src/);
   assert.match(video, /coverFeedPlayer\(media,/);
-  assert.match(video, /mountMediaTools\(media, post\.key, \(\) => \{[\s\S]*\}, node\);/);
+  assert.match(video, /mountMediaTools\(media, feedMediaFrame\(post\.key, \(\) => \{[\s\S]*\}, node\)\);/);
   assert.equal(/mountMediaTools\([\s\S]*?, clip\)/.test(video), false);
   const picture = src.slice(src.indexOf("node.alt = ''"), src.indexOf("let text = null"));
-  assert.match(picture, /mountMediaTools\(media, post\.key, openFull, null\);/);
+  assert.match(picture, /mountMediaTools\(media, feedMediaFrame\(post\.key, openFull, null\)\);/);
 
   const resize = src.slice(src.indexOf("function resizeFeedMedia"), src.indexOf("const zoomSection"));
   assert.match(resize, /anchor = \{ card, top: box\.top \}/);
