@@ -138,7 +138,14 @@ test("the reading ring runs round a box's border, clockwise (popup text and Swap
 test("popups have their own Show media full size switch, apart from the feed's", () => {
   const page = read("../index.html");
   const panel = page.slice(page.indexOf('id="popup-options-column"'), page.indexOf('id="popup-settings-preview"'));
-  assert.match(panel, /<div class="mb-card-title">Media<\/div>\s*<button type="button" id="popup-media-wide" class="feed-settings-switch" role="switch" aria-checked="false"><span>Show media full size<\/span><span class="feed-settings-switch-ui" aria-hidden="true"><\/span><\/button>/);
+  // The second row of the Screen corners card, under the Roundness slider
+  // (its note and Back to Auto stay with the slider).
+  const corners = panel.slice(panel.indexOf('class="mb-card mb-corners-card"'), panel.indexOf('class="mb-card mb-color-grid"'));
+  assert.ok(corners.indexOf('id="screen-corners"') > 0);
+  assert.ok(corners.indexOf('id="popup-media-wide"') > corners.indexOf('id="screen-corners-auto"'));
+  assert.match(corners, /<button type="button" id="popup-media-wide" class="feed-settings-switch mb-switch-row" role="switch" aria-checked="false"><span>Show media full size<\/span><span class="feed-settings-switch-ui" aria-hidden="true"><\/span><\/button>\s*<\/div>/);
+  assert.equal(panel.includes("mb-media-card"), false);
+  assert.equal(panel.includes('<div class="mb-card-title">Media</div>'), false);
   const help = page.slice(page.indexOf('id="popup-style-help-overlay"'), page.indexOf('id="popup-options-column"'));
   assert.match(help, /Show media full size starts every picture and video in a popup big/);
 
@@ -162,6 +169,8 @@ test("popups have their own Show media full size switch, apart from the feed's",
 
   // Laid out as one of the page's rows: same height, padding and label size.
   const css = read("../style.css");
-  assert.match(css, /\.in-drawer \.mb-media-card > \.feed-settings-switch \{\s*box-sizing: border-box;\s*min-height: max\(44px, 6dvh\);\s*margin: 0;\s*padding: 0 16px;\s*gap: 12px;\s*font-size: calc\(var\(--fu\) \* 1\.6\);\s*font-weight: 400;/);
+  assert.match(css, /\.in-drawer \.mb-card > \.mb-switch-row \{\s*box-sizing: border-box;\s*min-height: max\(44px, 6dvh\);\s*margin: 0;\s*padding: 0 16px;\s*gap: 12px;\s*box-shadow: inset 0 1px 0 rgba\(255, 255, 255, 0\.12\);\s*font-size: calc\(var\(--fu\) \* 1\.6\);\s*font-weight: 400;/);
+  // It fades with the rest while the corners are being tuned.
+  assert.match(css, /html\.is-tuning-corners #popup-options-column \.mb-corners-card > \.mb-switch-row/);
   assert.match(css, /\.in-drawer \.mb-row \{\s*box-sizing: border-box;\s*min-height: max\(44px, 6dvh\);\s*margin: 0;\s*padding: 0 16px;/);
 });

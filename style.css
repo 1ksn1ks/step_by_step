@@ -14816,19 +14816,21 @@ html.feed-app :is(
 :is(#feed-menu, .drawer-screen) .in-drawer .mb-row-label {
   font-size: calc(var(--fu) * 1.6);
 }
-/* Settings > Popups > Media: the feed's switch, laid out as one of this
-   page's rows (the same height, side padding, label size and hover). The
-   switch keeps the feed's track and knob. */
-:is(#feed-menu, .drawer-screen) .in-drawer .mb-media-card > .feed-settings-switch {
+/* A switch row in a settings card (Settings > Popups > Show media full
+   size, the second row under Roundness): the feed's switch laid out as one
+   of this page's rows, with the same height, side padding, label size,
+   divider above and hover. It keeps the feed's track and knob. */
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card > .mb-switch-row {
   box-sizing: border-box;
   min-height: max(44px, 6dvh);
   margin: 0;
   padding: 0 16px;
   gap: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
   font-size: calc(var(--fu) * 1.6);
   font-weight: 400;
 }
-:is(#feed-menu, .drawer-screen) .in-drawer .mb-media-card > .feed-settings-switch:is(:hover, :active) {
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card > .mb-switch-row:is(:hover, :active) {
   background: rgba(34, 211, 238, 0.12);
 }
 /* Settings > Popups > Screen corners (screencorners.js): a note under
@@ -14889,16 +14891,18 @@ html.feed-app :is(
   transition-duration: 0.12s;
 }
 /* While the line shows (html.is-tuning-corners), everything on the
-   Popups page but the Screen corners card fades almost away: the page's
-   bar, the other cards and the preview popup, whose own border would be
-   one more line near the corners. */
+   Popups page but the Roundness slider fades almost away: the page's bar,
+   the other cards, the switch row under the slider and the preview popup,
+   whose own border would be one more line near the corners. */
 .feed-menu-page:has(.mb-corners-card) > .feed-menu-page-bar,
 #popup-options-column-container > :not(.mb-corners-card),
+#popup-options-column .mb-corners-card > .mb-switch-row,
 #popup-options-column > .panel-help-btn {
   transition: opacity 0.3s ease;
 }
 html.is-tuning-corners .feed-menu-page:has(.mb-corners-card) > .feed-menu-page-bar,
 html.is-tuning-corners #popup-options-column-container > :not(.mb-corners-card),
+html.is-tuning-corners #popup-options-column .mb-corners-card > .mb-switch-row,
 html.is-tuning-corners #popup-options-column > .panel-help-btn {
   opacity: 0.05;
   transition-duration: 0.15s;
