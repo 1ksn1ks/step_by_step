@@ -57,8 +57,9 @@ function syncMore(bubble) {
 }
 
 // Fade the edge that has more text past it: none at the top, none at the
-// end. The reading rail fills with how far through the text the scroll
-// is, like the Show more page's progress line. Writes only on a change.
+// end. The reading rail along the bubble's top border fills left to right
+// with how far through the text the scroll is, like the Show more page's
+// progress line. Writes only on a change.
 function paintEdges(state) {
   state.edgeFrame = 0;
   const flow = state.flow;
@@ -71,7 +72,7 @@ function paintEdges(state) {
   const read = on && room > 1 ? Math.min(1, Math.max(0, flow.scrollTop / room)).toFixed(3) : '0';
   if (state.read !== read) {
     state.read = read;
-    state.fill.style.transform = `scaleY(${read})`;
+    state.fill.style.transform = `scaleX(${read})`;
   }
 }
 
@@ -119,7 +120,7 @@ export function watchPopupText(host, bubble, text, title) {
     openPopupText({ text: state.text, title: state.title, from: bubble, opener: more });
   });
   host.appendChild(more);
-  // Reading rail down the bubble's right edge (style.css shows it only
+  // Reading rail along the bubble's top border (style.css shows it only
   // while the text is longer than the bubble). Outside the flow box, so
   // the edge fade does not cover it.
   const rail = document.createElement('span');
