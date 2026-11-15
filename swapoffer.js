@@ -6,6 +6,7 @@
 
 import Long from "long";
 import { normalizeSwap } from "./server/swapprofile.js";
+import { swapBioAction } from "./server/swapbio.js";
 import { swapHttpsLink, swapTwitterLink } from "./server/swaptoken.js";
 import { bareAccount } from "./donationmath.js";
 
@@ -47,12 +48,46 @@ export function swapButtonShows({ author, viewer, offer, token }) {
   return true;
 }
 
-const SWAP_BIO_MAX = 280;
-
-// Plain text only. Over the limit stays blank so it is never shown as HTML.
+// Plain text only. Over the 18 KB limit stays blank so it is never shown as HTML.
 export function swapBioText(value) {
-  if (typeof value !== "string" || value.length > SWAP_BIO_MAX) return "";
-  return value;
+  const note = swapBioAction({ swapBio: value });
+  return note && !note.error ? note.text : "";
+}
+
+// The sheet shows the start of a long bio, like a feed caption: up to 280
+// characters (the old cap, so a short bio still shows whole) and 6 lines.
+// A character cut ends on a word when one is near. The rest opens from
+// Show more. more: true when text was left out.
+export const SWAP_BIO_PREVIEW_CHARS = 280;
+export const SWAP_BIO_PREVIEW_LINES = 6;
+const PREVIEW_WORD_REACH = 40;
+
+export function swapBioPreview(value) {
+  const text = typeof value === "string" ? value : "";
+  let cut = text.length;
+  let byLine = false;
+  let lines = 1;
+  for (let i = 0; i < text.length && i <= SWAP_BIO_PREVIEW_CHARS; i++) {
+    if (text.charCodeAt(i) !== 10) continue;
+    lines += 1;
+    if (lines > SWAP_BIO_PREVIEW_LINES) {
+      cut = i;
+      byLine = true;
+      break;
+    }
+  }
+  if (!byLine && cut > SWAP_BIO_PREVIEW_CHARS) {
+    cut = SWAP_BIO_PREVIEW_CHARS;
+    // Never split a surrogate pair (emoji and the like).
+    const code = text.charCodeAt(cut - 1);
+    if (code >= 0xd800 && code <= 0xdbff) cut -= 1;
+    if (/\S/.test(text.charAt(cut))) {
+      const space = text.slice(0, cut).search(/\s\S*$/);
+      if (space > 0 && cut - space <= PREVIEW_WORD_REACH) cut = space;
+    }
+  }
+  if (cut >= text.length) return { text, more: false };
+  return { text: text.slice(0, cut).trimEnd() + "…", more: true };
 }
 
 // "" when there is no cut. 40 bps is 0.4%. Trailing zeros are dropped.

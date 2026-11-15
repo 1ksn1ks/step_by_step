@@ -26,6 +26,7 @@ import {
   swapKeptLinks,
   swapPhoneColumnZoom,
   swapReturnTarget,
+  swapBioPreview,
   swapSheetText,
   swapSuccessToast,
   swapTabbables,
@@ -570,6 +571,9 @@ export function createSwapTokenCard() {
   return token;
 }
 
+// banner -> the whole bio while the sheet shows only its start.
+const swapBioFull = new WeakMap();
+
 // The author's face, name, and account id, then their Swap bio. Same row
 // as the feed banner, without its back arrow. The bio is the note under it.
 function createSwapBio() {
@@ -606,7 +610,44 @@ function createSwapBio() {
 
   const body = document.createElement("p");
   body.className = "feed-profile-banner-bio";
-  banner.append(open, body);
+
+  // A long bio shows its start. Show more opens the whole text on the same
+  // full-screen page as a feed post's Show more, above this sheet.
+  const more = document.createElement("button");
+  more.type = "button";
+  more.className = "swap-bio-more";
+  more.textContent = "Show more";
+  more.hidden = true;
+  more.setAttribute("aria-haspopup", "dialog");
+  more.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const text = swapBioFull.get(banner) || "";
+    if (!text) return;
+    const author = open.dataset.account || "";
+    const name = banner.classList.contains("no-username") ? "" : profileDisplayName(author);
+    const picture = profilePicUrl(author);
+    // popuptext.js reaches back to this file through the message modules,
+    // so it loads on the first tap instead of with the sheet.
+    import("./popuptext.js").then(({ openPopupText }) => {
+      openPopupText({
+        text,
+        title: "Swap bio",
+        from: body,
+        opener: more,
+        author: {
+          picture: /^(https?:|data:image\/|blob:)/i.test(picture || "") ? picture : "",
+          name,
+          account: author,
+          time: "",
+        },
+        backLabel: "Back to swap",
+        overSheet: true,
+      });
+    }).catch(() => toast.error("Could not open the bio"));
+  });
+
+  banner.append(open, body, more);
   return banner;
 }
 
@@ -614,8 +655,12 @@ function paintSwapBio(banner, author, text) {
   if (!banner) return;
   const body = banner.querySelector(".feed-profile-banner-bio");
   const open = banner.querySelector(".swap-bio-open");
+  const more = banner.querySelector(".swap-bio-more");
   const nameEl = banner.querySelector(".feed-profile-banner-name");
   const handleEl = banner.querySelector(".feed-profile-banner-handle");
+  const preview = swapBioPreview(text);
+  swapBioFull.set(banner, text || "");
+  if (more) more.hidden = !preview.more;
   if (!text) {
     banner.hidden = true;
     banner.classList.remove("no-username");
@@ -638,7 +683,7 @@ function paintSwapBio(banner, author, text) {
     nameEl.hidden = !name;
   }
   if (handleEl) handleEl.textContent = author || "";
-  if (body) body.textContent = text;
+  if (body) body.textContent = preview.text;
   if (open) {
     open.hidden = false;
     open.dataset.account = author || "";
@@ -717,6 +762,9 @@ function ensureSheet() {
       return;
     }
     if (event.key !== "Tab") return;
+    // The bio's full-screen page is on top: Tab moves through that page.
+    const reader = document.getElementById("popup-text-page");
+    if (reader && !reader.hidden) return;
     const items = swapTabbables(card);
     const widget = card.querySelector("saucerswap-widget");
     const closedShadow = !!(widget && !widget.shadowRoot);

@@ -83,9 +83,9 @@ function applyAccounts(accounts) {
     if (row.topic) topics[row.accountId] = row.topic;
     // An old saved card has no swap key. Leave it out so the profile stays off.
     if (row.swap && typeof row.swap === "object") swaps[row.accountId] = normalizeSwap(row.swap);
-    if (typeof row.swapBio === "string" && row.swapBio.length > 0 && row.swapBio.length <= 280) {
-      swapBios[row.accountId] = row.swapBio;
-    }
+    // The same 18 KB rule as the bio topic (server/swapbio.js).
+    const swapBio = swapBioAction({ swapBio: row.swapBio });
+    if (swapBio && !swapBio.error && swapBio.text) swapBios[row.accountId] = swapBio.text;
   }
   profilePictures = pics;
   usernames = names;

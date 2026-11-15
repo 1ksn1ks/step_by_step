@@ -19,6 +19,9 @@ import {
   swapButtonShows,
   associationMirrorPaths,
   swapBioText,
+  swapBioPreview,
+  SWAP_BIO_PREVIEW_CHARS,
+  SWAP_BIO_PREVIEW_LINES,
   swapFeeShare,
   swapSafetyLine,
   swapSheetText,
@@ -55,7 +58,7 @@ import {
   TransactionId,
 } from "@hiero-ledger/sdk";
 import { swapProfileAction } from "../server/swapprofile.js";
-import { foldSwapBio, swapBioAction, swapBioFromRow } from "../server/swapbio.js";
+import { SWAP_BIO_MAX_BYTES, foldSwapBio, swapBioAction, swapBioFromRow, swapBioMessage } from "../server/swapbio.js";
 
 const AUTHOR = "0.0.200";
 const VIEWER = "0.0.100";
@@ -876,15 +879,24 @@ test("a second tap while the token lookup is waiting does not open another sheet
   assert.equal(donateBusy.includes("px"), false);
 });
 
-test("a swap bio folds into its own column and stops at 280 characters", () => {
+test("a swap bio folds into its own column and stops at 18 KB", () => {
   const note = "Buying the poster token.";
+  const KB18 = 18 * 1024;
+  assert.equal(SWAP_BIO_MAX_BYTES, KB18);
   assert.equal(swapBioAction({ swap: { enabled: true, tokenId: SAUCE, feeBps: 40 } }), null);
   assert.equal(swapProfileAction({ swapBio: note }), null);
   assert.deepEqual(swapBioAction({ swapBio: note }), { text: note });
   assert.deepEqual(swapBioAction({ swapBio: "" }), { text: "" });
-  assert.deepEqual(swapBioAction({ swapBio: "a".repeat(280) }), { text: "a".repeat(280) });
-  assert.deepEqual(swapBioAction({ swapBio: "a".repeat(281) }), { error: "length" });
+  // The old 280-character cap is gone.
+  assert.deepEqual(swapBioAction({ swapBio: "a".repeat(281) }), { text: "a".repeat(281) });
+  assert.deepEqual(swapBioAction({ swapBio: "a".repeat(KB18) }), { text: "a".repeat(KB18) });
+  assert.deepEqual(swapBioAction({ swapBio: "a".repeat(KB18 + 1) }), { error: "length" });
+  // Bytes, not characters: é is 2 bytes in UTF-8.
+  assert.deepEqual(swapBioAction({ swapBio: "é".repeat(KB18 / 2) }), { text: "é".repeat(KB18 / 2) });
+  assert.deepEqual(swapBioAction({ swapBio: "é".repeat(KB18 / 2) + "a" }), { error: "length" });
   assert.deepEqual(swapBioAction({ swapBio: 12 }), { error: "swapBio" });
+  assert.equal(swapBioMessage(note), JSON.stringify({ data: { swapBio: note } }));
+  assert.deepEqual(swapBioAction(JSON.parse(swapBioMessage("two\nlines")).data), { text: "two\nlines" });
 
   const swapRow = { account_id: AUTHOR, swap_on: 1, swap_token: SAUCE, swap_fee: 40, swap_bio: null };
   const ignored = foldSwapBio(swapRow, { swap: { enabled: true, tokenId: SAUCE, feeBps: 40 } });
@@ -905,8 +917,10 @@ test("a swap bio folds into its own column and stops at 280 characters", () => {
   assert.equal(swapBioFromRow(cleared.row), "");
   assert.equal(foldSwapBio({ swap_bio: null }, { swapBio: "" }).wrote, false);
   assert.equal(foldSwapBio(null, { swapBio: "" }).wrote, false);
-  assert.equal(foldSwapBio(saved.row, { swapBio: "a".repeat(281) }).wrote, false);
-  assert.equal(foldSwapBio(saved.row, { swapBio: "a".repeat(281) }).row.swap_bio, note);
+  assert.equal(foldSwapBio(saved.row, { swapBio: "a".repeat(KB18 + 1) }).wrote, false);
+  assert.equal(foldSwapBio(saved.row, { swapBio: "a".repeat(KB18 + 1) }).row.swap_bio, note);
+  const long = "Long bio. ".repeat(1000);
+  assert.equal(foldSwapBio(saved.row, { swapBio: long }).row.swap_bio, long);
 
   const server = fs.readFileSync(new URL("../server/index.js", import.meta.url), "utf8");
   assert.match(server, /ADD COLUMN swap_bio TEXT/);
@@ -990,7 +1004,10 @@ test("the swap sheet shows the creator bio above the fee line", () => {
   assert.equal(swapFeeShare(500), "5% goes to the poster.");
   assert.equal(swapFeeShare(0), "");
   assert.equal(swapSafetyLine({ symbol: "SAUCE", tokenId: SAUCE, feeBps: 10 }), "0.1% goes to the poster.");
-  assert.equal(swapSheetText({ bio: "a".repeat(281), symbol: "SAUCE", tokenId: SAUCE, feeBps: 40 }).bio, "");
+  assert.equal(swapSheetText({ bio: "a".repeat(281), symbol: "SAUCE", tokenId: SAUCE, feeBps: 40 }).bio, "a".repeat(281));
+  assert.equal(swapSheetText({ bio: "a".repeat(18 * 1024 + 1), symbol: "SAUCE", tokenId: SAUCE, feeBps: 40 }).bio, "");
+  assert.equal(swapBioText("a".repeat(18 * 1024 + 1)), "");
+  assert.equal(swapBioText(12), "");
 
   const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
   const appended = sheet.match(/card\.append\(([^)]+)\)/);
@@ -1045,13 +1062,58 @@ test("the swap sheet shows the creator bio above the fee line", () => {
   assert.match(swapFields, /placeholder="Fee bps, 0–500" aria-label="Fee bps, 0–500"/);
   const editor = page.slice(page.indexOf('id="edit-profile-swap-bio"'), page.indexOf('id="domain-help-overlay"'));
   assert.match(editor, /placeholder="Swap bio" aria-label="Swap bio" aria-describedby="swap-bio-count"/);
-  assert.match(editor, /id="swap-bio-count" class="swap-bio-count" aria-live="polite"/);
-  assert.match(editor, /maxlength="280"/);
+  assert.match(editor, /id="swap-bio-count" class="swap-bio-count hcs-byte-counter" aria-live="polite">0 B \/ 18 KB</);
+  assert.equal(editor.includes("maxlength"), false);
   assert.match(editor, />Save</);
   assert.equal(editor.includes("px"), false);
   const rest = fs.readFileSync(new URL("../rest.js", import.meta.url), "utf8");
-  assert.match(rest, /JSON\.stringify\(\{ data: \{ swapBio: parsed\.text \} \}\)/);
+  assert.match(rest, /const message = swapBioMessage\(parsed\.text\)/);
+  assert.match(rest, /capMessageField\(field, \(\) => swapBioBytes\(field\.value\)\)/);
+  assert.match(rest, /formatHcsUsage\(swapBioBytes\(field\.value\)\)/);
   assert.match(rest, /toast\.error\("Swap bio not saved"\)/);
+});
+
+test("the swap sheet shows the start of a long bio and Show more opens the rest", () => {
+  assert.equal(SWAP_BIO_PREVIEW_CHARS, 280);
+  assert.equal(SWAP_BIO_PREVIEW_LINES, 6);
+  // Short bios show whole, as before.
+  assert.deepEqual(swapBioPreview(""), { text: "", more: false });
+  assert.deepEqual(swapBioPreview("Buying the poster token."), { text: "Buying the poster token.", more: false });
+  assert.deepEqual(swapBioPreview("a".repeat(280)), { text: "a".repeat(280), more: false });
+  assert.deepEqual(swapBioPreview("1\n2\n3\n4\n5\n6"), { text: "1\n2\n3\n4\n5\n6", more: false });
+  assert.deepEqual(swapBioPreview(12), { text: "", more: false });
+  // One word past 280 characters: cut on the last space, then the ellipsis.
+  const words = "word ".repeat(80);
+  const cut = swapBioPreview(words);
+  assert.equal(cut.more, true);
+  assert.ok(cut.text.endsWith("word…"));
+  assert.ok(cut.text.length <= 281);
+  assert.equal(words.startsWith(cut.text.slice(0, -1)), true);
+  // No space near the cut: a hard cut at 280.
+  assert.deepEqual(swapBioPreview("a".repeat(400)), { text: "a".repeat(280) + "…", more: true });
+  // A 7th line is left out even when the text is short.
+  assert.deepEqual(swapBioPreview("1\n2\n3\n4\n5\n6\n7"), { text: "1\n2\n3\n4\n5\n6…", more: true });
+  // An emoji is never split in half.
+  const emoji = "a".repeat(279) + "😀" + "b";
+  const kept = swapBioPreview(emoji).text;
+  assert.equal(kept, "a".repeat(279) + "…");
+  // A full 18 KB bio still gets a short preview.
+  const big = swapBioPreview("Long bio. ".repeat(1800));
+  assert.equal(big.more, true);
+  assert.ok(big.text.length <= 281);
+
+  const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
+  assert.match(sheet, /more\.className = "swap-bio-more"/);
+  assert.match(sheet, /more\.textContent = "Show more"/);
+  assert.match(sheet, /body\.textContent = preview\.text/);
+  assert.match(sheet, /more\.hidden = !preview\.more/);
+  assert.match(sheet, /import\("\.\/popuptext\.js"\)/);
+  assert.match(sheet, /overSheet: true/);
+  assert.equal(sheet.includes("innerHTML"), false);
+  const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  assert.match(css, /#popup-text-page\.is-over-sheet \{\s*z-index: 9960;/);
+  const reader = fs.readFileSync(new URL("../popuptext.js", import.meta.url), "utf8");
+  assert.match(reader, /author: author \|\| authorOf\(from\)/);
 });
 
 function animHost() {
@@ -1415,7 +1477,7 @@ test("the swap bio is the author's banner, and it stays hidden without a bio", (
   assert.match(build, /className = "feed-profile-banner-handle"/);
   assert.match(build, /className = "feed-profile-banner-bio"/);
   assert.equal(build.includes("feed-profile-banner-back"), false);
-  assert.match(build, /banner\.append\(open, body\)/);
+  assert.match(build, /banner\.append\(open, body, more\)/);
   const closeAt = build.indexOf("closeSheet()");
   const profileAt = build.indexOf("openProfileFromPopup");
   assert.ok(closeAt > 0 && profileAt > closeAt);
@@ -1426,7 +1488,7 @@ test("the swap bio is the author's banner, and it stays hidden without a bio", (
   assert.match(paint, /stored \? profileDisplayName\(author\) : ""/);
   assert.match(paint, /nameEl\.textContent = name/);
   assert.match(paint, /handleEl\.textContent = author \|\| ""/);
-  assert.match(paint, /body\.textContent = text/);
+  assert.match(paint, /body\.textContent = preview\.text/);
   assert.match(paint, /banner\.classList\.toggle\("no-username", !name\)/);
   assert.match(paint, /setAttribute\("aria-label", "Bio from " \+ who\)/);
   assert.match(paint, /mountPicture\(pic, profilePicUrl\(author\)/);

@@ -9,7 +9,8 @@ import {adjustTextareaHeight} from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
 import { loadAllData, showOwnProfile, profileTopics, profileSwaps, profileSwapBios } from './loadalladata';
 import { swapProfileAction } from './server/swapprofile.js';
-import { swapBioAction } from './server/swapbio.js';
+import { swapBioAction, swapBioMessage } from './server/swapbio.js';
+import { capMessageField } from './bytecap.js';
 import { associationCutWarning, associationMirrorPaths } from './swapoffer.js';
 import { bareAccount } from './donationmath.js';
 import { connectProfileTopic, removeProfileTopic } from './followtopic';
@@ -21,7 +22,7 @@ import { connectedAccount, signer } from './web3';
 import { PrivateKey } from '@hashgraph/sdk';
 import { isValidUrl } from './ISVALIDURL.JS';
 import { toast } from './toast';
-import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, utf8ByteLength, normalizeMessageNewlines } from './hcschunks.js';
+import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, formatHcsUsage, utf8ByteLength, normalizeMessageNewlines } from './hcschunks.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
 import { pendingChatImage, chatImageBusy, clearPendingChatImage, topicChatWire } from './chatimage.js';
 import { stackedTopicRules } from './topicrules.js';
@@ -2147,14 +2148,27 @@ document.getElementById("button_for_swap").addEventListener("click", async (even
   }
 });
 
+// The whole bio-topic message, as the wallet signs it: 18 KB like a post.
+function swapBioBytes(text) {
+  return utf8ByteLength(swapBioMessage(text));
+}
+
+function paintSwapBioCount(field) {
+  const count = document.getElementById("swap-bio-count");
+  if (!count || !field) return;
+  const usage = formatHcsUsage(swapBioBytes(field.value));
+  count.textContent = usage.text;
+  count.classList.toggle("hcs-warn", usage.warn);
+  count.classList.toggle("hcs-over", usage.over);
+}
+
 function showProfileSwapBio() {
   const field = document.getElementById("edit-profile-swap-bio-input");
-  const count = document.getElementById("swap-bio-count");
   if (!field) return;
   const me = bareAccount(connectedAccount) || connectedAccount;
   const saved = me && profileSwapBios[me];
   field.value = typeof saved === "string" ? saved : "";
-  if (count) count.textContent = field.value.length + "/280";
+  paintSwapBioCount(field);
   // Grows with its text like the BIO field. Next frame: the card may still be hidden here.
   requestAnimationFrame(() => adjustTextareaHeight(field));
 }
@@ -2163,19 +2177,23 @@ document.getElementById("show-swap-bio-from-edit-profile").addEventListener("cli
   showProfileSwapBio();
 });
 
-document.getElementById("edit-profile-swap-bio-input").addEventListener("input", (event) => {
-  const count = document.getElementById("swap-bio-count");
-  if (count) count.textContent = event.currentTarget.value.length + "/280";
-  adjustTextareaHeight(event.currentTarget);
-});
+{
+  const field = document.getElementById("edit-profile-swap-bio-input");
+  // Typing stops at 18 KB, like every message box with this counter.
+  capMessageField(field, () => swapBioBytes(field.value));
+  field.addEventListener("input", () => {
+    paintSwapBioCount(field);
+    adjustTextareaHeight(field);
+  });
+}
 
 document.getElementById("button_for_swap_bio").addEventListener("click", async (event) => {
   event.stopPropagation();
   const field = document.getElementById("edit-profile-swap-bio-input");
   const text = field ? field.value : "";
   const parsed = swapBioAction({ swapBio: text });
-  if (!parsed || parsed.error) {
-    toast.error("Swap bio is 280 characters at most.");
+  if (!parsed || parsed.error || swapBioBytes(text) > HCS_MESSAGE_MAX_BYTES) {
+    toast.error(HCS_TOO_LONG);
     return;
   }
   if (!signer) {
@@ -2184,7 +2202,7 @@ document.getElementById("button_for_swap_bio").addEventListener("click", async (
   }
   try {
     const topicId = "0.0.9759201";
-    const message = JSON.stringify({ data: { swapBio: parsed.text } });
+    const message = swapBioMessage(parsed.text);
     toast.info("Confirm in wallet 👛");
     const receipt = await sendMessage(topicId, message);
     console.log("Swap bio updated successfully:", receipt);

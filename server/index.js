@@ -860,7 +860,7 @@ function extractUserSettings(topicId, payer, body, tsMs) {
     const swap = swapProfileAction(d);
     if (swap && !swap.error) saveSwap(payer, swap, tsMs);
     // Swap bio is its own message. A swap, a bio, or a topic link leaves it
-    // alone. An empty string clears it. Over 280 characters is not stored.
+    // alone. An empty string clears it. Over 18 KB is not stored.
     const swapBio = swapBioAction(d);
     if (swapBio && !swapBio.error) saveSwapBio(payer, swapBio.text, tsMs);
   }

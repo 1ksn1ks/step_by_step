@@ -279,7 +279,7 @@ function buildPage() {
   const done = document.createElement('button');
   done.type = 'button';
   done.className = 'popup-text-page-done';
-  done.innerHTML = SVG('<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>') + '<span>Back to post</span>';
+  done.innerHTML = SVG('<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>') + '<span class="popup-text-page-done-label">Back to post</span>';
   end.append(dots, done);
 
   inner.append(pageAuthor, card, end);
@@ -372,6 +372,9 @@ function playMotion(kind) {
 function showPage(state) {
   pageTitle.textContent = state.title || 'Post';
   pageTitle.classList.toggle('is-untitled', !state.title);
+  page.classList.toggle('is-over-sheet', !!state.overSheet);
+  const doneLabel = page.querySelector('.popup-text-page-done-label');
+  if (doneLabel) doneLabel.textContent = state.backLabel || 'Back to post';
   paintHashtags(pageText, state.text);
   // The popup's own text colour (popup settings); the size is the page's.
   if (state.color) pageText.style.color = state.color;
@@ -430,7 +433,10 @@ function authorOf(from) {
   return { picture, name, account, time };
 }
 
-export function openPopupText({ text, title, from, opener }) {
+// author: { picture, name, account, time } when the text is not in a popup
+// or feed card (the Swap sheet's bio). backLabel: the end button's words.
+// overSheet: opened from the Swap sheet, so the page sits above it.
+export function openPopupText({ text, title, from, opener, author, backLabel, overSheet }) {
   if (!page) buildPage();
   ensureLayer();
   const cs = from ? getComputedStyle(from) : null;
@@ -438,7 +444,9 @@ export function openPopupText({ text, title, from, opener }) {
     text: String(text || ''),
     title: singleLine(title),
     color: cs ? cs.color : '',
-    author: authorOf(from),
+    author: author || authorOf(from),
+    backLabel: singleLine(backLabel) || 'Back to post',
+    overSheet: !!overSheet,
   };
   returnFocus = opener || null;
   showPage(lastOpen);
