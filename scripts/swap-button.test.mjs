@@ -19,9 +19,6 @@ import {
   swapButtonShows,
   associationMirrorPaths,
   swapBioText,
-  swapBioPreview,
-  SWAP_BIO_PREVIEW_CHARS,
-  SWAP_BIO_PREVIEW_LINES,
   swapFeeShare,
   swapSafetyLine,
   swapSheetText,
@@ -1073,41 +1070,29 @@ test("the swap sheet shows the creator bio above the fee line", () => {
   assert.match(rest, /toast\.error\("Swap bio not saved"\)/);
 });
 
-test("the swap sheet shows the start of a long bio and Show more opens the rest", () => {
-  assert.equal(SWAP_BIO_PREVIEW_CHARS, 280);
-  assert.equal(SWAP_BIO_PREVIEW_LINES, 6);
-  // Short bios show whole, as before.
-  assert.deepEqual(swapBioPreview(""), { text: "", more: false });
-  assert.deepEqual(swapBioPreview("Buying the poster token."), { text: "Buying the poster token.", more: false });
-  assert.deepEqual(swapBioPreview("a".repeat(280)), { text: "a".repeat(280), more: false });
-  assert.deepEqual(swapBioPreview("1\n2\n3\n4\n5\n6"), { text: "1\n2\n3\n4\n5\n6", more: false });
-  assert.deepEqual(swapBioPreview(12), { text: "", more: false });
-  // One word past 280 characters: cut on the last space, then the ellipsis.
-  const words = "word ".repeat(80);
-  const cut = swapBioPreview(words);
-  assert.equal(cut.more, true);
-  assert.ok(cut.text.endsWith("word…"));
-  assert.ok(cut.text.length <= 281);
-  assert.equal(words.startsWith(cut.text.slice(0, -1)), true);
-  // No space near the cut: a hard cut at 280.
-  assert.deepEqual(swapBioPreview("a".repeat(400)), { text: "a".repeat(280) + "…", more: true });
-  // A 7th line is left out even when the text is short.
-  assert.deepEqual(swapBioPreview("1\n2\n3\n4\n5\n6\n7"), { text: "1\n2\n3\n4\n5\n6…", more: true });
-  // An emoji is never split in half.
-  const emoji = "a".repeat(279) + "😀" + "b";
-  const kept = swapBioPreview(emoji).text;
-  assert.equal(kept, "a".repeat(279) + "…");
-  // A full 18 KB bio still gets a short preview.
-  const big = swapBioPreview("Long bio. ".repeat(1800));
-  assert.equal(big.more, true);
-  assert.ok(big.text.length <= 281);
-
+test("a long swap bio scrolls in its card with the reading ring, and Show more opens the rest", () => {
   const sheet = fs.readFileSync(new URL("../swapsheet.js", import.meta.url), "utf8");
+  // The whole bio is in the card; it scrolls there (no character cut).
+  assert.equal(sheet.includes("swapBioPreview"), false);
+  const paint = sheet.slice(sheet.indexOf("function paintSwapBio"), sheet.indexOf("function ensureSheet"));
+  assert.match(paint, /body\.textContent = text;\s*body\.scrollTop = 0;/);
+  assert.match(paint, /const ring = swapBioRings\.get\(banner\);\s*if \(ring\) ring\.refresh\(\);/);
+  // The card's own border lights as you read; Show more only while it overflows.
+  assert.match(sheet, /import \{ watchReadingRing \} from "\.\/readingring\.js"/);
+  assert.match(sheet, /swapBioRings\.set\(banner, watchReadingRing\(banner, body, \{\s*className: "swap-bio-ring",\s*onOverflow: \(over\) => \{ more\.hidden = !over; \},/);
   assert.match(sheet, /more\.className = "swap-bio-more"/);
   assert.match(sheet, /more\.textContent = "Show more"/);
-  assert.match(sheet, /body\.textContent = preview\.text/);
-  assert.match(sheet, /more\.hidden = !preview\.more/);
   assert.match(sheet, /import\("\.\/popuptext\.js"\)/);
+  const offer = fs.readFileSync(new URL("../swapoffer.js", import.meta.url), "utf8");
+  assert.equal(offer.includes("swapBioPreview"), false);
+
+  const style = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  const bodyCss = style.slice(style.indexOf("  #swap-sheet .swap-bio .feed-profile-banner-bio {"), style.indexOf("  #swap-sheet .swap-bio .feed-profile-banner-bio::-webkit-scrollbar"));
+  assert.match(bodyCss, /max-height: calc\(1\.35em \* 6\)/);
+  assert.match(bodyCss, /overflow-y: auto/);
+  assert.match(bodyCss, /mask-image: linear-gradient\(to bottom, transparent, #000 var\(--flow-above\)/);
+  assert.match(style, /\.swap-bio\.has-reading-ring > \.swap-bio-ring \{\s*display: block;/);
+  assert.match(style, /  \.swap-bio \{[^}]*--ring-w: 0\.14rem;[^}]*position: relative;/);
   assert.match(sheet, /overSheet: true/);
   assert.equal(sheet.includes("innerHTML"), false);
   const css = fs.readFileSync(new URL("../style.css", import.meta.url), "utf8");
@@ -1545,7 +1530,7 @@ test("the swap bio is the author's banner, and it stays hidden without a bio", (
   assert.match(paint, /stored \? profileDisplayName\(author\) : ""/);
   assert.match(paint, /nameEl\.textContent = name/);
   assert.match(paint, /handleEl\.textContent = author \|\| ""/);
-  assert.match(paint, /body\.textContent = preview\.text/);
+  assert.match(paint, /body\.textContent = text;/);
   assert.match(paint, /banner\.classList\.toggle\("no-username", !name\)/);
   assert.match(paint, /setAttribute\("aria-label", "Bio from " \+ who\)/);
   assert.match(paint, /mountPicture\(pic, profilePicUrl\(author\)/);

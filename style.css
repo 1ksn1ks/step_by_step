@@ -7857,6 +7857,10 @@ html, body {
   }
 
   .swap-bio {
+    /* The reading ring (readingring.js) lights this card's own border. */
+    --ring-w: 0.14rem;
+    --ring-glow: 0.35rem;
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -7908,9 +7912,20 @@ html, body {
     font-weight: 500;
   }
 
+  /* A long bio scrolls inside the card, six lines tall (about what the old
+     280-character cut showed), like a popup's text: the edge with more
+     text past it fades (.is-above / .is-below, readingring.js), and the
+     card's border lights clockwise as you read (.swap-bio-ring). */
   #swap-sheet .swap-bio .feed-profile-banner-bio {
+    --flow-above: 0em;
+    --flow-below: 0em;
     margin: 0;
-    overflow: visible;
+    max-height: calc(1.35em * 6);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    scrollbar-width: none;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     text-overflow: clip;
@@ -7918,9 +7933,27 @@ html, body {
     font-weight: 500;
     line-height: 1.35;
     color: rgba(255, 255, 255, 0.82);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--flow-above), #000 calc(100% - var(--flow-below)), transparent);
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--flow-above), #000 calc(100% - var(--flow-below)), transparent);
   }
 
-  /* Under a cut bio, centred like the feed's Show more. The padding is
+  #swap-sheet .swap-bio .feed-profile-banner-bio::-webkit-scrollbar {
+    display: none;
+  }
+
+  #swap-sheet .swap-bio .feed-profile-banner-bio.is-above {
+    --flow-above: 1.2em;
+  }
+
+  #swap-sheet .swap-bio .feed-profile-banner-bio.is-below {
+    --flow-below: 1.5em;
+  }
+
+  .swap-bio.has-reading-ring > .swap-bio-ring {
+    display: block;
+  }
+
+  /* Under a long bio, centred like the feed's Show more. The padding is
      tap room; the negative margin keeps it out of the layout. */
   .swap-bio-more {
     appearance: none;
@@ -21860,13 +21893,49 @@ img.is-gif-hit {
   outline-offset: calc(var(--u) * 0.1);
 }
 
-/* Reading ring: while a long message scrolls inside its bubble, the
-   bubble's own border lights up, clockwise from its top left, as far as
-   you are through the text; once round is the end. The Show more page's
-   cyan to violet. popuptext.js sizes the SVG to the border box and puts
-   the ring on the border line with the bubble's corners, so it reads as
-   the border, not a line added to it. It brightens while the text moves
-   and settles after. */
+/* Reading ring (readingring.js): while long text scrolls inside a box, the
+   box's own border lights up, clockwise from its top left, as far as you
+   are through the text; once round is the end. The Show more page's cyan
+   to violet. The script sizes the SVG to the box's border box and puts the
+   ring on the border line with the box's corners, so it reads as the
+   border, not a line added to it. It brightens while the text moves and
+   settles after. Hidden until its box shows it: a popup's text bubble
+   (below) and the Swap sheet bio (.swap-bio.has-reading-ring). --ring-w
+   and --ring-glow size it in the box's own unit. */
+.reading-ring {
+  --ring-w: max(2px, calc(var(--u, 0.5rem) * 0.24));
+  --ring-glow: calc(var(--u, 0.5rem) * 0.45);
+  display: none;
+  position: absolute;
+  overflow: visible;
+  opacity: 0.6;
+  filter: drop-shadow(0 0 var(--ring-glow) rgba(34, 211, 238, 0.6));
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.reading-ring.is-scrolling {
+  opacity: 1;
+  transition-duration: 0.12s;
+}
+.reading-ring > .reading-ring-line {
+  fill: none;
+  stroke-width: var(--ring-w);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  visibility: hidden;
+}
+.reading-ring .reading-ring-stop-a {
+  stop-color: #22D3EE;
+}
+.reading-ring .reading-ring-stop-b {
+  stop-color: #A855F7;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reading-ring {
+    transition: none;
+  }
+}
+/* Popup text: the ring shows while the text is longer than its bubble. */
 .popup-msg.is-more > .popup-text-bubble {
   position: relative;
 }
@@ -21879,49 +21948,18 @@ img.is-gif-hit {
 :is(.maplibregl-map, :where(#popup-settings-preview)) .popup-sheet .popup-body > div.popup-msg.is-more {
   overflow: visible;
 }
-.popup-text-rail {
-  display: none;
-}
 .popup-msg.is-more > .popup-text-bubble > .popup-text-rail {
   display: block;
-  position: absolute;
-  overflow: visible;
-  opacity: 0.6;
-  filter: drop-shadow(0 0 calc(var(--u) * 0.45) rgba(34, 211, 238, 0.6));
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-}
-.popup-msg.is-more > .popup-text-bubble > .popup-text-rail.is-scrolling {
-  opacity: 1;
-  transition-duration: 0.12s;
-}
-.popup-text-rail > .popup-text-rail-fill {
-  fill: none;
-  stroke-width: max(2px, calc(var(--u) * 0.24));
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  visibility: hidden;
-}
-.popup-text-rail .rail-stop-a {
-  stop-color: #22D3EE;
-}
-.popup-text-rail .rail-stop-b {
-  stop-color: #A855F7;
 }
 /* An early holder's popup: the ring in the frame's gold to pink. */
-.maplibregl-popup.early-holder-popup .popup-msg.is-more > .popup-text-bubble > .popup-text-rail {
-  filter: drop-shadow(0 0 calc(var(--u) * 0.45) rgba(246, 226, 122, 0.5));
+.maplibregl-popup.early-holder-popup .popup-text-rail {
+  filter: drop-shadow(0 0 var(--ring-glow) rgba(246, 226, 122, 0.5));
 }
-.maplibregl-popup.early-holder-popup .popup-text-rail .rail-stop-a {
+.maplibregl-popup.early-holder-popup .popup-text-rail .reading-ring-stop-a {
   stop-color: #f6e27a;
 }
-.maplibregl-popup.early-holder-popup .popup-text-rail .rail-stop-b {
+.maplibregl-popup.early-holder-popup .popup-text-rail .reading-ring-stop-b {
   stop-color: #ff4ad6;
-}
-@media (prefers-reduced-motion: reduce) {
-  .popup-msg.is-more > .popup-text-bubble > .popup-text-rail {
-    transition: none;
-  }
 }
 
 /* Popup bubbles: lit glass. The profile, title and message bubbles and

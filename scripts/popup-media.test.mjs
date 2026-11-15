@@ -101,27 +101,35 @@ test("wide screens keep the two cards, the media filling the left one", () => {
   assert.ok(at > css.indexOf("/* ── Map popup media: the feed's frame"));
 });
 
-test("the popup text reading ring runs round the bubble's border, clockwise", () => {
-  const js = read("../popuptext.js");
-  // One rounded rect on the border's centre line with the bubble's corners;
+test("the reading ring runs round a box's border, clockwise (popup text and Swap bio)", () => {
+  const ring = read("../readingring.js");
+  // No app imports: popups and the Swap sheet both use it, cycle-free.
+  assert.equal(/^import /m.test(ring), false);
+  // One rounded rect on the border's centre line with the box's corners;
   // a rect's outline starts after the top-left curve and runs clockwise.
-  const layout = js.slice(js.indexOf("function layoutRail"), js.indexOf("// Fade the edge"));
-  assert.match(layout, /ring\.setAttribute\('x', String\(half\)\)/);
-  assert.match(layout, /const rx = Math\.max\(0, Math\.min\(radius - half, rw \/ 2, rh \/ 2\)\)/);
-  assert.match(layout, /state\.perim = 2 \* \(rw \+ rh\) - \(8 - 2 \* Math\.PI\) \* rx/);
-  assert.match(layout, /rail\.style\.left = `\$\{-bw\}px`/);
-  const paint = js.slice(js.indexOf("function paintEdges"), js.indexOf("// The rail brightens"));
-  assert.match(paint, /state\.ring\.style\.strokeDasharray = `\$\{lit\} \$\{perim \+ 1\}`/);
-  assert.match(paint, /state\.ring\.style\.visibility = lit > 0 \? 'visible' : 'hidden'/);
-  // No straight bar any more (the full-screen page keeps its own scaleX bar).
+  const fit = ring.slice(ring.indexOf("export function fitRing"), ring.indexOf("export function paintRing"));
+  assert.match(fit, /line\.setAttribute\('x', String\(half\)\)/);
+  assert.match(fit, /const rx = Math\.max\(0, Math\.min\(radius - half, rw \/ 2, rh \/ 2\)\)/);
+  assert.match(fit, /ring\.perim = 2 \* \(rw \+ rh\) - \(8 - 2 \* Math\.PI\) \* rx/);
+  assert.match(fit, /svg\.style\.left = `\$\{-bw\}px`/);
+  const paint = ring.slice(ring.indexOf("export function paintRing"), ring.indexOf("export const RING_SETTLE_MS"));
+  assert.match(paint, /ring\.line\.style\.strokeDasharray = `\$\{lit\} \$\{ring\.perim \+ 1\}`/);
+  assert.match(paint, /ring\.line\.style\.visibility = lit > 0 \? 'visible' : 'hidden'/);
   assert.equal(paint.includes("scaleX("), false);
-  assert.equal(paint.includes("scaleY("), false);
+
+  const js = read("../popuptext.js");
+  assert.match(js, /import \{ brightenRing, createRing, fitRing, paintRing \} from '\.\/readingring\.js'/);
+  assert.match(js, /const ring = createRing\('popup-text-rail'\)/);
   // Resizes re-measure it.
-  assert.match(js.slice(js.indexOf("function syncMore"), js.indexOf("function paintEdges")), /layoutRail\(state\);\s*paintEdges\(state\);/);
+  assert.match(js.slice(js.indexOf("function syncMore"), js.indexOf("function paintEdges")), /fitRing\(state\.ring, bubble\);\s*paintEdges\(state\);/);
+  assert.match(js, /paintRing\(state\.ring, on && room > 1 \? flow\.scrollTop \/ room : 0\)/);
 
   const css = read("../style.css");
   // Nothing between the ring and the popup frame clips it or its glow.
   assert.match(css, /\.popup-body > \.popup-msg\.is-more > \.popup-text-bubble \{\s*display: flex;\s*flex-direction: column;\s*overflow: visible;/);
   assert.match(css, /\.popup-body:has\(> \.popup-msg\.is-more\),\s*:is\(\.maplibregl-map, :where\(#popup-settings-preview\)\) \.popup-sheet \.popup-body > div\.popup-msg\.is-more \{\s*overflow: visible;/);
-  assert.match(css, /\.popup-text-rail > \.popup-text-rail-fill \{\s*fill: none;/);
+  assert.match(css, /\.reading-ring > \.reading-ring-line \{\s*fill: none;\s*stroke-width: var\(--ring-w\);/);
+  // Hidden until its box shows it.
+  assert.match(css, /\.reading-ring \{[^}]*display: none;/);
+  assert.match(css, /\.popup-msg\.is-more > \.popup-text-bubble > \.popup-text-rail \{\s*display: block;/);
 });

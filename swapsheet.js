@@ -12,6 +12,7 @@ import { bareAccount } from "./donationmath.js";
 import { profileSwapBios } from "./loadalladata.js";
 import { DEFAULT_PIC, profileDisplayName, profilePicUrl, profileUsername } from "./profileface.js";
 import { mountPicture } from "./loopmedia.js";
+import { watchReadingRing } from "./readingring.js";
 import { paintProfileAvatar } from "./earlyhashinal.js";
 import { swapHttpsLink, swapWebsiteLabel, swapXLabel } from "./server/swaptoken.js";
 import {
@@ -26,7 +27,6 @@ import {
   swapKeptLinks,
   swapPhoneColumnZoom,
   swapReturnTarget,
-  swapBioPreview,
   swapSheetText,
   swapSuccessToast,
   swapTabbables,
@@ -579,8 +579,10 @@ export function createSwapTokenCard() {
   return token;
 }
 
-// banner -> the whole bio while the sheet shows only its start.
+// banner -> the whole bio, for Show more's full-screen page.
 const swapBioFull = new WeakMap();
+// banner -> its reading ring (readingring.js watchReadingRing).
+const swapBioRings = new WeakMap();
 
 // The author's face, name, and account id, then their Swap bio. Same row
 // as the feed banner, without its back arrow. The bio is the note under it.
@@ -619,8 +621,10 @@ function createSwapBio() {
   const body = document.createElement("p");
   body.className = "feed-profile-banner-bio";
 
-  // A long bio shows its start. Show more opens the whole text on the same
-  // full-screen page as a feed post's Show more, above this sheet.
+  // A long bio scrolls inside the card, like a popup's text: the card's own
+  // border lights clockwise as you read (readingring.js), the edges with
+  // more text past them fade, and Show more opens the whole text on the
+  // same full-screen page as a feed post's Show more, above this sheet.
   const more = document.createElement("button");
   more.type = "button";
   more.className = "swap-bio-more";
@@ -673,6 +677,11 @@ function createSwapBio() {
   });
 
   banner.append(open, edit, body, more);
+  // Show more only while the bio is longer than its box.
+  swapBioRings.set(banner, watchReadingRing(banner, body, {
+    className: "swap-bio-ring",
+    onOverflow: (over) => { more.hidden = !over; },
+  }));
   return banner;
 }
 
@@ -680,13 +689,10 @@ function paintSwapBio(banner, author, text) {
   if (!banner) return;
   const body = banner.querySelector(".feed-profile-banner-bio");
   const open = banner.querySelector(".swap-bio-open");
-  const more = banner.querySelector(".swap-bio-more");
   const edit = banner.querySelector(".swap-bio-edit");
   const nameEl = banner.querySelector(".feed-profile-banner-name");
   const handleEl = banner.querySelector(".feed-profile-banner-handle");
-  const preview = swapBioPreview(text);
   swapBioFull.set(banner, text || "");
-  if (more) more.hidden = !preview.more;
   const mine = !!text && !!author && bareAccount(connectedAccount) === author;
   if (edit) edit.hidden = !mine;
   banner.classList.toggle("has-edit", mine);
@@ -712,7 +718,14 @@ function paintSwapBio(banner, author, text) {
     nameEl.hidden = !name;
   }
   if (handleEl) handleEl.textContent = author || "";
-  if (body) body.textContent = preview.text;
+  // The whole bio; it scrolls inside the card. Back to its top, and the
+  // ring and Show more measure the new text once the sheet is laid out.
+  if (body) {
+    body.textContent = text;
+    body.scrollTop = 0;
+  }
+  const ring = swapBioRings.get(banner);
+  if (ring) ring.refresh();
   if (open) {
     open.hidden = false;
     open.dataset.account = author || "";
