@@ -21935,6 +21935,36 @@ img.is-gif-hit {
     transition: none;
   }
 }
+/* Text fields (fieldring.js): the ring shows while what was typed is
+   taller than the field. A textarea cannot hold it, so a zero-size span
+   after the field sits on the field's padding box and the SVG backs out
+   over its border. !important: panels style their spans and svgs broadly,
+   and this one must keep its place and size. Above the field, under the
+   field's × (z-index 3). */
+.field-ring {
+  position: absolute !important;
+  z-index: 2 !important;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: none !important;
+  transform: none !important;
+  pointer-events: none !important;
+}
+.field-ring.is-on {
+  display: block !important;
+}
+.field-ring > .reading-ring {
+  --ring-w: max(2px, 0.14rem);
+  --ring-glow: 0.3rem;
+  display: block;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+}
 /* Popup text: the ring shows while the text is longer than its bubble. */
 .popup-msg.is-more > .popup-text-bubble {
   position: relative;

@@ -5,6 +5,7 @@ import './historyLayers.js';
 import './map.js';
 import './toast.js';
 import './fieldclear.js';
+import './fieldring.js';
 import './loaderprogress.js';
 import './popupanim.js';
 import './cssLogic.js'

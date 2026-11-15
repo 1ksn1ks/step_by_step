@@ -64,6 +64,9 @@ export function fitRing(ring, box) {
   svg.setAttribute('width', String(w));
   svg.setAttribute('height', String(h));
   svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  // Inline too: a page rule that sizes svg elements would beat the attributes.
+  svg.style.width = `${w}px`;
+  svg.style.height = `${h}px`;
   // Absolute in the box's padding box: back out over the border.
   svg.style.left = `${-bw}px`;
   svg.style.top = `${-bw}px`;
