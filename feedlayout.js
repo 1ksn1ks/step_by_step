@@ -6043,10 +6043,6 @@ const NORTH_ICON = [
   ['path', { d: 'M12 3 17.5 12H6.5Z', fill: 'currentColor', stroke: 'none' }],
   ['path', { d: 'M12 21 6.5 12h11Z', fill: 'currentColor', stroke: 'none', opacity: '0.45' }],
 ];
-const EYE_ICON = [
-  ['path', { d: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z' }],
-  ['circle', { cx: '12', cy: '12', r: '3' }],
-];
 const TOOLS_ICON = [
   ['rect', { x: '3', y: '3', width: '7', height: '7', rx: '1' }],
   ['rect', { x: '14', y: '3', width: '7', height: '7', rx: '1' }],
@@ -8195,7 +8191,6 @@ const DRAWER_ORDER = [
   { label: 'Topic chat', icon: CHAT_ICON, run: openTopicChat },
   { label: 'E2EE chat', icon: LOCK_ICON, run: openE2ee },
   { label: 'Settings', icon: SETTINGS_ICON, run: { feed: openFeedSettings, map: () => openDrawerPanel('rotation-controls') } },
-  { label: 'Visibility', icon: EYE_ICON, mode: 'map', run: () => openDrawerPanel('visibility-controls') },
   { label: 'Toolbar', icon: TOOLS_ICON, mode: 'map', run: () => openDrawerPanel('toolbar') },
   {
     kind: 'tools',
@@ -8310,7 +8305,7 @@ for (const entry of DRAWER_ORDER) {
   appendDrawerItem(entry);
 }
 
-// Settings, Visibility and Toolbar slide inside the drawer. One overlay,
+// Settings and Toolbar slide inside the drawer. One overlay,
 // one history level per page. Panels are the existing nodes, parked here
 // while the page is open.
 const DRAWER_PAGE_LEVELS = 4;
@@ -8321,7 +8316,7 @@ const DRAWER_CHILDREN = {
     'initial-xyz-column',
   ],
   'rotation-controls': [
-    'model-column', 'crosshair-column', 'marker-options-column',
+    'visibility-controls', 'model-column', 'crosshair-column', 'marker-options-column',
     'topic-chat-column', 'popup-options-column',
   ],
 };
@@ -8379,11 +8374,11 @@ function unhostDrawer(el, hide) {
 
 const DRAWER_ROOT_PAGES = {
   'rotation-controls': 'Settings',
-  'visibility-controls': 'Visibility',
   toolbar: 'Toolbar',
 };
 
 const DRAWER_LABELS = {
+  'visibility-controls': 'Map',
   'marker-options-column': 'Markers',
   'topic-chat-column': 'Chat',
   'popup-options-column': 'Popups',
@@ -9173,7 +9168,7 @@ function watchDrawerPanel(id, el) {
   }).observe(el, { attributes: true, attributeFilter: ['style'] });
 }
 
-const drawerWatchIds = ['rotation-controls', 'visibility-controls', 'toolbar'];
+const drawerWatchIds = ['rotation-controls', 'toolbar'];
 for (const ids of Object.values(DRAWER_CHILDREN)) drawerWatchIds.push(...ids);
 for (const id of drawerWatchIds) {
   const el = document.getElementById(id);
@@ -9229,6 +9224,12 @@ document.addEventListener('click', (event) => {
 }, true);
 
 const NAV_ICONS = {
+  // A folded paper map.
+  'change-map-options': [
+    ['path', { d: 'M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z' }],
+    ['path', { d: 'M15 5.764v15' }],
+    ['path', { d: 'M9 3.236v15' }],
+  ],
   'change-marker-options': [
     ['path', { d: 'M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0' }],
     ['circle', { cx: '12', cy: '10', r: '3' }],
@@ -9308,6 +9309,7 @@ function frameVisIcon(svg, minX) {
 }
 
 const NAV_PANELS = {
+  'change-map-options': 'visibility-controls',
   'change-marker-options': 'marker-options-column',
   'change-topic-chat-options': 'topic-chat-column',
   'change-popup-options': 'popup-options-column',
@@ -9394,7 +9396,7 @@ function dressVisibility() {
 }
 
 function markSetGroups() {
-  const ids = new Set(['toolbar', 'rotation-controls', 'visibility-controls', ...drawerWatchIds]);
+  const ids = new Set(['toolbar', 'rotation-controls', ...drawerWatchIds]);
   for (const extra of Object.values(DRAWER_EXTRAS)) {
     for (const id of extra) ids.add(id);
   }

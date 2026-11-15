@@ -378,7 +378,7 @@ export function CloseALL() {
         },
       }, parent);
     };
-    // OPTIONS opens SETTINGS / VISIBILITY / TOOLBAR together. One button's
+    // OPTIONS opens SETTINGS / TOOLBAR together. One button's
     // display is the layer: Back runs CloseALL, Forward clicks OPTIONS.
     // A map tap, tapping OPTIONS's spot, or picking one of those buttons
     // also runs CloseALL, so the entry is dropped with the other layers.
@@ -399,8 +399,8 @@ export function CloseALL() {
     subColumn("domain-column", "Domain", "toolbar", "toggle-toolbar-btn", ["domain-column-container"]);
     subColumn("stack-topic-ids", "Stack_topic_IDs", "toolbar", "toggle-toolbar-btn", ["stack-topic-ids-container"]);
     subColumn("initial-xyz-column", "Set_Initial_XYZ", "toolbar", "toggle-toolbar-btn", ["initial-xyz-column-container"]);
-    panelLayer("visibility-controls", "toggle-visibility-controls-btn");
     panelLayer("rotation-controls", "toggle-your-fov-btn");
+    subColumn("visibility-controls", "change-map-options", "rotation-controls", "toggle-your-fov-btn");
     subColumn("model-column", "change-model-settings", "rotation-controls", "toggle-your-fov-btn",
       ["model-column-container", "model-column-save", "model-column-container-save"]);
     subColumn("crosshair-column", "change-crosshair-settings", "rotation-controls", "toggle-your-fov-btn",
@@ -487,14 +487,6 @@ export function CloseALL() {
   //   }
   // });
   
-  document.getElementById("toggle-visibility-controls-btn").addEventListener("click", function(event) {
-    event.stopPropagation();
-    CloseALL();
-    document.getElementById("visibility-controls").style.display = "block";
-
-    removeUfoModel();
-  });
-  
   document.getElementById("toggle-your-fov-btn").addEventListener("click", function(event) {
     event.stopPropagation();
     CloseALL();
@@ -508,6 +500,16 @@ export function CloseALL() {
     document.getElementById("rotation-controls").style.display = "block";
   });
   
+  // Map: what the map shows (models, markers, polygons, globe, polygon opacity).
+  document.getElementById("change-map-options").addEventListener("click", (event) => {
+    event.stopPropagation();
+    CloseALL();
+    document.getElementById("visibility-controls").style.display = "block";
+
+    OpenToggleYourFov();
+    removeUfoModel();
+  });
+
   document.getElementById("change-model-settings").addEventListener("click", (event) => {
     event.stopPropagation();
     CloseALL();

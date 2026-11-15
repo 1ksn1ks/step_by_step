@@ -177,9 +177,6 @@
         <button id="toggle-your-fov-btn" class="menu_buttons">SETTINGS
         </button>
 
-        <button id="toggle-visibility-controls-btn" class="menu_buttons">VISIBILITY
-        </button>
-
         <button id="toggle-toolbar-btn" class="menu_buttons">TOOLBAR
         </button>
       </div>
@@ -1796,18 +1793,19 @@
       
       <div id="rotation-controls" class="rotation-controls set-group" onclick="event.stopPropagation();">
         <div class="options-column-title">⚙ SETTINGS</div>
+        <div class="toolbar-column set-nav" id="change-map-options"><span class="set-nav-copy"><span class="set-nav-label">Map</span><span class="set-nav-desc">Models, markers, polygons, globe</span></span></div>
+        <div class="toolbar-column set-nav" id="change-topic-chat-options"><span class="set-nav-copy"><span class="set-nav-label">Chat</span><span class="set-nav-desc">Message text, time and colors</span></span></div>
+        <div class="toolbar-column set-nav" id="change-marker-options"><span class="set-nav-copy"><span class="set-nav-label">Markers</span><span class="set-nav-desc">Marker size on the map</span></span></div>
+        <div class="toolbar-column set-nav" id="change-popup-options"><span class="set-nav-copy"><span class="set-nav-label">Popups</span><span class="set-nav-desc">Size, colors and screen corners</span></span></div>
         <div class="toolbar-column set-nav" id="change-model-settings" style="display: none;"><span class="set-nav-copy"><span class="set-nav-label">Model</span><span class="set-nav-desc">URL, rotation and scale</span></span></div>
         <div class="toolbar-column set-nav" id="change-crosshair-settings" style="display: none;"><span class="set-nav-copy"><span class="set-nav-label">Crosshair</span><span class="set-nav-desc">Color, length and thickness</span></span></div>
-        <div class="toolbar-column set-nav" id="change-marker-options"><span class="set-nav-copy"><span class="set-nav-label">Markers</span><span class="set-nav-desc">Marker size on the map</span></span></div>
-        <div class="toolbar-column set-nav" id="change-topic-chat-options"><span class="set-nav-copy"><span class="set-nav-label">Chat</span><span class="set-nav-desc">Message text, time and colors</span></span></div>
-        <div class="toolbar-column set-nav" id="change-popup-options"><span class="set-nav-copy"><span class="set-nav-label">Popups</span><span class="set-nav-desc">Size, colors and screen corners</span></span></div>
       </div>
           
       <div id="visibility-controls" class="toolbar-containers mb-panel" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top: 10vh;">
         <button class="panel-help-btn" id="help-visibility-controls">?</button>
         <div id="visibility-controls-container">
 
-          <div class="options-column-title">👁 VISIBILITY</div>
+          <div class="options-column-title">🗺 MAP</div>
 
           <div class="mb-card">
             <div class="mb-row">
@@ -1865,7 +1863,7 @@
 
       <div id="visibility-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
-          <h3 class="info-overlay-title">Visibility</h3>
+          <h3 class="info-overlay-title">Map</h3>
           <p class="info-overlay-subtitle">Choose what the map shows.</p>
           <ul class="info-overlay-list">
             <li><b>Show 3D models</b> — toggle the users' 3D models on the map.</li>

@@ -2563,7 +2563,7 @@ html, body {
   html:has(.maplibregl-map > .maplibregl-popup:not([style*="display: none"])) .maplibregl-ctrl-attrib {
     visibility: hidden !important;
   }
-  /* Settings, Visibility and Toolbar stay in the document so the drawer
+  /* Settings and Toolbar stay in the document so the drawer
      can show those panels. They are not part of the map. */
   #menu-buttons-group,
   #menu-buttons-group * {
@@ -14873,14 +14873,14 @@ html.is-tuning-corners #popup-options-column > .panel-help-btn {
    wide as the On column, the gap, the switch margin and the switch, so
    Day-Night stays on the same right edge as the switches and the four
    icons share one right edge. */
-#feed-menu #visibility-controls.in-drawer .mb-row:has(> .toolbar-column-btns) {
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .mb-row:has(> .toolbar-column-btns) {
   position: relative;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   gap: calc(var(--fu) * 0.8);
 }
-#feed-menu #visibility-controls.in-drawer .set-nav-icon {
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .set-nav-icon {
   display: flex;
   order: 2;
   flex: 0 0 calc(var(--fu) * 2.2);
@@ -14890,13 +14890,13 @@ html.is-tuning-corners #popup-options-column > .panel-help-btn {
   height: calc(var(--fu) * 2.2);
   margin: 0;
 }
-#feed-menu #visibility-controls.in-drawer .set-nav-icon svg {
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .set-nav-icon svg {
   width: 100%;
   height: 100%;
   display: block;
   margin: 0;
 }
-#feed-menu #visibility-controls.in-drawer .mb-row > .toolbar-column-btns {
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .mb-row > .toolbar-column-btns {
   position: static;
   order: 1;
   display: block !important;
@@ -14911,12 +14911,12 @@ html.is-tuning-corners #popup-options-column > .panel-help-btn {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-#feed-menu #visibility-controls.in-drawer .mb-row > .toolbar-column-btns:is(:hover, :active) {
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .mb-row > .toolbar-column-btns:is(:hover, :active) {
   background: transparent !important;
   background-color: transparent !important;
   color: #22D3EE;
 }
-#feed-menu #visibility-controls.in-drawer .mb-row:has(> .toolbar-column-btns) > span:not(.set-nav-icon):not(.set-switch) {
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .mb-row:has(> .toolbar-column-btns) > span:not(.set-nav-icon):not(.set-switch) {
   position: relative;
   z-index: 1;
   order: 3;
@@ -14933,14 +14933,14 @@ html.is-tuning-corners #popup-options-column > .panel-help-btn {
   pointer-events: none;
   white-space: nowrap;
 }
-#feed-menu #visibility-controls.in-drawer .mb-row:not(.is-switch) > span:not(.set-nav-icon):not(.set-switch) {
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .mb-row:not(.is-switch) > span:not(.set-nav-icon):not(.set-switch) {
   width: calc(4.5ch + var(--fu) * 0.8 + var(--fu) * 0.55 + var(--fu) * 3.6);
   min-width: calc(4.5ch + var(--fu) * 0.8 + var(--fu) * 0.55 + var(--fu) * 3.6);
 }
-#feed-menu #visibility-controls.in-drawer .set-switch {
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .set-switch {
   order: 4;
 }
-#feed-menu #visibility-controls.in-drawer .mb-row:has(> .toolbar-column-btns) > span[id$="-value2"] {
+:is(#feed-menu, .drawer-screen) #visibility-controls.in-drawer .mb-row:has(> .toolbar-column-btns) > span[id$="-value2"] {
   display: none !important;
 }
 :is(#feed-menu, .drawer-screen) .in-drawer .set-switch {

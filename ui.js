@@ -2,20 +2,19 @@
 export const everythinginsideoptionsbuttons = [
     // "toggle-controls-btn",
     "toggle-your-fov-btn",
-    "toggle-visibility-controls-btn",
     "toggle-toolbar-btn"
   ];
-  
+
   export const firstlayercolumns = [
     "rotation-controls",
     "toolbar",
-    "visibility-controls",
     "topic-chat-container",
     "encrypted-chat-container"
   ];
-  
-  
+
+
   export const everythinginsideyourfov = [
+    "visibility-controls",
     "model-column",
     "model-column-save",
     "crosshair-column",
