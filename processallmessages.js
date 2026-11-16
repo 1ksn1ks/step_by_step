@@ -1,3 +1,4 @@
+import { isValidUrl } from './ISVALIDURL.JS';
 import { DEFAULT_AVATAR } from './hashinalurl.js';
 import {getTopicInfo} from './hedera'
 import { prepareHoldings, fetchAccountTokens } from './nftcache.js'
@@ -1528,15 +1529,6 @@ export function mountPostReactions(cluster, data, kind, home) {
   if (section && !section._bubbleInput) section._bubbleInput = bubble.querySelector('input');
   if (home && section) adoptComments(section, home);
   return section;
-}
-
-function isValidUrl(url) {
-  try {
-      new URL(url);
-      return true;
-  } catch {
-      return false;
-  }
 }
 
 // Same video check the popup uses on the Image field. An array is the

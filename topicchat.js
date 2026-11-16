@@ -1,3 +1,4 @@
+import { isValidUrl } from './ISVALIDURL.JS';
 import { DEFAULT_AVATAR } from './hashinalurl.js';
 import {adjustTextareaHeight} from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
@@ -476,14 +477,6 @@ document.getElementById('go-to-bottom-msgs').addEventListener('click', function(
     container.scrollTop = container.scrollHeight;
   });
 
-  function isValidUrl(string) {
-    try {
-      new URL(string);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
 
 const purifyConfig = {
   ALLOWED_URI_REGEXP: /^https:\/\/explore\.hashpack\.app\//i

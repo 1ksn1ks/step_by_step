@@ -417,7 +417,7 @@ function nextTurn() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-test("a null gif check paints the image and is not cached", async () => {
+test("a null gif check paints the image; the next paint shows it at once", async () => {
   resetGifCache();
   const url = "https://cdn.example/files/unchecked-null";
   let calls = 0;
@@ -434,15 +434,17 @@ test("a null gif check paints the image and is not cached", async () => {
     await nextTurn();
     assert.equal(img.classList.contains("is-media-pending"), false);
     assert.equal(img.getAttribute("src"), url);
+    // Not stored as a verdict; remembered for this visit only.
     assert.equal(readGifCache(url), null);
     const afterFirst = calls;
     assert.ok(afterFirst >= 1);
     presentImage(img, url);
-    await nextTurn();
-    assert.ok(calls > afterFirst);
-    assert.equal(readGifCache(url), null);
+    // No skeleton and no second check.
     assert.equal(img.classList.contains("is-media-pending"), false);
     assert.equal(img.getAttribute("src"), url);
+    await nextTurn();
+    assert.equal(calls, afterFirst);
+    assert.equal(readGifCache(url), null);
   } finally {
     globalThis.fetch = previous;
     resetGifCache();

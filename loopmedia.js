@@ -10,6 +10,7 @@ import { armIpfsAttempt, preferGateway } from "./ipfsimage.js";
 import { forgetProfilePicture, watchProfilePicture } from "./markertilt.js";
 import {
   classifyImageUrl,
+  gifCheckFailed,
   isGifClipUrl,
   isGifUrl,
   loadImageBytes,
@@ -342,7 +343,9 @@ function armGifLoad(img) {
 // is on. Elsewhere an address that may be a GIF stays on the skeleton
 // until classifyImageUrl answers, and a GIF becomes a canvas of frame 0.
 // null (the check failed, was blocked, the device is offline, or the host
-// was too slow) paints the address as a normal image and is not cached.
+// was too slow) paints the address as a normal image. That is remembered
+// for the visit (gifCheckFailed): a later paint shows it at once, with no
+// skeleton and no second check.
 export function presentImage(img, url, options) {
   if (!img) return img;
   const opts = options || {};
@@ -363,7 +366,7 @@ export function presentImage(img, url, options) {
     return img;
   }
   const cached = isGifUrl(painted) ? true : readGifCache(painted);
-  if (cached === false) {
+  if (cached === false || (cached !== true && gifCheckFailed(painted))) {
     dropStill(img);
     assignSrc(img, painted);
     return img;

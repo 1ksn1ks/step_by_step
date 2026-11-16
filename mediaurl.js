@@ -107,6 +107,7 @@ function storeOf(options) {
 export function resetGifCache() {
   memory.clear();
   byteCache.clear();
+  failedChecks.clear();
 }
 
 export function readGifCache(url, storage) {
@@ -276,8 +277,30 @@ async function sniff(url, fetchImpl, ranged, signal) {
   return gifMagic(bytes);
 }
 
-// true GIF, false still, null when the check could not finish.
-// A failed check is not cached, so a later paint can try again.
+// Addresses whose check could not finish this visit: a host without CORS
+// (ipfs.io, dweb.link, Google Photos), a network error, a non-2xx answer,
+// a slow host. They are not checked again on every paint; the picture is
+// shown as a normal image at once. Memory only, so a later visit checks
+// again; capped so it cannot grow without limit.
+const failedChecks = new Set();
+const FAILED_CHECKS_MAX = 500;
+
+function noteFailedCheck(url) {
+  if (failedChecks.has(url)) failedChecks.delete(url);
+  failedChecks.add(url);
+  while (failedChecks.size > FAILED_CHECKS_MAX) failedChecks.delete(failedChecks.values().next().value);
+}
+
+// True when this address could not be checked this visit: show it as a
+// normal picture.
+export function gifCheckFailed(url) {
+  const key = typeof url === "string" ? url.trim() : "";
+  return !!key && failedChecks.has(key);
+}
+
+// true GIF, false still, null when the check could not finish. It never
+// rejects. Only a check that really read the type or the bytes says GIF.
+// null is remembered for this visit (gifCheckFailed), not stored.
 export async function classifyImageUrl(url, options) {
   const raw = typeof url === "string" ? url.trim() : "";
   const storage = storeOf(options);
@@ -289,16 +312,23 @@ export async function classifyImageUrl(url, options) {
   }
   const cached = readGifCache(raw, storage);
   if (cached === true || cached === false) return cached;
+  if (failedChecks.has(raw)) return null;
   const fetchImpl = (options && options.fetch) || globalThis.fetch;
   if (typeof fetchImpl !== "function") return null;
   const deadline = sniffDeadline();
-  let found;
+  let found = null;
   try {
     found = await withinDeadline(sniff(raw, fetchImpl, true, deadline.signal), deadline.signal);
+  } catch {
+    // Anything the check could not survive is "unknown", never an error.
+    found = null;
   } finally {
     deadline.clear();
   }
-  if (found == null) return null;
+  if (found !== true && found !== false) {
+    noteFailedCheck(raw);
+    return null;
+  }
   writeGifCache(raw, found, storage);
   return found;
 }

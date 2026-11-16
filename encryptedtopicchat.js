@@ -1,3 +1,4 @@
+import { isValidUrl } from './ISVALIDURL.JS';
 import { DEFAULT_AVATAR } from './hashinalurl.js';
 import { adjustTextareaHeight } from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
@@ -627,11 +628,6 @@ if (window.defineLayer) {
   });
 }
 window.closeE2eeChatEdit = closeE2eeChatEdit;
-
-// Helper function to check valid URL
-function isValidUrl(string) {
-  try { new URL(string); return true; } catch (_) { return false; }
-}
 
 // Helper function to create empty state message
 function createEmptyStateMessage(container, message) {

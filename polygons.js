@@ -197,19 +197,22 @@ function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackU
     const url = preferGateway(imageUrl) || imageUrl;
     // The black map placeholder stays until this resolves. A GIF is frame 0
     // from the shared helper, never an <img> that can animate.
-    if (url && (isGifUrl(url) || needsGifCheck(url))) {
-      const gif = await classifyImageUrl(url);
-      if (gif === true) {
+    // A check that could not run (a host without CORS, a network error) is
+    // not a reason to drop the picture: it is loaded like a still. Only a
+    // check that said GIF reads the bytes.
+    if (url && (isGifUrl(url) || needsGifCheck(url)) && await classifyImageUrl(url) === true) {
+      try {
         const buf = await loadImageBytes(url);
         const still = await gifStillCanvas(new File([buf], "cover.gif", { type: "image/gif" }));
-        if (!still) throw new Error("gif still");
-        return rasterize(still, still.width, still.height, maxWidth, maxHeight);
-      }
-      if (gif == null) {
-        if (!fallbackUrl) throw new Error("unverified image");
-        return loadElementImage(fallbackUrl, maxWidth, maxHeight, null);
+        if (still) return rasterize(still, still.width, still.height, maxWidth, maxHeight);
+      } catch {
+        // The bytes cannot be read here: the element load below draws the
+        // first frame instead.
       }
     }
+    // A cover is a WebGL texture, which the browser only allows for a
+    // picture its host shares with CORS. One it does not share (or a
+    // tainted canvas) takes the fallback, as before.
     return loadElementImage(url, maxWidth, maxHeight, fallbackUrl);
   })();
   resizedImageCache.set(key, pending);
