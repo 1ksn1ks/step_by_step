@@ -24,6 +24,7 @@ import { initialTopicId } from "./extracttopic.js";
 import { toast } from "./toast";
 import { applyInitialXYZ } from "./setinitialxyz.js";
 import { fillTopicIds } from "./topicidintext.js";
+import { clearXEmbeds, paintXEmbeds } from "./xembed.js";
 
 // Account ids and topic ids share the 0.0. form, and Hedera gives each number
 // to only one of them. A remembered answer skips a second mirror ask.
@@ -125,6 +126,8 @@ function setTopicChevron(arrowBtn, open) {
 function toggleTopicBio(topicId, row, arrowBtn) {
   const existing = row.nextElementSibling;
   if (existing && existing.classList && existing.classList.contains('topic-bio-row')) {
+    // An X post card under the bio goes with it.
+    clearXEmbeds(existing);
     existing.remove();
     setTopicChevron(arrowBtn, false);
     return;
@@ -136,6 +139,7 @@ function toggleTopicBio(topicId, row, arrowBtn) {
   if (bio) fillTopicIds(bioEl, bio);
   else bioEl.textContent = 'No bio set yet';
   row.after(bioEl);
+  paintXEmbeds(bioEl);
   setTopicChevron(arrowBtn, true);
 }
 

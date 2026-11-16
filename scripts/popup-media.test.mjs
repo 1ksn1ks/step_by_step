@@ -143,7 +143,8 @@ test("popups have their own Show media full size switch, apart from the feed's",
   const corners = panel.slice(panel.indexOf('class="mb-card mb-corners-card"'), panel.indexOf('class="mb-card mb-color-grid"'));
   assert.ok(corners.indexOf('id="screen-corners"') > 0);
   assert.ok(corners.indexOf('id="popup-media-wide"') > corners.indexOf('id="screen-corners-auto"'));
-  assert.match(corners, /<button type="button" id="popup-media-wide" class="feed-settings-switch mb-switch-row" role="switch" aria-checked="false"><span>Show media full size<\/span><span class="feed-settings-switch-ui" aria-hidden="true"><\/span><\/button>\s*<\/div>/);
+  // Show X embeds (x-embed.test.mjs) is the row after it.
+  assert.match(corners, /<button type="button" id="popup-media-wide" class="feed-settings-switch mb-switch-row" role="switch" aria-checked="false"><span>Show media full size<\/span><span class="feed-settings-switch-ui" aria-hidden="true"><\/span><\/button>\s*<!--[\s\S]*?-->\s*<button type="button" id="popup-x-embeds"/);
   assert.equal(panel.includes("mb-media-card"), false);
   assert.equal(panel.includes('<div class="mb-card-title">Media</div>'), false);
   const help = page.slice(page.indexOf('id="popup-style-help-overlay"'), page.indexOf('id="popup-options-column"'));

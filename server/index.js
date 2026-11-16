@@ -25,6 +25,7 @@ import { profileTopicAction } from "./profiletopic.js";
 import { swapProfileAction } from "./swapprofile.js";
 import { nextSwapBio, swapBioAction, swapBioFromRow } from "./swapbio.js";
 import { createSwapTokenLookup, swapTokenRoute } from "./swaptoken.js";
+import { createXEmbedLookup, xEmbedRoute } from "./xembed.js";
 import { hashtagsIn } from "../hashtag.js";
 import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { SEALED_MAX, sealedUploadPlan } from "./sealedupload.js";
@@ -3548,6 +3549,12 @@ app.get("/api/turn", publicPostLimit, async (req, res) => {
     if (!res.headersSent) res.status(502).json({ ok: false, iceServers: [] });
   }
 });
+
+// An X post linked in a post, a chat or a bio (xembed.js): its author and
+// text as plain JSON, never X's HTML. 400 for anything but a post link;
+// 404 / 502 when X will not describe it. Answers and misses are cached.
+const xEmbedLookup = createXEmbedLookup();
+app.get("/api/x-embed", publicPostLimit, xEmbedRoute(xEmbedLookup));
 
 app.get("/api/early-hashinals", publicPostLimit, (req, res) => {
   const snapshot = earlyHashinals.snapshot();

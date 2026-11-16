@@ -13,6 +13,7 @@ import { profileSwapBios } from "./loadalladata.js";
 import { DEFAULT_PIC, profileDisplayName, profilePicUrl, profileUsername } from "./profileface.js";
 import { mountPicture } from "./loopmedia.js";
 import { watchReadingRing } from "./readingring.js";
+import { clearXEmbeds, paintXEmbeds } from "./xembed.js";
 import { paintProfileAvatar } from "./earlyhashinal.js";
 import { swapHttpsLink, swapWebsiteLabel, swapXLabel } from "./server/swaptoken.js";
 import {
@@ -700,7 +701,10 @@ function paintSwapBio(banner, author, text) {
     banner.hidden = true;
     banner.classList.remove("no-username");
     banner.removeAttribute("aria-label");
-    if (body) body.textContent = "";
+    if (body) {
+      body.textContent = "";
+      clearXEmbeds(body);
+    }
     if (open) {
       open.hidden = true;
       delete open.dataset.account;
@@ -723,6 +727,8 @@ function paintSwapBio(banner, author, text) {
   if (body) {
     body.textContent = text;
     body.scrollTop = 0;
+    // A linked X post: its card under the bio and its Show more.
+    paintXEmbeds(body, { after: banner.querySelector(".swap-bio-more") || body });
   }
   const ring = swapBioRings.get(banner);
   if (ring) ring.refresh();

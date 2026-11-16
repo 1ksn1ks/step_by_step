@@ -44,6 +44,7 @@ import { isGifClipUrl, isGifUrl, needsGifCheck, resolveMediaUrl } from './mediau
 import { bindVideoPoster } from './videoposter.js';
 import { mountPicture, pictureElement, presentImage } from './loopmedia.js';
 import { mountMediaBackdrop, mountMediaTools } from './mediaframe.js';
+import { paintXEmbeds, refreshXEmbeds, setXEmbedsOn, xEmbedsOn } from './xembed.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -2785,6 +2786,8 @@ function buildCard(post) {
   } else if (text) {
     card.appendChild(text);
   }
+  // A linked X post: its card follows the text (Show more goes between).
+  if (text) paintXEmbeds(text);
 
   const actions = document.createElement('div');
   actions.className = 'feed-actions';
@@ -3070,7 +3073,11 @@ function patchFeedCardsForEdit(payer, iso, msg) {
   for (const card of column.querySelectorAll('.feed-card')) {
     if (!keys.has(card.dataset.key)) continue;
     const text = card.querySelector('p.popup-text-bubble');
-    if (text) paintHashtags(text, msg);
+    if (text) {
+      paintHashtags(text, msg);
+      // A changed X post link: its card is replaced, after Show more.
+      paintXEmbeds(text);
+    }
     const full = card.querySelector('.feed-time-full');
     if (full && !full.parentElement.querySelector('.feed-edited-mark')) {
       const mark = document.createElement('span');
@@ -5958,6 +5965,7 @@ function paintProfileBio(bio) {
   } else {
     fillTopicIds(profileBio, text, 'feed-profile-topic');
   }
+  paintXEmbeds(profileBio);
   if (profileFilter && profileFilter === profilePayer) paintProfileBanner(profilePayer);
 }
 
@@ -6585,13 +6593,21 @@ mediaSection.append(
     feedPrefs.dataSaver = on;
     writeFeedSetting(FEED_SETTING.data, on ? 'on' : 'off');
     syncFeedVideos();
+    // X post cards not loaded yet wait for a tap while it is on.
+    refreshXEmbeds();
   }),
   settingsSwitch('Show media full size', () => feedPrefs.mediaWide, (on) => {
     feedPrefs.mediaWide = on;
     writeFeedSetting(FEED_SETTING.mediaWide, on ? 'on' : 'off');
     resizeFeedMedia();
   }),
+  // The same setting as Settings > Popups > Show X embeds (xembed.js).
+  settingsSwitch('Show X embeds', xEmbedsOn, setXEmbedsOn),
 );
+// The popups page's switch flipped it: paint this one to match.
+document.addEventListener('x-embeds-change', () => {
+  for (const paint of settingsPaints) paint();
+});
 
 // Cards already built follow the switch, videos included. The card at the
 // top of the feed stays where it is. Only the is-wide class changes, so a

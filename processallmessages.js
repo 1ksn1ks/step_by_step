@@ -23,6 +23,7 @@ import { pictureElement, presentImage, watchLoop } from './loopmedia.js';
 import { mountMediaBackdrop, mountMediaTools } from './mediaframe.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
 import { watchPopupText, setPopupText } from './popuptext.js';
+import { bindXEmbedsSwitch, paintXEmbeds } from './xembed.js';
 import { isTyping } from './joystick.js';
 import { normalizeMessageNewlines, clipMessage, formatHcsUsage, utf8ByteLength, HCS_TOO_LONG, HCS_MESSAGE_MAX_BYTES } from './hcschunks.js';
 import maplibregl from 'maplibre-gl';
@@ -2292,6 +2293,11 @@ function bindPopupMediaWide() {
 }
 bindPopupMediaWide();
 
+// Settings > Popups > Show X embeds, the row under Show media full size:
+// the same device setting as the feed's Settings > Media switch
+// (xembed.js), so flipping either one moves both.
+bindXEmbedsSwitch(document.getElementById('popup-x-embeds'));
+
 function rememberPopupMediaSize(key, wide) {
   if (wide) {
     popupWideMedia.add(key);
@@ -2485,6 +2491,9 @@ export function createMarkerPopupHTML(data) {
   contentSection.appendChild(msgDiv);
   // Fills the popup; longer text gets Show more (full-screen page).
   watchPopupText(msgDiv, msgP, Array.isArray(msg) ? msg[0] : msg, title);
+  // A linked X post: its card goes last in the message box, under the
+  // bubble and its Show more (xembed.js).
+  paintXEmbeds(msgP, { host: msgDiv });
 
   // Title sits under the profile. The picture and text follow it.
   // The gap takes the spare room, so the hearts and the topic stay
@@ -2650,6 +2659,7 @@ function createPolygonPopupHTML(data) {
   contentSection.appendChild(msgDiv);
   // Fills the popup; longer text gets Show more (full-screen page).
   watchPopupText(msgDiv, msgP, Array.isArray(msg) ? msg[0] : msg, title);
+  paintXEmbeds(msgP, { host: msgDiv });
 
   container.appendChild(contentSection);
   const polygonGap = document.createElement('div');

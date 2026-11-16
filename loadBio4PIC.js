@@ -5,6 +5,7 @@ import { loadTopicBio, usernames, profilePictures, click2url, profileTopics } fr
 import { followPersonControls } from './followtopic';
 import { adjustTextareaHeight } from './adjusttextarea';
 import { fillTopicIds, useTopicId } from './topicidintext';
+import { paintXEmbeds } from './xembed.js';
 import { payerUsernameNode } from './payerlink.js';
 import { paintProfileAvatar } from './earlyhashinal.js';
 import { pictureElement } from './loopmedia.js';
@@ -200,6 +201,8 @@ function paintBio(bioEl, bio) {
   if (hasBio) fillTopicIds(bioEl, text, 'profile-live-topic');
   else bioEl.textContent = EMPTY_BIO;
   bioEl.classList.toggle('is-empty', !hasBio);
+  // A linked X post: its card under the bio.
+  paintXEmbeds(bioEl);
 }
 
 // Picture, name, followers, received, bio, and the connected topic.

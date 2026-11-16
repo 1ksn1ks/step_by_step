@@ -25129,3 +25129,254 @@ html.is-draw-picking .live-filter {
     padding-right: calc(max(44px, var(--chat-field-h, 44px)) + 0.6dvh + 40px) !important;
   }
 }
+
+/* ── X post cards (xembed.js) ──────────────────────────────────────────
+   A link to an X post in user text is a cyan link like a hashtag, and a
+   small card under the text shows who posted it and what it says. The
+   card is the popup media card's dark glass (.popup-media-card) inside
+   the feed card's or popup's own frame. It is sized from the page's own
+   unit (--xe-u: the feed's --fu, a popup's --u, the text page's --read),
+   so it follows Zoom and the popup's size and font. It is never inside
+   the text bubble, so a clamp, a popup's flow box and its reading ring
+   keep measuring only the text. Placeholder bars stand in until the post
+   loads; under Data saver a Show post from X button asks first. */
+.x-status-link {
+  color: #22d3ee;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.x-status-link:hover {
+  text-decoration: underline;
+}
+.x-status-link:focus-visible {
+  outline: 0.125rem solid #22d3ee;
+  outline-offset: 0.0625rem;
+  border-radius: 0.25rem;
+}
+.x-embed-list {
+  --xe-u: var(--fu, 0.625rem);
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: calc(var(--xe-u) * 0.6);
+  box-sizing: border-box;
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  margin: calc(var(--xe-u) * 0.7) 0 0;
+  padding: 0;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--xe-u) * 1.45);
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+/* The app's * rule is touch-action: none; a swipe that starts on a card
+   still scrolls the feed, the chat or the popup under it. */
+:where(.x-embed-list, .x-embed-list *) {
+  touch-action: pan-y;
+}
+.x-embed {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--xe-u) * 0.55);
+  box-sizing: border-box;
+  min-width: 0;
+  margin: 0;
+  padding: calc(var(--xe-u) * 1) calc(var(--xe-u) * 1.2);
+  border: 0.0625rem solid rgba(255, 255, 255, 0.22);
+  border-radius: calc(var(--xe-u) * 1.6);
+  background-color: #0b0d13;
+  background-image: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
+  box-shadow: inset 0 0.0625rem 0 rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+.x-embed-head {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--xe-u) * 0.6);
+  min-width: 0;
+}
+.x-embed-mark {
+  flex: 0 0 auto;
+  width: calc(var(--xe-u) * 1.45);
+  height: calc(var(--xe-u) * 1.45);
+  color: #fff;
+}
+.x-embed-who {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: calc(var(--xe-u) * 0.45);
+  min-width: 0;
+}
+.x-embed-name {
+  max-width: 100%;
+  overflow: hidden;
+  color: #fff;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.x-embed-handle {
+  max-width: 100%;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.92em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.x-embed-text {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.88);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.x-embed-handle[hidden],
+.x-embed-text[hidden] {
+  display: none;
+}
+.x-embed-foot {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.x-embed-view {
+  color: #22d3ee;
+  font-size: 0.92em;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.x-embed-view:hover {
+  color: #67e8f9;
+}
+.x-embed-view:focus-visible,
+.x-embed-load:focus-visible {
+  outline: 0.125rem solid #22d3ee;
+  outline-offset: 0.125rem;
+  border-radius: 100vmax;
+}
+/* Placeholder: a name bar and two text bars, about the loaded card's
+   height, so a post that loads in moves what follows only a little. */
+.x-embed.is-pending .x-embed-name {
+  width: 42%;
+  height: 1em;
+  border-radius: 100vmax;
+  background: rgba(255, 255, 255, 0.1);
+}
+.x-embed.is-pending .x-embed-handle {
+  display: none;
+}
+.x-embed.is-pending .x-embed-text {
+  display: block;
+  height: 2.8em;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07)) 0 0.2em / 94% 1em no-repeat,
+    linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07)) 0 1.6em / 62% 1em no-repeat;
+}
+.x-embed.is-pending:not(.is-saver) :is(.x-embed-name, .x-embed-text) {
+  animation: xEmbedWait 1.4s ease-in-out infinite;
+}
+@keyframes xEmbedWait {
+  50% { opacity: 0.5; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .x-embed.is-pending:not(.is-saver) :is(.x-embed-name, .x-embed-text) {
+    animation: none;
+  }
+}
+/* Data saver: one row, the X mark, the ask, and the link to X. */
+.x-embed.is-saver {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.x-embed.is-saver :is(.x-embed-who, .x-embed-text) {
+  display: none;
+}
+.x-embed.is-saver .x-embed-foot {
+  margin-left: auto;
+}
+.x-embed-load {
+  appearance: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: calc(var(--xe-u) * 0.35) calc(var(--xe-u) * 0.95);
+  border: 0.0625rem solid rgba(34, 211, 238, 0.55);
+  border-radius: 100vmax;
+  background: rgba(34, 211, 238, 0.1);
+  color: #22d3ee;
+  font: inherit;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.x-embed-load:is(:hover, :active) {
+  background: rgba(34, 211, 238, 0.18);
+}
+
+/* Feed: the card's own gap spaces a card that is its direct child. */
+:is(#feed-column, .feed-comments-stage) .feed-card > .x-embed-list {
+  margin-top: 0;
+}
+/* Map popups: in the message box under the bubble, with the bubble's
+   side inset, and three lines of the post so it fits the box. */
+.maplibregl-popup .x-embed-list {
+  --xe-u: calc(var(--u) * 1.05 * var(--popup-font-scale, 1));
+  align-self: stretch;
+  margin: calc(var(--u) * 0.5) calc(var(--u) * 0.5) 0;
+}
+.maplibregl-popup .x-embed-text {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+/* The Show more page: under the text's card. */
+#popup-text-page .x-embed-list {
+  --xe-u: calc(var(--read) * 0.62);
+  margin-top: var(--read);
+}
+/* Chat: a bubble is as wide as its text; the card asks for a readable
+   width in the chat's own type size. */
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-msg-text > .x-embed-list {
+  --xe-u: 0.62em;
+  width: 17em;
+  max-width: 100%;
+  margin-top: 0.45em;
+  font-size: 0.9em;
+}
+/* Swap bio: the card's own gap. */
+.swap-bio > .x-embed-list {
+  margin: 0;
+}
+/* A profile's bio in the feed: a full row under it. */
+#feed-profile .feed-profile-identity > .x-embed-list {
+  flex: 1 0 100%;
+  margin: 0;
+}
+/* A topic's bio under its row on the Load page, with the row's inset; the
+   next row keeps its divider. */
+.topic-bio-row + .x-embed-list {
+  margin: 0;
+  padding: 0 calc(var(--fu, 0.625rem) * 1.1) calc(var(--fu, 0.625rem) * 0.9);
+}
+#feed-chat #load-column.is-feed-shell .topic-bio-row + .x-embed-list + .loaded-topic-row {
+  box-shadow: inset 0 0.0625rem 0 rgba(255, 255, 255, 0.12);
+}

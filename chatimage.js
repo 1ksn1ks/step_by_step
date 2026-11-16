@@ -10,6 +10,7 @@ import { HCS_MESSAGE_MAX_BYTES, normalizeMessageNewlines, utf8ByteLength } from 
 import { packSealedThumb, unpackSealedThumb } from "./videoposter.js";
 import { packSealedMedia, readSealedMedia } from "./e2eemedia.js";
 import { mountSealedMedia } from "./e2eechatview.js";
+import { paintXEmbeds } from "./xembed.js";
 
 const CHAT_IMAGE_PREFIX = "\u001echat1\n";
 
@@ -195,6 +196,9 @@ export function fillChatMessage(el, text, imageUrl, hint, media) {
       });
       el.appendChild(more);
     }
+    // A linked X post: its card under the text and its Show more, in the
+    // bubble but outside the clamped body.
+    paintXEmbeds(textEl, { after: el.lastChild });
   }
   if (media) {
     if (body) el.appendChild(document.createElement("br"));

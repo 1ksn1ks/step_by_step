@@ -2308,6 +2308,7 @@
             <li>Size makes everything inside a popup bigger or smaller: text, pictures, buttons and the profile.</li>
             <li>Colors change the border, the close button, the account ID, the username, the title and the text.</li>
             <li>Show media full size starts every picture and video in a popup big, like Make bigger. It is apart from the feed's switch and kept on this device. A post's own size button still wins.</li>
+            <li>Show X embeds shows a small card under text that links an X post: who posted it and what it says. It is the same switch as the feed's and kept on this device. Off, the link stays and nothing is loaded from X.</li>
             <li>Save Settings keeps size and colors with your wallet.</li>
           </ul>
           <div class="info-overlay-actions">
@@ -2337,6 +2338,9 @@
             <!-- Second row, this device only too, apart from the feed's own
                  switch (processallmessages.js popupMediaWide). -->
             <button type="button" id="popup-media-wide" class="feed-settings-switch mb-switch-row" role="switch" aria-checked="false"><span>Show media full size</span><span class="feed-settings-switch-ui" aria-hidden="true"></span></button>
+            <!-- Third row: the same device setting as the feed's Settings >
+                 Media > Show X embeds (xembed.js); either switch moves both. -->
+            <button type="button" id="popup-x-embeds" class="feed-settings-switch mb-switch-row" role="switch" aria-checked="true"><span>Show X embeds</span><span class="feed-settings-switch-ui" aria-hidden="true"></span></button>
           </div>
 
           <!-- Two columns of three (style.css .mb-color-grid). -->

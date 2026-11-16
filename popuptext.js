@@ -5,6 +5,7 @@
 // full-screen page. Back (the arrow, Escape, or browser Back) closes that
 // page.
 import { paintHashtags } from './hashtag.js';
+import { clearXEmbeds, paintXEmbeds } from './xembed.js';
 import { toast } from './toast.js';
 import { copyTextToClipboard } from './handleallmessages.js';
 import { brightenRing, createRing, fitRing, paintRing } from './readingring.js';
@@ -141,6 +142,10 @@ export function setPopupText(bubble, text) {
     paintHashtags(bubble, text);
     const spot = parked.get(bubble);
     if (spot && bubble.firstChild) watchPopupText(spot.host, bubble, text, spot.title);
+    // The X post card follows the edit, last in the message box.
+    const host = spot ? spot.host : bubble.parentElement;
+    if (host) paintXEmbeds(bubble, { host });
+    else paintXEmbeds(bubble);
     return;
   }
   state.text = String(text || '');
@@ -149,6 +154,7 @@ export function setPopupText(bubble, text) {
     return;
   }
   paintHashtags(state.flow, state.text);
+  paintXEmbeds(bubble, { host: state.host });
   queueSync(bubble);
 }
 
@@ -158,6 +164,7 @@ function unwatch(bubble, state) {
   watched.delete(bubble);
   clearTimeout(state.ring.settle);
   state.more.remove();
+  clearXEmbeds(bubble);
   state.host.classList.remove('popup-msg', 'is-more');
   bubble.replaceChildren();
   parked.set(bubble, { host: state.host, title: state.title });
@@ -362,6 +369,8 @@ function showPage(state) {
   const doneLabel = page.querySelector('.popup-text-page-done-label');
   if (doneLabel) doneLabel.textContent = state.backLabel || 'Back to post';
   paintHashtags(pageText, state.text);
+  // A linked X post: its card under the text's card, above the way back.
+  paintXEmbeds(pageText, { after: pageText.parentElement });
   // The popup's own text colour (popup settings); the size is the page's.
   if (state.color) pageText.style.color = state.color;
   else pageText.style.removeProperty('color');
