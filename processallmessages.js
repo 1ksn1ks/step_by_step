@@ -2293,7 +2293,7 @@ function bindPopupMediaWide() {
 }
 bindPopupMediaWide();
 
-// Settings > Popups > Show X embeds, the row under Show media full size:
+// Settings > Popups > Show X posts, the row under Show media full size:
 // the same device setting as the feed's Settings > Media switch
 // (xembed.js), so flipping either one moves both.
 bindXEmbedsSwitch(document.getElementById('popup-x-embeds'));

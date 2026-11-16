@@ -25130,16 +25130,16 @@ html.is-draw-picking .live-filter {
   }
 }
 
-/* ── X post cards (xembed.js) ──────────────────────────────────────────
-   A link to an X post in user text is a cyan link like a hashtag, and a
-   small card under the text shows who posted it and what it says. The
-   card is the popup media card's dark glass (.popup-media-card) inside
-   the feed card's or popup's own frame. It is sized from the page's own
-   unit (--xe-u: the feed's --fu, a popup's --u, the text page's --read),
-   so it follows Zoom and the popup's size and font. It is never inside
-   the text bubble, so a clamp, a popup's flow box and its reading ring
-   keep measuring only the text. Placeholder bars stand in until the post
-   loads; under Data saver a Show post from X button asks first. */
+/* ── X posts (xembed.js) ───────────────────────────────────────────────
+   A link to an X post in user text is a cyan link like a hashtag, and X's
+   own embedded post (widgets.js, createTweet) shows under the text. Until
+   it comes near the screen it is a small placeholder in the popup media
+   card's dark glass (.popup-media-card); once X's post is in, X's frame
+   is the only one. The placeholder is sized from the page's own unit
+   (--xe-u: the feed's --fu, a popup's --u, the text page's --read). It is
+   never inside the text bubble, so a clamp, a popup's flow box and its
+   reading ring keep measuring only the text. X's widget sets its own
+   width and margins inline; the rules below hold it to its box. */
 .x-status-link {
   color: #22d3ee;
   font: inherit;
@@ -25175,34 +25175,32 @@ html.is-draw-picking .live-filter {
   line-height: 1.4;
   text-align: left;
   white-space: normal;
-  overflow-wrap: anywhere;
 }
-/* The app's * rule is touch-action: none; a swipe that starts on a card
+/* The app's * rule is touch-action: none; a swipe that starts on a post
    still scrolls the feed, the chat or the popup under it. */
 :where(.x-embed-list, .x-embed-list *) {
   touch-action: pan-y;
 }
 .x-embed {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--xe-u) * 0.55);
   box-sizing: border-box;
   min-width: 0;
+  max-width: 100%;
   margin: 0;
-  padding: calc(var(--xe-u) * 1) calc(var(--xe-u) * 1.2);
+}
+.x-embed-wait {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--xe-u) * 0.6);
+  box-sizing: border-box;
+  min-height: calc(var(--xe-u) * 3.6);
+  padding: calc(var(--xe-u) * 0.7) calc(var(--xe-u) * 1.1);
   border: 0.0625rem solid rgba(255, 255, 255, 0.22);
   border-radius: calc(var(--xe-u) * 1.6);
   background-color: #0b0d13;
   background-image: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
   box-shadow: inset 0 0.0625rem 0 rgba(255, 255, 255, 0.06);
-  overflow: hidden;
-}
-.x-embed-head {
-  display: flex;
-  align-items: center;
-  gap: calc(var(--xe-u) * 0.6);
-  min-width: 0;
 }
 .x-embed-mark {
   flex: 0 0 auto;
@@ -25210,109 +25208,26 @@ html.is-draw-picking .live-filter {
   height: calc(var(--xe-u) * 1.45);
   color: #fff;
 }
-.x-embed-who {
-  display: flex;
+.x-embed-note {
   flex: 1 1 auto;
-  flex-wrap: wrap;
-  align-items: baseline;
-  column-gap: calc(var(--xe-u) * 0.45);
   min-width: 0;
+  color: rgba(255, 255, 255, 0.6);
 }
-.x-embed-name {
-  max-width: 100%;
-  overflow: hidden;
-  color: #fff;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.x-embed-handle {
-  max-width: 100%;
-  overflow: hidden;
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 0.92em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.x-embed-text {
-  display: -webkit-box;
-  margin: 0;
-  overflow: hidden;
-  color: rgba(255, 255, 255, 0.88);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 5;
-  line-clamp: 5;
-  -webkit-user-select: text;
-  user-select: text;
-}
-.x-embed-handle[hidden],
-.x-embed-text[hidden] {
+.x-embed.is-asking .x-embed-note {
   display: none;
 }
-.x-embed-foot {
-  display: flex;
-  justify-content: flex-end;
-  min-width: 0;
-}
-.x-embed-view {
-  color: #22d3ee;
-  font-size: 0.92em;
-  font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.x-embed-view:hover {
-  color: #67e8f9;
-}
-.x-embed-view:focus-visible,
-.x-embed-load:focus-visible {
-  outline: 0.125rem solid #22d3ee;
-  outline-offset: 0.125rem;
-  border-radius: 100vmax;
-}
-/* Placeholder: a name bar and two text bars, about the loaded card's
-   height, so a post that loads in moves what follows only a little. */
-.x-embed.is-pending .x-embed-name {
-  width: 42%;
-  height: 1em;
-  border-radius: 100vmax;
-  background: rgba(255, 255, 255, 0.1);
-}
-.x-embed.is-pending .x-embed-handle {
-  display: none;
-}
-.x-embed.is-pending .x-embed-text {
-  display: block;
-  height: 2.8em;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07)) 0 0.2em / 94% 1em no-repeat,
-    linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07)) 0 1.6em / 62% 1em no-repeat;
-}
-.x-embed.is-pending:not(.is-saver) :is(.x-embed-name, .x-embed-text) {
+.x-embed.is-loading .x-embed-note {
   animation: xEmbedWait 1.4s ease-in-out infinite;
 }
 @keyframes xEmbedWait {
-  50% { opacity: 0.5; }
+  50% { opacity: 0.45; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .x-embed.is-pending:not(.is-saver) :is(.x-embed-name, .x-embed-text) {
+  .x-embed.is-loading .x-embed-note {
     animation: none;
   }
 }
-/* Data saver: one row, the X mark, the ask, and the link to X. */
-.x-embed.is-saver {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-}
-.x-embed.is-saver :is(.x-embed-who, .x-embed-text) {
-  display: none;
-}
-.x-embed.is-saver .x-embed-foot {
-  margin-left: auto;
-}
+/* Off, or under Data saver: the ask. */
 .x-embed-load {
   appearance: none;
   flex: 0 1 auto;
@@ -25332,35 +25247,68 @@ html.is-draw-picking .live-filter {
 .x-embed-load:is(:hover, :active) {
   background: rgba(34, 211, 238, 0.18);
 }
+.x-embed-load:focus-visible {
+  outline: 0.125rem solid #22d3ee;
+  outline-offset: 0.125rem;
+}
+/* X's post: its frame up to its own width, never wider than the box,
+   centred, without the widget's own top and bottom margins. The widget
+   sets visibility: visible on its frame, which would show it through a
+   hidden layer (the feed under the map is visibility: hidden); it takes
+   its box's visibility instead. While X is still building it, the frame
+   is zero-sized, so nothing shows early. */
+.x-embed-frame {
+  min-width: 0;
+  max-width: 100%;
+}
+.x-embed-frame > .twitter-tweet {
+  min-width: 0 !important;
+  margin: 0 auto !important;
+}
+.x-embed-frame iframe {
+  max-width: 100% !important;
+  min-width: 0 !important;
+  visibility: inherit !important;
+}
 
-/* Feed: the card's own gap spaces a card that is its direct child. */
+/* Feed: the card's own gap spaces a list that is its direct child. */
 :is(#feed-column, .feed-comments-stage) .feed-card > .x-embed-list {
   margin-top: 0;
 }
 /* Map popups: in the message box under the bubble, with the bubble's
-   side inset, and three lines of the post so it fits the box. */
+   side inset. The post keeps its own height, up to about a text post's
+   and never more than two thirds of the box; a taller one (a video)
+   scrolls in its own box. The bubble takes what is left; its Show more
+   has the whole text. */
 .maplibregl-popup .x-embed-list {
   --xe-u: calc(var(--u) * 1.05 * var(--popup-font-scale, 1));
+  flex: 0 0 auto;
   align-self: stretch;
+  min-height: 0;
+  max-height: min(calc(var(--u) * 26), 66%);
   margin: calc(var(--u) * 0.5) calc(var(--u) * 0.5) 0;
-}
-.maplibregl-popup .x-embed-text {
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 /* The Show more page: under the text's card. */
 #popup-text-page .x-embed-list {
   --xe-u: calc(var(--read) * 0.62);
   margin-top: var(--read);
 }
-/* Chat: a bubble is as wide as its text; the card asks for a readable
-   width in the chat's own type size. */
+/* Chat: a bubble is as wide as its text. One with X's post asks for the
+   bubble's full width from the start, so X builds its post at that width
+   (X needs about a phone's width; at less it cuts its own post), and may
+   use the whole row instead of four fifths of it. */
 :is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-msg-text > .x-embed-list {
   --xe-u: 0.62em;
-  width: 17em;
+  width: 30em;
   max-width: 100%;
   margin-top: 0.45em;
   font-size: 0.9em;
+}
+:is(#messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer) .chat-msg > .chat-msg-text:has(> .x-embed-list) {
+  max-width: min(100%, 36em);
 }
 /* Swap bio: the card's own gap. */
 .swap-bio > .x-embed-list {

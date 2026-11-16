@@ -6593,7 +6593,7 @@ mediaSection.append(
     feedPrefs.dataSaver = on;
     writeFeedSetting(FEED_SETTING.data, on ? 'on' : 'off');
     syncFeedVideos();
-    // X post cards not loaded yet wait for a tap while it is on.
+    // X posts not loaded yet wait for a tap while it is on.
     refreshXEmbeds();
   }),
   settingsSwitch('Show media full size', () => feedPrefs.mediaWide, (on) => {
@@ -6601,8 +6601,8 @@ mediaSection.append(
     writeFeedSetting(FEED_SETTING.mediaWide, on ? 'on' : 'off');
     resizeFeedMedia();
   }),
-  // The same setting as Settings > Popups > Show X embeds (xembed.js).
-  settingsSwitch('Show X embeds', xEmbedsOn, setXEmbedsOn),
+  // The same setting as Settings > Popups > Show X posts (xembed.js).
+  settingsSwitch('Show X posts', xEmbedsOn, setXEmbedsOn),
 );
 // The popups page's switch flipped it: paint this one to match.
 document.addEventListener('x-embeds-change', () => {

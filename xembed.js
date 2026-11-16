@@ -1,38 +1,155 @@
-// X post cards. A link to an X post in user text (a feed post, a map
-// popup and its Show more page, a chat message, a Swap bio, a profile or
-// topic bio) becomes a link that opens X in a new tab, and a small card
-// under the text shows who posted it and what it says.
+// X posts in user text. A link to an X post (a feed post, a map popup and
+// its Show more page, a chat message, a Swap bio, a profile or topic bio)
+// becomes a link that opens X in a new tab, and X's own embedded post
+// shows under the text: X's widgets.js, twttr.widgets.createTweet.
 //
-// X's widgets.js is never loaded and X's HTML never reaches the page: the
-// server (server/xembed.js, GET /api/x-embed) turns X's oEmbed answer into
-// plain fields and the card is filled with textContent.
+// Each embed starts as a small placeholder. widgets.js is loaded once (one
+// shared promise), and only when a placeholder comes near the screen
+// (IntersectionObserver), so posts further down load nothing.
 //
-// A card starts as a compact placeholder and asks the server only once an
-// IntersectionObserver sees it near the screen. One request per post at a
-// time, and answers are kept for the visit, so the same post in several
-// places, or a card rebuilt when the feed scrolls back, asks once.
+// Settings: Show X posts (this device, on by default; the feed's
+// Settings > Media and Settings > Popups share it). Off, or with the
+// feed's Data saver on, nothing loads by itself: the placeholder has a
+// Show post from X button. If widgets.js cannot load, or X has no such
+// post (deleted, private), the placeholder goes and the link stays.
 //
-// Settings: Show X embeds (this device, on by default; the feed's
-// Settings > Media and Settings > Popups share it). Off, no card is
-// mounted or fetched; the link in the text stays. Data saver (the feed's
-// switch) keeps cards from loading by themselves: the placeholder has a
-// Show post from X button instead.
-//
-// The card is a sibling after the text block (never inside the bubble),
+// The embed is a sibling after the text block (never inside the bubble),
 // so a clamp, a popup's flow box and its reading ring stay as they are.
-import { xStatusMatches } from './server/xembed.js';
 
 export const X_EMBEDS_KEY = 'meritocracy-x-embeds';
+export const X_WIDGETS_SRC = 'https://platform.twitter.com/widgets.js';
+export const X_EMBED_OPTIONS = Object.freeze({ theme: 'dark', dnt: true, conversation: 'none', align: 'center' });
 // feedlayout.js FEED_SETTING.data: 'on' while Data saver is on.
 const DATA_SAVER_KEY = 'feed-setting-data';
-// Cards under one text. A post that links more posts keeps the links.
+// Embeds under one text. A post that links more posts keeps the links.
 const X_EMBED_MAX = 2;
-const HIT_MS = 60 * 60 * 1000;
-const MISS_MS = 15 * 60 * 1000;
-const CACHE_MAX = 300;
-const FETCH_TIMEOUT_MS = 12000;
-const NEAR_MARGIN = '25% 0%';
-const HANDLE = /^[A-Za-z0-9_]{1,15}$/;
+const NEAR_MARGIN = '15% 0%';
+// A widgets.js that did not load is not asked for again for a minute.
+const WIDGETS_RETRY_MS = 60 * 1000;
+// createTweet that never settles counts as a post X will not show.
+const RENDER_TIMEOUT_MS = 20 * 1000;
+
+// ── Links ────────────────────────────────────────────────────────────────
+
+const X_HOSTS = new Set([
+  'x.com',
+  'www.x.com',
+  'mobile.x.com',
+  'twitter.com',
+  'www.twitter.com',
+  'mobile.twitter.com',
+]);
+const X_USER = /^[A-Za-z0-9_]{1,15}$/;
+// Post ids are positive 64-bit numbers: at most 20 digits, no leading 0.
+const X_ID = /^[1-9]\d{0,19}$/;
+const X_MEDIA_INDEX = /^\d{1,2}$/;
+
+// Path segments, or null when the path has an empty segment in the middle
+// ("//"). One trailing slash is fine.
+function pathParts(pathname) {
+  const parts = String(pathname || '').split('/').slice(1);
+  if (parts.length && parts[parts.length - 1] === '') parts.pop();
+  if (parts.some((part) => part === '')) return null;
+  return parts;
+}
+
+// The part after the id: nothing, or one /photo/N or /video/N.
+function restIsMedia(rest) {
+  if (rest.length === 0) return true;
+  if (rest.length !== 2) return false;
+  const kind = rest[0].toLowerCase();
+  return (kind === 'photo' || kind === 'video') && X_MEDIA_INDEX.test(rest[1]);
+}
+
+// Only http(s) links to x.com or twitter.com (also www. and mobile.) whose
+// path names one post: /<user>/status/<id>, /i/web/status/<id> or
+// /i/status/<id>. A trailing /photo/N or /video/N, the query and the hash
+// are ignored. A user name or password, a port, another host, or any other
+// path (a profile, a list, a search) is not a post link.
+// { url, user, id }: url is https://twitter.com/<user>/status/<id>, or
+// https://twitter.com/i/web/status/<id> when the link names no user.
+export function parseXStatusUrl(value) {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw || raw.length > 2048 || /\s/.test(raw)) return null;
+  if (!/^https?:\/\//i.test(raw)) return null;
+  let url;
+  try { url = new URL(raw); } catch { return null; }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+  if (url.username || url.password) return null;
+  // new URL drops the scheme's own default port, so any port left is odd.
+  if (url.port) return null;
+  if (!X_HOSTS.has(url.hostname.toLowerCase())) return null;
+  const parts = pathParts(url.pathname);
+  if (!parts || parts.length < 3) return null;
+  const first = parts[0].toLowerCase();
+  let user = '';
+  let id = '';
+  let rest = [];
+  if (first === 'i' && parts[1].toLowerCase() === 'web' && parts.length >= 4 && parts[2].toLowerCase() === 'status') {
+    id = parts[3];
+    rest = parts.slice(4);
+  } else if (first === 'i' && parts[1].toLowerCase() === 'status') {
+    id = parts[2];
+    rest = parts.slice(3);
+  } else if (parts[1].toLowerCase() === 'status' && X_USER.test(parts[0]) && first !== 'i') {
+    user = parts[0];
+    id = parts[2];
+    rest = parts.slice(3);
+  } else {
+    return null;
+  }
+  if (!X_ID.test(id) || !restIsMedia(rest)) return null;
+  const canonical = user
+    ? `https://twitter.com/${user}/status/${id}`
+    : `https://twitter.com/i/web/status/${id}`;
+  return { url: canonical, user, id };
+}
+
+// The canonical link, or "".
+export function xStatusUrl(value) {
+  const hit = parseXStatusUrl(value);
+  return hit ? hit.url : '';
+}
+
+// A link in running text: http(s):// and the characters a URL can hold.
+// It cannot start in the middle of a word ("foohttps://...").
+const LINK = /https?:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]+/gi;
+// Sentence punctuation right after a link is not part of it.
+const LINK_TAIL = /[.,;:!?'"*)\]]+$/;
+
+// Every post link in the text, in order, with where it sits. One post
+// linked twice is listed twice; xStatusUrlsIn lists it once.
+// [{ index, raw, url, user, id }]: raw is the text as written (the part
+// an anchor covers), url the canonical link.
+export function xStatusMatches(text) {
+  const source = String(text == null ? '' : text);
+  const found = [];
+  if (!/https?:\/\//i.test(source)) return found;
+  for (const match of source.matchAll(LINK)) {
+    const before = match.index > 0 ? source[match.index - 1] : '';
+    if (before && /[\p{L}\p{N}_]/u.test(before)) continue;
+    const raw = match[0].replace(LINK_TAIL, '');
+    const hit = parseXStatusUrl(raw);
+    if (!hit) continue;
+    found.push({ index: match.index, raw, ...hit });
+  }
+  return found;
+}
+
+// The canonical post links in a body, each post once (by its id, so
+// x.com/a/status/1 and twitter.com/i/web/status/1 are one post).
+export function xStatusUrlsIn(text) {
+  const urls = [];
+  const seen = new Set();
+  for (const hit of xStatusMatches(text)) {
+    if (seen.has(hit.id)) continue;
+    seen.add(hit.id);
+    urls.push(hit.url);
+  }
+  return urls;
+}
+
+// ── Settings ─────────────────────────────────────────────────────────────
 
 function readOn() {
   try {
@@ -56,8 +173,14 @@ function dataSaverOn() {
   }
 }
 
-// Both switches call this. Cards on screen follow: off removes them, on
-// mounts them again under every text that links a post.
+// Posts load as they come near the screen only while the switch is on and
+// Data saver is off; otherwise each one waits for its button.
+function loadsByItself() {
+  return embedsOn && !dataSaverOn();
+}
+
+// Both switches call this. Placeholders on screen follow; posts already
+// shown stay.
 export function setXEmbedsOn(on) {
   const next = !!on;
   if (next === embedsOn) return;
@@ -102,103 +225,62 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// ── Answers ──────────────────────────────────────────────────────────────
-// url -> { data, until }; data is null for a post the server will not
-// describe. Capped; a read moves the url to the end.
-const answers = new Map();
-const flights = new Map();
-let backoffUntil = 0;
+// ── widgets.js ───────────────────────────────────────────────────────────
 
-function remember(url, data) {
-  if (answers.has(url)) answers.delete(url);
-  answers.set(url, { data, until: Date.now() + (data ? HIT_MS : MISS_MS) });
-  while (answers.size > CACHE_MAX) {
-    const oldest = answers.keys().next().value;
-    if (oldest === undefined) break;
-    answers.delete(oldest);
+let widgets = null;
+let widgetsFailedAt = 0;
+
+function widgetsReady() {
+  const twttr = typeof window !== 'undefined' ? window.twttr : null;
+  return !!(twttr && twttr.widgets && typeof twttr.widgets.createTweet === 'function');
+}
+
+// X's script, added once; every embed waits on the same promise.
+export function loadXWidgets() {
+  if (widgets) return widgets;
+  if (widgetsReady()) {
+    widgets = Promise.resolve(window.twttr);
+    return widgets;
   }
-}
-
-function known(url) {
-  const hit = answers.get(url);
-  if (!hit) return null;
-  if (Date.now() >= hit.until) {
-    answers.delete(url);
-    return null;
+  if (widgetsFailedAt && Date.now() - widgetsFailedAt < WIDGETS_RETRY_MS) {
+    return Promise.reject(new Error('x widgets'));
   }
-  answers.delete(url);
-  answers.set(url, hit);
-  return hit;
+  let script = null;
+  widgets = new Promise((resolve, reject) => {
+    script = document.createElement('script');
+    script.async = true;
+    script.charset = 'utf-8';
+    script.src = X_WIDGETS_SRC;
+    script.onload = () => {
+      const twttr = window.twttr;
+      if (twttr && typeof twttr.ready === 'function') {
+        twttr.ready(() => (widgetsReady() ? resolve(window.twttr) : reject(new Error('x widgets'))));
+      } else if (widgetsReady()) {
+        resolve(window.twttr);
+      } else {
+        reject(new Error('x widgets'));
+      }
+    };
+    script.onerror = () => reject(new Error('x widgets'));
+    document.head.appendChild(script);
+  }).catch((err) => {
+    // Blocked or offline: the links stay, and a later post may try again.
+    widgets = null;
+    widgetsFailedAt = Date.now();
+    if (script) script.remove();
+    throw err;
+  });
+  return widgets;
 }
 
-function text(value, max) {
-  const out = typeof value === 'string' ? value : '';
-  return out.length > max ? out.slice(0, max) : out;
-}
-
-// Only the fields the card shows, as strings. The link is always ours.
-function cleanAnswer(body, url) {
-  if (!body || typeof body !== 'object' || body.ok !== true) return null;
-  const handle = text(body.authorHandle, 15);
-  const data = {
-    authorName: text(body.authorName, 100).replace(/\s+/g, ' ').trim(),
-    authorHandle: HANDLE.test(handle) ? handle : '',
-    text: text(body.text, 1200).trim(),
-    url,
-  };
-  if (!data.text && !data.authorName) return null;
-  return data;
-}
-
-function retryAfterMs(res) {
-  const secs = Number(res.headers && res.headers.get('Retry-After'));
-  if (Number.isFinite(secs) && secs > 0) return Math.min(secs, 120) * 1000;
-  return 30 * 1000;
-}
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function fetchAnswer(url, retried) {
-  const hold = backoffUntil - Date.now();
-  if (hold > 0) await wait(hold);
-  let res;
-  try {
-    const signal = typeof AbortSignal !== 'undefined' && AbortSignal.timeout
-      ? AbortSignal.timeout(FETCH_TIMEOUT_MS)
-      : undefined;
-    res = await fetch(`/api/x-embed?url=${encodeURIComponent(url)}`, { signal });
-  } catch {
-    // Offline or timed out: not remembered, the next card asks again.
-    return null;
-  }
-  if (res.status === 429 && !retried) {
-    backoffUntil = Date.now() + retryAfterMs(res);
-    return fetchAnswer(url, true);
-  }
-  if (res.status === 429) return null;
-  if (!res.ok) {
-    remember(url, null);
-    return null;
-  }
-  let body = null;
-  try { body = await res.json(); } catch { body = null; }
-  const data = cleanAnswer(body, url);
-  remember(url, data);
-  return data;
-}
-
-// The post's fields, or null. One request per url at a time.
-export function requestXEmbed(url) {
-  const hit = known(url);
-  if (hit) return Promise.resolve(hit.data);
-  let flight = flights.get(url);
-  if (!flight) {
-    flight = fetchAnswer(url, false).finally(() => flights.delete(url));
-    flights.set(url, flight);
-  }
-  return flight;
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms);
+    Promise.resolve(promise).then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
 }
 
 // ── Links in the text ────────────────────────────────────────────────────
@@ -255,9 +337,9 @@ function linkify(root) {
   return found;
 }
 
-// ── Cards ────────────────────────────────────────────────────────────────
+// ── Embeds ───────────────────────────────────────────────────────────────
 
-// textEl -> { urls, host, after, list, key }
+// textEl -> { posts, host, after, list, key }
 const hosts = new WeakMap();
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -274,34 +356,22 @@ function xMark() {
   return svg;
 }
 
-function buildCard(url) {
-  const card = document.createElement('article');
+// The placeholder: the X mark and a word, or the Show post from X button.
+// createTweet puts X's post into .x-embed-frame.
+function buildEmbed(post) {
+  const card = document.createElement('div');
   card.className = 'x-embed is-pending';
-  card.dataset.xUrl = url;
-  card.setAttribute('aria-label', 'Post on X');
-  const head = document.createElement('div');
-  head.className = 'x-embed-head';
-  const who = document.createElement('span');
-  who.className = 'x-embed-who';
-  const name = document.createElement('span');
-  name.className = 'x-embed-name';
-  const handle = document.createElement('span');
-  handle.className = 'x-embed-handle';
-  who.append(name, handle);
-  head.append(xMark(), who);
-  const body = document.createElement('p');
-  body.className = 'x-embed-text';
-  const foot = document.createElement('div');
-  foot.className = 'x-embed-foot';
-  const view = document.createElement('a');
-  view.className = 'x-embed-view';
-  view.href = url;
-  view.target = '_blank';
-  view.rel = 'noopener noreferrer';
-  view.textContent = 'View on X';
-  view.addEventListener('click', (event) => event.stopPropagation());
-  foot.appendChild(view);
-  card.append(head, body, foot);
+  card.dataset.xId = post.id;
+  card.dataset.xUrl = post.url;
+  const wait = document.createElement('div');
+  wait.className = 'x-embed-wait';
+  const note = document.createElement('span');
+  note.className = 'x-embed-note';
+  note.textContent = 'Post on X';
+  wait.append(xMark(), note);
+  const frame = document.createElement('div');
+  frame.className = 'x-embed-frame';
+  card.append(wait, frame);
   return card;
 }
 
@@ -335,7 +405,7 @@ function observerFor(root) {
       card._xPlaced = true;
       if (!entry.isIntersecting) continue;
       unwatchCard(card);
-      loadCard(card);
+      loadEmbed(card);
     }
     // A scroller that left the page takes its observer with it.
     if (root && !root.isConnected) {
@@ -352,27 +422,30 @@ function observerFor(root) {
   return observer;
 }
 
-// Cards wait a frame for the page to place them, then the root is read
-// for all of them in one go.
+// Placeholders wait a frame for the page to place them, then the root is
+// read for all of them in one go.
 const toWatch = new Set();
-// Cards an observer has: a feed card dropped off the page before it came
-// near the screen gets no callback, so they are swept here.
+// Placeholders an observer has: a feed card dropped off the page before it
+// came near the screen gets no callback, so they are swept here.
 const watching = new Set();
 let watchFrame = 0;
 
-function sweepWatching() {
+function sweep() {
   for (const card of watching) {
     if (card._xPlaced && !card.isConnected) unwatchCard(card);
+  }
+  for (const card of sized) {
+    if (!card.isConnected) unsize(card);
   }
 }
 
 function flushWatch() {
   watchFrame = 0;
-  if (watching.size > 40) sweepWatching();
+  if (watching.size + sized.size > 40) sweep();
   const cards = [...toWatch];
   toWatch.clear();
   for (const card of cards) {
-    if (!card.classList.contains('is-pending') || card.classList.contains('is-saver')) continue;
+    if (!card.classList.contains('is-pending') || card.classList.contains('is-asking')) continue;
     if (card._xObserver) continue;
     let root = null;
     if (card.isConnected) {
@@ -396,7 +469,7 @@ function flushWatch() {
 
 function watchCard(card) {
   if (typeof IntersectionObserver !== 'function') {
-    loadCard(card);
+    loadEmbed(card);
     return;
   }
   toWatch.add(card);
@@ -412,9 +485,66 @@ function unwatchCard(card) {
   }
 }
 
-function showSaver(card) {
+// ── Keeping the reader's place ───────────────────────────────────────────
+// X's post grows the placeholder to its full height, in steps as it
+// renders. Above the visible part of its scroller that would push what is
+// being read down (the feed scroller does not anchor), and a chat read at
+// its end would leave the end; both are put back.
+
+const sized = new Set();
+const heights = new WeakMap();
+
+function anchorsItself(root) {
+  if (typeof CSS === 'undefined' || !CSS.supports || !CSS.supports('overflow-anchor', 'auto')) return false;
+  return getComputedStyle(root).overflowAnchor !== 'none';
+}
+
+const resizer = typeof ResizeObserver === 'function'
+  ? new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const card = entry.target;
+      if (!card.isConnected) {
+        unsize(card);
+        continue;
+      }
+      const height = card.getBoundingClientRect().height;
+      const was = heights.get(card);
+      heights.set(card, height);
+      const grew = was === undefined ? 0 : height - was;
+      const root = card._xRoot && card._xRoot.isConnected ? card._xRoot : null;
+      if (!grew || !root) continue;
+      const view = root.getBoundingClientRect();
+      const box = card.getBoundingClientRect();
+      const fromEnd = root.scrollHeight - root.scrollTop - root.clientHeight;
+      if (grew > 0 && box.top >= view.top && Math.abs(fromEnd - grew) <= 2) {
+        // It was at the end before this card grew: stay there.
+        root.scrollTop = root.scrollHeight;
+      } else if (box.top < view.top && !anchorsItself(root)) {
+        root.scrollTop += grew;
+      }
+    }
+  })
+  : null;
+
+function size(card) {
+  if (!resizer || sized.has(card)) return;
+  sized.add(card);
+  resizer.observe(card);
+}
+
+function unsize(card) {
+  if (!sized.has(card)) return;
+  sized.delete(card);
+  heights.delete(card);
+  if (resizer) resizer.unobserve(card);
+}
+
+// ── States ───────────────────────────────────────────────────────────────
+
+// Off or under Data saver: a button asks first.
+function askFirst(card) {
   unwatchCard(card);
-  card.classList.add('is-saver');
+  card.classList.add('is-asking');
   if (card.querySelector('.x-embed-load')) return;
   const load = document.createElement('button');
   load.type = 'button';
@@ -423,116 +553,73 @@ function showSaver(card) {
   load.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    card.classList.remove('is-saver');
-    load.remove();
-    loadCard(card);
+    stopAsking(card);
+    loadEmbed(card);
   });
-  const head = card.querySelector('.x-embed-head');
-  if (head) head.after(load);
-  else card.prepend(load);
+  const wait = card.querySelector('.x-embed-wait');
+  (wait || card).appendChild(load);
 }
 
-function hideSaver(card) {
-  card.classList.remove('is-saver');
+function stopAsking(card) {
+  card.classList.remove('is-asking');
   const load = card.querySelector('.x-embed-load');
   if (load) load.remove();
 }
 
-// A pending card loads by itself, or waits for a tap under Data saver.
+// A placeholder loads near the screen, or waits for its button.
 function armCard(card) {
-  const url = card.dataset.xUrl || '';
-  const hit = known(url);
-  if (hit) {
-    if (hit.data) fillCard(card, hit.data);
-    else dropCard(card);
+  if (!card.classList.contains('is-pending') || card.classList.contains('is-loading')) return;
+  if (!loadsByItself()) {
+    askFirst(card);
     return;
   }
-  if (card.classList.contains('is-loading')) return;
-  if (dataSaverOn()) {
-    showSaver(card);
-    return;
-  }
-  hideSaver(card);
+  stopAsking(card);
   watchCard(card);
 }
 
-async function loadCard(card) {
+async function loadEmbed(card) {
   if (!card.classList.contains('is-pending') || card.classList.contains('is-loading')) return;
   unwatchCard(card);
+  stopAsking(card);
   card.classList.add('is-loading');
-  const data = await requestXEmbed(card.dataset.xUrl || '');
+  const note = card.querySelector('.x-embed-note');
+  if (note) note.textContent = 'Loading post…';
+  const frame = card.querySelector('.x-embed-frame');
+  size(card);
+  let shown = null;
+  try {
+    const twttr = await loadXWidgets();
+    // Gone while the script loaded (the feed dropped its card): no post.
+    if (card.parentNode && frame) {
+      shown = await withTimeout(twttr.widgets.createTweet(card.dataset.xId, frame, { ...X_EMBED_OPTIONS }), RENDER_TIMEOUT_MS);
+    }
+  } catch {
+    shown = null;
+  }
   card.classList.remove('is-loading');
   if (!card.parentNode) return;
-  if (data) fillCard(card, data);
-  else dropCard(card);
-}
-
-function atEnd(root) {
-  return root.scrollHeight - root.scrollTop - root.clientHeight <= 1;
-}
-
-function anchorsItself(root) {
-  if (typeof CSS === 'undefined' || !CSS.supports || !CSS.supports('overflow-anchor', 'auto')) return false;
-  return getComputedStyle(root).overflowAnchor !== 'none';
-}
-
-// The card grows when it fills. A card above the visible part of its
-// scroller would push what is being read down, and a chat read at its
-// end would leave the end; both are put back.
-function keepPlace(card, change) {
-  const root = card._xRoot && card._xRoot.isConnected ? card._xRoot : null;
-  if (!root || !card.isConnected) {
-    change();
+  if (!shown) {
+    dropCard(card);
     return;
   }
-  const view = root.getBoundingClientRect();
-  const before = card.getBoundingClientRect();
-  const end = atEnd(root);
-  change();
-  const after = card.getBoundingClientRect();
-  const grew = after.height - before.height;
-  if (end) {
-    root.scrollTop = root.scrollHeight;
-  } else if (grew && before.top < view.top && !anchorsItself(root)) {
-    root.scrollTop += grew;
-  }
+  card.classList.remove('is-pending');
+  card.classList.add('is-ready');
+  const wait = card.querySelector('.x-embed-wait');
+  if (wait) wait.remove();
 }
 
-function fillCard(card, data) {
-  unwatchCard(card);
-  keepPlace(card, () => {
-    hideSaver(card);
-    card.classList.remove('is-pending', 'is-loading');
-    card.classList.add('is-ready');
-    const name = card.querySelector('.x-embed-name');
-    const handle = card.querySelector('.x-embed-handle');
-    const body = card.querySelector('.x-embed-text');
-    const at = data.authorHandle ? '@' + data.authorHandle : '';
-    if (name) name.textContent = data.authorName || at || 'Post on X';
-    if (handle) {
-      handle.textContent = data.authorName ? at : '';
-      handle.hidden = !handle.textContent;
-    }
-    if (body) {
-      body.textContent = data.text;
-      body.hidden = !data.text;
-    }
-    const by = data.authorName || at;
-    card.setAttribute('aria-label', by ? `Post on X by ${by}` : 'Post on X');
-  });
-}
-
-// X would not describe it: the link in the text stays, the card goes.
+// X would not show it: the link in the text stays, the placeholder goes.
 function dropCard(card) {
   unwatchCard(card);
+  unsize(card);
   const list = card.parentElement;
   card.remove();
   if (list && list.classList.contains('x-embed-list') && !list.firstElementChild) list.remove();
 }
 
-// A Show more the page put under the text after the cards were first
-// mounted (the feed's clamp adds its button a frame later). Cards mounted
-// again, after the switch, go after it, where they were.
+// A Show more the page put under the text after the embeds were first
+// mounted (the feed's clamp adds its button a frame later). Embeds mounted
+// again go after it, where they were.
 const MORE_BUTTONS = '.feed-more, .chat-msg-more, .swap-bio-more';
 
 function placeList(list, state, textEl) {
@@ -551,7 +638,10 @@ function placeList(list, state, textEl) {
 
 function dropList(state) {
   if (!state.list) return;
-  for (const card of state.list.querySelectorAll('.x-embed')) unwatchCard(card);
+  for (const card of state.list.querySelectorAll('.x-embed')) {
+    unwatchCard(card);
+    unsize(card);
+  }
   state.list.remove();
   state.list = null;
   state.key = '';
@@ -560,9 +650,9 @@ function dropList(state) {
 function mountList(textEl) {
   const state = hosts.get(textEl);
   if (!state) return;
-  const key = embedsOn && state.urls.length ? state.urls.join(' ') : '';
+  const key = state.posts.map((post) => post.id).join(' ');
   if (state.list && key && state.key === key && state.list.isConnected === textEl.isConnected) {
-    // The same posts: keep the cards, follow Data saver.
+    // The same posts: no second embed. Placeholders follow the settings.
     for (const card of state.list.querySelectorAll('.x-embed.is-pending')) armCard(card);
     return;
   }
@@ -570,7 +660,7 @@ function mountList(textEl) {
   if (!key) return;
   const list = document.createElement('div');
   list.className = 'x-embed-list';
-  for (const url of state.urls) list.appendChild(buildCard(url));
+  for (const post of state.posts) list.appendChild(buildEmbed(post));
   if (!placeList(list, state, textEl)) return;
   state.list = list;
   state.key = key;
@@ -578,11 +668,11 @@ function mountList(textEl) {
 }
 
 // Call after the text is painted and placed (it needs a parent to put the
-// cards after). Repaint calls it again: the same posts keep their cards,
-// others replace them, none removes them.
-// opts.after: the node the cards follow (a Show more button under the
+// embeds after). A repaint calls it again: the same posts keep their
+// embeds, others replace them, none removes them.
+// opts.after: the node the embeds follow (a Show more button under the
 //   text); default the text itself.
-// opts.host: a box the cards go last in instead (a map popup's message
+// opts.host: a box the embeds go last in instead (a map popup's message
 //   box, whose Show more is added by popuptext.js).
 export function paintXEmbeds(textEl, opts = {}) {
   if (!textEl) return;
@@ -590,39 +680,39 @@ export function paintXEmbeds(textEl, opts = {}) {
   const value = textEl.textContent || '';
   if (!state && value.indexOf('://') < 0) return;
   const hits = value.indexOf('://') < 0 ? [] : linkify(textEl);
-  const urls = [];
+  const posts = [];
   const seen = new Set();
   for (const hit of hits) {
     if (seen.has(hit.id)) continue;
     seen.add(hit.id);
-    urls.push(hit.url);
-    if (urls.length >= X_EMBED_MAX) break;
+    posts.push(hit);
+    if (posts.length >= X_EMBED_MAX) break;
   }
   if (!state) {
-    if (!urls.length) return;
-    state = { urls: [], host: null, after: null, list: null, key: '' };
+    if (!posts.length) return;
+    state = { posts: [], host: null, after: null, list: null, key: '' };
     hosts.set(textEl, state);
   }
-  state.urls = urls;
+  state.posts = posts;
   if (opts.host !== undefined) state.host = opts.host || null;
   if (opts.after !== undefined) state.after = opts.after || null;
-  if (urls.length) textEl.dataset.xEmbeds = '1';
+  if (posts.length) textEl.dataset.xEmbeds = '1';
   else delete textEl.dataset.xEmbeds;
   mountList(textEl);
 }
 
-// Take a text's cards away (its row closed, its text emptied).
+// Take a text's embeds away (its row closed, its text emptied).
 export function clearXEmbeds(textEl) {
   const state = textEl && hosts.get(textEl);
   if (!state) return;
   dropList(state);
-  state.urls = [];
+  state.posts = [];
   delete textEl.dataset.xEmbeds;
 }
 
-// The switches changed: every text on the page that links a post mounts
-// or drops its cards, and pending cards follow Data saver. Nothing else in
-// the feed is rebuilt.
+// A switch changed: placeholders on the page load near the screen again,
+// or wait for their button. Posts already shown stay; nothing else in the
+// feed is rebuilt.
 export function refreshXEmbeds() {
   if (typeof document === 'undefined') return;
   for (const textEl of document.querySelectorAll('[data-x-embeds="1"]')) mountList(textEl);
