@@ -273,6 +273,21 @@ export function loadXWidgets() {
   return widgets;
 }
 
+// X builds its post at the width its box has when it is asked. A map
+// popup is still being sized as it opens, so wait until the box keeps the
+// same width for two frames (at most about half a second).
+async function settledWidth(el) {
+  if (typeof requestAnimationFrame !== 'function') return;
+  let last = -1;
+  let same = 0;
+  for (let i = 0; i < 30 && same < 2; i++) {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const width = el.clientWidth;
+    same = width > 0 && width === last ? same + 1 : 0;
+    last = width;
+  }
+}
+
 function withTimeout(promise, ms) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('timeout')), ms);
@@ -292,29 +307,74 @@ function insideSkipped(node, root) {
   return false;
 }
 
-// Post links in root's text nodes become anchors. Hashtag buttons, topic
-// id spans and links already made are left alone; the anchor's text is
-// the link as written, so root.textContent does not change. Returns every
-// post link in root, in order, the ones made before included:
-// [{ url, id }].
+// While X's post shows under the text, its link is not shown in the text:
+// the link and the spaces that only separated it go, so the words around
+// it read as if it was never there. Which part of `value` (one text node)
+// goes for each link; `before` and `after` are the text around the node.
+//   "look <link> and more"  -> "look and more"   (the space before goes)
+//   "Hello\n<link>\nWorld"  -> "Hello\nWorld"    (the line it was on goes)
+//   "Hello\n\n<link>"       -> "Hello"           (nothing after: all of it)
+// [{ hit, from, to }], from/to as indexes into value.
+export function xHideRanges(value, before = '', after = '') {
+  const text = String(value == null ? '' : value);
+  const hits = xStatusMatches(text);
+  const ranges = [];
+  let last = 0;
+  // What still shows before the current link (hidden links taken out).
+  let kept = String(before || '');
+  hits.forEach((hit, i) => {
+    const start = hit.index;
+    const end = start + hit.raw.length;
+    let preStart = start;
+    while (preStart > last && /\s/.test(text[preStart - 1])) preStart -= 1;
+    const limit = i + 1 < hits.length ? hits[i + 1].index : text.length;
+    let postEnd = end;
+    while (postEnd < limit && /\s/.test(text[postEnd])) postEnd += 1;
+    const lineStart = /(^|\n)[ \t]*$/.test(kept + text.slice(last, start));
+    let from = lineStart ? start : preStart;
+    const to = lineStart ? postEnd : end;
+    // Nothing but space after it: the space before goes too.
+    if (!/\S/.test(text.slice(to) + after)) from = preStart;
+    ranges.push({ hit, from, to });
+    kept += text.slice(last, from);
+    last = to;
+  });
+  return ranges;
+}
+
+// Post links in root's text nodes become anchors, each inside a span with
+// the spacing that goes with it (xHideRanges), so the span can be hidden
+// while X's post shows and shown again if it cannot. Hashtag buttons,
+// topic id spans and links already made are left alone; the text is kept
+// as written, so root.textContent does not change (Show more and Copy read
+// it). Returns every post link in root, in order, the ones made before
+// included: [{ url, id }].
 function linkify(root) {
   if (typeof document === 'undefined' || !root) return [];
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const all = [];
   const nodes = [];
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    all.push(node);
     const value = node.nodeValue;
     if (!value || value.indexOf('://') < 0) continue;
     if (insideSkipped(node, root)) continue;
     nodes.push(node);
   }
+  const texts = all.map((node) => node.nodeValue || '');
   for (const node of nodes) {
     const value = node.nodeValue;
-    const hits = xStatusMatches(value);
-    if (!hits.length) continue;
+    const at = all.indexOf(node);
+    const ranges = xHideRanges(value, texts.slice(0, at).join(''), texts.slice(at + 1).join(''));
+    if (!ranges.length) continue;
     const frag = document.createDocumentFragment();
     let last = 0;
-    for (const hit of hits) {
-      if (hit.index > last) frag.append(value.slice(last, hit.index));
+    for (const { hit, from, to } of ranges) {
+      if (from > last) frag.append(value.slice(last, from));
+      const span = document.createElement('span');
+      span.className = 'x-status';
+      span.dataset.xId = hit.id;
+      if (hit.index > from) span.append(value.slice(from, hit.index));
       const link = document.createElement('a');
       link.className = 'x-status-link';
       link.href = hit.url;
@@ -324,8 +384,11 @@ function linkify(root) {
       link.textContent = hit.raw;
       // The card or popup under it has its own taps.
       link.addEventListener('click', (event) => event.stopPropagation());
-      frag.append(link);
-      last = hit.index + hit.raw.length;
+      span.append(link);
+      const end = hit.index + hit.raw.length;
+      if (to > end) span.append(value.slice(end, to));
+      frag.append(span);
+      last = to;
     }
     if (last < value.length) frag.append(value.slice(last));
     node.replaceWith(frag);
@@ -335,6 +398,40 @@ function linkify(root) {
     found.push({ url: link.getAttribute('href') || '', id: link.dataset.xId || '' });
   }
   return found;
+}
+
+// The links of posts shown under the text are hidden; the text itself is
+// hidden when nothing else is left in it (only a link was posted), and a
+// map popup's message box then gives X's post all its room.
+function paintLinks(textEl, state) {
+  const shown = new Set(state.list ? [...state.list.querySelectorAll('.x-embed')].map((card) => card.dataset.xId) : []);
+  for (const span of textEl.querySelectorAll('.x-status[data-x-id]')) {
+    const hide = shown.has(span.dataset.xId);
+    if (span.classList.contains('is-hidden') !== hide) span.classList.toggle('is-hidden', hide);
+  }
+  let visible = false;
+  let hidden = false;
+  const walker = document.createTreeWalker(textEl, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!/\S/.test(node.nodeValue || '')) continue;
+    const span = node.parentElement && node.parentElement.closest('.x-status');
+    if (span && textEl.contains(span) && span.classList.contains('is-hidden')) {
+      hidden = true;
+      continue;
+    }
+    visible = true;
+    break;
+  }
+  const only = hidden && !visible;
+  if (textEl.classList.contains('is-x-only') !== only) textEl.classList.toggle('is-x-only', only);
+  if (state.host && state.host.classList.contains('has-x-only') !== only) state.host.classList.toggle('has-x-only', only);
+  // An edit that leaves only the link (or brings text back) fits again.
+  if (state.list) {
+    for (const card of state.list.querySelectorAll('.x-embed.is-ready')) {
+      fitEmbed(card);
+      if (fitter && fillsPopup(card)) fitter.observe(state.list);
+    }
+  }
 }
 
 // ── Embeds ───────────────────────────────────────────────────────────────
@@ -507,6 +604,8 @@ const resizer = typeof ResizeObserver === 'function'
         unsize(card);
         continue;
       }
+      // X changed its post's height: fit it to a popup again.
+      fitEmbed(card);
       const height = card.getBoundingClientRect().height;
       const was = heights.get(card);
       heights.set(card, height);
@@ -522,6 +621,54 @@ const resizer = typeof ResizeObserver === 'function'
       } else if (box.top < view.top && !anchorsItself(root)) {
         root.scrollTop += grew;
       }
+    }
+  })
+  : null;
+
+// ── Full size in a map popup ─────────────────────────────────────────────
+// Where X's post stands in for the text (only its link was posted), the
+// message box gives it all its room (style.css .has-x-only) and the post
+// is scaled up to fill the box's width, as far as the height lets it. X
+// draws a post at most 550 px wide, small in a big popup. Elsewhere it
+// keeps X's own size.
+
+function fillsPopup(card) {
+  const list = card.parentElement;
+  const host = list && list.parentElement;
+  return !!(host && host.classList.contains('has-x-only') && card.closest('.maplibregl-popup'));
+}
+
+function fitEmbed(card) {
+  const frame = card.querySelector('.x-embed-frame');
+  if (!frame) return;
+  const iframe = card.classList.contains('is-ready') ? frame.querySelector('iframe') : null;
+  let zoom = '';
+  if (iframe && fillsPopup(card)) {
+    const list = card.parentElement;
+    // X's own size for its post, before any scaling here.
+    const width = parseFloat(iframe.style.width) || 0;
+    const height = parseFloat(iframe.style.height) || 0;
+    const roomW = list.clientWidth;
+    const roomH = list.clientHeight / Math.max(1, list.children.length);
+    if (width > 0 && height > 0 && roomW > 0 && roomH > 0) {
+      const scale = Math.min(roomW / width, roomH / height, 3);
+      if (scale > 1.01) zoom = scale.toFixed(3);
+    }
+  }
+  if (frame.style.zoom !== zoom) frame.style.zoom = zoom;
+}
+
+// A popup that changes size (the window, Settings > Popups > Size) fits
+// its post again.
+const fitter = typeof ResizeObserver === 'function'
+  ? new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const list = entry.target;
+      if (!list.isConnected) {
+        fitter.unobserve(list);
+        continue;
+      }
+      for (const card of list.querySelectorAll('.x-embed.is-ready')) fitEmbed(card);
     }
   })
   : null;
@@ -589,6 +736,7 @@ async function loadEmbed(card) {
   let shown = null;
   try {
     const twttr = await loadXWidgets();
+    if (frame) await settledWidth(frame);
     // Gone while the script loaded (the feed dropped its card): no post.
     if (card.parentNode && frame) {
       shown = await withTimeout(twttr.widgets.createTweet(card.dataset.xId, frame, { ...X_EMBED_OPTIONS }), RENDER_TIMEOUT_MS);
@@ -606,6 +754,8 @@ async function loadEmbed(card) {
   card.classList.add('is-ready');
   const wait = card.querySelector('.x-embed-wait');
   if (wait) wait.remove();
+  fitEmbed(card);
+  if (fitter && fillsPopup(card)) fitter.observe(card.parentElement);
 }
 
 // X would not show it: the link in the text stays, the placeholder goes.
@@ -615,6 +765,9 @@ function dropCard(card) {
   const list = card.parentElement;
   card.remove();
   if (list && list.classList.contains('x-embed-list') && !list.firstElementChild) list.remove();
+  const textEl = card._xText;
+  const state = textEl && hosts.get(textEl);
+  if (state) paintLinks(textEl, state);
 }
 
 // A Show more the page put under the text after the embeds were first
@@ -638,6 +791,7 @@ function placeList(list, state, textEl) {
 
 function dropList(state) {
   if (!state.list) return;
+  if (fitter) fitter.unobserve(state.list);
   for (const card of state.list.querySelectorAll('.x-embed')) {
     unwatchCard(card);
     unsize(card);
@@ -654,17 +808,25 @@ function mountList(textEl) {
   if (state.list && key && state.key === key && state.list.isConnected === textEl.isConnected) {
     // The same posts: no second embed. Placeholders follow the settings.
     for (const card of state.list.querySelectorAll('.x-embed.is-pending')) armCard(card);
+    paintLinks(textEl, state);
     return;
   }
   dropList(state);
-  if (!key) return;
-  const list = document.createElement('div');
-  list.className = 'x-embed-list';
-  for (const post of state.posts) list.appendChild(buildEmbed(post));
-  if (!placeList(list, state, textEl)) return;
-  state.list = list;
-  state.key = key;
-  for (const card of [...list.children]) armCard(card);
+  if (key) {
+    const list = document.createElement('div');
+    list.className = 'x-embed-list';
+    for (const post of state.posts) {
+      const card = buildEmbed(post);
+      card._xText = textEl;
+      list.appendChild(card);
+    }
+    if (placeList(list, state, textEl)) {
+      state.list = list;
+      state.key = key;
+    }
+  }
+  paintLinks(textEl, state);
+  if (state.list) for (const card of [...state.list.children]) armCard(card);
 }
 
 // Call after the text is painted and placed (it needs a parent to put the
@@ -708,6 +870,7 @@ export function clearXEmbeds(textEl) {
   dropList(state);
   state.posts = [];
   delete textEl.dataset.xEmbeds;
+  paintLinks(textEl, state);
 }
 
 // A switch changed: placeholders on the page load near the screen again,

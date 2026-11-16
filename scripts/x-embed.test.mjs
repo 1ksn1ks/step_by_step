@@ -159,6 +159,40 @@ test("xStatusMatches says where each link sits and what text an anchor covers", 
   for (const hit of hits) assert.equal(text.slice(hit.index, hit.index + hit.raw.length), hit.raw);
 });
 
+test("the link and only the spacing that went with it are hidden", () => {
+  // What is left when the hidden ranges are taken out.
+  const left = (text, before = "", after = "") => {
+    let out = "";
+    let last = 0;
+    for (const { from, to } of x.xHideRanges(text, before, after)) {
+      out += text.slice(last, from);
+      last = to;
+    }
+    return out + text.slice(last);
+  };
+  const link = "https://x.com/bot/status/2122386524297974128?a=4b3-OFk0Ug05-sjwrMM&s=20";
+  assert.equal(left(link), "");
+  assert.equal(left(`  ${link}  `), "");
+  assert.equal(left(`look ${link} and more`), "look and more");
+  assert.equal(left(`look ${link}\nnext`), "look\nnext");
+  assert.equal(left(`${link}\nnext`), "next");
+  assert.equal(left(`Hello\n${link}\nWorld`), "Hello\nWorld");
+  assert.equal(left(`Hello\n\n${link}`), "Hello");
+  assert.equal(left(`Hello ${link}.`), "Hello.");
+  assert.equal(left(`a ${link} https://x.com/jack/status/20`), "a");
+  assert.equal(left(`${link} https://x.com/jack/status/20\nb`), "b");
+  // Text around the node: after a hashtag button, before more text.
+  assert.equal(left(` ${link}`, "#tag"), "");
+  assert.equal(left(` ${link} `, "#tag", "#more"), " ");
+  assert.equal(left(`${link}\n`, "Hello\n"), "");
+  // Other links stay.
+  assert.equal(left("see https://example.com/a and https://x.com/jack"), "see https://example.com/a and https://x.com/jack");
+  const ranges = x.xHideRanges(`look ${link} and more`);
+  assert.equal(ranges.length, 1);
+  assert.equal(ranges[0].hit.id, "2122386524297974128");
+  assert.deepEqual([ranges[0].from, ranges[0].to], [4, 5 + link.length]);
+});
+
 test("the device switch is meritocracy-x-embeds, on unless stored off", () => {
   assert.equal(x.X_EMBEDS_KEY, "meritocracy-x-embeds");
   assert.equal(x.xEmbedsOn(), false);

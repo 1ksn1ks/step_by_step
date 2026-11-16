@@ -25156,6 +25156,19 @@ html.is-draw-picking .live-filter {
   outline-offset: 0.0625rem;
   border-radius: 0.25rem;
 }
+/* While X's post shows (or waits) under the text, its link and the spaces
+   that went with it are not shown; they come back if X cannot show it.
+   A text that was only the link is not shown at all, so no empty bubble
+   sits over the post. The saved text keeps the link. */
+.x-status.is-hidden {
+  display: none;
+}
+.is-x-only {
+  display: none !important;
+}
+.popup-text-page-card:has(> .popup-text-page-text.is-x-only) {
+  display: none;
+}
 .x-embed-list {
   --xe-u: var(--fu, 0.625rem);
   display: flex;
@@ -25290,6 +25303,22 @@ html.is-draw-picking .live-filter {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+/* Only the link was posted: X's post is the popup's content. The message
+   box takes the room the text would have, the post sits in the middle of
+   it, and xembed.js scales it up to the box's width as far as the height
+   lets it. */
+.maplibregl-popup .popup-body > .popup-msg.has-x-only {
+  flex: 1 1 auto;
+  max-height: none;
+}
+.maplibregl-popup .popup-msg.has-x-only > .x-embed-list {
+  flex: 1 1 0%;
+  max-height: none;
+  margin-top: 0;
+}
+.maplibregl-popup .popup-msg.has-x-only > .x-embed-list > .x-embed {
+  margin-block: auto;
 }
 /* The Show more page: under the text's card. */
 #popup-text-page .x-embed-list {
