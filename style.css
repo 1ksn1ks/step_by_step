@@ -25131,15 +25131,17 @@ html.is-draw-picking .live-filter {
 }
 
 /* ── X posts (xembed.js) ───────────────────────────────────────────────
-   A link to an X post in user text is a cyan link like a hashtag, and X's
-   own embedded post (widgets.js, createTweet) shows under the text. Until
-   it comes near the screen it is a small placeholder in the popup media
-   card's dark glass (.popup-media-card); once X's post is in, X's frame
-   is the only one. The placeholder is sized from the page's own unit
-   (--xe-u: the feed's --fu, a popup's --u, the text page's --read). It is
-   never inside the text bubble, so a clamp, a popup's flow box and its
-   reading ring keep measuring only the text. X's widget sets its own
-   width and margins inline; the rules below hold it to its box. */
+   X's own embedded post (widgets.js, createTweet) shows under text that
+   links one, in place of the link. Until it comes near the screen it is a
+   small placeholder in the popup media card's dark glass
+   (.popup-media-card); once X's post is in, X's frame is the only one,
+   scaled by xembed.js so its text is the size of the text around it. The
+   placeholder is sized from the page's own unit (--xe-u: the feed's --fu,
+   a popup's --u, the text page's --read). It is never inside the text
+   bubble, so a clamp, a popup's flow box and its reading ring keep
+   measuring only the text. X's widget sets its own width and margins
+   inline; the rules below hold it to its box. If X cannot show the post,
+   the link shows: a cyan link like a hashtag. */
 .x-status-link {
   color: #22d3ee;
   font: inherit;
@@ -25226,9 +25228,6 @@ html.is-draw-picking .live-filter {
   min-width: 0;
   color: rgba(255, 255, 255, 0.6);
 }
-.x-embed.is-asking .x-embed-note {
-  display: none;
-}
 .x-embed.is-loading .x-embed-note {
   animation: xEmbedWait 1.4s ease-in-out infinite;
 }
@@ -25239,30 +25238,6 @@ html.is-draw-picking .live-filter {
   .x-embed.is-loading .x-embed-note {
     animation: none;
   }
-}
-/* Off, or under Data saver: the ask. */
-.x-embed-load {
-  appearance: none;
-  flex: 0 1 auto;
-  min-width: 0;
-  margin: 0;
-  padding: calc(var(--xe-u) * 0.35) calc(var(--xe-u) * 0.95);
-  border: 0.0625rem solid rgba(34, 211, 238, 0.55);
-  border-radius: 100vmax;
-  background: rgba(34, 211, 238, 0.1);
-  color: #22d3ee;
-  font: inherit;
-  font-weight: 600;
-  line-height: 1.2;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.x-embed-load:is(:hover, :active) {
-  background: rgba(34, 211, 238, 0.18);
-}
-.x-embed-load:focus-visible {
-  outline: 0.125rem solid #22d3ee;
-  outline-offset: 0.125rem;
 }
 /* X's post: its frame up to its own width, never wider than the box,
    centred, without the widget's own top and bottom margins. The widget
@@ -25305,9 +25280,8 @@ html.is-draw-picking .live-filter {
   overscroll-behavior: contain;
 }
 /* Only the link was posted: X's post is the popup's content. The message
-   box takes the room the text would have, the post sits in the middle of
-   it, and xembed.js scales it up to the box's width as far as the height
-   lets it. */
+   box takes the room the text would have and the post sits in the middle
+   of it, its text at the popup's text size (xembed.js). */
 .maplibregl-popup .popup-body > .popup-msg.has-x-only {
   flex: 1 1 auto;
   max-height: none;

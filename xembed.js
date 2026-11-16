@@ -5,13 +5,14 @@
 //
 // Each embed starts as a small placeholder. widgets.js is loaded once (one
 // shared promise), and only when a placeholder comes near the screen
-// (IntersectionObserver), so posts further down load nothing.
+// (IntersectionObserver), so posts further down load nothing. While the
+// post shows, its link is not shown in the text. The post is scaled so its
+// text is the size of the text it sits under, on every device.
 //
 // Settings: Show X posts (this device, on by default; the feed's
-// Settings > Media and Settings > Popups share it). Off, or with the
-// feed's Data saver on, nothing loads by itself: the placeholder has a
-// Show post from X button. If widgets.js cannot load, or X has no such
-// post (deleted, private), the placeholder goes and the link stays.
+// Settings > Media and Settings > Popups share it). Off, the link shows and
+// nothing is loaded from X. If widgets.js cannot load, or X has no such
+// post (deleted, private), the placeholder goes and the link shows.
 //
 // The embed is a sibling after the text block (never inside the bubble),
 // so a clamp, a popup's flow box and its reading ring stay as they are.
@@ -19,8 +20,11 @@
 export const X_EMBEDS_KEY = 'meritocracy-x-embeds';
 export const X_WIDGETS_SRC = 'https://platform.twitter.com/widgets.js';
 export const X_EMBED_OPTIONS = Object.freeze({ theme: 'dark', dnt: true, conversation: 'none', align: 'center' });
-// feedlayout.js FEED_SETTING.data: 'on' while Data saver is on.
-const DATA_SAVER_KEY = 'feed-setting-data';
+// X's post text in its embed, in X's own pixels (the name, time and buttons
+// are 14-15). The post is scaled so this matches the text around it.
+export const X_TEXT_PX = 20;
+// X does not draw a post narrower than this; the scale leaves room for it.
+const X_MIN_WIDTH = 250;
 // Embeds under one text. A post that links more posts keeps the links.
 const X_EMBED_MAX = 2;
 const NEAR_MARGIN = '15% 0%';
@@ -165,22 +169,8 @@ export function xEmbedsOn() {
   return embedsOn;
 }
 
-function dataSaverOn() {
-  try {
-    return localStorage.getItem(DATA_SAVER_KEY) === 'on';
-  } catch {
-    return false;
-  }
-}
-
-// Posts load as they come near the screen only while the switch is on and
-// Data saver is off; otherwise each one waits for its button.
-function loadsByItself() {
-  return embedsOn && !dataSaverOn();
-}
-
-// Both switches call this. Placeholders on screen follow; posts already
-// shown stay.
+// Both switches call this. Texts on screen follow: off takes the posts
+// away and shows the links, on brings the posts back.
 export function setXEmbedsOn(on) {
   const next = !!on;
   if (next === embedsOn) return;
@@ -213,14 +203,11 @@ export function bindXEmbedsSwitch(button) {
 if (typeof window !== 'undefined') {
   // Another tab changed it.
   window.addEventListener('storage', (event) => {
-    if (event.key !== X_EMBEDS_KEY && event.key !== DATA_SAVER_KEY) return;
-    if (event.key === X_EMBEDS_KEY) {
-      const next = readOn();
-      if (next !== embedsOn) {
-        embedsOn = next;
-        document.dispatchEvent(new CustomEvent('x-embeds-change', { detail: next }));
-      }
-    }
+    if (event.key !== X_EMBEDS_KEY) return;
+    const next = readOn();
+    if (next === embedsOn) return;
+    embedsOn = next;
+    document.dispatchEvent(new CustomEvent('x-embeds-change', { detail: next }));
     refreshXEmbeds();
   });
 }
@@ -429,7 +416,7 @@ function paintLinks(textEl, state) {
   if (state.list) {
     for (const card of state.list.querySelectorAll('.x-embed.is-ready')) {
       fitEmbed(card);
-      if (fitter && fillsPopup(card)) fitter.observe(state.list);
+      if (fitter) fitter.observe(state.list);
     }
   }
 }
@@ -453,7 +440,7 @@ function xMark() {
   return svg;
 }
 
-// The placeholder: the X mark and a word, or the Show post from X button.
+// The placeholder: the X mark and a word.
 // createTweet puts X's post into .x-embed-frame.
 function buildEmbed(post) {
   const card = document.createElement('div');
@@ -542,7 +529,7 @@ function flushWatch() {
   const cards = [...toWatch];
   toWatch.clear();
   for (const card of cards) {
-    if (!card.classList.contains('is-pending') || card.classList.contains('is-asking')) continue;
+    if (!card.classList.contains('is-pending')) continue;
     if (card._xObserver) continue;
     let root = null;
     if (card.isConnected) {
@@ -625,41 +612,37 @@ const resizer = typeof ResizeObserver === 'function'
   })
   : null;
 
-// ── Full size in a map popup ─────────────────────────────────────────────
-// Where X's post stands in for the text (only its link was posted), the
-// message box gives it all its room (style.css .has-x-only) and the post
-// is scaled up to fill the box's width, as far as the height lets it. X
-// draws a post at most 550 px wide, small in a big popup. Elsewhere it
-// keeps X's own size.
+// ── Text size ────────────────────────────────────────────────────────────
+// X's post text is X_TEXT_PX at X's own size, whatever the device. The
+// post is scaled (CSS zoom on its frame) so its text is the size of the
+// text it sits under: the feed's caption, a popup's message, a chat
+// bubble, a bio. Those sizes follow each device's screen and the popup's
+// own size and font settings, so the post does too. The scale leaves the
+// box at least X_MIN_WIDTH of X's pixels, or X would cut its own post.
+// It is set before X builds the post, so X builds it at the box's width.
 
-function fillsPopup(card) {
-  const list = card.parentElement;
-  const host = list && list.parentElement;
-  return !!(host && host.classList.contains('has-x-only') && card.closest('.maplibregl-popup'));
+// The scale for a post under text of textPx pixels in a box boxWidth wide.
+export function xEmbedZoom(textPx, boxWidth) {
+  const want = textPx > 0 ? textPx / X_TEXT_PX : 1;
+  const most = boxWidth > 0 ? boxWidth / X_MIN_WIDTH : want;
+  const zoom = Math.max(0.5, Math.min(want, most, 3));
+  return Math.round(zoom * 1000) / 1000;
 }
 
 function fitEmbed(card) {
   const frame = card.querySelector('.x-embed-frame');
-  if (!frame) return;
-  const iframe = card.classList.contains('is-ready') ? frame.querySelector('iframe') : null;
-  let zoom = '';
-  if (iframe && fillsPopup(card)) {
-    const list = card.parentElement;
-    // X's own size for its post, before any scaling here.
-    const width = parseFloat(iframe.style.width) || 0;
-    const height = parseFloat(iframe.style.height) || 0;
-    const roomW = list.clientWidth;
-    const roomH = list.clientHeight / Math.max(1, list.children.length);
-    if (width > 0 && height > 0 && roomW > 0 && roomH > 0) {
-      const scale = Math.min(roomW / width, roomH / height, 3);
-      if (scale > 1.01) zoom = scale.toFixed(3);
-    }
-  }
-  if (frame.style.zoom !== zoom) frame.style.zoom = zoom;
+  const list = card.parentElement;
+  const textEl = card._xText;
+  if (!frame || !list || !textEl) return;
+  // A text hidden because it was only the link still has its size.
+  const textPx = parseFloat(getComputedStyle(textEl).fontSize) || 0;
+  const zoom = xEmbedZoom(textPx, list.clientWidth);
+  const value = Math.abs(zoom - 1) < 0.01 ? '' : String(zoom);
+  if (frame.style.zoom !== value) frame.style.zoom = value;
 }
 
-// A popup that changes size (the window, Settings > Popups > Size) fits
-// its post again.
+// A box that changes size (the window, a phone turned, Settings > Popups >
+// Size) scales its post again.
 const fitter = typeof ResizeObserver === 'function'
   ? new ResizeObserver((entries) => {
     for (const entry of entries) {
@@ -668,7 +651,7 @@ const fitter = typeof ResizeObserver === 'function'
         fitter.unobserve(list);
         continue;
       }
-      for (const card of list.querySelectorAll('.x-embed.is-ready')) fitEmbed(card);
+      for (const card of list.querySelectorAll('.x-embed')) fitEmbed(card);
     }
   })
   : null;
@@ -688,46 +671,15 @@ function unsize(card) {
 
 // ── States ───────────────────────────────────────────────────────────────
 
-// Off or under Data saver: a button asks first.
-function askFirst(card) {
-  unwatchCard(card);
-  card.classList.add('is-asking');
-  if (card.querySelector('.x-embed-load')) return;
-  const load = document.createElement('button');
-  load.type = 'button';
-  load.className = 'x-embed-load';
-  load.textContent = 'Show post from X';
-  load.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    stopAsking(card);
-    loadEmbed(card);
-  });
-  const wait = card.querySelector('.x-embed-wait');
-  (wait || card).appendChild(load);
-}
-
-function stopAsking(card) {
-  card.classList.remove('is-asking');
-  const load = card.querySelector('.x-embed-load');
-  if (load) load.remove();
-}
-
-// A placeholder loads near the screen, or waits for its button.
+// A placeholder loads by itself as it comes near the screen.
 function armCard(card) {
   if (!card.classList.contains('is-pending') || card.classList.contains('is-loading')) return;
-  if (!loadsByItself()) {
-    askFirst(card);
-    return;
-  }
-  stopAsking(card);
   watchCard(card);
 }
 
 async function loadEmbed(card) {
   if (!card.classList.contains('is-pending') || card.classList.contains('is-loading')) return;
   unwatchCard(card);
-  stopAsking(card);
   card.classList.add('is-loading');
   const note = card.querySelector('.x-embed-note');
   if (note) note.textContent = 'Loading post…';
@@ -736,7 +688,11 @@ async function loadEmbed(card) {
   let shown = null;
   try {
     const twttr = await loadXWidgets();
-    if (frame) await settledWidth(frame);
+    if (frame) {
+      await settledWidth(frame);
+      // The scale first, so X builds the post at the width it will have.
+      fitEmbed(card);
+    }
     // Gone while the script loaded (the feed dropped its card): no post.
     if (card.parentNode && frame) {
       shown = await withTimeout(twttr.widgets.createTweet(card.dataset.xId, frame, { ...X_EMBED_OPTIONS }), RENDER_TIMEOUT_MS);
@@ -755,7 +711,7 @@ async function loadEmbed(card) {
   const wait = card.querySelector('.x-embed-wait');
   if (wait) wait.remove();
   fitEmbed(card);
-  if (fitter && fillsPopup(card)) fitter.observe(card.parentElement);
+  if (fitter) fitter.observe(card.parentElement);
 }
 
 // X would not show it: the link in the text stays, the placeholder goes.
@@ -804,7 +760,7 @@ function dropList(state) {
 function mountList(textEl) {
   const state = hosts.get(textEl);
   if (!state) return;
-  const key = state.posts.map((post) => post.id).join(' ');
+  const key = embedsOn ? state.posts.map((post) => post.id).join(' ') : '';
   if (state.list && key && state.key === key && state.list.isConnected === textEl.isConnected) {
     // The same posts: no second embed. Placeholders follow the settings.
     for (const card of state.list.querySelectorAll('.x-embed.is-pending')) armCard(card);

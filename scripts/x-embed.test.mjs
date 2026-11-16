@@ -193,6 +193,24 @@ test("the link and only the spacing that went with it are hidden", () => {
   assert.deepEqual([ranges[0].from, ranges[0].to], [4, 5 + link.length]);
 });
 
+test("X's post is scaled so its text matches the text around it, and still fits", () => {
+  assert.equal(x.X_TEXT_PX, 20);
+  // Same size as X's text: no scale.
+  assert.equal(x.xEmbedZoom(20, 400), 1);
+  // A phone feed caption (16.4px) and a phone popup message (18.8px).
+  assert.equal(x.xEmbedZoom(16.4, 339), 0.82);
+  assert.equal(x.xEmbedZoom(18.8, 375), 0.94);
+  // Bigger text on a big screen scales up.
+  assert.equal(x.xEmbedZoom(30, 1200), 1.5);
+  // A narrow box keeps X's 250px at least: 300 / 250.
+  assert.equal(x.xEmbedZoom(30, 300), 1.2);
+  // Limits, and nothing known yet.
+  assert.equal(x.xEmbedZoom(6, 1000), 0.5);
+  assert.equal(x.xEmbedZoom(90, 5000), 3);
+  assert.equal(x.xEmbedZoom(0, 0), 1);
+  assert.equal(x.xEmbedZoom(25, 0), 1.25);
+});
+
 test("the device switch is meritocracy-x-embeds, on unless stored off", () => {
   assert.equal(x.X_EMBEDS_KEY, "meritocracy-x-embeds");
   assert.equal(x.xEmbedsOn(), false);
@@ -241,8 +259,11 @@ test("pages are wired to xembed.js, and only xembed.js loads X's script", () => 
   assert.match(client, /new IntersectionObserver\(onSeen, \{ root, rootMargin: NEAR_MARGIN, threshold: 0 \}\)/);
   assert.match(client, /link\.rel = 'noopener noreferrer'/);
   assert.match(client, /link\.target = '_blank'/);
-  assert.match(client, /'Show post from X'/);
-  assert.match(client, /return embedsOn && !dataSaverOn\(\);/);
+  // Posts load without asking; off shows the links and mounts nothing.
+  assert.equal(/Show post from X|feed-setting-data|dataSaver/.test(client), false);
+  assert.match(client, /const key = embedsOn \? state\.posts\.map\(\(post\) => post\.id\)\.join\(' '\) : '';/);
+  // The scale is set before X builds the post.
+  assert.match(client, /fitEmbed\(card\);\s*\}\s*\/\/[^\n]*\n\s*if \(card\.parentNode && frame\) \{\s*shown = await withTimeout\(twttr\.widgets\.createTweet/);
 
   for (const rel of ["../feedlayout.js", "../processallmessages.js", "../popuptext.js", "../chatimage.js", "../swapsheet.js", "../handleallmessages.js", "../loadBio4PIC.js", "../index.html", "../server/index.js"]) {
     assert.equal(/widgets\.js|platform\.twitter\.com|createTweet/.test(read(rel)), false, rel);
@@ -254,7 +275,9 @@ test("pages are wired to xembed.js, and only xembed.js loads X's script", () => 
   const feed = read("../feedlayout.js");
   const media = feed.slice(feed.indexOf("const mediaSection = settingsSection('Media');"), feed.indexOf("function resizeFeedMedia"));
   assert.ok(media.indexOf("settingsSwitch('Show X posts', xEmbedsOn, setXEmbedsOn)") > media.indexOf("settingsSwitch('Data saver'"));
-  assert.match(media, /writeFeedSetting\(FEED_SETTING\.data, on \? 'on' : 'off'\);\s*syncFeedVideos\(\);\s*\/\/[^\n]*\n\s*refreshXEmbeds\(\);/);
+  // Data saver no longer holds X posts back.
+  assert.match(media, /writeFeedSetting\(FEED_SETTING\.data, on \? 'on' : 'off'\);\s*syncFeedVideos\(\);\s*\}\),/);
+  assert.equal(feed.includes("refreshXEmbeds"), false);
   // buildCard: after the text is placed; the title stays a plain pill.
   const build = feed.slice(feed.indexOf("function buildCard(post)"), feed.indexOf("function clampPending"));
   assert.match(build, /card\.appendChild\(text\);\s*\}\s*\/\/[^\n]*\n\s*if \(text\) paintXEmbeds\(text\);/);

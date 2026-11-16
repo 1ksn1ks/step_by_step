@@ -44,7 +44,7 @@ import { isGifClipUrl, isGifUrl, needsGifCheck, resolveMediaUrl } from './mediau
 import { bindVideoPoster } from './videoposter.js';
 import { mountPicture, pictureElement, presentImage } from './loopmedia.js';
 import { mountMediaBackdrop, mountMediaTools } from './mediaframe.js';
-import { paintXEmbeds, refreshXEmbeds, setXEmbedsOn, xEmbedsOn } from './xembed.js';
+import { paintXEmbeds, setXEmbedsOn, xEmbedsOn } from './xembed.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -6593,8 +6593,6 @@ mediaSection.append(
     feedPrefs.dataSaver = on;
     writeFeedSetting(FEED_SETTING.data, on ? 'on' : 'off');
     syncFeedVideos();
-    // X posts not loaded yet wait for a tap while it is on.
-    refreshXEmbeds();
   }),
   settingsSwitch('Show media full size', () => feedPrefs.mediaWide, (on) => {
     feedPrefs.mediaWide = on;
