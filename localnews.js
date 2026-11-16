@@ -1,3 +1,4 @@
+import { DEFAULT_AVATAR } from './hashinalurl.js';
 import maplibregl from 'maplibre-gl';
 import Supercluster from 'supercluster';
 import { map } from './map';
@@ -45,7 +46,6 @@ export const livePointTitles = new Map();
 // is filtered out. A tap popup uses the SAME popup the regular topic
 // markers use (createMarkerPopupHTML).
 
-const DEFAULT_AVATAR = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 
 const index = new Supercluster({
   radius: 60, // px — same as marker.js

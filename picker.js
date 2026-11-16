@@ -1,6 +1,7 @@
 // Full-screen following picker. Rows come from followsuggest's cache.
 // This module does not fetch.
 
+import { DEFAULT_AVATAR } from './hashinalurl.js';
 import { connectedAccount } from './web3.js';
 import {
   ensureData,
@@ -19,7 +20,6 @@ const ROW_H = 56;
 const LETTER_H = 28;
 const SECTION_H = 32;
 const LETTER_AFTER = 15;
-const DEFAULT_AVATAR = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 
 // Measured once per layout from the sheet. Fall back when the sheet is gone.
 let rowH = ROW_H;

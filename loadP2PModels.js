@@ -1,3 +1,4 @@
+import { hashinalFallbackUrl, hashinalUrl } from "./hashinalurl.js";
 import { models, shadeMode } from "./letall";
 import * as THREE from 'three';
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
@@ -109,11 +110,7 @@ function pickCity() {
 const BOT_SKY_COUNT = 300;    // atmosphere: high-altitude layer (visible from space)
 const BOTS_PER_CITY = 50;     // per city, on the ground
 const BOT_TOTAL = BOT_SKY_COUNT + CITIES.length * BOTS_PER_CITY; // 300 + 24*50 = 1500
-const BOT_URLS = [
-    'https://kiloscribe.com/api/inscription-cdn/0.0.9742046',
-    'https://kiloscribe.com/api/inscription-cdn/0.0.8412117',
-    'https://kiloscribe.com/api/inscription-cdn/0.0.8392276'
-];
+const BOT_URLS = ['0.0.9742046', '0.0.8412117', '0.0.8392276'].map(hashinalUrl);
 
 let modelsVersion = 0; // bumped whenever the bot list is (re)generated
 
@@ -421,14 +418,20 @@ const optimizeModel = (gltf) => {
 
 const loadGltf = (url) => {
     if (!gltfCache[url]) {
-      gltfCache[url] = new Promise((resolve, reject) =>
+      const load = (src) => new Promise((resolve, reject) =>
         sharedLoader.load(
-          url,
+          src,
           (gltf) => { optimizeModel(gltf); resolve(gltf); },
           undefined,
           reject
         )
       );
+      // Our Hashinal route failing: Kiloscribe's copy of the same model.
+      gltfCache[url] = load(url).catch((error) => {
+        const backup = hashinalFallbackUrl(url);
+        if (!backup) throw error;
+        return load(backup);
+      });
     }
     return gltfCache[url];
   };

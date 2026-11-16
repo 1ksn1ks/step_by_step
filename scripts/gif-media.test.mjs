@@ -342,7 +342,8 @@ test("an extensionless gif is sniffed by content-type, else by a ranged read", a
 
   resetGifCache();
   let pngCalls = 0;
-  assert.equal(await classifyImageUrl("https://kiloscribe.com/api/inscription-cdn/0.0.4819119", {
+  // The default avatar on our Hashinal route: a PNG with no extension.
+  assert.equal(await classifyImageUrl("https://onlyonhbar.com/api/hcs1/0.0.4819119", {
     fetch: () => {
       pngCalls += 1;
       return new Response(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]), {

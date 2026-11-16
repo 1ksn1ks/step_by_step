@@ -1,3 +1,4 @@
+import { DEFAULT_MODEL } from "./hashinalurl.js";
 import { sendMessage } from "./msgbackend";
 import { getTopicData as getMessages } from "./topicdata";
 import { setCurrentUfoModel} from './letall'
@@ -54,7 +55,7 @@ export async function loadProfileObject(a) {
 const topicId = "0.0.9609898";
 try {
     const result = await getMessages(topicId);
-    let model = 'https://kiloscribe.com/api/inscription-cdn/0.0.9742046';
+    let model = DEFAULT_MODEL;
 
     // Check if result exists and has messages
     if (!result || !Array.isArray(result.messages) || result.messages.length === 0) {

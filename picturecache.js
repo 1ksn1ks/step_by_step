@@ -2,7 +2,10 @@
 // The service worker serves a saved file to every image tag. A new link
 // downloads once. Old links stay on this phone.
 
-export const DEFAULT_PROFILE_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+import { DEFAULT_AVATAR } from './hashinalurl.js';
+
+// Our Hashinal route (hashinalurl.js); Kiloscribe is only its fallback.
+export const DEFAULT_PROFILE_PIC = DEFAULT_AVATAR;
 
 // Saved account rows plus any picture this phone just set. Callers pass both
 // so one edit is never the whole list the service worker stores.

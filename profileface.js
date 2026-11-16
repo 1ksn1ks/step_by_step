@@ -1,9 +1,10 @@
 // Display name and picture for an account. The feed banner and the Swap
 // sheet share this so neither one imports the other.
 
+import { DEFAULT_AVATAR } from "./hashinalurl.js";
 import { profilePictures, usernames } from "./loadalladata.js";
 
-export const DEFAULT_PIC = "https://kiloscribe.com/api/inscription-cdn/0.0.4819119";
+export const DEFAULT_PIC = DEFAULT_AVATAR;
 
 function textOf(msg) {
   if (Array.isArray(msg)) return msg[0] == null ? "" : String(msg[0]);

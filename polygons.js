@@ -1,3 +1,4 @@
+import { DEFAULT_AVATAR, attachHashinalFallback } from './hashinalurl.js';
 import { perfJob } from './perf.js';
 import { applyAllStyles } from './loadprofilepopup';
 import { scene } from "./threejs";
@@ -158,6 +159,8 @@ function loadElementImage(imageUrl, maxWidth, maxHeight, fallbackUrl) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.dataset.canvasImage = '1';
+    // Our Hashinal route failing (the cover fallback) tries Kiloscribe.
+    attachHashinalFallback(img);
     img.crossOrigin = "anonymous";
 
     img.onload = () => {
@@ -241,7 +244,7 @@ const pendingCovers = new Map(); // sourceId → { url, corners, kind }
 let pumpRunning = false;
 let visTimer = null;
 const VIDEO_FRAME_MS = 33; // ~30 fps texture uploads (2026-10-07, user asked for 30fps)
-const COVER_FALLBACK = "https://kiloscribe.com/api/inscription-cdn/0.0.4819119";
+const COVER_FALLBACK = DEFAULT_AVATAR;
 const D2R = Math.PI / 180;
 
 // HMR: drop orphaned cover videos and play buttons left by a previous module instance

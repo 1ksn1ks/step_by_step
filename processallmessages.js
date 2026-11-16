@@ -1,3 +1,4 @@
+import { DEFAULT_AVATAR } from './hashinalurl.js';
 import {getTopicInfo} from './hedera'
 import { prepareHoldings, fetchAccountTokens } from './nftcache.js'
 import {sendMessage, popupView, knownPopupViews, setPopupViewTotal, fetchPost} from './msgbackend'
@@ -1958,7 +1959,7 @@ function appendShareFeature(features, ctx) {
   const created = messageCreated(share.created);
   if (!sharer || !/^\d+\.\d+\.\d+$/.test(original) || !pin || !created) return;
   const author = typeof share.payer === 'string' ? share.payer : '';
-  const defaultProfilePic = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+  const defaultProfilePic = DEFAULT_AVATAR;
   const authorPic = author && profilePictures[author] && profilePictures[author].url;
   const profileUrl = isValidUrl(authorPic) ? authorPic : defaultProfilePic;
   const username = author && usernames[author] ? ` ${usernames[author].username}` : '';
@@ -2816,7 +2817,7 @@ function liveShareRecord(live, base) {
     second: '2-digit',
   });
   const payer = live.payer || base.payer || '';
-  const defaultProfilePic = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+  const defaultProfilePic = DEFAULT_AVATAR;
   const authorPic = payer && profilePictures[payer] && profilePictures[payer].url;
   const profileUrl = isValidUrl(authorPic) ? authorPic : (base.profileUrl || defaultProfilePic);
   const knownName = payer && usernames[payer] && usernames[payer].username;
@@ -3318,7 +3319,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
               })
 
 
-              const defaultProfilePic = "https://kiloscribe.com/api/inscription-cdn/0.0.4819119";
+              const defaultProfilePic = DEFAULT_AVATAR;
               const profileUrl = isValidUrl(message.payer && profilePictures[message.payer] ?
                 profilePictures[message.payer].url :
                 defaultProfilePic) ?
@@ -4203,7 +4204,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
   // Topic-chat look: consecutive comments by the same payer form one group -
   // round profile photo on the left (opens the payer's topic), payer/username
   // header, then each comment's text with a small gray timestamp below it.
-  const defaultProfilePic = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+  const defaultProfilePic = DEFAULT_AVATAR;
   let currentGroupPayer = null;
   let currentMessagesDiv = null;
 
@@ -5682,7 +5683,7 @@ if (rawResult && Array.isArray(rawResult)) {
               })
 
 
-              const defaultProfilePic = "https://kiloscribe.com/api/inscription-cdn/0.0.4819119";
+              const defaultProfilePic = DEFAULT_AVATAR;
               const profileUrl = isValidUrl(message.payer && profilePictures[message.payer] ?
                 profilePictures[message.payer].url :
                 defaultProfilePic) ?
@@ -6381,7 +6382,7 @@ if (rawResult && Array.isArray(rawResult)) {
               })
 
 
-              const defaultProfilePic = "https://kiloscribe.com/api/inscription-cdn/0.0.4819119";
+              const defaultProfilePic = DEFAULT_AVATAR;
               const profileUrl = isValidUrl(message.payer && profilePictures[message.payer] ?
                 profilePictures[message.payer].url :
                 defaultProfilePic) ?

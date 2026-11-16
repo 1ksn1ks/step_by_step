@@ -1,3 +1,4 @@
+import { DEFAULT_MODEL } from './hashinalurl.js';
 export let models = [];
 export let shadeMode = 'daynight'; // 'light' | 'dark' | 'daynight' — drives the 3D day/night shade
 export function setShadeMode(m) { shadeMode = m; }
@@ -25,7 +26,7 @@ export function setCurrentUfoModellInGLTF(newModel) {
   currentUfoModelInGLTF = newModel;
 }
 
-export let defaultModelUrl = 'https://kiloscribe.com/api/inscription-cdn/0.0.9742046'; // Replace with your actual default model URL
+export let defaultModelUrl = DEFAULT_MODEL;
 
 
 export let accidTopicChatColor = '#ffffff';

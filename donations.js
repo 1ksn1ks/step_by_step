@@ -2,6 +2,7 @@
 // The account that receives HBAR comes from the server, which reads the
 // original message's payer. The post body is never that account.
 
+import { DEFAULT_AVATAR } from './hashinalurl.js';
 import { BACKEND_URL } from './msgbackend.js';
 import { connectedAccount } from './web3.js';
 import { sendHbarDonation } from './hedera.js';
@@ -58,7 +59,6 @@ function emptyDonateSwap(host) {
   };
 }
 
-const DEFAULT_AVATAR = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const PRESETS = ['1', '5', '10', '25'];
 const SENT_CLOSE_MS = 2000;
 

@@ -1,5 +1,6 @@
 // Live card in Edit Profile. Shows the saved picture, name, link, and bio,
 // then swaps in whatever is currently typed or uploaded.
+import { DEFAULT_AVATAR as DEFAULT_PIC, HASHINAL_PLACEHOLDER } from './hashinalurl.js';
 import { connectedAccount } from './web3.js';
 import { profilePictures, usernames, click2url, topicBio } from './loadalladata.js';
 import { payerUsernameNode } from './payerlink.js';
@@ -8,7 +9,6 @@ import { paintProfileAvatar } from './earlyhashinal.js';
 import { watchProfilePicture } from './markertilt.js';
 import { mountPicture } from './loopmedia.js';
 
-const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 
 const accountEl = document.getElementById('profile-live-account');
 const nameEl = document.getElementById('profile-live-username');
@@ -92,6 +92,10 @@ function render() {
 }
 
 function useFallback(src) {
+  // The default picture failing (or the local copy hashinalurl.js falls
+  // back to, or no source while a picture is swapped in) is no new
+  // failure: painting the default again would fail again, forever.
+  if (!src || src === DEFAULT_PIC || src === HASHINAL_PLACEHOLDER) return;
   failedPic = src;
   const live = document.getElementById('profile-live-pic');
   const circle = document.getElementById('profile-circle-preview-img');

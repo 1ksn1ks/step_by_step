@@ -1,3 +1,4 @@
+import { hashinalFallbackUrl } from "./hashinalurl.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { loadProfileSettings } from './loadprofilesettings'
@@ -30,10 +31,19 @@ export async function loadUfoModel(modelUrl) {
             setCurrentUfoModellInGLTF (null); // Clear the reference to the removed model
         }
 
-        const gltf = await new Promise((resolve, reject) => {
-            ufoLoader.load(modelUrl, resolve, undefined, (error) => {
+        const loadModel = (src) => new Promise((resolve, reject) => {
+            ufoLoader.load(src, resolve, undefined, reject);
+        });
+        // Our Hashinal route failing: Kiloscribe's copy of the same model.
+        const gltf = await loadModel(modelUrl).catch((error) => {
+            const backup = hashinalFallbackUrl(modelUrl);
+            if (!backup) {
                 console.error("Error loading GLTF model:", error);
-                reject(error);
+                throw error;
+            }
+            return loadModel(backup).catch((backupError) => {
+                console.error("Error loading GLTF model:", backupError);
+                throw backupError;
             });
         });
 

@@ -2,6 +2,7 @@
 // One list on document.body. The chat panels are position:fixed and
 // overflow:hidden, so a list inside them would be clipped.
 
+import { DEFAULT_AVATAR } from './hashinalurl.js';
 import { connectedAccount } from './web3.js';
 import { usernames, profilePictures, profileTopics } from './loadalladata.js';
 import { fetchFollowing } from './msgbackend.js';
@@ -12,7 +13,6 @@ import { createFollowingStore, FOLLOWING_UPDATED, seeAllQuery } from './followin
 
 export { FOLLOWING_UPDATED, followingCountText, followingEmptyText } from './followingstate.js';
 
-const DEFAULT_AVATAR = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const LIST_ID = 'follow-suggest';
 const QUICK = 5;
 

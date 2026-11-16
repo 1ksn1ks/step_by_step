@@ -1,3 +1,4 @@
+import { resolveHashinalSrc } from './hashinalurl.js';
 import { perfJob } from './perf.js';
 import { getTopicData as getMessages } from "./topicdata";
 import { fetchUserSettings } from "./msgbackend";
@@ -76,7 +77,7 @@ function applyAccounts(accounts) {
   const swapBios = {};
   for (const row of accounts || []) {
     if (!row || !row.accountId) continue;
-    if (row.profilePic) pics[row.accountId] = { url: row.profilePic, timestamp: row.updatedAt };
+    if (row.profilePic) pics[row.accountId] = { url: resolveHashinalSrc(row.profilePic), timestamp: row.updatedAt };
     if (row.username) names[row.accountId] = { username: row.username, timestamp: row.updatedAt };
     if (row.click2url) links[row.accountId] = { click2url: row.click2url, timestamp: row.updatedAt };
     if (row.bio) bios[row.accountId] = { topic_bio: row.bio, timestamp: row.updatedAt };
@@ -130,7 +131,7 @@ function reconcileOverlay(accounts) {
 
 function applyOverlay() {
   for (const [accountId, patch] of ownOverlay) {
-    if (patch.profilePic) profilePictures[accountId] = { url: patch.profilePic, timestamp: Date.now() };
+    if (patch.profilePic) profilePictures[accountId] = { url: resolveHashinalSrc(patch.profilePic), timestamp: Date.now() };
     if (patch.username) usernames[accountId] = { username: patch.username, timestamp: Date.now() };
     if (patch.click2url) click2url[accountId] = { click2url: patch.click2url, timestamp: Date.now() };
     if (patch.bio) topicBio[accountId] = { topic_bio: patch.bio, timestamp: Date.now() };
@@ -265,7 +266,7 @@ const accountUrls = {}; // Dictionary to store account IDs and their URLs
     rawResult.messages.forEach(message => {
       if (message.payer && message.data && message.data.urls && message.data.urls.length > 0) {
         accountUrls[message.payer] = {
-        url: message.data.urls[0],
+        url: resolveHashinalSrc(message.data.urls[0]),
         timestamp: message.timestamp
         };
       }

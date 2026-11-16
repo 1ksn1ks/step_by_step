@@ -25,7 +25,7 @@ const metadata = {
   name: "Meritocracy",
   description: "Tokenize Taxes",
   url: window.location.origin,
-  icons: ["https://kiloscribe.com/api/inscription-cdn/0.0.4819119"],
+  icons: ["https://onlyonhbar.com/api/hcs1/0.0.4819119"],
 };
 
 export const dAppConnector = new DAppConnector(

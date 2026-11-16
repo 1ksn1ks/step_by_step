@@ -1,3 +1,4 @@
+import { DEFAULT_AVATAR } from './hashinalurl.js';
 import {adjustTextareaHeight} from './adjusttextarea'
 import { loadedDomains } from './loaddomains';
 import { getAccountNFTs, getTopicInfo, subscribeToTopic } from './hedera';
@@ -530,8 +531,8 @@ async function appendTopicChatMessageWork(message, messagesContainer, topicAdmin
     if (!hasText && !parsedMessage.image) return;
     storedMessages.push(parsedMessage);
 
-    const payerImage = profilePictures[payer]?.url || 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
-    const validPayerImage = isValidUrl(payerImage) ? payerImage : 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+    const payerImage = profilePictures[payer]?.url || DEFAULT_AVATAR;
+    const validPayerImage = isValidUrl(payerImage) ? payerImage : DEFAULT_AVATAR;
 
     const timestamp = new Date(parsedMessage.created).toLocaleString('en-US', {
       hour12: false,
@@ -1030,8 +1031,8 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
       if (!hasText && !parsedMessage.image) return;
       const payer = parsedMessage.payer || 'Unknown';
   
-      const payerImage = profilePictures[payer]?.url || 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
-      const validPayerImage = isValidUrl(payerImage) ? payerImage : 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
+      const payerImage = profilePictures[payer]?.url || DEFAULT_AVATAR;
+      const validPayerImage = isValidUrl(payerImage) ? payerImage : DEFAULT_AVATAR;
   
       const timestamp = new Date(parsedMessage.created).toLocaleString('en-US', {
         hour12: false,

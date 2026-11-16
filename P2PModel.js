@@ -1,3 +1,4 @@
+import { DEFAULT_MODEL } from './hashinalurl.js';
 import {map} from './map';
 import { models } from './letall';
 import { generateModels } from './loadP2PModels';
@@ -381,7 +382,7 @@ export async function someFunction(accountId, topicId) {
         // Update the existing model
         models[modelIndex] = {
             peer_id: peer_id,
-            url: url || 'https://kiloscribe.com/api/inscription-cdn/0.0.9742046',
+            url: url || DEFAULT_MODEL,
             origin: [coordinates.x, coordinates.y],
             altitude: coordinates.z,
             scaleFactorNFT: scaleFactorNFT
@@ -390,7 +391,7 @@ export async function someFunction(accountId, topicId) {
         // Append new message to models array
         models.push({
             peer_id: peer_id,
-            url: url || 'https://kiloscribe.com/api/inscription-cdn/0.0.9742046',
+            url: url || DEFAULT_MODEL,
             origin: [coordinates.x, coordinates.y],
             altitude: coordinates.z,
             scaleFactorNFT: scaleFactorNFT

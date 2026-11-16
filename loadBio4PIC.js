@@ -1,3 +1,4 @@
+import { DEFAULT_AVATAR as DEFAULT_PIC } from './hashinalurl.js';
 import { activePolygonPopups } from './polygons';
 import { activeMarkerPopups } from './marker';
 import { CloseALL } from './cssLogic';
@@ -13,7 +14,6 @@ import { forgetProfileTree } from './markertilt.js';
 import { paintEarlyProfile } from './loadprofilepopup.js';
 import { paintProfileStats } from './profilestats.js';
 
-const DEFAULT_PIC = 'https://kiloscribe.com/api/inscription-cdn/0.0.4819119';
 const EMPTY_BIO = 'User has not set a bio yet. You can set yours by going to OPTIONS > TOOLBAR > EDIT > BIO';
 
 // Popups a profile or bio is covering. They stay in the map (and on the

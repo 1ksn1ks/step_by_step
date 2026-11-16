@@ -71,7 +71,8 @@ test("recognised IPFS urls are rewritten to the first gateway", () => {
   assert.equal(preferGateway("https://gateway.pinata.cloud/ipfs/" + CID), "");
   assert.equal(preferGateway("https://ipfs.filebase.io/ipfs/" + CID), "");
   assert.equal(preferGateway("https://4everland.io/ipfs/" + CID + "/a.png"), "");
-  assert.equal(preferGateway("https://kiloscribe.com/api/inscription-cdn/0.0.4819119"), "");
+  assert.equal(preferGateway("https://onlyonhbar.com/api/hcs1/0.0.4819119"), "");
+  assert.equal(preferGateway("/api/hcs1/0.0.4819119"), "");
   assert.equal(preferGateway(""), "");
 });
 
@@ -106,7 +107,10 @@ test("a canvas image is pointed at the first gateway before it loads", () => {
   const fallbackAssign = body.indexOf("img.src = fallbackUrl", onerror);
   assert.ok(onerror !== -1 && advance !== -1 && advance < fallbackAssign);
   assert.match(body, /if \(advanceIpfsImage\(img\)\) return;/);
-  assert.match(source, /const COVER_FALLBACK = "https:\/\/kiloscribe.com\/api\/inscription-cdn\/0\.0\.4819119"/);
+  // The default avatar on our Hashinal route, Kiloscribe as its fallback.
+  assert.match(source, /import \{ DEFAULT_AVATAR, attachHashinalFallback \} from '\.\/hashinalurl\.js';/);
+  assert.match(source, /const COVER_FALLBACK = DEFAULT_AVATAR;/);
+  assert.match(body, /img\.dataset\.canvasImage = '1';\s*\/\/[^\n]*\n\s*attachHashinalFallback\(img\);/);
   const onload = body.indexOf("img.onload");
   const clearOnLoad = body.indexOf("clearIpfsAttempt(img)", onload);
   const clearOnError = body.indexOf("clearIpfsAttempt(img)", onerror);
