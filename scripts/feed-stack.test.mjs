@@ -6,7 +6,21 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { currentStackedTopics, feedTopics, topicsToLoad } from "../loadcurrenttopic.js";
-import { addPage, cmpMessage, feedSource, needsPull, sourcesDone, takeMerged } from "../feedmerge.js";
+import {
+  FEED_TOPIC_MAX,
+  PULL_AT_ONCE,
+  STACK_FIRST_MS,
+  addPage,
+  capTopics,
+  cmpMessage,
+  feedSource,
+  mapLimited,
+  needsPull,
+  settlesWithin,
+  sourcesDone,
+  takeAbove,
+  takeMerged,
+} from "../feedmerge.js";
 
 const add = (topics, payer = "0.0.1") => ({ addTopic: { addTopic: topics }, payer });
 const remove = (topics, payer = "0.0.1") => ({ removeTopic: { removeTopic: topics }, payer });
@@ -162,4 +176,190 @@ test("the feed is wired to the shared rule and pages every topic", () => {
   assert.doesNotMatch(feed, /`[mpc]:\$\{loadedTopic\}/);
   // The open topic's chat stays its own.
   assert.match(feed, /topic === loadedTopic \? chatPost\(message, topic\) : null/);
+});
+
+// --- Light on phones: the queue, the time limit and the cap ---------------
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((ok, bad) => {
+    resolve = ok;
+    reject = bad;
+  });
+  return { promise, resolve, reject };
+}
+
+// Lets every pending promise callback run.
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+test("the queue fetches at most three topics at a time, in stack order", async () => {
+  assert.equal(PULL_AT_ONCE, 3);
+  const topics = ["0.0.1", "0.0.2", "0.0.3", "0.0.4", "0.0.5", "0.0.6", "0.0.7"];
+  const gates = new Map(topics.map((topic) => [topic, deferred()]));
+  const started = [];
+  let running = 0;
+  let peak = 0;
+  const job = mapLimited(topics, PULL_AT_ONCE, async (topic) => {
+    started.push(topic);
+    running += 1;
+    peak = Math.max(peak, running);
+    try {
+      return await gates.get(topic).promise;
+    } finally {
+      running -= 1;
+    }
+  });
+  await settle();
+  assert.deepEqual(started, ["0.0.1", "0.0.2", "0.0.3"]);
+  // A slow first topic does not hold the others back: the next one takes
+  // the place that came free.
+  gates.get("0.0.2").resolve("page 2");
+  await settle();
+  assert.deepEqual(started, ["0.0.1", "0.0.2", "0.0.3", "0.0.4"]);
+  for (const topic of ["0.0.3", "0.0.4", "0.0.5", "0.0.6", "0.0.7", "0.0.1"]) {
+    gates.get(topic).resolve(`page ${topic.slice(4)}`);
+    await settle();
+  }
+  // Results come back in topic order, whatever order they finished in.
+  assert.deepEqual(await job, topics.map((topic) => `page ${topic.slice(4)}`));
+  assert.equal(peak, PULL_AT_ONCE);
+  assert.equal(started.length, topics.length);
+  assert.deepEqual(await mapLimited([], PULL_AT_ONCE, () => assert.fail("nothing to run")), []);
+});
+
+test("after a failed topic the queue starts nothing new, lets the running ones finish, then fails the page", async () => {
+  const started = [];
+  const finished = [];
+  const job = mapLimited(["0.0.1", "0.0.2", "0.0.3", "0.0.4", "0.0.5"], PULL_AT_ONCE, async (topic) => {
+    started.push(topic);
+    if (topic === "0.0.2") throw new Error("0.0.2 failed");
+    await settle();
+    finished.push(topic);
+    return topic;
+  });
+  await assert.rejects(job, /0\.0\.2 failed/);
+  assert.deepEqual(started, ["0.0.1", "0.0.2", "0.0.3"]);
+  assert.deepEqual(finished.sort(), ["0.0.1", "0.0.3"]);
+});
+
+test("a stacked topic's first page gets about 6 s", async (t) => {
+  assert.equal(STACK_FIRST_MS, 6000);
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  // In time, either way: a page, or an error the page still reports.
+  const quick = deferred();
+  const inTime = settlesWithin(quick.promise, STACK_FIRST_MS);
+  t.mock.timers.tick(STACK_FIRST_MS - 1);
+  quick.resolve({ messages: [] });
+  assert.equal(await inTime, true);
+  assert.equal(await settlesWithin(Promise.reject(new Error("mirror HTTP 500")), STACK_FIRST_MS), true);
+  // Too slow: the page goes on. The fetch itself is not stopped.
+  const slow = deferred();
+  const late = settlesWithin(slow.promise, STACK_FIRST_MS);
+  t.mock.timers.tick(STACK_FIRST_MS);
+  assert.equal(await late, false);
+  slow.resolve({ messages: [] });
+  assert.equal(await slow.promise.then(() => "still landed"), "still landed");
+});
+
+test("past the limit the page shows the topics that answered, and the late one joins in order", () => {
+  const all = {
+    "0.0.1": topicRows("0.0.1", [10, 20, 30, 40, 50, 60, 70, 80]),
+    "0.0.2": topicRows("0.0.2", [15, 35, 55, 75]),
+    "0.0.3": topicRows("0.0.3", [5, 25, 45, 65, 85]),
+  };
+  const pulls = [];
+  const fetchPage = fakeFetch(all, 3, pulls);
+  const sources = Object.keys(all).map(feedSource);
+  const late = sources[2];
+
+  // 0.0.3 missed its time limit: it is not fetched again while it loads,
+  // and it does not hold the page back.
+  late.late = true;
+  assert.equal(needsPull(late), false);
+  for (const source of sources.filter(needsPull)) addPage(source, fetchPage(source.topic, source.cursor));
+  const first = takeMerged(sources).map((row) => row.message);
+  assert.deepEqual(first.map((m) => `${m.topic} ${m.consensus_timestamp}`), [
+    "0.0.1 80.000000000",
+    "0.0.2 75.000000000",
+    "0.0.1 70.000000000",
+    "0.0.1 60.000000000",
+  ]);
+  const shownTo = first[first.length - 1].consensus_timestamp;
+
+  // Its page comes in while it is still late: it stays out of the merge.
+  addPage(late, fetchPage(late.topic, late.cursor));
+  assert.equal(takeMerged(sources).length, 0);
+
+  // Joining: the rows newer than the oldest one shown belong among the
+  // shown rows (they go in through the new-posts queue, sorted there)...
+  late.late = false;
+  const above = takeAbove(late, shownTo).map((row) => row.message);
+  assert.deepEqual(above.map((m) => m.consensus_timestamp), ["85.000000000", "65.000000000"]);
+  // ...and the rest joins the next pages, which stay in consensus order.
+  const rest = [];
+  for (let guard = 0; guard < 50 && !sourcesDone(sources); guard++) {
+    for (const source of sources.filter(needsPull)) addPage(source, fetchPage(source.topic, source.cursor));
+    rest.push(...takeMerged(sources).map((row) => row.message));
+  }
+  assert.deepEqual(rest, [...rest].sort((x, y) => cmpMessage(y, x)), "pages newest first");
+  assert.ok(rest.every((m) => cmpMessage(m, first[first.length - 1]) < 0), "nothing on a later page is newer than what is shown");
+  // Everything is shown once, and the top of the feed, once the queue is
+  // merged, is what waiting for every topic would have shown.
+  const everything = Object.values(all).flat();
+  const seen = [...first, ...above, ...rest];
+  assert.equal(seen.length, everything.length);
+  assert.equal(new Set(seen).size, seen.length);
+  const top = [...first, ...above].sort((x, y) => cmpMessage(y, x));
+  const waited = everything.filter((m) => cmpMessage(m, first[first.length - 1]) >= 0).sort((x, y) => cmpMessage(y, x));
+  assert.deepEqual(top, waited);
+});
+
+test("a late topic that comes in before anything was shown simply joins the merge", () => {
+  const source = feedSource("0.0.3");
+  addPage(source, { messages: topicRows("0.0.3", [5, 25]).reverse(), done: true });
+  assert.deepEqual(takeAbove(source, null), []);
+  assert.equal(source.rows.length, 2);
+});
+
+test("the feed reads at most 20 topics, the open one first", () => {
+  assert.equal(FEED_TOPIC_MAX, 20);
+  const stacked = Array.from({ length: 30 }, (_, i) => `0.0.${100 + i}`);
+  const topics = feedTopics("0.0.5", [add(stacked.join(","))], []);
+  assert.equal(topics.length, 31);
+  const capped = capTopics(topics, "0.0.5");
+  assert.equal(capped.length, FEED_TOPIC_MAX);
+  assert.equal(capped[0], "0.0.5");
+  assert.deepEqual(capped.slice(1), stacked.slice(0, FEED_TOPIC_MAX - 1), "the first stacked topics, in stack order");
+  // The open topic stays first even if a list names it later, and once.
+  assert.deepEqual(capTopics(["0.0.7", "0.0.5", "0.0.7"], "0.0.5"), ["0.0.5", "0.0.7"]);
+  // A short stack is read as it is.
+  assert.deepEqual(capTopics(["0.0.5", "0.0.6"], "0.0.5"), ["0.0.5", "0.0.6"]);
+  const stack = readFileSync(new URL("../topicstack.js", import.meta.url), "utf8");
+  assert.match(stack, /const topics = capTopics\(all, topicId, FEED_TOPIC_MAX\);/);
+});
+
+test("the feed pages through the queue, times only stacked first pages, and lets late topics join", () => {
+  const feed = readFileSync(new URL("../feedlayout.js", import.meta.url), "utf8");
+  // No fetch over every topic at once, for pages or for the catch-up.
+  assert.doesNotMatch(feed, /Promise\.all\(sources\.filter\(needsPull\)/);
+  assert.doesNotMatch(feed, /Promise\.all\(live\.map/);
+  assert.match(feed, /await mapLimited\(sources\.filter\(needsPull\), PULL_AT_ONCE, \(source\) => pullSource\(source, gen\)\);/);
+  assert.match(feed, /await mapLimited\(live, PULL_AT_ONCE, \(source\) => newerRows\(source\.topic, catchUpFrom\(source\)\)\);/);
+  // The open topic always waits; a stacked topic's first page is timed.
+  assert.match(feed, /const timed = source\.topic !== loadedTopic && !source\.cursor;/);
+  assert.match(feed, /if \(!timed \|\| await settlesWithin\(job, STACK_FIRST_MS\)\) return job;/);
+  // It joins once the page being read is shown, not in the middle of it.
+  assert.match(feed, /if \(!paging\) joinLate\(\);/);
+  assert.match(feed, /function afterPaging\(\) \{\s*joinLate\(\);/);
+  // Its rows newer than the screen go through the new-posts queue, which
+  // sorts them into time order, even at the top.
+  assert.match(feed, /early\.push\(\.\.\.takeAbove\(source, cursor\.ts\)\)/);
+  assert.match(feed, /if \(made\.length\) prependBatch\(made, true\);/);
+  assert.match(feed, /if \(!batch\.length \|\| \(!late && tabIsAtTop\(tab\)\)\) return false;/);
+  assert.match(feed, /if \(late\) revealParked\(\);/);
+  // A page with nothing else to show waits for the late topics.
+  assert.match(feed, /if \(!rows\.length && lateJobs\.size\) \{\s*await Promise\.all\(\[\.\.\.lateJobs\]\);/);
+  // A new open topic forgets the old one's late topics.
+  assert.match(feed, /stackJob = null;\s*lateJobs\.clear\(\);\s*lateLanded\.clear\(\);/);
 });

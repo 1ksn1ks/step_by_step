@@ -47,7 +47,20 @@ import { bindVideoPoster } from './videoposter.js';
 import { mountPicture, pictureElement, presentImage } from './loopmedia.js';
 import { mountMediaBackdrop, mountMediaTools } from './mediaframe.js';
 import { paintXEmbeds, setXEmbedsOn, xEmbedsOn } from './xembed.js';
-import { addPage, cmpMessage, cmpTs, feedSource, needsPull, sourcesDone, takeMerged } from './feedmerge.js';
+import {
+  PULL_AT_ONCE,
+  STACK_FIRST_MS,
+  addPage,
+  cmpMessage,
+  cmpTs,
+  feedSource,
+  mapLimited,
+  needsPull,
+  settlesWithin,
+  sourcesDone,
+  takeAbove,
+  takeMerged,
+} from './feedmerge.js';
 import { orderFresh, sortQueue } from './feedfresh.js';
 import { readFeedTopics } from './topicstack.js';
 
@@ -716,6 +729,10 @@ let loadedTopic = '';
 // open topic). Posts keep their own topic for likes, comments and shares.
 let sources = [];
 let stackJob = null;
+// Stacked topics whose first page is still loading past STACK_FIRST_MS,
+// and those that came in while a page was being read (they join after it).
+const lateJobs = new Set();
+const lateLanded = new Set();
 // The oldest position shown so far, across all sources (the search floor).
 let cursor = null;
 let exhausted = false;
@@ -3064,6 +3081,8 @@ function resetFeed(topic) {
   rangeEnd = 0;
   sources = topic ? [feedSource(topic)] : [];
   stackJob = null;
+  lateJobs.clear();
+  lateLanded.clear();
   cursor = null;
   exhausted = false;
   paging = false;
@@ -4341,8 +4360,10 @@ function paintNewPill() {
 
 // Posts that arrive below the top stay out of that tab's window. held[tab]
 // is the newest prefix of that tab's lane, in the same order as the lane.
-function noteHeld(tab, batch) {
-  if (!batch.length || tabIsAtTop(tab)) return false;
+// late: a late stacked topic's posts are queued even at the top, so the
+// queue's merge (revealParked, a tap on the pill) puts them in time order.
+function noteHeld(tab, batch, late = false) {
+  if (!batch.length || (!late && tabIsAtTop(tab))) return false;
   held[tab].unshift(...batch);
   // Batches from several topics can arrive out of time order. The queue
   // is not drawn, so it is kept sorted as it grows.
@@ -4459,7 +4480,10 @@ function insertOwn(tab, list, batch) {
   trimAbove();
 }
 
-function prependBatch(list) {
+// late: posts of a stacked topic that missed its time limit (joinLate).
+// They can be older than posts on screen, so they always wait in the queue
+// and, when you are at the top, are merged into time order at once.
+function prependBatch(list, late = false) {
   const followed = takeFollowed(list);
   posts.unshift(...list);
   if (followSet) shown.unshift(...followed);
@@ -4475,8 +4499,8 @@ function prependBatch(list) {
     for (const post of visible) if (hitQuery(post)) searchIncoming.push(post);
     if (searchIncoming.length) found.unshift(...searchIncoming);
   }
-  const heldAll = noteHeld('all', list);
-  const heldFollow = followSet ? noteHeld('following', followed) : false;
+  const heldAll = noteHeld('all', list, late);
+  const heldFollow = followSet ? noteHeld('following', followed, late) : false;
   const holdRank = sortHold && feedFiltering() && !column.querySelector('.feed-card');
   if (profileFilter) {
     if (feedFiltering()) {
@@ -4492,6 +4516,7 @@ function prependBatch(list) {
     if (!heldFollow) mountIncoming(followed, false);
   } else if (!heldAll) mountIncoming(list, false);
   paintNewPill();
+  if (late) revealParked();
 }
 
 function scrollMotion() {
@@ -4615,8 +4640,7 @@ function readStack(gen) {
 // rest of the feed keeps paging. The open topic fails the page, as before.
 const STACK_FAIL_LIMIT = 3;
 
-async function pullSource(source, gen) {
-  if (!source || !needsPull(source)) return;
+async function fetchInto(source, gen) {
   let page;
   try {
     page = await fetchPage(source.topic, source.cursor);
@@ -4634,14 +4658,65 @@ async function pullSource(source, gen) {
   addPage(source, page);
 }
 
+// A stacked topic's first page waits STACK_FIRST_MS at most. Past that the
+// page goes on without it (feedmerge.js `late`); the fetch keeps going and
+// its place in the queue is free. The open topic always waits.
+async function pullSource(source, gen) {
+  if (!source || !needsPull(source)) return;
+  const timed = source.topic !== loadedTopic && !source.cursor;
+  const job = fetchInto(source, gen);
+  if (!timed || await settlesWithin(job, STACK_FIRST_MS)) return job;
+  if (gen !== generation) return;
+  source.late = true;
+  const landed = () => {
+    if (gen !== generation) return;
+    lateLanded.add(source);
+    // A page being read keeps it out until that page is shown.
+    if (!paging) joinLate();
+  };
+  const late = job.then(landed, (error) => {
+    console.warn('feed stacked topic failed after its time limit', source.topic, error);
+    landed();
+  });
+  lateJobs.add(late);
+  late.then(() => lateJobs.delete(late));
+}
+
+// Late topics that came in join the feed. Their rows at or under the oldest
+// post shown join the merge on the next page. Rows newer than that belong
+// among posts already shown: they go in through the new-posts queue, whose
+// merge sorts them into time order with the posts under them (feedfresh.js
+// orderFresh), so the feed stays newest first.
+function joinLate() {
+  if (!lateLanded.size) return;
+  const early = [];
+  for (const source of lateLanded) {
+    source.late = false;
+    if (cursor) early.push(...takeAbove(source, cursor.ts));
+  }
+  lateLanded.clear();
+  if (!early.length) return;
+  const made = ingest(early);
+  if (made.length) prependBatch(made, true);
+}
+
 // The next rows to show, newest first, across every source. Only sources
-// whose fetched rows have all been shown are fetched, all at once.
+// whose fetched rows have all been shown are fetched, PULL_AT_ONCE at a time.
 async function nextRows(gen) {
   await Promise.all([readStack(gen), pullSource(sources[0], gen)]);
   if (gen !== generation) return [];
-  await Promise.all(sources.filter(needsPull).map((source) => pullSource(source, gen)));
+  await mapLimited(sources.filter(needsPull), PULL_AT_ONCE, (source) => pullSource(source, gen));
   if (gen !== generation) return [];
-  return takeMerged(sources);
+  let rows = takeMerged(sources);
+  // Nothing to show but topics still loading late: this page waits for them,
+  // or the next page would come straight back empty.
+  if (!rows.length && lateJobs.size) {
+    await Promise.all([...lateJobs]);
+    if (gen !== generation) return [];
+    joinLate();
+    rows = takeMerged(sources);
+  }
+  return rows;
 }
 
 async function loadOlder() {
@@ -4725,6 +4800,7 @@ async function newerRows(topic, after) {
 let catchUpAgain = false;
 
 function afterPaging() {
+  joinLate();
   if (!catchUpAgain) return;
   catchUpAgain = false;
   setTimeout(catchUp, 0);
@@ -4741,7 +4817,7 @@ async function catchUp() {
   const gen = generation;
   paging = true;
   try {
-    const lists = await Promise.all(live.map((source) => newerRows(source.topic, catchUpFrom(source))));
+    const lists = await mapLimited(live, PULL_AT_ONCE, (source) => newerRows(source.topic, catchUpFrom(source)));
     if (gen !== generation) return;
     const made = ingest(lists.flat());
     if (made.length) prependPosts(made);

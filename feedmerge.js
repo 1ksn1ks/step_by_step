@@ -8,6 +8,18 @@
 // source still being read: no topic can turn up anything newer later.
 // That keeps the combined list in consensus order page after page, and
 // only a source whose fetched rows have all been shown is fetched again.
+//
+// Light on phones: at most PULL_AT_ONCE sources are fetched at a time
+// (mapLimited), the feed reads at most FEED_TOPIC_MAX topics (capTopics),
+// and a stacked topic's first page gets STACK_FIRST_MS (settlesWithin).
+// A topic past that is `late`: the merge stops waiting for it and shows
+// what the others gave. When it comes in, its rows newer than the oldest
+// row already shown are taken out (takeAbove) and go in among the shown
+// rows; the rest join the merge on the next page, in order.
+
+export const PULL_AT_ONCE = 3;
+export const STACK_FIRST_MS = 6000;
+export const FEED_TOPIC_MAX = 20;
 
 export function cmpTs(a, b) {
   const left = String(a || '').split('.');
@@ -26,13 +38,77 @@ export function cmpMessage(a, b) {
 }
 
 // high: the newest sequence fetched, so a catch-up starts past rows that
-// are still waiting below the floor.
+// are still waiting below the floor. late: its first page is still loading
+// past the time limit; the merge goes on without it.
 export function feedSource(topic) {
-  return { topic, cursor: null, done: false, rows: [], fails: 0, high: 0 };
+  return { topic, cursor: null, done: false, rows: [], fails: 0, high: 0, late: false };
 }
 
+// A late source is already being fetched.
 export function needsPull(source) {
-  return !source.done && source.rows.length === 0;
+  return !source.done && !source.late && source.rows.length === 0;
+}
+
+// The open topic first, then the stacked topics in stack order, each once,
+// at most `max` in all.
+export function capTopics(topics, open, max = FEED_TOPIC_MAX) {
+  const out = open ? [open] : [];
+  for (const topic of topics || []) {
+    if (out.length >= max) break;
+    if (topic && !out.includes(topic)) out.push(topic);
+  }
+  return out;
+}
+
+// fn over every item, at most `limit` running at once, started in order.
+// Resolves with the results in item order. After a failure nothing new
+// starts; the ones running finish, then the first error is thrown.
+export async function mapLimited(items, limit, fn) {
+  const list = Array.from(items || []);
+  const results = new Array(list.length);
+  let next = 0;
+  let failure = null;
+  const worker = async () => {
+    while (!failure && next < list.length) {
+      const index = next;
+      next += 1;
+      try {
+        results[index] = await fn(list[index], index);
+      } catch (error) {
+        if (!failure) failure = { error };
+      }
+    }
+  };
+  const width = Math.max(1, Math.min(Math.floor(limit) || 1, list.length));
+  await Promise.all(Array.from({ length: width }, worker));
+  if (failure) throw failure.error;
+  return results;
+}
+
+// True when `job` settles, either way, within `ms`; false once the time is
+// up. The job is not stopped.
+export function settlesWithin(job, ms) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), ms);
+    const done = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    Promise.resolve(job).then(done, done);
+  });
+}
+
+// A late source that came in: its rows newer than `ts` (the oldest row
+// already shown), newest first. They belong among the rows shown; what is
+// left joins the merge on the next page.
+export function takeAbove(source, ts) {
+  if (!ts) return [];
+  let count = 0;
+  while (count < source.rows.length
+    && cmpTs(source.rows[count].message.consensus_timestamp, ts) > 0) {
+    count += 1;
+  }
+  return count ? source.rows.splice(0, count) : [];
 }
 
 export function sourcesDone(sources) {
@@ -65,16 +141,19 @@ export function addPage(source, page) {
 }
 
 // Takes every row that is safe to show, newest first, as { topic, message }.
-// A source still being read that has not fetched yet holds everything back.
+// A source still being read that has not fetched yet holds everything back,
+// unless it is late: then it neither holds back nor gives rows until it
+// has joined.
 export function takeMerged(sources) {
   let floor = null;
   for (const source of sources) {
-    if (source.done) continue;
+    if (source.done || source.late) continue;
     if (!source.cursor) return [];
     if (floor == null || cmpTs(source.cursor.ts, floor) > 0) floor = source.cursor.ts;
   }
   const out = [];
   for (const source of sources) {
+    if (source.late) continue;
     let count = 0;
     while (count < source.rows.length
       && (floor == null || cmpTs(source.rows[count].message.consensus_timestamp, floor) >= 0)) {
