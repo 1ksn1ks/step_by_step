@@ -24,6 +24,7 @@ import { isValidUrl } from './ISVALIDURL.JS';
 import { toast } from './toast';
 import { HCS_CHUNK_SIZE, HCS_MESSAGE_MAX_BYTES, HCS_TOO_LONG, formatHcsUsage, utf8ByteLength, normalizeMessageNewlines } from './hcschunks.js';
 import { refreshFilterTimeButtons } from './drawdate.js';
+import { POST_IMAGES_BUSY, draftPending, postCover, postImageArray } from './postimages.js';
 import { pendingChatImage, chatImageBusy, clearPendingChatImage, topicChatWire } from './chatimage.js';
 import { stackedTopicRules } from './topicrules.js';
 import { adminsFromMemo, autoplayConfigMessage, currentAutoplayNft, currentTopicBio, currentTopicName, currentStackedTopics, currentInitialXYZ } from './loadcurrenttopic.js';
@@ -1393,6 +1394,10 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
          toast.error("Connect wallet first");
          return;
        }
+       if (draftPending("marker")) {
+         toast.error(POST_IMAGES_BUSY);
+         return;
+       }
        let userInput = document.getElementById("input-field-2-0").value.toLowerCase();
        let domainEntry = loadedDomains.find(entry => entry.domain === userInput);
        let topicId;
@@ -1414,8 +1419,12 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
              toast.error("Please fill in Topic ID and Coordinates.");
              return;
            }
- 
-       const messageObj = {marker: {data: {title: title, image: [cleanUrl], coverimage: [cleanCoverimage], msg: msg, cord: cord }}};
+
+       // Up to 4 pictures (postimages.js). With no picked cover, the dot
+       // wears the first picture.
+       const images = postImageArray("marker", cleanUrl);
+       const cover = await postCover("marker", cleanCoverimage, document.getElementById("submit-button-Create_Marker"));
+       const messageObj = {marker: {data: {title: title, image: images, coverimage: [cover], msg: msg, cord: cord }}};
        const message = JSON.stringify(messageObj);
        if (utf8ByteLength(message) > HCS_MESSAGE_MAX_BYTES) {
          toast.error(HCS_TOO_LONG);
@@ -1438,6 +1447,10 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
   try {
     if (!signer) {
       toast.error("Connect wallet first");
+      return;
+    }
+    if (draftPending("marker")) {
+      toast.error(POST_IMAGES_BUSY);
       return;
     }
     let userInput = document.getElementById("input-field-2-0").value.toLowerCase();
@@ -1509,7 +1522,9 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
           return;
         }
 
-    const messageObj = {marker: {data: {title: title, image: [cleanUrl], coverimage: [cleanCoverimage], msg: msg, cord: cord }}};
+    const images = postImageArray("marker", cleanUrl);
+    const cover = await postCover("marker", cleanCoverimage, document.getElementById("submit-button-Create_encrypted-Marker"));
+    const messageObj = {marker: {data: {title: title, image: images, coverimage: [cover], msg: msg, cord: cord }}};
     const messageStringify = JSON.stringify(messageObj);
     if (utf8ByteLength(messageStringify) > HCS_MESSAGE_MAX_BYTES) {
       toast.error(HCS_TOO_LONG);
@@ -1541,6 +1556,10 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
      try {
        if (!signer) {
          toast.error("Connect wallet first");
+         return;
+       }
+       if (draftPending("polygon")) {
+         toast.error(POST_IMAGES_BUSY);
          return;
        }
        let userInput = document.getElementById("input-field-3-0").value.toLowerCase();
@@ -1593,13 +1612,16 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
  
        // Create the desired coordinate string without additional array wrapping
        const cordString = formattedCord.map(cord => `[${cord.join(',')}]`).join(', '); // Join the valid coordinates
- 
+
+       // Up to 4 pictures. With no picked cover, the fill is the first one.
+       const images = postImageArray("polygon", cleanUrl);
+       const cover = await postCover("polygon", cleanCoverimage, document.getElementById("submit-button-Create_Polygon"));
        const messageObj = {
          polygon: {
            data: {
              title: title,
-             image: [cleanUrl],
-             coverimage: [cleanCoverimage],
+             image: images,
+             coverimage: [cover],
              msg: msg,
              cord: cordString
            }
@@ -1627,6 +1649,10 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
   try {
     if (!signer) {
       toast.error("Connect wallet first");
+      return;
+    }
+    if (draftPending("polygon")) {
+      toast.error(POST_IMAGES_BUSY);
       return;
     }
     let userInput = document.getElementById("input-field-3-0").value.toLowerCase();
@@ -1727,12 +1753,14 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
     // Create the desired coordinate string without additional array wrapping
     const cordString = formattedCord.map(cord => `[${cord.join(',')}]`).join(', '); // Join the valid coordinates
 
+    const images = postImageArray("polygon", cleanUrl);
+    const cover = await postCover("polygon", cleanCoverimage, document.getElementById("submit-button-Create_encrypted-Polygon"));
     const messageObj = {
       polygon: {
         data: {
           title: title,
-          image: [cleanUrl],
-          coverimage: [cleanCoverimage],
+          image: images,
+          coverimage: [cover],
           msg: msg,
           cord: cordString
         }

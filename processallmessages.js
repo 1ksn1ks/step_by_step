@@ -18,11 +18,13 @@ import { profilePictures, usernames, click2url, profileTopics, profileSwaps } fr
 import { confirmShare, unshareFromMyTopic, sharePin, followPersonControls, watchFollowPrefetch, bindPressFeedback } from './followtopic'
 import { clearShareTopic, noteShare, shareState, shareMine, takeSharePin, takeUnsharePin } from './sharecount.js'
 import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
-import { openPreview } from './fullscreenmedia';
+import { openGallery, openPreview } from './fullscreenmedia';
 import { isGifClipUrl, isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
 import { bindVideoPoster } from './videoposter.js';
 import { pictureElement, presentImage, watchLoop } from './loopmedia.js';
 import { mountMediaBackdrop, mountMediaTools } from './mediaframe.js';
+import { mountMoreBadge } from './mediagrid.js';
+import { galleryImages } from './postimages.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
 import { watchPopupText, setPopupText } from './popuptext.js';
 import { bindXEmbedsSwitch, paintXEmbeds } from './xembed.js';
@@ -2307,7 +2309,11 @@ function rememberPopupMediaSize(key, wide) {
 // picture or GIF shows the ···; a video's ··· follows its control bar.
 // A GIF stays a still until a tap plays it in memory. The card's own
 // background is the skeleton while classifyImageUrl is still running.
-function fillPopupMedia(imageDiv, url, hint, key) {
+// A post with several pictures (postimages.js) shows the first, with "+N"
+// in its corner; that badge opens the viewer at the second picture, and
+// the ··· Fullscreen at the first, both able to swipe through them all.
+// The popup's own swipe still turns to the next post.
+function fillPopupMedia(imageDiv, url, hint, key, gallery = []) {
   if (!url) return;
   const resolved = resolveMediaUrl(url);
   const raw = String(url).trim();
@@ -2371,11 +2377,15 @@ function fillPopupMedia(imageDiv, url, hint, key) {
   mountMediaBackdrop(imageDiv, media);
   // A GIF animates as a normal picture (a still with reduced motion). Its
   // fullscreen button opens the viewer, except while it is still pending.
+  // The badge belongs to this picture only when it heads the list.
+  const many = Array.isArray(gallery) && gallery.length > 1 && gallery[0] === raw;
   const tools = mountMediaTools(imageDiv, frame(() => {
     if (media.classList.contains("is-media-pending")) return;
-    openPreview(url);
+    if (many) openGallery(gallery, 0);
+    else openPreview(url);
   }, null));
   imageDiv.addEventListener("click", (event) => tools.tap(event));
+  if (many) mountMoreBadge(imageDiv, gallery.length - 1, () => openGallery(gallery, 1));
 }
 
 export function createMarkerPopupHTML(data) {
@@ -2471,7 +2481,7 @@ export function createMarkerPopupHTML(data) {
   if (isValidUrl(popupImageUrl)) {
     const imageDiv = document.createElement('div');
     imageDiv.className = 'popup-media-card'; // glass media card (style.css)
-    fillPopupMedia(imageDiv, popupImageUrl, posterHintFor(data.payer, data.created, data.timestamp), ['m', topicId, data.payer, data.created, markernumber].join(':'));
+    fillPopupMedia(imageDiv, popupImageUrl, posterHintFor(data.payer, data.created, data.timestamp), ['m', topicId, data.payer, data.created, markernumber].join(':'), galleryImages(image));
     contentSection.appendChild(imageDiv);
   }
 
@@ -2639,7 +2649,7 @@ function createPolygonPopupHTML(data) {
   if (isValidUrl(popupImageUrl)) {
     const imageDiv = document.createElement('div');
     imageDiv.className = 'popup-media-card'; // glass media card (style.css)
-    fillPopupMedia(imageDiv, popupImageUrl, posterHintFor(data.payer, data.created, data.timestamp), ['p', topicId, data.payer, data.created, polygonnumber].join(':'));
+    fillPopupMedia(imageDiv, popupImageUrl, posterHintFor(data.payer, data.created, data.timestamp), ['p', topicId, data.payer, data.created, polygonnumber].join(':'), galleryImages(image));
     contentSection.appendChild(imageDiv);
   }
 
@@ -3406,7 +3416,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         media: mediaKind(parsedMessage.marker.data.image),
                         seconds: videoSeconds(parsedMessage.marker.data.image),
                         popupData: markerPopupData,
-                        imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl,
+                        imageUrl: isValidUrl(firstMediaUrl(parsedMessage.marker.data.coverimage)) ? parsedMessage.marker.data.coverimage : profileUrl,
                         title: String(parsedMessage.marker.data.title || "").slice(0, 20)
                       },
                       geometry: {
@@ -3490,7 +3500,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         coordinates: [coordinates],
                         popupData: polygonPopupData,
                         title: String(parsedMessage.polygon.data.title || "").slice(0, 20),
-                        imageUrl: isValidUrl(parsedMessage.polygon.data.coverimage) ? parsedMessage.polygon.data.coverimage : profileUrl
+                        imageUrl: isValidUrl(firstMediaUrl(parsedMessage.polygon.data.coverimage)) ? parsedMessage.polygon.data.coverimage : profileUrl
                       });
                     }
                   }
@@ -5886,7 +5896,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         media: mediaKind(parsedMessage.marker.data.image),
                         seconds: videoSeconds(parsedMessage.marker.data.image),
                         popupData: markerPopupData,
-                        imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl,
+                        imageUrl: isValidUrl(firstMediaUrl(parsedMessage.marker.data.coverimage)) ? parsedMessage.marker.data.coverimage : profileUrl,
                         title: String(parsedMessage.marker.data.title || "").slice(0, 20)
                       },
                       geometry: {
@@ -5970,7 +5980,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         coordinates: [coordinates],
                         popupData: polygonPopupData,
                         title: String(parsedMessage.polygon.data.title || "").slice(0, 20),
-                        imageUrl: isValidUrl(parsedMessage.polygon.data.coverimage) ? parsedMessage.polygon.data.coverimage : profileUrl
+                        imageUrl: isValidUrl(firstMediaUrl(parsedMessage.polygon.data.coverimage)) ? parsedMessage.polygon.data.coverimage : profileUrl
                       });
                     }
                   }
@@ -6587,7 +6597,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         media: mediaKind(parsedMessage.marker.data.image),
                         seconds: videoSeconds(parsedMessage.marker.data.image),
                         popupData: markerPopupData,
-                        imageUrl: isValidUrl(parsedMessage.marker.data.coverimage) ? parsedMessage.marker.data.coverimage : profileUrl,
+                        imageUrl: isValidUrl(firstMediaUrl(parsedMessage.marker.data.coverimage)) ? parsedMessage.marker.data.coverimage : profileUrl,
                         title: String(parsedMessage.marker.data.title || "").slice(0, 20)
                       },
                       geometry: {
@@ -6675,7 +6685,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         coordinates: [coordinates],
                         popupData: polygonPopupData,
                         title: String(parsedMessage.polygon.data.title || "").slice(0, 20),
-                        imageUrl: isValidUrl(parsedMessage.polygon.data.coverimage) ? parsedMessage.polygon.data.coverimage : profileUrl
+                        imageUrl: isValidUrl(firstMediaUrl(parsedMessage.polygon.data.coverimage)) ? parsedMessage.polygon.data.coverimage : profileUrl
                       });
                     }
                     }

@@ -24,6 +24,8 @@ import './extracttopic.js'
 import './rest.js'
 import './uploadmedia.js'
 import './drawpreview.js'
+// Up to four pictures per post in the draw form (after the uploader).
+import './postgallery.js'
 import './chatimage.js'
 import './profilepreview.js'
 import './setinitialxyz.js'

@@ -1,7 +1,10 @@
 // Marker/polygon media upload — pick a file from the phone, stream it to
 // Cloudflare R2 through /api/upload (server/index.js), and auto-fill the
 // form field, then show the file itself instead of the address.
-// Four uploaders (2026-10-06 layout):
+// Four uploaders (2026-10-06 layout). Since 2026-11-17 the two image /
+// video pickers take up to four pictures (postgallery.js compresses and
+// uploads them through uploadPostImage); one video or GIF still comes
+// through handleFile here (uploadSingleMedia).
 //   marker form:  "📎 Upload image / video" → Image URL (a GIF becomes mp4, webm, or jpeg here)
 //                 "📎 Upload image (cover)" → Cover Image URL (stills + gif input)
 //   polygon form: "📎 Upload cover (image / gif / video)" → Cover Image URL
@@ -143,6 +146,30 @@ function watchSheet(sheet, onHide) {
   return () => observer.disconnect();
 }
 
+// A post's pictures upload two at a time, and every upload spends its own
+// single-use token. Only one widget can be on screen, so the checks run
+// one after another while the uploads overlap. An abort while waiting
+// removes the widget, as the GIF Cancel does.
+let turnstileChain = Promise.resolve();
+
+function queuedTurnstileToken(anchor, signal) {
+  const run = turnstileChain.then(async () => {
+    if (signal && signal.aborted) throw gifCancelError();
+    if (!signal) return ensureTurnstileToken(anchor);
+    const onAbort = () => removeTurnstile(gifCancelError());
+    signal.addEventListener("abort", onAbort, { once: true });
+    try {
+      const token = await ensureTurnstileToken(anchor);
+      if (signal.aborted) throw gifCancelError();
+      return token;
+    } finally {
+      signal.removeEventListener("abort", onAbort);
+    }
+  });
+  turnstileChain = run.catch(() => {});
+  return run;
+}
+
 // Shows the check inside the sheet that started the upload and resolves
 // with a single-use token. No site key means the upload stays unchanged.
 function ensureTurnstileToken(anchor) {
@@ -267,9 +294,9 @@ function bytesToBase64(bytes) {
   return btoa(binary);
 }
 
-function uploadFace(err) {
+export function uploadFace(err) {
   if (err && err.serverError) return err.serverError;
-  if (err && KEPT_UPLOAD_MESSAGES.has(err.message)) return err.message;
+  if (err && (err.userFacing || KEPT_UPLOAD_MESSAGES.has(err.message))) return err.message;
   return UPLOAD_FAILED;
 }
 
@@ -400,8 +427,9 @@ async function requestUploadGrant() {
 
 // A persistent pill in the toast container that reports upload progress —
 // the regular toasts auto-hide after 2.6 s, too short for a big file.
-// GIF conversion passes onCancel so the same pill can stop the recorder.
-function progressPill(label, onCancel) {
+// GIF conversion passes onCancel so the same pill can stop the recorder;
+// a post's pictures pass it to cancel the whole batch (postgallery.js).
+export function progressPill(label, onCancel) {
   let container = document.getElementById("toast-container");
   if (!container) {
     container = document.createElement("div");
@@ -821,6 +849,52 @@ async function uploadToR2(file, baseLabel, seconds, anchor, role, extra) {
   } finally {
     if (pill) pill.done();
   }
+}
+
+// One already-compressed post picture (postgallery.js). The batch owns the
+// progress pill, so this reports a 0..1 ratio and honours the batch's
+// abort. Same Turnstile and wallet grant as every other upload.
+export async function uploadPostImage(file, { anchor, signal, onProgress, role = "media" } = {}) {
+  const turnstile = await queuedTurnstileToken(anchor, signal);
+  const send = (uploadToken) => postFile({ file, turnstile, uploadToken, role, signal, onProgress });
+  const url = REQUIRE_UPLOAD_AUTH
+    ? await withUploadAuth({
+      account: connectedAccount,
+      storage: grantStorage,
+      sign: signUploadChallenge,
+      send,
+    })
+    : await send("");
+  dismissConnectToast();
+  return url;
+}
+
+// The marker dot / polygon fill made from the first picture: the same
+// 512 JPEG a picked cover becomes (shrinkCoverImage).
+export async function uploadPostCover(file, kind, anchor) {
+  const small = await shrinkCoverImage(file);
+  const pill = progressPill("Uploading cover 0%");
+  try {
+    return await uploadPostImage(small, {
+      anchor,
+      role: kind === "polygon" ? "polygon-cover" : "cover",
+      onProgress(ratio) {
+        pill.set(`Uploading cover ${Math.round(ratio * 100)}%`);
+      },
+    });
+  } finally {
+    pill.done();
+  }
+}
+
+// One upload at a time across the draw form's fields: a post's pictures
+// hold this for their whole batch.
+export function uploadBusy() {
+  return uploading;
+}
+
+export function setUploadBusy(on) {
+  uploading = !!on;
 }
 
 // Fill a form field the same way user typing would — the inline oninput
@@ -1476,11 +1550,38 @@ function bindUploader(btnId, pickerId, targetFieldId, allowedTypes, badMsg) {
   });
 }
 
-bindUploader("upload-media-marker", "upload-media-marker-file", "input-field-image-marker", MEDIA_TYPES, "Only PNG, JPG, GIF, WebP, MP4, WebM");
+// The two post media pickers take several files; postgallery.js reads
+// them. Pictures go to its list, and one video or GIF comes back here.
 bindUploader("upload-cover-marker", "upload-cover-marker-file", "input-field-coverimage-marker", MARKER_COVER_TYPES, "Only PNG, JPG, WebP, GIF");
 bindUploader("upload-cover-polygon", "upload-cover-polygon-file", "input-field-coverimage-polygon", POLYGON_COVER_TYPES, "Only PNG, JPG, GIF, WebP, MP4, WebM");
-bindUploader("upload-media-polygon", "upload-media-polygon-file", "input-field-image-polygon", MEDIA_TYPES, "Only PNG, JPG, GIF, WebP, MP4, WebM");
 bindUploader("upload-profile-picture", "upload-profile-picture-file", "input-field-profile-picture", MARKER_COVER_TYPES, "Only PNG, JPG, WebP, GIF");
+
+const SINGLE_MEDIA_PICKERS = {
+  "input-field-image-marker": ["upload-media-marker", "upload-media-marker-file"],
+  "input-field-image-polygon": ["upload-media-polygon", "upload-media-polygon-file"],
+};
+
+for (const [btnId, pickerId] of Object.values(SINGLE_MEDIA_PICKERS)) {
+  const b = document.getElementById(btnId);
+  const p = document.getElementById(pickerId);
+  if (b && p) b.addEventListener("click", () => p.click());
+}
+
+// A video or GIF in a post's media slot: the one-file path, unchanged
+// (GIF to video loop, the video's length and thumbnail, the preview).
+export function uploadSingleMedia(fieldId, file) {
+  const ids = SINGLE_MEDIA_PICKERS[fieldId];
+  const b = ids && document.getElementById(ids[0]);
+  const p = ids && document.getElementById(ids[1]);
+  if (!b || !p || !file) return Promise.resolve();
+  return handleFile(b, p, file, fieldId, MEDIA_TYPES, "Only PNG, JPG, GIF, WebP, MP4, WebM");
+}
+
+// Empties a post's single media slot (a video giving way to pictures).
+export function clearSingleMedia(fieldId) {
+  fillField(fieldId, "");
+  hideFieldPreview(fieldId);
+}
 
 function measureLocalMedia(file) {
   return new Promise((resolve) => {

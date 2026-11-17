@@ -7,6 +7,7 @@ import { capMessageEditor } from "./bytecap.js";
 import { syncPopupChrome } from "./loadprofilepopup.js";
 import { isGifUrl, needsGifCheck, resolveMediaUrl } from "./mediaurl.js";
 import { presentImage } from "./loopmedia.js";
+import { wireCover, wireImageArray } from "./postimages.js";
 
 const MEDIA = {
   "input-field-image-marker": "draw-marker-media",
@@ -81,6 +82,20 @@ function paintMedia(id, url, kind) {
   }
 }
 
+// The post's first picture (postgallery.js) while no cover is picked: the
+// cover box shows it, marked as automatic, because submit makes the dot /
+// fill from it. A picked cover replaces it.
+const autoCover = {};
+
+export function setDrawAutoCover(fieldId, url) {
+  if (!COVER[fieldId]) return;
+  const next = typeof url === "string" ? url : "";
+  if ((autoCover[fieldId] || "") === next) return;
+  autoCover[fieldId] = next;
+  const field = document.getElementById(fieldId);
+  if (field && !field.value) paintDrawField(fieldId, "");
+}
+
 function paintCover(id, url, kind, fieldId) {
   const chip = document.getElementById(id);
   if (chip) {
@@ -92,6 +107,12 @@ function paintCover(id, url, kind, fieldId) {
   const img = preview.querySelector("img");
   const video = preview.querySelector("video");
   const clear = preview.querySelector(".draw-popup-clear");
+  const auto = !stillUrl(url) && autoCover[fieldId] ? autoCover[fieldId] : "";
+  preview.classList.toggle("is-auto", !!auto);
+  if (auto) {
+    url = auto;
+    kind = "image";
+  }
   const src = stillUrl(url);
   const videoMode = !!video && (kind === "video" || isVideoUrl(url));
   if (!src) {
@@ -110,7 +131,7 @@ function paintCover(id, url, kind, fieldId) {
     return;
   }
   preview.classList.add("has-cover", "has-media");
-  if (clear) clear.hidden = false;
+  if (clear) clear.hidden = !!auto;
   if (videoMode) {
     img.hidden = true;
     img.removeAttribute("src");
@@ -164,14 +185,16 @@ function cleanMedia(url) {
 }
 
 // Same JSON rest.js submits for a regular marker, so the counter matches
-// the bytes that land on the topic.
+// the bytes that land on the topic. Every picture of the post counts (one
+// still uploading counts as a full address), and so does the cover submit
+// makes from the first picture.
 function markerWire() {
   return JSON.stringify({
     marker: {
       data: {
         title: fieldValue("input-field-2-1").replace(/\r?\n/g, "").slice(0, 20),
-        image: [cleanMedia(fieldValue("input-field-image-marker"))],
-        coverimage: [cleanMedia(fieldValue("input-field-coverimage-marker"))],
+        image: wireImageArray("marker", cleanMedia(fieldValue("input-field-image-marker"))),
+        coverimage: [wireCover("marker", cleanMedia(fieldValue("input-field-coverimage-marker")))],
         msg: normalizeMessageNewlines(fieldValue("input-field-2-2")),
         cord: fieldValue("input-field-2-3"),
       },
@@ -200,8 +223,8 @@ function polygonWire() {
     polygon: {
       data: {
         title: fieldValue("input-field-3-1").replace(/\r?\n/g, "").slice(0, 20),
-        image: [cleanMedia(fieldValue("input-field-image-polygon"))],
-        coverimage: [cleanMedia(fieldValue("input-field-coverimage-polygon"))],
+        image: wireImageArray("polygon", cleanMedia(fieldValue("input-field-image-polygon"))),
+        coverimage: [wireCover("polygon", cleanMedia(fieldValue("input-field-coverimage-polygon")))],
         msg: normalizeMessageNewlines(fieldValue("input-field-3-2")),
         cord: polygonCord(fieldValue("input-field-3-3"), fieldValue("input-field-3-5")),
       },
@@ -315,12 +338,12 @@ function bindUpload(triggerId, pickerId, fieldId, paint) {
   if (!trigger || !picker || !field) return;
   const open = () => picker.click();
   trigger.addEventListener("click", (event) => {
-    if (event.target.closest(".draw-popup-clear, .video-thumb-bar")) return;
+    if (event.target.closest(".draw-popup-clear, .video-thumb-bar, .post-more-badge")) return;
     open();
   });
   if (trigger.tagName !== "BUTTON") {
     trigger.addEventListener("keydown", (event) => {
-      if (event.target.closest(".video-thumb-bar")) return;
+      if (event.target.closest(".video-thumb-bar, .post-more-badge")) return;
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
       open();

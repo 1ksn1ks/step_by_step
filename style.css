@@ -25543,3 +25543,451 @@ html.is-draw-picking .live-filter {
 #feed-chat #load-column.is-feed-shell .topic-bio-row + .x-embed-list + .loaded-topic-row {
   box-shadow: inset 0 0.0625rem 0 rgba(255, 255, 255, 0.12);
 }
+
+/* ── Several pictures per post (postimages.js, postgallery.js, mediagrid.js)
+   Up to four pictures on a marker or polygon. The feed lays them out the
+   X way; a map popup shows the first with "+N"; the viewer swipes through
+   them all; the draw form lists them under its media card. Units are the
+   surface's own: --fu in the feed and the viewer, --u in popups and the
+   draw form, rem only for the touch-target and hairline floors. */
+
+/* Feed: one picture takes the card's width (the 16:9 frame, its blur fill
+   and its ··· as before). A video keeps the compact frame. */
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card:not(:has(video)) {
+  width: 100%;
+}
+
+/* Feed: 2 side by side, 3 as one large plus two small, 4 as 2x2. One
+   16:9 frame, the card's width, each tile cropped to fill. */
+:is(#feed-column, .feed-comments-stage) .post-gallery {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  gap: max(0.125rem, calc(var(--fu) * 0.18));
+  box-sizing: border-box;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 70dvh;
+  margin: 0;
+  overflow: hidden;
+  border-radius: calc(var(--fu) * 1.2);
+  background-color: #0b0d13;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+:is(#feed-column, .feed-comments-stage) .post-gallery:is([data-count="3"], [data-count="4"]) {
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+:is(#feed-column, .feed-comments-stage) .post-gallery[data-count="3"] > .post-gallery-tile:first-child {
+  grid-row: 1 / span 2;
+}
+:is(#feed-column, .feed-comments-stage) .post-gallery-tile {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  /* The skeleton the single frame shows while a picture loads. */
+  background-color: #0b0d13;
+  background-image: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
+  cursor: zoom-in;
+  outline: none;
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+}
+:is(#feed-column, .feed-comments-stage) .post-gallery-tile > :is(img, canvas.media-still) {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+:is(#feed-column, .feed-comments-stage) .post-gallery-tile:focus-visible::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 0.125rem #22D3EE;
+  pointer-events: none;
+}
+@media (pointer: fine) {
+  :is(#feed-column, .feed-comments-stage) .post-gallery-tile > img {
+    transition: transform 0.2s ease, filter 0.2s ease;
+  }
+  :is(#feed-column, .feed-comments-stage) .post-gallery-tile:hover > img {
+    transform: scale(1.03);
+    filter: brightness(1.08);
+  }
+}
+
+/* "+N" on the first picture (map popups, the draw form). Same glass as the
+   ··· buttons; the hit area is at least 2.75rem. */
+.popup-media-card > .post-more-badge {
+  position: absolute;
+  right: calc(var(--u) * 0.8);
+  bottom: calc(var(--u) * 0.8);
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: calc(var(--u) * 4.2);
+  height: calc(var(--u) * 3);
+  margin: 0;
+  padding: 0 calc(var(--u) * 0.9);
+  border: 0.0625rem solid rgba(255, 255, 255, 0.24);
+  border-radius: calc(var(--u) * 1.5);
+  background: rgba(10, 12, 18, 0.62);
+  -webkit-backdrop-filter: blur(0.5rem);
+  backdrop-filter: blur(0.5rem);
+  box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--u) * 1.5);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 160ms ease, border-color 160ms ease, scale 120ms ease;
+}
+.popup-media-card > .post-more-badge::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(2.75rem, 100%);
+  height: max(2.75rem, 100%);
+  translate: -50% -50%;
+}
+.popup-media-card > .post-more-badge:is(:hover, :active) {
+  border-color: rgba(34, 211, 238, 0.7);
+  color: #22D3EE;
+}
+.popup-media-card > .post-more-badge:active {
+  scale: 0.94;
+}
+.popup-media-card > .post-more-badge:focus-visible {
+  outline: 0.125rem solid #22D3EE;
+  outline-offset: 0.125rem;
+}
+
+/* The viewer's gallery: ‹ › on the sides, "2 / 4" on top. The picture
+   follows the finger (fullscreenmedia.js). The arrows hide at either end. */
+#media-fullscreen.is-gallery {
+  --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
+  touch-action: pan-y pinch-zoom;
+  -webkit-user-select: none;
+  user-select: none;
+  /* It holds focus for the arrow keys; the buttons show their own ring. */
+  outline: none;
+}
+#media-fullscreen.is-gallery .media-gallery-img {
+  touch-action: pan-y pinch-zoom;
+  -webkit-user-drag: none;
+}
+.media-gallery-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: max(2.75rem, calc(var(--fu) * 2.4));
+  height: max(2.75rem, calc(var(--fu) * 2.4));
+  margin: 0;
+  padding: 0;
+  translate: 0 -50%;
+  border: 0.0625rem solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.10);
+  -webkit-backdrop-filter: blur(0.5rem);
+  backdrop-filter: blur(0.5rem);
+  box-shadow: inset 0 0.0625rem 0 rgba(255, 255, 255, 0.18), 0 0.25rem 0.75rem rgba(0, 0, 0, 0.4);
+  color: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s ease, background 0.15s ease, scale 0.12s ease;
+  animation: mediaFsFade 0.3s ease-out 0.12s backwards;
+}
+.media-gallery-nav.is-prev {
+  left: max(0.75rem, calc(var(--fu) * 0.8), env(safe-area-inset-left));
+}
+.media-gallery-nav.is-next {
+  right: max(0.75rem, calc(var(--fu) * 0.8), env(safe-area-inset-right));
+}
+.media-gallery-nav svg {
+  display: block;
+  width: 55%;
+  height: 55%;
+  pointer-events: none;
+}
+.media-gallery-nav:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+.media-gallery-nav:active {
+  scale: 0.92;
+}
+.media-gallery-nav:focus-visible {
+  outline: 0.125rem solid #22D3EE;
+  outline-offset: 0.125rem;
+}
+@media (pointer: fine) {
+  .media-gallery-nav:hover {
+    background: rgba(255, 255, 255, 0.18);
+  }
+}
+.media-gallery-count {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + max(0.75rem, calc(var(--fu) * 0.7)));
+  left: 50%;
+  z-index: 2;
+  translate: -50% 0;
+  padding: calc(var(--fu) * 0.3) calc(var(--fu) * 0.8);
+  border: 0.0625rem solid rgba(255, 255, 255, 0.18);
+  border-radius: calc(var(--fu) * 2);
+  background: rgba(10, 12, 18, 0.6);
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(0.8rem, calc(var(--fu) * 0.75), 1.4rem);
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  animation: mediaFsFade 0.3s ease-out 0.12s backwards;
+}
+
+/* Draw form: the media card shows the first picture with "+N"; its ×
+   would drop every picture at once, so the tiles' own × do that job. */
+#draw-column .draw-popup-media.has-gallery > .draw-popup-clear {
+  display: none;
+}
+/* No cover picked: the cover box shows the first picture, marked as
+   automatic (submit makes the dot / fill from it). */
+.draw-cover-preview.is-auto {
+  border-style: dashed;
+  border-color: rgba(34, 211, 238, 0.6);
+}
+.draw-cover-preview.is-auto::after {
+  content: "Auto";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12%;
+  z-index: 1;
+  color: #22d3ee;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(0.55rem, 1.1dvh, 0.75rem);
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 0 0.25rem rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+
+/* The strip under the media card: "N/4", the tiles in post order (the
+   first marked Cover), and + while there is room. */
+#draw-column .draw-gallery {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.6);
+  width: calc(100% - var(--u));
+  margin: calc(var(--u) * 0.8) auto 0;
+}
+#draw-column .draw-gallery[hidden] {
+  display: none;
+}
+#draw-column .draw-gallery-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: calc(var(--u) * 0.8);
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: calc(var(--u) * 1.25);
+  line-height: 1.2;
+}
+#draw-column .draw-gallery-count {
+  flex: none;
+  color: #22d3ee;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+#draw-column .draw-gallery-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#draw-column .draw-gallery-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: calc(var(--u) * 0.7);
+}
+#draw-column .draw-gallery-tile,
+#draw-column .draw-gallery-add {
+  position: relative;
+  box-sizing: border-box;
+  aspect-ratio: 1;
+  min-width: 0;
+  margin: 0;
+  border-radius: calc(var(--u) * 1.2);
+  -webkit-tap-highlight-color: transparent;
+}
+#draw-column .draw-gallery-tile {
+  overflow: hidden;
+  border: 0.0625rem solid rgba(255, 255, 255, 0.22);
+  background-color: #0b0d13;
+  background-image: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
+  cursor: grab;
+  outline: none;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+#draw-column .draw-gallery-tile.is-cover {
+  border-color: #22d3ee;
+  box-shadow: 0 0 calc(var(--u) * 0.8) rgba(34, 211, 238, 0.35);
+}
+#draw-column .draw-gallery-tile > img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+/* While a tile is dragged the others slide aside; nothing animates once
+   it lands, so the new order shows at once. */
+#draw-column .draw-gallery-list.is-sorting .draw-gallery-tile:not(.is-dragging) {
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+#draw-column .draw-gallery-tile.is-dragging {
+  z-index: 2;
+  cursor: grabbing;
+  scale: 1.06;
+  box-shadow: 0 calc(var(--u) * 0.8) calc(var(--u) * 2) rgba(0, 0, 0, 0.55);
+}
+#draw-column .draw-gallery-tag {
+  position: absolute;
+  left: calc(var(--u) * 0.4);
+  bottom: calc(var(--u) * 0.4);
+  z-index: 1;
+  padding: calc(var(--u) * 0.25) calc(var(--u) * 0.55);
+  border-radius: calc(var(--u) * 0.6);
+  background: rgba(8, 51, 68, 0.88);
+  color: #22d3ee;
+  font-size: calc(var(--u) * 1);
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+#draw-column .draw-gallery-tag[hidden],
+#draw-column .draw-gallery-progress[hidden] {
+  display: none;
+}
+#draw-column .draw-gallery-progress {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 4, 8, 0.55);
+  color: #fff;
+  font-size: calc(var(--u) * 1.3);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+#draw-column .draw-gallery-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--u) * 0.45);
+  background: #22d3ee;
+  transform-origin: left center;
+  transform: scaleX(var(--p, 0));
+  transition: transform 160ms linear;
+}
+#draw-column .draw-gallery-remove {
+  position: absolute;
+  top: calc(var(--u) * 0.35);
+  right: calc(var(--u) * 0.35);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: calc(var(--u) * 2.4);
+  height: calc(var(--u) * 2.4);
+  margin: 0;
+  padding: 0;
+  border: 0.0625rem solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: calc(var(--u) * 1.4);
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+/* Inside the tile's clip, so it never covers the tile's own tap. */
+#draw-column .draw-gallery-remove::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(2rem, 100%);
+  height: max(2rem, 100%);
+  translate: -50% -50%;
+}
+#draw-column .draw-gallery-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0.125rem dashed rgba(34, 211, 238, 0.55);
+  background: rgba(8, 12, 18, 0.45);
+  color: #22d3ee;
+  font-size: calc(var(--u) * 3);
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#draw-column .draw-gallery-add[hidden] {
+  display: none;
+}
+#draw-column .draw-gallery-add:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+#draw-column :is(.draw-gallery-tile, .draw-gallery-add, .draw-gallery-remove):focus-visible {
+  outline: 0.125rem solid #22d3ee;
+  outline-offset: 0.125rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  #draw-column .draw-gallery-list.is-sorting .draw-gallery-tile:not(.is-dragging),
+  #draw-column .draw-gallery-bar,
+  .media-gallery-nav,
+  .popup-media-card > .post-more-badge {
+    transition: none;
+  }
+}

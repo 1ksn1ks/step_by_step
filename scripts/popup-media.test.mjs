@@ -23,7 +23,7 @@ test("feed cards and map popups share one media frame module", () => {
 test("every popup media kind gets the frame, the blur fill and the ···", () => {
   const src = read("../processallmessages.js");
   assert.match(src, /import \{ mountMediaBackdrop, mountMediaTools \} from '\.\/mediaframe\.js'/);
-  const fillAt = src.indexOf("function fillPopupMedia(imageDiv, url, hint, key)");
+  const fillAt = src.indexOf("function fillPopupMedia(imageDiv, url, hint, key, gallery = [])");
   assert.ok(fillAt > 0);
   const fill = src.slice(fillAt, src.indexOf("export function createMarkerPopupHTML", fillAt));
   // Video, GIF clip and picture: each mounts the blur fill and the tools.
@@ -44,9 +44,15 @@ test("every popup media kind gets the frame, the blur fill and the ···", () =
   assert.match(starts, /if \(key && popupWideMedia\.has\(key\)\) return true/);
   assert.match(starts, /if \(key && popupNarrowMedia\.has\(key\)\) return false/);
   assert.match(starts, /return popupMediaWideOn;/);
-  // Each post keeps its own size choice across the popup's rebuilds.
-  assert.match(src, /fillPopupMedia\(imageDiv, popupImageUrl, posterHintFor\(data\.payer, data\.created, data\.timestamp\), \['m', topicId, data\.payer, data\.created, markernumber\]\.join\(':'\)\)/);
-  assert.match(src, /fillPopupMedia\(imageDiv, popupImageUrl, posterHintFor\(data\.payer, data\.created, data\.timestamp\), \['p', topicId, data\.payer, data\.created, polygonnumber\]\.join\(':'\)\)/);
+  // Each post keeps its own size choice across the popup's rebuilds, and
+  // hands over its pictures for the "+N" and the gallery viewer.
+  assert.match(src, /fillPopupMedia\(imageDiv, popupImageUrl, posterHintFor\(data\.payer, data\.created, data\.timestamp\), \['m', topicId, data\.payer, data\.created, markernumber\]\.join\(':'\), galleryImages\(image\)\)/);
+  assert.match(src, /fillPopupMedia\(imageDiv, popupImageUrl, posterHintFor\(data\.payer, data\.created, data\.timestamp\), \['p', topicId, data\.payer, data\.created, polygonnumber\]\.join\(':'\), galleryImages\(image\)\)/);
+  // Several pictures: the first shows with "+N" (opening the viewer at the
+  // second); Fullscreen opens the same gallery at the first.
+  assert.match(fill, /gallery\.length > 1 && gallery\[0\] === raw/);
+  assert.match(fill, /if \(many\) openGallery\(gallery, 0\);\s*else openPreview\(url\);/);
+  assert.match(fill, /if \(many\) mountMoreBadge\(imageDiv, gallery\.length - 1, \(\) => openGallery\(gallery, 1\)\)/);
 });
 
 test("popup media starts in the feed's compact 16:9 frame and the text gets the room", () => {

@@ -775,12 +775,13 @@
                     </div>
                   </div>
                   <div class="popup-body" style="text-align: center;">
-                    <div id="draw-marker-media" class="popup-media-card draw-popup-media" role="button" tabindex="0" aria-label="Upload image or video">
-                      <span class="draw-popup-media-hint">Image / video</span>
+                    <div id="draw-marker-media" class="popup-media-card draw-popup-media" role="button" tabindex="0" aria-label="Upload up to 4 images, or one video">
+                      <span class="draw-popup-media-hint">Images / video</span>
                       <img alt="" hidden>
                       <video muted playsinline loop autoplay hidden></video>
                       <button type="button" class="draw-popup-clear" hidden aria-label="Remove image">×</button>
                     </div>
+                    <div id="draw-marker-gallery" class="draw-gallery" hidden></div>
                     <div class="draw-text-wrap">
                       <div id="draw-marker-text" class="text_color popup-text-bubble draw-popup-text" contenteditable="true" role="textbox" aria-label="Message" data-placeholder="Message"></div>
                       <div id="draw-marker-bytes" class="draw-byte-counter hcs-byte-counter">0 B / 18 KB</div>
@@ -820,7 +821,7 @@
             <button type="button" id="upload-cover-marker" hidden>cover</button>
             <input type="file" id="upload-cover-marker-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
             <button type="button" id="upload-media-marker" hidden>media</button>
-            <input type="file" id="upload-media-marker-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" hidden>
+            <input type="file" id="upload-media-marker-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" multiple hidden>
           </div>
       
         </div>
@@ -846,12 +847,13 @@
                     </div>
                   </div>
                   <div class="popup-body" style="text-align: center;">
-                    <div id="draw-polygon-media" class="popup-media-card draw-popup-media" role="button" tabindex="0" aria-label="Upload image or video">
-                      <span class="draw-popup-media-hint">Image / video</span>
+                    <div id="draw-polygon-media" class="popup-media-card draw-popup-media" role="button" tabindex="0" aria-label="Upload up to 4 images, or one video">
+                      <span class="draw-popup-media-hint">Images / video</span>
                       <img alt="" hidden>
                       <video muted playsinline loop autoplay hidden></video>
                       <button type="button" class="draw-popup-clear" hidden aria-label="Remove image">×</button>
                     </div>
+                    <div id="draw-polygon-gallery" class="draw-gallery" hidden></div>
                     <div class="draw-text-wrap">
                       <div id="draw-polygon-text" class="text_color popup-text-bubble draw-popup-text" contenteditable="true" role="textbox" aria-label="Message" data-placeholder="Message"></div>
                       <div id="draw-polygon-bytes" class="draw-byte-counter hcs-byte-counter">0 B / 18 KB</div>
@@ -894,7 +896,7 @@
             <button type="button" id="upload-cover-polygon" hidden>cover</button>
             <input type="file" id="upload-cover-polygon-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" hidden>
             <button type="button" id="upload-media-polygon" hidden>media</button>
-            <input type="file" id="upload-media-polygon-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" hidden>
+            <input type="file" id="upload-media-polygon-file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime" multiple hidden>
           </div>
       
         </div>

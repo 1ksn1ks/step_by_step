@@ -33,7 +33,9 @@ import { followPersonControls } from './followtopic.js';
 import { fillTopicIds, useTopicId } from './topicidintext.js';
 import { payerUsernameNode } from './payerlink.js';
 import { EARLY_POPUP_CLASS } from './earlypopup.js';
-import { openPreview } from './fullscreenmedia.js';
+import { openGallery, openPreview } from './fullscreenmedia.js';
+import { buildMediaGrid } from './mediagrid.js';
+import { galleryImages } from './postimages.js';
 import { collapseComposers } from './chatcomposer.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
@@ -2762,10 +2764,21 @@ function buildCard(post) {
 
   let media = null;
   const src = mediaOf(record.image);
+  // Two to four pictures: the X grid (mediagrid.js). A tap on one opens the
+  // viewer there; a tap that was a scroll does nothing.
+  const gallery = galleryImages(record.image);
   // A GIF, including an extensionless IPFS file, is a still until a tap
   // plays it in memory. The card keeps its skeleton while the check runs.
   const gifLike = !!(src && (isGifUrl(src) || needsGifCheck(src)));
-  if (src && (gifLike || resolveMediaUrl(src).src)) {
+  if (gallery.length > 1 && gallery[0] === src) {
+    media = buildMediaGrid(gallery, {
+      canTap: feedActIdle,
+      onOpen(index) {
+        holdScroll();
+        openGallery(gallery, index);
+      },
+    });
+  } else if (src && (gifLike || resolveMediaUrl(src).src)) {
     const resolved = resolveMediaUrl(src);
     media = document.createElement('div');
     media.className = 'popup-media-card';
