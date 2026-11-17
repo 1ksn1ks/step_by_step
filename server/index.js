@@ -34,7 +34,7 @@ import { createPendingPosters, issuePosterEdit, posterEditMatches } from "./pend
 import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
 import { startEarlyHashinals } from "./hashinals.js";
-import { hcs1Route } from "./hcs1.js";
+import { createHcs1RateLimit, hcs1Route } from "./hcs1.js";
 import { feedGeoKey, lookupFeedPlace, parseFeedGeoKey, placePackBuffers, shortCity } from "./feedplace.js";
 import { createChunkAssembler } from "../hcschunks.js";
 import { bareAccount, makeLimiter, normalizeConsensusTs } from "../donationmath.js";
@@ -3553,8 +3553,10 @@ app.get("/api/turn", publicPostLimit, async (req, res) => {
 // A Hashinal (HCS-1) file rebuilt from its topic on the mirror (hcs1.js),
 // so the app does not depend on a third-party inscription CDN. Checked
 // against the topic memo's SHA-256, kept in R2 under hcs1/<topicId> and in
-// memory, served immutable with the hash as its ETag.
-app.get("/api/hcs1/:topicId", publicPostLimit, hcs1Route({ mirrorFetch, s3: r2, bucket: R2_BUCKET, mirror: MIRROR }));
+// memory, served immutable with the hash as its ETag. Its own rate limit:
+// one budget per client IP for every topic together (hcs1.js).
+const hcs1Limit = createHcs1RateLimit({ clientIp });
+app.get("/api/hcs1/:topicId", hcs1Limit, hcs1Route({ mirrorFetch, s3: r2, bucket: R2_BUCKET, mirror: MIRROR }));
 
 app.get("/api/early-hashinals", publicPostLimit, (req, res) => {
   const snapshot = earlyHashinals.snapshot();

@@ -4680,10 +4680,11 @@ function startFeedFlipClose(wrapper, flip, done) {
 // the list's scroll-margin-top (style.css --feed-comments-gap). Nothing
 // moves when the post and its comments fit without scrolling. While the
 // reader has not scrolled, the comments stay there as the post above
-// changes height (an X post loading late); a wheel, a touch drag or a
-// scroll key ends that. The list is held tall enough to reach the top
-// even with few comments (.is-at-comments, with the comment box's height
-// in --feed-comments-foot).
+// changes height (an X post loading late). A wheel, a touch drag, a
+// scroll key, a press anywhere in the column but the comment box, or any
+// scroll this code did not make itself ends that. The list is held tall
+// enough to reach the top even with few comments (.is-at-comments, with
+// the comment box's height in --feed-comments-foot).
 const FEED_COMMENTS_SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
 
 function holdFeedCommentsTop(wrapper) {
@@ -4694,6 +4695,12 @@ function holdFeedCommentsTop(wrapper) {
   const compose = body && body.querySelector('.comments-compose');
   if (!body || !stage || !list) return;
   let held = true;
+  // Set around this code's own scrollTop write: where it put the column.
+  // The one scroll event that write causes finds the column still there
+  // and is not taken for the reader's. The event can come a frame later
+  // (a write from a transitionend handler), so it is matched by position,
+  // not by time; a scroll anywhere else is someone else's.
+  let ownTop = null;
   const writeFoot = () => {
     const below = parseFloat(getComputedStyle(list).marginBottom) || 0;
     const foot = (compose ? compose.getBoundingClientRect().height : 0) + below;
@@ -4710,13 +4717,31 @@ function holdFeedCommentsTop(wrapper) {
     const top = list.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - gap;
     const most = Math.max(0, body.scrollHeight - body.clientHeight);
     const next = Math.min(most, Math.max(0, Math.round(top)));
-    if (Math.abs(body.scrollTop - next) >= 1) body.scrollTop = next;
+    if (Math.abs(body.scrollTop - next) < 1) return;
+    ownTop = next;
+    body.scrollTop = next;
   };
   const release = () => {
     held = false;
+    ownTop = null;
     body.removeEventListener('wheel', release);
     body.removeEventListener('touchmove', release);
+    body.removeEventListener('pointerdown', onPress);
+    body.removeEventListener('scroll', onScroll);
     wrapper.removeEventListener('keydown', onKey, true);
+  };
+  // A press in the post or the comments is the reader's; one in the
+  // comment box (typing, Send) is not.
+  const onPress = (event) => {
+    if (compose && event.target instanceof Node && compose.contains(event.target)) return;
+    release();
+  };
+  const onScroll = () => {
+    if (ownTop !== null && Math.abs(body.scrollTop - ownTop) < 1) {
+      ownTop = null;
+      return;
+    }
+    release();
   };
   const onKey = (event) => {
     if (!FEED_COMMENTS_SCROLL_KEYS.has(event.key)) return;
@@ -4741,6 +4766,8 @@ function holdFeedCommentsTop(wrapper) {
   wrapper._stopCommentsHold = stop;
   body.addEventListener('wheel', release, { passive: true });
   body.addEventListener('touchmove', release, { passive: true });
+  body.addEventListener('pointerdown', onPress, { passive: true });
+  body.addEventListener('scroll', onScroll, { passive: true });
   wrapper.addEventListener('keydown', onKey, true);
   place();
   if (watcher) {

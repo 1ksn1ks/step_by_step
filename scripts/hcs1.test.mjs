@@ -1,5 +1,6 @@
 // Hashinal (HCS-1) files rebuilt from fake mirror pages: chunk order, the
-// memo hash, id checks, the R2 copy, shared rebuilds and the route.
+// memo hash, id checks, the R2 copy, shared rebuilds and the route, and
+// the route's limits: the rate-limit key, the rebuild cap, the misses cap.
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
@@ -9,12 +10,24 @@ import express from "express";
 
 import {
   HCS1_CACHE_CONTROL,
+  HCS1_CACHE_ITEM_BYTES,
+  HCS1_CORP,
+  HCS1_CSP,
+  HCS1_MAX_BYTES,
+  HCS1_MAX_MESSAGES,
+  HCS1_MAX_REBUILDS,
+  HCS1_MISS_ENTRIES,
+  HCS1_R2_TYPES,
   clearHcs1Cache,
   createHcs1Memory,
+  createHcs1Misses,
+  createHcs1RateLimit,
   decodeHcs1Text,
   getHcs1File,
+  hcs1RateKey,
   hcs1Route,
   hcs1ServeType,
+  hcs1Storable,
   isHcs1TopicId,
   joinHcs1Messages,
   parseHcs1Memo,
@@ -225,23 +238,80 @@ test("a rebuilt file is stored in R2 once and read from there next time", async 
   assert.deepEqual(third.bytes, glb);
 });
 
-test("HTML and SVG are stored and sent as downloads", async () => {
-  assert.deepEqual(hcs1ServeType("text/html"), { contentType: "application/octet-stream", attachment: true });
-  assert.deepEqual(hcs1ServeType("image/svg+xml"), { contentType: "application/octet-stream", attachment: true });
-  assert.deepEqual(hcs1ServeType("application/xml"), { contentType: "application/octet-stream", attachment: true });
-  assert.deepEqual(hcs1ServeType("nonsense"), { contentType: "application/octet-stream", attachment: true });
-  assert.deepEqual(hcs1ServeType("image/png"), { contentType: "image/png", attachment: false });
-  assert.deepEqual(hcs1ServeType("model/gltf-binary"), { contentType: "model/gltf-binary", attachment: false });
+test("only pictures (not SVG), video, sound and glTF are sent as their own type", () => {
+  const inline = [
+    "image/png", "image/jpeg", "image/webp", "image/avif", "image/gif", "image/x-icon",
+    "video/mp4", "video/webm", "audio/mpeg", "audio/ogg", "audio/wav",
+    "model/gltf-binary", "model/gltf+json",
+  ];
+  for (const type of inline) assert.deepEqual(hcs1ServeType(type), { contentType: type, attachment: false }, type);
+  assert.deepEqual(hcs1ServeType(" IMAGE/PNG "), { contentType: "image/png", attachment: false });
+  const download = { contentType: "application/octet-stream", attachment: true };
+  const downloads = [
+    "image/svg+xml", "image/foo+xml", "text/html", "text/plain", "text/javascript", "text/css", "text/xml",
+    "application/javascript", "application/json", "application/xhtml+xml", "application/xml",
+    "application/pdf", "application/wasm", "model/obj", "application/octet-stream",
+    "nonsense", "", undefined, null,
+  ];
+  for (const type of downloads) assert.deepEqual(hcs1ServeType(type), download, String(type));
+});
+
+test("a download type stored in R2 keeps its download headers", async () => {
   clearHcs1Cache();
   const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
   const { memo, chunks } = inscribe(svg, { mime: "image/svg+xml" });
   const mirror = fakeMirror("0.0.801", { memo, chunks, page: 100 });
   const r2 = fakeR2();
-  await getHcs1File("0.0.801", { mirrorFetch: mirror.fetchJson, mirror: MIRROR, s3: r2, bucket: "b" });
+  await getHcs1File("0.0.801", { mirrorFetch: mirror.fetchJson, mirror: MIRROR, s3: r2, bucket: "b", storeTypes: ["image/svg+xml"] });
   const stored = r2.objects.get("hcs1/0.0.801");
   assert.equal(stored.ContentType, "application/octet-stream");
   assert.equal(stored.ContentDisposition, 'attachment; filename="0.0.801"');
   assert.equal(stored.Metadata.mime, "image/svg+xml");
+});
+
+test("the R2 list is pictures, video, sound and glTF, never SVG, text, JS or HTML", () => {
+  assert.deepEqual([...HCS1_R2_TYPES].sort(), [
+    "audio/mpeg", "audio/ogg", "audio/wav",
+    "image/avif", "image/gif", "image/jpeg", "image/png", "image/webp",
+    "model/gltf+json", "model/gltf-binary",
+    "video/mp4", "video/webm",
+  ]);
+  for (const type of HCS1_R2_TYPES) {
+    assert.equal(type, type.toLowerCase(), type);
+    assert.equal(type.startsWith("text/"), false, type);
+    assert.equal(/svg|html|javascript|ecmascript/.test(type), false, type);
+    // Everything kept is also sent as itself.
+    assert.equal(hcs1ServeType(type).attachment, false, type);
+  }
+  for (const type of ["image/svg+xml", "text/html", "text/plain", "text/javascript", "application/javascript", "application/xhtml+xml"]) {
+    assert.equal(hcs1Storable(type), false, type);
+  }
+  assert.equal(hcs1Storable("image/png", new Set(["image/png"])), true);
+  assert.equal(hcs1Storable(" IMAGE/PNG ", new Set(["image/png"])), true);
+  assert.equal(hcs1Storable("text/html", new Set(["image/png"])), false);
+  assert.equal(hcs1Storable("", new Set([""])), false);
+  assert.equal(hcs1Storable(undefined, new Set(["image/png"])), false);
+});
+
+test("a rebuilt file is saved to R2 only when its type is on the list", async () => {
+  clearHcs1Cache();
+  const r2 = fakeR2();
+  const files = {
+    "0.0.802": { bytes: Buffer.from("<script>alert(1)</script>"), mime: "text/html" },
+    "0.0.803": { bytes: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'), mime: "image/svg+xml" },
+    "0.0.804": { bytes: Buffer.from("alert(1)"), mime: "application/javascript" },
+    "0.0.805": { bytes: PNG, mime: "image/png" },
+  };
+  for (const [id, { bytes, mime }] of Object.entries(files)) {
+    const mirror = fakeMirror(id, { ...inscribe(bytes, { mime }), page: 100 });
+    // The list in hcs1.js, not one passed in.
+    const file = await getHcs1File(id, { mirrorFetch: mirror.fetchJson, mirror: MIRROR, s3: r2, bucket: "b" });
+    // Each is still served (the route sends the first three as downloads).
+    assert.equal(file.ok, true, id);
+    assert.deepEqual(file.bytes, bytes, id);
+  }
+  assert.deepEqual([...r2.objects.keys()], ["hcs1/0.0.805"]);
+  assert.equal(r2.objects.get("hcs1/0.0.805").ContentType, "image/png");
 });
 
 test("bad ids, missing files, mismatches, caps and rate limits", async () => {
@@ -295,6 +365,147 @@ test("the memory cache is capped by entries and bytes", () => {
   assert.equal(lru.bytes, 9);
 });
 
+// An Express-like response that records what was sent.
+function fakeRes() {
+  return {
+    statusCode: 200,
+    headers: {},
+    body: undefined,
+    headersSent: false,
+    setHeader(name, value) { this.headers[name.toLowerCase()] = value; },
+    removeHeader(name) { delete this.headers[name.toLowerCase()]; },
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; this.headersSent = true; return this; },
+    end(body) { this.body = body; this.headersSent = true; return this; },
+  };
+}
+
+test("the rate limit is one budget per client IP for the whole route", () => {
+  assert.equal(hcs1RateKey("203.0.113.7"), "203.0.113.7 /api/hcs1");
+  // The key never carries the topic, whatever the request path.
+  assert.equal(hcs1RateKey("::1"), "::1 /api/hcs1");
+  assert.equal(hcs1RateKey(undefined), "unknown /api/hcs1");
+
+  let at = 1_000_000;
+  const limit = createHcs1RateLimit({ clientIp: (req) => req.ip, max: 3, windowMs: 60_000, now: () => at });
+  const ask = (ip, topic) => {
+    const req = { ip, path: `/api/hcs1/${topic}`, params: { topicId: topic } };
+    const res = fakeRes();
+    let passed = false;
+    limit(req, res, () => { passed = true; });
+    return { passed, res };
+  };
+  // Three different topics from one IP spend one budget of three.
+  assert.equal(ask("198.51.100.1", "0.0.1").passed, true);
+  assert.equal(ask("198.51.100.1", "0.0.2").passed, true);
+  assert.equal(ask("198.51.100.1", "0.0.3").passed, true);
+  const blocked = ask("198.51.100.1", "0.0.4");
+  assert.equal(blocked.passed, false);
+  assert.equal(blocked.res.statusCode, 429);
+  assert.deepEqual(blocked.res.body, { ok: false, error: "rate limit" });
+  assert.equal(blocked.res.headers["retry-after"], "60");
+  assert.equal(blocked.res.headers["cache-control"], "no-store");
+  // Another IP has its own budget.
+  assert.equal(ask("198.51.100.2", "0.0.4").passed, true);
+  // A new window, a new budget.
+  at += 60_000;
+  assert.equal(ask("198.51.100.1", "0.0.4").passed, true);
+  // Its own counters: a second limiter starts from zero.
+  const other = createHcs1RateLimit({ clientIp: (req) => req.ip, max: 1, now: () => at });
+  let passed = false;
+  other({ ip: "198.51.100.1", path: "/api/hcs1/0.0.1" }, fakeRes(), () => { passed = true; });
+  assert.equal(passed, true);
+});
+
+test("past two rebuilds at once the answer is 503 busy with Retry-After, not remembered", async () => {
+  clearHcs1Cache();
+  assert.equal(HCS1_MAX_REBUILDS, 2);
+  // Mirrors for four topics; 601 and 602 hang until released.
+  const held = [];
+  const mirrors = {};
+  for (const id of ["0.0.601", "0.0.602", "0.0.603", "0.0.604"]) {
+    const { memo, chunks } = inscribe(PNG);
+    const real = fakeMirror(id, { memo, chunks, page: 100 });
+    let release = () => {};
+    const hangs = id === "0.0.601" || id === "0.0.602";
+    const gate = hangs ? new Promise((resolve) => { release = resolve; }) : Promise.resolve();
+    if (hangs) held.push(release);
+    mirrors[id] = { calls: real.calls, fetchJson: async (url) => { await gate; return real.fetchJson(url); } };
+  }
+  const mirrorFetch = (url) => mirrors[/topics\/(0\.0\.\d+)/.exec(url)[1]].fetchJson(url);
+  const opts = { mirrorFetch, mirror: MIRROR };
+  // One file the app already has, in memory.
+  assert.equal((await getHcs1File("0.0.604", opts)).source, "mirror");
+
+  const first = getHcs1File("0.0.601", opts);
+  const second = getHcs1File("0.0.602", opts);
+  const busy = await getHcs1File("0.0.603", opts);
+  assert.deepEqual([busy.ok, busy.status, busy.error], [false, 503, "busy"]);
+  assert.ok(busy.retryAfter > 0);
+  // Busy before asking the mirror at all.
+  assert.equal(mirrors["0.0.603"].calls.length, 0);
+
+  // Through the route: 503, Retry-After the app can read, not cached.
+  const res = fakeRes();
+  await hcs1Route(opts)({ params: { topicId: "0.0.603" }, headers: {}, method: "GET" }, res);
+  assert.equal(res.statusCode, 503);
+  assert.deepEqual(res.body, { ok: false, error: "busy" });
+  assert.equal(res.headers["retry-after"], String(busy.retryAfter));
+  assert.equal(res.headers["access-control-expose-headers"], "Retry-After");
+  assert.equal(res.headers["cache-control"], "no-store");
+
+  // A file already in memory is still served while the rebuilds run.
+  const known = await getHcs1File("0.0.604", opts);
+  assert.deepEqual([known.ok, known.source], [true, "memory"]);
+
+  for (const release of held) release();
+  const [a, b] = await Promise.all([first, second]);
+  assert.equal(a.ok && b.ok, true);
+  // The two places are free again, and the busy answer was not kept.
+  const later = await getHcs1File("0.0.603", opts);
+  assert.equal(later.ok, true);
+  assert.equal(later.source, "mirror");
+});
+
+test("the misses map holds at most its cap, the oldest dropped first", async () => {
+  assert.equal(HCS1_MISS_ENTRIES, 5000);
+  const misses = createHcs1Misses({ maxEntries: 3 });
+  for (const id of ["a", "b", "c", "d"]) misses.set(id, { until: 1, result: { status: 404 } });
+  assert.equal(misses.size, 3);
+  assert.equal(misses.get("a"), null);
+  assert.ok(misses.get("b") && misses.get("c") && misses.get("d"));
+  // Set again, a miss is new: the oldest is now c.
+  misses.set("b", { until: 2, result: { status: 404 } });
+  misses.set("e", { until: 2, result: { status: 404 } });
+  assert.equal(misses.get("c"), null);
+  assert.deepEqual(["b", "d", "e"].map((id) => !!misses.get(id)), [true, true, true]);
+  assert.equal(misses.size, 3);
+
+  // The process's own map: past 5000 misses the first is asked about again.
+  clearHcs1Cache();
+  const asked = new Map();
+  const notHcs1 = async (url) => {
+    const id = /topics\/(0\.0\.\d+)/.exec(url)[1];
+    asked.set(id, (asked.get(id) || 0) + 1);
+    return { topic_id: id, memo: "just a topic" };
+  };
+  const opts = { mirrorFetch: notHcs1, mirror: MIRROR };
+  for (let n = 1; n <= HCS1_MISS_ENTRIES + 1; n++) {
+    assert.equal((await getHcs1File(`0.0.${100000 + n}`, opts)).status, 404);
+  }
+  // The newest is still remembered; the oldest was dropped and is asked again.
+  await getHcs1File(`0.0.${100000 + HCS1_MISS_ENTRIES + 1}`, opts);
+  assert.equal(asked.get(`0.0.${100000 + HCS1_MISS_ENTRIES + 1}`), 1);
+  await getHcs1File("0.0.100001", opts);
+  assert.equal(asked.get("0.0.100001"), 2);
+  clearHcs1Cache();
+});
+
+test("the rebuild caps are about 10 MB and 2000 messages", () => {
+  assert.equal(HCS1_MAX_BYTES, 10 * 1024 * 1024);
+  assert.equal(HCS1_MAX_MESSAGES, 2000);
+});
+
 test("GET /api/hcs1/:topicId serves the file with its type, hash ETag and statuses", async () => {
   clearHcs1Cache();
   const { memo, chunks } = inscribe(PNG, { size: 50 });
@@ -325,28 +536,77 @@ test("GET /api/hcs1/:topicId serves the file with its type, hash ETag and status
     assert.equal(res.headers.get("x-content-type-options"), "nosniff");
     assert.equal(res.headers.get("etag"), `"${sha(PNG)}"`);
     assert.equal(res.headers.get("content-disposition"), null);
+    assertFileHeaders(res, "GET");
     assert.deepEqual(Buffer.from(await res.arrayBuffer()), PNG);
 
     const cached = await fetch(`${base}/0.0.4819119`, { headers: { "If-None-Match": `"${sha(PNG)}"` } });
     assert.equal(cached.status, 304);
+    assertFileHeaders(cached, "304");
 
     const head = await fetch(`${base}/0.0.4819119`, { method: "HEAD" });
     assert.equal(head.status, 200);
     assert.equal(head.headers.get("content-length"), String(PNG.length));
+    assertFileHeaders(head, "HEAD");
 
     const download = await fetch(`${base}/0.0.811`);
     assert.equal(download.status, 200);
     assert.equal(download.headers.get("content-type"), "application/octet-stream");
     assert.equal(download.headers.get("content-disposition"), 'attachment; filename="0.0.811"');
+    assertFileHeaders(download, "download");
     assert.deepEqual(Buffer.from(await download.arrayBuffer()), svg);
 
-    assert.equal((await fetch(`${base}/0.0.bad`)).status, 400);
-    assert.equal((await fetch(`${base}/0.0.812`)).status, 422);
-    assert.equal((await fetch(`${base}/0.0.813`)).status, 404);
+    const errors = [
+      [await fetch(`${base}/0.0.bad`), 400],
+      [await fetch(`${base}/0.0.812`), 422],
+      [await fetch(`${base}/0.0.813`), 404],
+    ];
+    for (const [answer, status] of errors) {
+      assert.equal(answer.status, status);
+      // Only a file answer carries the file headers.
+      assert.equal(answer.headers.get("content-security-policy"), null, String(status));
+      assert.equal(answer.headers.get("cross-origin-resource-policy"), null, String(status));
+    }
     const limited = await fetch(`${base}/0.0.814`);
     assert.equal(limited.status, 502);
     assert.ok(Number(limited.headers.get("retry-after")) > 0);
     assert.equal(limited.headers.get("cache-control"), "no-store");
+  } finally {
+    await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+// The headers every file answer carries: sandboxed with nothing allowed if
+// opened as a page, and loadable from other origins.
+function assertFileHeaders(res, label) {
+  assert.equal(res.headers.get("content-security-policy"), "sandbox; default-src 'none'", label);
+  assert.equal(HCS1_CSP, "sandbox; default-src 'none'");
+  assert.equal(res.headers.get("cross-origin-resource-policy"), "cross-origin", label);
+  assert.equal(HCS1_CORP, "cross-origin");
+  assert.equal(res.headers.get("x-content-type-options"), "nosniff", label);
+}
+
+test("a big file streamed from R2 carries the same headers", async () => {
+  clearHcs1Cache();
+  const topic = "0.0.820";
+  const big = Buffer.alloc(HCS1_CACHE_ITEM_BYTES + 1, 7);
+  const r2 = fakeR2();
+  r2.objects.set(`hcs1/${topic}`, { Body: big, ContentType: "video/mp4", Metadata: { sha256: sha(big), mime: "video/mp4" } });
+  const never = async () => { throw new Error("the mirror is not asked"); };
+  const app = express();
+  // Past the memory item size, so it streams; within this test's own cap.
+  app.get("/api/hcs1/:topicId", hcs1Route({ mirrorFetch: never, mirror: MIRROR, s3: r2, bucket: "b", maxBytes: 2 * HCS1_CACHE_ITEM_BYTES }));
+  const server = await new Promise((resolve) => {
+    const listening = app.listen(0, "127.0.0.1", () => resolve(listening));
+  });
+  try {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}/api/hcs1/${topic}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get("content-type"), "video/mp4");
+    assert.equal(res.headers.get("content-length"), String(big.length));
+    assertFileHeaders(res, "stream");
+    const body = Buffer.from(await res.arrayBuffer());
+    assert.equal(body.length, big.length);
+    assert.equal(sha(body), sha(big));
   } finally {
     await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }

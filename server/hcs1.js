@@ -9,9 +9,19 @@
 // is never served.
 //
 // GET /api/hcs1/:topicId (hcs1Route). A file is rebuilt once: the bytes go
-// to R2 under hcs1/<topicId> (immutable), and a small in-memory LRU keeps
-// the recent ones. Later requests read memory, then R2, and only then the
-// mirror. Two requests for one topic while it is rebuilt share the work.
+// to R2 under hcs1/<topicId> (immutable) when its type is one we keep
+// (HCS1_R2_TYPES), and a small in-memory LRU keeps the recent ones. Later
+// requests read memory, then R2, and only then the mirror. Two requests for
+// one topic while it is rebuilt share the work.
+//
+// What one client, or all of them, can make this process do:
+// - createHcs1RateLimit: one budget per client IP for the whole route,
+//   whatever the topic, apart from the other public limits.
+// - HCS1_MAX_REBUILDS rebuilds from the mirror at once, across all
+//   requests. Past that the answer is 503 with Retry-After, and the app
+//   falls back to Kiloscribe (hashinalurl.js).
+// - HCS1_MAX_BYTES / HCS1_MAX_MESSAGES per rebuild.
+// - HCS1_MISS_ENTRIES remembered misses, the oldest dropped first.
 
 import crypto from "node:crypto";
 import { Readable } from "node:stream";
@@ -20,8 +30,39 @@ import zlib from "node:zlib";
 import { GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 
 export const HCS1_MIRROR = "https://mainnet.mirrornode.hedera.com";
-export const HCS1_MAX_BYTES = 50 * 1024 * 1024;
-export const HCS1_MAX_MESSAGES = 20000;
+// Caps on one rebuild. A real avatar or model is far smaller.
+export const HCS1_MAX_BYTES = 10 * 1024 * 1024;
+export const HCS1_MAX_MESSAGES = 2000;
+// Rebuilds from the mirror at once, across every request.
+export const HCS1_MAX_REBUILDS = 2;
+// Topics remembered as having no file (or a bad one).
+export const HCS1_MISS_ENTRIES = 5000;
+// The route's own rate limit: requests per client IP per window, all
+// topics together.
+export const HCS1_RATE_MAX = 120;
+export const HCS1_RATE_WINDOW_MS = 60 * 1000;
+export const HCS1_RATE_SCOPE = "/api/hcs1";
+// The types a rebuilt file is saved to R2 under: pictures, video, sound and
+// 3D models. Never SVG, text/*, JavaScript or HTML. Any other type is
+// still served (hcs1ServeType), from memory or rebuilt again, but not kept.
+export const HCS1_R2_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/avif",
+  "image/gif",
+  "video/mp4",
+  "video/webm",
+  "audio/mpeg",
+  "audio/ogg",
+  "audio/wav",
+  "model/gltf-binary",
+  "model/gltf+json",
+]);
+// Sent with every file: never run as a page, even opened on its own, and
+// loadable from other origins (a wallet showing the app's icon).
+export const HCS1_CSP = "sandbox; default-src 'none'";
+export const HCS1_CORP = "cross-origin";
 export const HCS1_CACHE_ENTRIES = 100;
 export const HCS1_CACHE_BYTES = 100 * 1024 * 1024;
 // A file bigger than this is not kept in memory; it streams from R2.
@@ -36,18 +77,9 @@ const TOPIC_ID = /^0\.0\.\d+$/;
 const MEMO = /^([0-9a-f]{64}):zstd:base64$/i;
 const DATA_URI = /^data:([a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*)((?:;[a-z0-9_.+-]+=[^;,]*)*);base64,/i;
 const MIME = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i;
-// Types a browser would run or render as a page from our origin. They are
-// sent as a download instead.
-const UNSAFE_TYPES = new Set([
-  "text/html",
-  "application/xhtml+xml",
-  "image/svg+xml",
-  "text/xml",
-  "application/xml",
-  "application/xslt+xml",
-  "application/rdf+xml",
-  "text/xsl",
-]);
+// Types sent as themselves (besides image/*, video/* and audio/*).
+const INLINE_TYPES = new Set(["model/gltf-binary", "model/gltf+json"]);
+const DOWNLOAD = Object.freeze({ contentType: "application/octet-stream", attachment: true });
 
 export function isHcs1TopicId(value) {
   return typeof value === "string" && value.length <= 32 && TOPIC_ID.test(value);
@@ -59,15 +91,19 @@ export function parseHcs1Memo(memo) {
   return match ? { sha256: match[1].toLowerCase() } : null;
 }
 
-// How the file is sent: its own type, or a download for anything a browser
-// would render as a page (HTML, SVG, XML) and for an unknown type.
+// How the file is sent. An allowlist: pictures (not SVG), video, sound and
+// glTF models go as their own type; everything else, unknown and
+// application/octet-stream included, is a download of application/
+// octet-stream. Any XML-based type is a download too, so no image/*+xml
+// can render as a document.
 export function hcs1ServeType(mime) {
   const type = typeof mime === "string" ? mime.trim().toLowerCase() : "";
-  if (!MIME.test(type)) return { contentType: "application/octet-stream", attachment: true };
-  if (UNSAFE_TYPES.has(type) || type.endsWith("+xml") || type.startsWith("text/html")) {
-    return { contentType: "application/octet-stream", attachment: true };
+  if (!MIME.test(type) || type.endsWith("+xml")) return { ...DOWNLOAD };
+  const [top] = type.split("/");
+  if (top === "image" || top === "video" || top === "audio" || INLINE_TYPES.has(type)) {
+    return { contentType: type, attachment: false };
   }
-  return { contentType: type, attachment: false };
+  return { ...DOWNLOAD };
 }
 
 function sha256(bytes) {
@@ -213,11 +249,84 @@ export function createHcs1Memory({ maxEntries = HCS1_CACHE_ENTRIES, maxBytes = H
   };
 }
 
+// Topics with no file, each with when to ask again. At most maxEntries:
+// past that the oldest is dropped first (they also expire first).
+export function createHcs1Misses({ maxEntries = HCS1_MISS_ENTRIES } = {}) {
+  const map = new Map();
+  return {
+    get(id) {
+      return map.get(id) || null;
+    },
+    set(id, miss) {
+      map.delete(id);
+      map.set(id, miss);
+      while (map.size > maxEntries) map.delete(map.keys().next().value);
+    },
+    delete(id) {
+      map.delete(id);
+    },
+    clear() {
+      map.clear();
+    },
+    get size() {
+      return map.size;
+    },
+  };
+}
+
+// Whether a rebuilt file of this type is saved to R2.
+export function hcs1Storable(mime, types = HCS1_R2_TYPES) {
+  const type = typeof mime === "string" ? mime.trim().toLowerCase() : "";
+  return !!type && types.has(type);
+}
+
+// The rate-limit key: the client's IP and the route, never the topic, so
+// asking for many topics spends one budget.
+export function hcs1RateKey(ip) {
+  return `${ip || "unknown"} ${HCS1_RATE_SCOPE}`;
+}
+
+// The route's limiter, with its own counters and budget: max requests per
+// client IP per windowMs, all topics together. clientIp is the server's
+// own (index.js), which knows which proxy headers to trust.
+export function createHcs1RateLimit({
+  clientIp = (req) => req.ip,
+  max = HCS1_RATE_MAX,
+  windowMs = HCS1_RATE_WINDOW_MS,
+  now = Date.now,
+} = {}) {
+  const hits = new Map();
+  return function hcs1RateLimit(req, res, next) {
+    const at = now();
+    if (hits.size > 4000) {
+      for (const [key, bucket] of hits) {
+        if (at >= bucket.reset) hits.delete(key);
+      }
+    }
+    const key = hcs1RateKey(clientIp(req));
+    let bucket = hits.get(key);
+    if (!bucket || at >= bucket.reset) {
+      bucket = { reset: at + windowMs, count: 0 };
+      hits.set(key, bucket);
+    }
+    bucket.count += 1;
+    if (bucket.count > max) {
+      res.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.reset - at) / 1000))));
+      res.setHeader("Access-Control-Expose-Headers", "Retry-After");
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(429).json({ ok: false, error: "rate limit" });
+    }
+    next();
+  };
+}
+
 const memory = createHcs1Memory();
 const flights = new Map();
-const misses = new Map();
+const misses = createHcs1Misses();
+let rebuilding = 0;
 
-// Forget everything held in this process (tests).
+// Forget everything held in this process (tests). A rebuild still running
+// keeps its place in the rebuild count until it ends.
 export function clearHcs1Cache() {
   memory.clear();
   flights.clear();
@@ -322,7 +431,7 @@ async function rebuild(topicId, opts) {
   if (!file.ok) return file;
   const entry = { bytes: file.bytes, mime: file.mime, sha256: file.sha256, size: file.bytes.length };
   if (entry.size <= HCS1_CACHE_ITEM_BYTES) memory.set(topicId, entry);
-  if (opts.s3 && opts.bucket) await toR2(topicId, file, opts);
+  if (opts.s3 && opts.bucket && hcs1Storable(file.mime, opts.storeTypes)) await toR2(topicId, file, opts);
   return { ok: true, status: 200, source: "mirror", ...entry };
 }
 
@@ -331,10 +440,21 @@ async function load(topicId, opts) {
     const stored = await fromR2(topicId, opts);
     if (stored) return stored;
   }
-  const result = await rebuild(topicId, opts);
+  // Only so many rebuilds at once: past that, busy, and the app takes
+  // Kiloscribe's copy for now.
+  if (rebuilding >= opts.maxRebuilds) {
+    return fail(503, "busy", { retryAfter: HCS1_RETRY_AFTER_S });
+  }
+  rebuilding += 1;
+  let result;
+  try {
+    result = await rebuild(topicId, opts);
+  } finally {
+    rebuilding -= 1;
+  }
   // A topic with no file, or a file that does not match its memo, is not
-  // looked up again for a while. A mirror outage is.
-  if (!result.ok && result.status !== 502) misses.set(topicId, { until: opts.now() + HCS1_MISS_MS, result });
+  // looked up again for a while. A mirror outage or a busy server is.
+  if (!result.ok && result.status < 500) misses.set(topicId, { until: opts.now() + HCS1_MISS_MS, result });
   return result;
 }
 
@@ -342,7 +462,8 @@ async function load(topicId, opts) {
 // { ok: true, status: 200, mime, sha256, size, bytes } (bytes in memory), or
 // { ok: true, ..., open } (a big file in R2: open() gives a stream), or
 // { ok: false, status, error, retryAfter? }: 400 bad id, 404 no HCS-1 file,
-// 413 over the caps, 422 not the file the memo names, 502 mirror trouble.
+// 413 over the caps, 422 not the file the memo names, 502 mirror trouble,
+// 503 too many rebuilds at once.
 export async function getHcs1File(topicId, {
   mirrorFetch,
   s3 = null,
@@ -350,6 +471,8 @@ export async function getHcs1File(topicId, {
   mirror = HCS1_MIRROR,
   maxBytes = HCS1_MAX_BYTES,
   maxMessages = HCS1_MAX_MESSAGES,
+  maxRebuilds = HCS1_MAX_REBUILDS,
+  storeTypes = HCS1_R2_TYPES,
   pageTimeoutMs = HCS1_PAGE_TIMEOUT_MS,
   now = Date.now,
 } = {}) {
@@ -363,7 +486,8 @@ export async function getHcs1File(topicId, {
   }
   let flight = flights.get(topicId);
   if (!flight) {
-    const opts = { mirrorFetch, s3, bucket, mirror, maxBytes, maxMessages, pageTimeoutMs, now };
+    const types = storeTypes instanceof Set ? storeTypes : new Set([...(storeTypes || [])].map((t) => String(t).toLowerCase()));
+    const opts = { mirrorFetch, s3, bucket, mirror, maxBytes, maxMessages, maxRebuilds, storeTypes: types, pageTimeoutMs, now };
     flight = load(topicId, opts).finally(() => flights.delete(topicId));
     flights.set(topicId, flight);
   }
@@ -402,6 +526,10 @@ export function hcs1Route(opts) {
     if (type.attachment) res.setHeader("Content-Disposition", `attachment; filename="${topicId}"`);
     res.setHeader("Cache-Control", HCS1_CACHE_CONTROL);
     res.setHeader("X-Content-Type-Options", "nosniff");
+    // Every file answer (200, and the 304 that revalidates it): never a
+    // page with scripts or requests of its own, and usable cross-origin.
+    res.setHeader("Content-Security-Policy", HCS1_CSP);
+    res.setHeader("Cross-Origin-Resource-Policy", HCS1_CORP);
     res.setHeader("ETag", etag);
     if (etagMatches(req.headers && req.headers["if-none-match"], etag)) return res.status(304).end();
     res.setHeader("Content-Length", String(file.size));
@@ -412,7 +540,7 @@ export function hcs1Route(opts) {
       body = await file.open();
     } catch (err) {
       console.error("hcs1 r2 open", topicId, err && err.message);
-      for (const name of ["Content-Type", "Content-Disposition", "Cache-Control", "ETag", "Content-Length", "X-Content-Type-Options"]) res.removeHeader(name);
+      for (const name of ["Content-Type", "Content-Disposition", "Cache-Control", "ETag", "Content-Length", "X-Content-Type-Options", "Content-Security-Policy", "Cross-Origin-Resource-Policy"]) res.removeHeader(name);
       res.setHeader("Retry-After", String(HCS1_RETRY_AFTER_S));
       res.setHeader("Cache-Control", "no-store");
       return res.status(502).json({ ok: false, error: "hashinal unavailable" });
