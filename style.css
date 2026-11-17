@@ -12923,10 +12923,10 @@ html.feed-app #feed-search-page {
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: calc(var(--fu) * 0.7);
+  gap: calc(var(--fu) * 0.8);
   box-sizing: border-box;
   width: 100%;
-  height: calc(var(--fu) * 6.4);
+  height: calc(var(--fu) * 7.2);
   margin: 0;
   padding: 0 calc(var(--fu) * 0.9);
   border: 0;
@@ -12942,6 +12942,28 @@ html.feed-app #feed-search-page {
 }
 #feed-profile-banner[hidden] {
   display: none;
+}
+/* The feed banner fills its strip: the picture stops about 0.25fu short
+   of the tabs' line above and the banner's own line below. Scoped to the
+   banner, since the Swap bio card shares these classes. */
+#feed-profile-banner .feed-profile-banner-back {
+  width: calc(var(--fu) * 2.6);
+  height: calc(var(--fu) * 2.6);
+}
+#feed-profile-banner .feed-profile-banner-back svg {
+  width: calc(var(--fu) * 2.4);
+  height: calc(var(--fu) * 2.4);
+}
+#feed-profile-banner .feed-profile-banner-pic {
+  width: calc(var(--fu) * 6.7);
+  height: calc(var(--fu) * 6.7);
+}
+#feed-profile-banner .feed-profile-banner-name {
+  font-size: calc(var(--fu) * 2.1);
+}
+#feed-profile-banner .feed-profile-banner-handle,
+#feed-profile-banner .feed-profile-banner-bio {
+  font-size: calc(var(--fu) * 1.6);
 }
 #feed-profile-banner:focus-visible {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
@@ -13011,7 +13033,7 @@ html.feed-app #feed-search-page {
   display: none;
 }
 #feed-frame.is-profile-feed #feed-column {
-  padding-top: calc(var(--feed-tabs-h) + var(--feed-chrome) * 6.4 + var(--feed-chrome));
+  padding-top: calc(var(--feed-tabs-h) + var(--feed-chrome) * 7.2 + var(--feed-chrome));
 }
 :is(#feed-column, .feed-comments-stage) .feed-empty {
   display: flex;
