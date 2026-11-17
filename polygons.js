@@ -17,6 +17,7 @@ import { closeDrawAnchor } from './drawhere';
 import { closePressAnchor } from './poiinfo';
 import { watchPolygonTilt, forgetPolygonTilt } from './polygontilt.js';
 import { fillMapTip } from './maptip.js';
+import { addMapTipSource } from './maptipclick.js';
 import { prefetchPersonFollow } from './followtopic.js';
 import { isPointerOnGlobe } from './onglobe.js';
 import { advanceIpfsImage, armIpfsAttempt, clearIpfsAttempt, preferGateway } from './ipfsimage.js';
@@ -97,6 +98,42 @@ function showPolygonTitle(polygon, point, fromTouch) {
 }
 
 map.on("movestart", hidePolygonTitle);
+
+// A right-click on a polygon shows its pill at the pointer, unless a dot
+// over it took the click first (maptipclick.js). The hit is the topmost
+// polygon whose mask is drawn under the pointer, on the near side of the
+// globe. Mask layer id -> polygon, from addPolygonWithImageFill.
+const polygonTipLayers = new Map();
+
+addMapTipSource({
+  rank: 1,
+  hit(event) {
+    const canvas = map.getCanvas();
+    if (event.target !== canvas) return null;
+    const layers = [...polygonTipLayers.keys()].filter((id) => map.getLayer(id));
+    if (!layers.length) return null;
+    const rect = canvas.getBoundingClientRect();
+    const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    let features = [];
+    try {
+      features = map.queryRenderedFeatures([point.x, point.y], { layers });
+    } catch {
+      return null;
+    }
+    for (const feature of features) {
+      const polygon = polygonTipLayers.get(feature.layer && feature.layer.id);
+      if (!polygon || !isPointerOnGlobe(point, polygonRing(polygon))) continue;
+      const at = { x: event.clientX, y: event.clientY };
+      return () => {
+        prefetchPersonFollow(polygon.payer);
+        showPolygonTitle(polygon, at, false);
+        return !!(polygonTitleTip && !polygonTitleTip.hidden);
+      };
+    }
+    return null;
+  },
+  hide: hidePolygonTitle,
+});
 
 export let activePolygonPopups = [];
 export function newActivePolygonPopups(a) {
@@ -1306,6 +1343,8 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
         }
       }, layerId); // Ensure mask layer is above raster layer
   
+      polygonTipLayers.set(maskLayerId, polygon);
+
       // Add interactivity (only if not already added)
       if (!addedLayers.has(maskLayerId)) {
         map.on('click', maskLayerId, (e) => {
@@ -1356,17 +1395,17 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
           }
         });
   
+        // A hover only marks the polygon as clickable (and warms its follow
+        // state). The title pill is a right-click's (maptipclick.js), which
+        // stays until it is closed, or a touch's.
         map.on('mouseenter', maskLayerId, (e) => {
-          if (!polygonHoverOnGlobe(e, polygon)) return;
-          prefetchPersonFollow(polygon.payer);
-          map.getCanvas().style.cursor = 'pointer';
-          showPolygonTitle(polygon, eventPoint(e), false);
+          const onGlobe = isPointerOnGlobe(e.point, polygonRing(polygon));
+          map.getCanvas().style.cursor = onGlobe ? 'pointer' : '';
+          if (onGlobe) prefetchPersonFollow(polygon.payer);
         });
 
         map.on('mousemove', maskLayerId, (e) => {
-          if (!polygonHoverOnGlobe(e, polygon)) return;
-          map.getCanvas().style.cursor = 'pointer';
-          showPolygonTitle(polygon, eventPoint(e), false);
+          map.getCanvas().style.cursor = isPointerOnGlobe(e.point, polygonRing(polygon)) ? 'pointer' : '';
         });
 
         map.on('mouseleave', maskLayerId, () => {
@@ -1374,8 +1413,6 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
           if (polygonTitleFromTouch) {
             clearTimeout(polygonTitleTimer);
             polygonTitleTimer = setTimeout(hidePolygonTitle, 1200);
-          } else {
-            hidePolygonTitle();
           }
         });
 

@@ -18,6 +18,7 @@ import { earlyHashinalNumber } from './earlyhashinal.js';
 import { prefetchPersonFollow } from './followtopic.js';
 import { watchMarkerTilt, forgetMarkerTilt } from './markertilt.js';
 import { fillMapTip } from './maptip.js';
+import { addMapTipSource } from './maptipclick.js';
 import { bindMarkerHold, holdMoveLimit } from './markerhold.js';
 import { isPointerOnGlobe } from './onglobe.js';
 import { forgetLoop, pictureElement } from './loopmedia.js';
@@ -87,8 +88,9 @@ function notifyTopicClustersUpdated() {
 
 let lastTopicSig = null;
 
-// Title pill just above the pointer. A mouse hover shows it. A touch or pen
-// hold shows the same pill and does not open the post. A short tap still does.
+// Title pill just above the pointer. A right-click shows it (maptipclick.js).
+// A touch or pen hold shows the same pill and does not open the post. A
+// short tap still does.
 // Live twins already wear a permanent label under the dot.
 let markerTitleTip = null;
 let markerTitleHideTimer = 0;
@@ -195,11 +197,29 @@ map.on("movestart", () => {
 });
 
 // A tap after the finger has lifted. The press that opened the pill already
-// happened, so this is the next one. A mouse hover never sets _held.
+// happened, so this is the next one. A right-click never sets _held.
 document.addEventListener("pointerdown", () => {
   if (!markerTitleTip || markerTitleTip.hidden || !markerTitleTip._held) return;
   hideMarkerTitle();
 }, true);
+
+// A right-click on a dot shows its pill at the pointer. A dot sits over
+// the canvas, so it comes before a polygon under it (maptipclick.js).
+addMapTipSource({
+  rank: 0,
+  hit(event) {
+    const el = event.target && event.target.closest ? event.target.closest(".marker") : null;
+    if (!el || !el._markerTip) return null;
+    const x = event.clientX;
+    const y = event.clientY;
+    if (!isPointerOnGlobe(markerCanvasPoint(x, y), markerLngLat(el))) return null;
+    return () => {
+      prefetchPersonFollow(el._markerPayer);
+      return showMarkerTitle(el, x, y);
+    };
+  },
+  hide: hideMarkerTitle,
+});
 
 function releaseMarkerHold(entry) {
   const release = entry && entry.el && entry.el._releaseTitleHold;
@@ -210,30 +230,17 @@ function bindMarkerTitle(el) {
   el.style.webkitTouchCallout = "none";
   el.style.webkitUserSelect = "none";
   el.style.userSelect = "none";
-  const hoverOwnsTip = () => !(markerTitleTip && markerTitleTip._held);
+  // A hover only marks the dot as clickable (and warms its follow state).
+  // The title pill is a right-click's (maptipclick.js) or a hold's.
+  const hoverCursor = (event) => {
+    const onGlobe = isPointerOnGlobe(markerCanvasPoint(event.clientX, event.clientY), markerLngLat(el));
+    if (markerCanHover()) el.style.cursor = onGlobe ? 'pointer' : '';
+    return onGlobe;
+  };
   el.addEventListener("mouseenter", (event) => {
-    if (!hoverOwnsTip()) return;
-    if (!isPointerOnGlobe(markerCanvasPoint(event.clientX, event.clientY), markerLngLat(el))) {
-      hideMarkerTitle();
-      el.style.cursor = '';
-      return;
-    }
-    prefetchPersonFollow(el._markerPayer);
-    if (markerCanHover()) showMarkerTitle(el, event.clientX, event.clientY);
+    if (hoverCursor(event)) prefetchPersonFollow(el._markerPayer);
   });
-  el.addEventListener("mousemove", (event) => {
-    if (!hoverOwnsTip()) return;
-    if (!isPointerOnGlobe(markerCanvasPoint(event.clientX, event.clientY), markerLngLat(el))) {
-      hideMarkerTitle();
-      el.style.cursor = '';
-      return;
-    }
-    if (markerCanHover()) showMarkerTitle(el, event.clientX, event.clientY);
-  });
-  el.addEventListener("mouseleave", () => {
-    if (!hoverOwnsTip()) return;
-    if (markerCanHover()) hideMarkerTitle();
-  });
+  el.addEventListener("mousemove", hoverCursor);
   el.addEventListener("contextmenu", (event) => event.preventDefault());
   el.addEventListener("touchstart", (event) => {
     prefetchPersonFollow(el._markerPayer);

@@ -6,6 +6,7 @@ import {
 } from './livegroups.js';
 import { showRadiusPreview, hideRadiusPreview } from './liveradius.js';
 import { hitsMoon, onMoonScreen } from './moon.js';
+import { mapTipClaimed } from './maptipclick.js';
 
 // Long-press (phone) / right-click (PC) on the map → the SAME pin as the
 // plain tap (drawhere.js), with two actions split around it:
@@ -252,6 +253,11 @@ canvas.addEventListener('mousedown', (e) => {
 });
 
 canvas.addEventListener('contextmenu', (e) => {
+  // A right-click on a polygon shows its title bubble instead (maptipclick.js).
+  if (mapTipClaimed(e)) {
+    rightDownPos = null;
+    return;
+  }
   if (Date.now() - lastTouchTime < 1000) return; // touch-origin (iOS long-press ghost)
   e.preventDefault();
   // Release point vs press point: past the tolerance it was a pitch change, not a right-click
