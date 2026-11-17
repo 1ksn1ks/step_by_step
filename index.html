@@ -25,6 +25,10 @@
     <meta name="apple-mobile-web-app-title" content="Meritocracy" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="icon" href="/icons/icon-192.png" type="image/png" />
+    <!-- The UI font (style.css @font-face "Allo"). style.css loads at the
+         end of the body, so this starts the download early. A font
+         preload needs crossorigin even on the same origin. -->
+    <link rel="preload" href="/fonts/allo/AlloVariable-latin.woff2" as="font" type="font/woff2" crossorigin />
     <script>
       // Start counting load progress the moment the page begins parsing
       (function () {

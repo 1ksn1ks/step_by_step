@@ -13,6 +13,28 @@
   initial-value: 0px;
 }
 
+/* Allo 1.0.1 (SIL Open Font License, public/fonts/allo/OFL.txt), from
+   github.com/joshpuckett/allo. One self-hosted file, preloaded in
+   index.html: AlloVariable.ttf cut to Latin and Latin Extended, with
+   the weight and roundness axes kept and optical size fixed at Text
+   (opsz 14). Text the file does not cover falls back to system-ui. */
+@font-face {
+  font-family: "Allo";
+  src: url("/fonts/allo/AlloVariable-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* The UI font. Only the feed uses it so far: a part of the app moves
+   to Allo by setting font-family: var(--font-ui) and
+   font-variation-settings: "ROND" var(--font-ui-round) on its root.
+   Roundness runs 0 (sharp) to 100 (round); 50 is Allo's own default. */
+:root {
+  --font-ui: "Allo", system-ui, sans-serif;
+  --font-ui-round: 50;
+}
+
 /* Frozen by keyboardlayout.js while the on-screen keyboard is open.
    100dvh is the value before that script measures, and the fallback. */
 html {
@@ -11610,7 +11632,7 @@ html.feed-app #popup-settings-card {
   border: 0;
   background: none;
   color: #fff;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: var(--page-title);
   font-weight: 700;
   line-height: 1.2;
@@ -11640,14 +11662,14 @@ html.feed-app #popup-settings-card {
   text-align: left;
 }
 #feed-topic-btn .feed-topic-label {
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: min(var(--page-title), calc(var(--page-bar-h) * 0.6));
   font-weight: 700;
   line-height: 1;
 }
 #feed-topic-btn .feed-topic-id {
   color: rgba(255, 255, 255, 0.45);
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: min(var(--ui-small), calc(var(--page-bar-h) * 0.4));
   font-weight: 500;
   line-height: 1;
@@ -12893,7 +12915,7 @@ html.feed-app #feed-search-page {
   border: 0;
   background: none;
   color: rgba(255, 255, 255, 0.45);
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: var(--page-field-font);
   font-weight: 500;
   line-height: 1.2;
@@ -12946,7 +12968,7 @@ html.feed-app #feed-search-page {
   border-bottom: 1px solid rgba(34, 211, 238, 0.72);
   background: #0a0a12;
   color: #fff;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   text-align: left;
   cursor: pointer;
   touch-action: manipulation;
@@ -13036,7 +13058,7 @@ html.feed-app #feed-search-page {
   padding: calc(var(--fu) * 2) calc(var(--fu) * 3);
   box-sizing: border-box;
   color: rgba(255, 255, 255, 0.45);
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: calc(var(--fu) * 1.9);
   font-weight: 500;
   line-height: 1.35;
@@ -13106,7 +13128,7 @@ html.feed-app #feed-search-page {
   backdrop-filter: blur(1.6dvh) saturate(140%);
   -webkit-backdrop-filter: blur(1.6dvh) saturate(140%);
   color: #fff;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   touch-action: pan-y;
   -webkit-user-select: text;
   user-select: text;
@@ -13207,7 +13229,7 @@ html.feed-app #feed-search-page {
   background: none;
   box-shadow: none;
   color: #fff;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: calc(var(--fu) * 1.9);
   font-weight: 600;
   line-height: 1.35;
@@ -13353,7 +13375,7 @@ html.feed-app #feed-search-page {
   overflow: visible;
   overscroll-behavior: auto;
   color: #fff;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: calc(var(--fu) * 1.75);
   font-weight: 400;
   line-height: 1.5;
@@ -14413,6 +14435,47 @@ html.feed-app :is(
   text-shadow: none;
   text-transform: uppercase;
 }
+/* The feed in the UI font (:root --font-ui): its header, posts,
+   comments and settings. #feed-layout itself keeps Inter, since the
+   profile, search and chat pages inherit from it. The roundness rides
+   on font-variation-settings, which inherits, so it is set on the
+   roots, and again on their buttons and fields, whose browser style
+   (the font shorthand) resets it. The post menu sits on the body
+   while open, so postmenu.js marks a feed post's menu with data-feed. */
+#feed-toolbar,
+#feed-tabs,
+#feed-scroll {
+  font-family: var(--font-ui);
+}
+#feed-toolbar,
+#feed-tabs,
+#feed-profile-banner,
+#feed-new-posts,
+#feed-scroll,
+#feed-settings,
+.comments-modal.comments-modal--feed,
+.post-menu-pop[data-feed],
+:is(#feed-toolbar, #feed-tabs, #feed-scroll, #feed-settings, .comments-modal.comments-modal--feed, .post-menu-pop[data-feed]) :is(button, input, select, textarea) {
+  font-variation-settings: "ROND" var(--font-ui-round);
+}
+/* Rules the feed shares with the popups, the map and the other feed
+   pages still name Inter, so the feed's copies take the token here.
+   The comment box has no font of its own (the browser's monospace),
+   so the feed's takes the token too. */
+:is(#feed-column, .feed-comments-stage) :is(.popup-profile-bubble h2, .x-embed-list),
+#feed-toolbar :is(.time-filter-chip, .time-filter-item),
+#feed-settings :is(.feed-settings-choice, .feed-settings-switch),
+.comments-modal.comments-modal--feed textarea,
+.post-menu-pop[data-feed] {
+  font-family: var(--font-ui);
+}
+/* The bar-title rule just above outweighs any selector the comments
+   bar can have (its #feed-chat:not(.is-load):not(.is-draw) arm), so
+   the feed's two bar titles take the token as !important. */
+#feed-settings > .feed-settings-bar .feed-settings-title,
+.comments-modal.comments-modal--feed > .feed-comments-bar .feed-comments-title {
+  font-family: var(--font-ui) !important;
+}
 /* The feed bar shares the page-bar box and the page-bar tokens. Side safe
    areas live on the page for Search, so the feed bar adds them itself. */
 /* The left inset is the map bar's (2px + 0.225vh, #map-topbar), so the
@@ -15451,7 +15514,7 @@ html.drawer-page .info-overlay {
   margin: 0;
   background: #0a0a12;
   color: #fff;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   transform: translateX(-50%);
   container-type: inline-size;
   container-name: feedsettings;
@@ -15508,7 +15571,7 @@ html.drawer-page .info-overlay {
 .feed-settings-title {
   margin: 0;
   color: #fff;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: calc(var(--fu) * 2.1);
   font-weight: 700;
   line-height: 1.2;
@@ -15531,7 +15594,7 @@ html.drawer-page .info-overlay {
 .feed-settings-label {
   margin: 0 0 calc(var(--fu) * 0.8);
   color: rgba(255, 255, 255, 0.55);
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: calc(var(--fu) * 1.45);
   font-weight: 600;
   line-height: 1.2;
@@ -15599,7 +15662,7 @@ html.drawer-page .info-overlay {
   overflow: visible;
   text-overflow: clip;
   color: #22D3EE;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: var(--ui-small);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -15728,7 +15791,7 @@ html.drawer-page .info-overlay {
 }
 :is(#feed-column, .feed-comments-stage) .feed-view-count {
   color: rgba(255, 255, 255, 0.72);
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: calc(var(--fu) * 1.6);
   font-weight: 500;
   line-height: 1;
@@ -15858,7 +15921,7 @@ html.drawer-page .info-overlay {
   padding-bottom: env(safe-area-inset-bottom);
   background: #0a0a12;
   color: #fff;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: calc(var(--fu) * 1.9);
   transform: none;
   container-type: inline-size;
@@ -15911,7 +15974,7 @@ html.drawer-page .info-overlay {
 .comments-modal--feed .feed-comments-title {
   margin: 0;
   color: #fff;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: calc(var(--fu) * 2.1);
   font-weight: 700;
   line-height: 1.2;
@@ -16068,7 +16131,7 @@ html.drawer-page .info-overlay {
   -webkit-backdrop-filter: blur(calc(var(--fu) * 1.4));
   backdrop-filter: blur(calc(var(--fu) * 1.4));
   color: #fff;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: var(--ui-label);
   font-weight: 700;
   line-height: 1;
