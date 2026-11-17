@@ -224,9 +224,6 @@ export function createPostMenu({ followBtn, payer, donation, onCopy }) {
     const host = root.closest('.' + EARLY_POPUP_CLASS);
     pop.dataset.style = host ? 'hashinals' : 'glass';
     pop.style.fontFamily = host ? (getComputedStyle(host).fontFamily || '') : '';
-    // Open, the menu sits on the body, so a feed post's menu cannot
-    // inherit the feed's font. style.css gives [data-feed] the token.
-    pop.toggleAttribute('data-feed', !!root.closest('#feed-column, .feed-comments-stage'));
   }
 
   function open() {
