@@ -42,24 +42,31 @@ export function holdJustHappened() {
 canvas.addEventListener('touchstart', (e) => {
   if (e.touches.length !== 1) return;
   lastTouchTime = Date.now();
+  // A hold on a polygon is the polygon's: its title bubble shows
+  // (polygons.js, claimed in maptipclick.js), not the pin. The hold is
+  // still timed, so the tap that lifts it is skipped there too and does
+  // not open the polygon's post. Only a hold on empty map opens the pin.
+  const tipHold = mapTipClaimed(e);
   const t = e.touches[0];
   holdStart = { x: t.clientX, y: t.clientY };
   holdTimer = setTimeout(() => {
     holdTimer = null;
-    suppressClickUntil = Date.now() + 600; // the hold became the pin, not a tap
-    holdOpenedPin = true;
+    suppressClickUntil = Date.now() + 600; // the hold was a hold, not a tap
+    holdFired = true;
+    if (tipHold) return;
     const rect = canvas.getBoundingClientRect();
     showPressAnchor(map.unproject([t.clientX - rect.left, t.clientY - rect.top]));
   }, HOLD_MS);
 }, { passive: true });
 
 // The pin's dot sits right under the finger that held, so lifting it taps
-// the dot, which would close the pin it just made. However long the hold
-// lasted, the tap that ends it is skipped.
-let holdOpenedPin = false;
+// the dot, which would close the pin it just made; on a polygon the lift
+// would open its post. However long the hold lasted, the tap that ends it
+// is skipped.
+let holdFired = false;
 function endHoldTouch() {
-  if (!holdOpenedPin) return;
-  holdOpenedPin = false;
+  if (!holdFired) return;
+  holdFired = false;
   suppressClickUntil = Math.max(suppressClickUntil, Date.now() + 450);
 }
 
@@ -85,7 +92,7 @@ canvas.addEventListener('touchcancel', () => {
     clearTimeout(holdTimer);
     holdTimer = null;
   }
-  holdOpenedPin = false;
+  holdFired = false;
 }, { passive: true });
 
 let pressAnchor = null; // the anchor element (left button, pin, right button)

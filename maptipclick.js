@@ -1,6 +1,7 @@
 // A right-click on a marker or a polygon shows its title bubble (maptip.js
 // fillMapTip in .marker-title-tip / .polygon-title-tip), at the pointer,
-// where a mouse hover used to show it.
+// where a mouse hover used to show it. A touch on one is claimed the same
+// way, so a hold shows only its bubble, not the map's long-press pin.
 //
 // One contextmenu handler for the whole map, in the capture phase of the
 // canvas container, so a right-click opens at most one bubble: that of the
@@ -57,23 +58,43 @@ function fromTouch(event) {
   return performance.now() - touchAt < TOUCH_GHOST_MS;
 }
 
+// The topmost source under the press, with its show(), or null.
+function hitAt(target, clientX, clientY) {
+  const press = { target, clientX, clientY };
+  for (const source of sources) {
+    const show = source.hit(press);
+    if (show) return { source, show };
+  }
+  return null;
+}
+
 function onContextMenu(event) {
   const down = rightDown;
   rightDown = null;
   if (fromTouch(event)) return;
   if (down && Math.hypot(event.clientX - down.x, event.clientY - down.y) > moveLimit()) return;
-  for (const source of sources) {
-    const show = source.hit(event);
-    if (!show) continue;
-    event.preventDefault();
-    claimed.add(event);
-    for (const other of sources) {
-      if (other !== source) other.hide();
-    }
-    openSource = show() === false ? null : source;
+  const hit = hitAt(event.target, event.clientX, event.clientY);
+  if (!hit) {
+    closeMapTip();
     return;
   }
-  closeMapTip();
+  event.preventDefault();
+  claimed.add(event);
+  for (const other of sources) {
+    if (other !== hit.source) other.hide();
+  }
+  openSource = hit.show() === false ? null : hit.source;
+}
+
+// A finger on a dot or a polygon is that thing's: its own tap and hold
+// show its bubble (marker.js, polygons.js). The press is only claimed
+// here, by the same rule as a right-click, so the map's long-press pin
+// (poiinfo.js) does not also open under it. A dot never reaches the
+// canvas, where the pin listens; a polygon is drawn on it.
+function onTouchStart(event) {
+  if (event.touches.length !== 1) return;
+  const touch = event.touches[0];
+  if (hitAt(event.target, touch.clientX, touch.clientY)) claimed.add(event);
 }
 
 function arm() {
@@ -84,6 +105,7 @@ function arm() {
     if (event.button === 2) rightDown = { x: event.clientX, y: event.clientY };
   }, true);
   container.addEventListener('contextmenu', onContextMenu, true);
+  container.addEventListener('touchstart', onTouchStart, { capture: true, passive: true });
   document.addEventListener('pointerdown', (event) => {
     if (event.pointerType !== 'mouse') {
       touchAt = performance.now();

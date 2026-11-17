@@ -14,7 +14,7 @@ import { activeMarkerPopups } from './marker';
 import { polygonPopupNode } from './processallmessages.js';
 import { CloseALL, changePopupState } from './cssLogic';
 import { closeDrawAnchor } from './drawhere';
-import { closePressAnchor } from './poiinfo';
+import { closePressAnchor, holdJustHappened } from './poiinfo';
 import { watchPolygonTilt, forgetPolygonTilt } from './polygontilt.js';
 import { fillMapTip } from './maptip.js';
 import { addMapTipSource } from './maptipclick.js';
@@ -1351,6 +1351,9 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
           // Picking a spot for the Draw form (drawhere.js): the tap is a
           // coordinate, not a polygon open.
           if (document.documentElement.classList.contains('is-draw-picking')) return;
+          // The tap that lifts a hold: the hold showed the title bubble
+          // (poiinfo.js), so the post does not open, like a dot's hold.
+          if (holdJustHappened()) return;
           if (kind === 'video') toggleCoverPlay(mediaCovers.get(sourceId));
           hidePolygonTitle();
           const description = polygonPopupNode(polygon);
