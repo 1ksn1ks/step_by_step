@@ -39,6 +39,7 @@ import { galleryImages } from './postimages.js';
 import { resolveHashinalSrc } from './hashinalurl.js';
 import { avatarSrc } from './avatarsrc.js';
 import { collapseComposers } from './chatcomposer.js';
+import { collapseExpandedFields } from './fieldexpand.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
 import { VIEW_SORT_BATCH, keepScroll, rankedPaintHold, rankedWindowReady, retryAfterMs, zeroViewCounts } from './viewsort.js';
@@ -9150,6 +9151,8 @@ function finishDrawerBack() {
 
 function drawerBack() {
   if (!drawerStack.length || navBusy()) return;
+  // A full-screen 18 KB box on the page (Swap bio) goes back first.
+  collapseExpandedFields();
   const name = drawerPageName(drawerStack.length);
   const cover = profileEditIsCoverTop();
   if (cover) settleProfileEditCover();
@@ -9161,6 +9164,7 @@ function drawerBack() {
 
 function drawerPageClose(level) {
   if (drawerStack.length < level) return;
+  collapseExpandedFields();
   const cover = profileEditIsCoverTop() && level === drawerStack.length;
   if (cover) settleProfileEditCover();
   drawerStack.length = level - 1;
@@ -9179,6 +9183,7 @@ function openDrawerPanel(id) {
 }
 
 function dropDrawerHistory() {
+  collapseExpandedFields();
   if (profileEditIsCoverTop() && !profilePage.hidden) settleProfileEditCover();
   else profileEditCover = false;
   while (drawerStack.length) {

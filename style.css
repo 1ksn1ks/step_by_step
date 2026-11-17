@@ -23585,6 +23585,147 @@ img.is-gif-hit {
   }
 }
 
+/* Full screen for every 18 KB box (fieldexpand.js): Draw's text, the
+   post's Edit text, Swap bio, and any box bytecap.js caps later. The
+   chat composers have their own, above. A button in the field's top right
+   corner shows once there is text. Expanded, the box covers the page it
+   lives in below the page's header (and above Draw's Submit row); the
+   field fills it and what the box holds (its counter, a Save button)
+   stays along the bottom. The box is placed by measuring (--fx-top /
+   --fx-left / --fx-width / --fx-height, set by fieldexpand.js); the button
+   by the field's own offset in its parent (--fx-field-top / -right). */
+.field-expand-box {
+  --fx-btn: clamp(1.75rem, 3.2dvh, 2.25rem);
+  --fx-inset: clamp(0.25rem, 0.7dvh, 0.5rem);
+  --fx-pad: clamp(0.6rem, 1.6dvh, 1.1rem);
+}
+.field-expand-anchor {
+  position: relative;
+}
+.field-expand-btn {
+  appearance: none;
+  position: absolute;
+  z-index: 3;
+  top: calc(var(--fx-field-top, 0px) + var(--fx-inset));
+  right: calc(var(--fx-field-right, 0px) + var(--fx-inset));
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--fx-btn);
+  height: var(--fx-btn);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(10, 10, 18, 0.55);
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 160ms ease, background-color 160ms ease;
+}
+.field-expand-btn.is-shown {
+  display: inline-flex;
+}
+/* A 2.75rem touch target around the small icon. */
+.field-expand-btn::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(2.75rem, 100%);
+  height: max(2.75rem, 100%);
+  translate: -50% -50%;
+}
+.field-expand-btn svg {
+  display: block;
+  width: 62%;
+  height: 62%;
+  pointer-events: none;
+}
+@media (hover: hover) {
+  .field-expand-btn:hover {
+    color: #fff;
+  }
+}
+.field-expand-btn:active,
+.field-expand-btn[aria-pressed="true"] {
+  color: #22D3EE;
+}
+.field-expand-btn:focus {
+  outline: none;
+}
+.field-expand-btn:focus-visible {
+  outline: 0.125rem solid #22D3EE;
+  outline-offset: 0.125rem;
+}
+/* The text never runs under the button. */
+.field-expand-box .has-field-expand {
+  padding-inline-end: calc(var(--fx-btn) + var(--fx-inset) * 2) !important;
+}
+.field-expand-placeholder {
+  display: block;
+  flex: none;
+  pointer-events: none;
+}
+.field-expand-box.is-expanded {
+  position: fixed !important;
+  top: var(--fx-top) !important;
+  left: var(--fx-left) !important;
+  right: auto !important;
+  bottom: auto !important;
+  z-index: 40;
+  display: flex !important;
+  flex-direction: column;
+  gap: var(--fx-inset);
+  box-sizing: border-box;
+  width: var(--fx-width) !important;
+  height: var(--fx-height) !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: var(--fx-pad);
+  overflow: hidden;
+  background: #0a0a12;
+  animation: composerExpandIn 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.field-expand-box.is-expanded > * {
+  flex: 0 0 auto;
+}
+/* Every parent between the box and the field stretches, so the field can. */
+.field-expand-box.is-expanded .field-expand-path {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+}
+.field-expand-box.is-expanded .is-field-expanded {
+  flex: 1 1 auto !important;
+  box-sizing: border-box;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  overflow-y: auto !important;
+  resize: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .field-expand-box.is-expanded {
+    animation: none;
+  }
+  .field-expand-btn {
+    transition: none;
+  }
+}
+
 /* Pick on the map from the Draw form (drawhere.js startPick). Each
    coordinate field has a pin button at its right end. While picking, the
    Draw page steps aside (it keeps everything typed) and a bar at the top

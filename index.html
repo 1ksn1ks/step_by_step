@@ -371,14 +371,14 @@
             <button class="toolbar-column-btns" id="button_for_swap" type="button">Save swap</button>
           </div>
 
-          <div id="edit-profile-swap-bio" style="display: none;">
+          <div id="edit-profile-swap-bio" data-expand-box style="display: none;">
             <div class="swap-bio-field">
               <textarea id="edit-profile-swap-bio-input" placeholder="Swap bio" aria-label="Swap bio" aria-describedby="swap-bio-count"
               class="toolbar-column" onclick="event.stopPropagation();"
               ></textarea>
               <div id="swap-bio-count" class="swap-bio-count hcs-byte-counter" aria-live="polite">0 B / 18 KB</div>
             </div>
-            <button class="toolbar-column-btns" id="button_for_swap_bio" type="button">Save</button>
+            <button class="toolbar-column-btns" id="button_for_swap_bio" type="button" data-expand-send>Save</button>
           </div>
       
         </div>
@@ -800,9 +800,9 @@
               </div>
             </div>
             </div>
-            <div class="draw-submit-row">
-              <button type="button" id="submit-button-Create_Marker" class="toolbar-column-btns" title="Submit regular" aria-label="Submit regular">🌍 Submit regular</button>
-              <button type="button" id="submit-button-Create_encrypted-Marker" class="toolbar-column-btns" title="Submit encrypted" aria-label="Submit encrypted">🔒 Submit encrypted</button>
+            <div class="draw-submit-row" data-expand-footer>
+              <button type="button" id="submit-button-Create_Marker" class="toolbar-column-btns" data-expand-send title="Submit regular" aria-label="Submit regular">🌍 Submit regular</button>
+              <button type="button" id="submit-button-Create_encrypted-Marker" class="toolbar-column-btns" data-expand-send title="Submit encrypted" aria-label="Submit encrypted">🔒 Submit encrypted</button>
             </div>
             <textarea id="input-field-2-1" maxlength="20" hidden></textarea>
             <textarea id="input-field-2-2" hidden></textarea>
@@ -875,9 +875,9 @@
               </div>
             </div>
             </div>
-            <div class="draw-submit-row">
-              <button type="button" id="submit-button-Create_Polygon" class="toolbar-column-btns" title="Submit regular" aria-label="Submit regular">🌍 Submit regular</button>
-              <button type="button" id="submit-button-Create_encrypted-Polygon" class="toolbar-column-btns" title="Submit encrypted" aria-label="Submit encrypted">🔒 Submit encrypted</button>
+            <div class="draw-submit-row" data-expand-footer>
+              <button type="button" id="submit-button-Create_Polygon" class="toolbar-column-btns" data-expand-send title="Submit regular" aria-label="Submit regular">🌍 Submit regular</button>
+              <button type="button" id="submit-button-Create_encrypted-Polygon" class="toolbar-column-btns" data-expand-send title="Submit encrypted" aria-label="Submit encrypted">🔒 Submit encrypted</button>
             </div>
             <textarea id="input-field-3-1" maxlength="20" hidden></textarea>
             <textarea id="input-field-3-2" hidden></textarea>
@@ -2086,7 +2086,7 @@
         </button>
         <div class="options-column-title">Popup</div>
 
-      <div id="popup-settings-editbox" style="display: none;">
+      <div id="popup-settings-editbox" data-expand-box style="display: none;">
         <div class="popup-settings-label">Edit text</div>
         <textarea id="popup-settings-edit-text" aria-label="Edit message" rows="3" placeholder="Message text"></textarea>
         <div id="popup-settings-thumb" class="video-thumb-bar video-thumb-edit" hidden>
@@ -2094,7 +2094,7 @@
           <button type="button" id="popup-settings-thumb-clear" class="video-thumb-btn video-thumb-clear">Remove</button>
         </div>
         <div id="popup-settings-edit-bytes" class="draw-byte-counter hcs-byte-counter">0 B / 18 KB</div>
-        <div class="popup-settings-row"><button type="button" id="popup-settings-edit-save" class="toolbar-column-btns">Save</button></div>
+        <div class="popup-settings-row"><button type="button" id="popup-settings-edit-save" class="toolbar-column-btns" data-expand-send>Save</button></div>
       </div>
 
       <div id="popup-settings-tools" onclick="event.stopPropagation();">

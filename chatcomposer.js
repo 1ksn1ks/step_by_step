@@ -1,4 +1,5 @@
 import { perfJob } from './perf.js';
+import { claimExpanded, collapseExpandedFields, releaseExpanded } from './fieldexpand.js';
 
 // One autogrow for the topic and E2EE composers, on the map and in the feed.
 // CSS owns the one-line height and the five-line cap. This only writes the
@@ -119,6 +120,18 @@ let lastExpanded = null;
 // drops them again. A plain set: a data attribute would be a DOM write.
 const droppedBeforeFull = new WeakSet();
 let layerDefined = false;
+// Each composer's entry in the one-box-at-a-time rule (fieldexpand.js):
+// expanding any other 18 KB box closes this one, and the other way round.
+const expandEntries = new WeakMap();
+
+function expandEntry(compose) {
+  let entry = expandEntries.get(compose);
+  if (!entry) {
+    entry = { collapse: () => setComposerExpanded(compose, false) };
+    expandEntries.set(compose, entry);
+  }
+  return entry;
+}
 
 function paintExpandButton(compose) {
   const btn = compose && compose.querySelector(".chat-compose-expand");
@@ -155,7 +168,9 @@ export function setComposerExpanded(compose, on, { fromHistory = false } = {}) {
   const field = compose.querySelector("textarea");
   const was = compose.classList.contains("is-expanded");
   if (was === on) return;
-  if (on && expandedCompose && expandedCompose !== compose) setComposerExpanded(expandedCompose, false);
+  // One box out at a time, this composer, the other one, or any 18 KB box.
+  if (on) claimExpanded(expandEntry(compose));
+  else releaseExpanded(expandEntry(compose));
   if (on) {
     // Fullscreen shows the whole draft. Remember a drop for the way back.
     if (compose.classList.contains("is-dropped")) {
@@ -278,9 +293,11 @@ function bindDropSwipe(compose, field) {
   compose.addEventListener("touchcancel", () => { start = null; }, { passive: true });
 }
 
-// The chat page closed under it: drop the fullscreen with no animation.
+// The chat page (or the Draw page, the same #feed-chat) closed under it:
+// drop the fullscreen with no animation, a composer's or any 18 KB box's.
 export function collapseComposers() {
   if (expandedCompose) setComposerExpanded(expandedCompose, false);
+  collapseExpandedFields();
 }
 
 export function mountComposerExpand(field, counter, send) {

@@ -17,8 +17,10 @@
 //                                           that mirrors into field
 //   setMessageMeasure(el, measure | null)   a different size while an
 //                                           edit mode is on; null restores
+// Every box capped here also gets a full-screen button (fieldexpand.js).
 import { HCS_MESSAGE_MAX_BYTES } from './hcschunks.js';
 import { toast } from './toast.js';
+import { mountFieldExpand } from './fieldexpand.js';
 
 const MAX = HCS_MESSAGE_MAX_BYTES;
 const states = new WeakMap(); // element -> state
@@ -136,6 +138,7 @@ export function capMessageField(field, measure) {
     // The counter has already painted the composed text.
     field.dispatchEvent(new Event('input', { bubbles: true }));
   }, true);
+  mountFieldExpand(field);
 }
 
 // Plain-text offsets of the caret / selection inside a contenteditable.
@@ -217,4 +220,5 @@ export function capMessageEditor(editor, field, measure, sync) {
     take();
     queueMicrotask(check);
   }, true);
+  mountFieldExpand(editor, { mirror: field });
 }

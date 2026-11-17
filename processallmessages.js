@@ -1,6 +1,7 @@
 import { isValidUrl } from './ISVALIDURL.JS';
 import { DEFAULT_AVATAR, resolveHashinalSrc } from './hashinalurl.js';
 import { avatarSrc } from './avatarsrc.js';
+import { collapseExpandedFields } from './fieldexpand.js';
 import {getTopicInfo} from './hedera'
 import { prepareHoldings, fetchAccountTokens } from './nftcache.js'
 import {sendMessage, popupView, knownPopupViews, setPopupViewTotal, fetchPost} from './msgbackend'
@@ -1127,6 +1128,8 @@ function queueSettingsHead() {
 }
 
 function closePopupSettings() {
+  // A full-screen Edit text goes back before the card closes (fieldexpand.js).
+  collapseExpandedFields();
   const backdrop = document.getElementById('popup-settings-backdrop');
   const card = document.getElementById('popup-settings-card');
   if (backdrop) backdrop.style.display = 'none';

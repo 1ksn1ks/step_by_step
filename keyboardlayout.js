@@ -417,6 +417,9 @@ function boot() {
       const pageRoot = node === document.body;
       let pos = '';
       try { pos = getComputedStyle(node).position; } catch (err) { pos = ''; }
+      // A box that is fixed only while it covers its page (fieldexpand.js)
+      // is not a shell: the page around it is pinned, and the box follows.
+      if (node.dataset && node.dataset.kbSkip === '1') pos = '';
       let named = false;
       try { named = !!(node.matches && SHELL_SELECTOR && node.matches(SHELL_SELECTOR)); } catch (err) { named = false; }
       let rect = null;
