@@ -37,6 +37,7 @@ import { openGallery, openPreview } from './fullscreenmedia.js';
 import { buildMediaGrid } from './mediagrid.js';
 import { galleryImages } from './postimages.js';
 import { resolveHashinalSrc } from './hashinalurl.js';
+import { avatarSrc } from './avatarsrc.js';
 import { collapseComposers } from './chatcomposer.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
@@ -4379,7 +4380,7 @@ function paintNewFaces(list) {
       if (mark) newFaces.appendChild(mark);
       continue;
     }
-    const face = pictureElement(url, { className: 'feed-new-face', alt: '' });
+    const face = pictureElement(avatarSrc(url), { className: 'feed-new-face', alt: '' });
     let broken = false;
     face.addEventListener('error', () => {
       broken = true;
@@ -6361,7 +6362,7 @@ function showProfileBanner() {
 function paintProfileBanner(payer) {
   const name = profileDisplayName(payer);
   const handle = payer;
-  const banner = mountPicture(profileBanner.querySelector('.feed-profile-banner-pic'), profilePicUrl(payer), {
+  const banner = mountPicture(profileBanner.querySelector('.feed-profile-banner-pic'), avatarSrc(profilePicUrl(payer)), {
     className: 'feed-profile-banner-pic',
     fallback: DEFAULT_PIC,
   });
@@ -6377,7 +6378,7 @@ function paintProfileBanner(payer) {
 
 function mountProfilePic(payer) {
   profilePicSlot.replaceChildren();
-  const img = pictureElement(profilePicUrl(payer), {
+  const img = pictureElement(avatarSrc(profilePicUrl(payer)), {
     className: 'feed-profile-pic',
     alt: '',
     fallback: DEFAULT_PIC,
@@ -8456,7 +8457,7 @@ function buildAccountRow(spec) {
   mapAccountBtn = document.createElement('button');
   mapAccountBtn.type = 'button';
   mapAccountBtn.className = 'feed-menu-item feed-menu-account-btn';
-  mapAvatar = pictureElement(DEFAULT_PIC, { className: 'feed-menu-avatar', alt: '', fallback: DEFAULT_PIC });
+  mapAvatar = pictureElement(avatarSrc(DEFAULT_PIC), { className: 'feed-menu-avatar', alt: '', fallback: DEFAULT_PIC });
   mapAccountId = document.createElement('span');
   mapAccountId.className = 'feed-menu-account-id';
   mapAccountBtn.append(mapAvatar, mapAccountId);
@@ -9609,7 +9610,7 @@ function paintMapAccount() {
   const label = document.getElementById('account-id');
   const text = id || (label && label.textContent.trim()) || 'Not connected';
   mapAccountId.textContent = text;
-  mapAvatar = mountPicture(mapAvatar, id ? profilePicUrl(id) : DEFAULT_PIC, {
+  mapAvatar = mountPicture(mapAvatar, avatarSrc(id ? profilePicUrl(id) : DEFAULT_PIC), {
     className: 'feed-menu-avatar',
     fallback: DEFAULT_PIC,
   });

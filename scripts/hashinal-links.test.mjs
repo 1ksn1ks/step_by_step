@@ -77,7 +77,9 @@ test("the dot's and the shape's cover is the resolved first entry, a string", ()
 
   // Every marker and polygon reader (three of each) takes the cover through
   // it, and none keeps the raw coverimage array.
-  assert.equal(pam.match(/imageUrl: coverImageUrl\(parsedMessage\.marker\.data\.coverimage, profileUrl\)/g).length, 3);
+  // A marker falls back to the author's thumbnail (avatarsrc.js); a
+  // polygon's 512 fill keeps the full picture.
+  assert.equal(pam.match(/imageUrl: coverImageUrl\(parsedMessage\.marker\.data\.coverimage, avatarSrc\(profileUrl\)\)/g).length, 3);
   assert.equal(pam.match(/imageUrl: coverImageUrl\(parsedMessage\.polygon\.data\.coverimage, profileUrl\)/g).length, 3);
   assert.doesNotMatch(pam, /\? parsedMessage\.(marker|polygon)\.data\.coverimage :/);
 });

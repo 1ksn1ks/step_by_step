@@ -2,6 +2,7 @@
 // The account that receives HBAR comes from the server, which reads the
 // original message's payer. The post body is never that account.
 
+import { avatarSrc } from './avatarsrc.js';
 import { DEFAULT_AVATAR } from './hashinalurl.js';
 import { BACKEND_URL } from './msgbackend.js';
 import { connectedAccount } from './web3.js';
@@ -353,7 +354,7 @@ function ensureSheet() {
 
   const head = document.createElement('div');
   head.className = 'donate-head';
-  const avatar = pictureElement(DEFAULT_AVATAR, {
+  const avatar = pictureElement(avatarSrc(DEFAULT_AVATAR), {
     className: 'donate-avatar',
     alt: '',
     fallback: DEFAULT_AVATAR,
@@ -554,7 +555,7 @@ function showSheet(topicId, ts, account, host) {
     accountLine.textContent = showId ? account : '';
     accountLine.hidden = !showId;
   }
-  if (avatar) mountPicture(avatar, recipientAvatar(account), { className: 'donate-avatar', fallback: DEFAULT_AVATAR });
+  if (avatar) mountPicture(avatar, avatarSrc(recipientAvatar(account)), { className: 'donate-avatar', fallback: DEFAULT_AVATAR });
   paintSheetChrome(host);
   lockFields(false);
   paintSend();

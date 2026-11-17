@@ -1,5 +1,6 @@
 import { isValidUrl } from './ISVALIDURL.JS';
 import { DEFAULT_AVATAR, resolveHashinalSrc } from './hashinalurl.js';
+import { avatarSrc } from './avatarsrc.js';
 import {getTopicInfo} from './hedera'
 import { prepareHoldings, fetchAccountTokens } from './nftcache.js'
 import {sendMessage, popupView, knownPopupViews, setPopupViewTotal, fetchPost} from './msgbackend'
@@ -730,7 +731,9 @@ function postMediaUrl(value) {
   return resolveHashinalSrc(firstMediaUrl(value));
 }
 
-// A dot's or shape's picture: the post's cover, else the author's.
+// A dot's or shape's picture: the post's cover, else the author's. A
+// marker passes the author's thumbnail (avatarSrc); a polygon's fill is a
+// 512 texture and keeps the full picture.
 function coverImageUrl(coverimage, profileUrl) {
   const url = postMediaUrl(coverimage);
   return isValidUrl(url) ? url : profileUrl;
@@ -2064,7 +2067,7 @@ function appendShareFeature(features, ctx) {
       shareOf: { topic: original, created },
       // The dot wears the same face as the original post: its cover image,
       // else the original owner's picture — never the sharer's.
-      imageUrl: isValidUrl(cover) ? cover : profileUrl,
+      imageUrl: isValidUrl(cover) ? cover : avatarSrc(profileUrl),
       title: String(title || '').slice(0, 20),
     },
     geometry: {
@@ -2083,7 +2086,7 @@ export function buildPopupProfile({ profileUrl, payer, payerInfo, username, clic
   const profileSection = document.createElement('div');
   profileSection.className = 'popup-profile-bubble';
 
-  const profileImg = pictureElement(profileUrl, {
+  const profileImg = pictureElement(avatarSrc(profileUrl), {
     alt: 'Profile photo',
     style: 'width: calc(var(--u) * 7); height: calc(var(--u) * 7); flex-shrink: 0; border-radius: 50%; object-fit: cover; object-position: center; cursor: pointer; border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.25); box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1) rgba(0, 0, 0, 0.45);',
   });
@@ -3452,7 +3455,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         media: mediaKind(parsedMessage.marker.data.image),
                         seconds: videoSeconds(parsedMessage.marker.data.image),
                         popupData: markerPopupData,
-                        imageUrl: coverImageUrl(parsedMessage.marker.data.coverimage, profileUrl),
+                        imageUrl: coverImageUrl(parsedMessage.marker.data.coverimage, avatarSrc(profileUrl)),
                         title: String(parsedMessage.marker.data.title || "").slice(0, 20)
                       },
                       geometry: {
@@ -4255,7 +4258,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
 
     const payerImage = profilePictures[payer]?.url || defaultProfilePic;
     const validPayerImage = isValidUrl(payerImage) ? payerImage : defaultProfilePic;
-    const img = pictureElement(validPayerImage, {
+    const img = pictureElement(avatarSrc(validPayerImage), {
       alt: 'Profile photo',
       style: 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer; object-fit: cover;',
     });
@@ -4315,7 +4318,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
       const whoRow = document.createElement('div');
       whoRow.style.cssText = `display: inline-flex; align-items: center; gap: 0.3em; padding: 0.025em 0.1em 0.025em 0.1em; border-radius: 0.4em; font-size: calc(var(--u) * ${headerFontSizeTopicChat / 2});`;
       const picUrl = profilePictures[node.payer]?.url || defaultProfilePic;
-      const payerPic = pictureElement(isValidUrl(picUrl) ? picUrl : defaultProfilePic, {
+      const payerPic = pictureElement(avatarSrc(isValidUrl(picUrl) ? picUrl : defaultProfilePic), {
         alt: 'Profile photo',
         style: 'width: 1.2em; height: 1.2em; border-radius: 1em; object-fit: cover; border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.35); cursor: pointer;',
       });
@@ -5933,7 +5936,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         media: mediaKind(parsedMessage.marker.data.image),
                         seconds: videoSeconds(parsedMessage.marker.data.image),
                         popupData: markerPopupData,
-                        imageUrl: coverImageUrl(parsedMessage.marker.data.coverimage, profileUrl),
+                        imageUrl: coverImageUrl(parsedMessage.marker.data.coverimage, avatarSrc(profileUrl)),
                         title: String(parsedMessage.marker.data.title || "").slice(0, 20)
                       },
                       geometry: {
@@ -6634,7 +6637,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         media: mediaKind(parsedMessage.marker.data.image),
                         seconds: videoSeconds(parsedMessage.marker.data.image),
                         popupData: markerPopupData,
-                        imageUrl: coverImageUrl(parsedMessage.marker.data.coverimage, profileUrl),
+                        imageUrl: coverImageUrl(parsedMessage.marker.data.coverimage, avatarSrc(profileUrl)),
                         title: String(parsedMessage.marker.data.title || "").slice(0, 20)
                       },
                       geometry: {

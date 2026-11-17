@@ -1,6 +1,7 @@
 // Full-screen following picker. Rows come from followsuggest's cache.
 // This module does not fetch.
 
+import { avatarSrc } from './avatarsrc.js';
 import { DEFAULT_AVATAR } from './hashinalurl.js';
 import { connectedAccount } from './web3.js';
 import {
@@ -397,7 +398,7 @@ function entryNode(box) {
   const secondary = document.createElement('div');
   secondary.className = 'follow-suggest-id';
   if (item.kind === 'account') {
-    const img = pictureElement(item.avatar || DEFAULT_AVATAR, {
+    const img = pictureElement(avatarSrc(item.avatar || DEFAULT_AVATAR), {
       className: 'follow-suggest-avatar',
       alt: '',
       fallback: DEFAULT_AVATAR,

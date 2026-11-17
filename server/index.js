@@ -35,6 +35,7 @@ import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
 import { startEarlyHashinals } from "./hashinals.js";
 import { createHcs1RateLimit, hcs1Route } from "./hcs1.js";
+import { avatarRoute, createAvatarRateLimit } from "./avatar.js";
 import { feedGeoKey, lookupFeedPlace, parseFeedGeoKey, placePackBuffers, shortCity } from "./feedplace.js";
 import { createChunkAssembler } from "../hcschunks.js";
 import { bareAccount, makeLimiter, normalizeConsensusTs } from "../donationmath.js";
@@ -3557,6 +3558,18 @@ app.get("/api/turn", publicPostLimit, async (req, res) => {
 // one budget per client IP for every topic together (hcs1.js).
 const hcs1Limit = createHcs1RateLimit({ clientIp });
 app.get("/api/hcs1/:topicId", hcs1Limit, hcs1Route({ mirrorFetch, s3: r2, bucket: R2_BUCKET, mirror: MIRROR }));
+
+// A profile picture's small thumbnail (avatar.js), made once from the
+// linked file (a Hashinal through the route above, IPFS through the
+// page's gateways, any other public http(s) link) and kept in R2 under
+// avatars/. Its own rate limit, and a cap on new thumbnails per IP.
+const avatarLimit = createAvatarRateLimit({ clientIp });
+app.get("/api/avatar.webp", avatarLimit, avatarRoute({
+  clientIp,
+  s3: r2,
+  bucket: R2_BUCKET,
+  hcs1: { mirrorFetch, s3: r2, bucket: R2_BUCKET, mirror: MIRROR },
+}));
 
 app.get("/api/early-hashinals", publicPostLimit, (req, res) => {
   const snapshot = earlyHashinals.snapshot();

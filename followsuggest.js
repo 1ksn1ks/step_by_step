@@ -2,6 +2,7 @@
 // One list on document.body. The chat panels are position:fixed and
 // overflow:hidden, so a list inside them would be clipped.
 
+import { avatarSrc } from './avatarsrc.js';
 import { DEFAULT_AVATAR } from './hashinalurl.js';
 import { connectedAccount } from './web3.js';
 import { usernames, profilePictures, profileTopics } from './loadalladata.js';
@@ -197,7 +198,7 @@ function rowElement(item, query, index) {
   secondary.className = 'follow-suggest-id';
 
   if (item.kind === 'account') {
-    const img = pictureElement(item.avatar, {
+    const img = pictureElement(avatarSrc(item.avatar), {
       className: 'follow-suggest-avatar',
       alt: '',
       fallback: DEFAULT_AVATAR,

@@ -181,7 +181,7 @@ test("a stored cover array still dresses the marker dot and polygon fill", () =>
   const src = read("../processallmessages.js");
   assert.equal(/isValidUrl\(parsedMessage\.(marker|polygon)\.data\.coverimage\)/.test(src), false);
   assert.match(src, /function postMediaUrl\(value\) \{\s*return resolveHashinalSrc\(firstMediaUrl\(value\)\);/);
-  assert.equal(src.split("coverImageUrl(parsedMessage.marker.data.coverimage, profileUrl)").length - 1, 3);
+  assert.equal(src.split("coverImageUrl(parsedMessage.marker.data.coverimage, avatarSrc(profileUrl))").length - 1, 3);
   assert.equal(src.split("coverImageUrl(parsedMessage.polygon.data.coverimage, profileUrl)").length - 1, 3);
 });
 

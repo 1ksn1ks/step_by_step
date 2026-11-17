@@ -15,6 +15,7 @@
 // picture. So rows are made a page at a time as the list scrolls, and a
 // search reads the records a few milliseconds per frame, showing matches
 // as they are found.
+import { avatarSrc } from './avatarsrc.js';
 import { map } from './map';
 import { forgetLoop, pictureElement } from './loopmedia.js';
 
@@ -298,7 +299,7 @@ function buildRow(feature) {
   row.className = 'marker-stack-row';
   row.setAttribute('role', 'option');
 
-  const url = (Array.isArray(props.imageUrl) ? props.imageUrl[0] : props.imageUrl) || record.profileUrl || '';
+  const url = (Array.isArray(props.imageUrl) ? props.imageUrl[0] : props.imageUrl) || avatarSrc(record.profileUrl || '');
   const pic = url ? pictureElement(url, { className: 'marker-stack-pic', alt: '' }) : document.createElement('span');
   if (!url) pic.className = 'marker-stack-pic';
   // A held cluster can list many posts: pictures load as rows scroll in.

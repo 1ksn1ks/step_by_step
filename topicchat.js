@@ -1,3 +1,4 @@
+import { avatarSrc } from './avatarsrc.js';
 import { isValidUrl } from './ISVALIDURL.JS';
 import { DEFAULT_AVATAR } from './hashinalurl.js';
 import {adjustTextareaHeight} from './adjusttextarea'
@@ -562,7 +563,7 @@ async function appendTopicChatMessageWork(message, messagesContainer, topicAdmin
       currentGroupContainer.style.cssText = `position: relative; padding-left: 2.5em; min-height: 2.5em; border-color: ${innerContainerTopicChatColor};`;
 
       // Profile image
-      const img = pictureElement(validPayerImage, {
+      const img = pictureElement(avatarSrc(validPayerImage), {
         alt: 'Profile photo',
         style: 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer; object-fit: cover;',
       });
@@ -1069,7 +1070,7 @@ document.getElementById("load-msgs-from").addEventListener("click", async () => 
         `;
   
         // Profile image
-        const img = pictureElement(validPayerImage, {
+        const img = pictureElement(avatarSrc(validPayerImage), {
           alt: 'Profile photo',
           className: 'profile-img-click',
           style: 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer; object-fit: cover;',

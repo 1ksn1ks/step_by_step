@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { profilePictureUrls, publishProfilePictures } from "../picturecache.js";
+import { avatarSrc } from "../avatarsrc.js";
 
 const source = fs.readFileSync(new URL("../public/sw.js", import.meta.url), "utf8");
 
@@ -364,13 +365,21 @@ test("an own-picture change leaves the other cached pictures", async () => {
     { accountId: "0.0.3", profilePic: "https://cdn.example/old.png" },
   ];
   const own = "https://cdn.example/new.png";
+  // The page has an origin, so each thumbnail address is a full one.
+  const hadLocation = Object.prototype.hasOwnProperty.call(globalThis, "location");
+  const location = globalThis.location;
+  globalThis.location = { origin: "https://app.test" };
+  // What is saved is each picture's thumbnail (avatarsrc.js), never the
+  // linked file.
+  const thumb = (url) => avatarSrc(url);
   const urls = profilePictureUrls(accounts, [{ profilePic: own }]);
   assert.deepEqual(urls, [
-    "https://cdn.example/a.png",
-    "https://cdn.example/b.png",
-    "https://cdn.example/old.png",
-    own,
+    thumb("https://cdn.example/a.png"),
+    thumb("https://cdn.example/b.png"),
+    thumb("https://cdn.example/old.png"),
+    thumb(own),
   ]);
+  for (const url of urls) assert.match(url, /^https:\/\/app\.test\/api\/avatar\.webp\?src=/);
 
   const posted = [];
   const nav = globalThis.navigator;
@@ -405,8 +414,10 @@ test("an own-picture change leaves the other cached pictures", async () => {
   const cache = createCache();
   const api = loadWorker(clock, async () => fakeResponse("unused", "opaque", false), cache);
   for (const row of accounts) {
-    await cache.put(api.pictureKey(row.profilePic, clock.now), fakeResponse(row.profilePic, "opaque", false));
+    await cache.put(api.pictureKey(thumb(row.profilePic), clock.now), fakeResponse(row.profilePic, "opaque", false));
   }
+  // A full-size file saved before thumbnails is dropped like any unknown link.
+  await cache.put(api.pictureKey("https://cdn.example/a.png", clock.now), fakeResponse("full", "opaque", false));
   const removed = "https://cdn.example/removed.png";
   await cache.put(api.pictureKey(removed, clock.now), fakeResponse("removed", "opaque", false));
   await api.loadKnownPictures();
@@ -420,14 +431,50 @@ test("an own-picture change leaves the other cached pictures", async () => {
   await pending;
   const cached = (await cache.keys()).map((key) => key.url).sort();
   assert.deepEqual(cached, [
-    "https://cdn.example/a.png",
-    "https://cdn.example/b.png",
-    "https://cdn.example/old.png",
-  ]);
-  assert.equal(api.knownPictures.has(own), true);
+    thumb("https://cdn.example/a.png"),
+    thumb("https://cdn.example/b.png"),
+    thumb("https://cdn.example/old.png"),
+  ].sort());
+  assert.equal(api.knownPictures.has(thumb(own)), true);
   assert.equal(api.knownPictures.has(removed), false);
-  assert.equal(api.knownPictures.has("https://cdn.example/a.png"), true);
-  assert.equal(api.knownPictures.has("https://cdn.example/b.png"), true);
+  assert.equal(api.knownPictures.has("https://cdn.example/a.png"), false);
+  assert.equal(api.knownPictures.has(thumb("https://cdn.example/a.png")), true);
+  assert.equal(api.knownPictures.has(thumb("https://cdn.example/b.png")), true);
+  if (hadLocation) globalThis.location = location;
+  else delete globalThis.location;
+});
+
+test("a listed avatar thumbnail on this site is served from the picture cache; other same-origin requests are not", async () => {
+  const cache = createCache();
+  const clock = { now: 1_700_000_000_000 };
+  const thumb = "https://app.example/api/avatar.webp?src=hcs%3A%2F%2F1%2F0.0.4840719&v=1";
+  let fetched = 0;
+  const api = loadWorker(clock, async () => {
+    fetched += 1;
+    return fakeResponse("thumb", "basic", true);
+  }, cache);
+  api.knownPictures.add(thumb);
+
+  const listed = fetchEvent({ method: "GET", url: thumb, mode: "no-cors", destination: "image" });
+  api.listeners.fetch(listed.event);
+  assert.ok(listed.response(), "the listed thumbnail is answered here");
+  const first = await listed.response();
+  assert.equal(first.body, "thumb");
+  await Promise.all(listed.waits);
+  await flush();
+  assert.equal((await cache.keys()).length, 1);
+  assert.equal(fetched, 1);
+
+  // The app's own files and every other /api request stay on the network.
+  for (const url of [
+    "https://app.example/api/avatar.webp?src=https%3A%2F%2Fother.example%2Fa.png&v=1",
+    "https://app.example/api/hcs1/0.0.4840719",
+    "https://app.example/main.js",
+  ]) {
+    const other = fetchEvent({ method: "GET", url, mode: "no-cors", destination: "image" });
+    api.listeners.fetch(other.event);
+    assert.equal(other.response(), null, url);
+  }
 });
 
 test("a cors or same-origin request never receives an opaque picture", async () => {

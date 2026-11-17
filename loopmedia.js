@@ -6,6 +6,7 @@
 // (gifvideo.js); nothing is converted while viewing.
 import { GIF_FAR_PX, loopPlayback, viewDistance } from "./gifloop.js";
 import { gifStillCanvas } from "./gifvideo.js";
+import { avatarOriginal, isAvatarThumb } from "./avatarsrc.js";
 import { armIpfsAttempt, preferGateway } from "./ipfsimage.js";
 import { forgetProfilePicture, watchProfilePicture } from "./markertilt.js";
 import {
@@ -172,6 +173,25 @@ function dropStill(img) {
   }
   img.classList.remove("is-gif-hit");
   delete img.dataset.mediaGif;
+}
+
+// A profile picture's thumbnail (avatarsrc.js) that fails to load is
+// painted again from the link it was made from, the normal way (a
+// Hashinal tries Kiloscribe, IPFS walks the gateways, a GIF is a still).
+// Capture, so it runs before the element's other error handlers; they
+// (armFallback's default avatar, a marker dot's blank face) only see the
+// original failing too.
+function armAvatarFallback(img) {
+  if (img.dataset.avatarFallback === "1") return;
+  img.dataset.avatarFallback = "1";
+  img.addEventListener("error", (event) => {
+    const current = img.getAttribute("src") || "";
+    if (!isAvatarThumb(current)) return;
+    const original = avatarOriginal(current);
+    if (!original) return;
+    event.stopImmediatePropagation();
+    presentImage(img, original);
+  }, true);
 }
 
 function armFallback(el, fallback) {
@@ -354,6 +374,7 @@ export function presentImage(img, url, options) {
   const seq = (Number(img.dataset.mediaSeq) || 0) + 1;
   img.dataset.mediaSeq = String(seq);
   img.dataset.mediaUrl = painted;
+  if (isAvatarThumb(painted)) armAvatarFallback(img);
   if (!painted) {
     clearPending(img);
     dropStill(img);

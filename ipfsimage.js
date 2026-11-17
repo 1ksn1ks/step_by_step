@@ -102,6 +102,20 @@ function gatewayUrl(parts, index) {
   return base + parts.cid + (parts.path ? '/' + parts.path : '');
 }
 
+// One spelling per IPFS file, whatever gateway a link names:
+// ipfs://<cid>[/<path>], or "" for an address that is not an IPFS file.
+export function ipfsCanonical(url) {
+  const parts = ipfsParts(url);
+  return parts ? `ipfs://${parts.cid}${parts.path ? '/' + parts.path : ''}` : '';
+}
+
+// The file's address on every gateway, in the order the page tries them
+// (server/avatar.js reads a profile picture the same way).
+export function ipfsGatewayUrls(url) {
+  const parts = ipfsParts(url);
+  return parts ? GATEWAYS.map((_, index) => gatewayUrl(parts, index)) : [];
+}
+
 export function preferGateway(url) {
   const parts = ipfsParts(url);
   if (!parts || !recognisedGateway(url)) return '';

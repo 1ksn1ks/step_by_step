@@ -4,6 +4,7 @@
 // The sheet follows the visible viewport so a phone keyboard and the
 // homescreen safe area do not cover the widget.
 
+import { avatarSrc } from "./avatarsrc.js";
 import { PROJECT_ID, connectedAccount } from "./web3.js";
 import { EARLY_POPUP_CLASS } from "./earlypopup.js";
 import { toast } from "./toast.js";
@@ -639,7 +640,7 @@ function createSwapBio() {
     if (!text) return;
     const author = open.dataset.account || "";
     const name = banner.classList.contains("no-username") ? "" : profileDisplayName(author);
-    const picture = profilePicUrl(author);
+    const picture = avatarSrc(profilePicUrl(author));
     // popuptext.js reaches back to this file through the message modules,
     // so it loads on the first tap instead of with the sheet.
     import("./popuptext.js").then(({ openPopupText }) => {
@@ -737,7 +738,7 @@ function paintSwapBio(banner, author, text) {
     open.dataset.account = author || "";
   }
   const pic = banner.querySelector(".feed-profile-banner-pic");
-  const mounted = mountPicture(pic, profilePicUrl(author), {
+  const mounted = mountPicture(pic, avatarSrc(profilePicUrl(author)), {
     className: "feed-profile-banner-pic",
     fallback: DEFAULT_PIC,
     alt: "",

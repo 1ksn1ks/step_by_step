@@ -1,3 +1,4 @@
+import { avatarSrc } from './avatarsrc.js';
 import { isValidUrl } from './ISVALIDURL.JS';
 import { DEFAULT_AVATAR } from './hashinalurl.js';
 import { adjustTextareaHeight } from './adjusttextarea'
@@ -789,7 +790,7 @@ export async function appendEncryptedChatMessage(
         border-color: ${innerContainerTopicChatColor};
       `;
 
-      const img = pictureElement(validPayerImage, { alt: 'Profile photo' });
+      const img = pictureElement(avatarSrc(validPayerImage), { alt: 'Profile photo' });
       img.alt = 'Profile photo';
       img.dataset.payer = payer;
       img.style.cssText = `
@@ -1561,7 +1562,7 @@ async function filterEncryptedChatMessages(fromDateValue, toDateValue, fromTimeV
       `;
 
       // Profile image
-      const img = pictureElement(validPayerImage, { alt: 'Profile photo' });
+      const img = pictureElement(avatarSrc(validPayerImage), { alt: 'Profile photo' });
       img.alt = 'Profile photo';
       img.dataset.payer = payer;
       img.style.cssText = `

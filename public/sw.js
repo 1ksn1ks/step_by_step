@@ -3,7 +3,9 @@
 // /api, the app shell, map tiles, WalletConnect, and post pictures stay on
 // the network. R2 sends Cache-Control: public, max-age=31536000, immutable,
 // so the browser HTTP cache keeps each post picture after the first download.
-// Profile picture files whose links this phone has saved are the exception.
+// Profile picture files whose links this phone has saved are the exception:
+// the small thumbnails (/api/avatar.webp on this site, avatarsrc.js) the
+// page lists, which are the only same-origin requests answered here.
 // A copy from the last 7 days is shown at once and refreshed behind that
 // visit. Older than that, the network answers first. The cache keeps 150
 // pictures and drops the oldest. A cached file whose link is not in the
@@ -237,7 +239,7 @@ self.addEventListener("message", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
-  if (url.origin === self.location.origin) return;
+  if (url.origin === self.location.origin && !knownPictures.has(event.request.url)) return;
   if (event.request.destination !== "image") return;
   if (!knownPictures.has(event.request.url)) return;
   let settled = false;

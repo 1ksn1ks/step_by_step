@@ -23,6 +23,7 @@ import { rememberGrant, withUploadAuth } from "./uploadgrant.js";
 import { COVER_VIDEO_PROBE_MS, coverVideoReject } from "./covervideolimit.js";
 import { isGifUrl, needsGifCheck, resolveMediaUrl, siblingPosterUrl, withGifClip } from "./mediaurl.js";
 import { presentImage } from "./loopmedia.js";
+import { compressPostImage } from "./imagecompress.js";
 import { HCS_MESSAGE_MAX_BYTES } from "./hcschunks.js";
 import {
   GIF_BROWSER_ERROR,
@@ -64,17 +65,23 @@ const MARKER_COVER_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "im
 // animates in the map via the updateImage pump in polygons.js.
 // Inside/popup media is unlimited.
 const POLYGON_COVER_TYPES = MEDIA_TYPES;
-// Cover stills are the only uploads shrunk before they reach R2: the map
-// fill (createResizedImage in polygons.js) caps textures at 512, so a
-// multi-MP phone photo would only cost bandwidth. Inside/popup media,
-// profile pictures, chat images, video covers, and hand-typed remote
-// URLs all keep full quality.
+// Cover stills and profile pictures are the uploads shrunk before they
+// reach R2: the map fill (createResizedImage in polygons.js) caps textures
+// at 512, and an avatar is drawn from a 384 thumbnail (server/avatar.js),
+// so a multi-MP phone photo would only cost bandwidth. Inside/popup media,
+// chat images, video covers, and hand-typed remote URLs all keep full
+// quality.
 const COVER_FIELD_IDS = new Set([
   "input-field-coverimage-marker",
   "input-field-coverimage-polygon",
 ]);
 const COVER_SHRINK_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const COVER_MAX_EDGE = 512;
+// A profile picture: longest side 512, and a GIF is its first frame, a
+// still, as every avatar already shows it.
+const AVATAR_FIELD_ID = "input-field-profile-picture";
+const AVATAR_SHRINK_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const AVATAR_MAX_EDGE = 512;
 const COVER_JPEG_QUALITY = 0.85;
 const THUMB_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 const POSTER_FIELDS = new Set([
@@ -1464,6 +1471,23 @@ export async function sealedThumbDataUrl(key, videoUrl, text) {
   return data;
 }
 
+// A profile picture as R2 keeps it: longest side AVATAR_MAX_EDGE, WebP
+// (JPEG where the browser cannot write WebP), turned upright, its EXIF
+// dropped; a GIF is its first frame (imagecompress.js). A PNG keeps its
+// own file where only JPEG can be written, since JPEG has no transparency,
+// and a still keeps its own file when the copy would not be smaller. A
+// picture that cannot be decoded here goes up as it is.
+async function shrinkAvatarImage(file) {
+  try {
+    const small = await compressPostImage(file, { maxEdge: AVATAR_MAX_EDGE });
+    if (file.type === "image/png" && small.type !== "image/webp") return file;
+    if (file.type !== "image/gif" && small.size >= file.size) return file;
+    return small;
+  } catch {
+    return file;
+  }
+}
+
 async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg) {
   if (uploading) return;
   if (!allowedTypes.has(file.type)) {
@@ -1488,6 +1512,9 @@ async function handleFile(btn, picker, file, targetFieldId, allowedTypes, badMsg
   // Cover stills only: the map texture is 512, so R2 stores the small JPEG.
   if (COVER_FIELD_IDS.has(targetFieldId) && !isVideo && COVER_SHRINK_TYPES.has(file.type)) {
     file = await shrinkCoverImage(file);
+  }
+  if (targetFieldId === AVATAR_FIELD_ID && AVATAR_SHRINK_TYPES.has(file.type)) {
+    file = await shrinkAvatarImage(file);
   }
   const label = isVideo ? "video" : "image";
   const posterField = POSTER_FIELDS.has(targetFieldId);

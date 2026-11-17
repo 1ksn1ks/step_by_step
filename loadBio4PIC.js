@@ -1,3 +1,4 @@
+import { avatarSrc } from './avatarsrc.js';
 import { DEFAULT_AVATAR as DEFAULT_PIC } from './hashinalurl.js';
 import { activePolygonPopups } from './polygons';
 import { activeMarkerPopups } from './marker';
@@ -228,7 +229,7 @@ function showAccount(id) {
   bubble.className = 'profile-live-bubble';
 
   const rawPic = profilePictures[id] && profilePictures[id].url;
-  const img = pictureElement(validUrl(rawPic) ? rawPic : DEFAULT_PIC, {
+  const img = pictureElement(avatarSrc(validUrl(rawPic) ? rawPic : DEFAULT_PIC), {
     className: 'profile-live-pic',
     alt: 'Profile photo',
     fallback: DEFAULT_PIC,

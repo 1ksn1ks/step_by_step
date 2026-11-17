@@ -1533,7 +1533,7 @@ test("the swap bio is the author's banner, and it stays hidden without a bio", (
   assert.match(paint, /body\.textContent = text;/);
   assert.match(paint, /banner\.classList\.toggle\("no-username", !name\)/);
   assert.match(paint, /setAttribute\("aria-label", "Bio from " \+ who\)/);
-  assert.match(paint, /mountPicture\(pic, profilePicUrl\(author\)/);
+  assert.match(paint, /mountPicture\(pic, avatarSrc\(profilePicUrl\(author\)\)/);
   assert.match(paint, /fallback: DEFAULT_PIC/);
   assert.match(paint, /paintProfileAvatar\(mounted, author\)/);
   assert.match(sheet, /paintSwapBio\(root\.querySelector\("\.swap-bio"\), author, lines\.bio\)/);

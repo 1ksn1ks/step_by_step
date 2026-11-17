@@ -1,5 +1,6 @@
 // Live card in Edit Profile. Shows the saved picture, name, link, and bio,
 // then swaps in whatever is currently typed or uploaded.
+import { avatarSrc } from './avatarsrc.js';
 import { DEFAULT_AVATAR as DEFAULT_PIC, HASHINAL_PLACEHOLDER } from './hashinalurl.js';
 import { connectedAccount } from './web3.js';
 import { profilePictures, usernames, click2url, topicBio } from './loadalladata.js';
@@ -58,7 +59,7 @@ function colorOf(id, fallback) {
 
 function paintLive(el, url) {
   if (!el) return el;
-  return mountPicture(el, url, { className: el.className, fallback: DEFAULT_PIC });
+  return mountPicture(el, avatarSrc(url), { className: el.className, fallback: DEFAULT_PIC });
 }
 
 function render() {
