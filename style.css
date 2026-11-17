@@ -6117,7 +6117,7 @@ html, body {
     .info-overlay-list, .chat-container, #messages-from-topic-chat, #messages-from-encrypted-chat,
     #loaded-topics, #loaded-topics-list, #feed-menu, .feed-menu-page-body, #feed-scroll,
     .feed-profile-body, .feed-filter-body, .feed-country-list, .feed-settings-body,
-    .chat-options-body, .load-options-body, .draw-form-scroll, .comments-scroll, .feed-comments-stage,
+    .chat-options-body, .load-options-body, .draw-form-scroll, .comments-scroll, .feed-comments-stage, .feed-comments-body,
     #search-sections, #search-results, #popup-settings-card, #popup-settings-tools,
     .popup-body, .popup-text-bubble, .popup-text-flow, .popup-text-page-scroll,
     .maplibregl-popup-content > :not(.maplibregl-popup-close-button):not(.popup-sheet),
@@ -6130,7 +6130,7 @@ html, body {
     .info-overlay-list, .chat-container, #messages-from-topic-chat, #messages-from-encrypted-chat,
     #loaded-topics, #loaded-topics-list, #feed-menu, .feed-menu-page-body, #feed-scroll,
     .feed-profile-body, .feed-filter-body, .feed-country-list, .feed-settings-body,
-    .chat-options-body, .load-options-body, .draw-form-scroll, .comments-scroll, .feed-comments-stage,
+    .chat-options-body, .load-options-body, .draw-form-scroll, .comments-scroll, .feed-comments-stage, .feed-comments-body,
     #search-sections, #search-results, #popup-settings-card, #popup-settings-tools,
     .popup-body, .popup-text-bubble, .popup-text-flow, .popup-text-page-scroll,
     .maplibregl-popup-content > :not(.maplibregl-popup-close-button):not(.popup-sheet),
@@ -15802,27 +15802,42 @@ html.drawer-page .info-overlay {
   font-weight: 700;
   line-height: 1.2;
 }
-.comments-modal--feed > .popup-comments {
-  display: flex !important;
-  flex-direction: column;
+/* Under the bar, the post and its comments are one column that scrolls
+   (processallmessages.js .feed-comments-body), so the post shows at its
+   full height however tall it grows, an X post loading late included.
+   The comments section's own box steps aside (display: contents): its
+   list and its comment box are the column's children, so the box can be
+   held at the column's foot (sticky) even while the post alone is taller
+   than the screen. The list grows to fill a short column, which keeps
+   the box at the foot then too. */
+.comments-modal--feed > .feed-comments-body {
   flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
-  margin: 0 !important;
-  padding: 0 calc(var(--fu) * 1.2) calc(var(--fu) * 1.2) !important;
-  overflow: hidden;
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-}
-.comments-modal--feed > .popup-comments > .comments-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  margin-bottom: 0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  touch-action: pan-y;
+}
+.feed-comments-body > .popup-comments {
+  display: contents !important;
+}
+.feed-comments-body > .popup-comments > .comments-scroll {
+  flex: 1 0 auto;
+  min-width: 0;
+  box-sizing: border-box;
+  margin-bottom: 0;
+  padding-inline: calc(var(--fu) * 1.2);
+  overflow: visible;
+}
+.feed-comments-body > .popup-comments > .comments-compose {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  box-sizing: border-box;
+  padding: 0 calc(var(--fu) * 1.2) calc(var(--fu) * 1.2);
+  background: #0a0a12;
 }
 .comments-modal--feed .comments-scroll,
 .comments-modal--feed .comments-scroll * {
@@ -15843,7 +15858,7 @@ html.drawer-page .info-overlay {
   user-select: none;
   -webkit-touch-callout: none;
 }
-.comments-modal--feed > .popup-comments > :not(.comments-scroll) {
+.feed-comments-body > .popup-comments > :not(.comments-scroll) {
   flex: 0 0 auto;
 }
 .comments-compose {
@@ -15861,11 +15876,8 @@ html.drawer-page .info-overlay {
   z-index: 2;
   flex: 0 0 auto;
   min-width: 0;
-  max-height: 58dvh;
   box-sizing: border-box;
   padding: calc(var(--fu) * 1.1) calc(var(--fu) * 1) 0;
-  overflow: auto;
-  overscroll-behavior: contain;
 }
 /* The post keeps the size it had in the feed. The modal is a full-window
    size container, so 2.4cqi here would read the whole window (twice the
@@ -15873,21 +15885,18 @@ html.drawer-page .info-overlay {
    not up here. So the stage is the column's width and its unit is the
    feed's: 2.4% of the column times the zoom, which processallmessages.js
    copies from the post onto the modal as --post-zoom. */
-.comments-modal.comments-modal--feed > .feed-comments-stage {
+.comments-modal.comments-modal--feed > .feed-comments-body > .feed-comments-stage {
   --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024 * var(--post-zoom, 1));
   width: min(100dvw, var(--feed-col-width));
   margin-inline: auto;
-}
-.comments-modal--feed.is-flip .feed-comments-stage,
-.comments-modal--feed.is-flip-out .feed-comments-stage {
-  max-height: none;
-  overflow: visible;
 }
 :is(#feed-column, .feed-comments-stage) .feed-card-flip-hold {
   pointer-events: none;
   visibility: hidden;
 }
-.comments-modal--feed.is-flip > .popup-comments {
+/* The section has no box of its own here, so its list and comment box
+   fade in and out themselves. */
+.comments-modal--feed.is-flip .feed-comments-body > .popup-comments > * {
   opacity: 0;
   transform: translateY(1.6dvh);
   pointer-events: none;
@@ -15895,7 +15904,7 @@ html.drawer-page .info-overlay {
     opacity 320ms cubic-bezier(0.22, 1, 0.36, 1),
     transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.comments-modal--feed.is-flip.is-flip-show > .popup-comments {
+.comments-modal--feed.is-flip.is-flip-show .feed-comments-body > .popup-comments > * {
   opacity: 1;
   transform: none;
   pointer-events: auto;
@@ -15905,7 +15914,7 @@ html.drawer-page .info-overlay {
   pointer-events: none;
 }
 .comments-modal--feed.is-flip-out .feed-comments-bar,
-.comments-modal--feed.is-flip-out > .popup-comments {
+.comments-modal--feed.is-flip-out .feed-comments-body > .popup-comments > * {
   opacity: 0;
   transform: none;
   pointer-events: none;

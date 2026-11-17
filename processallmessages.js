@@ -4883,9 +4883,14 @@ function showCommentsModal(section) {
     bar.append(back, title);
     const stage = document.createElement('div');
     stage.className = 'feed-comments-stage';
+    // The post and its comments scroll as one column under the bar, with
+    // the comment box held at its foot (style.css .feed-comments-body).
+    const body = document.createElement('div');
+    body.className = 'feed-comments-body';
+    body.append(stage, section);
     const animateFlip = !!(flip && !feedMotionReduced());
     if (animateFlip) wrapper.classList.add('is-flip');
-    wrapper.append(bar, stage, section);
+    wrapper.append(bar, body);
     wrapper.addEventListener('click', (e) => e.stopPropagation());
     wrapper.addEventListener('pointerdown', (e) => e.stopPropagation());
     document.body.appendChild(wrapper);
