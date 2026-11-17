@@ -212,8 +212,8 @@ function animate(now) {
     handleMovement();
   
     const center = map.getCenter();
-    const lat = center.lat.toFixed(5);
-    const lng = center.lng.toFixed(5);
+    const lat = center.lat.toFixed(2);
+    const lng = center.lng.toFixed(2);
     const zoom = map.getZoom().toFixed(1);
 
     // Update coordinates display only if changed. A successful copy holds
