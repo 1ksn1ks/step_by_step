@@ -456,15 +456,24 @@ test("a gif check that takes longer than 4 seconds is null and is not cached", {
   const url = "https://cdn.example/files/slow-host";
   const box = memStore();
   const started = Date.now();
-  const found = await classifyImageUrl(url, {
-    fetch: (_url, init) => new Promise((_resolve, reject) => {
-      const signal = init && init.signal;
-      if (!signal) return;
-      if (signal.aborted) reject(new Error("aborted"));
-      else signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
-    }),
-    storage: box,
-  });
+  // mediaurl.js unrefs its deadline timer and this fetch holds no handle,
+  // so nothing would keep the process alive while the deadline runs. Node
+  // 22's test runner then ends the file with this test still pending.
+  const keepAlive = setInterval(() => {}, 1000);
+  let found;
+  try {
+    found = await classifyImageUrl(url, {
+      fetch: (_url, init) => new Promise((_resolve, reject) => {
+        const signal = init && init.signal;
+        if (!signal) return;
+        if (signal.aborted) reject(new Error("aborted"));
+        else signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+      }),
+      storage: box,
+    });
+  } finally {
+    clearInterval(keepAlive);
+  }
   const elapsed = Date.now() - started;
   assert.equal(found, null);
   assert.equal(readGifCache(url, box), null);

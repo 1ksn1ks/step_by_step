@@ -14946,6 +14946,107 @@ html.is-tuning-corners #popup-options-column > .panel-help-btn {
 :is(#feed-menu, .drawer-screen) .in-drawer .mb-row:has(.mb-swatch) .mb-row-label {
   order: 1;
 }
+/* Settings > Popups colours (index.html .mb-color-btn): each cell of the
+   two-by-three grid is one button, the colour's dot and its name. The
+   colour input lies over the whole cell, invisible, so a tap anywhere on
+   it opens the picker; the dot shows the colour (loadprofilepopup.js
+   paintSwatch). Hover and press tint the cell and nudge the dot; the
+   cell whose picker is open (.is-picking, or focus) is selected: a cyan
+   ring round the cell and the dot. --mb-color-u is the drawer's --fu, or
+   the app's viewport unit where a panel has none. */
+.mb-panel .mb-color-btn {
+  --mb-color-u: var(--fu, calc(min(100dvw, var(--app-h, 100dvh)) * 0.024));
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--mb-color-u) * 1.1);
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: max(2.75rem, 6dvh);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+/* The drawer's rows keep a fixed gap; here it grows with the unit, so the
+   dot keeps its distance from the name on a large screen too. */
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card.mb-color-grid > .mb-color-btn {
+  gap: max(0.75rem, calc(var(--mb-color-u) * 0.9));
+}
+.mb-panel .mb-color-btn > input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  opacity: 0;
+  cursor: inherit;
+}
+.mb-panel .mb-color-dot {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: calc(var(--mb-color-u) * 2.9);
+  height: calc(var(--mb-color-u) * 2.9);
+  border: calc(var(--mb-color-u) * 0.16) solid rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 calc(var(--mb-color-u) * 0.12) rgba(10, 10, 18, 0.9),
+    0 calc(var(--mb-color-u) * 0.2) calc(var(--mb-color-u) * 0.7) rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1), border-color 160ms ease, box-shadow 160ms ease;
+}
+.mb-panel .mb-color-btn > .mb-row-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mb-panel .mb-color-btn:not(.is-locked):hover {
+    background: rgba(34, 211, 238, 0.12);
+  }
+  .mb-panel .mb-color-btn:not(.is-locked):hover .mb-color-dot {
+    transform: scale(1.08);
+  }
+}
+.mb-panel .mb-color-btn:not(.is-locked):active,
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card.mb-color-grid > .mb-color-btn:not(.is-locked):active {
+  background: rgba(34, 211, 238, 0.22);
+}
+.mb-panel .mb-color-btn:not(.is-locked):active .mb-color-dot {
+  transform: scale(0.9);
+}
+.mb-panel .mb-color-btn:is(.is-picking, :focus-within):not(.is-locked),
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-card.mb-color-grid > .mb-color-btn:is(.is-picking, :focus-within):not(.is-locked) {
+  background: rgba(34, 211, 238, 0.16);
+  box-shadow: inset 0 0 0 calc(var(--mb-color-u) * 0.18) #22D3EE;
+}
+.mb-panel .mb-color-btn:is(.is-picking, :focus-within):not(.is-locked) .mb-color-dot {
+  border-color: #22D3EE;
+  box-shadow:
+    0 0 0 calc(var(--mb-color-u) * 0.12) rgba(10, 10, 18, 0.9),
+    0 0 calc(var(--mb-color-u) * 0.9) rgba(34, 211, 238, 0.6);
+  transform: scale(1.06);
+}
+/* An Early Hashinal holder's theme is locked: the buttons grey out. */
+.mb-panel .mb-color-btn.is-locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+:is(#feed-menu, .drawer-screen) .in-drawer .mb-color-btn.is-locked:is(:hover, :active) {
+  background: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mb-panel .mb-color-btn,
+  .mb-panel .mb-color-dot {
+    transition: none;
+  }
+}
 :is(#feed-menu, .drawer-screen) .in-drawer .mb-card:has(.mb-preview, .mb-chat-preview) {
   height: auto;
   max-height: none;
