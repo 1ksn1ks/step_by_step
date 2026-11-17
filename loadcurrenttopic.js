@@ -1,7 +1,8 @@
-// Current values stored as topic messages. The rules match the readers that
-// draw the map: newest topic bio and topic name win, stacked ids keep the
-// latest add or remove, and the last valid setInitialXYZ wins. When the
-// topic memo lists 0.0. admins, only those payers count.
+// Current values stored as topic messages. The map (handleallmessages.js)
+// and the feed (topicstack.js) read stacks through these: newest topic bio
+// and topic name win, stacked ids keep the latest add or remove, and the
+// last valid setInitialXYZ wins. When the topic memo lists 0.0. admins,
+// only those payers count.
 
 export function adminsFromMemo(memo) {
   const topicAdmin = [];
@@ -74,6 +75,27 @@ export function currentStackedTopics(messages, topicAdmin) {
   return Array.from(topicActions.entries())
     .filter(([topic, action]) => action === 'add' && topic.startsWith('0.0.'))
     .map(([topic]) => topic);
+}
+
+// The topics whose posts a load shows. A topic that stacks others shows
+// those; one that stacks none shows itself (a shared topic address).
+// Stacks are read one level deep: a stacked topic's own stacks are not
+// followed, so a loop of stacks cannot recurse.
+export function topicsToLoad(topicId, messages, topicAdmin) {
+  const stacked = currentStackedTopics(messages, topicAdmin);
+  if (stacked.length === 0 && String(topicId || '').startsWith('0.0.')) return [topicId];
+  return stacked;
+}
+
+// The feed's topics: the open topic first, then what the map loads for it,
+// each once. The open topic always stays, so a topic that stacks others
+// but not itself keeps its own posts in the feed.
+export function feedTopics(topicId, messages, topicAdmin) {
+  const out = [topicId];
+  for (const topic of topicsToLoad(topicId, messages, topicAdmin)) {
+    if (!out.includes(topic)) out.push(topic);
+  }
+  return out;
 }
 
 // Newest admin autoplayNft wins. An empty value clears it. A message that

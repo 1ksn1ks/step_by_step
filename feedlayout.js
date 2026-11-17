@@ -45,6 +45,8 @@ import { bindVideoPoster } from './videoposter.js';
 import { mountPicture, pictureElement, presentImage } from './loopmedia.js';
 import { mountMediaBackdrop, mountMediaTools } from './mediaframe.js';
 import { paintXEmbeds, setXEmbedsOn, xEmbedsOn } from './xembed.js';
+import { addPage, cmpMessage, cmpTs, feedSource, needsPull, sourcesDone, takeMerged } from './feedmerge.js';
+import { readFeedTopics } from './topicstack.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -696,6 +698,12 @@ const tabRange = {
   following: { start: 0, end: 0 },
 };
 let loadedTopic = '';
+// The topics the feed reads (feedmerge.js): the open topic, then the
+// topics stacked on it once that list is read (topicstack.js, once per
+// open topic). Posts keep their own topic for likes, comments and shares.
+let sources = [];
+let stackJob = null;
+// The oldest position shown so far, across all sources (the search floor).
 let cursor = null;
 let exhausted = false;
 let paging = false;
@@ -713,9 +721,13 @@ let sortPaintDirty = false;
 const viewSortQueued = [];
 const viewSortInflight = new Set();
 let generation = 0;
-let highSeq = 0;
-let streamOff = null;
+// Per topic: the highest sequence seen, for catching up after a gap.
+const highSeqs = new Map();
+// Topic -> its live stream's unbind.
+const streamOffs = new Map();
 let assembler = null;
+// Sequence numbers and signatures repeat across topics, so both carry
+// the topic: `${topic}|${seq}`, `${topic}|${signature}`.
 const seenSeq = new Set();
 const seenSig = new Set();
 const seenPost = new Set();
@@ -2912,21 +2924,6 @@ function topicNow() {
   return /^\d+\.\d+\.\d+$/.test(initialTopicId) ? initialTopicId : '';
 }
 
-function cmpTs(a, b) {
-  const left = String(a || '').split('.');
-  const right = String(b || '').split('.');
-  const as = left[0].padStart(12, '0') + (left[1] || '').padEnd(9, '0');
-  const bs = right[0].padStart(12, '0') + (right[1] || '').padEnd(9, '0');
-  if (as === bs) return 0;
-  return as < bs ? -1 : 1;
-}
-
-function cmpMessage(a, b) {
-  const ts = cmpTs(a && a.consensus_timestamp, b && b.consensus_timestamp);
-  if (ts) return ts;
-  return (Number(a && a.sequence_number) || 0) - (Number(b && b.sequence_number) || 0);
-}
-
 function createdIso(value) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '';
@@ -2996,13 +2993,15 @@ function resetFeed(topic) {
   pinEnd = 0;
   rangeStart = 0;
   rangeEnd = 0;
+  sources = topic ? [feedSource(topic)] : [];
+  stackJob = null;
   cursor = null;
   exhausted = false;
   paging = false;
   sortPages = 0;
   sortHold = false;
   sortFetchPause = false;
-  highSeq = 0;
+  highSeqs.clear();
   assembler = createChunkAssembler();
   clearMaps();
   clearViewWatch();
@@ -3013,12 +3012,19 @@ function resetFeed(topic) {
   resetQueues();
 }
 
-function actionKey(bucket, stamp) {
-  return `${bucket}|${stamp}`;
+// Likes, comments and deletes name a post by its time label. They count
+// only on posts of their own topic: two stacked topics can hold posts with
+// the same label.
+function topicKey(topic, key) {
+  return `${topic}|${key}`;
 }
 
-function setAction(bucket, stamp, payer, type, at) {
-  const key = actionKey(bucket, stamp);
+function actionKey(topic, bucket, stamp) {
+  return `${topic}|${bucket}|${stamp}`;
+}
+
+function setAction(topic, bucket, stamp, payer, type, at) {
+  const key = actionKey(topic, bucket, stamp);
   if (!actions.has(key)) actions.set(key, new Map());
   const row = actions.get(key);
   const prev = row.get(payer);
@@ -3033,13 +3039,13 @@ function pushList(map, key, item) {
   map.get(key).push(item);
 }
 
-function noteDelete(payer, data) {
+function noteDelete(topic, payer, data) {
   if (!payer || !data) return;
   // Number deletes are legacy noise. Only created + timestamp name a post.
   const created = createdIso(data.deleteMarkerCreated || data.deletePolygonCreated);
   const stampLabel = data.deleteMarkerTimestamp || data.deletePolygonTimestamp;
-  if (created) deletedCreated.add(`${payer}|${created}`);
-  if (stampLabel != null && String(stampLabel).trim() !== '') deletedStamp.add(`${payer}|${stampLabel}`);
+  if (created) deletedCreated.add(`${topic}|${payer}|${created}`);
+  if (stampLabel != null && String(stampLabel).trim() !== '') deletedStamp.add(`${topic}|${payer}|${stampLabel}`);
 }
 
 // An edit names the post the same way a delete does and carries the new
@@ -3088,11 +3094,11 @@ function patchFeedCardsForEdit(payer, iso, msg) {
   }
 }
 
-function noteMessage(message) {
+function noteMessage(message, topic) {
   const payer = message.payer || '';
   const at = String(message.consensus_timestamp || message.created || '');
-  noteDelete(payer, message.marker && message.marker.data);
-  noteDelete(payer, message.polygon && message.polygon.data);
+  noteDelete(topic, payer, message.marker && message.marker.data);
+  noteDelete(topic, payer, message.polygon && message.polygon.data);
   noteEdit(payer, message.marker && message.marker.data, message.created);
   noteEdit(payer, message.polygon && message.polygon.data, message.created);
   const fields = [
@@ -3106,67 +3112,68 @@ function noteMessage(message) {
   for (const [field, bucket, type] of fields) {
     const body = message[field];
     if (!body || !body.timestamp || !payer) continue;
-    setAction(bucket, String(body.timestamp), payer, type, at);
+    setAction(topic, bucket, String(body.timestamp), payer, type, at);
   }
   const created = createdIso(message.created);
   if (message.commentMarker && message.commentMarker.timestamp && payer) {
-    pushList(markerComments, String(message.commentMarker.timestamp), {
+    pushList(markerComments, topicKey(topic, message.commentMarker.timestamp), {
       payer,
       text: String(message.commentMarker.text || '').slice(0, 300),
       created,
     });
   }
   if (message.commentPolygon && message.commentPolygon.timestamp && payer) {
-    pushList(polygonComments, String(message.commentPolygon.timestamp), {
+    pushList(polygonComments, topicKey(topic, message.commentPolygon.timestamp), {
       payer,
       text: String(message.commentPolygon.text || '').slice(0, 300),
       created,
     });
   }
   if (message.replyMarker && message.replyMarker.parentId && payer) {
-    pushList(markerReplies, String(message.replyMarker.parentId), {
+    pushList(markerReplies, topicKey(topic, message.replyMarker.parentId), {
       payer,
       text: String(message.replyMarker.text || '').slice(0, 300),
       created,
     });
   }
   if (message.replyPolygon && message.replyPolygon.parentId && payer) {
-    pushList(polygonReplies, String(message.replyPolygon.parentId), {
+    pushList(polygonReplies, topicKey(topic, message.replyPolygon.parentId), {
       payer,
       text: String(message.replyPolygon.text || '').slice(0, 300),
       created,
     });
   }
+  // An unshare takes back the share made in this same topic.
   const unshare = message.unshare;
   if (unshare && typeof unshare === 'object') {
-    const topic = typeof unshare.topic === 'string' ? unshare.topic.trim() : '';
+    const original = typeof unshare.topic === 'string' ? unshare.topic.trim() : '';
     const when = createdIso(unshare.created);
-    if (payer && /^\d+\.\d+\.\d+$/.test(topic) && when) droppedShares.add(`${payer}|${topic}|${when}`);
+    if (payer && /^\d+\.\d+\.\d+$/.test(original) && when) droppedShares.add(`${topic}|${payer}|${original}|${when}`);
   }
 }
 
-function commentsFor(bucket, stamp) {
+function commentsFor(topic, bucket, stamp) {
   const list = bucket === 'polygon' ? polygonComments : markerComments;
   const replies = bucket === 'polygon' ? polygonReplies : markerReplies;
-  return (list.get(stamp) || []).map((comment) => ({
+  return (list.get(topicKey(topic, stamp)) || []).map((comment) => ({
     ...comment,
-    replies: (replies.get(comment.created) || []).slice(),
+    replies: (replies.get(topicKey(topic, comment.created)) || []).slice(),
   }));
 }
 
-function liked(bucket, stamp) {
-  const row = actions.get(actionKey(bucket, stamp));
+function liked(topic, bucket, stamp) {
+  const row = actions.get(actionKey(topic, bucket, stamp));
   const mine = row && connectedAccount && row.get(connectedAccount);
   return !!(mine && mine.type === 'like');
 }
 
-function likeTotal(bucket, stamp) {
-  return likeCounts.get(actionKey(bucket, stamp)) || 0;
+function likeTotal(topic, bucket, stamp) {
+  return likeCounts.get(actionKey(topic, bucket, stamp)) || 0;
 }
 
-function gone(payer, number, created, stampLabel) {
-  if (created && deletedCreated.has(`${payer}|${created}`)) return true;
-  if (stampLabel && deletedStamp.has(`${payer}|${stampLabel}`)) return true;
+function gone(topic, payer, number, created, stampLabel) {
+  if (created && deletedCreated.has(`${topic}|${payer}|${created}`)) return true;
+  if (stampLabel && deletedStamp.has(`${topic}|${payer}|${stampLabel}`)) return true;
   return false;
 }
 
@@ -3176,18 +3183,18 @@ function keepPost(post) {
   return post;
 }
 
-function markerPost(message, data) {
+function markerPost(message, data, topic) {
   const payer = message.payer || '';
   const created = createdIso(message.created);
   const number = shapeNumber(data.numberOfMarker, created);
   const lngLat = number == null ? null : pointFrom(data.cord);
   const stampLabel = clock(message.created);
-  if (!lngLat || gone(payer, number, created, stampLabel)) return null;
+  if (!lngLat || gone(topic, payer, number, created, stampLabel)) return null;
   const record = () => {
     const edit = shapeEditFor(payer, created, stampLabel);
     return {
       markernumber: number,
-      topicId: loadedTopic,
+      topicId: topic,
       ...profileOf(payer),
       title: data.title,
       image: data.image,
@@ -3199,14 +3206,14 @@ function markerPost(message, data) {
       timestamp: stampLabel,
       created,
       consensusTimestamp: consensusOf(message),
-      likeCountMarker: likeTotal('marker', stampLabel),
-      likedByMe: liked('marker', stampLabel),
-      comments: commentsFor('marker', stampLabel),
+      likeCountMarker: likeTotal(topic, 'marker', stampLabel),
+      likedByMe: liked(topic, 'marker', stampLabel),
+      comments: commentsFor(topic, 'marker', stampLabel),
       coords: lngLat,
     };
   };
   return keepPost({
-    key: `m:${loadedTopic}:${payer}:${created}:${number}`,
+    key: `m:${topic}:${payer}:${created}:${number}`,
     payer,
     kind: 'marker',
     seq: Number(message.sequence_number) || 0,
@@ -3214,7 +3221,7 @@ function markerPost(message, data) {
     lngLat,
     time: stamp(message.created),
     feature: {
-      topicId: loadedTopic,
+      topicId: topic,
       created: message.created,
       msgNumber: number,
       type: 'Feature',
@@ -3225,15 +3232,15 @@ function markerPost(message, data) {
   });
 }
 
-function polygonPost(message, data) {
+function polygonPost(message, data, topic) {
   const payer = message.payer || '';
   const created = createdIso(message.created);
   const number = shapeNumber(data.numberOfPolygon, created);
   const ring = number == null ? null : ringFrom(data.cord);
   const stampLabel = clock(message.created);
-  if (!ring || gone(payer, number, created, stampLabel)) return null;
+  if (!ring || gone(topic, payer, number, created, stampLabel)) return null;
   const polygon = {
-    topicId: loadedTopic,
+    topicId: topic,
     created: message.created,
     msgNumber: number,
     payer,
@@ -3245,7 +3252,7 @@ function polygonPost(message, data) {
     const edit = shapeEditFor(payer, created, stampLabel);
     return {
       polygonnumber: number,
-      topicId: loadedTopic,
+      topicId: topic,
       ...profileOf(payer),
       title: data.title,
       image: data.image,
@@ -3257,14 +3264,14 @@ function polygonPost(message, data) {
       timestamp: stampLabel,
       created,
       consensusTimestamp: consensusOf(message),
-      likeCountPolygon: likeTotal('polygon', stampLabel),
-      likedByMe: liked('polygon', stampLabel),
-      comments: commentsFor('polygon', stampLabel),
+      likeCountPolygon: likeTotal(topic, 'polygon', stampLabel),
+      likedByMe: liked(topic, 'polygon', stampLabel),
+      comments: commentsFor(topic, 'polygon', stampLabel),
       coordinates: ring,
     };
   };
   return keepPost({
-    key: `p:${loadedTopic}:${payer}:${created}:${number}`,
+    key: `p:${topic}:${payer}:${created}:${number}`,
     payer,
     kind: 'polygon',
     seq: Number(message.sequence_number) || 0,
@@ -3275,7 +3282,7 @@ function polygonPost(message, data) {
   });
 }
 
-function sharePost(message) {
+function sharePost(message, topic) {
   const share = message.share;
   if (!share || typeof share !== 'object') return null;
   const payer = message.payer || '';
@@ -3283,7 +3290,7 @@ function sharePost(message) {
   const created = createdIso(share.created);
   const lngLat = pointFrom(share.pin || share.coords);
   if (!payer || !/^\d+\.\d+\.\d+$/.test(original) || !created || !lngLat) return null;
-  if (droppedShares.has(`${payer}|${original}|${created}`)) return null;
+  if (droppedShares.has(`${topic}|${payer}|${original}|${created}`)) return null;
   const author = typeof share.payer === 'string' ? share.payer : '';
   const stampLabel = clock(created);
   const number = share.number == null ? '' : share.number;
@@ -3298,13 +3305,14 @@ function sharePost(message) {
     msg: share.msg,
     timestamp: stampLabel,
     created,
-    likeCountMarker: likeTotal('marker', stampLabel),
-    likeCountPolygon: likeTotal('polygon', stampLabel),
+    // A like on a shared card goes to the original post's topic.
+    likeCountMarker: likeTotal(original, 'marker', stampLabel),
+    likeCountPolygon: likeTotal(original, 'polygon', stampLabel),
     likedByMe: false,
     comments: [],
     coords: lngLat,
     coordinates: lngLat,
-    share: { sharer: payer, home: loadedTopic },
+    share: { sharer: payer, home: topic },
   });
   return keepPost({
     key: `s:${payer}:${original}:${created}`,
@@ -3315,7 +3323,7 @@ function sharePost(message) {
     lngLat,
     time: stamp(message.created),
     feature: {
-      topicId: loadedTopic,
+      topicId: topic,
       created,
       msgNumber: `share-${created}-${payer}`,
       type: 'Feature',
@@ -3326,7 +3334,7 @@ function sharePost(message) {
   });
 }
 
-function chatPost(message) {
+function chatPost(message, topic) {
   if (message.marker || message.polygon || message.share) return null;
   if (!message.userMessage && !message.image) return null;
   const bag = message.location || message.place || message;
@@ -3335,65 +3343,77 @@ function chatPost(message) {
   if (!lngLat) return null;
   const place = placeName(message.location) || placeName(message.place) || placeName(bag);
   return keepPost({
-    key: `c:${loadedTopic}:${message.payer}:${message.sequence_number}:${message.created}`,
+    key: `c:${topic}:${message.payer}:${message.sequence_number}:${message.created}`,
     payer: message.payer || '',
     kind: 'chat',
     seq: Number(message.sequence_number) || 0,
     ts: String(message.consensus_timestamp || ''),
     message,
-    topicId: loadedTopic,
+    topicId: topic,
     lngLat,
     place,
     time: stamp(message.created),
   });
 }
 
-function postsFrom(message) {
+function postsFrom(message, topic) {
   const out = [];
   const marker = message.marker && message.marker.data;
   const polygon = message.polygon && message.polygon.data;
   if (marker) {
-    const post = markerPost(message, marker);
+    const post = markerPost(message, marker, topic);
     if (post) out.push(post);
   }
   if (polygon) {
-    const post = polygonPost(message, polygon);
+    const post = polygonPost(message, polygon, topic);
     if (post) out.push(post);
   }
-  const shared = sharePost(message);
+  const shared = sharePost(message, topic);
   if (shared) out.push(shared);
-  const chat = chatPost(message);
+  // Chat cards stay with the open topic, like topic chat itself. A stacked
+  // topic adds its posts (markers, polygons, shares), as on the map.
+  const chat = topic === loadedTopic ? chatPost(message, topic) : null;
   if (chat) out.push(chat);
   return out;
 }
 
-function accept(message) {
-  if (!message || typeof message !== 'object') return false;
+function noteHighSeq(topic, seq) {
+  if (seq > (highSeqs.get(topic) || 0)) highSeqs.set(topic, seq);
+}
+
+// One message reaches the feed once, by whichever path comes first: a
+// page, a catch-up or the live stream (a pending send, then confirmed).
+function accept(message, topic) {
+  if (!message || typeof message !== 'object' || !topic) return false;
   const seq = Number(message.sequence_number);
-  if (seq > 0 && seenSeq.has(seq)) return false;
-  const signature = messageSig(message);
+  const seqKey = `${topic}|${seq}`;
+  if (seq > 0 && seenSeq.has(seqKey)) return false;
+  const signature = `${topic}|${messageSig(message)}`;
   if (seenSig.has(signature)) {
-    if (seq > 0) seenSeq.add(seq);
-    if (seq > highSeq) highSeq = seq;
+    if (seq > 0) {
+      seenSeq.add(seqKey);
+      noteHighSeq(topic, seq);
+    }
     return false;
   }
   if (seq > 0) {
-    seenSeq.add(seq);
-    if (seq > highSeq) highSeq = seq;
+    seenSeq.add(seqKey);
+    noteHighSeq(topic, seq);
   }
   seenSig.add(signature);
   return true;
 }
 
-function ingest(messages) {
+// rows: { topic, message }, from one topic or several.
+function ingest(rows) {
   const fresh = [];
-  for (const message of messages || []) {
-    if (accept(message)) fresh.push(message);
+  for (const row of rows || []) {
+    if (row && accept(row.message, row.topic)) fresh.push(row);
   }
-  fresh.sort(cmpMessage);
-  for (const message of fresh) noteMessage(message);
+  fresh.sort((a, b) => cmpMessage(a.message, b.message));
+  for (const row of fresh) noteMessage(row.message, row.topic);
   const made = [];
-  for (let i = fresh.length - 1; i >= 0; i--) made.push(...postsFrom(fresh[i]));
+  for (let i = fresh.length - 1; i >= 0; i--) made.push(...postsFrom(fresh[i].message, fresh[i].topic));
   return made;
 }
 
@@ -4435,47 +4455,84 @@ function restoreTabView() {
   revealParked();
 }
 
+// The stack is read once per open topic, while the open topic's first page
+// is fetched. A stacked topic joins the live stream as it is found.
+function readStack(gen) {
+  if (!stackJob) {
+    stackJob = readFeedTopics(loadedTopic).then((topics) => {
+      if (gen !== generation) return;
+      for (const topic of topics) {
+        if (sources.some((source) => source.topic === topic)) continue;
+        sources.push(feedSource(topic));
+        if (streamOffs.has(loadedTopic)) bindStream(topic);
+      }
+    });
+  }
+  return stackJob;
+}
+
+// A stacked topic that fails this many pages in a row is left out, so the
+// rest of the feed keeps paging. The open topic fails the page, as before.
+const STACK_FAIL_LIMIT = 3;
+
+async function pullSource(source, gen) {
+  if (!source || !needsPull(source)) return;
+  let page;
+  try {
+    page = await fetchPage(source.topic, source.cursor);
+  } catch (error) {
+    source.fails += 1;
+    if (source.topic !== loadedTopic && source.fails >= STACK_FAIL_LIMIT) {
+      console.warn('feed leaves out stacked topic', source.topic, error);
+      source.done = true;
+      return;
+    }
+    throw error;
+  }
+  if (gen !== generation) return;
+  source.fails = 0;
+  addPage(source, page);
+}
+
+// The next rows to show, newest first, across every source. Only sources
+// whose fetched rows have all been shown are fetched, all at once.
+async function nextRows(gen) {
+  await Promise.all([readStack(gen), pullSource(sources[0], gen)]);
+  if (gen !== generation) return [];
+  await Promise.all(sources.filter(needsPull).map((source) => pullSource(source, gen)));
+  if (gen !== generation) return [];
+  return takeMerged(sources);
+}
+
 async function loadOlder() {
   if (paging || exhausted || searchFloor) return;
   if (rankedSort() && sortPages >= SORT_PAGE_CAP) return;
-  const topic = loadedTopic;
-  if (!topic) return;
+  if (!loadedTopic || !sources.length) return;
   const gen = generation;
   paging = true;
   paintSpinner(true);
   let ok = false;
   try {
-    const page = await fetchPage(topic, cursor);
+    const rows = await nextRows(gen);
     if (gen !== generation) return;
-    const messages = page.messages || [];
-    if (!messages.length) {
-      exhausted = true;
-      ok = true;
-    } else {
-      const oldest = messages[messages.length - 1];
-      const nextTs = String(oldest.consensus_timestamp || '');
-      const nextSeq = Number(oldest.sequence_number) || 0;
-      if (cursor && nextTs === String(cursor.ts)) {
-        exhausted = true;
-        ok = true;
-      } else {
-        cursor = { ts: nextTs, seq: nextSeq };
-        if (page.done) exhausted = true;
-        noteSearchFloor();
-        const made = ingest(messages);
-        posts.push(...made);
-        const added = feedTab === 'following' ? takeFollowed(made) : made;
-        if (feedTab === 'following') shown.push(...added);
-        if (feedFiltering()) {
-          for (const post of added) if (hitQuery(post)) found.push(post);
-          if (rankedSort()) {
-            sortPages += 1;
-            queueViewSort();
-          }
+    exhausted = sourcesDone(sources);
+    if (rows.length) {
+      const oldest = rows[rows.length - 1].message;
+      cursor = { ts: String(oldest.consensus_timestamp || ''), seq: Number(oldest.sequence_number) || 0 };
+      noteSearchFloor();
+      const made = ingest(rows);
+      posts.push(...made);
+      const added = feedTab === 'following' ? takeFollowed(made) : made;
+      if (feedTab === 'following') shown.push(...added);
+      if (feedFiltering()) {
+        for (const post of added) if (hitQuery(post)) found.push(post);
+        if (rankedSort()) {
+          sortPages += 1;
+          queueViewSort();
         }
-        ok = true;
       }
     }
+    ok = true;
   } catch (error) {
     console.warn('feed page failed', error);
   } finally {
@@ -4505,16 +4562,32 @@ async function loadOlder() {
   }
 }
 
+// Past the newest sequence fetched or seen in this topic. A stacked topic
+// can have a page waiting below the merge floor, not shown yet.
+function catchUpFrom(source) {
+  return Math.max(highSeqs.get(source.topic) || 0, source.high || 0);
+}
+
+async function newerRows(topic, after) {
+  try {
+    const messages = await fetchNewer(topic, after);
+    return messages.map((message) => ({ topic, message }));
+  } catch (error) {
+    console.warn('feed catch-up failed', topic, error);
+    return [];
+  }
+}
+
 async function catchUp() {
-  if (!loadedTopic || !highSeq || paging) return;
-  const topic = loadedTopic;
+  if (!loadedTopic || paging) return;
+  const live = sources.filter((source) => catchUpFrom(source) > 0);
+  if (!live.length) return;
   const gen = generation;
-  const after = highSeq;
   paging = true;
   try {
-    const rows = await fetchNewer(topic, after);
+    const lists = await Promise.all(live.map((source) => newerRows(source.topic, catchUpFrom(source))));
     if (gen !== generation) return;
-    const made = ingest(rows);
+    const made = ingest(lists.flat());
     if (made.length) prependPosts(made);
   } catch (error) {
     console.warn('feed catch-up failed', error);
@@ -4524,18 +4597,27 @@ async function catchUp() {
   if (gen === generation && sortHold && rankedSort() && feedFiltering()) finishRanked();
 }
 
+function feedReads(topic) {
+  return sources.some((source) => source.topic === topic);
+}
+
 function onStream(event) {
-  if (!feedOn() || !event || event.topic !== loadedTopic) return;
+  if (!feedOn() || !event || !feedReads(event.topic)) return;
   if (event.type !== 'message' && event.type !== 'pending') return;
   if (!event.message) return;
-  const made = ingest([event.message]);
+  const made = ingest([{ topic: event.topic, message: event.message }]);
   if (made.length) prependPosts(made);
   if (placing && made.some(ownPlace)) returnToFeed(true);
 }
 
 function bindStream(topic) {
-  if (streamOff) streamOff();
-  streamOff = streamOnTopic(topic, onStream);
+  if (streamOffs.has(topic)) return;
+  streamOffs.set(topic, streamOnTopic(topic, onStream));
+}
+
+function unbindStreams() {
+  for (const off of streamOffs.values()) off();
+  streamOffs.clear();
 }
 
 function topicName(topicId) {
@@ -4576,10 +4658,7 @@ function ensureTopic(opening) {
   paintTopicTitle();
   if (!topic) return;
   if (topic !== loadedTopic) {
-    if (streamOff) {
-      streamOff();
-      streamOff = null;
-    }
+    unbindStreams();
     resetFeed(topic);
     bindStream(topic);
     if (followBlocked()) paintEmpty();
@@ -5607,10 +5686,7 @@ function applyFeed(on) {
   root.style.display = 'none';
   // While it drops away, html.feed-app stays; endFeedMotion runs syncCover.
   if (!(wasCovering && playFeedMotion('out'))) syncCover();
-  if (streamOff) {
-    streamOff();
-    streamOff = null;
-  }
+  unbindStreams();
   syncFeedMapBack();
 }
 

@@ -25,6 +25,7 @@ import { toast } from "./toast";
 import { applyInitialXYZ } from "./setinitialxyz.js";
 import { fillTopicIds } from "./topicidintext.js";
 import { clearXEmbeds, paintXEmbeds } from "./xembed.js";
+import { topicsToLoad } from "./loadcurrenttopic.js";
 
 // Account ids and topic ids share the 0.0. form, and Hedera gives each number
 // to only one of them. A remembered answer skips a second mirror ask.
@@ -346,8 +347,6 @@ export async function handleAllMessages() {
   
       const result = await getMessages(topicId);
 
-      let hasMoreThanOneTopic = false;
-  
       geojson.features = [];
       polygons.length = 0;
   
@@ -372,51 +371,11 @@ export async function handleAllMessages() {
   
   
   
-      const topicActions = new Map();
-  
-      for (let index = 0; index < result.messages.length; index++) {
-        const message = result.messages[index];
-        try {
-          let parsedMessage = message;
-          if (typeof message === 'string') {
-            parsedMessage = JSON.parse(message);
-          }
-          const timestamp = message.consensus_timestamp
-  
-          if (parsedMessage.addTopic && parsedMessage.addTopic.addTopic && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-            hasMoreThanOneTopic = true;
-            const topics = typeof parsedMessage.addTopic.addTopic === 'string'
-              ? parsedMessage.addTopic.addTopic.split(',')
-              : [];
-            topics.forEach(topic => {
-              topicActions.set(topic, { action: 'add', timestamp });
-            });
-          }
-  
-          if (parsedMessage.removeTopic && parsedMessage.removeTopic.removeTopic && (topicAdmin.length === 0 || topicAdmin.includes(message.payer))) {
-            hasMoreThanOneTopic = true;
-            const topics = typeof parsedMessage.removeTopic.removeTopic === 'string'
-              ? parsedMessage.removeTopic.removeTopic.split(',')
-              : [];
-            topics.forEach(topic => {
-              topicActions.set(topic, { action: 'remove', timestamp });
-            });
-          }
-        } catch (messageError) {
-          console.error(`Error processing message ${index}:`, messageError);
-        }
-      }
-  
-      // Determine the final list of topics based on the latest action
-      loadedTopicsIds = Array.from(topicActions.entries())
-        .filter(([topic, { action }]) => action === 'add' && topic.startsWith('0.0.'))
-        .map(([topic]) => topic);
-
-      // A shared topic address is the topic itself, not a list of other topics.
-      // Load its markers and polygons so Open on the map can land on that pin.
-      if (loadedTopicsIds.length === 0 && String(topicId || '').startsWith('0.0.')) {
-        loadedTopicsIds = [topicId];
-      }
+      // The stacked topics (latest admin add or remove per id), or the topic
+      // itself when it stacks none, so Open on the map can land on a shared
+      // topic's pin. The feed reads its topics through the same helper
+      // (topicstack.js).
+      loadedTopicsIds = topicsToLoad(topicId, result.messages, topicAdmin);
 
         const loadedTopicIdsWithNames = [];
   
