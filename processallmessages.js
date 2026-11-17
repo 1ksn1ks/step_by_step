@@ -4635,6 +4635,7 @@ function startFeedFlipOpen(wrapper, flip) {
         card.style.transformOrigin = '';
         card.style.willChange = '';
         wrapper.classList.remove('is-flip', 'is-flip-show');
+        holdFeedCommentsTop(wrapper);
       });
     });
   });
@@ -4673,6 +4674,85 @@ function startFeedFlipClose(wrapper, flip, done) {
   });
 }
 
+// The feed's Comments view opens at the comments: the list's top (the
+// first comment, or "No comments yet") sits just under the bar, with the
+// post scrolled up above it and its end showing in the small gap left by
+// the list's scroll-margin-top (style.css --feed-comments-gap). Nothing
+// moves when the post and its comments fit without scrolling. While the
+// reader has not scrolled, the comments stay there as the post above
+// changes height (an X post loading late); a wheel, a touch drag or a
+// scroll key ends that. The list is held tall enough to reach the top
+// even with few comments (.is-at-comments, with the comment box's height
+// in --feed-comments-foot).
+const FEED_COMMENTS_SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
+
+function holdFeedCommentsTop(wrapper) {
+  if (!wrapper || wrapper !== commentsModal || !wrapper.isConnected || wrapper._stopCommentsHold) return;
+  const body = wrapper.querySelector('.feed-comments-body');
+  const stage = body && body.querySelector('.feed-comments-stage');
+  const list = body && body.querySelector('.comments-scroll');
+  const compose = body && body.querySelector('.comments-compose');
+  if (!body || !stage || !list) return;
+  let held = true;
+  const writeFoot = () => {
+    const below = parseFloat(getComputedStyle(list).marginBottom) || 0;
+    const foot = (compose ? compose.getBoundingClientRect().height : 0) + below;
+    body.style.setProperty('--feed-comments-foot', foot.toFixed(2) + 'px');
+  };
+  const place = () => {
+    if (!body.classList.contains('is-at-comments')) {
+      // It all fits: leave it where it is.
+      if (body.scrollHeight <= body.clientHeight + 1) return;
+      writeFoot();
+      body.classList.add('is-at-comments');
+    }
+    const gap = parseFloat(getComputedStyle(list).scrollMarginTop) || 0;
+    const top = list.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - gap;
+    const most = Math.max(0, body.scrollHeight - body.clientHeight);
+    const next = Math.min(most, Math.max(0, Math.round(top)));
+    if (Math.abs(body.scrollTop - next) >= 1) body.scrollTop = next;
+  };
+  const release = () => {
+    held = false;
+    body.removeEventListener('wheel', release);
+    body.removeEventListener('touchmove', release);
+    wrapper.removeEventListener('keydown', onKey, true);
+  };
+  const onKey = (event) => {
+    if (!FEED_COMMENTS_SCROLL_KEYS.has(event.key)) return;
+    const target = event.target;
+    if (target && target.closest && target.closest('textarea, input, select, [contenteditable]')) return;
+    release();
+  };
+  const watcher = typeof ResizeObserver === 'function'
+    ? new ResizeObserver(() => {
+      if (!body.isConnected) {
+        stop();
+        return;
+      }
+      if (body.classList.contains('is-at-comments')) writeFoot();
+      if (held) place();
+    })
+    : null;
+  const stop = () => {
+    release();
+    if (watcher) watcher.disconnect();
+  };
+  wrapper._stopCommentsHold = stop;
+  body.addEventListener('wheel', release, { passive: true });
+  body.addEventListener('touchmove', release, { passive: true });
+  wrapper.addEventListener('keydown', onKey, true);
+  place();
+  if (watcher) {
+    watcher.observe(stage);
+    if (compose) watcher.observe(compose);
+  }
+}
+
+function stopFeedCommentsHold(wrapper) {
+  if (wrapper && wrapper._stopCommentsHold) wrapper._stopCommentsHold();
+}
+
 function teardownCommentsModal() {
   if (!commentsModal && !commentsModalSection) {
     commentsClosing = false;
@@ -4704,6 +4784,7 @@ function teardownCommentsModal() {
       }
     }
     const input = commentBubbleInput;
+    stopFeedCommentsHold(commentsModal);
     if (commentsModal) commentsModal.remove();
     commentsModal = null;
     commentsModalSection = null;
@@ -4730,6 +4811,7 @@ function closeCommentsModal() {
   if (!commentsModal) return;
   if (commentsClosing && !feedFlipSkip) return;
   const modal = commentsModal;
+  stopFeedCommentsHold(modal);
   const fromFeed = modal.classList.contains('comments-modal--feed');
   const flip = feedFlip;
   const animate = fromFeed && flip && flip.card && flip.card.isConnected && !flip.restored
@@ -4942,6 +5024,8 @@ function showCommentsModal(section) {
   commentsModalSection = section;
   refitPopups();
   if (pendingFlip) startFeedFlipOpen(pendingFlip.wrapper, pendingFlip.flip);
+  // No flip to wait for: open at the comments before the first paint.
+  else if (fromFeed) requestAnimationFrame(() => holdFeedCommentsTop(wrapper));
 
   const input = section.querySelector('textarea');
   if (input) setTimeout(() => input.focus(fromFeed ? { preventScroll: true } : undefined), 100);

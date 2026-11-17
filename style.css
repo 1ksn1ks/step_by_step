@@ -15811,6 +15811,9 @@ html.drawer-page .info-overlay {
    than the screen. The list grows to fill a short column, which keeps
    the box at the foot then too. */
 .comments-modal--feed > .feed-comments-body {
+  /* Opened at the comments, the end of the post shows in this gap above
+     them (processallmessages.js holdFeedCommentsTop). */
+  --feed-comments-gap: calc(var(--fu) * 1.6);
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
@@ -15830,6 +15833,12 @@ html.drawer-page .info-overlay {
   margin-bottom: 0;
   padding-inline: calc(var(--fu) * 1.2);
   overflow: visible;
+  scroll-margin-top: var(--feed-comments-gap);
+}
+/* Opened at the comments: the list reaches up to just under the bar even
+   with few comments, the comment box (--feed-comments-foot) below it. */
+.feed-comments-body.is-at-comments > .popup-comments > .comments-scroll {
+  min-height: calc(100% - var(--feed-comments-gap) - var(--feed-comments-foot, 0rem));
 }
 .feed-comments-body > .popup-comments > .comments-compose {
   position: sticky;
