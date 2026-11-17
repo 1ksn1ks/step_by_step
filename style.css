@@ -11533,9 +11533,20 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   --feed-unit: calc(clamp(1.6cqi, 2.4cqi, 2.6cqi));
   --fu: var(--feed-unit);
 }
+/* Peek (a post opened on the map from the feed, then the map after its
+   popup closes) keeps the feed in the page so Back returns to the same
+   scroll spot. Hidden alone, its whole column still took part in every
+   style pass: each map frame moves the markers, and the page's :has()
+   rules then had the browser re-check the thousands of hidden feed nodes,
+   so panning the map lagged. content-visibility: hidden skips the
+   column's style, layout and paint (and throttles the X frames in it)
+   while keeping its scroll and its cards for the way back. Everything
+   that shows on the map lives on the body (the map drawer, chat and
+   profile pages), not in here. */
 #feed-layout.is-peek {
   visibility: hidden;
   pointer-events: none;
+  content-visibility: hidden;
 }
 /* Wallet hosts stay above this screen. Map mode does not set feed-app,
    so the component keeps the z-index it ships with. The overlay lives in
