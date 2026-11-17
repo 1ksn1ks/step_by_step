@@ -196,8 +196,11 @@ test("a hidden tab skips the topic poll and a toast does not settle feed video",
   assert.match(shell, /mutation\.addedNodes/);
   assert.match(shell, /mutation\.removedNodes/);
   assert.match(shell, /childList: true/);
-  const queueCalls = shell.match(/queueFeedVideos\(\)/g) || [];
-  assert.equal(queueCalls.length, 3);
+  // Every branch settles the videos (and repaints the new-posts pill)
+  // through queueShellChange.
+  assert.match(shell, /function queueShellChange\(\) \{\s+queueFeedVideos\(\);/);
+  const queueCalls = shell.match(/queueShellChange\(\);/g) || [];
+  assert.ok(queueCalls.length >= 3);
 });
 
 test("feed video ratios refresh once per scroll frame", () => {

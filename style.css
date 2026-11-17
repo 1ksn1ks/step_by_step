@@ -16083,6 +16083,76 @@ html.drawer-page .info-overlay {
       0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.35);
   }
 }
+/* Pull to refresh (feedlayout.js). A disc in the pill's glass waits under
+   the header and the tab row (they stack above #feed-frame). Pulling the
+   feed down from the top brings it out: --feed-pull-y is the finger's
+   travel and --feed-pull runs 0 to 1 up to the mark. The arrow turns with
+   it, fills in at the mark, and spins while the feed checks for posts. */
+#feed-pull {
+  --feed-pull: 0;
+  position: absolute;
+  z-index: 3;
+  top: calc(env(safe-area-inset-top) + var(--feed-bar-h) + var(--feed-tabs-h) + var(--fu) * 0.6);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: calc(var(--fu) * 3.4);
+  height: calc(var(--fu) * 3.4);
+  margin: 0 0 0 calc(var(--fu) * -1.7);
+  border: calc(var(--fu) * 0.1) solid rgba(34, 211, 238, 0.5);
+  border-radius: 50%;
+  background: rgba(8, 10, 18, 0.72);
+  -webkit-backdrop-filter: blur(calc(var(--fu) * 1.4));
+  backdrop-filter: blur(calc(var(--fu) * 1.4));
+  color: rgba(34, 211, 238, 0.75);
+  box-shadow:
+    0 0 calc(var(--fu) * 1.15) rgba(34, 211, 238, 0.35),
+    0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(calc(var(--feed-pull-y, 0%) - 130%));
+  transition:
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 240ms ease,
+    visibility 0s linear 240ms;
+}
+#feed-pull svg {
+  width: 52%;
+  height: 52%;
+  transform: rotate(calc(var(--feed-pull) * 300deg));
+}
+#feed-pull:is(.is-live, .is-busy) {
+  visibility: visible;
+  opacity: min(1, calc(var(--feed-pull) * 1.6));
+  transition: opacity 120ms ease, visibility 0s;
+}
+#feed-pull.is-armed {
+  border-color: #22D3EE;
+  color: #22D3EE;
+  box-shadow:
+    0 0 calc(var(--fu) * 1.4) rgba(34, 211, 238, 0.6),
+    0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.35);
+}
+#feed-pull.is-busy {
+  opacity: 1;
+  transition:
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 120ms ease,
+    visibility 0s;
+}
+#feed-pull.is-busy svg {
+  animation: feedPullSpin 800ms linear infinite;
+}
+@keyframes feedPullSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+html.kb-open #feed-pull {
+  visibility: hidden;
+}
 @media (prefers-reduced-motion: reduce) {
   #feed-new-posts.is-in,
   #feed-new-posts.is-pop {
@@ -16090,6 +16160,16 @@ html.drawer-page .info-overlay {
   }
   #feed-tabs {
     transition: none;
+  }
+  #feed-pull,
+  #feed-pull:is(.is-live, .is-busy) {
+    transition: none;
+  }
+  #feed-pull svg {
+    transform: none;
+  }
+  #feed-pull.is-busy svg {
+    animation-duration: 2400ms;
   }
 }
 @media (hover: none), (pointer: coarse) {

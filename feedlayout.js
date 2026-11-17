@@ -5,7 +5,7 @@ import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
 import { currentUfoModelInGLTF, globalLoadedTopicIdsWithNames } from './letall.js';
 import { markerPopupNode, polygonPopupNode, mountPostReactions, buildPopupProfile, rememberShapeEdit, shapeEditFor, viewsChip as sharedViewsChip, setViewsCount, popupGearIcon, bindPressFeedback } from './processallmessages.js';
-import { BACKEND_URL, fetchMessagesBackend, streamOnTopic, messageSig, fetchFollowing } from './msgbackend.js';
+import { BACKEND_URL, fetchMessagesBackend, streamOnTopic, streamOnReconnect, messageSig, fetchFollowing } from './msgbackend.js';
 import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
 import { initialTopicId } from './extracttopic.js';
 import { connectedAccount, updateUI } from './web3.js';
@@ -46,6 +46,7 @@ import { mountPicture, pictureElement, presentImage } from './loopmedia.js';
 import { mountMediaBackdrop, mountMediaTools } from './mediaframe.js';
 import { paintXEmbeds, setXEmbedsOn, xEmbedsOn } from './xembed.js';
 import { addPage, cmpMessage, cmpTs, feedSource, needsPull, sourcesDone, takeMerged } from './feedmerge.js';
+import { orderFresh, sortQueue } from './feedfresh.js';
 import { readFeedTopics } from './topicstack.js';
 
 const LAYOUT_KEY = 'layoutMode';
@@ -195,6 +196,16 @@ const newLabel = document.createElement('span');
 newLabel.className = 'feed-new-label';
 newPill.append(newFaces, newLabel);
 
+// Pull to refresh: a disc that slides out from under the header as the
+// feed is pulled down from the top (bindPullRefresh).
+const pullMark = document.createElement('div');
+pullMark.id = 'feed-pull';
+pullMark.setAttribute('aria-hidden', 'true');
+pullMark.appendChild(svgIcon([
+  ['path', { d: 'M21 12a9 9 0 1 1-2.64-6.36' }],
+  ['path', { d: 'M21 3v6h-6' }],
+]));
+
 const toolbar = document.createElement('div');
 toolbar.id = 'feed-toolbar';
 const menuAnchor = document.createElement('div');
@@ -285,7 +296,7 @@ bannerCopy.append(bannerName, bannerHandle, bannerBio);
 profileBanner.append(bannerBack, bannerPic, bannerCopy);
 const frame = document.createElement('div');
 frame.id = 'feed-frame';
-frame.append(tabRuler, profileBanner, newPill, scroller, menuDim, menu);
+frame.append(tabRuler, profileBanner, newPill, pullMark, scroller, menuDim, menu);
 root.append(dim, frame, toolbar, tabs);
 
 const btn = document.createElement('button');
@@ -1947,9 +1958,10 @@ let feedVideoDwellTimer = 0;
 const feedVideoZeroSince = new Map();
 const feedVideoReleaseTimers = new Map();
 
-function feedVideoBlocked() {
-  if (document.visibilityState === 'hidden') return true;
-  if (!feedOn() || root.classList.contains('is-peek')) return true;
+// A page or sheet over the feed column: the profile, settings, a chat,
+// the drawer, the filter card, the Comments view or a full-screen picture.
+// Videos pause under it and the new-posts pill hides.
+function feedSheetCovers() {
   if (!profilePage.hidden || profilePage.classList.contains('nav-cover')) return true;
   if (!settings.hidden || settingsOpen || settings.classList.contains('nav-cover')) return true;
   if (!feedChat.hidden || feedChat.classList.contains('nav-cover')) return true;
@@ -1958,6 +1970,19 @@ function feedVideoBlocked() {
   if (document.querySelector('.comments-modal')) return true;
   if (document.getElementById('media-fullscreen')) return true;
   return false;
+}
+
+function feedVideoBlocked() {
+  if (document.visibilityState === 'hidden') return true;
+  if (!feedOn() || root.classList.contains('is-peek')) return true;
+  return feedSheetCovers();
+}
+
+// The search page and a post's Show more page cover the column too.
+function pillCovered() {
+  if (feedSheetCovers() || !searchPage.hidden) return true;
+  const text = document.getElementById('popup-text-page');
+  return !!(text && !text.hidden);
 }
 
 function ensureFeedVideoSrc(video) {
@@ -2403,14 +2428,45 @@ function applyFarTrim(boxes, top) {
 
 // Parked posts land at the top. The final scroll is 0, so the prepend
 // does not read scrollHeight the way a mid-list insert does.
+// Merging the queue sorts it into time order with the posts under it
+// (feedfresh.js). Drawn cards that sort reached changed place: they come
+// out here and are drawn again with the queue. The card being read stays.
+function dropStaleTop(reach) {
+  const stale = Math.min(reach, rangeEnd) - rangeStart;
+  if (stale <= 0) return;
+  const prevTop = scroller.scrollTop;
+  const prevHeight = scroller.scrollHeight;
+  let left = stale;
+  let el = column.firstElementChild;
+  while (el && left > 0) {
+    const next = el.nextElementSibling;
+    if (el.classList.contains('feed-card')) {
+      forgetCard(el);
+      el.remove();
+      left -= 1;
+    }
+    el = next;
+  }
+  rangeStart += stale - left;
+  setFeedScroll(Math.max(0, prevTop + (scroller.scrollHeight - prevHeight)));
+}
+
+function mergeQueue(tab) {
+  const n = held[tab].length;
+  if (!n) return;
+  const reach = orderFresh(tab === 'following' ? shown : posts, n);
+  if (tab === feedTab && reach > n) dropStaleTop(reach);
+}
+
 function frameReveal(top) {
   if (profileFilter || feedFiltering() || root.classList.contains('is-peek')) return;
   const tab = feedTab;
   const n = held[tab].length;
   if (!n || top >= 2 || rangeStart !== n) return;
+  mergeQueue(tab);
   held[tab] = [];
   const list = lane();
-  const count = Math.min(n, rangeStart, list.length);
+  const count = Math.min(rangeStart, list.length);
   if (count > 0) {
     const note = column.querySelector('.feed-empty');
     if (note) note.remove();
@@ -4248,7 +4304,8 @@ function paintNewFaces(list) {
 
 function paintNewPill() {
   const count = held[feedTab].length;
-  const show = feedOn() && !profileFilter && !root.classList.contains('is-peek') && !feedFiltering() && count > 0;
+  const show = feedOn() && !profileFilter && !root.classList.contains('is-peek') && !feedFiltering() && count > 0
+    && !pillCovered();
   if (!show) {
     newPill.hidden = true;
     newPill.classList.remove('is-in', 'is-pop');
@@ -4274,6 +4331,11 @@ function paintNewPill() {
 function noteHeld(tab, batch) {
   if (!batch.length || tabIsAtTop(tab)) return false;
   held[tab].unshift(...batch);
+  // Batches from several topics can arrive out of time order. The queue
+  // is not drawn, so it is kept sorted as it grows.
+  const list = tab === 'following' ? shown : posts;
+  sortQueue(list, held[tab].length);
+  held[tab] = list.slice(0, held[tab].length);
   tabRange[tab].start += batch.length;
   tabRange[tab].end += batch.length;
   if (tab === feedTab && !feedFiltering() && !profileFilter) {
@@ -4320,8 +4382,71 @@ function mountIncoming(incoming, searchLane) {
   trimAbove();
 }
 
+// New posts, newest first. Others' posts wait behind the pill while you
+// are scrolled down (noteHeld). Your own go in at once (placeOwn).
 function prependPosts(list) {
   if (!list.length) return;
+  const me = walletNow();
+  const plain = !feedFiltering() && !profileFilter;
+  const own = plain && me && !tabIsAtTop(feedTab) ? list.filter((post) => post.payer === me) : [];
+  if (!own.length) {
+    prependBatch(list);
+    return;
+  }
+  const rest = list.filter((post) => post.payer !== me);
+  if (rest.length) prependBatch(rest);
+  placeOwn(own);
+}
+
+// Your own new posts skip the queue. They go in right under it, above
+// the card you are reading, which stays where it is: scrolling up shows
+// them, and a merge puts them in time order with the queue.
+function placeOwn(own) {
+  insertOwn('all', posts, own);
+  if (followSet) {
+    const followed = takeFollowed(own);
+    if (followed.length) insertOwn('following', shown, followed);
+  }
+  paintNewPill();
+}
+
+function insertOwn(tab, list, batch) {
+  const at = Math.min(held[tab].length, list.length);
+  list.splice(at, 0, ...batch);
+  const count = batch.length;
+  if (tab !== feedTab) {
+    if (tabRange[tab].start > at) tabRange[tab].start += count;
+    if (tabRange[tab].end > at) tabRange[tab].end += count;
+    return;
+  }
+  if (searchPinned && pinStart >= at) shiftPin(count);
+  if (rangeStart !== at) {
+    // The cards right under the queue are not drawn (scrolled far down);
+    // these wait there with them and draw as you scroll up.
+    rangeStart += count;
+    rangeEnd += count;
+    return;
+  }
+  const prevTop = scroller.scrollTop;
+  const prevHeight = scroller.scrollHeight;
+  const frag = document.createDocumentFragment();
+  const cards = [];
+  const note = column.querySelector('.feed-empty');
+  if (note) note.remove();
+  for (const post of batch) {
+    const card = buildCard(post);
+    cards.push(card);
+    frag.appendChild(card);
+  }
+  column.prepend(frag);
+  rangeEnd += count;
+  setFeedScroll(prevTop + (scroller.scrollHeight - prevHeight));
+  for (const card of cards) watchCard(card);
+  requestAnimationFrame(clampPending);
+  trimAbove();
+}
+
+function prependBatch(list) {
   const followed = takeFollowed(list);
   posts.unshift(...list);
   if (followSet) shown.unshift(...followed);
@@ -4387,8 +4512,9 @@ function revealParked() {
   const tab = feedTab;
   const n = held[tab].length;
   if (!n || scroller.scrollTop >= 2 || rangeStart !== n) return;
+  mergeQueue(tab);
   held[tab] = [];
-  prependAbove(n);
+  prependAbove(rangeStart);
   setFeedScroll(0);
   savedScroll = 0;
   tabScroll[tab] = 0;
@@ -4403,6 +4529,7 @@ function goToFreshPosts() {
     paintNewPill();
     return;
   }
+  if (!feedFiltering()) mergeQueue(tab);
   held[tab] = [];
   paintNewPill();
   if (feedFiltering()) {
@@ -4536,7 +4663,10 @@ async function loadOlder() {
   } catch (error) {
     console.warn('feed page failed', error);
   } finally {
-    if (gen === generation) paging = false;
+    if (gen === generation) {
+      paging = false;
+      afterPaging();
+    }
   }
   if (gen !== generation) return;
   if (!ok) {
@@ -4578,8 +4708,21 @@ async function newerRows(topic, after) {
   }
 }
 
+// A catch-up asked for while a page is loading runs once that page is in.
+let catchUpAgain = false;
+
+function afterPaging() {
+  if (!catchUpAgain) return;
+  catchUpAgain = false;
+  setTimeout(catchUp, 0);
+}
+
 async function catchUp() {
-  if (!loadedTopic || paging) return;
+  if (!loadedTopic) return;
+  if (paging) {
+    catchUpAgain = true;
+    return;
+  }
   const live = sources.filter((source) => catchUpFrom(source) > 0);
   if (!live.length) return;
   const gen = generation;
@@ -4592,10 +4735,30 @@ async function catchUp() {
   } catch (error) {
     console.warn('feed catch-up failed', error);
   } finally {
-    if (gen === generation) paging = false;
+    if (gen === generation) {
+      paging = false;
+      afterPaging();
+    }
   }
   if (gen === generation && sortHold && rankedSort() && feedFiltering()) finishRanked();
 }
+
+// The stream reopens each time a topic joins it, and after a drop; the
+// app can also sit in the background. One catch-up covers a burst.
+const CATCH_UP_SETTLE_MS = 1200;
+let catchUpTimer = 0;
+function catchUpSoon() {
+  if (catchUpTimer) clearTimeout(catchUpTimer);
+  catchUpTimer = setTimeout(() => {
+    catchUpTimer = 0;
+    if (document.hidden || !feedOn()) return;
+    catchUp();
+  }, CATCH_UP_SETTLE_MS);
+}
+streamOnReconnect(catchUpSoon);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') catchUpSoon();
+});
 
 function feedReads(topic) {
   return sources.some((source) => source.topic === topic);
@@ -4665,7 +4828,12 @@ function ensureTopic(opening) {
     else loadOlder();
     return;
   }
-  if (opening) catchUp();
+  if (opening) {
+    // Closing the feed let go of its streams. Every topic it reads listens
+    // again, and anything posted while it was closed comes in now.
+    for (const source of sources) bindStream(source.topic);
+    catchUp();
+  }
   if (!followBlocked() && !paging && !posts.length && !exhausted) loadOlder();
 }
 
@@ -6486,12 +6654,12 @@ function setFeedZoom(next) {
   if (zoom === feedPrefs.zoom) return;
   feedPrefs.zoom = zoom;
   applyFeedZoom();
-  measureTabHide();
 }
 
 // A drag emits many input events in one frame. Keep the latest percent
 // and write --feed-zoom once on the next frame. localStorage waits for
 // the range change event, which fires when the pointer is released.
+// measureTabHide reads layout, so it runs once there too, not per frame.
 let zoomFrame = 0;
 let zoomHeld = null;
 
@@ -6519,6 +6687,9 @@ function storeFeedZoom() {
     zoomHeld = null;
     setFeedZoom(next);
   }
+  // The drag's frames changed the zoom without measuring; the tab-bar
+  // hide limits are read again for the committed zoom.
+  measureTabHide();
   writeFeedSetting(FEED_SETTING.zoom, feedPrefs.zoom.toFixed(2));
 }
 
@@ -9688,29 +9859,56 @@ function feedVideoOverlayNode(node) {
   return !!(node.querySelector && node.querySelector('#media-fullscreen, .comments-modal'));
 }
 
+// A sheet opening or closing over the feed: videos settle and the pill
+// shows or hides, once per frame.
+let shellPillFrame = 0;
+function queueShellChange() {
+  queueFeedVideos();
+  if (shellPillFrame) return;
+  shellPillFrame = requestAnimationFrame(() => {
+    shellPillFrame = 0;
+    paintNewPill();
+  });
+}
+
+let textPageWatched = false;
 const feedVideoShell = new MutationObserver((mutations) => {
   for (const mutation of mutations) {
     if (mutation.type !== 'childList' || mutation.target !== document.body) {
-      queueFeedVideos();
+      queueShellChange();
       return;
     }
     for (const node of mutation.addedNodes) {
+      // The Show more page is made once and then shown and hidden.
+      if (!textPageWatched && node.nodeType === 1 && node.id === 'popup-text-page') {
+        textPageWatched = true;
+        feedVideoShell.observe(node, { attributes: true, attributeFilter: ['hidden'] });
+        queueShellChange();
+        return;
+      }
       if (!feedVideoOverlayNode(node)) continue;
-      queueFeedVideos();
+      queueShellChange();
       return;
     }
     for (const node of mutation.removedNodes) {
       if (!feedVideoOverlayNode(node)) continue;
-      queueFeedVideos();
+      queueShellChange();
       return;
     }
   }
 });
-for (const node of [profilePage, settings, feedChat, menu, root]) {
+for (const node of [profilePage, settings, feedChat, menu, root, searchPage]) {
   feedVideoShell.observe(node, { attributes: true, attributeFilter: ['hidden', 'class', 'style'] });
 }
 feedVideoShell.observe(filterCard, { attributes: true, attributeFilter: ['style'] });
 feedVideoShell.observe(document.body, { childList: true });
+{
+  const textPage = document.getElementById('popup-text-page');
+  if (textPage) {
+    textPageWatched = true;
+    feedVideoShell.observe(textPage, { attributes: true, attributeFilter: ['hidden'] });
+  }
+}
 window.addEventListener('pagehide', flushViewsNow);
 
 allTab.addEventListener('click', () => { selectTab('all'); });
@@ -10044,6 +10242,108 @@ scroller.addEventListener('scroll', (event) => {
 scroller.addEventListener('scrollend', () => {
   cancelTabFinish();
   finishTabGlide();
+}, { passive: true });
+
+// Pull to refresh, on touch, from the very top of the feed. The disc
+// follows the finger at half its travel. Let go past the mark and the feed
+// does what the pill does (the queue goes in, the feed goes to the top)
+// and checks every topic for new posts now. The scroller's own overscroll
+// is contained (style.css #feed-scroll), so the browser does not reload.
+const PULL_TRAVEL = 0.5;
+const PULL_MIN_MS = 600;
+let pullTouch = null;
+let pullBusy = false;
+
+function pullCanStart() {
+  if (pullBusy || !feedOn() || root.classList.contains('is-peek')) return false;
+  if (profileFilter || feedFiltering() || pillCovered()) return false;
+  return scroller.scrollTop <= 0;
+}
+
+// Sizes come from the disc itself (style.css, in --fu): the finger has to
+// carry it a little over twice its height down to arm a refresh.
+function pullMarkSize() {
+  return pullMark.offsetHeight || scroller.clientHeight * 0.05;
+}
+
+function paintPull(dist) {
+  const reach = pullMarkSize() * 2.2;
+  const progress = reach > 0 ? Math.min(1.25, dist / reach) : 0;
+  pullMark.style.setProperty('--feed-pull', progress.toFixed(3));
+  pullMark.style.setProperty('--feed-pull-y', dist.toFixed(1) + 'px');
+  pullMark.classList.toggle('is-armed', progress >= 1);
+}
+
+function settlePull() {
+  pullMark.classList.remove('is-live', 'is-armed', 'is-busy');
+  pullMark.style.setProperty('--feed-pull', '0');
+  pullMark.style.removeProperty('--feed-pull-y');
+}
+
+async function runPullRefresh() {
+  pullBusy = true;
+  pullMark.classList.add('is-busy');
+  // The disc rests just past the mark while the check runs.
+  paintPull(pullMarkSize() * 2.2);
+  const started = performance.now();
+  try {
+    if (held[feedTab].length) goToFreshPosts();
+    await catchUp();
+  } finally {
+    const wait = PULL_MIN_MS - (performance.now() - started);
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    pullBusy = false;
+    settlePull();
+  }
+}
+
+scroller.addEventListener('touchstart', (event) => {
+  if (pullTouch || event.touches.length !== 1 || !pullCanStart()) return;
+  const touch = event.touches[0];
+  pullTouch = { x: touch.clientX, y: touch.clientY, live: false, dist: 0 };
+}, { passive: true });
+
+scroller.addEventListener('touchmove', (event) => {
+  if (!pullTouch) return;
+  if (event.touches.length !== 1 || scroller.scrollTop > 0) {
+    pullTouch = null;
+    settlePull();
+    return;
+  }
+  const touch = event.touches[0];
+  const dx = touch.clientX - pullTouch.x;
+  const dy = touch.clientY - pullTouch.y;
+  if (!pullTouch.live) {
+    // A small move decides: down and mostly vertical is a pull; anything
+    // else (a swipe, a scroll up) is left alone.
+    if (Math.hypot(dx, dy) < scroller.clientHeight * 0.012) return;
+    if (dy <= 0 || Math.abs(dx) > dy) {
+      pullTouch = null;
+      return;
+    }
+    pullTouch.live = true;
+    pullTouch.y = touch.clientY;
+    pullMark.classList.add('is-live');
+  }
+  pullTouch.dist = Math.max(0, touch.clientY - pullTouch.y) * PULL_TRAVEL;
+  paintPull(pullTouch.dist);
+}, { passive: true });
+
+function endPull() {
+  const touch = pullTouch;
+  pullTouch = null;
+  if (!touch || !touch.live) return;
+  if (pullMark.classList.contains('is-armed') && pullCanStart()) {
+    runPullRefresh();
+    return;
+  }
+  settlePull();
+}
+scroller.addEventListener('touchend', endPull, { passive: true });
+scroller.addEventListener('touchcancel', () => {
+  const live = pullTouch && pullTouch.live;
+  pullTouch = null;
+  if (live && !pullBusy) settlePull();
 }, { passive: true });
 
 paintToggle(false);

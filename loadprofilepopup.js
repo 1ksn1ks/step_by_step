@@ -218,7 +218,9 @@ export function syncEarlyStyleEditor(account) {
         // Size is an eyesight setting, never part of the locked theme.
         if (el) el.disabled = n > 0 && id !== "popup-size";
         const swatch = document.getElementById(id + "-swatch");
-        if (swatch) swatch.classList.toggle("is-locked", n > 0 && id !== "popup-size");
+        // The whole color button greys out, not only its dot.
+        const host = swatch && (swatch.closest(".mb-color-btn") || swatch);
+        if (host) host.classList.toggle("is-locked", n > 0 && id !== "popup-size");
     }
     const save = document.getElementById("savepopup3");
     if (save) {
@@ -342,6 +344,35 @@ export function applyAllStyles() {
         document.getElementById(id).addEventListener('input', () => paintSwatch(id));
     }
     COLOR_INPUTS.forEach(paintSwatch);
+
+    // Each color is one button (index.html .mb-color-btn): the input covers
+    // the whole cell, so a tap anywhere on it opens the picker. The button
+    // whose picker is open shows as selected (.is-picking) until a color is
+    // chosen, Escape, or a tap elsewhere. Some browsers do not focus a color
+    // input on a tap, so this does not wait for :focus.
+    function clearPicking(except) {
+        document.querySelectorAll(".mb-color-btn.is-picking").forEach((button) => {
+            if (button !== except) button.classList.remove("is-picking");
+        });
+    }
+    for (const id of COLOR_INPUTS) {
+        const input = document.getElementById(id);
+        const button = input && input.closest(".mb-color-btn");
+        if (!button) continue;
+        input.addEventListener("click", () => {
+            if (input.disabled) return;
+            clearPicking(button);
+            button.classList.add("is-picking");
+        });
+        input.addEventListener("change", () => button.classList.remove("is-picking"));
+        input.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") button.classList.remove("is-picking");
+        });
+    }
+    document.addEventListener("pointerdown", (event) => {
+        const target = event.target;
+        clearPicking(target && target.closest ? target.closest(".mb-color-btn") : null);
+    }, true);
 
     // Reset: the shipped colors and size, until Save Settings keeps them.
     // A locked Early Hashinal theme keeps its colors; only the size resets.
