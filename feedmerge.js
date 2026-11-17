@@ -10,16 +10,16 @@
 // only a source whose fetched rows have all been shown is fetched again.
 //
 // Light on phones: at most PULL_AT_ONCE sources are fetched at a time
-// (mapLimited), the feed reads at most FEED_TOPIC_MAX topics (capTopics),
-// and a stacked topic's first page gets STACK_FIRST_MS (settlesWithin).
-// A topic past that is `late`: the merge stops waiting for it and shows
-// what the others gave. When it comes in, its rows newer than the oldest
-// row already shown are taken out (takeAbove) and go in among the shown
-// rows; the rest join the merge on the next page, in order.
+// (mapLimited; the map's loader uses it too), the stack rule caps the
+// topics read (loadcurrenttopic.js STACK_MAX), and each topic's first page
+// gets STACK_FIRST_MS (settlesWithin). A topic past that, or one whose
+// page failed, is `late`: the merge stops waiting for it and shows what
+// the others gave. When it comes in, its rows newer than the oldest row
+// already shown are taken out (takeAbove) and go in among the shown rows;
+// the rest join the merge on the next page, in order.
 
 export const PULL_AT_ONCE = 3;
 export const STACK_FIRST_MS = 6000;
-export const FEED_TOPIC_MAX = 20;
 
 export function cmpTs(a, b) {
   const left = String(a || '').split('.');
@@ -47,17 +47,6 @@ export function feedSource(topic) {
 // A late source is already being fetched.
 export function needsPull(source) {
   return !source.done && !source.late && source.rows.length === 0;
-}
-
-// The open topic first, then the stacked topics in stack order, each once,
-// at most `max` in all.
-export function capTopics(topics, open, max = FEED_TOPIC_MAX) {
-  const out = open ? [open] : [];
-  for (const topic of topics || []) {
-    if (out.length >= max) break;
-    if (topic && !out.includes(topic)) out.push(topic);
-  }
-  return out;
 }
 
 // fn over every item, at most `limit` running at once, started in order.

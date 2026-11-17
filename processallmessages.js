@@ -24,6 +24,7 @@ import { bindVideoPoster } from './videoposter.js';
 import { pictureElement, presentImage, watchLoop } from './loopmedia.js';
 import { mountMediaBackdrop, mountMediaTools } from './mediaframe.js';
 import { mountMoreBadge } from './mediagrid.js';
+import { inTimeRange } from './timefilter.js';
 import { galleryImages } from './postimages.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
 import { watchPopupText, setPopupText } from './popuptext.js';
@@ -288,9 +289,30 @@ function dedupeByTimestamp(drawings, liveList) {
   return fresh;
 }
 
+// The map's topic load (handleallmessages.js) takes a token: drawings of a
+// load that is no longer the newest are dropped (a topic that ran past its
+// time limit keeps loading after the next load began), and only posts in
+// the load's time range (timefilter.js) are drawn. Other callers pass no
+// token: a place link (openplace.js) or a sealed topic draws everything.
+let mapDrawToken = 0;
+let mapDrawRange = null;
+
+export function beginMapDraw(range) {
+  mapDrawToken += 1;
+  mapDrawRange = range || null;
+  return mapDrawToken;
+}
+
+export function mapDrawCurrent(token) {
+  return token === mapDrawToken;
+}
+
 function publishApprovedDrawings(features, polys, state, sync) {
-  const markers = features.slice(state.markers);
-  const nextPolys = polys.slice(state.polys);
+  const timed = state.token != null;
+  if (timed && !mapDrawCurrent(state.token)) return;
+  const inRange = (drawing) => !timed || inTimeRange(drawing && drawing.created, mapDrawRange);
+  const markers = features.slice(state.markers).filter(inRange);
+  const nextPolys = polys.slice(state.polys).filter(inRange);
   state.markers = features.length;
   state.polys = polys.length;
   const freshMarkers = dedupeByTimestamp(markers, geojson.features);
@@ -342,7 +364,7 @@ function deferConnectedAccount(ctx) {
 
 async function showDrawingsAsApproved(ctx) {
   deferConnectedAccount(ctx);
-  const publishState = { markers: 0, polys: 0 };
+  const publishState = { markers: 0, polys: 0, token: ctx.token };
   const publish = (sync) => publishApprovedDrawings(ctx.features, ctx.polygonsOut, publishState, sync);
   await ctx.drawLoaded();
   publish(false);
@@ -2977,7 +2999,8 @@ export function polygonPopupNode(polygon) {
   return polygon.description;
 }
 
-export async function processTopicMessages(topicId) {
+// opts.token: the map load's draw token (beginMapDraw).
+export async function processTopicMessages(topicId, opts = {}) {
   let topicGeojsonFeatures = [];
   let topicPolygons = [];
   let loadedTopicName = '';
@@ -3515,6 +3538,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
 
           rememberTopicAutoplay(topicId, currentAutoplayNft(messages, topicAdmin));
           await showDrawingsAsApproved({
+            token: opts.token,
             messages,
             messagesByPayer,
             payerOrder,

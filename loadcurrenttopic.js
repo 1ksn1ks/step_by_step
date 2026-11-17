@@ -1,8 +1,9 @@
-// Current values stored as topic messages. The map (handleallmessages.js)
-// and the feed (topicstack.js) read stacks through these: newest topic bio
-// and topic name win, stacked ids keep the latest add or remove, and the
-// last valid setInitialXYZ wins. When the topic memo lists 0.0. admins,
-// only those payers count.
+// Current values stored as topic messages. The map (handleallmessages.js,
+// loadTOPIC4PIC.js) and the feed (topicstack.js) read stacks through these:
+// newest topic bio and topic name win, stacked ids keep the latest add or
+// remove, and the last valid setInitialXYZ wins. When the topic memo lists
+// 0.0. admins, only those payers count; a memo that lists none lets anyone
+// set them (the stack cap below bounds what that can cost).
 
 export function adminsFromMemo(memo) {
   const topicAdmin = [];
@@ -53,49 +54,116 @@ export function currentTopicName(messages, topicAdmin) {
   return '';
 }
 
-export function currentStackedTopics(messages, topicAdmin) {
-  const topicActions = new Map();
+// --- Stacks ----------------------------------------------------------------
+// A topic stacks others with { addTopic: { addTopic: "0.0.1,0.0.2" } } and
+// lets them go with { removeTopic: { removeTopic: "..." } }. The latest add
+// or remove of an id wins. One topic reads at most STACK_MAX stacked topics
+// (one per month of a year): the ones added most recently, so a flood of
+// adds cannot fan out into hundreds of reads on every phone, and an admin
+// who adds a 13th month pushes the oldest off without a remove. Stacks are
+// read one level deep: only the open topic's own messages are read, never a
+// stacked topic's stacks, so a chain or a loop of stacks cannot recurse.
+
+export const STACK_MAX = 12;
+const TOPIC_ID = /^0\.0\.\d+$/;
+
+export function isTopicId(value) {
+  return typeof value === 'string' && TOPIC_ID.test(value);
+}
+
+// "0.0.5, 0.0.6 ,bad,0.0.5" -> ["0.0.5", "0.0.6"]. Only a comma string is a
+// list (the message format); anything else names nothing.
+export function cleanTopicIds(value, self = '') {
+  if (typeof value !== 'string') return [];
+  const out = [];
+  for (const part of value.split(',')) {
+    const id = part.trim();
+    if (!isTopicId(id) || id === self || out.includes(id)) continue;
+    out.push(id);
+  }
+  return out;
+}
+
+// Every id whose latest action is an add, most recently added first,
+// uncapped. `self` (the topic the messages belong to) is never its own stack.
+export function activeStack(messages, topicAdmin, self = '') {
+  const last = new Map(); // id -> { add, at }
   for (let index = 0; index < (messages || []).length; index++) {
     const message = messages[index];
     const parsed = readMessage(message);
     if (!parsed || !payerAllowed(message, topicAdmin)) continue;
     if (parsed.addTopic && parsed.addTopic.addTopic) {
-      const topics = typeof parsed.addTopic.addTopic === 'string'
-        ? parsed.addTopic.addTopic.split(',')
-        : [];
-      topics.forEach((topic) => topicActions.set(topic, 'add'));
+      for (const id of cleanTopicIds(parsed.addTopic.addTopic, self)) last.set(id, { add: true, at: index });
     }
     if (parsed.removeTopic && parsed.removeTopic.removeTopic) {
-      const topics = typeof parsed.removeTopic.removeTopic === 'string'
-        ? parsed.removeTopic.removeTopic.split(',')
-        : [];
-      topics.forEach((topic) => topicActions.set(topic, 'remove'));
+      for (const id of cleanTopicIds(parsed.removeTopic.removeTopic, self)) last.set(id, { add: false, at: index });
     }
   }
-  return Array.from(topicActions.entries())
-    .filter(([topic, action]) => action === 'add' && topic.startsWith('0.0.'))
-    .map(([topic]) => topic);
+  return Array.from(last.entries())
+    .filter(([, state]) => state.add)
+    .sort((a, b) => b[1].at - a[1].at)
+    .map(([id]) => id);
 }
 
-// The topics whose posts a load shows. A topic that stacks others shows
-// those; one that stacks none shows itself (a shared topic address).
-// Stacks are read one level deep: a stacked topic's own stacks are not
-// followed, so a loop of stacks cannot recurse.
+// The stacked topics a load reads: at most STACK_MAX, newest adds first.
+export function currentStackedTopics(messages, topicAdmin, self = '') {
+  return activeStack(messages, topicAdmin, self).slice(0, STACK_MAX);
+}
+
+// The topics a load reads, the feed's and the map's: the open topic first,
+// then its stacked topics. A topic that stacks none reads only itself.
 export function topicsToLoad(topicId, messages, topicAdmin) {
-  const stacked = currentStackedTopics(messages, topicAdmin);
-  if (stacked.length === 0 && String(topicId || '').startsWith('0.0.')) return [topicId];
-  return stacked;
+  const open = String(topicId || '').trim();
+  const stacked = currentStackedTopics(messages, topicAdmin, open);
+  return isTopicId(open) ? [open, ...stacked] : stacked;
 }
 
-// The feed's topics: the open topic first, then what the map loads for it,
-// each once. The open topic always stays, so a topic that stacks others
-// but not itself keeps its own posts in the feed.
+// The feed's name for the same list.
 export function feedTopics(topicId, messages, topicAdmin) {
-  const out = [topicId];
-  for (const topic of topicsToLoad(topicId, messages, topicAdmin)) {
-    if (!out.includes(topic)) out.push(topic);
-  }
-  return out;
+  return topicsToLoad(topicId, messages, topicAdmin);
+}
+
+// The messages the stacking tools send (rest.js, monthstack.js).
+export function addTopicMessage(ids) {
+  return JSON.stringify({ addTopic: { addTopic: [].concat(ids).join(',') } });
+}
+
+export function removeTopicMessage(ids) {
+  return JSON.stringify({ removeTopic: { removeTopic: [].concat(ids).join(',') } });
+}
+
+export function changeNameMessage(name) {
+  return JSON.stringify({ changeName: String(name) });
+}
+
+// --- Monthly archive ---------------------------------------------------------
+// A year topic stacks up to twelve month topics; news for a month is posted
+// to that month's topic. Start new month (monthstack.js) makes one.
+
+const pad2 = (n) => String(n).padStart(2, '0');
+
+// "2026-12" for a local date.
+export function monthKey(date = new Date()) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`;
+}
+
+export function isMonthKey(value) {
+  return typeof value === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+}
+
+// "News 2026" + "2026-12" -> "News 2026 - 2026-12". A topic name is plain
+// text; a year topic without a name gives just the month.
+export function monthTopicName(yearName, key) {
+  const base = String(yearName || '').replace(/\s+/g, ' ').trim();
+  return base ? `${base} - ${key}` : key;
+}
+
+// What Start new month does to a stack: add the new topic, and when the
+// stack is already full, take off the topic added longest ago. The add
+// goes first; the cap already hides the oldest if the remove is declined.
+export function monthPlan(stack, max = STACK_MAX) {
+  const list = Array.isArray(stack) ? stack : [];
+  return { remove: list.length >= max ? list[list.length - 1] : '' };
 }
 
 // Newest admin autoplayNft wins. An empty value clears it. A message that

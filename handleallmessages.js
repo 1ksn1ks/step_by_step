@@ -15,11 +15,13 @@ import {
   } from "./letall";
 import { loadedDomains } from "./loaddomains";
 import { getTopicInfo } from "./hedera";
-import { getTopicData as getMessages } from "./topicdata";
+import { getTopicData as getMessages, latestTopicTs } from "./topicdata";
 import { newActiveMarkerPopups, updateClusters, index } from "./marker";
 import { newActivePolygonPopups, addPolygonWithImageFill } from "./polygons";
 import { map } from './map.js';
-import { processTopicMessages, allLoadedMessages } from "./processallmessages.js";
+import { beginMapDraw, mapDrawCurrent, processTopicMessages, allLoadedMessages } from "./processallmessages.js";
+import { PULL_AT_ONCE, STACK_FIRST_MS, mapLimited, settlesWithin } from "./feedmerge.js";
+import { inTimeRange, isStale, timeFilterFor, timeRange } from "./timefilter.js";
 import { initialTopicId } from "./extracttopic.js";
 import { toast } from "./toast";
 import { applyInitialXYZ } from "./setinitialxyz.js";
@@ -272,6 +274,36 @@ if (sortTopicsZa) {
   });
 }
 
+// The topic and time filter the map was last loaded with. The feed reloads
+// the map when it uncovers it and the filter has changed since (syncCover).
+let mapApplied = null;
+
+export function mapFilterStale() {
+  return !!mapApplied && timeFilterFor(mapApplied.topic) !== mapApplied.key;
+}
+
+// With a range, a topic whose newest message is older than it is not read:
+// "Today" on a year topic reads its current month. The newest time comes
+// from this device's copy, else a one-row ask (topicdata.js latestTopicTs),
+// three at a time. A topic whose time is unknown is read.
+async function topicsInRange(topics, range) {
+  if (!range) return topics;
+  const latest = await mapLimited(topics, PULL_AT_ONCE, (topic) => latestTopicTs(topic).catch(() => ''));
+  return topics.filter((topic, i) => !isStale(latest[i], range));
+}
+
+function nameRow(topicId, loadedTopicName) {
+  return `${topicId}${loadedTopicName ? ` - ${loadedTopicName}` : ''}`;
+}
+
+function sortTopicRows(list) {
+  list.sort((a, b) => {
+    const idA = parseFloat(a.split('-')[0].replace('0.0.', ''));
+    const idB = parseFloat(b.split('-')[0].replace('0.0.', ''));
+    return idA - idB;
+  });
+}
+
 export async function handleAllMessages() {
     try {
       const userInput = document.getElementById("input-field").value.toLowerCase();
@@ -343,9 +375,18 @@ export async function handleAllMessages() {
       let loadedTopicsIds = [];
       newActiveMarkerPopups([]);
       newActivePolygonPopups([]);
-  
-  
+
+      // This load's time filter. From here, drawings of an older load that
+      // is still running stop (its late topics), and only posts inside the
+      // range are drawn (processallmessages.js publishApprovedDrawings).
+      const filterKey = timeFilterFor(topicId);
+      const range = timeRange(filterKey);
+      mapApplied = { topic: topicId, key: filterKey };
+      const drawToken = beginMapDraw(range);
+
       const result = await getMessages(topicId);
+      // A newer load started while this one waited.
+      if (!mapDrawCurrent(drawToken)) return [];
 
       geojson.features = [];
       polygons.length = 0;
@@ -371,49 +412,58 @@ export async function handleAllMessages() {
   
   
   
-      // The stacked topics (latest admin add or remove per id), or the topic
-      // itself when it stacks none, so Open on the map can land on a shared
-      // topic's pin. The feed reads its topics through the same helper
-      // (topicstack.js).
-      loadedTopicsIds = topicsToLoad(topicId, result.messages, topicAdmin);
+      // The open topic, then its stacked topics (loadcurrenttopic.js: at most
+      // STACK_MAX, newest adds first, one level deep). The feed reads the
+      // same list (topicstack.js).
+      loadedTopicsIds = await topicsInRange(topicsToLoad(topicId, result.messages, topicAdmin), range);
+      if (!mapDrawCurrent(drawToken)) return [];
 
-        const loadedTopicIdsWithNames = [];
-  
-        const totalTopics = loadedTopicsIds.length;
-        let processedCount = 0;
-  
-      // Load and process messages from each topic in loadedTopicsIds
+      const loadedTopicIdsWithNames = [];
       const topicBios = {};
-      for (const topicId of loadedTopicsIds) {
-        const { topicGeojsonFeatures, topicPolygons, loadedTopicName, topicBio } = await processTopicMessages(topicId);
-
-        storedMarkers.push(topicGeojsonFeatures);
-        storedPolygons.push(topicPolygons);
-
-        if (topicBio) {
-          topicBios[topicId] = topicBio;
+      // What a topic adds once processed. A topic that failed adds nothing
+      // and the others still draw.
+      const take = (stackedId, out) => {
+        if (!out) return;
+        storedMarkers.push((out.topicGeojsonFeatures || []).filter((f) => inTimeRange(f && f.created, range)));
+        storedPolygons.push((out.topicPolygons || []).filter((p) => inTimeRange(p && p.created, range)));
+        if (out.topicBio) topicBios[stackedId] = out.topicBio;
+        if (out.loadedTopicName !== undefined) loadedTopicIdsWithNames.push(nameRow(stackedId, out.loadedTopicName));
+      };
+      const processed = (stackedId) => processTopicMessages(stackedId, { token: drawToken }).catch((error) => {
+        console.warn('map leaves out topic', stackedId, error);
+        return null;
+      });
+      // Three topics at a time; each gets STACK_FIRST_MS before the map goes
+      // on without it. A late topic keeps drawing as it loads (its drawings
+      // publish as they are approved) and joins the topic list when done.
+      await mapLimited(loadedTopicsIds, PULL_AT_ONCE, async (stackedId) => {
+        const job = processed(stackedId);
+        if (await settlesWithin(job, STACK_FIRST_MS)) {
+          take(stackedId, await job);
+          return;
         }
-
-        if (loadedTopicName !== undefined) { // Only skip if loadedTopicName is undefined
-          const topicNamePart = loadedTopicName ? ` - ${loadedTopicName}` : '';
-          loadedTopicIdsWithNames.push(`${topicId}${topicNamePart}`);
-        }
-
-       processedCount++;
-      }
+        job.then((out) => {
+          if (!mapDrawCurrent(drawToken) || !out) return;
+          storedMarkers.push((out.topicGeojsonFeatures || []).filter((f) => inTimeRange(f && f.created, range)));
+          storedPolygons.push((out.topicPolygons || []).filter((p) => inTimeRange(p && p.created, range)));
+          if (out.topicBio) newGlobalTopicBios({ ...globalTopicBios, [stackedId]: out.topicBio });
+          if (out.loadedTopicName !== undefined) {
+            globalLoadedTopicIdsWithNames.push(nameRow(stackedId, out.loadedTopicName));
+            sortTopicRows(globalLoadedTopicIdsWithNames);
+            renderLoadedTopics();
+          }
+        });
+      });
+      if (!mapDrawCurrent(drawToken)) return [];
       newGlobalTopicBios(topicBios);
 
-      if ( totalTopics === processedCount){
+      polygons.forEach(polygon => {
+        addPolygonWithImageFill(map, polygon);
+      });
 
-        polygons.forEach(polygon => {
-          addPolygonWithImageFill(map, polygon);
-        });
-
-        if (geojson.features.length > 0) {
-          index.load(geojson.features);
-          updateClusters();
-        }
-
+      if (geojson.features.length > 0) {
+        index.load(geojson.features);
+        updateClusters();
       }
 
       // After the cluster index exists. Flying earlier runs updateClusters
@@ -421,13 +471,7 @@ export async function handleAllMessages() {
       applyInitialXYZ(result.messages, topicAdmin);
   
       newGlobalLoadedTopicIdsWithNames(loadedTopicIdsWithNames);
-  
-  
-      globalLoadedTopicIdsWithNames.sort((a, b) => {
-        const idA = parseFloat(a.split('-')[0].replace('0.0.', ''));
-        const idB = parseFloat(b.split('-')[0].replace('0.0.', ''));
-        return idA - idB;
-      });
+      sortTopicRows(globalLoadedTopicIdsWithNames);
   
       renderLoadedTopics(); // Update with rows: topic id + name + 📋 + ✕
 

@@ -2405,15 +2405,17 @@ html, body {
      --map-bar-h in step with --page-bar-h there.
      Contents fill the row: text at 0.78 of the height keeps the line box
      (ascender to descender) just inside it. Clock plus the longest
-     coordinates are about 23em of Arial, so the 24 divisor shrinks the
-     text on narrow screens until the whole row fits the width. */
+     coordinates are about 23em of Arial, and the time filter's calendar
+     (#map-time-filter, about 1.6em at rest) sits after the clock, so the
+     25.6 divisor shrinks the text on narrow screens until the whole row
+     fits the width. */
   #map-topbar {
     --map-bar-col: 100dvw;
     --map-bar-fu: calc(min(100dvw, var(--map-bar-col)) * 0.024);
     --map-bar-h: max(44px, calc(var(--map-bar-fu) * 2.1 * 1.2));
     --map-bar-text: min(
       calc(var(--map-bar-h) * 0.78),
-      calc((100dvw - var(--map-bar-h) - 3vh - 12px) / 24)
+      calc((100dvw - var(--map-bar-h) - 3vh - 12px) / 25.6)
     );
     position: fixed;
     top: 2px;
@@ -25990,4 +25992,279 @@ html.is-draw-picking .live-filter {
   .popup-media-card > .post-more-badge {
     transition: none;
   }
+}
+
+/* ── Time filter (timefilter.js, timefilterui.js)
+   All / Today / This week / This month for the open topic, shared by the
+   feed and the map. Feed: a chip in the toolbar beside search, the height
+   of that button. Map: by the clock in the top bar, at the clock's text
+   size; at All only its calendar shows, so the coordinates keep their
+   room, and a set filter shows its name. Set, it is cyan like the post
+   button. The menu is the app's dark glass, 2.75rem rows. */
+.time-filter {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.time-filter-chip {
+  appearance: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  margin: 0;
+  box-sizing: border-box;
+  border: 0.0625rem solid rgba(255, 255, 255, 0.22);
+  border-radius: 2em;
+  background: rgba(255, 255, 255, 0.10);
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 160ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+/* At least a 2.75rem hit area around the smaller face. */
+.time-filter-chip::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(2.75rem, 100%);
+  height: max(2.75rem, 100%);
+  translate: -50% -50%;
+}
+.time-filter-chip svg {
+  display: block;
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  pointer-events: none;
+}
+.time-filter-chip.is-on {
+  border-color: #22D3EE;
+  background: rgba(8, 51, 68, 0.6);
+  color: #22D3EE;
+}
+.time-filter-chip:focus {
+  outline: none;
+}
+.time-filter-chip:focus-visible {
+  outline: 0.125rem solid #22D3EE;
+  outline-offset: 0.125rem;
+}
+@media (hover: hover) and (pointer: fine) {
+  .time-filter-chip:hover {
+    border-color: rgba(34, 211, 238, 0.7);
+  }
+}
+.time-filter.is-feed .time-filter-chip {
+  height: var(--page-face);
+  min-height: var(--page-face);
+  padding: 0 calc(var(--page-face) * 0.3);
+  font-size: calc(var(--page-face) * 0.36);
+  font-weight: 600;
+}
+#map-topbar .time-filter.is-map {
+  pointer-events: auto;
+}
+#map-topbar .time-filter.is-map .time-filter-chip {
+  height: calc(var(--map-bar-h) - 0.125rem);
+  padding: 0 0.3em;
+  border-color: transparent;
+  background: transparent;
+  font-family: Arial, sans-serif;
+  font-size: var(--map-bar-text);
+}
+#map-topbar .time-filter.is-map .time-filter-chip:not(.is-on) .time-filter-label {
+  display: none;
+}
+#map-topbar .time-filter.is-map .time-filter-chip.is-on {
+  border-color: #22D3EE;
+  background: rgba(8, 51, 68, 0.6);
+}
+.time-filter-menu {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: max(10rem, 100%);
+  padding: 0.35rem;
+  box-sizing: border-box;
+  border: 0.0625rem solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.9rem;
+  background: rgba(12, 14, 20, 0.96);
+  -webkit-backdrop-filter: blur(0.75rem);
+  backdrop-filter: blur(0.75rem);
+  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.55);
+  animation: zoomIn 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.time-filter.is-map .time-filter-menu {
+  left: 0;
+  right: auto;
+}
+.time-filter-menu[hidden] {
+  display: none;
+}
+.time-filter-item {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 2.75rem;
+  margin: 0;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(0.95rem, 2.1dvh, 1.15rem);
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.time-filter-item[aria-checked="true"] {
+  color: #22D3EE;
+}
+.time-filter-item[aria-checked="true"]::after {
+  content: "✓";
+  font-weight: 700;
+}
+.time-filter-item:is(:hover, :focus-visible) {
+  outline: none;
+  background: rgba(255, 255, 255, 0.08);
+}
+@media (prefers-reduced-motion: reduce) {
+  .time-filter-chip,
+  .time-filter-menu {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* 📚 STACK > Monthly archive (monthstack.js). The panel's own type and
+   buttons; the plan shows in a cyan box before anything is sent. */
+.stack-month-card {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.4rem, 1dvh, 0.75rem);
+  font-family: Inter, system-ui, sans-serif;
+}
+/* The panel's type tokens (the drawer sets them; the fallbacks are the
+   sizes where the panel opens on its own). */
+.stack-month-title {
+  color: #fff;
+  font-size: var(--ui-label, clamp(1rem, 2.2dvh, 1.3rem));
+  font-weight: 700;
+}
+.stack-month-hint,
+.stack-month-plan-text,
+.stack-month-status {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: var(--ui-small, clamp(0.85rem, 1.8dvh, 1.05rem));
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.stack-month-status:empty {
+  display: none;
+}
+/* The month and its button share a row when the panel is wide enough for
+   "September 2026"; on a narrow phone each takes the full width. */
+.stack-month-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: clamp(0.4rem, 1dvh, 0.75rem);
+}
+/* The panel's Stack and Remove buttons (--ui-* tokens in the drawer; the
+   fallbacks are the same sizes where the panel opens on its own). Their
+   own class keeps the drawer from turning them into list rows. */
+.stack-month-btn {
+  flex: 1 1 9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--ui-btn-h, max(2.75rem, 5dvh));
+  margin: 0;
+  padding: 0 var(--ui-pad-x, 0.9rem);
+  border: 0.0625rem solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--ui-radius, 0.75rem);
+  background: transparent;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label, clamp(0.95rem, 2dvh, 1.2rem));
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.stack-month-btn.is-primary {
+  border-color: #22D3EE;
+  background: #22D3EE;
+  color: #0a0a12;
+  box-shadow: 0 0 1rem rgba(34, 211, 238, 0.45);
+}
+.stack-month-btn:is(:hover, :active) {
+  border-color: #22D3EE;
+  color: #22D3EE;
+}
+.stack-month-btn.is-primary:is(:hover, :active) {
+  background: rgba(255, 255, 255, 0.06);
+}
+.stack-month-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.stack-month-btn:focus-visible {
+  outline: 0.125rem solid #22D3EE;
+  outline-offset: 0.125rem;
+}
+.stack-month-input {
+  flex: 1 1 13rem;
+  min-width: 0;
+  font-family: inherit;
+  min-height: var(--ui-btn-h, max(2.75rem, 5dvh));
+  margin: 0;
+  padding: 0 var(--ui-pad-x, 0.9rem);
+  box-sizing: border-box;
+  border: 0.0625rem solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--ui-radius, 0.75rem);
+  background: rgba(15, 15, 20, 0.45);
+  color: #fff;
+  color-scheme: dark;
+  font-size: var(--ui-label, clamp(0.95rem, 2dvh, 1.2rem));
+}
+.stack-month-input:focus-visible {
+  outline: 0.125rem solid #22D3EE;
+  outline-offset: 0.125rem;
+}
+.stack-month-plan {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.4rem, 1dvh, 0.75rem);
+  padding: clamp(0.5rem, 1.2dvh, 0.9rem);
+  border: 0.0625rem solid rgba(34, 211, 238, 0.5);
+  border-radius: clamp(0.6rem, 1.4dvh, 1rem);
+  background: rgba(8, 51, 68, 0.35);
+}
+.stack-month-plan[hidden] {
+  display: none;
+}
+.stack-month-plan-text {
+  color: #fff;
 }

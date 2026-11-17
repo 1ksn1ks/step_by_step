@@ -92,12 +92,47 @@ export async function readTopicCache(topicId) {
   });
 }
 
+// "seconds.nanos" consensus timestamps, compared as numbers. '' is oldest.
+export function laterTs(a, b) {
+  const key = (value) => {
+    const [s = '', n = ''] = String(value || '').split('.');
+    return /^\d+$/.test(s) ? s.padStart(12, '0') + n.padEnd(9, '0').slice(0, 9) : '';
+  };
+  return key(a) >= key(b) ? (key(a) ? String(a) : '') : String(b);
+}
+
+export function newestTs(messages, floor = '') {
+  let newest = floor || '';
+  for (const message of messages || []) {
+    if (!(sequenceOf(message) > 0)) continue;
+    newest = laterTs(newest, message.consensus_timestamp);
+  }
+  return newest;
+}
+
+// The topic's saved meta alone: the highest sequence and the newest
+// consensus timestamp saved (lastTs, '' for a copy saved before it was kept).
+export async function readTopicMeta(topicId) {
+  const database = await openDb();
+  if (!database || !topicId) return { lastSeq: 0, lastTs: '' };
+  return new Promise((resolve) => {
+    const tx = database.transaction(TOPICS, 'readonly');
+    const request = tx.objectStore(TOPICS).get(topicId);
+    request.onsuccess = () => {
+      const row = request.result || {};
+      resolve({ lastSeq: Number(row.lastSeq) || 0, lastTs: typeof row.lastTs === 'string' ? row.lastTs : '' });
+    };
+    request.onerror = () => resolve({ lastSeq: 0, lastTs: '' });
+  });
+}
+
 // Returns true when the phone refused to store more.
 export async function writeTopicMessages(topicId, messages, reachedSeq = 0) {
   const database = await openDb();
   if (!database || !topicId) return false;
   const rows = [];
   let maxSeq = Number(reachedSeq) || 0;
+  const maxTs = newestTs(messages);
   for (const message of messages || []) {
     const seq = sequenceOf(message);
     if (seq === null || seq <= 0) continue;
@@ -123,9 +158,10 @@ export async function writeTopicMessages(topicId, messages, reachedSeq = 0) {
     metaRequest.onsuccess = () => {
       const previous = metaRequest.result && Number(metaRequest.result.lastSeq);
       const lastSeq = Math.max(Number.isFinite(previous) ? previous : 0, maxSeq);
+      const lastTs = laterTs(metaRequest.result && metaRequest.result.lastTs, maxTs);
       if (!rows.length && lastSeq <= (Number.isFinite(previous) ? previous : 0)) return;
       for (const row of rows) store.put(row);
-      topics.put({ topicId, lastSeq, updatedAt: Date.now() });
+      topics.put({ topicId, lastSeq, lastTs, updatedAt: Date.now() });
     };
     tx.oncomplete = () => finish(() => resolve(false));
     tx.onabort = () => finish(() => {

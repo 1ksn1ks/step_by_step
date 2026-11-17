@@ -10,7 +10,7 @@ import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
 import { initialTopicId } from './extracttopic.js';
 import { connectedAccount, updateUI } from './web3.js';
 import { toast } from './toast.js';
-import { handleAllMessages } from './handleallmessages.js';
+import { handleAllMessages, mapFilterStale } from './handleallmessages.js';
 import { activeMarkerPopups } from './marker.js';
 import { activePolygonPopups } from './polygons.js';
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
@@ -63,6 +63,8 @@ import {
 } from './feedmerge.js';
 import { orderFresh, sortQueue } from './feedfresh.js';
 import { readFeedTopics } from './topicstack.js';
+import { consensusFrom, filterLabel, onTimeFilter, setTimeFilterFor, timeFilterFor, timeRange } from './timefilter.js';
+import { createTimeChip } from './timefilterui.js';
 
 const LAYOUT_KEY = 'layoutMode';
 const FEED_SETTING = {
@@ -285,7 +287,13 @@ postBtn.appendChild(svgIcon([
   ['path', { d: 'M5 12h14' }],
   ['path', { d: 'M12 5v14' }],
 ]));
-toolbar.append(menuAnchor, tools, searchBtnFeed, postBtn);
+// The open topic's time filter (timefilter.js), shared with the map's chip.
+const feedTimeChip = createTimeChip({
+  id: 'feed-time-filter',
+  variant: 'feed',
+  onPick: (key) => setTimeFilterFor(topicNow(), key),
+});
+toolbar.append(menuAnchor, tools, feedTimeChip.el, searchBtnFeed, postBtn);
 const profileBanner = document.createElement('button');
 profileBanner.id = 'feed-profile-banner';
 profileBanner.type = 'button';
@@ -373,6 +381,13 @@ mapCoordWrap.id = 'map-coord-wrap';
 if (mapCoords) mapCoordWrap.appendChild(mapCoords);
 if (mapCopy) mapCoordWrap.appendChild(mapCopy);
 if (mapClock) mapPills.appendChild(mapClock);
+// The map's copy of the time filter, by the clock.
+const mapTimeChip = createTimeChip({
+  id: 'map-time-filter',
+  variant: 'map',
+  onPick: (key) => setTimeFilterFor(topicNow(), key),
+});
+mapPills.appendChild(mapTimeChip.el);
 mapPills.appendChild(mapCoordWrap);
 mapBar.append(mapMenuBtn, mapPills);
 document.body.appendChild(mapBar);
@@ -733,6 +748,15 @@ let stackJob = null;
 // and those that came in while a page was being read (they join after it).
 const lateJobs = new Set();
 const lateLanded = new Set();
+// The time filter the feed was opened with (timefilter.js): its key, its
+// [from, to) range, and that start as a consensus timestamp for range reads.
+let feedFilterKey = 'all';
+let feedRange = null;
+let feedSince = '';
+// Topics left out of the page being read after a failure, and their errors
+// (pullSource). They are asked again on the next page.
+const skipped = new Set();
+let pageFailures = [];
 // The oldest position shown so far, across all sources (the search floor).
 let cursor = null;
 let exhausted = false;
@@ -3083,6 +3107,11 @@ function resetFeed(topic) {
   stackJob = null;
   lateJobs.clear();
   lateLanded.clear();
+  skipped.clear();
+  feedFilterKey = topic ? timeFilterFor(topic) : 'all';
+  feedRange = timeRange(feedFilterKey);
+  feedSince = consensusFrom(feedRange);
+  paintTimeChips();
   cursor = null;
   exhausted = false;
   paging = false;
@@ -3505,13 +3534,18 @@ function ingest(rows) {
   return made;
 }
 
-async function fetchBackend(topic, before) {
+// since: the time filter's start (a consensus timestamp). The backend pages
+// by sequence, so a filtered read asks in smaller steps and stops at the
+// first page that reaches past the start.
+const SINCE_ASK = 200;
+
+async function fetchBackend(topic, before, since = '') {
   const out = [];
   const seen = new Set();
   let beforeSeq = before && before.seq ? before.seq : 0;
   let short = false;
   while (out.length < PAGE) {
-    const ask = Math.min(1000, PAGE - out.length);
+    const ask = Math.min(since ? SINCE_ASK : 1000, PAGE - out.length);
     const page = await fetchMessagesBackend(topic, ask, 0, beforeSeq);
     if (!page.ready) return null;
     const confirmed = (page.messages || []).filter((message) => Number(message.sequence_number) > 0);
@@ -3523,8 +3557,13 @@ async function fetchBackend(topic, before) {
     for (let i = confirmed.length - 1; i >= 0 && out.length < PAGE; i--) {
       const seq = Number(confirmed[i].sequence_number);
       if (seen.has(seq)) continue;
+      if (since && cmpTs(confirmed[i].consensus_timestamp, since) < 0) continue;
       seen.add(seq);
       out.push(confirmed[i]);
+    }
+    if (since && cmpTs(confirmed[0].consensus_timestamp, since) < 0) {
+      short = true;
+      break;
     }
     if (confirmed.length < ask) {
       short = true;
@@ -3541,7 +3580,9 @@ async function fetchBackend(topic, before) {
   return { messages: out, done: short || out.length < PAGE };
 }
 
-async function fetchMirror(topic, before) {
+// since: only messages at or after it (the mirror's timestamp=gte: range),
+// so a filtered feed downloads the range and nothing older.
+async function fetchMirror(topic, before, since = '') {
   const out = [];
   const seen = new Set();
   let beforeTs = before && before.ts ? String(before.ts) : '';
@@ -3549,6 +3590,7 @@ async function fetchMirror(topic, before) {
   for (let guard = 0; guard < 40 && out.length < PAGE; guard++) {
     const ask = Math.min(100, PAGE - out.length);
     let url = `${MIRROR}/api/v1/topics/${topic}/messages?limit=${ask}&order=desc`;
+    if (since) url += `&timestamp=gte:${encodeURIComponent(since)}`;
     if (beforeTs) url += `&timestamp=lt:${encodeURIComponent(beforeTs)}`;
     const response = await fetch(url);
     if (!response.ok) throw new Error(`mirror HTTP ${response.status}`);
@@ -3571,6 +3613,7 @@ async function fetchMirror(topic, before) {
       const seq = Number(message.sequence_number);
       if (seq > 0 && seen.has(seq)) continue;
       if (before && before.ts && cmpTs(message.consensus_timestamp, before.ts) >= 0) continue;
+      if (since && cmpTs(message.consensus_timestamp, since) < 0) continue;
       if (seq > 0) seen.add(seq);
       out.push(message);
     }
@@ -3589,7 +3632,18 @@ async function fetchMirror(topic, before) {
   return { messages: out, done: short || out.length < PAGE };
 }
 
-async function fetchPage(topic, before) {
+// With a time filter the mirror's range read comes first; the backend
+// (stopping at the range start) is the fallback.
+async function fetchPage(topic, before, since = '') {
+  if (since) {
+    try {
+      return await fetchMirror(topic, before, since);
+    } catch (error) {
+      const cached = await fetchBackend(topic, before, since);
+      if (cached) return cached;
+      throw error;
+    }
+  }
   const cached = await fetchBackend(topic, before);
   if (cached) return cached;
   return fetchMirror(topic, before);
@@ -3963,6 +4017,9 @@ function paintEmpty() {
   else if (!feedFiltering() && feedTab === 'following' && followState === 'nowallet') text = 'Connect your wallet to see who you follow';
   else if (!feedFiltering() && feedTab === 'following' && followState === 'empty') text = "You're not following anyone yet";
   else if (!feedFiltering() && profileFilter && lane().length === 0 && exhausted && !paging && !followBlocked()) text = 'No posts yet';
+  else if (!feedFiltering() && !profileFilter && feedRange && lane().length === 0 && exhausted && !paging && !followBlocked()) {
+    text = `No posts ${filterLabel(feedFilterKey).toLowerCase()}`;
+  }
   if (text) {
     const note = document.createElement('p');
     note.className = 'feed-empty';
@@ -4624,7 +4681,7 @@ function restoreTabView() {
 // is fetched. A stacked topic joins the live stream as it is found.
 function readStack(gen) {
   if (!stackJob) {
-    stackJob = readFeedTopics(loadedTopic).then((topics) => {
+    stackJob = readFeedTopics(loadedTopic, { range: feedRange }).then((topics) => {
       if (gen !== generation) return;
       for (const topic of topics) {
         if (sources.some((source) => source.topic === topic)) continue;
@@ -4643,7 +4700,7 @@ const STACK_FAIL_LIMIT = 3;
 async function fetchInto(source, gen) {
   let page;
   try {
-    page = await fetchPage(source.topic, source.cursor);
+    page = await fetchPage(source.topic, source.cursor, feedSince);
   } catch (error) {
     source.fails += 1;
     if (source.topic !== loadedTopic && source.fails >= STACK_FAIL_LIMIT) {
@@ -4658,14 +4715,32 @@ async function fetchInto(source, gen) {
   addPage(source, page);
 }
 
-// A stacked topic's first page waits STACK_FIRST_MS at most. Past that the
-// page goes on without it (feedmerge.js `late`); the fetch keeps going and
-// its place in the queue is free. The open topic always waits.
+// Each topic's first page waits STACK_FIRST_MS at most. Past that the page
+// goes on without it (feedmerge.js `late`); the fetch keeps going and its
+// place in the queue is free. A topic whose page fails is left out of this
+// page the same way (skipped) and asked again on the next one, so one
+// failing topic never blanks the feed.
+function releaseSkipped() {
+  for (const source of skipped) source.late = false;
+  skipped.clear();
+}
+
 async function pullSource(source, gen) {
   if (!source || !needsPull(source)) return;
-  const timed = source.topic !== loadedTopic && !source.cursor;
+  const timed = !source.cursor;
   const job = fetchInto(source, gen);
-  if (!timed || await settlesWithin(job, STACK_FIRST_MS)) return job;
+  if (!timed || await settlesWithin(job, STACK_FIRST_MS)) {
+    try {
+      await job;
+    } catch (error) {
+      if (gen !== generation) return;
+      console.warn('feed leaves a topic out of this page', source.topic, error);
+      pageFailures.push(error);
+      source.late = true;
+      skipped.add(source);
+    }
+    return;
+  }
   if (gen !== generation) return;
   source.late = true;
   const landed = () => {
@@ -4703,6 +4778,7 @@ function joinLate() {
 // The next rows to show, newest first, across every source. Only sources
 // whose fetched rows have all been shown are fetched, PULL_AT_ONCE at a time.
 async function nextRows(gen) {
+  pageFailures = [];
   await Promise.all([readStack(gen), pullSource(sources[0], gen)]);
   if (gen !== generation) return [];
   await mapLimited(sources.filter(needsPull), PULL_AT_ONCE, (source) => pullSource(source, gen));
@@ -4716,6 +4792,9 @@ async function nextRows(gen) {
     joinLate();
     rows = takeMerged(sources);
   }
+  // Only a page with nothing to show fails (and waits for the next scroll
+  // instead of asking again at once).
+  if (!rows.length && pageFailures.length) throw pageFailures[0];
   return rows;
 }
 
@@ -4801,6 +4880,7 @@ let catchUpAgain = false;
 
 function afterPaging() {
   joinLate();
+  releaseSkipped();
   if (!catchUpAgain) return;
   catchUpAgain = false;
   setTimeout(catchUp, 0);
@@ -4905,16 +4985,29 @@ function paintTopicTitle() {
   topicBtn.setAttribute('aria-label', aria);
 }
 
+function reloadFeed(topic) {
+  unbindStreams();
+  resetFeed(topic);
+  bindStream(topic);
+  if (followBlocked()) paintEmpty();
+  else loadOlder();
+}
+
+// The chips follow the open topic's remembered filter.
+function paintTimeChips() {
+  const key = timeFilterFor(topicNow());
+  feedTimeChip.paint(key);
+  mapTimeChip.paint(key);
+}
+
 function ensureTopic(opening) {
   const topic = topicNow();
   paintTopicTitle();
+  paintTimeChips();
   if (!topic) return;
-  if (topic !== loadedTopic) {
-    unbindStreams();
-    resetFeed(topic);
-    bindStream(topic);
-    if (followBlocked()) paintEmpty();
-    else loadOlder();
+  // A new topic, or this topic's time filter changed while the feed was shut.
+  if (topic !== loadedTopic || timeFilterFor(topic) !== feedFilterKey) {
+    reloadFeed(topic);
     return;
   }
   if (opening) {
@@ -4943,9 +5036,22 @@ function syncCover() {
   // The bot and daynight layers go idle while the feed covers the map
   // (their render gates in loadP2PModels.js). One frame restarts their
   // repaint loop the moment the map comes back.
-  if (!covers && was) map.triggerRepaint();
+  if (!covers && was) {
+    map.triggerRepaint();
+    // The time filter changed while the feed covered the map.
+    if (mapFilterStale()) handleAllMessages();
+  }
   syncFeedVideos();
 }
+
+// A new time filter for the open topic: the feed and the map read it again.
+// What is not on screen reloads when it comes back (ensureTopic, syncCover).
+onTimeFilter(({ topic }) => {
+  paintTimeChips();
+  if (topic !== topicNow()) return;
+  if (feedOn() && !root.classList.contains('is-peek') && topic === loadedTopic) reloadFeed(topic);
+  if (!document.documentElement.classList.contains('feed-app')) handleAllMessages();
+});
 
 // Opening the feed rises it in over the map; closing drops it away to the
 // map. root.style.display stays the state (feedOn, the 'feed' history

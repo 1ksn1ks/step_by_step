@@ -1,17 +1,43 @@
-// The feed reads the open topic and the topics stacked on it, by the map's
-// stack rule (loadcurrenttopic.js), and pages them as one list in
-// consensus order (feedmerge.js). The feed module touches document on
-// import, so its wiring is checked from source.
+// The feed and the map read the open topic and the topics stacked on it by
+// one rule (loadcurrenttopic.js: at most 12, newest adds first, ids cleaned,
+// one level deep), three at a time with a time limit per topic, and the
+// feed pages them as one list in consensus order (feedmerge.js). A time
+// filter (timefilter.js) narrows both to today, this week or this month.
+// The feed and map modules touch document on import, so their wiring is
+// checked from source.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { currentStackedTopics, feedTopics, topicsToLoad } from "../loadcurrenttopic.js";
 import {
-  FEED_TOPIC_MAX,
+  STACK_MAX,
+  activeStack,
+  addTopicMessage,
+  changeNameMessage,
+  cleanTopicIds,
+  currentStackedTopics,
+  feedTopics,
+  isMonthKey,
+  monthKey,
+  monthPlan,
+  monthTopicName,
+  removeTopicMessage,
+  topicsToLoad,
+} from "../loadcurrenttopic.js";
+import {
+  TIME_FILTERS,
+  consensusAt,
+  consensusFrom,
+  inTimeRange,
+  isStale,
+  onTimeFilter,
+  setTimeFilterFor,
+  timeFilterFor,
+  timeRange,
+} from "../timefilter.js";
+import {
   PULL_AT_ONCE,
   STACK_FIRST_MS,
   addPage,
-  capTopics,
   cmpMessage,
   feedSource,
   mapLimited,
@@ -53,7 +79,7 @@ function oldMapTopics(topicId, messages, topicAdmin) {
   return ids;
 }
 
-test("the shared rule gives the map the same topics as its old loop", () => {
+test("the shared rule keeps the old loop's stacked topics, with the open topic first and never twice", () => {
   const cases = [
     { messages: [], admins: [] },
     { messages: [add("0.0.10"), add("0.0.11,0.0.12")], admins: [] },
@@ -63,28 +89,96 @@ test("the shared rule gives the map the same topics as its old loop", () => {
     { messages: [add("0.0.10", "0.0.2")], admins: ["0.0.3"] },
     { messages: [add("bad,0.0.12"), add(["0.0.13"]), { payer: "0.0.1" }], admins: [] },
     { messages: [add("0.0.10"), "not json", JSON.stringify({ addTopic: { addTopic: "0.0.14" } })], admins: [] },
+    { messages: [add("0.0.9,0.0.10")], admins: [] },
   ];
   for (const { messages, admins } of cases) {
-    assert.deepEqual(topicsToLoad("0.0.9", messages, admins), oldMapTopics("0.0.9", messages, admins));
+    const now = topicsToLoad("0.0.9", messages, admins);
+    const old = oldMapTopics("0.0.9", messages, admins).filter((id) => id !== "0.0.9");
+    assert.equal(now[0], "0.0.9", "the open topic always comes first");
+    assert.deepEqual([...now.slice(1)].sort(), [...old].sort(), "the same stacked topics");
+    assert.equal(new Set(now).size, now.length);
   }
 });
 
-test("a removal wins over an older add, and only admins count", () => {
+test("a removal wins over an older add, newer adds come first, and only admins count", () => {
   const messages = [add("0.0.9,0.0.10,0.0.11"), remove("0.0.10"), add("0.0.12", "0.0.99")];
-  assert.deepEqual(currentStackedTopics(messages, []), ["0.0.9", "0.0.11", "0.0.12"]);
+  assert.deepEqual(currentStackedTopics(messages, []), ["0.0.12", "0.0.9", "0.0.11"]);
   assert.deepEqual(currentStackedTopics(messages, ["0.0.1"]), ["0.0.9", "0.0.11"]);
 });
 
-test("the feed reads the open topic first, then each stacked topic once", () => {
-  // 0.0.9609912 stacks itself, 0.0.9759318 and 0.0.10960230.
+test("the feed and the map read the open topic first, then each stacked topic once", () => {
+  // 0.0.9609912 stacks itself, 0.0.9759318 and 0.0.10960230 (the newest add).
   const main = [add("0.0.9609912"), add("0.0.9759318"), add("0.0.10960230", "0.0.10960211")];
-  assert.deepEqual(feedTopics("0.0.9609912", main, []), ["0.0.9609912", "0.0.9759318", "0.0.10960230"]);
+  assert.deepEqual(feedTopics("0.0.9609912", main, []), ["0.0.9609912", "0.0.10960230", "0.0.9759318"]);
+  assert.deepEqual(topicsToLoad("0.0.9609912", main, []), feedTopics("0.0.9609912", main, []));
   // A topic that stacks others but not itself keeps its own posts.
   assert.deepEqual(feedTopics("0.0.5", [add("0.0.6")], []), ["0.0.5", "0.0.6"]);
   // No stacks: only the open topic.
   assert.deepEqual(feedTopics("0.0.5", [], []), ["0.0.5"]);
-  // A stack naming the open topic twice, or looping back to it, is read once.
+  // A stack naming the open topic, or naming a topic twice, reads each once.
   assert.deepEqual(feedTopics("0.0.5", [add("0.0.5,0.0.6,0.0.5"), add("0.0.6")], []), ["0.0.5", "0.0.6"]);
+});
+
+test("a topic reads at most 12 stacked topics: the 12 added most recently, after removals", () => {
+  assert.equal(STACK_MAX, 12);
+  const ids = Array.from({ length: 15 }, (_, i) => `0.0.${100 + i}`);
+  const messages = ids.map((id) => add(id));
+  const stacked = currentStackedTopics(messages, [], "0.0.5");
+  assert.equal(stacked.length, STACK_MAX);
+  assert.deepEqual(stacked, ids.slice(3).reverse(), "newest adds, newest first");
+  assert.deepEqual(topicsToLoad("0.0.5", messages, []), ["0.0.5", ...ids.slice(3).reverse()]);
+  // Removing one of the twelve lets the next most recent back in.
+  const removed = [...messages, remove("0.0.114")];
+  assert.deepEqual(currentStackedTopics(removed, [], "0.0.5"), ids.slice(2, 14).reverse());
+  // Adding an old id again makes it the newest.
+  const readded = [...messages, add("0.0.100")];
+  assert.equal(currentStackedTopics(readded, [], "0.0.5")[0], "0.0.100");
+  // One message with hundreds of ids is still twelve reads.
+  const flood = [add(Array.from({ length: 300 }, (_, i) => `0.0.${1000 + i}`).join(","))];
+  assert.equal(topicsToLoad("0.0.5", flood, []).length, 1 + STACK_MAX);
+  // Everything stacked stays listed for the admin tools (uncapped).
+  assert.equal(activeStack(messages, [], "0.0.5").length, 15);
+});
+
+test("stacked ids are trimmed, checked, deduplicated, and a topic never stacks itself", () => {
+  assert.deepEqual(cleanTopicIds(" 0.0.6 ,0.0.7,0.0.6, 0.0.8 "), ["0.0.6", "0.0.7", "0.0.8"]);
+  assert.deepEqual(cleanTopicIds("0.0.5,0.0.6", "0.0.5"), ["0.0.6"]);
+  for (const bad of ["0.0.", "0.0.12abc", "1.0.12", "0.0.-1", "0.0.1.2", "javascript:0.0.1", "", " , ,"]) {
+    assert.deepEqual(cleanTopicIds(bad), [], bad);
+  }
+  // Only the message's comma string names topics.
+  assert.deepEqual(cleanTopicIds(["0.0.6"]), []);
+  assert.deepEqual(cleanTopicIds({ id: "0.0.6" }), []);
+  const messages = [add(" 0.0.6 ,0.0.6"), add("0.0.5"), add("0.0.12abc, 0.0.7"), remove(" 0.0.7 ")];
+  assert.deepEqual(topicsToLoad("0.0.5", messages, []), ["0.0.5", "0.0.6"]);
+  // The tools send the same clean shape.
+  assert.equal(addTopicMessage(["0.0.6", "0.0.7"]), '{"addTopic":{"addTopic":"0.0.6,0.0.7"}}');
+  assert.equal(removeTopicMessage(["0.0.6"]), '{"removeTopic":{"removeTopic":"0.0.6"}}');
+  assert.equal(changeNameMessage("News 2026 - 2026-12"), '{"changeName":"News 2026 - 2026-12"}');
+  const rest = readFileSync(new URL("../rest.js", import.meta.url), "utf8");
+  assert.match(rest, /addTopicMessage\(stackTopicAddTopic\)/);
+  assert.match(rest, /removeTopicMessage\(stackTopicRemoveTopic\)/);
+  assert.equal(rest.split('cleanTopicIds(document.getElementById("stack-topic-add-remove-topic").value').length - 1, 2);
+});
+
+test("stacks are read one level deep: a stacked topic's own stacks are never followed", () => {
+  // A stacks B; B stacks C and loops back to A.
+  const ofA = [add("0.0.11")];
+  const ofB = [add("0.0.12,0.0.10")];
+  assert.deepEqual(topicsToLoad("0.0.10", ofA, []), ["0.0.10", "0.0.11"]);
+  // Only the open topic's messages go in; nothing reads B's list.
+  assert.deepEqual(topicsToLoad("0.0.11", ofB, []), ["0.0.11", "0.0.12", "0.0.10"]);
+  // Every reader passes the open topic's own messages, never a stacked one's.
+  const map = readFileSync(new URL("../handleallmessages.js", import.meta.url), "utf8");
+  const stack = readFileSync(new URL("../topicstack.js", import.meta.url), "utf8");
+  const pic = readFileSync(new URL("../loadTOPIC4PIC.js", import.meta.url), "utf8");
+  assert.equal(map.split("topicsToLoad(").length - 1, 1);
+  assert.match(map, /topicsToLoad\(topicId, result\.messages, topicAdmin\)/);
+  assert.equal(stack.split("feedTopics(").length - 1, 1);
+  assert.match(stack, /feedTopics\(topicId, data && data\.messages, adminsFromMemo\(info\.memo\)\)/);
+  // The profile's topic list uses the same helper, not its own copy.
+  assert.match(pic, /currentStackedTopics\(result\.messages, topicAdmin, topicIdStr\)/);
+  assert.doesNotMatch(pic, /topicActions|parsedMessage\.addTopic/);
 });
 
 // Messages for a topic, oldest first, at the given consensus seconds.
@@ -169,7 +263,7 @@ test("the feed is wired to the shared rule and pages every topic", () => {
   assert.match(map, /topicsToLoad\(topicId, result\.messages, topicAdmin\)/);
   assert.doesNotMatch(map, /parsedMessage\.addTopic/);
   assert.match(stack, /feedTopics\(topicId/);
-  assert.match(feed, /readFeedTopics\(loadedTopic\)/);
+  assert.match(feed, /readFeedTopics\(loadedTopic, \{ range: feedRange \}\)/);
   assert.match(feed, /takeMerged\(sources\)/);
   // Posts carry their own topic; nothing builds one from the open topic.
   assert.doesNotMatch(feed, /topicId: loadedTopic/);
@@ -322,33 +416,27 @@ test("a late topic that comes in before anything was shown simply joins the merg
   assert.equal(source.rows.length, 2);
 });
 
-test("the feed reads at most 20 topics, the open one first", () => {
-  assert.equal(FEED_TOPIC_MAX, 20);
+test("the feed's cap is the shared rule's: the open topic and 12 stacked", () => {
   const stacked = Array.from({ length: 30 }, (_, i) => `0.0.${100 + i}`);
   const topics = feedTopics("0.0.5", [add(stacked.join(","))], []);
-  assert.equal(topics.length, 31);
-  const capped = capTopics(topics, "0.0.5");
-  assert.equal(capped.length, FEED_TOPIC_MAX);
-  assert.equal(capped[0], "0.0.5");
-  assert.deepEqual(capped.slice(1), stacked.slice(0, FEED_TOPIC_MAX - 1), "the first stacked topics, in stack order");
-  // The open topic stays first even if a list names it later, and once.
-  assert.deepEqual(capTopics(["0.0.7", "0.0.5", "0.0.7"], "0.0.5"), ["0.0.5", "0.0.7"]);
-  // A short stack is read as it is.
-  assert.deepEqual(capTopics(["0.0.5", "0.0.6"], "0.0.5"), ["0.0.5", "0.0.6"]);
+  assert.equal(topics.length, 1 + STACK_MAX);
+  assert.equal(topics[0], "0.0.5");
   const stack = readFileSync(new URL("../topicstack.js", import.meta.url), "utf8");
-  assert.match(stack, /const topics = capTopics\(all, topicId, FEED_TOPIC_MAX\);/);
+  const merge = readFileSync(new URL("../feedmerge.js", import.meta.url), "utf8");
+  assert.doesNotMatch(stack, /capTopics|FEED_TOPIC_MAX/);
+  assert.doesNotMatch(merge, /capTopics|FEED_TOPIC_MAX/);
 });
 
-test("the feed pages through the queue, times only stacked first pages, and lets late topics join", () => {
+test("the feed pages through the queue, times every first page, and lets late topics join", () => {
   const feed = readFileSync(new URL("../feedlayout.js", import.meta.url), "utf8");
   // No fetch over every topic at once, for pages or for the catch-up.
   assert.doesNotMatch(feed, /Promise\.all\(sources\.filter\(needsPull\)/);
   assert.doesNotMatch(feed, /Promise\.all\(live\.map/);
   assert.match(feed, /await mapLimited\(sources\.filter\(needsPull\), PULL_AT_ONCE, \(source\) => pullSource\(source, gen\)\);/);
   assert.match(feed, /await mapLimited\(live, PULL_AT_ONCE, \(source\) => newerRows\(source\.topic, catchUpFrom\(source\)\)\);/);
-  // The open topic always waits; a stacked topic's first page is timed.
-  assert.match(feed, /const timed = source\.topic !== loadedTopic && !source\.cursor;/);
-  assert.match(feed, /if \(!timed \|\| await settlesWithin\(job, STACK_FIRST_MS\)\) return job;/);
+  // Every topic's first page is timed, the open one's too.
+  assert.match(feed, /const timed = !source\.cursor;/);
+  assert.match(feed, /if \(!timed \|\| await settlesWithin\(job, STACK_FIRST_MS\)\) \{/);
   // It joins once the page being read is shown, not in the middle of it.
   assert.match(feed, /if \(!paging\) joinLate\(\);/);
   assert.match(feed, /function afterPaging\(\) \{\s*joinLate\(\);/);
@@ -361,5 +449,218 @@ test("the feed pages through the queue, times only stacked first pages, and lets
   // A page with nothing else to show waits for the late topics.
   assert.match(feed, /if \(!rows\.length && lateJobs\.size\) \{\s*await Promise\.all\(\[\.\.\.lateJobs\]\);/);
   // A new open topic forgets the old one's late topics.
-  assert.match(feed, /stackJob = null;\s*lateJobs\.clear\(\);\s*lateLanded\.clear\(\);/);
+  assert.match(feed, /stackJob = null;\s*lateJobs\.clear\(\);\s*lateLanded\.clear\(\);\s*skipped\.clear\(\);/);
 });
+
+test("one failing topic never blanks the feed: it sits out that page and is asked again", () => {
+  const feed = readFileSync(new URL("../feedlayout.js", import.meta.url), "utf8");
+  const pull = feed.slice(feed.indexOf("async function pullSource("), feed.indexOf("// Late topics that came in join the feed."));
+  assert.match(pull, /catch \(error\) \{[\s\S]*pageFailures\.push\(error\);\s*source\.late = true;\s*skipped\.add\(source\);/);
+  // It rejoins after the page is shown, not while the merge is running.
+  assert.match(feed, /function afterPaging\(\) \{\s*joinLate\(\);\s*releaseSkipped\(\);/);
+  // Only a page with nothing to show fails.
+  assert.match(feed, /if \(!rows\.length && pageFailures\.length\) throw pageFailures\[0\];/);
+
+  // The merge shows the others while a failed topic sits out.
+  const a = feedSource("0.0.1");
+  const failed = feedSource("0.0.2");
+  addPage(a, { messages: topicRows("0.0.1", [10, 20]).reverse(), done: true });
+  assert.deepEqual(takeMerged([a, failed]), [], "a topic that has not answered holds the page");
+  failed.late = true;
+  assert.equal(takeMerged([a, failed]).length, 2, "sitting out, it does not");
+  failed.late = false;
+  assert.equal(needsPull(failed), true, "and the next page asks it again");
+});
+
+test("the map reads its topics three at a time, gives each about 6 s, and one failure drops only that topic", () => {
+  const map = readFileSync(new URL("../handleallmessages.js", import.meta.url), "utf8");
+  const pic = readFileSync(new URL("../loadTOPIC4PIC.js", import.meta.url), "utf8");
+  const draw = readFileSync(new URL("../processallmessages.js", import.meta.url), "utf8");
+  // No topic after topic (the old for…await), no Promise.all over them all.
+  assert.doesNotMatch(map, /for \(const topicId of loadedTopicsIds\)/);
+  assert.match(map, /await mapLimited\(loadedTopicsIds, PULL_AT_ONCE, async \(stackedId\) => \{/);
+  assert.match(map, /if \(await settlesWithin\(job, STACK_FIRST_MS\)\) \{/);
+  // A failure is that topic's alone.
+  assert.match(map, /processTopicMessages\(stackedId, \{ token: drawToken \}\)\.catch\(\(error\) => \{[\s\S]*?return null;/);
+  // A late topic joins when it lands, unless a newer load has begun.
+  assert.match(map, /job\.then\(\(out\) => \{\s*if \(!mapDrawCurrent\(drawToken\) \|\| !out\) return;/);
+  assert.match(draw, /if \(timed && !mapDrawCurrent\(state\.token\)\) return;/);
+  assert.match(draw, /const publishState = \{ markers: 0, polys: 0, token: ctx\.token \};/);
+  // The profile's stack list: names three at a time, a slow one by its id.
+  assert.match(pic, /await mapLimited\(loadedTopicsIds, PULL_AT_ONCE, async \(stackedId\) => \{/);
+  assert.match(pic, /if \(!\(await settlesWithin\(job, STACK_FIRST_MS\)\)\) return stackedId;/);
+  assert.doesNotMatch(pic, /for \(const topicId of loadedTopicsIds\)/);
+});
+
+// --- Time filters: All, Today, This week, This month ------------------------
+
+// Local time is the person's: each case runs in a named zone.
+function inZone(zone, fn) {
+  const before = process.env.TZ;
+  process.env.TZ = zone;
+  try {
+    return fn();
+  } finally {
+    if (before === undefined) delete process.env.TZ;
+    else process.env.TZ = before;
+  }
+}
+
+const local = (y, m, d, h = 0, min = 0) => new Date(y, m - 1, d, h, min).getTime();
+
+test("today, this week and this month start at local midnight, on Monday, and on the 1st", () => {
+  assert.deepEqual(TIME_FILTERS.map((f) => f.key), ["all", "today", "week", "month"]);
+  for (const zone of ["Europe/Belgrade", "America/New_York", "Asia/Tokyo", "UTC"]) {
+    inZone(zone, () => {
+      // Tuesday 17 Nov 2026, 15:30 local.
+      const now = new Date(2026, 10, 17, 15, 30);
+      assert.equal(timeRange("all", now), null, zone);
+      assert.deepEqual(timeRange("today", now), { from: local(2026, 11, 17), to: local(2026, 11, 18) }, zone);
+      assert.deepEqual(timeRange("week", now), { from: local(2026, 11, 16), to: local(2026, 11, 23) }, zone);
+      assert.deepEqual(timeRange("month", now), { from: local(2026, 11, 1), to: local(2026, 12, 1) }, zone);
+      // A Sunday belongs to the week that began the Monday before.
+      assert.deepEqual(timeRange("week", new Date(2026, 10, 22, 23, 59)), { from: local(2026, 11, 16), to: local(2026, 11, 23) }, zone);
+      // Monday just after midnight starts a new week.
+      assert.deepEqual(timeRange("week", new Date(2026, 10, 23, 0, 1)), { from: local(2026, 11, 23), to: local(2026, 11, 30) }, zone);
+      // December runs into January; a week can run across a month.
+      assert.deepEqual(timeRange("month", new Date(2026, 11, 31, 23, 0)), { from: local(2026, 12, 1), to: local(2027, 1, 1) }, zone);
+      assert.deepEqual(timeRange("week", new Date(2026, 11, 31, 12)), { from: local(2026, 12, 28), to: local(2027, 1, 4) }, zone);
+    });
+  }
+});
+
+test("a day around a clock change still runs midnight to midnight, local time", () => {
+  inZone("Europe/Belgrade", () => {
+    // Clocks went back on Sunday 25 Oct 2026: that day is 25 hours long.
+    const day = timeRange("today", new Date(2026, 9, 25, 12));
+    assert.equal(day.to - day.from, 25 * 3600 * 1000);
+    assert.equal(new Date(day.from).getHours(), 0);
+    assert.equal(new Date(day.to).getHours(), 0);
+    // That week (Mon 19 to Mon 26 Oct) is 7 days and an hour.
+    const week = timeRange("week", new Date(2026, 9, 25, 12));
+    assert.equal(week.to - week.from, (7 * 24 + 1) * 3600 * 1000);
+    assert.equal(new Date(week.from).getDay(), 1);
+  });
+  inZone("America/New_York", () => {
+    // Clocks went forward on Sunday 8 Mar 2026: a 23-hour day.
+    const day = timeRange("today", new Date(2026, 2, 8, 12));
+    assert.equal(day.to - day.from, 23 * 3600 * 1000);
+  });
+});
+
+test("posts are matched by consensus timestamp, and range reads ask the mirror from the range start", () => {
+  const range = { from: Date.UTC(2026, 10, 17), to: Date.UTC(2026, 10, 18) };
+  const at = (ms) => consensusAt(ms);
+  assert.equal(consensusAt(Date.UTC(2026, 10, 17)), "1794873600.000000000");
+  assert.equal(consensusAt(1794873600123), "1794873600.123000000");
+  assert.equal(consensusFrom(range), "1794873600.000000000");
+  assert.equal(consensusFrom(null), "");
+  assert.equal(inTimeRange(at(range.from), range), true, "the first instant is in");
+  assert.equal(inTimeRange(at(range.from - 1), range), false);
+  assert.equal(inTimeRange(at(range.to - 1), range), true);
+  assert.equal(inTimeRange(at(range.to), range), false, "the end is out");
+  // ISO dates and Dates (map drawings carry these) are read the same way.
+  assert.equal(inTimeRange("2026-11-17T09:00:00.000Z", range), true);
+  assert.equal(inTimeRange(new Date("2026-11-16T23:59:59.999Z"), range), false);
+  // All lets everything in, and an unreadable time is never hidden.
+  assert.equal(inTimeRange(at(0), null), true);
+  assert.equal(inTimeRange("not a time", range), true);
+  const feed = readFileSync(new URL("../feedlayout.js", import.meta.url), "utf8");
+  assert.match(feed, /if \(since\) url \+= `&timestamp=gte:\$\{encodeURIComponent\(since\)\}`;/);
+  assert.match(feed, /feedSince = consensusFrom\(feedRange\);/);
+  assert.match(feed, /page = await fetchPage\(source\.topic, source\.cursor, feedSince\);/);
+  // The backend fallback stops at the first page that reaches past the start.
+  assert.match(feed, /if \(since && cmpTs\(confirmed\[0\]\.consensus_timestamp, since\) < 0\) \{\s*short = true;\s*break;/);
+  const draw = readFileSync(new URL("../processallmessages.js", import.meta.url), "utf8");
+  assert.match(draw, /inTimeRange\(drawing && drawing\.created, mapDrawRange\)/);
+});
+
+test("the filter is remembered per topic, and the feed and the map hear the change", () => {
+  const store = new Map();
+  const storage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
+  const heard = [];
+  const off = onTimeFilter((event) => heard.push(event));
+  assert.equal(timeFilterFor("0.0.5", storage), "all");
+  setTimeFilterFor("0.0.5", "today", storage);
+  setTimeFilterFor("0.0.6", "month", storage);
+  assert.equal(timeFilterFor("0.0.5", storage), "today");
+  assert.equal(timeFilterFor("0.0.6", storage), "month");
+  assert.equal(timeFilterFor("0.0.7", storage), "all");
+  setTimeFilterFor("0.0.5", "today", storage);
+  setTimeFilterFor("0.0.5", "nonsense", storage);
+  assert.deepEqual(heard, [{ topic: "0.0.5", key: "today" }, { topic: "0.0.6", key: "month" }], "only real changes are told");
+  setTimeFilterFor("0.0.5", "all", storage);
+  assert.equal(JSON.parse(store.get("time-filter-v1"))["0.0.5"], undefined, "All is stored by forgetting");
+  off();
+  // A store that refuses writes (private mode) still keeps it for the visit.
+  const refusing = { getItem: () => null, setItem: () => { throw new Error("quota"); } };
+  setTimeFilterFor("0.0.5", "week", refusing);
+  assert.equal(timeFilterFor("0.0.5", refusing), "week");
+});
+
+test("a stacked topic whose newest message is older than the range is not read", () => {
+  inZone("Europe/Belgrade", () => {
+    const today = timeRange("today", new Date(2026, 10, 17, 9));
+    const thisMonth = consensusAt(local(2026, 11, 17, 8));
+    const lastMonth = consensusAt(local(2026, 10, 30, 22));
+    assert.equal(isStale(lastMonth, today), true);
+    assert.equal(isStale(thisMonth, today), false);
+    assert.equal(isStale("", today), false, "unknown is read");
+    assert.equal(isStale(lastMonth, null), false, "All reads everything");
+    // A year topic with twelve months: "Today" reads the open topic and the current month.
+    const months = Array.from({ length: 12 }, (_, i) => ({ id: `0.0.${200 + i}`, latest: consensusAt(local(2026, i + 1, 28)) }));
+    months[10].latest = thisMonth; // November, still being posted to
+    months[11].latest = ""; // December: never read on this device
+    const kept = months.filter((m) => !isStale(m.latest, today)).map((m) => m.id);
+    assert.deepEqual(kept, ["0.0.210", "0.0.211"]);
+  });
+  const stack = readFileSync(new URL("../topicstack.js", import.meta.url), "utf8");
+  assert.match(stack, /topics\.filter\(\(topic, i\) => topic === topicId \|\| !isStale\(latest\[i\], range\)\)/);
+  assert.match(stack, /cachedLatestTs\(topic\)/);
+  const map = readFileSync(new URL("../handleallmessages.js", import.meta.url), "utf8");
+  assert.match(map, /loadedTopicsIds = await topicsInRange\(topicsToLoad\(topicId, result\.messages, topicAdmin\), range\);/);
+  assert.match(map, /mapLimited\(topics, PULL_AT_ONCE, \(topic\) => latestTopicTs\(topic\)\.catch\(\(\) => ''\)\)/);
+  // The phone's topic cache keeps each topic's newest time with its sequence.
+  const cache = readFileSync(new URL("../topiccache.js", import.meta.url), "utf8");
+  assert.match(cache, /topics\.put\(\{ topicId, lastSeq, lastTs, updatedAt: Date\.now\(\) \}\);/);
+});
+
+// --- Start new month --------------------------------------------------------
+
+test("a new month is named after the year topic, and a full stack gives up its oldest", () => {
+  inZone("Europe/Belgrade", () => {
+    assert.equal(monthKey(new Date(2026, 11, 1)), "2026-12");
+    assert.equal(monthKey(new Date(2027, 0, 31, 23, 59)), "2027-01");
+  });
+  assert.equal(isMonthKey("2026-12"), true);
+  for (const bad of ["2026-13", "2026-00", "26-12", "2026-1", ""]) assert.equal(isMonthKey(bad), false, bad);
+  assert.equal(monthTopicName("News 2026", "2026-12"), "News 2026 - 2026-12");
+  assert.equal(monthTopicName("  News   2026 ", "2026-12"), "News 2026 - 2026-12");
+  assert.equal(monthTopicName("", "2026-12"), "2026-12");
+  // Twelve stacked (newest first): the one added longest ago comes off.
+  const twelve = Array.from({ length: 12 }, (_, i) => `0.0.${300 - i}`);
+  assert.deepEqual(monthPlan(twelve), { remove: "0.0.289" });
+  assert.deepEqual(monthPlan(twelve.slice(0, 11)), { remove: "" });
+  assert.deepEqual(monthPlan([]), { remove: "" });
+});
+
+test("Start new month is for admins only and stacks before it removes", () => {
+  const flow = readFileSync(new URL("../monthstack.js", import.meta.url), "utf8");
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  // The same rule every stack message is read by: memo admins, or anyone
+  // when the memo lists none. Checked before anything is created.
+  assert.match(flow, /if \(admins\.length && !admins\.includes\(connectedAccount\)\) \{/);
+  const order = ["createTopic({ memo })", "changeNameMessage(name)", "addTopicMessage([monthTopic])", "removeTopicMessage([remove])"]
+    .map((call) => flow.indexOf(call));
+  assert.ok(order.every((at) => at > 0), "every step uses the existing message code");
+  assert.deepEqual([...order].sort((x, y) => x - y), order, "create, name, stack, then remove");
+  // Nothing is sent before Confirm.
+  assert.match(flow, /confirmBtn\.addEventListener\('click', \(event\) => \{\s*event\.stopPropagation\(\);\s*confirmPlan\(\);/);
+  assert.match(html, /id="stack-month-start"/);
+  assert.match(html, /id="stack-month-confirm"/);
+  assert.match(read("../main.js"), /import '\.\/monthstack\.js'/);
+});
+
+function read(path) {
+  return readFileSync(new URL(path, import.meta.url), "utf8");
+}

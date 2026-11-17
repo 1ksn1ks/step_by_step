@@ -22,8 +22,11 @@ import { trackTopic, fetchMessagesBackend, takePopupViews } from './msgbackend';
 import { perfJob } from './perf.js';
 import {
   highestSequence,
+  laterTs,
   mergeMessages,
+  newestTs,
   readTopicCache,
+  readTopicMeta,
   writeTopicMessages,
 } from './topiccache.js';
 
@@ -213,6 +216,70 @@ async function loadTopic(topicId, { limit, ttl }) {
 
 export async function getTopicData(topicId, opts = {}) {
   return perfJob('getTopicData', () => getTopicDataWork(topicId, opts));
+}
+
+// --- A topic's newest message time -----------------------------------------
+// A time filter skips a stacked topic whose newest message is older than the
+// range (timefilter.js isStale), so an old month is not read at all.
+
+const probed = new Map(); // topicId -> { at, ts }
+const PROBE_TTL = 5 * 60 * 1000;
+const PROBE_MS = 4000;
+
+// Known without the network: this visit's copy of the topic, else the meta
+// saved on the phone. '' when this device has not read the topic.
+export async function cachedLatestTs(topicId) {
+  const key = String(topicId || '');
+  if (!key) return '';
+  let ts = '';
+  const hit = cache.get(key);
+  if (hit) ts = newestTs(hit.messages);
+  const seen = probed.get(key);
+  if (seen && Date.now() - seen.at < PROBE_TTL) ts = laterTs(ts, seen.ts);
+  try {
+    ts = laterTs(ts, (await readTopicMeta(key)).lastTs);
+  } catch {
+    /* no saved meta */
+  }
+  return ts;
+}
+
+async function probeMirror(topicId) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), PROBE_MS);
+  try {
+    const response = await fetch(
+      `https://mainnet.mirrornode.hedera.com/api/v1/topics/${encodeURIComponent(topicId)}/messages?limit=1&order=desc`,
+      { signal: ctrl.signal },
+    );
+    if (!response.ok) return '';
+    const data = await response.json();
+    const row = data && Array.isArray(data.messages) ? data.messages[0] : null;
+    return row && typeof row.consensus_timestamp === 'string' ? row.consensus_timestamp : '';
+  } catch {
+    return '';
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// The cached time, else one row: the backend's newest message, else the
+// mirror's. Remembered for the visit. '' when nobody answers (not stale).
+export async function latestTopicTs(topicId) {
+  const key = String(topicId || '');
+  if (!key) return '';
+  const known = await cachedLatestTs(key);
+  if (known) return known;
+  let ts = '';
+  try {
+    const page = await fetchMessagesBackend(key, 1, 0, 0);
+    if (page && page.ready) ts = newestTs(page.messages);
+  } catch {
+    ts = '';
+  }
+  if (!ts) ts = await probeMirror(key);
+  if (ts) probed.set(key, { at: Date.now(), ts });
+  return ts;
 }
 
 async function getTopicDataWork(topicId, { limit = 20000, ttl = DEFAULT_TTL, force = false } = opts) {

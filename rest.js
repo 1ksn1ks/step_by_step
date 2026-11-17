@@ -27,7 +27,7 @@ import { refreshFilterTimeButtons } from './drawdate.js';
 import { POST_IMAGES_BUSY, draftPending, postCover, postImageArray } from './postimages.js';
 import { pendingChatImage, chatImageBusy, clearPendingChatImage, topicChatWire } from './chatimage.js';
 import { stackedTopicRules } from './topicrules.js';
-import { adminsFromMemo, autoplayConfigMessage, currentAutoplayNft, currentTopicBio, currentTopicName, currentStackedTopics, currentInitialXYZ } from './loadcurrenttopic.js';
+import { STACK_MAX, activeStack, addTopicMessage, adminsFromMemo, autoplayConfigMessage, cleanTopicIds, currentAutoplayNft, currentTopicBio, currentTopicName, currentInitialXYZ, removeTopicMessage } from './loadcurrenttopic.js';
 import { readUniqueNft, rememberTopicAutoplay } from './coverautoplay.js';
 
 
@@ -195,7 +195,7 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
      }
      const result = await getMessages(topicId, { force: true });
      const messages = result && Array.isArray(result.messages) ? result.messages : [];
-     return { messages, topicAdmin: adminsFromMemo(topicInfo.memo), box };
+     return { topicId: String(topicId).trim(), messages, topicAdmin: adminsFromMemo(topicInfo.memo), box };
    } catch (error) {
      console.error(`Error loading ${label}:`, error);
      box.textContent = "Invalid Topic ID";
@@ -227,8 +227,14 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
  document.getElementById("load-stack-for-topic").addEventListener("click", async () => {
    const loaded = await loadTopicRecord("stack-topic-ids-topic", "loaded-stack-for-topic", "topics");
    if (!loaded) return;
-   const ids = currentStackedTopics(loaded.messages, loaded.topicAdmin);
-   loaded.box.textContent = ids.length ? ids.join("\n") : "No stacked topics.";
+   // Newest adds first. Past STACK_MAX the oldest are no longer read; they
+   // are listed so an admin can remove them (they stay openable directly).
+   const all = activeStack(loaded.messages, loaded.topicAdmin, loaded.topicId);
+   const ids = all.slice(0, STACK_MAX);
+   const beyond = all.slice(STACK_MAX);
+   let text = ids.length ? ids.join("\n") : "No stacked topics.";
+   if (beyond.length) text += `\n\nNot read (over ${STACK_MAX}):\n${beyond.join("\n")}`;
+   loaded.box.textContent = text;
    adjustTextareaHeight(loaded.box);
    fillGrownField("stack-topic-add-remove-topic", ids.join(","));
  });
@@ -1319,21 +1325,15 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
                  toast.error("Please enter a Topic ID or domain.");
                  return;
                }
-               const stackTopicAddTopic = document.getElementById("stack-topic-add-remove-topic").value;
+               // Clean ids only (loadcurrenttopic.js), never the topic itself.
+               const stackTopicAddTopic = cleanTopicIds(document.getElementById("stack-topic-add-remove-topic").value, String(topicId).trim());
 
-               if (!stackTopicAddTopic) {
+               if (!stackTopicAddTopic.length) {
                  toast.error("Please enter the Topic ID to add.");
                  return;
                }
- 
- 
-               const meesageobject = {
-                   addTopic: {
-                     addTopic: stackTopicAddTopic
-                   },
-               };
- 
-               const meesage = JSON.stringify(meesageobject);
+
+               const meesage = addTopicMessage(stackTopicAddTopic);
 
                toast.info("Confirm in wallet 👛");
                const reciept = await sendMessage(topicId, meesage);
@@ -1363,21 +1363,14 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
        toast.error("Please enter a Topic ID or domain.");
        return;
      }
-               const stackTopicRemoveTopic = document.getElementById("stack-topic-add-remove-topic").value;
+               const stackTopicRemoveTopic = cleanTopicIds(document.getElementById("stack-topic-add-remove-topic").value, String(topicId).trim());
 
-               if (!stackTopicRemoveTopic) {
+               if (!stackTopicRemoveTopic.length) {
                  toast.error("Please enter the Topic ID to remove.");
                  return;
                }
- 
- 
-               const meesageobject = {
-                 removeTopic: {
-                   removeTopic: stackTopicRemoveTopic
-                 }
-               };
- 
-               const meesage = JSON.stringify(meesageobject);
+
+               const meesage = removeTopicMessage(stackTopicRemoveTopic);
 
                toast.info("Confirm in wallet 👛");
                const reciept = await sendMessage(topicId, meesage);

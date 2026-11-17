@@ -1,6 +1,7 @@
 import { getTopicInfo } from './hedera'
 import { getTopicData as getMessages } from './topicdata'
-import { currentTopicName } from './loadcurrenttopic'
+import { adminsFromMemo, currentStackedTopics, currentTopicName } from './loadcurrenttopic'
+import { PULL_AT_ONCE, STACK_FIRST_MS, mapLimited, settlesWithin } from './feedmerge.js'
 import { loadTOPIC2PIC, usernames } from './loadalladata'
 import { activePolygonPopups} from './polygons';
 import { activeMarkerPopups } from './marker';
@@ -37,20 +38,12 @@ export async function loadTOPIC4PIC(payer) {
       }
   
       const topicId = accountTOPIC2PIC[payer].topic2pic;
-      const topicIdStr = topicId[0];
-      const topicAdmin = [];
-  
+      const topicIdStr = String(topicId[0] || '').trim();
+      let topicAdmin = [];
+
       try{
       const topicInfo = await getTopicInfo(topicIdStr);
-      const memo = topicInfo.memo;
-      const parts = memo.split(',');
-      let hasRules = false;
-      parts.forEach(part => {
-        if (part.startsWith("0.0.")) {
-          topicAdmin.push(part);
-          hasRules = true;
-        }
-      });
+      topicAdmin = adminsFromMemo(topicInfo.memo);
       }catch (error){
       const loaded_text_area = document.getElementById("loaded-topics");
       loaded_text_area.value = '';
@@ -71,64 +64,19 @@ export async function loadTOPIC4PIC(payer) {
         return {};
       }
   
-      let hasMoreThanOneTopic = false;
-      const topicActions = new Map();
-  
-      for (let index = 0; index < result.messages.length; index++) {
-        const message = result.messages[index];
-        try {
-          let parsedMessage = message;
-          if (typeof message === 'string') {
-            parsedMessage = JSON.parse(message);
-          }
-          const timestamp = message.timestamp || Date.now();
-  
-          if (
-            parsedMessage.addTopic &&
-            parsedMessage.addTopic.addTopic &&
-            (topicAdmin.length === 0 || topicAdmin.includes(message.payer))
-          ) {
-            hasMoreThanOneTopic = true;
-            const topics =
-              typeof parsedMessage.addTopic.addTopic === 'string'
-                ? parsedMessage.addTopic.addTopic.split(',')
-                : [];
-            topics.forEach(topic => {
-              topicActions.set(topic, { action: 'add', timestamp });
-            });
-          }
-  
-          if (
-            parsedMessage.removeTopic &&
-            parsedMessage.removeTopic.removeTopic &&
-            (topicAdmin.length === 0 || topicAdmin.includes(message.payer))
-          ) {
-            hasMoreThanOneTopic = true;
-            const topics =
-              typeof parsedMessage.removeTopic.removeTopic === 'string'
-                ? parsedMessage.removeTopic.removeTopic.split(',')
-                : [];
-            topics.forEach(topic => {
-              topicActions.set(topic, { action: 'remove', timestamp });
-            });
-          }
-        } catch (messageError) {
-          console.error(`Error processing message ${index}:`, messageError);
-        }
-      }
-  
-      const loadedTopicsIds = Array.from(topicActions.entries())
-        .filter(([topic, { action }]) => action === 'add' && topic.startsWith('0.0.'))
-        .map(([topic]) => topic);
+      // The shared stack rule (loadcurrenttopic.js): at most STACK_MAX
+      // stacked topics, newest adds first, ids cleaned, one level deep.
+      const loadedTopicsIds = currentStackedTopics(result.messages, topicAdmin, topicIdStr);
 
-      const loadedTopicIdsWithNames = [];
-
-      for (const topicId of loadedTopicsIds) {
-        const topicData = await getMessages(topicId);
+      // Names three at a time. A topic that takes longer than STACK_FIRST_MS,
+      // or fails, is listed by its id; one slow topic never holds the list.
+      const loadedTopicIdsWithNames = await mapLimited(loadedTopicsIds, PULL_AT_ONCE, async (stackedId) => {
+        const job = getMessages(stackedId).catch(() => null);
+        if (!(await settlesWithin(job, STACK_FIRST_MS))) return stackedId;
+        const topicData = await job;
         const loadedTopicName = currentTopicName(topicData && topicData.messages, []);
-        const topicNamePart = loadedTopicName ? `-${loadedTopicName}` : '';
-        loadedTopicIdsWithNames.push(`${topicId}${topicNamePart}`);
-      }
+        return loadedTopicName ? `${stackedId}-${loadedTopicName}` : stackedId;
+      });
 
       let newglobalLoadedTopicIdsWithNames = globalLoadedTopicIdsWithNames
   
