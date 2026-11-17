@@ -30,9 +30,11 @@ import zlib from "node:zlib";
 import { GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 
 export const HCS1_MIRROR = "https://mainnet.mirrornode.hedera.com";
-// Caps on one rebuild. A real avatar or model is far smaller.
+// Caps on one rebuild. Real Hashinals reach 3–4 MB in about 4000
+// messages (0.0.4841271 has 3931). One HCS message holds at most about
+// 1 KB, so the message cap is the byte cap's worth of messages.
 export const HCS1_MAX_BYTES = 10 * 1024 * 1024;
-export const HCS1_MAX_MESSAGES = 2000;
+export const HCS1_MAX_MESSAGES = 12000;
 // Rebuilds from the mirror at once, across every request.
 export const HCS1_MAX_REBUILDS = 2;
 // Topics remembered as having no file (or a bad one).

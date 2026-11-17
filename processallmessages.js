@@ -1,5 +1,5 @@
 import { isValidUrl } from './ISVALIDURL.JS';
-import { DEFAULT_AVATAR } from './hashinalurl.js';
+import { DEFAULT_AVATAR, resolveHashinalSrc } from './hashinalurl.js';
 import {getTopicInfo} from './hedera'
 import { prepareHoldings, fetchAccountTokens } from './nftcache.js'
 import {sendMessage, popupView, knownPopupViews, setPopupViewTotal, fetchPost} from './msgbackend'
@@ -721,6 +721,19 @@ function hideEditComposer() {
 function firstMediaUrl(value) {
   const url = Array.isArray(value) ? value[0] : value;
   return typeof url === 'string' ? url.trim() : '';
+}
+
+// A post's first picture (its image or coverimage field), as a string. A
+// Hashinal link (hcs://1/<id>, Kiloscribe) reads from our route
+// (hashinalurl.js), with Kiloscribe only as its fallback.
+function postMediaUrl(value) {
+  return resolveHashinalSrc(firstMediaUrl(value));
+}
+
+// A dot's or shape's picture: the post's cover, else the author's.
+function coverImageUrl(coverimage, profileUrl) {
+  const url = postMediaUrl(coverimage);
+  return isValidUrl(url) ? url : profileUrl;
 }
 
 function posterHintFor(payer, created, stamp) {
@@ -2499,7 +2512,7 @@ export function createMarkerPopupHTML(data) {
   // Image, a GIF loop, or a video when the Image field holds a real
   // .mp4/.webm. The field arrives as an array (["url"]), same as a polygon.
   // The marker dot uses the cover, so this file stays in the popup.
-  const popupImageUrl = Array.isArray(image) ? image[0] : image;
+  const popupImageUrl = postMediaUrl(image);
   if (isValidUrl(popupImageUrl)) {
     const imageDiv = document.createElement('div');
     imageDiv.className = 'popup-media-card'; // glass media card (style.css)
@@ -2667,7 +2680,7 @@ function createPolygonPopupHTML(data) {
 
   // Image, a GIF loop, or a video. The field arrives as an ARRAY (["url"]).
   // The map cover stays the muted 30s loop.
-  const popupImageUrl = Array.isArray(image) ? image[0] : image;
+  const popupImageUrl = postMediaUrl(image);
   if (isValidUrl(popupImageUrl)) {
     const imageDiv = document.createElement('div');
     imageDiv.className = 'popup-media-card'; // glass media card (style.css)
@@ -3439,7 +3452,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         media: mediaKind(parsedMessage.marker.data.image),
                         seconds: videoSeconds(parsedMessage.marker.data.image),
                         popupData: markerPopupData,
-                        imageUrl: isValidUrl(firstMediaUrl(parsedMessage.marker.data.coverimage)) ? parsedMessage.marker.data.coverimage : profileUrl,
+                        imageUrl: coverImageUrl(parsedMessage.marker.data.coverimage, profileUrl),
                         title: String(parsedMessage.marker.data.title || "").slice(0, 20)
                       },
                       geometry: {
@@ -3523,7 +3536,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         coordinates: [coordinates],
                         popupData: polygonPopupData,
                         title: String(parsedMessage.polygon.data.title || "").slice(0, 20),
-                        imageUrl: isValidUrl(firstMediaUrl(parsedMessage.polygon.data.coverimage)) ? parsedMessage.polygon.data.coverimage : profileUrl
+                        imageUrl: coverImageUrl(parsedMessage.polygon.data.coverimage, profileUrl)
                       });
                     }
                   }
@@ -5920,7 +5933,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         media: mediaKind(parsedMessage.marker.data.image),
                         seconds: videoSeconds(parsedMessage.marker.data.image),
                         popupData: markerPopupData,
-                        imageUrl: isValidUrl(firstMediaUrl(parsedMessage.marker.data.coverimage)) ? parsedMessage.marker.data.coverimage : profileUrl,
+                        imageUrl: coverImageUrl(parsedMessage.marker.data.coverimage, profileUrl),
                         title: String(parsedMessage.marker.data.title || "").slice(0, 20)
                       },
                       geometry: {
@@ -6004,7 +6017,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         coordinates: [coordinates],
                         popupData: polygonPopupData,
                         title: String(parsedMessage.polygon.data.title || "").slice(0, 20),
-                        imageUrl: isValidUrl(firstMediaUrl(parsedMessage.polygon.data.coverimage)) ? parsedMessage.polygon.data.coverimage : profileUrl
+                        imageUrl: coverImageUrl(parsedMessage.polygon.data.coverimage, profileUrl)
                       });
                     }
                   }
@@ -6621,7 +6634,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         media: mediaKind(parsedMessage.marker.data.image),
                         seconds: videoSeconds(parsedMessage.marker.data.image),
                         popupData: markerPopupData,
-                        imageUrl: isValidUrl(firstMediaUrl(parsedMessage.marker.data.coverimage)) ? parsedMessage.marker.data.coverimage : profileUrl,
+                        imageUrl: coverImageUrl(parsedMessage.marker.data.coverimage, profileUrl),
                         title: String(parsedMessage.marker.data.title || "").slice(0, 20)
                       },
                       geometry: {
@@ -6709,7 +6722,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         coordinates: [coordinates],
                         popupData: polygonPopupData,
                         title: String(parsedMessage.polygon.data.title || "").slice(0, 20),
-                        imageUrl: isValidUrl(firstMediaUrl(parsedMessage.polygon.data.coverimage)) ? parsedMessage.polygon.data.coverimage : profileUrl
+                        imageUrl: coverImageUrl(parsedMessage.polygon.data.coverimage, profileUrl)
                       });
                     }
                     }

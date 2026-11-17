@@ -501,9 +501,49 @@ test("the misses map holds at most its cap, the oldest dropped first", async () 
   clearHcs1Cache();
 });
 
-test("the rebuild caps are about 10 MB and 2000 messages", () => {
+test("the rebuild caps are about 10 MB and 12000 messages", () => {
   assert.equal(HCS1_MAX_BYTES, 10 * 1024 * 1024);
-  assert.equal(HCS1_MAX_MESSAGES, 2000);
+  assert.equal(HCS1_MAX_MESSAGES, 12000);
+  // One HCS message holds at most about 1 KB: the message cap lets the
+  // byte cap's worth of messages through.
+  assert.ok(HCS1_MAX_MESSAGES * 1024 >= HCS1_MAX_BYTES);
+});
+
+// 0.0.4841271 is a real Hashinal of 3931 messages, about 4 MB. With the
+// message cap at 2000 the route answered it 413 and remembered the miss.
+test("a 3931-message Hashinal under 10 MB is rebuilt and served, not refused with 413", async () => {
+  clearHcs1Cache();
+  const topic = "0.0.4841271";
+  const MESSAGES = 3931;
+  // Random bytes do not compress, so the file stays about 3 MB.
+  const file = Buffer.concat([PNG.subarray(0, 8), crypto.randomBytes(2_900_000)]);
+  const text = "data:image/png;base64," + zlib.zstdCompressSync(file).toString("base64");
+  // One chunk per message, the way an inscriber cuts it: just under 1 KB each.
+  const chunks = [];
+  for (let o = 0; o < MESSAGES; o++) {
+    chunks.push({ o, c: text.slice(Math.floor((o * text.length) / MESSAGES), Math.floor(((o + 1) * text.length) / MESSAGES)) });
+  }
+  assert.ok(chunks.every((part) => part.c.length > 0 && part.c.length < 1024));
+  assert.ok(file.length < HCS1_MAX_BYTES);
+  assert.ok(MESSAGES > 2000 && MESSAGES <= HCS1_MAX_MESSAGES);
+  const mirror = fakeMirror(topic, { memo: `${sha(file)}:zstd:base64`, chunks, page: 100 });
+
+  const app = express();
+  app.get("/api/hcs1/:topicId", hcs1Route({ mirrorFetch: mirror.fetchJson, mirror: MIRROR }));
+  const server = await new Promise((resolve) => {
+    const listening = app.listen(0, "127.0.0.1", () => resolve(listening));
+  });
+  try {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}/api/hcs1/${topic}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get("content-type"), "image/png");
+    assert.deepEqual(Buffer.from(await res.arrayBuffer()), file);
+    // Every page was read: topic info plus 40 pages of 100.
+    assert.equal(mirror.calls.length, 1 + Math.ceil(MESSAGES / 100));
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    clearHcs1Cache();
+  }
 });
 
 test("GET /api/hcs1/:topicId serves the file with its type, hash ETag and statuses", async () => {

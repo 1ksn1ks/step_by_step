@@ -17,6 +17,7 @@
 // so its readers never import the uploader.
 
 import { isVideoUrl } from "./mediaurl.js";
+import { resolveHashinalSrc } from "./hashinalurl.js";
 import { r2PublicBase } from "./r2public.js";
 
 export const POST_IMAGE_MAX = 4;
@@ -42,12 +43,13 @@ function entries(image) {
 // The pictures a post shows, in order, at most four. A post whose first
 // entry is a video is a video post, so it has no gallery. A video later in
 // the list (never written by this app) is skipped, as is anything that is
-// not an http(s) or ipfs address.
+// not an http(s) or ipfs address. A Hashinal link (hcs://1/<id>,
+// Kiloscribe) reads from our route first (hashinalurl.js).
 export function galleryImages(image) {
   const out = [];
   for (const entry of entries(image)) {
     if (typeof entry !== "string") continue;
-    const url = entry.trim();
+    const url = resolveHashinalSrc(entry.trim());
     if (!url || !SHOWN.test(url)) continue;
     if (isVideoUrl(url)) {
       if (!out.length) return [];

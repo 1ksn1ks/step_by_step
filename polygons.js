@@ -1,4 +1,4 @@
-import { DEFAULT_AVATAR, attachHashinalFallback } from './hashinalurl.js';
+import { DEFAULT_AVATAR, attachHashinalFallback, resolveHashinalSrc } from './hashinalurl.js';
 import { perfJob } from './perf.js';
 import { applyAllStyles } from './loadprofilepopup';
 import { scene } from "./threejs";
@@ -227,6 +227,9 @@ function loadElementImage(imageUrl, maxWidth, maxHeight, fallbackUrl) {
 }
 
 function createResizedImage(imageUrl, maxWidth = 256, maxHeight = 256, fallbackUrl = null) {
+  // A Hashinal link reads from our route (hashinalurl.js); Kiloscribe
+  // sends no CORS header, so it cannot be a texture.
+  imageUrl = resolveHashinalSrc(imageUrl);
   const key = `${imageUrl}|${maxWidth}|${maxHeight}`;
   const cached = resizedImageCache.get(key);
   if (cached) return cached;
@@ -1277,7 +1280,7 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
       // through the pump. A raster source is a static texture. coverimage
       // arrives as an ARRAY (["url"]) — MapLibre's source url must be a
       // string, an array fails the schema and kills the whole polygon.
-      const coverUrl = (Array.isArray(polygon.imageUrl) ? polygon.imageUrl[0] : polygon.imageUrl) || '';
+      const coverUrl = resolveHashinalSrc((Array.isArray(polygon.imageUrl) ? polygon.imageUrl[0] : polygon.imageUrl) || '');
       const kind = mediaKind(coverUrl);
       const sourceInit = { type: 'image', url: blackDataUrl(), coordinates: sourceCoordinates };
 

@@ -36,6 +36,7 @@ import { EARLY_POPUP_CLASS } from './earlypopup.js';
 import { openGallery, openPreview } from './fullscreenmedia.js';
 import { buildMediaGrid } from './mediagrid.js';
 import { galleryImages } from './postimages.js';
+import { resolveHashinalSrc } from './hashinalurl.js';
 import { collapseComposers } from './chatcomposer.js';
 import { formatSliderValue, applySliderValueWidth } from './slidervalue.js';
 import { clearQuery, getQuery, isActive, matches, onChange, registerFilter, registerSort, setFilter, setSort, setText, sortCmp } from './feedsearch.js';
@@ -1043,8 +1044,10 @@ function textOf(msg) {
   return msg == null ? '' : String(msg);
 }
 
+// A Hashinal link (hcs://1/<id>, Kiloscribe) reads from our route
+// (hashinalurl.js), the same address galleryImages gives.
 function mediaOf(image) {
-  const url = Array.isArray(image) ? image[0] : image;
+  const url = resolveHashinalSrc(Array.isArray(image) ? image[0] : image);
   if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return '';
   return url;
 }

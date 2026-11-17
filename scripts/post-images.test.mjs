@@ -175,12 +175,14 @@ test("all four submits send the list, wait for uploads and make the cover", () =
 
 test("a stored cover array still dresses the marker dot and polygon fill", () => {
   // isValidUrl takes strings only (ISVALIDURL.JS), and covers are stored
-  // as ["url"], so the first entry is what gets checked.
+  // as ["url"], so the first entry is what gets checked, and kept
+  // (coverImageUrl; hashinal-links.test.mjs runs it).
   assert.match(read("../ISVALIDURL.JS"), /if \(typeof url !== "string" \|\| !url\.trim\(\)\) return false;/);
   const src = read("../processallmessages.js");
   assert.equal(/isValidUrl\(parsedMessage\.(marker|polygon)\.data\.coverimage\)/.test(src), false);
-  assert.equal(src.split("isValidUrl(firstMediaUrl(parsedMessage.marker.data.coverimage))").length - 1, 3);
-  assert.equal(src.split("isValidUrl(firstMediaUrl(parsedMessage.polygon.data.coverimage))").length - 1, 3);
+  assert.match(src, /function postMediaUrl\(value\) \{\s*return resolveHashinalSrc\(firstMediaUrl\(value\)\);/);
+  assert.equal(src.split("coverImageUrl(parsedMessage.marker.data.coverimage, profileUrl)").length - 1, 3);
+  assert.equal(src.split("coverImageUrl(parsedMessage.polygon.data.coverimage, profileUrl)").length - 1, 3);
 });
 
 test("the feed grid, the popup badge and the viewer's gallery", () => {
