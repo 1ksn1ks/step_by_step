@@ -16,6 +16,8 @@ import {
   AVATAR_CORP,
   AVATAR_CSP,
   AVATAR_EDGE,
+  AVATAR_FAIL_CACHE_S,
+  avatarFailureCacheControl,
   avatarKey,
   avatarRoute,
   checkSourceUrl,
@@ -291,17 +293,23 @@ test("a source that is missing or not a picture is an error answer, remembered; 
   await getAvatarThumb(down, sources);
   assert.equal(source.asked.filter((url) => url === down).length, 2, "a source that is down is asked again");
 
-  // The route answers an error the page falls back from, never cached.
+  // The route answers an error the page falls back from, kept by this
+  // browser a short while so a redraw does not ask again; one that says
+  // when to ask again is kept until then.
   const app = express();
   app.get("/api/avatar.webp", avatarRoute(sources));
   const { base, close } = await serve(app);
   try {
     const res = await fetch(`${base}/api/avatar.webp?src=${encodeURIComponent(html)}&v=1`);
     assert.equal(res.status, 415);
-    assert.equal(res.headers.get("cache-control"), "no-store");
+    assert.equal(res.headers.get("cache-control"), `private, max-age=${AVATAR_FAIL_CACHE_S}`);
     assert.equal(res.headers.get("content-type").startsWith("application/json"), true);
     const blocked = await fetch(`${base}/api/avatar.webp?src=${encodeURIComponent("http://127.0.0.1/a.png")}&v=1`);
     assert.equal(blocked.status, 403);
+    assert.equal(blocked.headers.get("cache-control"), `private, max-age=${AVATAR_FAIL_CACHE_S}`);
+    const unavailable = await fetch(`${base}/api/avatar.webp?src=${encodeURIComponent(down)}&v=1`);
+    assert.equal(unavailable.status, 502);
+    assert.equal(unavailable.headers.get("cache-control"), `private, max-age=${unavailable.headers.get("retry-after")}`);
   } finally {
     await close();
     clearAvatarCache();
@@ -390,7 +398,16 @@ test("the route has its own rate limit per client IP", async () => {
     assert.deepEqual(statuses, [204, 204, 429]);
     const limited = await fetch(`${base}/api/avatar.webp?src=y`);
     assert.ok(Number(limited.headers.get("retry-after")) > 0);
+    assert.equal(limited.headers.get("cache-control"), `private, max-age=${limited.headers.get("retry-after")}`);
   } finally {
     await close();
   }
+});
+
+test("an error answer is kept a short while, never past a minute, by this browser only", () => {
+  assert.equal(avatarFailureCacheControl(), "private, max-age=60");
+  assert.equal(avatarFailureCacheControl(10), "private, max-age=10");
+  assert.equal(avatarFailureCacheControl(2.2), "private, max-age=3");
+  assert.equal(avatarFailureCacheControl(3600), "private, max-age=60");
+  for (const odd of [0, -5, NaN, "soon", null]) assert.equal(avatarFailureCacheControl(odd), "private, max-age=60", String(odd));
 });

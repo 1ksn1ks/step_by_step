@@ -85,60 +85,14 @@ test("a failed thumbnail falls back to the link it was drawn for", () => {
   assert.equal(avatarOriginal("https://cdn.example/a.png"), "");
 });
 
-// An element with capture-first dispatch and stopImmediatePropagation, like
-// a browser at the target.
-function fakeImg(src) {
-  const listeners = [];
-  const attrs = { src };
-  return {
-    tagName: "IMG",
-    dataset: {},
-    getAttribute: (name) => attrs[name] || null,
-    setSrc(value) { attrs.src = value; },
-    addEventListener(type, fn, capture) {
-      listeners.push({ type, fn, capture: capture === true || !!(capture && capture.capture) });
-    },
-    fire(type) {
-      let stopped = false;
-      const event = { type, stopImmediatePropagation() { stopped = true; } };
-      for (const phase of [true, false]) {
-        for (const entry of listeners) {
-          if (entry.type !== type || entry.capture !== phase) continue;
-          entry.fn(event);
-          if (stopped) return;
-        }
-      }
-    },
-  };
-}
-
-test("thumbnail -> original -> default avatar, with nothing left broken", () => {
+// The chain itself (thumbnail -> original -> default avatar, each failure
+// remembered, one load per thumbnail) runs in avatar-failures.test.mjs.
+test("every profile picture draw is watched before it is painted, ahead of the element's own handlers", () => {
   const loop = read("../loopmedia.js");
-  // Armed for every thumbnail before it is painted, in the one paint path.
-  assert.match(readFn(loop, "presentImage"), /if \(isAvatarThumb\(painted\)\) armAvatarFallback\(img\);\s*if \(!painted\)/);
+  const present = readFn(loop, "presentImage");
+  assert.match(present, /const avatar = asked \? avatarDraw\(asked\) : null;/);
+  assert.match(present, /if \(avatar\) armAvatarFallback\(img\);\s*if \(avatar && avatar\.dead\)/);
   assert.match(readFn(loop, "armAvatarFallback"), /\}, true\);\s*\}$/);
-  const painted = [];
-  const arm = new Function(
-    "isAvatarThumb", "avatarOriginal", "presentImage",
-    `${readFn(loop, "armAvatarFallback")}\nreturn armAvatarFallback;`,
-  )(isAvatarThumb, avatarOriginal, (img, url) => {
-    painted.push(url);
-    img.setSrc(url);
-  });
-
-  const original = `https://app.test/api/hcs1/${TOPIC}`;
-  const img = fakeImg(avatarSrc(original));
-  const defaults = [];
-  // armFallback's default avatar was registered first, on the bubble phase.
-  img.addEventListener("error", () => defaults.push("default"));
-  arm(img);
-  arm(img);
-  img.fire("error");
-  assert.deepEqual(painted, [original], "the original is painted once");
-  assert.deepEqual(defaults, [], "the default waits");
-  img.fire("error");
-  assert.deepEqual(painted, [original]);
-  assert.deepEqual(defaults, ["default"], "the original failing too shows the default");
 });
 
 // Every place a profile picture is drawn goes through avatarSrc.
@@ -164,7 +118,11 @@ const AVATAR_SITES = [
   ["../swapsheet.js", /mountPicture\(pic, avatarSrc\(profilePicUrl\(author\)\), \{/, 1],
   ["../profilepreview.js", /return mountPicture\(el, avatarSrc\(url\), \{ className: el\.className, fallback: DEFAULT_PIC \}\);/, 1],
   ["../markerstack.js", /\|\| avatarSrc\(record\.profileUrl \|\| ''\);/, 1],
-  ["../picturecache.js", /urls\.push\(avatarSrc\(row\.profilePic\)\)/, 1],
+  // The files this phone keeps: the thumbnail address even while it fails
+  // (avatar-failures.test.mjs).
+  ["../picturecache.js", /urls\.push\(avatarThumbSrc\(row\.profilePic\)\)/, 1],
+  ["../picturecache.js", /urls\.push\(avatarThumbSrc\(patch\.profilePic\)\)/, 1],
+  ["../picturecache.js", /const list = \[DEFAULT_PROFILE_PIC, avatarThumbSrc\(DEFAULT_PROFILE_PIC\)\];/, 1],
 ];
 
 test("every place a profile picture is drawn uses avatarSrc", () => {

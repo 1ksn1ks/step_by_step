@@ -30,7 +30,9 @@
 //   or a source that is down is asked again next time.
 //
 // Any failure is an error answer; the page then draws the original link,
-// and after that the default avatar (loopmedia.js).
+// and after that the default avatar (loopmedia.js). The browser keeps an
+// error answer a short while (avatarFailureCacheControl), so a page that
+// draws the picture again does not ask again.
 
 import crypto from "node:crypto";
 import dns from "node:dns";
@@ -59,6 +61,16 @@ export const AVATAR_MISS_ENTRIES = 5000;
 export const AVATAR_CACHE_ENTRIES = 500;
 export const AVATAR_RETRY_AFTER_S = 10;
 export const AVATAR_CACHE_CONTROL = "public, max-age=31536000, immutable";
+export const AVATAR_FAIL_CACHE_S = 60;
+
+// An error answer is kept by this browser only (private), AVATAR_FAIL_CACHE_S,
+// or until Retry-After when the answer says when to ask again (busy, rate
+// limited, the source down).
+export function avatarFailureCacheControl(retryAfter) {
+  const wait = Number(retryAfter);
+  const seconds = Number.isFinite(wait) && wait > 0 ? Math.min(Math.ceil(wait), AVATAR_FAIL_CACHE_S) : AVATAR_FAIL_CACHE_S;
+  return `private, max-age=${seconds}`;
+}
 // The same file headers as /api/hcs1: never run as a page, usable from
 // other origins.
 export const AVATAR_CSP = "sandbox; default-src 'none'";
@@ -539,7 +551,7 @@ export function createAvatarRateLimit({
     if (verdict.over) {
       res.setHeader("Retry-After", String(verdict.retryAfter));
       res.setHeader("Access-Control-Expose-Headers", "Retry-After");
-      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Cache-Control", avatarFailureCacheControl(verdict.retryAfter));
       return res.status(429).json({ ok: false, error: "rate limit" });
     }
     next();
@@ -570,7 +582,7 @@ export function avatarRoute(opts = {}) {
         res.setHeader("Retry-After", String(thumb.retryAfter));
         res.setHeader("Access-Control-Expose-Headers", "Retry-After");
       }
-      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Cache-Control", avatarFailureCacheControl(thumb.retryAfter));
       return res.status(thumb.status).json({ ok: false, error: thumb.error });
     }
     res.setHeader("Content-Type", "image/webp");

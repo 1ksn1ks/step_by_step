@@ -3,9 +3,10 @@
 // downloads once. Old links stay on this phone. What is saved is the
 // small thumbnail every avatar is drawn from (avatarsrc.js), not the
 // linked file; the default avatar's own file stays too, as the last
-// fallback.
+// fallback. The thumbnail address even while it fails or the route is off
+// (avatarThumbSrc), so an outage never makes the worker drop saved files.
 
-import { avatarSrc } from './avatarsrc.js';
+import { avatarThumbSrc } from './avatarsrc.js';
 import { DEFAULT_AVATAR } from './hashinalurl.js';
 
 // Our Hashinal route (hashinalurl.js); Kiloscribe is only its fallback.
@@ -16,10 +17,10 @@ export const DEFAULT_PROFILE_PIC = DEFAULT_AVATAR;
 export function profilePictureUrls(accounts, overlays) {
   const urls = [];
   for (const row of accounts || []) {
-    if (row && row.profilePic) urls.push(avatarSrc(row.profilePic));
+    if (row && row.profilePic) urls.push(avatarThumbSrc(row.profilePic));
   }
   for (const patch of overlays || []) {
-    if (patch && patch.profilePic) urls.push(avatarSrc(patch.profilePic));
+    if (patch && patch.profilePic) urls.push(avatarThumbSrc(patch.profilePic));
   }
   return urls;
 }
@@ -30,7 +31,7 @@ function worker() {
 }
 
 export function publishProfilePictures(urls) {
-  const list = [DEFAULT_PROFILE_PIC, avatarSrc(DEFAULT_PROFILE_PIC)];
+  const list = [DEFAULT_PROFILE_PIC, avatarThumbSrc(DEFAULT_PROFILE_PIC)];
   const seen = new Set(list);
   for (const url of urls || []) {
     if (typeof url !== 'string' || !url || seen.has(url)) continue;

@@ -6,7 +6,14 @@
 // (gifvideo.js); nothing is converted while viewing.
 import { GIF_FAR_PX, loopPlayback, viewDistance } from "./gifloop.js";
 import { gifStillCanvas } from "./gifvideo.js";
-import { avatarOriginal, isAvatarThumb } from "./avatarsrc.js";
+import {
+  avatarDraw,
+  avatarOriginal,
+  avatarOriginalFailed,
+  avatarThumbFailed,
+  avatarThumbLoaded,
+  isAvatarThumb,
+} from "./avatarsrc.js";
 import { armIpfsAttempt, preferGateway } from "./ipfsimage.js";
 import { forgetProfilePicture, watchProfilePicture } from "./markertilt.js";
 import {
@@ -175,23 +182,145 @@ function dropStill(img) {
   delete img.dataset.mediaGif;
 }
 
+// Thumbnails being loaded now, thumbnail -> { loader, imgs, timer }: one
+// draw (the loader) loads it; other draws of the same thumbnail wait with
+// no src of their own and are painted when it answers, from the cache or
+// from the original. A lazy loader that is not loading yet, or one painted
+// with something else first, hands the load to the next draw. Past
+// AVATAR_WAIT_MS (longer than the server takes to make one) each waiting
+// draw loads it itself.
+const thumbLoads = new Map();
+// Thumbnails that loaded on this page: drawn again at once, from the cache.
+const loadedThumbs = new Set();
+const LOADED_THUMBS_MAX = 2000;
+export const AVATAR_WAIT_MS = 30 * 1000;
+
+function rememberLoaded(thumb) {
+  loadedThumbs.delete(thumb);
+  loadedThumbs.add(thumb);
+  if (loadedThumbs.size > LOADED_THUMBS_MAX) loadedThumbs.delete(loadedThumbs.values().next().value);
+}
+
+function dropThumbLoad(thumb) {
+  const load = thumbLoads.get(thumb);
+  if (!load) return null;
+  thumbLoads.delete(thumb);
+  if (load.timer) clearTimeout(load.timer);
+  return load;
+}
+
+function giveUpThumbLoad(thumb) {
+  const load = dropThumbLoad(thumb);
+  if (!load) return;
+  for (const img of load.imgs) {
+    if (img === load.loader || img.dataset.mediaUrl !== thumb || img.getAttribute("src")) continue;
+    assignSrc(img, thumb);
+  }
+}
+
+// The loader answered: every draw still waiting for this thumbnail is
+// painted, from the cache, or (it failed) the way presentImage now paints
+// it: the original, or nothing when that failed too.
+function settleThumbLoad(thumb, ok) {
+  const load = dropThumbLoad(thumb);
+  if (!load) return;
+  for (const img of load.imgs) {
+    if (img === load.loader || img.dataset.mediaUrl !== thumb) continue;
+    if (ok) assignSrc(img, thumb);
+    else presentImage(img, thumb);
+  }
+}
+
+function lazyAndIdle(img) {
+  return img.loading === "lazy" && !img.complete;
+}
+
+// true when img waits for another draw's load of thumb; false when img
+// loads it (its src is set as usual).
+function shareThumbLoad(img, thumb) {
+  if (loadedThumbs.has(thumb)) return false;
+  let load = thumbLoads.get(thumb);
+  if (load && load.loader && load.loader !== img && !lazyAndIdle(load.loader)) {
+    load.imgs.add(img);
+    markPending(img);
+    return true;
+  }
+  if (!load) {
+    load = { loader: null, imgs: new Set(), timer: null };
+    thumbLoads.set(thumb, load);
+    load.timer = setTimeout(() => giveUpThumbLoad(thumb), AVATAR_WAIT_MS);
+    if (load.timer && typeof load.timer.unref === "function") load.timer.unref();
+  }
+  load.loader = img;
+  load.imgs.add(img);
+  return false;
+}
+
+// img is painted with next instead of the thumbnail it loaded or waited
+// for: the next draw waiting for that thumbnail loads it.
+function leaveThumbLoad(img, next) {
+  const prev = img.dataset.mediaUrl || "";
+  if (!prev || prev === next) return;
+  const load = thumbLoads.get(prev);
+  if (!load || !load.imgs.delete(img) || load.loader !== img) return;
+  load.loader = null;
+  for (const other of load.imgs) {
+    if (other.dataset.mediaUrl !== prev || other.getAttribute("src")) continue;
+    load.loader = other;
+    assignSrc(other, prev);
+    return;
+  }
+  dropThumbLoad(prev);
+}
+
 // A profile picture's thumbnail (avatarsrc.js) that fails to load is
-// painted again from the link it was made from, the normal way (a
-// Hashinal tries Kiloscribe, IPFS walks the gateways, a GIF is a still).
-// Capture, so it runs before the element's other error handlers; they
-// (armFallback's default avatar, a marker dot's blank face) only see the
-// original failing too.
+// remembered and painted again from the link it was made from, the normal
+// way (a Hashinal tries Kiloscribe, IPFS walks the gateways, a GIF is a
+// still). Capture, so it runs before the element's other error handlers;
+// they (armFallback's default avatar, a marker dot's blank face) only see
+// the original failing too, which is remembered as well. The page's own
+// gateway and Kiloscribe steps stop the event before it gets here, so an
+// original's error here is its last.
 function armAvatarFallback(img) {
   if (img.dataset.avatarFallback === "1") return;
   img.dataset.avatarFallback = "1";
-  img.addEventListener("error", (event) => {
+  img.addEventListener("load", () => {
     const current = img.getAttribute("src") || "";
     if (!isAvatarThumb(current)) return;
+    rememberLoaded(current);
+    avatarThumbLoaded(current);
+    settleThumbLoad(current, true);
+  });
+  img.addEventListener("error", (event) => {
+    const current = img.getAttribute("src") || "";
+    if (!isAvatarThumb(current)) {
+      if (current && img.dataset.avatarFrom) avatarOriginalFailed(img.dataset.avatarFrom);
+      return;
+    }
+    loadedThumbs.delete(current);
+    avatarThumbFailed(current);
+    settleThumbLoad(current, false);
     const original = avatarOriginal(current);
     if (!original) return;
     event.stopImmediatePropagation();
-    presentImage(img, original);
+    const draw = avatarDraw(current);
+    presentImage(img, draw && !draw.thumb ? current : original);
   }, true);
+}
+
+// A profile picture whose thumbnail and original both failed: nothing is
+// requested, and the element's own error handling runs as if the original
+// had just failed again (armFallback's default avatar, a marker dot's blank
+// face). After the caller's handlers are attached.
+function failAvatar(img, seq) {
+  clearPending(img);
+  dropStill(img);
+  img.removeAttribute("src");
+  img.dataset.avatarDead = "1";
+  setTimeout(() => {
+    if (img.dataset.mediaSeq !== String(seq)) return;
+    img.dispatchEvent(new Event("error"));
+  }, 0);
 }
 
 function armFallback(el, fallback) {
@@ -200,7 +329,7 @@ function armFallback(el, fallback) {
     if (el.dataset.fallbackTried === "1") return;
     const current = el.getAttribute("src") || "";
     if (current === fallback) return;
-    const gifMiss = !current && (el.classList.contains("is-media-pending") || el.dataset.mediaGif === "1");
+    const gifMiss = !current && (el.classList.contains("is-media-pending") || el.dataset.mediaGif === "1" || el.dataset.avatarDead === "1");
     if (!current && !gifMiss) return;
     el.dataset.fallbackTried = "1";
     if (el.tagName === "VIDEO") {
@@ -366,19 +495,36 @@ function armGifLoad(img) {
 // was too slow) paints the address as a normal image. That is remembered
 // for the visit (gifCheckFailed): a later paint shows it at once, with no
 // skeleton and no second check.
+// A profile picture (avatarsrc.js, avatarDraw): a thumbnail that failed,
+// or any while the route is off, is painted from its original; one whose
+// original failed too loads nothing; draws of one thumbnail share its load.
 export function presentImage(img, url, options) {
   if (!img) return img;
   const opts = options || {};
-  const raw = typeof url === "string" ? url.trim() : "";
+  const asked = typeof url === "string" ? url.trim() : "";
+  const avatar = asked ? avatarDraw(asked) : null;
+  const raw = avatar ? avatar.src : asked;
   const painted = raw ? (preferGateway(raw) || raw) : "";
   const seq = (Number(img.dataset.mediaSeq) || 0) + 1;
+  leaveThumbLoad(img, painted);
   img.dataset.mediaSeq = String(seq);
   img.dataset.mediaUrl = painted;
-  if (isAvatarThumb(painted)) armAvatarFallback(img);
+  delete img.dataset.avatarDead;
+  if (avatar && !avatar.thumb) img.dataset.avatarFrom = avatar.source;
+  else delete img.dataset.avatarFrom;
+  if (avatar) armAvatarFallback(img);
+  if (avatar && avatar.dead) {
+    failAvatar(img, seq);
+    return img;
+  }
   if (!painted) {
     clearPending(img);
     dropStill(img);
     img.removeAttribute("src");
+    return img;
+  }
+  if (avatar && avatar.thumb && shareThumbLoad(img, painted)) {
+    dropStill(img);
     return img;
   }
   if (!needsGifCheck(painted) || (opts.play && !reducedMotion())) {
