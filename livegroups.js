@@ -54,22 +54,25 @@ export function setLiveGroup(key) {
 }
 
 // ── Distance ───────────────────────────────────────────────────────────
-// How far from the held spot Look for Live reaches: a number of km, in any
-// country (/api/local?lat&lng&radius). One of LIVE_RADII, the last being
-// the most; kept across visits. liveradius.js draws it on the map. (There
-// was a 'country' choice: a saved one now reads as the default.)
-export const LIVE_RADII = [10, 25, 50, 100];
+// How far from the held spot Look for Live reaches: any whole km from
+// LIVE_RADIUS_MIN_KM to LIVE_RADIUS_MAX_KM, in any country
+// (/api/local?lat&lng&radius). The server cuts a larger radius to the
+// same max. Kept across visits. liveradius.js draws it on the map. A
+// saved preset (10, 25, 50, 100) is already a whole km in that range, so
+// it loads as itself. A non-number (the old 'country' choice) reads as
+// the default.
+export const LIVE_RADIUS_MIN_KM = 1;
 export const LIVE_RADIUS_DEFAULT_KM = 50;
 export const LIVE_RADIUS_MAX_KM = 100; // server/index.js LIVE_RADIUS_MAX_KM
 const RADIUS_KEY = 'meritocracy-live-radius';
 let radius = readRadius();
 
-// The nearest preset: a value saved before (a custom km, 250, 500) snaps
-// to one of today's choices.
+// A whole km inside 1–100. Above the max clamps to it (the server would);
+// zero, negative and anything that is not a number are not a distance.
 function cleanRadius(value) {
   const km = Number(value);
   if (!Number.isFinite(km) || km <= 0) return null;
-  return LIVE_RADII.reduce((best, r) => (Math.abs(r - km) < Math.abs(best - km) ? r : best));
+  return Math.min(LIVE_RADIUS_MAX_KM, Math.max(LIVE_RADIUS_MIN_KM, Math.round(km)));
 }
 
 function readRadius() {
@@ -88,8 +91,9 @@ export function liveRadiusName(value = radius) {
   return formatKm(value);
 }
 
-// false for a value that is not a distance. The map's radius circle
-// (liveradius.js) follows each change.
+// false for a value that is not a distance. Saving dispatches
+// live-radius-changed, the same event a drag sends so the circle follows
+// before the release.
 export function setLiveRadius(value) {
   const next = cleanRadius(value);
   if (next == null) return false;
@@ -100,20 +104,33 @@ export function setLiveRadius(value) {
 }
 
 // ── Time ───────────────────────────────────────────────────────────────
-// How recent a live post must be. The server drops a marker 24 hours after
-// its last upload (server/index.js LIVE_TTL_MS), so a longer window would
-// still come back empty. Kept across visits. localnews.js filters the
-// markers the server already returned.
-export const LIVE_HOURS = [1, 6, 12, 24];
+// How recent a live post must be, in hours to a tenth (0.1 h is 6 min).
+// The server drops a marker 24 hours after its last upload
+// (server/index.js LIVE_TTL_MS), so a longer window would still come back
+// empty. Kept across visits. localnews.js filters the markers the server
+// already returned: within * 3600 * 1000, so a tenth of an hour is that
+// many minutes. A saved whole hour (the old pills, or the old custom
+// field) is a tenth already, so it loads as itself.
+export const LIVE_HOURS_MIN = 0.1;
 export const LIVE_HOURS_DEFAULT = 24;
 export const LIVE_HOURS_MAX = 24; // server/index.js LIVE_TTL_MS
 const HOURS_KEY = 'meritocracy-live-hours';
 let hours = readHours();
 
+// Tenths of an hour, clamped to 0.1–24. Not a number stays unset.
+function hourTenths(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  const tenths = Math.round(Math.round(n * 1000) / 100);
+  // 1 and 240, not 0.1 * 10: a tenth is not a round binary number.
+  return Math.min(LIVE_HOURS_MAX * 10, Math.max(1, tenths));
+}
+
 function cleanHours(value) {
-  const n = Math.round(Number(value));
-  if (!Number.isFinite(n) || n < 1 || n > LIVE_HOURS_MAX) return null;
-  return n;
+  if (value == null) return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
+  const tenths = hourTenths(value);
+  return tenths == null ? null : tenths / 10;
 }
 
 function readHours() {
@@ -128,15 +145,19 @@ export function liveHours() {
   return hours;
 }
 
+// Under an hour, minutes ("6 min", "30 min"). From an hour up, hours to a
+// tenth, without a trailing ".0" ("1.5 h", "24 h").
 export function liveHoursName(value = hours) {
-  return value + ' h';
+  const tenths = hourTenths(value);
+  const t = tenths == null ? Math.round(hours * 10) : tenths;
+  if (t < 10) return t * 6 + ' min';
+  return (t % 10 === 0 ? String(t / 10) : (t / 10).toFixed(1)) + ' h';
 }
 
-// false when it is not a number. Above 24 hours clamps to the server's cap.
+// false when it is not a number. A tenth of an hour, clamped to 0.1–24.
 export function setLiveHours(value) {
-  let n = Math.round(Number(value));
-  if (!Number.isFinite(n)) return false;
-  n = Math.min(LIVE_HOURS_MAX, Math.max(1, n));
+  const n = cleanHours(value);
+  if (n == null) return false;
   hours = n;
   try { localStorage.setItem(HOURS_KEY, String(n)); } catch { /* this visit only */ }
   return true;
@@ -144,7 +165,7 @@ export function setLiveHours(value) {
 
 // What the caption under Look for Live says: the group when it is not
 // Everyone, always the distance, and the time when it is not 24 hours
-// ("Following · 50 km", "100 km · 6 h").
+// ("Following · 50 km", "100 km · 6 min", "50 km · 1.5 h").
 export function liveChoiceCaption() {
   const parts = [];
   if (current !== 'all') parts.push(liveGroupName(current));
@@ -381,19 +402,18 @@ export function bindHoldMenu(el, open) {
 }
 
 // ── Live settings (the ⚙ beside Look for Live) ─────────────────────────
-// Posts from (the groups above), Distance (LIVE_RADII) and Time
-// (LIVE_HOURS, or a custom number of hours), then Look for Live. A choice
-// is kept as soon as it is made; onChange lets the pin
-// repaint its caption. Escape, a tap anywhere else, moving the map and
-// Back close it.
+// Posts from (the groups above), then one slider for Distance and one for
+// Time, then Look for Live. A group is kept as soon as it is picked. A
+// slider's value is kept when it is released; while Distance is dragged
+// the map circle follows (live-radius-changed) without saving. onChange
+// lets the pin repaint its caption. Escape, a tap anywhere else, moving
+// the map and Back close it.
 let settings = null;
 let settingsFor = null; // { anchor, onLook, onChange }
 let settingsLayer = false;
 const settingsRows = new Map(); // group key -> row
-const radiusPills = new Map(); // km -> pill
-const hoursPills = new Map(); // hours -> pill
-let hoursInput = null;
-let hoursCustom = null;
+let radiusUi = null; // { input, show }
+let hoursUi = null;
 
 export const LIVE_GEAR_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>';
 
@@ -483,79 +503,41 @@ function buildSettings() {
   }
   groups.appendChild(groupList);
 
-  // Distance: the presets as pills.
+  // Distance: one slider, 1 km to 100 km. Dragging moves the circle on the
+  // map; releasing keeps the km and repaints the caption.
   const distance = settingsSection('Distance', 'How far from the pin. The circle on the map shows it.');
-  const pills = document.createElement('div');
-  pills.className = 'live-settings-pills';
-  pills.setAttribute('role', 'radiogroup');
-  pills.setAttribute('aria-label', 'Distance');
-  for (const value of LIVE_RADII) {
-    const pill = document.createElement('button');
-    pill.type = 'button';
-    pill.className = 'live-settings-pill';
-    pill.setAttribute('role', 'radio');
-    pill.textContent = liveRadiusName(value);
-    pill.addEventListener('click', (event) => {
-      event.stopPropagation();
-      setLiveRadius(value);
-      paintSettings();
+  radiusUi = addSlider(distance, {
+    label: 'Distance',
+    min: LIVE_RADIUS_MIN_KM,
+    max: LIVE_RADIUS_MAX_KM,
+    step: 1,
+    text: (n) => liveRadiusName(cleanRadius(n) ?? radius),
+    onInput: (n) => {
+      const km = cleanRadius(n);
+      if (km == null) return;
+      document.dispatchEvent(new CustomEvent('live-radius-changed', { detail: km }));
+    },
+    onCommit: (n) => {
+      if (!setLiveRadius(n)) return;
       settingsChanged();
-    });
-    radiusPills.set(value, pill);
-    pills.appendChild(pill);
-  }
-  distance.append(pills);
-
-  // Time: the same kind of pills, plus a custom number of hours. The
-  // server only keeps 24, so the field cannot ask for more.
-  const time = settingsSection('Time', 'How recent. The server keeps the last 24 hours.');
-  const timePills = document.createElement('div');
-  timePills.className = 'live-settings-pills';
-  timePills.setAttribute('role', 'radiogroup');
-  timePills.setAttribute('aria-label', 'Time');
-  for (const value of LIVE_HOURS) {
-    const pill = document.createElement('button');
-    pill.type = 'button';
-    pill.className = 'live-settings-pill';
-    pill.setAttribute('role', 'radio');
-    pill.textContent = liveHoursName(value);
-    pill.addEventListener('click', (event) => {
-      event.stopPropagation();
-      setLiveHours(value);
-      paintSettings();
-      settingsChanged();
-    });
-    hoursPills.set(value, pill);
-    timePills.appendChild(pill);
-  }
-  hoursCustom = document.createElement('label');
-  hoursCustom.className = 'live-settings-pill live-settings-hours';
-  hoursInput = document.createElement('input');
-  hoursInput.type = 'number';
-  hoursInput.min = '1';
-  hoursInput.max = String(LIVE_HOURS_MAX);
-  hoursInput.step = '1';
-  hoursInput.inputMode = 'numeric';
-  hoursInput.className = 'live-settings-hours-input';
-  hoursInput.setAttribute('aria-label', 'Custom hours, up to 24');
-  const unit = document.createElement('span');
-  unit.textContent = 'h';
-  hoursCustom.append(hoursInput, unit);
-  const commitHours = () => {
-    const raw = hoursInput.value.trim();
-    if (raw === '' || !setLiveHours(raw)) hoursInput.value = String(hours);
-    paintSettings();
-    settingsChanged();
-  };
-  hoursInput.addEventListener('change', commitHours);
-  hoursInput.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    hoursInput.blur();
+    },
   });
-  hoursInput.addEventListener('wheel', (event) => event.stopPropagation());
-  timePills.appendChild(hoursCustom);
-  time.append(timePills);
+
+  // Time: one slider, 0.1 h (6 min) to 24 h, in tenths. The server only
+  // keeps 24, so the slider cannot ask for more.
+  const time = settingsSection('Time', 'How recent. The server keeps the last 24 hours.');
+  hoursUi = addSlider(time, {
+    label: 'Time',
+    min: LIVE_HOURS_MIN,
+    max: LIVE_HOURS_MAX,
+    step: 0.1,
+    text: (n) => liveHoursName(n),
+    onInput: () => {},
+    onCommit: (n) => {
+      if (!setLiveHours(n)) return;
+      settingsChanged();
+    },
+  });
 
   const look = document.createElement('button');
   look.type = 'button';
@@ -599,9 +581,50 @@ function buildSettings() {
   if (window.visualViewport) window.visualViewport.addEventListener('resize', follow);
 }
 
+// A labelled slider. input moves the readout (and whatever onInput does);
+// change, which a range fires when the pointer is released and when an
+// arrow key steps, keeps the value. Arrow keys step by `step` on their own.
+function addSlider(section, { label, min, max, step, text, onInput, onCommit }) {
+  const valueEl = document.createElement('span');
+  valueEl.className = 'live-settings-value';
+  section.querySelector('.live-settings-title').appendChild(valueEl);
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.className = 'live-settings-slider';
+  input.min = String(min);
+  input.max = String(max);
+  input.step = String(step);
+  input.setAttribute('aria-label', label);
+  const show = (n) => {
+    const shown = text(n);
+    valueEl.textContent = shown;
+    input.setAttribute('aria-valuetext', shown);
+  };
+  input.addEventListener('input', (event) => {
+    event.stopPropagation();
+    const n = Number(input.value);
+    show(n);
+    onInput(n);
+  });
+  input.addEventListener('change', (event) => {
+    event.stopPropagation();
+    const n = Number(input.value);
+    show(n);
+    onCommit(n);
+  });
+  section.appendChild(input);
+  return { input, show };
+}
+
 function settingsChanged() {
   const onChange = settingsFor && settingsFor.onChange;
   if (typeof onChange === 'function') onChange();
+}
+
+function paintSlider(ui, value) {
+  if (!ui || document.activeElement === ui.input) return;
+  ui.input.value = String(value);
+  ui.show(value);
 }
 
 function paintSettings() {
@@ -610,19 +633,8 @@ function paintSettings() {
     row.classList.toggle('is-on', on);
     row.setAttribute('aria-checked', on ? 'true' : 'false');
   }
-  for (const [value, pill] of radiusPills) {
-    const on = value === radius;
-    pill.classList.toggle('is-on', on);
-    pill.setAttribute('aria-checked', on ? 'true' : 'false');
-  }
-  const custom = !LIVE_HOURS.includes(hours);
-  for (const [value, pill] of hoursPills) {
-    const on = value === hours;
-    pill.classList.toggle('is-on', on);
-    pill.setAttribute('aria-checked', on ? 'true' : 'false');
-  }
-  if (hoursCustom) hoursCustom.classList.toggle('is-on', custom);
-  if (hoursInput && document.activeElement !== hoursInput) hoursInput.value = String(hours);
+  paintSlider(radiusUi, radius);
+  paintSlider(hoursUi, hours);
 }
 
 // Under the ⚙, or above it when there is more room there; inside the
@@ -680,6 +692,8 @@ export function closeLiveSettings({ fromHistory = false, within = null } = {}) {
   if (settingsFor.anchor) settingsFor.anchor.setAttribute('aria-expanded', 'false');
   settingsFor = null;
   if (settings) settings.hidden = true;
+  // A drag that never released showed a circle the saved km does not match.
+  document.dispatchEvent(new CustomEvent('live-radius-changed', { detail: radius }));
   if (settings && settings.contains(document.activeElement)) document.activeElement.blur();
   if (!fromHistory && window.layerClosedByUI) window.layerClosedByUI('livesettings');
 }

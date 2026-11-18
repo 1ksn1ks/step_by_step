@@ -25230,8 +25230,9 @@ html.is-draw-picking .live-filter {
 }
 
 /* Live settings (livegroups.js openLiveSettings): the group dropdown's
-   glass, with Posts from, Distance, Time and Look for Live. */
+   glass, with Posts from, a Distance slider, a Time slider and Look for Live. */
 .live-settings {
+  --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
   position: fixed;
   z-index: 6001;
   display: flex;
@@ -25298,12 +25299,23 @@ html.is-draw-picking .live-filter {
   padding: 0 4px;
 }
 .live-settings-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: calc(var(--fu) * 0.6);
   padding: 0 6px;
   color: rgba(255, 255, 255, 0.5);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+.live-settings-value {
+  flex: none;
+  color: #ECFEFF;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
 .live-settings-hint {
   padding: 0 6px;
@@ -25316,71 +25328,61 @@ html.is-draw-picking .live-filter {
   flex-direction: column;
   gap: 2px;
 }
-.live-settings-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.live-settings-pill {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 36px;
-  margin: 0;
-  padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.85);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-.live-settings-pill.is-on {
-  border-color: rgba(34, 211, 238, 0.75);
-  background: rgba(34, 211, 238, 0.18);
-  color: #ECFEFF;
-  font-weight: 600;
-}
-.live-settings-pill:focus {
-  outline: none;
-}
-.live-settings-pill:focus-visible {
-  outline: 1px solid rgba(255, 255, 255, 0.6);
-  outline-offset: 1px;
-}
-/* Custom hours, in the same pill row. The number is the only thing you
-   type; the h sits beside it. */
-.live-settings-hours {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  cursor: text;
-}
-.live-settings-hours-input {
-  width: 3ch;
+/* One range each for Distance and Time. The track is the panel's dim
+   line, the thumb its cyan. touch-action: none so a finger drag moves the
+   thumb (the panel itself scrolls on pan-y). Arrow keys step by the
+   input's own step. Sizes are --fu, the same unit as the rest of the app. */
+.live-settings-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: calc(var(--fu) * 2.4);
   margin: 0;
   padding: 0;
-  border: 0;
   background: transparent;
-  color: inherit;
-  font: inherit;
-  font-weight: inherit;
-  text-align: right;
-  user-select: text;
-  -moz-appearance: textfield;
+  color: #22D3EE;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
 }
-.live-settings-hours-input::-webkit-outer-spin-button,
-.live-settings-hours-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-.live-settings-hours-input:focus {
+.live-settings-slider:focus {
   outline: none;
+}
+.live-settings-slider:focus-visible {
+  outline: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.6);
+  outline-offset: calc(var(--fu) * 0.12);
+}
+.live-settings-slider::-webkit-slider-runnable-track {
+  height: calc(var(--fu) * 0.35);
+  border: 0;
+  border-radius: calc(var(--fu) * 0.35);
+  background: rgba(255, 255, 255, 0.16);
+}
+.live-settings-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: calc(var(--fu) * 1.6);
+  height: calc(var(--fu) * 1.6);
+  margin-top: calc(var(--fu) * -0.625);
+  border: calc(var(--fu) * 0.12) solid #22D3EE;
+  border-radius: 50%;
+  background: #ECFEFF;
+  box-shadow: 0 0 calc(var(--fu) * 0.8) rgba(34, 211, 238, 0.45);
+}
+.live-settings-slider::-moz-range-track {
+  height: calc(var(--fu) * 0.35);
+  border: 0;
+  border-radius: calc(var(--fu) * 0.35);
+  background: rgba(255, 255, 255, 0.16);
+}
+.live-settings-slider::-moz-range-thumb {
+  width: calc(var(--fu) * 1.6);
+  height: calc(var(--fu) * 1.6);
+  border: calc(var(--fu) * 0.12) solid #22D3EE;
+  border-radius: 50%;
+  background: #ECFEFF;
+  box-shadow: 0 0 calc(var(--fu) * 0.8) rgba(34, 211, 238, 0.45);
 }
 .live-settings-look {
   flex: none;
