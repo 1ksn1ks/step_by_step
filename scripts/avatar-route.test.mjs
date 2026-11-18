@@ -15,6 +15,7 @@ import {
   AVATAR_CACHE_CONTROL,
   AVATAR_CORP,
   AVATAR_CSP,
+  AVATAR_DOWN_MS,
   AVATAR_EDGE,
   AVATAR_FAIL_CACHE_S,
   avatarFailureCacheControl,
@@ -261,13 +262,14 @@ test("each redirect is checked again, and a source over 10 MB is refused", async
   assert.throws(() => checkSourceUrl("http://cdn.example:22/a.png"), (err) => err.status === 403);
 });
 
-test("a source that is missing or not a picture is an error answer, remembered; one that is down is asked again", async () => {
+test("a source that is missing, not a picture or down is an error answer, remembered", async () => {
   clearAvatarCache();
   const html = "https://cdn.example/page.html";
   const down = "https://cdn.example/down.png";
   const missing = "https://cdn.example/gone.png";
   const source = fakeSource({ [html]: Buffer.from("<html>not a picture</html>"), [down]: new Error("connection reset") });
   const sources = {
+    now: () => 1_000_000,
     fetchSource: async (url) => {
       if (url === missing) {
         source.asked.push(url);
@@ -287,11 +289,13 @@ test("a source that is missing or not a picture is an error answer, remembered; 
   assert.equal((await getAvatarThumb(missing, sources)).status, 404);
   assert.equal(source.asked.filter((url) => url === missing).length, 1);
 
+  // Down: remembered for a shorter while (avatar-slow-sources.test.mjs has
+  // the waits), and the answer says when it is fetched again.
   const flaky = await getAvatarThumb(down, sources);
   assert.equal(flaky.status, 502);
-  assert.ok(flaky.retryAfter > 0);
-  await getAvatarThumb(down, sources);
-  assert.equal(source.asked.filter((url) => url === down).length, 2, "a source that is down is asked again");
+  assert.equal(flaky.retryAfter, AVATAR_DOWN_MS / 1000);
+  assert.equal((await getAvatarThumb(down, sources)).status, 502);
+  assert.equal(source.asked.filter((url) => url === down).length, 1, "a source that is down is not fetched again at once");
 
   // The route answers an error the page falls back from, kept by this
   // browser a short while so a redraw does not ask again; one that says
@@ -382,8 +386,10 @@ test("new thumbnails are capped per IP and at once; ones already made are not", 
   assert.equal((await getAvatarThumb(b, { ...opts, ip: "198.51.100.1" })).ok, true);
 
   clearAvatarCache();
-  const busy = await getAvatarThumb(a, { fetchSource: source.fetchSource, maxBuilds: 0 });
-  assert.deepEqual([busy.status, busy.retryAfter > 0], [503, true]);
+  for (const full of [{ maxFetches: 0 }, { maxBuilds: 0 }]) {
+    const busy = await getAvatarThumb(a, { fetchSource: source.fetchSource, queueMs: 0, ...full });
+    assert.deepEqual([busy.status, busy.retryAfter > 0], [503, true], JSON.stringify(full));
+  }
   assert.equal((await getAvatarThumb(a, { fetchSource: source.fetchSource })).ok, true, "busy is not remembered");
   clearAvatarCache();
 });

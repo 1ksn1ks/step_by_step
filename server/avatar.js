@@ -16,18 +16,25 @@
 //
 // What a request can make this process do:
 // - createAvatarRateLimit: one budget per client IP for the whole route.
-// - AVATAR_BUILD_RATE_MAX new thumbnails per client IP per window, and
-//   AVATAR_MAX_BUILDS at once across all requests (503 past that). A
+// - AVATAR_BUILD_RATE_MAX new thumbnails per client IP per window. A
 //   thumbnail already made is not counted.
+// - Two sets of slots across all requests: AVATAR_MAX_FETCHES sources
+//   being read, and AVATAR_MAX_BUILDS thumbnails being decoded and written.
+//   A slow source holds only a fetch slot, so it never keeps a quick one
+//   from being made. A request finding its slots full waits up to
+//   AVATAR_QUEUE_MS (at most AVATAR_QUEUE_MAX waiting per set), then 503.
 // - A fetch: http(s) on ports 80/443 only, no user:password, every
 //   address the name resolves to checked when the connection is made
 //   (isBlockedAddress: private, loopback, link-local and the like), each
 //   redirect checked again, at most AVATAR_MAX_REDIRECTS, AVATAR_MAX_BYTES
-//   and AVATAR_FETCH_MS per fetch, AVATAR_TOTAL_MS per thumbnail.
+//   and AVATAR_FETCH_MS per fetch, AVATAR_TOTAL_MS per source however it
+//   is read (its fetch slot is free again by then).
 // - A decode: at most AVATAR_MAX_PIXELS, still formats only.
 // - A source that is refused, missing or not a picture is remembered for
-//   AVATAR_MISS_MS (at most AVATAR_MISS_ENTRIES). A timeout, a busy server
-//   or a source that is down is asked again next time.
+//   AVATAR_MISS_MS, one that is down or too slow for AVATAR_DOWN_MS, twice
+//   as long each time it fails again, up to AVATAR_DOWN_MAX_MS (all in at
+//   most AVATAR_MISS_ENTRIES). No user makes it fetch the source before
+//   then. A busy server or a rate limit is not the source's: not kept.
 //
 // Any failure is an error answer; the page then draws the original link,
 // and after that the default avatar (loopmedia.js). The browser keeps an
@@ -49,14 +56,19 @@ export const AVATAR_EDGE = 384;
 export const AVATAR_QUALITY = 80;
 export const AVATAR_MAX_BYTES = 10 * 1024 * 1024;
 export const AVATAR_MAX_PIXELS = 50 * 1000 * 1000;
-export const AVATAR_FETCH_MS = 10 * 1000;
-export const AVATAR_TOTAL_MS = 20 * 1000;
+export const AVATAR_FETCH_MS = 5 * 1000;
+export const AVATAR_TOTAL_MS = 10 * 1000;
 export const AVATAR_MAX_REDIRECTS = 3;
+export const AVATAR_MAX_FETCHES = 6;
 export const AVATAR_MAX_BUILDS = 3;
+export const AVATAR_QUEUE_MS = 2 * 1000;
+export const AVATAR_QUEUE_MAX = 6;
 export const AVATAR_RATE_MAX = 300;
 export const AVATAR_BUILD_RATE_MAX = 30;
 export const AVATAR_RATE_WINDOW_MS = 60 * 1000;
 export const AVATAR_MISS_MS = 10 * 60 * 1000;
+export const AVATAR_DOWN_MS = 60 * 1000;
+export const AVATAR_DOWN_MAX_MS = AVATAR_MISS_MS;
 export const AVATAR_MISS_ENTRIES = 5000;
 export const AVATAR_CACHE_ENTRIES = 500;
 export const AVATAR_RETRY_AFTER_S = 10;
@@ -386,11 +398,63 @@ function createWindowCounter() {
   };
 }
 
+// A set of slots: take() answers true once one is held, after waiting at
+// most waitMs behind at most queueMax others, or false. A slot given back
+// goes straight to the first one waiting.
+function createSlots() {
+  let busy = 0;
+  const waiting = [];
+  return {
+    take(max, waitMs, queueMax) {
+      if (busy < max) {
+        busy += 1;
+        return Promise.resolve(true);
+      }
+      if (!(waitMs > 0) || waiting.length >= queueMax) return Promise.resolve(false);
+      return new Promise((resolve) => {
+        const entry = { resolve, timer: null };
+        entry.timer = setTimeout(() => {
+          const at = waiting.indexOf(entry);
+          if (at !== -1) waiting.splice(at, 1);
+          resolve(false);
+        }, waitMs);
+        if (typeof entry.timer.unref === "function") entry.timer.unref();
+        waiting.push(entry);
+      });
+    },
+    release() {
+      const next = waiting.shift();
+      if (next) {
+        clearTimeout(next.timer);
+        next.resolve(true);
+        return;
+      }
+      busy = Math.max(0, busy - 1);
+    },
+    get busy() {
+      return busy;
+    },
+    get waiting() {
+      return waiting.length;
+    },
+  };
+}
+
 const memory = createMemory(AVATAR_CACHE_ENTRIES);
 const misses = createMemory(AVATAR_MISS_ENTRIES);
 const flights = new Map();
 const buildCounter = createWindowCounter();
-let building = 0;
+const fetchSlots = createSlots();
+const buildSlots = createSlots();
+
+// Slots in use and requests waiting for one (tests, the console).
+export function avatarWorkState() {
+  return {
+    fetching: fetchSlots.busy,
+    building: buildSlots.busy,
+    waiting: fetchSlots.waiting + buildSlots.waiting,
+  };
+}
 
 // Forget everything held in this process (tests).
 export function clearAvatarCache() {
@@ -445,48 +509,113 @@ function entryOf(bytes, source) {
   return { ok: true, status: 200, bytes, etag: `"${sha256(bytes)}"`, from: source };
 }
 
+// Settles with work, or rejects as a timeout once signal aborts, whichever
+// comes first: a source that never answers (a Hashinal read cannot be
+// aborted) still gives its slot back.
+function withDeadline(work, signal) {
+  if (signal.aborted) return Promise.reject(new AvatarError(502, "source timeout"));
+  return new Promise((resolve, reject) => {
+    const stop = () => reject(new AvatarError(502, "source timeout"));
+    signal.addEventListener("abort", stop, { once: true });
+    work.then(
+      (value) => {
+        signal.removeEventListener("abort", stop);
+        resolve(value);
+      },
+      (err) => {
+        signal.removeEventListener("abort", stop);
+        reject(err);
+      },
+    );
+  });
+}
+
+function busy() {
+  return fail(503, "busy", { retryAfter: AVATAR_RETRY_AFTER_S });
+}
+
+// A remembered failure as answered now. One that is the source being down
+// says when it is asked again.
+function missAnswer(miss, at) {
+  if (!miss.strikes) return miss.result;
+  return { ...miss.result, retryAfter: Math.max(1, Math.ceil((miss.until - at) / 1000)) };
+}
+
+// A failure that is the source's, answered and remembered so no request
+// fetches the source again before its time. Refused, missing, too big or
+// not a picture: AVATAR_MISS_MS. Down, too slow, or anything unexpected:
+// AVATAR_DOWN_MS, twice as long each time it fails again within
+// AVATAR_DOWN_MAX_MS of the last wait ending, up to AVATAR_DOWN_MAX_MS.
+function sourceFailed(key, err, opts) {
+  let result;
+  if (err instanceof AvatarError) {
+    result = fail(err.status, err.message);
+  } else {
+    console.error("avatar build", err && err.message);
+    result = fail(502, "avatar unavailable");
+  }
+  const at = opts.now();
+  if (result.status < 500) {
+    misses.set(key, { until: at + AVATAR_MISS_MS, result, strikes: 0 });
+    return result;
+  }
+  const before = misses.get(key);
+  const again = !!(before && before.strikes && at - before.until <= AVATAR_DOWN_MAX_MS);
+  const strikes = again ? Math.min(before.strikes + 1, 32) : 1;
+  const wait = Math.min(AVATAR_DOWN_MS * 2 ** (strikes - 1), AVATAR_DOWN_MAX_MS);
+  const miss = { until: at + wait, result, strikes };
+  misses.set(key, miss);
+  return missAnswer(miss, at);
+}
+
+// R2 first, with no slot. Then the source is read in a fetch slot, and the
+// thumbnail made in a build slot.
 async function build(source, key, opts) {
   if (opts.s3 && opts.bucket) {
     const stored = await fromR2(key, opts);
     if (stored) {
       const entry = entryOf(stored, "r2");
       memory.set(key, entry);
+      misses.delete(key);
       return entry;
     }
   }
   const budget = buildCounter(`${opts.ip || "unknown"} build`, opts.buildRateMax, opts.windowMs, opts.now());
   if (budget.over) return fail(429, "rate limit", { retryAfter: budget.retryAfter });
-  if (building >= opts.maxBuilds) return fail(503, "busy", { retryAfter: AVATAR_RETRY_AFTER_S });
-  building += 1;
-  const deadline = AbortSignal.timeout(opts.totalMs);
+
+  if (!(await fetchSlots.take(opts.maxFetches, opts.queueMs, opts.queueMax))) return busy();
+  let bytes;
   try {
-    const bytes = await loadSource(source, { ...opts, signal: deadline });
-    const thumb = await makeAvatarThumb(bytes, { edge: opts.edge, quality: opts.quality, maxPixels: opts.maxPixels });
-    const entry = entryOf(thumb, "built");
-    memory.set(key, entry);
-    if (opts.s3 && opts.bucket) await toR2(key, thumb, opts);
-    return entry;
+    const deadline = AbortSignal.timeout(opts.totalMs);
+    bytes = await withDeadline(loadSource(source, { ...opts, signal: deadline }), deadline);
   } catch (err) {
-    if (err instanceof AvatarError) {
-      const result = fail(err.status, err.message, err.extra);
-      if (err.status === 502 && !result.retryAfter) result.retryAfter = AVATAR_RETRY_AFTER_S;
-      // Refused, missing, too big or not a picture: not asked again for a
-      // while. A timeout or a source that is down is.
-      if (err.status < 500) misses.set(key, { until: opts.now() + AVATAR_MISS_MS, result });
-      return result;
-    }
-    console.error("avatar build", err && err.message);
-    return fail(502, "avatar unavailable", { retryAfter: AVATAR_RETRY_AFTER_S });
+    return sourceFailed(key, err, opts);
   } finally {
-    building -= 1;
+    fetchSlots.release();
   }
+
+  if (!(await buildSlots.take(opts.maxBuilds, opts.queueMs, opts.queueMax))) return busy();
+  let thumb;
+  try {
+    thumb = await makeAvatarThumb(bytes, { edge: opts.edge, quality: opts.quality, maxPixels: opts.maxPixels });
+  } catch (err) {
+    return sourceFailed(key, err, opts);
+  } finally {
+    buildSlots.release();
+  }
+  const entry = entryOf(thumb, "built");
+  memory.set(key, entry);
+  misses.delete(key);
+  if (opts.s3 && opts.bucket) await toR2(key, thumb, opts);
+  return entry;
 }
 
 // The thumbnail for a src link.
 // { ok: true, status: 200, bytes, etag, from: "memory" | "r2" | "built" }
 // or { ok: false, status, error, retryAfter? }: 400 bad src, 403 not a
 // source this route fetches, 404 missing or refused, 413 too large, 415 not
-// a picture, 429 too many new thumbnails, 502 the source is down, 503 busy.
+// a picture, 429 too many new thumbnails, 502 the source is down or too
+// slow (retryAfter: when it is fetched again), 503 no slot came free.
 export async function getAvatarThumb(src, {
   ip = "",
   s3 = null,
@@ -502,7 +631,10 @@ export async function getAvatarThumb(src, {
   quality = AVATAR_QUALITY,
   fetchMs = AVATAR_FETCH_MS,
   totalMs = AVATAR_TOTAL_MS,
+  maxFetches = AVATAR_MAX_FETCHES,
   maxBuilds = AVATAR_MAX_BUILDS,
+  queueMs = AVATAR_QUEUE_MS,
+  queueMax = AVATAR_QUEUE_MAX,
   buildRateMax = AVATAR_BUILD_RATE_MAX,
   windowMs = AVATAR_RATE_WINDOW_MS,
   now = Date.now,
@@ -523,14 +655,17 @@ export async function getAvatarThumb(src, {
   if (hit) return { ...hit, from: "memory" };
   const miss = misses.get(key);
   if (miss) {
-    if (now() < miss.until) return miss.result;
-    misses.delete(key);
+    const at = now();
+    if (at < miss.until) return missAnswer(miss, at);
+    // A source that was down keeps its count of failures: failing again
+    // soon after waits longer.
+    if (!miss.strikes) misses.delete(key);
   }
   let flight = flights.get(key);
   if (!flight) {
     const opts = {
       ip, s3, bucket, hcs1, fetchSource, lookup, isBlocked, ports, maxBytes, maxPixels, edge, quality,
-      fetchMs, totalMs, maxBuilds, buildRateMax, windowMs, now,
+      fetchMs, totalMs, maxFetches, maxBuilds, queueMs, queueMax, buildRateMax, windowMs, now,
     };
     flight = build(source, key, opts).finally(() => flights.delete(key));
     flights.set(key, flight);
