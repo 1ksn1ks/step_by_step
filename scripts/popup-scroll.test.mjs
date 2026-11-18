@@ -52,6 +52,15 @@ test("portrait: the body is the one scroller, ordered text, Show more, picture, 
   assert.match(rule(block, `${body}:has(> .popup-media-card:not(.draw-popup-media))`), /--popup-msg-room: calc\(100% - 62\.5cqi \* 9 \/ 16 - var\(--popup-gap\)\);/);
   assert.match(rule(block, `${body} > .popup-msg > .popup-text-bubble`), /flex: 0 0 auto;\s*max-height: var\(--popup-msg-room\);/);
   assert.match(rule(block, `${body} > .popup-msg.is-more > .popup-text-bubble`), /max-height: calc\(var\(--popup-msg-room\) - var\(--popup-more-h\)\);/);
+  // With an X post the text box keeps the size it had next to the post's
+  // own box (before the one scroll body): the room less that box's share,
+  // min(26u, 66%), and its 0.5u margin, less Show more once capped. It fills
+  // that height, as then.
+  assert.match(rule(block, `${body} > .popup-msg:has(> .x-embed-list) > .popup-text-bubble`),
+    /--popup-msg-x: calc\(var\(--popup-msg-room\) - min\(calc\(var\(--u\) \* 26\), calc\(var\(--popup-msg-room\) \* 0\.66\)\) - var\(--u\) \* 0\.5\);\s*height: var\(--popup-msg-x\);\s*max-height: none;/);
+  assert.match(rule(block, `${body} > .popup-msg.is-more:has(> .x-embed-list) > .popup-text-bubble`), /height: calc\(var\(--popup-msg-x\) - var\(--popup-more-h\)\);/);
+  // The share is the one the X post's box had then, now only for the text.
+  assert.match(rule(css, ".maplibregl-popup .x-embed-list"), /flex: 0 0 auto;\s*align-self: stretch;\s*margin: calc\(var\(--u\) \* 0\.5\) calc\(var\(--u\) \* 0\.5\) 0;/);
   // The picture's compact frame is what the cap leaves room for.
   const frame = rule(css, ":is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > .popup-media-card:not(.draw-popup-media)");
   assert.match(frame, /width: 62\.5%;/);
