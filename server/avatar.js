@@ -33,7 +33,11 @@
 //   redirect checked again, at most AVATAR_MAX_REDIRECTS, AVATAR_MAX_BYTES
 //   and AVATAR_FETCH_MS per fetch, AVATAR_TOTAL_MS per source however it
 //   is read (its fetch slot is free again by then).
-// - A decode: at most AVATAR_MAX_PIXELS, still formats only.
+// - A decode: still formats only, one libvips thread each
+//   (AVATAR_SHARP_THREADS), read in order. At most AVATAR_MAX_PIXELS for
+//   a picture decoded in full (PNG, WebP, GIF, AVIF); a JPEG is decoded at
+//   1/8 of its size for a thumbnail this small, so it may be up to
+//   AVATAR_MAX_JPEG_PIXELS, every phone photo. 413 above either.
 // - A source that is refused, missing or not a picture is remembered for
 //   AVATAR_MISS_MS, one that is down or too slow for AVATAR_DOWN_MS, twice
 //   as long each time it fails again, up to AVATAR_DOWN_MAX_MS (all in at
@@ -59,7 +63,20 @@ import { getHcs1File } from "./hcs1.js";
 export const AVATAR_EDGE = 384;
 export const AVATAR_QUALITY = 80;
 export const AVATAR_MAX_BYTES = 10 * 1024 * 1024;
-export const AVATAR_MAX_PIXELS = 50 * 1000 * 1000;
+// A 24 MP phone frame (5712 x 4284, 24.5 MP): kept in any format.
+// Measured for three at once, one thread each: a 24 MP PNG about 100 MB,
+// a 48 MP one about 140 MB, a 1.4 MB flat 100 MP one about 170 MB.
+export const AVATAR_MAX_PIXELS = 5712 * 4284;
+// The largest 50 MP phone sensor frame (8192 x 6144, 50.3 MP), so every
+// 12, 24, 48 and 50 MP phone photo is kept. Three 48 MP JPEGs at once:
+// about 115 ms and 16 MB.
+export const AVATAR_MAX_JPEG_PIXELS = 8192 * 6144;
+// libvips threads per decode, for the whole process (server/appicon.js
+// shares it; its renders are small and kept). The decoders here run on one
+// thread anyway: one thread is as fast and holds far less memory than one
+// per core for each of AVATAR_MAX_BUILDS at once.
+export const AVATAR_SHARP_THREADS = 1;
+sharp.concurrency(AVATAR_SHARP_THREADS);
 export const AVATAR_FETCH_MS = 5 * 1000;
 export const AVATAR_TOTAL_MS = 10 * 1000;
 export const AVATAR_MAX_REDIRECTS = 3;
@@ -324,17 +341,20 @@ async function loadSource(source, opts) {
 }
 
 // The thumbnail of one picture: its first frame, turned upright, the
-// centre square (never enlarged) at most edge px, WebP.
+// centre square (never enlarged) at most edge px, WebP. The header is read
+// first (no pixels decoded), so a picture over its format's limit is a 413
+// before anything is decoded.
 export async function makeAvatarThumb(bytes, {
   edge = AVATAR_EDGE,
   quality = AVATAR_QUALITY,
   maxPixels = AVATAR_MAX_PIXELS,
+  maxJpegPixels = AVATAR_MAX_JPEG_PIXELS,
 } = {}) {
   // As lenient as a browser: a slightly truncated JPEG still shows there.
-  const input = { limitInputPixels: maxPixels, animated: false, failOn: "none" };
+  const input = { animated: false, failOn: "none", sequentialRead: true };
   let meta;
   try {
-    meta = await sharp(bytes, input).metadata();
+    meta = await sharp(bytes, { ...input, limitInputPixels: Math.max(maxPixels, maxJpegPixels) }).metadata();
   } catch (err) {
     if (/pixel limit/i.test(String(err && err.message))) throw new AvatarError(413, "source too large");
     throw new AvatarError(415, "not a picture");
@@ -343,9 +363,11 @@ export async function makeAvatarThumb(bytes, {
   const width = Number(meta.width) || 0;
   const height = Number(meta.pageHeight || meta.height) || 0;
   if (!width || !height) throw new AvatarError(415, "not a picture");
+  const limit = meta.format === "jpeg" ? maxJpegPixels : maxPixels;
+  if (width * height > limit) throw new AvatarError(413, "source too large");
   const side = Math.min(width, height, edge);
   try {
-    return await sharp(bytes, input)
+    return await sharp(bytes, { ...input, limitInputPixels: limit })
       .rotate()
       .resize(side, side, { fit: "cover", position: "centre" })
       .webp({ quality, effort: 4 })
@@ -637,7 +659,7 @@ async function build(source, key, opts) {
   if (!(await buildSlots.take(opts.maxBuilds, opts.queueMs, opts.queueMax))) return busy();
   let thumb;
   try {
-    thumb = await makeAvatarThumb(bytes, { edge: opts.edge, quality: opts.quality, maxPixels: opts.maxPixels });
+    thumb = await makeAvatarThumb(bytes, { edge: opts.edge, quality: opts.quality, maxPixels: opts.maxPixels, maxJpegPixels: opts.maxJpegPixels });
   } catch (err) {
     return sourceFailed(key, err, opts);
   } finally {
@@ -673,6 +695,7 @@ export async function getAvatarThumb(src, {
   ports = AVATAR_PORTS,
   maxBytes = AVATAR_MAX_BYTES,
   maxPixels = AVATAR_MAX_PIXELS,
+  maxJpegPixels = AVATAR_MAX_JPEG_PIXELS,
   edge = AVATAR_EDGE,
   quality = AVATAR_QUALITY,
   fetchMs = AVATAR_FETCH_MS,
@@ -721,7 +744,7 @@ export async function getAvatarThumb(src, {
   let flight = flights.get(key);
   if (!flight) {
     const opts = {
-      ip, s3, bucket, hcs1, fetchSource, lookup, isBlocked, ports, maxBytes, maxPixels, edge, quality,
+      ip, s3, bucket, hcs1, fetchSource, lookup, isBlocked, ports, maxBytes, maxPixels, maxJpegPixels, edge, quality,
       fetchMs, totalMs, maxFetches, maxBuilds, queueMs, queueMax, buildRateMax, windowMs, now,
     };
     flight = build(source, key, opts).finally(() => flights.delete(key));
