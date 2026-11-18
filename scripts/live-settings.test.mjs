@@ -126,13 +126,22 @@ test("the panel is two sliders, Posts from, and Look for Live", () => {
   assert.match(time, /settingsChanged\(\)/);
 });
 
-test("the slider uses the panel token and no fixed px", () => {
+test("the slider is sized in em of the panel, and keyboard focus rings the thumb", () => {
   const at = css.indexOf(".live-settings-slider {");
   const end = css.indexOf(".live-settings-look {");
   assert.ok(at > 0 && end > at);
   const block = css.slice(at, end);
-  assert.match(block, /var\(--fu\)/);
+  assert.match(block, /--live-thumb: 1\.15em;/);
+  assert.match(block, /--live-track: 0\.18em;/);
+  assert.match(block, /height: var\(--live-thumb\);/);
+  assert.match(block, /padding: 0 calc\(var\(--live-thumb\) \/ 2\);/);
+  assert.match(block, /margin-top: calc\(\(var\(--live-track\) - var\(--live-thumb\)\) \/ 2\);/);
+  assert.match(block, /border: 0\.08em solid #22D3EE;/);
+  assert.match(block, /box-shadow: 0 0 0\.35em rgba\(34, 211, 238, 0\.45\);/);
   assert.match(block, /touch-action: none/);
+  assert.doesNotMatch(block, /var\(--fu\)/);
   assert.doesNotMatch(block, /\dpx/);
-  assert.match(css, /\.live-settings \{[^}]*--fu:/);
+  assert.match(block, /\.live-settings-slider:focus,\s*\.live-settings-slider:focus-visible \{\s*outline: none;/);
+  assert.match(block, /:focus-visible::-webkit-slider-thumb \{\s*outline: 0\.06em solid/);
+  assert.match(block, /:focus-visible::-moz-range-thumb \{\s*outline: 0\.06em solid/);
 });

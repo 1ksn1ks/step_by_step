@@ -25329,60 +25329,74 @@ html.is-draw-picking .live-filter {
   gap: 2px;
 }
 /* One range each for Distance and Time. The track is the panel's dim
-   line, the thumb its cyan. touch-action: none so a finger drag moves the
-   thumb (the panel itself scrolls on pan-y). Arrow keys step by the
-   input's own step. Sizes are --fu, the same unit as the rest of the app. */
+   line, the thumb its cyan, a little larger than the label. Sizes are em
+   of the panel's font, so a wide screen does not grow the thumb. The
+   track is inset by half a thumb: at either end the thumb sits inside
+   the row, lined up with the rows above, and the panel does not clip it.
+   touch-action: none so a finger drag moves the thumb (the panel itself
+   scrolls on pan-y). Arrow keys step by the input's own step. */
 .live-settings-slider {
+  --live-thumb: 1.15em;
+  --live-track: 0.18em;
   -webkit-appearance: none;
   appearance: none;
   display: block;
+  box-sizing: border-box;
   width: 100%;
-  height: calc(var(--fu) * 2.4);
+  height: var(--live-thumb);
   margin: 0;
-  padding: 0;
+  padding: 0 calc(var(--live-thumb) / 2);
+  overflow: visible;
   background: transparent;
   color: #22D3EE;
   cursor: pointer;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
 }
-.live-settings-slider:focus {
+.live-settings-slider:focus,
+.live-settings-slider:focus-visible {
   outline: none;
 }
-.live-settings-slider:focus-visible {
-  outline: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.6);
-  outline-offset: calc(var(--fu) * 0.12);
-}
 .live-settings-slider::-webkit-slider-runnable-track {
-  height: calc(var(--fu) * 0.35);
+  height: var(--live-track);
   border: 0;
-  border-radius: calc(var(--fu) * 0.35);
+  border-radius: var(--live-track);
   background: rgba(255, 255, 255, 0.16);
 }
 .live-settings-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: calc(var(--fu) * 1.6);
-  height: calc(var(--fu) * 1.6);
-  margin-top: calc(var(--fu) * -0.625);
-  border: calc(var(--fu) * 0.12) solid #22D3EE;
+  box-sizing: border-box;
+  width: var(--live-thumb);
+  height: var(--live-thumb);
+  margin-top: calc((var(--live-track) - var(--live-thumb)) / 2);
+  border: 0.08em solid #22D3EE;
   border-radius: 50%;
   background: #ECFEFF;
-  box-shadow: 0 0 calc(var(--fu) * 0.8) rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 0.35em rgba(34, 211, 238, 0.45);
+}
+.live-settings-slider:focus-visible::-webkit-slider-thumb {
+  outline: 0.06em solid rgba(34, 211, 238, 0.75);
+  outline-offset: 0.08em;
 }
 .live-settings-slider::-moz-range-track {
-  height: calc(var(--fu) * 0.35);
+  height: var(--live-track);
   border: 0;
-  border-radius: calc(var(--fu) * 0.35);
+  border-radius: var(--live-track);
   background: rgba(255, 255, 255, 0.16);
 }
 .live-settings-slider::-moz-range-thumb {
-  width: calc(var(--fu) * 1.6);
-  height: calc(var(--fu) * 1.6);
-  border: calc(var(--fu) * 0.12) solid #22D3EE;
+  box-sizing: border-box;
+  width: var(--live-thumb);
+  height: var(--live-thumb);
+  border: 0.08em solid #22D3EE;
   border-radius: 50%;
   background: #ECFEFF;
-  box-shadow: 0 0 calc(var(--fu) * 0.8) rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 0.35em rgba(34, 211, 238, 0.45);
+}
+.live-settings-slider:focus-visible::-moz-range-thumb {
+  outline: 0.06em solid rgba(34, 211, 238, 0.75);
+  outline-offset: 0.08em;
 }
 .live-settings-look {
   flex: none;
