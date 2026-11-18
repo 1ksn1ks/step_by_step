@@ -23104,19 +23104,23 @@ img.is-gif-hit {
   background: #67e8f9 !important;
 }
 
-/* Feed pictures and videos: one compact frame for all, the same width and
-   the same 16:9 shape (a picture or video used to show at its own file
-   size, so a playing video jumped to its full resolution and a tall
-   picture made its card tall). The whole picture is fitted inside
-   (contain), and a blurred, darkened copy of it fills the rest of the
-   frame (.feed-media-backdrop, mountMediaBackdrop), the blur fill most
-   feeds use. The enlarge button (.feed-media-tools, mountMediaTools)
-   makes it full width at its own shape and back; the other opens it
-   fullscreen. The second selector of each pair matches the
-   posterless-video rule (a 16:9 frame), which is more specific. */
+/* Feed pictures and videos: one compact frame for all, the card's width
+   and a 16:9 shape (a picture or video used to show at its own file size,
+   so a playing video jumped to its full resolution and a tall picture
+   made its card tall). Every kind gets the same frame: a picture, a GIF,
+   an uploaded video, a GIF turned into a loop, a video still waiting for
+   its poster, an embedded player. (A video once kept a narrower frame
+   than a picture; it no longer does.) The whole media is fitted inside
+   (contain), and a blurred, darkened copy fills the rest of the frame
+   (.feed-media-backdrop, mountMediaBackdrop: the picture itself, or a
+   video's poster), the blur fill most feeds use. The enlarge button
+   (.feed-media-tools, mountMediaTools) makes it its own shape and back;
+   the other opens it fullscreen. The second selector of each pair
+   matches the posterless-video rule (a 16:9 frame), which is more
+   specific. */
 :is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card,
 :is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card:has(video:not(.loop-face):not(.has-poster)) {
-  width: max(min(100%, 240px), calc(var(--fu) * 16));
+  width: 100%;
   max-width: 100%;
   height: auto;
   max-height: none;
@@ -23126,7 +23130,7 @@ img.is-gif-hit {
   background-color: #0b0d13;
   transition: width 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card > :is(img:not(.feed-media-backdrop), video:not(.loop-face), canvas.media-still) {
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card > :is(img:not(.feed-media-backdrop), video:not(.loop-face), canvas.media-still, iframe, embed, object) {
   position: relative;
   z-index: 1;
   width: 100%;
@@ -23166,13 +23170,14 @@ img.is-gif-hit {
   display: none;
 }
 /* Wide: full width, the media's own shape, the whole of it in view. A
-   posterless video and a picture still loading keep the 16:9 frame. */
+   posterless video, a picture still loading and an embedded player (none
+   has a shape of its own) keep the 16:9 frame. */
 :is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide,
 :is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide:has(video:not(.loop-face):not(.has-poster)) {
   width: 100%;
   aspect-ratio: auto;
 }
-:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide:is(.is-media-pending, :has(video:not(.loop-face):not(.has-poster))) {
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide:is(.is-media-pending, :has(video:not(.loop-face):not(.has-poster)), :has(> :is(iframe, embed, object))) {
   aspect-ratio: 16 / 9;
 }
 :is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide > :is(img:not(.feed-media-backdrop), video:not(.loop-face), canvas.media-still) {
@@ -25774,11 +25779,8 @@ html.is-draw-picking .live-filter {
    surface's own: --fu in the feed and the viewer, --u in popups and the
    draw form, rem only for the touch-target and hairline floors. */
 
-/* Feed: one picture takes the card's width (the 16:9 frame, its blur fill
-   and its ··· as before). A video keeps the compact frame. */
-:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card:not(:has(video)) {
-  width: 100%;
-}
+/* Feed: one picture or one video takes the card's width (the 16:9 frame,
+   its blur fill and its ··· under "Feed pictures and videos"). */
 
 /* Feed: 2 side by side, 3 as one large plus two small, 4 as 2x2. One
    16:9 frame, the card's width, each tile cropped to fill. */
