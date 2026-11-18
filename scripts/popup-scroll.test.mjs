@@ -40,16 +40,18 @@ test("portrait: the body is the one scroller, ordered text, Show more, picture, 
   const block = css.slice(css.indexOf("/* ── Map popup: one scroll body"), css.indexOf("/* ── Popup settings: header"));
   assert.ok(block.length > 100);
   const body = ":is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body";
-  // It scrolls and ends the chain, so the page and the map never move.
-  assert.match(rule(block, body), /container-type: inline-size;\s*overflow-x: hidden;\s*overflow-y: auto;\s*overscroll-behavior: contain;/);
+  // It scrolls and ends the chain, so the page and the map never move. A
+  // size container: cqi is the picture frame's width, cqb its visible height.
+  assert.match(rule(block, body), /container-type: size;\s*overflow-x: hidden;\s*overflow-y: auto;\s*overscroll-behavior: contain;/);
   assert.match(rule(block, `${body} > .popup-msg`), /display: contents;/);
   for (const [part, order] of [["> .popup-msg > .popup-text-bubble", 1], ["> .popup-msg > .popup-more", 2], ["> .popup-media-card", 3], ["> .popup-msg > .x-embed-list", 4]]) {
     assert.match(rule(block, `${body} ${part}`), new RegExp(`order: ${order};`), part);
   }
-  // The text's cap: the body, less the picture's compact frame (62.5% wide,
-  // 16:9) when there is one, and less its Show more row once it is capped.
+  // The text's cap: the body, less the picture's compact frame (the body's
+  // full width at 16:9) when there is one, and less its Show more row once
+  // it is capped.
   assert.match(rule(block, body), /--popup-msg-room: 100%;/);
-  assert.match(rule(block, `${body}:has(> .popup-media-card:not(.draw-popup-media))`), /--popup-msg-room: calc\(100% - 62\.5cqi \* 9 \/ 16 - var\(--popup-gap\)\);/);
+  assert.match(rule(block, `${body}:has(> .popup-media-card:not(.draw-popup-media))`), /--popup-msg-room: calc\(100% - 100cqi \* 9 \/ 16 - var\(--popup-gap\)\);/);
   assert.match(rule(block, `${body} > .popup-msg > .popup-text-bubble`), /flex: 0 0 auto;\s*max-height: var\(--popup-msg-room\);/);
   assert.match(rule(block, `${body} > .popup-msg.is-more > .popup-text-bubble`), /max-height: calc\(var\(--popup-msg-room\) - var\(--popup-more-h\)\);/);
   // With an X post the text box is capped at the size it had next to the
@@ -69,12 +71,36 @@ test("portrait: the body is the one scroller, ordered text, Show more, picture, 
   assert.match(rule(css, ".popup-msg.is-more > .popup-text-bubble > .popup-text-flow"), /flex: 1 1 auto;\s*min-height: 0;\s*overflow-x: hidden;\s*overflow-y: auto;/);
   // The share is the one the X post's box had then, now only for the text.
   assert.match(rule(css, ".maplibregl-popup .x-embed-list"), /flex: 0 0 auto;\s*align-self: stretch;\s*margin: calc\(var\(--u\) \* 0\.5\) calc\(var\(--u\) \* 0\.5\) 0;/);
-  // The picture's compact frame is what the cap leaves room for.
+  // The picture's compact frame is what the cap leaves room for: the
+  // feed's, the body's full width at 16:9.
   const frame = rule(css, ":is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > .popup-media-card:not(.draw-popup-media)");
-  assert.match(frame, /width: 62\.5%;/);
+  assert.match(frame, /width: 100%;/);
   assert.match(frame, /aspect-ratio: 16 \/ 9;/);
   // Sizes in the popup's own units, no fixed pixels.
   assert.doesNotMatch(block.replace(/\/\*[\s\S]*?\*\//g, ""), /\d(px)\b/);
+});
+
+test("portrait full size (the ···) is the feed's: the media's own shape, the whole of it in view, no blur", () => {
+  const css = read("../style.css");
+  const block = css.slice(css.indexOf("/* ── Map popup: one scroll body"), css.indexOf("/* ── Popup settings: header"));
+  const portrait = block.slice(block.indexOf("@media (orientation: portrait)"), block.indexOf("@media (orientation: landscape)"));
+  const wide = ":is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-media-card.is-wide:not(.draw-popup-media)";
+  const face = "> :is(img:not(.feed-media-backdrop), video, canvas.media-still)";
+  assert.match(rule(portrait, wide), /flex: 0 0 auto;\s*width: 100%;\s*height: auto;\s*max-height: none;\s*aspect-ratio: auto;/);
+  // At most the body's visible height (the body is a size container).
+  assert.match(rule(portrait, `${wide} ${face}`), /width: 100%;\s*height: auto;\s*max-height: 100cqb;\s*object-fit: contain;/);
+  // No shape of its own yet: 16:9, filled.
+  const shapeless = `${wide}:is(.is-media-pending, :has(> video:not(.has-poster)))`;
+  assert.match(rule(portrait, shapeless), /aspect-ratio: 16 \/ 9;/);
+  assert.match(rule(portrait, `${shapeless} ${face}`), /height: 100%;/);
+  // No blur, as in the feed's wide view.
+  assert.match(rule(portrait, `${wide} > .feed-media-backdrop`), /display: none;/);
+  // The feed's own wide view, the reference.
+  const feedWide = rule(css, ":is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide,\n:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card.is-wide:has(video:not(.loop-face):not(.has-poster))");
+  assert.match(feedWide, /width: 100%;\s*aspect-ratio: auto;/);
+  // Landscape keeps its two cards and has no size button.
+  const landscape = css.slice(css.indexOf("/* Wide screens keep their two cards"));
+  assert.match(landscape.slice(0, 2000), /\.maplibregl-map \.popup-media-card \.feed-media-tools > \.feed-media-size \{\s*display: none !important;/);
 });
 
 test("landscape: the two cards stay; the message box is the one scroller", () => {

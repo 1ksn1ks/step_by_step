@@ -61,18 +61,23 @@ test("popup media starts in the feed's compact 16:9 frame and the text gets the 
   assert.ok(at > 0);
   const block = css.slice(at, css.indexOf("/* Text longer than the bubble", at));
   const card = block.slice(block.indexOf(".popup-body > .popup-media-card:not(.draw-popup-media) {"));
-  // A share of the popup, not of the screen: 62.5% is the feed's 240px
-  // frame in a 384px phone popup, so a big popup gets a big frame.
+  // The feed's frame: the body's full width, edge to edge like the text,
+  // at 16:9, pictures and videos alike; no fixed width.
   const width = card.slice(0, card.indexOf("}")).match(/\n\s*width: ([^;]+);/);
   assert.ok(width);
-  assert.equal(width[1], "62.5%");
-  assert.equal(card.slice(0, card.indexOf("}")).includes("var(--fu) * 16"), false);
+  assert.equal(width[1], "100%");
+  assert.doesNotMatch(card.slice(0, card.indexOf("}")), /\d+px|var\(--fu\) \* 16|62\.5%/);
   assert.match(card, /aspect-ratio: 16 \/ 9/);
   assert.match(card, /flex: 0 0 auto/);
   assert.match(block, /object-fit: contain/);
   assert.match(block, /background-color: transparent/);
-  assert.match(block, /filter: blur\(max\(12px, calc\(var\(--fu\) \* 0\.7\)\)\) brightness\(0\.55\) saturate\(1\.2\)/);
-  // Make bigger: the old fill-the-room view.
+  // The blur is the feed's own rule, shared; the popup keeps only its hiding rules.
+  assert.doesNotMatch(block, /filter: blur\(/);
+  const blur = css.slice(css.indexOf(":is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card > .feed-media-backdrop,"));
+  assert.match(blur.slice(0, blur.indexOf("}")), /^:is\(#feed-column, \.feed-comments-stage\) \.feed-card \.popup-media-card > \.feed-media-backdrop,\s*:is\(\.maplibregl-map, :where\(#popup-settings-preview\)\) \.popup-media-card:not\(\.draw-popup-media\) > :is\(img, canvas\)\.feed-media-backdrop \{[^}]*filter: blur\(max\(12px, calc\(var\(--fu\) \* 0\.7\)\)\) brightness\(0\.55\) saturate\(1\.2\)/);
+  // Make bigger outside the scroll body (the settings sample on a wide
+  // screen): the old fill-the-room view. Portrait's is the feed's
+  // (popup-scroll.test.mjs).
   assert.match(block, /\.popup-media-card\.is-wide:not\(\.draw-popup-media\) \{\s*flex: 1 1 0%/);
   // The compact frame lifts the 36% cap on the text.
   assert.match(block, /\.popup-body:has\(> \.popup-media-card:not\(\.is-wide\):not\(\.draw-popup-media\)\) > div:not\(\.popup-media-card\) \{\s*max-height: none;/);

@@ -21948,14 +21948,14 @@ img.is-gif-hit {
 /* ── Map popup media: the feed's frame ─────────────────────────────────
    Every picture, GIF and video starts in the feed's compact 16:9 frame
    (mediaframe.js; the feed rules are under "Feed pictures and videos"):
-   the whole of it fitted inside, a blurred, darkened copy filling the
-   rest. It used to take all the room the text left, mostly as an empty
-   dark letterbox. The text now gets that room. The ··· makes it full size
-   (.is-wide): the old fill-the-room view, with the blur instead of the
-   letterbox. Draw's preview keeps its own square card.
-   Its width is a share of the popup, not of the screen: 62.5%, what the
-   feed's 240px frame is of a 384px phone popup. A big popup (a desktop
-   window, Settings > Popups > Size) gets a frame to match. */
+   the body's full width, edge to edge like the text, at 16:9, the whole
+   of it fitted inside and a blurred, darkened copy filling the rest (the
+   blur rule is shared with the feed). Pictures and videos alike. It used
+   to take all the room the text left, mostly as an empty dark letterbox;
+   the text now gets the room the frame leaves. The ··· makes it full size
+   (.is-wide): portrait's is the feed's (its own shape, "Map popup: one
+   scroll body"). Draw's preview keeps its own square card, and landscape
+   its two cards (below). */
 :is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > .popup-media-card:not(.draw-popup-media) {
   --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
   position: relative;
@@ -21963,7 +21963,7 @@ img.is-gif-hit {
   align-self: center;
   display: block;
   box-sizing: border-box;
-  width: 62.5%;
+  width: 100%;
   max-width: 100%;
   height: auto;
   max-height: none;
@@ -21987,33 +21987,19 @@ img.is-gif-hit {
   object-position: center;
   background-color: transparent;
 }
-/* The blur fill, as in the feed. Hidden behind a GIF still (the picture
-   has no address). The ⤢ chip is gone: the ··· has Fullscreen. */
-:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-media-card:not(.draw-popup-media) > :is(img, canvas).feed-media-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  max-height: none;
-  margin: 0;
-  object-fit: cover;
-  object-position: center;
-  background: none;
-  filter: blur(max(12px, calc(var(--fu) * 0.7))) brightness(0.55) saturate(1.2);
-  transform: scale(1.2);
-  pointer-events: none;
-}
+/* The blur fill is the feed's own rule ("Feed pictures and videos"),
+   shared. Hidden behind a GIF still (the picture has no address). The ⤢
+   chip is gone: the ··· has Fullscreen. */
 :is(.maplibregl-map, :where(#popup-settings-preview)) .popup-media-card:not(.draw-popup-media) > .feed-media-backdrop[hidden],
 :is(.maplibregl-map, :where(#popup-settings-preview)) .popup-media-card:not(.draw-popup-media):has(> canvas.media-still) > .feed-media-backdrop {
   display: none;
 }
-/* Full size: the frame takes the room again and the media is fitted to it
+/* Full size outside the scroll body (the settings sample on a wide
+   screen): the frame takes the room again and the media is fitted to it
    at its own shape, the blur filling the sides. Fitted, not its own pixel
    size: on a big popup a small file would come out smaller than the
-   compact frame showed it. */
+   compact frame showed it. A portrait popup's full size is the feed's
+   ("Map popup: one scroll body"); landscape keeps its card (below). */
 :is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > .popup-media-card.is-wide:not(.draw-popup-media) {
   flex: 1 1 0%;
   align-self: stretch;
@@ -23146,8 +23132,10 @@ img.is-gif-hit {
    dimmed, under the fitted one. A picture's is an img of the same file and
    a video's an img of the poster; a GIF's is a small still canvas, so it
    never animates. Not drawn in the wide view (no empty sides there) or
-   behind a GIF still (the picture has no address). */
-:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card > .feed-media-backdrop {
+   behind a GIF still (the picture has no address). Map popups share it
+   (their compact frame is this one; their hiding rules are their own). */
+:is(#feed-column, .feed-comments-stage) .feed-card .popup-media-card > .feed-media-backdrop,
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-media-card:not(.draw-popup-media) > :is(img, canvas).feed-media-backdrop {
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -24160,9 +24148,9 @@ html.is-draw-picking #map-topbar {
    Portrait: .popup-body scrolls. The message box gives up its own box
    (display: contents), so its text, Show more and X post (xembed.js puts
    the post last in it) and the picture are ordered in the body. The text
-   may take the body's height, less the picture's compact frame (62.5% of
-   the body wide at 16:9) when there is one, so a long text and its
-   picture show together, as when the picture was above it.
+   may take the body's height, less the picture's compact frame (the
+   body's full width at 16:9, as in the feed) when there is one, so a long
+   text and its picture show together, as when the picture was above it.
    Landscape keeps its two cards, the picture filling the left one. The
    message box (the right card's text row, or the left card when there is
    no picture) is the one scroll body there.
@@ -24174,13 +24162,17 @@ html.is-draw-picking #map-topbar {
   :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body {
     --popup-more-h: calc(var(--u) * (1.92 * var(--popup-font-scale, 1) + 1.1));
     --popup-msg-room: 100%;
-    container-type: inline-size;
+    /* A size container: cqi is its width (the picture's frame), cqb its
+       visible height (the cap on a full-size picture). Its height comes
+       from the sheet, never from what it holds, so this changes nothing
+       else. */
+    container-type: size;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
   }
   :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body:has(> .popup-media-card:not(.draw-popup-media)) {
-    --popup-msg-room: calc(100% - 62.5cqi * 9 / 16 - var(--popup-gap));
+    --popup-msg-room: calc(100% - 100cqi * 9 / 16 - var(--popup-gap));
   }
   :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-msg {
     display: contents;
@@ -24222,12 +24214,33 @@ html.is-draw-picking #map-topbar {
   :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body:has(> .popup-msg > .popup-text-bubble:not(.is-x-only)) > .popup-media-card {
     margin-top: var(--popup-gap);
   }
-  /* Full size (the ···): the picture takes the body's whole height, under
-     the text; the body scrolls to it. */
+  /* Full size (the ···), as in the feed: the body's full width at the
+     media's own shape, the whole of it in view (at most the body's
+     visible height), no blur. A tall photo or a phone's upright video
+     grows, a panorama loses its blur bands, a 16:9 file looks the same.
+     A video still waiting for its poster, or a picture still loading, has
+     no shape of its own yet and keeps 16:9. */
   :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-media-card.is-wide:not(.draw-popup-media) {
     flex: 0 0 auto;
-    height: 100%;
+    width: 100%;
+    height: auto;
     max-height: none;
+    aspect-ratio: auto;
+  }
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-media-card.is-wide:not(.draw-popup-media) > :is(img:not(.feed-media-backdrop), video, canvas.media-still) {
+    width: 100%;
+    height: auto;
+    max-height: 100cqb;
+    object-fit: contain;
+  }
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-media-card.is-wide:not(.draw-popup-media):is(.is-media-pending, :has(> video:not(.has-poster))) {
+    aspect-ratio: 16 / 9;
+  }
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-media-card.is-wide:not(.draw-popup-media):is(.is-media-pending, :has(> video:not(.has-poster))) > :is(img:not(.feed-media-backdrop), video, canvas.media-still) {
+    height: 100%;
+  }
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-media-card.is-wide:not(.draw-popup-media) > .feed-media-backdrop {
+    display: none;
   }
 }
 @media (orientation: landscape) {
