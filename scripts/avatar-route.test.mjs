@@ -104,7 +104,7 @@ test("a 4000 px photo becomes one 384 px WebP, made once, kept in R2, served imm
   const source = fakeSource({ [src]: big });
   const r2 = fakeR2();
   const app = express();
-  app.get("/api/avatar.webp", avatarRoute({ fetchSource: source.fetchSource, s3: r2, bucket: "b" }));
+  app.get("/api/avatar.webp", avatarRoute({ fetchSource: source.fetchSource, s3: r2, bucket: "b", isProfileSource: () => true }));
   const { base, close } = await serve(app);
   try {
     const url = `${base}/api/avatar.webp?src=${encodeURIComponent(src)}&v=1`;
@@ -301,7 +301,7 @@ test("a source that is missing, not a picture or down is an error answer, rememb
   // browser a short while so a redraw does not ask again; one that says
   // when to ask again is kept until then.
   const app = express();
-  app.get("/api/avatar.webp", avatarRoute(sources));
+  app.get("/api/avatar.webp", avatarRoute({ ...sources, isProfileSource: () => true }));
   const { base, close } = await serve(app);
   try {
     const res = await fetch(`${base}/api/avatar.webp?src=${encodeURIComponent(html)}&v=1`);

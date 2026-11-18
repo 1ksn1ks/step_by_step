@@ -12,9 +12,13 @@
 //
 // Kept in R2 under avatars/v<n>/<sha256 of the source>.webp, and the
 // recent ones in memory; two requests for one picture share the work.
-// Served immutable, with the same file headers as /api/hcs1.
+// Served immutable, with the same file headers as /api/hcs1. One nobody
+// asked for in 90 days is deleted from R2 (avatarsweep.js).
 //
 // What a request can make this process do:
+// - Only a profile's picture (isProfileSource, createProfileSources): any
+//   other source is a 404 before R2 or the network is touched, and the
+//   page draws the link itself.
 // - createAvatarRateLimit: one budget per client IP for the whole route.
 // - AVATAR_BUILD_RATE_MAX new thumbnails per client IP per window. A
 //   thumbnail already made is not counted.
@@ -467,6 +471,42 @@ export function avatarKey(source) {
   return `avatars/v${AVATAR_VERSION}/${sha256(source)}.webp`;
 }
 
+// The pictures this route makes thumbnails of (server/index.js): every
+// account's current profile picture and the default avatar, each by its
+// one spelling (avatarSource), so any link the page draws for it matches.
+// Counted: several accounts can show one picture, and one changing theirs
+// leaves it allowed for the others. has(source) takes that spelling.
+export function createProfileSources(links = []) {
+  const counts = new Map();
+  const spelling = (link) => avatarSource(typeof link === "string" ? link : "");
+  const add = (link) => {
+    const source = spelling(link);
+    if (source) counts.set(source, (counts.get(source) || 0) + 1);
+  };
+  const remove = (link) => {
+    const source = spelling(link);
+    const count = counts.get(source);
+    if (!count) return;
+    if (count > 1) counts.set(source, count - 1);
+    else counts.delete(source);
+  };
+  for (const link of links) add(link);
+  return {
+    add,
+    remove,
+    // One account's picture changed from before to after.
+    replace(before, after) {
+      if (before === after) return;
+      remove(before);
+      add(after);
+    },
+    has: (source) => typeof source === "string" && counts.has(source),
+    get size() {
+      return counts.size;
+    },
+  };
+}
+
 function notFoundInR2(err) {
   const status = err && err.$metadata && err.$metadata.httpStatusCode;
   const name = String((err && (err.name || err.Code)) || "");
@@ -616,7 +656,13 @@ async function build(source, key, opts) {
 // source this route fetches, 404 missing or refused, 413 too large, 415 not
 // a picture, 429 too many new thumbnails, 502 the source is down or too
 // slow (retryAfter: when it is fetched again), 503 no slot came free.
+// isProfileSource(source): only a source it accepts is looked up in R2,
+// fetched or made; anything else is a 404 (not remembered: it is made once
+// it becomes a profile's picture). A thumbnail already in memory is still
+// served. seen(key) is told of every thumbnail answered (the R2 sweep).
 export async function getAvatarThumb(src, {
+  isProfileSource = null,
+  seen = null,
   ip = "",
   s3 = null,
   bucket = "",
@@ -651,8 +697,19 @@ export async function getAvatarThumb(src, {
     }
   }
   const key = avatarKey(source);
+  const served = (result) => {
+    if (result.ok && typeof seen === "function") {
+      try {
+        seen(key);
+      } catch (err) {
+        console.error("avatar seen", err && err.message);
+      }
+    }
+    return result;
+  };
   const hit = memory.get(key);
-  if (hit) return { ...hit, from: "memory" };
+  if (hit) return served({ ...hit, from: "memory" });
+  if (typeof isProfileSource === "function" && !isProfileSource(source)) return fail(404, "not a profile picture");
   const miss = misses.get(key);
   if (miss) {
     const at = now();
@@ -670,7 +727,7 @@ export async function getAvatarThumb(src, {
     flight = build(source, key, opts).finally(() => flights.delete(key));
     flights.set(key, flight);
   }
-  return flight;
+  return served(await flight);
 }
 
 // One budget per client IP for the whole route, every picture together.
@@ -700,7 +757,10 @@ function etagMatches(header, etag) {
 }
 
 // GET /api/avatar.webp?src=<source>&v=<n>
+// opts.isProfileSource is required: the route makes thumbnails of profile
+// pictures only, never of any link it is handed.
 export function avatarRoute(opts = {}) {
+  if (typeof opts.isProfileSource !== "function") throw new TypeError("avatarRoute needs isProfileSource");
   const clientIp = opts.clientIp || ((req) => req.ip);
   return async function avatar(req, res) {
     const src = req.query && typeof req.query.src === "string" ? req.query.src : "";

@@ -435,7 +435,7 @@ test("the real check: our route's misses keep thumbnails on, a server without th
   const saved = globalThis.location;
   const nowhere = (url) => fetchAvatarSource(url, { lookup: (host, options, callback) => callback(Object.assign(new Error("nx"), { code: "ENOTFOUND" })) });
   const withRoute = express();
-  withRoute.get(AVATAR_PATH, avatarRoute({ fetchSource: nowhere }));
+  withRoute.get(AVATAR_PATH, avatarRoute({ fetchSource: nowhere, isProfileSource: () => true }));
   const without = express();
   const servers = [await serve(withRoute), await serve(without)];
   try {

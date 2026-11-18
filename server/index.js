@@ -35,7 +35,9 @@ import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
 import { startEarlyHashinals } from "./hashinals.js";
 import { createHcs1RateLimit, hcs1Route } from "./hcs1.js";
-import { avatarRoute, createAvatarRateLimit } from "./avatar.js";
+import { avatarRoute, createAvatarRateLimit, createProfileSources } from "./avatar.js";
+import { createAvatarSeen, deleteAvatarThumb, listAvatarThumbs, startAvatarSweep } from "./avatarsweep.js";
+import { DEFAULT_AVATAR } from "../hashinalurl.js";
 import { feedGeoKey, lookupFeedPlace, parseFeedGeoKey, placePackBuffers, shortCity } from "./feedplace.js";
 import { createChunkAssembler } from "../hcschunks.js";
 import { bareAccount, makeLimiter, normalizeConsensusTs } from "../donationmath.js";
@@ -808,6 +810,16 @@ function saveSetting(statement, accountId, column, value, tsMs) {
   q.bumpSettingsRevision.run();
   const revision = q.readSettingsRevision.get().revision;
   statement.run(accountId, value, tsMs, revision);
+  if (column === "profile_pic") profileSources.replace(row ? row.profile_pic : "", value);
+}
+
+// The pictures /api/avatar.webp makes thumbnails of (avatar.js): every
+// account's current profile picture, and the default avatar. saveSetting
+// keeps it in step with user_settings; built here, before the backfill
+// below can write a picture.
+const profileSources = createProfileSources([DEFAULT_AVATAR]);
+for (const row of db.prepare("SELECT profile_pic FROM user_settings WHERE profile_pic IS NOT NULL AND profile_pic != ''").all()) {
+  profileSources.add(row.profile_pic);
 }
 
 function saveSwap(accountId, swap, tsMs) {
@@ -3562,14 +3574,46 @@ app.get("/api/hcs1/:topicId", hcs1Limit, hcs1Route({ mirrorFetch, s3: r2, bucket
 // A profile picture's small thumbnail (avatar.js), made once from the
 // linked file (a Hashinal through the route above, IPFS through the
 // page's gateways, any other public http(s) link) and kept in R2 under
-// avatars/. Its own rate limit, and a cap on new thumbnails per IP.
+// avatars/. Its own rate limit, and a cap on new thumbnails per IP. Only
+// for a profile's current picture or the default avatar (profileSources);
+// any other link is a 404 and the page draws it itself.
+//
+// Each thumbnail answered writes when (avatar_seen, at most once a day
+// each), and a daily sweep deletes from R2 the ones nobody asked for in 90
+// days (avatarsweep.js). Counting began at meta avatar_seen_since: nothing
+// is deleted before it has run 90 days.
+db.exec("CREATE TABLE IF NOT EXISTS avatar_seen (key TEXT PRIMARY KEY, seen REAL NOT NULL)");
+db.prepare("INSERT OR IGNORE INTO meta (key, value) VALUES ('avatar_seen_since', ?)").run(String(Date.now()));
+const avatarSeenSince = Number(db.prepare("SELECT value FROM meta WHERE key = 'avatar_seen_since'").get().value);
+const writeAvatarSeen = db.prepare(`
+  INSERT INTO avatar_seen (key, seen) VALUES (?, ?)
+  ON CONFLICT(key) DO UPDATE SET seen = MAX(seen, excluded.seen)
+`);
+const avatarSeen = createAvatarSeen({ write: (key, at) => writeAvatarSeen.run(key, at) });
 const avatarLimit = createAvatarRateLimit({ clientIp });
 app.get("/api/avatar.webp", avatarLimit, avatarRoute({
   clientIp,
   s3: r2,
   bucket: R2_BUCKET,
   hcs1: { mirrorFetch, s3: r2, bucket: R2_BUCKET, mirror: MIRROR },
+  isProfileSource: profileSources.has,
+  seen: avatarSeen,
 }));
+if (r2 && R2_BUCKET) {
+  startAvatarSweep({
+    list: () => listAvatarThumbs(r2, R2_BUCKET),
+    remove: (key) => deleteAvatarThumb(r2, R2_BUCKET, key),
+    lastSeen: (() => {
+      const read = db.prepare("SELECT seen FROM avatar_seen WHERE key = ?");
+      return (key) => {
+        const row = read.get(key);
+        return row ? row.seen : 0;
+      };
+    })(),
+    forgetBefore: (cutoff) => db.prepare("DELETE FROM avatar_seen WHERE seen < ?").run(cutoff),
+    since: avatarSeenSince,
+  });
+}
 
 app.get("/api/early-hashinals", publicPostLimit, (req, res) => {
   const snapshot = earlyHashinals.snapshot();
