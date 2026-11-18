@@ -37,6 +37,17 @@ const refused = (url) => fetchAvatarSource(url, {
 // cannot be stopped: only the deadline gives its slot back.
 const never = () => new Promise(() => {});
 
+// Node 22 cancels a test on beforeExit when nothing ref'd is left. The
+// waits below sit on AbortSignal.timeout (server/avatar.js) and, with the
+// fetch slots full, on the slot wait. Both timers are unref'd, so a live
+// server is never held open by them. Node 24 holds the file open until the
+// test settles. One ref'd timer for the test, cleared when it ends, keeps
+// Node 22 on that same wait.
+function holdLoop() {
+  const timer = setInterval(() => {}, 2 ** 31 - 1);
+  return () => clearInterval(timer);
+}
+
 const idle = () => assert.deepEqual(avatarWorkState(), { fetching: 0, building: 0, waiting: 0 });
 
 test("the limits", () => {
@@ -130,55 +141,65 @@ test("a source that failed long ago starts again at the shortest wait; a missing
 });
 
 test("three slow sources do not keep a fourth, quick one from being made", async () => {
-  clearAvatarCache();
-  const good = "https://cdn.example/quick.png";
-  const fetchSource = async (url) => (url === good ? png : never());
-  const opts = { fetchSource, totalMs: 400 };
-  const slow = [1, 2, 3].map((n) => getAvatarThumb(`https://slow${n}.example/face.png`, opts));
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(avatarWorkState().fetching, 3);
+  const release = holdLoop();
+  try {
+    clearAvatarCache();
+    const good = "https://cdn.example/quick.png";
+    const fetchSource = async (url) => (url === good ? png : never());
+    const opts = { fetchSource, totalMs: 400 };
+    const slow = [1, 2, 3].map((n) => getAvatarThumb(`https://slow${n}.example/face.png`, opts));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(avatarWorkState().fetching, 3);
 
-  const started = Date.now();
-  const made = await getAvatarThumb(good, opts);
-  assert.deepEqual([made.ok, made.from], [true, "built"]);
-  assert.ok(Date.now() - started < 300, "made while the slow ones still wait");
-  assert.equal(avatarWorkState().fetching, 3, "the slow ones hold fetch slots only");
+    const started = Date.now();
+    const made = await getAvatarThumb(good, opts);
+    assert.deepEqual([made.ok, made.from], [true, "built"]);
+    assert.ok(Date.now() - started < 300, "made while the slow ones still wait");
+    assert.equal(avatarWorkState().fetching, 3, "the slow ones hold fetch slots only");
 
-  // At their deadline the slow ones give their slots back, remembered as down.
-  const answers = await Promise.all(slow);
-  assert.ok(answers.every((answer) => answer.status === 502 && answer.error === "source timeout"));
-  idle();
-  const again = await getAvatarThumb("https://slow1.example/face.png", { fetchSource: () => assert.fail("fetched again") });
-  assert.equal(again.status, 502);
-  clearAvatarCache();
+    // At their deadline the slow ones give their slots back, remembered as down.
+    const answers = await Promise.all(slow);
+    assert.ok(answers.every((answer) => answer.status === 502 && answer.error === "source timeout"));
+    idle();
+    const again = await getAvatarThumb("https://slow1.example/face.png", { fetchSource: () => assert.fail("fetched again") });
+    assert.equal(again.status, 502);
+    clearAvatarCache();
+  } finally {
+    release();
+  }
 });
 
 test("with every fetch slot held, a request waits briefly for one, then answers 503", async () => {
-  clearAvatarCache();
-  const fetchSource = async (url) => (url.includes("quick") ? png : never());
-  const hold = (totalMs) => Array.from({ length: AVATAR_MAX_FETCHES }, (_, i) => getAvatarThumb(`https://stuck${totalMs}-${i}.example/a.png`, { fetchSource, totalMs }));
+  const release = holdLoop();
+  try {
+    clearAvatarCache();
+    const fetchSource = async (url) => (url.includes("quick") ? png : never());
+    const hold = (totalMs) => Array.from({ length: AVATAR_MAX_FETCHES }, (_, i) => getAvatarThumb(`https://stuck${totalMs}-${i}.example/a.png`, { fetchSource, totalMs }));
 
-  // A slot frees within the wait: it goes to the one waiting.
-  const short = hold(300);
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(avatarWorkState().fetching, AVATAR_MAX_FETCHES);
-  const started = Date.now();
-  const waited = await getAvatarThumb("https://cdn.example/quick-1.png", { fetchSource, queueMs: 2000 });
-  assert.equal(waited.ok, true);
-  assert.ok(Date.now() - started >= 250, "it waited for a slot");
-  await Promise.all(short);
-  idle();
+    // A slot frees within the wait: it goes to the one waiting.
+    const short = hold(300);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(avatarWorkState().fetching, AVATAR_MAX_FETCHES);
+    const started = Date.now();
+    const waited = await getAvatarThumb("https://cdn.example/quick-1.png", { fetchSource, queueMs: 2000 });
+    assert.equal(waited.ok, true);
+    assert.ok(Date.now() - started >= 250, "it waited for a slot");
+    await Promise.all(short);
+    idle();
 
-  // None frees within the wait: 503, not remembered.
-  const long = hold(1500);
-  await new Promise((resolve) => setImmediate(resolve));
-  const refusedNow = await getAvatarThumb("https://cdn.example/quick-2.png", { fetchSource, queueMs: 100 });
-  assert.deepEqual([refusedNow.status, refusedNow.retryAfter > 0], [503, true]);
-  assert.equal(avatarWorkState().waiting, 0, "it left the queue");
-  await Promise.all(long);
-  idle();
-  assert.equal((await getAvatarThumb("https://cdn.example/quick-2.png", { fetchSource })).ok, true, "busy was not remembered");
-  clearAvatarCache();
+    // None frees within the wait: 503, not remembered.
+    const long = hold(1500);
+    await new Promise((resolve) => setImmediate(resolve));
+    const refusedNow = await getAvatarThumb("https://cdn.example/quick-2.png", { fetchSource, queueMs: 100 });
+    assert.deepEqual([refusedNow.status, refusedNow.retryAfter > 0], [503, true]);
+    assert.equal(avatarWorkState().waiting, 0, "it left the queue");
+    await Promise.all(long);
+    idle();
+    assert.equal((await getAvatarThumb("https://cdn.example/quick-2.png", { fetchSource })).ok, true, "busy was not remembered");
+    clearAvatarCache();
+  } finally {
+    release();
+  }
 });
 
 test("a real source that stalls is cut off at the fetch limit and frees its slot", async () => {
@@ -228,28 +249,33 @@ function storedR2(key, bytes) {
 }
 
 test("thumbnails that work: made once for many requests, served from memory, and from R2 even while every slot is busy", async () => {
-  clearAvatarCache();
-  let asked = 0;
-  const fine = "https://cdn.example/fine.png";
-  const fetchSource = async (url) => {
-    asked += 1;
-    return url === fine ? png : never();
-  };
-  const all = await Promise.all(Array.from({ length: 10 }, () => getAvatarThumb(fine, { fetchSource })));
-  assert.ok(all.every((answer) => answer.ok && answer.bytes.length > 0));
-  assert.equal(asked, 1);
-  assert.equal((await getAvatarThumb(fine, { fetchSource })).from, "memory");
-  idle();
+  const release = holdLoop();
+  try {
+    clearAvatarCache();
+    let asked = 0;
+    const fine = "https://cdn.example/fine.png";
+    const fetchSource = async (url) => {
+      asked += 1;
+      return url === fine ? png : never();
+    };
+    const all = await Promise.all(Array.from({ length: 10 }, () => getAvatarThumb(fine, { fetchSource })));
+    assert.ok(all.every((answer) => answer.ok && answer.bytes.length > 0));
+    assert.equal(asked, 1);
+    assert.equal((await getAvatarThumb(fine, { fetchSource })).from, "memory");
+    idle();
 
-  // Every fetch slot held by slow sources: a thumbnail already in R2 needs
-  // no slot.
-  const slow = Array.from({ length: AVATAR_MAX_FETCHES }, (_, i) => getAvatarThumb(`https://stuck-${i}.example/a.png`, { fetchSource, totalMs: 300 }));
-  await new Promise((resolve) => setImmediate(resolve));
-  const kept = "https://cdn.example/kept.png";
-  const stored = await makeAvatarThumb(png);
-  const fromR2 = await getAvatarThumb(kept, { fetchSource, s3: storedR2(avatarKey(kept), stored), bucket: "b", queueMs: 0 });
-  assert.deepEqual([fromR2.ok, fromR2.from], [true, "r2"]);
-  await Promise.all(slow);
-  idle();
-  clearAvatarCache();
+    // Every fetch slot held by slow sources: a thumbnail already in R2 needs
+    // no slot.
+    const slow = Array.from({ length: AVATAR_MAX_FETCHES }, (_, i) => getAvatarThumb(`https://stuck-${i}.example/a.png`, { fetchSource, totalMs: 300 }));
+    await new Promise((resolve) => setImmediate(resolve));
+    const kept = "https://cdn.example/kept.png";
+    const stored = await makeAvatarThumb(png);
+    const fromR2 = await getAvatarThumb(kept, { fetchSource, s3: storedR2(avatarKey(kept), stored), bucket: "b", queueMs: 0 });
+    assert.deepEqual([fromR2.ok, fromR2.from], [true, "r2"]);
+    await Promise.all(slow);
+    idle();
+    clearAvatarCache();
+  } finally {
+    release();
+  }
 });
