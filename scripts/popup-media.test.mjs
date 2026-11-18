@@ -132,9 +132,14 @@ test("the reading ring runs round a box's border, clockwise (popup text and Swap
   assert.match(js, /paintRing\(state\.ring, on && room > 1 \? flow\.scrollTop \/ room : 0\)/);
 
   const css = read("../style.css");
-  // Nothing between the ring and the popup frame clips it or its glow.
+  // The bubble does not clip the ring. The popup's scroll body does clip
+  // (it scrolls), so it keeps padding above the text for the glow, and no
+  // rule turns its overflow back to visible while the ring shows.
   assert.match(css, /\.popup-body > \.popup-msg\.is-more > \.popup-text-bubble \{\s*display: flex;\s*flex-direction: column;\s*overflow: visible;/);
-  assert.match(css, /\.popup-body:has\(> \.popup-msg\.is-more\),\s*:is\(\.maplibregl-map, :where\(#popup-settings-preview\)\) \.popup-sheet \.popup-body > div\.popup-msg\.is-more \{\s*overflow: visible;/);
+  assert.doesNotMatch(css, /\.popup-body:has\(> \.popup-msg\.is-more\)/);
+  assert.doesNotMatch(css, /\.popup-body > div\.popup-msg\.is-more \{\s*overflow: visible;/);
+  assert.match(css, /> \.popup-sheet > \.popup-body \{\s*margin: 0 var\(--popup-edge\) !important;\s*padding-top: var\(--popup-gap\);/);
+  assert.match(css, /> \.popup-sheet > \.popup-body > div\.popup-msg \{[^}]*margin-top: 0;\s*padding-top: calc\(var\(--u\) \* 0\.8\);/);
   assert.match(css, /\.reading-ring > \.reading-ring-line \{\s*fill: none;\s*stroke-width: var\(--ring-w\);/);
   // Hidden until its box shows it.
   assert.match(css, /\.reading-ring \{[^}]*display: none;/);

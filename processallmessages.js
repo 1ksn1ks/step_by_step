@@ -2515,6 +2515,19 @@ export function createMarkerPopupHTML(data) {
 
   navSection.appendChild(popupNavArrow('next', goNextMarker));
 
+  // Message text, then the picture, then a linked X post: the feed's order.
+  // Longer text scrolls in its own box, with Show more (full-screen page).
+  // The X post's card goes last in the message box (xembed.js); style.css
+  // shows it under the picture, all in the one scrolling body.
+  const msgDiv = document.createElement('div');
+  const msgP = document.createElement('p');
+  msgP.className = 'text_color popup-text-bubble';
+  paintHashtags(msgP, Array.isArray(msg) ? msg[0] : msg);
+  msgDiv.appendChild(msgP);
+  contentSection.appendChild(msgDiv);
+  watchPopupText(msgDiv, msgP, Array.isArray(msg) ? msg[0] : msg, title);
+  paintXEmbeds(msgP, { host: msgDiv });
+
   // Image, a GIF loop, or a video when the Image field holds a real
   // .mp4/.webm. The field arrives as an array (["url"]), same as a polygon.
   // The marker dot uses the cover, so this file stays in the popup.
@@ -2525,19 +2538,6 @@ export function createMarkerPopupHTML(data) {
     fillPopupMedia(imageDiv, popupImageUrl, posterHintFor(data.payer, data.created, data.timestamp), ['m', topicId, data.payer, data.created, markernumber].join(':'), galleryImages(image));
     contentSection.appendChild(imageDiv);
   }
-
-  // Message text
-  const msgDiv = document.createElement('div');
-  const msgP = document.createElement('p');
-  msgP.className = 'text_color popup-text-bubble';
-  paintHashtags(msgP, Array.isArray(msg) ? msg[0] : msg);
-  msgDiv.appendChild(msgP);
-  contentSection.appendChild(msgDiv);
-  // Fills the popup; longer text gets Show more (full-screen page).
-  watchPopupText(msgDiv, msgP, Array.isArray(msg) ? msg[0] : msg, title);
-  // A linked X post: its card goes last in the message box, under the
-  // bubble and its Show more (xembed.js).
-  paintXEmbeds(msgP, { host: msgDiv });
 
   // Title sits under the profile. The picture and text follow it.
   // The gap takes the spare room, so the hearts and the topic stay
@@ -2684,6 +2684,16 @@ function createPolygonPopupHTML(data) {
   navSection.appendChild(popupNavArrow('next', goNextPolygon));
   container.appendChild(navSection);
 
+  // Message text, then the picture, then a linked X post (as a marker).
+  const msgDiv = document.createElement('div');
+  const msgP = document.createElement('p');
+  msgP.className = 'text_color popup-text-bubble';
+  paintHashtags(msgP, Array.isArray(msg) ? msg[0] : msg);
+  msgDiv.appendChild(msgP);
+  contentSection.appendChild(msgDiv);
+  watchPopupText(msgDiv, msgP, Array.isArray(msg) ? msg[0] : msg, title);
+  paintXEmbeds(msgP, { host: msgDiv });
+
   // Image, a GIF loop, or a video. The field arrives as an ARRAY (["url"]).
   // The map cover stays the muted 30s loop.
   const popupImageUrl = postMediaUrl(image);
@@ -2693,17 +2703,6 @@ function createPolygonPopupHTML(data) {
     fillPopupMedia(imageDiv, popupImageUrl, posterHintFor(data.payer, data.created, data.timestamp), ['p', topicId, data.payer, data.created, polygonnumber].join(':'), galleryImages(image));
     contentSection.appendChild(imageDiv);
   }
-
-  // Message text
-  const msgDiv = document.createElement('div');
-  const msgP = document.createElement('p');
-  msgP.className = 'text_color popup-text-bubble';
-  paintHashtags(msgP, Array.isArray(msg) ? msg[0] : msg);
-  msgDiv.appendChild(msgP);
-  contentSection.appendChild(msgDiv);
-  // Fills the popup; longer text gets Show more (full-screen page).
-  watchPopupText(msgDiv, msgP, Array.isArray(msg) ? msg[0] : msg, title);
-  paintXEmbeds(msgP, { host: msgDiv });
 
   container.appendChild(contentSection);
   const polygonGap = document.createElement('div');

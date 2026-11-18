@@ -278,9 +278,11 @@ test("pages are wired to xembed.js, and only xembed.js loads X's script", () => 
   // Data saver no longer holds X posts back.
   assert.match(media, /writeFeedSetting\(FEED_SETTING\.data, on \? 'on' : 'off'\);\s*syncFeedVideos\(\);\s*\}\),/);
   assert.equal(feed.includes("refreshXEmbeds"), false);
-  // buildCard: after the text is placed; the title stays a plain pill.
+  // buildCard: after the text is placed, under the picture when there is
+  // one (text, picture, X post, as a map popup); the title stays a plain pill.
   const build = feed.slice(feed.indexOf("function buildCard(post)"), feed.indexOf("function clampPending"));
-  assert.match(build, /card\.appendChild\(text\);\s*\}\s*\/\/[^\n]*\n\s*if \(text\) paintXEmbeds\(text\);/);
+  assert.match(build, /card\.appendChild\(text\);\s*\}\s*(\/\/[^\n]*\n\s*)+if \(text\) paintXEmbeds\(text, media \? \{ after: media \} : \{\}\);/);
+  assert.match(build, /section\.append\(msgDiv, media\);/);
   const title = feed.slice(feed.indexOf("function feedTitle"), feed.indexOf("function buildCard(post)"));
   assert.equal(title.includes("paintXEmbeds"), false);
   assert.match(feed.slice(feed.indexOf("function patchFeedCardsForEdit")), /paintHashtags\(text, msg\);\s*\/\/[^\n]*\n\s*paintXEmbeds\(text\);/);

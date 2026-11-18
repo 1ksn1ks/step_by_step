@@ -4817,6 +4817,8 @@ html, body {
     margin-right: calc(var(--u) * 0.5);
     margin-bottom: 0;
     margin-left: calc(var(--u) * 0.5);
+    /* At its end a scroll goes on into the popup's body (one scroll body). */
+    overscroll-behavior: auto;
   }
 
   /* Glass × — same bubble height as the bottom .popup-icon-chip */
@@ -9823,7 +9825,6 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
     margin-left: calc(var(--u) * 0.5);
     max-height: none;
     overflow-y: auto;
-    overscroll-behavior: contain;
   }
 
   .maplibregl-map .popup-text-bubble {
@@ -22082,7 +22083,8 @@ img.is-gif-hit {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  /* At the top or the end, the same scroll carries on in the popup's body. */
+  overscroll-behavior: auto;
   touch-action: pan-y;
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--flow-above), #000 calc(100% - var(--flow-below)), transparent);
   mask-image: linear-gradient(to bottom, transparent, #000 var(--flow-above), #000 calc(100% - var(--flow-below)), transparent);
@@ -22201,15 +22203,9 @@ img.is-gif-hit {
 .popup-msg.is-more > .popup-text-bubble {
   position: relative;
 }
-/* The ring's glow reaches past the bubble, up against the title row. The
-   message box and the popup body around it clipped it flat there; while
-   the ring shows they do not clip. Both are bounded flex items (min-height
-   0) and the flow box clips the text, so nothing else spills. The second
-   selector outranks the landscape text-only column rule. */
-:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body:has(> .popup-msg.is-more),
-:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-sheet .popup-body > div.popup-msg.is-more {
-  overflow: visible;
-}
+/* The ring's glow reaches past the bubble. The popup's scroll body clips
+   (it scrolls), so it keeps padding above the bubble for the glow instead
+   ("Map popup: one scroll body"). */
 .popup-msg.is-more > .popup-text-bubble > .popup-text-rail {
   display: block;
 }
@@ -24123,16 +24119,15 @@ html.is-draw-picking #map-topbar {
     max-width: none !important;
     margin: 0 var(--popup-gap) !important;
   }
+  /* The gap above the body is its padding, not a margin: the body scrolls
+     and clips, and the reading ring's glow needs that room over the text. */
   :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body {
-    margin: var(--popup-gap) var(--popup-edge) 0 !important;
+    margin: 0 var(--popup-edge) !important;
+    padding-top: var(--popup-gap);
   }
   :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body .popup-text-bubble {
     width: auto !important;
     margin: 0 !important;
-  }
-  /* A picture and its text: one gap between them too. */
-  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-media-card + div {
-    margin-top: var(--popup-gap) !important;
   }
   /* The hearts are 3.8u circles set 0.15u down inside this row (inline
      top), so the row is 3.95u and starts 0.15u early: one gap above the
@@ -24143,6 +24138,97 @@ html.is-draw-picking #map-topbar {
   }
   :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-footer-row {
     margin-top: var(--popup-gap) !important;
+  }
+}
+
+/* ── Map popup: one scroll body ────────────────────────────────────────
+   The gear, the profile and the title stay at the top, the hearts and
+   the footer at the bottom. Everything between them is one scrolling
+   body, in the feed's order: the text, its Show more, the picture, the
+   X post. The text keeps its own capped box (fade, reading ring, Show
+   more); the X post never scrolls on its own. Nothing inside the body
+   holds a scroll back (no overscroll-behavior: contain, no script on the
+   wheel or a touch): at the text's top or end the scroll goes on in the
+   body, and one on the picture, the X post or a gap moves the body. The
+   body ends the chain (contain), so the page and the map never move. A
+   short post that fits looks as before.
+   Portrait: .popup-body scrolls. The message box gives up its own box
+   (display: contents), so its text, Show more and X post (xembed.js puts
+   the post last in it) and the picture are ordered in the body. The text
+   may take the body's height, less the picture's compact frame (62.5% of
+   the body wide at 16:9) when there is one, so a long text and its
+   picture show together, as when the picture was above it.
+   Landscape keeps its two cards, the picture filling the left one. The
+   message box (the right card's text row, or the left card when there is
+   no picture) is the one scroll body there.
+   Once the text is longer than that (.is-more, popuptext.js) it also
+   leaves its Show more row; a text that fits has the whole room, as
+   before. popuptext.js only takes .is-more off once the text fits with
+   the button still shown, so the two heights never flip. */
+@media (orientation: portrait) {
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body {
+    --popup-more-h: calc(var(--u) * (1.92 * var(--popup-font-scale, 1) + 1.1));
+    --popup-msg-room: 100%;
+    container-type: inline-size;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body:has(> .popup-media-card:not(.draw-popup-media)) {
+    --popup-msg-room: calc(100% - 62.5cqi * 9 / 16 - var(--popup-gap));
+  }
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-msg {
+    display: contents;
+  }
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-msg > .popup-text-bubble {
+    order: 1;
+    flex: 0 0 auto;
+    max-height: var(--popup-msg-room);
+  }
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-msg.is-more > .popup-text-bubble {
+    max-height: calc(var(--popup-msg-room) - var(--popup-more-h));
+  }
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-msg > .popup-more {
+    order: 2;
+  }
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-media-card {
+    order: 3;
+  }
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-msg > .x-embed-list {
+    order: 4;
+  }
+  /* One gap between the text and the picture; none above a picture that
+     comes first (no text, or only an X link). */
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body:has(> .popup-msg > .popup-text-bubble:not(.is-x-only)) > .popup-media-card {
+    margin-top: var(--popup-gap);
+  }
+  /* Full size (the ···): the picture takes the body's whole height, under
+     the text; the body scrolls to it. */
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-media-card.is-wide:not(.draw-popup-media) {
+    flex: 0 0 auto;
+    height: 100%;
+    max-height: none;
+  }
+}
+@media (orientation: landscape) {
+  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-body > div.popup-msg {
+    --popup-more-h: calc(var(--u) * (1.92 * var(--popup-font-scale, 1) + 1.1));
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* The 0.8u above the text is padding: the box scrolls and clips, and
+       the reading ring's glow needs the room. */
+    margin-top: 0;
+    padding-top: calc(var(--u) * 0.8);
+  }
+  /* Grows into a card the text does not fill, as before; a long text is
+     held to the box, less its Show more row. */
+  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-body > div.popup-msg > .popup-text-bubble {
+    flex: 1 0 auto;
+    max-height: 100%;
+  }
+  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-body > div.popup-msg.is-more > .popup-text-bubble {
+    max-height: calc(100% - var(--popup-more-h));
   }
 }
 
@@ -25613,36 +25699,31 @@ html.is-draw-picking .live-filter {
   visibility: inherit !important;
 }
 
-/* Feed: the card's own gap spaces a list that is its direct child. */
-:is(#feed-column, .feed-comments-stage) .feed-card > .x-embed-list {
+/* Feed: the card's own gap spaces a list that is its direct child, and the
+   post's gap one under its picture (text, picture, X post). */
+:is(#feed-column, .feed-comments-stage) :is(.feed-card, .popup-body) > .x-embed-list {
   margin-top: 0;
 }
-/* Map popups: in the message box under the bubble, with the bubble's
-   side inset. The post keeps its own height, up to about a text post's
-   and never more than two thirds of the box; a taller one (a video)
-   scrolls in its own box. The bubble takes what is left; its Show more
-   has the whole text. */
+/* Map popups: last, under the picture (portrait) or the text (the right
+   card), with the bubble's side inset. Its full height, in the popup's
+   one scroll body: never a scroll box of its own ("Map popup: one scroll
+   body"). */
 .maplibregl-popup .x-embed-list {
   --xe-u: calc(var(--u) * 1.05 * var(--popup-font-scale, 1));
   flex: 0 0 auto;
   align-self: stretch;
-  min-height: 0;
-  max-height: min(calc(var(--u) * 26), 66%);
   margin: calc(var(--u) * 0.5) calc(var(--u) * 0.5) 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
 }
-/* Only the link was posted: X's post is the popup's content. The message
-   box takes the room the text would have and the post sits in the middle
-   of it, its text at the popup's text size (xembed.js). */
+/* Only the link was posted: X's post is the popup's content. It sits in
+   the middle of the room the text would have had while it fits there,
+   from the top once it is taller (the body scrolls), its text at the
+   popup's text size (xembed.js). */
 .maplibregl-popup .popup-body > .popup-msg.has-x-only {
   flex: 1 1 auto;
   max-height: none;
 }
 .maplibregl-popup .popup-msg.has-x-only > .x-embed-list {
-  flex: 1 1 0%;
-  max-height: none;
+  flex: 1 0 auto;
   margin-top: 0;
 }
 .maplibregl-popup .popup-msg.has-x-only > .x-embed-list > .x-embed {

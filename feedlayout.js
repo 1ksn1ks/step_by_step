@@ -2913,8 +2913,9 @@ function buildCard(post) {
   } else if (text) {
     card.appendChild(text);
   }
-  // A linked X post: its card follows the text (Show more goes between).
-  if (text) paintXEmbeds(text);
+  // A linked X post: its card follows the picture when there is one (text,
+  // picture, X post, as a map popup), else the text (Show more between).
+  if (text) paintXEmbeds(text, media ? { after: media } : {});
 
   const actions = document.createElement('div');
   actions.className = 'feed-actions';
