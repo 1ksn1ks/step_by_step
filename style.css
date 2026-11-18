@@ -24193,19 +24193,20 @@ html.is-draw-picking #map-topbar {
   :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-msg.is-more > .popup-text-bubble {
     max-height: calc(var(--popup-msg-room) - var(--popup-more-h));
   }
-  /* Text and an X post: the text box keeps the size it had when the X post
-     sat under it in its own box: the room, less the share that box took
-     (min(26u, 66% of the room)) and its 0.5u margin, less Show more once
-     the text is capped. It fills that height whatever the text's length,
-     as then; longer text scrolls inside it, with its fade and Show more.
-     The X post itself now follows at its full height in the body. */
+  /* Text and an X post: the text box is capped at the size it had when the
+     X post sat under it in its own box: the room, less the share that box
+     took (min(26u, 66% of the room)) and its 0.5u margin, less Show more
+     once the text is capped. A short text is as tall as its lines; one
+     that reaches the cap fills it and scrolls inside, with its fade and
+     Show more (popuptext.js sets .is-more when the text overflows the
+     cap). The X post itself follows at its full height in the body. */
   :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-msg:has(> .x-embed-list) > .popup-text-bubble {
     --popup-msg-x: calc(var(--popup-msg-room) - min(calc(var(--u) * 26), calc(var(--popup-msg-room) * 0.66)) - var(--u) * 0.5);
-    height: var(--popup-msg-x);
-    max-height: none;
+    height: auto;
+    max-height: var(--popup-msg-x);
   }
   :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-msg.is-more:has(> .x-embed-list) > .popup-text-bubble {
-    height: calc(var(--popup-msg-x) - var(--popup-more-h));
+    max-height: calc(var(--popup-msg-x) - var(--popup-more-h));
   }
   :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-msg > .popup-more {
     order: 2;
