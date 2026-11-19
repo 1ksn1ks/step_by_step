@@ -25398,6 +25398,43 @@ html.is-draw-picking .live-filter {
   outline: 0.06em solid rgba(34, 211, 238, 0.75);
   outline-offset: 0.08em;
 }
+/* A finger is far bigger than the thumb. On a touch screen the range is
+   a 44px strip, with the track in its middle, so a touch anywhere on it
+   grabs the slider. The strip takes the gap above it (the section's 6px)
+   and below it (the panel's 10px), so it meets the hint and the next row
+   without covering them. iOS starts a drag only on the thumb itself, so
+   the WebKit thumb is 44px tall too, one thumb wide, so the travel and
+   both ends do not move. The same circle is painted in its middle: one
+   gradient for the fill and the ring (a transparent border would be
+   rounded to whole device pixels and stretch it), and the glow is a
+   drop-shadow of that circle. Firefox grabs from anywhere on the range,
+   so its thumb stays as it is. */
+@media (pointer: coarse) {
+  .live-settings-slider {
+    --live-hit: max(44px, var(--live-thumb));
+    --live-ring: 0.08em;
+    height: var(--live-hit);
+    margin: -6px 0 -10px;
+  }
+  /* An outline would ring the whole tall box; thicken the ring instead. */
+  .live-settings-slider:focus-visible {
+    --live-ring: 0.2em;
+  }
+  .live-settings-slider::-webkit-slider-thumb,
+  .live-settings-slider:focus-visible::-webkit-slider-thumb {
+    height: var(--live-hit);
+    margin-top: calc((var(--live-track) - var(--live-hit)) / 2);
+    border: 0;
+    border-radius: 0;
+    outline: none;
+    background: radial-gradient(circle closest-side,
+      #ECFEFF calc(100% - var(--live-ring) - 0.5px),
+      #22D3EE calc(100% - var(--live-ring)) calc(100% - 0.5px),
+      transparent 100%);
+    box-shadow: none;
+    filter: drop-shadow(0 0 0.175em rgba(34, 211, 238, 0.45));
+  }
+}
 .live-settings-look {
   flex: none;
   min-height: 44px;

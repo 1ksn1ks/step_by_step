@@ -128,9 +128,10 @@ test("the panel is two sliders, Posts from, and Look for Live", () => {
 
 test("the slider is sized in em of the panel, and keyboard focus rings the thumb", () => {
   const at = css.indexOf(".live-settings-slider {");
+  const touch = css.indexOf("@media (pointer: coarse) {", at);
   const end = css.indexOf(".live-settings-look {");
-  assert.ok(at > 0 && end > at);
-  const block = css.slice(at, end);
+  assert.ok(at > 0 && touch > at && end > touch);
+  const block = css.slice(at, css.lastIndexOf("/*", touch));
   assert.match(block, /--live-thumb: 1\.15em;/);
   assert.match(block, /--live-track: 0\.18em;/);
   assert.match(block, /height: var\(--live-thumb\);/);
@@ -144,4 +145,33 @@ test("the slider is sized in em of the panel, and keyboard focus rings the thumb
   assert.match(block, /\.live-settings-slider:focus,\s*\.live-settings-slider:focus-visible \{\s*outline: none;/);
   assert.match(block, /:focus-visible::-webkit-slider-thumb \{\s*outline: 0\.06em solid/);
   assert.match(block, /:focus-visible::-moz-range-thumb \{\s*outline: 0\.06em solid/);
+});
+
+test("on a touch screen the slider is a 44px strip in the gaps, and the WebKit thumb is that tall", () => {
+  const at = css.indexOf("@media (pointer: coarse) {", css.indexOf(".live-settings-slider {"));
+  const end = css.indexOf(".live-settings-look {");
+  assert.ok(at > 0 && end > at);
+  const block = css.slice(at, end);
+  // The strip: a finger's height, taking the section's 6px gap above and
+  // the panel's 10px below, so it meets the hint and the next row.
+  assert.match(block, /--live-hit: max\(44px, var\(--live-thumb\)\);/);
+  assert.match(block, /height: var\(--live-hit\);\s*margin: -6px 0 -10px;/);
+  assert.match(css, /\.live-settings-section \{[^}]*gap: 6px;/);
+  assert.match(css, /\.live-settings \{[^}]*gap: 10px;/);
+  // iOS drags only from the thumb: it is as tall as the strip, one thumb
+  // wide, with the same circle painted in its middle.
+  const thumb = block.slice(block.indexOf("::-webkit-slider-thumb {"));
+  assert.match(thumb, /height: var\(--live-hit\);/);
+  assert.match(thumb, /margin-top: calc\(\(var\(--live-track\) - var\(--live-hit\)\) \/ 2\);/);
+  assert.doesNotMatch(thumb, /width:/);
+  assert.match(thumb, /border: 0;/);
+  assert.match(thumb, /background: radial-gradient\(circle closest-side,/);
+  assert.match(thumb, /#22D3EE calc\(100% - var\(--live-ring\)\)/);
+  assert.match(thumb, /filter: drop-shadow\(0 0 0\.175em rgba\(34, 211, 238, 0\.45\)\);/);
+  // Keyboard focus thickens the ring instead of outlining the tall box.
+  assert.match(block, /--live-ring: 0\.08em;/);
+  assert.match(block, /\.live-settings-slider:focus-visible \{\s*--live-ring: 0\.2em;/);
+  assert.match(thumb, /outline: none;/);
+  // Firefox grabs from anywhere on the range: its thumb is left alone.
+  assert.doesNotMatch(block, /-moz-range-thumb/);
 });
