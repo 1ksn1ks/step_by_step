@@ -731,18 +731,42 @@ function dropCard(card) {
 // again go after it, where they were.
 const MORE_BUTTONS = '.feed-more, .chat-msg-more, .swap-bio-more';
 
+// Where the list goes now: { parent, before } (before null: last), or null
+// while there is no place yet. A function `after` answers each time (a map
+// popup's picture in portrait, nothing in landscape); with no node from it
+// the list goes last in the host.
+function listSpot(state, textEl) {
+  const after = typeof state.after === 'function' ? state.after() : state.after;
+  if (!(after && after.parentNode) && state.host) return { parent: state.host, before: null };
+  let node = after && after.parentNode ? after : textEl;
+  if (!node.parentNode) return null;
+  while (node.nextElementSibling && node.nextElementSibling.matches(MORE_BUTTONS)) {
+    node = node.nextElementSibling;
+  }
+  return { parent: node.parentNode, before: node.nextSibling };
+}
+
 function placeList(list, state, textEl) {
-  if (state.host) {
-    state.host.appendChild(list);
-    return true;
-  }
-  let after = state.after && state.after.parentNode ? state.after : textEl;
-  if (!after.parentNode) return false;
-  while (after.nextElementSibling && after.nextElementSibling.matches(MORE_BUTTONS)) {
-    after = after.nextElementSibling;
-  }
-  after.after(list);
+  const spot = listSpot(state, textEl);
+  if (!spot) return false;
+  spot.parent.insertBefore(list, spot.before);
   return true;
+}
+
+// A shown list whose place changed. moveBefore keeps X's iframe loaded
+// (Chrome); where there is none the iframe loads again in its new place.
+function moveList(list, state, textEl) {
+  const spot = listSpot(state, textEl);
+  if (!spot) return;
+  const { parent, before } = spot;
+  if (before === list || (list.parentNode === parent && list.nextSibling === before)) return;
+  if (typeof parent.moveBefore === 'function' && parent.isConnected && list.isConnected) {
+    try {
+      parent.moveBefore(list, before);
+      return;
+    } catch { /* not movable here: insert it */ }
+  }
+  parent.insertBefore(list, before);
 }
 
 function dropList(state) {
@@ -762,7 +786,9 @@ function mountList(textEl) {
   if (!state) return;
   const key = embedsOn ? state.posts.map((post) => post.id).join(' ') : '';
   if (state.list && key && state.key === key && state.list.isConnected === textEl.isConnected) {
-    // The same posts: no second embed. Placeholders follow the settings.
+    // The same posts: no second embed. Placeholders follow the settings,
+    // and a list placed by a function `after` follows it.
+    if (typeof state.after === 'function') moveList(state.list, state, textEl);
     for (const card of state.list.querySelectorAll('.x-embed.is-pending')) armCard(card);
     paintLinks(textEl, state);
     return;
@@ -789,9 +815,12 @@ function mountList(textEl) {
 // embeds after). A repaint calls it again: the same posts keep their
 // embeds, others replace them, none removes them.
 // opts.after: the node the embeds follow (a Show more button under the
-//   text); default the text itself.
-// opts.host: a box the embeds go last in instead (a map popup's message
-//   box, whose Show more is added by popuptext.js).
+//   text); default the text itself. Or a function returning that node,
+//   asked at each placement (placeXEmbeds places the shown ones again).
+// opts.host: the box around the text (a map popup's message box, whose
+//   Show more is added by popuptext.js). It gets .has-x-only when the link
+//   is all the text, and the embeds go last in it when there is no
+//   `after` node.
 export function paintXEmbeds(textEl, opts = {}) {
   if (!textEl) return;
   let state = hosts.get(textEl);
@@ -835,4 +864,15 @@ export function clearXEmbeds(textEl) {
 export function refreshXEmbeds() {
   if (typeof document === 'undefined') return;
   for (const textEl of document.querySelectorAll('[data-x-embeds="1"]')) mountList(textEl);
+}
+
+// The layout changed (a map popup turned portrait or landscape): each shown
+// list placed by a function `after` moves to where it answers now. Nothing
+// is built again.
+export function placeXEmbeds() {
+  if (typeof document === 'undefined') return;
+  for (const textEl of document.querySelectorAll('[data-x-embeds="1"]')) {
+    const state = hosts.get(textEl);
+    if (state && state.list && typeof state.after === 'function') moveList(state.list, state, textEl);
+  }
 }

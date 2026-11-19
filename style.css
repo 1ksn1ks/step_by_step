@@ -4034,7 +4034,7 @@ html, body {
     place-items: center;
     overflow: hidden;
 }
-:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > div:not(.popup-media-card) {
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > div:not(.popup-media-card, .x-embed-list) {
     flex: 0 1 auto;
     min-height: 0;
     max-height: 36%;
@@ -4679,7 +4679,7 @@ html, body {
       grid-row: 4;
     }
 
-    .maplibregl-map .popup-sheet:has(> .clan-token) .popup-body > div:not(.popup-media-card) {
+    .maplibregl-map .popup-sheet:has(> .clan-token) .popup-body > div:not(.popup-media-card, .x-embed-list) {
       grid-row: 5;
     }
 
@@ -9782,7 +9782,7 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
     min-width: 0;
   }
 
-  .maplibregl-map .popup-body > div:not(.popup-media-card) {
+  .maplibregl-map .popup-body > div:not(.popup-media-card, .x-embed-list) {
     grid-column: 2;
     grid-row: 4;
     display: flex;
@@ -9800,7 +9800,7 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   /* height auto: the stretch fills the column inside the 0.8u top margin.
      100% plus that margin ran 5px past the popup's bottom edge, which cut
      off the bottom of Show more. */
-  .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-body > div:not(.popup-media-card) {
+  .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-body > div:not(.popup-media-card, .x-embed-list) {
     grid-column: 1;
     grid-row: 1 / -1;
     align-self: stretch;
@@ -21930,7 +21930,7 @@ img.is-gif-hit {
 }
 /* An image-only map post still builds an empty bubble. Collapse it so the
    picture can use that room. A bubble with text stays. Feed cards do not. */
-:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > div:not(.popup-media-card):has(> .popup-text-bubble:empty) {
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body > div:not(.popup-media-card, .x-embed-list):has(> .popup-text-bubble:empty) {
   display: none;
 }
 
@@ -22014,7 +22014,7 @@ img.is-gif-hit {
   max-height: 100%;
 }
 /* The text takes the room the compact frame leaves (it was held to 36%). */
-:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body:has(> .popup-media-card:not(.is-wide):not(.draw-popup-media)) > div:not(.popup-media-card) {
+:is(.maplibregl-map, :where(#popup-settings-preview)) .popup-body:has(> .popup-media-card:not(.is-wide):not(.draw-popup-media)) > div:not(.popup-media-card, .x-embed-list) {
   max-height: none;
 }
 
@@ -24146,14 +24146,17 @@ html.is-draw-picking #map-topbar {
    body ends the chain (contain), so the page and the map never move. A
    short post that fits looks as before.
    Portrait: .popup-body scrolls. The message box gives up its own box
-   (display: contents), so its text, Show more and X post (xembed.js puts
-   the post last in it) and the picture are ordered in the body. The text
+   (display: contents), so its text and Show more, the picture and the X
+   post are the body's rows in the order of the code, which is the order
+   on screen: popuptext.js puts the post after the picture (last in the
+   message box when there is none), so a screen reader and Tab reach it
+   where it shows. Nothing here reorders them. The text
    may take the body's height, less the picture's compact frame (the
    body's full width at 16:9, as in the feed) when there is one, so a long
    text and its picture show together, as when the picture was above it.
    Landscape keeps its two cards, the picture filling the left one. The
    message box (the right card's text row, or the left card when there is
-   no picture) is the one scroll body there.
+   no picture) is the one scroll body there, the X post last in it.
    Once the text is longer than that (.is-more, popuptext.js) it also
    leaves its Show more row; a text that fits has the whole room, as
    before. popuptext.js only takes .is-more off once the text fits with
@@ -24178,7 +24181,6 @@ html.is-draw-picking #map-topbar {
     display: contents;
   }
   :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-msg > .popup-text-bubble {
-    order: 1;
     flex: 0 0 auto;
     max-height: var(--popup-msg-room);
   }
@@ -24191,23 +24193,15 @@ html.is-draw-picking #map-topbar {
      once the text is capped. A short text is as tall as its lines; one
      that reaches the cap fills it and scrolls inside, with its fade and
      Show more (popuptext.js sets .is-more when the text overflows the
-     cap). The X post itself follows at its full height in the body. */
-  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-msg:has(> .x-embed-list) > .popup-text-bubble {
+     cap). The X post itself follows at its full height in the body: after
+     the picture, or in the message box when there is none. */
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body:has(> .x-embed-list, > .popup-msg > .x-embed-list) > .popup-msg > .popup-text-bubble {
     --popup-msg-x: calc(var(--popup-msg-room) - min(calc(var(--u) * 26), calc(var(--popup-msg-room) * 0.66)) - var(--u) * 0.5);
     height: auto;
     max-height: var(--popup-msg-x);
   }
-  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-msg.is-more:has(> .x-embed-list) > .popup-text-bubble {
+  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body:has(> .x-embed-list, > .popup-msg > .x-embed-list) > .popup-msg.is-more > .popup-text-bubble {
     max-height: calc(var(--popup-msg-x) - var(--popup-more-h));
-  }
-  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-msg > .popup-more {
-    order: 2;
-  }
-  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-media-card {
-    order: 3;
-  }
-  :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body > .popup-msg > .x-embed-list {
-    order: 4;
   }
   /* One gap between the text and the picture; none above a picture that
      comes first (no text, or only an X link). */
@@ -25803,16 +25797,19 @@ html.is-draw-picking .live-filter {
 /* Only the link was posted: X's post is the popup's content. It sits in
    the middle of the room the text would have had while it fits there,
    from the top once it is taller (the body scrolls), its text at the
-   popup's text size (xembed.js). */
+   popup's text size (xembed.js). In portrait with a picture the post
+   follows the picture in the body (popuptext.js), in the room under it. */
 .maplibregl-popup .popup-body > .popup-msg.has-x-only {
   flex: 1 1 auto;
   max-height: none;
 }
-.maplibregl-popup .popup-msg.has-x-only > .x-embed-list {
+.maplibregl-popup .popup-msg.has-x-only > .x-embed-list,
+.maplibregl-popup .popup-body:has(> .popup-msg.has-x-only) > .x-embed-list {
   flex: 1 0 auto;
   margin-top: 0;
 }
-.maplibregl-popup .popup-msg.has-x-only > .x-embed-list > .x-embed {
+.maplibregl-popup .popup-msg.has-x-only > .x-embed-list > .x-embed,
+.maplibregl-popup .popup-body:has(> .popup-msg.has-x-only) > .x-embed-list > .x-embed {
   margin-block: auto;
 }
 /* The Show more page: under the text's card. */

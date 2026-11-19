@@ -29,8 +29,8 @@ import { mountMoreBadge } from './mediagrid.js';
 import { inTimeRange } from './timefilter.js';
 import { galleryImages } from './postimages.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
-import { watchPopupText, setPopupText } from './popuptext.js';
-import { bindXEmbedsSwitch, paintXEmbeds } from './xembed.js';
+import { watchPopupText, setPopupText, paintPopupXEmbeds } from './popuptext.js';
+import { bindXEmbedsSwitch } from './xembed.js';
 import { isTyping } from './joystick.js';
 import { normalizeMessageNewlines, clipMessage, formatHcsUsage, utf8ByteLength, HCS_TOO_LONG, HCS_MESSAGE_MAX_BYTES } from './hcschunks.js';
 import maplibregl from 'maplibre-gl';
@@ -2517,8 +2517,6 @@ export function createMarkerPopupHTML(data) {
 
   // Message text, then the picture, then a linked X post: the feed's order.
   // Longer text scrolls in its own box, with Show more (full-screen page).
-  // The X post's card goes last in the message box (xembed.js); style.css
-  // shows it under the picture, all in the one scrolling body.
   const msgDiv = document.createElement('div');
   const msgP = document.createElement('p');
   msgP.className = 'text_color popup-text-bubble';
@@ -2526,7 +2524,6 @@ export function createMarkerPopupHTML(data) {
   msgDiv.appendChild(msgP);
   contentSection.appendChild(msgDiv);
   watchPopupText(msgDiv, msgP, Array.isArray(msg) ? msg[0] : msg, title);
-  paintXEmbeds(msgP, { host: msgDiv });
 
   // Image, a GIF loop, or a video when the Image field holds a real
   // .mp4/.webm. The field arrives as an array (["url"]), same as a polygon.
@@ -2538,6 +2535,9 @@ export function createMarkerPopupHTML(data) {
     fillPopupMedia(imageDiv, popupImageUrl, posterHintFor(data.payer, data.created, data.timestamp), ['m', topicId, data.payer, data.created, markernumber].join(':'), galleryImages(image));
     contentSection.appendChild(imageDiv);
   }
+  // The X post's card: after the picture in portrait, last in the message
+  // box in landscape (popuptext.js), so it is read where it shows.
+  paintPopupXEmbeds(msgP, msgDiv);
 
   // Title sits under the profile. The picture and text follow it.
   // The gap takes the spare room, so the hearts and the topic stay
@@ -2692,7 +2692,6 @@ function createPolygonPopupHTML(data) {
   msgDiv.appendChild(msgP);
   contentSection.appendChild(msgDiv);
   watchPopupText(msgDiv, msgP, Array.isArray(msg) ? msg[0] : msg, title);
-  paintXEmbeds(msgP, { host: msgDiv });
 
   // Image, a GIF loop, or a video. The field arrives as an ARRAY (["url"]).
   // The map cover stays the muted 30s loop.
@@ -2703,6 +2702,8 @@ function createPolygonPopupHTML(data) {
     fillPopupMedia(imageDiv, popupImageUrl, posterHintFor(data.payer, data.created, data.timestamp), ['p', topicId, data.payer, data.created, polygonnumber].join(':'), galleryImages(image));
     contentSection.appendChild(imageDiv);
   }
+  // The X post's card, where the popup shows it (as a marker).
+  paintPopupXEmbeds(msgP, msgDiv);
 
   container.appendChild(contentSection);
   const polygonGap = document.createElement('div');

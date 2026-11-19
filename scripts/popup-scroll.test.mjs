@@ -24,18 +24,186 @@ function rule(css, selector) {
   return css.slice(at, css.indexOf("}", at));
 }
 
-test("a popup builds its text before its picture; the X post goes last in the message box", () => {
+test("a popup builds its text, then its picture, then places the X post once the picture is there", () => {
   const popups = read("../processallmessages.js");
   for (const start of ["export function createMarkerPopupHTML(", "function createPolygonPopupHTML("]) {
     const fn = topLevel(popups, start);
     const text = fn.indexOf("contentSection.appendChild(msgDiv);");
     const picture = fn.indexOf("contentSection.appendChild(imageDiv);");
     assert.ok(text > 0 && picture > text, `${start} text first`);
-    assert.ok(fn.indexOf("paintXEmbeds(msgP, { host: msgDiv });") > text, start);
+    assert.ok(fn.indexOf("paintPopupXEmbeds(msgP, msgDiv);") > picture, start);
   }
 });
 
-test("portrait: the body is the one scroller, ordered text, Show more, picture, X post", () => {
+// A few nodes, enough for xembed.js placing a list: children in order,
+// siblings, matches() on one class, and a log of how each was put.
+class Node {
+  constructor(cls = "", log = null) {
+    this.cls = cls;
+    this.children = [];
+    this.parentNode = null;
+    this.root = false;
+    this.log = log;
+  }
+  get isConnected() {
+    let node = this;
+    while (node.parentNode) node = node.parentNode;
+    return node.root;
+  }
+  get nextSibling() {
+    if (!this.parentNode) return null;
+    const list = this.parentNode.children;
+    return list[list.indexOf(this) + 1] || null;
+  }
+  get nextElementSibling() { return this.nextSibling; }
+  get parentElement() { return this.parentNode; }
+  matches(selectors) { return selectors.split(",").some((s) => s.trim() === `.${this.cls}`); }
+  querySelector(selector) {
+    const cls = selector.replace(":scope > .", "");
+    return this.children.find((child) => child.cls === cls) || null;
+  }
+  put(node, before) {
+    if (node.parentNode) node.parentNode.children.splice(node.parentNode.children.indexOf(node), 1);
+    node.parentNode = this;
+    const at = before ? this.children.indexOf(before) : -1;
+    if (at < 0) this.children.push(node);
+    else this.children.splice(at, 0, node);
+    return node;
+  }
+  insertBefore(node, before) {
+    if (this.log) this.log.push(node.isConnected ? "insert (moved)" : "insert");
+    return this.put(node, before);
+  }
+  appendChild(node) { return this.insertBefore(node, null); }
+}
+const xembed = read("../xembed.js");
+const place = new Function(`
+  const MORE_BUTTONS = '.feed-more, .chat-msg-more, .swap-bio-more';
+  ${topLevel(xembed, "function listSpot(")}
+  ${topLevel(xembed, "function placeList(")}
+  ${topLevel(xembed, "function moveList(")}
+  return { placeList, moveList };
+`)();
+const names = (node) => node.children.map((child) => child.cls);
+
+// A popup's body: the message box (text, Show more), then the picture.
+function popupBody({ picture = true, moveBefore = true } = {}) {
+  const log = [];
+  const sheet = new Node("popup-sheet", log);
+  sheet.root = true;
+  const body = new Node("popup-body", log);
+  const msg = new Node("popup-msg", log);
+  const text = new Node("popup-text-bubble", log);
+  sheet.put(body);
+  body.put(msg);
+  msg.put(text);
+  msg.put(new Node("popup-more", log));
+  if (picture) body.put(new Node("popup-media-card", log));
+  if (moveBefore) {
+    for (const node of [body, msg]) {
+      node.moveBefore = function (moved, before) {
+        log.push("moveBefore");
+        return this.put(moved, before);
+      };
+    }
+  }
+  return { body, msg, text, log, list: new Node("x-embed-list", log) };
+}
+
+test("the X post is placed after the picture in portrait and last in the message box in landscape", () => {
+  let landscape = false;
+  const portrait = popupBody();
+  const state = { host: portrait.msg, after: () => (landscape ? null : portrait.body.querySelector(":scope > .popup-media-card")) };
+  assert.equal(place.placeList(portrait.list, state, portrait.text), true);
+  assert.deepEqual(names(portrait.body), ["popup-msg", "popup-media-card", "x-embed-list"]);
+  assert.deepEqual(names(portrait.msg), ["popup-text-bubble", "popup-more"]);
+
+  landscape = true;
+  const wide = popupBody();
+  const wideState = { host: wide.msg, after: () => (landscape ? null : wide.body.querySelector(":scope > .popup-media-card")) };
+  place.placeList(wide.list, wideState, wide.text);
+  assert.deepEqual(names(wide.msg), ["popup-text-bubble", "popup-more", "x-embed-list"]);
+  assert.deepEqual(names(wide.body), ["popup-msg", "popup-media-card"]);
+
+  // No picture: last in the message box, in either orientation.
+  landscape = false;
+  const plain = popupBody({ picture: false });
+  place.placeList(plain.list, { host: plain.msg, after: () => plain.body.querySelector(":scope > .popup-media-card") }, plain.text);
+  assert.deepEqual(names(plain.msg), ["popup-text-bubble", "popup-more", "x-embed-list"]);
+});
+
+test("turning the phone moves the shown X post, keeping X's iframe where the browser can", () => {
+  let landscape = false;
+  const popup = popupBody();
+  const state = { host: popup.msg, after: () => (landscape ? null : popup.body.querySelector(":scope > .popup-media-card")) };
+  place.placeList(popup.list, state, popup.text);
+  popup.log.length = 0;
+  // Already where it belongs: nothing moves.
+  place.moveList(popup.list, state, popup.text);
+  assert.deepEqual(popup.log, []);
+  landscape = true;
+  place.moveList(popup.list, state, popup.text);
+  assert.deepEqual(names(popup.msg), ["popup-text-bubble", "popup-more", "x-embed-list"]);
+  landscape = false;
+  place.moveList(popup.list, state, popup.text);
+  assert.deepEqual(names(popup.body), ["popup-msg", "popup-media-card", "x-embed-list"]);
+  assert.deepEqual(popup.log, ["moveBefore", "moveBefore"]);
+  place.moveList(popup.list, state, popup.text);
+  assert.deepEqual(popup.log, ["moveBefore", "moveBefore"]);
+
+  // A browser with no moveBefore inserts it (X's iframe loads again).
+  const old = popupBody({ moveBefore: false });
+  const oldState = { host: old.msg, after: () => (landscape ? null : old.body.querySelector(":scope > .popup-media-card")) };
+  place.placeList(old.list, oldState, old.text);
+  landscape = true;
+  place.moveList(old.list, oldState, old.text);
+  assert.deepEqual(names(old.msg), ["popup-text-bubble", "popup-more", "x-embed-list"]);
+  assert.deepEqual(old.log, ["insert", "insert (moved)"]);
+});
+
+test("a plain after node still puts the list after it and any Show more under it", () => {
+  const log = [];
+  const card = new Node("feed-card", log);
+  card.root = true;
+  const text = card.put(new Node("feed-text", log));
+  const media = card.put(new Node("popup-media-card", log));
+  card.put(new Node("feed-more", log));
+  card.put(new Node("feed-dock", log));
+  const list = new Node("x-embed-list", log);
+  place.placeList(list, { host: null, after: media }, text);
+  assert.deepEqual(names(card), ["feed-text", "popup-media-card", "feed-more", "x-embed-list", "feed-dock"]);
+});
+
+test("popuptext.js asks for the picture in portrait only, and moves the posts when the phone turns", () => {
+  const source = read("../popuptext.js");
+  const seen = [];
+  const build = new Function("landscape", "paintXEmbeds", `
+    ${topLevel(source, "export function paintPopupXEmbeds(").replace("export function", "function")}
+    return paintPopupXEmbeds;
+  `);
+  const media = { matches: false };
+  const paint = build(media, (bubble, opts) => seen.push(opts));
+  const popup = popupBody();
+  paint(popup.text, popup.msg);
+  assert.equal(seen[0].host, popup.msg);
+  assert.equal(seen[0].after(), popup.body.children[1]);
+  media.matches = true;
+  assert.equal(seen[0].after(), null);
+  media.matches = false;
+  const plain = popupBody({ picture: false });
+  paint(plain.text, plain.msg);
+  assert.equal(seen[1].after(), null);
+  // One listener for the whole page: a turn places every shown post again.
+  assert.match(source, /window\.matchMedia\('\(orientation: landscape\)'\)/);
+  assert.match(source, /if \(landscape\) landscape\.addEventListener\('change', \(\) => placeXEmbeds\(\)\);/);
+  const x = read("../xembed.js");
+  const again = x.slice(x.indexOf("export function placeXEmbeds()"));
+  assert.match(again, /if \(state && state\.list && typeof state\.after === 'function'\) moveList\(state\.list, state, textEl\);/);
+  // An edit with the same posts keeps the list, at the place it answers now.
+  assert.match(topLevel(x, "function mountList("), /if \(typeof state\.after === 'function'\) moveList\(state\.list, state, textEl\);/);
+});
+
+test("portrait: the body is the one scroller, text, Show more, picture, X post in the code's order", () => {
   const css = read("../style.css");
   const block = css.slice(css.indexOf("/* ── Map popup: one scroll body"), css.indexOf("/* ── Popup settings: header"));
   assert.ok(block.length > 100);
@@ -44,9 +212,9 @@ test("portrait: the body is the one scroller, ordered text, Show more, picture, 
   // size container: cqi is the picture frame's width, cqb its visible height.
   assert.match(rule(block, body), /container-type: size;\s*overflow-x: hidden;\s*overflow-y: auto;\s*overscroll-behavior: contain;/);
   assert.match(rule(block, `${body} > .popup-msg`), /display: contents;/);
-  for (const [part, order] of [["> .popup-msg > .popup-text-bubble", 1], ["> .popup-msg > .popup-more", 2], ["> .popup-media-card", 3], ["> .popup-msg > .x-embed-list", 4]]) {
-    assert.match(rule(block, `${body} ${part}`), new RegExp(`order: ${order};`), part);
-  }
+  // Nothing reorders the rows: a screen reader and Tab follow the code,
+  // and the code is in the order on screen (popuptext.js places the post).
+  assert.doesNotMatch(block.replace(/\/\*[\s\S]*?\*\//g, ""), /(^|[\s;{])order:/);
   // The text's cap: the body, less the picture's compact frame (the body's
   // full width at 16:9) when there is one, and less its Show more row once
   // it is capped.
@@ -58,9 +226,11 @@ test("portrait: the body is the one scroller, ordered text, Show more, picture, 
   // post's own box (before the one scroll body): the room less that box's
   // share, min(26u, 66%), and its 0.5u margin, less Show more once capped.
   // A cap, not a height: a short text is as tall as its lines.
-  const withX = rule(block, `${body} > .popup-msg:has(> .x-embed-list) > .popup-text-bubble`);
+  // The post is after the picture, or in the message box with none.
+  const withPost = `${body}:has(> .x-embed-list, > .popup-msg > .x-embed-list)`;
+  const withX = rule(block, `${withPost} > .popup-msg > .popup-text-bubble`);
   assert.match(withX, /--popup-msg-x: calc\(var\(--popup-msg-room\) - min\(calc\(var\(--u\) \* 26\), calc\(var\(--popup-msg-room\) \* 0\.66\)\) - var\(--u\) \* 0\.5\);\s*height: auto;\s*max-height: var\(--popup-msg-x\);/);
-  const withXMore = rule(block, `${body} > .popup-msg.is-more:has(> .x-embed-list) > .popup-text-bubble`);
+  const withXMore = rule(block, `${withPost} > .popup-msg.is-more > .popup-text-bubble`);
   assert.match(withXMore, /max-height: calc\(var\(--popup-msg-x\) - var\(--popup-more-h\)\);/);
   assert.doesNotMatch(withXMore, /(^|[\s;{])height:/);
   // popuptext.js measures the overflow against that cap: the bubble's own
@@ -122,8 +292,9 @@ test("nothing inside the body holds a scroll back, and the X post never scrolls 
   assert.doesNotMatch(x, /max-height|overflow|overscroll/);
   assert.match(x, /flex: 0 0 auto;/);
   // Only the link: centred in the room while it fits, never shrunk below its post.
-  assert.match(rule(css, ".maplibregl-popup .popup-msg.has-x-only > .x-embed-list"), /flex: 1 0 auto;/);
-  assert.match(rule(css, ".maplibregl-popup .popup-msg.has-x-only > .x-embed-list > .x-embed"), /margin-block: auto;/);
+  // In the message box, or after the picture in portrait.
+  assert.match(rule(css, ".maplibregl-popup .popup-msg.has-x-only > .x-embed-list,\n.maplibregl-popup .popup-body:has(> .popup-msg.has-x-only) > .x-embed-list"), /flex: 1 0 auto;/);
+  assert.match(rule(css, ".maplibregl-popup .popup-msg.has-x-only > .x-embed-list > .x-embed,\n.maplibregl-popup .popup-body:has(> .popup-msg.has-x-only) > .x-embed-list > .x-embed"), /margin-block: auto;/);
   // No script stops a wheel or a touch at the text's edges.
   for (const file of ["../popuptext.js", "../xembed.js", "../readingring.js"]) {
     assert.doesNotMatch(read(file), /addEventListener\(\s*['"](wheel|touchstart|touchmove)['"]/, file);

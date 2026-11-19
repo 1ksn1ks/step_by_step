@@ -79,8 +79,11 @@ test("popup media starts in the feed's compact 16:9 frame and the text gets the 
   // screen): the old fill-the-room view. Portrait's is the feed's
   // (popup-scroll.test.mjs).
   assert.match(block, /\.popup-media-card\.is-wide:not\(\.draw-popup-media\) \{\s*flex: 1 1 0%/);
-  // The compact frame lifts the 36% cap on the text.
-  assert.match(block, /\.popup-body:has\(> \.popup-media-card:not\(\.is-wide\):not\(\.draw-popup-media\)\) > div:not\(\.popup-media-card\) \{\s*max-height: none;/);
+  // The compact frame lifts the 36% cap on the text. The cap is the
+  // message box's: never the X post, which may follow the picture.
+  assert.match(block, /\.popup-body:has\(> \.popup-media-card:not\(\.is-wide\):not\(\.draw-popup-media\)\) > div:not\(\.popup-media-card, \.x-embed-list\) \{\s*max-height: none;/);
+  assert.equal(css.includes("> div:not(.popup-media-card) "), false);
+  assert.equal(css.includes("> div:not(.popup-media-card):"), false);
   // A post with no text keeps its frame under the title, like any post.
   assert.equal(block.includes("justify-content: center"), false);
   // Make bigger fits the media to the room, never its smaller pixel size.

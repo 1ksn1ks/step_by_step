@@ -289,10 +289,12 @@ test("pages are wired to xembed.js, and only xembed.js loads X's script", () => 
   assert.match(feed, /fillTopicIds\(profileBio, text, 'feed-profile-topic'\);\s*\}\s*paintXEmbeds\(profileBio\);/);
 
   const popups = read("../processallmessages.js");
-  assert.equal(popups.split("paintXEmbeds(msgP, { host: msgDiv });").length - 1, 2);
+  assert.equal(popups.split("paintPopupXEmbeds(msgP, msgDiv);").length - 1, 2);
+  assert.equal(popups.includes("paintXEmbeds("), false);
   assert.match(popups, /bindXEmbedsSwitch\(document\.getElementById\('popup-x-embeds'\)\);/);
   const text = read("../popuptext.js");
-  assert.match(text, /paintHashtags\(state\.flow, state\.text\);\s*paintXEmbeds\(bubble, \{ host: state\.host \}\);/);
+  assert.match(text, /paintHashtags\(state\.flow, state\.text\);\s*paintPopupXEmbeds\(bubble, state\.host\);/);
+  assert.match(text, /if \(host\) paintPopupXEmbeds\(bubble, host\);\s*else paintXEmbeds\(bubble\);/);
   assert.match(text, /paintHashtags\(pageText, state\.text\);\s*\/\/[^\n]*\n\s*paintXEmbeds\(pageText, \{ after: pageText\.parentElement \}\);/);
   assert.match(read("../chatimage.js"), /paintXEmbeds\(textEl, \{ after: el\.lastChild \}\);/);
   assert.match(read("../swapsheet.js"), /body\.textContent = text;[\s\S]{0,200}paintXEmbeds\(body,/);

@@ -5,10 +5,34 @@
 // full-screen page. Back (the arrow, Escape, or browser Back) closes that
 // page.
 import { paintHashtags } from './hashtag.js';
-import { clearXEmbeds, paintXEmbeds } from './xembed.js';
+import { clearXEmbeds, paintXEmbeds, placeXEmbeds } from './xembed.js';
 import { toast } from './toast.js';
 import { copyTextToClipboard } from './handleallmessages.js';
 import { brightenRing, createRing, fitRing, paintRing } from './readingring.js';
+
+// A linked X post sits in the code where the popup shows it, so a screen
+// reader and Tab reach it there too. Portrait is one scroll body in the
+// feed's order (text, Show more, picture, X post): the post follows the
+// picture. Landscape shows the picture as the left card and the text and
+// the post in the right one, one scroll (style.css "Map popup: one scroll
+// body"): the post goes last in the message box, as it does with no
+// picture. Turning the phone moves it (xembed.js placeXEmbeds).
+const landscape = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+  ? window.matchMedia('(orientation: landscape)')
+  : null;
+if (landscape) landscape.addEventListener('change', () => placeXEmbeds());
+
+// bubble: the popup's text; host: its message box (.popup-msg).
+export function paintPopupXEmbeds(bubble, host) {
+  paintXEmbeds(bubble, {
+    host,
+    after: () => {
+      if (landscape && landscape.matches) return null;
+      const body = host.parentElement;
+      return body ? body.querySelector(':scope > .popup-media-card') : null;
+    },
+  });
+}
 
 // bubble -> { host, flow, more, text, title }
 const watched = new WeakMap();
@@ -142,9 +166,9 @@ export function setPopupText(bubble, text) {
     paintHashtags(bubble, text);
     const spot = parked.get(bubble);
     if (spot && bubble.firstChild) watchPopupText(spot.host, bubble, text, spot.title);
-    // The X post card follows the edit, last in the message box.
+    // The X post card follows the edit, where the popup shows it.
     const host = spot ? spot.host : bubble.parentElement;
-    if (host) paintXEmbeds(bubble, { host });
+    if (host) paintPopupXEmbeds(bubble, host);
     else paintXEmbeds(bubble);
     return;
   }
@@ -154,7 +178,7 @@ export function setPopupText(bubble, text) {
     return;
   }
   paintHashtags(state.flow, state.text);
-  paintXEmbeds(bubble, { host: state.host });
+  paintPopupXEmbeds(bubble, state.host);
   queueSync(bubble);
 }
 
