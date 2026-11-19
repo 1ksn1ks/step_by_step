@@ -25334,7 +25334,7 @@ html.is-draw-picking .live-filter {
    track is inset by half a thumb: at either end the thumb sits inside
    the row, lined up with the rows above, and the panel does not clip it.
    touch-action: none so a finger drag moves the thumb (the panel itself
-   scrolls on pan-y). Arrow keys step by the input's own step. */
+   scrolls on pan-y). Arrow keys step one unit (livegroups.js addSlider). */
 .live-settings-slider {
   --live-thumb: 1.15em;
   --live-track: 0.18em;

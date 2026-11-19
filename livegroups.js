@@ -163,6 +163,26 @@ export function setLiveHours(value) {
   return true;
 }
 
+// ── Slider scale ───────────────────────────────────────────────────────
+// Distance and Time are logarithmic: every tenfold gets the same share of
+// the track. Linear, 6 min to 1 h was 4% of Time and 1 to 10 km 9% of
+// Distance, a few px on a phone; now they are 42% and half. The range
+// itself runs 0 to SLIDER_STEPS, fine enough that every tenth of an hour
+// and every km has a position of its own, and cleanHours / cleanRadius
+// round what a position reads to that unit.
+const SLIDER_STEPS = 10000;
+
+// The value at a position, before it is rounded to the unit.
+function sliderValue(pos, min, max) {
+  const t = Math.min(1, Math.max(0, Number(pos) / SLIDER_STEPS));
+  return min * (max / min) ** t;
+}
+
+function sliderPos(value, min, max) {
+  const v = Math.min(max, Math.max(min, Number(value)));
+  return Math.round(SLIDER_STEPS * Math.log(v / min) / Math.log(max / min));
+}
+
 // What the caption under Look for Live says: the group when it is not
 // Everyone, always the distance, and the time when it is not 24 hours
 // ("Following · 50 km", "100 km · 6 min", "50 km · 1.5 h").
@@ -503,19 +523,19 @@ function buildSettings() {
   }
   groups.appendChild(groupList);
 
-  // Distance: one slider, 1 km to 100 km. Dragging moves the circle on the
-  // map; releasing keeps the km and repaints the caption.
+  // Distance: one slider, 1 km to 100 km in whole km, on the log scale.
+  // Dragging moves the circle on the map at each new km; releasing keeps
+  // the km and repaints the caption.
   const distance = settingsSection('Distance', 'How far from the pin. The circle on the map shows it.');
   radiusUi = addSlider(distance, {
     label: 'Distance',
     min: LIVE_RADIUS_MIN_KM,
     max: LIVE_RADIUS_MAX_KM,
-    step: 1,
-    text: (n) => liveRadiusName(cleanRadius(n) ?? radius),
+    unit: 1,
+    clean: cleanRadius,
+    text: liveRadiusName,
     onInput: (n) => {
-      const km = cleanRadius(n);
-      if (km == null) return;
-      document.dispatchEvent(new CustomEvent('live-radius-changed', { detail: km }));
+      document.dispatchEvent(new CustomEvent('live-radius-changed', { detail: n }));
     },
     onCommit: (n) => {
       if (!setLiveRadius(n)) return;
@@ -523,15 +543,16 @@ function buildSettings() {
     },
   });
 
-  // Time: one slider, 0.1 h (6 min) to 24 h, in tenths. The server only
-  // keeps 24, so the slider cannot ask for more.
+  // Time: one slider, 0.1 h (6 min) to 24 h in tenths, on the log scale.
+  // The server only keeps 24, so the slider cannot ask for more.
   const time = settingsSection('Time', 'How recent. The server keeps the last 24 hours.');
   hoursUi = addSlider(time, {
     label: 'Time',
     min: LIVE_HOURS_MIN,
     max: LIVE_HOURS_MAX,
-    step: 0.1,
-    text: (n) => liveHoursName(n),
+    unit: 0.1,
+    clean: cleanHours,
+    text: liveHoursName,
     onInput: () => {},
     onCommit: (n) => {
       if (!setLiveHours(n)) return;
@@ -581,39 +602,64 @@ function buildSettings() {
   if (window.visualViewport) window.visualViewport.addEventListener('resize', follow);
 }
 
-// A labelled slider. input moves the readout (and whatever onInput does);
-// change, which a range fires when the pointer is released and when an
-// arrow key steps, keeps the value. Arrow keys step by `step` on their own.
-function addSlider(section, { label, min, max, step, text, onInput, onCommit }) {
+// A labelled slider on the log scale (sliderValue). clean rounds a value
+// to its unit: a tenth of an hour, a whole km. A drag crosses many
+// positions for each value, so input moves the readout and calls onInput
+// only when the rounded value changes. change, which a range fires when
+// the pointer is released, keeps it (onCommit). An arrow key steps one
+// unit and keeps it, as the native step did when the range was the value
+// itself; Page Up / Down, Home and End are the range's own. set() places
+// the thumb for a value.
+function addSlider(section, { label, min, max, unit, clean, text, onInput, onCommit }) {
   const valueEl = document.createElement('span');
   valueEl.className = 'live-settings-value';
   section.querySelector('.live-settings-title').appendChild(valueEl);
   const input = document.createElement('input');
   input.type = 'range';
   input.className = 'live-settings-slider';
-  input.min = String(min);
-  input.max = String(max);
-  input.step = String(step);
+  input.min = '0';
+  input.max = String(SLIDER_STEPS);
+  input.step = '1';
   input.setAttribute('aria-label', label);
+  let value = null;
   const show = (n) => {
+    value = n;
     const shown = text(n);
     valueEl.textContent = shown;
     input.setAttribute('aria-valuetext', shown);
   };
+  const set = (n) => {
+    input.value = String(sliderPos(n, min, max));
+    show(n);
+  };
+  const read = () => clean(sliderValue(input.value, min, max));
   input.addEventListener('input', (event) => {
     event.stopPropagation();
-    const n = Number(input.value);
+    const n = read();
+    if (n == null || n === value) return;
     show(n);
     onInput(n);
   });
   input.addEventListener('change', (event) => {
     event.stopPropagation();
-    const n = Number(input.value);
+    const n = read();
+    if (n == null) return;
     show(n);
     onCommit(n);
   });
+  input.addEventListener('keydown', (event) => {
+    const dir = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[event.key];
+    if (!dir) return;
+    event.preventDefault();
+    const from = value ?? read();
+    const n = clean(Math.min(max, Math.max(min, from + dir * unit)));
+    if (n == null || n === value) return;
+    set(n);
+    onInput(n);
+    onCommit(n);
+  });
   section.appendChild(input);
-  return { input, show };
+  return { input, set };
 }
 
 function settingsChanged() {
@@ -623,8 +669,7 @@ function settingsChanged() {
 
 function paintSlider(ui, value) {
   if (!ui || document.activeElement === ui.input) return;
-  ui.input.value = String(value);
-  ui.show(value);
+  ui.set(value);
 }
 
 function paintSettings() {

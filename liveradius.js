@@ -37,6 +37,7 @@ let tagOffsetX = 0;
 let tagOffset = -TAG_LIFT;
 let pinRow = null; // the held-spot pin (poiinfo.js), while its circle is up
 let flashTimer = 0;
+let frame = 0; // requestAnimationFrame of a drag's next paint (paintSoon)
 
 // A geodesic circle. Longitudes stay continuous around the centre (no
 // wrap to ±180), so a circle across the 180° line draws the short way.
@@ -150,7 +151,13 @@ function liftTag() {
   tag.setOffset([offsetX, offsetY]);
 }
 
+// Draws what is there now, so a paint already waiting for a frame has
+// nothing left to do.
 function paint() {
+  if (frame) {
+    cancelAnimationFrame(frame);
+    frame = 0;
+  }
   const now = shape();
   if (!now) {
     removeLayers();
@@ -226,8 +233,23 @@ export function hideSearchArea() {
   paint();
 }
 
-document.addEventListener('live-radius-changed', (event) => {
-  if (!preview) return;
+// A paint rebuilds the ring, hands it to the map's worker and measures the
+// bubble. A drag can send several km in one frame, so the circle is drawn
+// once, on the next frame, at the last of them.
+function paintSoon() {
+  if (frame) return;
+  frame = requestAnimationFrame(() => {
+    frame = 0;
+    paint();
+  });
+}
+
+// A drag of the Distance slider, and the km it saves on release (the same
+// km again: nothing to draw).
+function followRadius(event) {
+  if (!preview || preview.km === event.detail) return;
   preview.km = event.detail;
-  paint();
-});
+  paintSoon();
+}
+
+document.addEventListener('live-radius-changed', followRadius);

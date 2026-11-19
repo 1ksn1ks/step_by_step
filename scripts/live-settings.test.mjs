@@ -39,6 +39,233 @@ const api = new Function(`
   return { cleanHours, cleanRadius, liveHoursName };
 `)();
 
+const SLIDER_STEPS = Number(groups.match(/const SLIDER_STEPS = (\d+);/)[1]);
+// The log scale and the slider itself, with a document that makes plain
+// EventTargets for elements.
+class FakeElement extends EventTarget {
+  constructor() {
+    super();
+    this.value = "";
+    this.textContent = "";
+    this.attrs = {};
+    this.title = null;
+  }
+  setAttribute(name, value) { this.attrs[name] = String(value); }
+  appendChild(child) { return child; }
+  querySelector() { return this.title; }
+}
+const fakeDocument = { createElement: () => new FakeElement() };
+const scale = new Function("document", `
+  const LIVE_HOURS_MAX = 24;
+  const LIVE_RADIUS_MIN_KM = 1;
+  const LIVE_RADIUS_MAX_KM = 100;
+  const SLIDER_STEPS = ${SLIDER_STEPS};
+  let hours = 24;
+  ${fnSource(groups, "hourTenths")}
+  ${fnSource(groups, "cleanHours")}
+  ${fnSource(groups, "cleanRadius")}
+  ${fnSource(groups, "liveHoursName")}
+  ${fnSource(groups, "sliderValue")}
+  ${fnSource(groups, "sliderPos")}
+  ${fnSource(groups, "addSlider")}
+  return { sliderValue, sliderPos, addSlider, cleanHours, cleanRadius, liveHoursName };
+`)(fakeDocument);
+
+const km = (pos) => scale.cleanRadius(scale.sliderValue(pos, 1, 100));
+const hrs = (pos) => scale.cleanHours(scale.sliderValue(pos, 0.1, 24));
+
+test("the sliders are a log scale: 6 min to 1 h is 42% of Time, 1 to 10 km half of Distance", () => {
+  const share = (value, min, max) => scale.sliderPos(value, min, max) / SLIDER_STEPS;
+  assert.equal(scale.sliderPos(1, 1, 100), 0);
+  assert.equal(scale.sliderPos(100, 1, 100), SLIDER_STEPS);
+  assert.equal(scale.sliderPos(0.1, 0.1, 24), 0);
+  assert.equal(scale.sliderPos(24, 0.1, 24), SLIDER_STEPS);
+  assert.equal(km(0), 1);
+  assert.equal(km(SLIDER_STEPS), 100);
+  assert.equal(hrs(0), 0.1);
+  assert.equal(hrs(SLIDER_STEPS), 24);
+  // Linear these were 9% and 4%.
+  assert.equal(share(10, 1, 100), 0.5);
+  assert.ok(Math.abs(share(1, 0.1, 24) - 0.42) < 0.005);
+  assert.ok(Math.abs(share(30 / 60, 0.1, 24) - 0.294) < 0.005);
+  // Out of range clamps to the ends.
+  assert.equal(scale.sliderPos(500, 1, 100), SLIDER_STEPS);
+  assert.equal(scale.sliderPos(0.01, 0.1, 24), 0);
+  assert.equal(km(-50), 1);
+  assert.equal(km(SLIDER_STEPS * 2), 100);
+});
+
+test("every whole km and every tenth of an hour has a position, and dragging reaches each in order", () => {
+  for (let n = 1; n <= 100; n++) assert.equal(km(scale.sliderPos(n, 1, 100)), n, `${n} km`);
+  for (let t = 1; t <= 240; t++) {
+    assert.equal(hrs(scale.sliderPos(t / 10, 0.1, 24)), t / 10, `${t / 10} h`);
+  }
+  const seenKm = new Set();
+  const seenHours = new Set();
+  let lastKm = 0;
+  let lastHours = 0;
+  for (let pos = 0; pos <= SLIDER_STEPS; pos++) {
+    const k = km(pos);
+    const h = hrs(pos);
+    assert.ok(k >= lastKm && h >= lastHours, `position ${pos} goes back`);
+    lastKm = k;
+    lastHours = h;
+    seenKm.add(k);
+    seenHours.add(h);
+  }
+  assert.equal(seenKm.size, 100);
+  assert.equal(seenHours.size, 240);
+});
+
+function makeSlider({ min, max, unit, clean, text }) {
+  const section = new FakeElement();
+  section.title = new FakeElement();
+  const inputs = [];
+  const commits = [];
+  const ui = scale.addSlider(section, {
+    label: "Test", min, max, unit, clean, text,
+    onInput: (n) => inputs.push(n),
+    onCommit: (n) => commits.push(n),
+  });
+  return { ui, inputs, commits };
+}
+const key = (input, name) => {
+  const event = new Event("keydown", { cancelable: true });
+  event.key = name;
+  input.dispatchEvent(event);
+  return event.defaultPrevented;
+};
+
+test("a drag tells each new km once, and the release keeps the last", () => {
+  const { ui, inputs, commits } = makeSlider({ min: 1, max: 100, unit: 1, clean: scale.cleanRadius, text: (n) => `${n} km` });
+  ui.set(1);
+  assert.equal(ui.input.value, "0");
+  assert.equal(ui.input.attrs["aria-valuetext"], "1 km");
+  // Thumb from the left end to the middle, one position at a time: many
+  // input events, one onInput per km.
+  for (let pos = 1; pos <= SLIDER_STEPS / 2; pos++) {
+    ui.input.value = String(pos);
+    ui.input.dispatchEvent(new Event("input"));
+  }
+  assert.deepEqual(inputs, [2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.equal(ui.input.attrs["aria-valuetext"], "10 km");
+  ui.input.dispatchEvent(new Event("change"));
+  assert.deepEqual(commits, [10]);
+});
+
+test("an arrow key steps one km or one tenth of an hour and keeps it", () => {
+  const distance = makeSlider({ min: 1, max: 100, unit: 1, clean: scale.cleanRadius, text: (n) => `${n} km` });
+  distance.ui.set(50);
+  assert.equal(key(distance.ui.input, "ArrowRight"), true);
+  assert.equal(key(distance.ui.input, "ArrowUp"), true);
+  assert.deepEqual(distance.inputs, [51, 52]);
+  assert.deepEqual(distance.commits, [51, 52]);
+  assert.equal(km(Number(distance.ui.input.value)), 52);
+  key(distance.ui.input, "ArrowLeft");
+  key(distance.ui.input, "ArrowDown");
+  key(distance.ui.input, "ArrowDown");
+  assert.deepEqual(distance.commits, [51, 52, 51, 50, 49]);
+  // At an end the key does nothing; other keys are the range's own.
+  distance.ui.set(100);
+  key(distance.ui.input, "ArrowRight");
+  assert.deepEqual(distance.commits, [51, 52, 51, 50, 49]);
+  assert.equal(key(distance.ui.input, "PageUp"), false);
+  assert.equal(key(distance.ui.input, "Home"), false);
+
+  const time = makeSlider({ min: 0.1, max: 24, unit: 0.1, clean: scale.cleanHours, text: scale.liveHoursName });
+  time.ui.set(0.1);
+  key(time.ui.input, "ArrowLeft");
+  assert.deepEqual(time.commits, []);
+  for (let i = 0; i < 10; i++) key(time.ui.input, "ArrowRight");
+  assert.deepEqual(time.commits, [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1]);
+  assert.equal(time.ui.input.attrs["aria-valuetext"], "1.1 h");
+  assert.equal(hrs(Number(time.ui.input.value)), 1.1);
+});
+
+// The circle (liveradius.js), with the map and the bubble stubbed out:
+// what matters is how often paint() reaches the map's source.
+const radiusJs = read("../liveradius.js");
+function makeCircle() {
+  return new Function(`
+    const SOURCE = 'live-radius';
+    let preview = null;
+    let area = null;
+    let tag = null;
+    let tagKm = null;
+    let tagAt = null;
+    let frame = 0;
+    const frames = new Map();
+    let nextFrame = 1;
+    const requestAnimationFrame = (fn) => { const id = nextFrame++; frames.set(id, fn); return id; };
+    const cancelAnimationFrame = (id) => { frames.delete(id); };
+    const drawn = [];
+    const map = { getSource: () => ({ setData: (data) => drawn.push(data) }) };
+    const ensureLayers = () => true;
+    const removeLayers = () => {};
+    const ring = (at, km) => [[at.lng, at.lat + km], [at.lng, at.lat]];
+    const formatKm = (km) => km + ' km';
+    const buildTag = () => {
+      tag = { setLngLat() { return this; }, addTo() { return this; }, remove() {} };
+      tagKm = {};
+    };
+    const liftTag = () => {};
+    const keepTagOffMoon = () => {};
+    ${fnSource(radiusJs, "shape")}
+    ${fnSource(radiusJs, "paint")}
+    ${fnSource(radiusJs, "paintSoon")}
+    ${fnSource(radiusJs, "followRadius")}
+    return {
+      drawn,
+      pending: () => frames.size,
+      tick: () => { const due = [...frames.values()]; frames.clear(); due.forEach((fn) => fn()); },
+      show: (km) => { preview = { at: { lng: 16, lat: 45 }, km }; paint(); },
+      hide: () => { preview = null; paint(); },
+      drag: (km) => followRadius({ detail: km }),
+      km: () => tagKm.textContent,
+    };
+  `)();
+}
+
+test("a drag redraws the circle once a frame, at the last km", () => {
+  const circle = makeCircle();
+  circle.show(50);
+  assert.equal(circle.drawn.length, 1);
+  circle.drag(51);
+  circle.drag(52);
+  circle.drag(53);
+  assert.equal(circle.drawn.length, 1, "nothing is drawn before the frame");
+  assert.equal(circle.pending(), 1, "one frame for the three km");
+  circle.tick();
+  assert.equal(circle.drawn.length, 2);
+  assert.equal(circle.km(), "53 km");
+  // The release saves the km the circle already shows: no frame.
+  circle.drag(53);
+  assert.equal(circle.pending(), 0);
+  circle.tick();
+  assert.equal(circle.drawn.length, 2);
+});
+
+test("a paint that cannot wait cancels the drag's frame", () => {
+  const circle = makeCircle();
+  circle.show(50);
+  circle.drag(60);
+  assert.equal(circle.pending(), 1);
+  circle.hide();
+  assert.equal(circle.pending(), 0);
+  circle.tick();
+  assert.equal(circle.drawn.length, 1);
+  // No pin, no circle to follow.
+  circle.drag(70);
+  assert.equal(circle.pending(), 0);
+  // A new pin starts from its own km; the next drag gets a frame again.
+  circle.show(20);
+  circle.drag(21);
+  assert.equal(circle.pending(), 1);
+  circle.tick();
+  assert.equal(circle.km(), "21 km");
+  assert.equal(circle.drawn.length, 3);
+});
+
 test("time keeps a tenth of an hour from 0.1 to 24, and old whole hours still load", () => {
   assert.equal(api.cleanHours(null), null);
   assert.equal(api.cleanHours(""), null);
@@ -100,18 +327,21 @@ test("the panel is two sliders, Posts from, and Look for Live", () => {
 
   const slider = fnSource(groups, "addSlider");
   assert.match(slider, /input\.type = 'range'/);
-  assert.match(slider, /input\.min = String\(min\)/);
-  assert.match(slider, /input\.max = String\(max\)/);
-  assert.match(slider, /input\.step = String\(step\)/);
+  assert.match(slider, /input\.min = '0'/);
+  assert.match(slider, /input\.max = String\(SLIDER_STEPS\)/);
+  assert.match(slider, /input\.step = '1'/);
   assert.match(slider, /addEventListener\('input'/);
   assert.match(slider, /addEventListener\('change'/);
+  assert.match(slider, /addEventListener\('keydown'/);
   assert.match(slider, /onInput\(n\)/);
   assert.match(slider, /onCommit\(n\)/);
+  assert.match(fnSource(groups, "paintSlider"), /ui\.set\(value\)/);
 
   const distance = build.slice(build.indexOf("settingsSection('Distance'"), build.indexOf("settingsSection('Time'"));
   assert.match(distance, /min: LIVE_RADIUS_MIN_KM/);
   assert.match(distance, /max: LIVE_RADIUS_MAX_KM/);
-  assert.match(distance, /step: 1/);
+  assert.match(distance, /unit: 1,/);
+  assert.match(distance, /clean: cleanRadius,/);
   assert.match(distance, /new CustomEvent\('live-radius-changed'/);
   assert.match(distance, /setLiveRadius\(n\)/);
   assert.match(distance, /settingsChanged\(\)/);
@@ -121,7 +351,8 @@ test("the panel is two sliders, Posts from, and Look for Live", () => {
   const time = build.slice(build.indexOf("settingsSection('Time'"));
   assert.match(time, /min: LIVE_HOURS_MIN/);
   assert.match(time, /max: LIVE_HOURS_MAX/);
-  assert.match(time, /step: 0\.1/);
+  assert.match(time, /unit: 0\.1,/);
+  assert.match(time, /clean: cleanHours,/);
   assert.match(time, /setLiveHours\(n\)/);
   assert.match(time, /settingsChanged\(\)/);
 });
