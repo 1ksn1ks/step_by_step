@@ -196,6 +196,34 @@ export function currentAutoplayNft(messages, topicAdmin) {
   return '';
 }
 
+// The install icon, on the same signed admin message as autoplayNft.
+// Newest appIcon wins. An empty value clears it. A value acceptUrl rejects
+// (not our own R2 image) is skipped, as is a message from anyone who is
+// not a memo admin. No memo admins means no icon: unlike autoplay, an
+// empty memo does not let everyone set it.
+export function appIconConfigMessage(url) {
+  const raw = url == null ? '' : String(url).trim();
+  return JSON.stringify({ appIcon: raw });
+}
+
+export function currentAppIcon(messages, topicAdmin, acceptUrl) {
+  const admins = Array.isArray(topicAdmin) ? topicAdmin : [];
+  if (!admins.length) return '';
+  const accept = typeof acceptUrl === 'function' ? acceptUrl : () => false;
+  for (let index = (messages || []).length - 1; index >= 0; index--) {
+    const message = messages[index];
+    const parsed = readMessage(message);
+    if (!parsed || !Object.prototype.hasOwnProperty.call(parsed, 'appIcon')) continue;
+    if (!payerAllowed(message, admins)) continue;
+    const raw = parsed.appIcon;
+    if (raw == null || (typeof raw === 'string' && raw.trim() === '')) return '';
+    if (typeof raw !== 'string') continue;
+    const url = raw.trim();
+    if (accept(url)) return url;
+  }
+  return '';
+}
+
 export function currentInitialXYZ(messages, topicAdmin) {
   let target = null;
   for (const message of messages || []) {

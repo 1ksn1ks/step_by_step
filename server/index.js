@@ -29,7 +29,7 @@ import { hashtagsIn } from "../hashtag.js";
 import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { SEALED_MAX, sealedUploadPlan } from "./sealedupload.js";
 import { posterTargetKey } from "../mediaurl.js";
-import { r2PublicBase } from "../r2public.js";
+import { isOwnR2Image, r2PublicBase } from "../r2public.js";
 import { createPendingPosters, issuePosterEdit, posterEditMatches } from "./pendingposters.js";
 import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
@@ -43,7 +43,9 @@ import {
   createRegistry,
   installTargetRoute,
   manifestRoute,
+  pickCommunityPicture,
 } from "./installmanifest.js";
+import { adminsFromMemo, currentAppIcon } from "../loadcurrenttopic.js";
 import { DOMAIN_TOPIC } from "../domainregistry.js";
 import { DEFAULT_TOPIC, hasManifestQuery } from "../installtarget.js";
 import { avatarSource } from "../avatarsrc.js";
@@ -400,6 +402,10 @@ const q = {
   // newest first — for resolving the latest valid changeName
   topicMessagesDesc: db.prepare(
     "SELECT payer, body FROM messages WHERE topic_id = ? ORDER BY seq DESC"
+  ),
+  // Newest admin appIcon first. The stored body is compact JSON.
+  topicAppIconsDesc: db.prepare(
+    "SELECT payer, body FROM messages WHERE topic_id = ? AND instr(body, '\"appIcon\"') > 0 ORDER BY seq DESC"
   ),
   insertMsg: db.prepare(`
     INSERT OR IGNORE INTO messages (topic_id, seq, ts, payer, body)
@@ -3881,21 +3887,66 @@ const linkedPictures = db.prepare(`
   WHERE topic = ? AND profile_pic IS NOT NULL AND profile_pic != ''
   ORDER BY updated_at DESC LIMIT 50
 `);
-// A community's picture: its name's owner's profile picture, else that of
-// an account that linked the topic, one the topic's memo names as admin
-// first. Only a profile's picture (profileSources), the one /api/avatar.webp
-// draws.
-function communityPicture({ topic, owner }) {
-  const allowed = (pic) => typeof pic === "string" && profileSources.has(avatarSource(pic));
-  if (owner) {
-    const row = ownerPicture.get(owner);
-    if (row && allowed(row.profile_pic)) return row.profile_pic;
+// A community's picture (pickCommunityPicture): the admin's app icon, else
+// a profile picture. Only a profile's picture (profileSources) is a
+// fallback. The admin icon is a URL on our own R2, checked again here.
+const APP_ICON_CACHE_MAX = 200;
+const appIconCache = new Map();
+
+function profilePicture(account) {
+  if (!account) return "";
+  const row = ownerPicture.get(account);
+  if (!row || typeof row.profile_pic !== "string") return "";
+  return profileSources.has(avatarSource(row.profile_pic)) ? row.profile_pic : "";
+}
+
+function topicAppIcon(topicId) {
+  const t = q.getTopic.get(topicId);
+  if (!t) return "";
+  if (t.memo == null) fetchTopicMemo(topicId);
+  const memo = typeof t.memo === "string" ? t.memo : "";
+  const hit = appIconCache.get(topicId);
+  if (t.memo != null && hit && hit.seq === t.last_seq && hit.memo === memo) return hit.icon;
+  const admins = adminsFromMemo(memo);
+  let icon = "";
+  if (admins.length) {
+    const messages = [];
+    const rows = q.topicAppIconsDesc.all(topicId);
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      let body;
+      try {
+        body = JSON.parse(rows[i].body);
+      } catch {
+        continue;
+      }
+      if (!body || typeof body !== "object") continue;
+      messages.push({ ...body, payer: rows[i].payer });
+    }
+    icon = currentAppIcon(messages, admins, (url) => isOwnR2Image(url, R2_PUBLIC_BASE));
   }
-  const rows = linkedPictures.all(topic).filter((row) => allowed(row.profile_pic));
-  if (!rows.length) return "";
-  const memo = (q.getTopic.get(topic) || {}).memo || "";
-  const admins = new Set(String(memo).split(",").map((s) => s.trim()).filter((s) => s.startsWith("0.0.")));
-  return (rows.find((row) => admins.has(row.account_id)) || rows[0]).profile_pic;
+  if (t.memo != null) {
+    appIconCache.delete(topicId);
+    appIconCache.set(topicId, { seq: t.last_seq, memo, icon });
+    while (appIconCache.size > APP_ICON_CACHE_MAX) appIconCache.delete(appIconCache.keys().next().value);
+  }
+  return icon;
+}
+
+function communityPicture({ topic, owner }) {
+  const chosen = topicAppIcon(topic);
+  if (chosen) return chosen;
+  const allowed = (pic) => typeof pic === "string" && profileSources.has(avatarSource(pic));
+  const t = q.getTopic.get(topic);
+  const memo = t && typeof t.memo === "string" ? t.memo : "";
+  const linked = linkedPictures.all(topic)
+    .filter((row) => allowed(row.profile_pic))
+    .map((row) => ({ account: row.account_id, pic: row.profile_pic }));
+  return pickCommunityPicture({
+    ownerPic: profilePicture(owner),
+    admins: adminsFromMemo(memo),
+    linked,
+    adminPic: profilePicture,
+  });
 }
 const communities = createCommunities({
   registry: communityRegistry,
@@ -3919,7 +3970,9 @@ const communityIcons = createIconMaker({
     s3: r2,
     bucket: R2_BUCKET,
     hcs1: { mirrorFetch, s3: r2, bucket: R2_BUCKET, mirror: MIRROR },
-    isProfileSource: profileSources.has,
+    // A profile picture, or the admin's own R2 image. /api/avatar.webp
+    // stays profile pictures only.
+    isProfileSource: (source) => profileSources.has(source) || isOwnR2Image(source, R2_PUBLIC_BASE),
     seen: avatarSeen,
   }),
 });

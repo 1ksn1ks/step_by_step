@@ -82,10 +82,49 @@ export function createRegistry({ readMessages, version = () => 0, now = Date.now
   };
 }
 
+// Which picture a community installs with. chosen is the admin's icon.
+// Then the registered name's owner's profile picture, then a memo admin
+// who linked the topic (memo order), then any memo admin who has a profile
+// picture (memo order), then any other account that linked the topic, in
+// the order linked is given. Blank strings are no picture.
+export function pickCommunityPicture({ chosen = "", ownerPic = "", admins = [], linked = [], adminPic = () => "" } = {}) {
+  const present = (value) => (typeof value === "string" && value ? value : "");
+  const icon = present(chosen);
+  if (icon) return icon;
+  const owner = present(ownerPic);
+  if (owner) return owner;
+  const order = Array.isArray(admins) ? admins.filter((id) => typeof id === "string" && id) : [];
+  const rows = Array.isArray(linked) ? linked : [];
+  const linkedPic = new Map();
+  for (const row of rows) {
+    if (!row || typeof row.account !== "string" || !present(row.pic)) continue;
+    if (!linkedPic.has(row.account)) linkedPic.set(row.account, row.pic);
+  }
+  for (const id of order) {
+    if (linkedPic.has(id)) return linkedPic.get(id);
+  }
+  for (const id of order) {
+    let pic = "";
+    try {
+      pic = present(typeof adminPic === "function" ? adminPic(id) : "");
+    } catch {
+      pic = "";
+    }
+    if (pic) return pic;
+  }
+  const named = new Set(order);
+  for (const row of rows) {
+    if (!row || named.has(row.account)) continue;
+    const pic = present(row.pic);
+    if (pic) return pic;
+  }
+  return "";
+}
+
 // What a start opens: { start, topic, name, label, picture, key }, start ''
 // for the default; null when it is not a known topic or a live name.
 // topicKnown(topic), topicName(topic) and pictureFor({ topic, owner }) come
-// from the server's tables.
+// from the server's tables. pictureFor applies pickCommunityPicture.
 export function createCommunities({ registry, topicKnown, topicName = () => "", pictureFor = () => "" }) {
   function target(start, topic, name, owner) {
     let picture = "";

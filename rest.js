@@ -27,8 +27,11 @@ import { refreshFilterTimeButtons } from './drawdate.js';
 import { POST_IMAGES_BUSY, draftPending, postCover, postImageArray } from './postimages.js';
 import { pendingChatImage, chatImageBusy, clearPendingChatImage, topicChatWire } from './chatimage.js';
 import { stackedTopicRules } from './topicrules.js';
-import { STACK_MAX, activeStack, addTopicMessage, adminsFromMemo, autoplayConfigMessage, cleanTopicIds, currentAutoplayNft, currentTopicBio, currentTopicName, currentInitialXYZ, removeTopicMessage } from './loadcurrenttopic.js';
+import { STACK_MAX, activeStack, addTopicMessage, adminsFromMemo, appIconConfigMessage, autoplayConfigMessage, cleanTopicIds, currentAppIcon, currentAutoplayNft, currentTopicBio, currentTopicName, currentInitialXYZ, removeTopicMessage } from './loadcurrenttopic.js';
 import { readUniqueNft, rememberTopicAutoplay } from './coverautoplay.js';
+import { isOwnR2Image } from './r2public.js';
+import { isAppIconFile, squareCenterFile } from './imagecompress.js';
+import { uploadFace, uploadPostImage } from './uploadmedia.js';
 
 
 
@@ -821,6 +824,112 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
    }
  });
 
+// The community's install icon. Upload goes through /api/upload (Turnstile,
+// then the wallet grant), as a centre square, and the R2 link is the
+// admin config's appIcon. Use profile picture writes an empty appIcon.
+let appIconShown = "";
+let appIconBusy = false;
+
+function showAppIconPreview(src) {
+  const img = document.getElementById("app-icon-preview-img");
+  const fallback = document.getElementById("app-icon-preview-fallback");
+  if (!img || !fallback) return;
+  if (appIconShown.startsWith("blob:") && appIconShown !== src) URL.revokeObjectURL(appIconShown);
+  appIconShown = src || "";
+  if (src) {
+    img.src = src;
+    img.alt = "App icon";
+    img.hidden = false;
+    fallback.hidden = true;
+  } else {
+    img.removeAttribute("src");
+    img.alt = "";
+    img.hidden = true;
+    fallback.hidden = false;
+  }
+}
+
+function setAppIconBusy(on) {
+  appIconBusy = on;
+  const upload = document.getElementById("submit-button-upload-app-icon");
+  const clear = document.getElementById("submit-button-clear-app-icon");
+  if (upload) upload.disabled = on;
+  if (clear) clear.disabled = on;
+}
+
+async function sendAppIcon(url) {
+  if (!signer) {
+    toast.error("Connect wallet first");
+    return false;
+  }
+  const topicId = utilityTopicId();
+  if (!topicId) {
+    toast.error("Please enter a Topic ID or domain.");
+    return false;
+  }
+  const raw = url == null ? "" : String(url).trim();
+  if (raw && !isOwnR2Image(raw)) {
+    toast.error("That image is not on this app's storage.");
+    return false;
+  }
+  toast.info("Confirm in wallet 👛");
+  await sendMessage(topicId, appIconConfigMessage(raw));
+  return true;
+}
+
+document.getElementById("submit-button-upload-app-icon").addEventListener("click", () => {
+  if (appIconBusy) return;
+  document.getElementById("app-icon-file").click();
+});
+
+document.getElementById("app-icon-file").addEventListener("change", async () => {
+  const input = document.getElementById("app-icon-file");
+  const file = input.files && input.files[0];
+  input.value = "";
+  if (!file || appIconBusy) return;
+  if (!isAppIconFile(file)) {
+    toast.error("Use a JPG, PNG or WebP image.");
+    return;
+  }
+  const previous = appIconShown.startsWith("blob:") ? "" : appIconShown;
+  const uploadBtn = document.getElementById("submit-button-upload-app-icon");
+  setAppIconBusy(true);
+  if (uploadBtn) uploadBtn.textContent = "Uploading…";
+  try {
+    const square = await squareCenterFile(file);
+    showAppIconPreview(URL.createObjectURL(square));
+    const url = await uploadPostImage(square, {
+      anchor: document.getElementById("app-icon-field"),
+      role: "app-icon",
+      onProgress(ratio) {
+        if (uploadBtn) uploadBtn.textContent = `Uploading ${Math.round(ratio * 100)}%`;
+      },
+    });
+    const sent = await sendAppIcon(url);
+    showAppIconPreview(sent ? url : previous);
+  } catch (error) {
+    console.error("Error setting app icon:", error);
+    showAppIconPreview(previous);
+    toast.error(uploadFace(error));
+  } finally {
+    if (uploadBtn) uploadBtn.textContent = "Upload image";
+    setAppIconBusy(false);
+  }
+});
+
+document.getElementById("submit-button-clear-app-icon").addEventListener("click", async () => {
+  if (appIconBusy) return;
+  setAppIconBusy(true);
+  try {
+    const sent = await sendAppIcon("");
+    if (sent) showAppIconPreview("");
+  } catch (error) {
+    console.error("Error clearing app icon:", error);
+  } finally {
+    setAppIconBusy(false);
+  }
+});
+
  document.getElementById("submit-button-remove-rules-for-polygons").addEventListener("click", async () => {
    try {
      const polygonTopicId = document.getElementById("input-field-topic-id-for-polygons").value.trim();
@@ -952,10 +1061,12 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
 
     const { markers, polygons } = stackedTopicRules(messages, topicAdmin);
     const autoplayNft = currentAutoplayNft(messages, topicAdmin);
+    const appIcon = currentAppIcon(messages, adminsFromMemo(memo), (url) => isOwnR2Image(url));
     messagesContainer.innerHTML = '';
     messagesContainer.dataset.loadedTopicId = topicId;
     const autoplayField = document.getElementById("input-field-autoplay-nft");
     if (autoplayField) autoplayField.value = autoplayNft;
+    showAppIconPreview(appIcon);
 
     if (loadedNFTsForModel.length > 0) {
       appendStaticRule(messagesContainer, `NFTs for model: ${loadedNFTsForModel.join(', ')}`);
@@ -979,6 +1090,9 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
     appendStaticRule(messagesContainer, autoplayNft
       ? `Autoplay polygon videos: ${autoplayNft}`
       : 'Autoplay polygon videos: none');
+    appendStaticRule(messagesContainer, appIcon
+      ? 'App icon: custom image'
+      : 'App icon: profile picture');
     if (polygons.length === 0) {
       appendStaticRule(messagesContainer, 'Polygon NFT: none');
     }

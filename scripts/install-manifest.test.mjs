@@ -18,6 +18,7 @@ import {
   createRegistry,
   installTargetRoute,
   manifestRoute,
+  pickCommunityPicture,
   pictureKey,
   renderCommunityIcon,
 } from "../server/installmanifest.js";
@@ -286,7 +287,49 @@ test("a picture the avatar pipeline cannot draw is its error, not cached", async
   assert.equal(calls, 2);
 });
 
-test("the server wires it up: the registry kept warm, the routes before the static files, a profile's picture only", () => {
+test("a community picture is the admin icon, then the name's owner, then memo admins, then anyone who linked", () => {
+  const chosen = "https://pub.example.r2.dev/markers/icon.jpg";
+  const other = "https://pub.example.r2.dev/markers/other.jpg";
+  const owner = "https://pub.example.r2.dev/owner.png";
+  const a = "https://pub.example.r2.dev/a.png";
+  const b = "https://pub.example.r2.dev/b.png";
+  const c = "https://pub.example.r2.dev/c.png";
+  const admins = ["0.0.1", "0.0.2"];
+  assert.equal(pickCommunityPicture({
+    chosen,
+    ownerPic: owner,
+    admins,
+    linked: [{ account: "0.0.2", pic: b }, { account: "0.0.9", pic: c }],
+    adminPic: () => a,
+  }), chosen);
+  assert.notEqual(pictureKey(chosen), pictureKey(other), "a new image is a new icon");
+  assert.equal(pickCommunityPicture({
+    ownerPic: owner,
+    admins,
+    linked: [{ account: "0.0.2", pic: b }],
+    adminPic: () => a,
+  }), owner);
+  // Linked memo admins, in memo order, ahead of one who only has a profile picture.
+  assert.equal(pickCommunityPicture({
+    admins,
+    linked: [{ account: "0.0.2", pic: b }, { account: "0.0.1", pic: a }, { account: "0.0.9", pic: c }],
+    adminPic: () => "",
+  }), a);
+  // No linked admin: the first memo admin with a profile picture, not a later linker.
+  assert.equal(pickCommunityPicture({
+    admins,
+    linked: [{ account: "0.0.9", pic: c }],
+    adminPic: (id) => (id === "0.0.2" ? b : ""),
+  }), b);
+  assert.equal(pickCommunityPicture({
+    admins: ["0.0.1"],
+    linked: [{ account: "0.0.9", pic: c }, { account: "0.0.8", pic: a }],
+    adminPic: () => "",
+  }), c);
+  assert.equal(pickCommunityPicture({}), "");
+});
+
+test("the server wires it up: the registry kept warm, the routes before the static files, a profile's picture or the admin's own image", () => {
   const index = read("../server/index.js");
   assert.match(index, /q\.upsertTopic\.run\(DOMAIN_TOPIC, now\);/);
   const routes = index.indexOf('app.get(\n  "/manifest.webmanifest",');
@@ -295,8 +338,18 @@ test("the server wires it up: the registry kept warm, the routes before the stat
   assert.match(index, /\(req, res, next\) => \(hasManifestQuery\(req\.query\) \? publicPostLimit\(req, res, next\) : next\(\)\)/);
   assert.match(index, /app\.get\("\/api\/install-target", publicPostLimit, installTargetRoute\(\{ communities \}\)\);/);
   assert.match(index, /app\.get\("\/icons\/community\/:start\/:key\/:file", avatarLimit, communityIconRoute/);
-  assert.match(index, /isProfileSource: profileSources\.has,\s*seen: avatarSeen,\s*\}\),\s*\}\);/);
   assert.match(index, /const allowed = \(pic\) => typeof pic === "string" && profileSources\.has\(avatarSource\(pic\)\);/);
+  assert.match(index, /pickCommunityPicture\(\{/);
+  assert.match(index, /currentAppIcon\(messages, admins, \(url\) => isOwnR2Image\(url, R2_PUBLIC_BASE\)\)/);
+  const avatarAt = index.indexOf("avatarRoute({");
+  const avatarEnd = index.indexOf("}));", avatarAt);
+  const communityAt = index.indexOf("const communityIcons = createIconMaker");
+  assert.ok(avatarAt > 0 && avatarEnd > avatarAt && communityAt > avatarEnd);
+  const avatarBlock = index.slice(avatarAt, avatarEnd);
+  assert.match(avatarBlock, /isProfileSource: profileSources\.has/);
+  assert.doesNotMatch(avatarBlock, /isOwnR2Image/);
+  const communityBlock = index.slice(communityAt, communityAt + 900);
+  assert.match(communityBlock, /isProfileSource: \(source\) => profileSources\.has\(source\) \|\| isOwnR2Image\(source, R2_PUBLIC_BASE\)/);
   // Dev proxies the same requests to the backend; the plain manifest stays Vite's.
   const vite = read("../vite.config.js");
   assert.match(vite, /bypass: \(req\) => \(String\(req\.url \|\| ''\)\.includes\('\?'\) \? undefined : req\.url\)/);

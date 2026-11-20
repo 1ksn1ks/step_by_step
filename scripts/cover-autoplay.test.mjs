@@ -26,7 +26,8 @@ import {
   shouldAutoplayCover,
   tokenIsUniqueNft,
 } from "../coverautoplay.js";
-import { autoplayConfigMessage, currentAutoplayNft } from "../loadcurrenttopic.js";
+import { appIconConfigMessage, autoplayConfigMessage, currentAppIcon, currentAutoplayNft } from "../loadcurrenttopic.js";
+import { isOwnR2Image } from "../r2public.js";
 import { siblingPosterUrl } from "../mediaurl.js";
 
 const open = { saveData: false, lowBattery: false, reducedMotion: false };
@@ -223,6 +224,54 @@ test("the latest valid admin autoplay message wins, and a clear beats an older s
   assert.equal(currentAutoplayNft([{ payer: "0.0.4", autoplayNft: "0.0.1" }], []), "0.0.1");
   assert.equal(currentAutoplayNft([{ payer: "0.0.4", autoplayNft: "0.0.1" }], ["0.0.2"]), "");
   assert.equal(currentAutoplayNft(null, admins), "");
+});
+
+test("the latest valid admin app icon wins, and anything that is not our own image is ignored", () => {
+  const base = "https://pub.example.r2.dev";
+  const ok = (url) => isOwnR2Image(url, base);
+  const good = `${base}/markers/1-ab.jpg`;
+  const png = `${base}/markers/2-cd.PNG`;
+  const webp = `${base}/markers/3-ef.webp`;
+  assert.equal(appIconConfigMessage(good), JSON.stringify({ appIcon: good }));
+  assert.equal(appIconConfigMessage(""), JSON.stringify({ appIcon: "" }));
+  assert.equal(appIconConfigMessage(`  ${good}  `), JSON.stringify({ appIcon: good }));
+  const admins = ["0.0.2"];
+  const messages = [
+    { payer: "0.0.2", appIcon: good },
+    { payer: "0.0.9", appIcon: `${base}/markers/stolen.png` },
+    { payer: "0.0.2", appIcon: "https://evil.example/a.jpg" },
+    { payer: "0.0.2", appIcon: `${base}/markers/nope.gif` },
+    { payer: "0.0.2", appIcon: webp },
+    { payer: "0.0.2", autoplayNft: "0.0.5" },
+  ];
+  assert.equal(currentAppIcon(messages, admins, ok), webp);
+  messages.push({ payer: "0.0.2", appIcon: "not a url" });
+  assert.equal(currentAppIcon(messages, admins, ok), webp);
+  messages.push({ payer: "0.0.8", appIcon: "" });
+  assert.equal(currentAppIcon(messages, admins, ok), webp, "a non-admin clear is ignored");
+  messages.push({ payer: "0.0.2", appIcon: "   " });
+  assert.equal(currentAppIcon(messages, admins, ok), "");
+  messages.push({ payer: "0.0.2", appIcon: png });
+  assert.equal(currentAppIcon(messages, admins, ok), png);
+  assert.equal(currentAppIcon(messages, [], ok), "", "no memo admin, no icon");
+  assert.equal(currentAppIcon([{ payer: "0.0.2", appIcon: good }], [], ok), "");
+  assert.equal(currentAutoplayNft(messages, admins), "0.0.5", "an icon message does not clear autoplay");
+  for (const bad of [
+    "",
+    "http://pub.example.r2.dev/markers/a.jpg",
+    `${base}/markers/a.jpg?x=1`,
+    `${base}/markers/a.jpg#x`,
+    "https://user@pub.example.r2.dev/markers/a.jpg",
+    "https://pub.example.r2.dev.evil/markers/a.jpg",
+    `https://evil.example/${base}/markers/a.jpg`,
+    `${base}/markers/a.jpg%2f..%2fsecret`,
+  ]) {
+    assert.equal(isOwnR2Image(bad, base), false, bad);
+  }
+  assert.equal(isOwnR2Image(good, base), true);
+  assert.equal(isOwnR2Image(`${base}/pub/a.jpeg`, `${base}/pub`), true);
+  assert.equal(isOwnR2Image(`${base}/public/a.jpg`, `${base}/pub`), false);
+  assert.equal(isOwnR2Image(good, ""), false);
 });
 
 test("holder lookups are batched per creator and token and cached for 10 minutes", async () => {

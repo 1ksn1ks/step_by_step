@@ -23,3 +23,40 @@ function pageBase() {
   if (typeof value !== "string" || !value) return "";
   return value.replace(/\/+$/, "");
 }
+
+const APP_ICON_EXT = /\.(?:jpe?g|png|webp)$/i;
+
+// An image this app uploaded: the public R2 origin (R2_PUBLIC_BASE), a path
+// under it, and a JPG, PNG or WebP name. A query, a hash, a user, another
+// host, or a path that climbs out is not. An empty base accepts nothing.
+export function isOwnR2Image(url, base = r2PublicBase()) {
+  const root = String(base || "").trim().replace(/\/+$/, "");
+  if (!root || typeof url !== "string") return false;
+  const text = url.trim();
+  if (!text || text.length > 2048 || text.includes("\\")) return false;
+  let image;
+  let home;
+  try {
+    image = new URL(text);
+    home = new URL(root);
+  } catch {
+    return false;
+  }
+  if (image.origin !== home.origin) return false;
+  if (image.username || image.password || image.search || image.hash) return false;
+  let path;
+  try {
+    path = decodeURIComponent(image.pathname);
+  } catch {
+    return false;
+  }
+  const homePath = home.pathname.replace(/\/+$/, "");
+  if (homePath) {
+    if (!path.startsWith(`${homePath}/`)) return false;
+  } else if (!path.startsWith("/")) {
+    return false;
+  }
+  const rest = path.slice(homePath.length + 1);
+  if (!rest || rest.split("/").some((part) => !part || part === "." || part === "..")) return false;
+  return APP_ICON_EXT.test(rest);
+}

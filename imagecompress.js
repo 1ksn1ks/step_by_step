@@ -117,6 +117,63 @@ function drawScaled(source, width, height, fill) {
   return canvas;
 }
 
+// A community install icon: JPG, PNG or WebP, cropped to the centre square
+// and never larger than APP_ICON_EDGE. The upload is that square.
+export const APP_ICON_EDGE = 512;
+export const APP_ICON_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+export function isAppIconFile(file) {
+  const type = String((file && file.type) || "").toLowerCase();
+  if (APP_ICON_TYPES.has(type)) return true;
+  return /\.(?:jpe?g|png|webp)$/i.test(String((file && file.name) || ""));
+}
+
+// The centre square of a w x h picture. Null when it has no pixels.
+export function squareCropBox(width, height) {
+  const w = Math.max(0, Math.round(Number(width) || 0));
+  const h = Math.max(0, Math.round(Number(height) || 0));
+  const side = Math.min(w, h);
+  if (!side) return null;
+  return { sx: Math.floor((w - side) / 2), sy: Math.floor((h - side) / 2), side };
+}
+
+export async function squareCenterFile(file, edge = APP_ICON_EDGE) {
+  let source;
+  try {
+    source = await decode(file);
+  } catch {
+    throw readError(file);
+  }
+  try {
+    const crop = squareCropBox(sizeOf(source).width, sizeOf(source).height);
+    if (!crop) throw readError(file);
+    const out = Math.max(1, Math.min(edge, crop.side));
+    const canvas = document.createElement("canvas");
+    canvas.width = out;
+    canvas.height = out;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw readError(file);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(source, crop.sx, crop.sy, crop.side, crop.side, 0, 0, out, out);
+    let blob = await toBlob(canvas, "image/webp", 0.85);
+    if (!blob || blob.type !== "image/webp") {
+      ctx.fillStyle = "#0a0a0a";
+      ctx.fillRect(0, 0, out, out);
+      ctx.drawImage(source, crop.sx, crop.sy, crop.side, crop.side, 0, 0, out, out);
+      blob = await toBlob(canvas, "image/jpeg", 0.85);
+    }
+    canvas.width = 0;
+    if (!blob || (blob.type !== "image/webp" && blob.type !== "image/jpeg")) throw readError(file);
+    return new File([blob], compressedName(file && file.name, blob.type), {
+      type: blob.type,
+      lastModified: (file && file.lastModified) || Date.now(),
+    });
+  } finally {
+    if (source && typeof source.close === "function") source.close();
+  }
+}
+
 // The post picture as WebP (or JPEG), ready for /api/upload.
 export async function compressPostImage(file, options = {}) {
   const maxEdge = options.maxEdge > 0 ? options.maxEdge : POST_IMAGE_EDGE;
