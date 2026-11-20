@@ -644,19 +644,15 @@ function boot() {
     }
     const field = shellForField(el);
     const shell = field.shell;
-    // The typing layer sets data-kb-skip, and findShell then returns no
-    // shell. Scrolling that mirror pans the page. Skip it. The pin itself
-    // stays until the typing screen is the only keyboard path.
-    const skipScroll = !!(el && el.closest && el.closest('#typing-screen, [data-kb-skip]'));
     if (!shell) {
-      if (below && !skipScroll) {
+      if (below) {
         try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (err) { /* older browsers */ }
       }
       paintDebug(metrics, open, null);
       return;
     }
     const frame = applyPin(shell, metrics);
-    if (field.scroller && !skipScroll) {
+    if (field.scroller) {
       try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (err) { /* older browsers */ }
       const next = el.getBoundingClientRect();
       const dy = scrollCorrection(next.top, next.bottom, metrics.offsetTop, edge);

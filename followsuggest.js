@@ -362,7 +362,6 @@ function viewportBox() {
 
 function place() {
   if (!openInput || !list || list.hidden) return;
-  if (list.closest && list.closest('#typing-screen')) return;
   const rect = openInput.getBoundingClientRect();
   const box = viewportBox();
   const gap = box.height * 0.005;
@@ -528,8 +527,6 @@ function onDocPointer(event) {
   if (!openInput) return;
   if (openInput.contains && openInput.contains(event.target)) return;
   if (list && list.contains(event.target)) return;
-  const target = event.target;
-  if (target && target.closest && target.closest('#typing-screen')) return;
   close();
 }
 
@@ -603,11 +600,9 @@ export function attachFollowSuggest(input, { kinds, submit, fill, dimMissing } =
   input.addEventListener('click', () => openFor(spec, true));
   input.addEventListener('input', () => {
     if (picking) return;
-    if (document.activeElement === input || input.hasAttribute('data-typing-live')) openFor(spec, false);
+    if (document.activeElement === input) openFor(spec, false);
   });
   input.addEventListener('blur', () => {
-    if (input.hasAttribute('data-typing-live')) return;
-    if (list && list.closest && list.closest('#typing-screen')) return;
     clearTimeout(blurTimer);
     blurTimer = setTimeout(() => {
       if (openInput === input) close();
@@ -639,13 +634,6 @@ function boot() {
   bindPickButton(document.getElementById('topic-chat-follow'), topic);
   bindPickButton(document.getElementById('encrypted-chat-follow'), e2ee);
   document.addEventListener('pointerdown', onDocPointer, true);
-  window.addEventListener('typing-screen', (event) => {
-    const detail = event.detail || {};
-    const spec = specs.find((item) => item.input && item.input.id === detail.fieldId);
-    if (!spec) return;
-    if (detail.phase === 'open') openFor(spec, true);
-    else if (detail.phase === 'close' && openInput === spec.input) close();
-  });
   document.addEventListener('profiles-loaded', () => {
     if (openInput && list && !list.hidden) render();
   });
