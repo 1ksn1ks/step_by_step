@@ -1,9 +1,183 @@
 import { map } from './map.js';
+import { visibleBottom } from './keyboardlayout.js';
 import { appAlreadyInstalled, runInstallPrompt, canPromptInstall, installPromptPending, installSteps } from './installapp.js';
 import { createInstallChoice } from './installchoice.js';
 
 // First-load onboarding. The install question is the first page.
 // An installed app skips the whole introduction.
+
+// How far the centred install card moves up so the Name field clears the
+// keyboard. Rects are layout coordinates, the same ones visibleBottom uses.
+// currentLift is already in the rects. A covered field moves up by the
+// overlap plus the gap, and never so far that the card top passes safeTop.
+export function onboardCardLift(spec) {
+  const field = Number(spec && spec.fieldBottom);
+  const top = Number(spec && spec.cardTop);
+  const edge = Number(spec && spec.visibleBottom);
+  const clearance = Number(spec && spec.gap);
+  const safe = Number(spec && spec.safeTop);
+  const have = Number(spec && spec.currentLift);
+  const held = Number.isFinite(have) && have > 0 ? have : 0;
+  if (![field, top, edge].every(Number.isFinite)) return held;
+  let coveredBy = field - (edge - (Number.isFinite(clearance) ? clearance : 0));
+  if (Math.abs(coveredBy) < 1) coveredBy = 0;
+  let next = held + coveredBy;
+  if (next < 0) next = 0;
+  const room = top + held - (Number.isFinite(safe) ? safe : 0);
+  if (next > room) next = room > 0 ? room : 0;
+  return next;
+}
+
+let unbindOnboardKeyboard = null;
+
+function keyboardEdge() {
+  const view = window.visualViewport;
+  const offsetTop = view && Number.isFinite(view.offsetTop) ? view.offsetTop : 0;
+  const height = view && view.height ? view.height : window.innerHeight;
+  const scale = view && Number.isFinite(view.scale) ? view.scale : 1;
+  return visibleBottom(offsetTop, height, window.innerHeight, scale);
+}
+
+function prefersStill() {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  catch { return false; }
+}
+
+// The overlay keeps its closed size. This only translates the card, and
+// only while the Name field is focused and the keyboard would cover it.
+function bindOnboardKeyboard(overlay, card) {
+  if (unbindOnboardKeyboard) unbindOnboardKeyboard();
+  let lift = 0;
+  let input = null;
+  let gap = 0;
+  let scrollTop = 0;
+  let restoreScroll = false;
+  let frame = 0;
+  const view = window.visualViewport;
+
+  function readGap() {
+    const prev = card.style.outlineOffset;
+    card.style.outlineOffset = 'var(--onboard-kb-gap)';
+    const n = parseFloat(getComputedStyle(card).outlineOffset);
+    card.style.outlineOffset = prev;
+    gap = Number.isFinite(n) && n > 0 ? n : 0;
+  }
+
+  function paint(next, slideHome) {
+    const home = slideHome && next === 0 && lift > 0 && !prefersStill();
+    lift = next;
+    if (next > 0) {
+      card.classList.remove('is-kb-return');
+      // Measured overlap. The unit is the pixel the viewport reported.
+      card.style.translate = `0 ${-next}px`;
+      return;
+    }
+    if (home) {
+      card.classList.add('is-kb-return');
+      card.style.translate = '0 0';
+      return;
+    }
+    card.classList.remove('is-kb-return');
+    card.style.translate = '';
+  }
+
+  function safeTop() {
+    const pad = parseFloat(getComputedStyle(overlay).paddingTop) || 0;
+    const origin = view && Number.isFinite(view.offsetTop) ? view.offsetTop : 0;
+    const top = overlay.getBoundingClientRect().top;
+    return Math.max(top + pad, origin + pad);
+  }
+
+  function measure() {
+    if (!overlay.isConnected || !input || !input.isConnected) {
+      paint(0, true);
+      input = null;
+      return;
+    }
+    if (restoreScroll && card.scrollTop !== scrollTop) card.scrollTop = scrollTop;
+    restoreScroll = false;
+    const next = onboardCardLift({
+      fieldBottom: input.getBoundingClientRect().bottom,
+      cardTop: card.getBoundingClientRect().top,
+      visibleBottom: keyboardEdge(),
+      gap,
+      safeTop: safeTop(),
+      currentLift: lift,
+    });
+    paint(next, next === 0);
+  }
+
+  function schedule() {
+    if (!input || frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      measure();
+    });
+  }
+
+  function onPointerDown(event) {
+    const node = event.target && event.target.closest && event.target.closest('.install-choice-input');
+    if (!node || !overlay.contains(node)) return;
+    scrollTop = card.scrollTop;
+    restoreScroll = true;
+  }
+
+  function onFocusIn(event) {
+    const node = event.target;
+    if (!node || !node.closest || !node.closest('.install-choice-input') || !overlay.contains(node)) return;
+    input = node;
+    readGap();
+    schedule();
+  }
+
+  function onFocusOut(event) {
+    const next = event.relatedTarget;
+    if (next && next.closest && next.closest('.install-choice-input') && overlay.contains(next)) return;
+    input = null;
+    restoreScroll = false;
+    paint(0, true);
+  }
+
+  function onTransitionEnd(event) {
+    if (event.propertyName !== 'translate' || event.target !== card || lift !== 0) return;
+    card.classList.remove('is-kb-return');
+    card.style.translate = '';
+  }
+
+  function onResize() {
+    readGap();
+    schedule();
+  }
+
+  overlay.addEventListener('pointerdown', onPointerDown, true);
+  overlay.addEventListener('focusin', onFocusIn);
+  overlay.addEventListener('focusout', onFocusOut);
+  card.addEventListener('transitionend', onTransitionEnd);
+  window.addEventListener('resize', onResize);
+  if (view) {
+    view.addEventListener('resize', schedule);
+    view.addEventListener('scroll', schedule);
+  }
+
+  unbindOnboardKeyboard = () => {
+    if (frame) cancelAnimationFrame(frame);
+    frame = 0;
+    input = null;
+    lift = 0;
+    overlay.removeEventListener('pointerdown', onPointerDown, true);
+    overlay.removeEventListener('focusin', onFocusIn);
+    overlay.removeEventListener('focusout', onFocusOut);
+    card.removeEventListener('transitionend', onTransitionEnd);
+    window.removeEventListener('resize', onResize);
+    if (view) {
+      view.removeEventListener('resize', schedule);
+      view.removeEventListener('scroll', schedule);
+    }
+    card.classList.remove('is-kb-return');
+    card.style.translate = '';
+    unbindOnboardKeyboard = null;
+  };
+}
 
 const INTRO = [
   {
@@ -224,6 +398,7 @@ function renderSlide(direction = 1) {
 
 function closeOnboarding() {
   if (!overlay) return;
+  if (unbindOnboardKeyboard) unbindOnboardKeyboard();
   const el = overlay;
   overlay = null;
   // Back/Forward: the overlay is removed from the DOM (no display to
@@ -356,6 +531,7 @@ function build() {
   content.append(iconEl, titleEl, bodyEl, rowsEl, reassureEl, dotsEl, introNav, installNav);
   card.appendChild(content);
   document.body.appendChild(overlay);
+  bindOnboardKeyboard(overlay, card);
   if (window.layerOpened) window.layerOpened("onboard");
 
   scrim.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, easing: 'ease-out' });

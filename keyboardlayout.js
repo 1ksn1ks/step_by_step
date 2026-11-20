@@ -634,6 +634,14 @@ function boot() {
       return;
     }
     document.documentElement.classList.toggle(KB_OPEN_CLASS, open);
+    // The install card stays centred in the full overlay. Pinning
+    // #onboard-overlay would squeeze that card under the browser bar.
+    // onboarding.js moves the card only when the Name field is covered.
+    if (el.closest && el.closest('#onboard-overlay')) {
+      if (pinned) releasePin();
+      paintDebug(metrics, open, null);
+      return;
+    }
     const rect = el.getBoundingClientRect();
     const below = fieldBelowVisible(rect.bottom, edge);
     const held = pinHeld(true, open, below, !!pinned, edge, stableH);

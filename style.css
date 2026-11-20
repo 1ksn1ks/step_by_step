@@ -6678,6 +6678,20 @@ html, body {
     z-index: 9000; /* below toasts (10000), above everything else */
   }
 
+  /* How far the Name field sits above the keyboard. The script reads this.
+     The swap warning uses the same card class and does not. */
+  #onboard-overlay {
+    --onboard-kb-gap: calc(var(--fu, var(--u, 1rem)) * 0.75);
+  }
+  #onboard-overlay .onboard-card.is-kb-return {
+    transition: translate var(--press-dur, 200ms) var(--press-ease, ease);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #onboard-overlay .onboard-card.is-kb-return {
+      transition: none;
+    }
+  }
+
   .onboard-scrim {
     position: absolute;
     inset: 0;
