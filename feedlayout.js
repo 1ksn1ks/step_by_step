@@ -10,7 +10,7 @@ import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
 import { initialTopicId } from './extracttopic.js';
 import { connectedAccount, updateUI } from './web3.js';
 import { toast } from './toast.js';
-import { handleAllMessages, mapFilterStale } from './handleallmessages.js';
+import { handleAllMessages, mapFilterStale, mapTopic, onMapTopic } from './handleallmessages.js';
 import { activeMarkerPopups } from './marker.js';
 import { activePolygonPopups } from './polygons.js';
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
@@ -66,7 +66,7 @@ import {
 } from './feedmerge.js';
 import { orderFresh, sortQueue } from './feedfresh.js';
 import { readFeedTopics } from './topicstack.js';
-import { consensusFrom, filterLabel, onTimeFilter, setTimeFilterFor, timeFilterFor, timeRange } from './timefilter.js';
+import { consensusFrom, filterLabel, onTimeFilter, timeFilterFor, timeRange } from './timefilter.js';
 import { createTimeChip } from './timefilterui.js';
 
 const LAYOUT_KEY = 'layoutMode';
@@ -290,11 +290,14 @@ postBtn.appendChild(svgIcon([
   ['path', { d: 'M5 12h14' }],
   ['path', { d: 'M12 5v14' }],
 ]));
-// The open topic's time filter (timefilter.js), shared with the map's chip.
+// The topic the feed last read (resetFeed); '' before it has read one.
+// Up here because the feed's time chip shows its filter from the start.
+let loadedTopic = '';
+// The feed's topic's time filter (timefilter.js); the map has its own chip.
 const feedTimeChip = createTimeChip({
   id: 'feed-time-filter',
   variant: 'feed',
-  onPick: (key) => setTimeFilterFor(topicNow(), key),
+  topic: feedChipTopic,
 });
 toolbar.append(menuAnchor, tools, feedTimeChip.el, searchBtnFeed, postBtn);
 const profileBanner = document.createElement('button');
@@ -384,12 +387,14 @@ mapCoordWrap.id = 'map-coord-wrap';
 if (mapCoords) mapCoordWrap.appendChild(mapCoords);
 if (mapCopy) mapCoordWrap.appendChild(mapCopy);
 if (mapClock) mapPills.appendChild(mapClock);
-// The map's copy of the time filter, by the clock.
+// The map's topic's time filter, by the clock. Each load of the map
+// (handleallmessages.js) repaints it for the topic it took.
 const mapTimeChip = createTimeChip({
   id: 'map-time-filter',
   variant: 'map',
-  onPick: (key) => setTimeFilterFor(topicNow(), key),
+  topic: mapChipTopic,
 });
+onMapTopic(() => mapTimeChip.refresh());
 mapPills.appendChild(mapTimeChip.el);
 mapPills.appendChild(mapCoordWrap);
 mapBar.append(mapMenuBtn, mapPills);
@@ -741,7 +746,6 @@ const tabRange = {
   all: { start: 0, end: 0 },
   following: { start: 0, end: 0 },
 };
-let loadedTopic = '';
 // The topics the feed reads (feedmerge.js): the open topic, then the
 // topics stacked on it once that list is read (topicstack.js, once per
 // open topic). Posts keep their own topic for likes, comments and shares.
@@ -4999,11 +5003,21 @@ function reloadFeed(topic) {
   else loadOlder();
 }
 
-// The chips follow the open topic's remembered filter.
+// The topic whose remembered filter each chip shows (and a pick sets): the
+// one its view read last, or before it has read one, the open topic it
+// will read. #input-field can already hold another (typed, filled from a
+// bio, a domain name) until Load; the map then still shows its own.
+function feedChipTopic() {
+  return loadedTopic || topicNow();
+}
+
+function mapChipTopic() {
+  return mapTopic() || topicNow();
+}
+
 function paintTimeChips() {
-  const key = timeFilterFor(topicNow());
-  feedTimeChip.paint(key);
-  mapTimeChip.paint(key);
+  feedTimeChip.refresh();
+  mapTimeChip.refresh();
 }
 
 function ensureTopic(opening) {
@@ -5050,13 +5064,13 @@ function syncCover() {
   syncFeedVideos();
 }
 
-// A new time filter for the open topic: the feed and the map read it again.
-// What is not on screen reloads when it comes back (ensureTopic, syncCover).
+// A new time filter: the feed and the map read it again when it is for the
+// topic they show (the chips repaint themselves, timefilterui.js). The map
+// reloads that topic, not one only typed into #input-field. What is not on
+// screen reloads when it comes back (ensureTopic, syncCover).
 onTimeFilter(({ topic }) => {
-  paintTimeChips();
-  if (topic !== topicNow()) return;
   if (feedOn() && !root.classList.contains('is-peek') && topic === loadedTopic) reloadFeed(topic);
-  if (!document.documentElement.classList.contains('feed-app')) handleAllMessages();
+  if (!document.documentElement.classList.contains('feed-app') && topic === mapChipTopic()) handleAllMessages(topic);
 });
 
 // Opening the feed rises it in over the map; closing drops it away to the

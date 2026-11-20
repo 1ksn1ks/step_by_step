@@ -275,11 +275,34 @@ if (sortTopicsZa) {
 }
 
 // The topic and time filter the map was last loaded with. The feed reloads
-// the map when it uncovers it and the filter has changed since (syncCover).
+// the map when it uncovers it and the filter has changed since (syncCover),
+// and the map's time chip shows that topic's filter: mapTopic(), and
+// onMapTopic(fn) runs each time a load takes a topic.
 let mapApplied = null;
+const mapTopicListeners = new Set();
 
 export function mapFilterStale() {
   return !!mapApplied && timeFilterFor(mapApplied.topic) !== mapApplied.key;
+}
+
+export function mapTopic() {
+  return mapApplied ? mapApplied.topic : '';
+}
+
+export function onMapTopic(fn) {
+  mapTopicListeners.add(fn);
+  return () => mapTopicListeners.delete(fn);
+}
+
+function applyMapTopic(topic, key) {
+  mapApplied = { topic, key };
+  for (const fn of mapTopicListeners) {
+    try {
+      fn(topic);
+    } catch (error) {
+      console.warn('map topic listener failed', error);
+    }
+  }
 }
 
 // With a range, a topic whose newest message is older than it is not read:
@@ -304,9 +327,12 @@ function sortTopicRows(list) {
   });
 }
 
-export async function handleAllMessages() {
+// topic: load this topic id instead of what #input-field holds. The map's
+// time chip reloads the topic the map shows; the field may hold one that
+// was typed or filled in but not loaded yet.
+export async function handleAllMessages(topic) {
     try {
-      const userInput = document.getElementById("input-field").value.toLowerCase();
+      const userInput = (typeof topic === "string" && topic ? topic : document.getElementById("input-field").value).toLowerCase();
       const accountMatch = userInput.trim().match(/^(0\.0\.\d+)(?:-[a-z0-9]+)?$/);
       // An account id shares the 0.0. shape with a topic. Stop here, before
       // any stored map data is cleared, even when the profile hook is absent.
@@ -381,7 +407,7 @@ export async function handleAllMessages() {
       // range are drawn (processallmessages.js publishApprovedDrawings).
       const filterKey = timeFilterFor(topicId);
       const range = timeRange(filterKey);
-      mapApplied = { topic: topicId, key: filterKey };
+      applyMapTopic(topicId, filterKey);
       const drawToken = beginMapDraw(range);
 
       const result = await getMessages(topicId);

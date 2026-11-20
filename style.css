@@ -2404,11 +2404,12 @@ html, body {
      row and the feed row are the same height in the same window. Keep
      --map-bar-h in step with --page-bar-h there.
      Contents fill the row: text at 0.78 of the height keeps the line box
-     (ascender to descender) just inside it. Clock plus the longest
-     coordinates are about 23em of Arial, and the time filter's calendar
-     (#map-time-filter, about 1.6em at rest) sits after the clock, so the
-     25.6 divisor shrinks the text on narrow screens until the whole row
-     fits the width. */
+     (ascender to descender) just inside it. The 25.6 divisor shrinks the
+     text on narrow screens until the whole row fits the width: the clock,
+     the time filter after it (#map-time-filter, its calendar and name,
+     about 3.4em for All, 5em for Month) and the coordinates. With Month
+     the longest usual coordinates still fit at 320 and 390px wide; they
+     end in an ellipsis before the row would overflow. */
   #map-topbar {
     --map-bar-col: 100dvw;
     --map-bar-fu: calc(min(100dvw, var(--map-bar-col)) * 0.024);
@@ -25322,27 +25323,37 @@ html.is-draw-picking .live-filter {
   flex-direction: column;
   gap: 2px;
 }
-/* One range each for Distance and Time. The track is the panel's dim
-   line, the thumb its cyan, a little larger than the label. Sizes are em
-   of the panel's font, so a wide screen does not grow the thumb. The
-   track is inset by half a thumb: at either end the thumb sits inside
-   the row, lined up with the rows above, and the panel does not clip it.
-   touch-action: none so a finger drag moves the thumb (the panel itself
-   scrolls on pan-y). Arrow keys step one unit (livegroups.js addSlider). */
+/* One row each for Distance and Time: −, the range, +. The track is the
+   panel's dim line, the thumb its cyan, about twice the 11px label. Sizes
+   are em of the panel's font: the range and the buttons inherit it rather
+   than each browser's own control font, so WebKit and Firefox draw the
+   same thumb, and a wide screen does not grow it. The track is inset by
+   half a thumb: at either end the thumb sits inside the range, clear of
+   the buttons, and the panel does not clip it (livegroups.js rangePosAt
+   reads the two paddings as the thumb's width). touch-action: none so a
+   finger drag moves the thumb (the panel itself scrolls on pan-y). A drag
+   snaps to round values; arrow keys and − / + step one unit
+   (livegroups.js addSlider). */
+.live-settings-slider-row {
+  --live-thumb: 1.4em;
+  --live-track: 0.22em;
+  display: flex;
+  align-items: stretch;
+}
 .live-settings-slider {
-  --live-thumb: 1.15em;
-  --live-track: 0.18em;
   -webkit-appearance: none;
   appearance: none;
   display: block;
+  flex: 1 1 0;
+  min-width: 0;
   box-sizing: border-box;
-  width: 100%;
   height: var(--live-thumb);
   margin: 0;
   padding: 0 calc(var(--live-thumb) / 2);
   overflow: visible;
   background: transparent;
   color: #22D3EE;
+  font-size: inherit;
   cursor: pointer;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
@@ -25364,10 +25375,10 @@ html.is-draw-picking .live-filter {
   width: var(--live-thumb);
   height: var(--live-thumb);
   margin-top: calc((var(--live-track) - var(--live-thumb)) / 2);
-  border: 0.08em solid #22D3EE;
+  border: 0.12em solid #22D3EE;
   border-radius: 50%;
   background: #ECFEFF;
-  box-shadow: 0 0 0.35em rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 0.4em rgba(34, 211, 238, 0.5);
 }
 .live-settings-slider:focus-visible::-webkit-slider-thumb {
   outline: 0.06em solid rgba(34, 211, 238, 0.75);
@@ -25383,50 +25394,88 @@ html.is-draw-picking .live-filter {
   box-sizing: border-box;
   width: var(--live-thumb);
   height: var(--live-thumb);
-  border: 0.08em solid #22D3EE;
+  border: 0.12em solid #22D3EE;
   border-radius: 50%;
   background: #ECFEFF;
-  box-shadow: 0 0 0.35em rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 0.4em rgba(34, 211, 238, 0.5);
 }
 .live-settings-slider:focus-visible::-moz-range-thumb {
   outline: 0.06em solid rgba(34, 211, 238, 0.75);
   outline-offset: 0.08em;
 }
-/* A finger is far bigger than the thumb. On a touch screen the range is
-   a 44px strip, with the track in its middle, so a touch anywhere on it
-   grabs the slider. The strip takes the gap above it (the section's 6px)
-   and below it (the panel's 10px), so it meets the hint and the next row
-   without covering them. iOS starts a drag only on the thumb itself, so
-   the WebKit thumb is 44px tall too, one thumb wide, so the travel and
-   both ends do not move. The same circle is painted in its middle: one
-   gradient for the fill and the ring (a transparent border would be
-   rounded to whole device pixels and stretch it), and the glow is a
-   drop-shadow of that circle. Firefox grabs from anywhere on the range,
-   so its thumb stays as it is. */
+/* − and +: a ring the thumb's size, dim so it does not read as a second
+   thumb, in a box as tall as the row and a little wider than the ring.
+   aria-disabled at either end of the range. */
+.live-settings-step {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--live-thumb) + 0.75em);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #ECFEFF;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.live-settings-step:focus {
+  outline: none;
+}
+.live-settings-step-face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--live-thumb);
+  height: var(--live-thumb);
+  border: 0.08em solid rgba(34, 211, 238, 0.5);
+  border-radius: 50%;
+  background: rgba(34, 211, 238, 0.1);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.live-settings-step svg {
+  width: 0.75em;
+  height: 0.75em;
+}
+@media (hover: hover) and (pointer: fine) {
+  .live-settings-step:hover .live-settings-step-face {
+    border-color: #22D3EE;
+  }
+}
+.live-settings-step.is-pressed .live-settings-step-face {
+  border-color: #22D3EE;
+  background: rgba(34, 211, 238, 0.3);
+}
+.live-settings-step:focus-visible .live-settings-step-face {
+  outline: 0.06em solid rgba(34, 211, 238, 0.75);
+  outline-offset: 0.08em;
+}
+.live-settings-step[aria-disabled="true"] {
+  cursor: default;
+}
+.live-settings-step[aria-disabled="true"] .live-settings-step-face {
+  opacity: 0.35;
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-settings-step-face { transition: none; }
+}
+/* A finger is far bigger than the thumb. On a touch screen the row is a
+   44px strip, with the track in its middle, so a touch anywhere on the
+   range moves the thumb there (livegroups.js places it from pointer
+   events, iOS too) and − / + are as tall. The strip takes the gap above
+   it (the section's 6px) and below it (the panel's 10px), so it meets
+   the hint and the next row without covering them. */
 @media (pointer: coarse) {
-  .live-settings-slider {
+  .live-settings-slider-row {
     --live-hit: max(44px, var(--live-thumb));
-    --live-ring: 0.08em;
-    height: var(--live-hit);
     margin: -6px 0 -10px;
   }
-  /* An outline would ring the whole tall box; thicken the ring instead. */
-  .live-settings-slider:focus-visible {
-    --live-ring: 0.2em;
-  }
-  .live-settings-slider::-webkit-slider-thumb,
-  .live-settings-slider:focus-visible::-webkit-slider-thumb {
+  .live-settings-slider {
     height: var(--live-hit);
-    margin-top: calc((var(--live-track) - var(--live-hit)) / 2);
-    border: 0;
-    border-radius: 0;
-    outline: none;
-    background: radial-gradient(circle closest-side,
-      #ECFEFF calc(100% - var(--live-ring) - 0.5px),
-      #22D3EE calc(100% - var(--live-ring)) calc(100% - 0.5px),
-      transparent 100%);
-    box-shadow: none;
-    filter: drop-shadow(0 0 0.175em rgba(34, 211, 238, 0.45));
   }
 }
 .live-settings-look {
@@ -26296,12 +26345,12 @@ html.is-draw-picking .live-filter {
 }
 
 /* ── Time filter (timefilter.js, timefilterui.js)
-   All / Today / This week / This month for the open topic, shared by the
-   feed and the map. Feed: a chip in the toolbar beside search, the height
-   of that button. Map: by the clock in the top bar, at the clock's text
-   size; at All only its calendar shows, so the coordinates keep their
-   room, and a set filter shows its name. Set, it is cyan like the post
-   button. The menu is the app's dark glass, 2.75rem rows. */
+   All / Today / This week / This month for the open topic, remembered
+   per topic. Feed: a chip in the toolbar beside search, the height of
+   that button. Map: by the clock in the top bar, at the clock's text
+   size. The chip always shows the filter in use, All included: its name
+   by the calendar, cyan like the post button, the same for every choice.
+   The menu is the app's dark glass, 2.75rem rows. */
 .time-filter {
   position: relative;
   flex: 0 0 auto;
@@ -26317,10 +26366,10 @@ html.is-draw-picking .live-filter {
   gap: 0.35em;
   margin: 0;
   box-sizing: border-box;
-  border: 0.0625rem solid rgba(255, 255, 255, 0.22);
+  border: 0.0625rem solid #22D3EE;
   border-radius: 2em;
-  background: rgba(255, 255, 255, 0.10);
-  color: #fff;
+  background: rgba(8, 51, 68, 0.6);
+  color: #22D3EE;
   font-family: Inter, system-ui, sans-serif;
   line-height: 1;
   white-space: nowrap;
@@ -26346,11 +26395,6 @@ html.is-draw-picking .live-filter {
   height: 1.15em;
   pointer-events: none;
 }
-.time-filter-chip.is-on {
-  border-color: #22D3EE;
-  background: rgba(8, 51, 68, 0.6);
-  color: #22D3EE;
-}
 .time-filter-chip:focus {
   outline: none;
 }
@@ -26360,7 +26404,7 @@ html.is-draw-picking .live-filter {
 }
 @media (hover: hover) and (pointer: fine) {
   .time-filter-chip:hover {
-    border-color: rgba(34, 211, 238, 0.7);
+    background: rgba(8, 51, 68, 0.85);
   }
 }
 .time-filter.is-feed .time-filter-chip {
@@ -26376,17 +26420,8 @@ html.is-draw-picking .live-filter {
 #map-topbar .time-filter.is-map .time-filter-chip {
   height: calc(var(--map-bar-h) - 0.125rem);
   padding: 0 0.3em;
-  border-color: transparent;
-  background: transparent;
   font-family: Arial, sans-serif;
   font-size: var(--map-bar-text);
-}
-#map-topbar .time-filter.is-map .time-filter-chip:not(.is-on) .time-filter-label {
-  display: none;
-}
-#map-topbar .time-filter.is-map .time-filter-chip.is-on {
-  border-color: #22D3EE;
-  background: rgba(8, 51, 68, 0.6);
 }
 .time-filter-menu {
   position: absolute;

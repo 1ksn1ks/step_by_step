@@ -1,11 +1,15 @@
 // timefilterui.js — the time filter chip (feed toolbar, map top bar).
 //
-// A chip shows the open topic's filter ("All", "Today", "Week", "Month");
-// a tap opens a short menu of the four choices. Picking one calls onPick;
-// timefilter.js remembers it per topic and the feed and the map reload.
-// The menu closes on a pick, Escape, or a press anywhere else.
+// A chip shows the filter of its view's topic ("All", "Today", "Week",
+// "Month"), All the same as the others; a tap opens a short menu of the
+// four choices. topic() names the topic the view shows, and the chip
+// always paints timeFilterFor(topic()): when it is made, on every filter
+// change, when its menu opens, and on refresh() (the view's topic
+// changed). Picking one remembers it for topic() (timefilter.js), and the
+// feed and the map reload. The menu closes on a pick, Escape, or a press
+// anywhere else.
 
-import { TIME_FILTERS, filterLabel } from './timefilter.js';
+import { TIME_FILTERS, filterLabel, onTimeFilter, setTimeFilterFor, timeFilterFor } from './timefilter.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -29,8 +33,9 @@ function calendarIcon() {
   return svg;
 }
 
-// variant: 'feed' | 'map' (style.css sizes each to its bar).
-export function createTimeChip({ id, variant, onPick }) {
+// variant: 'feed' | 'map' (style.css sizes each to its bar). topic: a
+// function returning the topic id the chip's view shows ('' when none).
+export function createTimeChip({ id, variant, topic }) {
   const wrap = document.createElement('div');
   wrap.className = `time-filter is-${variant}`;
   const chip = document.createElement('button');
@@ -56,7 +61,7 @@ export function createTimeChip({ id, variant, onPick }) {
     item.addEventListener('click', (event) => {
       event.stopPropagation();
       close(true);
-      onPick(filter.key);
+      setTimeFilterFor(topic(), filter.key);
     });
     menu.appendChild(item);
     return item;
@@ -68,6 +73,7 @@ export function createTimeChip({ id, variant, onPick }) {
     if (!wrap.contains(event.target)) close(false);
   };
   function open() {
+    refresh();
     menu.hidden = false;
     chip.setAttribute('aria-expanded', 'true');
     wrap.classList.add('is-open');
@@ -103,16 +109,22 @@ export function createTimeChip({ id, variant, onPick }) {
   // A press inside never reaches the page behind (the map, a feed card).
   wrap.addEventListener('click', (event) => event.stopPropagation());
 
+  // One look for every choice, All included: it is the filter in use.
   function paint(key) {
     current = key;
+    chip.dataset.filter = key;
     label.textContent = filterLabel(key, true);
-    const on = key !== 'all';
-    chip.classList.toggle('is-on', on);
     const spoken = `Time: ${filterLabel(key)}`;
     chip.setAttribute('aria-label', spoken);
     chip.title = spoken;
     for (const item of items) item.setAttribute('aria-checked', item.dataset.key === key ? 'true' : 'false');
   }
-  paint('all');
-  return { el: wrap, paint, close: () => close(false) };
+  function refresh() {
+    paint(timeFilterFor(topic()));
+  }
+  // Any topic's change: a change to this one, or one the view is about to
+  // show, paints the same way.
+  onTimeFilter(refresh);
+  refresh();
+  return { el: wrap, refresh, close: () => close(false) };
 }
