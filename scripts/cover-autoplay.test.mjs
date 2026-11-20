@@ -490,4 +490,11 @@ test("topic load stores the autoplay token before drawings are published", () =>
   assert.match(rest, /autoplayConfigMessage\(tokenId\)/);
   assert.match(rest, /readUniqueNft\(tokenId\)/);
   assert.match(rest, /sendMessage\(topicId, message\)/);
+  const changeAt = rest.indexOf('getElementById("app-icon-file").addEventListener("change"');
+  const clearAt = rest.indexOf('getElementById("submit-button-clear-app-icon").addEventListener');
+  const change = rest.slice(changeAt, clearAt);
+  const clear = rest.slice(clearAt, rest.indexOf("submit-button-remove-rules-for-polygons", clearAt));
+  assert.match(rest, /Only this topic's memo admins can set its app icon\./);
+  assert.ok(change.indexOf("maySetAppIcon") !== -1 && change.indexOf("maySetAppIcon") < change.indexOf("squareCenterFile"));
+  assert.ok(clear.indexOf("maySetAppIcon") !== -1 && clear.indexOf("maySetAppIcon") < clear.indexOf("sendAppIcon"));
 });

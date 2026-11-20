@@ -857,6 +857,21 @@ function setAppIconBusy(on) {
   if (clear) clear.disabled = on;
 }
 
+async function maySetAppIcon() {
+  const topicId = utilityTopicId();
+  if (!topicId) {
+    toast.error("Please enter a Topic ID or domain.");
+    return false;
+  }
+  const info = await getTopicInfo(topicId);
+  const admins = adminsFromMemo(info && info.memo);
+  if (!admins.length || !admins.includes(connectedAccount)) {
+    toast.error("Only this topic's memo admins can set its app icon.");
+    return false;
+  }
+  return true;
+}
+
 async function sendAppIcon(url) {
   if (!signer) {
     toast.error("Connect wallet first");
@@ -891,6 +906,7 @@ document.getElementById("app-icon-file").addEventListener("change", async () => 
     toast.error("Use a JPG, PNG or WebP image.");
     return;
   }
+  if (!(await maySetAppIcon())) return;
   const previous = appIconShown.startsWith("blob:") ? "" : appIconShown;
   const uploadBtn = document.getElementById("submit-button-upload-app-icon");
   setAppIconBusy(true);
@@ -921,6 +937,7 @@ document.getElementById("submit-button-clear-app-icon").addEventListener("click"
   if (appIconBusy) return;
   setAppIconBusy(true);
   try {
+    if (!(await maySetAppIcon())) return;
     const sent = await sendAppIcon("");
     if (sent) showAppIconPreview("");
   } catch (error) {
