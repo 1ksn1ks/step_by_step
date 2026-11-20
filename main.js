@@ -2,6 +2,7 @@ import './dprcap.js';
 import './keyboardlayout.js';
 import './ipfsimage.js';
 import './historyLayers.js';
+import './typingscreen-bind.js';
 import './map.js';
 import './toast.js';
 import './fieldclear.js';

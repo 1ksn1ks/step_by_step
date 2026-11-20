@@ -112,7 +112,8 @@ if (firstCircle) firstCircle.addEventListener('error', () => useFallback(firstCi
 function keepDraft(event, input, apply) {
   // A save clears the box from code. That is not a new draft, so the card
   // goes back to the name, link, or bio that was just stored.
-  apply(event.isTrusted ? input.value : null);
+  const live = input.hasAttribute('data-typing-live');
+  apply(event.isTrusted || live ? input.value : null);
   render();
 }
 
