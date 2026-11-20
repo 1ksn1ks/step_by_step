@@ -2,7 +2,7 @@
 // one rule (loadcurrenttopic.js: at most 12, newest adds first, ids cleaned,
 // one level deep), three at a time with a time limit per topic, and the
 // feed pages them as one list in consensus order (feedmerge.js). A time
-// filter (timefilter.js) narrows both to today, this week or this month.
+// filter (timefilter.js) narrows both to the last 24 hours, 7 days or 30 days.
 // The feed and map modules touch document on import, so their wiring is
 // checked from source.
 import test from "node:test";
@@ -492,7 +492,7 @@ test("the map reads its topics three at a time, gives each about 6 s, and one fa
   assert.doesNotMatch(pic, /for \(const topicId of loadedTopicsIds\)/);
 });
 
-// --- Time filters: All, Today, This week, This month ------------------------
+// --- Time filters: All, Last 24h, Last 7 days, Last 30 days -----------------
 
 // Local time is the person's: each case runs in a named zone.
 function inZone(zone, fn) {
@@ -508,44 +508,53 @@ function inZone(zone, fn) {
 
 const local = (y, m, d, h = 0, min = 0) => new Date(y, m - 1, d, h, min).getTime();
 
-test("today, this week and this month start at local midnight, on Monday, and on the 1st", () => {
-  assert.deepEqual(TIME_FILTERS.map((f) => f.key), ["all", "today", "week", "month"]);
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+test("last 24h, 7 days and 30 days end now, and the keys stay today, week and month", () => {
+  assert.deepEqual(TIME_FILTERS.map((f) => [f.key, f.label, f.short]), [
+    ["all", "All", "All"],
+    ["today", "Last 24h", "24h"],
+    ["week", "Last 7 days", "7d"],
+    ["month", "Last 30 days", "30d"],
+  ]);
   for (const zone of ["Europe/Belgrade", "America/New_York", "Asia/Tokyo", "UTC"]) {
     inZone(zone, () => {
-      // Tuesday 17 Nov 2026, 15:30 local.
       const now = new Date(2026, 10, 17, 15, 30);
+      const t = now.getTime();
       assert.equal(timeRange("all", now), null, zone);
-      assert.deepEqual(timeRange("today", now), { from: local(2026, 11, 17), to: local(2026, 11, 18) }, zone);
-      assert.deepEqual(timeRange("week", now), { from: local(2026, 11, 16), to: local(2026, 11, 23) }, zone);
-      assert.deepEqual(timeRange("month", now), { from: local(2026, 11, 1), to: local(2026, 12, 1) }, zone);
-      // A Sunday belongs to the week that began the Monday before.
-      assert.deepEqual(timeRange("week", new Date(2026, 10, 22, 23, 59)), { from: local(2026, 11, 16), to: local(2026, 11, 23) }, zone);
-      // Monday just after midnight starts a new week.
-      assert.deepEqual(timeRange("week", new Date(2026, 10, 23, 0, 1)), { from: local(2026, 11, 23), to: local(2026, 11, 30) }, zone);
-      // December runs into January; a week can run across a month.
-      assert.deepEqual(timeRange("month", new Date(2026, 11, 31, 23, 0)), { from: local(2026, 12, 1), to: local(2027, 1, 1) }, zone);
-      assert.deepEqual(timeRange("week", new Date(2026, 11, 31, 12)), { from: local(2026, 12, 28), to: local(2027, 1, 4) }, zone);
+      assert.deepEqual(timeRange("today", now), { from: t - DAY_MS, to: t }, zone);
+      assert.deepEqual(timeRange("week", now), { from: t - 7 * DAY_MS, to: t }, zone);
+      assert.deepEqual(timeRange("month", now), { from: t - 30 * DAY_MS, to: t }, zone);
     });
   }
 });
 
-test("a day around a clock change still runs midnight to midnight, local time", () => {
+test("a rolling window keeps its length across a clock change", () => {
   inZone("Europe/Belgrade", () => {
-    // Clocks went back on Sunday 25 Oct 2026: that day is 25 hours long.
+    // Clocks went back on Sunday 25 Oct 2026. The window is still 24 hours.
     const day = timeRange("today", new Date(2026, 9, 25, 12));
-    assert.equal(day.to - day.from, 25 * 3600 * 1000);
-    assert.equal(new Date(day.from).getHours(), 0);
-    assert.equal(new Date(day.to).getHours(), 0);
-    // That week (Mon 19 to Mon 26 Oct) is 7 days and an hour.
+    assert.equal(day.to - day.from, DAY_MS);
     const week = timeRange("week", new Date(2026, 9, 25, 12));
-    assert.equal(week.to - week.from, (7 * 24 + 1) * 3600 * 1000);
-    assert.equal(new Date(week.from).getDay(), 1);
+    assert.equal(week.to - week.from, 7 * DAY_MS);
   });
   inZone("America/New_York", () => {
-    // Clocks went forward on Sunday 8 Mar 2026: a 23-hour day.
+    // Clocks went forward on Sunday 8 Mar 2026.
     const day = timeRange("today", new Date(2026, 2, 8, 12));
-    assert.equal(day.to - day.from, 23 * 3600 * 1000);
+    assert.equal(day.to - day.from, DAY_MS);
+    const month = timeRange("month", new Date(2026, 2, 8, 12));
+    assert.equal(month.to - month.from, 30 * DAY_MS);
   });
+});
+
+test("a range the feed or the map kept is measured when it is used", async () => {
+  const range = timeRange("today");
+  const taken = range.to;
+  assert.ok(Math.abs(range.to - range.from - DAY_MS) < 50);
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  assert.ok(range.to > taken, "the end moves with the clock");
+  assert.ok(range.from > taken - DAY_MS, "the start moves with the clock");
+  assert.equal(inTimeRange(taken + 10, range), true, "a post that arrives after the range was taken is still in");
+  assert.equal(inTimeRange(taken - DAY_MS - 1, range), false);
 });
 
 test("posts are matched by consensus timestamp, and range reads ask the mirror from the range start", () => {
@@ -607,7 +616,7 @@ test("a stacked topic whose newest message is older than the range is not read",
     assert.equal(isStale(thisMonth, today), false);
     assert.equal(isStale("", today), false, "unknown is read");
     assert.equal(isStale(lastMonth, null), false, "All reads everything");
-    // A year topic with twelve months: "Today" reads the open topic and the current month.
+    // A year topic with twelve months: the last 24h reads the open topic and the current month.
     const months = Array.from({ length: 12 }, (_, i) => ({ id: `0.0.${200 + i}`, latest: consensusAt(local(2026, i + 1, 28)) }));
     months[10].latest = thisMonth; // November, still being posted to
     months[11].latest = ""; // December: never read on this device

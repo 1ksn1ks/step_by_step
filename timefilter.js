@@ -1,10 +1,13 @@
-// timefilter.js — All / Today / This week / This month, for the feed and
-// the map of an open topic.
+// timefilter.js — All / Last 24h / Last 7 days / Last 30 days, for the feed
+// and the map of an open topic.
 //
-// A range is [from, to) in ms, in the person's local time: today starts at
-// local midnight, a week on Monday, a month on the 1st. Posts are matched by
-// their message's consensus timestamp. The choice is remembered per topic
-// on this device and the feed and the map share it.
+// A range is [from, to) in ms, ending now: the last 24 hours, the last 7
+// days, or the last 30 days. Posts are matched by their message's consensus
+// timestamp. The choice is remembered per topic on this device under the
+// keys today, week and month, and the feed and the map share it. A range
+// the feed or the map kept reads the clock when it is applied, so it does
+// not stay at the moment the filter was chosen, and a post that arrives
+// later is still inside.
 //
 // No DOM here (timefilterui.js draws the chip). The feed reads with the
 // mirror's timestamp=gte: from consensusFrom(range); both views skip a
@@ -12,9 +15,9 @@
 
 export const TIME_FILTERS = Object.freeze([
   { key: 'all', label: 'All', short: 'All' },
-  { key: 'today', label: 'Today', short: 'Today' },
-  { key: 'week', label: 'This week', short: 'Week' },
-  { key: 'month', label: 'This month', short: 'Month' },
+  { key: 'today', label: 'Last 24h', short: '24h' },
+  { key: 'week', label: 'Last 7 days', short: '7d' },
+  { key: 'month', label: 'Last 30 days', short: '30d' },
 ]);
 
 const KEYS = new Set(TIME_FILTERS.map((f) => f.key));
@@ -30,20 +33,29 @@ export function filterLabel(key, short = false) {
   return short ? hit.short : hit.label;
 }
 
-// [from, to) for a filter at `now`, or null for All. Local calendar
-// arithmetic (new Date(y, m, d)), so a day that is 23 or 25 hours long
-// around a clock change still ends at the next local midnight.
-export function timeRange(key, now = new Date()) {
-  const y = now.getFullYear();
-  const m = now.getMonth();
-  const d = now.getDate();
-  if (key === 'today') return { from: new Date(y, m, d).getTime(), to: new Date(y, m, d + 1).getTime() };
-  if (key === 'week') {
-    const sinceMonday = (now.getDay() + 6) % 7;
-    return { from: new Date(y, m, d - sinceMonday).getTime(), to: new Date(y, m, d - sinceMonday + 7).getTime() };
+const HOUR_MS = 60 * 60 * 1000;
+const WINDOW_MS = {
+  today: 24 * HOUR_MS,
+  week: 7 * 24 * HOUR_MS,
+  month: 30 * 24 * HOUR_MS,
+};
+
+// [from, to) ending now, or null for All. Without `now`, from and to are
+// read when the range is used: the feed and the map keep the object and
+// apply it later, and both ends are the current time then. With `now`,
+// both ends are that moment.
+export function timeRange(key, now) {
+  const span = WINDOW_MS[key];
+  if (!span) return null;
+  if (now == null) {
+    return {
+      get from() { return Date.now() - span; },
+      get to() { return Date.now(); },
+    };
   }
-  if (key === 'month') return { from: new Date(y, m, 1).getTime(), to: new Date(y, m + 1, 1).getTime() };
-  return null;
+  const end = now instanceof Date ? now.getTime() : Number(now);
+  const at = Number.isFinite(end) ? end : Date.now();
+  return { from: at - span, to: at };
 }
 
 // A consensus timestamp ("seconds.nanos") for ms, as the mirror takes it.

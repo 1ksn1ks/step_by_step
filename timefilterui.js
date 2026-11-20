@@ -1,7 +1,7 @@
 // timefilterui.js — the time filter chip (feed toolbar, map top bar).
 //
-// A chip shows the filter of its view's topic ("All", "Today", "Week",
-// "Month"), All the same as the others; a tap opens a short menu of the
+// A chip shows the filter of its view's topic ("All", "24h", "7d",
+// "30d"), All the same as the others; a tap opens a short menu of the
 // four choices. topic() names the topic the view shows, and the chip
 // always paints timeFilterFor(topic()): when it is made, on every filter
 // change, when its menu opens, and on refresh() (the view's topic

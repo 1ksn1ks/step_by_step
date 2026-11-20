@@ -26505,7 +26505,7 @@ html.is-draw-picking .live-filter {
 }
 
 /* ── Time filter (timefilter.js, timefilterui.js)
-   All / Today / This week / This month for the open topic, remembered
+   All / Last 24h / Last 7 days / Last 30 days for the open topic, remembered
    per topic. Feed: a chip in the toolbar beside search, the height of
    that button. Map: by the clock in the top bar, at the clock's text
    size. The chip always shows the filter in use, All included: its name

@@ -95,7 +95,7 @@ function pick(ui, key) {
 test("a chip shows its topic's remembered filter from its first paint, not All", () => {
   setTimeFilterFor("0.0.101", "week");
   const ui = createTimeChip({ id: "t1", variant: "map", topic: () => "0.0.101" });
-  assert.deepEqual(shows(ui), { label: "Week", spoken: "Time: This week", checked: ["week"], filter: "week" });
+  assert.deepEqual(shows(ui), { label: "7d", spoken: "Time: Last 7 days", checked: ["week"], filter: "week" });
   // A topic with nothing remembered is All, and that is what it shows.
   const fresh = createTimeChip({ id: "t2", variant: "feed", topic: () => "0.0.102" });
   assert.deepEqual(shows(fresh), { label: "All", spoken: "Time: All", checked: ["all"], filter: "all" });
@@ -106,7 +106,7 @@ test("when the view's topic changes, refresh() shows the new topic's filter (com
   setTimeFilterFor("0.0.202", "month");
   let topic = "0.0.201";
   const ui = createTimeChip({ id: "t3", variant: "map", topic: () => topic });
-  assert.equal(shows(ui).label, "Today");
+  assert.equal(shows(ui).label, "24h");
   topic = "0.0.202";
   ui.refresh();
   assert.deepEqual(shows(ui).checked, ["month"]);
@@ -115,7 +115,7 @@ test("when the view's topic changes, refresh() shows the new topic's filter (com
   assert.equal(shows(ui).label, "All");
   topic = "0.0.201";
   ui.refresh();
-  assert.equal(shows(ui).label, "Today");
+  assert.equal(shows(ui).label, "24h");
 });
 
 test("a pick sets the filter of the chip's topic, and every chip on that topic follows", () => {
@@ -124,8 +124,8 @@ test("a pick sets the filter of the chip's topic, and every chip on that topic f
   const other = createTimeChip({ id: "t6", variant: "map", topic: () => "0.0.302" });
   pick(map, "today");
   assert.equal(timeFilterFor("0.0.301"), "today");
-  assert.equal(shows(map).label, "Today");
-  assert.equal(shows(feed).label, "Today", "the feed's chip without a refresh");
+  assert.equal(shows(map).label, "24h");
+  assert.equal(shows(feed).label, "24h", "the feed's chip without a refresh");
   assert.equal(shows(other).label, "All", "another topic keeps its own");
   assert.equal(parts(map).menu.hidden, true, "the pick closes the menu");
   // Back to All: shown, checked and stored the same way.
@@ -134,7 +134,7 @@ test("a pick sets the filter of the chip's topic, and every chip on that topic f
   assert.deepEqual(shows(map), { label: "All", spoken: "Time: All", checked: ["all"], filter: "all" });
   // A change made anywhere else (another chip, another module) repaints it.
   setTimeFilterFor("0.0.302", "week");
-  assert.equal(shows(other).label, "Week");
+  assert.equal(shows(other).label, "7d");
 });
 
 test("opening the menu checks the topic's filter even if a repaint was missed", () => {
@@ -146,7 +146,7 @@ test("opening the menu checks the topic's filter even if a repaint was missed", 
   click(parts(ui).chip);
   assert.equal(parts(ui).menu.hidden, false);
   assert.deepEqual(shows(ui).checked, ["month"]);
-  assert.equal(shows(ui).label, "Month");
+  assert.equal(shows(ui).label, "30d");
   assert.equal(document.activeElement, parts(ui).items.find((item) => item.dataset.key === "month"));
 });
 
