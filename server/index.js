@@ -403,9 +403,9 @@ const q = {
   topicMessagesDesc: db.prepare(
     "SELECT payer, body FROM messages WHERE topic_id = ? ORDER BY seq DESC"
   ),
-  // Newest admin appIcon first. The stored body is compact JSON.
+  // Newest admin appIcon first, only the latest 50. The stored body is compact JSON.
   topicAppIconsDesc: db.prepare(
-    "SELECT payer, body FROM messages WHERE topic_id = ? AND instr(body, '\"appIcon\"') > 0 ORDER BY seq DESC"
+    "SELECT payer, body FROM messages WHERE topic_id = ? AND instr(body, '\"appIcon\"') > 0 ORDER BY seq DESC LIMIT 50"
   ),
   insertMsg: db.prepare(`
     INSERT OR IGNORE INTO messages (topic_id, seq, ts, payer, body)
