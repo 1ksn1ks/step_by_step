@@ -3,9 +3,32 @@
 // An installed window is never asked. iPhone never fires
 // beforeinstallprompt, so install there stays Share → Add to Home Screen;
 // Install shows those steps instead (installSteps, onboarding.js).
+//
+// What is installed is the page's <link rel="manifest"> (installtarget.js):
+// /manifest.webmanifest for the default app, or a community's
+// (?start=…&n=…&icon=pic), so an app installed for a community opens it.
+// The install screen points it at the choice (pointInstall, and on iPhone
+// the title, icon and URL Add to Home Screen takes).
+
+import {
+  APP_NAME,
+  MANIFEST_PATH,
+  cleanStart,
+  defaultLabel,
+  isDefaultStart,
+  manifestHref,
+  startFromUrl,
+  startPath,
+} from './installtarget.js';
 
 const INSTALLED_KEY = 'meritocracy-homescreen';
+// Start path -> the manifest an app was installed with (see linkForThisPage).
+const INSTALLED_MANIFESTS_KEY = 'meritocracy-install-manifests';
+// After the manifest changes, how long Install waits for Chrome's new dialog.
+const PROMPT_WAIT_MS = 6000;
+const APP_APPLE_ICON = '/icons/apple-touch-icon.png';
 let deferredPrompt = null;
+let promptWait = 0;
 
 function displayMode(mode) {
   return window.matchMedia(`(display-mode: ${mode})`).matches;
@@ -54,6 +77,108 @@ export function canPromptInstall() {
   return !!deferredPrompt && !isAppInstalled();
 }
 
+// True while the manifest has just changed and Chrome may still hand over
+// the install dialog for it.
+export function installPromptPending() {
+  return !!promptWait && !deferredPrompt && !isAppInstalled();
+}
+
+function manifestLink() {
+  return document.querySelector('link[rel="manifest"]');
+}
+
+function readInstalledManifests() {
+  try {
+    const all = JSON.parse(localStorage.getItem(INSTALLED_MANIFESTS_KEY) || '{}');
+    return all && typeof all === 'object' && !Array.isArray(all) ? all : {};
+  } catch {
+    return {};
+  }
+}
+
+// The start path an app made from this manifest opens.
+function manifestStartPath(href) {
+  try {
+    return startPath(cleanStart(new URL(href, window.location.href).searchParams.get('start') || ''));
+  } catch {
+    return '/';
+  }
+}
+
+function rememberInstalledManifest() {
+  const link = manifestLink();
+  const href = link ? link.getAttribute('href') : MANIFEST_PATH;
+  const all = readInstalledManifests();
+  all[manifestStartPath(href)] = href;
+  try { localStorage.setItem(INSTALLED_MANIFESTS_KEY, JSON.stringify(all)); } catch { /* private mode */ }
+}
+
+function setManifestHref(href, { fresh }) {
+  const link = manifestLink();
+  if (!link || link.getAttribute('href') === href) return false;
+  link.setAttribute('href', href);
+  // Chrome checks the new manifest and hands over a new dialog. The one it
+  // gave for the old manifest would install the old app, so it is dropped
+  // and Install waits a while for the new one.
+  if (fresh && 'onbeforeinstallprompt' in window && !isAppInstalled()) {
+    deferredPrompt = null;
+    clearTimeout(promptWait);
+    promptWait = setTimeout(() => {
+      promptWait = 0;
+      window.dispatchEvent(new Event('install-prompt-ready'));
+    }, PROMPT_WAIT_MS);
+  }
+  return true;
+}
+
+function setAppleTags(title, icon) {
+  const meta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (meta) meta.setAttribute('content', title || APP_NAME);
+  const touch = document.querySelector('link[rel="apple-touch-icon"]');
+  if (touch) touch.setAttribute('href', icon || APP_APPLE_ICON);
+}
+
+// Points what a browser installs at a choice: start (a topic id or a name,
+// '' for the default), label (only a name the person changed), icon
+// (ICON_PIC or not), and for iPhone the title and touch icon it saves.
+export function pointInstall({ start = '', label = '', icon = '', title = '', appleIcon = '' } = {}) {
+  setManifestHref(manifestHref({ start, label, icon }), { fresh: true });
+  setAppleTags(title, appleIcon);
+  window.dispatchEvent(new Event('install-prompt-ready'));
+}
+
+// iPhone saves the page it is on, not the manifest's start: before Add to
+// Home Screen the address becomes the start's own link (/zagreb, or /).
+// The page stays where it is; the history entry keeps its state.
+export function keepUrlForInstall(start) {
+  if (!isIOS(navigator.userAgent || '')) return;
+  const path = startPath(cleanStart(start));
+  if (window.location.pathname === path && !window.location.search && !window.location.hash) return;
+  try {
+    history.replaceState(history.state, '', path);
+  } catch { /* the address stays */ }
+}
+
+// The page's manifest from the start: a community link (/zagreb, /0.0.5,
+// ?topic=) links that community's, so the browser's own Install makes that
+// app too. The installed app itself keeps linking the manifest it was
+// installed with (its name and icon), or the browser's update check would
+// take the default name back. The default page at / is left as it is.
+function linkForThisPage() {
+  const start = cleanStart(startFromUrl(window.location.href));
+  const path = startPath(start);
+  const saved = isAppInstalled() ? readInstalledManifests()[path] : '';
+  if (typeof saved === 'string' && (saved === MANIFEST_PATH || saved.startsWith(`${MANIFEST_PATH}?`))) {
+    setManifestHref(saved, { fresh: false });
+    return;
+  }
+  if (isDefaultStart(start)) return;
+  setManifestHref(manifestHref({ start }), { fresh: false });
+  setAppleTags(defaultLabel(start), '');
+}
+
+linkForThisPage();
+
 function isIOS(ua) {
   // iPadOS Safari reports itself as a Mac; the touch points give it away.
   return /iPhone|iPad|iPod/.test(ua)
@@ -84,7 +209,8 @@ const reassure = (store) => `Just a shortcut to onlyonhbar.com. Free, no ${store
 // the intro's steps page (onboarding.js draws it). Each step is
 // { icon, verb, key, note }: the icon looks like the button to tap and
 // key is that button's label, shown as a pill. Read off the user agent;
-// a wrong guess still points at the right menu.
+// a wrong guess still points at the right menu. choose: false where this
+// browser cannot install at all, so there is no "Start in" to pick.
 export function installSteps() {
   const ua = navigator.userAgent || '';
   if (isIOS(ua)) {
@@ -92,6 +218,7 @@ export function installSteps() {
       return {
         title: 'Open in Safari first',
         body: 'Safari can add it to your Home Screen. This app\'s browser can\'t.',
+        choose: false,
         steps: [
           { icon: 'more', verb: 'Tap', key: '⋯', note: 'Or the compass, wherever this app puts its browser menu.' },
           { icon: 'safari', verb: 'Choose', key: 'Open in Safari', note: 'Some apps call it Open in Browser.' },
@@ -165,6 +292,7 @@ export function installSteps() {
     return {
       title: 'Get the app in Chrome or Edge',
       body: 'There it gets its own window and more room for the map.',
+      choose: false,
       steps: [
         { icon: 'install', verb: 'Open', key: 'onlyonhbar.com', note: 'In Chrome or Edge, then click Install here again.' },
       ],
@@ -200,7 +328,10 @@ export async function runInstallPrompt() {
   try {
     const choice = await promptEvent.prompt();
     const accepted = !!(choice && choice.outcome === 'accepted');
-    if (accepted) rememberInstalled();
+    if (accepted) {
+      rememberInstalled();
+      rememberInstalledManifest();
+    }
     return accepted;
   } catch (err) {
     console.warn("Install prompt failed", err);
@@ -216,13 +347,17 @@ window.addEventListener("beforeinstallprompt", (event) => {
   }
   try { localStorage.removeItem(INSTALLED_KEY); } catch { /* private mode */ }
   deferredPrompt = event;
+  clearTimeout(promptWait);
+  promptWait = 0;
   // The intro may already be up; it adds its one-tap Install now.
   window.dispatchEvent(new Event('install-prompt-ready'));
 });
 
+// Also after the browser's own Install, from its menu or address bar.
 window.addEventListener("appinstalled", () => {
   deferredPrompt = null;
   rememberInstalled();
+  rememberInstalledManifest();
 });
 
 if ("serviceWorker" in navigator) {

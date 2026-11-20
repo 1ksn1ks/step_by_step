@@ -1,5 +1,6 @@
 import { map } from './map.js';
-import { appAlreadyInstalled, runInstallPrompt, canPromptInstall, installSteps } from './installapp.js';
+import { appAlreadyInstalled, runInstallPrompt, canPromptInstall, installPromptPending, installSteps } from './installapp.js';
+import { createInstallChoice } from './installchoice.js';
 
 // First-load onboarding. The install question is the first page.
 // An installed app skips the whole introduction.
@@ -63,6 +64,9 @@ let installNav = null;
 let installBtn = null;
 let notNowBtn = null;
 let reassureEl = null;
+// The "Start in" step above the install steps (installchoice.js), made once
+// per intro so going back to the page keeps what was picked.
+let installChoice = null;
 
 // Install steps (installapp.js installSteps): each icon looks like the
 // button the step taps, so the screen and the guide match.
@@ -123,11 +127,16 @@ function renderGuide(guide) {
 // The guide page's buttons. With an install dialog to open (Chrome on
 // Android, desktop Chrome / Edge): Install, and Not now to move on.
 // Without one (iPhone, most other browsers): only Got it, after the steps.
+// Right after "Start in" changes, Chrome checks the new manifest before it
+// hands over a new dialog: Install waits, greyed, until then.
 function paintInstallNav() {
   const prompt = canPromptInstall();
-  installBtn.style.display = prompt ? '' : 'none';
-  notNowBtn.textContent = prompt ? 'Not now' : 'Got it';
-  notNowBtn.className = prompt ? 'onboard-prev' : 'onboard-next';
+  const waiting = !prompt && installPromptPending();
+  installBtn.style.display = prompt || waiting ? '' : 'none';
+  installBtn.disabled = waiting;
+  installBtn.textContent = waiting ? 'Getting ready…' : 'Install';
+  notNowBtn.textContent = prompt || waiting ? 'Not now' : 'Got it';
+  notNowBtn.className = prompt || waiting ? 'onboard-prev' : 'onboard-next';
 }
 
 // Chrome can hand over its dialog after the intro is already up.
@@ -168,6 +177,10 @@ function renderSlide(direction = 1) {
   }
   if (guide) {
     rowsEl.style.display = '';
+    if (slide.install && guide.choose !== false) {
+      if (!installChoice) installChoice = createInstallChoice();
+      rowsEl.appendChild(installChoice);
+    }
     renderGuide(guide);
   } else if (slide.rows && slide.rows.length) {
     rowsEl.style.display = '';
@@ -229,6 +242,7 @@ function closeOnboarding() {
 }
 
 function build() {
+  installChoice = null;
   overlay = document.createElement('div');
   overlay.className = 'onboard-overlay';
   overlay.id = 'onboard-overlay';

@@ -58,6 +58,18 @@ function pwaHeaders() {
   }
 }
 
+// A community's manifest and icons (?start=, server/installmanifest.js)
+// come from the backend, like the live app icons. The plain manifest stays
+// this server's file, as before.
+const communityInstallProxy = {
+  '/manifest.webmanifest': {
+    target: 'http://127.0.0.1:8787',
+    changeOrigin: true,
+    bypass: (req) => (String(req.url || '').includes('?') ? undefined : req.url),
+  },
+  '/icons/community/': { target: 'http://127.0.0.1:8787', changeOrigin: true },
+}
+
 // A VITE_ name is inlined into the browser bundle. Fail the build when one
 // looks like a server secret so an R2 key, token, or password cannot ship.
 function assertPublicViteEnv(names) {
@@ -115,6 +127,7 @@ export default defineConfig(({ command, mode }) => {
       '/icons/icon-512.png': { target: 'http://127.0.0.1:8787', changeOrigin: true },
       '/icons/icon-512-maskable.png': { target: 'http://127.0.0.1:8787', changeOrigin: true },
       '/icons/apple-touch-icon.png': { target: 'http://127.0.0.1:8787', changeOrigin: true },
+      ...communityInstallProxy,
     }
   },
   // preview mirrors server so `npm run preview` behaves like dev
@@ -130,6 +143,7 @@ export default defineConfig(({ command, mode }) => {
       '/icons/icon-512.png': { target: 'http://127.0.0.1:8787', changeOrigin: true },
       '/icons/icon-512-maskable.png': { target: 'http://127.0.0.1:8787', changeOrigin: true },
       '/icons/apple-touch-icon.png': { target: 'http://127.0.0.1:8787', changeOrigin: true },
+      ...communityInstallProxy,
     }
   }
   }

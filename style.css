@@ -6947,6 +6947,111 @@ html, body {
   .onboard-card.is-guide .onboard-rows {
     margin-bottom: 0;
   }
+  /* Install, greyed while Chrome checks a new "Start in" choice. */
+  .onboard-next:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+  /* The install screen's "Start in" step (installchoice.js), above the
+     steps: where the app opens, the name under its icon, and the icon.
+     The fields are at least 44px tall for a finger. */
+  .install-choice {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2vh;
+    margin: 0 0 1.4vh;
+    padding: 1.4vh 1.6vh;
+    border-radius: 1.4vh;
+    background: rgba(255, 255, 255, 0.05);
+    border: 0.1vh solid rgba(34, 211, 238, 0.3);
+    text-align: left;
+  }
+  .install-choice[hidden] {
+    display: none;
+  }
+  .install-choice-row {
+    display: grid;
+    grid-template-columns: 8.5vh minmax(0, 1fr);
+    align-items: center;
+    column-gap: 1.2vh;
+  }
+  .install-choice-name {
+    font-size: 1.7vh;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.75);
+  }
+  .install-choice-select,
+  .install-choice-input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: max(44px, 4.6vh);
+    margin: 0;
+    padding: 0 1.2vh;
+    border-radius: 1vh;
+    border: 0.1vh solid rgba(255, 255, 255, 0.22);
+    background: rgba(10, 12, 20, 0.9);
+    color: #ffffff;
+    color-scheme: dark;
+    font: inherit;
+    font-size: max(16px, 1.9vh);
+  }
+  .install-choice-select:focus,
+  .install-choice-input:focus {
+    outline: none;
+    border-color: #22d3ee;
+  }
+  .install-choice-icons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1vh;
+  }
+  /* A tile: the icon over its name, so both fit on one row. */
+  .install-choice-icon {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4vh;
+    min-width: max(44px, 8vh);
+    padding: 0.7vh 1vh 0.6vh;
+    box-sizing: border-box;
+    border-radius: 1.2vh;
+    border: 0.1vh solid rgba(255, 255, 255, 0.18);
+    font-size: 1.5vh;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .install-choice-icon[hidden] {
+    display: none;
+  }
+  /* The radio itself is not drawn; the whole choice is its face. */
+  .install-choice-icon input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .install-choice-icon img {
+    width: 4.4vh;
+    height: 4.4vh;
+    border-radius: 22%;
+    object-fit: cover;
+    background: #0a0a0a;
+  }
+  .install-choice-icon:has(input:checked) {
+    border-color: #22d3ee;
+    background: rgba(34, 211, 238, 0.12);
+    color: #a5f3fc;
+  }
+  .install-choice-icon:has(input:focus-visible) {
+    outline: 0.2vh solid #22d3ee;
+    outline-offset: 0.2vh;
+  }
   @keyframes onboardStepIn {
     from { opacity: 0; transform: translateY(0.9vh); }
     to { opacity: 1; transform: none; }

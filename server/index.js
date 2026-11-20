@@ -35,7 +35,18 @@ import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
 import { startEarlyHashinals } from "./hashinals.js";
 import { createHcs1RateLimit, hcs1Route } from "./hcs1.js";
-import { avatarRoute, createAvatarRateLimit, createProfileSources } from "./avatar.js";
+import { avatarRoute, createAvatarRateLimit, createProfileSources, getAvatarThumb } from "./avatar.js";
+import {
+  communityIconRoute,
+  createCommunities,
+  createIconMaker,
+  createRegistry,
+  installTargetRoute,
+  manifestRoute,
+} from "./installmanifest.js";
+import { DOMAIN_TOPIC } from "../domainregistry.js";
+import { DEFAULT_TOPIC, hasManifestQuery } from "../installtarget.js";
+import { avatarSource } from "../avatarsrc.js";
 import { createAvatarSeen, deleteAvatarThumb, listAvatarThumbs, startAvatarSweep } from "./avatarsweep.js";
 import { DEFAULT_AVATAR } from "../hashinalurl.js";
 import { feedGeoKey, lookupFeedPlace, parseFeedGeoKey, placePackBuffers, shortCity } from "./feedplace.js";
@@ -1615,6 +1626,8 @@ setInterval(async () => {
     // refresh their last_active every tick to keep them out of TTL eviction.
     for (const id of Object.keys(PROFILE_TOPICS)) q.upsertTopic.run(id, now);
     q.upsertTopic.run(FOLLOW_TOPIC, now);
+    // The name registry: an install for a name is checked against it.
+    q.upsertTopic.run(DOMAIN_TOPIC, now);
     const active = q.listTopics
       .all()
       .filter((t) => now - t.last_active <= TRACK_TTL_MS)
@@ -3848,6 +3861,77 @@ app.get("/api/health", (req, res) => {
 // Drawn on request from the moon photo and the live 1mhbar.com wall.
 // Registered before dist so a baked PNG in public/ is only the fallback.
 app.get(Object.keys(APP_ICONS).map((name) => "/icons/" + name), appIcon);
+
+// ── Install a community (installmanifest.js) ────────────────────────────
+// The registry's live names, read from this server's copy of its topic
+// (kept warm by the poller), as the app reads them (toAppMessage).
+const readRegistryRows = db.prepare("SELECT * FROM messages WHERE topic_id = ? ORDER BY seq ASC");
+const communityRegistry = createRegistry({
+  readMessages: () => readRegistryRows.all(DOMAIN_TOPIC).map(toAppMessage),
+  version: () => {
+    const row = q.getTopic.get(DOMAIN_TOPIC);
+    return row ? row.last_seq : 0;
+  },
+});
+const ownerPicture = db.prepare(
+  "SELECT profile_pic FROM user_settings WHERE account_id = ? AND profile_pic IS NOT NULL AND profile_pic != ''"
+);
+const linkedPictures = db.prepare(`
+  SELECT account_id, profile_pic FROM user_settings
+  WHERE topic = ? AND profile_pic IS NOT NULL AND profile_pic != ''
+  ORDER BY updated_at DESC LIMIT 50
+`);
+// A community's picture: its name's owner's profile picture, else that of
+// an account that linked the topic, one the topic's memo names as admin
+// first. Only a profile's picture (profileSources), the one /api/avatar.webp
+// draws.
+function communityPicture({ topic, owner }) {
+  const allowed = (pic) => typeof pic === "string" && profileSources.has(avatarSource(pic));
+  if (owner) {
+    const row = ownerPicture.get(owner);
+    if (row && allowed(row.profile_pic)) return row.profile_pic;
+  }
+  const rows = linkedPictures.all(topic).filter((row) => allowed(row.profile_pic));
+  if (!rows.length) return "";
+  const memo = (q.getTopic.get(topic) || {}).memo || "";
+  const admins = new Set(String(memo).split(",").map((s) => s.trim()).filter((s) => s.startsWith("0.0.")));
+  return (rows.find((row) => admins.has(row.account_id)) || rows[0]).profile_pic;
+}
+const communities = createCommunities({
+  registry: communityRegistry,
+  topicKnown: (topic) => topic === DEFAULT_TOPIC || !!q.getTopic.get(topic),
+  topicName: (topic) => topicNameFor(topic),
+  pictureFor: communityPicture,
+});
+// The default manifest the community ones are made from: the built copy,
+// else the source in public/.
+let manifestBase = null;
+function readManifestBase() {
+  if (manifestBase) return manifestBase;
+  const built = path.join(__dirname, "..", "dist", "manifest.webmanifest");
+  const source = path.join(__dirname, "..", "public", "manifest.webmanifest");
+  manifestBase = JSON.parse(fs.readFileSync(fs.existsSync(built) ? built : source, "utf8"));
+  return manifestBase;
+}
+const communityIcons = createIconMaker({
+  getThumb: (source, { ip }) => getAvatarThumb(source, {
+    ip,
+    s3: r2,
+    bucket: R2_BUCKET,
+    hcs1: { mirrorFetch, s3: r2, bucket: R2_BUCKET, mirror: MIRROR },
+    isProfileSource: profileSources.has,
+    seen: avatarSeen,
+  }),
+});
+// A plain /manifest.webmanifest is the static file, as before, and is not
+// counted against the limit.
+app.get(
+  "/manifest.webmanifest",
+  (req, res, next) => (hasManifestQuery(req.query) ? publicPostLimit(req, res, next) : next()),
+  manifestRoute({ readBase: readManifestBase, communities }),
+);
+app.get("/api/install-target", publicPostLimit, installTargetRoute({ communities }));
+app.get("/icons/community/:start/:key/:file", avatarLimit, communityIconRoute({ communities, icons: communityIcons, clientIp }));
 
 // The browser allowlist has to be this same R2_PUBLIC_BASE. The script
 // is last in <head> so it wins over a copy baked at build time.

@@ -1,16 +1,14 @@
 import { loadedDomains } from './loaddomains';
+import { DEFAULT_TOPIC, startFromUrl } from './installtarget.js';
 
 export let initialTopicId = '';
-const defaultTopicId = '0.0.9609912';
+const defaultTopicId = DEFAULT_TOPIC;
 
 export async function extractTopicId() {
-  const url = new URL(window.location.href);
-  const fromPath = url.pathname && url.pathname !== '/'
-    ? decodeURIComponent(url.pathname.slice(1).split('/')[0])
-    : '';
-  // Notification links also carry ?topic= so an older path-less link still opens it.
-  const fromQuery = (url.searchParams.get('topic') || '').trim();
-  const userInput = fromPath || fromQuery;
+  // The first path segment, else ?topic= (notification links carry it so
+  // an older path-less link still opens it). installtarget.js reads a link
+  // the same way for an installed app's start.
+  const userInput = startFromUrl(window.location.href);
   
   let topicId;
   if (userInput.startsWith('0.0.')) {
