@@ -263,3 +263,20 @@ test("All looks like the other choices, and the map shows its name too", () => {
   const map = block.slice(block.indexOf("#map-topbar .time-filter.is-map .time-filter-chip {"));
   assert.doesNotMatch(map.slice(0, map.indexOf("}")), /transparent/);
 });
+
+test("the menu stays one line wide for the longest label and its check", () => {
+  const menuAt = css.indexOf(".time-filter-menu {");
+  const menu = css.slice(menuAt, css.indexOf("}", menuAt));
+  assert.match(menu, /width:\s*max-content/);
+  assert.match(menu, /min-width:\s*100%/);
+  assert.match(menu, /max-width:[^;]*vw/);
+  const itemAt = css.indexOf(".time-filter-item {");
+  const item = css.slice(itemAt, css.indexOf("}", itemAt));
+  assert.match(item, /white-space:\s*nowrap/);
+  const mark = css.slice(css.indexOf(".time-filter-item::after {"), css.indexOf(".time-filter-item[aria-checked=\"true\"] {"));
+  assert.match(mark, /content:\s*"✓"/);
+  assert.match(mark, /visibility:\s*hidden/);
+  const on = css.slice(css.indexOf(".time-filter-item[aria-checked=\"true\"]::after {"));
+  assert.match(on.slice(0, on.indexOf("}")), /visibility:\s*visible/);
+  assert.doesNotMatch(on.slice(0, on.indexOf("}")), /content:/);
+});

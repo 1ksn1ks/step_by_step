@@ -26510,7 +26510,8 @@ html.is-draw-picking .live-filter {
    that button. Map: by the clock in the top bar, at the clock's text
    size. The chip always shows the filter in use, All included: its name
    by the calendar, cyan like the post button, the same for every choice.
-   The menu is the app's dark glass, 2.75rem rows. */
+   The menu is the app's dark glass, 2.75rem rows, as wide as its longest
+   label plus the check, and never wider than the screen. */
 .time-filter {
   position: relative;
   flex: 0 0 auto;
@@ -26590,7 +26591,9 @@ html.is-draw-picking .live-filter {
   z-index: 30;
   display: flex;
   flex-direction: column;
-  min-width: max(10rem, 100%);
+  width: max-content;
+  min-width: 100%;
+  max-width: calc(100vw - 2 * var(--fu, var(--u, 1rem)));
   padding: 0.35rem;
   box-sizing: border-box;
   border: 0.0625rem solid rgba(255, 255, 255, 0.18);
@@ -26615,6 +26618,7 @@ html.is-draw-picking .live-filter {
   justify-content: space-between;
   gap: 1rem;
   min-height: 2.75rem;
+  white-space: nowrap;
   margin: 0;
   padding: 0 0.9rem;
   border: 0;
@@ -26629,12 +26633,17 @@ html.is-draw-picking .live-filter {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
+.time-filter-item::after {
+  content: "✓";
+  flex: none;
+  font-weight: 700;
+  visibility: hidden;
+}
 .time-filter-item[aria-checked="true"] {
   color: #22D3EE;
 }
 .time-filter-item[aria-checked="true"]::after {
-  content: "✓";
-  font-weight: 700;
+  visibility: visible;
 }
 .time-filter-item:is(:hover, :focus-visible) {
   outline: none;
