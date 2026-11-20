@@ -19,21 +19,30 @@ const APP_ICON_SRC = '/icons/icon-192.png';
 // A name is applied once typing pauses this long (each change has Chrome
 // check the manifest again).
 const TYPE_MS = 400;
+const RETRY_MS = 3000;
 const FOLLOWED_MAX = 8;
 const answers = new Map();
 
-// What a start opens, as the server answers it; null when it is not a
-// community (or the server cannot be reached, which is asked again later).
+// What a start opens. null is a real unknown: 404, or a body with ok:false.
+// A network error, a 5xx, or any other failure is {retry:true} and is not
+// cached, so the next call asks the server again.
 export function installTarget(start) {
   const clean = cleanStart(start);
   const key = isDefaultStart(clean) ? '' : clean;
   if (!answers.has(key)) {
-    const ask = fetch(`${BACKEND_URL}/api/install-target?start=${encodeURIComponent(key)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => (data && data.ok ? data : null))
+    let ask;
+    ask = fetch(`${BACKEND_URL}/api/install-target?start=${encodeURIComponent(key)}`)
+      .then(async (res) => {
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error('install-target');
+        const data = await res.json();
+        if (data && data.ok === true) return data;
+        if (data && data.ok === false) return null;
+        throw new Error('install-target');
+      })
       .catch(() => {
-        answers.delete(key);
-        return null;
+        if (answers.get(key) === ask) answers.delete(key);
+        return { retry: true };
       });
     answers.set(key, ask);
   }
@@ -105,6 +114,7 @@ export function createInstallChoice() {
   let current = null;
   let asking = 0;
   let typing = 0;
+  let retryTimer = 0;
 
   const optionFor = (start) => [...select.querySelectorAll('option')].find((option) => option.value === start);
 
@@ -132,10 +142,21 @@ export function createInstallChoice() {
     keepUrlForInstall(current.start);
   }
 
-  async function choose(start) {
+  async function choose(start, again) {
+    if (!again) clearTimeout(retryTimer);
     const ask = ++asking;
     const target = await installTarget(start);
     if (ask !== asking) return;
+    if (target && target.retry) {
+      // The choice stays selected. One later try, unless they pick again.
+      if (!again) {
+        retryTimer = setTimeout(() => {
+          if (ask !== asking) return;
+          choose(start, true);
+        }, RETRY_MS);
+      }
+      return;
+    }
     if (!target) {
       // Not a community after all: drop it and start in the default.
       if (start) {
