@@ -10,7 +10,7 @@
 //   unknown or malformed start is the default app (id "/"), so installing
 //   from a bad link still installs something that works.
 //   n: the name under the icon, cleaned (cleanLabel); short_name from it.
-//   Without n, "Meritocracy · <community>".
+//   Without n, "Web3Globe · <community>".
 //   icon=pic: the community's picture, else the app icon. The picture is
 //   never a link from the request: it is the profile picture of the
 //   name's owner, else of an account that linked the topic (its admins

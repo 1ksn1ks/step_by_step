@@ -305,7 +305,7 @@ export function installSteps() {
       body: DESKTOP_GAIN,
       steps: [
         { icon: 'menu', verb: 'Open', key: 'File', note: 'In the menu bar at the top of the screen.' },
-        { icon: 'addhome', verb: 'Click', key: 'Add to Dock', note: 'Then Add. Meritocracy opens from the Dock.' },
+        { icon: 'addhome', verb: 'Click', key: 'Add to Dock', note: 'Then Add. Web3Globe opens from the Dock.' },
       ],
       footer: reassure('App Store'),
     };
@@ -315,7 +315,7 @@ export function installSteps() {
     body: DESKTOP_GAIN,
     steps: [
       { icon: 'install', verb: 'Click', key: 'Install', note: 'The screen with a ↓ at the right end of the address bar.' },
-      { icon: 'dots', verb: 'Or open', key: '⋮', note: 'Then Install Meritocracy (under Save and share, or Apps).' },
+      { icon: 'dots', verb: 'Or open', key: '⋮', note: 'Then Install Web3Globe (under Save and share, or Apps).' },
     ],
     footer: reassure('app store'),
   };

@@ -57,8 +57,8 @@ test("a start is a topic id or a name's shape; anything else is nothing", () => 
 });
 
 test("the name under the icon is cleaned, capped, and shortened for the launcher", () => {
-  assert.equal(defaultLabel(""), "Meritocracy");
-  assert.equal(defaultLabel("Zagreb"), "Meritocracy · Zagreb");
+  assert.equal(defaultLabel(""), "Web3Globe");
+  assert.equal(defaultLabel("Zagreb"), "Web3Globe · Zagreb");
   assert.equal(cleanLabel("  My \n\t map  "), "My map");
   assert.equal(cleanLabel("‮evil‬ name​"), "evil name");
   assert.equal(cleanLabel("\u0000\u0007"), "");
@@ -69,12 +69,12 @@ test("the name under the icon is cleaned, capped, and shortened for the launcher
   assert.equal(Array.from(cleanLabel("🗺".repeat(50))).length, LABEL_MAX);
   assert.equal(defaultLabel("y".repeat(60)).length, LABEL_MAX);
   // short_name: the name, else the community part, else cut at a word.
-  assert.equal(shortLabel("Meritocracy"), "Meritocracy");
-  assert.equal(shortLabel("Meritocracy · Zagreb"), "Zagreb");
-  assert.equal(shortLabel("Meritocracy · Zagreb Runners Club"), "Zagreb");
+  assert.equal(shortLabel("Web3Globe"), "Web3Globe");
+  assert.equal(shortLabel("Web3Globe · Zagreb"), "Zagreb");
+  assert.equal(shortLabel("Web3Globe · Zagreb Runners Club"), "Zagreb");
   assert.equal(shortLabel("Supercalifragilistic"), "Supercalifra");
   assert.equal(shortLabel(""), APP_NAME);
-  for (const label of ["Meritocracy · Zagreb Runners Club", "A".repeat(40), "My long community name"]) {
+  for (const label of ["Web3Globe · Zagreb Runners Club", "A".repeat(40), "My long community name"]) {
     assert.ok(Array.from(shortLabel(label)).length <= SHORT_MAX, label);
   }
 });

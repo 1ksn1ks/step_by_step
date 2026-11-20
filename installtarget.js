@@ -12,7 +12,7 @@
 // /manifest.webmanifest, id "/" and start_url "/".
 
 export const DEFAULT_TOPIC = '0.0.9609912';
-export const APP_NAME = 'Meritocracy';
+export const APP_NAME = 'Web3Globe';
 export const LABEL_JOIN = ' · ';
 // The name under the icon: what a person typed, cleaned, at most
 // LABEL_MAX characters; short_name (an Android launcher's label) at most
@@ -95,13 +95,13 @@ export function cleanLabel(value) {
   return chars(text).slice(0, LABEL_MAX).join('').trim();
 }
 
-// "Meritocracy · <name>", or just "Meritocracy" for the default topic.
+// "Web3Globe · <name>", or just "Web3Globe" for the default topic.
 export function defaultLabel(name = '') {
   const community = cleanLabel(name);
   return community ? cleanLabel(`${APP_NAME}${LABEL_JOIN}${community}`) : APP_NAME;
 }
 
-// short_name: the name when it fits, else the part after "Meritocracy · ",
+// short_name: the name when it fits, else the part after "Web3Globe · ",
 // else cut at the last space that keeps a word (or at SHORT_MAX).
 export function shortLabel(label) {
   const name = cleanLabel(label) || APP_NAME;

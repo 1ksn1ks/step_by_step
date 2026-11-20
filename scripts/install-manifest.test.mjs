@@ -83,17 +83,17 @@ test("the registry is read once, then again when its topic changes or a minute p
 test("a start is the default, a known topic or a live registered name; nothing else", () => {
   const { communities } = makeCommunities();
   const def = communities.resolve("");
-  assert.deepEqual({ start: def.start, topic: def.topic, label: def.label }, { start: "", topic: DEFAULT_TOPIC, label: "Meritocracy" });
+  assert.deepEqual({ start: def.start, topic: def.topic, label: def.label }, { start: "", topic: DEFAULT_TOPIC, label: "Web3Globe" });
   assert.equal(communities.resolve(DEFAULT_TOPIC).start, "");
   const topic = communities.resolve("0.0.700");
-  assert.equal(topic.label, "Meritocracy · Runners Club");
+  assert.equal(topic.label, "Web3Globe · Runners Club");
   assert.equal(topic.picture, PIC_LINKED);
   assert.equal(topic.key, pictureKey(PIC_LINKED));
-  assert.equal(communities.resolve("0.0.500").label, "Meritocracy · 0.0.500", "a topic with no name shows its id");
+  assert.equal(communities.resolve("0.0.500").label, "Web3Globe · 0.0.500", "a topic with no name shows its id");
   const name = communities.resolve("Zagreb");
   assert.deepEqual(
     { start: name.start, topic: name.topic, label: name.label, picture: name.picture },
-    { start: "zagreb", topic: "0.0.500", label: "Meritocracy · zagreb", picture: PIC_OWNER },
+    { start: "zagreb", topic: "0.0.500", label: "Web3Globe · zagreb", picture: PIC_OWNER },
   );
   // Unknown topic, unregistered, lapsed, pointing nowhere, malformed.
   for (const start of ["0.0.999", "nowhere", "lapsed", "badtopic", "a/b", "x".repeat(70)]) {
@@ -107,7 +107,7 @@ test("a community's manifest is its own app: id and start_url its path, scope /,
   assert.equal(zagreb.id, "/zagreb");
   assert.equal(zagreb.start_url, "/zagreb");
   assert.equal(zagreb.scope, "/");
-  assert.equal(zagreb.name, "Meritocracy · zagreb");
+  assert.equal(zagreb.name, "Web3Globe · zagreb");
   assert.equal(zagreb.short_name, "zagreb");
   assert.equal(zagreb.display, BASE.display);
   assert.deepEqual(zagreb.icons, BASE.icons, "the app icon unless the picture is asked for");
@@ -208,7 +208,7 @@ test("install-target says what a start opens, and 404 for one it does not know",
     start: "zagreb",
     topic: "0.0.500",
     name: "zagreb",
-    label: "Meritocracy · zagreb",
+    label: "Web3Globe · zagreb",
     path: "/zagreb",
     picture: {
       key,
@@ -217,7 +217,7 @@ test("install-target says what a start opens, and 404 for one it does not know",
     },
   });
   const def = await (await fetch(`${base}/api/install-target`)).json();
-  assert.deepEqual({ start: def.start, label: def.label, path: def.path, picture: def.picture }, { start: "", label: "Meritocracy", path: "/", picture: null });
+  assert.deepEqual({ start: def.start, label: def.label, path: def.path, picture: def.picture }, { start: "", label: "Web3Globe", path: "/", picture: null });
   const unknown = await fetch(`${base}/api/install-target?start=nowhere`);
   assert.equal(unknown.status, 404);
 });

@@ -22,7 +22,7 @@ import {debounce} from './debounce'
 export const PROJECT_ID = "fdd65bec25e85908fecf7561fe42b41f";
 
 const metadata = {
-  name: "Meritocracy",
+  name: "Web3Globe",
   description: "Tokenize Taxes",
   url: window.location.origin,
   icons: ["https://onlyonhbar.com/api/hcs1/0.0.4819119"],

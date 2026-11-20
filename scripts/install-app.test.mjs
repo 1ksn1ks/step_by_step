@@ -26,7 +26,7 @@ async function load({ href = "https://onlyonhbar.com/", ua = ANDROID, standalone
   const head = {
     manifest: new FakeTag({ rel: "manifest", href: "/manifest.webmanifest" }),
     apple: new FakeTag({ rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" }),
-    title: new FakeTag({ name: "apple-mobile-web-app-title", content: "Meritocracy" }),
+    title: new FakeTag({ name: "apple-mobile-web-app-title", content: "Web3Globe" }),
   };
   const store = new Map();
   if (saved) store.set("meritocracy-install-manifests", JSON.stringify(saved));
@@ -75,7 +75,7 @@ test("the default page at / installs exactly as before", async () => {
   for (const href of ["https://onlyonhbar.com/", "https://onlyonhbar.com/0.0.9609912", "https://onlyonhbar.com/?topic=0.0.9609912", "https://onlyonhbar.com/a%20b"]) {
     const page = await load({ href });
     assert.equal(page.href(), "/manifest.webmanifest", href);
-    assert.equal(page.head.title.getAttribute("content"), "Meritocracy", href);
+    assert.equal(page.head.title.getAttribute("content"), "Web3Globe", href);
     assert.equal(page.head.apple.getAttribute("href"), "/icons/apple-touch-icon.png", href);
   }
 });
@@ -83,7 +83,7 @@ test("the default page at / installs exactly as before", async () => {
 test("a community link links that community's manifest from the start, so the browser's own Install makes it", async () => {
   const zagreb = await load({ href: "https://onlyonhbar.com/Zagreb?x=1" });
   assert.equal(zagreb.href(), "/manifest.webmanifest?start=zagreb");
-  assert.equal(zagreb.head.title.getAttribute("content"), "Meritocracy · zagreb");
+  assert.equal(zagreb.head.title.getAttribute("content"), "Web3Globe · zagreb");
   const older = await load({ href: "https://onlyonhbar.com/?topic=0.0.77" });
   assert.equal(older.href(), "/manifest.webmanifest?start=0.0.77");
   // Linked before any dialog: nothing to wait for.
@@ -117,7 +117,7 @@ test("a new choice drops Chrome's dialog for the old manifest and waits for the 
   // Back to the default; Chrome says nothing (that app is installed, say).
   page.mod.pointInstall({});
   assert.equal(page.href(), "/manifest.webmanifest");
-  assert.equal(page.head.title.getAttribute("content"), "Meritocracy");
+  assert.equal(page.head.title.getAttribute("content"), "Web3Globe");
   assert.equal(page.head.apple.getAttribute("href"), "/icons/apple-touch-icon.png");
   assert.equal(page.mod.installPromptPending(), true);
   const before = page.ready.length;
@@ -192,7 +192,7 @@ test("the install screen shows Start in above the steps and waits, greyed, for a
   assert.match(choice, /pointInstall\(\{\s*start: current\.start,\s*label: typed && typed !== current\.label \? typed : '',\s*icon: usePicture \? ICON_PIC : '',/);
   assert.match(choice, /keepUrlForInstall\(current\.start\);/);
   // The choices: this link (preselected), the default, the followed topics.
-  assert.match(choice, /if \(linkStart\) addOption\(linkStart, linkStart\);\s*addOption\('', 'Meritocracy'\);\s*select\.value = linkStart;\s*choose\(linkStart\);\s*addFollowed\(\);/);
+  assert.match(choice, /if \(linkStart\) addOption\(linkStart, linkStart\);\s*addOption\('', 'Web3Globe'\);\s*select\.value = linkStart;\s*choose\(linkStart\);\s*addFollowed\(\);/);
   assert.match(choice, /fetchFollowing\(account\)/);
   assert.match(choice, /\/api\/install-target\?start=/);
   assert.match(choice, /input\.maxLength = LABEL_MAX;/);

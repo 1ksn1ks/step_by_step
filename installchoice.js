@@ -193,7 +193,7 @@ export function createInstallChoice() {
   const fromLink = cleanStart(startFromUrl(window.location.href));
   const linkStart = isDefaultStart(fromLink) ? '' : fromLink;
   if (linkStart) addOption(linkStart, linkStart);
-  addOption('', 'Meritocracy');
+  addOption('', 'Web3Globe');
   select.value = linkStart;
   choose(linkStart);
   addFollowed();
