@@ -1,8 +1,10 @@
 // timefilter.js — All / Last 24h / Last 7 days / Last 30 days, for the feed
 // and the map of an open topic.
 //
-// A range is [from, to) in ms, ending now: the last 24 hours, the last 7
-// days, or the last 30 days. Posts are matched by their message's consensus
+// A range is [from, to) in ms: the last 24 hours, the last 7 days, or the
+// last 30 days. The window the feed or the map keeps does not end, so a
+// post or a drawing whose consensus time is a little after this device's
+// clock still shows. Posts are matched by their message's consensus
 // timestamp. The choice is remembered per topic on this device under the
 // keys today, week and month, and the feed and the map share it. A range
 // the feed or the map kept reads the clock when it is applied, so it does
@@ -40,17 +42,17 @@ const WINDOW_MS = {
   month: 30 * 24 * HOUR_MS,
 };
 
-// [from, to) ending now, or null for All. Without `now`, from and to are
-// read when the range is used: the feed and the map keep the object and
-// apply it later, and both ends are the current time then. With `now`,
-// both ends are that moment.
+// null for All. Without `now`, from is read when the range is used and to
+// is Infinity: a window that ends now has no end limit, so a phone clock
+// running behind still shows a post made just now. With `now`, the range
+// is that moment, { from: at - span, to: at }.
 export function timeRange(key, now) {
   const span = WINDOW_MS[key];
   if (!span) return null;
   if (now == null) {
     return {
       get from() { return Date.now() - span; },
-      get to() { return Date.now(); },
+      to: Infinity,
     };
   }
   const end = now instanceof Date ? now.getTime() : Number(now);

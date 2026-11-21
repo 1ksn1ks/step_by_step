@@ -548,13 +548,18 @@ test("a rolling window keeps its length across a clock change", () => {
 
 test("a range the feed or the map kept is measured when it is used", async () => {
   const range = timeRange("today");
-  const taken = range.to;
-  assert.ok(Math.abs(range.to - range.from - DAY_MS) < 50);
+  const start = range.from;
+  const at = Date.now();
+  assert.equal(range.to, Infinity, "a window that ends now has no end limit");
+  assert.equal(timeRange("week").to, Infinity);
+  assert.equal(timeRange("month").to, Infinity);
+  assert.ok(Math.abs(at - start - DAY_MS) < 50);
   await new Promise((resolve) => setTimeout(resolve, 40));
-  assert.ok(range.to > taken, "the end moves with the clock");
-  assert.ok(range.from > taken - DAY_MS, "the start moves with the clock");
-  assert.equal(inTimeRange(taken + 10, range), true, "a post that arrives after the range was taken is still in");
-  assert.equal(inTimeRange(taken - DAY_MS - 1, range), false);
+  assert.equal(range.to, Infinity);
+  assert.ok(range.from > start, "the start moves with the clock");
+  assert.equal(inTimeRange(Date.now() + 60_000, range), true, "a post a little after this clock is still in");
+  assert.equal(inTimeRange(at + 10, range), true, "a post that arrives after the range was taken is still in");
+  assert.equal(inTimeRange(start - 1, range), false);
 });
 
 test("posts are matched by consensus timestamp, and range reads ask the mirror from the range start", () => {
