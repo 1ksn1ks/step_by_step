@@ -14,6 +14,7 @@
 import { DEFAULT_TOPIC, ICON_PIC, LABEL_MAX, cleanLabel, cleanStart, isDefaultStart, isTopicId, startFromUrl } from './installtarget.js';
 import { keepUrlForInstall, pointInstall } from './installapp.js';
 import { BACKEND_URL, fetchFollowing } from './msgbackend.js';
+import { toast } from './toast.js';
 
 const APP_ICON_SRC = '/icons/icon-192.png';
 // A name is applied once typing pauses this long (each change has Chrome
@@ -148,12 +149,19 @@ export function createInstallChoice() {
     const target = await installTarget(start);
     if (ask !== asking) return;
     if (target && target.retry) {
-      // The choice stays selected. One later try, unless they pick again.
+      // One later try. The new start stays selected while it waits, and the
+      // install stays on the previous community. A second miss puts the
+      // dropdown back, so what is selected is what will be installed.
       if (!again) {
+        toast.info('Couldn\'t reach the server, trying again…');
         retryTimer = setTimeout(() => {
           if (ask !== asking) return;
           choose(start, true);
         }, RETRY_MS);
+      } else {
+        select.value = current ? current.start : '';
+        const stayed = current && current.label ? current.label : 'Web3Globe';
+        toast.error(`Couldn't load that community. Install stays on ${stayed}.`);
       }
       return;
     }

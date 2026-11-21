@@ -7,10 +7,14 @@ import { registerHooks } from "node:module";
 // createInstallChoice loads the wallet module only to read the account.
 // The real one opens a WalletConnect session, so the test answers with none.
 const web3Stub = "data:text/javascript," + encodeURIComponent("export const connectedAccount = null;\n");
+const toastStub = "data:text/javascript," + encodeURIComponent(
+  "export const toast = { info(msg) { globalThis.__installToasts.push(['info', msg]); }, error(msg) { globalThis.__installToasts.push(['error', msg]); } };\n",
+);
 registerHooks({
   resolve(specifier, context, next) {
-    if (specifier === "./web3.js" && context.parentURL && context.parentURL.includes("/installchoice.js")) {
-      return { url: web3Stub, shortCircuit: true };
+    if (context.parentURL && context.parentURL.includes("/installchoice.js")) {
+      if (specifier === "./web3.js") return { url: web3Stub, shortCircuit: true };
+      if (specifier === "./toast.js") return { url: toastStub, shortCircuit: true };
     }
     return next(specifier, context);
   },
@@ -168,6 +172,7 @@ test("a blip keeps the community selected and tries once more, and a real unknow
       picture: null,
     });
   };
+  globalThis.__installToasts = [];
   const { createInstallChoice } = await load();
   const box = createInstallChoice();
   const select = box.querySelectorAll("select")[0];
@@ -176,6 +181,7 @@ test("a blip keeps the community selected and tries once more, and a real unknow
   assert.equal(select.value, "zagreb");
   assert.equal(box.hidden, true);
   assert.equal(select.querySelectorAll("option").some((option) => option.value === "zagreb"), true);
+  assert.deepEqual(globalThis.__installToasts, [["info", "Couldn't reach the server, trying again…"]]);
 
   mode = "ok";
   t.mock.timers.tick(2999);
@@ -197,13 +203,15 @@ test("a blip keeps the community selected and tries once more, and a real unknow
   assert.equal(select.value, "split");
   assert.equal(box.hidden, false);
   assert.equal(select.querySelectorAll("option").some((option) => option.value === "split"), true);
+  assert.deepEqual(globalThis.__installToasts.at(-1), ["info", "Couldn't reach the server, trying again…"]);
   t.mock.timers.tick(3000);
   await settle();
   assert.deepEqual(calls.filter((start) => start === "split"), ["split", "split"]);
   t.mock.timers.tick(3000);
   await settle();
   assert.equal(calls.filter((start) => start === "split").length, 2);
-  assert.equal(select.value, "split");
+  assert.equal(select.value, "zagreb");
+  assert.deepEqual(globalThis.__installToasts.at(-1), ["error", "Couldn't load that community. Install stays on Web3Globe · zagreb."]);
 
   const gone = element("option");
   gone.value = "gone";
