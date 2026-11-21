@@ -858,6 +858,10 @@ function setAppIconBusy(on) {
 }
 
 async function maySetAppIcon() {
+  if (!signer) {
+    toast.error("Connect wallet first");
+    return false;
+  }
   const topicId = utilityTopicId();
   if (!topicId) {
     toast.error("Please enter a Topic ID or domain.");
@@ -906,12 +910,18 @@ document.getElementById("app-icon-file").addEventListener("change", async () => 
     toast.error("Use a JPG, PNG or WebP image.");
     return;
   }
-  if (!(await maySetAppIcon())) return;
   const previous = appIconShown.startsWith("blob:") ? "" : appIconShown;
   const uploadBtn = document.getElementById("submit-button-upload-app-icon");
-  setAppIconBusy(true);
-  if (uploadBtn) uploadBtn.textContent = "Uploading…";
   try {
+    setAppIconBusy(true);
+    try {
+      if (!(await maySetAppIcon())) return;
+    } catch (error) {
+      console.error("Error checking app icon admins:", error);
+      toast.error("Couldn't check this topic's admins. Try again.");
+      return;
+    }
+    if (uploadBtn) uploadBtn.textContent = "Uploading…";
     const square = await squareCenterFile(file);
     showAppIconPreview(URL.createObjectURL(square));
     const url = await uploadPostImage(square, {
@@ -937,7 +947,13 @@ document.getElementById("submit-button-clear-app-icon").addEventListener("click"
   if (appIconBusy) return;
   setAppIconBusy(true);
   try {
-    if (!(await maySetAppIcon())) return;
+    try {
+      if (!(await maySetAppIcon())) return;
+    } catch (error) {
+      console.error("Error checking app icon admins:", error);
+      toast.error("Couldn't check this topic's admins. Try again.");
+      return;
+    }
     const sent = await sendAppIcon("");
     if (sent) showAppIconPreview("");
   } catch (error) {
