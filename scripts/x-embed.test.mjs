@@ -316,3 +316,33 @@ test("pages are wired to xembed.js, and only xembed.js loads X's script", () => 
   assert.match(rules, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(rules, /:where\(\.x-embed-list, \.x-embed-list \*\) \{\s*touch-action: pan-y;/);
 });
+
+test("a tap on a locked X post in a map popup is not a swipe", () => {
+  assert.equal(x.xEmbedLockTap(0, 0), true);
+  assert.equal(x.xEmbedLockTap(10, 4), true);
+  assert.equal(x.xEmbedLockTap(49, 0), true);
+  assert.equal(x.xEmbedLockTap(0, 49), true);
+  assert.equal(x.xEmbedLockTap(50, 0), false);
+  assert.equal(x.xEmbedLockTap(80, 10), false);
+  assert.equal(x.xEmbedLockTap(40, 80), false);
+  assert.equal(x.xEmbedLockTap(60, 50), false);
+
+  const client = read("../xembed.js");
+  const code = client.replace(/^\s*\/\/.*$/gm, "");
+  assert.match(client, /const LOCK_IDLE_MS = 8000/);
+  assert.match(client, /shield\.className = 'x-embed-shield'/);
+  assert.match(client, /card\.append\(shield, badge\)/);
+  assert.match(client, /const LOCK_LABEL = 'Swipe to change post, tap to use'/);
+  assert.match(client, /const UNLOCK_LABEL = 'Using X post'/);
+  assert.equal(/goNext|goPrev/.test(code), false);
+  assert.match(client, /armPopupLock\(card\)/);
+  assert.match(read("../processallmessages.js"), /lockPopupXEmbeds\(\)/);
+
+  const css = read("../style.css");
+  const rules = css.slice(css.indexOf("/* ── X posts (xembed.js)"));
+  assert.equal(/\d(\.\d+)?px/.test(rules), false);
+  assert.match(rules, /@media \(hover: hover\)/);
+  assert.match(rules, /\.maplibregl-popup \.x-embed\.is-ready > \.x-embed-shield \{[^}]*touch-action: pan-y/);
+  assert.match(rules, /\.x-embed-lock\.is-fading \{\s*opacity: 0;/);
+  assert.match(rules, /pointer-events: none/);
+});

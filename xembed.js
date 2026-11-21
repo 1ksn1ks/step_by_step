@@ -32,6 +32,11 @@ const NEAR_MARGIN = '15% 0%';
 const WIDGETS_RETRY_MS = 60 * 1000;
 // createTweet that never settles counts as a post X will not show.
 const RENDER_TIMEOUT_MS = 20 * 1000;
+// An unlocked post in a map popup locks again after this long with no
+// touch on the card. Touches inside X's iframe cannot be seen.
+const LOCK_IDLE_MS = 8000;
+const LOCK_LABEL = 'Swipe to change post, tap to use';
+const UNLOCK_LABEL = 'Using X post';
 
 // ── Links ────────────────────────────────────────────────────────────────
 
@@ -663,10 +668,231 @@ function size(card) {
 }
 
 function unsize(card) {
+  dropLockWatch(card);
   if (!sized.has(card)) return;
   sized.delete(card);
   heights.delete(card);
   if (resizer) resizer.unobserve(card);
+}
+
+// ── Map popup: swipe past X's iframe ────────────────────────────────────
+// X's frame is a cross-origin iframe, so a touch on it never reaches the
+// popup. While the post is locked, a shield over the frame takes the touch
+// and lets it bubble: the popup's own pager turns the page. A tap (not a
+// swipe, and under that same threshold) lifts the shield. The pager is not
+// reimplemented here.
+
+// A tap on the shield. A swipe is 50 or more across, and at least 1.5 times
+// the vertical travel: the same test the popup pager uses. A vertical drag
+// is not a tap either.
+export function xEmbedLockTap(dx, dy) {
+  const adx = Math.abs(dx);
+  const ady = Math.abs(dy);
+  if (adx >= 50 && adx >= ady * 1.5) return false;
+  return Math.hypot(dx, dy) < 50;
+}
+
+const idleTimers = new WeakMap();
+
+function inPopup(card) {
+  return !!(card.closest && card.closest('.maplibregl-popup'));
+}
+
+function clearIdle(card) {
+  const timer = idleTimers.get(card);
+  if (!timer) return;
+  clearTimeout(timer);
+  idleTimers.delete(card);
+}
+
+function armIdle(card) {
+  clearIdle(card);
+  const timer = setTimeout(() => {
+    idleTimers.delete(card);
+    if (!card.isConnected || card.classList.contains('is-locked')) return;
+    lockCard(card);
+  }, LOCK_IDLE_MS);
+  idleTimers.set(card, timer);
+}
+
+function prefersReducedMotion() {
+  try {
+    return !!(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  } catch {
+    return false;
+  }
+}
+
+function paintBadge(card, locked) {
+  const badge = card.querySelector('.x-embed-lock');
+  if (!badge) return;
+  const text = locked ? '🔒' : '🔓';
+  const label = locked ? LOCK_LABEL : UNLOCK_LABEL;
+  if (badge.textContent === text && badge.getAttribute('aria-label') === label) return;
+  const gen = (badge._xGen || 0) + 1;
+  badge._xGen = gen;
+  const apply = () => {
+    if (badge._xGen !== gen || badge._xApplied === gen) return;
+    badge._xApplied = gen;
+    badge.textContent = text;
+    badge.setAttribute('aria-label', label);
+    badge.classList.remove('is-fading');
+  };
+  const first = badge.textContent !== '🔒' && badge.textContent !== '🔓';
+  if (first || prefersReducedMotion()) {
+    apply();
+    return;
+  }
+  badge.classList.add('is-fading');
+  const onEnd = (event) => {
+    if (event.propertyName !== 'opacity') return;
+    badge.removeEventListener('transitionend', onEnd);
+    apply();
+  };
+  badge.addEventListener('transitionend', onEnd);
+  setTimeout(() => {
+    badge.removeEventListener('transitionend', onEnd);
+    apply();
+  }, 220);
+}
+
+function lockCard(card) {
+  clearIdle(card);
+  card.classList.add('is-locked');
+  paintBadge(card, true);
+}
+
+// The tap that lifts the shield must not also reach the post. pointer-events
+// is already none, so the click would land on the iframe; it is swallowed.
+function swallowUnlockClick(card) {
+  if (typeof document === 'undefined') return;
+  let pending = true;
+  let timer = 0;
+  const swallow = (event) => {
+    if (!pending) return;
+    pending = false;
+    document.removeEventListener('click', swallow, true);
+    clearTimeout(timer);
+    const target = event.target;
+    if (!target || !target.closest || target.closest('.x-embed') !== card) return;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  document.addEventListener('click', swallow, true);
+  timer = setTimeout(() => {
+    pending = false;
+    document.removeEventListener('click', swallow, true);
+  }, 500);
+}
+
+function unlockCard(card) {
+  card.classList.remove('is-locked');
+  paintBadge(card, false);
+  armIdle(card);
+  swallowUnlockClick(card);
+}
+
+function bindShield(card, shield) {
+  let x = null;
+  let y = null;
+  shield.addEventListener('pointerdown', (event) => {
+    if (event.pointerType !== 'touch') return;
+    if (!card.classList.contains('is-locked')) return;
+    x = event.clientX;
+    y = event.clientY;
+  });
+  shield.addEventListener('pointerup', (event) => {
+    if (event.pointerType !== 'touch' || x === null) return;
+    const dx = event.clientX - x;
+    const dy = event.clientY - y;
+    x = y = null;
+    if (!card.classList.contains('is-locked')) return;
+    if (!xEmbedLockTap(dx, dy)) return;
+    event.preventDefault();
+    unlockCard(card);
+  });
+  shield.addEventListener('pointercancel', () => {
+    x = y = null;
+  });
+}
+
+// The iframe cannot reset the timer. A touch on the card's own border,
+// outside the frame and the shield, does.
+function bindCardIdle(card) {
+  const rest = (event) => {
+    if (card.classList.contains('is-locked')) return;
+    const target = event.target;
+    if (target && target.closest && (target.closest('.x-embed-frame') || target.closest('.x-embed-shield'))) return;
+    armIdle(card);
+  };
+  card.addEventListener('pointerdown', rest);
+  card.addEventListener('pointermove', rest);
+  card.addEventListener('pointerup', rest);
+  card.addEventListener('pointercancel', rest);
+}
+
+function ensureChrome(card) {
+  if (card.querySelector('.x-embed-shield')) return;
+  const shield = document.createElement('div');
+  shield.className = 'x-embed-shield';
+  shield.setAttribute('aria-hidden', 'true');
+  const badge = document.createElement('span');
+  badge.className = 'x-embed-lock';
+  badge.setAttribute('role', 'img');
+  card.append(shield, badge);
+  bindShield(card, shield);
+  bindCardIdle(card);
+}
+
+function dropLockWatch(card) {
+  clearIdle(card);
+  const observer = card._xLockObserver;
+  if (observer) {
+    observer.unobserve(card);
+    card._xLockObserver = null;
+  }
+  // Detached (or dropped) while it was a popup post: come back locked.
+  if (card.querySelector && card.querySelector('.x-embed-shield')) lockCard(card);
+}
+
+function watchVisibility(card) {
+  if (card._xLockObserver || typeof IntersectionObserver !== 'function') return;
+  const root = scrollRootOf(card);
+  let observer;
+  const onSeen = (entries) => {
+    for (const entry of entries) {
+      if (entry.target !== card) continue;
+      const gone = !card.isConnected || !inPopup(card);
+      if (gone || !entry.isIntersecting) lockCard(card);
+      if (!gone) continue;
+      observer.unobserve(card);
+      if (card._xLockObserver === observer) card._xLockObserver = null;
+    }
+  };
+  observer = new IntersectionObserver(onSeen, { root: root && root.isConnected ? root : null, threshold: 0 });
+  card._xLockObserver = observer;
+  observer.observe(card);
+}
+
+// First time a ready post is on a map popup it locks. A post already being
+// watched keeps its lock state (a turn of the phone must not lock it again).
+function armPopupLock(card) {
+  if (!card.classList.contains('is-ready') || !inPopup(card)) return;
+  ensureChrome(card);
+  if (card._xLockObserver) return;
+  watchVisibility(card);
+  lockCard(card);
+}
+
+// Every popup card locks. A rebuilt popup (swipe, arrow keys, the chips)
+// calls this, and so does a post that has just been shown.
+export function lockPopupXEmbeds() {
+  if (typeof document === 'undefined' || !document.querySelectorAll) return;
+  for (const card of document.querySelectorAll('.maplibregl-popup .x-embed.is-ready')) {
+    ensureChrome(card);
+    if (!card._xLockObserver) watchVisibility(card);
+    lockCard(card);
+  }
 }
 
 // ── States ───────────────────────────────────────────────────────────────
@@ -712,6 +938,7 @@ async function loadEmbed(card) {
   if (wait) wait.remove();
   fitEmbed(card);
   if (fitter) fitter.observe(card.parentElement);
+  armPopupLock(card);
 }
 
 // X would not show it: the link in the text stays, the placeholder goes.
@@ -790,6 +1017,7 @@ function mountList(textEl) {
     // and a list placed by a function `after` follows it.
     if (typeof state.after === 'function') moveList(state.list, state, textEl);
     for (const card of state.list.querySelectorAll('.x-embed.is-pending')) armCard(card);
+    for (const card of state.list.querySelectorAll('.x-embed.is-ready')) armPopupLock(card);
     paintLinks(textEl, state);
     return;
   }

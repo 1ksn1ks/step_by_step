@@ -26092,6 +26092,60 @@ html.is-draw-picking .live-filter {
 #feed-chat #load-column.is-feed-shell .topic-bio-row + .x-embed-list + .loaded-topic-row {
   box-shadow: inset 0 0.0625rem 0 rgba(255, 255, 255, 0.12);
 }
+/* Map popup: a locked post wears a shield so a sideways swipe turns the
+   page, and a small badge says so. A tap lifts the shield. The badge never
+   takes the tap. A fine pointer (hover) keeps the post as it was. */
+.x-embed-shield,
+.x-embed-lock {
+  display: none;
+}
+.maplibregl-popup .x-embed.is-ready > .x-embed-shield {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  touch-action: pan-y;
+  background: transparent;
+}
+.maplibregl-popup .x-embed.is-ready.is-locked > .x-embed-shield {
+  pointer-events: auto;
+}
+.maplibregl-popup .x-embed.is-ready:not(.is-locked) > .x-embed-shield {
+  pointer-events: none;
+}
+.maplibregl-popup .x-embed.is-ready > .x-embed-lock {
+  display: block;
+  position: absolute;
+  top: 0.35em;
+  right: 0.35em;
+  z-index: 2;
+  pointer-events: none;
+  padding: 0.12em 0.38em;
+  border-radius: 50em;
+  background: rgba(10, 12, 18, 0.72);
+  color: #fff;
+  font-size: 0.85em;
+  line-height: 1;
+  opacity: 1;
+  transition: opacity 180ms ease;
+}
+.x-embed-lock.is-fading {
+  opacity: 0;
+}
+@media (hover: hover) {
+  .maplibregl-popup .x-embed.is-ready.is-locked > .x-embed-shield,
+  .maplibregl-popup .x-embed.is-ready:not(.is-locked) > .x-embed-shield {
+    pointer-events: none;
+  }
+  .maplibregl-popup .x-embed.is-ready > .x-embed-lock {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .x-embed-lock {
+    transition: none;
+  }
+}
 
 /* ── Several pictures per post (postimages.js, postgallery.js, mediagrid.js)
    Up to four pictures on a marker or polygon. The feed lays them out the

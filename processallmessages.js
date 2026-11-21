@@ -30,7 +30,7 @@ import { inTimeRange } from './timefilter.js';
 import { galleryImages } from './postimages.js';
 import { paintHashtags, singleLineText } from './hashtag.js';
 import { watchPopupText, setPopupText, paintPopupXEmbeds } from './popuptext.js';
-import { bindXEmbedsSwitch } from './xembed.js';
+import { bindXEmbedsSwitch, lockPopupXEmbeds } from './xembed.js';
 import { isTyping } from './joystick.js';
 import { normalizeMessageNewlines, clipMessage, formatHcsUsage, utf8ByteLength, HCS_TOO_LONG, HCS_MESSAGE_MAX_BYTES } from './hcschunks.js';
 import maplibregl from 'maplibre-gl';
@@ -1903,6 +1903,8 @@ function armPopupMediaClickSwallow() {
 }
 
 function bindPopupPager(container, goPrev, goNext) {
+  // A new card locks again. The pager below is unchanged.
+  lockPopupXEmbeds();
   let swipeX = null;
   let swipeY = null;
   container.addEventListener('pointerdown', (e) => {
