@@ -6440,14 +6440,6 @@ function profileField(kicker, valueNode) {
 
 function fillProfileSections(payer) {
   profileSections.replaceChildren();
-  const account = document.createElement('a');
-  account.className = 'feed-profile-value';
-  account.href = 'https://explore.hashpack.app/' + encodeURIComponent(payer);
-  account.target = '_blank';
-  account.rel = 'noopener noreferrer';
-  account.textContent = payer;
-  account.addEventListener('click', (event) => event.stopPropagation());
-  profileSections.appendChild(profileField('Account', account));
   const link = textOf(click2url[payer] && click2url[payer].click2url).trim();
   const href = httpUrl(link);
   if (href) {

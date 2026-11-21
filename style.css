@@ -17240,11 +17240,13 @@ html.feed-app #feed-chat.is-draw.is-map-chat > .feed-chat-bar {
   --menu-item-hover: rgba(255, 255, 255, 0.12);
   --menu-item-text: #fff;
   --menu-accent: rgba(255, 255, 255, 0.55);
+  container-type: inline-size;
   display: flex;
   flex-direction: row;
+  flex-wrap: nowrap;
   align-items: baseline;
-  justify-content: space-evenly;
-  gap: clamp(1dvh, 3dvw, 2.4dvh);
+  justify-content: space-between;
+  gap: clamp(0.2rem, 1.6cqi, 0.65rem);
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -17264,8 +17266,8 @@ html.feed-app #feed-chat.is-draw.is-map-chat > .feed-chat-bar {
   display: inline-flex;
   align-items: baseline;
   justify-content: center;
-  gap: 0.8dvw;
-  flex: 0 1 auto;
+  gap: 0.28em;
+  flex: 1 1 0;
   min-width: 0;
   max-width: 100%;
   margin: 0;
@@ -17278,13 +17280,13 @@ html.feed-app #feed-chat.is-draw.is-map-chat > .feed-chat-bar {
   white-space: nowrap;
 }
 .profile-stat-num {
-  font-size: clamp(1.8dvh, 4.6dvw, 2.8dvh);
+  font-size: clamp(0.7rem, 5.4cqi, 1.35rem);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--menu-item-text, #fff);
 }
 .profile-stat-label {
-  font-size: clamp(1.15dvh, 2.8dvw, 1.55dvh);
+  font-size: clamp(0.5rem, 3.15cqi, 0.8rem);
   font-weight: 600;
   color: rgba(255, 255, 255, 0.55);
 }
@@ -17292,7 +17294,7 @@ html.feed-app #feed-chat.is-draw.is-map-chat > .feed-chat-bar {
   color: rgba(244, 241, 234, 0.55);
 }
 .profile-stat-hbar {
-  font-size: clamp(1.5dvh, 3.6dvw, 2.2dvh);
+  font-size: clamp(0.65rem, 4.4cqi, 1.05rem);
   font-weight: 700;
   line-height: 1;
   background-image: linear-gradient(100deg, #22d3ee, #a5f3fc);

@@ -1,13 +1,20 @@
-// Follower count and HBAR received, under the name on a profile.
-// No followers list and no donations list are mounted, so both stay static.
+// Follower count, how many accounts and topics this profile follows, and
+// HBAR received, under the name on a profile. No followers list and no
+// donations list are mounted, so the counts stay static.
 
-import { BACKEND_URL } from './msgbackend.js';
+import { BACKEND_URL, fetchFollowing } from './msgbackend.js';
 import { bareAccount, formatDonationAmount } from './donationmath.js';
 import { followerCountOrNull } from './followcount.js';
 import { cachedPersonFollow, readPersonFollow } from './followtopic.js';
 import { earlyHashinalNumber } from './earlyhashinal.js';
 
 const exact = new Intl.NumberFormat('en');
+
+function statLabel(kind) {
+  if (kind === 'received') return 'Received';
+  if (kind === 'following') return 'Following';
+  return 'Followers';
+}
 
 function makeStat(kind) {
   const root = document.createElement('div');
@@ -16,7 +23,7 @@ function makeStat(kind) {
   num.className = 'profile-stat-num';
   const label = document.createElement('span');
   label.className = 'profile-stat-label';
-  label.textContent = kind === 'received' ? 'Received' : 'Followers';
+  label.textContent = statLabel(kind);
   if (kind === 'received') {
     const hbar = document.createElement('span');
     hbar.className = 'profile-stat-hbar';
@@ -44,11 +51,14 @@ export function paintProfileStats(el, account) {
   el.replaceChildren();
 
   const followers = makeStat('followers');
+  const following = makeStat('following');
   const received = makeStat('received');
-  el.append(followers.root, received.root);
+  el.append(followers.root, following.root, received.root);
   followers.num.textContent = '0';
+  following.num.textContent = '0';
   received.num.textContent = '0.00';
   markZero(followers, true);
+  markZero(following, true);
   markZero(received, true);
 
   const current = () => el.dataset.statsToken === token && el.dataset.statsFor === id;
@@ -70,6 +80,13 @@ export function paintProfileStats(el, account) {
     const shown = formatDonationAmount(raw);
     received.num.textContent = shown;
     markZero(received, !(Number(shown) > 0));
+  }
+
+  function applyFollowing(n) {
+    if (!current()) return;
+    const shown = typeof n === 'number' && n > 0 ? n : 0;
+    following.num.textContent = exact.format(shown);
+    markZero(following, shown === 0);
   }
 
   function drop() {
@@ -121,4 +138,16 @@ export function paintProfileStats(el, account) {
       if (el.isConnected) applyReceived('0');
       else drop();
     });
+  fetchFollowing(id).then((data) => {
+    if (!el.isConnected) {
+      drop();
+      return;
+    }
+    const accounts = data && Array.isArray(data.accounts) ? data.accounts.length : 0;
+    const topics = data && Array.isArray(data.topics) ? data.topics.length : 0;
+    applyFollowing(data ? accounts + topics : 0);
+  }).catch(() => {
+    if (el.isConnected) applyFollowing(0);
+    else drop();
+  });
 }
