@@ -7034,7 +7034,7 @@ html, body {
     height: max(2.75rem, 4.6dvh);
     min-width: 2.75rem;
     min-height: 2.75rem;
-    font-size: 1.15em;
+    font-size: max(1.35rem, 2.5vh);
   }
   .install-choice-hint {
     grid-column: 1;
