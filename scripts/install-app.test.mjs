@@ -191,9 +191,10 @@ test("the install screen shows Start in above the steps and waits, greyed, for a
   // Each change points the install at the choice; on iPhone the address too.
   assert.match(choice, /pointInstall\(\{\s*start: current\.start,\s*label: typed && typed !== current\.label \? typed : '',\s*icon: usePicture \? ICON_PIC : '',/);
   assert.match(choice, /keepUrlForInstall\(current\.start\);/);
-  // The choices: this link (preselected), the default, the followed topics.
-  assert.match(choice, /if \(linkStart\) addOption\(linkStart, linkStart\);\s*addOption\('', 'Web3Globe'\);\s*select\.value = linkStart;\s*choose\(linkStart\);\s*addFollowed\(\);/);
-  assert.match(choice, /fetchFollowing\(account\)/);
+  // Start in: this link, typed or picked from topics you follow.
+  assert.match(choice, /startInput\.placeholder = 'Web3Globe';\s*startInput\.value = linkStart;\s*choose\(linkStart\);/);
+  assert.match(choice, /attachFollowSuggest\(startInput, \{\s*kinds: \['topics'\],\s*submit: submitStart,?\s*\}\);\s*bindPickButton\(pickBtn, startInput\);/);
+  assert.doesNotMatch(choice, /addFollowed|install-choice-select|fetchFollowing/);
   assert.match(choice, /\/api\/install-target\?start=/);
   assert.match(choice, /input\.maxLength = LABEL_MAX;/);
 });

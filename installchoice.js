@@ -6,22 +6,24 @@
 // reads the name and icon from the manifest when it installs; afterwards
 // only iPhone lets a person rename it, while adding.
 //
-// The choices: this link's community (preselected), the default topic,
-// and the topics the connected wallet follows. The server says what each
-// opens (GET /api/install-target, server/installmanifest.js): its default
-// name, and its picture when it has one. One it does not know is dropped.
+// Start in is a text field, prefilled from this link, plus the same 👥
+// button topic chat uses (followsuggest.js). Empty means Web3Globe. A name
+// or a topic id is asked of the server (GET /api/install-target,
+// server/installmanifest.js): its default name, and its picture when it
+// has one. One it does not know stays typed, and Install stays on the last
+// community that resolved. The suggestion list and the Following picker
+// already sit above this intro (z-index), and closing them returns here.
 
-import { DEFAULT_TOPIC, ICON_PIC, LABEL_MAX, cleanLabel, cleanStart, isDefaultStart, isTopicId, startFromUrl } from './installtarget.js';
+import { ICON_PIC, LABEL_MAX, cleanLabel, cleanStart, isDefaultStart, startFromUrl } from './installtarget.js';
 import { keepUrlForInstall, pointInstall } from './installapp.js';
-import { BACKEND_URL, fetchFollowing } from './msgbackend.js';
-import { toast } from './toast.js';
+import { BACKEND_URL } from './msgbackend.js';
+import { attachFollowSuggest, bindPickButton } from './followsuggest.js';
 
 const APP_ICON_SRC = '/icons/icon-192.png';
 // A name is applied once typing pauses this long (each change has Chrome
 // check the manifest again).
 const TYPE_MS = 400;
 const RETRY_MS = 3000;
-const FOLLOWED_MAX = 8;
 const answers = new Map();
 
 // What a start opens. null is a real unknown: 404, or a body with ok:false.
@@ -73,7 +75,7 @@ function iconOption(value, text) {
 }
 
 // The step, ready to put in the install screen. Hidden until the server
-// has said what the first choice opens.
+// has said what the first choice opens, or a hint has something to say.
 export function createInstallChoice() {
   const box = el('div', 'install-choice');
   box.hidden = true;
@@ -81,9 +83,22 @@ export function createInstallChoice() {
   // (fieldclear.js).
   box.setAttribute('data-no-clear', '');
 
-  const startRow = el('label', 'install-choice-row');
-  const select = el('select', 'install-choice-select');
-  startRow.append(el('span', 'install-choice-name', 'Start in'), select);
+  const startRow = el('div', 'install-choice-row');
+  const startWrap = el('div', 'install-choice-start');
+  const startInput = el('input', 'install-choice-input install-choice-start-input');
+  startInput.type = 'text';
+  startInput.placeholder = 'Web3Globe';
+  startInput.autocomplete = 'off';
+  startInput.autocapitalize = 'off';
+  startInput.spellcheck = false;
+  startInput.enterKeyHint = 'done';
+  const pickBtn = el('button', 'follow-pick-btn', '👥');
+  pickBtn.type = 'button';
+  pickBtn.setAttribute('aria-label', 'Choose from following');
+  const hint = el('p', 'install-choice-hint');
+  hint.hidden = true;
+  startWrap.append(startInput, pickBtn, hint);
+  startRow.append(el('span', 'install-choice-name', 'Start in'), startWrap);
 
   const nameRow = el('label', 'install-choice-row');
   const input = el('input', 'install-choice-input');
@@ -115,17 +130,11 @@ export function createInstallChoice() {
   let current = null;
   let asking = 0;
   let typing = 0;
+  let startTyping = 0;
   let retryTimer = 0;
-
-  const optionFor = (start) => [...select.querySelectorAll('option')].find((option) => option.value === start);
-
-  function addOption(start, text, parent = select) {
-    if (optionFor(start)) return null;
-    const option = el('option', '', text);
-    option.value = start;
-    parent.appendChild(option);
-    return option;
-  }
+  // The text written for the community that resolved. Typing that same
+  // text again is not a new start (a display name can contain a space).
+  let shown = '';
 
   function apply() {
     clearTimeout(typing);
@@ -143,41 +152,50 @@ export function createInstallChoice() {
     keepUrlForInstall(current.start);
   }
 
+  function stayedLabel() {
+    return current && current.label ? current.label : 'Web3Globe';
+  }
+
+  function showHint(text) {
+    hint.textContent = text || '';
+    hint.hidden = !text;
+    if (text) box.hidden = false;
+  }
+
   async function choose(start, again) {
     if (!again) clearTimeout(retryTimer);
     const ask = ++asking;
     const target = await installTarget(start);
     if (ask !== asking) return;
     if (target && target.retry) {
-      // One later try. The new start stays selected while it waits, and the
-      // install stays on the previous community. A second miss puts the
-      // dropdown back, so what is selected is what will be installed.
+      // One later try. The typed text stays, and Install stays on the last
+      // community that resolved. The hint names that community.
       if (!again) {
-        toast.info('Couldn\'t reach the server, trying again…');
+        showHint('Couldn\'t reach the server, trying again…');
         retryTimer = setTimeout(() => {
           if (ask !== asking) return;
           choose(start, true);
         }, RETRY_MS);
       } else {
-        select.value = current ? current.start : '';
-        const stayed = current && current.label ? current.label : 'Web3Globe';
-        toast.error(`Couldn't load that community. Install stays on ${stayed}.`);
+        showHint(`Couldn't load that community. Install stays on ${stayedLabel()}`);
       }
       return;
     }
     if (!target) {
-      // Not a community after all: drop it and start in the default.
+      // Not a community. Leave the typed text, and leave Install where it was.
       if (start) {
-        const option = optionFor(start);
-        if (option) option.remove();
-        select.value = '';
-        choose('');
+        const typed = startInput.value.trim() || start;
+        showHint(`No community called ${typed}, Install stays on ${stayedLabel()}`);
       }
       return;
     }
     current = target;
-    const option = optionFor(start);
-    if (option && target.start && target.name) option.textContent = target.name;
+    showHint('');
+    clearTimeout(startTyping);
+    startTyping = 0;
+    startInput.value = target.start ? (target.name || target.start) : '';
+    shown = startInput.value;
+    startInput.placeholder = 'Web3Globe';
     input.value = target.label;
     input.placeholder = target.label;
     appIcon.radio.checked = true;
@@ -187,28 +205,47 @@ export function createInstallChoice() {
     apply();
   }
 
-  async function addFollowed() {
-    let account = '';
-    try {
-      account = (await import('./web3.js')).connectedAccount || '';
-    } catch {
-      account = '';
+  // What the field holds, as a start. Empty is Web3Globe. A name cleanStart
+  // rejects is ignored. The text of a community that already resolved is
+  // left as its display name. Either way a lookup still running for the
+  // previous text is dropped, so it cannot overwrite the field.
+  function submitStart() {
+    clearTimeout(startTyping);
+    startTyping = 0;
+    clearTimeout(retryTimer);
+    asking += 1;
+    const raw = startInput.value;
+    if (raw === shown) {
+      showHint('');
+      return;
     }
-    if (!account) return;
-    const data = await fetchFollowing(account);
-    if (!data || !Array.isArray(data.topics)) return;
-    const group = el('optgroup');
-    group.label = 'Topics you follow';
-    for (const topic of data.topics) {
-      if (group.children.length >= FOLLOWED_MAX) break;
-      const id = topic && typeof topic.id === 'string' ? topic.id : '';
-      if (!isTopicId(id) || id === DEFAULT_TOPIC || optionFor(id)) continue;
-      addOption(id, cleanLabel(topic.name) || id, group);
+    const text = raw.trim();
+    if (!text) {
+      showHint('');
+      choose('');
+      return;
     }
-    if (group.children.length) select.appendChild(group);
+    const start = cleanStart(raw);
+    if (!start) {
+      showHint('Not a valid community name');
+      return;
+    }
+    showHint('');
+    choose(start);
   }
 
-  select.addEventListener('change', () => choose(select.value));
+  attachFollowSuggest(startInput, { kinds: ['topics'], submit: submitStart });
+  bindPickButton(pickBtn, startInput);
+  startInput.addEventListener('input', () => {
+    clearTimeout(startTyping);
+    startTyping = setTimeout(submitStart, TYPE_MS);
+  });
+  startInput.addEventListener('change', submitStart);
+  startInput.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || event.defaultPrevented) return;
+    submitStart();
+    startInput.blur();
+  });
   input.addEventListener('input', () => {
     clearTimeout(typing);
     typing = setTimeout(apply, TYPE_MS);
@@ -221,10 +258,8 @@ export function createInstallChoice() {
 
   const fromLink = cleanStart(startFromUrl(window.location.href));
   const linkStart = isDefaultStart(fromLink) ? '' : fromLink;
-  if (linkStart) addOption(linkStart, linkStart);
-  addOption('', 'Web3Globe');
-  select.value = linkStart;
+  startInput.placeholder = 'Web3Globe';
+  startInput.value = linkStart;
   choose(linkStart);
-  addFollowed();
   return box;
 }

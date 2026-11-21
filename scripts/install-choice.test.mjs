@@ -1,24 +1,36 @@
-// A blip on /api/install-target must not drop the install onto the default
-// community. A 404 or {ok:false} still does.
+// Start in is a text field. A typed name, Enter, and a Following pick all
+// ask /api/install-target. An unknown name or a failed retry leaves Install
+// on the last community that resolved. A 404 or {ok:false} is cached; any
+// other failure is asked again.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 
-// createInstallChoice loads the wallet module only to read the account.
-// The real one opens a WalletConnect session, so the test answers with none.
-const web3Stub = "data:text/javascript," + encodeURIComponent("export const connectedAccount = null;\n");
-const toastStub = "data:text/javascript," + encodeURIComponent(
-  "export const toast = { info(msg) { globalThis.__installToasts.push(['info', msg]); }, error(msg) { globalThis.__installToasts.push(['error', msg]); } };\n",
+// The real suggestion module opens WalletConnect through the picker. This
+// screen only needs the two functions it wires: record the spec, and let a
+// click stand in for a pick (the picker writes the field, then submit runs).
+const suggestStub = "data:text/javascript," + encodeURIComponent(
+  "export function attachFollowSuggest(input, opts) {\n" +
+  "  globalThis.__installSuggest = { input, kinds: opts.kinds.slice(), submit: opts.submit };\n" +
+  "}\n" +
+  "export function bindPickButton(button, input) {\n" +
+  "  button.addEventListener('click', () => {\n" +
+  "    const spec = globalThis.__installSuggest;\n" +
+  "    if (spec && spec.input === input && spec.submit) spec.submit();\n" +
+  "  });\n" +
+  "}\n",
 );
 registerHooks({
   resolve(specifier, context, next) {
-    if (context.parentURL && context.parentURL.includes("/installchoice.js")) {
-      if (specifier === "./web3.js") return { url: web3Stub, shortCircuit: true };
-      if (specifier === "./toast.js") return { url: toastStub, shortCircuit: true };
+    if (context.parentURL && context.parentURL.includes("/installchoice.js") && specifier === "./followsuggest.js") {
+      return { url: suggestStub, shortCircuit: true };
     }
     return next(specifier, context);
   },
 });
+
+const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8").replace(/\r\n/g, "\n");
 
 let loads = 0;
 
@@ -43,6 +55,7 @@ function element(tag) {
     enterKeyHint: "",
     placeholder: "",
     id: "",
+    blurred: false,
     children: [],
     parent: null,
     listeners: {},
@@ -61,6 +74,7 @@ function element(tag) {
     addEventListener(type, fn) {
       this.listeners[type] = fn;
     },
+    blur() { this.blurred = true; },
     remove() {
       if (!this.parent) return;
       this.parent.children = this.parent.children.filter((kid) => kid !== this);
@@ -88,6 +102,9 @@ function browser(href) {
   globalThis.document = {
     createElement: element,
     querySelector() { return null; },
+    getElementById() { return null; },
+    addEventListener() {},
+    readyState: "complete",
   };
   globalThis.localStorage = {
     getItem() { return null; },
@@ -113,6 +130,21 @@ function settle() {
 async function load() {
   loads += 1;
   return import(`../installchoice.js?case=${loads}`);
+}
+
+function fields(box) {
+  const inputs = box.querySelectorAll("input").filter((node) => node.type === "text");
+  return {
+    start: inputs[0],
+    name: inputs[1],
+    hint: box.querySelectorAll("p")[0],
+    button: box.querySelectorAll("button")[0],
+  };
+}
+
+function type(start, value) {
+  start.value = value;
+  start.listeners.input();
 }
 
 test("a 404 or ok:false is unknown and stays cached, and any other failure is asked again", async () => {
@@ -151,78 +183,156 @@ test("a 404 or ok:false is unknown and stays cached, and any other failure is as
   assert.equal(zagreb.label, "Web3Globe · zagreb");
 });
 
-test("a blip keeps the community selected and tries once more, and a real unknown falls back", async (t) => {
+test("typing a start, an unknown name, and a pick leave Install on the last good community", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
-  browser("https://onlyonhbar.com/zagreb");
+  const win = browser("https://onlyonhbar.com/zagreb");
   const calls = [];
-  let mode = "blip";
+  const pointed = [];
+  const down = new Set(["zagreb"]);
+  const missing = new Set();
+  win.addEventListener("install-prompt-ready", () => pointed.push(true));
   globalThis.fetch = async (url) => {
     const text = String(url);
     if (!text.includes("/api/install-target")) return http(200, {});
     const start = new URL(text, "https://onlyonhbar.com").searchParams.get("start");
     calls.push(start);
-    if (mode === "blip" && start === "zagreb") throw new Error("network");
-    if (mode === "again" && start === "split") throw new Error("network");
-    if (mode === "missing" && start === "gone") return http(404, { ok: false });
+    if (down.has(start)) throw new Error("network");
+    if (missing.has(start)) return http(404, { ok: false });
+    const name = start === "zagreb" ? "Zagreb Club" : (start || "Web3Globe");
     return http(200, {
       ok: true,
       start: start || "",
-      name: start || "Web3Globe",
+      name,
       label: start ? "Web3Globe · " + start : "Web3Globe",
       picture: null,
     });
   };
-  globalThis.__installToasts = [];
   const { createInstallChoice } = await load();
   const box = createInstallChoice();
-  const select = box.querySelectorAll("select")[0];
+  const { start, name, hint, button } = fields(box);
+  assert.equal(start.value, "zagreb");
+  assert.equal(start.placeholder, "Web3Globe");
+  assert.equal(start.className.includes("install-choice-input"), true);
+  assert.equal(button.className, "follow-pick-btn");
+  assert.equal(button.textContent, "👥");
+  assert.equal(button["aria-label"], "Choose from following");
+  assert.deepEqual(globalThis.__installSuggest.kinds, ["topics"]);
+  assert.equal(box.hidden, true);
+
   await settle();
   assert.deepEqual(calls, ["zagreb"]);
-  assert.equal(select.value, "zagreb");
-  assert.equal(box.hidden, true);
-  assert.equal(select.querySelectorAll("option").some((option) => option.value === "zagreb"), true);
-  assert.deepEqual(globalThis.__installToasts, [["info", "Couldn't reach the server, trying again…"]]);
+  assert.equal(start.value, "zagreb");
+  assert.equal(hint.hidden, false);
+  assert.equal(hint.textContent, "Couldn't reach the server, trying again…");
+  assert.equal(box.hidden, false);
+  assert.equal(pointed.length, 0);
 
-  mode = "ok";
+  down.delete("zagreb");
   t.mock.timers.tick(2999);
   assert.deepEqual(calls, ["zagreb"]);
   t.mock.timers.tick(1);
   await settle();
   assert.deepEqual(calls, ["zagreb", "zagreb"]);
+  assert.equal(start.value, "Zagreb Club");
+  assert.equal(start.placeholder, "Web3Globe");
+  assert.equal(name.value, "Web3Globe · zagreb");
+  assert.equal(name.placeholder, "Web3Globe · zagreb");
+  assert.equal(hint.hidden, true);
   assert.equal(box.hidden, false);
-  assert.equal(select.value, "zagreb");
+  assert.equal(pointed.length, 1);
 
-  const split = element("option");
-  split.value = "split";
-  split.textContent = "split";
-  select.appendChild(split);
-  mode = "again";
-  select.value = "split";
-  select.listeners.change();
+  down.add("split");
+  type(start, "split");
+  t.mock.timers.tick(400);
   await settle();
-  assert.equal(select.value, "split");
-  assert.equal(box.hidden, false);
-  assert.equal(select.querySelectorAll("option").some((option) => option.value === "split"), true);
-  assert.deepEqual(globalThis.__installToasts.at(-1), ["info", "Couldn't reach the server, trying again…"]);
+  assert.equal(start.value, "split");
+  assert.equal(hint.textContent, "Couldn't reach the server, trying again…");
+  assert.equal(name.value, "Web3Globe · zagreb");
   t.mock.timers.tick(3000);
   await settle();
-  assert.deepEqual(calls.filter((start) => start === "split"), ["split", "split"]);
+  assert.deepEqual(calls.filter((item) => item === "split"), ["split", "split"]);
   t.mock.timers.tick(3000);
   await settle();
-  assert.equal(calls.filter((start) => start === "split").length, 2);
-  assert.equal(select.value, "zagreb");
-  assert.deepEqual(globalThis.__installToasts.at(-1), ["error", "Couldn't load that community. Install stays on Web3Globe · zagreb."]);
+  assert.equal(calls.filter((item) => item === "split").length, 2);
+  assert.equal(start.value, "split");
+  assert.equal(hint.textContent, "Couldn't load that community. Install stays on Web3Globe · zagreb");
+  assert.equal(name.value, "Web3Globe · zagreb");
+  assert.equal(pointed.length, 1);
 
-  const gone = element("option");
-  gone.value = "gone";
-  gone.textContent = "gone";
-  select.appendChild(gone);
-  mode = "missing";
-  select.value = "gone";
-  select.listeners.change();
+  down.add("osijek");
+  type(start, "osijek");
+  t.mock.timers.tick(400);
   await settle();
-  assert.equal(select.querySelectorAll("option").some((option) => option.value === "gone"), false);
-  assert.equal(select.querySelectorAll("option").some((option) => option.value === "zagreb"), true);
-  assert.equal(select.value, "");
+  assert.deepEqual(calls.filter((item) => item === "osijek"), ["osijek"]);
+  type(start, "nope nope");
+  t.mock.timers.tick(400);
+  assert.equal(hint.textContent, "Not a valid community name");
+  t.mock.timers.tick(3000);
+  await settle();
+  assert.deepEqual(calls.filter((item) => item === "osijek"), ["osijek"]);
+  assert.equal(start.value, "nope nope");
+  assert.equal(name.value, "Web3Globe · zagreb");
+  assert.equal(pointed.length, 1);
+
+  missing.add("gone");
+  type(start, "Gone");
+  t.mock.timers.tick(400);
+  await settle();
+  assert.equal(calls.at(-1), "gone");
+  assert.equal(start.value, "Gone");
+  assert.equal(hint.textContent, "No community called Gone, Install stays on Web3Globe · zagreb");
+  assert.equal(name.value, "Web3Globe · zagreb");
+  assert.equal(calls.includes(""), false);
+  assert.equal(pointed.length, 1);
+
+  type(start, "");
+  t.mock.timers.tick(400);
+  await settle();
   assert.equal(calls.at(-1), "");
+  assert.equal(start.value, "");
+  assert.equal(start.placeholder, "Web3Globe");
+  assert.equal(name.value, "Web3Globe");
+  assert.equal(hint.hidden, true);
+  assert.equal(pointed.length, 2);
+
+  start.value = "0.0.55";
+  button.listeners.click();
+  await settle();
+  assert.equal(calls.at(-1), "0.0.55");
+  assert.equal(start.value, "0.0.55");
+  assert.equal(name.value, "Web3Globe · 0.0.55");
+  assert.equal(hint.hidden, true);
+  assert.equal(pointed.length, 3);
+
+  start.value = "rijeka";
+  start.listeners.keydown({ key: "Enter", defaultPrevented: false });
+  await settle();
+  assert.equal(start.blurred, true);
+  assert.equal(calls.at(-1), "rijeka");
+  assert.equal(start.value, "rijeka");
+  assert.equal(name.value, "Web3Globe · rijeka");
+
+  start.value = "pula";
+  start.listeners.change();
+  await settle();
+  assert.equal(calls.at(-1), "pula");
+  assert.equal(start.value, "pula");
+  assert.equal(name.value, "Web3Globe · pula");
+  assert.equal(pointed.length, 5);
+});
+
+test("the suggestion list and the Following picker open above the install intro", () => {
+  const css = read("../style.css");
+  const suggest = css.match(/\.follow-suggest \{[^}]*z-index:\s*(\d+)/);
+  const picker = css.match(/\.picker-sheet \{[^}]*z-index:\s*(\d+)/);
+  const intro = css.match(/\.onboard-overlay \{[^}]*z-index:\s*(\d+)/);
+  assert.ok(suggest && picker && intro);
+  assert.ok(Number(suggest[1]) > Number(intro[1]));
+  assert.ok(Number(picker[1]) > Number(intro[1]));
+  const startAt = css.indexOf(".install-choice-start {");
+  const iconsAt = css.indexOf(".install-choice-icons {", startAt);
+  assert.ok(startAt >= 0 && iconsAt > startAt);
+  assert.equal(css.slice(startAt, iconsAt).includes("px"), false);
+  assert.match(read("../followsuggest.js"), /export function bindPickButton\(button, input\)/);
+  assert.match(read("../installchoice.js"), /class="install-choice-input install-choice-start-input"|install-choice-input install-choice-start-input/);
 });

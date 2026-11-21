@@ -611,7 +611,7 @@ export function attachFollowSuggest(input, { kinds, submit, fill, dimMissing } =
   input.addEventListener('keydown', onKeyDown);
 }
 
-function bindPickButton(button, input) {
+export function bindPickButton(button, input) {
   if (!button || !input) return;
   button.addEventListener('click', (event) => {
     event.preventDefault();
