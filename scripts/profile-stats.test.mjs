@@ -150,6 +150,7 @@ test("the feed profile keeps Link and Topic and drops the Account row", () => {
   const to = css.indexOf("#feed-profile .feed-profile-bio");
   const rule = css.slice(from, to);
   assert.equal(rule.includes("px"), false);
-  assert.match(rule, /flex-wrap:\s*nowrap/);
-  assert.match(rule, /font-size:\s*clamp\(0\.7rem,\s*5\.4cqi,\s*1\.35rem\)/);
+  assert.equal(rule.includes("cqi"), false);
+  assert.match(rule, /justify-content:\s*space-evenly/);
+  assert.match(rule, /font-size:\s*clamp\(1\.8dvh,\s*4\.6dvw,\s*2\.8dvh\)/);
 });
