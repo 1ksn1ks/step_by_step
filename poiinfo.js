@@ -24,8 +24,8 @@ import { mapTipClaimed } from './maptipclick.js';
 // The plain tap/click (the 📍/🔷 pin in drawhere.js) must keep working,
 // so the tap a hold generates is swallowed via holdJustHappened().
 
-const HOLD_MS = 500;
-const MOVE_TOLERANCE = 12; // px — same as drawhere.js
+export const HOLD_MS = 500;
+export const MOVE_TOLERANCE = 12; // px — same as drawhere.js
 
 const canvas = map.getCanvas();
 

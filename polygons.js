@@ -14,7 +14,7 @@ import { activeMarkerPopups } from './marker';
 import { polygonPopupNode } from './processallmessages.js';
 import { CloseALL, changePopupState } from './cssLogic';
 import { closeDrawAnchor } from './drawhere';
-import { closePressAnchor, holdJustHappened } from './poiinfo';
+import { closePressAnchor, holdJustHappened, HOLD_MS, MOVE_TOLERANCE } from './poiinfo';
 import { watchPolygonTilt, forgetPolygonTilt } from './polygontilt.js';
 import { fillMapTip } from './maptip.js';
 import { addMapTipSource } from './maptipclick.js';
@@ -32,10 +32,6 @@ export let addedLayers = new Set();
 let polygonTitleTip = null;
 let polygonTitleTimer = 0;
 let polygonTitleFromTouch = false;
-// Same hold as poiinfo.js (HOLD_MS, MOVE_TOLERANCE) so the bubble and
-// holdJustHappened() agree: a quick tap opens the post, a hold does not.
-const POLYGON_HOLD_MS = 500;
-const POLYGON_HOLD_MOVE = 12; // px
 let polygonHoldTimer = 0;
 let polygonHoldStart = null;
 
@@ -1460,7 +1456,7 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
             polygonHoldTimer = 0;
             polygonHoldStart = null;
             showPolygonTitle(polygon, at, true);
-          }, POLYGON_HOLD_MS);
+          }, HOLD_MS);
         });
 
         map.on('touchmove', maskLayerId, (e) => {
@@ -1471,7 +1467,7 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
           }
           const point = eventPoint(e);
           if (!point) return;
-          if (Math.hypot(point.x - polygonHoldStart.x, point.y - polygonHoldStart.y) > POLYGON_HOLD_MOVE) {
+          if (Math.hypot(point.x - polygonHoldStart.x, point.y - polygonHoldStart.y) > MOVE_TOLERANCE) {
             clearPolygonHold();
           }
         });
