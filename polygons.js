@@ -32,6 +32,18 @@ export let addedLayers = new Set();
 let polygonTitleTip = null;
 let polygonTitleTimer = 0;
 let polygonTitleFromTouch = false;
+// Same hold as poiinfo.js (HOLD_MS, MOVE_TOLERANCE) so the bubble and
+// holdJustHappened() agree: a quick tap opens the post, a hold does not.
+const POLYGON_HOLD_MS = 500;
+const POLYGON_HOLD_MOVE = 12; // px
+let polygonHoldTimer = 0;
+let polygonHoldStart = null;
+
+function clearPolygonHold() {
+  clearTimeout(polygonHoldTimer);
+  polygonHoldTimer = 0;
+  polygonHoldStart = null;
+}
 
 function ensurePolygonTitleTip() {
   if (polygonTitleTip) return polygonTitleTip;
@@ -50,6 +62,13 @@ function eventPoint(e) {
   if (!e.point) return null;
   const rect = map.getCanvas().getBoundingClientRect();
   return { x: rect.left + e.point.x, y: rect.top + e.point.y };
+}
+
+function touchCount(e) {
+  const src = e.originalEvent || e;
+  if (src && src.touches) return src.touches.length;
+  if (e.points) return e.points.length;
+  return 1;
 }
 
 function hidePolygonTitle() {
@@ -98,6 +117,7 @@ function showPolygonTitle(polygon, point, fromTouch) {
 }
 
 map.on("movestart", hidePolygonTitle);
+map.on("movestart", clearPolygonHold);
 
 // A right-click on a polygon shows its pill at the pointer, unless a dot
 // over it took the click first (maptipclick.js). The hit is the topmost
@@ -1422,15 +1442,48 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
           }
         });
 
+        // The bubble waits for a still hold at the touch-start point.
+        // A tap, a drag, a second finger or a pan never flashes it.
         map.on('touchstart', maskLayerId, (e) => {
+          if (touchCount(e) !== 1) {
+            clearPolygonHold();
+            return;
+          }
           if (!polygonHoverOnGlobe(e, polygon)) return;
           prefetchPersonFollow(polygon.payer);
-          showPolygonTitle(polygon, eventPoint(e), true);
+          const point = eventPoint(e);
+          if (!point) return;
+          clearPolygonHold();
+          polygonHoldStart = point;
+          const at = point;
+          polygonHoldTimer = setTimeout(() => {
+            polygonHoldTimer = 0;
+            polygonHoldStart = null;
+            showPolygonTitle(polygon, at, true);
+          }, POLYGON_HOLD_MS);
+        });
+
+        map.on('touchmove', maskLayerId, (e) => {
+          if (!polygonHoldTimer || !polygonHoldStart) return;
+          if (touchCount(e) !== 1) {
+            clearPolygonHold();
+            return;
+          }
+          const point = eventPoint(e);
+          if (!point) return;
+          if (Math.hypot(point.x - polygonHoldStart.x, point.y - polygonHoldStart.y) > POLYGON_HOLD_MOVE) {
+            clearPolygonHold();
+          }
         });
 
         map.on('touchend', maskLayerId, () => {
+          clearPolygonHold();
           clearTimeout(polygonTitleTimer);
           polygonTitleTimer = setTimeout(hidePolygonTitle, 1200);
+        });
+
+        map.on('touchcancel', maskLayerId, () => {
+          clearPolygonHold();
         });
 
         // Mark this layer as added
