@@ -224,12 +224,13 @@ test("portrait: the body is the one scroller, text, Show more, picture, X post i
   assert.match(rule(block, `${body} > .popup-msg.is-more > .popup-text-bubble`), /max-height: calc\(var\(--popup-msg-room\) - var\(--popup-more-h\)\);/);
   // With an X post the text box is capped at the size it had next to the
   // post's own box (before the one scroll body): the room less that box's
-  // share, min(26u, 66%), and its 0.5u margin, less Show more once capped.
-  // A cap, not a height: a short text is as tall as its lines.
-  // The post is after the picture, or in the message box with none.
+  // share, min(26u, 66%), and its 0.5u margin, and never under a 16:9
+  // frame of the body's width. Less Show more once capped. A cap, not a
+  // height: a short text is as tall as its lines. The post is after the
+  // picture, or in the message box with none.
   const withPost = `${body}:has(> .x-embed-list, > .popup-msg > .x-embed-list)`;
   const withX = rule(block, `${withPost} > .popup-msg > .popup-text-bubble`);
-  assert.match(withX, /--popup-msg-x: calc\(var\(--popup-msg-room\) - min\(calc\(var\(--u\) \* 26\), calc\(var\(--popup-msg-room\) \* 0\.66\)\) - var\(--u\) \* 0\.5\);\s*height: auto;\s*max-height: var\(--popup-msg-x\);/);
+  assert.match(withX, /--popup-msg-x: max\(calc\(100cqi \* 9 \/ 16\), calc\(var\(--popup-msg-room\) - min\(calc\(var\(--u\) \* 26\), calc\(var\(--popup-msg-room\) \* 0\.66\)\) - var\(--u\) \* 0\.5\)\);\s*height: auto;\s*max-height: var\(--popup-msg-x\);/);
   const withXMore = rule(block, `${withPost} > .popup-msg.is-more > .popup-text-bubble`);
   assert.match(withXMore, /max-height: calc\(var\(--popup-msg-x\) - var\(--popup-more-h\)\);/);
   assert.doesNotMatch(withXMore, /(^|[\s;{])height:/);

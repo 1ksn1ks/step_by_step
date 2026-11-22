@@ -24382,14 +24382,16 @@ html.is-draw-picking #map-topbar {
   }
   /* Text and an X post: the text box is capped at the size it had when the
      X post sat under it in its own box: the room, less the share that box
-     took (min(26u, 66% of the room)) and its 0.5u margin, less Show more
-     once the text is capped. A short text is as tall as its lines; one
-     that reaches the cap fills it and scrolls inside, with its fade and
-     Show more (popuptext.js sets .is-more when the text overflows the
-     cap). The X post itself follows at its full height in the body: after
-     the picture, or in the message box when there is none. */
+     took (min(26u, 66% of the room)) and its 0.5u margin. That cap is
+     never smaller than a 16:9 frame at the body's full width (100cqi; the
+     body is the size container). A short text is as tall as its lines
+     (height: auto raises nothing); one that reaches the cap fills it and
+     scrolls inside, with its fade and Show more (popuptext.js sets
+     .is-more when the text overflows the cap, and that row is taken off
+     the cap). The X post itself follows at its full height in the body:
+     after the picture, or in the message box when there is none. */
   :is(.maplibregl-map, :where(#popup-settings-preview)) .maplibregl-popup-content > .popup-sheet > .popup-body:has(> .x-embed-list, > .popup-msg > .x-embed-list) > .popup-msg > .popup-text-bubble {
-    --popup-msg-x: calc(var(--popup-msg-room) - min(calc(var(--u) * 26), calc(var(--popup-msg-room) * 0.66)) - var(--u) * 0.5);
+    --popup-msg-x: max(calc(100cqi * 9 / 16), calc(var(--popup-msg-room) - min(calc(var(--u) * 26), calc(var(--popup-msg-room) * 0.66)) - var(--u) * 0.5));
     height: auto;
     max-height: var(--popup-msg-x);
   }
