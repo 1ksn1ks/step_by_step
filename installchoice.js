@@ -96,9 +96,15 @@ export function createInstallChoice() {
   pickBtn.type = 'button';
   pickBtn.setAttribute('aria-label', 'Choose from following');
   const hint = el('p', 'install-choice-hint');
+  hint.id = 'install-choice-start-hint';
   hint.hidden = true;
+  hint.setAttribute('role', 'status');
+  hint.setAttribute('aria-live', 'polite');
+  const startName = el('span', 'install-choice-name', 'Start in');
+  startName.id = 'install-choice-start-name';
+  startInput.setAttribute('aria-labelledby', startName.id);
   startWrap.append(startInput, pickBtn, hint);
-  startRow.append(el('span', 'install-choice-name', 'Start in'), startWrap);
+  startRow.append(startName, startWrap);
 
   const nameRow = el('label', 'install-choice-row');
   const input = el('input', 'install-choice-input');
@@ -159,6 +165,8 @@ export function createInstallChoice() {
   function showHint(text) {
     hint.textContent = text || '';
     hint.hidden = !text;
+    if (text) startInput.setAttribute('aria-describedby', hint.id);
+    else startInput.removeAttribute('aria-describedby');
     if (text) box.hidden = false;
   }
 

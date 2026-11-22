@@ -60,6 +60,7 @@ function element(tag) {
     parent: null,
     listeners: {},
     setAttribute(name, value) { this[name] = value; },
+    removeAttribute(name) { delete this[name]; },
     append(...kids) {
       for (const kid of kids) {
         kid.parent = this;
@@ -212,6 +213,7 @@ test("typing a start, an unknown name, and a pick leave Install on the last good
   const { start, name, hint, button } = fields(box);
   assert.equal(start.value, "zagreb");
   assert.equal(start.placeholder, "Web3Globe");
+  assert.equal(start["aria-labelledby"], "install-choice-start-name");
   assert.equal(start.className.includes("install-choice-input"), true);
   assert.equal(button.className, "follow-pick-btn");
   assert.equal(button.textContent, "👥");
@@ -223,6 +225,9 @@ test("typing a start, an unknown name, and a pick leave Install on the last good
   assert.deepEqual(calls, ["zagreb"]);
   assert.equal(start.value, "zagreb");
   assert.equal(hint.hidden, false);
+  assert.equal(hint.role, "status");
+  assert.equal(hint["aria-live"], "polite");
+  assert.equal(start["aria-describedby"], hint.id);
   assert.equal(hint.textContent, "Couldn't reach the server, trying again…");
   assert.equal(box.hidden, false);
   assert.equal(pointed.length, 0);
@@ -238,6 +243,7 @@ test("typing a start, an unknown name, and a pick leave Install on the last good
   assert.equal(name.value, "Web3Globe · zagreb");
   assert.equal(name.placeholder, "Web3Globe · zagreb");
   assert.equal(hint.hidden, true);
+  assert.equal(start["aria-describedby"], undefined);
   assert.equal(box.hidden, false);
   assert.equal(pointed.length, 1);
 
