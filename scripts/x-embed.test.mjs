@@ -330,6 +330,9 @@ test("a tap on a locked X post in a map popup is not a swipe", () => {
   const client = read("../xembed.js");
   const code = client.replace(/^\s*\/\/.*$/gm, "");
   assert.match(client, /const LOCK_IDLE_MS = 8000/);
+  const shield = client.slice(client.indexOf("function bindShield"), client.indexOf("function bindCardIdle"));
+  assert.match(shield, /event\.pointerType === 'touch' \|\| event\.pointerType === 'pen'/);
+  assert.equal(shield.split("direct(event)").length, 3);
   assert.match(client, /shield\.className = 'x-embed-shield'/);
   assert.match(client, /card\.append\(shield, badge\)/);
   assert.match(client, /const LOCK_LABEL = 'Swipe to change post, tap to use'/);

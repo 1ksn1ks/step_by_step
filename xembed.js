@@ -795,14 +795,16 @@ function unlockCard(card) {
 function bindShield(card, shield) {
   let x = null;
   let y = null;
+  // A finger or a stylus. A mouse is left to the post.
+  const direct = (event) => event.pointerType === 'touch' || event.pointerType === 'pen';
   shield.addEventListener('pointerdown', (event) => {
-    if (event.pointerType !== 'touch') return;
+    if (!direct(event)) return;
     if (!card.classList.contains('is-locked')) return;
     x = event.clientX;
     y = event.clientY;
   });
   shield.addEventListener('pointerup', (event) => {
-    if (event.pointerType !== 'touch' || x === null) return;
+    if (!direct(event) || x === null) return;
     const dx = event.clientX - x;
     const dy = event.clientY - y;
     x = y = null;
