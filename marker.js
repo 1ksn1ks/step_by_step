@@ -242,11 +242,8 @@ function bindMarkerTitle(el) {
   });
   el.addEventListener("mousemove", hoverCursor);
   el.addEventListener("contextmenu", (event) => event.preventDefault());
-  el.addEventListener("touchstart", (event) => {
+  el.addEventListener("touchstart", () => {
     prefetchPersonFollow(el._markerPayer);
-    // This touch is the marker's. The map long-press is a canvas listener,
-    // and the map's own pan handler sits on the parent of this element.
-    event.stopPropagation();
   }, { passive: true });
   const hold = bindMarkerHold(el, {
     show: showHeldMarkerTitle,

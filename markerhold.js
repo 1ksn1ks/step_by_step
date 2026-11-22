@@ -71,9 +71,6 @@ export function bindMarkerHold(el, options = {}) {
 
   el.addEventListener("pointerdown", (event) => {
     if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
-    // The map's long-press listens for a touch that reaches the canvas.
-    // This press belongs to the marker.
-    event.stopPropagation();
     swallowUntil = 0;
     shown = false;
     cancelTimer();
