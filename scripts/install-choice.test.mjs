@@ -286,9 +286,23 @@ test("typing a start, an unknown name, and a pick leave Install on the last good
   await settle();
   assert.equal(calls.at(-1), "gone");
   assert.equal(start.value, "Gone");
-  assert.equal(hint.textContent, "No community called Gone, Install stays on Web3Globe · zagreb");
+  assert.equal(hint.hidden, true);
   assert.equal(name.value, "Web3Globe · zagreb");
   assert.equal(calls.includes(""), false);
+  assert.equal(pointed.length, 1);
+  start.listeners.change();
+  await settle();
+  assert.equal(hint.textContent, "No community called Gone, Install stays on Web3Globe · zagreb");
+  assert.equal(name.value, "Web3Globe · zagreb");
+  assert.equal(pointed.length, 1);
+
+  missing.add("zadar");
+  start.value = "zadar";
+  button.listeners.click();
+  await settle();
+  assert.equal(calls.at(-1), "zadar");
+  assert.equal(hint.textContent, "No community called zadar, Install stays on Web3Globe · zagreb");
+  assert.equal(name.value, "Web3Globe · zagreb");
   assert.equal(pointed.length, 1);
 
   type(start, "");

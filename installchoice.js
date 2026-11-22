@@ -170,7 +170,7 @@ export function createInstallChoice() {
     if (text) box.hidden = false;
   }
 
-  async function choose(start, again) {
+  async function choose(start, again, quiet) {
     if (!again) clearTimeout(retryTimer);
     const ask = ++asking;
     const target = await installTarget(start);
@@ -182,7 +182,7 @@ export function createInstallChoice() {
         showHint('Couldn\'t reach the server, trying again…');
         retryTimer = setTimeout(() => {
           if (ask !== asking) return;
-          choose(start, true);
+          choose(start, true, quiet);
         }, RETRY_MS);
       } else {
         showHint(`Couldn't load that community. Install stays on ${stayedLabel()}`);
@@ -191,7 +191,8 @@ export function createInstallChoice() {
     }
     if (!target) {
       // Not a community. Leave the typed text, and leave Install where it was.
-      if (start) {
+      // A pause while typing stays quiet; Enter, blur, or a pick says so.
+      if (start && !quiet) {
         const typed = startInput.value.trim() || start;
         showHint(`No community called ${typed}, Install stays on ${stayedLabel()}`);
       }
@@ -217,7 +218,7 @@ export function createInstallChoice() {
   // rejects is ignored. The text of a community that already resolved is
   // left as its display name. Either way a lookup still running for the
   // previous text is dropped, so it cannot overwrite the field.
-  function submitStart() {
+  function submitStart(quiet) {
     clearTimeout(startTyping);
     startTyping = 0;
     clearTimeout(retryTimer);
@@ -239,14 +240,14 @@ export function createInstallChoice() {
       return;
     }
     showHint('');
-    choose(start);
+    choose(start, false, quiet === true);
   }
 
   attachFollowSuggest(startInput, { kinds: ['topics'], submit: submitStart });
   bindPickButton(pickBtn, startInput);
   startInput.addEventListener('input', () => {
     clearTimeout(startTyping);
-    startTyping = setTimeout(submitStart, TYPE_MS);
+    startTyping = setTimeout(() => submitStart(true), TYPE_MS);
   });
   startInput.addEventListener('change', submitStart);
   startInput.addEventListener('keydown', (event) => {
