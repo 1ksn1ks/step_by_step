@@ -55,7 +55,7 @@ export function paintProfileStats(el, account) {
   const received = makeStat('received');
   el.append(followers.root, following.root, received.root);
   followers.num.textContent = '0';
-  following.num.textContent = '0';
+  following.num.textContent = '\u2013';
   received.num.textContent = '0.00';
   markZero(followers, true);
   markZero(following, true);
@@ -84,7 +84,13 @@ export function paintProfileStats(el, account) {
 
   function applyFollowing(n) {
     if (!current()) return;
-    const shown = typeof n === 'number' && n > 0 ? n : 0;
+    // No reply (null, or the request failed): not a count of zero.
+    if (typeof n !== 'number' || !Number.isFinite(n)) {
+      following.num.textContent = '\u2013';
+      markZero(following, true);
+      return;
+    }
+    const shown = n > 0 ? n : 0;
     following.num.textContent = exact.format(shown);
     markZero(following, shown === 0);
   }
@@ -143,11 +149,15 @@ export function paintProfileStats(el, account) {
       drop();
       return;
     }
-    const accounts = data && Array.isArray(data.accounts) ? data.accounts.length : 0;
-    const topics = data && Array.isArray(data.topics) ? data.topics.length : 0;
-    applyFollowing(data ? accounts + topics : 0);
+    if (!data) {
+      applyFollowing(null);
+      return;
+    }
+    const accounts = Array.isArray(data.accounts) ? data.accounts.length : 0;
+    const topics = Array.isArray(data.topics) ? data.topics.length : 0;
+    applyFollowing(accounts + topics);
   }).catch(() => {
-    if (el.isConnected) applyFollowing(0);
+    if (el.isConnected) applyFollowing(null);
     else drop();
   });
 }

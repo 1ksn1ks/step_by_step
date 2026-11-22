@@ -1,4 +1,5 @@
-// Following is accounts plus topics. A failed or stale reply stays on 0.
+// Following is accounts plus topics. No reply stays on an en dash.
+// A real 0 is painted only when the lists came back empty.
 // The feed profile no longer repeats the account id in its own row.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -16,7 +17,7 @@ registerHooks({
           "export const BACKEND_URL = 'https://backend.test';\n" +
           "export function fetchFollowing(account) {\n" +
           "  const job = { account };\n" +
-          "  job.done = new Promise((resolve) => { job.resolve = resolve; });\n" +
+          "  job.done = new Promise((resolve, reject) => { job.resolve = resolve; job.reject = reject; });\n" +
           "  globalThis.__followJobs.push(job);\n" +
           "  return job.done;\n" +
           "}\n",
@@ -92,28 +93,28 @@ function numOf(node) {
   return node.children.find((kid) => kid.className === "profile-stat-num").textContent;
 }
 
-test("Following counts accounts and topics, and a stale or failed reply stays at 0", async () => {
+test("Following counts accounts and topics, and a stale reply does not land", async () => {
   browser();
   const { paintProfileStats } = await import("../profilestats.js");
   const el = element();
   paintProfileStats(el, "0.0.55");
   assert.deepEqual(el.children.map(labelOf), ["Followers", "Following", "Received"]);
-  assert.equal(numOf(stat(el, 1)), "0");
+  assert.equal(numOf(stat(el, 1)), "\u2013");
   assert.equal(stat(el, 1).classList.contains("is-zero"), true);
   assert.equal(stat(el, 1).className, "profile-stat");
   assert.equal(globalThis.__followJobs[0].account, "0.0.55");
 
   const first = globalThis.__followJobs[0];
   paintProfileStats(el, "0.0.55");
-  assert.equal(numOf(stat(el, 1)), "0");
+  assert.equal(numOf(stat(el, 1)), "\u2013");
   first.resolve({ accounts: [{ id: "0.0.1" }, { id: "0.0.2" }], topics: [{ id: "0.0.9" }] });
   await settle();
-  assert.equal(numOf(stat(el, 1)), "0");
+  assert.equal(numOf(stat(el, 1)), "\u2013");
   assert.equal(stat(el, 1).classList.contains("is-zero"), true);
 
   globalThis.__followJobs[1].resolve(null);
   await settle();
-  assert.equal(numOf(stat(el, 1)), "0");
+  assert.equal(numOf(stat(el, 1)), "\u2013");
 
   paintProfileStats(el, "0.0.55");
   globalThis.__followJobs.at(-1).resolve({
@@ -132,7 +133,35 @@ test("Following counts accounts and topics, and a stale or failed reply stays at
   gone.isConnected = false;
   globalThis.__followJobs.at(-1).resolve({ accounts: [{}], topics: [{}] });
   await settle();
-  assert.equal(numOf(stat(gone, 1)), "0");
+  assert.equal(numOf(stat(gone, 1)), "\u2013");
+});
+
+test("Following shows an en dash when fetchFollowing returns null or rejects, and 0 when the lists are empty", async () => {
+  browser();
+  const { paintProfileStats } = await import("../profilestats.js");
+
+  const missed = element();
+  paintProfileStats(missed, "0.0.81");
+  globalThis.__followJobs.at(-1).resolve(null);
+  await settle();
+  assert.equal(numOf(stat(missed, 1)), "\u2013");
+  assert.equal(stat(missed, 1).classList.contains("is-zero"), true);
+  assert.equal(numOf(stat(missed, 0)), "0");
+  assert.equal(numOf(stat(missed, 2)), "1.50");
+
+  const broken = element();
+  paintProfileStats(broken, "0.0.82");
+  globalThis.__followJobs.at(-1).reject(new Error("offline"));
+  await settle();
+  assert.equal(numOf(stat(broken, 1)), "\u2013");
+  assert.equal(stat(broken, 1).classList.contains("is-zero"), true);
+
+  const empty = element();
+  paintProfileStats(empty, "0.0.83");
+  globalThis.__followJobs.at(-1).resolve({ accounts: [], topics: [] });
+  await settle();
+  assert.equal(numOf(stat(empty, 1)), "0");
+  assert.equal(stat(empty, 1).classList.contains("is-zero"), true);
 });
 
 test("the feed profile keeps Link and Topic and drops the Account row", () => {
