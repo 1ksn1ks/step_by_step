@@ -113,6 +113,19 @@ function browser(href) {
     removeItem() {},
   };
   globalThis.history = { state: {}, replaceState() {} };
+  const frames = new Map();
+  let nextFrame = 1;
+  globalThis.requestAnimationFrame = (fn) => {
+    const id = nextFrame++;
+    frames.set(id, fn);
+    return id;
+  };
+  globalThis.cancelAnimationFrame = (id) => { frames.delete(id); };
+  win.paint = () => {
+    const pending = [...frames.entries()].sort((a, b) => a[0] - b[0]);
+    frames.clear();
+    for (const [, fn] of pending) fn();
+  };
   return win;
 }
 
@@ -228,6 +241,8 @@ test("typing a start, an unknown name, and a pick leave Install on the last good
   assert.equal(hint.role, "status");
   assert.equal(hint["aria-live"], "polite");
   assert.equal(start["aria-describedby"], hint.id);
+  assert.equal(hint.textContent, "");
+  win.paint();
   assert.equal(hint.textContent, "Couldn't reach the server, trying again…");
   assert.equal(box.hidden, false);
   assert.equal(pointed.length, 0);
@@ -252,6 +267,7 @@ test("typing a start, an unknown name, and a pick leave Install on the last good
   t.mock.timers.tick(400);
   await settle();
   assert.equal(start.value, "split");
+  win.paint();
   assert.equal(hint.textContent, "Couldn't reach the server, trying again…");
   assert.equal(name.value, "Web3Globe · zagreb");
   t.mock.timers.tick(3000);
@@ -261,6 +277,7 @@ test("typing a start, an unknown name, and a pick leave Install on the last good
   await settle();
   assert.equal(calls.filter((item) => item === "split").length, 2);
   assert.equal(start.value, "split");
+  win.paint();
   assert.equal(hint.textContent, "Couldn't load that community. Install stays on Web3Globe · zagreb");
   assert.equal(name.value, "Web3Globe · zagreb");
   assert.equal(pointed.length, 1);
@@ -272,6 +289,7 @@ test("typing a start, an unknown name, and a pick leave Install on the last good
   assert.deepEqual(calls.filter((item) => item === "osijek"), ["osijek"]);
   type(start, "nope nope");
   t.mock.timers.tick(400);
+  win.paint();
   assert.equal(hint.textContent, "Not a valid community name");
   t.mock.timers.tick(3000);
   await settle();
@@ -292,6 +310,7 @@ test("typing a start, an unknown name, and a pick leave Install on the last good
   assert.equal(pointed.length, 1);
   start.listeners.change();
   await settle();
+  win.paint();
   assert.equal(hint.textContent, "No community called Gone, Install stays on Web3Globe · zagreb");
   assert.equal(name.value, "Web3Globe · zagreb");
   assert.equal(pointed.length, 1);
@@ -301,6 +320,7 @@ test("typing a start, an unknown name, and a pick leave Install on the last good
   button.listeners.click();
   await settle();
   assert.equal(calls.at(-1), "zadar");
+  win.paint();
   assert.equal(hint.textContent, "No community called zadar, Install stays on Web3Globe · zagreb");
   assert.equal(name.value, "Web3Globe · zagreb");
   assert.equal(pointed.length, 1);

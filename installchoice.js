@@ -138,6 +138,7 @@ export function createInstallChoice() {
   let typing = 0;
   let startTyping = 0;
   let retryTimer = 0;
+  let hintFrame = 0;
   // The text written for the community that resolved. Typing that same
   // text again is not a new start (a display name can contain a space).
   let shown = '';
@@ -163,8 +164,21 @@ export function createInstallChoice() {
   }
 
   function showHint(text) {
-    hint.textContent = text || '';
-    hint.hidden = !text;
+    // Unhide while empty, then fill on the next frame, so a role=status
+    // hint is announced. A newer hint or a clear drops the pending fill.
+    if (hintFrame) cancelAnimationFrame(hintFrame);
+    hintFrame = 0;
+    if (text) {
+      hint.hidden = false;
+      hint.textContent = '';
+      hintFrame = requestAnimationFrame(() => {
+        hintFrame = 0;
+        hint.textContent = text;
+      });
+    } else {
+      hint.textContent = '';
+      hint.hidden = true;
+    }
     if (text) startInput.setAttribute('aria-describedby', hint.id);
     else startInput.removeAttribute('aria-describedby');
     if (text) box.hidden = false;
