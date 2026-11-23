@@ -14117,7 +14117,8 @@ html.feed-app #feed-search-page {
 #feed-chat > *,
 #feed-profile,
 #feed-profile > *,
-.picker-sheet {
+.picker-sheet,
+.field-full {
   --ui-label: calc(var(--fu) * 1.8);
   --ui-small: calc(var(--fu) * 1.35);
   --ui-row-h: max(48px, calc(var(--fu) * 4.4));
@@ -14539,7 +14540,8 @@ html.is-nav-lock body * {
   #feed-settings > .feed-settings-bar,
   #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar,
-  #feed-layout > #feed-toolbar
+  #feed-layout > #feed-toolbar,
+  .field-full-bar
 ) {
   --fu: calc(min(78dvw, calc(var(--app-h, 100dvh) * 0.42)) / 31.25);
   --page-title: calc(var(--fu) * 2.1);
@@ -14562,7 +14564,8 @@ html.feed-app :is(
   #feed-settings > .feed-settings-bar,
   #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar,
-  #feed-layout > #feed-toolbar
+  #feed-layout > #feed-toolbar,
+  .field-full-bar
 ) {
   --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
 }
@@ -14572,7 +14575,8 @@ html.feed-app :is(
   #feed-settings > .feed-settings-bar,
   #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar,
-  #feed-layout > #feed-toolbar
+  #feed-layout > #feed-toolbar,
+  .field-full-bar
 ) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back) {
   appearance: none;
   flex: 0 0 auto;
@@ -14602,7 +14606,8 @@ html.feed-app :is(
   #feed-settings > .feed-settings-bar,
   #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar,
-  #feed-layout > #feed-toolbar
+  #feed-layout > #feed-toolbar,
+  .field-full-bar
 ) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back) svg {
   width: var(--page-icon);
   height: var(--page-icon);
@@ -14617,7 +14622,8 @@ html.feed-app :is(
   #feed-settings > .feed-settings-bar,
   #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar,
-  #feed-layout > #feed-toolbar
+  #feed-layout > #feed-toolbar,
+  .field-full-bar
 ) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back):focus {
   outline: none;
   box-shadow: none;
@@ -14628,7 +14634,8 @@ html.feed-app :is(
   #feed-settings > .feed-settings-bar,
   #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar,
-  #feed-layout > #feed-toolbar
+  #feed-layout > #feed-toolbar,
+  .field-full-bar
 ) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back):is(:hover, :active, .is-hold) {
   color: #22D3EE;
   background: transparent;
@@ -14641,7 +14648,8 @@ html.feed-app :is(
   #feed-settings > .feed-settings-bar,
   #feed-search-page > .feed-chat-bar,
   .comments-modal.comments-modal--feed > .feed-comments-bar,
-  #feed-layout > #feed-toolbar
+  #feed-layout > #feed-toolbar,
+  .field-full-bar
 ) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back):focus-visible {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.15);
@@ -14654,7 +14662,8 @@ html.feed-app :is(
   #feed-chat:not(.is-load):not(.is-draw) > .feed-chat-bar,
   #feed-settings > .feed-settings-bar,
   #feed-search-page > .feed-chat-bar,
-  .comments-modal.comments-modal--feed > .feed-comments-bar
+  .comments-modal.comments-modal--feed > .feed-comments-bar,
+  .field-full-bar
 ) :is(.feed-chat-title, .feed-settings-title, .feed-comments-title),
 :is(#feed-menu .feed-menu-page, .drawer-screen):has(#Edit_Profile-column) > .feed-menu-page-bar > .feed-menu-page-title {
   position: static;
@@ -19092,20 +19101,6 @@ html.feed-draw-open #map-draw-help-overlay {
 :is(#feed-menu, .drawer-screen) .in-drawer #edit-profile-swap-bio-input:focus {
   outline: none;
   box-shadow: inset 0 0 0 2px #22D3EE !important;
-}
-/* The full-screen button (fieldexpand.js) would take the ×'s corner. It
-   sits in the ×'s row instead, one --ui-gap to its left, centred on it
-   (the × rule is in the fieldclear layer below), and still follows the
-   field (--fx-field-top / -right). While it shows, the text's right
-   padding covers the ×, the button and their gaps; this wins over both
-   the × padding above and .has-field-expand's for this field only. */
-#edit-profile-swap-bio .swap-bio-field > .field-expand-btn {
-  top: calc(var(--fx-field-top, 0px) + (var(--ui-btn-h) - var(--clear-chip)) / 2 + (var(--clear-chip) - var(--fx-btn)) / 2);
-  right: calc(var(--fx-field-right, 0px) + var(--ui-gap) + var(--clear-chip) + var(--ui-gap));
-}
-#edit-profile-swap-bio-input.has-field-expand,
-:is(#feed-menu, .drawer-screen) .in-drawer #edit-profile-swap-bio-input.has-field-expand {
-  padding-right: calc(var(--ui-gap) + var(--clear-chip) + var(--ui-gap) + var(--fx-btn) + var(--ui-gap)) !important;
 }
 
 /* Create page only. .toolbar-group stays shared with chat. */
@@ -23860,27 +23855,31 @@ img.is-gif-hit {
 
 /* Full screen for every 18 KB box (fieldexpand.js): Draw's text, the
    post's Edit text, Swap bio, and any box bytecap.js caps later. The
-   chat composers have their own, above. A button in the field's top right
-   corner shows once there is text. Expanded, the box covers the page it
-   lives in below the page's header (and above Draw's Submit row); the
-   field fills it and what the box holds (its counter, a Save button)
-   stays along the bottom. The box is placed by measuring (--fx-top /
-   --fx-left / --fx-width / --fx-height, set by fieldexpand.js); the button
-   by the field's own offset in its parent (--fx-field-top / -right). */
-.field-expand-box {
-  --fx-btn: clamp(1.75rem, 3.2dvh, 2.25rem);
-  --fx-inset: clamp(0.25rem, 0.7dvh, 0.5rem);
-  --fx-pad: clamp(0.6rem, 1.6dvh, 1.1rem);
-}
+   chat composers have their own, above. A button in the box's counter
+   row, left of the byte counter, shows once there is text: 1.6em of the
+   counter's font (--fx-row-font), centred on the counter's line
+   (--fx-row-mid) and as far in from the left as the counter is from the
+   right (--fx-row-left); fieldexpand.js measures the row. A box with no
+   counter gets a small row of its own under the field. The text keeps its
+   full width (only a clear × keeps its own padding).
+   Open, the box moves into #field-full, a page of its own over the whole
+   app: the app's page bar (← and the title, in the shared page-bar lists
+   above, and the box's own send buttons on the right), the field filling
+   the rest, and the counter row with the same button at the bottom.
+   Phone and portrait: the whole screen. Landscape: a centred panel over a
+   dimmed backdrop that does nothing when tapped. keyboardlayout.js pins
+   it above the keyboard like any full-screen page. */
 .field-expand-anchor {
   position: relative;
 }
 .field-expand-btn {
+  --fx-btn: 1.6em;
   appearance: none;
   position: absolute;
   z-index: 3;
-  top: calc(var(--fx-field-top, 0px) + var(--fx-inset));
-  right: calc(var(--fx-field-right, 0px) + var(--fx-inset));
+  top: calc(var(--fx-row-mid, 0px) - var(--fx-btn) / 2);
+  right: auto;
+  left: var(--fx-row-left, 0px);
   display: none;
   align-items: center;
   justify-content: center;
@@ -23894,6 +23893,8 @@ img.is-gif-hit {
   background: rgba(10, 10, 18, 0.55);
   box-shadow: none;
   color: rgba(255, 255, 255, 0.6);
+  font-size: var(--fx-row-font, 0.75rem);
+  line-height: 1;
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -23901,6 +23902,16 @@ img.is-gif-hit {
 }
 .field-expand-btn.is-shown {
   display: inline-flex;
+}
+/* No counter: a small row of its own under the field, at its right. */
+.field-expand-btn.is-rowless {
+  position: relative;
+  top: auto;
+  left: auto;
+  margin: 0.5em 0 0 auto;
+}
+.field-expand-btn.is-rowless.is-shown {
+  display: flex;
 }
 /* A 2.75rem touch target around the small icon. */
 .field-expand-btn::after {
@@ -23934,59 +23945,209 @@ img.is-gif-hit {
   outline: 0.125rem solid #22D3EE;
   outline-offset: 0.125rem;
 }
-/* The text never runs under the button. */
-.field-expand-box .has-field-expand {
-  padding-inline-end: calc(var(--fx-btn) + var(--fx-inset) * 2) !important;
-}
-/* Draw's message bubble has a 2u corner and a 0.12u rim, far rounder
-   than the inset above, so the button sat on the curve. Here it comes in
-   by 0.3 of the corner, the rim and a 0.4u gap: about 1u clear of the rim
-   on the top, the right and the curve alike. The field takes the same
-   inset, so its end padding still keeps the text off the button. */
-.draw-popup-editor .draw-text-wrap > :is(.field-expand-btn, .draw-popup-text) {
-  --fx-inset: calc(var(--u) * 2 * 0.3 + var(--u) * 0.12 + var(--u) * 0.4);
-}
 .field-expand-placeholder {
   display: block;
   flex: none;
   pointer-events: none;
 }
-.field-expand-box.is-expanded {
-  position: fixed !important;
-  top: var(--fx-top) !important;
-  left: var(--fx-left) !important;
-  right: auto !important;
-  bottom: auto !important;
-  z-index: 40;
-  display: flex !important;
-  flex-direction: column;
-  gap: var(--fx-inset);
+
+/* The page. Its --fu is the page bars' (so the --ui-* sizes, set with the
+   pages' in the shared token list, read as on any page). Above every page
+   and header (#feed-chat 8700, the Load cover 9002), under the wallet
+   modal, the toasts and the help overlays. */
+.field-full {
+  --fu: calc(min(78dvw, calc(var(--app-h, 100dvh) * 0.42)) / 31.25);
+  position: fixed;
+  inset: 0;
+  z-index: 9050;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
   box-sizing: border-box;
-  width: var(--fx-width) !important;
-  height: var(--fx-height) !important;
+  width: 100%;
+  height: var(--app-h, 100dvh);
+  margin: 0;
+  padding: 0;
+  background: #0a0a12;
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
+  text-align: start;
+  overscroll-behavior: contain;
+  animation: fieldFullFade 240ms ease both;
+}
+/* Outside #feed-layout, so it sets the feed column width itself, as the
+   feed comments page does: the feed's page bars read --fu from it. */
+html.feed-app .field-full {
+  --feed-col-width: 100dvw;
+  --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
+}
+.field-full[hidden] {
+  display: none !important;
+}
+.field-full-panel {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+  background: #0a0a12;
+  overflow: hidden;
+  animation: composerExpandIn 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (orientation: landscape) {
+  html.feed-app .field-full {
+    --feed-col-width: clamp(40dvw, 46dvw, 46dvw);
+  }
+  .field-full {
+    align-items: center;
+    padding: max(3dvh, env(safe-area-inset-top, 0)) max(3dvh, env(safe-area-inset-right, 0)) max(3dvh, env(safe-area-inset-bottom, 0)) max(3dvh, env(safe-area-inset-left, 0));
+    background: rgba(0, 0, 0, 0.55);
+  }
+  .field-full-panel {
+    width: min(100%, 46rem);
+    padding: 0;
+    border-radius: var(--ui-card-radius);
+    box-shadow: 0 0 0 calc(var(--fu) * 0.1) rgba(255, 255, 255, 0.12), 0 2dvh 6dvh rgba(0, 0, 0, 0.5);
+  }
+}
+@keyframes fieldFullFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* The bar is the shared page bar; this is only its action slot. A
+   container, so a narrow bar can show two actions by their icons. */
+.field-full-bar {
+  container-type: inline-size;
+}
+.field-full-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--fu) * 0.6);
+  margin-left: auto;
+}
+.field-full:not(.has-actions) .field-full-actions {
+  display: none;
+}
+/* The box's own send buttons (the same elements, moved here while open):
+   one compact cyan pill each. The ids' own rules still dim a blocked
+   send (.hcs-send-blocked). */
+#field-full .field-full-actions > button {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: auto !important;
   min-width: 0 !important;
+  height: calc(var(--fu) * 3.6) !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 calc(var(--fu) * 1.3) !important;
+  border: 0 !important;
+  border-radius: 10em !important;
+  background: #22D3EE !important;
+  color: #0a0a12 !important;
+  font-family: inherit !important;
+  font-size: var(--ui-small) !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  letter-spacing: normal !important;
+  white-space: nowrap;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  animation: none !important;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#field-full .field-full-actions > button:is([hidden], [style*="display: none"], [style*="display:none"]) {
+  display: none !important;
+}
+#field-full .field-full-actions > button::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(2.75rem, 100%);
+  height: max(2.75rem, 100%);
+  translate: -50% -50%;
+}
+#field-full .field-full-actions > button:active {
+  background: #67E8F9 !important;
+}
+#field-full .field-full-actions > button:focus-visible {
+  outline: calc(var(--fu) * 0.12) solid #fff;
+  outline-offset: calc(var(--fu) * 0.15);
+}
+/* Two or more on a narrow bar (Draw's Submit regular and encrypted on a
+   phone): each shows its icon only; the words go past its edge, and the
+   label (aria-label) still names it. */
+@container (max-width: 34rem) {
+  #field-full .field-full-actions:has(> button + button) > button {
+    justify-content: flex-start;
+    width: 2.4em !important;
+    padding: 0 0 0 0.55em !important;
+    overflow: hidden;
+    word-spacing: 3em;
+  }
+}
+/* The body: the field fills it and scrolls inside; the counter row (with
+   the button) stays at the bottom. */
+.field-full-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: calc(var(--fu) * 0.8) calc(var(--fu) * 0.5);
+  overflow: hidden;
+}
+#field-full .field-full-body > .field-expand-box.is-expanded {
+  position: relative !important;
+  inset: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  gap: calc(var(--fu) * 0.6) !important;
+  box-sizing: border-box;
+  width: auto !important;
   max-width: none !important;
+  height: auto !important;
   min-height: 0 !important;
   max-height: none !important;
   margin: 0 !important;
-  padding: var(--fx-pad);
-  overflow: hidden;
-  background: #0a0a12;
-  animation: composerExpandIn 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+  text-align: start;
+  animation: none !important;
 }
-.field-expand-box.is-expanded > * {
+#field-full .field-expand-box.is-expanded > * {
   flex: 0 0 auto;
 }
 /* Every parent between the box and the field stretches, so the field can. */
-.field-expand-box.is-expanded .field-expand-path {
+#field-full .field-expand-box.is-expanded .field-expand-path {
   display: flex !important;
-  flex-direction: column;
+  flex-direction: column !important;
   flex: 1 1 auto !important;
+  gap: calc(var(--fu) * 0.6);
   min-height: 0 !important;
   height: auto !important;
   max-height: none !important;
+  margin: 0 !important;
 }
-.field-expand-box.is-expanded .is-field-expanded {
+/* The page is the field: no frame, the page's text size, left-aligned. */
+#field-full .field-expand-box.is-expanded .is-field-expanded {
   flex: 1 1 auto !important;
   box-sizing: border-box;
   width: 100% !important;
@@ -23997,9 +24158,44 @@ img.is-gif-hit {
   margin: 0 !important;
   overflow-y: auto !important;
   resize: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  font-family: inherit !important;
+  font-size: var(--ui-label) !important;
+  line-height: 1.45 !important;
+  text-align: start !important;
+  caret-color: #22D3EE;
+}
+/* A small inset (the reading ring of a long text draws on the edge); the
+   text starts under the bar's ← (0.5 + 0.6 = the bar's 1.1). */
+#field-full .field-full-body .is-field-expanded {
+  padding: calc(var(--fu) * 0.4) calc(var(--fu) * 0.6);
+}
+/* The counter row: right-aligned, one line as tall as the button. */
+#field-full .field-expand-box.is-expanded .hcs-byte-counter {
+  position: static !important;
+  display: block !important;
+  flex: 0 0 auto !important;
+  margin: 0 calc(var(--fu) * 0.6) !important;
+  padding: 0 !important;
+  font-size: var(--ui-small) !important;
+  line-height: 1.6 !important;
+  text-align: right !important;
+  opacity: 1 !important;
+  pointer-events: none;
+}
+/* The header names it, so the Edit text label steps aside; Save's row is
+   empty while Save is in the header. */
+#field-full .field-expand-box.is-expanded > .popup-settings-label,
+#field-full .field-expand-box.is-expanded > .popup-settings-row:empty {
+  display: none !important;
 }
 @media (prefers-reduced-motion: reduce) {
-  .field-expand-box.is-expanded {
+  .field-full,
+  .field-full-panel {
     animation: none;
   }
   .field-expand-btn {

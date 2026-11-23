@@ -371,7 +371,7 @@
             <button class="toolbar-column-btns" id="button_for_swap" type="button">Save swap</button>
           </div>
 
-          <div id="edit-profile-swap-bio" data-expand-box style="display: none;">
+          <div id="edit-profile-swap-bio" data-expand-box data-expand-title="Swap bio" style="display: none;">
             <div class="swap-bio-field">
               <textarea id="edit-profile-swap-bio-input" placeholder="Swap bio" aria-label="Swap bio" aria-describedby="swap-bio-count"
               class="toolbar-column" onclick="event.stopPropagation();"
@@ -782,7 +782,7 @@
                       <button type="button" class="draw-popup-clear" hidden aria-label="Remove image">×</button>
                     </div>
                     <div id="draw-marker-gallery" class="draw-gallery" hidden></div>
-                    <div class="draw-text-wrap">
+                    <div class="draw-text-wrap" data-expand-title="Message">
                       <div id="draw-marker-text" class="text_color popup-text-bubble draw-popup-text" contenteditable="true" role="textbox" aria-label="Message" data-placeholder="Write a message…"></div>
                       <div id="draw-marker-bytes" class="draw-byte-counter hcs-byte-counter">0 B / 18 KB</div>
                     </div>
@@ -854,7 +854,7 @@
                       <button type="button" class="draw-popup-clear" hidden aria-label="Remove image">×</button>
                     </div>
                     <div id="draw-polygon-gallery" class="draw-gallery" hidden></div>
-                    <div class="draw-text-wrap">
+                    <div class="draw-text-wrap" data-expand-title="Message">
                       <div id="draw-polygon-text" class="text_color popup-text-bubble draw-popup-text" contenteditable="true" role="textbox" aria-label="Message" data-placeholder="Write a message…"></div>
                       <div id="draw-polygon-bytes" class="draw-byte-counter hcs-byte-counter">0 B / 18 KB</div>
                     </div>
@@ -2098,7 +2098,7 @@
         </button>
         <div class="options-column-title">Popup</div>
 
-      <div id="popup-settings-editbox" data-expand-box style="display: none;">
+      <div id="popup-settings-editbox" data-expand-box data-expand-title="Edit post" style="display: none;">
         <div class="popup-settings-label">Edit text</div>
         <textarea id="popup-settings-edit-text" aria-label="Edit message" rows="3" placeholder="Message text"></textarea>
         <div id="popup-settings-thumb" class="video-thumb-bar video-thumb-edit" hidden>

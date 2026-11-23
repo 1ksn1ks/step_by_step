@@ -91,7 +91,16 @@ class FakeElement {
   append(...nodes) { for (const node of nodes) this.insertBefore(node, null); }
   appendChild(node) { this.insertBefore(node, null); return node; }
   insertBefore(node, ref) {
-    if (node.parentElement) node.remove();
+    if (node.parentElement) {
+      // As in a browser: moving the focused field (or a box that holds it)
+      // takes the focus away, and a textarea's caret with it.
+      const focused = doc && doc.activeElement;
+      if (focused && focused !== doc.body && node.contains(focused)) {
+        doc.activeElement = doc.body;
+        if (focused.tagName === "TEXTAREA") focused.selectionStart = focused.selectionEnd = focused.value.length;
+      }
+      node.remove();
+    }
     node.parentElement = this;
     const at = ref ? this.children.indexOf(ref) : -1;
     if (at < 0) this.children.push(node); else this.children.splice(at, 0, node);
@@ -255,10 +264,23 @@ const { capMessageField, capMessageEditor } = await import("../bytecap.js");
 const {
   claimExpanded,
   collapseExpandedFields,
-  expandFrame,
   fieldExpandOf,
   mountFieldExpand,
 } = await import("../fieldexpand.js");
+const host = () => doc.getElementById("field-full");
+const hostPart = (cls) => {
+  // The fake keeps className and classList apart; a browser keeps them one.
+  const has = (el) => el.classList.contains(cls) || String(el.className || "").split(/\s+/).includes(cls);
+  const walk = (el) => {
+    if (has(el)) return el;
+    for (const child of el.children) {
+      const hit = walk(child);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  return host() ? walk(host()) : null;
+};
 
 const MAX = 18 * 1024;
 const bytes = (text) => new TextEncoder().encode(text).length;
@@ -278,10 +300,12 @@ function el(tag, props = {}, ...kids) {
 // A drawer page: header, body, then the Swap bio box with its Save.
 function swapBioPage() {
   const field = el("textarea", { id: "bio-" + Math.random(), rect: { top: 300, left: 16, width: 320, height: 80 }, offsetTop: 0, offsetLeft: 0, offsetWidth: 320, offsetHeight: 80 });
-  const counter = el("div", { class: "swap-bio-count hcs-byte-counter", textContent: "0 B / 18 KB" });
+  // Its own line under the field, 6px in from each side.
+  const counter = el("div", { class: "swap-bio-count hcs-byte-counter", textContent: "0 B / 18 KB", offsetTop: 88, offsetHeight: 14, offsetLeft: 6, offsetWidth: 340 });
+  counter.computed = { fontSize: "12px" };
   const fieldWrap = el("div", { class: "swap-bio-field", clientWidth: 352 }, field, counter);
   const save = el("button", { data: { expandSend: "" } });
-  const box = el("div", { data: { expandBox: "" }, rect: { top: 290, left: 8, width: 352, height: 140 }, offsetHeight: 140 }, fieldWrap, save);
+  const box = el("div", { data: { expandBox: "", expandTitle: "Swap bio" }, rect: { top: 290, left: 8, width: 352, height: 140 }, offsetHeight: 140 }, fieldWrap, save);
   const scroller = el("div", { class: "feed-menu-page-body", scrollTop: 120, scrollHeight: 2000, clientHeight: 700 }, box);
   const header = el("div", { class: "feed-menu-page-bar", rect: { top: 20, left: 0, width: 390, height: 56 } });
   const page = el("div", { class: "feed-menu-page", rect: { top: 20, left: 0, width: 390, height: 824 } }, header, scroller);
@@ -318,11 +342,19 @@ const tap = (button) => {
 test("the button appears once there is text and hides when the box is empty", () => {
   const { field, counter } = swapBioPage();
   const button = buttonOf(field);
-  assert.equal(button.parentElement, field.parentElement, "it sits in the field's corner");
+  assert.equal(button.parentElement, field.parentElement);
   assert.equal(button.classList.contains("is-shown"), false);
   type(field, "Hello");
   assert.equal(button.classList.contains("is-shown"), true);
   assert.equal(button.getAttribute("aria-label"), "Full screen");
+  // In the counter's row: centred on its line, as far in from the left as
+  // the counter is from the right, sized from the counter's font.
+  assert.equal(button.style.props["--fx-row-mid"], "95px");
+  assert.equal(button.style.props["--fx-row-left"], "6px");
+  assert.equal(button.style.props["--fx-row-font"], "12px");
+  assert.equal(button.classList.contains("is-rowless"), false);
+  // The text keeps its full width: no padding of its own for the button.
+  assert.equal(field.classList.contains("has-field-expand"), false);
   field.dispatchEvent(new FakeEvent("beforeinput"));
   field.value = "";
   field.dispatchEvent(new FakeEvent("input", { bubbles: true }));
@@ -334,36 +366,73 @@ test("the button appears once there is text and hides when the box is empty", ()
   assert.equal(button.classList.contains("is-shown"), true);
 });
 
-test("expanding keeps the same element, its text, caret and focus, and covers the page below its header", () => {
-  const { page, box, field, fieldWrap } = swapBioPage();
+test("expanding opens the box as its own page over the app, and closing puts every element back", () => {
+  const { scroller, box, field, fieldWrap, counter, save } = swapBioPage();
   type(field, "A long bio\nwith lines");
   field.focus();
   field.setSelectionRange(4, 4);
-  const parent = field.parentElement;
+  const slot = scroller.children.indexOf(box);
   const down = tap(buttonOf(field));
   assert.equal(down.defaultPrevented, true, "the button never takes focus");
   assert.equal(fieldExpandOf(field).expanded, true);
   assert.equal(box.classList.contains("is-expanded"), true);
-  assert.equal(field.parentElement, parent, "the field is not moved");
-  assert.equal(field.value, "A long bio\nwith lines");
-  assert.deepEqual([field.selectionStart, field.selectionEnd], [4, 4]);
-  assert.equal(doc.activeElement, field);
+  // The box is in the full-screen page: a child of <body>, shown, titled.
+  const page = host();
+  assert.ok(page, "#field-full exists");
+  assert.equal(page.parentElement, doc.body);
+  assert.equal(page.hidden, false);
+  assert.equal(page.attrs.role, "dialog");
+  assert.equal(box.parentElement, hostPart("field-full-body"));
+  assert.equal(hostPart("field-full-title").textContent, "Swap bio");
+  assert.equal(hostPart("feed-chat-bar"), hostPart("field-full-bar"), "the app's page bar");
+  assert.ok(hostPart("feed-chat-back"), "with its ←");
+  // Its own Save is the header's action: the same element, moved.
+  assert.equal(save.parentElement, hostPart("field-full-actions"));
+  assert.equal(page.classList.contains("has-actions"), true);
+  // Only the box moved: inside it, nothing did.
+  assert.equal(field.parentElement, fieldWrap);
+  assert.equal(counter.parentElement, fieldWrap);
+  assert.equal(buttonOf(field).parentElement, fieldWrap, "the button stays in the counter's row");
   assert.equal(fieldWrap.classList.contains("field-expand-path"), true);
-  // A placeholder of the box's height keeps the page's layout.
-  const placeholder = box.parentElement.children[box.parentElement.children.indexOf(box) - 1];
+  // A placeholder of the box's height holds its place in the page.
+  const placeholder = scroller.children[slot];
   assert.equal(placeholder.className, "field-expand-placeholder");
   assert.equal(placeholder.style.height, "140px");
-  // Below the header (top 20 + 56), the page's width, to its bottom; in
-  // the page's coordinates (it is a size container at top 20).
-  assert.deepEqual(expandFrame(box), { top: 76, left: 0, width: 390, height: 768 });
-  assert.equal(box.style.props["--fx-top"], "56px");
-  assert.equal(box.style.props["--fx-left"], "0px");
-  assert.equal(box.style.props["--fx-width"], "390px");
-  assert.equal(box.style.props["--fx-height"], "768px");
-  assert.equal(box.dataset.kbSkip, "1", "keyboardlayout.js pins the page, not the box");
+  // The move took the focus and the caret; both are back.
+  assert.equal(field.value, "A long bio\nwith lines");
+  assert.equal(doc.activeElement, field);
+  assert.deepEqual([field.selectionStart, field.selectionEnd], [4, 4]);
   assert.equal(buttonOf(field).getAttribute("aria-label"), "Exit full screen");
   assert.deepEqual(layers.open, ["fieldfull"]);
-  void page;
+  assert.equal(box.dataset.kbSkip, undefined, "keyboardlayout.js pins #field-full itself");
+  field.setSelectionRange(7, 9);
+  collapseExpandedFields();
+  // Every element back where it was, the page closed, focus and caret kept.
+  assert.equal(scroller.children[slot], box);
+  assert.equal(scroller.children.some((c) => c.className === "field-expand-placeholder"), false);
+  assert.equal(box.children[box.children.length - 1], save, "Save is back after the field");
+  assert.equal(page.hidden, true);
+  assert.equal(page.classList.contains("has-actions"), false);
+  assert.equal(doc.activeElement, field);
+  assert.deepEqual([field.selectionStart, field.selectionEnd], [7, 9]);
+  assert.equal(fieldWrap.classList.contains("field-expand-path"), false);
+});
+
+test("a tap in the full-screen page stays there, the backdrop included", () => {
+  const { field } = swapBioPage();
+  type(field, "Text");
+  tap(buttonOf(field));
+  let documentSawIt = 0;
+  const seen = () => { documentSawIt += 1; };
+  doc.body.addEventListener("click", seen);
+  doc.body.addEventListener("pointerdown", seen);
+  field.dispatchEvent(new FakeEvent("click", { bubbles: true }));
+  field.dispatchEvent(new FakeEvent("pointerdown", { bubbles: true }));
+  host().dispatchEvent(new FakeEvent("click", { bubbles: true }));
+  assert.equal(documentSawIt, 0, "CloseALL and the drawer's outside taps never see it");
+  assert.equal(fieldExpandOf(field).expanded, true, "the backdrop does nothing");
+  doc.body.removeEventListener("click", seen);
+  doc.body.removeEventListener("pointerdown", seen);
   collapseExpandedFields();
 });
 
@@ -381,11 +450,12 @@ test("the 18 KB cap and the live counter keep working while expanded", () => {
   collapseExpandedFields();
 });
 
-test("a send from full screen sends as usual, then collapses; a blocked send does not", async () => {
+test("the header's Save is the page's own: it sends as usual, then closes; a blocked send does not", async () => {
   const { box, field, save, sent, scroller } = swapBioPage();
   type(field, "Bio to save");
   field.focus();
   tap(buttonOf(field));
+  assert.equal(save.parentElement, hostPart("field-full-actions"));
   scroller.scrollTop = 900;
   save.classList.add("hcs-send-blocked");
   save.dispatchEvent(new FakeEvent("click", { bubbles: true }));
@@ -396,11 +466,12 @@ test("a send from full screen sends as usual, then collapses; a blocked send doe
   assert.deepEqual(sent, ["Bio to save", "Bio to save"], "the page's own send ran with the text");
   await Promise.resolve();
   assert.equal(box.classList.contains("is-expanded"), false);
-  assert.equal(doc.activeElement, field, "focus stays, so the keyboard does too");
+  assert.equal(save.parentElement, box, "Save is back in its box");
+  assert.equal(doc.activeElement, field, "focus comes back, so the keyboard stays");
   assert.equal(scroller.scrollTop, 120, "the page's scroll is back where it was");
+  assert.equal(box.parentElement, scroller);
   assert.equal(box.parentElement.children.some((c) => c.className === "field-expand-placeholder"), false);
   assert.equal(layers.open.includes("fieldfull"), false, "its history entry is gone");
-  assert.equal(box.dataset.kbSkip, undefined);
 });
 
 test("Back, Escape and the button collapse it", () => {
@@ -425,6 +496,14 @@ test("Back, Escape and the button collapse it", () => {
   assert.equal(box.classList.contains("is-expanded"), true);
   tap(buttonOf(field));
   assert.equal(box.classList.contains("is-expanded"), false);
+  assert.equal(layers.open.includes("fieldfull"), false);
+  // The header's ←, which never takes the focus.
+  field.focus();
+  tap(buttonOf(field));
+  const back = tap(hostPart("field-full-back"));
+  assert.equal(back.defaultPrevented, true);
+  assert.equal(box.classList.contains("is-expanded"), false);
+  assert.equal(doc.activeElement, field);
   assert.equal(layers.open.includes("fieldfull"), false);
 });
 
@@ -463,14 +542,17 @@ test("closing the page collapses it first; a page that closed some other way col
   assert.equal(layers.open.includes("fieldfull"), false);
 });
 
-test("Draw's text: a contenteditable that mirrors into a field, above the Submit row", async () => {
+test("Draw's text: a contenteditable that mirrors into a field; its Submit buttons go to the header and back", async () => {
   const editor = el("div", { class: "draw-popup-text", isContentEditable: true, offsetWidth: 330, offsetHeight: 120, rect: { top: 400, left: 20, width: 330, height: 120 } });
   editor.attrs.contenteditable = "true";
-  const counter = el("div", { class: "draw-byte-counter hcs-byte-counter" });
-  const wrap = el("div", { class: "draw-text-wrap", rect: { top: 400, left: 20, width: 350, height: 130 }, offsetHeight: 130, clientWidth: 350 }, editor, counter);
+  editor.attrs["aria-label"] = "Message";
+  // Inside the bubble's bottom right, 16px in.
+  const counter = el("div", { class: "draw-byte-counter hcs-byte-counter", offsetTop: 108, offsetHeight: 10, offsetLeft: 250, offsetWidth: 84 });
+  const wrap = el("div", { class: "draw-text-wrap", data: { expandTitle: "Message" }, rect: { top: 400, left: 20, width: 350, height: 130 }, offsetHeight: 130, clientWidth: 350 }, editor, counter);
   const mirror = el("textarea", { hidden: true });
   const submit = el("button", { data: { expandSend: "" } });
-  const submitRow = el("div", { class: "draw-submit-row", data: { expandFooter: "" }, rect: { top: 760, left: 0, width: 390, height: 60 } }, submit);
+  const encrypted = el("button", { data: { expandSend: "" } });
+  const submitRow = el("div", { class: "draw-submit-row", data: { expandFooter: "" }, rect: { top: 760, left: 0, width: 390, height: 60 } }, submit, encrypted);
   const scroll = el("div", { class: "draw-form-scroll" }, wrap);
   const editorPage = el("div", { class: "draw-popup-editor" }, scroll, submitRow, mirror);
   const drawColumn = el("div", { id: "draw-column" }, editorPage);
@@ -489,14 +571,36 @@ test("Draw's text: a contenteditable that mirrors into a field, above the Submit
   editor.textContent = "A post";
   editor.dispatchEvent(new FakeEvent("input", { bubbles: true }));
   assert.equal(ctl.button.classList.contains("is-shown"), true);
+  assert.equal(ctl.button.style.props["--fx-row-mid"], "113px");
+  assert.equal(ctl.button.style.props["--fx-row-left"], "16px", "mirrors the counter's 16px from the right");
   tap(ctl.button);
   assert.equal(wrap.classList.contains("is-expanded"), true);
-  // The #feed-chat page (it has the header), above the Submit row.
-  assert.deepEqual(expandFrame(wrap), { top: 60, left: 0, width: 390, height: 700 });
+  assert.equal(wrap.parentElement, hostPart("field-full-body"));
+  assert.equal(hostPart("field-full-title").textContent, "Message");
+  // Both Submit buttons, the same elements, in the header in their order.
+  assert.deepEqual(hostPart("field-full-actions").children, [submit, encrypted]);
+  assert.equal(submitRow.children.length, 2, "a marker holds each one's place");
+  // The mirror field still follows the editor while it is out.
+  editor.textContent = "A post, longer";
+  editor.dispatchEvent(new FakeEvent("input", { bubbles: true }));
+  assert.equal(mirror.value, "A post, longer");
+  assert.equal(counter.textContent, `${bytes("A post, longer")} B / 18 KB`);
   submit.dispatchEvent(new FakeEvent("click", { bubbles: true }));
   await Promise.resolve();
   assert.equal(wrap.classList.contains("is-expanded"), false, "Submit collapses it");
-  assert.equal(editor.textContent, "A post");
+  assert.deepEqual(submitRow.children, [submit, encrypted], "both back in the Submit row, markers gone");
+  assert.equal(wrap.parentElement, scroll);
+  assert.equal(editor.textContent, "A post, longer");
+});
+
+test("a box with no counter gets a small row of its own for the button", () => {
+  const field = el("textarea", { rect: { top: 0, left: 0, width: 300, height: 80 } });
+  const holder = el("div", { rect: { top: 0, left: 0, width: 300, height: 90 } }, field);
+  doc.body.appendChild(holder);
+  capMessageField(field, () => bytes(field.value));
+  type(field, "Text");
+  assert.equal(buttonOf(field).classList.contains("is-rowless"), true);
+  assert.equal(buttonOf(field).style.props["--fx-row-mid"], undefined);
 });
 
 test("single-line fields, titles and chat composers get no button", () => {
@@ -514,20 +618,23 @@ test("single-line fields, titles and chat composers get no button", () => {
   assert.equal(mountFieldExpand(el("div")), null, "not a text box");
 });
 
-test("hooked in once in bytecap.js, marked in the pages, and skipped by the keyboard pin", () => {
+test("hooked in once in bytecap.js, marked and titled in the pages, and pinned above the keyboard", () => {
   const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
   const cap = read("../bytecap.js");
   assert.match(cap, /import \{ mountFieldExpand \} from '\.\/fieldexpand\.js';/);
   assert.match(cap, /mountFieldExpand\(field\);\r?\n\}/);
   assert.match(cap, /mountFieldExpand\(editor, \{ mirror: field \}\);\r?\n\}/);
   const html = read("../index.html");
-  assert.match(html, /id="popup-settings-editbox" data-expand-box/);
+  assert.match(html, /id="popup-settings-editbox" data-expand-box data-expand-title="Edit post"/);
   assert.match(html, /id="popup-settings-edit-save" class="toolbar-column-btns" data-expand-send/);
-  assert.match(html, /id="edit-profile-swap-bio" data-expand-box/);
+  assert.match(html, /id="edit-profile-swap-bio" data-expand-box data-expand-title="Swap bio"/);
   assert.match(html, /id="button_for_swap_bio" type="button" data-expand-send/);
+  assert.equal((html.match(/class="draw-text-wrap" data-expand-title="Message"/g) || []).length, 2);
   assert.equal((html.match(/class="draw-submit-row" data-expand-footer/g) || []).length, 2);
   assert.equal((html.match(/id="submit-button-Create_(encrypted-)?(Marker|Polygon)" class="toolbar-column-btns" data-expand-send/g) || []).length, 4);
-  assert.match(read("../keyboardlayout.js"), /if \(node\.dataset && node\.dataset\.kbSkip === '1'\) pos = '';/);
+  // keyboardlayout.js pins the nearest fixed ancestor of the focused field:
+  // #field-full is one.
+  assert.match(read("../keyboardlayout.js"), /if \(pos === 'fixed'\) return node;/);
   // Pages that close collapse it first.
   assert.match(read("../chatcomposer.js"), /export function collapseComposers\(\) \{[\s\S]*?collapseExpandedFields\(\);/);
   assert.match(read("../processallmessages.js"), /function closePopupSettings\(\) \{\s*\/\/[^\n]*\n\s*collapseExpandedFields\(\);/);
@@ -538,8 +645,21 @@ test("hooked in once in bytecap.js, marked in the pages, and skipped by the keyb
     assert.match(feed.slice(start, start + 260), /collapseExpandedFields\(\);/, name);
   }
   // No fixed px in its styles: only the measured offsets are px.
-  const css = read("../style.css");
+  const css = read("../style.css").replace(/\r\n/g, "\n");
   const block = css.slice(css.indexOf("/* Full screen for every 18 KB box"), css.indexOf("/* Pick on the map from the Draw form"));
   assert.ok(block.length > 500);
-  assert.deepEqual(block.replace(/var\(--fx-field-(top|right), 0px\)/g, "").match(/\d+(\.\d+)?px/g), null);
+  assert.deepEqual(block.replace(/var\(--fx-row-(mid|left), 0px\)/g, "").match(/\d+(\.\d+)?px/g), null);
+  // A page over the whole app; its bar is the app's page bar.
+  assert.match(block, /\.field-full \{[^}]*position: fixed;[^}]*inset: 0;[^}]*z-index: 9050;/);
+  assert.match(block, /@media \(orientation: landscape\) \{\s*html\.feed-app \.field-full \{[^}]*\}\s*\.field-full \{[^}]*background: rgba\(0, 0, 0, 0\.55\);/);
+  // Outside #feed-layout, it brings the feed column width its feed-mode bar reads.
+  assert.match(block, /html\.feed-app \.field-full \{\s*--feed-col-width: 100dvw;/);
+  assert.match(block, /\.field-full-panel \{\s*width: min\(100%, 46rem\);/);
+  const title = css.indexOf(") :is(.feed-chat-title, .feed-settings-title, .feed-comments-title)");
+  assert.match(css.slice(css.lastIndexOf(":is(", title), title), /\.field-full-bar/);
+  assert.match(css, /\.picker-sheet,\n\.field-full \{\n {2}--ui-label:/);
+  // The text keeps its full width: the old corner insets and paddings are gone.
+  assert.doesNotMatch(css, /has-field-expand/);
+  assert.doesNotMatch(css, /--fx-inset|--fx-field-(top|right)/);
+  assert.doesNotMatch(css, /\.swap-bio-field > \.field-expand-btn/);
 });

@@ -603,8 +603,10 @@ function boot() {
   // The shell and its nearest scroller are fixed for the whole focus
   // session. Resolving them once keeps the ancestor walk and the
   // per-ancestor style reads out of the keyboard animation loop.
+  // A field that moved to another page (fieldexpand.js opens a box as a
+  // page of its own) is looked up again: the cached shell no longer holds it.
   function shellForField(el) {
-    if (shellFor && shellFor.el === el && shellFor.shell && shellFor.shell.isConnected) {
+    if (shellFor && shellFor.el === el && shellFor.shell && shellFor.shell.isConnected && shellFor.shell.contains(el)) {
       return shellFor;
     }
     const shell = findShell(el);
