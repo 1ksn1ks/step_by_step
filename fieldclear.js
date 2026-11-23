@@ -6,9 +6,13 @@
 // The × is a real button, inserted right after its field once the field
 // first has text, and placed from layout offsets (they ignore transforms,
 // so a field's zoomIn entrance does not throw it off). Being a sibling, it
-// scrolls with the field natively. Where the field already has tools at its
+// scrolls with the field natively. It is Swap bio's round chip (.is-chip):
+// its size, its inset from the field's right and its even gap come from
+// style.css, resolved on the button; a short field fits a smaller chip with
+// the same gap above and below. Where the field already has tools at its
 // right end the CSS places it instead (--clear-placed: 1): the Load field,
-// where it takes Paste's spot, and the chat room fields, where 👥 steps left.
+// where it takes Paste's spot, Swap bio, the reference chip, and the chat
+// room fields, where 👥 steps left.
 //
 // Left out: fields with their own clear, the message composers, numeric
 // fields (inputmode numeric/decimal), the draw coordinates (their right end
@@ -27,8 +31,6 @@ const SKIP_IDS = new Set([
 const SKIP_INSIDE = '.draw-coord-wrap, .comments-input-row, .chat-compose, [data-no-clear]';
 const TEXT_TYPES = new Set(['', 'text', 'search', 'email', 'url', 'tel', 'password']);
 const MIN_WIDTH = 120;
-const HIT_W = 40; // px: the ×'s width, and the text padding it needs
-const HIT_H = 44; // px: tallest hit area
 const LONG_CHARS = 40;
 const UNDO_MS = 5000;
 
@@ -166,9 +168,10 @@ function press(field) {
   schedule();
 }
 
-// The text must not run under the ×: at least HIT_W of right padding while
-// it shows. The field's own inline padding comes back when it hides.
-function holdPad(field, entry) {
+// The text must not run under the ×: at least the chip and a gap on each
+// side of it as right padding while it shows (Swap bio's). The field's own
+// padding wins when it is larger; its inline padding comes back on hide.
+function holdPad(field, entry, need) {
   if (!entry.pad) {
     entry.pad = {
       value: field.style.getPropertyValue('padding-right'),
@@ -177,8 +180,8 @@ function holdPad(field, entry) {
   }
   setInline(field, entry.pad);
   const own = parseFloat(getComputedStyle(field).paddingRight) || 0;
-  if (own >= HIT_W) return false;
-  field.style.setProperty('padding-right', HIT_W + 'px', 'important');
+  if (own >= need) return false;
+  field.style.setProperty('padding-right', need + 'px', 'important');
   return true;
 }
 
@@ -268,11 +271,20 @@ function refresh() {
     }
   }
 
-  // Read: placement mode and padding (after the attribute took effect).
+  // Read: placement mode, and the chip's sizes as style.css resolves them on
+  // the button (after the attribute took effect).
   for (const plan of plans) {
     if (!plan.visible) continue;
     const entry = entries.get(plan.field);
-    plan.css = getComputedStyle(entry.btn).getPropertyValue('--clear-placed').trim() === '1';
+    const cs = getComputedStyle(entry.btn);
+    plan.css = cs.getPropertyValue('--clear-placed').trim() === '1';
+    if (plan.css) continue;
+    plan.sizes = {
+      full: parseFloat(cs.scrollMarginTop) || 0,
+      inset: parseFloat(cs.scrollMarginRight) || 0,
+      even: Math.max(0, parseFloat(cs.scrollMarginBottom) || 0),
+    };
+    plan.chip = chipFor(plan.field, plan.sizes);
   }
   for (const plan of plans) {
     if (!plan.visible) continue;
@@ -280,19 +292,24 @@ function refresh() {
     const entry = entries.get(field);
     if (plan.css) {
       const s = entry.btn.style;
-      for (const prop of ['left', 'top', 'height', '--clear-face', '--clear-face-y']) s.removeProperty(prop);
+      for (const prop of ['left', 'top', 'width', 'height', '--clear-face', '--clear-face-y']) s.removeProperty(prop);
+      if (entry.btn.classList.contains('is-chip')) entry.btn.classList.remove('is-chip');
       if (dropPad(field, entry)) refit(field);
       continue;
     }
+    if (!entry.btn.classList.contains('is-chip')) entry.btn.classList.add('is-chip');
     if (!hasOrigin(entry.btn)) {
       entry.btn.style.setProperty('left', '0px', 'important');
       entry.btn.style.setProperty('top', '0px', 'important');
     }
-    // Padding is read and set again only when the field first shows the ×
-    // or its width changed: a new context may bring its own padding.
-    if (plan.fresh || entry.padW !== plan.w) {
+    // Padding is read and set again only when the field first shows the ×,
+    // its width changed (a new context may bring its own padding) or the
+    // chip did.
+    const need = px2(plan.chip + 2 * plan.sizes.inset);
+    if (plan.fresh || entry.padW !== plan.w || entry.padNeed !== need) {
       entry.padW = plan.w;
-      if (holdPad(field, entry)) refit(field);
+      entry.padNeed = need;
+      if (holdPad(field, entry, need)) refit(field);
     }
   }
 
@@ -308,37 +325,30 @@ function refresh() {
     const pt = parseFloat(cs.paddingTop) || 0;
     const fontSize = parseFloat(cs.fontSize) || 16;
     const lineH = parseFloat(cs.lineHeight) || fontSize * 1.2;
-    const w = field.offsetWidth;
-    const h = field.offsetHeight;
+    const { w, h } = boxOf(field, cs);
     const inner = Math.max(0, h - bt - bb);
-    const btnH = Math.round(Math.min(HIT_H, inner || h));
-    // An input centres its line; a textarea starts at the top, so the face
-    // sits on its first line (and stays there as the text grows) while the
-    // tap area stays inside the field.
-    let dy = (h - btnH) / 2;
-    let faceY = btnH / 2;
+    // The field may have re-fitted to its padding: size it again.
+    const size = chipFor(field, plan.sizes);
+    const room = Math.max(0, (inner - size) / 2);
+    const edge = Math.min(plan.sizes.even, room);
+    // An input centres it. A textarea keeps it level with its first line
+    // (and there as the text grows), inside the field by the even gap.
+    let dy = bt + room;
     if (field.tagName === 'TEXTAREA') {
       const line = bt + pt + lineH / 2;
-      dy = Math.min(Math.max(0, line - btnH / 2), Math.max(0, h - btnH));
-      faceY = line - dy;
+      dy = Math.min(Math.max(bt + edge, line - size / 2), bt + inner - size - edge);
     }
-    const room = 2 * Math.min(faceY, btnH - faceY);
-    const face = Math.round(Math.max(16, Math.min(24, btnH * 0.55, room)));
-    plan.size = { btnH, face, faceY: Math.round(faceY * 2) / 2 };
-    let tx;
-    let ty;
-    if (btn.offsetParent && btn.offsetParent === field.offsetParent) {
-      tx = (parseFloat(btn.style.left) || 0) + (field.offsetLeft + w - br - HIT_W) - btn.offsetLeft;
-      ty = (parseFloat(btn.style.top) || 0) + (field.offsetTop + dy) - btn.offsetTop;
-    } else {
-      // Not the same offset parent (a table cell, say): screen rects. A
-      // scale on an ancestor could skew these, the offsets above cannot.
-      const f = field.getBoundingClientRect();
-      const b = btn.getBoundingClientRect();
-      tx = (parseFloat(btn.style.left) || 0) + (f.right - br - HIT_W) - b.left;
-      ty = (parseFloat(btn.style.top) || 0) + (f.top + dy) - b.top;
-    }
-    plan.place = { left: Math.round(tx * 2) / 2, top: Math.round(ty * 2) / 2 };
+    // Its right edge the inset in from the field's inner right edge.
+    const dx = w - br - plan.sizes.inset - size;
+    // From the screen rects of the two siblings, in layout px: a scale on a
+    // parent (a field's zoomIn entrance) is taken back out, and fractions
+    // are kept (whole-pixel offsets would put it off its even gaps).
+    const f = field.getBoundingClientRect();
+    const b = btn.getBoundingClientRect();
+    const k = w > 0 && f.width > 0 ? f.width / w : 1;
+    const tx = (parseFloat(btn.style.left) || 0) + (f.left - b.left) / k + dx;
+    const ty = (parseFloat(btn.style.top) || 0) + (f.top - b.top) / k + dy;
+    plan.place = { left: px2(tx), top: px2(ty), size: px2(size) };
   }
   for (const plan of plans) {
     if (!plan.place) continue;
@@ -346,15 +356,41 @@ function refresh() {
     const s = btn.style;
     const left = plan.place.left + 'px';
     const top = plan.place.top + 'px';
-    const height = plan.size.btnH + 'px';
-    const face = plan.size.face + 'px';
-    const faceY = plan.size.faceY + 'px';
+    const size = plan.place.size + 'px';
     if (s.left !== left) s.setProperty('left', left, 'important');
     if (s.top !== top) s.setProperty('top', top, 'important');
-    if (s.height !== height) s.setProperty('height', height, 'important');
-    if (s.getPropertyValue('--clear-face') !== face) s.setProperty('--clear-face', face);
-    if (s.getPropertyValue('--clear-face-y') !== faceY) s.setProperty('--clear-face-y', faceY);
+    if (s.width !== size) s.setProperty('width', size, 'important');
+    if (s.height !== size) s.setProperty('height', size, 'important');
+    // The chip's face is the button itself (style.css .is-chip).
+    if (s.getPropertyValue('--clear-face') !== '') s.removeProperty('--clear-face');
+    if (s.getPropertyValue('--clear-face-y') !== '') s.removeProperty('--clear-face-y');
   }
+}
+
+const px2 = (value) => Math.round(value * 100) / 100;
+
+// The field's border box in layout px, with its fractions (offsetWidth and
+// offsetHeight are whole pixels).
+function boxOf(field, cs) {
+  let w = parseFloat(cs.width) || 0;
+  let h = parseFloat(cs.height) || 0;
+  if (cs.boxSizing !== 'border-box') {
+    const sum = (...names) => names.reduce((total, name) => total + (parseFloat(cs[name]) || 0), 0);
+    w += sum('paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth');
+    h += sum('paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth');
+  }
+  return { w: w > 0 ? w : field.offsetWidth, h: h > 0 ? h : field.offsetHeight };
+}
+
+// Swap bio's chip, or for a field too short for it, one that fits with the
+// same even gap above and below.
+function chipFor(field, sizes) {
+  const cs = getComputedStyle(field);
+  const inner = Math.max(0, boxOf(field, cs).h - (parseFloat(cs.borderTopWidth) || 0) - (parseFloat(cs.borderBottomWidth) || 0));
+  const full = sizes.full > 0 ? sizes.full : inner;
+  let chip = Math.min(full, inner - 2 * sizes.even);
+  if (!(chip > 0)) chip = Math.min(full, inner);
+  return Math.max(0, chip);
 }
 
 function hasOrigin(btn) {

@@ -26044,12 +26044,21 @@ html.is-draw-picking .live-filter {
    was cleared. A layer, all !important: layered !important declarations
    win over every unlayered !important one whatever its specificity, so no
    panel's broad button rules restyle it. The script places it with inline
-   !important left/top/height, which win over this layer; a context that
-   places it here sets --clear-placed: 1 and the script stays out. */
+   !important left/top/width/height, which win over this layer, as Swap
+   bio's round chip (.is-chip, below); a context that places it here sets
+   --clear-placed: 1 and the script stays out. */
 @layer fieldclear {
   .field-clear {
     --clear-face: 22px;
     --clear-ring: rgba(255, 255, 255, 0.12);
+    /* Read by fieldclear.js, resolved to px (not scroll offsets): the
+       chip's size (Swap bio's --clear-chip, the same formula where that is
+       not set), its inset from the field's right, and its even gap in a
+       page row (as Swap bio's top inset). */
+    --clear-chip-px: var(--clear-chip, max(44px, calc(var(--ui-btn-h, 48px) - var(--ui-gap, 8px) * 2)));
+    scroll-margin-top: var(--clear-chip-px) !important;
+    scroll-margin-right: var(--ui-gap, 8px) !important;
+    scroll-margin-bottom: calc((var(--ui-btn-h, 48px) - var(--clear-chip-px)) / 2) !important;
     position: absolute !important;
     z-index: 3 !important;
     display: block !important;
@@ -26180,30 +26189,40 @@ html.is-draw-picking .live-filter {
     background: rgba(34, 211, 238, 0.16) !important;
   }
 
-  /* Swap bio (Edit profile): the Load field's round ×, in the top right
-     corner of the first row. --clear-chip is on the field's wrapper, so it
-     grows with the page on a tall screen. */
+  /* Swap bio (Edit profile), the reference: the Load field's round ×, in
+     the top right corner of the first row. --clear-chip is on the field's
+     wrapper, so it grows with the page on a tall screen. */
   #edit-profile-swap-bio .swap-bio-field > .field-clear {
     --clear-placed: 1;
-    --clear-ring: transparent;
     top: calc((var(--ui-btn-h, 48px) - var(--clear-chip)) / 2) !important;
     right: var(--ui-gap, 8px) !important;
     bottom: auto !important;
     left: auto !important;
     width: var(--clear-chip) !important;
     height: var(--clear-chip) !important;
+  }
+  /* The round chip: Swap bio's ×, and every × the script places (.is-chip,
+     sized and placed from the resolved values above). Hover, press and ↶
+     colour the glyph as anywhere; ↶ stays cyan. */
+  .field-clear.is-chip,
+  #edit-profile-swap-bio .swap-bio-field > .field-clear {
+    --clear-ring: transparent;
     border: 1px solid rgba(255, 255, 255, 0.22) !important;
     border-radius: 50% !important;
     background: rgba(255, 255, 255, 0.08) !important;
   }
+  .field-clear.is-chip::before,
+  .field-clear.is-chip::after,
   #edit-profile-swap-bio .swap-bio-field > .field-clear::before,
   #edit-profile-swap-bio .swap-bio-field > .field-clear::after {
     top: 50% !important;
   }
+  .field-clear.is-chip::after,
   #edit-profile-swap-bio .swap-bio-field > .field-clear::after {
     width: calc(var(--fu, 1.2vh) * 1.5) !important;
     height: calc(var(--fu, 1.2vh) * 1.5) !important;
   }
+  .field-clear.is-chip:active,
   #edit-profile-swap-bio .swap-bio-field > .field-clear:active {
     background: rgba(34, 211, 238, 0.16) !important;
   }
