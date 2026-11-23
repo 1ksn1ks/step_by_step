@@ -10894,8 +10894,11 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
    selectors include :where(#popup-settings-preview)), so text, avatar,
    buttons and the message box look as they will. A portrait popup is as
    wide as the screen; the sample takes the card's whole width, the most
-   the drawer's scroller shows (a few px in from each edge). Only its
-   height differs: it is as tall as its content, not the screen. */
+   the drawer's scroller shows (a few px in from each edge). Portrait: as
+   tall as a real popup's frame inside its edge gaps (--popup-max-h; the
+   sample has no top/bottom padding), so the body, its size container,
+   the text cap, the hearts and the footer lay out as on the map.
+   Landscape (one card, not the map's two): as tall as its content. */
 
 .mb-panel .mb-card:has(> #popup-settings-preview) {
   background: transparent;
@@ -10943,6 +10946,19 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   pointer-events: none !important;
 }
 
+@media (orientation: portrait) {
+  .mb-panel #popup-settings-preview > .maplibregl-popup {
+    height: var(--popup-max-h) !important;
+  }
+  /* The footer's inline -0.3u bottom margin hung it under the sheet and
+     gave the body 0.3u more than on the map, where the portrait
+     corner-clear rule (.maplibregl-map only) sets it to 0 unless the
+     screen has round corners the frame follows; this frame does not. */
+  .mb-panel #popup-settings-preview > .maplibregl-popup .maplibregl-popup-content > .popup-sheet > .popup-footer-row {
+    margin-bottom: 0 !important;
+  }
+}
+
 @media (orientation: landscape) {
   .mb-panel #popup-settings-preview > .maplibregl-popup {
     --popup-h: calc(var(--app-h, 100dvh) - var(--popup-top) - var(--popup-bottom));
@@ -10953,25 +10969,33 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
 
 .mb-panel #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content,
 .mb-panel #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content > .popup-sheet {
-  flex: 0 0 auto !important;
-  height: auto !important;
-  min-height: 0 !important;
-  max-height: none !important;
-  overflow: visible !important;
   animation: none !important;
 }
 
-.mb-panel #popup-settings-preview > .maplibregl-popup .popup-body {
-  flex: 0 1 auto !important;
-  height: auto !important;
-  max-height: none !important;
-  overflow: visible !important;
-}
+/* Portrait takes the map popup's own flex (content, sheet and body fill
+   the frame; the gap stays 0). Landscape sizes to its content. */
+@media (orientation: landscape) {
+  .mb-panel #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content,
+  .mb-panel #popup-settings-preview > .maplibregl-popup > .maplibregl-popup-content > .popup-sheet {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
 
-.mb-panel #popup-settings-preview > .maplibregl-popup .popup-gap {
-  flex: 0 0 auto !important;
-  height: var(--u) !important;
-  min-height: var(--u) !important;
+  .mb-panel #popup-settings-preview > .maplibregl-popup .popup-body {
+    flex: 0 1 auto !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .mb-panel #popup-settings-preview > .maplibregl-popup .popup-gap {
+    flex: 0 0 auto !important;
+    height: var(--u) !important;
+    min-height: var(--u) !important;
+  }
 }
 
 .mb-panel #popup-settings-preview * {
