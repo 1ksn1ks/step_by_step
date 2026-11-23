@@ -1,7 +1,7 @@
 // An × inside the right end of every text field. It shows while the field
 // has text; a tap empties the field and keeps the keyboard up when it was
-// up. After a long text (LONG_CHARS or more, or more than one line) the
-// same spot offers ↶ for UNDO_MS: a toast would sit under the keyboard.
+// up. ↶ follows every clear, in the same spot, for UNDO_MS: a toast would
+// sit under the keyboard.
 //
 // The × is a real button, inserted right after its field once the field
 // first has text, and placed from layout offsets (they ignore transforms,
@@ -31,7 +31,6 @@ const SKIP_IDS = new Set([
 const SKIP_INSIDE = '.draw-coord-wrap, .comments-input-row, .chat-compose, [data-no-clear]';
 const TEXT_TYPES = new Set(['', 'text', 'search', 'email', 'url', 'tel', 'password']);
 const MIN_WIDTH = 120;
-const LONG_CHARS = 40;
 const UNDO_MS = 5000;
 
 const entries = new WeakMap(); // field -> entry
@@ -157,14 +156,12 @@ function press(field) {
   endUndo(entry);
   field.value = '';
   fire(field, 'deleteContentBackward');
-  if (old.length >= LONG_CHARS || /[\r\n]/.test(old)) {
-    entry.undo = old;
-    entry.timer = setTimeout(() => {
-      entry.undo = null;
-      entry.timer = 0;
-      schedule();
-    }, UNDO_MS);
-  }
+  entry.undo = old;
+  entry.timer = setTimeout(() => {
+    entry.undo = null;
+    entry.timer = 0;
+    schedule();
+  }, UNDO_MS);
   schedule();
 }
 
