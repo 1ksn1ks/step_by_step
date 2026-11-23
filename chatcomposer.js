@@ -127,10 +127,88 @@ const expandEntries = new WeakMap();
 function expandEntry(compose) {
   let entry = expandEntries.get(compose);
   if (!entry) {
-    entry = { collapse: () => setComposerExpanded(compose, false) };
+    // Another box taking the full screen closes this one at once.
+    entry = { collapse: () => setComposerExpanded(compose, false, { instant: true }) };
     expandEntries.set(compose, entry);
   }
   return entry;
+}
+
+// Closing plays the opening backwards (style.css .is-collapsing), then the
+// composer is put back as it always was, and fades in at its row
+// (.is-settling). One composer at a time. CSS decides: with no animation
+// (reduced motion) it closes at once. animationend can go missing (a page
+// hidden under it), so a timeout of the animation's length ends it too.
+let collapsing = null;
+let settling = null;
+
+function animationMs(el, name) {
+  const cs = getComputedStyle(el);
+  if (!String(cs.animationName || "").split(",").map((s) => s.trim()).includes(name)) return 0;
+  const seconds = (value) => {
+    const v = String(value || "").trim();
+    return v.endsWith("ms") ? parseFloat(v) / 1000 : parseFloat(v);
+  };
+  const ms = (seconds(cs.animationDuration) + Math.max(0, seconds(cs.animationDelay))) * 1000;
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function playOnce(el, cls, name, done) {
+  el.classList.add(cls);
+  const ms = animationMs(el, name);
+  if (!(ms > 0)) {
+    el.classList.remove(cls);
+    return null;
+  }
+  const job = { el, cls, timer: 0, onEnd: null, done };
+  job.onEnd = (event) => {
+    if (event.target === el && event.animationName === name) finishPlay(job, true);
+  };
+  el.addEventListener("animationend", job.onEnd);
+  // The same length, and a frame more, so the last frame shows first.
+  job.timer = setTimeout(() => finishPlay(job, true), ms + 50);
+  return job;
+}
+
+function finishPlay(job, run) {
+  if (!job || job.over) return;
+  job.over = true;
+  clearTimeout(job.timer);
+  job.el.removeEventListener("animationend", job.onEnd);
+  job.el.classList.remove(job.cls);
+  if (run && job.done) job.done();
+}
+
+function stopSettling() {
+  const job = settling;
+  settling = null;
+  finishPlay(job, false);
+}
+
+// The composer on its way out: put back now (run), or kept open (not).
+function endCollapse(run) {
+  const job = collapsing;
+  if (!job) return;
+  collapsing = null;
+  job.done = null;
+  finishPlay(job, false);
+  if (run) applyExpanded(job.compose, false, { fromHistory: job.fromHistory });
+}
+
+function startCollapse(compose, fromHistory) {
+  const job = playOnce(compose, "is-collapsing", "composerExpandOut", null);
+  if (!job) return false;
+  job.compose = compose;
+  job.fromHistory = fromHistory;
+  job.done = () => {
+    if (collapsing !== job) return;
+    collapsing = null;
+    applyExpanded(compose, false, { fromHistory: job.fromHistory });
+    stopSettling();
+    settling = playOnce(compose, "is-settling", "composerSettleIn", () => { settling = null; });
+  };
+  collapsing = job;
+  return true;
 }
 
 function paintExpandButton(compose) {
@@ -163,11 +241,40 @@ function defineComposerLayer() {
   });
 }
 
-export function setComposerExpanded(compose, on, { fromHistory = false } = {}) {
+// instant: no closing animation (a page closing under it, another box
+// taking the full screen).
+export function setComposerExpanded(compose, on, { fromHistory = false, instant = false } = {}) {
   if (!compose) return;
+  if (collapsing && collapsing.compose === compose) {
+    if (on) {
+      // Tapped again on the way out: it stays open. Back already took its
+      // history entry, so it gets one again.
+      const gone = collapsing.fromHistory;
+      endCollapse(false);
+      if (gone && !fromHistory) {
+        defineComposerLayer();
+        if (window.layerOpened) window.layerOpened("composerfull");
+      }
+      return;
+    }
+    if (fromHistory) collapsing.fromHistory = true;
+    // A second close on the way out waits for it, unless it must be now.
+    if (instant) endCollapse(true);
+    return;
+  }
+  // Another composer still on its way out is put back first.
+  if (collapsing) endCollapse(true);
+  if (!on && !instant && compose.classList.contains("is-expanded") && compose.getClientRects().length) {
+    if (startCollapse(compose, fromHistory)) return;
+  }
+  applyExpanded(compose, on, { fromHistory });
+}
+
+function applyExpanded(compose, on, { fromHistory = false } = {}) {
   const field = compose.querySelector("textarea");
   const was = compose.classList.contains("is-expanded");
   if (was === on) return;
+  if (on) stopSettling();
   // One box out at a time, this composer, the other one, or any 18 KB box.
   if (on) claimExpanded(expandEntry(compose));
   else releaseExpanded(expandEntry(compose));
@@ -295,8 +402,10 @@ function bindDropSwipe(compose, field) {
 
 // The chat page (or the Draw page, the same #feed-chat) closed under it:
 // drop the fullscreen with no animation, a composer's or any 18 KB box's.
+// Now, not after an animation: the composer's history entry sits on the
+// chat's and must go first, and the page moves the composer away next.
 export function collapseComposers() {
-  if (expandedCompose) setComposerExpanded(expandedCompose, false);
+  if (expandedCompose) setComposerExpanded(expandedCompose, false, { instant: true });
   collapseExpandedFields();
 }
 
@@ -333,7 +442,9 @@ export function mountComposerExpand(field, counter, send) {
   btn.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    setComposerExpanded(compose, !compose.classList.contains("is-expanded"));
+    // On its way out it counts as closed: a tap keeps it open.
+    const open = compose.classList.contains("is-expanded") && !compose.classList.contains("is-collapsing");
+    setComposerExpanded(compose, !open);
   });
   field.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || !compose.classList.contains("is-expanded")) return;
