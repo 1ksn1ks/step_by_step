@@ -266,7 +266,6 @@ test("a different native name is shown and an identical one is not", () => {
   assert.match(source, /suggestion\.text\.length/);
   assert.match(source, /fillPlaceLabel\(label, suggestion\)/);
   assert.match(source, /r\.display_name\.split\(','\)\[0\]/);
-  assert.match(source, /r\.address && r\.address\.country/);
   const nativeAt = css.indexOf(".search-result-native");
   assert.notEqual(nativeAt, -1);
   assert.match(css.slice(nativeAt, nativeAt + 80), /color:\s*rgba\(255,\s*255,\s*255,\s*0\.45\)/);

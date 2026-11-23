@@ -41,12 +41,6 @@ jobs:
       # views).
       - name: Test
         run: npm test
-        env:
-          # TODO: drop this skip once scripts/search-results.test.mjs and
-          # search.js agree again. That test reads search.js for
-          # `r.address && r.address.country`, which search.js no longer
-          # has, so it fails on main as well. Everything else runs.
-          NODE_OPTIONS: '--test-skip-pattern="^a different native name is shown and an identical one is not$"'
 
       # TODO: turn this on once the "early hashinals snapshot" check passes.
       # It fails on main today, and CI starts green.
