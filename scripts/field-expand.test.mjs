@@ -163,6 +163,7 @@ class FakeElement {
     for (let el = this; el; el = el.parentElement) if (el.hidden) return [];
     return this.isConnected ? [this.getBoundingClientRect()] : [];
   }
+  matches() { return false; }
   focus() { doc.activeElement = this; }
   blur() { if (doc.activeElement === this) doc.activeElement = doc.body; }
   setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; }
@@ -220,7 +221,7 @@ globalThis.window = {
   },
   layerIsOpen: (name) => layers.open.includes(name),
 };
-globalThis.getComputedStyle = (el) => ({
+globalThis.getComputedStyle = (el, pseudo) => ({
   position: "static",
   transform: "none",
   translate: "none",
@@ -240,11 +241,13 @@ globalThis.getComputedStyle = (el) => ({
   marginBottom: "0px",
   marginLeft: "0px",
   ...el.computed,
+  ...(pseudo && el.pseudo ? el.pseudo[pseudo] : {}),
 });
 globalThis.requestAnimationFrame = (fn) => { frames.push(fn); return frames.length; };
 globalThis.ResizeObserver = class {
   constructor(fn) { this.fn = fn; this.targets = []; resizeObservers.push(this); }
   observe(el) { this.targets.push(el); }
+  unobserve(el) { this.targets = this.targets.filter((t) => t !== el); }
   disconnect() { this.targets = []; }
 };
 globalThis.MutationObserver = class {
@@ -603,6 +606,61 @@ test("a box with no counter gets a small row of its own for the button", () => {
   assert.equal(buttonOf(field).style.props["--fx-row-mid"], undefined);
 });
 
+test("the button stands under the clear ×: its column, its face, one gap below; the counter row when two do not fit", () => {
+  const { fieldWrap, field } = swapBioPage();
+  fieldWrap.rect = { top: 300, left: 16, width: 352, height: 110 };
+  fieldWrap.offsetWidth = 352;
+  // fieldclear.js's ×: a 40 x 44 hit box, its round 24px face on the first line.
+  const clear = el("button", { class: "field-clear", rect: { top: 302, left: 296, width: 40, height: 44 }, clientWidth: 40, clientHeight: 44 });
+  clear.computed = { borderTopWidth: "0px", backgroundColor: "rgba(0, 0, 0, 0)", color: "rgba(255, 255, 255, 0.85)" };
+  clear.pseudo = { "::before": { width: "24px", left: "20px", top: "22px", backgroundColor: "rgba(255, 255, 255, 0.12)" }, "::after": { width: "12px" } };
+  field.after(clear);
+  const button = buttonOf(field);
+  // The box's --ui-gap, resolved (style.css carries it in scroll-margin-top).
+  button.computed = { scrollMarginTop: "8px" };
+  type(field, "Hello");
+  flushFrames();
+  const props = button.style.props;
+  assert.equal(button.classList.contains("is-stacked"), true);
+  // Centred on the face (x 300), 24px like it, its bottom (36) + 8 below.
+  assert.equal(props["--fx-stack-left"], "288px");
+  assert.equal(props["--fx-stack-top"], "44px");
+  assert.equal(props["--fx-stack-size"], "24px");
+  assert.equal(props["--fx-face-bg"], "rgba(255, 255, 255, 0.12)");
+  assert.equal(props["--fx-face-color"], "rgba(255, 255, 255, 0.85)");
+  assert.equal(props["--fx-glyph"], "12px");
+  // Too short for two: back in the counter's row.
+  field.offsetHeight = 60;
+  pageResized(field);
+  assert.equal(button.classList.contains("is-stacked"), false);
+  assert.equal(props["--fx-row-left"], "6px");
+  // A chip × (Swap bio's): the chip itself is the face.
+  field.offsetHeight = 160;
+  clear.rect = { top: 302, left: 292, width: 44, height: 44 };
+  clear.computed = { borderTopWidth: "1px", borderTopColor: "rgba(255, 255, 255, 0.22)", backgroundColor: "rgba(255, 255, 255, 0.08)", color: "rgba(255, 255, 255, 0.85)" };
+  pageResized(field);
+  assert.equal(button.classList.contains("is-stacked"), true);
+  assert.equal(props["--fx-stack-left"], "276px");
+  assert.equal(props["--fx-stack-top"], "54px");
+  assert.equal(props["--fx-stack-size"], "44px");
+  assert.equal(props["--fx-face-border"], "1px solid rgba(255, 255, 255, 0.22)");
+  // Full screen: an emptied text hides the ×; the way out stays where it was.
+  tap(button);
+  flushFrames();
+  assert.equal(fieldExpandOf(field).expanded, true);
+  clear.hidden = true;
+  field.value = "";
+  field.dispatchEvent(new FakeEvent("input", { bubbles: true }));
+  flushFrames();
+  assert.equal(button.classList.contains("is-shown"), true);
+  assert.equal(button.classList.contains("is-stacked"), true);
+  assert.equal(props["--fx-stack-top"], "54px");
+  assert.equal(props["--fx-stack-left"], "276px");
+  fieldExpandOf(field).collapse();
+  flushFrames();
+  assert.equal(button.classList.contains("is-shown"), false);
+});
+
 test("single-line fields, titles and chat composers get no button", () => {
   const input = el("input");
   const holder = el("div", {}, input);
@@ -662,4 +720,5 @@ test("hooked in once in bytecap.js, marked and titled in the pages, and pinned a
   assert.doesNotMatch(css, /has-field-expand/);
   assert.doesNotMatch(css, /--fx-inset|--fx-field-(top|right)/);
   assert.doesNotMatch(css, /\.swap-bio-field > \.field-expand-btn/);
+  assert.match(block, /\.field-expand-btn\.is-stacked \{[^}]*top: var\(--fx-stack-top, 0\);[^}]*left: var\(--fx-stack-left, 0\);[^}]*width: var\(--fx-stack-size/);
 });

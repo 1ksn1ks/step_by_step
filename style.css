@@ -23877,17 +23877,22 @@ img.is-gif-hit {
 
 /* Full screen for every 18 KB box (fieldexpand.js): Draw's text, the
    post's Edit text, Swap bio, and any box bytecap.js caps later. The
-   chat composers have their own, above. A button in the box's counter
-   row, left of the byte counter, shows once there is text: 1.6em of the
-   counter's font (--fx-row-font), centred on the counter's line
-   (--fx-row-mid) and as far in from the left as the counter is from the
-   right (--fx-row-left); fieldexpand.js measures the row. A box with no
-   counter gets a small row of its own under the field. The text keeps its
-   full width (only a clear × keeps its own padding).
+   chat composers have their own, above. A button shows once there is
+   text, under the field's clear × in the ×'s column (.is-stacked): the
+   face's size (--fx-stack-size) and look (--fx-face-bg / -border, the
+   glyph box --fx-glyph), one --ui-gap under it; fieldexpand.js measures
+   the × and writes the spot (--fx-stack-top / -left). The text keeps
+   clear of the column with the ×'s own right padding. With no × (Draw's
+   text) or a field too short for two, it sits in the counter row, left of
+   the byte counter: 1.6em of the counter's font (--fx-row-font), centred
+   on the counter's line (--fx-row-mid) and as far in from the left as the
+   counter is from the right (--fx-row-left). A box with no counter gets a
+   small row of its own under the field.
    Open, the box moves into #field-full, a page of its own over the whole
    app: the app's page bar (← and the title, in the shared page-bar lists
    above, and the box's own send buttons on the right), the field filling
-   the rest, and the counter row with the same button at the bottom.
+   the rest with the same button under its ×, and the counter row at the
+   bottom.
    Phone and portrait: the whole screen. Landscape: a centred panel over a
    dimmed backdrop that does nothing when tapped. keyboardlayout.js pins
    it above the keyboard like any full-screen page. */
@@ -23921,9 +23926,27 @@ img.is-gif-hit {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition: color 160ms ease, background-color 160ms ease;
+  /* Not a scroll offset: the box's --ui-gap, resolved to px, which the
+     script reads for the gap under the × (none here: half the text size). */
+  scroll-margin-top: var(--ui-gap, 0);
 }
 .field-expand-btn.is-shown {
   display: inline-flex;
+}
+/* Under the ×: its face's size and look at rest, so the two read as one
+   column. Hover, press and the open state (below) still colour the glyph. */
+.field-expand-btn.is-stacked {
+  top: var(--fx-stack-top, 0);
+  left: var(--fx-stack-left, 0);
+  width: var(--fx-stack-size, var(--fx-btn));
+  height: var(--fx-stack-size, var(--fx-btn));
+  border: var(--fx-face-border, 0 solid transparent);
+  background: var(--fx-face-bg, rgba(10, 10, 18, 0.55));
+  color: var(--fx-face-color, rgba(255, 255, 255, 0.6));
+}
+.field-expand-btn.is-stacked svg {
+  width: var(--fx-glyph, 62%);
+  height: var(--fx-glyph, 62%);
 }
 /* No counter: a small row of its own under the field, at its right. */
 .field-expand-btn.is-rowless {

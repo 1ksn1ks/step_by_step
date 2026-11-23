@@ -7,12 +7,14 @@
 // keep their own fullscreen (chatcomposer.js) and only share the rules
 // below: one box expanded at a time, and a closing page collapses it first.
 //
-// A button in the box's counter row (left of the byte counter) shows once
-// the box has text. It opens the box as a page of its own over the whole
-// app (#field-full): a header like the app's pages (←, the box's title,
-// and the box's own send button: Save, or Draw's Submit buttons), the
-// text filling the rest, and the counter row at the bottom with the same
-// button to come back. On a phone or any portrait screen it covers the
+// A button under the box's clear × (fieldclear.js), in the ×'s column,
+// shows once the box has text (a box with no ×, or too short for two, has
+// it in the counter row, left of the byte counter). It opens the box as a
+// page of its own over the whole app (#field-full): a header like the
+// app's pages (←, the box's title, and the box's own send button: Save, or
+// Draw's Submit buttons), the text filling the rest with the same button
+// under the × to come back, and the counter row at the bottom. On a phone
+// or any portrait screen it covers the
 // screen; on a landscape one it is a centred panel over a dimmed backdrop.
 // ←, the button, Escape, Back (the 'fieldfull' history layer), or a send
 // button marked data-expand-send closes it. Closing the page closes it
@@ -269,20 +271,137 @@ export function mountFieldExpand(field, { mirror = null } = {}) {
     return String(field.textContent || '') !== '';
   };
 
-  // The button sits in the counter's row, on its left, as far in as the
-  // counter is from the right, and as tall as the counter's text (1.6em of
-  // its font). The counter shares the field's parent in every box; a box
-  // without one gets a small row of its own under the field.
+  // The button stands under the field's clear × (fieldclear.js), in its
+  // column: centred on it, the size and look of its face (the × itself when
+  // it is a chip, as Swap bio's, else its round ::before face), one --ui-gap
+  // (else 0.5em) below it. The × already keeps the text out of that column
+  // (its right padding). In full screen, a × hidden by an emptied text
+  // leaves the button where it stood, so the way out stays put.
+  // With no × to stand under (a box without one, Draw's text; or a field too
+  // short for two, one line) it sits in the counter's row, on its left, as
+  // far in as the counter is from the right, and as tall as the counter's
+  // text (1.6em of its font). The counter shares the field's parent in every
+  // box; a box without one gets a small row of its own under the field.
   const placed = {};
   const setPlace = (name, value) => {
     if (placed[name] === value) return;
     placed[name] = value;
     button.style.setProperty(name, value);
   };
+  const setClass = (name, on) => {
+    if (button.classList.contains(name) !== on) button.classList.toggle(name, on);
+  };
+  const px = (value) => `${Math.round(value * 100) / 100}px`;
+  let resize = null;
+  let watchedClear = null;
+  // The last spot under the ×, from the field's top right: inline, full screen.
+  const spots = [null, null];
+
+  const clearOf = () => {
+    for (const el of anchor.children) {
+      if (el.classList.contains('field-clear')) return el;
+    }
+    return null;
+  };
+  const alpha = (color) => {
+    const value = String(color || '').trim();
+    if (value === 'transparent') return 0;
+    const match = /^rgba?\(([^)]*)\)$/.exec(value);
+    if (!match) return 1;
+    const parts = match[1].split(/[\s,/]+/).filter(Boolean);
+    return parts.length > 3 ? parseFloat(parts[3]) : 1;
+  };
+  // The ×'s face in the anchor's box, in layout px (a scale on a parent,
+  // the zoomIn entrance, is taken out of the rects).
+  const faceOf = (clear) => {
+    if (!clear || clear.hidden || !rendered(clear)) return null;
+    const a = anchor.getBoundingClientRect();
+    const c = clear.getBoundingClientRect();
+    const k = anchor.offsetWidth > 0 && a.width > 0 ? a.width / anchor.offsetWidth : 1;
+    const left = (c.left - a.left) / k - anchor.clientLeft;
+    const top = (c.top - a.top) / k - anchor.clientTop;
+    const cs = getComputedStyle(clear);
+    const glyph = parseFloat(getComputedStyle(clear, '::after').width) || 0;
+    // Its colours are copied only at rest (not ↶, hovered or pressed).
+    const rest = !clear.classList.contains('is-undo') && !clear.matches(':hover, :active');
+    if ((parseFloat(cs.borderTopWidth) || 0) > 0 || alpha(cs.backgroundColor) > 0) {
+      const w = c.width / k;
+      const h = c.height / k;
+      const size = Math.min(w, h);
+      if (!(size > 0)) return null;
+      const look = rest ? { bg: cs.backgroundColor, border: `${cs.borderTopWidth} solid ${cs.borderTopColor}`, color: cs.color, glyph } : null;
+      return { cx: left + w / 2, bottom: top + h, size, look };
+    }
+    const face = getComputedStyle(clear, '::before');
+    const size = parseFloat(face.width) || 0;
+    if (!(size > 0)) return null;
+    const cx = left + clear.clientLeft + (parseFloat(face.left) || clear.clientWidth / 2);
+    const cy = top + clear.clientTop + (parseFloat(face.top) || clear.clientHeight / 2);
+    const look = rest ? { bg: face.backgroundColor, border: '0px solid transparent', color: cs.color, glyph } : null;
+    return { cx, bottom: cy + size / 2, size, look };
+  };
+  // --ui-gap as px (the button carries it in scroll-margin-top, style.css),
+  // else half the box's text size.
+  const gapPx = () => {
+    let gap = 0;
+    try { gap = parseFloat(getComputedStyle(button).scrollMarginTop) || 0; } catch { gap = 0; }
+    if (gap > 0) return gap;
+    let font = 0;
+    try { font = parseFloat(getComputedStyle(anchor).fontSize) || 0; } catch { font = 0; }
+    return font * 0.5;
+  };
+  const stackSpot = () => {
+    const clear = clearOf();
+    if (clear && clear !== watchedClear && resize) {
+      if (watchedClear) resize.unobserve(watchedClear);
+      resize.observe(clear);
+      watchedClear = clear;
+    }
+    const slot = state.expanded ? 1 : 0;
+    const fieldTop = field.offsetTop || 0;
+    const fieldRight = (field.offsetLeft || 0) + (field.offsetWidth || 0);
+    const face = faceOf(clear);
+    if (face) {
+      const before = spots[slot];
+      spots[slot] = {
+        fromRight: fieldRight - face.cx,
+        below: face.bottom - fieldTop,
+        size: face.size,
+        look: face.look || (before && before.look) || null,
+      };
+    } else if (!state.expanded || hasText()) {
+      // No × beside this text (none in the box, or the field is too narrow).
+      return null;
+    }
+    const spot = spots[slot];
+    if (!spot) return null;
+    const top = fieldTop + spot.below + gapPx();
+    let border = 0;
+    try { border = parseFloat(getComputedStyle(field).borderBottomWidth) || 0; } catch { border = 0; }
+    // Two must fit in the field: under it is the counter's row.
+    if (top + spot.size > fieldTop + (field.offsetHeight || 0) - border + 0.5) return null;
+    return { top, left: fieldRight - spot.fromRight - spot.size / 2, size: spot.size, look: spot.look };
+  };
+
   const placeButton = () => {
     if (!button.classList.contains('is-shown')) return;
+    const spot = stackSpot();
+    setClass('is-stacked', !!spot);
+    if (spot) {
+      setClass('is-rowless', false);
+      setPlace('--fx-stack-top', px(spot.top));
+      setPlace('--fx-stack-left', px(spot.left));
+      setPlace('--fx-stack-size', px(spot.size));
+      if (spot.look) {
+        setPlace('--fx-face-bg', spot.look.bg);
+        setPlace('--fx-face-border', spot.look.border);
+        setPlace('--fx-face-color', spot.look.color);
+        if (spot.look.glyph > 0) setPlace('--fx-glyph', px(spot.look.glyph));
+      }
+      return;
+    }
     const inRow = !!(counter && counter.parentElement === anchor && rendered(counter));
-    if (button.classList.contains('is-rowless') === inRow) button.classList.toggle('is-rowless', !inRow);
+    setClass('is-rowless', !inRow);
     if (!inRow) return;
     const right = (anchor.clientWidth || 0) - ((counter.offsetLeft || 0) + (counter.offsetWidth || 0));
     let font = 0;
@@ -291,10 +410,22 @@ export function mountFieldExpand(field, { mirror = null } = {}) {
     setPlace('--fx-row-left', `${Math.max(0, right)}px`);
     if (font > 0) setPlace('--fx-row-font', `${font}px`);
   };
+  // The × shows, hides and moves in fieldclear.js's frame, which an input
+  // queues first: this one reads after it.
+  let placeQueued = false;
+  const queuePlace = () => {
+    if (placeQueued) return;
+    placeQueued = true;
+    requestAnimationFrame(() => {
+      placeQueued = false;
+      placeButton();
+    });
+  };
 
   // Runs on every key, so it writes only when something changed: a write
   // inside these pages restyles the page (chatcomposer.js).
   const paint = () => {
+    queuePlace();
     const shown = state.expanded || hasText();
     const look = `${shown ? 1 : 0}${state.expanded ? 1 : 0}`;
     if (state.look === look) return;
@@ -519,9 +650,10 @@ export function mountFieldExpand(field, { mirror = null } = {}) {
   if (counter && typeof MutationObserver === 'function') {
     new MutationObserver(paint).observe(counter, { childList: true, characterData: true, subtree: true });
   }
-  // The counter row moves when the field grows or the box changes size.
+  // The counter row and the × move when the field grows or the box changes
+  // size; the × is watched too once it is there (it shows and hides).
   if (typeof ResizeObserver === 'function') {
-    const resize = new ResizeObserver(() => placeButton());
+    resize = new ResizeObserver(() => placeButton());
     resize.observe(field);
     if (anchor !== field) resize.observe(anchor);
   }
