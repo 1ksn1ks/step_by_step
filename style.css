@@ -3428,6 +3428,11 @@ html, body {
     content: attr(data-placeholder);
     opacity: 0.45;
 }
+/* The message hint is italic and a little brighter: a line to write on. */
+.draw-popup-text.popup-text-bubble:empty::before {
+    font-style: italic;
+    opacity: 0.55;
+}
 .draw-popup-text {
     box-sizing: border-box;
     width: 100%;
@@ -3458,6 +3463,12 @@ html, body {
     text-align: right;
     pointer-events: none;
     z-index: 1;
+    transition: opacity 0.2s ease;
+}
+/* The count fades in with the first character of the message. Near or
+   over 18 KB (.hcs-warn / .hcs-over) it shows whatever the message holds. */
+#draw-column .draw-text-wrap:has(> .draw-popup-text:empty) > .draw-byte-counter:not(.hcs-warn):not(.hcs-over) {
+    opacity: 0;
 }
 .hcs-byte-counter {
     color: #22d3ee;
@@ -11158,7 +11169,27 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
 .draw-popup-editor .draw-popup-topic:not(:empty) {
   color: rgba(255, 255, 255, 0.85);
 }
-.draw-popup-editor .draw-popup-topic:focus {
+/* The typed bubbles take the place fields' cyan rim while focused. The
+   posted-popup glass rim (.maplibregl-popup :is(…bubble…), further down)
+   is (0,3,0), so these carry the bubble class too to win. */
+.draw-popup-editor .draw-popup-topic.popup-top-topic:focus {
+  border-color: rgba(34, 211, 238, 0.7);
+}
+.draw-popup-editor .draw-popup-text.popup-text-bubble,
+.draw-popup-editor .draw-popup-title.popup-title-bubble {
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+/* An empty message reads as a box to type in: a dashed rim of the same
+   width and a little more light. Typed text gives back the posted look. */
+.draw-popup-editor .draw-popup-text.popup-text-bubble:empty {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.28);
+  border-color: color-mix(in srgb, var(--bubble-rim, #ffffff) 28%, transparent);
+  background-color: rgba(255, 255, 255, 0.07);
+}
+.draw-popup-editor .draw-popup-text.popup-text-bubble:focus,
+.draw-popup-editor .draw-popup-title.popup-title-bubble:focus {
+  outline: none;
   border-color: rgba(34, 211, 238, 0.7);
 }
 /* A phone zooms the page into a field under 16px; the typed fields keep
