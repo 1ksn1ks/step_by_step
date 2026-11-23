@@ -5,7 +5,7 @@ import { scene } from "./threejs";
 import maplibregl from 'maplibre-gl';
 import { animateMapTo } from './animatemapto';
 import { classifyImageUrl, isGifUrl, loadImageBytes, needsGifCheck, resolveMediaUrl, siblingPosterUrl } from './mediaurl.js';
-import { COVER_RELEASE_MS, coverBatteryIsLow, coverHoldSrc, coverIdsToRelease, coverScreenScore, coverShouldRelease, holdQueriesFor, lookupHolds, pickAutoplayCover, shouldAutoplayCover } from './coverautoplay.js';
+import { COVER_RELEASE_MS, coverBatteryIsLow, coverHoldSrc, coverIdsToRelease, coverScreenScore, coverShouldRelease, coverTooSmall, holdQueriesFor, lookupHolds, pickAutoplayCover, shouldAutoplayCover } from './coverautoplay.js';
 import { gifStillCanvas } from './gifvideo.js';
 import { currentUfoModelInGLTF, polygons } from './letall';
 import { map } from './map'
@@ -353,37 +353,166 @@ function swapSourceImage(sourceId, canvas) {
   }
 }
 
+// --- One camera snapshot for every cover check --------------------------
+// cameraState() (moon.js) unprojects the screen centre on the globe, and the
+// canvas size is a layout read. Per cover, on every move event and moon
+// frame, they were most of a low-zoom pan's main-thread time (the reads
+// came right after the play buttons' style writes, so each forced a layout).
+// Both depend only on the camera and the window: one snapshot serves every
+// check until the camera moves, and each polygon keeps its projection for
+// that snapshot (see placeOf).
+let viewSize = null;
+let viewSnap = null;
+let viewSeq = 0;
+// The window's size is a layout read too (cameraState uses it): a resize
+// counts instead of reading it on every call.
+let viewResizes = 0;
+const viewResized = () => { viewSize = null; viewResizes += 1; };
+map.on('resize', viewResized);
+window.addEventListener('resize', viewResized);
+
+function coverView() {
+  let center = null;
+  let key = '';
+  try {
+    center = map.getCenter();
+    const pad = map.getPadding() || {};
+    key = `${center.lng},${center.lat},${map.getZoom()},${map.getBearing()},${map.getPitch()},`
+      + `${pad.top},${pad.right},${pad.bottom},${pad.left},${viewResizes}`;
+  } catch {
+    center = null;
+    key = '';
+  }
+  if (viewSnap && key && viewSnap.key === key && viewSize) return viewSnap;
+  // The canvas size is what MapLibre projects into. window.innerHeight
+  // includes the phone URL bar, so a polygon on screen was treated as off
+  // view and the cover never left its placeholder.
+  if (!viewSize) {
+    const canvas = map.getCanvas();
+    viewSize = { w: canvas.clientWidth || window.innerWidth, h: canvas.clientHeight || window.innerHeight };
+  }
+  viewSnap = { key, seq: ++viewSeq, st: cameraState(), center, w: viewSize.w, h: viewSize.h };
+  return viewSnap;
+}
+
+// --- Every polygon picture's place on screen ----------------------------
+// sourceId → { sourceId, layerId, corners, seq, inView, box, finite, size,
+// centerHidden, centerPoint, tiny, hidden }. Measured once per snapshot.
+const coverPlaces = new Map();
+
+function placeOf(sourceId, layerId, corners) {
+  let place = coverPlaces.get(sourceId);
+  if (!place) {
+    place = { sourceId, layerId, corners, seq: 0, tiny: false, hidden: false };
+    coverPlaces.set(sourceId, place);
+  }
+  place.layerId = layerId || place.layerId;
+  place.corners = corners || place.corners;
+  return place;
+}
+
 // In view when the map center sits inside the source bbox (the zoomed-in
 // case — all four corners are off screen then) or a bbox corner projects
-// inside the canvas (40px margin) without being hidden by the Earth.
-// The canvas size is what MapLibre projects into. window.innerHeight
-// includes the phone URL bar, so a polygon on screen was treated as off
-// view and the cover never left its placeholder.
-function coverInView(corners, st) {
-  const canvas = map.getCanvas();
-  const w = canvas.clientWidth || window.innerWidth;
-  const h = canvas.clientHeight || window.innerHeight;
+// inside the canvas (40px margin) without being hidden by the Earth. The
+// same four projections give the box (the autoplay score and the play
+// glass) and the size (too small to draw).
+function measurePlace(place, view) {
+  if (place.seq === view.seq) return place;
+  place.seq = view.seq;
+  const corners = place.corners;
   const minLng = Math.min(corners[0][0], corners[2][0]);
   const maxLng = Math.max(corners[1][0], corners[3][0]);
   const minLat = Math.min(corners[2][1], corners[3][1]);
   const maxLat = Math.max(corners[0][1], corners[1][1]);
-  let center = null;
-  try { center = map.getCenter(); } catch { center = null; }
-  if (center && center.lng >= minLng && center.lng <= maxLng && center.lat >= minLat && center.lat <= maxLat) return true;
+  const center = view.center;
+  const centerInside = !!(center && center.lng >= minLng && center.lng <= maxLng && center.lat >= minLat && center.lat <= maxLat);
+  let inView = centerInside;
+  let finite = true;
+  let any = false;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
   for (const [lng, lat] of corners) {
-    if (st && st.C) {
+    let p = null;
+    try { p = map.project([lng, lat]); } catch { p = null; }
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) finite = false;
+    if (!p) continue;
+    any = true;
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+    if (inView) continue;
+    if (view.st && view.st.C) {
       const lr = lat * D2R;
       const gr = lng * D2R;
       const m = [Math.cos(lr) * Math.cos(gr), Math.cos(lr) * Math.sin(gr), Math.sin(lr)];
-      if (earthOccludes(st.C, m)) continue;
+      if (earthOccludes(view.st.C, m)) continue;
     }
-    let p = null;
-    try { p = map.project([lng, lat]); } catch { p = null; }
-    if (!p) continue;
-    if (p.x >= -40 && p.x <= w + 40 && p.y >= -40 && p.y <= h + 40) return true;
+    if (p.x >= -40 && p.x <= view.w + 40 && p.y >= -40 && p.y <= view.h + 40) inView = true;
   }
-  return false;
+  place.inView = inView;
+  place.centerInside = centerInside;
+  place.box = any ? { minX, minY, maxX, maxY } : null;
+  place.finite = finite;
+  // A picture around the map centre fills the view; one the camera cannot
+  // place is never called small.
+  place.size = centerInside || !finite || !any ? Infinity : Math.max(maxX - minX, maxY - minY);
+  // The play button's spot: the bbox centre, unless the Earth hides it.
+  const [cLng, cLat] = coverCenter(corners);
+  place.centerHidden = coverCenterHidden(cLng, cLat, view.st);
+  let point = null;
+  if (!place.centerHidden) {
+    try { point = map.project([cLng, cLat]); } catch { point = null; }
+  }
+  place.centerPoint = point;
+  return place;
 }
+
+function coverInView(place, view) {
+  return !!measurePlace(place, view).inView;
+}
+
+// Too small on screen to draw: the picture layer is skipped (a zoom range no
+// zoom reaches, so MapLibre neither draws it nor prepares its source), its
+// cover waits, and a video cover counts as off screen. Its tap mask stays.
+// The zoom range is the polygons' own switch: the Draw pick and the On/Off
+// toggle use visibility, the opacity slider raster-opacity.
+function placeTiny(place, view) {
+  measurePlace(place, view);
+  place.tiny = coverTooSmall(place.size, Math.min(view.w, view.h), place.tiny);
+  if (place.hidden !== place.tiny) {
+    try {
+      if (map.getLayer(place.layerId)) {
+        map.setLayerZoomRange(place.layerId, place.tiny ? 24 : 0, 24);
+        place.hidden = place.tiny;
+      }
+    } catch { /* the layer went with its source */ }
+  }
+  return place.tiny;
+}
+
+function coverTiny(cov) {
+  return !!(cov && cov.place && cov.place.tiny);
+}
+
+// Every polygon's size against this camera. Cheap when the camera has not
+// moved: each place is already measured for the snapshot.
+function sizePass(view) {
+  for (const [sid, place] of coverPlaces) {
+    if (!map.getSource(sid)) {
+      coverPlaces.delete(sid);
+      continue;
+    }
+    placeTiny(place, view);
+  }
+}
+
+// While the camera moves, sizes are checked at most this often, so a
+// picture shows while zooming in, not only once the camera stops.
+const SIZE_PASS_MS = 200;
+let sizePassAt = 0;
 
 export function dropPolygonCover(polygonId) {
   if (!polygonId) return;
@@ -395,6 +524,7 @@ export function dropPolygonCover(polygonId) {
     pending.dead = true; // an in-flight fetch must not apply after the drop
     pendingCovers.delete(polygonId + '-source');
   }
+  coverPlaces.delete(polygonId + '-source');
   addedLayers.delete(polygonId + '-mask-layer');
 }
 
@@ -424,38 +554,14 @@ function detachCover(cov) {
 
 // Screen area of a cover. A polygon that contains the map center fills the
 // view, so it outranks a corner sliver. The pure score lives in coverautoplay.
-function coverVisibleScore(cov) {
-  const canvas = map.getCanvas();
-  const w = canvas ? canvas.clientWidth : 0;
-  const h = canvas ? canvas.clientHeight : 0;
+function coverVisibleScore(cov, view) {
   const corners = cov && cov.corners;
-  if (!corners || corners.length < 4) return 0;
-  const minLng = Math.min(corners[0][0], corners[2][0]);
-  const maxLng = Math.max(corners[1][0], corners[3][0]);
-  const minLat = Math.min(corners[2][1], corners[3][1]);
-  const maxLat = Math.max(corners[0][1], corners[1][1]);
-  let center = null;
-  try { center = map.getCenter(); } catch { center = null; }
-  if (center && center.lng >= minLng && center.lng <= maxLng && center.lat >= minLat && center.lat <= maxLat) {
-    return coverScreenScore({ centerInside: true }, { w, h });
-  }
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  let any = false;
-  for (const pair of corners) {
-    let point = null;
-    try { point = map.project(pair); } catch { point = null; }
-    if (!point) continue;
-    any = true;
-    if (point.x < minX) minX = point.x;
-    if (point.y < minY) minY = point.y;
-    if (point.x > maxX) maxX = point.x;
-    if (point.y > maxY) maxY = point.y;
-  }
-  if (!any) return 0;
-  return coverScreenScore({ minX, minY, maxX, maxY }, { w, h });
+  if (!corners || corners.length < 4 || !cov.place) return 0;
+  const place = measurePlace(cov.place, view);
+  const canvas = { w: view.w, h: view.h };
+  if (place.centerInside) return coverScreenScore({ centerInside: true }, canvas);
+  if (!place.box) return 0;
+  return coverScreenScore(place.box, canvas);
 }
 
 let holdRefresh = null;
@@ -488,7 +594,7 @@ function visPassWork() {
   // waste (measured at 400ms+ on the phone). coverFeedWatch runs a full
   // pass the moment the map comes back.
   if (document.documentElement.classList.contains('feed-app')) return;
-  if (mediaCovers.size === 0 && pendingCovers.size === 0) { stopVisTimer(); return; }
+  if (mediaCovers.size === 0 && pendingCovers.size === 0 && coverPlaces.size === 0) { stopVisTimer(); return; }
   for (const sid of [...mediaCovers.keys()]) {
     if (!map.getSource(sid)) detachCover(mediaCovers.get(sid));
   }
@@ -499,16 +605,21 @@ function visPassWork() {
       pendingCovers.delete(sid);
     }
   }
+  // One camera snapshot for the whole pass. When the camera has not moved
+  // since the last one (the one-second timer while the map is still),
+  // every polygon is already measured for it and nothing is projected.
+  const view = coverView();
+  sizePass(view);
   if (mediaCovers.size === 0 && pendingCovers.size === 0) { stopVisTimer(); return; }
-  const st = cameraState();
   const viewer = readCoverViewer();
   const rows = [];
   let currentId = null;
   for (const cov of mediaCovers.values()) {
-    cov.inView = coverInView(cov.corners, st);
+    cov.inView = coverInView(cov.place, view);
     if (cov.playing) currentId = cov.sourceId;
+    // A cover too small to draw is off screen: it never wins autoplay.
     const eligible = coverOnScreen(cov) && !cov.userPaused && shouldAutoplayCover(cov.polygon, viewer);
-    rows.push({ id: cov.sourceId, eligible, score: eligible ? coverVisibleScore(cov) : 0 });
+    rows.push({ id: cov.sourceId, eligible, score: eligible ? coverVisibleScore(cov, view) : 0 });
   }
   const winner = pickAutoplayCover(rows, currentId);
   for (const cov of mediaCovers.values()) {
@@ -523,7 +634,8 @@ function visPassWork() {
     return;
   }
   for (const [sid, cov] of [...pendingCovers]) {
-    if (coverInView(cov.corners, st)) {
+    // A picture too small to draw keeps waiting; it loads once it is not.
+    if (cov.place && coverInView(cov.place, view) && !cov.place.tiny) {
       pendingCovers.delete(sid);
       startPendingCover(sid, cov); // its bytes start now
     }
@@ -546,15 +658,16 @@ function ensureVisTimer() {
   visTimer = setInterval(visPass, 1000);
 }
 
-// Queue a still cover until the polygon is on screen. In view at queue
-// time → begin now; otherwise visPass checks it on every camera change
-// and every second.
-function queueCoverLoad(sourceId, url, corners, kind = 'still') {
+// Queue a still cover until the polygon is on screen and big enough to
+// draw. Both at queue time → begin now; otherwise visPass checks it on
+// every camera change and every second.
+function queueCoverLoad(sourceId, url, corners, kind = 'still', place = null) {
   const old = pendingCovers.get(sourceId);
   if (old) old.dead = true; // its in-flight fetch must not apply anymore
   pendingCovers.delete(sourceId);
-  const cov = { url, corners, kind };
-  if (!coversPutAway() && coverInView(corners, cameraState())) {
+  const cov = { url, corners, kind, place: place || placeOf(sourceId, sourceId.replace(/-source$/, '-image-layer'), corners) };
+  const view = coverView();
+  if (!coversPutAway() && cov.place && coverInView(cov.place, view) && !placeTiny(cov.place, view)) {
     startPendingCover(sourceId, cov);
     return;
   }
@@ -601,8 +714,10 @@ function coverLayerOn(cov) {
   }
 }
 
+// Too small to draw counts as off screen: no autoplay, a playing cover
+// pauses on its frame, its play button hides.
 function coverOnScreen(cov) {
-  return !!cov.inView && !document.hidden && !coverFeedOpen() && coverLayerOn(cov);
+  return !!cov.inView && !coverTiny(cov) && !document.hidden && !coverFeedOpen() && coverLayerOn(cov);
 }
 
 function readCoverViewer() {
@@ -640,7 +755,7 @@ function coverHoldState(cov) {
     replaced: !!cov.forceRelease,
     hidden: document.hidden,
     feed: coverFeedOpen(),
-    inView: !!cov.inView && coverLayerOn(cov),
+    inView: !!cov.inView && !coverTiny(cov) && coverLayerOn(cov),
   };
 }
 
@@ -819,7 +934,8 @@ function loadCoverStill(url) {
 
 function ensureCoverStill(cov) {
   if (!cov || cov.dead || cov.stillReady || cov.grabbing || !cov.url) return;
-  if (!cov.inView || document.hidden || coverFeedOpen()) return;
+  // Too small to draw: the poster or frame grab waits too.
+  if (!cov.inView || coverTiny(cov) || document.hidden || coverFeedOpen()) return;
   cov.grabbing = true;
   const token = cov;
   loadCoverStill(cov.url).then((still) => {
@@ -1001,13 +1117,14 @@ function coverFu() {
   return Math.min(w, appH) * 0.024;
 }
 
-function coverGlassPx() {
-  return coverFu() * 2.6;
+// fu: the snapshot's (coverView), so a pass reads the layout once.
+function coverGlassPx(fu = coverFu()) {
+  return fu * 2.6;
 }
 
 // The button's box: style.css .polygon-cover-play, max(44px, --fu * 3.6).
-function coverHitPx() {
-  return Math.max(44, coverFu() * 3.6);
+function coverHitPx(fu = coverFu()) {
+  return Math.max(44, fu * 3.6);
 }
 
 // The play glass shrinks with its cover as the map zooms out: at most 45% of
@@ -1016,22 +1133,11 @@ function coverHitPx() {
 // its full size (coverHitPx), so a small cover is still easy to start.
 const COVER_PLAY_MIN_PX = 14;
 const COVER_PLAY_SHARE = 0.45;
-function coverPlayScale(cov, full) {
-  if (!(full > 0)) return 1;
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-  for (const pair of cov.corners || []) {
-    let p = null;
-    try { p = map.project(pair); } catch { p = null; }
-    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return 1;
-    if (p.x < minX) minX = p.x;
-    if (p.x > maxX) maxX = p.x;
-    if (p.y < minY) minY = p.y;
-    if (p.y > maxY) maxY = p.y;
-  }
-  if (!Number.isFinite(minX)) return 1;
+function coverPlayScale(cov, full, view) {
+  if (!(full > 0) || !cov.place) return 1;
+  const place = measurePlace(cov.place, view);
+  if (!place.finite || !place.box) return 1;
+  const { minX, maxX, minY, maxY } = place.box;
   const side = Math.min(maxX - minX, maxY - minY);
   const px = Math.min(full, Math.max(COVER_PLAY_MIN_PX, side * COVER_PLAY_SHARE));
   return px / full;
@@ -1051,29 +1157,29 @@ function underMoon(x, y, r) {
 }
 
 function placeCoverButton(cov) {
-  if (!coverOnScreen(cov)) {
+  if (!coverOnScreen(cov) || !cov.place) {
     if (cov.btn) cov.btn.hidden = true;
     return;
   }
-  const center = coverCenter(cov.corners);
-  if (coverCenterHidden(center[0], center[1], cameraState())) {
+  const view = coverView();
+  const place = measurePlace(cov.place, view);
+  if (place.centerHidden) {
     if (cov.btn) cov.btn.hidden = true;
     return;
   }
-  let point = null;
-  try { point = map.project(center); } catch { point = null; }
-  const canvas = map.getCanvas();
-  const w = canvas ? canvas.clientWidth : 0;
-  const h = canvas ? canvas.clientHeight : 0;
+  const point = place.centerPoint;
+  const w = view.w;
+  const h = view.h;
   if (!point || point.x < 0 || point.y < 0 || point.x > w || point.y > h) {
     if (cov.btn) cov.btn.hidden = true;
     return;
   }
-  const full = coverGlassPx();
-  const scale = coverPlayScale(cov, full);
+  if (!(view.fu > 0)) view.fu = coverFu();
+  const full = coverGlassPx(view.fu);
+  const scale = coverPlayScale(cov, full, view);
   // The whole tap area counts: one under the moon's edge would still start
   // a video nobody can see.
-  if (underMoon(point.x, point.y, coverHitPx() / 2)) {
+  if (underMoon(point.x, point.y, coverHitPx(view.fu) / 2)) {
     if (cov.btn) cov.btn.hidden = true;
     return;
   }
@@ -1117,8 +1223,9 @@ function registerCover(sourceId, layerId, url, corners, polygon) {
     stillReady: false,
     grabbing: false,
     releaseTimer: 0,
+    place: placeOf(sourceId, layerId, corners),
   };
-  cov.inView = coverInView(corners, cameraState());
+  cov.inView = coverInView(cov.place, coverView());
   mediaCovers.set(sourceId, cov);
   ensureVisTimer();
   scheduleVisPass();
@@ -1184,12 +1291,25 @@ function pauseCoverForBlock(cov) {
   placeCoverButton(cov);
 }
 
+// On every move event: one snapshot for all covers. Sizes are checked at
+// most every SIZE_PASS_MS, so pictures show while zooming in; a video cover
+// too small to draw keeps its button hidden and is not projected per frame
+// (the pump pauses one that was playing).
 function trackCoverButtons() {
-  if (mediaCovers.size === 0) return;
-  const st = cameraState();
+  if (mediaCovers.size === 0 && coverPlaces.size === 0) return;
+  const view = coverView();
+  const now = performance.now();
+  if (now - sizePassAt >= SIZE_PASS_MS) {
+    sizePassAt = now;
+    sizePass(view);
+  }
   for (const cov of mediaCovers.values()) {
+    if (coverTiny(cov)) {
+      if (cov.btn && !cov.btn.hidden) cov.btn.hidden = true;
+      continue;
+    }
     const was = cov.inView;
-    cov.inView = coverInView(cov.corners, st);
+    cov.inView = coverInView(cov.place, view);
     if (was && !cov.inView) pauseCoverForBlock(cov);
     else {
       if (!was && cov.inView) syncCoverHold(cov);
@@ -1486,12 +1606,17 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
         addedLayers.add(maskLayerId);
 
         // A video cover shows a still until a tap. The file is not requested
-        // until then. A raster cover downloads only once it is on screen.
-        // A GIF is frame 0.
+        // until then. A raster cover downloads only once it is on screen and
+        // big enough to draw. A GIF is frame 0. A picture too small to draw
+        // is skipped from its first frame.
+        // A fresh layer: a place left from a removed one would think it hidden.
+        coverPlaces.delete(sourceId);
+        const place = placeOf(sourceId, layerId, sourceCoordinates);
+        placeTiny(place, coverView());
         if (kind === 'video') {
           registerCover(sourceId, layerId, coverPlayUrl(coverUrl), sourceCoordinates, polygon);
         } else {
-          queueCoverLoad(sourceId, coverUrl, sourceCoordinates, 'still');
+          queueCoverLoad(sourceId, coverUrl, sourceCoordinates, 'still', place);
         }
         watchPolygonTilt(map, sourceId, layerId, maskLayerId, sourceCoordinates);
       }

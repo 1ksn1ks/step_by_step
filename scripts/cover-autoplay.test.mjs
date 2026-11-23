@@ -8,6 +8,8 @@ import {
   AUTOPLAY_HOLD_RETRY_MS,
   COVER_LOW_BATTERY,
   COVER_RELEASE_MS,
+  COVER_TINY_HIDE,
+  COVER_TINY_SHOW,
   cachedHold,
   clearAutoplayState,
   coverBatteryIsLow,
@@ -15,6 +17,7 @@ import {
   coverIdsToRelease,
   coverScreenScore,
   coverShouldRelease,
+  coverTooSmall,
   holdQueriesFor,
   lookupHolds,
   MIRROR_HOLD_LIMIT,
@@ -497,4 +500,61 @@ test("topic load stores the autoplay token before drawings are published", () =>
   assert.match(rest, /Only this topic's memo admins can set its app icon\./);
   assert.ok(change.indexOf("maySetAppIcon") !== -1 && change.indexOf("maySetAppIcon") < change.indexOf("squareCenterFile"));
   assert.ok(clear.indexOf("maySetAppIcon") !== -1 && clear.indexOf("maySetAppIcon") < clear.indexOf("sendAppIcon"));
+});
+
+test("a polygon picture under 1.5% of the shorter canvas side is too small; it comes back at 2%", () => {
+  assert.equal(COVER_TINY_HIDE, 0.015);
+  assert.equal(COVER_TINY_SHOW, 0.02);
+  // A phone: the canvas is 390 wide, so 5.85px hides it and 7.8px shows it.
+  assert.equal(coverTooSmall(5, 390, false), true);
+  assert.equal(coverTooSmall(6, 390, false), false, "between the two it stays as it was (shown)");
+  assert.equal(coverTooSmall(7, 390, true), true, "between the two it stays as it was (hidden)");
+  assert.equal(coverTooSmall(7.8, 390, true), false, "back at 2%");
+  // Around the map centre (Infinity), a corner the camera cannot place
+  // (NaN), or no canvas yet: never hidden.
+  assert.equal(coverTooSmall(Infinity, 390, true), false);
+  assert.equal(coverTooSmall(NaN, 390, false), false);
+  assert.equal(coverTooSmall(3, 0, false), false);
+});
+
+test("a picture too small to draw is skipped, waits to load, and counts as off screen; one camera snapshot serves every check", () => {
+  const source = fs.readFileSync(new URL("../polygons.js", import.meta.url), "utf8").replace(/\r\n/g, "\n");
+  const fn = (name) => {
+    const at = source.indexOf("function " + name + "(");
+    assert.ok(at !== -1, name);
+    return source.slice(at, source.indexOf("\n}\n", at) + 2);
+  };
+  // Hidden with a zoom range no zoom reaches; the visibility (Draw pick,
+  // On/Off) and the opacity (slider) stay theirs.
+  const tiny = fn("placeTiny");
+  assert.match(tiny, /coverTooSmall\(place\.size, Math\.min\(view\.w, view\.h\), place\.tiny\)/);
+  assert.match(tiny, /map\.setLayerZoomRange\(place\.layerId, place\.tiny \? 24 : 0, 24\)/);
+  assert.doesNotMatch(tiny, /setLayoutProperty|setPaintProperty/);
+  // Off screen while too small: no autoplay, a playing one pauses, the
+  // file goes back after the release window, the still waits.
+  assert.match(fn("coverOnScreen"), /!coverTiny\(cov\)/);
+  assert.match(fn("coverHoldState"), /inView: !!cov\.inView && !coverTiny\(cov\) && coverLayerOn\(cov\)/);
+  assert.match(fn("ensureCoverStill"), /coverTiny\(cov\)/);
+  // A still loads only once it is in view and big enough.
+  assert.match(fn("queueCoverLoad"), /coverInView\(cov\.place, view\) && !placeTiny\(cov\.place, view\)/);
+  assert.match(fn("visPassWork"), /coverInView\(cov\.place, view\) && !cov\.place\.tiny/);
+  // The feed still stops the pass, and the pass measures sizes first.
+  const pass = fn("visPassWork");
+  assert.ok(pass.indexOf("feed-app") < pass.indexOf("coverView()"));
+  assert.ok(pass.indexOf("sizePass(view)") < pass.indexOf("readCoverViewer()"));
+  // One snapshot: cameraState() and the canvas size are read once per
+  // camera, and a place is measured once per snapshot.
+  assert.equal(source.split("cameraState()").length - 1, 2, "the snapshot and its comment");
+  assert.match(fn("measurePlace"), /if \(place\.seq === view\.seq\) return place;/);
+  assert.match(fn("coverView"), /if \(viewSnap && key && viewSnap\.key === key && viewSize\) return viewSnap;/);
+  assert.doesNotMatch(fn("coverVisibleScore") + fn("coverPlayScale") + fn("placeCoverButton"), /clientWidth|map\.project/);
+  // While the camera moves, sizes are checked every SIZE_PASS_MS.
+  const track = fn("trackCoverButtons");
+  assert.match(track, /now - sizePassAt >= SIZE_PASS_MS/);
+  assert.match(track, /if \(coverTiny\(cov\)\)/);
+  assert.match(source, /const SIZE_PASS_MS = 200;/);
+  // A fresh layer starts from a fresh place, and a dropped polygon forgets it.
+  const add = source.slice(source.indexOf("async function addPolygonSource("));
+  assert.ok(add.indexOf("coverPlaces.delete(sourceId);") < add.indexOf("placeTiny(place, coverView());"));
+  assert.match(fn("dropPolygonCover"), /coverPlaces\.delete\(polygonId \+ '-source'\)/);
 });

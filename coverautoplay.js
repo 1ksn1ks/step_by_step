@@ -286,6 +286,20 @@ export function coverScreenScore(box, canvas) {
   return boxW * boxH;
 }
 
+// A polygon picture this small on screen is not drawn, loaded or played:
+// its longer side under 1.5% of the canvas's shorter side. It comes back at
+// 2%, so one hovering at the edge does not flicker. A size that is not a
+// number (a corner the camera cannot place) never hides it.
+export const COVER_TINY_HIDE = 0.015;
+export const COVER_TINY_SHOW = 0.02;
+
+export function coverTooSmall(sizePx, viewSide, wasSmall) {
+  const side = Number(viewSide);
+  const size = Number(sizePx);
+  if (!(side > 0) || Number.isNaN(size)) return false;
+  return size < side * (wasSmall ? COVER_TINY_SHOW : COVER_TINY_HIDE);
+}
+
 export function coverBatteryIsLow(battery) {
   if (!battery || typeof battery !== "object") return false;
   const level = Number(battery.level);
