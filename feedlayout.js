@@ -143,8 +143,16 @@ const PAGE = 2030;
 // Hitting the cap before exhaustion labels the row "sorted among loaded
 // posts" so a short window is not shown as a complete ranking.
 const SORT_PAGE_CAP = 4;
-const CARD_CAP = 200;
 const RENDER_CHUNK = 30;
+// The drawn window (see trimWindow): cards within this many screens above
+// and below the visible area stay; the rest give their space to a spacer.
+// A window of WINDOW_FLOOR cards or fewer (a short feed) is never trimmed.
+// Cards come back above once the visible top is within REFILL_SCREENS of
+// them, up to REFILL_CHUNKS_MAX chunks in one frame on a fast fling.
+const WINDOW_SCREENS = 3;
+const REFILL_SCREENS = 2;
+const WINDOW_FLOOR = RENDER_CHUNK * 2;
+const REFILL_CHUNKS_MAX = 4;
 const SCROLL_IDLE_MS = 250;
 const VIEW_DWELL_MS = 1000;
 const VIEW_FLUSH_MS = 10000;
@@ -2356,11 +2364,198 @@ function scheduleScrollFrame() {
   requestAnimationFrame(runScrollFrame);
 }
 
+// ── The drawn window ─────────────────────────────────────────────────────
+// Cards further than WINDOW_SCREENS screens above or below the visible area
+// come out of the column, and a spacer takes their exact measured space, so
+// nothing on screen moves and the scroll position is never written: a
+// phone's fling keeps its momentum. Cards are built back into the top
+// spacer once the visible top is within REFILL_SCREENS of it (more chunks
+// in one frame on a fast fling), and the spacer gives up exactly the height
+// they take; the bottom spacer fills the same way as the reader goes down.
+// A spacer is not a card (aria-hidden, no .feed-card). Every rebuild of the
+// column (tab, profile, search, sort, reset) drops both spacers. A saved
+// scroll counts from the first drawn card (relScroll), as it always did;
+// a rebuild from a later start (tab, search cleared, a profile's way back)
+// gives the posts above it a top spacer again (seedTopSpacer) and adds it.
+let spacerTop = null;
+let spacerTopPx = 0;
+let spacerBottom = null;
+let spacerBottomPx = 0;
+let frameLastTop = 0;
+let frameLastAt = 0;
+// The space each card took when it last left the column, by post key, for
+// the column width and zoom it was measured at. A rebuild from a later
+// start (seedTopSpacer) gives the posts above it back their space.
+const cardHeights = new Map();
+
+function heightKey() {
+  return `${column.clientWidth}|${feedPrefs.zoom}`;
+}
+
+function rememberHeight(card, px, layout) {
+  const key = card && card.dataset ? card.dataset.key : '';
+  if (key && px > 0) cardHeights.set(key, { px, layout });
+}
+
+function knownHeight(key, layout) {
+  const known = key ? cardHeights.get(key) : null;
+  return known && known.layout === layout ? known.px : 0;
+}
+
+// A spacer's height lives in a rule of a sheet of its own, not in a style
+// attribute: the page has :has() rules that read style attributes, so a
+// write to one restyles the whole document (about 95 ms against 5 ms for
+// the rule, at 4x CPU slowdown, deep in the feed). Without constructable
+// sheets, the inline style.
+let spacerRules = null;
+
+function spacerRule(side) {
+  if (spacerRules === null) {
+    spacerRules = false;
+    try {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync('#feed-column > [data-spacer="top"] { height: 0px; } #feed-column > [data-spacer="bottom"] { height: 0px; }');
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+      spacerRules = { top: sheet.cssRules[0], bottom: sheet.cssRules[1] };
+    } catch {
+      spacerRules = false;
+    }
+  }
+  return spacerRules ? spacerRules[side] || null : null;
+}
+
+function makeSpacer(side) {
+  const el = document.createElement('div');
+  el.className = 'feed-spacer';
+  el.dataset.spacer = side;
+  el.setAttribute('aria-hidden', 'true');
+  const rule = spacerRule(side);
+  if (rule) rule.style.height = '0px';
+  return el;
+}
+
+function paintSpacer(el, px) {
+  const value = `${Math.max(0, px)}px`;
+  const rule = spacerRule(el.dataset.spacer);
+  if (rule) rule.style.height = value;
+  else el.style.height = value;
+}
+
+function topSpacerPx() {
+  return spacerTop && spacerTop.isConnected ? spacerTopPx : 0;
+}
+
+function bottomSpacerPx() {
+  return spacerBottom && spacerBottom.isConnected ? spacerBottomPx : 0;
+}
+
+function dropTopSpacer() {
+  if (spacerTop) spacerTop.remove();
+  spacerTop = null;
+  spacerTopPx = 0;
+}
+
+function dropBottomSpacer() {
+  if (spacerBottom) spacerBottom.remove();
+  spacerBottom = null;
+  spacerBottomPx = 0;
+}
+
+// Every rebuild of the column goes through here: no spacer outlives it.
+// The cards leaving keep their space for a later rebuild (cardHeights).
+function clearColumn() {
+  const cards = [];
+  for (const el of column.children) if (isCard(el)) cards.push(el);
+  if (cards.length && column.clientWidth > 0) {
+    const layout = heightKey();
+    const gap = cardGap(cards[0]);
+    for (const el of cards) rememberHeight(el, cardSpan(el, gap), layout);
+  }
+  column.replaceChildren();
+  dropTopSpacer();
+  dropBottomSpacer();
+}
+
+// A view rebuilt from a later start (a tab, a profile's way back, a search
+// cleared) has posts above its first card that are not drawn: a top spacer
+// takes their space (as they last measured, else an average card), so the
+// way up refills into it like any other, without moving the scroll. Returns
+// the spacer's height, which the caller adds to the saved scroll.
+function seedTopSpacer() {
+  const floor = laneFloor();
+  if (rangeStart <= floor || topSpacerPx() > 0) return 0;
+  const first = firstCard();
+  if (!first) return 0;
+  const list = lane();
+  const layout = heightKey();
+  let known = 0;
+  let knownCount = 0;
+  for (const value of cardHeights.values()) {
+    if (value.layout !== layout) continue;
+    known += value.px;
+    knownCount += 1;
+  }
+  // Nothing measured at this width yet: the cards just drawn give the pitch.
+  const guess = knownCount ? known / knownCount : readScrollGeometry().avg;
+  let px = 0;
+  for (let i = floor; i < rangeStart && i < list.length; i++) {
+    px += knownHeight(list[i] && list[i].key, layout) || guess;
+  }
+  if (!(px > 0)) return 0;
+  spacerTop = makeSpacer('top');
+  spacerTopPx = px;
+  paintSpacer(spacerTop, px);
+  column.insertBefore(spacerTop, first);
+  return px;
+}
+
+// A path that draws posts above the window itself (the pill's jump to the
+// fresh posts) takes the top spacer out first. What is on screen keeps its
+// place: the scroll moves up by the spacer's height.
+function flattenTopSpacer() {
+  const px = topSpacerPx();
+  const y = scroller.scrollTop;
+  dropTopSpacer();
+  if (px > 0) setFeedScroll(Math.max(0, y - px));
+}
+
+// The scroll counted from the first drawn card: what a rebuild from
+// rangeStart (no spacer) puts back.
+function relScroll() {
+  return Math.max(0, scroller.scrollTop - topSpacerPx());
+}
+
+function isCard(el) {
+  return !!(el && el.classList && el.classList.contains('feed-card'));
+}
+
+function firstCard() {
+  for (let el = column.firstElementChild; el; el = el.nextElementSibling) if (isCard(el)) return el;
+  return null;
+}
+
+function lastCard() {
+  for (let el = column.lastElementChild; el; el = el.previousElementSibling) if (isCard(el)) return el;
+  return null;
+}
+
 // Card pitch for the fill estimate, from the first cards of the column.
 function cardDrop(el) {
   const next = el.nextElementSibling;
-  if (next && next.classList.contains('feed-card')) return next.offsetTop - el.offsetTop;
+  if (isCard(next)) return next.offsetTop - el.offsetTop;
   return el.offsetHeight;
+}
+
+// The space a card takes in the column: to the next card, or its own
+// height and gap when it is the last.
+function cardSpan(el, gap) {
+  const next = el.nextElementSibling;
+  if (isCard(next)) return next.offsetTop - el.offsetTop;
+  return el.offsetHeight + gap;
+}
+
+function cardGap(el) {
+  return parseFloat(getComputedStyle(el).marginBottom) || 0;
 }
 
 function readScrollGeometry(scrollerRect) {
@@ -2369,12 +2564,12 @@ function readScrollGeometry(scrollerRect) {
   const view = scroller.clientHeight;
   const far = (scrollerRect || scroller.getBoundingClientRect()).top - view;
   const sample = [];
-  let el = column.firstElementChild;
-  while (el && el.classList.contains('feed-card') && sample.length < 8) {
+  let el = firstCard();
+  while (el && sample.length < 8) {
     const drop = cardDrop(el);
     if (drop > 0) sample.push(drop);
     const next = el.nextElementSibling;
-    if (!next || !next.classList.contains('feed-card')) break;
+    if (!isCard(next)) break;
     el = next;
   }
   let sum = 0;
@@ -2382,22 +2577,80 @@ function readScrollGeometry(scrollerRect) {
   return { top, height, view, far, avg: sample.length ? sum / sample.length : 0 };
 }
 
-// The leading cards more than a screen above the viewport, for a cap trim.
-// Every one costs a layout read, and a scroll deep into the feed has
-// hundreds, so runScrollFrame asks only in a frame that can trim (the
-// column would pass CARD_CAP), still before it writes the column.
-function readFarBoxes(far) {
-  const boxes = [];
-  const cap = CARD_CAP + FILL_PASSES * RENDER_CHUNK;
-  let el = column.firstElementChild;
-  while (el && el.classList.contains('feed-card') && boxes.length < cap) {
-    if (el.getBoundingClientRect().bottom > far) break;
-    boxes.push({ el, drop: cardDrop(el) });
-    const next = el.nextElementSibling;
-    if (!next || !next.classList.contains('feed-card')) break;
-    el = next;
+// Cards beyond the window come out; their space goes to a spacer. Above
+// while the reader goes down, below while going up (both from a path that
+// grew the column at one end). Never under WINDOW_FLOOR cards, never a
+// scroll write.
+function trimWindow(opts) {
+  const above = !!(opts && opts.above);
+  const below = !!(opts && opts.below);
+  if (!above && !below) return;
+  if (rangeEnd - rangeStart <= WINDOW_FLOOR) return;
+  const view = scroller.clientHeight;
+  if (!(view > 0)) return;
+  const box = scroller.getBoundingClientRect();
+  if (above) {
+    const line = box.top - view * WINDOW_SCREENS;
+    const out = [];
+    for (let el = firstCard(); el && rangeEnd - rangeStart - out.length > WINDOW_FLOOR; el = el.nextElementSibling) {
+      if (!isCard(el)) break;
+      if (el.getBoundingClientRect().bottom >= line) break;
+      out.push(el);
+    }
+    if (out.length) {
+      const gap = cardGap(out[0]);
+      const layout = heightKey();
+      let px = 0;
+      for (const el of out) {
+        const span = cardSpan(el, gap);
+        rememberHeight(el, span, layout);
+        px += span;
+      }
+      if (!spacerTop || !spacerTop.isConnected) {
+        spacerTop = makeSpacer('top');
+        spacerTopPx = 0;
+        column.insertBefore(spacerTop, out[0]);
+      }
+      for (const el of out) {
+        forgetCard(el);
+        el.remove();
+      }
+      rangeStart += out.length;
+      spacerTopPx += px;
+      paintSpacer(spacerTop, spacerTopPx);
+    }
   }
-  return boxes;
+  if (below && rangeEnd - rangeStart > WINDOW_FLOOR) {
+    const line = box.bottom + view * WINDOW_SCREENS;
+    const out = [];
+    for (let el = lastCard(); el && rangeEnd - rangeStart - out.length > WINDOW_FLOOR; el = el.previousElementSibling) {
+      if (!isCard(el)) break;
+      if (el.getBoundingClientRect().top <= line) break;
+      out.push(el);
+    }
+    if (out.length) {
+      const gap = cardGap(out[0]);
+      const layout = heightKey();
+      let px = 0;
+      for (const el of out) {
+        const span = cardSpan(el, gap);
+        rememberHeight(el, span, layout);
+        px += span;
+      }
+      if (!spacerBottom || !spacerBottom.isConnected) {
+        spacerBottom = makeSpacer('bottom');
+        spacerBottomPx = 0;
+        out[0].after(spacerBottom);
+      }
+      for (const el of out) {
+        forgetCard(el);
+        el.remove();
+      }
+      rangeEnd -= out.length;
+      spacerBottomPx += px;
+      paintSpacer(spacerBottom, spacerBottomPx);
+    }
+  }
 }
 
 function noteFillAgain() {
@@ -2409,11 +2662,66 @@ function noteFillAgain() {
   scheduleScrollFrame();
 }
 
-// Prepend one chunk, then one scrollHeight read. Container-query card
-// heights are not known until the cards are in the column. The boxes for
-// a cap trim are taken from that same layout, before the scroll write.
-function frameFillUp(top, height, view, far) {
-  if (paging || top > view || rangeStart <= laneFloor()) return { top, height, again: false };
+// Cards back into the top spacer, a chunk at a time, until the drawn cards
+// reach REFILL_SCREENS above the visible top (plus what a fast fling covers
+// in the next frames). The spacer shrinks by the height the cards really
+// take, so the card under the reader stays put and the scroll is not
+// written. Only a spacer that runs out (cards taller than they were) or one
+// left over at the very top (shorter) moves the scroll once.
+function refillTopSpacer(view, velocity) {
+  const box = scroller.getBoundingClientRect();
+  const ahead = view * REFILL_SCREENS + (velocity < 0 ? -velocity * 200 : 0);
+  const list = lane();
+  let chunks = 0;
+  let fix = 0;
+  const built = [];
+  while (topSpacerPx() > 0 && rangeStart > laneFloor() && chunks < REFILL_CHUNKS_MAX) {
+    const first = firstCard();
+    if (!first) break;
+    if (box.top - first.getBoundingClientRect().top >= ahead) break;
+    const add = Math.min(RENDER_CHUNK, rangeStart - laneFloor());
+    const frag = document.createDocumentFragment();
+    for (let i = rangeStart - add; i < rangeStart; i++) {
+      const card = buildCard(list[i]);
+      built.push(card);
+      frag.appendChild(card);
+    }
+    const before = first.offsetTop;
+    column.insertBefore(frag, first);
+    rangeStart -= add;
+    // Long captions clamp now, not next frame: the spacer gives up the
+    // height the cards keep (a caption laid out whole first is many screens).
+    clampPending();
+    spacerTopPx -= first.offsetTop - before;
+    if (spacerTopPx < 0) {
+      fix -= spacerTopPx;
+      spacerTopPx = 0;
+    }
+    if (rangeStart <= laneFloor() && spacerTopPx > 0) {
+      fix -= spacerTopPx;
+      spacerTopPx = 0;
+    }
+    if (spacerTopPx > 0) paintSpacer(spacerTop, spacerTopPx);
+    else dropTopSpacer();
+    chunks += 1;
+  }
+  if (fix) setFeedScroll(Math.max(0, scroller.scrollTop + fix));
+  for (const card of built) watchCard(card);
+  if (chunks) requestAnimationFrame(clampPending);
+  return { chunks, again: chunks >= REFILL_CHUNKS_MAX && topSpacerPx() > 0 };
+}
+
+// Above the drawn cards: into the top spacer when there is one, else (posts
+// above with no spacer for them) the first chunk is prepended once the
+// reader is within a screen of the top and the scroll moves by its height.
+function frameFillUp(top, height, view, velocity) {
+  if (paging || rangeStart <= laneFloor()) return { top, height, again: false };
+  if (topSpacerPx() > 0) {
+    const refill = refillTopSpacer(view, velocity);
+    const nextTop = scroller.scrollTop;
+    return { top: nextTop, height: refill.chunks ? scroller.scrollHeight : height, again: refill.again };
+  }
+  if (top > view) return { top, height, again: false };
   const add = Math.min(RENDER_CHUNK, rangeStart - laneFloor());
   if (add <= 0) return { top, height, again: false };
   const list = lane();
@@ -2428,27 +2736,7 @@ function frameFillUp(top, height, view, far) {
   rangeStart -= add;
   const nextHeight = scroller.scrollHeight;
   const delta = nextHeight - height;
-  let drop = 0;
-  if (rangeEnd - rangeStart > CARD_CAP) {
-    const boxes = [];
-    let el = column.firstElementChild;
-    for (let i = 0; i < add && el && el.classList.contains('feed-card'); i++) {
-      const next = el.nextElementSibling;
-      const cardDropPx = next && next.classList.contains('feed-card') ? next.offsetTop - el.offsetTop : el.offsetHeight;
-      boxes.push({ el, bottom: el.getBoundingClientRect().bottom, drop: cardDropPx });
-      el = next;
-    }
-    for (const box of boxes) {
-      if (rangeEnd - rangeStart <= CARD_CAP) break;
-      if (box.bottom - delta > far) break;
-      if (column.firstElementChild !== box.el) break;
-      forgetCard(box.el);
-      box.el.remove();
-      rangeStart += 1;
-      drop += box.drop;
-    }
-  }
-  const nextTop = Math.max(0, top + delta - drop);
+  const nextTop = Math.max(0, top + delta);
   if (nextTop !== top) setFeedScroll(nextTop);
   for (const card of cards) {
     if (card.isConnected) watchCard(card);
@@ -2456,26 +2744,9 @@ function frameFillUp(top, height, view, far) {
   requestAnimationFrame(clampPending);
   return {
     top: nextTop,
-    height: nextHeight - drop,
+    height: nextHeight,
     again: nextTop !== top && nextTop <= view && rangeStart > laneFloor(),
   };
-}
-
-function applyFarTrim(boxes, top) {
-  if (!boxes || !boxes.length) return top;
-  let drop = 0;
-  for (const box of boxes) {
-    if (rangeEnd - rangeStart <= CARD_CAP) break;
-    if (!box.el.isConnected || column.firstElementChild !== box.el) break;
-    forgetCard(box.el);
-    box.el.remove();
-    rangeStart += 1;
-    drop += box.drop;
-  }
-  if (!(drop > 0)) return top;
-  const next = Math.max(0, top - drop);
-  if (next !== top) setFeedScroll(next);
-  return next;
 }
 
 // Parked posts land at the top. The final scroll is 0, so the prepend
@@ -2561,8 +2832,14 @@ function runScrollFrame() {
     return;
   }
   const geo = readScrollGeometry(scrollerRect);
-  const startBefore = rangeStart;
-  const placed = frameFillUp(geo.top, geo.height, geo.view, geo.far);
+  // The reader's direction and speed (px per ms; up is negative): the
+  // window trims the side being left, and a fast fling up refills further.
+  const now = performance.now();
+  const moved = geo.top - frameLastTop;
+  const velocity = frameLastAt && now > frameLastAt ? moved / (now - frameLastAt) : 0;
+  frameLastTop = geo.top;
+  frameLastAt = now;
+  const placed = frameFillUp(geo.top, geo.height, geo.view, velocity);
   let top = placed.top;
   let again = placed.again;
   if (!sortHold && feedOn() && !paging) {
@@ -2570,9 +2847,11 @@ function runScrollFrame() {
       if (feedFiltering()) paintEmpty();
     } else {
       const list = lane();
+      // The bottom spacer stands for cards not drawn: the room below ends
+      // at the last drawn card.
       const plan = planFillDown({
         top,
-        height: placed.height,
+        height: placed.height - bottomSpacerPx(),
         view: geo.view,
         rangeEnd,
         listLen: list.length,
@@ -2585,11 +2864,10 @@ function runScrollFrame() {
       const end = plan.chunks > 0 && rangeEnd < list.length
         ? Math.min(list.length, rangeEnd + plan.chunks * RENDER_CHUNK)
         : rangeEnd;
-      // A prepend above (frameFillUp) moved the first card, which ends a
-      // trim at once, so that frame does not read the far cards either.
-      const farBoxes = end - rangeStart > CARD_CAP && rangeStart === startBefore ? readFarBoxes(geo.far) : null;
       if (end > rangeEnd) renderThrough(end);
-      top = applyFarTrim(farBoxes, top);
+      // The window: the side the reader is leaving gives its far cards to a
+      // spacer. No scroll write, so a fling keeps going.
+      trimWindow({ above: moved > 0, below: moved < 0 });
       if (plan.page) loadOlder();
       else if (plan.empty) paintEmpty();
       if (plan.again || (plan.chunks > 0 && rangeEnd < lane().length)) again = true;
@@ -2725,7 +3003,25 @@ async function postViews(viewer, ids, keepalive) {
   if (back) armViewFlush();
 }
 
+// A new card is drawn in full (.is-fresh, style.css) until a frame has laid
+// it out and the browser has its real size; from then on it may be skipped
+// while away from the screen (content-visibility: auto).
+const freshCards = new Set();
+let freshFrame = 0;
+function settleFresh() {
+  freshFrame = requestAnimationFrame(() => {
+    freshFrame = 0;
+    const done = [...freshCards];
+    freshCards.clear();
+    for (const card of done) card.classList.remove('is-fresh');
+  });
+}
+
 function watchCard(card) {
+  if (card.classList.contains('is-fresh')) {
+    freshCards.add(card);
+    if (!freshFrame) freshFrame = requestAnimationFrame(settleFresh);
+  }
   const key = card.dataset.key;
   if (!key) return;
   ensureViewObserver().observe(card);
@@ -2774,7 +3070,7 @@ function feedTitle(record) {
 function buildCard(post) {
   const record = recordFor(post) || {};
   const card = document.createElement('article');
-  card.className = 'feed-card';
+  card.className = 'feed-card is-fresh';
   card.dataset.key = post.key;
 
   const payer = record.payer || '';
@@ -3132,7 +3428,9 @@ function resetFeed(topic) {
   assembler = createChunkAssembler();
   clearMaps();
   clearViewWatch();
-  column.replaceChildren();
+  clearColumn();
+  // Another topic: no post of this one comes back to need its space.
+  cardHeights.clear();
   paintSpinner(false);
   savedScroll = 0;
   setFeedScroll(0);
@@ -4011,7 +4309,7 @@ function paintSorted() {
   rangeStart = 0;
   rangeEnd = 0;
   clearViewWatch();
-  column.replaceChildren();
+  clearColumn();
   const list = found;
   if (list.length) renderThrough(Math.min(list.length, RENDER_CHUNK));
   paintEmpty();
@@ -4055,7 +4353,7 @@ function rerenderLane(opts) {
     writeBannerOffset(0);
   }
   clearViewWatch();
-  column.replaceChildren();
+  clearColumn();
   paintEmpty();
   if (!followBlocked()) fillDown();
   else paintEmpty();
@@ -4097,7 +4395,7 @@ async function selectTab(next) {
   if (!(followState === 'ready' && followSet)) {
     followState = 'loading';
     clearViewWatch();
-    column.replaceChildren();
+    clearColumn();
     rangeStart = 0;
     rangeEnd = 0;
     if (!feedFiltering()) {
@@ -4182,30 +4480,35 @@ function renderThrough(end) {
     cards.push(card);
     frag.appendChild(card);
   }
-  column.appendChild(frag);
-  rangeEnd = end;
+  // Into the bottom spacer when there is one: it gives up the height the
+  // cards really take (all of it once the list's end is drawn). It is below
+  // the screen, so nothing on screen moves.
+  const tail = bottomSpacerPx() > 0 ? spacerBottom : null;
+  if (tail) {
+    const before = tail.offsetTop;
+    column.insertBefore(frag, tail);
+    rangeEnd = end;
+    // Clamped first, as in the top spacer's refill.
+    clampPending();
+    spacerBottomPx -= tail.offsetTop - before;
+    if (spacerBottomPx > 0 && rangeEnd < list.length) paintSpacer(tail, spacerBottomPx);
+    else dropBottomSpacer();
+  } else {
+    column.appendChild(frag);
+    rangeEnd = end;
+  }
   for (const card of cards) watchCard(card);
   requestAnimationFrame(clampPending);
 }
 
+// A path that grew the column at one end keeps the window too.
 function trimAbove() {
-  const viewTop = scroller.getBoundingClientRect().top;
-  const far = viewTop - scroller.clientHeight;
-  while (rangeEnd - rangeStart > CARD_CAP) {
-    const first = column.firstElementChild;
-    if (!first || !first.classList.contains('feed-card')) break;
-    const rect = first.getBoundingClientRect();
-    if (rect.bottom > far) break;
-    const next = first.nextElementSibling;
-    const drop = next && next.classList.contains('feed-card') ? next.offsetTop - first.offsetTop : first.offsetHeight;
-    forgetCard(first);
-    first.remove();
-    rangeStart += 1;
-    setFeedScroll(Math.max(0, scroller.scrollTop - drop));
-  }
+  trimWindow({ above: true, below: true });
 }
 
 function fillUp() {
+  // A top spacer refills from the scroll frame (frameFillUp).
+  if (topSpacerPx() > 0) return;
   if (paging || scroller.scrollTop > scroller.clientHeight || rangeStart <= laneFloor()) return;
   const add = Math.min(RENDER_CHUNK, rangeStart - laneFloor());
   const prevTop = scroller.scrollTop;
@@ -4240,8 +4543,10 @@ function fillDown() {
   let guard = 0;
   while (guard < 12) {
     guard += 1;
-    const room = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
-    const short = scroller.scrollHeight <= scroller.clientHeight + 4;
+    // Drawn content only: the bottom spacer stands for cards not drawn.
+    const height = scroller.scrollHeight - bottomSpacerPx();
+    const room = height - scroller.scrollTop - scroller.clientHeight;
+    const short = height <= scroller.clientHeight + 4;
     if (!short && room >= scroller.clientHeight * 2) {
       if (rankedSort() && searchCanPage()) loadOlder();
       else paintEmpty();
@@ -4249,7 +4554,7 @@ function fillDown() {
     }
     if (rangeEnd < list.length) {
       renderThrough(Math.min(list.length, rangeEnd + RENDER_CHUNK));
-      trimAbove();
+      trimWindow({ above: true });
       continue;
     }
     if (searchCanPage()) loadOlder();
@@ -4309,9 +4614,11 @@ function tabIsAtTop(tab) {
   return tabRange[tab].start === 0 && tabScroll[tab] < 2;
 }
 
+// The tab comes back by a rebuild from its start: its scroll counts from
+// the first drawn card (restoreTabView adds the spacer it seeds above).
 function saveTabView() {
   if (feedFiltering()) return;
-  tabScroll[feedTab] = scroller.scrollTop;
+  tabScroll[feedTab] = relScroll();
   tabRange[feedTab] = { start: rangeStart, end: rangeEnd };
 }
 
@@ -4593,6 +4900,8 @@ function scrollMotion() {
 function prependAbove(count) {
   const n = Math.min(count, rangeStart, lane().length);
   if (n <= 0) return;
+  // These cards go on top of the column: the top spacer goes first.
+  flattenTopSpacer();
   const list = lane();
   const prevTop = scroller.scrollTop;
   const prevHeight = scroller.scrollHeight;
@@ -4644,7 +4953,7 @@ function goToFreshPosts() {
   if (rangeStart > 0 && rangeStart <= 60) prependAbove(rangeStart);
   else if (rangeStart > 60) {
     clearViewWatch();
-    column.replaceChildren();
+    clearColumn();
     rangeStart = 0;
     rangeEnd = 0;
     const end = Math.min(lane().length, RENDER_CHUNK);
@@ -4673,10 +4982,12 @@ function restoreTabView() {
   rangeStart = start;
   rangeEnd = start;
   clearViewWatch();
-  column.replaceChildren();
+  clearColumn();
   if (end > start) renderThrough(end);
   paintEmpty();
-  setFeedScroll(tabScroll[tab]);
+  // The posts above the tab's start get their space back (a top spacer), so
+  // the way up refills into it instead of moving the scroll.
+  setFeedScroll(tabScroll[tab] + seedTopSpacer());
   savedScroll = scroller.scrollTop;
   tabRange[tab] = { start: rangeStart, end: rangeEnd };
   paintNewPill();
@@ -5494,7 +5805,8 @@ function unparkScroller() {
 function pinWindow() {
   if (searchPinned) return;
   searchPinned = true;
-  pinScroll = scroller.scrollTop;
+  // Rebuilt from pinStart (restorePin): counted from the first drawn card.
+  pinScroll = relScroll();
   pinStart = rangeStart;
   pinEnd = rangeEnd;
 }
@@ -5507,7 +5819,7 @@ function showQueryResults() {
   rangeStart = 0;
   rangeEnd = 0;
   clearViewWatch();
-  column.replaceChildren();
+  clearColumn();
   setFeedScroll(0);
   if (rankedSort()) {
     finishRanked();
@@ -5536,16 +5848,17 @@ function restorePin() {
   pinEnd = 0;
   pinScroll = 0;
   clearViewWatch();
-  column.replaceChildren();
+  clearColumn();
   rangeStart = start;
   rangeEnd = start;
   if (end > start) renderThrough(end);
   paintEmpty();
-  setFeedScroll(y);
-  savedScroll = y;
+  const at = y + seedTopSpacer();
+  setFeedScroll(at);
+  savedScroll = at;
   if (!followBlocked()) fillDown();
-  setFeedScroll(y);
-  savedScroll = y;
+  setFeedScroll(at);
+  savedScroll = at;
   paintNewPill();
   revealParked();
 }
@@ -6560,7 +6873,9 @@ function enterProfileFilter(payer) {
   }
   profileShift = { all: 0, following: 0 };
   profileView = {
-    scroll: scroller.scrollTop,
+    // Rebuilt from start on the way back (clearProfileFilter): counted from
+    // the first drawn card.
+    scroll: relScroll(),
     start: rangeStart,
     end: rangeEnd,
     pinned: searchPinned,
@@ -6614,10 +6929,10 @@ function clearProfileFilter() {
   rangeStart = start;
   rangeEnd = start;
   clearViewWatch();
-  column.replaceChildren();
+  clearColumn();
   if (end > start) renderThrough(end);
   paintEmpty();
-  setFeedScroll(wasTop ? 0 : saved.scroll);
+  setFeedScroll(wasTop ? 0 : saved.scroll + seedTopSpacer());
   savedScroll = scroller.scrollTop;
   showFeedTabs();
   if (!followBlocked()) {
@@ -7072,6 +7387,7 @@ function resizeFeedMedia() {
   let anchor = null;
   if (view.height > 0) {
     for (const card of column.children) {
+      if (!isCard(card)) continue;
       const box = card.getBoundingClientRect();
       if (box.height > 0 && box.bottom > view.top + 1) {
         anchor = { card, top: box.top };
@@ -10407,6 +10723,8 @@ function setFeedScroll(value) {
   tabTrackHold = true;
   scroller.scrollTop = value;
   if (scroller.scrollTop === before) tabTrackHold = false;
+  // Not the reader moving: the scroll frame's direction and speed skip it.
+  frameLastTop += scroller.scrollTop - before;
 }
 
 function feedScrollTo(options) {

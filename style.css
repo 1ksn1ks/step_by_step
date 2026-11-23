@@ -13381,6 +13381,28 @@ html.feed-app #feed-search-page {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
+/* A card away from the screen skips style, layout and paint (its :has()
+   rules included), and keeps the size it last had on screen. A new card
+   is drawn in full for its first frames (.is-fresh, feedlayout.js), so
+   every measure taken as cards go in reads its real height and the
+   browser remembers it before the card can be skipped. 40fu is about an
+   average card. */
+#feed-column > .feed-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto calc(var(--fu) * 40);
+}
+#feed-column > .feed-card.is-fresh {
+  content-visibility: visible;
+}
+/* The place of cards out of the drawn window (feedlayout.js trimWindow):
+   its height is their measured space, set from the script. */
+#feed-column > .feed-spacer {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  pointer-events: none;
+}
 /* The profile bubble reaches out over the card's 1.6fu padding and stops
    0.25fu short of the card's border, on the top and both sides. */
 :is(#feed-column, .feed-comments-stage) .popup-profile-bubble {
