@@ -121,6 +121,45 @@ map.on("movestart", clearPolygonHold);
 // globe. Mask layer id -> polygon, from addPolygonWithImageFill.
 const polygonTipLayers = new Map();
 
+// Tap masks are most of the per-frame draws while the camera moves. A drag
+// cannot hit one, so each mask leaves the zoom range until the camera has
+// been still for MASK_REST_MS. The On/Off toggle and the Draw pick keep
+// visibility, and the mask keeps fill-opacity 0. The zoom range is the same
+// switch placeTiny() uses for pictures.
+let masksParked = false;
+const MASK_REST_MS = 280;
+let maskRestTimer = 0;
+
+function setMaskZoom(target, id, min, max) {
+  try {
+    if (target.getLayer(id)) target.setLayerZoomRange(id, min, max);
+  } catch { /* the layer went with its source */ }
+}
+
+function onMaskMoveStart() {
+  clearTimeout(maskRestTimer);
+  maskRestTimer = 0;
+  if (masksParked) return;
+  masksParked = true;
+  for (const id of polygonTipLayers.keys()) setMaskZoom(map, id, 24, 24);
+}
+
+function onMaskMoveEnd() {
+  clearTimeout(maskRestTimer);
+  maskRestTimer = setTimeout(() => {
+    maskRestTimer = 0;
+    masksParked = false;
+    for (const id of polygonTipLayers.keys()) setMaskZoom(map, id, 0, 24);
+  }, MASK_REST_MS);
+}
+
+function parkFreshMask(target, id) {
+  if (masksParked) setMaskZoom(target, id, 24, 24);
+}
+
+map.on("movestart", onMaskMoveStart);
+map.on("moveend", onMaskMoveEnd);
+
 addMapTipSource({
   rank: 1,
   hit(event) {
@@ -1481,7 +1520,9 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
           'fill-outline-color': '#000'
         }
       }, layerId); // Ensure mask layer is above raster layer
-  
+
+      parkFreshMask(map, maskLayerId);
+
       polygonTipLayers.set(maskLayerId, polygon);
 
       // Add interactivity (only if not already added)
