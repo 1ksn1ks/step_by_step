@@ -12037,9 +12037,9 @@ html.feed-app #popup-settings-card {
   box-shadow: none;
   color: #fff;
   font-family: Inter, system-ui, sans-serif;
-  font-size: var(--page-field-font);
+  font-size: min(var(--page-field-font), calc(var(--page-field-h) * 0.5));
   font-weight: 500;
-  line-height: normal;
+  line-height: 1.2;
   outline: none;
 }
 #feed-search-input::placeholder {
