@@ -4,6 +4,7 @@
 
 import { BACKEND_URL, fetchFollowing } from './msgbackend.js';
 import { bareAccount, formatDonationAmount } from './donationmath.js';
+import { formatCount, formatHbarCount } from './countformat.js';
 import { followerCountOrNull } from './followcount.js';
 import { cachedPersonFollow, readPersonFollow } from './followtopic.js';
 import { earlyHashinalNumber } from './earlyhashinal.js';
@@ -39,6 +40,16 @@ function markZero(stat, zero) {
   stat.root.classList.toggle('is-zero', !!zero);
 }
 
+function setExact(num, text) {
+  num.title = text;
+  num.setAttribute('aria-label', text);
+}
+
+function clearExact(num) {
+  num.removeAttribute('title');
+  num.removeAttribute('aria-label');
+}
+
 export function paintProfileStats(el, account) {
   if (!el) return;
   if (typeof el._dropProfileStats === 'function') el._dropProfileStats();
@@ -54,9 +65,11 @@ export function paintProfileStats(el, account) {
   const following = makeStat('following');
   const received = makeStat('received');
   el.append(followers.root, following.root, received.root);
-  followers.num.textContent = '0';
+  followers.num.textContent = formatCount(0);
+  setExact(followers.num, exact.format(0));
   following.num.textContent = '\u2013';
-  received.num.textContent = '0.00';
+  received.num.textContent = formatHbarCount(0);
+  setExact(received.num, formatDonationAmount(0));
   markZero(followers, true);
   markZero(following, true);
   markZero(received, true);
@@ -71,15 +84,17 @@ export function paintProfileStats(el, account) {
     if (!current()) return;
     const value = followerCountOrNull(n);
     const shown = value == null ? 0 : value;
-    followers.num.textContent = exact.format(shown);
+    followers.num.textContent = formatCount(shown);
+    setExact(followers.num, exact.format(shown));
     markZero(followers, shown === 0);
   }
 
   function applyReceived(raw) {
     if (!current()) return;
-    const shown = formatDonationAmount(raw);
-    received.num.textContent = shown;
-    markZero(received, !(Number(shown) > 0));
+    const amount = Number(raw);
+    received.num.textContent = formatHbarCount(raw);
+    setExact(received.num, formatDonationAmount(raw));
+    markZero(received, !(amount > 0));
   }
 
   function applyFollowing(n) {
@@ -87,11 +102,13 @@ export function paintProfileStats(el, account) {
     // No reply (null, or the request failed): not a count of zero.
     if (typeof n !== 'number' || !Number.isFinite(n)) {
       following.num.textContent = '\u2013';
+      clearExact(following.num);
       markZero(following, true);
       return;
     }
     const shown = n > 0 ? n : 0;
-    following.num.textContent = exact.format(shown);
+    following.num.textContent = formatCount(shown);
+    setExact(following.num, exact.format(shown));
     markZero(following, shown === 0);
   }
 

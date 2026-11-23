@@ -45,12 +45,17 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8").repl
 
 function element() {
   const names = new Set();
+  const attrs = {};
   return {
     className: "",
     textContent: "",
     isConnected: true,
     dataset: {},
     children: [],
+    attrs,
+    setAttribute(name, value) { attrs[name] = String(value); },
+    getAttribute(name) { return Object.prototype.hasOwnProperty.call(attrs, name) ? attrs[name] : null; },
+    removeAttribute(name) { delete attrs[name]; },
     classList: {
       toggle(name, on) {
         const next = on === undefined ? !names.has(name) : !!on;

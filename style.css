@@ -5835,7 +5835,7 @@ html, body {
   }
 
   .heart-like label:before {
-    content: attr(data-count);
+    content: attr(data-count-text);
     position: absolute;
     left: 50%;
     top: calc(100% - var(--h) * 1.15);
@@ -5863,7 +5863,7 @@ html, body {
   }
 
   .heart-like input:checked + label:before {
-    content: attr(data-next);
+    content: attr(data-next-text);
     color: #fff;
     background: #ff3c41;
   }
@@ -13878,7 +13878,7 @@ html.feed-app #feed-search-page {
   border-radius: 0;
 }
 :is(#feed-column, .feed-comments-stage) .feed-actions .heart-like label:before {
-  content: attr(data-count);
+  content: attr(data-count-text);
   position: static;
   order: 1;
   left: auto;
@@ -13910,7 +13910,7 @@ html.feed-app #feed-search-page {
   white-space: nowrap;
 }
 :is(#feed-column, .feed-comments-stage) .feed-actions .heart-like input:checked + label:before {
-  content: attr(data-next);
+  content: attr(data-next-text);
   color: var(--feed-action-on);
   background: none;
 }

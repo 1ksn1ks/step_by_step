@@ -8,6 +8,7 @@ import { noteShare } from './sharecount.js';
 import { refreshFollowing } from './followsuggest.js';
 import { createFollowLoader, followerCountOrNull } from './followcount.js';
 import { bareAccount } from './donationmath';
+import { formatCount } from './countformat.js';
 
 const PROFILE_BIO_TOPIC = '0.0.9759201';
 const FOLLOW_TOPIC = '0.0.10923187';
@@ -165,15 +166,7 @@ export async function unshareFromMyTopic(source) {
   return true;
 }
 
-const compactCount = new Intl.NumberFormat('en', {
-  notation: 'compact',
-  maximumFractionDigits: 1,
-});
 const exactCount = new Intl.NumberFormat('en');
-
-export function formatCount(n) {
-  return compactCount.format(n);
-}
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 

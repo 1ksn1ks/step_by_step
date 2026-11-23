@@ -18,6 +18,7 @@ import { animateMapTo, cancelAnimateMapTo } from './animatemapto';
 import { ringCenter, zoomForPolygon } from './polygonframe.js';
 import { profilePictures, usernames, click2url, profileTopics, profileSwaps } from './loadalladata'
 import { confirmShare, unshareFromMyTopic, sharePin, followPersonControls, watchFollowPrefetch, bindPressFeedback } from './followtopic'
+import { formatCount } from './countformat.js'
 import { clearShareTopic, noteShare, shareState, shareMine, takeSharePin, takeUnsharePin } from './sharecount.js'
 import { readPostCard, writePostCard, forgetPostCard } from './postcache.js'
 import { openGallery, openPreview } from './fullscreenmedia';
@@ -1304,13 +1305,19 @@ function savedHeart(key, count, liked) {
   return { total: saved.total, liked: !!saved.liked };
 }
 
+function writeCount(label, count, next) {
+  label.dataset.count = String(count);
+  label.dataset.next = String(next);
+  label.dataset.countText = formatCount(count);
+  label.dataset.nextText = formatCount(next);
+}
+
 function applyHeartView(node, total, liked) {
   const input = node.querySelector('input');
   const label = node.querySelector('label');
   if (!input || !label) return;
   const base = liked ? Math.max(0, total - 1) : total;
-  label.dataset.count = String(base);
-  label.dataset.next = String(base + 1);
+  writeCount(label, base, base + 1);
   input.checked = !!liked;
 }
 
@@ -1327,8 +1334,7 @@ function publishComment(key, count) {
   reactionNodes(key).forEach((node) => {
     const label = node.querySelector('label');
     if (!label) return;
-    label.dataset.count = String(total);
-    label.dataset.next = String(total);
+    writeCount(label, total, total);
   });
 }
 
@@ -1347,8 +1353,7 @@ function createHeartLike({ count, liked, mini, className, onToggle, syncKey }) {
   input.checked = on;
   const label = document.createElement('label');
   label.htmlFor = input.id;
-  label.dataset.count = String(base);
-  label.dataset.next = String(base + 1);
+  writeCount(label, base, base + 1);
   label.appendChild(document.createElement('span'));
   root.appendChild(input);
   root.appendChild(label);
@@ -1392,8 +1397,7 @@ function createCommentBubble({ count, mini, onToggle, syncKey }) {
   input.id = `comment-bubble-${++heartLikeSeq}`;
   const label = document.createElement('label');
   label.htmlFor = input.id;
-  label.dataset.count = String(total);
-  label.dataset.next = String(total);
+  writeCount(label, total, total);
   label.appendChild(document.createElement('span'));
   root.appendChild(input);
   root.appendChild(label);
@@ -1814,8 +1818,10 @@ export function viewsChip(num) {
   chip.appendChild(popupStrokeIcon('', VIEWS_BARS));
   const count = document.createElement('span');
   count.className = 'feed-view-count';
-  count.textContent = String(num);
-  chip.setAttribute('aria-label', viewLabel(num));
+  count.textContent = formatCount(num);
+  const exact = viewLabel(num);
+  chip.setAttribute('aria-label', exact);
+  chip.title = exact;
   chip.appendChild(count);
   return chip;
 }
@@ -1823,8 +1829,10 @@ export function viewsChip(num) {
 export function setViewsCount(chip, num) {
   if (!chip) return;
   const count = chip.querySelector('.feed-view-count');
-  if (count) count.textContent = String(num);
-  chip.setAttribute('aria-label', viewLabel(num));
+  if (count) count.textContent = formatCount(num);
+  const exact = viewLabel(num);
+  chip.setAttribute('aria-label', exact);
+  chip.title = exact;
 }
 
 // The number is written while the card is built, with the time and the

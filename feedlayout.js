@@ -1862,14 +1862,14 @@ function commentCountSpace(comment) {
   const input = comment.querySelector('input');
   const paint = () => {
     if (!label) return;
-    const shown = input && input.checked ? label.dataset.next : label.dataset.count;
+    const shown = input && input.checked ? label.dataset.nextText : label.dataset.countText;
     space.textContent = shown || '0';
   };
   paint();
   if (label) {
     new MutationObserver(paint).observe(label, {
       attributes: true,
-      attributeFilter: ['data-count', 'data-next'],
+      attributeFilter: ['data-count-text', 'data-next-text'],
     });
   }
   if (input) input.addEventListener('change', paint);

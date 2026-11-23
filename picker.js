@@ -504,11 +504,27 @@ function moveActive(delta) {
   paintWindow(true);
 }
 
+const exactFollowing = new Intl.NumberFormat('en');
+
+function paintFollowingExact(status, count) {
+  if (!countEl) return;
+  if (status !== 'ready') {
+    countEl.removeAttribute('title');
+    countEl.removeAttribute('aria-label');
+    return;
+  }
+  const n = typeof count === 'number' && count > 0 ? count : 0;
+  const exact = exactFollowing.format(n) + ' following';
+  countEl.title = exact;
+  countEl.setAttribute('aria-label', exact);
+}
+
 function rebuild(resetScroll) {
   if (!session || !countEl) return;
   const status = followingStatus();
   const tabItems = filterTab(items, tab);
   countEl.textContent = followingCountText(status, tabItems.length);
+  paintFollowingExact(status, tabItems.length);
   const override = status === 'ready' ? '' : followingEmptyText(status, items.length, 0);
   const built = buildEntries(override);
   rowItems = built.rows;

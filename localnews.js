@@ -21,6 +21,7 @@ import { earlyHashinalNumber, earlyHashinalReady, onOwnersChange } from './early
 import { connectedAccount } from './web3.js';
 import { liveGroup as groupNow, liveGroupName, setLiveGroup, openLiveGroupMenu, closeLiveGroupMenu, liveRadius, liveHours, liveHoursName, LIVE_HOURS_DEFAULT } from './livegroups.js';
 import { secondsMatch, withinRadius, radiusKm, radiusLabel, formatKm } from './arrowfilters.js';
+import { formatCount } from './countformat.js';
 
 // Same key as marker.js topicPointKey — a live point matching a topic
 // point to 5 decimals is a duplicate of the topic layer: while the topic
@@ -510,15 +511,26 @@ function paintLiveGroup() {
   document.dispatchEvent(new Event('live-dataset-changed')); // topic dots follow the group
 }
 
-function liveCountText() {
+const exactLiveCount = new Intl.NumberFormat('en');
+
+function liveCountCopy() {
   const total = liveAll.length;
   const shown = localList.length;
   const group = groupNow();
-  if (needsWallet(group) && !walletNow()) return 'Connect wallet';
-  if (group === 'following' && followLoad) return 'Loading…';
-  if (group === 'holders' && !earlyHashinalReady()) return 'Loading…';
-  if (group === 'all') return total === 1 ? '1 post' : `${total} posts`;
-  return `${shown} of ${total}`;
+  if (needsWallet(group) && !walletNow()) return { text: 'Connect wallet', exact: '' };
+  if (group === 'following' && followLoad) return { text: 'Loading…', exact: '' };
+  if (group === 'holders' && !earlyHashinalReady()) return { text: 'Loading…', exact: '' };
+  if (group === 'all') {
+    const word = total === 1 ? 'post' : 'posts';
+    return {
+      text: formatCount(total) + ' ' + word,
+      exact: exactLiveCount.format(total) + ' ' + word,
+    };
+  }
+  return {
+    text: formatCount(shown) + ' of ' + formatCount(total),
+    exact: exactLiveCount.format(shown) + ' of ' + exactLiveCount.format(total),
+  };
 }
 
 function ensureLiveBar() {
@@ -584,7 +596,15 @@ function paintLiveBar() {
   livePillName.textContent = name;
   livePill.setAttribute('aria-label', `Showing ${name}. Choose whose live posts`);
   livePill.classList.toggle('is-filtered', groupNow() !== 'all');
-  liveCount.textContent = liveCountText();
+  const copy = liveCountCopy();
+  liveCount.textContent = copy.text;
+  if (copy.exact) {
+    liveCount.title = copy.exact;
+    liveCount.setAttribute('aria-label', copy.exact);
+  } else {
+    liveCount.removeAttribute('title');
+    liveCount.removeAttribute('aria-label');
+  }
 }
 
 function hideLiveBar() {

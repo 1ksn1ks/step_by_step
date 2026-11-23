@@ -1,6 +1,8 @@
 // Following-list cache. No DOM, so tests can load this file alone.
 // A failed fetch stays offline. It is not an empty follow list.
 
+import { formatCount } from './countformat.js';
+
 export const FOLLOWING_CACHE_MS = 5 * 60 * 1000;
 export const FOLLOWING_RETRY_MS = 1500;
 export const FOLLOWING_UPDATED = 'following-updated';
@@ -137,7 +139,7 @@ export function createFollowingStore({ getAccount, fetchFollowing, delay, onUpda
 export function followingCountText(status, count) {
   if (status !== 'ready') return '';
   const n = typeof count === 'number' && count > 0 ? count : 0;
-  return n + ' following';
+  return formatCount(n) + ' following';
 }
 
 // Ready with nothing to show keeps the picker's own empty sentence.

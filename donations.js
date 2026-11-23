@@ -13,6 +13,7 @@ import { profileSwapOf, resolveSwapButton } from './swapoffer.js';
 import { openSwapSheet, watchSwapProfiles } from './swapsheet.js';
 import { mountPicture, pictureElement } from './loopmedia.js';
 import { EARLY_POPUP_CLASS } from './earlypopup.js';
+import { formatHbarCount } from './countformat.js';
 import {
   bareAccount,
   formatDonationAmount,
@@ -802,7 +803,10 @@ export function paintReceived(el, account) {
     .then((data) => {
       if (!data || !el.isConnected || el.dataset.receivedFor !== id) return;
       const received = typeof data.received === 'string' ? data.received : formatHbar(0);
-      el.textContent = `Received ${formatDonationAmount(received)} HBAR`;
+      const exact = formatDonationAmount(received);
+      el.textContent = `Received ${formatHbarCount(received)} HBAR`;
+      el.title = `Received ${exact} HBAR`;
+      el.setAttribute('aria-label', `Received ${exact} HBAR`);
     })
     .catch(() => {});
 }
