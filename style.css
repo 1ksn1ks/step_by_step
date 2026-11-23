@@ -23911,6 +23911,14 @@ img.is-gif-hit {
 .field-expand-box .has-field-expand {
   padding-inline-end: calc(var(--fx-btn) + var(--fx-inset) * 2) !important;
 }
+/* Draw's message bubble has a 2u corner and a 0.12u rim, far rounder
+   than the inset above, so the button sat on the curve. Here it comes in
+   by 0.3 of the corner, the rim and a 0.4u gap: about 1u clear of the rim
+   on the top, the right and the curve alike. The field takes the same
+   inset, so its end padding still keeps the text off the button. */
+.draw-popup-editor .draw-text-wrap > :is(.field-expand-btn, .draw-popup-text) {
+  --fx-inset: calc(var(--u) * 2 * 0.3 + var(--u) * 0.12 + var(--u) * 0.4);
+}
 .field-expand-placeholder {
   display: block;
   flex: none;
