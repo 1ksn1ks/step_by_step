@@ -330,7 +330,9 @@ function sortTopicRows(list) {
 // topic: load this topic id instead of what #input-field holds. The map's
 // time chip reloads the topic the map shows; the field may hold one that
 // was typed or filled in but not loaded yet.
-export async function handleAllMessages(topic) {
+// opts.keepView: leave the camera where it is (no fly to the topic's saved
+// start view). A time filter reload redraws the same topic in place.
+export async function handleAllMessages(topic, opts = {}) {
     try {
       const userInput = (typeof topic === "string" && topic ? topic : document.getElementById("input-field").value).toLowerCase();
       const accountMatch = userInput.trim().match(/^(0\.0\.\d+)(?:-[a-z0-9]+)?$/);
@@ -494,7 +496,7 @@ export async function handleAllMessages(topic) {
 
       // After the cluster index exists. Flying earlier runs updateClusters
       // on every animation frame before index.load and kills the map.
-      applyInitialXYZ(result.messages, topicAdmin);
+      if (!opts || !opts.keepView) applyInitialXYZ(result.messages, topicAdmin);
   
       newGlobalLoadedTopicIdsWithNames(loadedTopicIdsWithNames);
       sortTopicRows(globalLoadedTopicIdsWithNames);

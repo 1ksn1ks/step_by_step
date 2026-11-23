@@ -5058,19 +5058,21 @@ function syncCover() {
   // repaint loop the moment the map comes back.
   if (!covers && was) {
     map.triggerRepaint();
-    // The time filter changed while the feed covered the map.
-    if (mapFilterStale()) handleAllMessages();
+    // The time filter changed while the feed covered the map. The map
+    // stays where it was.
+    if (mapFilterStale()) handleAllMessages(undefined, { keepView: true });
   }
   syncFeedVideos();
 }
 
 // A new time filter: the feed and the map read it again when it is for the
 // topic they show (the chips repaint themselves, timefilterui.js). The map
-// reloads that topic, not one only typed into #input-field. What is not on
-// screen reloads when it comes back (ensureTopic, syncCover).
+// reloads that topic, not one only typed into #input-field, and keeps the
+// camera where it is. What is not on screen reloads when it comes back
+// (ensureTopic, syncCover).
 onTimeFilter(({ topic }) => {
   if (feedOn() && !root.classList.contains('is-peek') && topic === loadedTopic) reloadFeed(topic);
-  if (!document.documentElement.classList.contains('feed-app') && topic === mapChipTopic()) handleAllMessages(topic);
+  if (!document.documentElement.classList.contains('feed-app') && topic === mapChipTopic()) handleAllMessages(topic, { keepView: true });
 });
 
 // Opening the feed rises it in over the map; closing drops it away to the

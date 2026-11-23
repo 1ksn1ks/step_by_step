@@ -67,7 +67,7 @@ globalThis.document = fakeDocument;
 // No localStorage in node: timefilter.js keeps choices for this visit.
 assert.equal(typeof localStorage, "undefined");
 const { createTimeChip } = await import("../timefilterui.js");
-const { setTimeFilterFor, timeFilterFor } = await import("../timefilter.js");
+const { setTimeFilterFor, timeFilterFor, timeRange, inTimeRange } = await import("../timefilter.js");
 
 // The parts of a chip a person sees and hears.
 function parts(ui) {
@@ -214,7 +214,118 @@ test("the map load takes its topic and filter through applyMapTopic, and can be 
   assert.match(fnSource(hm, "applyMapTopic"), /mapApplied = \{ topic, key \};/);
   // A topic string wins over #input-field; anything else (no argument) reads the field.
   assert.match(load, /const userInput = \(typeof topic === "string" && topic \? topic : document\.getElementById\("input-field"\)\.value\)\.toLowerCase\(\);/);
-  assert.match(hm, /export async function handleAllMessages\(topic\)/);
+  assert.match(hm, /export async function handleAllMessages\(topic, opts = \{\}\)/);
+});
+
+// The real load body and the real applyInitialXYZ (setinitialxyz.js), on a
+// stub map, mirror and page. The topic has a saved start view, so a load
+// that goes to it calls map.flyTo.
+const xyz = read("../setinitialxyz.js");
+function mapLoad() {
+  const log = [];
+  const run = new Function("log", "timeFilterFor", "timeRange", "inTimeRange", `
+    const console = { error: (...args) => log.push(["error", String(args[0])]), warn: () => {} };
+    const fields = {
+      "input-field": { value: "0.0.42" },
+      "loaded-topics": { value: "" },
+      "loaded-topics-list": { innerHTML: "" },
+    };
+    const document = { getElementById: (id) => fields[id] || null };
+    const window = { __topicsReady: true, dispatchEvent: (event) => log.push(["event", event.type]) };
+    const map = {
+      getStyle: () => ({ layers: [], sources: {} }),
+      removeLayer() {}, removeSource() {},
+      flyTo: (options) => log.push(["flyTo", options.center, options.zoom]),
+    };
+    const toast = { loaded: (text) => log.push(["toast", text]) };
+    const loadedDomains = [];
+    const initialTopicId = "0.0.1";
+    const allLoadedMessages = [];
+    const geojson = { features: [] };
+    const polygons = [];
+    const index = { load: (features) => log.push(["clusters", features.length]) };
+    let storedMarkers = [];
+    let storedPolygons = [];
+    let existingMarkers = [];
+    let globalLoadedTopicIdsWithNames = [];
+    let globalTopicBios = {};
+    const newStoredMarkers = (list) => { storedMarkers = list; };
+    const newStoredPolygons = (list) => { storedPolygons = list; };
+    const newExistingMarkers = (list) => { existingMarkers = list; };
+    const newGlobalLoadedTopicIdsWithNames = (list) => { globalLoadedTopicIdsWithNames = list; };
+    const newGlobalTopicBios = (bios) => { globalTopicBios = bios; };
+    const newActiveMarkerPopups = () => {};
+    const newActivePolygonPopups = () => {};
+    const isHederaAccount = async () => false;
+    const restoreLoadedTopics = () => {};
+    const adjustTextareaHeight = () => {};
+    const renderLoadedTopics = () => log.push(["rows", globalLoadedTopicIdsWithNames.slice()]);
+    const getTopicInfo = async (id) => { log.push(["topic", id]); return { memo: "0.0.5,Zagreb" }; };
+    const applyMapTopic = (id, key) => log.push(["mapTopic", id, key]);
+    const beginMapDraw = () => 1;
+    const mapDrawCurrent = () => true;
+    const getMessages = async () => ({
+      messages: [{ payer: "0.0.5", setInitialXYZ: { lng: 15.9, lat: 45.8, zoom: 7 } }],
+    });
+    const topicsToLoad = (id) => [id];
+    const topicsInRange = async (list) => list;
+    const PULL_AT_ONCE = 3;
+    const STACK_FIRST_MS = 0;
+    const mapLimited = async (list, limit, job) => { for (const item of list) await job(item); };
+    const settlesWithin = async () => true;
+    const processTopicMessages = async () => {
+      const marker = { created: new Date().toISOString() };
+      geojson.features.push(marker);
+      return { topicGeojsonFeatures: [marker], topicPolygons: [], loadedTopicName: "Zagreb" };
+    };
+    const addPolygonWithImageFill = () => {};
+    const updateClusters = () => log.push(["updateClusters"]);
+    const openedFromPlaceLink = () => false;
+    const cancelAnimateMapTo = () => {};
+    ${fnSource(hm, "nameRow")}
+    ${fnSource(hm, "sortTopicRows")}
+    ${fnSource(xyz, "applyInitialXYZ")}
+    async ${fnSource(hm, "handleAllMessages")}
+    return async (...args) => {
+      const rows = await handleAllMessages(...args);
+      return { rows, markers: storedMarkers.flat().length };
+    };
+  `)(log, timeFilterFor, timeRange, inTimeRange);
+  return { run, log };
+}
+
+test("a plain map load still flies to the topic's saved start view", async () => {
+  const { run, log } = mapLoad();
+  const out = await run();
+  assert.deepEqual(log.filter(([kind]) => kind === "flyTo"), [["flyTo", [15.9, 45.8], 7]]);
+  assert.deepEqual(log.find(([kind]) => kind === "topic"), ["topic", "0.0.42"], "no topic: the field's");
+  assert.deepEqual(out, { rows: ["0.0.42 - Zagreb"], markers: 1 });
+  assert.equal(log.filter(([kind]) => kind === "error").length, 0, JSON.stringify(log));
+});
+
+test("a time filter reload (keepView) leaves the camera where it is and does the rest of the load", async () => {
+  const plain = mapLoad();
+  await plain.run("0.0.42");
+  const kept = mapLoad();
+  const out = await kept.run("0.0.42", { keepView: true });
+  assert.equal(kept.log.filter(([kind]) => kind === "flyTo").length, 0, "no map.flyTo");
+  // Everything else is the same load: topic, filter, clusters, rows, toast.
+  assert.deepEqual(kept.log, plain.log.filter(([kind]) => kind !== "flyTo"));
+  assert.ok(kept.log.some(([kind]) => kind === "clusters"));
+  assert.ok(kept.log.some(([kind, text]) => kind === "toast" && text === "Topic loaded"));
+  assert.deepEqual(out, { rows: ["0.0.42 - Zagreb"], markers: 1 });
+  // The covered-map reload passes no topic: it still reads #input-field.
+  const field = mapLoad();
+  await field.run(undefined, { keepView: true });
+  assert.deepEqual(field.log.find(([kind]) => kind === "topic"), ["topic", "0.0.42"]);
+  assert.equal(field.log.filter(([kind]) => kind === "flyTo").length, 0);
+});
+
+test("only the start-view fly depends on keepView", () => {
+  const load = fnSource(hm, "handleAllMessages");
+  assert.equal(load.match(/keepView/g).length, 1);
+  assert.match(load, /if \(!opts \|\| !opts\.keepView\) applyInitialXYZ\(result\.messages, topicAdmin\);/);
+  assert.equal(load.match(/applyInitialXYZ\(/g).length, 1);
 });
 
 // ── The feed and the map bar (feedlayout.js) ──────────────────────────
@@ -239,11 +350,25 @@ test("the feed's chip follows the feed's topic and the map's chip the map's", ()
 test("a new filter reloads the view that shows that topic, the map with its own topic", () => {
   const at = feed.indexOf("onTimeFilter(({ topic }) => {");
   assert.ok(at > 0);
-  const handler = feed.slice(at, feed.indexOf("});", at));
+  const handler = feed.slice(at, feed.indexOf("\n});", at));
   assert.match(handler, /feedOn\(\) && !root\.classList\.contains\('is-peek'\) && topic === loadedTopic\) reloadFeed\(topic\);/);
-  assert.match(handler, /!document\.documentElement\.classList\.contains\('feed-app'\) && topic === mapChipTopic\(\)\) handleAllMessages\(topic\);/);
+  assert.match(handler, /!document\.documentElement\.classList\.contains\('feed-app'\) && topic === mapChipTopic\(\)\) handleAllMessages\(topic, \{ keepView: true \}\);/);
   // Not the field: it can hold a topic that was not loaded.
   assert.doesNotMatch(handler, /topicNow\(\)/);
+  // A filter changed under the feed reloads the map when it comes back, in place.
+  assert.match(fnSource(feed, "syncCover"), /if \(mapFilterStale\(\)\) handleAllMessages\(undefined, \{ keepView: true \}\);/);
+});
+
+test("a real topic load still goes to the start view: the other callers pass no keepView", () => {
+  assert.equal(feed.match(/handleAllMessages\(/g).length, 3);
+  assert.match(feed, /loaded = await handleAllMessages\(\);/);
+  const web3 = read("../web3.js");
+  assert.equal(web3.match(/handleAllMessages\(\)/g).length, 2);
+  assert.match(read("../confirmnft.js"), /await handleAllMessages\(\);/);
+  assert.match(read("../rest.js"), /debounce\(handleAllMessages\(\), 10000\);/);
+  for (const file of ["../web3.js", "../confirmnft.js", "../rest.js"]) {
+    assert.doesNotMatch(read(file), /keepView/, file);
+  }
 });
 
 // ── The look (style.css) ──────────────────────────────────────────────
