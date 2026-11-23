@@ -225,6 +225,60 @@ function ensureHost() {
   return host;
 }
 
+// --- Closing: the opening played backwards -------------------------------
+// #field-full.is-closing fades the page out and the panel glides back down
+// (style.css), then the box goes back as it always did. One box at a time:
+// the page is shared. CSS decides: with no animation (reduced motion) it
+// closes at once. animationend can go missing, so a timeout of the
+// animation's length (and a frame) ends it too.
+let closing = null;
+
+function animationMs(el, name) {
+  let cs;
+  try { cs = getComputedStyle(el); } catch { return 0; }
+  if (!String(cs.animationName || '').split(',').map((s) => s.trim()).includes(name)) return 0;
+  const seconds = (value) => {
+    const v = String(value || '').trim();
+    return v.endsWith('ms') ? parseFloat(v) / 1000 : parseFloat(v);
+  };
+  const ms = (seconds(cs.animationDuration) + Math.max(0, seconds(cs.animationDelay) || 0)) * 1000;
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function startClosing(controller, fromHistory, finish) {
+  if (!host || host.root.hidden) return false;
+  const { root, panel } = host;
+  root.classList.add('is-closing');
+  const ms = animationMs(panel, 'composerExpandOut');
+  if (!(ms > 0)) {
+    root.classList.remove('is-closing');
+    return false;
+  }
+  const job = { controller, fromHistory, finish, timer: 0, onEnd: null };
+  job.onEnd = (event) => {
+    if (closing === job && event.target === panel && event.animationName === 'composerExpandOut') endClosing(true);
+  };
+  root.addEventListener('animationend', job.onEnd);
+  job.timer = setTimeout(() => {
+    if (closing === job) endClosing(true);
+  }, ms + 50);
+  closing = job;
+  return true;
+}
+
+// The box on its way out: put back now (run), or kept open (not).
+function endClosing(run) {
+  const job = closing;
+  if (!job) return;
+  closing = null;
+  clearTimeout(job.timer);
+  if (host) {
+    host.root.removeEventListener('animationend', job.onEnd);
+    host.root.classList.remove('is-closing');
+  }
+  if (run) job.finish({ fromHistory: job.fromHistory });
+}
+
 let layerDefined = false;
 
 function defineLayer() {
@@ -263,7 +317,9 @@ export function mountFieldExpand(field, { mirror = null } = {}) {
 
   const counter = descendants(box, (el) => el.classList.contains('hcs-byte-counter'))[0] || null;
   const state = { expanded: false, look: '', placeholder: null, scrolls: [], path: [], moved: [], stop: [] };
-  const entry = { collapse: () => controller.collapse() };
+  // Another box taking the full screen, or a page closing under it, puts it
+  // back at once: that page's history step comes right after this one's.
+  const entry = { collapse: () => controller.collapse({ instant: true }) };
 
   const hasText = () => {
     if (mirror) return String(mirror.value || '') !== '';
@@ -514,7 +570,7 @@ export function mountFieldExpand(field, { mirror = null } = {}) {
     requestAnimationFrame(() => {
       checkQueued = false;
       // The page closed under it by a path that did not collapse it first.
-      if (state.expanded && !rendered(state.placeholder)) controller.collapse();
+      if (state.expanded && !rendered(state.placeholder)) controller.collapse({ instant: true });
     });
   };
 
@@ -542,7 +598,20 @@ export function mountFieldExpand(field, { mirror = null } = {}) {
     button,
     get expanded() { return state.expanded; },
     expand({ fromHistory = false } = {}) {
+      if (closing && closing.controller === controller) {
+        // Opened again on its way out: it stays open. Back already took its
+        // history step, so it gets one again.
+        const gone = closing.fromHistory;
+        endClosing(false);
+        if (gone && !fromHistory) {
+          defineLayer();
+          if (window.layerOpened) window.layerOpened(LAYER);
+        }
+        return;
+      }
       if (state.expanded || !rendered(box)) return;
+      // Another box still on its way out goes back first: the page is shared.
+      if (closing) endClosing(true);
       claimExpanded(entry);
       const page = pageOf(box);
       const sends = descendants(box, isSend).concat(descendants(footerOf(box, page), isSend));
@@ -592,40 +661,57 @@ export function mountFieldExpand(field, { mirror = null } = {}) {
       defineLayer();
       if (window.layerOpened) window.layerOpened(LAYER);
     },
-    collapse({ fromHistory = false } = {}) {
+    // instant: no closing animation (another box, a page closing under it).
+    collapse({ fromHistory = false, instant = false } = {}) {
+      if (closing && closing.controller === controller) {
+        // A second way out on its way out: nothing more, unless it must be now.
+        if (fromHistory) closing.fromHistory = true;
+        if (instant) endClosing(true);
+        return;
+      }
       if (!state.expanded) return;
-      const caret = saveCaret();
-      state.expanded = false;
-      releaseExpanded(entry);
-      if (active === controller) active = null;
-      for (const stop of state.stop.splice(0)) stop();
-      // Every element goes back where it was.
-      for (const [send, mark] of state.moved.splice(0)) {
-        if (!putBack(send, mark)) send.remove();
-      }
-      if (!state.placeholder || !putBack(box, state.placeholder)) box.remove();
-      state.placeholder = null;
-      box.classList.remove('is-expanded');
-      field.classList.remove('is-field-expanded');
-      for (const el of state.path.splice(0)) el.classList.remove('field-expand-path');
-      if (host && !active) {
-        host.root.hidden = true;
-        host.root.classList.remove('has-actions');
-        host.title.textContent = '';
-        document.documentElement.classList.remove('field-full-open');
-      }
-      for (const [el, top] of state.scrolls.splice(0)) el.scrollTop = top;
-      paint();
-      restoreCaret(caret);
-      if (fromHistory) return;
-      if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen(LAYER)) window.layerClosedByUI(LAYER);
+      if (closing) endClosing(true);
+      if (!instant && startClosing(controller, fromHistory, finishCollapse)) return;
+      finishCollapse({ fromHistory });
     },
     toggle() {
-      if (state.expanded) controller.collapse();
+      // On its way out it counts as closed: the button keeps it open.
+      if (closing && closing.controller === controller) controller.expand();
+      else if (state.expanded) controller.collapse();
       else controller.expand();
     },
     paint,
   };
+
+  // Every element back where it was, as it always closed.
+  function finishCollapse({ fromHistory = false } = {}) {
+    if (!state.expanded) return;
+    const caret = saveCaret();
+    state.expanded = false;
+    releaseExpanded(entry);
+    if (active === controller) active = null;
+    for (const stop of state.stop.splice(0)) stop();
+    // Every element goes back where it was.
+    for (const [send, mark] of state.moved.splice(0)) {
+      if (!putBack(send, mark)) send.remove();
+    }
+    if (!state.placeholder || !putBack(box, state.placeholder)) box.remove();
+    state.placeholder = null;
+    box.classList.remove('is-expanded');
+    field.classList.remove('is-field-expanded');
+    for (const el of state.path.splice(0)) el.classList.remove('field-expand-path');
+    if (host && !active) {
+      host.root.hidden = true;
+      host.root.classList.remove('has-actions');
+      host.title.textContent = '';
+      document.documentElement.classList.remove('field-full-open');
+    }
+    for (const [el, top] of state.scrolls.splice(0)) el.scrollTop = top;
+    paint();
+    restoreCaret(caret);
+    if (fromHistory) return;
+    if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen(LAYER)) window.layerClosedByUI(LAYER);
+  }
 
   // The button never takes focus, so the keyboard stays up.
   const keep = (event) => event.preventDefault();

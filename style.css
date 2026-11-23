@@ -24257,9 +24257,24 @@ html.feed-app .field-full {
 #field-full .field-expand-box.is-expanded > .popup-settings-row:empty {
   display: none !important;
 }
+/* Closing plays it backwards (fieldexpand.js adds .is-closing and puts the
+   box back when the panel's animation ends): the page fades out and the
+   panel glides down as it fades (the chat composer's composerExpandOut). */
+.field-full.is-closing {
+  animation: fieldFullFadeOut 200ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+.field-full.is-closing .field-full-panel {
+  animation: composerExpandOut 200ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+@keyframes fieldFullFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
 @media (prefers-reduced-motion: reduce) {
   .field-full,
-  .field-full-panel {
+  .field-full-panel,
+  .field-full.is-closing,
+  .field-full.is-closing .field-full-panel {
     animation: none;
   }
   .field-expand-btn {
