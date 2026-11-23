@@ -122,13 +122,11 @@ map.on("movestart", clearPolygonHold);
 const polygonTipLayers = new Map();
 
 // Tap masks are most of the per-frame draws while the camera moves. A drag
-// cannot hit one, so each mask leaves the zoom range until the camera has
-// been still for MASK_REST_MS. The On/Off toggle and the Draw pick keep
-// visibility, and the mask keeps fill-opacity 0. The zoom range is the same
-// switch placeTiny() uses for pictures.
+// cannot hit one, so each mask leaves the zoom range until moveend. moveend
+// fires only after inertia has finished, so that is the real stop. The On/Off
+// toggle and the Draw pick keep visibility, and the mask keeps fill-opacity 0.
+// The zoom range is the same switch placeTiny() uses for pictures.
 let masksParked = false;
-const MASK_REST_MS = 280;
-let maskRestTimer = 0;
 
 function setMaskZoom(target, id, min, max) {
   try {
@@ -137,20 +135,14 @@ function setMaskZoom(target, id, min, max) {
 }
 
 function onMaskMoveStart() {
-  clearTimeout(maskRestTimer);
-  maskRestTimer = 0;
   if (masksParked) return;
   masksParked = true;
   for (const id of polygonTipLayers.keys()) setMaskZoom(map, id, 24, 24);
 }
 
 function onMaskMoveEnd() {
-  clearTimeout(maskRestTimer);
-  maskRestTimer = setTimeout(() => {
-    maskRestTimer = 0;
-    masksParked = false;
-    for (const id of polygonTipLayers.keys()) setMaskZoom(map, id, 0, 24);
-  }, MASK_REST_MS);
+  masksParked = false;
+  for (const id of polygonTipLayers.keys()) setMaskZoom(map, id, 0, 24);
 }
 
 function parkFreshMask(target, id) {
