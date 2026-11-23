@@ -14447,6 +14447,9 @@ html.is-nav-lock body * {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.15);
 }
+/* Every page header title is written in capitals: the drawer pages here,
+   and .feed-chat-title, .feed-settings-title, .feed-comments-title,
+   .picker-title and .search-page-title. */
 :is(#feed-menu, .drawer-screen) .feed-menu-page-title {
   flex: 1 1 auto;
   min-width: 0;
@@ -14457,6 +14460,8 @@ html.is-nav-lock body * {
   font-size: calc(var(--fu) * 2.1);
   font-weight: 700;
   line-height: 1.2;
+  letter-spacing: normal;
+  text-transform: uppercase;
 }
 /* Profile, topic/E2EE chat, feed Settings, feed Search, and feed Comments
    use the drawer page bar. Load, Draw, and Load Options keep their own copies. */
@@ -15705,6 +15710,7 @@ html.drawer-page .info-overlay {
   font-size: calc(var(--fu) * 2.1);
   font-weight: 700;
   line-height: 1.2;
+  text-transform: uppercase;
 }
 .feed-settings-body {
   flex: 1 1 auto;
@@ -16108,6 +16114,7 @@ html.drawer-page .info-overlay {
   font-size: calc(var(--fu) * 2.1);
   font-weight: 700;
   line-height: 1.2;
+  text-transform: uppercase;
 }
 /* Under the bar, the post and its comments are one column that scrolls
    (processallmessages.js .feed-comments-body), so the post shows at its
@@ -16716,6 +16723,7 @@ html.feed-app #feed-chat.is-draw.is-map-chat > .feed-chat-bar {
   font-size: calc(var(--fu) * 2.1);
   font-weight: 700;
   line-height: 1.2;
+  text-transform: uppercase;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -21655,6 +21663,7 @@ html.feed-draw-open #map-draw-help-overlay {
   font-size: calc(var(--fu) * 2.1);
   font-weight: 700;
   line-height: 1.2;
+  text-transform: uppercase;
   text-align: left;
   white-space: nowrap;
   text-overflow: ellipsis;
