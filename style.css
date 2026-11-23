@@ -10894,11 +10894,11 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
    selectors include :where(#popup-settings-preview)), so text, avatar,
    buttons and the message box look as they will. A portrait popup is as
    wide as the screen; the sample takes the card's whole width, the most
-   the drawer's scroller shows (a few px in from each edge). Portrait: as
-   tall as a real popup's frame inside its edge gaps (--popup-max-h; the
-   sample has no top/bottom padding), so the body, its size container,
-   the text cap, the hearts and the footer lay out as on the map.
-   Landscape (one card, not the map's two): as tall as its content. */
+   the drawer's scroller shows (a few px in from each edge). It is as tall
+   as its content, not the screen: header, title, text and footer, with
+   no hearts row. Portrait keeps the map popup's own rows and flex;
+   landscape (one card, not the map's two) sizes each part to its
+   content. */
 
 .mb-panel .mb-card:has(> #popup-settings-preview) {
   background: transparent;
@@ -10946,14 +10946,27 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   pointer-events: none !important;
 }
 
+/* The hearts, comment and share row is left out of the sample: these
+   settings do not change it, and it only made the sample taller. The
+   views pill, the date and the topic stay in the footer row. */
+.mb-panel #popup-settings-preview > .maplibregl-popup .maplibregl-popup-content > .popup-sheet > .popup-dock:not(.popup-footer-row) {
+  display: none;
+}
+
 @media (orientation: portrait) {
-  .mb-panel #popup-settings-preview > .maplibregl-popup {
-    height: var(--popup-max-h) !important;
+  /* As tall as what it holds (the frame keeps height: auto above). The map
+     popup's body is a size container, which takes no height from its
+     text and would collapse here; as an inline-size one (cqi is still its
+     width; only a picture's full size reads cqb, and the sample has none)
+     it is exactly as tall as the sample text at the chosen Size, and the
+     footer follows one gap under it. */
+  .mb-panel #popup-settings-preview > .maplibregl-popup .maplibregl-popup-content > .popup-sheet > .popup-body {
+    container-type: inline-size;
   }
-  /* The footer's inline -0.3u bottom margin hung it under the sheet and
-     gave the body 0.3u more than on the map, where the portrait
-     corner-clear rule (.maplibregl-map only) sets it to 0 unless the
-     screen has round corners the frame follows; this frame does not. */
+  /* The footer's inline -0.3u bottom margin hung it under the sheet, where
+     a map popup's portrait corner-clear rule (.maplibregl-map only) sets
+     it to 0 unless the screen has round corners the frame follows; this
+     frame does not. */
   .mb-panel #popup-settings-preview > .maplibregl-popup .maplibregl-popup-content > .popup-sheet > .popup-footer-row {
     margin-bottom: 0 !important;
   }
