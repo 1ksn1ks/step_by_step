@@ -26052,10 +26052,8 @@ html.is-draw-picking .live-filter {
     --clear-face: 22px;
     --clear-ring: rgba(255, 255, 255, 0.12);
     /* Read by fieldclear.js, resolved to px (not scroll offsets): the
-       chip's size (Swap bio's --clear-chip, the same formula where that is
-       not set), its inset from the field's right, and its even gap in a
-       page row (as Swap bio's top inset). */
-    --clear-chip-px: var(--clear-chip, max(44px, calc(var(--ui-btn-h, 48px) - var(--ui-gap, 8px) * 2)));
+       chip's size (--clear-chip-px, below), its inset from the field's
+       right, and its even gap in a page row (as Swap bio's top inset). */
     scroll-margin-top: var(--clear-chip-px) !important;
     scroll-margin-right: var(--ui-gap, 8px) !important;
     scroll-margin-bottom: calc((var(--ui-btn-h, 48px) - var(--clear-chip-px)) / 2) !important;
@@ -26092,6 +26090,13 @@ html.is-draw-picking .live-filter {
   }
   .field-clear[hidden] {
     display: none !important;
+  }
+  /* The chip's size: Swap bio's --clear-chip, the same formula where that
+     is not set. On each × and on the chat room rows (their 👥 and field
+     make room for it). */
+  .field-clear,
+  :is(.chat-load-row, .e2ee-load-row, .feed-chat-room):has(> .follow-pick-btn) {
+    --clear-chip-px: var(--clear-chip, max(44px, calc(var(--ui-btn-h, 48px) - var(--ui-gap, 8px) * 2)));
   }
   /* The round face, then the glyph masked over it. --clear-face-y: the
      face's middle in a textarea, level with its first line. */
@@ -26205,6 +26210,7 @@ html.is-draw-picking .live-filter {
      sized and placed from the resolved values above). Hover, press and ↶
      colour the glyph as anywhere; ↶ stays cyan. */
   .field-clear.is-chip,
+  :is(.chat-load-row, .e2ee-load-row, .feed-chat-room):has(> .follow-pick-btn) > .field-clear,
   #edit-profile-swap-bio .swap-bio-field > .field-clear {
     --clear-ring: transparent;
     border: 1px solid rgba(255, 255, 255, 0.22) !important;
@@ -26213,22 +26219,40 @@ html.is-draw-picking .live-filter {
   }
   .field-clear.is-chip::before,
   .field-clear.is-chip::after,
+  :is(.chat-load-row, .e2ee-load-row, .feed-chat-room):has(> .follow-pick-btn) > .field-clear::before,
+  :is(.chat-load-row, .e2ee-load-row, .feed-chat-room):has(> .follow-pick-btn) > .field-clear::after,
   #edit-profile-swap-bio .swap-bio-field > .field-clear::before,
   #edit-profile-swap-bio .swap-bio-field > .field-clear::after {
     top: 50% !important;
   }
   .field-clear.is-chip::after,
+  :is(.chat-load-row, .e2ee-load-row, .feed-chat-room):has(> .follow-pick-btn) > .field-clear::after,
   #edit-profile-swap-bio .swap-bio-field > .field-clear::after {
     width: calc(var(--fu, 1.2vh) * 1.5) !important;
     height: calc(var(--fu, 1.2vh) * 1.5) !important;
   }
   .field-clear.is-chip:active,
+  :is(.chat-load-row, .e2ee-load-row, .feed-chat-room):has(> .follow-pick-btn) > .field-clear:active,
   #edit-profile-swap-bio .swap-bio-field > .field-clear:active {
     background: rgba(34, 211, 238, 0.16) !important;
   }
 
   /* Chat room fields: 👥 sits over the field's right end (one grid cell).
-     The × takes the far right in the same cell and 👥 steps left. */
+     The × takes the far right in the same cell, the round chip (above):
+     Swap bio's size, but no taller than the field less a --ui-gap above
+     and below (the row's own height), a --ui-gap in from its right edge.
+     👥 steps left by the chip and two gaps, so it stands one gap from it,
+     and the text's padding grows by as much. */
+  :is(.chat-load-row, .e2ee-load-row):has(> .follow-pick-btn) {
+    --room-field-h: max(44px, var(--e2ee-head-h, 44px));
+  }
+  #feed-chat .is-feed-shell .feed-chat-room:has(> .follow-pick-btn) {
+    --room-field-h: max(44px, var(--chat-field-h, 44px));
+  }
+  :is(.chat-load-row, .e2ee-load-row, .feed-chat-room):has(> .follow-pick-btn) {
+    --room-chip: min(var(--clear-chip-px), calc(var(--room-field-h) - var(--ui-gap, 8px) * 2));
+    --room-chip-step: calc(var(--room-chip) + var(--ui-gap, 8px) * 2);
+  }
   :is(.chat-load-row, .e2ee-load-row, .feed-chat-room):has(> .follow-pick-btn) > .field-clear {
     --clear-placed: 1;
     position: relative !important;
@@ -26238,17 +26262,18 @@ html.is-draw-picking .live-filter {
     grid-row: 1 !important;
     justify-self: end !important;
     align-self: center !important;
-    width: 40px !important;
-    height: 44px !important;
+    width: var(--room-chip) !important;
+    height: var(--room-chip) !important;
+    margin-right: var(--ui-gap, 8px) !important;
   }
   :is(.chat-load-row, .e2ee-load-row, .feed-chat-room):has(> [data-clear-shown]) > .follow-pick-btn {
-    margin-right: 40px !important;
+    margin-right: var(--room-chip-step) !important;
   }
   :is(.chat-load-row, .e2ee-load-row):has(> .follow-pick-btn) > [data-clear-shown] {
-    padding-right: calc(max(44px, var(--e2ee-head-h, 44px)) + 0.6dvh + 40px) !important;
+    padding-right: calc(max(44px, var(--e2ee-head-h, 44px)) + 0.6dvh + var(--room-chip-step)) !important;
   }
   #feed-chat .is-feed-shell .feed-chat-room:has(> .follow-pick-btn) > [data-clear-shown] {
-    padding-right: calc(max(44px, var(--chat-field-h, 44px)) + 0.6dvh + 40px) !important;
+    padding-right: calc(max(44px, var(--chat-field-h, 44px)) + 0.6dvh + var(--room-chip-step)) !important;
   }
 }
 
