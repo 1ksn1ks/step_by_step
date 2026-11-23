@@ -19080,6 +19080,20 @@ html.feed-draw-open #map-draw-help-overlay {
   outline: none;
   box-shadow: inset 0 0 0 2px #22D3EE !important;
 }
+/* The full-screen button (fieldexpand.js) would take the ×'s corner. It
+   sits in the ×'s row instead, one --ui-gap to its left, centred on it
+   (the × rule is in the fieldclear layer below), and still follows the
+   field (--fx-field-top / -right). While it shows, the text's right
+   padding covers the ×, the button and their gaps; this wins over both
+   the × padding above and .has-field-expand's for this field only. */
+#edit-profile-swap-bio .swap-bio-field > .field-expand-btn {
+  top: calc(var(--fx-field-top, 0px) + (var(--ui-btn-h) - var(--clear-chip)) / 2 + (var(--clear-chip) - var(--fx-btn)) / 2);
+  right: calc(var(--fx-field-right, 0px) + var(--ui-gap) + var(--clear-chip) + var(--ui-gap));
+}
+#edit-profile-swap-bio-input.has-field-expand,
+:is(#feed-menu, .drawer-screen) .in-drawer #edit-profile-swap-bio-input.has-field-expand {
+  padding-right: calc(var(--ui-gap) + var(--clear-chip) + var(--ui-gap) + var(--fx-btn) + var(--ui-gap)) !important;
+}
 
 /* Create page only. .toolbar-group stays shared with chat. */
 #create-column .create-toggle-grid {
