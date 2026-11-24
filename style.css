@@ -6804,24 +6804,65 @@ html, body {
     opacity: 0.8;
     animation: overlayXGlow 2s ease-in-out infinite;
   }
-  .onboard-wallet-text,
-  .onboard-wallet-id {
+  .onboard-wallet-text {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /* A clipped id keeps its last digits ("…819119"); the aria-label has it
-     whole. Smaller than "Connect", so more of it fits beside the picture. */
-  .onboard-wallet-id {
-    direction: rtl;
-    font-size: 0.8em;
-  }
-  /* Connected it is a compact chip: the picture sits in the round end. */
+  /* Connected it is a chip: the picture sits in the round end, then the
+     name over the id, as the post header shows a profile. It grows taller
+     and wider for them, up to the same cap. --wallet-cap is that cap in
+     the card's units (the card is a size container below: 100cqi is its
+     content, 6vh narrower than the box the % read). */
   .onboard-wallet.is-connected {
+    --wallet-cap: min(calc(40cqi + 2.4vh), calc(50cqi - 9.8vh));
+    align-items: center;
     gap: 0.5vh;
     padding: 0.5vh 1vh 0.5vh 0.5vh;
+    white-space: normal;
     cursor: default;
+  }
+  /* The install page has one narrow icon (📲), so the chip may run closer
+     to the centre there; it still stops short of the icon. */
+  .onboard-card.is-guide > .onboard-wallet.is-connected {
+    --wallet-cap: min(calc(46cqi + 2.76vh), calc(50cqi - 3vh));
+    max-width: min(46%, calc(50% - 6vh));
+  }
+  /* The chip's width depends on its text, so the copy cannot be the size
+     container itself (a container's width ignores its text): the intro's
+     card is. Only the intro's: the swap and inscribe cards keep theirs. */
+  #onboard-overlay .onboard-card {
+    container-type: inline-size;
+  }
+  .onboard-wallet-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+    gap: 0.2em;
+    text-align: left;
+  }
+  .onboard-wallet-name {
+    max-width: 100%;
+    overflow: hidden;
+    color: #fff;
+    font-size: 0.8em;
+    font-weight: 700;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* The whole id, never clipped. Where the cap leaves less room than the
+     id needs at its size, it gets smaller instead: the room (the cap less
+     the 6vh of border, padding, picture and gap) over the id's length at
+     0.6em a character, wider than any UI font's digits. */
+  .onboard-wallet-id {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: min(0.7em, calc((var(--wallet-cap, 100vh) - 6vh) / (var(--wallet-id-chars, 13) * 0.6)));
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
   }
   .onboard-wallet-face,
   .onboard-wallet > .early-hashinal {

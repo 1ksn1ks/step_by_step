@@ -43,8 +43,34 @@ function fakeNode(tag) {
     textContent: "",
     children: [],
     attrs: {},
+    parentNode: null,
+    style: {
+      props: {},
+      setProperty(name, value) { this.props[name] = String(value); },
+    },
     setAttribute(name, value) { node.attrs[name] = String(value); },
-    replaceChildren(...kids) { node.children = kids; },
+    replaceChildren(...kids) {
+      for (const kid of node.children) kid.parentNode = null;
+      node.children = kids;
+      for (const kid of kids) kid.parentNode = node;
+    },
+    appendChild(kid) {
+      node.children.push(kid);
+      kid.parentNode = node;
+      return kid;
+    },
+    insertBefore(kid, before) {
+      const at = node.children.indexOf(before);
+      node.children.splice(at < 0 ? node.children.length : at, 0, kid);
+      kid.parentNode = node;
+      return kid;
+    },
+    remove() {
+      const parent = node.parentNode;
+      if (!parent) return;
+      parent.children = parent.children.filter((kid) => kid !== node);
+      node.parentNode = null;
+    },
   };
   node.classList = {
     toggle(name, on) {
@@ -86,6 +112,9 @@ function harness(options = {}) {
       calls.picUrls.push(id);
       return `/pic/${id}`;
     },
+    // profileface.js profileUsername: "" when the account has no name.
+    names: {},
+    profileUsername: (id) => env.names[id] || "",
     pictureElement: (url, opts) => {
       calls.pictures.push({ url, opts });
       const img = fakeNode("img");
@@ -100,9 +129,11 @@ function harness(options = {}) {
   };
   const body = `
     let connectedAccount = env.connectedAccount;
-    const { document, DEFAULT_PIC, avatarSrc, profilePicUrl, pictureElement, mountPicture, paintProfileAvatar } = env;
+    const { document, DEFAULT_PIC, avatarSrc, profilePicUrl, profileUsername, pictureElement, mountPicture, paintProfileAvatar } = env;
     let walletBtn = env.walletBtn;
     let walletFace = null;
+    let walletCopy = null;
+    let walletName = null;
     let walletId = null;
     ${fn(page, "introAccount")}
     ${fn(page, "connectFromIntro")}
@@ -117,7 +148,7 @@ function harness(options = {}) {
   `;
   env.connectedAccount = options.account === undefined ? null : options.account;
   const api = new Function("env", body)(env);
-  return { api, button, connect, calls };
+  return { api, button, connect, calls, names: env.names };
 }
 
 test("the account comes from connectedAccount when it is an account id", () => {
@@ -173,10 +204,15 @@ test("disconnected the button says Connect, connected it is the picture and id",
   assert.equal(button.classList.contains("is-connected"), true);
   assert.equal(button.attrs["aria-label"], "Wallet 0.0.4819119");
   assert.equal(button.children.length, 2);
-  const [face, id] = button.children;
+  const [face, copy] = button.children;
   assert.equal(face.className, "onboard-wallet-face");
+  assert.equal(copy.className, "onboard-wallet-copy");
+  // No name: the id alone, whole.
+  assert.equal(copy.children.length, 1);
+  const [id] = copy.children;
   assert.equal(id.className, "onboard-wallet-id");
   assert.equal(id.textContent, "0.0.4819119");
+  assert.equal(id.style.props["--wallet-id-chars"], "11");
   // The drawer account row's source: profilePicUrl through avatarSrc,
   // the default picture as fallback, and the early-hashinal ring.
   assert.deepEqual(calls.pictures.map((p) => p.url), ["avatar:/default.png"]);
@@ -190,7 +226,8 @@ test("disconnected the button says Connect, connected it is the picture and id",
   // profiles-loaded: the same chip, the picture painted again.
   api.paintIntroWallet();
   assert.equal(button.children[0], face);
-  assert.equal(button.children[1], id);
+  assert.equal(button.children[1], copy);
+  assert.equal(copy.children[0], id);
   assert.equal(calls.pictures.length, 1);
   assert.equal(calls.mounts.length, 2);
 
@@ -198,12 +235,53 @@ test("disconnected the button says Connect, connected it is the picture and id",
   api.play("0.0.77");
   api.paintIntroWallet();
   assert.equal(id.textContent, "0.0.77");
+  assert.equal(id.style.props["--wallet-id-chars"], "6");
   assert.equal(button.attrs["aria-label"], "Wallet 0.0.77");
   api.play(null);
   api.paintIntroWallet();
   assert.equal(button.classList.contains("is-connected"), false);
   assert.equal(button.attrs["aria-label"], "Connect wallet");
   assert.equal(button.children[0].textContent, "Connect");
+});
+
+test("a profile name sits over the full id; without one the id stands alone", () => {
+  const { api, button, names } = harness({ account: "0.0.9779355" });
+  names["0.0.9779355"] = "Bonic";
+  api.paintIntroWallet();
+  const copy = button.children[1];
+  assert.deepEqual(copy.children.map((kid) => kid.className), ["onboard-wallet-name", "onboard-wallet-id"]);
+  const [name, id] = copy.children;
+  assert.equal(name.textContent, "Bonic");
+  assert.equal(id.textContent, "0.0.9779355", "the whole id, not the tail");
+  assert.equal(button.attrs["aria-label"], "Wallet Bonic 0.0.9779355");
+
+  // A new name (profiles-loaded) updates the same node.
+  names["0.0.9779355"] = "Bonic B";
+  api.paintIntroWallet();
+  assert.equal(copy.children[0], name);
+  assert.equal(name.textContent, "Bonic B");
+  assert.equal(button.attrs["aria-label"], "Wallet Bonic B 0.0.9779355");
+
+  // The name gone: no empty node and no "Anonymous", just the id.
+  delete names["0.0.9779355"];
+  api.paintIntroWallet();
+  assert.deepEqual(copy.children.map((kid) => kid.className), ["onboard-wallet-id"]);
+  assert.equal(copy.children[0], id);
+  assert.equal(button.attrs["aria-label"], "Wallet 0.0.9779355");
+  const texts = [];
+  const walk = (node) => { texts.push(node.textContent); node.children.forEach(walk); };
+  walk(button);
+  assert.equal(texts.some((text) => /Anonymous/.test(text)), false);
+
+  // And back, still above the id.
+  names["0.0.9779355"] = "Bonic";
+  api.paintIntroWallet();
+  assert.deepEqual(copy.children.map((kid) => kid.className), ["onboard-wallet-name", "onboard-wallet-id"]);
+  // The name comes from profileUsername, never profileDisplayName.
+  const paint = fn(page, "paintIntroWallet");
+  assert.match(paint, /profileUsername\(id\)/);
+  assert.equal(paint.includes("profileDisplayName"), false);
+  assert.match(page, /import \{ DEFAULT_PIC, profilePicUrl, profileUsername \} from '\.\/profileface\.js';/);
 });
 
 test("a paint after the intro closed does nothing", () => {
@@ -293,8 +371,62 @@ test("the button wears the ✕'s look top left, and the ✕ is unchanged", () =>
   assert.ok(start > 0 && end > start);
   const block = css.slice(start, end);
   assert.equal(/\dpx/.test(block), false);
-  assert.match(block, /\.onboard-wallet-text,\s*\.onboard-wallet-id \{[^}]*text-overflow: ellipsis;/);
-  assert.match(block, /\.onboard-wallet-id \{\s*direction: rtl;/);
+  // "Connect" keeps its one clipped line.
+  assert.match(rule(".onboard-wallet-text"), /text-overflow: ellipsis;/);
+  assert.match(rule(".onboard-wallet-text"), /white-space: nowrap;/);
+});
+
+test("connected, the chip stacks a bold name over a muted id that is never clipped", () => {
+  const connected = rule(".onboard-wallet.is-connected");
+  assert.match(connected, /white-space: normal;/);
+  assert.match(connected, /align-items: center;/);
+  assert.equal(/max-width|min-height/.test(connected), false, "the cap and min-height stay the base rule's");
+  const copy = rule(".onboard-wallet-copy");
+  assert.match(copy, /display: flex;/);
+  assert.match(copy, /flex-direction: column;/);
+  assert.match(copy, /min-width: 0;/);
+  assert.match(copy, /gap: 0\.2em;/);
+  const name = rule(".onboard-wallet-name");
+  for (const line of ["color: #fff;", "font-weight: 700;", "white-space: nowrap;", "text-overflow: ellipsis;", "overflow: hidden;"]) {
+    assert.ok(name.includes(line), line);
+  }
+  const id = rule(".onboard-wallet-id");
+  assert.match(id, /color: rgba\(255, 255, 255, 0\.55\);/);
+  assert.match(id, /font-weight: 500;/);
+  assert.match(id, /white-space: nowrap;/);
+  // Never clipped: no rtl, no ellipsis, no hidden overflow anywhere it is styled.
+  for (const at of [...css.matchAll(/\.onboard-wallet-id[^{]*\{[^}]*\}/g)].map((m) => m[0])) {
+    assert.equal(/direction:|text-overflow|overflow:/.test(at), false, at);
+  }
+  // It shrinks to fit the cap instead: smaller than the name at most.
+  assert.match(id, /font-size: min\(0\.7em, calc\(\(var\(--wallet-cap, 100vh\) - 6vh\) \/ \(var\(--wallet-id-chars, 13\) \* 0\.6\)\)\);/);
+  assert.match(name, /font-size: 0\.8em;/);
+});
+
+test("the chip's room matches its cap: 40% / 50% less 12.8vh, and 46% / 50% less 6vh on the install page", () => {
+  // The % read the card's padding box: its content (100cqi) plus 3vh a side.
+  const card = rule(".onboard-card");
+  assert.match(card, /padding: 4vh 3vh 3vh;/);
+  assert.equal(card.includes("container-type"), false, "the shared card (swap, inscribe) is no container");
+  assert.match(rule("#onboard-overlay .onboard-card"), /container-type: inline-size;/);
+  assert.match(rule(".onboard-wallet"), /max-width: min\(40%, calc\(50% - 12\.8vh\)\);/);
+  assert.match(rule(".onboard-wallet.is-connected"), /--wallet-cap: min\(calc\(40cqi \+ 2\.4vh\), calc\(50cqi - 9\.8vh\)\);/);
+  const guide = rule(".onboard-card.is-guide > .onboard-wallet.is-connected");
+  assert.match(guide, /max-width: min\(46%, calc\(50% - 6vh\)\);/);
+  assert.match(guide, /--wallet-cap: min\(calc\(46cqi \+ 2\.76vh\), calc\(50cqi - 3vh\)\);/);
+  // 40% of (100cqi + 6vh) = 40cqi + 2.4vh, 50% of it less 12.8vh = 50cqi - 9.8vh;
+  // 46% = 46cqi + 2.76vh, 50% less 6vh = 50cqi - 3vh.
+  const pct = (p, vh) => [p, (p * 6) / 100 - vh];
+  assert.deepEqual(pct(40, 0), [40, 2.4]);
+  assert.deepEqual(pct(50, 12.8).map((n) => +n.toFixed(2)), [50, -9.8]);
+  assert.deepEqual(pct(46, 0).map((n) => +n.toFixed(2)), [46, 2.76]);
+  assert.deepEqual(pct(50, 6), [50, -3]);
+  // The 6vh the id's room leaves out: border 0.2vh a side, padding 0.5vh
+  // + 1vh, the 3.4vh picture and the 0.5vh gap (5.8vh, with 0.2vh to spare).
+  assert.match(rule(".onboard-wallet.is-connected"), /padding: 0\.5vh 1vh 0\.5vh 0\.5vh;/);
+  assert.match(rule(".onboard-wallet.is-connected"), /gap: 0\.5vh;/);
+  assert.match(rule(".onboard-wallet-face"), /width: 3\.4vh;/);
+  assert.match(rule(".onboard-wallet"), /border: 0\.2vh solid/);
 });
 
 test("the wallet sheet sits above the intro only while it is open", () => {

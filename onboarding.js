@@ -4,7 +4,7 @@ import { appAlreadyInstalled, runInstallPrompt, canPromptInstall, installPromptP
 import { createInstallChoice } from './installchoice.js';
 import { connectedAccount } from './web3.js';
 import { avatarSrc } from './avatarsrc.js';
-import { DEFAULT_PIC, profilePicUrl } from './profileface.js';
+import { DEFAULT_PIC, profilePicUrl, profileUsername } from './profileface.js';
 import { mountPicture, pictureElement } from './loopmedia.js';
 import { paintProfileAvatar } from './earlyhashinal.js';
 
@@ -246,9 +246,12 @@ let reassureEl = null;
 // The "Start in" step above the install steps (installchoice.js), made once
 // per intro so going back to the page keeps what was picked.
 let installChoice = null;
-// Top left, the ✕'s twin: Connect, or the connected account's picture and id.
+// Top left, the ✕'s twin: Connect, or the connected account's picture, its
+// name (when it has one) and its id.
 let walletBtn = null;
 let walletFace = null;
+let walletCopy = null;
+let walletName = null;
 let walletId = null;
 
 // Install steps (installapp.js installSteps): each icon looks like the
@@ -424,15 +427,20 @@ function connectFromIntro() {
   finally { connect.skipOverlayClose = false; }
 }
 
-// Disconnected: "Connect". Connected: the drawer account row's picture and
-// the id. Nothing else on the intro changes, so a connect keeps the slide.
+// Disconnected: "Connect". Connected: the drawer account row's picture, then
+// the name over the full id, as the post header shows a profile (the id
+// alone when there is no name; never "Anonymous"). Nothing else on the
+// intro changes, so a connect keeps the slide.
 function paintIntroWallet() {
   if (!walletBtn) return;
   const id = introAccount();
+  const name = id ? profileUsername(id) : '';
   walletBtn.classList.toggle('is-connected', !!id);
-  walletBtn.setAttribute('aria-label', id ? `Wallet ${id}` : 'Connect wallet');
+  walletBtn.setAttribute('aria-label', id ? `Wallet ${name ? `${name} ` : ''}${id}` : 'Connect wallet');
   if (!id) {
     walletFace = null;
+    walletCopy = null;
+    walletName = null;
     walletId = null;
     const text = document.createElement('span');
     text.className = 'onboard-wallet-text';
@@ -442,11 +450,27 @@ function paintIntroWallet() {
   }
   if (!walletId) {
     walletFace = pictureElement(avatarSrc(DEFAULT_PIC), { className: 'onboard-wallet-face', alt: '', fallback: DEFAULT_PIC });
+    walletCopy = document.createElement('span');
+    walletCopy.className = 'onboard-wallet-copy';
     walletId = document.createElement('span');
     walletId.className = 'onboard-wallet-id';
-    walletBtn.replaceChildren(walletFace, walletId);
+    walletCopy.appendChild(walletId);
+    walletBtn.replaceChildren(walletFace, walletCopy);
+  }
+  if (name) {
+    if (!walletName) {
+      walletName = document.createElement('span');
+      walletName.className = 'onboard-wallet-name';
+      walletCopy.insertBefore(walletName, walletId);
+    }
+    walletName.textContent = name;
+  } else if (walletName) {
+    walletName.remove();
+    walletName = null;
   }
   walletId.textContent = id;
+  // The id's length: style.css shrinks a long one to fit, never clips it.
+  walletId.style.setProperty('--wallet-id-chars', String(id.length));
   walletFace = mountPicture(walletFace, avatarSrc(profilePicUrl(id)), {
     className: 'onboard-wallet-face',
     fallback: DEFAULT_PIC,
@@ -464,6 +488,8 @@ function unbindIntroWallet() {
   document.removeEventListener('profiles-loaded', paintIntroWallet);
   walletBtn = null;
   walletFace = null;
+  walletCopy = null;
+  walletName = null;
   walletId = null;
 }
 
