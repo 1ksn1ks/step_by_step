@@ -41,6 +41,7 @@ const ROWS = [
   ["Load_Everything", "Load", "Open a topic or account"],
   ["Draw_Marker_Polygon", "Draw", "Place a marker or polygon"],
   ["Inscribe_Hashinal", "Inscribe", "Inscribe a Hashinal on Hedera"],
+  ["Mint_Token", "Mint", "Create a token or NFT on Hedera"],
   ["Create_New_Topic", "Create", "New topic or keys"],
   ["Domain", "Domain", "Name and renew a domain"],
   ["NFT-utility", "NFT Utility", "Models, markers and chat rules"],

@@ -151,6 +151,7 @@ export function closeTransientMapUI() {
 // gesture (e.g. a marker popup after a marker tap) sees the close first.
 const HISTORY_PANELS = [
   "toolbar", "Edit_Profile-column", "load-column", "create-column",
+  "mint-column",
   "draw-column", "utility-column", "memo-column", "domain-column",
   "stack-topic-ids", "initial-xyz-column", "visibility-controls",
   "rotation-controls", "model-column", "crosshair-column",
@@ -278,6 +279,7 @@ export function CloseALL() {
     ["Edit_Profile-column", "edit-profile-help-overlay"],
     ["load-column", "load-options-help-overlay"],
     ["create-column", "create-topic-help-overlay"],
+    ["mint-column", "mint-help-overlay"],
     ["draw-column", "map-draw-help-overlay"],
     ["utility-column", "model-sharing-rules-help-overlay"],
     ["memo-column", "edit-topic-rules-help-overlay"],
@@ -393,6 +395,7 @@ export function CloseALL() {
     subColumn("Edit_Profile-column", "Edit_Profile", "toolbar", "toggle-toolbar-btn", ["Edit_Profile-column-container"]);
     subColumn("load-column", "Load_Everything", "toolbar", "toggle-toolbar-btn", ["load-column-container"]);
     subColumn("create-column", "Create_New_Topic", "toolbar", "toggle-toolbar-btn", ["create-column-container"]);
+    subColumn("mint-column", "Mint_Token", "toolbar", "toggle-toolbar-btn", ["mint-column-container"]);
     subColumn("draw-column", "Draw_Marker_Polygon", "toolbar", "toggle-toolbar-btn", ["draw-column-container"]);
     subColumn("utility-column", "NFT-utility", "toolbar", "toggle-toolbar-btn", ["utility-column-container"]);
     subColumn("memo-column", "Change_Memo", "toolbar", "toggle-toolbar-btn", ["memo-column-container"]);
@@ -598,6 +601,16 @@ export function CloseALL() {
     CloseALL();
     document.getElementById("create-column").style.display = "block";
     document.getElementById("create-column-container").style.display = "block";
+
+    OpenToggleToolbar();
+    removeUfoModel();
+  });
+
+  document.getElementById("Mint_Token").addEventListener("click", (event) => {
+    event.stopPropagation();
+    CloseALL();
+    document.getElementById("mint-column").style.display = "block";
+    document.getElementById("mint-column-container").style.display = "block";
 
     OpenToggleToolbar();
     removeUfoModel();

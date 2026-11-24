@@ -20001,6 +20001,243 @@ html.feed-draw-open #map-draw-help-overlay {
   box-shadow: none !important;
 }
 
+/* Mint page (mintpanel.js): Create's toggle row with three tabs, Domain's
+   cards, labels and cyan button, the shared drawer fields, and Settings'
+   switch and choice pills. Sized from the drawer's --ui tokens and --fu.
+   Each rule names the drawer copy too: the drawer's shared button and
+   field rules are !important. */
+#mint-column [hidden] {
+  display: none !important;
+}
+#mint-column .mint-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ui-gap);
+  margin: var(--ui-gap) 0;
+  min-width: 0;
+}
+#mint-column .mint-tab {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--ui-row-h);
+  margin: 0;
+  padding: 0 calc(var(--fu) * 0.6);
+  border: 0;
+  border-radius: var(--ui-card-radius);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
+  font-weight: 400;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#mint-column .mint-tab[aria-selected="true"],
+#mint-column .mint-tab:is(:hover, :active) {
+  background: rgba(34, 211, 238, 0.12);
+  color: #22D3EE;
+}
+#mint-column .mint-tab:focus {
+  outline: none;
+}
+#mint-column .mint-tab:focus-visible {
+  box-shadow: inset 0 0 0 0.125rem #22D3EE;
+}
+#mint-column .mint-form {
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+#mint-column .mint-card,
+:is(#feed-menu, .drawer-screen) #mint-column.in-drawer .mint-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--ui-gap);
+  box-sizing: border-box;
+  width: auto;
+  min-width: 0;
+  margin: var(--ui-gap) 0;
+  /* Domain's card inset at every size (its 16px). */
+  padding: 1rem;
+  border: 0;
+  border-radius: var(--ui-card-radius);
+  background: rgba(255, 255, 255, 0.06);
+}
+/* A label sits close over its field, a gap's width from the field before. */
+#mint-column .mint-label {
+  display: block;
+  margin: 0 0 calc(var(--ui-gap) * -0.5);
+  padding: 0;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-small);
+  font-weight: 400;
+  line-height: 1.3;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.45);
+}
+/* The shared field, at Domain's field size: a button's height, the
+   label's type, the drawer's small radius. */
+#mint-column .mint-card input.toolbar-column,
+:is(#feed-menu, .drawer-screen) #mint-column.in-drawer .mint-card input.toolbar-column {
+  box-sizing: border-box;
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: var(--ui-btn-h) !important;
+  height: auto;
+  margin: 0 !important;
+  padding: 0 var(--ui-pad-x) !important;
+  border: 0 !important;
+  border-radius: var(--ui-radius) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: none !important;
+  animation: none !important;
+  color: #fff;
+  font-family: inherit !important;
+  font-size: var(--ui-label);
+  line-height: 1.3;
+  text-align: left;
+}
+#mint-column .mint-card input.toolbar-column:focus,
+:is(#feed-menu, .drawer-screen) #mint-column.in-drawer .mint-card input.toolbar-column:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 0.125rem #22D3EE !important;
+}
+#mint-column .mint-card input.toolbar-column[aria-invalid="true"],
+:is(#feed-menu, .drawer-screen) #mint-column.in-drawer .mint-card input.toolbar-column[aria-invalid="true"] {
+  box-shadow: inset 0 0 0 0.125rem #FCA5A5 !important;
+}
+#mint-column .mint-max {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-gap);
+  min-width: 0;
+}
+#mint-column .mint-supply > .feed-settings-choice {
+  min-height: var(--ui-btn-h);
+  font-size: var(--ui-label);
+  font-weight: 400;
+}
+#mint-column .mint-switch {
+  min-height: var(--ui-btn-h);
+  margin: 0;
+  padding: 0;
+  font-size: var(--ui-label);
+  font-weight: 400;
+}
+#mint-column :is(.mint-note, .mint-warning, .mint-error) {
+  margin: 0;
+  padding: 0;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-small);
+  font-weight: 400;
+  line-height: 1.35;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.55);
+}
+#mint-column .mint-warning {
+  margin-top: calc(var(--ui-gap) * -0.5);
+  color: #f5b942;
+}
+#mint-column .mint-error {
+  color: #FCA5A5;
+}
+#mint-column .mint-submit,
+:is(#feed-menu, .drawer-screen) #mint-column.in-drawer .mint-submit {
+  box-sizing: border-box;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: var(--ui-btn-h) !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 var(--ui-pad-x) !important;
+  border: 0 !important;
+  border-radius: var(--ui-radius) !important;
+  background: #22D3EE !important;
+  background-color: #22D3EE !important;
+  box-shadow: none !important;
+  animation: none !important;
+  color: #0a0a12 !important;
+  font-family: inherit !important;
+  font-size: var(--ui-label);
+  font-weight: 400;
+  line-height: 1.25;
+  text-align: center !important;
+  text-transform: none;
+  text-shadow: none !important;
+  white-space: normal;
+  transform: none !important;
+  filter: none !important;
+  cursor: pointer;
+}
+#mint-column .mint-submit:is(:hover, :active),
+:is(#feed-menu, .drawer-screen) #mint-column.in-drawer .mint-submit:is(:hover, :active) {
+  background: #22D3EE !important;
+  background-color: #22D3EE !important;
+  color: #0a0a12 !important;
+  filter: brightness(1.08) !important;
+}
+#mint-column .mint-submit:focus-visible,
+:is(#feed-menu, .drawer-screen) #mint-column.in-drawer .mint-submit:focus-visible {
+  outline: 0.125rem solid #22D3EE;
+  outline-offset: 0.125rem;
+}
+#mint-column .mint-submit:disabled,
+:is(#feed-menu, .drawer-screen) #mint-column.in-drawer .mint-submit:disabled {
+  opacity: 0.55;
+  filter: none !important;
+  cursor: default;
+}
+/* The result card (mintpanel.js) on the intro card: the token id large,
+   Copy beside it, the two HashScan links under it. */
+.mint-notice .mint-result-id-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5vh;
+  margin: 0 0 2.5vh;
+}
+.mint-notice .mint-result-id {
+  font-size: 4vh;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.mint-notice .mint-copy {
+  padding: 1vh 2vh;
+  font-size: 1.9vh;
+}
+.mint-notice .mint-copy.is-copied {
+  color: #22d3ee;
+  border-color: rgba(34, 211, 238, 0.6);
+}
+.mint-notice .mint-result-links {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2vh;
+}
+
 /* Update topic: one shared id, and the pin / password row. */
 #memo-column #update-topic-target {
   box-sizing: border-box;

@@ -188,6 +188,7 @@
         <div class="toolbar-column set-nav" id="Load_Everything"><span class="set-nav-copy"><span class="set-nav-label">Load</span><span class="set-nav-desc">Open a topic or account</span></span></div>
         <div class="toolbar-column set-nav" id="Draw_Marker_Polygon"><span class="set-nav-copy"><span class="set-nav-label">Draw</span><span class="set-nav-desc">Place a marker or polygon</span></span></div>
         <div class="toolbar-column set-nav" id="Inscribe_Hashinal"><span class="set-nav-copy"><span class="set-nav-label">Inscribe</span><span class="set-nav-desc">Inscribe a Hashinal on Hedera</span></span></div>
+        <div class="toolbar-column set-nav" id="Mint_Token"><span class="set-nav-copy"><span class="set-nav-label">Mint</span><span class="set-nav-desc">Create a token or NFT on Hedera</span></span></div>
         <div class="toolbar-column set-nav" id="Create_New_Topic"><span class="set-nav-copy"><span class="set-nav-label">Create</span><span class="set-nav-desc">New topic or keys</span></span></div>
         <div class="toolbar-column set-nav" id="Domain"><span class="set-nav-copy"><span class="set-nav-label">Domain</span><span class="set-nav-desc">Name and renew a domain</span></span></div>
         <div class="toolbar-column set-nav" id="NFT-utility"><span class="set-nav-copy"><span class="set-nav-label">NFT Utility</span><span class="set-nav-desc">Models, markers and chat rules</span></span></div>
@@ -433,6 +434,79 @@
           </label>
           <button class="toolbar-column-btns" id="button5" style="margin-top: 0.5vh;">Add 28 days to domain
           </button>
+          </div>
+
+        </div>
+      </div>
+
+      <div id="mint-help-overlay" class="info-overlay">
+        <div class="info-overlay-inner" onclick="event.stopPropagation();">
+          <h3 class="info-overlay-title">Mint</h3>
+          <ul class="info-overlay-list">
+            <li><b>Token</b> creates a fungible token. Your wallet is the treasury and keeps the supply key.</li>
+            <li>Costs about $1 in HBAR on mainnet.</li>
+            <li>With no admin key, the token can never be changed.</li>
+            <li>NFT and Hashinal minting are coming next.</li>
+          </ul>
+          <div class="info-overlay-actions">
+            <button class="info-overlay-close-button-1" onclick="document.getElementById('mint-help-overlay').style.display='none'">Got it</button>
+          </div>
+          <div class="info-overlay-close-button-2 info-overlay-x" onclick="document.getElementById('mint-help-overlay').style.display='none'">×</div>
+        </div>
+      </div>
+
+      <div id="mint-column" class="toolbar-containers" onclick="event.stopPropagation();" style="display: none; position: absolute; z-index: 1002; top:10vh;">
+        <button class="panel-help-btn" id="help-mint-column">?</button>
+        <div id="mint-column-container">
+
+          <div class="options-column-title">🪙 MINT</div>
+
+          <div class="mint-tabs" role="tablist" aria-label="What to mint">
+            <button type="button" class="mint-tab" role="tab" id="mint-tab-token" aria-selected="true" aria-controls="mint-panel-token">Token</button>
+            <button type="button" class="mint-tab" role="tab" id="mint-tab-nft" aria-selected="false" aria-controls="mint-panel-nft" tabindex="-1">NFT</button>
+            <button type="button" class="mint-tab" role="tab" id="mint-tab-hashinal" aria-selected="false" aria-controls="mint-panel-hashinal" tabindex="-1">Hashinal</button>
+          </div>
+
+          <form id="mint-panel-token" class="mint-form" role="tabpanel" aria-labelledby="mint-tab-token" novalidate>
+            <div class="mint-card">
+              <label class="mint-label" for="mint-name">Name</label>
+              <input class="toolbar-column" type="text" id="mint-name" placeholder="My token" autocomplete="off" spellcheck="false" required>
+              <label class="mint-label" for="mint-symbol">Symbol</label>
+              <input class="toolbar-column" type="text" id="mint-symbol" placeholder="MYT" autocomplete="off" spellcheck="false" autocapitalize="characters" required>
+            </div>
+
+            <div class="mint-card">
+              <label class="mint-label" for="mint-decimals">Decimals (0 to 18)</label>
+              <input class="toolbar-column" type="text" id="mint-decimals" value="8" inputmode="numeric" autocomplete="off" spellcheck="false">
+              <label class="mint-label" for="mint-initial">Initial supply</label>
+              <input class="toolbar-column" type="text" id="mint-initial" placeholder="1000" inputmode="decimal" autocomplete="off" spellcheck="false">
+              <span class="mint-label" id="mint-supply-label">Supply</span>
+              <div class="feed-settings-radios mint-supply" role="radiogroup" aria-labelledby="mint-supply-label">
+                <button type="button" class="feed-settings-choice is-on" role="radio" aria-checked="true" id="mint-supply-unlimited">Unlimited</button>
+                <button type="button" class="feed-settings-choice" role="radio" aria-checked="false" id="mint-supply-capped" tabindex="-1">Capped</button>
+              </div>
+              <div class="mint-max" id="mint-max-wrap" hidden>
+                <label class="mint-label" for="mint-max">Max supply</label>
+                <input class="toolbar-column" type="text" id="mint-max" placeholder="1000000" inputmode="decimal" autocomplete="off" spellcheck="false">
+              </div>
+            </div>
+
+            <div class="mint-card">
+              <label class="mint-label" for="mint-memo">Memo (optional)</label>
+              <input class="toolbar-column" type="text" id="mint-memo" placeholder="Memo" autocomplete="off">
+              <button type="button" class="feed-settings-switch is-on mint-switch" role="switch" aria-checked="true" id="mint-admin-key"><span>Admin key</span><span class="feed-settings-switch-ui" aria-hidden="true"></span></button>
+              <p class="mint-warning" id="mint-admin-warning" hidden>Without an admin key this token can never be changed or deleted.</p>
+              <p class="mint-note">Your wallet is the treasury and holds the supply key, so you can mint more later. Hedera mainnet, about $1 in HBAR.</p>
+              <button type="submit" class="toolbar-column-btns mint-submit" id="mint-create">Create token</button>
+              <p class="mint-error" id="mint-error" role="alert" hidden></p>
+            </div>
+          </form>
+
+          <div id="mint-panel-nft" class="mint-card mint-soon" role="tabpanel" aria-labelledby="mint-tab-nft" hidden>
+            <p class="mint-note">Coming next.</p>
+          </div>
+          <div id="mint-panel-hashinal" class="mint-card mint-soon" role="tabpanel" aria-labelledby="mint-tab-hashinal" hidden>
+            <p class="mint-note">Coming next.</p>
           </div>
 
         </div>

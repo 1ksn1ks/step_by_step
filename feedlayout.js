@@ -6535,6 +6535,7 @@ const OPTION_PANELS = [
   'Edit_Profile-column',
   'load-column',
   'create-column',
+  'mint-column',
   'draw-column',
   'utility-column',
   'memo-column',
@@ -6556,6 +6557,7 @@ const OPTION_PANELS = [
   'edit-profile-help-overlay',
   'load-options-help-overlay',
   'create-topic-help-overlay',
+  'mint-help-overlay',
   'map-draw-help-overlay',
   'model-sharing-rules-help-overlay',
   'edit-topic-rules-help-overlay',
@@ -8823,7 +8825,7 @@ for (const entry of DRAWER_ORDER) {
 const DRAWER_PAGE_LEVELS = 4;
 const DRAWER_CHILDREN = {
   toolbar: [
-    'Edit_Profile-column', 'load-column', 'create-column', 'draw-column',
+    'Edit_Profile-column', 'load-column', 'create-column', 'mint-column', 'draw-column',
     'utility-column', 'memo-column', 'domain-column', 'stack-topic-ids',
     'initial-xyz-column',
   ],
@@ -9789,6 +9791,11 @@ const NAV_ICONS = {
     ['path', { d: 'M12 12v6' }],
     ['path', { d: 'm15 15-3-3-3 3' }],
   ],
+  // A coin: its rim and an inner ring.
+  Mint_Token: [
+    ['circle', { cx: '12', cy: '12', r: '9' }],
+    ['circle', { cx: '12', cy: '12', r: '5' }],
+  ],
   Create_New_Topic: [
     ['path', { d: 'M5 12h14' }],
     ['path', { d: 'M12 5v14' }],
@@ -9842,6 +9849,7 @@ const NAV_PANELS = {
   Load_Everything: 'load-column',
   Draw_Marker_Polygon: 'draw-column',
   Create_New_Topic: 'create-column',
+  Mint_Token: 'mint-column',
   'NFT-utility': 'utility-column',
   Change_Memo: 'memo-column',
   Domain: 'domain-column',
