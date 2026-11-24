@@ -7191,6 +7191,23 @@ html, body {
     box-shadow: none;
   }
 
+  /* The inscribe cards (hcs1inscribenotice.js) on the intro card: a long
+     file name wraps inside its row, and the link reads on the dark glass. */
+  .inscribe-notice .onboard-row-note {
+    overflow-wrap: anywhere;
+  }
+  .inscribe-notice a {
+    color: #22d3ee;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+  .inscribe-notice a:focus-visible {
+    outline: 0.2vh solid #22d3ee;
+    outline-offset: 0.2vh;
+    border-radius: 0.4vh;
+  }
+
   /* ── Topic + E2EE chat: keep the open animation, drop only the opacity fade ──
      The shared slideIn/zoomIn keyframes animate opacity 0→1, which makes the
      dark glass inputs/buttons "get darker" as the panel opens. These no-fade
