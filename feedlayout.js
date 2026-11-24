@@ -6098,7 +6098,8 @@ function connectPending() {
 // 'fail' is a real miss and the caller says why.
 // "Connecting..." stays pending, but a sheet that has been closed for ~1.5s
 // is a cancel even if that label is still showing. The whole wait fails at ~90s.
-function ensureWallet() {
+// Also used by the map Toolbar's Inscribe row (inscribebutton.js).
+export function ensureWallet() {
   if (walletNow()) return Promise.resolve('ok');
   const connect = document.getElementById('connect-wallet-btn');
   if (!connect) return Promise.resolve('fail');
@@ -9781,6 +9782,13 @@ const NAV_ICONS = {
   Draw_Marker_Polygon: [
     ['path', { d: 'M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z' }],
   ],
+  // A page with an arrow going up: a file put on Hedera.
+  Inscribe_Hashinal: [
+    ['path', { d: 'M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' }],
+    ['path', { d: 'M14 2v4a2 2 0 0 0 2 2h4' }],
+    ['path', { d: 'M12 12v6' }],
+    ['path', { d: 'm15 15-3-3-3 3' }],
+  ],
   Create_New_Topic: [
     ['path', { d: 'M5 12h14' }],
     ['path', { d: 'M12 5v14' }],
@@ -9858,10 +9866,13 @@ function dressNavRows() {
     const ico = document.createElement('span');
     ico.className = 'set-nav-icon';
     ico.appendChild(svgIcon(icon));
+    el.insertBefore(ico, el.firstChild);
+    // A chevron means a page opens. A row with no panel (Inscribe) is an
+    // action: no chevron.
+    if (!NAV_PANELS[id]) continue;
     const chev = document.createElement('span');
     chev.className = 'set-nav-chev';
     chev.appendChild(chevronIcon());
-    el.insertBefore(ico, el.firstChild);
     el.appendChild(chev);
   }
 }

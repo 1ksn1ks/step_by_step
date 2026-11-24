@@ -11909,6 +11909,16 @@ html.intro-open appkit-modal {
   z-index: 9100;
   --wcm-z-index: 9100;
 }
+/* And over the map drawer (8600) while the Toolbar's Inscribe row asks
+   for a wallet: inscriberow.js sets inscribe-connect on <html> for that
+   step only. The drawer stays open under the sheet. */
+html.inscribe-connect wcm-modal,
+html.inscribe-connect w3m-modal,
+html.inscribe-connect appkit-modal {
+  position: relative;
+  z-index: 9100;
+  --wcm-z-index: 9100;
+}
 /* Post settings stay at 1008 on the map. While the feed covers, the same
    card has to clear this screen, including the search page inside it. */
 html.feed-app #popup-settings-backdrop,

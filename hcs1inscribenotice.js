@@ -5,7 +5,7 @@
 // Unlike the swap warning there is no saved acknowledgement: the size and
 // the cost change with every file, so the card shows on every call.
 //
-// runInscribe is not wired to a button yet.
+// The map Toolbar's Inscribe row calls runInscribe (inscribebutton.js).
 
 import { HCS1_INSCRIBE_MAX_BYTES } from "./hcs1inscribe.js";
 import { inscribePrepared, prepareInscribeFile } from "./hcs1inscribewallet.js";

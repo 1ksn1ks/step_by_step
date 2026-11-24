@@ -50,6 +50,7 @@ import './perf.js'
 import './installapp.js'
 import './openplace.js'
 import './feedlayout.js'
+import './inscribebutton.js'
 
 window.restrictLength = function(input, maxLength) {
     if (input.value.length > maxLength) {
