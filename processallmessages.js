@@ -37,6 +37,7 @@ import { normalizeMessageNewlines, clipMessage, formatHcsUsage, utf8ByteLength, 
 import {
   COMMENT_TEXT_MAX,
   clipCommentText,
+  commentImageValue,
   filterCommentTree,
   findComment,
   mutationVerdict,
@@ -1463,12 +1464,13 @@ function ensurePostComments(data, kind, id, comments, syncKey) {
   const section = buildCommentsSection(
     id,
     comments,
-    (input) => polygon
-      ? window.sendPolygonComment(data.timestamp, data.topicId, input)
-      : window.sendMarkerComment(data.timestamp, data.topicId, input),
-    (parentId, input) => polygon
-      ? window.sendPolygonReply(data.timestamp, parentId, data.topicId, input)
-      : window.sendMarkerReply(data.timestamp, parentId, data.topicId, input),
+    // media (optional): the uploaded comment media's URL or { image }.
+    (input, media) => polygon
+      ? window.sendPolygonComment(data.timestamp, data.topicId, input, media)
+      : window.sendMarkerComment(data.timestamp, data.topicId, input, media),
+    (parentId, input, media) => polygon
+      ? window.sendPolygonReply(data.timestamp, parentId, data.topicId, input, media)
+      : window.sendMarkerReply(data.timestamp, parentId, data.topicId, input, media),
     data.topicId,
     polygon ? 'polygon' : 'marker',
     syncKey,
@@ -4210,6 +4212,7 @@ function assembledComments(list, repliesMap, likeMap, dislikeMap, actions, likeT
 function assignCommentVerdict(node, verdict) {
   const created = node.created;
   node.text = verdict.text;
+  node.image = verdict.image || '';
   node.edited = verdict.edited;
   node.deleted = verdict.deleted;
   node.mutationAt = verdict.mutationAt;
@@ -4223,6 +4226,7 @@ function takeStoredComment(bag, map, key, fields) {
   const node = {
     payer: fields.payer,
     text: fields.text,
+    image: commentImageValue(fields.image),
     created: fields.created,
     edited: false,
     deleted: false,
@@ -4282,7 +4286,7 @@ function ingestParsedComments(parsedMessage, payerId, topicId, bag) {
         ? (polygon ? bag.commentsMapPolygon : bag.commentsMapMarker)
         : (polygon ? bag.repliesMapPolygon : bag.repliesMapMarker);
       const key = event.type === 'comment' ? event.stamp : event.parentId;
-      takeStoredComment(bag, map, key, { payer: payerId, text: event.text, created: at });
+      takeStoredComment(bag, map, key, { payer: payerId, text: event.text, image: event.image, created: at });
       if (event.stamp) touched = { kind: event.bucket, stamp: event.stamp };
     } else {
       applyBagMutation(bag, event);
@@ -4538,7 +4542,11 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
     const node = findComment(tree, overlay.created);
     if (!node) return false;
     if (overlay.fields && overlay.fields.deleted) return !!node.deleted;
-    if (overlay.fields && overlay.fields.edited) return node.text === overlay.fields.text;
+    if (overlay.fields && overlay.fields.edited) {
+      if (node.text !== overlay.fields.text) return false;
+      // An edit that set or cleared the media lands once that does too.
+      return !('image' in overlay.fields) || (node.image || '') === overlay.fields.image;
+    }
     return false;
   };
 
@@ -5358,12 +5366,13 @@ function clearCommentInput(input) {
   adjustTextareaHeight(input);
 }
 
-function rememberSentComment(input, text, parentId) {
+function rememberSentComment(input, text, parentId, image) {
   const section = input && input.closest ? input.closest('.popup-comments') : null;
   if (!section || typeof section._insertPending !== 'function' || !connectedAccount) return;
   section._insertPending({
     payer: connectedAccount,
     text,
+    image: image || '',
     created: new Date().toISOString(),
     pending: true,
     likeCount: 0,
@@ -5379,55 +5388,61 @@ function patchMountedComment(kind, topicId, stamp, created, fields) {
   section._mutate(created, fields);
 }
 
-window.sendMarkerComment = async function(timestamp, topicId, input) {
-  const text = clipCommentText(input && input.value);
-  if (!text) {
-    toast.error('Comment is empty');
-    return;
+// The optional last argument of the send helpers: the uploaded media's URL
+// (uploadmedia.js uploadCommentMedia), as a string or { image }. Only an
+// address commentImageValue accepts is sent.
+function sentCommentImage(media) {
+  if (typeof media === 'string') return commentImageValue(media);
+  return commentImageValue(media && media.image);
+}
+
+// On an edit, media is optional too: a string or { image } replaces it,
+// "" or null (or { image: "" }) clears it, nothing keeps it.
+function editedCommentImage(media) {
+  if (media === undefined) return { set: false, image: '' };
+  if (media === null || typeof media === 'string') return { set: true, image: commentImageValue(media) };
+  if (media && Object.prototype.hasOwnProperty.call(media, 'image')) {
+    return { set: true, image: commentImageValue(media.image) };
   }
-  const ok = await submitCommentBody(topicId, { commentMarker: { timestamp, text } });
-  if (!ok) return;
+  return { set: false, image: '' };
+}
+
+// One comment or reply: text, media, or both. The text keeps its 1000
+// cap; the media is its own field, never part of the text. true once the
+// wallet sent it: the box is cleared and the row shows in the open thread.
+async function sendCommentOrReply(field, base, topicId, input, parentId, media) {
+  const text = clipCommentText(input && input.value);
+  const image = sentCommentImage(media);
+  if (!text && !image) {
+    toast.error('Comment is empty');
+    return false;
+  }
+  const body = { ...base, text };
+  if (image) body.image = image;
+  const ok = await submitCommentBody(topicId, { [field]: body });
+  if (!ok) return false;
   clearCommentInput(input);
-  rememberSentComment(input, text, null);
+  rememberSentComment(input, text, parentId, image);
+  return true;
+}
+
+window.sendMarkerComment = function(timestamp, topicId, input, media) {
+  return sendCommentOrReply('commentMarker', { timestamp }, topicId, input, null, media);
 };
 
-window.sendPolygonComment = async function(timestamp, topicId, input) {
-  const text = clipCommentText(input && input.value);
-  if (!text) {
-    toast.error('Comment is empty');
-    return;
-  }
-  const ok = await submitCommentBody(topicId, { commentPolygon: { timestamp, text } });
-  if (!ok) return;
-  clearCommentInput(input);
-  rememberSentComment(input, text, null);
+window.sendPolygonComment = function(timestamp, topicId, input, media) {
+  return sendCommentOrReply('commentPolygon', { timestamp }, topicId, input, null, media);
 };
 
-window.sendMarkerReply = async function(postTimestamp, parentId, topicId, input) {
-  const text = clipCommentText(input && input.value);
-  if (!text) {
-    toast.error('Comment is empty');
-    return;
-  }
-  const ok = await submitCommentBody(topicId, { replyMarker: { timestamp: postTimestamp, parentId, text } });
-  if (!ok) return;
-  clearCommentInput(input);
-  rememberSentComment(input, text, parentId);
+window.sendMarkerReply = function(postTimestamp, parentId, topicId, input, media) {
+  return sendCommentOrReply('replyMarker', { timestamp: postTimestamp, parentId }, topicId, input, parentId, media);
 };
 
-window.sendPolygonReply = async function(postTimestamp, parentId, topicId, input) {
-  const text = clipCommentText(input && input.value);
-  if (!text) {
-    toast.error('Comment is empty');
-    return;
-  }
-  const ok = await submitCommentBody(topicId, { replyPolygon: { timestamp: postTimestamp, parentId, text } });
-  if (!ok) return;
-  clearCommentInput(input);
-  rememberSentComment(input, text, parentId);
+window.sendPolygonReply = function(postTimestamp, parentId, topicId, input, media) {
+  return sendCommentOrReply('replyPolygon', { timestamp: postTimestamp, parentId }, topicId, input, parentId, media);
 };
 
-async function sendCommentEdit(kind, field, timestamp, topicId, created, text, payer, parentId) {
+async function sendCommentEdit(kind, field, timestamp, topicId, created, text, payer, parentId, media) {
   if (!authorOk(payer)) return false;
   const section = mountedCommentSection(kind, topicId, timestamp);
   const current = section && findComment(section._tree || [], created);
@@ -5436,15 +5451,21 @@ async function sendCommentEdit(kind, field, timestamp, topicId, created, text, p
     return false;
   }
   const clipped = clipCommentText(text);
-  if (!clipped) {
+  const edit = editedCommentImage(media);
+  // What the comment will show: the edit's media, or the media it has.
+  const image = edit.set ? edit.image : commentImageValue(current && current.image);
+  if (!clipped && !image) {
     toast.error('Comment is empty');
     return false;
   }
   const payload = { created, text: clipped, timestamp };
   if (parentId) payload.parentId = parentId;
+  if (edit.set) payload.image = edit.image;
   const ok = await submitCommentBody(topicId, { [field]: payload });
   if (!ok) return false;
-  patchMountedComment(kind, topicId, timestamp, created, { text: clipped, edited: true });
+  const fields = { text: clipped, edited: true };
+  if (edit.set) fields.image = edit.image;
+  patchMountedComment(kind, topicId, timestamp, created, fields);
   return true;
 }
 
@@ -5455,21 +5476,22 @@ async function sendCommentDelete(kind, field, timestamp, topicId, created, payer
   if (parentId) payload.parentId = parentId;
   const ok = await submitCommentBody(topicId, { [field]: payload });
   if (!ok) return false;
-  patchMountedComment(kind, topicId, timestamp, created, { text: '', deleted: true });
+  patchMountedComment(kind, topicId, timestamp, created, { text: '', image: '', deleted: true });
   return true;
 }
 
-window.sendEditMarkerComment = (timestamp, topicId, created, text, payer) => (
-  sendCommentEdit('marker', 'editCommentMarker', timestamp, topicId, created, text, payer)
+// media (last, optional): see editedCommentImage.
+window.sendEditMarkerComment = (timestamp, topicId, created, text, payer, media) => (
+  sendCommentEdit('marker', 'editCommentMarker', timestamp, topicId, created, text, payer, undefined, media)
 );
-window.sendEditPolygonComment = (timestamp, topicId, created, text, payer) => (
-  sendCommentEdit('polygon', 'editCommentPolygon', timestamp, topicId, created, text, payer)
+window.sendEditPolygonComment = (timestamp, topicId, created, text, payer, media) => (
+  sendCommentEdit('polygon', 'editCommentPolygon', timestamp, topicId, created, text, payer, undefined, media)
 );
-window.sendEditMarkerReply = (timestamp, topicId, created, text, payer, parentId) => (
-  sendCommentEdit('marker', 'editReplyMarker', timestamp, topicId, created, text, payer, parentId)
+window.sendEditMarkerReply = (timestamp, topicId, created, text, payer, parentId, media) => (
+  sendCommentEdit('marker', 'editReplyMarker', timestamp, topicId, created, text, payer, parentId, media)
 );
-window.sendEditPolygonReply = (timestamp, topicId, created, text, payer, parentId) => (
-  sendCommentEdit('polygon', 'editReplyPolygon', timestamp, topicId, created, text, payer, parentId)
+window.sendEditPolygonReply = (timestamp, topicId, created, text, payer, parentId, media) => (
+  sendCommentEdit('polygon', 'editReplyPolygon', timestamp, topicId, created, text, payer, parentId, media)
 );
 window.sendDeleteMarkerComment = (timestamp, topicId, created, payer) => (
   sendCommentDelete('marker', 'deleteCommentMarker', timestamp, topicId, created, payer)

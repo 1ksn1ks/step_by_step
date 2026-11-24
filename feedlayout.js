@@ -5,7 +5,7 @@ import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
 import { currentUfoModelInGLTF, globalLoadedTopicIdsWithNames } from './letall.js';
 import { markerPopupNode, polygonPopupNode, mountPostReactions, buildPopupProfile, rememberShapeEdit, shapeEditFor, viewsChip as sharedViewsChip, setViewsCount, popupGearIcon, bindPressFeedback, applyMountedCommentTree } from './processallmessages.js';
-import { filterCommentTree, mutationVerdict, nestComments, readCommentEvents, sortCommentTree } from './commentops.js';
+import { commentImageValue, filterCommentTree, mutationVerdict, nestComments, readCommentEvents, sortCommentTree } from './commentops.js';
 import { BACKEND_URL, fetchMessagesBackend, streamOnTopic, streamOnReconnect, messageSig, fetchFollowing } from './msgbackend.js';
 import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
 import { initialTopicId } from './extracttopic.js';
@@ -3561,6 +3561,7 @@ function feedCommentKey(topic, created) {
 function assignFeedVerdict(node, verdict) {
   const created = node.created;
   node.text = verdict.text;
+  node.image = verdict.image || '';
   node.edited = verdict.edited;
   node.deleted = verdict.deleted;
   node.mutationAt = verdict.mutationAt;
@@ -3588,6 +3589,7 @@ function rememberFeedNode(map, key, topic, fields) {
   const node = {
     payer: fields.payer,
     text: fields.text,
+    image: commentImageValue(fields.image),
     created: fields.created,
     edited: false,
     deleted: false,
@@ -3615,6 +3617,7 @@ function noteTopicComments(message, topic, payer) {
       rememberFeedNode(map, topicKey(topic, event.stamp), topic, {
         payer,
         text: event.text,
+        image: event.image,
         created: at,
       });
       stamp = event.stamp;
@@ -3624,6 +3627,7 @@ function noteTopicComments(message, topic, payer) {
       rememberFeedNode(map, topicKey(topic, event.parentId), topic, {
         payer,
         text: event.text,
+        image: event.image,
         created: at,
       });
       if (event.stamp) {

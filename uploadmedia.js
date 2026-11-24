@@ -21,7 +21,13 @@ import { profilePictures } from "./loadalladata.js";
 import { paintDrawField } from "./drawpreview.js";
 import { rememberGrant, withUploadAuth } from "./uploadgrant.js";
 import { COVER_VIDEO_PROBE_MS, coverVideoReject } from "./covervideolimit.js";
-import { isGifUrl, needsGifCheck, resolveMediaUrl, siblingPosterUrl, withGifClip } from "./mediaurl.js";
+import { isGifClipUrl, isGifUrl, needsGifCheck, resolveMediaUrl, siblingPosterUrl, withGifClip } from "./mediaurl.js";
+import {
+  commentMediaKind,
+  commentMediaReject,
+  commentStillReject,
+  commentVideoReject,
+} from "./commentmedia.js";
 import { presentImage } from "./loopmedia.js";
 import { compressPostImage } from "./imagecompress.js";
 import { HCS_MESSAGE_MAX_BYTES } from "./hcschunks.js";
@@ -1814,6 +1820,55 @@ export async function uploadChatImage(file, anchor, options) {
     thumbKey: key,
     seal: kind === "e2ee",
   } : null);
+}
+
+// The one media item on a public comment or reply (commentmedia.js holds
+// the rules). Never sealed. Resolves { url, kind }: kind is "still",
+// "gif" (a muted clip, ?gif=1) or "video". The progress pill shows while
+// it runs; nothing else is drawn here.
+//   still: compressed like a post picture (2048 px, 0.8, at most 2 MB).
+//   GIF:   converted to a clip as on a post (8 MB, 30 s), then uploaded.
+//   video: MP4 or WebM, at most 25 MB and 30 seconds.
+export async function uploadCommentMedia(file, anchor) {
+  const kind = commentMediaKind(file);
+  const reason = commentMediaReject(file);
+  if (reason) throw new Error(reason);
+  if (kind === "still") {
+    const pill = progressPill("Preparing image");
+    try {
+      const small = await compressPostImage(file);
+      const tooBig = commentStillReject(small);
+      if (tooBig) throw new Error(tooBig);
+      pill.set("Uploading image 0%");
+      const url = await uploadPostImage(small, {
+        anchor,
+        onProgress(ratio) {
+          pill.set(`Uploading image ${Math.round(ratio * 100)}%`);
+        },
+      });
+      return { url, kind: "still" };
+    } finally {
+      pill.done();
+    }
+  }
+  if (kind === "gif") {
+    const url = await uploadToR2(file, "Uploading GIF", null, anchor, "media");
+    // A one-frame GIF becomes a still picture; a browser that cannot
+    // convert sends the GIF itself, which still plays as one.
+    return { url, kind: isGifClipUrl(url) || isGifUrl(url) ? "gif" : "still" };
+  }
+  const local = URL.createObjectURL(file);
+  let seconds = null;
+  try {
+    seconds = await readVideoSeconds(local);
+  } finally {
+    URL.revokeObjectURL(local);
+  }
+  const tooLong = commentVideoReject(seconds);
+  if (tooLong) throw new Error(tooLong);
+  const rounded = Math.round(seconds);
+  const url = await uploadToR2(file, "Uploading video", rounded > 0 ? rounded : null, anchor, "media");
+  return { url, kind: "video" };
 }
 
 function showSavedProfilePreview() {

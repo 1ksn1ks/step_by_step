@@ -7,8 +7,53 @@
 // created itself never changes, because likes are keyed on it.
 
 import { clipMessage, normalizeMessageNewlines } from './hcschunks.js';
+import { resolveHashinalSrc } from './hashinalurl.js';
 
 export const COMMENT_TEXT_MAX = 1000;
+
+// One optional media item per comment or reply: an image, a GIF clip or a
+// short video, as one address beside the text (never inside it). Longer
+// than this is not a link a browser keeps.
+export const COMMENT_IMAGE_URL_MAX = 2048;
+
+// Shown the way a post's pictures are (postimages.js galleryImages): an
+// http(s) or ipfs address, or a Hashinal (hcs://1/<topic>) read from our
+// route. Anything else (javascript:, data:, blank) is no media.
+const SHOWN = /^(?:https?|ipfs):\/\/[^\s/]/i;
+const HASHINAL_REF = /^hcs:\/\/1\/0\.0\.\d+$/;
+const UNSAFE = /[\s"'<>\\\u0000-\u001f\u007f]/;
+
+// The address to send and to store: the value as written when it can be
+// shown, otherwise "". The server keeps only this (null when "").
+export function commentImageValue(value) {
+  if (typeof value !== 'string') return '';
+  const raw = value.trim();
+  if (!raw || raw.length > COMMENT_IMAGE_URL_MAX || UNSAFE.test(raw)) return '';
+  if (HASHINAL_REF.test(raw)) return raw;
+  if (!SHOWN.test(raw)) return '';
+  if (/^https?:/i.test(raw)) {
+    try {
+      const url = new URL(raw);
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+    } catch {
+      return '';
+    }
+  }
+  return raw;
+}
+
+// The URL to paint: the stored address, with a Hashinal resolved to our
+// route (hashinalurl.js). "" when there is no media to show.
+export function commentImageUrl(value) {
+  const stored = commentImageValue(value);
+  if (!stored) return '';
+  const url = resolveHashinalSrc(stored);
+  return typeof url === 'string' ? url : '';
+}
+
+function hasOwn(body, key) {
+  return !!body && Object.prototype.hasOwnProperty.call(body, key);
+}
 
 export const COMMENT_EDIT_FIELDS = [
   'editCommentMarker',
@@ -34,19 +79,27 @@ function bucketOf(field) {
 
 // One pass the server cache and both clients share. `at` is the envelope
 // ISO time of this message. Comment and reply rows use it as created.
+// A comment or reply carries its text and its media (image, "" for none);
+// one with neither is not a comment. An edit carries image only when the
+// message names one: "" (or null, or an address that cannot be shown)
+// clears the media, no image keeps it.
 export function readCommentEvents(message, payer, at) {
   const events = [];
   if (!message || typeof message !== 'object' || !payer) return events;
   for (const [field, bucket] of [['commentMarker', 'marker'], ['commentPolygon', 'polygon']]) {
     const body = message[field];
     if (!body || !body.timestamp) continue;
+    const text = clipCommentText(body.text);
+    const image = commentImageValue(body.image);
+    if (!text && !image) continue;
     events.push({
       type: 'comment',
       field,
       bucket,
       stamp: String(body.timestamp),
       payer,
-      text: clipCommentText(body.text),
+      text,
+      image,
       created: at,
       at,
     });
@@ -54,6 +107,9 @@ export function readCommentEvents(message, payer, at) {
   for (const [field, bucket] of [['replyMarker', 'marker'], ['replyPolygon', 'polygon']]) {
     const body = message[field];
     if (!body || !body.parentId) continue;
+    const text = clipCommentText(body.text);
+    const image = commentImageValue(body.image);
+    if (!text && !image) continue;
     events.push({
       type: 'reply',
       field,
@@ -61,7 +117,8 @@ export function readCommentEvents(message, payer, at) {
       stamp: body.timestamp ? String(body.timestamp) : '',
       parentId: String(body.parentId),
       payer,
-      text: clipCommentText(body.text),
+      text,
+      image,
       created: at,
       at,
     });
@@ -69,7 +126,7 @@ export function readCommentEvents(message, payer, at) {
   for (const field of COMMENT_EDIT_FIELDS) {
     const body = message[field];
     if (!body || body.created == null || body.created === '') continue;
-    events.push({
+    const event = {
       type: 'edit',
       kind: 'edit',
       field,
@@ -80,7 +137,9 @@ export function readCommentEvents(message, payer, at) {
       created: String(body.created),
       at,
       text: body.text,
-    });
+    };
+    if (hasOwn(body, 'image')) event.image = commentImageValue(body.image);
+    events.push(event);
   }
   for (const field of COMMENT_DELETE_FIELDS) {
     const body = message[field];
@@ -111,13 +170,15 @@ export function mutationVerdict(node, event) {
   if (event.kind === 'edit') {
     if (node.deleted) return null;
     const text = clipCommentText(event.text == null ? '' : event.text);
-    if (!text) return null;
+    // The edit's media when it names one ("" clears), else the comment's.
+    const image = hasOwn(event, 'image') ? commentImageValue(event.image) : commentImageValue(node.image);
+    if (!text && !image) return null;
     if (lastAt && at < lastAt) return null;
-    return { kind: 'edit', text, edited: true, deleted: false, mutationAt: at };
+    return { kind: 'edit', text, image, edited: true, deleted: false, mutationAt: at };
   }
   if (event.kind === 'delete') {
     if (lastAt && at < lastAt) return null;
-    return { kind: 'delete', text: '', edited: !!node.edited, deleted: true, mutationAt: at };
+    return { kind: 'delete', text: '', image: '', edited: !!node.edited, deleted: true, mutationAt: at };
   }
   return null;
 }
@@ -139,6 +200,7 @@ export function createCommentState() {
 function assignVerdict(node, verdict) {
   const created = node.created;
   node.text = verdict.text;
+  node.image = verdict.image || '';
   node.edited = verdict.edited;
   node.deleted = verdict.deleted;
   node.mutationAt = verdict.mutationAt;
@@ -155,6 +217,7 @@ export function insertComment(state, comment, parentId) {
     created,
     payer,
     text: clipCommentText(comment.text),
+    image: commentImageValue(comment.image),
     likeCount: Number(comment.likeCount) || 0,
     edited: false,
     deleted: false,
@@ -196,8 +259,8 @@ export function applyCommentMutation(state, event) {
 }
 
 // A deleted comment with nothing left to show is omitted. One with a
-// visible reply stays as a placeholder (text ""). An all-deleted branch
-// drops out from the leaves up. The input tree is not mutated.
+// visible reply stays as a placeholder (text "", no media). An all-deleted
+// branch drops out from the leaves up. The input tree is not mutated.
 export function filterCommentTree(nodes) {
   const out = [];
   for (const node of nodes || []) {
@@ -207,6 +270,7 @@ export function filterCommentTree(nodes) {
     out.push({
       ...node,
       text: node.deleted ? '' : node.text,
+      image: node.deleted ? '' : commentImageValue(node.image),
       deleted: !!node.deleted,
       edited: !!node.edited,
       replies,
@@ -273,7 +337,7 @@ function countReal(nodes, parentId, into = new Map()) {
   for (const node of nodes || []) {
     if (!node) continue;
     if (!node.pending) {
-      const key = `${parentId || ''}|${node.payer || ''}|${node.text || ''}`;
+      const key = `${parentId || ''}|${node.payer || ''}|${node.text || ''}|${node.image || ''}`;
       into.set(key, (into.get(key) || 0) + 1);
     }
     if (node.replies) countReal(node.replies, node.created, into);
@@ -306,7 +370,7 @@ export function reconcileCommentTree(previous, incoming, pendings) {
   const used = new Map();
   for (const pending of pendings || []) {
     const node = pending && pending.node;
-    const key = `${(pending && pending.parentId) || ''}|${(node && node.payer) || ''}|${(node && node.text) || ''}`;
+    const key = `${(pending && pending.parentId) || ''}|${(node && node.payer) || ''}|${(node && node.text) || ''}|${(node && node.image) || ''}`;
     const seen = used.get(key) || 0;
     const extra = (nextCounts.get(key) || 0) - (prevCounts.get(key) || 0) - seen;
     if (extra > 0) {

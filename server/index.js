@@ -30,7 +30,7 @@ import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { SEALED_MAX, sealedUploadPlan } from "./sealedupload.js";
 import { posterTargetKey } from "../mediaurl.js";
 import { isOwnR2Image, r2PublicBase } from "../r2public.js";
-import { clipCommentText, filterCommentTree, mutationVerdict, readCommentEvents, sortCommentTree } from "../commentops.js";
+import { clipCommentText, commentImageValue, filterCommentTree, mutationVerdict, readCommentEvents, sortCommentTree } from "../commentops.js";
 import { createPendingPosters, issuePosterEdit, posterEditMatches } from "./pendingposters.js";
 import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
@@ -240,6 +240,9 @@ db.exec(`
     edited     INTEGER NOT NULL DEFAULT 0,
     deleted    INTEGER NOT NULL DEFAULT 0,
     edited_at  TEXT,
+    -- the comment's one media address (commentops.js commentImageValue),
+    -- NULL for none; a delete clears it with the text
+    image      TEXT,
     PRIMARY KEY (topic_id, target_key, created, payer)
   );
   -- small key/value flags (e.g. "derived views were backfilled once")
@@ -303,6 +306,7 @@ for (const migration of [
   "ALTER TABLE comments ADD COLUMN edited INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE comments ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE comments ADD COLUMN edited_at TEXT",
+  "ALTER TABLE comments ADD COLUMN image TEXT",
 ]) {
   try {
     db.exec(migration);
@@ -677,17 +681,17 @@ const q = {
     "DELETE FROM reactions WHERE topic_id = ? AND target_key = ? AND payer = ?"
   ),
   insertComment: db.prepare(`
-    INSERT OR IGNORE INTO comments (topic_id, target_key, created, payer, text, parent_id)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO comments (topic_id, target_key, created, payer, text, parent_id, image)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `),
   listComments: db.prepare(
-    "SELECT created, payer, text, parent_id, edited, deleted, edited_at FROM comments WHERE topic_id = ? AND target_key = ? ORDER BY created ASC"
+    "SELECT created, payer, text, parent_id, edited, deleted, edited_at, image FROM comments WHERE topic_id = ? AND target_key = ? ORDER BY created ASC"
   ),
   findCommentByAuthor: db.prepare(
-    "SELECT created, payer, text, parent_id, edited, deleted, edited_at FROM comments WHERE topic_id = ? AND created = ? AND payer = ? LIMIT 1"
+    "SELECT created, payer, text, parent_id, edited, deleted, edited_at, image FROM comments WHERE topic_id = ? AND created = ? AND payer = ? LIMIT 1"
   ),
   updateCommentMutation: db.prepare(
-    "UPDATE comments SET text = ?, edited = ?, deleted = ?, edited_at = ? WHERE topic_id = ? AND created = ? AND payer = ?"
+    "UPDATE comments SET text = ?, image = ?, edited = ?, deleted = ?, edited_at = ? WHERE topic_id = ? AND created = ? AND payer = ?"
   ),
   // One row per post. The insert adds the first view; a repeat adds one.
   bumpPopupView: db.prepare(`
@@ -1217,11 +1221,13 @@ function applyContentReactions(topicId, payer, body, created) {
     else q.upsertReaction.run(topicId, key, payer, kind);
     break;
   }
+  // readCommentEvents drops a comment with neither text nor media, and
+  // keeps only an image address that can be shown ("" is stored as NULL).
   for (const event of readCommentEvents(body, payer, created)) {
     if (event.type === "comment") {
-      q.insertComment.run(topicId, event.stamp, created, payer, event.text, null);
+      q.insertComment.run(topicId, event.stamp, created, payer, event.text, null, event.image || null);
     } else if (event.type === "reply") {
-      q.insertComment.run(topicId, event.parentId, created, payer, event.text, event.parentId);
+      q.insertComment.run(topicId, event.parentId, created, payer, event.text, event.parentId, event.image || null);
     } else if (event.type === "edit" || event.type === "delete") {
       applyStoredCommentMutation(topicId, event);
     }
@@ -1236,6 +1242,7 @@ function applyStoredCommentMutation(topicId, event) {
     payer: row.payer,
     created: row.created,
     text: row.text,
+    image: row.image || "",
     edited: !!row.edited,
     deleted: !!row.deleted,
     mutationAt: row.edited_at || "",
@@ -1243,6 +1250,7 @@ function applyStoredCommentMutation(topicId, event) {
   if (!verdict) return;
   q.updateCommentMutation.run(
     verdict.text,
+    verdict.image || null,
     verdict.edited ? 1 : 0,
     verdict.deleted ? 1 : 0,
     verdict.mutationAt,
@@ -1430,6 +1438,7 @@ function commentTreeNode(row, replies) {
     created: row.created,
     payer: row.payer,
     text: deleted ? "" : String(row.text || ""),
+    image: deleted ? "" : commentImageValue(row.image || ""),
     parent_id: row.parent_id == null ? null : row.parent_id,
     edited: !!row.edited,
     deleted,
