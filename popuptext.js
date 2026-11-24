@@ -13,25 +13,107 @@ import { brightenRing, createRing, fitRing, paintRing } from './readingring.js';
 // A linked X post sits in the code where the popup shows it, so a screen
 // reader and Tab reach it there too. Portrait is one scroll body in the
 // feed's order (text, Show more, picture, X post): the post follows the
-// picture. Landscape shows the picture as the left card and the text and
-// the post in the right one, one scroll (style.css "Map popup: one scroll
-// body"): the post goes last in the message box, as it does with no
-// picture. Turning the phone moves it (xembed.js placeXEmbeds).
+// picture, or goes last in the message box when there is none. Landscape
+// gives the post the left card (style.css "Map popup: one scroll body"):
+// it follows the message box in the body, and a picture moves into the
+// message box under the text and its Show more, the right card's one
+// scroll. Turning the phone puts the picture back, moves the post
+// (xembed.js placeXEmbeds), then places the picture again, so portrait
+// ends as it was built.
 const landscape = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
   ? window.matchMedia('(orientation: landscape)')
   : null;
-if (landscape) landscape.addEventListener('change', () => placeXEmbeds());
+// A popup's body -> its message box, for placing the picture.
+const boxes = new WeakMap();
+if (landscape) {
+  landscape.addEventListener('change', () => {
+    const bodies = [...document.querySelectorAll('.popup-body')].filter((body) => boxes.has(body));
+    for (const body of bodies) popupMediaBack(body);
+    placeXEmbeds();
+    for (const body of bodies) placePopupMedia(body);
+  });
+}
 
 // bubble: the popup's text; host: its message box (.popup-msg).
 export function paintPopupXEmbeds(bubble, host) {
+  const body = host.parentElement;
+  if (body) {
+    boxes.set(body, host);
+    watchPopupMedia(body);
+    // Portrait asks for the picture in the body. Landscape places the post
+    // right after the message box wherever the picture is, so a repaint
+    // there leaves X's iframe where it is.
+    if (!(landscape && landscape.matches)) popupMediaBack(body);
+  }
   paintXEmbeds(bubble, {
     host,
     after: () => {
-      if (landscape && landscape.matches) return null;
-      const body = host.parentElement;
-      return body ? body.querySelector(':scope > .popup-media-card') : null;
+      if (landscape && landscape.matches) return host;
+      const parent = host.parentElement;
+      return parent ? parent.querySelector(':scope > .popup-media-card') : null;
     },
   });
+  if (body) placePopupMedia(body);
+}
+
+// node goes into parent before `before` (null: last), unless it is there.
+// moveBefore keeps a playing video as it is (Chrome).
+function moveNode(parent, node, before) {
+  if (before === node || (node.parentNode === parent && node.nextSibling === before)) return;
+  if (typeof parent.moveBefore === 'function' && parent.isConnected && node.isConnected) {
+    try {
+      parent.moveBefore(node, before);
+      return;
+    } catch { /* not movable here: insert it */ }
+  }
+  parent.insertBefore(node, before);
+}
+
+// The picture back in the body, right after the message box.
+function popupMediaBack(body) {
+  const host = boxes.get(body);
+  if (!host || host.parentNode !== body) return;
+  const media = host.querySelector(':scope > .popup-media-card');
+  if (media) moveNode(body, media, host.nextSibling);
+}
+
+// Landscape, with the X post beside the message box (the left card): the
+// picture goes into the message box after its Show more. Otherwise it is
+// back right after the message box.
+export function placePopupMedia(body) {
+  const host = body ? boxes.get(body) : null;
+  if (!host || host.parentNode !== body) return;
+  const inside = host.querySelector(':scope > .popup-media-card');
+  const media = inside || body.querySelector(':scope > .popup-media-card');
+  if (!media) return;
+  const next = host.nextElementSibling;
+  const beside = !!(landscape && landscape.matches && next && next.matches('.x-embed-list') && host.classList.contains('popup-msg'));
+  if (beside) {
+    const more = host.querySelector(':scope > .popup-more');
+    moveNode(host, media, more ? more.nextSibling : null);
+  } else if (inside) {
+    moveNode(body, media, host.nextSibling);
+  }
+}
+
+// An X post that goes (X would not show it, the setting turned off, an
+// edit took the link out) gives the picture its place back.
+const mediaWatch = typeof MutationObserver === 'function'
+  ? new MutationObserver((records) => {
+    const seen = new Set();
+    for (const record of records) {
+      if (seen.has(record.target)) continue;
+      seen.add(record.target);
+      placePopupMedia(record.target);
+    }
+  })
+  : null;
+const mediaWatched = new WeakSet();
+
+function watchPopupMedia(body) {
+  if (!mediaWatch || mediaWatched.has(body)) return;
+  mediaWatched.add(body);
+  mediaWatch.observe(body, { childList: true });
 }
 
 // bubble -> { host, flow, more, text, title }
@@ -189,6 +271,8 @@ function unwatch(bubble, state) {
   clearTimeout(state.ring.settle);
   state.more.remove();
   clearXEmbeds(bubble);
+  // No X post left beside the box: the picture goes back to the body.
+  placePopupMedia(state.host.parentElement);
   state.host.classList.remove('popup-msg', 'is-more');
   bubble.replaceChildren();
   parked.set(bubble, { host: state.host, title: state.title });

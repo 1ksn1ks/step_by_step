@@ -625,6 +625,8 @@ const resizer = typeof ResizeObserver === 'function'
 // own size and font settings, so the post does too. The scale leaves the
 // box at least X_MIN_WIDTH of X's pixels, or X would cut its own post.
 // It is set before X builds the post, so X builds it at the box's width.
+// A list with --xe-fit: height (a landscape map popup's left card) also
+// keeps the whole post in its height (xEmbedFitZoom).
 
 // The scale for a post under text of textPx pixels in a box boxWidth wide.
 export function xEmbedZoom(textPx, boxWidth) {
@@ -634,6 +636,18 @@ export function xEmbedZoom(textPx, boxWidth) {
   return Math.round(zoom * 1000) / 1000;
 }
 
+// A list that must show its whole posts (--xe-fit: height, a landscape map
+// popup's left card): the text-size scale, but no more than lets the
+// post's height at scale 1 (natural) fit its share of the box's height
+// (share; two posts share it). Never under 0.5: past that the card
+// scrolls.
+export function xEmbedFitZoom(textPx, boxWidth, share, natural) {
+  const zoom = xEmbedZoom(textPx, boxWidth);
+  if (!(share > 0) || !(natural > 0)) return zoom;
+  const fit = Math.floor((share / natural) * 1000) / 1000;
+  return Math.max(0.5, Math.min(zoom, fit));
+}
+
 function fitEmbed(card) {
   const frame = card.querySelector('.x-embed-frame');
   const list = card.parentElement;
@@ -641,9 +655,40 @@ function fitEmbed(card) {
   if (!frame || !list || !textEl) return;
   // A text hidden because it was only the link still has its size.
   const textPx = parseFloat(getComputedStyle(textEl).fontSize) || 0;
-  const zoom = xEmbedZoom(textPx, list.clientWidth);
+  const box = getComputedStyle(list);
+  let zoom;
+  if (box.getPropertyValue('--xe-fit').trim() === 'height') {
+    zoom = heightZoom(card, frame, list, box, textPx);
+  } else {
+    card._xFit = null;
+    zoom = xEmbedZoom(textPx, list.clientWidth);
+  }
   const value = Math.abs(zoom - 1) < 0.01 ? '' : String(zoom);
   if (frame.style.zoom !== value) frame.style.zoom = value;
+}
+
+// The scale in a --xe-fit: height list. The post's height at scale 1 is
+// the card's height over its scale now. X lays its post out again at each
+// scale (narrower text wraps more), so within one size of the box the
+// scale only goes down: a smaller post never asks for a bigger scale, and
+// the two never flip. A new box size starts from the text size again.
+// Until X has built the post there is no height to fit yet.
+function heightZoom(card, frame, list, box, textPx) {
+  const px = (name) => parseFloat(box.getPropertyValue(name)) || 0;
+  const width = list.clientWidth - px('padding-left') - px('padding-right');
+  const height = list.clientHeight - px('padding-top') - px('padding-bottom');
+  if (!card.classList.contains('is-ready')) return xEmbedZoom(textPx, width);
+  const count = list.querySelectorAll(':scope > .x-embed').length || 1;
+  const share = (height - px('row-gap') * (count - 1)) / count;
+  const now = parseFloat(frame.style.zoom) || 1;
+  const natural = card.offsetHeight / now;
+  let zoom = xEmbedFitZoom(textPx, width, share, natural);
+  // The box's outer size: a scroll bar coming or going is not a new size.
+  const key = `${list.offsetWidth}x${list.offsetHeight}x${count}`;
+  const last = card._xFit;
+  if (last && last.key === key && zoom > last.zoom) zoom = last.zoom;
+  card._xFit = { key, zoom };
+  return zoom;
 }
 
 // A box that changes size (the window, a phone turned, Settings > Popups >
@@ -962,8 +1007,8 @@ const MORE_BUTTONS = '.feed-more, .chat-msg-more, .swap-bio-more';
 
 // Where the list goes now: { parent, before } (before null: last), or null
 // while there is no place yet. A function `after` answers each time (a map
-// popup's picture in portrait, nothing in landscape); with no node from it
-// the list goes last in the host.
+// popup's picture in portrait, its message box in landscape); with no node
+// from it the list goes last in the host.
 function listSpot(state, textEl) {
   const after = typeof state.after === 'function' ? state.after() : state.after;
   if (!(after && after.parentNode) && state.host) return { parent: state.host, before: null };

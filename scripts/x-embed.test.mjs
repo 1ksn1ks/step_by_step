@@ -211,6 +211,107 @@ test("X's post is scaled so its text matches the text around it, and still fits"
   assert.equal(x.xEmbedZoom(25, 0), 1.25);
 });
 
+test("in a --xe-fit: height list the whole post fits: the text-size scale, capped by the height", () => {
+  // No height known yet: the text-size scale.
+  assert.equal(x.xEmbedFitZoom(18.8, 375, 0, 0), x.xEmbedZoom(18.8, 375));
+  assert.equal(x.xEmbedFitZoom(18.8, 375, 500, 0), 0.94);
+  // Fits already: not raised past the text size.
+  assert.equal(x.xEmbedFitZoom(18.8, 375, 500, 300), 0.94);
+  // Too tall: down to what fits (500 / 600, rounded down).
+  assert.equal(x.xEmbedFitZoom(18.8, 375, 500, 600), 0.833);
+  // Never under 0.5: past that the card scrolls.
+  assert.equal(x.xEmbedFitZoom(18.8, 375, 500, 2000), 0.5);
+  // The width limit still holds.
+  assert.equal(x.xEmbedFitZoom(30, 300, 5000, 100), 1.2);
+});
+
+// fitEmbed and heightZoom from the source, on a fake card whose post X
+// lays out again at each scale: at scale z its height at scale 1 is
+// natural(z), shorter as z goes down (the frame is wider in X's pixels).
+function fitter({ fit = "height", height = 500, width = 400, count = 1 } = {}) {
+  const source = read("../xembed.js");
+  const slice = (start) => {
+    const at = source.indexOf(start);
+    assert.notEqual(at, -1, start);
+    const next = source.slice(at + start.length).search(/\n(export )?(async )?function /);
+    return source.slice(at, next < 0 ? undefined : at + start.length + next);
+  };
+  const textEl = { fontSize: "18.8px" };
+  const pad = 10;
+  const box = { width, height, count };
+  const list = {
+    get clientWidth() { return box.width; },
+    get clientHeight() { return box.height + pad * 2; },
+    get offsetWidth() { return box.width + 2; },
+    get offsetHeight() { return box.height + pad * 2 + 2; },
+    querySelectorAll: () => cards,
+  };
+  const styles = new Map([[textEl, { fontSize: textEl.fontSize }], [list, {
+    getPropertyValue: (name) => ({ "--xe-fit": fit ? ` ${fit}` : "", "padding-left": `${pad}px`, "padding-right": `${pad}px`, "padding-top": `${pad}px`, "padding-bottom": `${pad}px`, "row-gap": "10px" })[name] || "",
+  }]]);
+  const cards = [];
+  for (let i = 0; i < count; i++) {
+    const frame = { style: { zoom: "" } };
+    const zoomNow = () => parseFloat(frame.style.zoom) || 1;
+    const card = {
+      ready: true,
+      frame,
+      natural: (z) => 400 + 400 * z,
+      classList: { contains: (name) => name === "is-ready" && card.ready },
+      querySelector: (sel) => (sel === ".x-embed-frame" ? frame : null),
+      parentElement: list,
+      _xText: textEl,
+      get offsetHeight() { return card.natural(zoomNow()) * zoomNow(); },
+    };
+    cards.push(card);
+  }
+  const fitEmbed = new Function("getComputedStyle", "xEmbedZoom", "xEmbedFitZoom", `
+    ${slice("function fitEmbed(")}
+    ${slice("function heightZoom(")}
+    return fitEmbed;
+  `)((el) => styles.get(el), x.xEmbedZoom, x.xEmbedFitZoom);
+  return { cards, box, fitEmbed, zoom: (card) => parseFloat(card.frame.style.zoom) || 1 };
+}
+
+test("a --xe-fit: height list scales each post down until it fits, and within one size never back up", () => {
+  const one = fitter();
+  const [card] = one.cards;
+  const seen = [];
+  // What X's resize and the card's ResizeObserver would do: fit again.
+  for (let i = 0; i < 8; i++) {
+    one.fitEmbed(card);
+    seen.push(one.zoom(card));
+  }
+  for (let i = 1; i < seen.length; i++) assert.ok(seen[i] <= seen[i - 1], `${seen}`);
+  assert.equal(seen.at(-1), seen.at(-2));
+  assert.ok(card.offsetHeight <= one.box.height, `${card.offsetHeight}`);
+  assert.ok(seen.at(-1) < 0.94);
+
+  // Two posts share the height, less the gap between them.
+  const two = fitter({ count: 2, height: 1000 });
+  for (let i = 0; i < 8; i++) for (const c of two.cards) two.fitEmbed(c);
+  for (const c of two.cards) assert.ok(c.offsetHeight <= (two.box.height - 10) / 2, `${c.offsetHeight}`);
+
+  // A bigger box starts from the text size again.
+  one.box.height = 2000;
+  one.fitEmbed(card);
+  assert.equal(one.zoom(card), 0.94);
+
+  // Before X has built the post: the text size, from the box's inner width.
+  const early = fitter({ width: 220 });
+  early.cards[0].ready = false;
+  early.fitEmbed(early.cards[0]);
+  assert.equal(early.zoom(early.cards[0]), x.xEmbedZoom(18.8, 200));
+});
+
+test("other lists keep the text-size scale", () => {
+  const plain = fitter({ fit: "", height: 50 });
+  plain.fitEmbed(plain.cards[0]);
+  assert.equal(plain.zoom(plain.cards[0]), x.xEmbedZoom(18.8, 400));
+  const css = read("../style.css");
+  assert.doesNotMatch(css.slice(css.indexOf("/* ── X posts (xembed.js)")), /--xe-fit/);
+});
+
 test("the device switch is meritocracy-x-embeds, on unless stored off", () => {
   assert.equal(x.X_EMBEDS_KEY, "meritocracy-x-embeds");
   assert.equal(x.xEmbedsOn(), false);

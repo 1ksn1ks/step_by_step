@@ -10148,8 +10148,9 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
 
   /* height auto: the stretch fills the column inside the 0.8u top margin.
      100% plus that margin ran 5px past the popup's bottom edge, which cut
-     off the bottom of Show more. */
-  .maplibregl-map .popup-sheet:not(:has(.popup-media-card)) .popup-body > div:not(.popup-media-card, .x-embed-list) {
+     off the bottom of Show more. A linked X post has the left card instead
+     ("Map popup: one scroll body"), and the text stays under the title. */
+  .maplibregl-map .popup-sheet:not(:has(.popup-media-card)):not(:has(> .popup-body > .x-embed-list)) .popup-body > div:not(.popup-media-card, .x-embed-list) {
     grid-column: 1;
     grid-row: 1 / -1;
     align-self: stretch;
@@ -24910,7 +24911,9 @@ html.is-draw-picking #map-topbar {
    text and its picture show together, as when the picture was above it.
    Landscape keeps its two cards, the picture filling the left one. The
    message box (the right card's text row, or the left card when there is
-   no picture) is the one scroll body there, the X post last in it.
+   no picture) is the one scroll body there. A linked X post takes the
+   left card (below), and the picture, if any, moves into the message box
+   under the text (popuptext.js placePopupMedia).
    Once the text is longer than that (.is-more, popuptext.js) it also
    leaves its Show more row; a text that fits has the whole room, as
    before. popuptext.js only takes .is-more off once the text fits with
@@ -25012,6 +25015,79 @@ html.is-draw-picking #map-topbar {
   }
   .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-body > div.popup-msg.is-more > .popup-text-bubble {
     max-height: calc(100% - var(--popup-more-h));
+  }
+  /* A linked X post has the left card (popuptext.js puts it right after
+     the message box): the picture's glass, the post in the middle of it.
+     Its text is at the popup's size but the whole post stays in the card
+     (--xe-fit: height, xembed.js; two posts share the height); the card
+     scrolls only when the smallest scale is still too tall. Without a
+     picture the text stays in the right card, under the title. */
+  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-body > .x-embed-list {
+    --xe-fit: height;
+    grid-column: 1;
+    grid-row: 1 / -1;
+    align-self: stretch;
+    justify-self: stretch;
+    box-sizing: border-box;
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: 100%;
+    margin: 0;
+    padding: var(--u);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.22);
+    border-radius: calc(var(--u) * 2);
+    box-shadow: 0 calc(var(--u) * 1.2) calc(var(--u) * 3) rgba(0, 0, 0, 0.55), inset 0 0 0 calc(var(--u) * 0.12) rgba(255, 255, 255, 0.05);
+    background-color: #0b0d13;
+    background-image: radial-gradient(130% 130% at 50% 0%, #1b1f29 0%, #0b0d13 70%);
+  }
+  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-body > .x-embed-list > .x-embed {
+    margin-block: auto;
+  }
+  /* The picture beside it, in the message box after Show more: the box's
+     full width at the media's own shape, the whole of it in view (at most
+     the box's visible height; the box is a size container while it holds
+     the picture), no blur. A video still waiting for its poster, or a
+     picture still loading, has no shape yet and keeps 16:9. */
+  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-body > div.popup-msg:has(> .popup-media-card) {
+    container-type: size;
+  }
+  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-body > div.popup-msg > .popup-media-card:not(.draw-popup-media) {
+    --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
+    position: relative;
+    flex: 0 0 auto;
+    align-self: stretch;
+    display: block;
+    box-sizing: border-box;
+    width: auto;
+    max-width: none;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    aspect-ratio: auto;
+    margin: calc(var(--u) * 0.8) calc(var(--u) * 0.5) 0;
+    cursor: default;
+  }
+  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-body > div.popup-msg > .popup-media-card:not(.draw-popup-media) > :is(img:not(.feed-media-backdrop), video, canvas.media-still) {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    max-height: 100cqb;
+    object-fit: contain;
+  }
+  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-body > div.popup-msg > .popup-media-card:not(.draw-popup-media):is(.is-media-pending, :has(> video:not(.has-poster))) {
+    aspect-ratio: 16 / 9;
+  }
+  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-body > div.popup-msg > .popup-media-card:not(.draw-popup-media):is(.is-media-pending, :has(> video:not(.has-poster))) > :is(img:not(.feed-media-backdrop), video, canvas.media-still) {
+    height: 100%;
+  }
+  .maplibregl-map .maplibregl-popup-content > .popup-sheet > .popup-body > div.popup-msg > .popup-media-card:not(.draw-popup-media) > .feed-media-backdrop {
+    display: none;
   }
 }
 
