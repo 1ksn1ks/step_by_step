@@ -320,6 +320,74 @@ test("a file already in R2 is not rebuilt, and a full daily budget still serves"
   clearHcs1Cache();
 });
 
+test("warm stores past 50 MB under the shared total, and a visitor still stops at 50 MB", async () => {
+  clearHcs1Cache();
+  const each = 8 * 1024 * 1024;
+  const warmIds = ["0.0.101", "0.0.102", "0.0.103", "0.0.104", "0.0.105", "0.0.106", "0.0.107"];
+  const visitorIds = ["0.0.111", "0.0.112", "0.0.113", "0.0.114", "0.0.115", "0.0.116", "0.0.117"];
+  const topics = {};
+  for (const id of [...warmIds, ...visitorIds]) topics[id] = inscribed(Buffer.alloc(each), "image/png");
+  const mirror = mirrorOf(topics);
+  const r2 = fakeR2();
+  const now = () => 12_000;
+  const summary = await runHcs1WarmTick({
+    collect: () => warmIds,
+    mirrorFetch: mirror.fetchJson,
+    mirror: MIRROR,
+    s3: r2,
+    bucket: "media",
+    now,
+    perTick: warmIds.length,
+    log() {},
+  });
+  assert.equal(summary.warmed, warmIds.length);
+  assert.equal(summary.failed, 0);
+  for (const id of warmIds) assert.equal(r2.objects.has(`hcs1/${id}`), true);
+
+  let visitorStored = 0;
+  for (const id of visitorIds) {
+    const file = await getHcs1File(id, {
+      mirrorFetch: mirror.fetchJson,
+      mirror: MIRROR,
+      s3: r2,
+      bucket: "media",
+      ip: "203.0.113.50",
+      now,
+    });
+    assert.equal(file.ok, true);
+    if (r2.objects.has(`hcs1/${id}`)) visitorStored += 1;
+  }
+  assert.equal(visitorStored, 6);
+  assert.equal(r2.objects.has("hcs1/0.0.117"), false);
+  clearHcs1Cache();
+});
+
+test("a warm tick stops after a rebuild that R2 would not store", async () => {
+  clearHcs1Cache();
+  const topics = {
+    "0.0.81": inscribed(Buffer.from("one-file"), "image/png"),
+    "0.0.82": inscribed(Buffer.from("two-file"), "image/png"),
+  };
+  const mirror = mirrorOf(topics);
+  const r2 = fakeR2();
+  const summary = await runHcs1WarmTick({
+    collect: () => ["0.0.81", "0.0.82"],
+    mirrorFetch: mirror.fetchJson,
+    mirror: MIRROR,
+    s3: r2,
+    bucket: "media",
+    r2DailyTotalBytes: 0,
+    now: () => 13_000,
+    log() {},
+  });
+  assert.equal(summary.warmed, 1);
+  assert.equal(summary.failed, 0);
+  assert.ok(asked(mirror.calls, "0.0.81") > 0);
+  assert.equal(asked(mirror.calls, "0.0.82"), 0);
+  assert.equal(r2.objects.has("hcs1/0.0.81"), false);
+  clearHcs1Cache();
+});
+
 test("a tick that throws while collecting still returns", async () => {
   const lines = [];
   const summary = await runHcs1WarmTick({

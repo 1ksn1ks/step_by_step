@@ -111,6 +111,8 @@ function fileOptions(options) {
     now: options.now,
     newRebuildMax: options.newRebuildMax,
     newRebuildWindowMs: options.newRebuildWindowMs,
+    // Left unset, ip "warm" takes the shared daily total as its per-IP
+    // write budget (hcs1.js). A caller can still pass a smaller one.
     r2DailyIpBytes: options.r2DailyIpBytes,
     r2DailyTotalBytes: options.r2DailyTotalBytes,
     r2DayMs: options.r2DayMs,
@@ -163,8 +165,12 @@ export async function runHcs1WarmTick(options = {}) {
       }
       if (result && result.status === 503) break;
       if (result && result.status === 429) break;
-      if (result && result.ok && result.source === "mirror") warmed += 1;
-      else if (result && result.ok) skipped += 1;
+      if (result && result.ok && result.source === "mirror") {
+        warmed += 1;
+        // Built, but R2 would not keep it. Further files this tick would
+        // be rebuilt and then dropped the same way.
+        if (result.r2Skipped) break;
+      } else if (result && result.ok) skipped += 1;
       else failed += 1;
     }
   } catch {

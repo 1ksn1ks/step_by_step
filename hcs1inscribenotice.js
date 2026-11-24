@@ -8,7 +8,7 @@
 // runInscribe is not wired to a button yet.
 
 import { HCS1_INSCRIBE_MAX_BYTES } from "./hcs1inscribe.js";
-import { prepareInscribeFile, startInscribe } from "./hcs1inscribewallet.js";
+import { inscribePrepared, prepareInscribeFile } from "./hcs1inscribewallet.js";
 import { hashinalUrl } from "./hashinalurl.js";
 import { POST_IMAGE_EDGE, POST_STILL_TYPES } from "./postimages.js";
 import { toast } from "./toast.js";
@@ -379,9 +379,10 @@ function sentCount(resume) {
   return resume && Array.isArray(resume.sentIndexes) ? resume.sentIndexes.length : 0;
 }
 
-// One run of startInscribe. A failure leaves a toast that runs this again
-// with the error's resume data: only the missing chunks are sent.
-async function inscribeWith(file, total, resume) {
+// One inscription of the bytes prepareInscribeFile already made. A failure
+// leaves a toast that runs this again with those same bytes and the error's
+// resume data: only the missing chunks are sent. The file is not prepared again.
+async function inscribeWith(prepared, total, resume) {
   let chunks = Math.max(1, total);
   let held = toast.hold(`Inscribing ${Math.min(sentCount(resume) + 1, chunks)} of ${chunks}`);
   const release = () => {
@@ -390,7 +391,7 @@ async function inscribeWith(file, total, resume) {
     held = null;
   };
   try {
-    const result = await startInscribe(file, {
+    const result = await inscribePrepared(prepared, {
       resume: resume || undefined,
       onProgress: ({ sent, total: count }) => {
         if (Number.isFinite(count) && count > 0) chunks = count;
@@ -422,7 +423,7 @@ async function inscribeWith(file, total, resume) {
       if (tapped || running) return;
       tapped = true;
       notice.done();
-      running = inscribeWith(file, chunks, next).finally(() => {
+      running = inscribeWith(prepared, chunks, next).finally(() => {
         running = null;
       });
     });
@@ -449,7 +450,7 @@ async function runFlow(file, options) {
     return null;
   }
   if (!(await confirmInscribe(info))) return null;
-  return inscribeWith(file, (prepared.txCount || 1) - 1, null);
+  return inscribeWith(prepared, (prepared.txCount || 1) - 1, null);
 }
 
 // The whole inscribe: prepare, the over-cap card or the confirm card, then

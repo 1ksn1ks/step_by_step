@@ -471,7 +471,7 @@ test("runInscribe stops at the over-cap card, and Not now sends nothing", async 
     assert.match(rows[2][1], /^1 topic \+ 1 chunk = 2 transactions; /);
     assert.deepEqual(rows[3], ["Estimated cost", "≈ $0.0108"]);
     click(env.doc, "Not now");
-    // No toast means startInscribe was never reached: it starts with one.
+    // No toast means the wallet step was never reached: it starts with one.
     assert.equal(await declined, null);
     assert.equal(env.doc.lookups.includes("toast-container"), false);
   } finally {
@@ -499,7 +499,7 @@ test("the cards reuse the intro classes and the flow calls the wallet module", (
   assert.match(src, /opacity 0\.25s ease-out/);
   assert.match(src, /setTimeout\(remove, 300\)/);
   assert.match(src, /prefers-reduced-motion: reduce/);
-  assert.match(src, /import \{ prepareInscribeFile, startInscribe \} from "\.\/hcs1inscribewallet\.js"/);
+  assert.match(src, /import \{ inscribePrepared, prepareInscribeFile \} from "\.\/hcs1inscribewallet\.js"/);
   assert.match(src, /link\.rel = "noopener"/);
 
   // prepare, then the over-cap card or the confirm card, then the wallet.
@@ -508,15 +508,19 @@ test("the cards reuse the intro classes and the flow calls the wallet module", (
   const capAt = flow.indexOf("if (prepared.overCap)");
   const overAt = flow.indexOf("await showInscribeOverCap(info)");
   const confirmAt = flow.indexOf("if (!(await confirmInscribe(info))) return null");
-  const startAt = flow.indexOf("inscribeWith(file");
+  const startAt = flow.indexOf("inscribeWith(prepared");
   assert.ok(prepareAt > 0 && capAt > prepareAt && overAt > capAt && confirmAt > overAt && startAt > confirmAt);
+  assert.deepEqual(flow.match(/prepareInscribeFile/g), ["prepareInscribeFile"]);
+  assert.equal(flow.indexOf("startInscribe"), -1);
 
   const run = src.slice(src.indexOf("async function inscribeWith"), src.indexOf("async function runFlow"));
   assert.match(run, /toast\.hold\(`Inscribing \$\{sent \+ 1\} of \$\{chunks\}`\)/);
-  assert.match(run, /await startInscribe\(file, \{/);
+  assert.match(run, /await inscribePrepared\(prepared, \{/);
+  assert.equal(run.indexOf("prepareInscribeFile"), -1);
+  assert.equal(run.indexOf("startInscribe"), -1);
   assert.match(run, /Stopped at \$\{sentCount\(next\)\} of \$\{chunks\}\. Tap to resume/);
   assert.match(run, /stay: true/);
-  assert.match(run, /inscribeWith\(file, chunks, next\)/);
+  assert.match(run, /inscribeWith\(prepared, chunks, next\)/);
   assert.match(run, /toast\.success\("Inscribed", \{ action: hcsLink\(result\)/);
   assert.match(src, /link\.textContent = result\.hrl/);
   assert.match(src, /link\.href = hashinalUrl\(result\.topicId\)/);

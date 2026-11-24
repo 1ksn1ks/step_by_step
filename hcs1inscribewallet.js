@@ -3,7 +3,8 @@
 //
 // createHcs1Topic: a topic with the ephemeral submit key and no admin key.
 // submitHcs1Message: one JSON message, one transaction body, one approval.
-// Not wired to a button. Call startInscribe from the UI later.
+// Not wired to a button. startInscribe prepares a file and inscribes it.
+// A resume uses inscribePrepared on the bytes already prepared.
 
 import { TopicCreateTransaction, TopicMessageSubmitTransaction } from "@hashgraph/sdk";
 import { compressPostImage } from "./imagecompress.js";
@@ -73,10 +74,10 @@ export async function prepareInscribeFile(file) {
   };
 }
 
-// Later UI entry. No button calls this yet.
-export async function startInscribe(file, { onProgress, resume } = {}) {
-  const prepared = await prepareInscribeFile(file);
-  if (prepared.overCap) throw new Error("file is over 2 MB");
+// Inscribe bytes already prepared. Does not read or compress the file again,
+// so a resume sends the same bytes the first attempt hashed into the topic.
+export async function inscribePrepared(prepared, { onProgress, resume } = {}) {
+  if (!prepared || prepared.overCap) throw new Error("file is over 2 MB");
   return inscribeHcs1({
     bytes: prepared.bytes,
     mime: prepared.mime,
@@ -85,4 +86,9 @@ export async function startInscribe(file, { onProgress, resume } = {}) {
     onProgress,
     resume,
   });
+}
+
+// Prepare the file, then inscribe those bytes.
+export async function startInscribe(file, opts = {}) {
+  return inscribePrepared(await prepareInscribeFile(file), opts);
 }

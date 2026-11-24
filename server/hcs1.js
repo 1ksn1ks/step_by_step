@@ -27,7 +27,8 @@
 // - New hcs1/ R2 writes: HCS1_R2_DAILY_IP_MB per IP per day and
 //   HCS1_R2_DAILY_TOTAL_MB for every IP together (env
 //   HCS1_R2_DAILY_IP_MB, HCS1_R2_DAILY_TOTAL_MB). Over either budget the
-//   file is still served and the write is skipped.
+//   file is still served and the write is skipped. The warm-up IP ("warm")
+//   uses the shared daily total as its own per-IP budget.
 // - HCS1_MAX_BYTES / HCS1_MAX_MESSAGES per rebuild.
 // - HCS1_MISS_ENTRIES remembered misses, the oldest dropped first.
 
@@ -403,8 +404,12 @@ function allowR2Write(ip, size, { ipMax, totalMax, windowMs, at }) {
 }
 
 function r2WriteAllowed(entry, opts) {
-  const ipMax = Number.isFinite(opts.r2DailyIpBytes) ? opts.r2DailyIpBytes : HCS1_R2_DAILY_IP_MB * 1024 * 1024;
   const totalMax = Number.isFinite(opts.r2DailyTotalBytes) ? opts.r2DailyTotalBytes : HCS1_R2_DAILY_TOTAL_MB * 1024 * 1024;
+  // A visitor keeps the smaller per-IP day. Warming is one background IP,
+  // so its per-IP day is the shared total unless the caller set one.
+  const ipMax = Number.isFinite(opts.r2DailyIpBytes)
+    ? opts.r2DailyIpBytes
+    : (opts.ip === "warm" ? totalMax : HCS1_R2_DAILY_IP_MB * 1024 * 1024);
   const windowMs = opts.r2DayMs > 0 ? opts.r2DayMs : HCS1_R2_DAY_MS;
   return allowR2Write(opts.ip || "unknown", entry.size, {
     ipMax,
@@ -564,10 +569,13 @@ async function rebuild(topicId, opts) {
   const entry = { bytes: file.bytes, mime: file.mime, sha256: file.sha256, size: file.bytes.length };
   if (entry.size <= HCS1_CACHE_ITEM_BYTES) memory.set(topicId, entry);
   // Over the daily budget the file is still served; the put is skipped.
-  if (opts.s3 && opts.bucket && hcs1Storable(file.mime, opts.storeTypes) && r2WriteAllowed(entry, opts)) {
-    await toR2(topicId, file, opts);
+  // r2Skipped is that case only, so the warm-up can stop the tick.
+  let r2Skipped = false;
+  if (opts.s3 && opts.bucket && hcs1Storable(file.mime, opts.storeTypes)) {
+    if (r2WriteAllowed(entry, opts)) await toR2(topicId, file, opts);
+    else r2Skipped = true;
   }
-  return { ok: true, status: 200, source: "mirror", ...entry };
+  return { ok: true, status: 200, source: "mirror", r2Skipped, ...entry };
 }
 
 async function load(topicId, opts) {
