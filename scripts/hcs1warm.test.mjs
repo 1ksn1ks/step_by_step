@@ -18,12 +18,16 @@ import {
 import {
   HCS1_BODY_TOPIC_SQL,
   HCS1_WARM_INTERVAL_MS,
+  HCS1_WARM_LIST_CAP,
   HCS1_WARM_MISS_MS,
   HCS1_WARM_PER_TICK,
   collectKnownHcs1Topics,
+  hcs1WarmListState,
   readHcs1BodyTopics,
   resetHcs1BodyTopics,
+  resetHcs1WarmSkips,
   runHcs1WarmTick,
+  setHcs1WarmListCap,
   startHcs1Warm,
 } from "../server/hcs1warm.js";
 
@@ -580,21 +584,366 @@ test("the bodies query reads only new rows", () => {
         },
       };
       const page = [...readHcs1BodyTopics(bulkQuery)];
-      assert.equal(page.length, 2000);
-      assert.deepEqual(bulkBounds, [0]);
+      const cut = bulk.prepare("SELECT rowid AS id FROM messages ORDER BY rowid LIMIT 1 OFFSET 1999").get();
+      assert.deepEqual(bulkBounds, [0, cut.id]);
+      assert.notEqual(bulkBounds[1], 0);
+      assert.equal(page.length, 2001);
       assert.equal(page[0], "0.0.600000");
       assert.equal(page[1999], "0.0.601999");
-      const rest = [...readHcs1BodyTopics(bulkQuery)];
-      const cut = bulk.prepare("SELECT rowid AS id FROM messages ORDER BY rowid LIMIT 1 OFFSET 1999").get();
-      assert.equal(bulkBounds[1], cut.id);
-      assert.notEqual(bulkBounds[1], 0);
-      assert.equal(rest.length, 2001);
-      assert.equal(rest[2000], "0.0.602000");
+      assert.equal(page[2000], "0.0.602000");
     } finally {
       bulk.close();
     }
   } finally {
     resetHcs1BodyTopics();
+    db.close();
+  }
+});
+
+function messagesDb() {
+  const db = new DatabaseSync(":memory:");
+  db.exec(`
+    CREATE TABLE messages (
+      topic_id TEXT NOT NULL,
+      seq INTEGER NOT NULL,
+      ts TEXT NOT NULL,
+      payer TEXT NOT NULL,
+      body TEXT NOT NULL,
+      PRIMARY KEY (topic_id, seq)
+    )
+  `);
+  return db;
+}
+
+function quietTick(extra) {
+  return { mirror: MIRROR, log() {}, ...extra };
+}
+
+test("an expired miss is pruned and retried in the same tick", async () => {
+  clearHcs1Cache();
+  resetHcs1WarmSkips();
+  const kept = "0.0.311";
+  const gone = "0.0.312";
+  const mirror = mirrorOf({});
+  let clock = 40_000;
+  const base = quietTick({
+    mirrorFetch: mirror.fetchJson,
+    now: () => clock,
+    perTick: 5,
+  });
+  const first = await runHcs1WarmTick({ ...base, collect: () => [kept, gone] });
+  assert.equal(first.failed, 2);
+  assert.deepEqual(hcs1WarmListState().missed, [kept, gone]);
+  const calls = mirror.calls.length;
+  clock = 40_000 + HCS1_WARM_MISS_MS - 1;
+  clearHcs1Cache();
+  const early = await runHcs1WarmTick({ ...base, collect: () => [kept] });
+  assert.equal(early.skipped, 1);
+  assert.equal(early.failed, 0);
+  assert.equal(mirror.calls.length, calls);
+  assert.deepEqual(hcs1WarmListState().missed, [kept, gone]);
+  clock = 40_000 + HCS1_WARM_MISS_MS;
+  clearHcs1Cache();
+  const retried = await runHcs1WarmTick({ ...base, collect: () => [kept] });
+  assert.equal(retried.failed, 1);
+  assert.equal(retried.skipped, 0);
+  assert.ok(mirror.calls.length > calls);
+  assert.deepEqual(hcs1WarmListState().missed, [kept]);
+  clearHcs1Cache();
+  resetHcs1WarmSkips();
+});
+
+test("a stored topic is headed again only after the miss window", async () => {
+  clearHcs1Cache();
+  resetHcs1WarmSkips();
+  const id = "0.0.211";
+  const r2 = fakeR2();
+  let heads = 0;
+  let mirrorCalls = 0;
+  const send = r2.send.bind(r2);
+  r2.send = async (command) => {
+    if (command.constructor.name === "HeadObjectCommand") heads += 1;
+    return send(command);
+  };
+  r2.objects.set(`hcs1/${id}`, {
+    Body: Buffer.from("stored"),
+    Metadata: { sha256: "ab".repeat(32), mime: "image/png" },
+  });
+  let clock = 50_000;
+  const opts = quietTick({
+    collect: () => [id],
+    mirrorFetch: async () => {
+      mirrorCalls += 1;
+      throw new Error("mirror");
+    },
+    mirror: MIRROR,
+    s3: r2,
+    bucket: "media",
+    now: () => clock,
+  });
+  const first = await runHcs1WarmTick(opts);
+  assert.equal(first.skipped, 1);
+  assert.equal(first.warmed, 0);
+  assert.equal(heads, 1);
+  assert.equal(mirrorCalls, 0);
+  clock = 50_000 + HCS1_WARM_MISS_MS - 1;
+  clearHcs1Cache();
+  const early = await runHcs1WarmTick(opts);
+  assert.equal(early.skipped, 1);
+  assert.equal(heads, 1);
+  assert.equal(mirrorCalls, 0);
+  clock = 50_000 + HCS1_WARM_MISS_MS;
+  clearHcs1Cache();
+  const again = await runHcs1WarmTick(opts);
+  assert.equal(again.skipped, 1);
+  assert.equal(again.warmed, 0);
+  assert.equal(again.failed, 0);
+  assert.equal(heads, 2);
+  assert.equal(mirrorCalls, 0);
+  assert.deepEqual(hcs1WarmListState().stored, [id]);
+  clearHcs1Cache();
+  const held = await runHcs1WarmTick(opts);
+  assert.equal(held.skipped, 1);
+  assert.equal(heads, 2);
+  clearHcs1Cache();
+  resetHcs1WarmSkips();
+});
+
+test("a stored topic missing from R2 after the window is warmed again", async () => {
+  clearHcs1Cache();
+  resetHcs1WarmSkips();
+  const id = "0.0.212";
+  const topics = { [id]: inscribed(Buffer.from("came-back"), "image/png") };
+  const mirror = mirrorOf(topics);
+  const r2 = fakeR2();
+  let heads = 0;
+  const send = r2.send.bind(r2);
+  r2.send = async (command) => {
+    if (command.constructor.name === "HeadObjectCommand") heads += 1;
+    return send(command);
+  };
+  r2.objects.set(`hcs1/${id}`, {
+    Body: Buffer.from("stored"),
+    Metadata: { sha256: "ab".repeat(32), mime: "image/png" },
+  });
+  let clock = 60_000;
+  const opts = quietTick({
+    collect: () => [id],
+    mirrorFetch: mirror.fetchJson,
+    s3: r2,
+    bucket: "media",
+    now: () => clock,
+  });
+  const first = await runHcs1WarmTick(opts);
+  assert.equal(first.skipped, 1);
+  assert.equal(heads, 1);
+  assert.equal(asked(mirror.calls, id), 0);
+  r2.objects.delete(`hcs1/${id}`);
+  clock = 60_000 + HCS1_WARM_MISS_MS;
+  clearHcs1Cache();
+  const again = await runHcs1WarmTick(opts);
+  assert.equal(again.warmed, 1);
+  assert.equal(again.failed, 0);
+  assert.ok(heads > 1);
+  assert.ok(asked(mirror.calls, id) > 0);
+  assert.equal(r2.objects.has(`hcs1/${id}`), true);
+  assert.deepEqual(hcs1WarmListState().stored, [id]);
+  const after = heads;
+  clearHcs1Cache();
+  const held = await runHcs1WarmTick(opts);
+  assert.equal(held.skipped, 1);
+  assert.equal(held.warmed, 0);
+  assert.equal(heads, after);
+  clearHcs1Cache();
+  resetHcs1WarmSkips();
+});
+
+test("skip lists evict the oldest entry and keep a refreshed one", async () => {
+  clearHcs1Cache();
+  resetHcs1WarmSkips();
+  resetHcs1BodyTopics();
+  setHcs1WarmListCap(3);
+  try {
+    assert.equal(HCS1_WARM_LIST_CAP, 20_000);
+    const storedIds = ["0.0.701", "0.0.702", "0.0.703", "0.0.704", "0.0.705"];
+    const r2 = fakeR2();
+    for (const id of storedIds) {
+      r2.objects.set(`hcs1/${id}`, {
+        Body: Buffer.from("stored"),
+        Metadata: { sha256: "ab".repeat(32), mime: "image/png" },
+      });
+    }
+    let clock = 70_000;
+    const head = (id) => runHcs1WarmTick(quietTick({
+      collect: () => [id],
+      mirrorFetch: async () => { throw new Error("mirror"); },
+      s3: r2,
+      bucket: "media",
+      now: () => clock,
+    }));
+    await head("0.0.701");
+    clock += 1;
+    await head("0.0.702");
+    clock += 1;
+    await head("0.0.703");
+    clock += 1;
+    await head("0.0.704");
+    assert.deepEqual(hcs1WarmListState().stored, ["0.0.702", "0.0.703", "0.0.704"]);
+    const refreshedAt = clock + HCS1_WARM_MISS_MS;
+    clock = refreshedAt;
+    clearHcs1Cache();
+    await head("0.0.702");
+    assert.deepEqual(hcs1WarmListState().stored, ["0.0.703", "0.0.704", "0.0.702"]);
+    clock += 1;
+    clearHcs1Cache();
+    await head("0.0.705");
+    assert.deepEqual(hcs1WarmListState().stored, ["0.0.704", "0.0.702", "0.0.705"]);
+
+    resetHcs1WarmSkips();
+    clearHcs1Cache();
+    const missIds = ["0.0.711", "0.0.712", "0.0.713", "0.0.714"];
+    const mirror = mirrorOf({});
+    clock = 80_000;
+    const miss = (ids) => runHcs1WarmTick(quietTick({
+      collect: () => ids,
+      mirrorFetch: mirror.fetchJson,
+      now: () => clock,
+      perTick: ids.length,
+    }));
+    await miss(["0.0.711"]);
+    clock = 80_010;
+    await miss(["0.0.712"]);
+    clock = 80_020;
+    await miss(["0.0.713"]);
+    clock = 80_000 + HCS1_WARM_MISS_MS;
+    clearHcs1Cache();
+    await miss(["0.0.711", "0.0.714"]);
+    assert.deepEqual(hcs1WarmListState().missed, ["0.0.713", "0.0.711", "0.0.714"]);
+
+    resetHcs1WarmSkips();
+    resetHcs1BodyTopics();
+    clearHcs1Cache();
+    r2.objects.set("hcs1/0.0.721", {
+      Body: Buffer.from("stored"),
+      Metadata: { sha256: "cd".repeat(32), mime: "image/png" },
+    });
+    clock = 90_000;
+    await runHcs1WarmTick(quietTick({
+      collect: () => ["0.0.721"],
+      mirrorFetch: async () => { throw new Error("mirror"); },
+      s3: r2,
+      bucket: "media",
+      now: () => clock,
+    }));
+    const db = messagesDb();
+    try {
+      const add = db.prepare(
+        "INSERT INTO messages (topic_id, seq, ts, payer, body) VALUES ('body', ?, 't', 'payer', ?)",
+      );
+      const bodies = ["0.0.722", "0.0.721", "0.0.723", "0.0.724"];
+      bodies.forEach((id, seq) => add.run(seq + 1, `hcs://1/${id}`));
+      const stmt = db.prepare(HCS1_BODY_TOPIC_SQL);
+      const bounds = [];
+      const query = {
+        all(cursor) {
+          bounds.push(cursor);
+          return stmt.all(cursor);
+        },
+      };
+      const found = [...readHcs1BodyTopics(query)];
+      assert.deepEqual(found, ["0.0.722", "0.0.723", "0.0.724"]);
+      const cursor = hcs1WarmListState().lastBodyRowid;
+      const fourth = db.prepare("SELECT rowid AS id FROM messages ORDER BY rowid LIMIT 1 OFFSET 3").get();
+      assert.equal(cursor, fourth.id);
+      assert.notEqual(cursor, 0);
+      assert.equal(hcs1WarmListState().stored.includes("0.0.721"), true);
+      const again = [...readHcs1BodyTopics(query)];
+      assert.deepEqual(again, found);
+      assert.deepEqual(bounds, [0, cursor]);
+      assert.equal(hcs1WarmListState().lastBodyRowid, cursor);
+    } finally {
+      db.close();
+    }
+
+    resetHcs1WarmSkips();
+    resetHcs1BodyTopics();
+    const fresh = messagesDb();
+    try {
+      const add = fresh.prepare(
+        "INSERT INTO messages (topic_id, seq, ts, payer, body) VALUES ('fresh', ?, 't', 'payer', ?)",
+      );
+      ["0.0.731", "0.0.732", "0.0.733", "0.0.731", "0.0.734"].forEach((id, seq) => {
+        add.run(seq + 1, `hcs://1/${id}`);
+      });
+      const stmt = fresh.prepare(HCS1_BODY_TOPIC_SQL);
+      const found = [...readHcs1BodyTopics({ all: (cursor) => stmt.all(cursor) })];
+      assert.deepEqual(found, ["0.0.733", "0.0.731", "0.0.734"]);
+      const cursor = hcs1WarmListState().lastBodyRowid;
+      const next = [...readHcs1BodyTopics({ all: (bound) => stmt.all(bound) })];
+      assert.deepEqual(next, found);
+      assert.equal(hcs1WarmListState().lastBodyRowid, cursor);
+    } finally {
+      fresh.close();
+    }
+  } finally {
+    setHcs1WarmListCap(HCS1_WARM_LIST_CAP);
+    resetHcs1WarmSkips();
+    resetHcs1BodyTopics();
+    clearHcs1Cache();
+  }
+});
+
+test("a body catch-up reads 20,000 rows and continues without rewinding", () => {
+  resetHcs1BodyTopics();
+  resetHcs1WarmSkips();
+  setHcs1WarmListCap(HCS1_WARM_LIST_CAP);
+  const db = messagesDb();
+  try {
+    const total = 20_003;
+    const add = db.prepare(
+      "INSERT INTO messages (topic_id, seq, ts, payer, body) VALUES ('catch', ?, 't', 'payer', ?)",
+    );
+    db.exec("BEGIN");
+    for (let i = 0; i < total; i += 1) add.run(i, `hcs://1/0.0.${800000 + i}`);
+    db.exec("COMMIT");
+    const stmt = db.prepare(HCS1_BODY_TOPIC_SQL);
+    const bounds = [];
+    const query = {
+      all(cursor) {
+        bounds.push(cursor);
+        return stmt.all(cursor);
+      },
+    };
+    const first = [...readHcs1BodyTopics(query)];
+    const page9 = db.prepare("SELECT rowid AS id FROM messages ORDER BY rowid LIMIT 1 OFFSET 17999").get();
+    const cut = db.prepare("SELECT rowid AS id FROM messages ORDER BY rowid LIMIT 1 OFFSET 19999").get();
+    assert.equal(bounds.length, 10);
+    assert.equal(bounds[0], 0);
+    assert.equal(bounds[9], page9.id);
+    assert.equal(first.length, 20_000);
+    assert.equal(first[0], "0.0.800000");
+    assert.equal(first[19_999], "0.0.819999");
+    assert.equal(hcs1WarmListState().lastBodyRowid, cut.id);
+    const second = [...readHcs1BodyTopics(query)];
+    const end = db.prepare("SELECT rowid AS id FROM messages ORDER BY rowid LIMIT 1 OFFSET 20002").get();
+    assert.equal(bounds.length, 11);
+    assert.equal(bounds[10], cut.id);
+    assert.equal(hcs1WarmListState().lastBodyRowid, end.id);
+    assert.equal(second.length, 20_000);
+    assert.equal(second.includes("0.0.800000"), false);
+    assert.equal(second.includes("0.0.800002"), false);
+    assert.equal(second[0], "0.0.800003");
+    assert.equal(second[19_999], "0.0.820002");
+    const cursor = hcs1WarmListState().lastBodyRowid;
+    const third = [...readHcs1BodyTopics(query)];
+    assert.equal(bounds.length, 12);
+    assert.equal(bounds[11], cursor);
+    assert.equal(hcs1WarmListState().lastBodyRowid, cursor);
+    assert.equal(third.length, 20_000);
+    assert.equal(third[0], "0.0.800003");
+  } finally {
+    resetHcs1BodyTopics();
+    resetHcs1WarmSkips();
     db.close();
   }
 });
