@@ -35,7 +35,7 @@ import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
 import { startEarlyHashinals } from "./hashinals.js";
 import { createHcs1RateLimit, hcs1Route } from "./hcs1.js";
-import { collectKnownHcs1Topics, startHcs1Warm } from "./hcs1warm.js";
+import { collectKnownHcs1Topics, HCS1_BODY_TOPIC_SQL, readHcs1BodyTopics, startHcs1Warm } from "./hcs1warm.js";
 import { avatarRoute, createAvatarRateLimit, createProfileSources, getAvatarThumb } from "./avatar.js";
 import {
   communityIconRoute,
@@ -4046,7 +4046,8 @@ if (fs.existsSync(distDir)) {
 // pictures are the in-memory set (and the settings rows). Post images,
 // covers and model links live in message bodies. Marker pictures live on
 // live_markers. The early-hashinals list is included only once it is
-// loaded. None of these queries talk to the mirror.
+// loaded. None of these queries talk to the mirror. Message bodies are
+// read forward by rowid, 2000 rows at a time; ids already found stay.
 let heldHcs1Query;
 function heldHcs1Values() {
   const values = [profileSources.list()];
@@ -4070,17 +4071,12 @@ function heldHcs1Values() {
             OR instr(image, '/api/hcs1/') > 0
           )
       `),
-      bodies: db.prepare(`
-        SELECT body AS v FROM messages
-        WHERE instr(body, 'hcs://1/') > 0
-           OR instr(body, 'inscription-cdn/') > 0
-           OR instr(body, '/api/hcs1/') > 0
-      `),
+      bodies: db.prepare(HCS1_BODY_TOPIC_SQL),
     };
   }
   for (const row of heldHcs1Query.pics.all()) values.push(row.v);
   for (const row of heldHcs1Query.images.all()) values.push(row.v);
-  for (const row of heldHcs1Query.bodies.all()) values.push(row.v);
+  for (const id of readHcs1BodyTopics(heldHcs1Query.bodies)) values.push(`hcs://1/${id}`);
   if (typeof earlyHashinals.inscriptions === "function") values.push(earlyHashinals.inscriptions());
   return values;
 }

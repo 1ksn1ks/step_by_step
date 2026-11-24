@@ -4,12 +4,16 @@
 // memory or in the local cache). Each tick rebuilds at most perTick of
 // the ones that are not already in memory, R2, in flight, or a recent
 // miss, one at a time, as IP "warm" so a visitor's hourly rebuild budget
-// is untouched. A full rebuild slot (HCS1_MAX_REBUILDS) ends the tick.
-// The rebuild itself still applies the byte cap, the message cap, the
-// miss cache, and the daily R2 budgets.
+// is untouched. A topic confirmed in R2 stays in knownStored and is not
+// headed again this process. A 404, 413, or 422 stays in permanentMiss
+// until HCS1_WARM_MISS_MS (default 24 hours); 429, 502, and 503 do not.
+// A full rebuild slot (HCS1_MAX_REBUILDS) ends the tick. The rebuild
+// itself still applies the byte cap, the message cap, the miss cache,
+// and the daily R2 budgets.
 //
 // HCS1_WARM_INTERVAL_MS defaults to 10 minutes. 0 disables the timer.
 // HCS1_WARM_PER_TICK defaults to 20.
+// HCS1_WARM_MISS_MS defaults to 24 hours.
 
 import {
   HCS1_MAX_REBUILDS,
@@ -23,7 +27,9 @@ import {
 } from "./hcs1.js";
 
 const TEN_MINUTES_MS = 10 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_PER_TICK = 20;
+const BODY_PAGE = 2000;
 
 function envNumber(name, fallback) {
   const raw = process.env[name];
@@ -34,6 +40,15 @@ function envNumber(name, fallback) {
 
 export const HCS1_WARM_INTERVAL_MS = envNumber("HCS1_WARM_INTERVAL_MS", TEN_MINUTES_MS);
 export const HCS1_WARM_PER_TICK = envNumber("HCS1_WARM_PER_TICK", DEFAULT_PER_TICK);
+export const HCS1_WARM_MISS_MS = envNumber("HCS1_WARM_MISS_MS", DAY_MS);
+
+// Topic ids this process has confirmed in R2. Each one is headed at most once.
+const knownStored = new Set();
+// Topic id → earliest time a 404, 413, or 422 may be tried again.
+const permanentMiss = new Map();
+// Message-body scan. Ids already found stay; each read continues after the last rowid.
+const knownBodyIds = new Set();
+let lastBodyRowid = 0;
 
 // The id has to end. A longer token that merely starts with 0.0.N is not one.
 const ID_END = "(?![0-9A-Za-z])";
@@ -83,6 +98,36 @@ export function collectKnownHcs1Topics(input) {
   };
   walk(input, 0);
   return ids;
+}
+
+// Rows of messages that can hold an HCS-1 URL, strictly after the bound rowid.
+export const HCS1_BODY_TOPIC_SQL = `
+  SELECT rowid, body AS v FROM messages
+  WHERE rowid > ?
+    AND (
+      instr(body, 'hcs://1/') > 0
+      OR instr(body, 'inscription-cdn/') > 0
+      OR instr(body, '/api/hcs1/') > 0
+    )
+  ORDER BY rowid
+  LIMIT ${BODY_PAGE}
+`;
+
+// One page of new message bodies. The returned set is every id collected so
+// far, including ones from earlier pages. Tests call resetHcs1BodyTopics.
+export function readHcs1BodyTopics(query) {
+  const rows = query.all(lastBodyRowid);
+  for (const row of rows) {
+    const rowid = Number(row && row.rowid);
+    if (rowid > lastBodyRowid) lastBodyRowid = rowid;
+    takeTopics(row && row.v, (id) => knownBodyIds.add(id));
+  }
+  return knownBodyIds;
+}
+
+export function resetHcs1BodyTopics() {
+  knownBodyIds.clear();
+  lastBodyRowid = 0;
 }
 
 function topicIds(collected) {
@@ -141,6 +186,15 @@ export async function runHcs1WarmTick(options = {}) {
     let started = 0;
     for (const topicId of topics) {
       if (started >= perTick) break;
+      if (knownStored.has(topicId)) {
+        skipped += 1;
+        continue;
+      }
+      const retryAt = permanentMiss.get(topicId);
+      if (retryAt != null && now() < retryAt) {
+        skipped += 1;
+        continue;
+      }
       if (hcs1MemoryHas(topicId) || hcs1MissPending(topicId, now) || hcs1InFlight(topicId)) {
         skipped += 1;
         continue;
@@ -148,6 +202,7 @@ export async function runHcs1WarmTick(options = {}) {
       if (opts.s3 && opts.bucket) {
         const stored = await hcs1ObjectInR2(topicId, opts);
         if (stored) {
+          knownStored.add(topicId);
           skipped += 1;
           continue;
         }
@@ -169,9 +224,18 @@ export async function runHcs1WarmTick(options = {}) {
         warmed += 1;
         // Built, but R2 would not keep it. Further files this tick would
         // be rebuilt and then dropped the same way.
+        if (!result.r2Skipped) knownStored.add(topicId);
         if (result.r2Skipped) break;
-      } else if (result && result.ok) skipped += 1;
-      else failed += 1;
+      } else if (result && result.ok) {
+        if (result.source === "r2") knownStored.add(topicId);
+        skipped += 1;
+      } else {
+        failed += 1;
+        const status = result && result.status;
+        if (status === 404 || status === 413 || status === 422) {
+          permanentMiss.set(topicId, now() + HCS1_WARM_MISS_MS);
+        }
+      }
     }
   } catch {
     // Discovery or a tick failure stays in this function.

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import zlib from "node:zlib";
 import { Readable } from "node:stream";
+import { DatabaseSync } from "node:sqlite";
 
 import {
   HCS1_NEW_REBUILD_PER_IP_HOUR,
@@ -12,9 +13,13 @@ import {
   hcs1MissPending,
 } from "../server/hcs1.js";
 import {
+  HCS1_BODY_TOPIC_SQL,
   HCS1_WARM_INTERVAL_MS,
+  HCS1_WARM_MISS_MS,
   HCS1_WARM_PER_TICK,
   collectKnownHcs1Topics,
+  readHcs1BodyTopics,
+  resetHcs1BodyTopics,
   runHcs1WarmTick,
   startHcs1Warm,
 } from "../server/hcs1warm.js";
@@ -103,6 +108,7 @@ test("the new-rebuild default is 300 per IP per hour", () => {
   if (!process.env.HCS1_NEW_REBUILD_PER_IP_HOUR) assert.equal(HCS1_NEW_REBUILD_PER_IP_HOUR, 300);
   if (!process.env.HCS1_WARM_INTERVAL_MS) assert.equal(HCS1_WARM_INTERVAL_MS, 10 * 60 * 1000);
   if (!process.env.HCS1_WARM_PER_TICK) assert.equal(HCS1_WARM_PER_TICK, 20);
+  if (!process.env.HCS1_WARM_MISS_MS) assert.equal(HCS1_WARM_MISS_MS, 24 * 60 * 60 * 1000);
 });
 
 test("known topics come from urls the server already holds", () => {
@@ -397,4 +403,155 @@ test("a tick that throws while collecting still returns", async () => {
   });
   assert.deepEqual(summary, { warmed: 0, skipped: 0, failed: 0 });
   assert.deepEqual(lines, ["hcs1 warm: warmed 0, skipped 0, failed 0"]);
+});
+
+test("a topic already in R2 is headed once across two ticks", async () => {
+  clearHcs1Cache();
+  const id = "0.0.201";
+  const r2 = fakeR2();
+  let heads = 0;
+  const send = r2.send.bind(r2);
+  r2.send = async (command) => {
+    if (command.constructor.name === "HeadObjectCommand") heads += 1;
+    return send(command);
+  };
+  r2.objects.set(`hcs1/${id}`, {
+    Body: Buffer.from("stored"),
+    Metadata: { sha256: "ab".repeat(32), mime: "image/png" },
+  });
+  const opts = {
+    collect: () => [id],
+    mirrorFetch: async () => { throw new Error("mirror"); },
+    mirror: MIRROR,
+    s3: r2,
+    bucket: "media",
+    now: () => 20_000,
+    log() {},
+  };
+  const first = await runHcs1WarmTick(opts);
+  assert.equal(first.skipped, 1);
+  assert.equal(first.warmed, 0);
+  assert.equal(heads, 1);
+  clearHcs1Cache();
+  const second = await runHcs1WarmTick(opts);
+  assert.equal(second.skipped, 1);
+  assert.equal(second.warmed, 0);
+  assert.equal(second.failed, 0);
+  assert.equal(heads, 1);
+  clearHcs1Cache();
+});
+
+test("a 413 is not retried on the next tick", async () => {
+  clearHcs1Cache();
+  const id = "0.0.301";
+  const topics = { [id]: inscribed(Buffer.from("too-many"), "image/png") };
+  const mirror = mirrorOf(topics);
+  const now = () => 30_000;
+  const opts = {
+    collect: () => [id],
+    mirrorFetch: mirror.fetchJson,
+    mirror: MIRROR,
+    maxMessages: 0,
+    now,
+    log() {},
+  };
+  const first = await runHcs1WarmTick(opts);
+  assert.equal(first.failed, 1);
+  assert.equal(first.warmed, 0);
+  assert.ok(asked(mirror.calls, id) > 0);
+  const calls = mirror.calls.length;
+  clearHcs1Cache();
+  const second = await runHcs1WarmTick(opts);
+  assert.equal(second.skipped, 1);
+  assert.equal(second.failed, 0);
+  assert.equal(second.warmed, 0);
+  assert.equal(mirror.calls.length, calls);
+  clearHcs1Cache();
+});
+
+test("the bodies query reads only new rows", () => {
+  resetHcs1BodyTopics();
+  const db = new DatabaseSync(":memory:");
+  try {
+    db.exec(`
+      CREATE TABLE messages (
+        topic_id TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        ts TEXT NOT NULL,
+        payer TEXT NOT NULL,
+        body TEXT NOT NULL,
+        PRIMARY KEY (topic_id, seq)
+      )
+    `);
+    const insert = db.prepare(
+      "INSERT INTO messages (topic_id, seq, ts, payer, body) VALUES ('chat', ?, 't', 'payer', ?)",
+    );
+    insert.run(1, "hello");
+    insert.run(2, "see hcs://1/0.0.401");
+    const stmt = db.prepare(HCS1_BODY_TOPIC_SQL);
+    const bounds = [];
+    const pages = [];
+    const query = {
+      all(cursor) {
+        bounds.push(cursor);
+        const rows = stmt.all(cursor);
+        pages.push(rows.map((row) => row.rowid));
+        return rows;
+      },
+    };
+    const first = [...readHcs1BodyTopics(query)];
+    assert.deepEqual(bounds, [0]);
+    assert.deepEqual(first, ["0.0.401"]);
+    assert.equal(pages[0].length, 1);
+    insert.run(3, "and https://kiloscribe.com/api/inscription-cdn/0.0.402");
+    const second = [...readHcs1BodyTopics(query)];
+    assert.deepEqual(bounds, [0, pages[0][0]]);
+    assert.notEqual(bounds[1], 0);
+    assert.deepEqual(pages[1], [pages[0][0] + 1]);
+    assert.deepEqual(second, ["0.0.401", "0.0.402"]);
+    assert.deepEqual(collectKnownHcs1Topics(second.map((id) => `hcs://1/${id}`)), second);
+
+    resetHcs1BodyTopics();
+    const bulk = new DatabaseSync(":memory:");
+    try {
+      bulk.exec(`
+        CREATE TABLE messages (
+          topic_id TEXT NOT NULL,
+          seq INTEGER NOT NULL,
+          ts TEXT NOT NULL,
+          payer TEXT NOT NULL,
+          body TEXT NOT NULL,
+          PRIMARY KEY (topic_id, seq)
+        )
+      `);
+      const add = bulk.prepare(
+        "INSERT INTO messages (topic_id, seq, ts, payer, body) VALUES ('bulk', ?, 't', 'payer', ?)",
+      );
+      for (let i = 0; i < 2001; i += 1) add.run(i, `hcs://1/0.0.${600000 + i}`);
+      const bulkStmt = bulk.prepare(HCS1_BODY_TOPIC_SQL);
+      const bulkBounds = [];
+      const bulkQuery = {
+        all(cursor) {
+          bulkBounds.push(cursor);
+          return bulkStmt.all(cursor);
+        },
+      };
+      const page = [...readHcs1BodyTopics(bulkQuery)];
+      assert.equal(page.length, 2000);
+      assert.deepEqual(bulkBounds, [0]);
+      assert.equal(page[0], "0.0.600000");
+      assert.equal(page[1999], "0.0.601999");
+      const rest = [...readHcs1BodyTopics(bulkQuery)];
+      const cut = bulk.prepare("SELECT rowid AS id FROM messages ORDER BY rowid LIMIT 1 OFFSET 1999").get();
+      assert.equal(bulkBounds[1], cut.id);
+      assert.notEqual(bulkBounds[1], 0);
+      assert.equal(rest.length, 2001);
+      assert.equal(rest[2000], "0.0.602000");
+    } finally {
+      bulk.close();
+    }
+  } finally {
+    resetHcs1BodyTopics();
+    db.close();
+  }
 });
