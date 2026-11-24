@@ -2,6 +2,11 @@ import { map } from './map.js';
 import { visibleBottom } from './keyboardlayout.js';
 import { appAlreadyInstalled, runInstallPrompt, canPromptInstall, installPromptPending, installSteps } from './installapp.js';
 import { createInstallChoice } from './installchoice.js';
+import { connectedAccount } from './web3.js';
+import { avatarSrc } from './avatarsrc.js';
+import { DEFAULT_PIC, profilePicUrl } from './profileface.js';
+import { mountPicture, pictureElement } from './loopmedia.js';
+import { paintProfileAvatar } from './earlyhashinal.js';
 
 // First-load onboarding. The install question is the first page.
 // An installed app skips the whole introduction.
@@ -241,6 +246,10 @@ let reassureEl = null;
 // The "Start in" step above the install steps (installchoice.js), made once
 // per intro so going back to the page keeps what was picked.
 let installChoice = null;
+// Top left, the ✕'s twin: Connect, or the connected account's picture and id.
+let walletBtn = null;
+let walletFace = null;
+let walletId = null;
 
 // Install steps (installapp.js installSteps): each icon looks like the
 // button the step taps, so the screen and the guide match.
@@ -396,9 +405,73 @@ function renderSlide(direction = 1) {
   );
 }
 
+// The connected account, from web3.js. Not #account-id: updateUI announces
+// the account before it writes that label, so the label can still be the
+// old one when wallet-account-changed arrives.
+function introAccount() {
+  const account = typeof connectedAccount === 'string' ? connectedAccount.trim() : '';
+  return /^\d+\.\d+\.\d+$/.test(account) && account.length <= 40 ? account : '';
+}
+
+// The hidden Connect, the way an upload or a place starts it: with
+// skipOverlayClose the connect flow leaves the intro open. A second tap
+// while it is connecting clicks again, and web3.js reopens the sheet.
+function connectFromIntro() {
+  const connect = document.getElementById('connect-wallet-btn');
+  if (!connect) return;
+  connect.skipOverlayClose = true;
+  try { connect.click(); }
+  finally { connect.skipOverlayClose = false; }
+}
+
+// Disconnected: "Connect". Connected: the drawer account row's picture and
+// the id. Nothing else on the intro changes, so a connect keeps the slide.
+function paintIntroWallet() {
+  if (!walletBtn) return;
+  const id = introAccount();
+  walletBtn.classList.toggle('is-connected', !!id);
+  walletBtn.setAttribute('aria-label', id ? `Wallet ${id}` : 'Connect wallet');
+  if (!id) {
+    walletFace = null;
+    walletId = null;
+    const text = document.createElement('span');
+    text.className = 'onboard-wallet-text';
+    text.textContent = 'Connect';
+    walletBtn.replaceChildren(text);
+    return;
+  }
+  if (!walletId) {
+    walletFace = pictureElement(avatarSrc(DEFAULT_PIC), { className: 'onboard-wallet-face', alt: '', fallback: DEFAULT_PIC });
+    walletId = document.createElement('span');
+    walletId.className = 'onboard-wallet-id';
+    walletBtn.replaceChildren(walletFace, walletId);
+  }
+  walletId.textContent = id;
+  walletFace = mountPicture(walletFace, avatarSrc(profilePicUrl(id)), {
+    className: 'onboard-wallet-face',
+    fallback: DEFAULT_PIC,
+  });
+  paintProfileAvatar(walletFace, id);
+}
+
+function bindIntroWallet() {
+  document.addEventListener('wallet-account-changed', paintIntroWallet);
+  document.addEventListener('profiles-loaded', paintIntroWallet);
+}
+
+function unbindIntroWallet() {
+  document.removeEventListener('wallet-account-changed', paintIntroWallet);
+  document.removeEventListener('profiles-loaded', paintIntroWallet);
+  walletBtn = null;
+  walletFace = null;
+  walletId = null;
+}
+
 function closeOnboarding() {
   if (!overlay) return;
   if (unbindOnboardKeyboard) unbindOnboardKeyboard();
+  unbindIntroWallet();
+  document.documentElement.classList.remove('intro-open');
   const el = overlay;
   overlay = null;
   // Back/Forward: the overlay is removed from the DOM (no display to
@@ -444,6 +517,16 @@ function build() {
     closeOnboarding();
   };
   card.appendChild(skip);
+
+  walletBtn = document.createElement('button');
+  walletBtn.type = 'button';
+  walletBtn.className = 'onboard-wallet';
+  walletBtn.onclick = (e) => {
+    e.stopPropagation();
+    if (introAccount()) return;
+    connectFromIntro();
+  };
+  card.appendChild(walletBtn);
 
   const content = document.createElement('div');
   content.className = 'onboard-content';
@@ -531,6 +614,10 @@ function build() {
   content.append(iconEl, titleEl, bodyEl, rowsEl, reassureEl, dotsEl, introNav, installNav);
   card.appendChild(content);
   document.body.appendChild(overlay);
+  // The wallet sheet goes above the intro while it is up (style.css).
+  document.documentElement.classList.add('intro-open');
+  bindIntroWallet();
+  paintIntroWallet();
   bindOnboardKeyboard(overlay, card);
   if (window.layerOpened) window.layerOpened("onboard");
 

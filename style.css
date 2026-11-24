@@ -6774,6 +6774,67 @@ html, body {
     animation: overlayXGlow 2s ease-in-out infinite;
   }
 
+  /* The intro's wallet button (onboarding.js), top left: the ✕'s glass,
+     border, glow, height and size, as a pill because it holds words. Only
+     the intro card has one. The widest icon row (two emoji and "&") spans
+     10.9vh each side of the card's centre and starts inside this button's
+     band, so the button stops 1.3vh short of it. On a narrow phone the
+     words shrink below 2.4vh, so "Connect" still fits whole in that room. */
+  .onboard-wallet {
+    position: absolute;
+    top: 0.6vh;
+    left: 0.6vh;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6vh;
+    min-height: 5vh;
+    max-width: min(40%, calc(50% - 12.8vh));
+    padding: 0.5vh 1.2vh;
+    background: rgba(255, 255, 255, 0.08);
+    border: 0.2vh solid rgba(34, 211, 238, 0.6);
+    box-shadow: 0 0 1vh rgba(34, 211, 238, 0.5),
+                inset 0 0 0.6vh rgba(34, 211, 238, 0.25);
+    border-radius: 999em;
+    color: white;
+    font-size: clamp(1.4vh, calc(11.4vw - 3.4vh), 2.4vh);
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    opacity: 0.8;
+    animation: overlayXGlow 2s ease-in-out infinite;
+  }
+  .onboard-wallet-text,
+  .onboard-wallet-id {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* A clipped id keeps its last digits ("…819119"); the aria-label has it
+     whole. Smaller than "Connect", so more of it fits beside the picture. */
+  .onboard-wallet-id {
+    direction: rtl;
+    font-size: 0.8em;
+  }
+  /* Connected it is a compact chip: the picture sits in the round end. */
+  .onboard-wallet.is-connected {
+    gap: 0.5vh;
+    padding: 0.5vh 1vh 0.5vh 0.5vh;
+    cursor: default;
+  }
+  .onboard-wallet-face,
+  .onboard-wallet > .early-hashinal {
+    flex: none;
+  }
+  .onboard-wallet-face {
+    width: 3.4vh;
+    height: 3.4vh;
+    border-radius: 50%;
+    object-fit: cover;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
   .onboard-icon {
     display: flex;
     justify-content: center;
@@ -11836,6 +11897,16 @@ html.feed-app w3m-modal,
 html.feed-app appkit-modal {
   position: relative;
   z-index: 9100;
+}
+/* The same lift while the intro (9000) is up: onboarding.js sets
+   intro-open on <html> when it opens and takes it off in closeOnboarding,
+   so the sheet its Connect opens is not under it. */
+html.intro-open wcm-modal,
+html.intro-open w3m-modal,
+html.intro-open appkit-modal {
+  position: relative;
+  z-index: 9100;
+  --wcm-z-index: 9100;
 }
 /* Post settings stay at 1008 on the map. While the feed covers, the same
    card has to clear this screen, including the search page inside it. */
