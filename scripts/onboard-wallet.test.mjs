@@ -429,6 +429,60 @@ test("the chip's room matches its cap: 40% / 50% less 12.8vh, and 46% / 50% less
   assert.match(rule(".onboard-wallet"), /border: 0\.2vh solid/);
 });
 
+test("on a narrow portrait card the picture stacks above the name and the whole id", () => {
+  const open = "@media (orientation: portrait) {\n    @container (width < calc(31.6vh + 8em)) {";
+  const at = css.indexOf(open);
+  assert.ok(at > 0, "portrait only, and only while the card is narrow");
+  const block = css.slice(at, css.indexOf("\n  }\n", at) + 4);
+  assert.equal(/\dpx/.test(block), false);
+  // Only the connected chip, and not on the install page.
+  const selectors = [...block.matchAll(/^\s*([^{}\n]+) \{$/gm)].map((m) => m[1].trim()).filter((s) => !s.startsWith("@"));
+  assert.deepEqual(selectors, [
+    ".onboard-card:not(.is-guide) > .onboard-wallet.is-connected",
+    ".onboard-card:not(.is-guide) > .onboard-wallet.is-connected .onboard-wallet-copy",
+    ".onboard-card:not(.is-guide) > .onboard-wallet.is-connected .onboard-wallet-id",
+  ]);
+  const chip = rule(".onboard-card:not(.is-guide) > .onboard-wallet.is-connected");
+  assert.match(chip, /flex-direction: column;/);
+  assert.match(chip, /padding: 0\.6vh;/);
+  assert.match(chip, /border-radius: 2vh;/, "the card's corners: a pill's round ends would cut the text");
+  assert.equal(/max-width|min-height|--wallet-cap/.test(chip), false, "the same cap and min-height");
+  assert.match(rule(".onboard-card:not(.is-guide) > .onboard-wallet.is-connected .onboard-wallet-copy"), /align-items: center;/);
+  // The id's room is now the chip's whole width inside the cap: 0.2vh of
+  // border and 0.6vh of padding a side.
+  assert.match(
+    rule(".onboard-card:not(.is-guide) > .onboard-wallet.is-connected .onboard-wallet-id"),
+    /font-size: min\(0\.7em, calc\(\(var\(--wallet-cap, 100vh\) - 1\.6vh\) \/ \(var\(--wallet-id-chars, 13\) \* 0\.6\)\)\);/,
+  );
+  assert.equal(+(0.2 * 2 + 0.6 * 2).toFixed(2), 1.6);
+});
+
+test("the stacking threshold: beside the picture the id would get under 4em", () => {
+  // Beside the picture the id's room is the cap less 6vh:
+  // (50% of the padding box - 12.8vh) - 6vh = 50cqi + 3vh - 18.8vh = 50cqi - 15.8vh.
+  // Under 4em when the content (100cqi) is under 31.6vh + 8em.
+  const stacks = ({ content, vh, em, portrait }) => portrait && content < 31.6 * vh + 8 * em;
+  const room = ({ content, vh }) => content / 2 - 15.8 * vh;
+  // The intro card on the screens it was checked on (content px, 1vh px, card em px).
+  const screens = {
+    phone: { content: 335.4, vh: 8.44, em: 16, portrait: true },
+    iphoneSE: { content: 323, vh: 6.67, em: 16, portrait: true },
+    phoneLandscape: { content: 249.6, vh: 3.9, em: 16, portrait: false },
+    pcLandscape: { content: 691.2, vh: 10.8, em: 16, portrait: false },
+    portraitMonitor: { content: 928.8, vh: 19.2, em: 16, portrait: true },
+  };
+  const stacked = Object.entries(screens).filter(([, s]) => stacks(s)).map(([name]) => name);
+  assert.deepEqual(stacked, ["phone", "iphoneSE"]);
+  for (const [name, s] of Object.entries(screens)) {
+    assert.equal(room(s) < 4 * s.em, stacks(s) || !s.portrait && room(s) < 4 * s.em, name);
+  }
+  // Stacked on the phone, the 11-character id gets about 11px.
+  const phone = screens.phone;
+  const cap = phone.content / 2 + 3 * phone.vh - 12.8 * phone.vh;
+  const idPx = Math.min(0.7 * 15.76, (cap - 1.6 * phone.vh) / (11 * 0.6));
+  assert.ok(idPx > 10.5 && idPx < 11.1, String(idPx));
+});
+
 test("the wallet sheet sits above the intro only while it is open", () => {
   const lifted = rule("html.intro-open wcm-modal,\nhtml.intro-open w3m-modal,\nhtml.intro-open appkit-modal");
   assert.match(lifted, /position: relative;/);
