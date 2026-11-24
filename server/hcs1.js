@@ -20,6 +20,14 @@
 // - HCS1_MAX_REBUILDS rebuilds from the mirror at once, across all
 //   requests. Past that the answer is 503 with Retry-After, and the app
 //   falls back to Kiloscribe (hashinalurl.js).
+// - HCS1_NEW_REBUILD_PER_IP_HOUR new mirror rebuilds per client IP per
+//   hour (env HCS1_NEW_REBUILD_PER_IP_HOUR). A memory or R2 hit does not
+//   count. The route passes the client IP; past the cap the answer is
+//   429 with Retry-After. A call with no IP is not this budget.
+// - New hcs1/ R2 writes: HCS1_R2_DAILY_IP_MB per IP per day and
+//   HCS1_R2_DAILY_TOTAL_MB for every IP together (env
+//   HCS1_R2_DAILY_IP_MB, HCS1_R2_DAILY_TOTAL_MB). Over either budget the
+//   file is still served and the write is skipped.
 // - HCS1_MAX_BYTES / HCS1_MAX_MESSAGES per rebuild.
 // - HCS1_MISS_ENTRIES remembered misses, the oldest dropped first.
 
@@ -44,6 +52,23 @@ export const HCS1_MISS_ENTRIES = 5000;
 export const HCS1_RATE_MAX = 120;
 export const HCS1_RATE_WINDOW_MS = 60 * 1000;
 export const HCS1_RATE_SCOPE = "/api/hcs1";
+
+function envNumber(name, fallback) {
+  const raw = process.env[name];
+  if (raw == null || String(raw).trim() === "") return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+// New mirror rebuilds per client IP per hour. Modelled on
+// AVATAR_BUILD_RATE_MAX: a file already made (memory or R2) is not counted.
+export const HCS1_NEW_REBUILD_PER_IP_HOUR = envNumber("HCS1_NEW_REBUILD_PER_IP_HOUR", 10);
+export const HCS1_NEW_REBUILD_WINDOW_MS = 60 * 60 * 1000;
+// New hcs1/ objects written to R2. Over either budget the file is still
+// served and the put is skipped.
+export const HCS1_R2_DAILY_IP_MB = envNumber("HCS1_R2_DAILY_IP_MB", 50);
+export const HCS1_R2_DAILY_TOTAL_MB = envNumber("HCS1_R2_DAILY_TOTAL_MB", 200);
+export const HCS1_R2_DAY_MS = 24 * 60 * 60 * 1000;
 // The types a rebuilt file is saved to R2 under: pictures, video, sound and
 // 3D models. Never SVG, text/*, JavaScript or HTML. Any other type is
 // still served (hcs1ServeType), from memory or rebuilt again, but not kept.
@@ -326,13 +351,75 @@ const memory = createHcs1Memory();
 const flights = new Map();
 const misses = createHcs1Misses();
 let rebuilding = 0;
+// Per-IP new rebuilds, and per-IP plus total R2 write bytes. Pruned the
+// same way as createHcs1RateLimit: once the map is large, expired windows
+// are dropped. A key's own window also ends at bucket.reset.
+const rebuildHits = new Map();
+const r2Writes = new Map();
+const R2_TOTAL_KEY = "*";
+
+function pruneBuckets(map, at) {
+  if (map.size <= 4000) return;
+  for (const [key, bucket] of map) {
+    if (at >= bucket.reset) map.delete(key);
+  }
+}
+
+function bucketAt(map, key, at, windowMs) {
+  pruneBuckets(map, at);
+  let bucket = map.get(key);
+  if (!bucket || at >= bucket.reset) {
+    bucket = { reset: at + windowMs, count: 0, bytes: 0 };
+    map.set(key, bucket);
+  }
+  return bucket;
+}
+
+// One new mirror rebuild. over is true once count passes max. The window
+// stays the one opened by the first rebuild in it.
+function takeRebuild(ip, max, windowMs, at) {
+  const bucket = bucketAt(rebuildHits, `${ip} hcs1-rebuild`, at, windowMs);
+  bucket.count += 1;
+  return {
+    over: bucket.count > max,
+    retryAfter: Math.max(1, Math.ceil((bucket.reset - at) / 1000)),
+  };
+}
+
+// True when this many bytes still fit in both the IP's day and the
+// process-wide day. A refusal adds nothing.
+function allowR2Write(ip, size, { ipMax, totalMax, windowMs, at }) {
+  const ipBucket = bucketAt(r2Writes, `${ip} hcs1-r2`, at, windowMs);
+  const totalBucket = bucketAt(r2Writes, R2_TOTAL_KEY, at, windowMs);
+  if (ipBucket.bytes + size > ipMax || totalBucket.bytes + size > totalMax) return false;
+  ipBucket.bytes += size;
+  totalBucket.bytes += size;
+  return true;
+}
+
+function r2WriteAllowed(entry, opts) {
+  const ipMax = Number.isFinite(opts.r2DailyIpBytes) ? opts.r2DailyIpBytes : HCS1_R2_DAILY_IP_MB * 1024 * 1024;
+  const totalMax = Number.isFinite(opts.r2DailyTotalBytes) ? opts.r2DailyTotalBytes : HCS1_R2_DAILY_TOTAL_MB * 1024 * 1024;
+  const windowMs = opts.r2DayMs > 0 ? opts.r2DayMs : HCS1_R2_DAY_MS;
+  return allowR2Write(opts.ip || "unknown", entry.size, {
+    ipMax,
+    totalMax,
+    windowMs,
+    at: opts.now(),
+  });
+}
 
 // Forget everything held in this process (tests). A rebuild still running
-// keeps its place in the rebuild count until it ends.
-export function clearHcs1Cache() {
+// keeps its place in the rebuild count until it ends. counters: false
+// drops the files but keeps the rebuild and R2 budgets.
+export function clearHcs1Cache(options = {}) {
   memory.clear();
   flights.clear();
   misses.clear();
+  if (!options || options.counters !== false) {
+    rebuildHits.clear();
+    r2Writes.clear();
+  }
 }
 
 function r2Key(topicId) {
@@ -433,7 +520,10 @@ async function rebuild(topicId, opts) {
   if (!file.ok) return file;
   const entry = { bytes: file.bytes, mime: file.mime, sha256: file.sha256, size: file.bytes.length };
   if (entry.size <= HCS1_CACHE_ITEM_BYTES) memory.set(topicId, entry);
-  if (opts.s3 && opts.bucket && hcs1Storable(file.mime, opts.storeTypes)) await toR2(topicId, file, opts);
+  // Over the daily budget the file is still served; the put is skipped.
+  if (opts.s3 && opts.bucket && hcs1Storable(file.mime, opts.storeTypes) && r2WriteAllowed(entry, opts)) {
+    await toR2(topicId, file, opts);
+  }
   return { ok: true, status: 200, source: "mirror", ...entry };
 }
 
@@ -443,9 +533,19 @@ async function load(topicId, opts) {
     if (stored) return stored;
   }
   // Only so many rebuilds at once: past that, busy, and the app takes
-  // Kiloscribe's copy for now.
+  // Kiloscribe's copy for now. Checked before the per-IP budget, so a
+  // busy answer does not spend an hourly rebuild.
   if (rebuilding >= opts.maxRebuilds) {
     return fail(503, "busy", { retryAfter: HCS1_RETRY_AFTER_S });
+  }
+  // The route passes the client IP. A call with no IP (a server-side read,
+  // a test of the miss map) is not this budget. Memory and R2 already
+  // returned above, so a hit never reaches here.
+  if (opts.ip) {
+    const max = Number.isFinite(opts.newRebuildMax) ? opts.newRebuildMax : HCS1_NEW_REBUILD_PER_IP_HOUR;
+    const windowMs = opts.newRebuildWindowMs > 0 ? opts.newRebuildWindowMs : HCS1_NEW_REBUILD_WINDOW_MS;
+    const gate = takeRebuild(opts.ip, max, windowMs, opts.now());
+    if (gate.over) return fail(429, "rate limit", { retryAfter: gate.retryAfter });
   }
   rebuilding += 1;
   let result;
@@ -455,8 +555,11 @@ async function load(topicId, opts) {
     rebuilding -= 1;
   }
   // A topic with no file, or a file that does not match its memo, is not
-  // looked up again for a while. A mirror outage or a busy server is.
-  if (!result.ok && result.status < 500) misses.set(topicId, { until: opts.now() + HCS1_MISS_MS, result });
+  // looked up again for a while. A mirror outage, a busy server, or this
+  // IP's rebuild cap is not the topic's.
+  if (!result.ok && result.status < 500 && result.status !== 429) {
+    misses.set(topicId, { until: opts.now() + HCS1_MISS_MS, result });
+  }
   return result;
 }
 
@@ -464,8 +567,8 @@ async function load(topicId, opts) {
 // { ok: true, status: 200, mime, sha256, size, bytes } (bytes in memory), or
 // { ok: true, ..., open } (a big file in R2: open() gives a stream), or
 // { ok: false, status, error, retryAfter? }: 400 bad id, 404 no HCS-1 file,
-// 413 over the caps, 422 not the file the memo names, 502 mirror trouble,
-// 503 too many rebuilds at once.
+// 413 over the caps, 422 not the file the memo names, 429 too many new
+// rebuilds from this IP, 502 mirror trouble, 503 too many rebuilds at once.
 export async function getHcs1File(topicId, {
   mirrorFetch,
   s3 = null,
@@ -477,6 +580,12 @@ export async function getHcs1File(topicId, {
   storeTypes = HCS1_R2_TYPES,
   pageTimeoutMs = HCS1_PAGE_TIMEOUT_MS,
   now = Date.now,
+  ip = "",
+  newRebuildMax,
+  newRebuildWindowMs,
+  r2DailyIpBytes,
+  r2DailyTotalBytes,
+  r2DayMs,
 } = {}) {
   if (!isHcs1TopicId(topicId)) return fail(400, "bad topic id");
   const hit = memory.get(topicId);
@@ -489,7 +598,10 @@ export async function getHcs1File(topicId, {
   let flight = flights.get(topicId);
   if (!flight) {
     const types = storeTypes instanceof Set ? storeTypes : new Set([...(storeTypes || [])].map((t) => String(t).toLowerCase()));
-    const opts = { mirrorFetch, s3, bucket, mirror, maxBytes, maxMessages, maxRebuilds, storeTypes: types, pageTimeoutMs, now };
+    const opts = {
+      mirrorFetch, s3, bucket, mirror, maxBytes, maxMessages, maxRebuilds, storeTypes: types, pageTimeoutMs, now,
+      ip, newRebuildMax, newRebuildWindowMs, r2DailyIpBytes, r2DailyTotalBytes, r2DayMs,
+    };
     flight = load(topicId, opts).finally(() => flights.delete(topicId));
     flights.set(topicId, flight);
   }
@@ -503,12 +615,13 @@ function etagMatches(header, etag) {
 }
 
 // GET /api/hcs1/:topicId
-export function hcs1Route(opts) {
+export function hcs1Route(opts = {}) {
+  const clientIp = typeof opts.clientIp === "function" ? opts.clientIp : (req) => req && req.ip;
   return async function hcs1(req, res) {
     const topicId = String((req.params && req.params.topicId) || "");
     let file;
     try {
-      file = await getHcs1File(topicId, opts);
+      file = await getHcs1File(topicId, { ...opts, ip: clientIp(req) || "unknown" });
     } catch (err) {
       console.error("hcs1", topicId, err && err.message);
       file = fail(502, "hashinal unavailable", { retryAfter: HCS1_RETRY_AFTER_S });

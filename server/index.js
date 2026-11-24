@@ -3586,9 +3586,18 @@ app.get("/api/turn", publicPostLimit, async (req, res) => {
 // so the app does not depend on a third-party inscription CDN. Checked
 // against the topic memo's SHA-256, kept in R2 under hcs1/<topicId> and in
 // memory, served immutable with the hash as its ETag. Its own rate limit:
-// one budget per client IP for every topic together (hcs1.js).
+// 120 requests per client IP per minute for every topic together, plus a
+// cap on new mirror rebuilds per IP per hour. A memory or R2 hit does not
+// count. New hcs1/ writes also sit inside a daily R2 budget; over it the
+// file is still served and the write is skipped (hcs1.js).
 const hcs1Limit = createHcs1RateLimit({ clientIp });
-app.get("/api/hcs1/:topicId", hcs1Limit, hcs1Route({ mirrorFetch, s3: r2, bucket: R2_BUCKET, mirror: MIRROR }));
+app.get("/api/hcs1/:topicId", hcs1Limit, hcs1Route({
+  mirrorFetch,
+  s3: r2,
+  bucket: R2_BUCKET,
+  mirror: MIRROR,
+  clientIp,
+}));
 
 // A profile picture's small thumbnail (avatar.js), made once from the
 // linked file (a Hashinal through the route above, IPFS through the
