@@ -156,8 +156,8 @@ function fileOptions(options) {
     now: options.now,
     newRebuildMax: options.newRebuildMax,
     newRebuildWindowMs: options.newRebuildWindowMs,
-    // Left unset, ip "warm" takes the shared daily total as its per-IP
-    // write budget (hcs1.js). A caller can still pass a smaller one.
+    // Left unset, ip "warm" takes HCS1_R2_WARM_SHARE of the daily total
+    // (default half) as its per-IP write budget. A caller can still pass one.
     r2DailyIpBytes: options.r2DailyIpBytes,
     r2DailyTotalBytes: options.r2DailyTotalBytes,
     r2DayMs: options.r2DayMs,

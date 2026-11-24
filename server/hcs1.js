@@ -28,7 +28,10 @@
 //   HCS1_R2_DAILY_TOTAL_MB for every IP together (env
 //   HCS1_R2_DAILY_IP_MB, HCS1_R2_DAILY_TOTAL_MB). Over either budget the
 //   file is still served and the write is skipped. The warm-up IP ("warm")
-//   uses the shared daily total as its own per-IP budget.
+//   takes HCS1_R2_WARM_SHARE of that total as its per-IP budget (env
+//   HCS1_R2_WARM_SHARE, default 0.5, clamped to 0–1) unless a per-IP
+//   budget is passed, so visitor writes keep the rest of the total.
+//   Visitors stay on HCS1_R2_DAILY_IP_MB and the shared total.
 // - HCS1_MAX_BYTES / HCS1_MAX_MESSAGES per rebuild.
 // - HCS1_MISS_ENTRIES remembered misses, the oldest dropped first.
 
@@ -70,6 +73,8 @@ export const HCS1_NEW_REBUILD_WINDOW_MS = 60 * 60 * 1000;
 // served and the put is skipped.
 export const HCS1_R2_DAILY_IP_MB = envNumber("HCS1_R2_DAILY_IP_MB", 50);
 export const HCS1_R2_DAILY_TOTAL_MB = envNumber("HCS1_R2_DAILY_TOTAL_MB", 200);
+// Warm-up's share of the daily total when no per-IP budget is passed.
+export const HCS1_R2_WARM_SHARE = Math.min(1, Math.max(0, envNumber("HCS1_R2_WARM_SHARE", 0.5)));
 export const HCS1_R2_DAY_MS = 24 * 60 * 60 * 1000;
 // The types a rebuilt file is saved to R2 under: pictures, video, sound and
 // 3D models. Never SVG, text/*, JavaScript or HTML. Any other type is
@@ -406,10 +411,11 @@ function allowR2Write(ip, size, { ipMax, totalMax, windowMs, at }) {
 function r2WriteAllowed(entry, opts) {
   const totalMax = Number.isFinite(opts.r2DailyTotalBytes) ? opts.r2DailyTotalBytes : HCS1_R2_DAILY_TOTAL_MB * 1024 * 1024;
   // A visitor keeps the smaller per-IP day. Warming is one background IP,
-  // so its per-IP day is the shared total unless the caller set one.
+  // so its per-IP day is a share of the total (default half) unless the
+  // caller set one. The rest of the total stays available to visitors.
   const ipMax = Number.isFinite(opts.r2DailyIpBytes)
     ? opts.r2DailyIpBytes
-    : (opts.ip === "warm" ? totalMax : HCS1_R2_DAILY_IP_MB * 1024 * 1024);
+    : (opts.ip === "warm" ? totalMax * HCS1_R2_WARM_SHARE : HCS1_R2_DAILY_IP_MB * 1024 * 1024);
   const windowMs = opts.r2DayMs > 0 ? opts.r2DayMs : HCS1_R2_DAY_MS;
   return allowR2Write(opts.ip || "unknown", entry.size, {
     ipMax,

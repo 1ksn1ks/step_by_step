@@ -8,6 +8,9 @@ import { DatabaseSync } from "node:sqlite";
 
 import {
   HCS1_NEW_REBUILD_PER_IP_HOUR,
+  HCS1_R2_DAILY_IP_MB,
+  HCS1_R2_DAILY_TOTAL_MB,
+  HCS1_R2_WARM_SHARE,
   clearHcs1Cache,
   getHcs1File,
   hcs1MissPending,
@@ -109,6 +112,7 @@ test("the new-rebuild default is 300 per IP per hour", () => {
   if (!process.env.HCS1_WARM_INTERVAL_MS) assert.equal(HCS1_WARM_INTERVAL_MS, 10 * 60 * 1000);
   if (!process.env.HCS1_WARM_PER_TICK) assert.equal(HCS1_WARM_PER_TICK, 20);
   if (!process.env.HCS1_WARM_MISS_MS) assert.equal(HCS1_WARM_MISS_MS, 24 * 60 * 60 * 1000);
+  if (!process.env.HCS1_R2_WARM_SHARE) assert.equal(HCS1_R2_WARM_SHARE, 0.5);
 });
 
 test("known topics come from urls the server already holds", () => {
@@ -326,11 +330,18 @@ test("a file already in R2 is not rebuilt, and a full daily budget still serves"
   clearHcs1Cache();
 });
 
-test("warm stores past 50 MB under the shared total, and a visitor still stops at 50 MB", async () => {
+test("warm stores past 50 MB and stops at half the daily total, and a visitor still stops at 50 MB", async () => {
   clearHcs1Cache();
   const each = 8 * 1024 * 1024;
-  const warmIds = ["0.0.101", "0.0.102", "0.0.103", "0.0.104", "0.0.105", "0.0.106", "0.0.107"];
-  const visitorIds = ["0.0.111", "0.0.112", "0.0.113", "0.0.114", "0.0.115", "0.0.116", "0.0.117"];
+  const warmBudget = HCS1_R2_DAILY_TOTAL_MB * 1024 * 1024 * HCS1_R2_WARM_SHARE;
+  const warmFit = Math.floor(warmBudget / each);
+  const visitorBudget = HCS1_R2_DAILY_IP_MB * 1024 * 1024;
+  const visitorFit = Math.floor(visitorBudget / each);
+  assert.ok(warmFit > visitorFit);
+  assert.ok(warmFit * each <= warmBudget);
+  assert.ok((warmFit + 1) * each > warmBudget);
+  const warmIds = Array.from({ length: warmFit + 2 }, (_, i) => `0.0.${1001 + i}`);
+  const visitorIds = Array.from({ length: visitorFit + 1 }, (_, i) => `0.0.${1101 + i}`);
   const topics = {};
   for (const id of [...warmIds, ...visitorIds]) topics[id] = inscribed(Buffer.alloc(each), "image/png");
   const mirror = mirrorOf(topics);
@@ -346,9 +357,11 @@ test("warm stores past 50 MB under the shared total, and a visitor still stops a
     perTick: warmIds.length,
     log() {},
   });
-  assert.equal(summary.warmed, warmIds.length);
+  assert.equal(summary.warmed, warmFit + 1);
   assert.equal(summary.failed, 0);
-  for (const id of warmIds) assert.equal(r2.objects.has(`hcs1/${id}`), true);
+  for (let i = 0; i < warmFit; i += 1) assert.equal(r2.objects.has(`hcs1/${warmIds[i]}`), true);
+  assert.equal(r2.objects.has(`hcs1/${warmIds[warmFit]}`), false);
+  assert.equal(asked(mirror.calls, warmIds[warmFit + 1]), 0);
 
   let visitorStored = 0;
   for (const id of visitorIds) {
@@ -363,8 +376,38 @@ test("warm stores past 50 MB under the shared total, and a visitor still stops a
     assert.equal(file.ok, true);
     if (r2.objects.has(`hcs1/${id}`)) visitorStored += 1;
   }
-  assert.equal(visitorStored, 6);
-  assert.equal(r2.objects.has("hcs1/0.0.117"), false);
+  assert.equal(visitorStored, visitorFit);
+  assert.equal(r2.objects.has(`hcs1/${visitorIds[visitorFit]}`), false);
+  const storedBytes = (warmFit + visitorFit) * each;
+  assert.ok(storedBytes <= HCS1_R2_DAILY_TOTAL_MB * 1024 * 1024);
+  clearHcs1Cache();
+});
+
+test("an explicit warm per-IP budget overrides the half share", async () => {
+  clearHcs1Cache();
+  const ids = ["0.0.151", "0.0.152", "0.0.153", "0.0.154"];
+  const topics = {};
+  for (const id of ids) topics[id] = inscribed(Buffer.alloc(1000), "image/png");
+  const mirror = mirrorOf(topics);
+  const r2 = fakeR2();
+  const summary = await runHcs1WarmTick({
+    collect: () => ids,
+    mirrorFetch: mirror.fetchJson,
+    mirror: MIRROR,
+    s3: r2,
+    bucket: "media",
+    r2DailyTotalBytes: 10_000,
+    r2DailyIpBytes: 2000,
+    now: () => 12_500,
+    perTick: ids.length,
+    log() {},
+  });
+  assert.equal(summary.warmed, 3);
+  assert.equal(r2.objects.has("hcs1/0.0.151"), true);
+  assert.equal(r2.objects.has("hcs1/0.0.152"), true);
+  assert.equal(r2.objects.has("hcs1/0.0.153"), false);
+  assert.ok(asked(mirror.calls, "0.0.153") > 0);
+  assert.equal(asked(mirror.calls, "0.0.154"), 0);
   clearHcs1Cache();
 });
 
