@@ -325,7 +325,7 @@ function fakeRes() {
 }
 
 test("new mirror rebuilds are capped per IP, and cache or R2 hits do not count", async () => {
-  if (!process.env.HCS1_NEW_REBUILD_PER_IP_HOUR) assert.equal(HCS1_NEW_REBUILD_PER_IP_HOUR, 10);
+  if (!process.env.HCS1_NEW_REBUILD_PER_IP_HOUR) assert.equal(HCS1_NEW_REBUILD_PER_IP_HOUR, 300);
   assert.equal(HCS1_NEW_REBUILD_WINDOW_MS, 60 * 60 * 1000);
   clearHcs1Cache();
   let at = 1_000_000;

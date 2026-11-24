@@ -35,6 +35,7 @@ import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
 import { startEarlyHashinals } from "./hashinals.js";
 import { createHcs1RateLimit, hcs1Route } from "./hcs1.js";
+import { collectKnownHcs1Topics, startHcs1Warm } from "./hcs1warm.js";
 import { avatarRoute, createAvatarRateLimit, createProfileSources, getAvatarThumb } from "./avatar.js";
 import {
   communityIconRoute,
@@ -4041,9 +4042,63 @@ if (fs.existsSync(distDir)) {
   });
 }
 
+// Topic ids already in memory or in this process's SQLite cache. Profile
+// pictures are the in-memory set (and the settings rows). Post images,
+// covers and model links live in message bodies. Marker pictures live on
+// live_markers. The early-hashinals list is included only once it is
+// loaded. None of these queries talk to the mirror.
+let heldHcs1Query;
+function heldHcs1Values() {
+  const values = [profileSources.list()];
+  if (!heldHcs1Query) {
+    heldHcs1Query = {
+      pics: db.prepare(`
+        SELECT profile_pic AS v FROM user_settings
+        WHERE profile_pic IS NOT NULL AND profile_pic != ''
+          AND (
+            instr(profile_pic, 'hcs://1/') > 0
+            OR instr(profile_pic, 'inscription-cdn/') > 0
+            OR instr(profile_pic, '/api/hcs1/') > 0
+          )
+      `),
+      images: db.prepare(`
+        SELECT image AS v FROM live_markers
+        WHERE image IS NOT NULL AND image != ''
+          AND (
+            instr(image, 'hcs://1/') > 0
+            OR instr(image, 'inscription-cdn/') > 0
+            OR instr(image, '/api/hcs1/') > 0
+          )
+      `),
+      bodies: db.prepare(`
+        SELECT body AS v FROM messages
+        WHERE instr(body, 'hcs://1/') > 0
+           OR instr(body, 'inscription-cdn/') > 0
+           OR instr(body, '/api/hcs1/') > 0
+      `),
+    };
+  }
+  for (const row of heldHcs1Query.pics.all()) values.push(row.v);
+  for (const row of heldHcs1Query.images.all()) values.push(row.v);
+  for (const row of heldHcs1Query.bodies.all()) values.push(row.v);
+  if (typeof earlyHashinals.inscriptions === "function") values.push(earlyHashinals.inscriptions());
+  return values;
+}
+
 const server = app.listen(PORT, "0.0.0.0", () => {
   const serving = fs.existsSync(distDir) ? ", serving dist" : "";
   console.log(`topic backend on :${PORT} (mirror: ${MIRROR})${serving}`);
+  try {
+    startHcs1Warm({
+      mirrorFetch,
+      s3: r2,
+      bucket: R2_BUCKET,
+      mirror: MIRROR,
+      collect: () => collectKnownHcs1Topics(heldHcs1Values()),
+    });
+  } catch (err) {
+    console.error("hcs1 warm did not start", err && err.message);
+  }
 });
 // A slow phone can spend minutes sending a video. The 30s idle body timer
 // drops a connection that stops. headersTimeout only covers the headers

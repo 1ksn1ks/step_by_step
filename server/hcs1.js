@@ -21,9 +21,9 @@
 //   requests. Past that the answer is 503 with Retry-After, and the app
 //   falls back to Kiloscribe (hashinalurl.js).
 // - HCS1_NEW_REBUILD_PER_IP_HOUR new mirror rebuilds per client IP per
-//   hour (env HCS1_NEW_REBUILD_PER_IP_HOUR). A memory or R2 hit does not
-//   count. The route passes the client IP; past the cap the answer is
-//   429 with Retry-After. A call with no IP is not this budget.
+//   hour (env HCS1_NEW_REBUILD_PER_IP_HOUR, default 300). A memory or R2
+//   hit does not count. The route passes the client IP; past the cap the
+//   answer is 429 with Retry-After. A call with no IP is not this budget.
 // - New hcs1/ R2 writes: HCS1_R2_DAILY_IP_MB per IP per day and
 //   HCS1_R2_DAILY_TOTAL_MB for every IP together (env
 //   HCS1_R2_DAILY_IP_MB, HCS1_R2_DAILY_TOTAL_MB). Over either budget the
@@ -60,9 +60,10 @@ function envNumber(name, fallback) {
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 }
 
-// New mirror rebuilds per client IP per hour. Modelled on
+// New mirror rebuilds per client IP per hour. Default 300; set
+// HCS1_NEW_REBUILD_PER_IP_HOUR to override. Modelled on
 // AVATAR_BUILD_RATE_MAX: a file already made (memory or R2) is not counted.
-export const HCS1_NEW_REBUILD_PER_IP_HOUR = envNumber("HCS1_NEW_REBUILD_PER_IP_HOUR", 10);
+export const HCS1_NEW_REBUILD_PER_IP_HOUR = envNumber("HCS1_NEW_REBUILD_PER_IP_HOUR", 300);
 export const HCS1_NEW_REBUILD_WINDOW_MS = 60 * 60 * 1000;
 // New hcs1/ objects written to R2. Over either budget the file is still
 // served and the put is skipped.
@@ -267,6 +268,10 @@ export function createHcs1Memory({ maxEntries = HCS1_CACHE_ENTRIES, maxBytes = H
       map.clear();
       bytes = 0;
     },
+    // Present or not, without moving the entry (a warm scan must not pin it).
+    has(id) {
+      return map.has(id);
+    },
     get size() {
       return map.size;
     },
@@ -419,6 +424,44 @@ export function clearHcs1Cache(options = {}) {
   if (!options || options.counters !== false) {
     rebuildHits.clear();
     r2Writes.clear();
+  }
+}
+
+// What the warmer reads before it rebuilds. None of these start a rebuild.
+export function hcs1MemoryHas(topicId) {
+  return memory.has(topicId);
+}
+
+export function hcs1InFlight(topicId) {
+  return flights.has(topicId);
+}
+
+// A miss that is still inside its quiet period. An expired one is not
+// pending; the next read drops it.
+export function hcs1MissPending(topicId, now = Date.now) {
+  const miss = misses.get(topicId);
+  if (!miss) return false;
+  const at = typeof now === "function" ? now() : now;
+  return at < miss.until;
+}
+
+// True when another rebuild would pass the concurrent cap. The cap is the
+// same number load() compares against.
+export function hcs1RebuildsFull(max = HCS1_MAX_REBUILDS) {
+  const limit = Number.isFinite(max) && max >= 0 ? max : HCS1_MAX_REBUILDS;
+  return rebuilding >= limit;
+}
+
+// Whether R2 already has hcs1/<topicId>. A missing object is false. A head
+// that fails for any other reason is false too, so the caller can rebuild.
+export async function hcs1ObjectInR2(topicId, { s3, bucket } = {}) {
+  if (!s3 || !bucket || !isHcs1TopicId(topicId)) return false;
+  try {
+    await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: r2Key(topicId) }));
+    return true;
+  } catch (err) {
+    if (!notFoundInR2(err)) console.error("hcs1 r2 head", topicId, err && err.message);
+    return false;
   }
 }
 

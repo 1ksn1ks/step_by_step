@@ -453,6 +453,12 @@ export function createEarlyHashinals(options = {}) {
     return { owners: { ...owners }, updatedAt };
   }
 
+  // The inscription list already in memory. Empty until load or boot has
+  // it. This does not build or refresh the list.
+  function inscriptions() {
+    return listReady ? list.slice() : [];
+  }
+
   function load() {
     const parsedList = parseList(readJson(listPath, fsImpl));
     if (parsedList) {
@@ -563,6 +569,7 @@ export function createEarlyHashinals(options = {}) {
 
   return {
     snapshot,
+    inscriptions,
     load,
     start,
     stop,
@@ -580,6 +587,9 @@ export function startEarlyHashinals(options = {}) {
     return {
       snapshot() {
         return { owners: {}, updatedAt: null };
+      },
+      inscriptions() {
+        return [];
       },
       stop() {},
     };

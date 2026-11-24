@@ -523,6 +523,10 @@ export function createProfileSources(links = []) {
       add(after);
     },
     has: (source) => typeof source === "string" && counts.has(source),
+    // The spellings held now, for a scan that must not fetch anything.
+    list() {
+      return [...counts.keys()];
+    },
     get size() {
       return counts.size;
     },
