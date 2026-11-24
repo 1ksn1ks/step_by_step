@@ -5,7 +5,8 @@
 // spot once the map is at street level (a tap on any other bubble zooms
 // in to pull its dots apart). The list is a dropdown next to the bubble:
 // a search box and one row per post (its picture, title, name and when,
-// the poster's account ID), newest first. The search matches the title,
+// the poster's account ID with the post's likes and views), newest
+// first. The search matches the title,
 // name, account ID, date and the post's text. Picking a row opens that
 // post's own popup. Escape, a tap anywhere else, moving the map and Back
 // close it.
@@ -18,6 +19,7 @@
 import { avatarSrc } from './avatarsrc.js';
 import { map } from './map';
 import { forgetLoop, pictureElement } from './loopmedia.js';
+import { countsNode } from './postcounts.js';
 
 let panel = null;
 let countEl = null;
@@ -315,10 +317,14 @@ function buildRow(feature) {
   meta.className = 'marker-stack-meta';
   meta.textContent = [who, when].filter(Boolean).join(' · ');
   body.append(titleEl, meta);
-  if (account) {
+  // The likes and views known now, after the account ID on its line
+  // (postcounts.js). Nothing is fetched and no view is counted.
+  const counts = countsNode(record, 'marker-stack-counts');
+  if (account || counts) {
     const line = document.createElement('span');
     line.className = 'marker-stack-account';
     line.textContent = account;
+    if (counts) line.appendChild(counts);
     body.appendChild(line);
   }
   row.append(pic, body);

@@ -1,10 +1,12 @@
 // Hover card for a topic marker or polygon. The title stays, and the card
-// also names the payer and the topic. A share pin shows the original post,
-// the same person and topic the popup opens.
+// also names the payer and the topic, then the post's likes and views. A
+// share pin shows the original post, the same person and topic the popup
+// opens.
 
 import { usernames } from './loadalladata.js';
 import { globalLoadedTopicIdsWithNames } from './letall.js';
 import { earlyHashinalNumber } from './earlyhashinal.js';
+import { countsNode } from './postcounts.js';
 
 // Early Hashinal holders get the locked popup theme (style.css
 // .early-holder-popup), not the viewer's popup colour pickers.
@@ -52,7 +54,10 @@ function readCard(source) {
   const topicName = text((data && data.loadedTopicName) || topicNameFromList(topicId));
   const title = text((data && data.title) || props.title || source.title);
   if (!title && !payer && !topicId && !topicName) return null;
-  return { title, payer, username, topicId, topicName };
+  // The counts come from the record the popup opens: a share pin's fresh
+  // one once it has arrived (as the cluster list reads it).
+  const record = props._shareRecord || source._shareRecord || data;
+  return { title, payer, username, topicId, topicName, record };
 }
 
 function pickerColor(id, fallback) {
@@ -107,5 +112,9 @@ export function fillMapTip(tip, source) {
   if (payerRow) tip.appendChild(bubble(payerRow));
   const topicRow = line('On', card.topicName, card.topicId);
   if (topicRow) tip.appendChild(bubble(topicRow));
+  // Under By and On: the likes and views known now (postcounts.js).
+  // Nothing is fetched and no view is counted.
+  const counts = countsNode(card.record, 'map-tip-counts');
+  if (counts) tip.appendChild(counts);
   return tip.childElementCount > 0;
 }

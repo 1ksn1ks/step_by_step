@@ -9739,6 +9739,33 @@ html.feed-app .polygon-cover-play {
   color: #ffffff;
   overflow-wrap: anywhere;
 }
+/* Likes and views (postcounts.js): one small muted line under By and On,
+   the account ID's size (0.6875em of the page's 16px) and weight, each
+   icon the height of its text. A snapshot: nothing here is a button. */
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-counts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.2em 0.9em;
+  font-size: 0.6875em;
+  font-weight: 550;
+  line-height: 1.25;
+  color: rgba(255, 255, 255, 0.62);
+  font-variant-numeric: tabular-nums;
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-counts > .post-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  white-space: nowrap;
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-counts > .post-count > svg {
+  flex: none;
+  display: block;
+  width: 1.15em;
+  height: 1.15em;
+}
 
 /* Payer CLICK2LINK, shown above the username. Lives on document.body so a
    popup or chat cannot clip it. Above chats (9001) and the comments modal
@@ -25595,6 +25622,39 @@ html.is-draw-picking #map-topbar {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.72);
   font-variant-numeric: tabular-nums;
+}
+/* The post's likes and views after the account ID, on its line, muted
+   (postcounts.js). The ID comes first and is never cut: it is the line's
+   own text, which does not shrink, and the counts wrap under it when the
+   line is too narrow for both. */
+.marker-stack .marker-stack-account:has(> .marker-stack-counts) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0.7em;
+  row-gap: 0.15em;
+  text-overflow: clip;
+}
+.marker-stack .marker-stack-counts {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 0.7em;
+  min-width: 0;
+  font-size: 0.92em;
+  color: rgba(255, 255, 255, 0.55);
+}
+.marker-stack .marker-stack-counts > .post-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  white-space: nowrap;
+}
+.marker-stack .marker-stack-counts > .post-count > svg {
+  flex: none;
+  display: block;
+  width: 1.1em;
+  height: 1.1em;
 }
 .marker-stack-empty {
   padding: 14px 14px 18px;
