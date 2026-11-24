@@ -27,7 +27,7 @@ import { refreshFilterTimeButtons } from './drawdate.js';
 import { POST_IMAGES_BUSY, draftPending, postCover, postImageArray } from './postimages.js';
 import { pendingChatImage, chatImageBusy, clearPendingChatImage, topicChatWire } from './chatimage.js';
 import { stackedTopicRules } from './topicrules.js';
-import { STACK_MAX, activeStack, addTopicMessage, adminsFromMemo, appIconConfigMessage, autoplayConfigMessage, cleanTopicIds, currentAppIcon, currentAutoplayNft, currentTopicBio, currentTopicName, currentInitialXYZ, removeTopicMessage } from './loadcurrenttopic.js';
+import { STACK_MAX, activeStack, addTopicMessage, adminsFromMemo, appIconConfigMessage, autoplayConfigMessage, cleanTopicIds, currentAppIcon, currentAutoplayNft, currentTopicBio, currentTopicName, currentInitialXYZ, isTopicId, removeTopicMessage } from './loadcurrenttopic.js';
 import { readUniqueNft, rememberTopicAutoplay } from './coverautoplay.js';
 import { isOwnR2Image } from './r2public.js';
 import { isAppIconFile, squareCenterFile } from './imagecompress.js';
@@ -631,6 +631,18 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
    return userInput;
  }
 
+ // Update topic's shared target, resolved the same way: a loaded domain's
+ // topic, else the id as typed. App icon reads this one.
+ function updateTopicTargetId() {
+   const field = document.getElementById("update-topic-target");
+   const userInput = field ? field.value.trim().toLowerCase() : "";
+   const domainEntry = loadedDomains.find(entry => entry.domain === userInput);
+   if (domainEntry && domainEntry.lastMessage) {
+     return domainEntry.lastMessage.topic;
+   }
+   return userInput;
+ }
+
  async function sendUtilityRules(rules, topicId = utilityTopicId()) {
    if (!signer) {
      toast.error("Connect wallet first");
@@ -862,7 +874,7 @@ async function maySetAppIcon() {
     toast.error("Connect wallet first");
     return false;
   }
-  const topicId = utilityTopicId();
+  const topicId = updateTopicTargetId();
   if (!topicId) {
     toast.error("Please enter a Topic ID or domain.");
     return false;
@@ -881,7 +893,7 @@ async function sendAppIcon(url) {
     toast.error("Connect wallet first");
     return false;
   }
-  const topicId = utilityTopicId();
+  const topicId = updateTopicTargetId();
   if (!topicId) {
     toast.error("Please enter a Topic ID or domain.");
     return false;
@@ -894,6 +906,48 @@ async function sendAppIcon(url) {
   toast.info("Confirm in wallet 👛");
   await sendMessage(topicId, appIconConfigMessage(raw));
   return true;
+}
+
+// The card shows the target topic's current icon: the read Load Topic
+// Rules does (its messages, its memo admins, only our own R2 images).
+// An empty or invalid target is Profile picture. A new topic shows
+// Profile picture while it reads; the same topic keeps its picture. Only
+// the newest read paints, and never over an upload in progress.
+let appIconTopic = "";
+let appIconReadSeq = 0;
+
+async function previewAppIconForTarget() {
+  const topicId = updateTopicTargetId();
+  const seq = ++appIconReadSeq;
+  if (!isTopicId(topicId)) {
+    appIconTopic = "";
+    if (!appIconBusy) showAppIconPreview("");
+    return;
+  }
+  if (topicId !== appIconTopic && !appIconBusy) showAppIconPreview("");
+  appIconTopic = topicId;
+  let icon = "";
+  try {
+    const response = await getMessages(topicId);
+    const info = await getTopicInfo(topicId);
+    icon = currentAppIcon(response && response.messages, adminsFromMemo(info && info.memo), (url) => isOwnR2Image(url));
+  } catch (error) {
+    console.error("Error loading app icon:", error);
+    icon = "";
+  }
+  if (seq !== appIconReadSeq || appIconBusy) return;
+  showAppIconPreview(icon);
+}
+
+// Opening Update topic fills the target (prefillUpdateTopicTarget sends
+// change), and typing or clearing it reads again.
+const previewAppIconSoon = debounce(previewAppIconForTarget, 350);
+{
+  const target = document.getElementById("update-topic-target");
+  if (target) {
+    target.addEventListener("input", previewAppIconSoon);
+    target.addEventListener("change", previewAppIconSoon);
+  }
 }
 
 document.getElementById("submit-button-upload-app-icon").addEventListener("click", () => {

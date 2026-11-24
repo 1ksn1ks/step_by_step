@@ -1116,18 +1116,6 @@
               <button type="button" id="submit-button-clear-autoplay-nft" class="cover-autoplay-clear">Clear</button>
             </div>
           </div>
-          <div class="cover-autoplay-field" id="app-icon-field">
-            <label class="cover-autoplay-label" for="app-icon-file">App icon</label>
-            <div class="app-icon-preview" id="app-icon-preview">
-              <img id="app-icon-preview-img" alt="" width="96" height="96" hidden>
-              <span class="app-icon-preview-fallback" id="app-icon-preview-fallback">Profile picture</span>
-            </div>
-            <div class="cover-autoplay-actions">
-              <button type="button" id="submit-button-upload-app-icon" class="cover-autoplay-save">Upload image</button>
-              <button type="button" id="submit-button-clear-app-icon" class="cover-autoplay-clear">Use profile picture</button>
-            </div>
-            <input class="app-icon-file" type="file" id="app-icon-file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
-          </div>
         </div>
       
         </div>
@@ -1140,6 +1128,7 @@
           <ul class="info-overlay-list">
             <li><b>Domain/Topic ID</b> — the topic to edit.</li>
             <li><b>Private key</b> — signs and approves the change.</li>
+            <li><b>App icon</b> — the icon this topic's app installs with. Only its memo admins can set it; Use profile picture goes back to the default.</li>
             <li><b>Admins</b> — who can set this topic's rules. Load memo shows the current memo before you change it.</li>
             <li><b>Update bio</b> and <b>Topic name</b> — Load bio and Load name fill the current text before you change it.</li>
             <li><b>Optional fee</b> — make users pay per message posted.</li>
@@ -1220,6 +1209,20 @@
           </button>
           <button id="pin-publickkey-load" class="pin-public-key-from-encrypted-chat" style="display: none;"> Pin
           </button>
+          </div>
+
+          <!-- The topic's install icon (rest.js), for Update topic's target. -->
+          <div class="cover-autoplay-field" id="app-icon-field">
+            <label class="cover-autoplay-label" for="app-icon-file">App icon</label>
+            <div class="app-icon-preview" id="app-icon-preview">
+              <img id="app-icon-preview-img" alt="" width="96" height="96" hidden>
+              <span class="app-icon-preview-fallback" id="app-icon-preview-fallback">Profile picture</span>
+            </div>
+            <div class="cover-autoplay-actions">
+              <button type="button" id="submit-button-upload-app-icon" class="cover-autoplay-save">Upload image</button>
+              <button type="button" id="submit-button-clear-app-icon" class="cover-autoplay-clear">Use profile picture</button>
+            </div>
+            <input class="app-icon-file" type="file" id="app-icon-file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
           </div>
 
           <div id="update-bio-from-memo" style="display: none;">

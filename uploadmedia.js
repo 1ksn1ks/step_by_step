@@ -108,7 +108,7 @@ let turnstilePending = null;
 
 function sheetFor(anchor) {
   if (!anchor || !anchor.closest) return null;
-  return anchor.closest("#draw-column, #Edit_Profile-column, #topic-chat-container, #encrypted-chat-container, #utility-column");
+  return anchor.closest("#draw-column, #Edit_Profile-column, #topic-chat-container, #encrypted-chat-container, #utility-column, #memo-column");
 }
 
 function removeTurnstile(reason) {

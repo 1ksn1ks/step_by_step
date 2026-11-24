@@ -1609,6 +1609,8 @@ function prefillUpdateTopicTarget() {
     field.value = openChatTopicId() || loadValue;
   }
   syncUpdateTopicTarget();
+  // App icon (rest.js) reads the target's current icon on change.
+  field.dispatchEvent(new Event("change"));
 }
 
 function clickShown(id) {

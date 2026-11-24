@@ -9433,7 +9433,8 @@ html.feed-app .polygon-cover-play {
     0 0 calc(var(--fu) * 1.15) rgba(34, 211, 238, 0.45),
     0 calc(var(--fu) * 0.35) calc(var(--fu) * 1.2) rgba(0, 0, 0, 0.35);
 }
-#utility-column-container label.cover-autoplay-label {
+#utility-column-container label.cover-autoplay-label,
+#memo-column-container label.cover-autoplay-label {
   margin: 0;
   padding: 0;
   color: #22D3EE !important;
@@ -19897,9 +19898,10 @@ html.feed-draw-open #map-draw-help-overlay {
    glass card like Stack, Domain and Create. A small grey label, the
    current value in a dashed read-only box, an outlined Load button, the
    fields, and the cyan button that sends. The key card shows while any
-   of its fields does. */
+   of its fields does; App icon, under it, always shows. */
 #memo-column #memo-column-container > :is(#update-bio-from-memo, #topic-name-from-memo, #memo-from-memo, #fee-from-memo):not([style*="display: none"]):not([style*="display:none"]),
-#memo-column #memo-column-container > .memo-key-card:has(> :not([style*="display: none"]):not([style*="display:none"])) {
+#memo-column #memo-column-container > .memo-key-card:has(> :not([style*="display: none"]):not([style*="display:none"])),
+#memo-column #memo-column-container > #app-icon-field {
   display: flex !important;
   flex-direction: column;
   align-items: stretch;
@@ -19918,6 +19920,21 @@ html.feed-draw-open #map-draw-help-overlay {
 }
 #memo-column #memo-column-container > .memo-key-card {
   display: none;
+}
+/* App icon: the NFT card's markup (rest.js) on this page's glass. It
+   reads the page's type scale instead of its own --fu, and drops the NFT
+   card's cyan frame and blur. The tile and the cyan / outlined pair stay,
+   at this page's button height and corners. */
+#memo-column #memo-column-container > #app-icon-field {
+  --fu: inherit;
+  --ui-label: inherit;
+  --ui-small: inherit;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+#memo-column #memo-column-container > #app-icon-field :is(.cover-autoplay-save, .cover-autoplay-clear) {
+  min-height: var(--ui-btn-h);
+  border-radius: var(--ui-radius);
 }
 #memo-column #memo-column-container :is(#update-bio-from-memo, #topic-name-from-memo, #memo-from-memo, #fee-from-memo, .memo-key-card) > div:has(> label) {
   margin: 0;
