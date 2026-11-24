@@ -52,6 +52,9 @@ let nextCreate = 0;
 let seenCalls = 0;
 let failOnCall = 0;
 let mintMode = "ok";
+const mintChecks = [];
+let txLook = () => ({ status: "unknown" });
+let metaLook = () => ({ status: "unknown" });
 
 function reset() {
   prepares.length = 0;
@@ -60,10 +63,13 @@ function reset() {
   builds.length = 0;
   order.length = 0;
   storageHits.length = 0;
+  mintChecks.length = 0;
   nextCreate = 0;
   seenCalls = 0;
   failOnCall = 0;
   mintMode = "ok";
+  txLook = () => ({ status: "unknown" });
+  metaLook = () => ({ status: "unknown" });
 }
 
 function assertNoStorage() {
@@ -132,6 +138,13 @@ async function mintNfts(tokenId, metadataList) {
     err.txIds = ["0.0.1001@9.1"];
     throw err;
   }
+  if (mintMode === "fail-maybe") {
+    mintMode = "ok";
+    const err = new Error("wallet timed out");
+    err.maybeSentTxIds = ["0.0.1001@1700000000.000000004"];
+    err.pendingMetadata = ["hcs://1/0.0.502"];
+    throw err;
+  }
   return {
     tokenId,
     tokenUrl: `https://hashscan.io/mainnet/token/${tokenId}`,
@@ -171,9 +184,31 @@ mock.module("../hcs1inscribewallet.js", {
   },
 });
 
+async function checkMintTx(txId, tokenId) {
+  mintChecks.push({ kind: "tx", txId, tokenId });
+  return txLook(txId, tokenId);
+}
+
+async function checkMintByMetadata(tokenId, accountId, metadata) {
+  mintChecks.push({ kind: "meta", tokenId, accountId, metadata });
+  return metaLook(tokenId, accountId, metadata);
+}
+
+mock.module("../web3.js", {
+  exports: {
+    signer: {
+      getAccountId() {
+        return { toString() { return "0.0.1001"; } };
+      },
+    },
+  },
+});
+
 mock.module("../tokenmint.js", {
   exports: {
     mintNfts,
+    checkMintTx,
+    checkMintByMetadata,
   },
 });
 
@@ -375,13 +410,116 @@ test("a mint that already sent a transaction is marked and is not minted twice i
   assert.equal(thrown.step, "mint");
   assert.equal(thrown.mintMaybeSent, true);
   assert.deepEqual(thrown.txIds, ["0.0.1001@9.1"]);
+  assert.deepEqual(thrown.resume.mintCheck, {
+    txIds: ["0.0.1001@9.1"],
+    tokenId: "0.0.4242",
+    metadata: "hcs://1/0.0.502",
+  });
   assert.notEqual(thrown.resume.minted, true);
   assert.equal(mints.length, 1);
   const inscribed = inscribes.length;
-  const result = await runHashinalMint({ ...args(prepared), resume: thrown.resume });
+  const again = await runHashinalMint({ ...args(prepared), resume: thrown.resume }).then(() => {
+    throw new Error("expected the mirror check to hold the mint");
+  }, (err) => err);
+  assert.equal(again.mintUnconfirmed, true);
+  assert.equal(again.userFacing, true);
+  assert.equal(again.step, "mint");
   assert.equal(inscribes.length, inscribed);
+  assert.equal(mints.length, 1);
+  assert.deepEqual(again.resume.mintCheck.txIds, ["0.0.1001@9.1"]);
+  assertNoStorage();
+});
+
+test("a mint with only maybeSentTxIds is held for a mirror check", async () => {
+  reset();
+  const prepared = basePrepared();
+  mintMode = "fail-maybe";
+  const thrown = await runHashinalMint(args(prepared)).then(() => {
+    throw new Error("expected the mint to fail");
+  }, (err) => err);
+  assert.equal(thrown.message, "wallet timed out");
+  assert.equal(thrown.mintMaybeSent, true);
+  assert.deepEqual(thrown.txIds, ["0.0.1001@1700000000.000000004"]);
+  assert.deepEqual(thrown.resume.mintCheck, {
+    txIds: ["0.0.1001@1700000000.000000004"],
+    tokenId: "0.0.4242",
+    metadata: "hcs://1/0.0.502",
+  });
+  assert.equal(thrown.resume.minted, undefined);
+  assert.equal(mints.length, 1);
+
+  txLook = () => ({ status: "minted", serials: ["7"] });
+  const found = await runHashinalMint({ ...args(prepared), resume: thrown.resume });
+  assert.equal(mints.length, 1);
+  assert.equal(inscribes.length, 2);
+  assert.equal(found.serial, "7");
+  assert.equal(found.tokenId, "0.0.4242");
+  assert.equal(found.fileTopicId, "0.0.501");
+  assert.equal(found.metaTopicId, "0.0.502");
+  assert.equal(found.metaHrl, "hcs://1/0.0.502");
+  assert.equal(mintChecks.some((call) => call.kind === "meta"), false);
+  assert.deepEqual(thrown.resume.minted.serials, ["7"]);
+  assertNoStorage();
+});
+
+test("an unknown mirror check does not mint again unless confirmRemint is set", async () => {
+  reset();
+  const prepared = basePrepared();
+  mintMode = "fail-maybe";
+  const thrown = await runHashinalMint(args(prepared)).then(() => {
+    throw new Error("expected the mint to fail");
+  }, (err) => err);
+  const inscribed = inscribes.length;
+  const held = await runHashinalMint({ ...args(prepared), resume: thrown.resume }).then(() => {
+    throw new Error("expected the mint to stay unconfirmed");
+  }, (err) => err);
+  assert.equal(held.step, "mint");
+  assert.equal(held.mintUnconfirmed, true);
+  assert.equal(held.userFacing, true);
+  assert.match(held.message, /not minted again/);
+  assert.equal(mints.length, 1);
+  assert.equal(inscribes.length, inscribed);
+  assert.deepEqual(mintChecks, [
+    { kind: "tx", txId: "0.0.1001@1700000000.000000004", tokenId: "0.0.4242" },
+    { kind: "meta", tokenId: "0.0.4242", accountId: "0.0.1001", metadata: "hcs://1/0.0.502" },
+  ]);
+  assert.equal(held.resume.mintCheck.metadata, "hcs://1/0.0.502");
+  const result = await runHashinalMint({
+    ...args(prepared),
+    resume: held.resume,
+    confirmRemint: true,
+  });
   assert.equal(mints.length, 2);
+  assert.equal(mintChecks.length, 2);
+  assert.equal(inscribes.length, inscribed);
   assert.equal(result.serial, "1");
+  assert.deepEqual(held.resume.minted.serials, ["1"]);
+  assertNoStorage();
+});
+
+test("a resume with minted returns the stored serial and does not inscribe or mint", async () => {
+  reset();
+  const resume = {
+    fileTopicId: "0.0.501",
+    metaTopicId: "0.0.502",
+    minted: {
+      tokenId: "0.0.4242",
+      serials: ["4"],
+      txId: "0.0.1001@2.0",
+      hashscanUrl: "https://hashscan.io/mainnet/transaction/0.0.1001-2-000000000",
+      tokenUrl: "https://hashscan.io/mainnet/token/0.0.4242",
+    },
+  };
+  const result = await runHashinalMint({ ...args(basePrepared()), resume });
+  assert.equal(inscribes.length, 0);
+  assert.equal(mints.length, 0);
+  assert.equal(mintChecks.length, 0);
+  assert.equal(result.serial, "4");
+  assert.equal(result.txId, "0.0.1001@2.0");
+  assert.equal(result.hashscanUrl, resume.minted.hashscanUrl);
+  assert.equal(result.tokenUrl, resume.minted.tokenUrl);
+  assert.equal(result.fileHrl, "hcs://1/0.0.501");
+  assert.equal(result.metaHrl, "hcs://1/0.0.502");
   assertNoStorage();
 });
 
@@ -478,6 +616,8 @@ test("submit keys are cleared after success and storage is never touched", async
   assert.equal(mints.length, 1);
   assert.equal(resume.file.submitKey, null);
   assert.equal(resume.meta.submitKey, null);
+  assert.deepEqual(resume.minted.serials, ["1"]);
+  assert.equal(resume.minted.tokenId, "0.0.4242");
   assert.equal(result.serial, "1");
   assert.equal(result.fileHrl, "hcs://1/0.0.501");
   assert.equal(result.metaHrl, "hcs://1/0.0.502");

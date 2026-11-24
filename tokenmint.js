@@ -406,15 +406,30 @@ function serialList(receipt) {
   });
 }
 
-function partialMintError(tokenId, mintedSerials, sentCount, txIds, cause) {
-  const err = new Error(`Minting stopped. ${mintedSerials.length} NFTs were minted.`);
-  err.userFacing = true;
+function partialMintError(tokenId, mintedSerials, sentCount, txIds, maybeSentTxIds, pendingMetadata, cause) {
+  // A chunk that already landed keeps the stopped message. A first send that
+  // only might have landed keeps the original message.
+  const prior = mintedSerials.length > 0 || txIds.length > 0;
+  const err = new Error(prior
+    ? `Minting stopped. ${mintedSerials.length} NFTs were minted.`
+    : (cause && cause.message ? String(cause.message) : "Minting stopped."));
+  if (prior || (cause && cause.userFacing)) err.userFacing = true;
   err.tokenId = tokenId;
   err.mintedSerials = mintedSerials.slice();
   err.sentCount = sentCount;
   err.txIds = txIds.slice();
+  err.maybeSentTxIds = maybeSentTxIds.slice();
+  err.pendingMetadata = pendingMetadata.slice();
   if (cause) err.cause = cause;
   return err;
+}
+
+function frozenTxId(tx) {
+  const txId = tx && tx.transactionId && typeof tx.transactionId.toString === "function"
+    ? tx.transactionId.toString()
+    : "";
+  if (!txId || !mirrorTxPath(txId)) throw new Error("missing transaction id");
+  return txId;
 }
 
 export async function mintNfts(tokenId, metadataList) {
@@ -430,10 +445,16 @@ export async function mintNfts(tokenId, metadataList) {
     const tx = new TokenMintTransaction()
       .setTokenId(id)
       .setMetadata(chunk.map((text) => new TextEncoder().encode(text)));
+    // pending is set only after freeze, and only a throw after execute
+    // starts counts as maybe-sent. The id is known before the wallet broadcasts.
+    let pending = null;
+    let executed = false;
     try {
       const nodeAddresses = await dAppConnector.getNodeAddresses();
       freezeForConnectedAccount(tx, signer, nodeAddresses);
+      pending = frozenTxId(tx);
       const txResponse = await tx.executeWithSigner(signer);
+      executed = true;
       const txId = readTxId(txResponse);
       txIds.push(txId);
       sentCount += chunk.length;
@@ -441,8 +462,12 @@ export async function mintNfts(tokenId, metadataList) {
       requireSuccess(receipt);
       mintedSerials.push(...serialList(receipt));
     } catch (err) {
-      if (txIds.length > 0) throw partialMintError(id, mintedSerials, sentCount, txIds, err);
-      throw err;
+      if (pending == null) throw err;
+      if (executed && !txIds.includes(pending)) {
+        txIds.push(pending);
+        sentCount += chunk.length;
+      }
+      throw partialMintError(id, mintedSerials, sentCount, txIds, [pending], chunk, err);
     }
   }
   const txId = txIds[txIds.length - 1];
@@ -451,6 +476,109 @@ export async function mintNfts(tokenId, metadataList) {
     serials: mintedSerials,
     txIds,
   };
+}
+
+// A missing mirror row is not proof the mint failed. The node can lag.
+async function mirrorLookup(url) {
+  let response;
+  try {
+    response = await fetch(url, { signal: AbortSignal.timeout(4000) });
+  } catch {
+    return null;
+  }
+  if (!response || response.status === 404 || !response.ok) return null;
+  try {
+    const data = await response.json();
+    if (!data || typeof data !== "object") return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function transferSerials(transactions, tokenId) {
+  const serials = [];
+  for (const row of transactions) {
+    if (!row || row.result !== "SUCCESS") continue;
+    const transfers = Array.isArray(row.nft_transfers) ? row.nft_transfers : [];
+    for (const transfer of transfers) {
+      if (!transfer || transfer.token_id !== tokenId) continue;
+      const serial = transfer.serial_number;
+      if (typeof serial !== "number" && typeof serial !== "string") continue;
+      const text = String(serial);
+      if (!/^(0|[1-9]\d*)$/.test(text) || serials.includes(text)) continue;
+      serials.push(text);
+    }
+  }
+  return serials;
+}
+
+/**
+ * Read-only mainnet check for one mint transaction.
+ * "unknown" means the mirror has not shown it yet, including a 404.
+ */
+export async function checkMintTx(txId, tokenId) {
+  const path = mirrorTxPath(txId);
+  const id = typeof tokenId === "string" ? tokenId.trim() : "";
+  if (!path || !ACCOUNT_ID.test(id)) return { status: "unknown" };
+  const data = await mirrorLookup(`${MIRROR_NODE}/api/v1/transactions/${path}`);
+  if (!data) return { status: "unknown" };
+  const transactions = Array.isArray(data.transactions) ? data.transactions : null;
+  if (!transactions || transactions.length === 0) return { status: "unknown" };
+  const serials = transferSerials(transactions, id);
+  if (transactions.some((row) => row && row.result === "SUCCESS")) {
+    return { status: "minted", serials };
+  }
+  const failed = transactions.find((row) => row && typeof row.result === "string" && row.result !== "SUCCESS");
+  return { status: "failed", result: failed ? failed.result : "UNKNOWN" };
+}
+
+function decodeNftMetadata(value) {
+  if (typeof value !== "string" || value === "") return "";
+  try {
+    const binary = atob(value.replace(/\s/g, ""));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Read-only mainnet check. Matches the exact metadata string on NFTs held
+ * by accountId. Follows links.next for at most 3 pages. No match, a short
+ * page, or a fetch error is "unknown", not "absent".
+ */
+export async function checkMintByMetadata(tokenId, accountId, metadata) {
+  const token = typeof tokenId === "string" ? tokenId.trim() : "";
+  const account = typeof accountId === "string" ? accountId.trim() : "";
+  if (!ACCOUNT_ID.test(token) || !ACCOUNT_ID.test(account) || typeof metadata !== "string") {
+    return { status: "unknown" };
+  }
+  let url = `${MIRROR_NODE}/api/v1/tokens/${token}/nfts?account.id=${encodeURIComponent(account)}&order=desc&limit=100`;
+  const serials = [];
+  for (let page = 0; page < 3; page++) {
+    const data = await mirrorLookup(url);
+    const nfts = data && Array.isArray(data.nfts) ? data.nfts : null;
+    if (!nfts) return serials.length ? { status: "minted", serials } : { status: "unknown" };
+    for (const nft of nfts) {
+      if (decodeNftMetadata(nft && nft.metadata) !== metadata) continue;
+      const serial = nft.serial_number;
+      if (typeof serial !== "number" && typeof serial !== "string") continue;
+      const text = String(serial);
+      if (!/^(0|[1-9]\d*)$/.test(text) || serials.includes(text)) continue;
+      serials.push(text);
+    }
+    const next = data.links && data.links.next;
+    if (!next) break;
+    try {
+      url = nextListUrl(next);
+    } catch {
+      break;
+    }
+  }
+  return serials.length ? { status: "minted", serials } : { status: "unknown" };
 }
 
 // supply_key on a token info body is { _type, key } with a raw hex key.

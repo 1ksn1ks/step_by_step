@@ -21,6 +21,8 @@ let txSeq = 0;
 let serialCursor = 0;
 let mintCount = 0;
 let mintFailAt = 0;
+let receiptFailAt = 0;
+let failBeforeSend = "";
 let routes = () => {
   throw new Error("unexpected fetch");
 };
@@ -37,6 +39,8 @@ function reset() {
   serialCursor = 0;
   mintCount = 0;
   mintFailAt = 0;
+  receiptFailAt = 0;
+  failBeforeSend = "";
 }
 
 function jsonResponse(body, ok = true) {
@@ -131,7 +135,11 @@ class TokenMintTransaction {
   setAmount(value) { return this.record("setAmount", value); }
   setNodeAccountIds(value) { return this.record("setNodeAccountIds", value); }
   setTransactionId(value) { this.transactionId = value; return this.record("setTransactionId", value); }
-  freeze() { return this.record("freeze"); }
+  freeze() {
+    this.record("freeze");
+    if (failBeforeSend === "freeze") throw new Error("freeze failed");
+    return this;
+  }
   freezeWithSigner() { return this.record("freezeWithSigner"); }
   async executeWithSigner(signerArg) {
     this.signerArg = signerArg;
@@ -146,6 +154,7 @@ class TokenMintTransaction {
     return {
       transactionId,
       async getReceiptWithSigner() {
+        if (receiptFailAt && mintCount === receiptFailAt) throw new Error("receipt missing");
         return {
           status: { toString: () => "SUCCESS" },
           tokenId: { toString: () => "0.0.777" },
@@ -236,6 +245,7 @@ let nodeReads = 0;
 const dAppConnector = {
   async getNodeAddresses() {
     nodeReads += 1;
+    if (failBeforeSend === "nodes") throw new Error("node list failed");
     return ["0.0.3"];
   },
 };
@@ -270,6 +280,8 @@ const {
   createFungibleToken,
   createNftCollection,
   mintNfts,
+  checkMintTx,
+  checkMintByMetadata,
   listMyCollections,
   validateTokenFields,
 } = await import("../tokenmint.js");
@@ -555,12 +567,145 @@ test("a failure on the second mint chunk reports the serials from the first", as
       assert.deepEqual(err.mintedSerials, Array.from({ length: 10 }, (_, i) => String(i + 1)));
       assert.equal(err.sentCount, 10);
       assert.equal(err.txIds.length, 1);
+      assert.equal(err.txIds[0], mints[0].transactionId.toString());
+      assert.deepEqual(err.maybeSentTxIds, [mints[1].transactionId.toString()]);
+      assert.equal(err.pendingMetadata.length, 10);
+      assert.equal(err.pendingMetadata[0], "https://example.com/0");
       assert.equal(err.userFacing, true);
       return true;
     },
   );
   assert.equal(mints.length, 2);
   assert.deepEqual(mints.map((tx) => tx.metadata.length), [10, 10]);
+});
+
+test("a send that throws still carries the frozen transaction id", async () => {
+  reset();
+  mintFailAt = 1;
+  const err = await mintNfts("0.0.900", ["ipfs://one"]).then(() => {
+    throw new Error("expected the send to fail");
+  }, (caught) => caught);
+  const id = mints[0].transactionId.toString();
+  assert.equal(mints[0].calls.some((call) => call.name === "executeWithSigner"), true);
+  assert.equal(err.message, "node rejected");
+  assert.equal(err.tokenId, "0.0.900");
+  assert.deepEqual(err.mintedSerials, []);
+  assert.equal(err.sentCount, 0);
+  assert.deepEqual(err.txIds, []);
+  assert.deepEqual(err.maybeSentTxIds, [id]);
+  assert.deepEqual(err.pendingMetadata, ["ipfs://one"]);
+  assert.ok(mirrorTxPath(id));
+  assert.equal(err.userFacing, undefined);
+});
+
+test("a failure before execute is not marked maybe-sent", async () => {
+  reset();
+  failBeforeSend = "nodes";
+  const nodes = await mintNfts("0.0.900", ["ipfs://one"]).then(() => {
+    throw new Error("expected the node list to fail");
+  }, (err) => err);
+  assert.equal(nodes.message, "node list failed");
+  assert.equal(nodes.maybeSentTxIds, undefined);
+  assert.equal(mints[0].calls.some((call) => call.name === "executeWithSigner"), false);
+  assert.equal(mints[0].calls.some((call) => call.name === "freeze"), false);
+
+  reset();
+  failBeforeSend = "freeze";
+  const frozen = await mintNfts("0.0.900", ["ipfs://one"]).then(() => {
+    throw new Error("expected freeze to fail");
+  }, (err) => err);
+  assert.equal(frozen.message, "freeze failed");
+  assert.equal(frozen.maybeSentTxIds, undefined);
+  assert.equal(mints[0].calls.some((call) => call.name === "freeze"), true);
+  assert.equal(mints[0].calls.some((call) => call.name === "executeWithSigner"), false);
+});
+
+test("a receipt failure keeps the id in txIds and maybeSentTxIds", async () => {
+  reset();
+  receiptFailAt = 1;
+  const err = await mintNfts("0.0.900", ["hcs://1/0.0.5"]).then(() => {
+    throw new Error("expected the receipt to fail");
+  }, (caught) => caught);
+  const id = mints[0].transactionId.toString();
+  assert.equal(err.userFacing, true);
+  assert.match(err.message, /Minting stopped/);
+  assert.deepEqual(err.mintedSerials, []);
+  assert.equal(err.sentCount, 1);
+  assert.deepEqual(err.txIds, [id]);
+  assert.deepEqual(err.maybeSentTxIds, [id]);
+  assert.deepEqual(err.pendingMetadata, ["hcs://1/0.0.5"]);
+});
+
+test("checkMintTx reads success, failure, a 404, and a network error", async () => {
+  reset();
+  const txId = "0.0.1001@1700000000.000000009";
+  const path = mirrorTxPath(txId);
+  routes = (url) => {
+    assert.equal(url, `https://mainnet.mirrornode.hedera.com/api/v1/transactions/${path}`);
+    return jsonResponse({
+      transactions: [{
+        result: "SUCCESS",
+        nft_transfers: [
+          { token_id: "0.0.900", serial_number: 4 },
+          { token_id: "0.0.1", serial_number: 9 },
+        ],
+      }],
+    });
+  };
+  assert.deepEqual(await checkMintTx(txId, "0.0.900"), { status: "minted", serials: ["4"] });
+
+  routes = () => jsonResponse({ transactions: [{ result: "INVALID_SIGNATURE" }] });
+  assert.deepEqual(await checkMintTx(txId, "0.0.900"), { status: "failed", result: "INVALID_SIGNATURE" });
+
+  routes = () => jsonResponse({ transactions: [] });
+  assert.deepEqual(await checkMintTx(txId, "0.0.900"), { status: "unknown" });
+
+  routes = () => ({ ok: false, status: 404, async json() { return {}; } });
+  assert.deepEqual(await checkMintTx(txId, "0.0.900"), { status: "unknown" });
+
+  routes = () => { throw new Error("socket closed"); };
+  assert.deepEqual(await checkMintTx(txId, "0.0.900"), { status: "unknown" });
+});
+
+test("checkMintByMetadata matches the base64 text and stops after 3 pages", async () => {
+  reset();
+  const wanted = "hcs://1/0.0.502";
+  const encoded = Buffer.from(wanted, "utf8").toString("base64");
+  const seen = [];
+  routes = (url) => {
+    seen.push(url);
+    if (seen.length === 1) {
+      return jsonResponse({
+        nfts: [{ serial_number: 1, metadata: Buffer.from("other", "utf8").toString("base64") }],
+        links: { next: "/api/v1/tokens/0.0.900/nfts?account.id=0.0.1001&page=2" },
+      });
+    }
+    return jsonResponse({
+      nfts: [{ serial_number: 8, metadata: encoded }],
+      links: { next: null },
+    });
+  };
+  assert.deepEqual(
+    await checkMintByMetadata("0.0.900", "0.0.1001", wanted),
+    { status: "minted", serials: ["8"] },
+  );
+  assert.equal(seen.length, 2);
+  assert.match(seen[0], /\/api\/v1\/tokens\/0\.0\.900\/nfts\?account\.id=0\.0\.1001&order=desc&limit=100$/);
+  assert.equal(seen[1], "https://mainnet.mirrornode.hedera.com/api/v1/tokens/0.0.900/nfts?account.id=0.0.1001&page=2");
+
+  seen.length = 0;
+  routes = (url) => {
+    seen.push(url);
+    return jsonResponse({
+      nfts: [{ serial_number: seen.length, metadata: Buffer.from("nope", "utf8").toString("base64") }],
+      links: { next: `/api/v1/tokens/0.0.900/nfts?page=${seen.length + 1}` },
+    });
+  };
+  assert.deepEqual(
+    await checkMintByMetadata("0.0.900", "0.0.1001", wanted),
+    { status: "unknown" },
+  );
+  assert.equal(seen.length, 3);
 });
 
 test("userPublicKey accepts ED25519 and ECDSA and rejects a protobuf key", async () => {

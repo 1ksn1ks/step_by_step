@@ -14,7 +14,7 @@ import {
   estimateHcs1Cost,
 } from "./hcs1inscribe.js";
 import { inscribePrepared, prepareInscribeFile } from "./hcs1inscribewallet.js";
-import { mintNfts } from "./tokenmint.js";
+import { checkMintByMetadata, checkMintTx, mintNfts } from "./tokenmint.js";
 
 export const MINT_NFT_USD = 0.02;
 const PLACEHOLDER_TOPIC = "0.0.9999999999";
@@ -177,9 +177,32 @@ function chunkResume(err) {
   };
 }
 
+function dedupedIds(lists) {
+  const ids = [];
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      if (typeof item !== "string" || !item || ids.includes(item)) continue;
+      ids.push(item);
+    }
+  }
+  return ids;
+}
+
+function mintCheckFrom(cause, state) {
+  const txIds = dedupedIds([cause && cause.txIds, cause && cause.maybeSentTxIds]);
+  if (!txIds.length || !state.metaTopicId) return null;
+  return {
+    txIds,
+    tokenId: state.tokenId,
+    metadata: `hcs://1/${state.metaTopicId}`,
+  };
+}
+
 function failure(step, cause, state) {
   const err = new Error(cause && cause.message ? String(cause.message) : "Hashinal mint failed");
   if (cause && cause.userFacing) err.userFacing = cause.userFacing;
+  if (cause && cause.mintUnconfirmed) err.mintUnconfirmed = true;
   err.step = step;
   const next = {};
   if (state.fileTopicId) next.fileTopicId = state.fileTopicId;
@@ -193,9 +216,15 @@ function failure(step, cause, state) {
     const partial = chunkResume(cause);
     if (partial) next.meta = partial;
   }
-  if (step === "mint" && cause && Array.isArray(cause.txIds) && cause.txIds.length) {
-    err.mintMaybeSent = true;
-    err.txIds = cause.txIds.slice();
+  if (step === "mint") {
+    const check = mintCheckFrom(cause, state);
+    if (check) {
+      err.mintMaybeSent = true;
+      err.txIds = check.txIds.slice();
+      next.mintCheck = check;
+    } else if (state.mintCheck) {
+      next.mintCheck = state.mintCheck;
+    }
   }
   err.resume = next;
   return err;
@@ -214,11 +243,95 @@ function topicFrom(result) {
   return topicId;
 }
 
+function hashscanTx(txId) {
+  const text = String(txId || "").trim();
+  const match = text.match(/^(\d+\.\d+\.\d+)@(\d+)\.(\d+)$/);
+  if (!match) return "";
+  return `https://hashscan.io/mainnet/transaction/${match[1]}-${match[2]}-${match[3].padStart(9, "0")}`;
+}
+
+function storedMint(minted, tokenId) {
+  const serials = minted && Array.isArray(minted.serials)
+    ? minted.serials.filter((serial) => serial != null).map((serial) => String(serial))
+    : [];
+  return {
+    tokenId: (minted && minted.tokenId) || tokenId,
+    serials,
+    txId: minted && minted.txId ? String(minted.txId) : "",
+    hashscanUrl: minted && minted.hashscanUrl ? String(minted.hashscanUrl) : hashscanTx(minted && minted.txId),
+    tokenUrl: minted && minted.tokenUrl
+      ? String(minted.tokenUrl)
+      : `https://hashscan.io/mainnet/token/${tokenId}`,
+  };
+}
+
+function unconfirmed(message) {
+  const err = userFacing(message);
+  err.mintUnconfirmed = true;
+  return err;
+}
+
+async function connectedAccount() {
+  const web3 = await import("./web3.js");
+  const signer = web3 && web3.signer;
+  if (!signer || typeof signer.getAccountId !== "function") throw new Error("Connect wallet first");
+  const account = signer.getAccountId();
+  const text = typeof account === "string"
+    ? account
+    : (account && typeof account.toString === "function" ? account.toString() : "");
+  if (!/^(\d+\.\d+\.\d+)$/.test(typeof text === "string" ? text.trim() : "")) {
+    throw new Error("Connect wallet first");
+  }
+  return text.trim();
+}
+
+async function lookupMint(check) {
+  const txIds = Array.isArray(check.txIds) ? check.txIds : [];
+  let failed = false;
+  for (const txId of txIds) {
+    let looked = { status: "unknown" };
+    try {
+      looked = await checkMintTx(txId, check.tokenId);
+    } catch {
+      looked = { status: "unknown" };
+    }
+    if (looked && looked.status === "minted" && Array.isArray(looked.serials) && looked.serials.length) {
+      return storedMint({ serials: looked.serials, txId, tokenId: check.tokenId }, check.tokenId);
+    }
+    if (looked && looked.status === "failed") failed = true;
+  }
+  if (failed) {
+    throw unconfirmed("The mint transaction failed. It was not minted again.");
+  }
+  let account = "";
+  try {
+    account = await connectedAccount();
+  } catch {
+    account = "";
+  }
+  if (account && check.metadata) {
+    let looked = { status: "unknown" };
+    try {
+      looked = await checkMintByMetadata(check.tokenId, account, check.metadata);
+    } catch {
+      looked = { status: "unknown" };
+    }
+    if (looked && looked.status === "minted" && Array.isArray(looked.serials) && looked.serials.length) {
+      return storedMint({ serials: looked.serials, tokenId: check.tokenId }, check.tokenId);
+    }
+  }
+  throw unconfirmed("The mint is not on the mirror yet. It was not minted again.");
+}
+
 /**
  * File, then metadata, then one NFT. Pass err.resume back as resume to
- * continue from the failed chunk. A mint that already submitted a
- * transaction sets mintMaybeSent and leaves minted unset so the UI can
- * ask before any second mint.
+ * continue from the failed chunk.
+ *
+ * A mint that may already have been broadcast sets mintMaybeSent and
+ * resume.mintCheck. The next call reads the mirror and does not mint
+ * again. confirmRemint may be true only after the user agrees to a second
+ * mint: that drops mintCheck and calls mintNfts once. resume.minted skips
+ * the mint and returns the serial that was already stored.
  */
 export async function runHashinalMint({
   prepared,
@@ -229,6 +342,7 @@ export async function runHashinalMint({
   creator,
   onProgress,
   resume,
+  confirmRemint = false,
 } = {}) {
   const id = requireTopic(tokenId, "Enter a token id like 0.0.123");
   const mime = prepared && typeof prepared.mime === "string" ? prepared.mime : "";
@@ -243,10 +357,16 @@ export async function runHashinalMint({
   });
 
   const state = {
+    tokenId: id,
     fileTopicId: resume && resume.fileTopicId ? requireTopic(resume.fileTopicId, "Enter a topic id like 0.0.123") : "",
     metaTopicId: resume && resume.metaTopicId ? requireTopic(resume.metaTopicId, "Enter a topic id like 0.0.123") : "",
     metaPrepared: resume && resume.metaPrepared ? resume.metaPrepared : null,
+    mintCheck: resume && resume.mintCheck ? resume.mintCheck : null,
   };
+  if (confirmRemint && state.mintCheck) {
+    state.mintCheck = null;
+    if (resume) resume.mintCheck = null;
+  }
 
   if (!state.fileTopicId) {
     if (fileOverCap(prepared)) throw new Error("file is over 2 MB");
@@ -299,11 +419,20 @@ export async function runHashinalMint({
     }
   }
 
-  let minted = null;
-  if (!(resume && resume.minted)) {
+  const remembered = resume && resume.minted ? storedMint(resume.minted, id) : null;
+  let minted = remembered && remembered.serials.length ? remembered : null;
+  if (!minted && state.mintCheck) {
+    try {
+      minted = await lookupMint(state.mintCheck);
+      await notify(onProgress, { step: "mint", sent: 1, total: 1 });
+    } catch (err) {
+      throw failure("mint", err, state);
+    }
+  }
+  if (!minted) {
     try {
       await notify(onProgress, { step: "mint", sent: 0, total: 1 });
-      minted = await mintNfts(id, [`hcs://1/${state.metaTopicId}`]);
+      minted = storedMint(await mintNfts(id, [`hcs://1/${state.metaTopicId}`]), id);
       await notify(onProgress, { step: "mint", sent: 1, total: 1 });
     } catch (err) {
       throw failure("mint", err, state);
@@ -314,8 +443,9 @@ export async function runHashinalMint({
   dropKeys(resume && resume.file);
   dropKeys(resume && resume.meta);
 
-  const serial = minted && minted.serials && minted.serials[0] != null ? String(minted.serials[0]) : "";
+  const serial = minted.serials && minted.serials[0] != null ? String(minted.serials[0]) : "";
   if (!serial) throw new Error("Mint receipt has no serials");
+  if (resume && typeof resume === "object") resume.minted = minted;
   return {
     tokenId: minted.tokenId || id,
     serial,
