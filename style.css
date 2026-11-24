@@ -10608,16 +10608,19 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   from { transform: scale(0.96); opacity: 0; }
 }
 
-/* ===== Popup settings card – polished glass (scoped, viewport units) ===== */
+/* ===== Popup settings card – solid dark card (scoped, viewport units) =====
+   The fill is the map popup's darkest tone, fully opaque (#0F0F14 is
+   rgba(15, 15, 20) with no alpha): the map and its labels never show
+   through, so there is nothing behind it to blur. */
 #popup-settings-card {
   --ps-accent: #22D3EE;
   --ps-accent-rgb: 34, 211, 238;
   --ps-divider: rgba(255, 255, 255, 0.08);
   --ps-muted: rgba(255, 255, 255, 0.50);
   --ps-text: rgba(255, 255, 255, 0.78);
-  background-color: rgba(15, 15, 20, 0.92);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  backdrop-filter: blur(18px) saturate(140%);
+  background-color: #0F0F14;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 2.4vh;
   border-radius: 2.4dvh;
@@ -11073,7 +11076,8 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
     box-sizing: border-box;
     border: calc(var(--u) * 0.3) solid var(--popup-border-color, #ffffff);
     border-radius: calc(var(--u) * 2);
-    background-color: rgba(15, 15, 20, 0.92);
+    /* Solid, as the portrait card: nothing of the map shows through. */
+    background-color: #0F0F14;
     pointer-events: none;
     grid-row: 1 / -1;
   }
@@ -11186,7 +11190,8 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
     height: calc(5dvh + 1.4dvh);
     margin: 0;
     padding: 0 calc(5dvh + var(--u) * 0.4) 1.4dvh;
-    background-color: rgba(15, 15, 20, 0.90);
+    /* The card's own solid fill, so the title shows no lighter strip. */
+    background-color: #0F0F14;
     /* The columns sit in their own bubbles, so the portrait divider goes. */
     border-bottom: none;
   }
