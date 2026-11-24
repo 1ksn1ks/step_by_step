@@ -22,7 +22,10 @@ class El {
     this.tagName = String(tag).toUpperCase();
     this.children = [];
     this.attrs = {};
-    this.style = {};
+    this.style = {
+      setProperty(name, value) { this[name] = String(value); },
+      getPropertyValue(name) { return this[name] || ""; },
+    };
     this.className = "";
     this.title = "";
     this.text = "";
@@ -146,14 +149,28 @@ function topLevel(source, start) {
   return source.slice(at, next < 0 ? undefined : at + start.length + next);
 }
 
-// maptip.js as it is, its imports given here.
+// maptip.js as it is, its imports given here. The picture helpers are
+// stubs: avatarSrc marks the address it was given, pictureElement makes
+// an img (a video for an .mp4) that says what it was asked for, and
+// forgetLoop is logged.
 const tipSource = read("../maptip.js");
-function tipFiller({ early = false } = {}) {
+const DEFAULT_AVATAR = "https://example.test/default-avatar.png";
+const forgotten = [];
+function tipFiller({ early = false, profilePictures = {} } = {}) {
   const body = tipSource.slice(tipSource.indexOf("const HASHINAL_TIP_COLORS")).replace(/export function/g, "function");
-  return new Function("usernames", "globalLoadedTopicIdsWithNames", "earlyHashinalNumber", "countsNode", "document", `
+  const avatarSrc = (url) => `thumb:${url}`;
+  const pictureElement = (url, opts) => {
+    const el = new El(/\.mp4$/.test(url) ? "video" : "img");
+    el.className = opts.className;
+    el.src = url;
+    el.alt = opts.alt;
+    el.fallback = opts.fallback;
+    return el;
+  };
+  return new Function("usernames", "profilePictures", "globalLoadedTopicIdsWithNames", "earlyHashinalNumber", "countsNode", "avatarSrc", "pictureElement", "forgetLoop", "DEFAULT_AVATAR", "document", `
     ${body}
     return fillMapTip;
-  `)({}, ["0.0.5 - Street art"], () => (early ? 7 : 0), countsNode, globalThis.document);
+  `)({}, profilePictures, ["0.0.5 - Street art"], () => (early ? 7 : 0), countsNode, avatarSrc, pictureElement, (video) => forgotten.push(video), DEFAULT_AVATAR, globalThis.document);
 }
 const markerRecord = (extra = {}) => ({
   title: "Mural",
@@ -171,7 +188,7 @@ test("the info card keeps its title, By and On, then adds one row of likes and v
   // A marker's lazy record.
   assert.equal(fill(tip, { properties: { popupData: () => markerRecord() } }), true);
   assert.equal(tip.children.length, 4);
-  const [title, by, on, counts] = tip.children;
+  const [by, title, on, counts] = tip.children;
   assert.equal(find(title, "map-tip-title").textContent, "Mural");
   assert.equal(find(by, "map-tip-k").textContent, "By");
   assert.equal(find(by, "map-tip-id").textContent, "0.0.123");
@@ -206,12 +223,104 @@ test("the info card keeps its title, By and On, then adds one row of likes and v
   // An early holder's card keeps its colours and gains the same row.
   const early = new El("div");
   tipFiller({ early: true })(early, { properties: { popupData: () => markerRecord() } });
-  assert.equal(find(early.children[0], "map-tip-title").style.color, "#ffffff");
-  assert.equal(find(early.children[1], "map-tip-name").style.color, "#f6e27a");
+  assert.equal(find(early.children[1], "map-tip-title").style.color, "#ffffff");
+  assert.equal(find(early.children[0], "map-tip-name").style.color, "#f6e27a");
   assert.equal(early.children.at(-1).className, "map-tip-counts");
 
   // Nothing to show: still no card.
   assert.equal(fill(new El("div"), { properties: {} }), false);
+});
+
+test("the info card is laid out as the popup: the creator's picture and name, the title, the topic chip, the counts", () => {
+  const fill = tipFiller();
+  const tip = new El("div");
+  fill(tip, { properties: { popupData: () => markerRecord({ profileUrl: "https://example.test/ana.png" }) } });
+  const [head, title, topic, counts] = tip.children;
+  // The head: the picture, then the By row as it was (label, ID, name).
+  assert.equal(head.className, "map-tip-bubble map-tip-head");
+  assert.deepEqual(head.children.map((child) => child.className), ["map-tip-pic", "map-tip-row"]);
+  const pic = head.children[0];
+  assert.equal(pic.tagName, "IMG");
+  assert.equal(pic.src, "thumb:https://example.test/ana.png");
+  assert.equal(pic.alt, "");
+  assert.equal(pic.fallback, DEFAULT_AVATAR);
+  assert.equal(pic.getAttribute("aria-hidden"), "true");
+  const by = head.children[1];
+  assert.deepEqual(by.children.map((child) => child.className), ["map-tip-k", "map-tip-body"]);
+  assert.deepEqual(by.children[1].children.map((child) => child.className), ["map-tip-id", "map-tip-name"]);
+  assert.equal(find(by, "map-tip-id").style.color, "#ffffff");
+  assert.equal(find(by, "map-tip-name").style.color, "#ffffff");
+  // The title and the topic in their bubbles, the counts last on their own.
+  assert.equal(title.className, "map-tip-bubble");
+  assert.equal(find(title, "map-tip-title").style.color, "#ffffff");
+  assert.equal(topic.className, "map-tip-bubble map-tip-topic");
+  assert.deepEqual(topic.children[0].children.map((child) => child.className), ["map-tip-k", "map-tip-body"]);
+  assert.equal(counts.className, "map-tip-counts");
+  // The frame takes the popup's Border colour (the picker, white without it).
+  assert.equal(tip.style.getPropertyValue("--popup-border-color"), "#ffffff");
+
+  // No picture on the record: the person's known one, then the default.
+  const known = new El("div");
+  tipFiller({ profilePictures: { "0.0.123": { url: "https://example.test/known.png" } } })(known, { properties: { popupData: () => markerRecord({ profileUrl: "" }) } });
+  assert.equal(find(known, "map-tip-pic").src, "thumb:https://example.test/known.png");
+  const none = new El("div");
+  fill(none, { properties: { popupData: () => markerRecord({ profileUrl: "" }) } });
+  assert.equal(find(none, "map-tip-pic").src, `thumb:${DEFAULT_AVATAR}`);
+
+  // No payer: no head, the title first.
+  const anon = new El("div");
+  fill(anon, { properties: { popupData: () => markerRecord({ payer: "", username: "" }) } });
+  assert.deepEqual(anon.children.map((child) => child.className), ["map-tip-bubble", "map-tip-bubble map-tip-topic", "map-tip-counts"]);
+  assert.equal(find(anon, "map-tip-pic"), null);
+
+  // A looping video picture lets go of its loop when the card is refilled;
+  // an img has none.
+  const looping = new El("div");
+  fill(looping, { properties: { popupData: () => markerRecord({ profileUrl: "https://example.test/loop.mp4" }) } });
+  const video = find(looping, "map-tip-pic");
+  assert.equal(video.tagName, "VIDEO");
+  forgotten.length = 0;
+  fill(looping, { properties: { popupData: () => markerRecord() } });
+  assert.deepEqual(forgotten, [video]);
+  fill(looping, { properties: {} });
+  assert.equal(forgotten.length, 1);
+
+  // An early holder: the gold frame and rims, the same order, counts last.
+  const early = new El("div");
+  tipFiller({ early: true })(early, { properties: { popupData: () => markerRecord() } });
+  assert.equal(early.style.getPropertyValue("--popup-border-color"), "#f6e27a");
+  assert.deepEqual(early.children.map((child) => child.className), ["map-tip-bubble map-tip-head", "map-tip-bubble", "map-tip-bubble map-tip-topic", "map-tip-counts"]);
+  assert.equal(find(early, "map-tip-id").style.color, "#e9d5ff");
+
+  // The picture is an element the browser draws from its cache: nothing
+  // is fetched.
+  assert.deepEqual(requests, []);
+});
+
+test("the info card's own rules use no fixed px (only the cover play button's 44px floor)", () => {
+  const css = read("../style.css");
+  const start = css.indexOf("/* The hold / right-click info card (maptip.js)");
+  const end = css.indexOf("/* Likes and views (postcounts.js)");
+  assert.ok(start > 0 && end > start);
+  const block = css.slice(start, end);
+  const rules = block.replace(/\/\*[\s\S]*?\*\//g, "").replace(/max\(44px,/g, "max(");
+  assert.doesNotMatch(rules, /\d(\.\d+)?px/);
+  // The card's unit, made on the card from the screen.
+  assert.match(block, /\.polygon-title-tip,\n\.marker-title-tip \{\s*--fu: calc\(min\(100dvw, var\(--app-h, 100dvh\)\) \* 0\.024\);\s*--tu: clamp\(0\.5rem, calc\(var\(--fu\) \* 0\.62\), 0\.8rem\);/);
+  assert.match(block, /border: var\(--tip-bw\) solid var\(--popup-border-color, #ffffff\);/);
+  // The early card keeps its spin ring, as wide as the border, and its glow.
+  assert.match(block, /\.marker-title-tip\.early > \.marker-tip-spin \{\s*position: absolute;\s*inset: calc\(var\(--tip-bw\) \* -1\);\s*border-radius: inherit;\s*padding: var\(--tip-bw\);/);
+  assert.match(block, /\.marker-title-tip\.early > :not\(\.marker-tip-spin\) \{\s*position: relative;\s*z-index: 1;/);
+  assert.match(block, /\.marker-title-tip\.early \.map-tip-bubble \{\s*--bubble-rim: #f6e27a;/);
+  // "By" is hidden from sight only.
+  const k = block.slice(block.indexOf("> .map-tip-head .map-tip-k {"));
+  assert.match(k.slice(0, k.indexOf("}")), /clip-path: inset\(50%\);/);
+  assert.doesNotMatch(k.slice(0, k.indexOf("}")), /display: none/);
+  // The counts' popup colours.
+  const counts = css.slice(end, css.indexOf("/* Payer CLICK2LINK"));
+  assert.match(counts, /> \.post-count-likes > svg \{\s*color: color-mix\(in srgb, #ff3c41 85%, transparent\);/);
+  assert.match(counts, /> \.post-count-views > svg \{\s*color: #777;/);
+  assert.match(counts, /> \.post-count > \.post-count-n \{\s*color: rgba\(255, 255, 255, 0\.72\);/);
 });
 
 // markerstack.js's row as it is, its imports given here.

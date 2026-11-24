@@ -9337,25 +9337,36 @@ html, body {
   70%  { box-shadow: 0 0 6px rgba(34, 211, 238, 0.9), 0 0 0 10px rgba(34, 211, 238, 0); }
   100% { box-shadow: 0 0 6px rgba(34, 211, 238, 0.9), 0 0 0 0 rgba(34, 211, 238, 0.5); }
 }
+/* The hold / right-click info card (maptip.js): a small copy of the
+   expanded popup. One glass card in the popup's fill, its frame in the
+   popup's Border colour (--popup-border-color, set on each fill; an
+   early holder's is gold) with the same lit inner rim. --tu is the
+   card's own unit, a small popup's --u: these nodes sit on
+   document.body, outside any popup, so it is made from the screen
+   (--fu, as the other body-level nodes have it). */
 .polygon-title-tip,
 .marker-title-tip {
+  --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
+  --tu: clamp(0.5rem, calc(var(--fu) * 0.62), 0.8rem);
+  --tip-bw: calc(var(--tu) * 0.22);
   position: fixed;
   z-index: 1002;
-  transform: translate(-50%, calc(-100% - 14px));
+  transform: translate(-50%, calc(-100% - 0.9rem));
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: calc(var(--tu) * 0.45);
   width: max-content;
-  max-width: min(240px, 72vw);
-  padding: 8px 10px;
+  max-width: min(17rem, 72vw);
+  padding: calc(var(--tu) * 0.6);
   font-family: system-ui, sans-serif;
   color: #fff;
-  background:
-    linear-gradient(180deg, rgba(34, 211, 238, 0.16), rgba(34, 211, 238, 0) 42%),
-    rgba(15, 23, 42, 0.94);
-  border: 1px solid rgba(34, 211, 238, 0.5);
-  border-radius: 14px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 0 16px rgba(34, 211, 238, 0.16);
+  background: rgba(15, 15, 20, 0.96);
+  border: var(--tip-bw) solid var(--popup-border-color, #ffffff);
+  border-radius: calc(var(--tu) * 1.6);
+  box-shadow:
+    inset 0 0 0 calc(var(--tu) * 0.1) rgba(0, 0, 0, 0.55),
+    inset 0 0 calc(var(--tu) * 2) color-mix(in srgb, var(--popup-border-color, #ffffff) 12%, transparent),
+    0 calc(var(--tu) * 0.8) calc(var(--tu) * 2) rgba(0, 0, 0, 0.45);
   pointer-events: none;
 }
 .polygon-title-tip[hidden],
@@ -9621,12 +9632,16 @@ html.feed-app .polygon-cover-play {
   opacity: 0.45;
 }
 /* Early holder hover card. Same box as the normal tip. A conic disc rotates
-   inside a 1px ring clip (the mask is on the wrapper, not the rotating
-   layer) so the border stays on the GPU and the center stays dark glass. */
+   inside a ring clip as wide as the card's border (the mask is on the
+   wrapper, not the rotating layer) so the border stays on the GPU and the
+   center stays dark glass. Its bubbles' rims are the frame's gold. */
 .marker-title-tip.early {
   background: rgba(12, 12, 18, 0.94);
   border-color: transparent;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 calc(var(--tu) * 0.8) calc(var(--tu) * 2) rgba(0, 0, 0, 0.45);
+}
+.marker-title-tip.early .map-tip-bubble {
+  --bubble-rim: #f6e27a;
 }
 .marker-title-tip.early::before {
   content: "";
@@ -9642,9 +9657,9 @@ html.feed-app .polygon-cover-play {
 }
 .marker-title-tip.early > .marker-tip-spin {
   position: absolute;
-  inset: -1px;
+  inset: calc(var(--tip-bw) * -1);
   border-radius: inherit;
-  padding: 1px;
+  padding: var(--tip-bw);
   overflow: hidden;
   pointer-events: none;
   z-index: 0;
@@ -9674,8 +9689,10 @@ html.feed-app .polygon-cover-play {
   position: relative;
   z-index: 1;
 }
+/* Text sizes are --tu multiples of the popup's own; the rem floor keeps a
+   phone's small card as readable as the old tip. */
 .map-tip-title {
-  font-size: 13px;
+  font-size: max(0.8125rem, calc(var(--tu) * 1.45));
   font-weight: 700;
   line-height: 1.25;
   text-align: center;
@@ -9688,24 +9705,37 @@ html.feed-app .polygon-cover-play {
 .map-tip-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  column-gap: 8px;
+  column-gap: calc(var(--tu) * 0.6);
   align-items: start;
 }
-/* Each section (title, By, On) sits in its own glass bubble, centred. */
+/* Each section sits in its own bubble in the popup's glass: a fill
+   brighter at the top, a rim lit from above in a little of the frame's
+   colour (--bubble-rim; an early holder's is gold), a soft shadow. */
 .map-tip-bubble {
+  --bubble-rim: var(--popup-border-color, #ffffff);
   box-sizing: border-box;
-  padding: clamp(0.4dvh, 0.7dvh, 1dvh) clamp(0.6dvw, 0.9dvw, 1.2dvw);
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: clamp(0.8dvh, 1.2dvh, 1.6dvh);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  min-width: 0;
+  max-width: 100%;
+  padding: calc(var(--tu) * 0.35) calc(var(--tu) * 0.9);
+  background-color: rgba(255, 255, 255, 0.035);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0) 70%);
+  border: calc(var(--tu) * 0.1) solid rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.30) rgba(255, 255, 255, 0.15) rgba(255, 255, 255, 0.07);
+  border-color:
+    color-mix(in srgb, var(--bubble-rim) 30%, transparent)
+    color-mix(in srgb, var(--bubble-rim) 15%, transparent)
+    color-mix(in srgb, var(--bubble-rim) 7%, transparent);
+  border-radius: calc(var(--tu) * 1.2);
+  box-shadow:
+    inset 0 calc(var(--tu) * 0.12) 0 rgba(255, 255, 255, 0.08),
+    0 calc(var(--tu) * 0.45) calc(var(--tu) * 1.2) rgba(0, 0, 0, 0.32);
   text-align: center;
 }
 .map-tip-bubble > .map-tip-row {
   display: flex;
   flex-direction: column;
   align-items: center;
-  row-gap: 0.2dvh;
+  row-gap: calc(var(--tu) * 0.2);
 }
 .map-tip-bubble .map-tip-k {
   padding-top: 0;
@@ -9714,12 +9744,12 @@ html.feed-app .polygon-cover-play {
   align-items: center;
 }
 .map-tip-k {
-  font-size: 10px;
+  font-size: max(0.625rem, calc(var(--tu) * 0.8));
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: rgba(34, 211, 238, 0.95);
-  padding-top: 2px;
+  color: rgba(255, 255, 255, 0.4);
+  padding-top: calc(var(--tu) * 0.15);
 }
 .map-tip-body {
   display: flex;
@@ -9727,27 +9757,143 @@ html.feed-app .polygon-cover-play {
   min-width: 0;
 }
 .map-tip-name {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: max(0.75rem, calc(var(--tu) * 1.25));
+  font-weight: 700;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
 .map-tip-id {
-  font-size: 11px;
+  font-size: max(0.6875rem, var(--tu));
   font-weight: 550;
   line-height: 1.25;
-  color: #ffffff;
+  color: rgba(255, 255, 255, 0.6);
   overflow-wrap: anywhere;
 }
-/* Likes and views (postcounts.js): one small muted line under By and On,
-   the account ID's size (0.6875em of the page's 16px) and weight, each
-   icon the height of its text. A snapshot: nothing here is a button. */
+/* The creator, as the popup's profile capsule: a pill on the left, the
+   picture, then the name (bold, white unless Settings colours it) over
+   the account ID, each on one line. "By" stays for a screen reader. */
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-head {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--tu) * 0.6);
+  padding: calc(var(--tu) * 0.3) calc(var(--tu) * 1.2) calc(var(--tu) * 0.3) calc(var(--tu) * 0.3);
+  border-radius: 99em;
+  text-align: left;
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-head > .map-tip-pic {
+  flex: none;
+  display: block;
+  box-sizing: border-box;
+  width: calc(var(--tu) * 3.6);
+  height: calc(var(--tu) * 3.6);
+  margin: 0;
+  border-radius: 50%;
+  border: calc(var(--tu) * 0.12) solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 calc(var(--tu) * 0.4) var(--tu) rgba(0, 0, 0, 0.45);
+  background: rgba(255, 255, 255, 0.08);
+  object-fit: cover;
+  object-position: center;
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-head > .map-tip-row {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-head .map-tip-k {
+  position: absolute;
+  width: 0.0625rem;
+  height: 0.0625rem;
+  margin: -0.0625rem;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-head .map-tip-body {
+  align-items: flex-start;
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-head :is(.map-tip-name, .map-tip-id) {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-head .map-tip-name {
+  order: -1;
+}
+/* The title, as the popup's title pill: larger, centred, two lines. */
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-bubble:has(> .map-tip-title) {
+  padding: calc(var(--tu) * 0.4) calc(var(--tu) * 1.1);
+}
+/* The topic, as the popup's topic chip: one slim line, "On" a tiny muted
+   prefix, the name in muted white and the ID more muted. A line too long
+   for the card shortens both, each by its share, so the ID keeps its
+   start. */
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-topic {
+  align-self: flex-start;
+  padding: calc(var(--tu) * 0.25) calc(var(--tu) * 0.8);
+  border-radius: 99em;
+  font-size: max(0.625rem, calc(var(--tu) * 0.95));
+  letter-spacing: 0.03em;
+  text-align: left;
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-topic > .map-tip-row {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  column-gap: 0.45em;
+  min-width: 0;
+  white-space: nowrap;
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-topic .map-tip-k {
+  flex: none;
+  padding: 0;
+  font-size: 0.75em;
+  color: rgba(255, 255, 255, 0.38);
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-topic .map-tip-body {
+  flex: 1 1 auto;
+  flex-direction: row;
+  align-items: baseline;
+  column-gap: 0.45em;
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-topic :is(.map-tip-name, .map-tip-id) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  font-size: 1em;
+  line-height: 1.3;
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-topic .map-tip-name {
+  order: -1;
+  flex: 0 1 auto;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.62);
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-topic .map-tip-id {
+  flex: 0 1 auto;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.4);
+}
+/* Likes and views (postcounts.js): the last line, small and muted, the
+   old account ID's size (0.6875em of the page's 16px) and weight, each
+   icon the height of its text, in the popup's colours: its heart red, its
+   views chip's grey bars and light numbers. A snapshot: nothing here is
+   a button. */
 :is(.marker-title-tip, .polygon-title-tip) > .map-tip-counts {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   gap: 0.2em 0.9em;
+  padding: 0 calc(var(--tu) * 0.4);
   font-size: 0.6875em;
   font-weight: 550;
   line-height: 1.25;
@@ -9765,6 +9911,15 @@ html.feed-app .polygon-cover-play {
   display: block;
   width: 1.15em;
   height: 1.15em;
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-counts > .post-count-likes > svg {
+  color: color-mix(in srgb, #ff3c41 85%, transparent);
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-counts > .post-count-views > svg {
+  color: #777;
+}
+:is(.marker-title-tip, .polygon-title-tip) > .map-tip-counts > .post-count > .post-count-n {
+  color: rgba(255, 255, 255, 0.72);
 }
 
 /* Payer CLICK2LINK, shown above the username. Lives on document.body so a

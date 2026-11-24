@@ -1,12 +1,16 @@
-// Hover card for a topic marker or polygon. The title stays, and the card
-// also names the payer and the topic, then the post's likes and views. A
+// Hover card for a topic marker or polygon: a small copy of the expanded
+// popup. The creator's picture, name and account at the top, then the
+// title, the topic as a slim chip, then the post's likes and views. A
 // share pin shows the original post, the same person and topic the popup
-// opens.
+// opens. Nothing on it can be tapped (style.css: pointer-events: none).
 
-import { usernames } from './loadalladata.js';
+import { usernames, profilePictures } from './loadalladata.js';
 import { globalLoadedTopicIdsWithNames } from './letall.js';
 import { earlyHashinalNumber } from './earlyhashinal.js';
 import { countsNode } from './postcounts.js';
+import { avatarSrc } from './avatarsrc.js';
+import { forgetLoop, pictureElement } from './loopmedia.js';
+import { DEFAULT_AVATAR } from './hashinalurl.js';
 
 // Early Hashinal holders get the locked popup theme (style.css
 // .early-holder-popup), not the viewer's popup colour pickers.
@@ -15,11 +19,14 @@ const HASHINAL_TIP_COLORS = Object.freeze({
   name: '#f6e27a',
   id: '#e9d5ff',
 });
+// An early holder's frame and bubble rims: the popup's gold.
+const HASHINAL_TIP_RIM = '#f6e27a';
 
-function bubble(node) {
+// node: one node or a list. extra: a second class (the head, the topic).
+function bubble(node, extra) {
   const wrap = document.createElement('div');
-  wrap.className = 'map-tip-bubble';
-  wrap.appendChild(node);
+  wrap.className = extra ? `map-tip-bubble ${extra}` : 'map-tip-bubble';
+  wrap.append(...(Array.isArray(node) ? node : [node]));
   return wrap;
 }
 
@@ -57,7 +64,13 @@ function readCard(source) {
   // The counts come from the record the popup opens: a share pin's fresh
   // one once it has arrived (as the cluster list reads it).
   const record = props._shareRecord || source._shareRecord || data;
-  return { title, payer, username, topicId, topicName, record };
+  // The picture the popup and the marker face already show (a record's is
+  // checked, with the default avatar for none), so it comes from the
+  // browser's cache.
+  const profileUrl = text(record && record.profileUrl)
+    || (payer && profilePictures[payer] && profilePictures[payer].url)
+    || '';
+  return { title, payer, username, topicId, topicName, record, profileUrl };
 }
 
 function pickerColor(id, fallback) {
@@ -93,11 +106,34 @@ function line(label, name, id, colors) {
 }
 
 // Fills the tip. Returns false when the post has nothing to show.
+// The popup's order: the creator (.map-tip-head: the picture and the By
+// row), the title, the topic (.map-tip-topic: the On row), the counts.
 export function fillMapTip(tip, source) {
   const card = readCard(source);
+  // A creator whose picture is a looping video: that loop lets go.
+  const oldPic = tip._tipPic;
+  tip._tipPic = null;
+  if (oldPic && oldPic.tagName === 'VIDEO') forgetLoop(oldPic);
   tip.replaceChildren();
   if (!card) return false;
   const hashinal = !!(card.payer && earlyHashinalNumber(card.payer));
+  // The frame and the bubbles' rims take the popup's Border colour.
+  tip.style.setProperty('--popup-border-color', hashinal ? HASHINAL_TIP_RIM : pickerColor('color-picker-popup-border', '#ffffff'));
+  const payerRow = line('By', card.username, card.payer, hashinal ? HASHINAL_TIP_COLORS : {
+    name: pickerColor('color-picker-popup-username', '#ffffff'),
+    id: pickerColor('color-picker-popup-accid', '#ffffff'),
+  });
+  if (payerRow) {
+    // Drawn as the cluster rows and the popup draw it.
+    const pic = pictureElement(avatarSrc(card.profileUrl || DEFAULT_AVATAR), {
+      className: 'map-tip-pic',
+      alt: '',
+      fallback: DEFAULT_AVATAR,
+    });
+    pic.setAttribute('aria-hidden', 'true');
+    tip._tipPic = pic;
+    tip.appendChild(bubble([pic, payerRow], 'map-tip-head'));
+  }
   if (card.title) {
     const title = document.createElement('div');
     title.className = 'map-tip-title';
@@ -105,14 +141,9 @@ export function fillMapTip(tip, source) {
     title.style.color = hashinal ? HASHINAL_TIP_COLORS.title : pickerColor('color-picker-popup-titles', '#ffffff');
     tip.appendChild(bubble(title));
   }
-  const payerRow = line('By', card.username, card.payer, hashinal ? HASHINAL_TIP_COLORS : {
-    name: pickerColor('color-picker-popup-username', '#ffffff'),
-    id: pickerColor('color-picker-popup-accid', '#ffffff'),
-  });
-  if (payerRow) tip.appendChild(bubble(payerRow));
   const topicRow = line('On', card.topicName, card.topicId);
-  if (topicRow) tip.appendChild(bubble(topicRow));
-  // Under By and On: the likes and views known now (postcounts.js).
+  if (topicRow) tip.appendChild(bubble(topicRow, 'map-tip-topic'));
+  // Last: the likes and views known now (postcounts.js).
   // Nothing is fetched and no view is counted.
   const counts = countsNode(card.record, 'map-tip-counts');
   if (counts) tip.appendChild(counts);
