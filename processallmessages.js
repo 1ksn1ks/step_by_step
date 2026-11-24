@@ -473,7 +473,9 @@ function showPreviewFollowZero(root) {
     const count = box.querySelector('.topic-follow-count');
     if (!count) return;
     count.classList.remove('is-loading');
+    count.setAttribute('role', 'img');
     count.setAttribute('aria-label', '0 followers');
+    count.title = '0 followers';
     const value = count.querySelector('.topic-follow-num-value');
     if (value) value.textContent = '0';
   });
@@ -1819,7 +1821,10 @@ export function viewsChip(num) {
   const count = document.createElement('span');
   count.className = 'feed-view-count';
   count.textContent = formatCount(num);
+  // One image named by the exact count, as postcounts.js labels one: the
+  // short number is what shows, "1234 views" is what is read.
   const exact = viewLabel(num);
+  chip.setAttribute('role', 'img');
   chip.setAttribute('aria-label', exact);
   chip.title = exact;
   chip.appendChild(count);
@@ -1831,6 +1836,7 @@ export function setViewsCount(chip, num) {
   const count = chip.querySelector('.feed-view-count');
   if (count) count.textContent = formatCount(num);
   const exact = viewLabel(num);
+  chip.setAttribute('role', 'img');
   chip.setAttribute('aria-label', exact);
   chip.title = exact;
 }

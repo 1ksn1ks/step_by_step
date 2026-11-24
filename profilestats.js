@@ -9,7 +9,11 @@ import { followerCountOrNull } from './followcount.js';
 import { cachedPersonFollow, readPersonFollow } from './followtopic.js';
 import { earlyHashinalNumber } from './earlyhashinal.js';
 
-const exact = new Intl.NumberFormat('en');
+// A count's name for a screen reader, as postcounts.js labels one: the
+// exact number and its word ("0 followers", "1 follower", "1234 followers").
+function countLabel(n, word) {
+  return n === 1 ? `1 ${word}` : `${n} ${word}s`;
+}
 
 function statLabel(kind) {
   if (kind === 'received') return 'Received';
@@ -25,29 +29,38 @@ function makeStat(kind) {
   const label = document.createElement('span');
   label.className = 'profile-stat-label';
   label.textContent = statLabel(kind);
+  const parts = [num, label];
   if (kind === 'received') {
     const hbar = document.createElement('span');
     hbar.className = 'profile-stat-hbar';
     hbar.textContent = '\u210F';
-    root.append(num, hbar, label);
-  } else {
-    root.append(num, label);
+    parts.splice(1, 0, hbar);
   }
-  return { root, num };
+  root.append(...parts);
+  return { root, num, parts };
 }
 
 function markZero(stat, zero) {
   stat.root.classList.toggle('is-zero', !!zero);
 }
 
-function setExact(num, text) {
-  num.title = text;
-  num.setAttribute('aria-label', text);
+// The whole stat is one image with the exact count as its name, so a
+// screen reader says "1234 followers" once, not the short number and then
+// the visible word. Its parts are hidden from it meanwhile.
+function setExact(stat, text) {
+  stat.root.setAttribute('role', 'img');
+  stat.root.setAttribute('aria-label', text);
+  stat.root.title = text;
+  for (const part of stat.parts) part.setAttribute('aria-hidden', 'true');
 }
 
-function clearExact(num) {
-  num.removeAttribute('title');
-  num.removeAttribute('aria-label');
+// Not a count (Following's en dash): no name of its own, and the parts
+// read as they show.
+function clearExact(stat) {
+  stat.root.removeAttribute('role');
+  stat.root.removeAttribute('aria-label');
+  stat.root.removeAttribute('title');
+  for (const part of stat.parts) part.removeAttribute('aria-hidden');
 }
 
 export function paintProfileStats(el, account) {
@@ -66,10 +79,11 @@ export function paintProfileStats(el, account) {
   const received = makeStat('received');
   el.append(followers.root, following.root, received.root);
   followers.num.textContent = formatCount(0);
-  setExact(followers.num, exact.format(0));
+  setExact(followers, countLabel(0, 'follower'));
   following.num.textContent = '\u2013';
+  clearExact(following);
   received.num.textContent = formatHbarCount(0);
-  setExact(received.num, formatDonationAmount(0));
+  setExact(received, `Received ${formatDonationAmount(0)} HBAR`);
   markZero(followers, true);
   markZero(following, true);
   markZero(received, true);
@@ -85,7 +99,7 @@ export function paintProfileStats(el, account) {
     const value = followerCountOrNull(n);
     const shown = value == null ? 0 : value;
     followers.num.textContent = formatCount(shown);
-    setExact(followers.num, exact.format(shown));
+    setExact(followers, countLabel(shown, 'follower'));
     markZero(followers, shown === 0);
   }
 
@@ -93,7 +107,7 @@ export function paintProfileStats(el, account) {
     if (!current()) return;
     const amount = Number(raw);
     received.num.textContent = formatHbarCount(raw);
-    setExact(received.num, formatDonationAmount(raw));
+    setExact(received, `Received ${formatDonationAmount(raw)} HBAR`);
     markZero(received, !(amount > 0));
   }
 
@@ -102,13 +116,14 @@ export function paintProfileStats(el, account) {
     // No reply (null, or the request failed): not a count of zero.
     if (typeof n !== 'number' || !Number.isFinite(n)) {
       following.num.textContent = '\u2013';
-      clearExact(following.num);
+      clearExact(following);
       markZero(following, true);
       return;
     }
     const shown = n > 0 ? n : 0;
     following.num.textContent = formatCount(shown);
-    setExact(following.num, exact.format(shown));
+    // "following" takes no plural s.
+    setExact(following, `${shown} following`);
     markZero(following, shown === 0);
   }
 

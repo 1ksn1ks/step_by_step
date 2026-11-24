@@ -166,8 +166,6 @@ export async function unshareFromMyTopic(source) {
   return true;
 }
 
-const exactCount = new Intl.NumberFormat('en');
-
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 function svgEl(name, attrs) {
@@ -227,14 +225,18 @@ function countChip() {
   return count;
 }
 
-// The chip shows the compact count. The aria-label is the exact number.
-// A count that is still loading, or a failed read, is left as it is.
+// The chip shows the compact count. Its name and title are the exact
+// number and the word, as postcounts.js labels a count: "1 follower",
+// "1234 followers". A count that is still loading, or a failed read, is
+// left as it is.
 export function paintFollowerCount(count, n) {
   const value = followerCountOrNull(n);
   if (value == null || !count) return;
   count.classList.remove('is-loading');
-  count.removeAttribute('title');
-  count.setAttribute('aria-label', exactCount.format(value));
+  const label = value === 1 ? '1 follower' : `${value} followers`;
+  count.setAttribute('role', 'img');
+  count.setAttribute('aria-label', label);
+  count.title = label;
   const roll = count.querySelector('.topic-follow-num-roll');
   if (!roll) return;
   const prev = count._followers;

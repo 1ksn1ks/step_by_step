@@ -53,6 +53,9 @@ function element() {
     dataset: {},
     children: [],
     attrs,
+    // As in a browser: the title property is the title attribute.
+    get title() { return this.getAttribute("title") || ""; },
+    set title(value) { this.setAttribute("title", value); },
     setAttribute(name, value) { attrs[name] = String(value); },
     getAttribute(name) { return Object.prototype.hasOwnProperty.call(attrs, name) ? attrs[name] : null; },
     removeAttribute(name) { delete attrs[name]; },
@@ -167,6 +170,79 @@ test("Following shows an en dash when fetchFollowing returns null or rejects, an
   await settle();
   assert.equal(numOf(stat(empty, 1)), "0");
   assert.equal(stat(empty, 1).classList.contains("is-zero"), true);
+});
+
+// The stat's name for a screen reader: role, aria-label and title on the
+// stat, its visible parts hidden from it while it has one.
+function a11y(node) {
+  return {
+    role: node.getAttribute("role"),
+    label: node.getAttribute("aria-label"),
+    title: node.getAttribute("title"),
+    hidden: node.children.map((kid) => kid.getAttribute("aria-hidden")),
+  };
+}
+
+test("each stat is one image named by its exact count, like postcounts.js; an en dash has no name", async () => {
+  const doc = browser();
+  const { paintProfileStats } = await import("../profilestats.js");
+  const el = element();
+  paintProfileStats(el, "0.0.55");
+  // Before any reply: 0 followers, Following unknown, nothing received.
+  assert.deepEqual(a11y(stat(el, 0)), { role: "img", label: "0 followers", title: "0 followers", hidden: ["true", "true"] });
+  assert.deepEqual(a11y(stat(el, 1)), { role: null, label: null, title: null, hidden: [null, null] });
+  assert.deepEqual(a11y(stat(el, 2)), { role: "img", label: "Received 0.00 HBAR", title: "Received 0.00 HBAR", hidden: ["true", "true", "true"] });
+  // The old name on the number is gone.
+  assert.equal(stat(el, 0).children[0].getAttribute("aria-label"), null);
+
+  globalThis.__followJobs.at(-1).resolve({ accounts: [{ id: "0.0.1" }], topics: [{ id: "0.0.8" }, { id: "0.0.9" }] });
+  await settle();
+  assert.deepEqual(a11y(stat(el, 0)), { role: "img", label: "0 followers", title: "0 followers", hidden: ["true", "true"] });
+  assert.deepEqual(a11y(stat(el, 1)), { role: "img", label: "3 following", title: "3 following", hidden: ["true", "true"] });
+  assert.deepEqual(a11y(stat(el, 2)), { role: "img", label: "Received 1.50 HBAR", title: "Received 1.50 HBAR", hidden: ["true", "true", "true"] });
+  // What shows is as it was.
+  assert.deepEqual(el.children.map(labelOf), ["Followers", "Following", "Received"]);
+  assert.deepEqual(el.children.map(numOf), ["0", "3", "1.50"]);
+
+  // One follower, then 1234: the short count shows, the exact one is read.
+  globalThis.__knownFollow = { followers: 1 };
+  const one = element();
+  paintProfileStats(one, "0.0.56");
+  assert.equal(numOf(stat(one, 0)), "1");
+  assert.equal(a11y(stat(one, 0)).label, "1 follower");
+  assert.equal(a11y(stat(one, 0)).title, "1 follower");
+  doc.dispatchEvent(new CustomEvent("profile-follow-count", { detail: { account: "0.0.56", followers: 1234 } }));
+  assert.equal(numOf(stat(one, 0)), "1.2k");
+  assert.deepEqual(a11y(stat(one, 0)), { role: "img", label: "1234 followers", title: "1234 followers", hidden: ["true", "true"] });
+
+  // Following: 1 and 1234 take no plural s; a lost reply goes back to the
+  // en dash and drops the name with the count.
+  const few = element();
+  paintProfileStats(few, "0.0.57");
+  globalThis.__followJobs.at(-1).resolve({ accounts: [{ id: "0.0.1" }], topics: [] });
+  await settle();
+  assert.equal(a11y(stat(few, 1)).label, "1 following");
+  const many = element();
+  paintProfileStats(many, "0.0.58");
+  globalThis.__followJobs.at(-1).resolve({ accounts: Array.from({ length: 1234 }, (_, i) => ({ id: `0.0.${i}` })), topics: [] });
+  await settle();
+  assert.equal(numOf(stat(many, 1)), "1.2k");
+  assert.deepEqual(a11y(stat(many, 1)), { role: "img", label: "1234 following", title: "1234 following", hidden: ["true", "true"] });
+  const lost = element();
+  paintProfileStats(lost, "0.0.59");
+  globalThis.__followJobs.at(-1).reject(new Error("offline"));
+  await settle();
+  assert.equal(numOf(stat(lost, 1)), "–");
+  assert.deepEqual(a11y(stat(lost, 1)), { role: null, label: null, title: null, hidden: [null, null] });
+
+  // Received follows its amount.
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ received: "1234.5" }) });
+  const rich = element();
+  paintProfileStats(rich, "0.0.60");
+  await settle();
+  assert.equal(numOf(stat(rich, 2)), "1.2k");
+  assert.equal(a11y(stat(rich, 2)).label, "Received 1234.50 HBAR");
+  globalThis.__knownFollow = null;
 });
 
 test("the feed profile keeps Link and Topic and drops the Account row", () => {

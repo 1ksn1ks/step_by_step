@@ -511,8 +511,9 @@ function paintLiveGroup() {
   document.dispatchEvent(new Event('live-dataset-changed')); // topic dots follow the group
 }
 
-const exactLiveCount = new Intl.NumberFormat('en');
-
+// text shows; exact is its name and title: the raw numbers and the word,
+// as postcounts.js labels a count ("1234 posts", "12 of 1234 posts", "1 of
+// 1 post"). No number yet: no exact.
 function liveCountCopy() {
   const total = liveAll.length;
   const shown = localList.length;
@@ -520,16 +521,16 @@ function liveCountCopy() {
   if (needsWallet(group) && !walletNow()) return { text: 'Connect wallet', exact: '' };
   if (group === 'following' && followLoad) return { text: 'Loading…', exact: '' };
   if (group === 'holders' && !earlyHashinalReady()) return { text: 'Loading…', exact: '' };
+  const word = total === 1 ? 'post' : 'posts';
   if (group === 'all') {
-    const word = total === 1 ? 'post' : 'posts';
     return {
       text: formatCount(total) + ' ' + word,
-      exact: exactLiveCount.format(total) + ' ' + word,
+      exact: `${total} ${word}`,
     };
   }
   return {
     text: formatCount(shown) + ' of ' + formatCount(total),
-    exact: exactLiveCount.format(shown) + ' of ' + exactLiveCount.format(total),
+    exact: `${shown} of ${total} ${word}`,
   };
 }
 
@@ -598,10 +599,14 @@ function paintLiveBar() {
   livePill.classList.toggle('is-filtered', groupNow() !== 'all');
   const copy = liveCountCopy();
   liveCount.textContent = copy.text;
+  // A count is one image named by its exact numbers; "Connect wallet" and
+  // "Loading…" are read as they show. aria-live stays either way.
   if (copy.exact) {
+    liveCount.setAttribute('role', 'img');
     liveCount.title = copy.exact;
     liveCount.setAttribute('aria-label', copy.exact);
   } else {
+    liveCount.removeAttribute('role');
     liveCount.removeAttribute('title');
     liveCount.removeAttribute('aria-label');
   }

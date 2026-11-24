@@ -792,9 +792,15 @@ async function submitDonation() {
   }
 }
 
+// The short amount shows; the exact one is its name and title, the element
+// one image (as postcounts.js labels a count). A repaint clears the last
+// account's name with its text.
 export function paintReceived(el, account) {
   if (!el) return;
   el.textContent = '';
+  el.removeAttribute('role');
+  el.removeAttribute('title');
+  el.removeAttribute('aria-label');
   const id = bareAccount(account);
   if (!id) return;
   el.dataset.receivedFor = id;
@@ -805,6 +811,7 @@ export function paintReceived(el, account) {
       const received = typeof data.received === 'string' ? data.received : formatHbar(0);
       const exact = formatDonationAmount(received);
       el.textContent = `Received ${formatHbarCount(received)} HBAR`;
+      el.setAttribute('role', 'img');
       el.title = `Received ${exact} HBAR`;
       el.setAttribute('aria-label', `Received ${exact} HBAR`);
     })

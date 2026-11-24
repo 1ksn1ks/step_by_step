@@ -504,17 +504,20 @@ function moveActive(delta) {
   paintWindow(true);
 }
 
-const exactFollowing = new Intl.NumberFormat('en');
-
+// The short count shows ("1.2k following"); its name and title are the
+// raw number, as postcounts.js labels a count ("1234 following", no
+// plural s). Not ready: no count, no name.
 function paintFollowingExact(status, count) {
   if (!countEl) return;
   if (status !== 'ready') {
+    countEl.removeAttribute('role');
     countEl.removeAttribute('title');
     countEl.removeAttribute('aria-label');
     return;
   }
   const n = typeof count === 'number' && count > 0 ? count : 0;
-  const exact = exactFollowing.format(n) + ' following';
+  const exact = `${n} following`;
+  countEl.setAttribute('role', 'img');
   countEl.title = exact;
   countEl.setAttribute('aria-label', exact);
 }
