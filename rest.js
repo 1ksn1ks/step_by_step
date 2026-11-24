@@ -17,7 +17,7 @@ import { connectProfileTopic, removeProfileTopic } from './followtopic';
 import { debounce } from './debounce';
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
 import { allLoadedMessages } from './processallmessages';
-import { handleAllMessages } from './handleallmessages';
+import { handleAllMessages, mapTopic } from './handleallmessages';
 import { connectedAccount, signer } from './web3';
 import { PrivateKey } from '@hashgraph/sdk';
 import { isValidUrl } from './ISVALIDURL.JS';
@@ -841,6 +841,9 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
 // admin config's appIcon. Use profile picture writes an empty appIcon.
 let appIconShown = "";
 let appIconBusy = false;
+// topicId → icon url. The last 20 previews; typing one again does not re-read it.
+const appIconPreviewCache = new Map();
+const APP_ICON_CACHE_MAX = 20;
 
 function showAppIconPreview(src) {
   const img = document.getElementById("app-icon-preview-img");
@@ -905,6 +908,7 @@ async function sendAppIcon(url) {
   }
   toast.info("Confirm in wallet 👛");
   await sendMessage(topicId, appIconConfigMessage(raw));
+  appIconPreviewCache.delete(topicId);
   return true;
 }
 
@@ -913,8 +917,32 @@ async function sendAppIcon(url) {
 // An empty or invalid target is Profile picture. A new topic shows
 // Profile picture while it reads; the same topic keeps its picture. Only
 // the newest read paints, and never over an upload in progress.
+// Each topic's icon is remembered (20 at a time) so typing it again does
+// not read the topic. The topic the map has open uses the messages already
+// loaded. A successful set or clear drops that topic so the next look
+// reads the new value.
 let appIconTopic = "";
 let appIconReadSeq = 0;
+
+function loadedAppIconMessages(topicId) {
+  if (mapTopic() !== topicId || !Array.isArray(allLoadedMessages)) return null;
+  for (let index = allLoadedMessages.length - 1; index >= 0; index -= 1) {
+    const entry = allLoadedMessages[index];
+    if (!entry || String(entry.topicId || "") !== topicId) continue;
+    const unique = entry.uniqueMessages;
+    if (unique && Array.isArray(unique.messages)) return unique.messages;
+    if (Array.isArray(entry.messages)) return entry.messages;
+  }
+  return null;
+}
+
+function rememberAppIconPreview(topicId, icon) {
+  if (appIconPreviewCache.has(topicId)) appIconPreviewCache.delete(topicId);
+  appIconPreviewCache.set(topicId, icon || "");
+  while (appIconPreviewCache.size > APP_ICON_CACHE_MAX) {
+    appIconPreviewCache.delete(appIconPreviewCache.keys().next().value);
+  }
+}
 
 async function previewAppIconForTarget() {
   const topicId = updateTopicTargetId();
@@ -928,9 +956,16 @@ async function previewAppIconForTarget() {
   appIconTopic = topicId;
   let icon = "";
   try {
-    const response = await getMessages(topicId);
-    const info = await getTopicInfo(topicId);
-    icon = currentAppIcon(response && response.messages, adminsFromMemo(info && info.memo), (url) => isOwnR2Image(url));
+    if (appIconPreviewCache.has(topicId)) {
+      icon = appIconPreviewCache.get(topicId);
+      rememberAppIconPreview(topicId, icon);
+    } else {
+      const loaded = loadedAppIconMessages(topicId);
+      const response = loaded ? { messages: loaded } : await getMessages(topicId);
+      const info = await getTopicInfo(topicId);
+      icon = currentAppIcon(response && response.messages, adminsFromMemo(info && info.memo), (url) => isOwnR2Image(url));
+      if (seq === appIconReadSeq) rememberAppIconPreview(topicId, icon);
+    }
   } catch (error) {
     console.error("Error loading app icon:", error);
     icon = "";

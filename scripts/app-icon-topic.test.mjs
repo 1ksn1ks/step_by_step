@@ -101,15 +101,18 @@ test("the App icon admin check and the send use Update topic's target", () => {
 });
 
 // previewAppIconForTarget with stand-ins for the network and the card.
-function previewHarness({ target, busy = false, messages = {}, memos = {}, fail = false }) {
+function previewHarness({ target, busy = false, messages = {}, memos = {}, fail = false, loaded = [], loadedTopic = "" }) {
   const shown = [];
   const reads = [];
   const gates = new Map();
   const env = {
     shown,
     reads,
+    infos: [],
     target,
     busy,
+    loaded,
+    loadedTopic,
     // A read waits here until the test lets it go, so two can overlap.
     gate(id) {
       let open;
@@ -124,6 +127,10 @@ function previewHarness({ target, busy = false, messages = {}, memos = {}, fail 
     let appIconBusy = env.busy;
     let appIconTopic = "";
     let appIconReadSeq = 0;
+    const appIconPreviewCache = new Map();
+    const APP_ICON_CACHE_MAX = 20;
+    const allLoadedMessages = env.loaded || [];
+    const mapTopic = () => env.loadedTopic || "";
     const updateTopicTargetId = () => env.target;
     const showAppIconPreview = (src) => env.shown.push(src);
     const isOwnR2Image = (url) => url.startsWith("https://r2.test/");
@@ -133,7 +140,12 @@ function previewHarness({ target, busy = false, messages = {}, memos = {}, fail 
       if (${fail}) throw new Error("offline");
       return { messages: ${JSON.stringify(messages)}[id] || [] };
     };
-    const getTopicInfo = async (id) => ({ memo: ${JSON.stringify(memos)}[id] || "" });
+    const getTopicInfo = async (id) => {
+      env.infos.push(id);
+      return { memo: ${JSON.stringify(memos)}[id] || "" };
+    };
+    ${fn(rest, "loadedAppIconMessages")}
+    ${fn(rest, "rememberAppIconPreview")}
     ${fn(rest, "previewAppIconForTarget")}
     return {
       run: previewAppIconForTarget,
@@ -178,10 +190,12 @@ test("a topic shows its admins' current icon, the same read as Load Topic Rules"
   assert.deepEqual(offline.env.shown, ["", ""]);
 });
 
-test("the same topic again keeps its picture while it reads; a slower old read never wins", async () => {
+test("the same topic again keeps its picture and does not read again; a slower old read never wins", async () => {
   const { api, env } = previewHarness({ target: "0.0.10", messages: MESSAGES, memos: MEMOS });
   await api.run();
   await api.run();
+  assert.deepEqual(env.reads, ["0.0.10"]);
+  assert.deepEqual(env.infos, ["0.0.10"]);
   assert.deepEqual(env.shown, ["", ICON, ICON], "no flash back to Profile picture");
 
   const race = previewHarness({ target: "0.0.10", messages: MESSAGES, memos: MEMOS });
@@ -192,6 +206,62 @@ test("the same topic again keeps its picture while it reads; a slower old read n
   race.env.release("0.0.10");
   await slow;
   assert.deepEqual(race.env.shown, ["", "", ""], "0.0.10's icon never shows over 0.0.11");
+});
+
+test("the topic the map has open uses its loaded messages", async () => {
+  const loaded = previewHarness({
+    target: "0.0.10",
+    messages: MESSAGES,
+    memos: MEMOS,
+    loadedTopic: "0.0.10",
+    loaded: [{ topicId: "0.0.10", uniqueMessages: { messages: MESSAGES["0.0.10"] } }],
+  });
+  await loaded.api.run();
+  assert.deepEqual(loaded.env.reads, []);
+  assert.deepEqual(loaded.env.infos, ["0.0.10"]);
+  assert.deepEqual(loaded.env.shown, ["", ICON]);
+  await loaded.api.run();
+  assert.deepEqual(loaded.env.reads, []);
+  assert.deepEqual(loaded.env.infos, ["0.0.10"]);
+
+  const other = previewHarness({
+    target: "0.0.10",
+    messages: MESSAGES,
+    memos: MEMOS,
+    loadedTopic: "0.0.11",
+    loaded: [{ topicId: "0.0.10", uniqueMessages: { messages: MESSAGES["0.0.10"] } }],
+  });
+  await other.api.run();
+  assert.deepEqual(other.env.reads, ["0.0.10"]);
+});
+
+test("the icon cache keeps 20 topics and drops the oldest", async () => {
+  const { api, env } = previewHarness({ target: "0.0.3000", messages: MESSAGES, memos: MEMOS });
+  const ids = Array.from({ length: 21 }, (_, i) => `0.0.${3000 + i}`);
+  for (const id of ids) {
+    env.target = id;
+    await api.run();
+  }
+  assert.equal(env.reads.length, 21);
+  env.target = ids[20];
+  await api.run();
+  assert.equal(env.reads.length, 21);
+  env.target = ids[0];
+  await api.run();
+  assert.equal(env.reads.length, 22);
+});
+
+test("a successful set drops that topic's cached icon", () => {
+  const send = fn(rest, "sendAppIcon");
+  const sentAt = send.indexOf("await sendMessage(topicId, appIconConfigMessage(raw));");
+  const dropAt = send.indexOf("appIconPreviewCache.delete(topicId);");
+  assert.ok(sentAt > 0 && dropAt > sentAt);
+  assert.ok(dropAt < send.indexOf("return true;"));
+  const clear = rest.slice(
+    rest.indexOf('getElementById("submit-button-clear-app-icon").addEventListener'),
+    rest.indexOf("submit-button-remove-rules-for-polygons"),
+  );
+  assert.match(clear, /const sent = await sendAppIcon\(""\);/);
 });
 
 test("an upload in progress keeps its preview", async () => {
