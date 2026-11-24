@@ -4,7 +4,8 @@
 import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
 import { currentUfoModelInGLTF, globalLoadedTopicIdsWithNames } from './letall.js';
-import { markerPopupNode, polygonPopupNode, mountPostReactions, buildPopupProfile, rememberShapeEdit, shapeEditFor, viewsChip as sharedViewsChip, setViewsCount, popupGearIcon, bindPressFeedback } from './processallmessages.js';
+import { markerPopupNode, polygonPopupNode, mountPostReactions, buildPopupProfile, rememberShapeEdit, shapeEditFor, viewsChip as sharedViewsChip, setViewsCount, popupGearIcon, bindPressFeedback, applyMountedCommentTree } from './processallmessages.js';
+import { filterCommentTree, mutationVerdict, nestComments, readCommentEvents, sortCommentTree } from './commentops.js';
 import { BACKEND_URL, fetchMessagesBackend, streamOnTopic, streamOnReconnect, messageSig, fetchFollowing } from './msgbackend.js';
 import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
 import { initialTopicId } from './extracttopic.js';
@@ -834,6 +835,8 @@ const markerComments = new Map();
 const polygonComments = new Map();
 const markerReplies = new Map();
 const polygonReplies = new Map();
+const commentNodes = new Map();
+const commentPending = new Map();
 const deletedCreated = new Set();
 const deletedStamp = new Set();
 const droppedShares = new Set();
@@ -3391,6 +3394,8 @@ function clearMaps() {
   polygonComments.clear();
   markerReplies.clear();
   polygonReplies.clear();
+  commentNodes.clear();
+  commentPending.clear();
   deletedCreated.clear();
   deletedStamp.clear();
   droppedShares.clear();
@@ -3539,35 +3544,7 @@ function noteMessage(message, topic) {
     if (!body || !body.timestamp || !payer) continue;
     setAction(topic, bucket, String(body.timestamp), payer, type, at);
   }
-  const created = createdIso(message.created);
-  if (message.commentMarker && message.commentMarker.timestamp && payer) {
-    pushList(markerComments, topicKey(topic, message.commentMarker.timestamp), {
-      payer,
-      text: String(message.commentMarker.text || '').slice(0, 300),
-      created,
-    });
-  }
-  if (message.commentPolygon && message.commentPolygon.timestamp && payer) {
-    pushList(polygonComments, topicKey(topic, message.commentPolygon.timestamp), {
-      payer,
-      text: String(message.commentPolygon.text || '').slice(0, 300),
-      created,
-    });
-  }
-  if (message.replyMarker && message.replyMarker.parentId && payer) {
-    pushList(markerReplies, topicKey(topic, message.replyMarker.parentId), {
-      payer,
-      text: String(message.replyMarker.text || '').slice(0, 300),
-      created,
-    });
-  }
-  if (message.replyPolygon && message.replyPolygon.parentId && payer) {
-    pushList(polygonReplies, topicKey(topic, message.replyPolygon.parentId), {
-      payer,
-      text: String(message.replyPolygon.text || '').slice(0, 300),
-      created,
-    });
-  }
+  noteTopicComments(message, topic, payer);
   // An unshare takes back the share made in this same topic.
   const unshare = message.unshare;
   if (unshare && typeof unshare === 'object') {
@@ -3577,13 +3554,109 @@ function noteMessage(message, topic) {
   }
 }
 
+function feedCommentKey(topic, created) {
+  return `${topic}|${created}`;
+}
+
+function assignFeedVerdict(node, verdict) {
+  const created = node.created;
+  node.text = verdict.text;
+  node.edited = verdict.edited;
+  node.deleted = verdict.deleted;
+  node.mutationAt = verdict.mutationAt;
+  node.created = created;
+}
+
+function applyFeedMutation(topic, event) {
+  const id = feedCommentKey(topic, event.created);
+  const node = commentNodes.get(id);
+  if (!node) {
+    const list = commentPending.get(id) || [];
+    list.push(event);
+    commentPending.set(id, list);
+    return;
+  }
+  const verdict = mutationVerdict(node, event);
+  if (verdict) assignFeedVerdict(node, verdict);
+}
+
+function rememberFeedNode(map, key, topic, fields) {
+  if (!fields.created) return null;
+  const id = feedCommentKey(topic, fields.created);
+  const known = commentNodes.get(id);
+  if (known) return known;
+  const node = {
+    payer: fields.payer,
+    text: fields.text,
+    created: fields.created,
+    edited: false,
+    deleted: false,
+    mutationAt: '',
+  };
+  pushList(map, key, node);
+  commentNodes.set(id, node);
+  const waiting = commentPending.get(id);
+  if (waiting) {
+    commentPending.delete(id);
+    for (const event of waiting) applyFeedMutation(topic, event);
+  }
+  return node;
+}
+
+function noteTopicComments(message, topic, payer) {
+  const at = createdIso(message.created || message.consensus_timestamp);
+  if (!payer || !at) return;
+  const events = readCommentEvents(message, payer, at);
+  let stamp = '';
+  let bucket = '';
+  for (const event of events) {
+    if (event.type === 'comment') {
+      const map = event.bucket === 'polygon' ? polygonComments : markerComments;
+      rememberFeedNode(map, topicKey(topic, event.stamp), topic, {
+        payer,
+        text: event.text,
+        created: at,
+      });
+      stamp = event.stamp;
+      bucket = event.bucket;
+    } else if (event.type === 'reply') {
+      const map = event.bucket === 'polygon' ? polygonReplies : markerReplies;
+      rememberFeedNode(map, topicKey(topic, event.parentId), topic, {
+        payer,
+        text: event.text,
+        created: at,
+      });
+      if (event.stamp) {
+        stamp = event.stamp;
+        bucket = event.bucket;
+      }
+    } else {
+      applyFeedMutation(topic, event);
+      if (event.stamp) {
+        stamp = event.stamp;
+        bucket = event.bucket;
+      }
+    }
+  }
+  if (stamp && bucket) applyMountedCommentTree(topic, bucket, stamp, commentsFor(topic, bucket, stamp));
+}
+
+function decorateCommentLikes(topic, bucket, nodes) {
+  return (nodes || []).map((node) => ({
+    ...node,
+    likeCount: likeTotal(topic, bucket, node.created),
+    likedByMe: liked(topic, bucket, node.created),
+    replies: decorateCommentLikes(topic, bucket, node.replies),
+  }));
+}
+
 function commentsFor(topic, bucket, stamp) {
   const list = bucket === 'polygon' ? polygonComments : markerComments;
   const replies = bucket === 'polygon' ? polygonReplies : markerReplies;
-  return (list.get(topicKey(topic, stamp)) || []).map((comment) => ({
-    ...comment,
-    replies: (replies.get(topicKey(topic, comment.created)) || []).slice(),
-  }));
+  const nested = nestComments(list.get(topicKey(topic, stamp)) || [], (created) => (
+    replies.get(topicKey(topic, created)) || []
+  ));
+  return sortCommentTree(filterCommentTree(decorateCommentLikes(topic, bucket, nested)), 'newest');
 }
 
 function liked(topic, bucket, stamp) {

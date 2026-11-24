@@ -30,6 +30,7 @@ import { resolvedUploadSeconds, uploadObjectKey } from "../mediaduration.js";
 import { SEALED_MAX, sealedUploadPlan } from "./sealedupload.js";
 import { posterTargetKey } from "../mediaurl.js";
 import { isOwnR2Image, r2PublicBase } from "../r2public.js";
+import { clipCommentText, filterCommentTree, mutationVerdict, readCommentEvents, sortCommentTree } from "../commentops.js";
 import { createPendingPosters, issuePosterEdit, posterEditMatches } from "./pendingposters.js";
 import { startBackupSchedule } from "./backup.js";
 import { uploadSecretOk, issueUploadToken, accountFromUploadToken as readUploadToken } from "./uploadtoken.js";
@@ -236,6 +237,9 @@ db.exec(`
     payer      TEXT NOT NULL,
     text       TEXT NOT NULL,
     parent_id  TEXT,
+    edited     INTEGER NOT NULL DEFAULT 0,
+    deleted    INTEGER NOT NULL DEFAULT 0,
+    edited_at  TEXT,
     PRIMARY KEY (topic_id, target_key, created, payer)
   );
   -- small key/value flags (e.g. "derived views were backfilled once")
@@ -296,6 +300,9 @@ for (const migration of [
   "ALTER TABLE geo_cache ADD COLUMN city TEXT",
   "ALTER TABLE geo_cache ADD COLUMN country_code TEXT",
   "ALTER TABLE geo_cache ADD COLUMN miss INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE comments ADD COLUMN edited INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE comments ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE comments ADD COLUMN edited_at TEXT",
 ]) {
   try {
     db.exec(migration);
@@ -674,7 +681,13 @@ const q = {
     VALUES (?, ?, ?, ?, ?, ?)
   `),
   listComments: db.prepare(
-    "SELECT created, payer, text, parent_id FROM comments WHERE topic_id = ? AND target_key = ? ORDER BY created ASC"
+    "SELECT created, payer, text, parent_id, edited, deleted, edited_at FROM comments WHERE topic_id = ? AND target_key = ? ORDER BY created ASC"
+  ),
+  findCommentByAuthor: db.prepare(
+    "SELECT created, payer, text, parent_id, edited, deleted, edited_at FROM comments WHERE topic_id = ? AND created = ? AND payer = ? LIMIT 1"
+  ),
+  updateCommentMutation: db.prepare(
+    "UPDATE comments SET text = ?, edited = ?, deleted = ?, edited_at = ? WHERE topic_id = ? AND created = ? AND payer = ?"
   ),
   // One row per post. The insert adds the first view; a repeat adds one.
   bumpPopupView: db.prepare(`
@@ -1204,22 +1217,39 @@ function applyContentReactions(topicId, payer, body, created) {
     else q.upsertReaction.run(topicId, key, payer, kind);
     break;
   }
-  const comment = (body.commentMarker && body.commentMarker.timestamp && body.commentMarker)
-    || (body.commentPolygon && body.commentPolygon.timestamp && body.commentPolygon);
-  if (comment) {
-    q.insertComment.run(
-      topicId, String(comment.timestamp), created, payer,
-      String(comment.text || "").slice(0, 300), null
-    );
+  for (const event of readCommentEvents(body, payer, created)) {
+    if (event.type === "comment") {
+      q.insertComment.run(topicId, event.stamp, created, payer, event.text, null);
+    } else if (event.type === "reply") {
+      q.insertComment.run(topicId, event.parentId, created, payer, event.text, event.parentId);
+    } else if (event.type === "edit" || event.type === "delete") {
+      applyStoredCommentMutation(topicId, event);
+    }
   }
-  const reply = (body.replyMarker && body.replyMarker.parentId && body.replyMarker)
-    || (body.replyPolygon && body.replyPolygon.parentId && body.replyPolygon);
-  if (reply) {
-    q.insertComment.run(
-      topicId, String(reply.parentId), created, payer,
-      String(reply.text || "").slice(0, 300), String(reply.parentId)
-    );
-  }
+}
+
+// Author edit/delete of a comment row. created stays the original ISO time.
+function applyStoredCommentMutation(topicId, event) {
+  const row = q.findCommentByAuthor.get(topicId, event.created, event.payer);
+  if (!row) return;
+  const verdict = mutationVerdict({
+    payer: row.payer,
+    created: row.created,
+    text: row.text,
+    edited: !!row.edited,
+    deleted: !!row.deleted,
+    mutationAt: row.edited_at || "",
+  }, event.kind === "edit" ? { ...event, text: clipCommentText(event.text) } : event);
+  if (!verdict) return;
+  q.updateCommentMutation.run(
+    verdict.text,
+    verdict.edited ? 1 : 0,
+    verdict.deleted ? 1 : 0,
+    verdict.mutationAt,
+    topicId,
+    event.created,
+    event.payer,
+  );
 }
 
 // sharePost adds this account. unsharePost removes it. The latest message
@@ -1394,6 +1424,19 @@ function backfillHashtags() {
 // Full reaction picture for one marker: its like/dislike counts plus the
 // comment tree (with per-comment counts and nested replies). Every lookup
 // is a PK-prefix query; the one IN-list query covers all comment keys.
+function commentTreeNode(row, replies) {
+  const deleted = !!row.deleted;
+  return {
+    created: row.created,
+    payer: row.payer,
+    text: deleted ? "" : String(row.text || ""),
+    parent_id: row.parent_id == null ? null : row.parent_id,
+    edited: !!row.edited,
+    deleted,
+    replies,
+  };
+}
+
 function markerReactions(topicId, createdISO) {
   const markerKey = formatMarkerKey(createdISO);
   const rows = q.listComments.all(topicId, markerKey);
@@ -1404,14 +1447,14 @@ function markerReactions(topicId, createdISO) {
       .filter((c) => c.parent_id === parentKey)
       .map((c) => {
         nodes.push(c);
-        return { ...c, replies: build(c.created, depth + 1) };
+        return commentTreeNode(c, build(c.created, depth + 1));
       });
   };
   const tree = rows
     .filter((c) => c.parent_id === null)
     .map((c) => {
       nodes.push(c);
-      return { ...c, replies: build(c.created, 1) };
+      return commentTreeNode(c, build(c.created, 1));
     });
   const counts = new Map();
   const keys = [...new Set([markerKey, ...nodes.map((c) => c.created)])];
@@ -1439,7 +1482,7 @@ function markerReactions(topicId, createdISO) {
   return {
     likeCount: counts.get(markerKey + "|like") || 0,
     dislikeCount: counts.get(markerKey + "|dislike") || 0,
-    comments: tree,
+    comments: sortCommentTree(filterCommentTree(tree), "newest"),
   };
 }
 

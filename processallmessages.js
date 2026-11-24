@@ -34,6 +34,16 @@ import { watchPopupText, setPopupText, paintPopupXEmbeds } from './popuptext.js'
 import { bindXEmbedsSwitch, lockPopupXEmbeds } from './xembed.js';
 import { isTyping } from './joystick.js';
 import { normalizeMessageNewlines, clipMessage, formatHcsUsage, utf8ByteLength, HCS_TOO_LONG, HCS_MESSAGE_MAX_BYTES } from './hcschunks.js';
+import {
+  COMMENT_TEXT_MAX,
+  clipCommentText,
+  filterCommentTree,
+  findComment,
+  mutationVerdict,
+  readCommentEvents,
+  reconcileCommentTree,
+  sortCommentTree,
+} from './commentops.js';
 import maplibregl from 'maplibre-gl';
 import { map } from './map';
 import { applyAllStyles } from './loadprofilepopup';
@@ -1442,9 +1452,13 @@ function reactionHost() {
   return host;
 }
 
-function ensurePostComments(data, kind, id, comments) {
+function ensurePostComments(data, kind, id, comments, syncKey) {
   const existing = document.getElementById(id);
-  if (existing) return existing;
+  if (existing) {
+    if (syncKey) existing._commentSync = syncKey;
+    if (typeof existing._setComments === 'function') existing._setComments(comments || []);
+    return existing;
+  }
   const polygon = kind === 'polygon';
   const section = buildCommentsSection(
     id,
@@ -1457,6 +1471,7 @@ function ensurePostComments(data, kind, id, comments) {
       : window.sendMarkerReply(data.timestamp, parentId, data.topicId, input),
     data.topicId,
     polygon ? 'polygon' : 'marker',
+    syncKey,
   );
   reactionHost().appendChild(section);
   return section;
@@ -1550,7 +1565,7 @@ export function mountPostReactions(cluster, data, kind, home) {
       }
       let section = document.getElementById(commentsId);
       if (open && !section) {
-        section = ensurePostComments(data, polygon ? 'polygon' : 'marker', commentsId, comments);
+        section = ensurePostComments(data, polygon ? 'polygon' : 'marker', commentsId, comments, 'comment|' + sync);
         if (home && section) adoptComments(section, home);
       }
       if (section) {
@@ -1574,7 +1589,7 @@ export function mountPostReactions(cluster, data, kind, home) {
       return ok;
     },
   }));
-  const section = ensurePostComments(data, polygon ? 'polygon' : 'marker', commentsId, comments);
+  const section = ensurePostComments(data, polygon ? 'polygon' : 'marker', commentsId, comments, 'comment|' + sync);
   if (section && !section._bubbleInput) section._bubbleInput = bubble.querySelector('input');
   if (home && section) adoptComments(section, home);
   return section;
@@ -3070,6 +3085,8 @@ const commentsMapMarker = new Map();
 const commentsMapPolygon = new Map();
 const repliesMapMarker = new Map();
 const repliesMapPolygon = new Map();
+const commentIndex = new Map();
+const commentPending = new Map();
 clearShareTopic(topicId);
 
 if (rawResult.messages && Array.isArray(rawResult.messages)) {
@@ -3163,57 +3180,20 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
         }
       }
 
-      // Collect comments (each topic message is one comment; the payer is
-      // the Hedera account that signed it, same as likes)
-      if (parsedMessage.commentMarker && parsedMessage.commentMarker.timestamp && payerId) {
-        const commentTimestamp = parsedMessage.commentMarker.timestamp;
-        if (!commentsMapMarker.has(commentTimestamp)) {
-          commentsMapMarker.set(commentTimestamp, []);
-        }
-        commentsMapMarker.get(commentTimestamp).push({
-          payer: payerId,
-          text: String(parsedMessage.commentMarker.text || '').slice(0, 300),
-          // ISO string, NOT the Date object: like/reply messages store this
-          // value through JSON (string), so map keys must be strings too
-          created: new Date(parsedMessage.created).toISOString()
-        });
-      }
-      if (parsedMessage.commentPolygon && parsedMessage.commentPolygon.timestamp && payerId) {
-        const commentTimestamp = parsedMessage.commentPolygon.timestamp;
-        if (!commentsMapPolygon.has(commentTimestamp)) {
-          commentsMapPolygon.set(commentTimestamp, []);
-        }
-        commentsMapPolygon.get(commentTimestamp).push({
-          payer: payerId,
-          text: String(parsedMessage.commentPolygon.text || '').slice(0, 300),
-          created: new Date(parsedMessage.created).toISOString()
-        });
-      }
-
-      // Collect replies (nested comments; parentId = the created timestamp
-      // of the comment or reply being answered)
-      if (parsedMessage.replyMarker && parsedMessage.replyMarker.parentId && payerId) {
-        const parentId = parsedMessage.replyMarker.parentId;
-        if (!repliesMapMarker.has(parentId)) {
-          repliesMapMarker.set(parentId, []);
-        }
-        repliesMapMarker.get(parentId).push({
-          payer: payerId,
-          text: String(parsedMessage.replyMarker.text || '').slice(0, 300),
-          created: new Date(parsedMessage.created).toISOString()
-        });
-      }
-      if (parsedMessage.replyPolygon && parsedMessage.replyPolygon.parentId && payerId) {
-        const parentId = parsedMessage.replyPolygon.parentId;
-        if (!repliesMapPolygon.has(parentId)) {
-          repliesMapPolygon.set(parentId, []);
-        }
-        repliesMapPolygon.get(parentId).push({
-          payer: payerId,
-          text: String(parsedMessage.replyPolygon.text || '').slice(0, 300),
-          created: new Date(parsedMessage.created).toISOString()
-        });
-      }
+      // Comments, replies, and author edits/deletes. Same rules as the server.
+      ingestParsedComments(parsedMessage, payerId, topicId, {
+        commentsMapMarker,
+        commentsMapPolygon,
+        repliesMapMarker,
+        repliesMapPolygon,
+        likeCountMapMarker,
+        dislikeCountMapMarker,
+        likeCountMapPolygon,
+        dislikeCountMapPolygon,
+        payerActionsPerTimestamp,
+        commentIndex,
+        commentPending,
+      });
     } catch (error) {
       console.error(`Error parsing message for likes/dislikes: ${error}`);
     }
@@ -3453,12 +3433,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       consensusTimestamp: consensusOf(message),
                       likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
                       likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
-                      comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
-                        ...c,
-                        likeCount: likeCountMapMarker.get(c.created) || 0,
-                        likedByMe: payerHasLike(payerActionsPerTimestamp, c.created, 'likeMarker'),
-                        replies: buildReplyTree(c, repliesMapMarker, likeCountMapMarker, dislikeCountMapMarker, 0, payerActionsPerTimestamp, 'likeMarker')
-                      })),
+                      comments: assembledComments(commentsMapMarker.get(timestamp), repliesMapMarker, likeCountMapMarker, dislikeCountMapMarker, payerActionsPerTimestamp, 'likeMarker'),
                       coords
                     });
 
@@ -3538,12 +3513,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       consensusTimestamp: consensusOf(message),
                         likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
                         likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
-                        comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
-                          ...c,
-                          likeCount: likeCountMapPolygon.get(c.created) || 0,
-                          likedByMe: payerHasLike(payerActionsPerTimestamp, c.created, 'likePolygon'),
-                          replies: buildReplyTree(c, repliesMapPolygon, likeCountMapPolygon, dislikeCountMapPolygon, 0, payerActionsPerTimestamp, 'likePolygon')
-                        })),
+                        comments: assembledComments(commentsMapPolygon.get(timestamp), repliesMapPolygon, likeCountMapPolygon, dislikeCountMapPolygon, payerActionsPerTimestamp, 'likePolygon'),
                         coordinates
                       });
 
@@ -4226,6 +4196,102 @@ window.likeMarker = async function(timestamp, topicId, remove) {
   return true;
 };
 
+function assembledComments(list, repliesMap, likeMap, dislikeMap, actions, likeType) {
+  const nested = (list || []).map((c) => ({
+    ...c,
+    likeCount: likeMap.get(c.created) || 0,
+    dislikeCount: dislikeMap.get(c.created) || 0,
+    likedByMe: payerHasLike(actions, c.created, likeType),
+    replies: buildReplyTree(c, repliesMap, likeMap, dislikeMap, 0, actions, likeType),
+  }));
+  return sortCommentTree(filterCommentTree(nested), 'newest');
+}
+
+function assignCommentVerdict(node, verdict) {
+  const created = node.created;
+  node.text = verdict.text;
+  node.edited = verdict.edited;
+  node.deleted = verdict.deleted;
+  node.mutationAt = verdict.mutationAt;
+  node.created = created;
+}
+
+function takeStoredComment(bag, map, key, fields) {
+  if (!fields.created) return null;
+  const known = bag.commentIndex.get(fields.created);
+  if (known) return known;
+  const node = {
+    payer: fields.payer,
+    text: fields.text,
+    created: fields.created,
+    edited: false,
+    deleted: false,
+    mutationAt: '',
+  };
+  if (!map.has(key)) map.set(key, []);
+  map.get(key).push(node);
+  bag.commentIndex.set(fields.created, node);
+  const waiting = bag.commentPending.get(fields.created);
+  if (waiting) {
+    bag.commentPending.delete(fields.created);
+    for (const event of waiting) applyBagMutation(bag, event);
+  }
+  return node;
+}
+
+function applyBagMutation(bag, event) {
+  const node = bag.commentIndex.get(event.created);
+  if (!node) {
+    const list = bag.commentPending.get(event.created) || [];
+    list.push(event);
+    bag.commentPending.set(event.created, list);
+    return;
+  }
+  const verdict = mutationVerdict(node, event);
+  if (verdict) assignCommentVerdict(node, verdict);
+}
+
+function refreshBagSection(topicId, kind, stamp, bag) {
+  if (!stamp || typeof document === 'undefined' || !document.getElementById) return;
+  const section = document.getElementById(commentSectionId(kind, topicId, stamp));
+  if (!section || typeof section._setComments !== 'function') return;
+  const polygon = kind === 'polygon';
+  const list = polygon ? bag.commentsMapPolygon : bag.commentsMapMarker;
+  const replies = polygon ? bag.repliesMapPolygon : bag.repliesMapMarker;
+  const likes = polygon ? bag.likeCountMapPolygon : bag.likeCountMapMarker;
+  const dislikes = polygon ? bag.dislikeCountMapPolygon : bag.dislikeCountMapMarker;
+  section._setComments(assembledComments(
+    list.get(stamp) || [],
+    replies,
+    likes,
+    dislikes,
+    bag.payerActionsPerTimestamp,
+    polygon ? 'likePolygon' : 'likeMarker',
+  ));
+}
+
+function ingestParsedComments(parsedMessage, payerId, topicId, bag) {
+  if (!parsedMessage || !payerId || !bag) return;
+  const at = messageCreated(parsedMessage.created);
+  const events = readCommentEvents(parsedMessage, payerId, at);
+  let touched = null;
+  for (const event of events) {
+    if (event.type === 'comment' || event.type === 'reply') {
+      const polygon = event.bucket === 'polygon';
+      const map = event.type === 'comment'
+        ? (polygon ? bag.commentsMapPolygon : bag.commentsMapMarker)
+        : (polygon ? bag.repliesMapPolygon : bag.repliesMapMarker);
+      const key = event.type === 'comment' ? event.stamp : event.parentId;
+      takeStoredComment(bag, map, key, { payer: payerId, text: event.text, created: at });
+      if (event.stamp) touched = { kind: event.bucket, stamp: event.stamp };
+    } else {
+      applyBagMutation(bag, event);
+      if (event.stamp) touched = { kind: event.bucket, stamp: event.stamp };
+    }
+  }
+  if (touched) refreshBagSection(topicId, touched.kind, touched.stamp, bag);
+}
+
 // Recursively build a reply thread (replies-to-replies supported; the
 // depth guard stops malformed parentId cycles from overflowing the stack).
 function buildReplyTree(node, repliesMap, likeMap, dislikeMap, depth = 0, actions = null, likeType = 'likeMarker') {
@@ -4246,21 +4312,16 @@ const countAllMessages = (nodes) => nodes.reduce((sum, n) => sum + 1 + (n.replie
 // Comment section for marker/polygon popups: the list of comments below the
 // message plus a box to leave your own. Hidden until 💬 is pressed.
 // Light panel: rounded corners, thin white border, no live blur.
-function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
+function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, syncKey) {
   const section = document.createElement('div');
   section.id = id;
   section.classList.add('popup-comments');
+  if (syncKey) section._commentSync = syncKey;
   section.style.cssText = 'display: none; margin-top: calc(var(--u) * 1); padding: calc(var(--u) * 1); border-radius: calc(var(--u) * 1.2); background: rgba(255, 255, 255, 0.10); border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.15); text-align: left;';
 
   const list = document.createElement('div');
   list.className = 'comments-scroll';
   list.style.cssText = 'margin-bottom: calc(var(--u) * 1);';
-  if (comments.length === 0) {
-    const empty = document.createElement('p');
-    empty.style.cssText = 'font-size: calc(var(--u) * 1.3); color: gray; margin: calc(var(--u) * 0.5) 0; text-align: center;';
-    empty.textContent = 'No comments yet';
-    list.appendChild(empty);
-  }
 
   // Topic-chat look: consecutive comments by the same payer form one group -
   // round profile photo on the left (opens the payer's topic), payer/username
@@ -4364,7 +4425,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
     const messageText = document.createElement('div');
     messageText.className = 'chat-msg-text';
     messageText.style.cssText = `font-size: calc(var(--u) * ${textFontSizeTopicChat}); color: ${textTopicChatColor}; white-space: pre-wrap; word-wrap: break-word;`;
-    messageText.textContent = node.text;
+    messageText.textContent = node.deleted ? 'Comment deleted' : node.text;
     wrapper.appendChild(messageText);
 
     // Meta row: heart, reply count, reply (left) ... timestamp (right)
@@ -4431,7 +4492,8 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
     const timestampSpan = document.createElement('span');
     timestampSpan.className = 'chat-msg-time';
     timestampSpan.style.cssText = `font-size: calc(var(--u) * 0.75); color: gray;`;
-    timestampSpan.textContent = new Date(node.created).toLocaleString('en-US', {
+    const when = new Date(node.created);
+    timestampSpan.textContent = Number.isNaN(when.getTime()) ? '' : when.toLocaleString('en-US', {
       hour12: false,
       year: 'numeric',
       month: '2-digit',
@@ -4440,6 +4502,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
       minute: '2-digit',
       second: '2-digit'
     });
+    if (node.edited && !node.deleted) timestampSpan.textContent += ' · edited';
     metaRow.appendChild(timestampSpan);
 
     wrapper.appendChild(metaRow);
@@ -4452,12 +4515,67 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
     return wrapper;
   };
 
-  for (const comment of comments) {
-    if (comment.payer !== currentGroupPayer) {
-      startGroup(comment.payer);
+  const paintList = (items) => {
+    currentGroupPayer = null;
+    currentMessagesDiv = null;
+    list.replaceChildren();
+    const view = sortCommentTree(filterCommentTree(items || []), 'newest');
+    if (view.length === 0) {
+      const empty = document.createElement('p');
+      empty.style.cssText = 'font-size: calc(var(--u) * 1.3); color: gray; margin: calc(var(--u) * 0.5) 0; text-align: center;';
+      empty.textContent = 'No comments yet';
+      list.appendChild(empty);
     }
-    currentMessagesDiv.appendChild(renderNode(comment, 0));
-  }
+    for (const comment of view) {
+      if (comment.payer !== currentGroupPayer) startGroup(comment.payer);
+      currentMessagesDiv.appendChild(renderNode(comment, 0));
+    }
+    section._view = view;
+    if (section._commentSync) publishComment(section._commentSync, countAllMessages(view));
+  };
+
+  const overlayMatches = (tree, overlay) => {
+    const node = findComment(tree, overlay.created);
+    if (!node) return false;
+    if (overlay.fields && overlay.fields.deleted) return !!node.deleted;
+    if (overlay.fields && overlay.fields.edited) return node.text === overlay.fields.text;
+    return false;
+  };
+
+  const repaint = (next) => {
+    const merged = reconcileCommentTree(section._base, next || [], section._pending);
+    section._base = reconcileCommentTree(null, next || [], []).tree;
+    section._pending = merged.pendings;
+    const tree = merged.tree;
+    const keep = [];
+    for (const overlay of section._overlays) {
+      if (overlayMatches(tree, overlay)) continue;
+      const node = findComment(tree, overlay.created);
+      if (!node) continue;
+      const created = node.created;
+      Object.assign(node, overlay.fields);
+      node.created = created;
+      keep.push(overlay);
+    }
+    section._overlays = keep;
+    section._tree = tree;
+    paintList(tree);
+  };
+
+  section._base = reconcileCommentTree(null, comments || [], []).tree;
+  section._pending = [];
+  section._overlays = [];
+  section._setComments = (next) => repaint(next || []);
+  section._insertPending = (node, parentId) => {
+    section._pending.push({ parentId: parentId || null, node });
+    repaint(section._base);
+  };
+  section._mutate = (created, fields) => {
+    section._overlays = section._overlays.filter((item) => item.created !== created);
+    section._overlays.push({ created, fields });
+    repaint(section._base);
+  };
+  repaint(section._base);
   section.appendChild(list);
 
   // Reply-mode chip above the input ("↩ Replying to @payer ✕")
@@ -4486,12 +4604,12 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind) {
 
   const input = document.createElement('textarea');
   input.placeholder = 'Leave a comment...';
-  input.maxLength = 300;
+  input.maxLength = COMMENT_TEXT_MAX;
   input.rows = 2;
   input.style.cssText = 'flex: 1; resize: none; font-size: calc(var(--u) * 1.4); padding: calc(var(--u) * 0.6) calc(var(--u) * 1); border-radius: calc(var(--u) * 1); border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08); color: white; outline: none;';
   input.addEventListener('input', () => {
     const soft = input.value.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const next = clipMessage(soft, 300);
+    const next = clipMessage(soft, COMMENT_TEXT_MAX);
     if (next !== input.value) input.value = next;
     adjustTextareaHeight(input);
   });
@@ -5193,87 +5311,178 @@ window.openPolygonComments = function(timestamp, topicId) {
   else if (!input) openCommentsModal(`polygon-comments-${topicId}-${timestamp}`);
 };
 
-window.sendMarkerComment = async function(timestamp, topicId, input) {
+export function commentSectionId(kind, topicId, stamp) {
+  return `${kind === 'polygon' ? 'polygon' : 'marker'}-comments-${topicId}-${stamp}`;
+}
+
+export function applyMountedCommentTree(topicId, kind, stamp, tree) {
+  if (typeof document === 'undefined' || !document.getElementById) return false;
+  const section = document.getElementById(commentSectionId(kind, topicId, stamp));
+  if (!section || typeof section._setComments !== 'function') return false;
+  section._setComments(tree);
+  return true;
+}
+
+function authorOk(payer) {
+  if (!connectedAccount || connectedAccount !== payer) {
+    toast.error('Only the author can change this comment');
+    return false;
+  }
+  return true;
+}
+
+function mountedCommentSection(kind, topicId, stamp) {
+  if (typeof document === 'undefined' || !document.getElementById) return null;
+  return document.getElementById(commentSectionId(kind, topicId, stamp));
+}
+
+async function submitCommentBody(topicId, body) {
   if (!signer) {
-    toast.error("Connect wallet first");
-    return;
+    toast.error('Connect wallet first');
+    return false;
   }
-  const text = clipMessage(normalizeMessageNewlines(input && input.value).trim(), 300);
+  toast.info('Confirm in wallet 👛');
+  try {
+    await sendMessage(topicId, JSON.stringify(body));
+  } catch (error) {
+    console.error('comment send failed', error);
+    toast.error('Comment was not saved');
+    return false;
+  }
+  return true;
+}
+
+function clearCommentInput(input) {
+  if (!input) return;
+  input.value = '';
+  adjustTextareaHeight(input);
+}
+
+function rememberSentComment(input, text, parentId) {
+  const section = input && input.closest ? input.closest('.popup-comments') : null;
+  if (!section || typeof section._insertPending !== 'function' || !connectedAccount) return;
+  section._insertPending({
+    payer: connectedAccount,
+    text,
+    created: new Date().toISOString(),
+    pending: true,
+    likeCount: 0,
+    edited: false,
+    deleted: false,
+    replies: [],
+  }, parentId || null);
+}
+
+function patchMountedComment(kind, topicId, stamp, created, fields) {
+  const section = mountedCommentSection(kind, topicId, stamp);
+  if (!section || typeof section._mutate !== 'function') return;
+  section._mutate(created, fields);
+}
+
+window.sendMarkerComment = async function(timestamp, topicId, input) {
+  const text = clipCommentText(input && input.value);
   if (!text) {
-    toast.error("Comment is empty");
+    toast.error('Comment is empty');
     return;
   }
-  const messageObject = {
-    commentMarker: {
-      timestamp: timestamp,
-      text: text
-    }
-  };
-  toast.info("Confirm in wallet 👛");
-  await sendMessage(topicId, JSON.stringify(messageObject));
+  const ok = await submitCommentBody(topicId, { commentMarker: { timestamp, text } });
+  if (!ok) return;
+  clearCommentInput(input);
+  rememberSentComment(input, text, null);
 };
 
 window.sendPolygonComment = async function(timestamp, topicId, input) {
-  if (!signer) {
-    toast.error("Connect wallet first");
-    return;
-  }
-  const text = clipMessage(normalizeMessageNewlines(input && input.value).trim(), 300);
+  const text = clipCommentText(input && input.value);
   if (!text) {
-    toast.error("Comment is empty");
+    toast.error('Comment is empty');
     return;
   }
-  const messageObject = {
-    commentPolygon: {
-      timestamp: timestamp,
-      text: text
-    }
-  };
-  toast.info("Confirm in wallet 👛");
-  await sendMessage(topicId, JSON.stringify(messageObject));
+  const ok = await submitCommentBody(topicId, { commentPolygon: { timestamp, text } });
+  if (!ok) return;
+  clearCommentInput(input);
+  rememberSentComment(input, text, null);
 };
 
 window.sendMarkerReply = async function(postTimestamp, parentId, topicId, input) {
-  if (!signer) {
-    toast.error("Connect wallet first");
-    return;
-  }
-  const text = clipMessage(normalizeMessageNewlines(input && input.value).trim(), 300);
+  const text = clipCommentText(input && input.value);
   if (!text) {
-    toast.error("Comment is empty");
+    toast.error('Comment is empty');
     return;
   }
-  const messageObject = {
-    replyMarker: {
-      timestamp: postTimestamp,
-      parentId: parentId,
-      text: text
-    }
-  };
-  toast.info("Confirm in wallet 👛");
-  await sendMessage(topicId, JSON.stringify(messageObject));
+  const ok = await submitCommentBody(topicId, { replyMarker: { timestamp: postTimestamp, parentId, text } });
+  if (!ok) return;
+  clearCommentInput(input);
+  rememberSentComment(input, text, parentId);
 };
 
 window.sendPolygonReply = async function(postTimestamp, parentId, topicId, input) {
-  if (!signer) {
-    toast.error("Connect wallet first");
-    return;
-  }
-  const text = clipMessage(normalizeMessageNewlines(input && input.value).trim(), 300);
+  const text = clipCommentText(input && input.value);
   if (!text) {
-    toast.error("Comment is empty");
+    toast.error('Comment is empty');
     return;
   }
-  const messageObject = {
-    replyPolygon: {
-      timestamp: postTimestamp,
-      parentId: parentId,
-      text: text
-    }
-  };
-  toast.info("Confirm in wallet 👛");
-  await sendMessage(topicId, JSON.stringify(messageObject));
+  const ok = await submitCommentBody(topicId, { replyPolygon: { timestamp: postTimestamp, parentId, text } });
+  if (!ok) return;
+  clearCommentInput(input);
+  rememberSentComment(input, text, parentId);
 };
+
+async function sendCommentEdit(kind, field, timestamp, topicId, created, text, payer, parentId) {
+  if (!authorOk(payer)) return false;
+  const section = mountedCommentSection(kind, topicId, timestamp);
+  const current = section && findComment(section._tree || [], created);
+  if (current && current.deleted) {
+    toast.error('Comment was deleted');
+    return false;
+  }
+  const clipped = clipCommentText(text);
+  if (!clipped) {
+    toast.error('Comment is empty');
+    return false;
+  }
+  const payload = { created, text: clipped, timestamp };
+  if (parentId) payload.parentId = parentId;
+  const ok = await submitCommentBody(topicId, { [field]: payload });
+  if (!ok) return false;
+  patchMountedComment(kind, topicId, timestamp, created, { text: clipped, edited: true });
+  return true;
+}
+
+async function sendCommentDelete(kind, field, timestamp, topicId, created, payer, parentId) {
+  if (!authorOk(payer)) return false;
+  if (!created) return false;
+  const payload = { created, timestamp };
+  if (parentId) payload.parentId = parentId;
+  const ok = await submitCommentBody(topicId, { [field]: payload });
+  if (!ok) return false;
+  patchMountedComment(kind, topicId, timestamp, created, { text: '', deleted: true });
+  return true;
+}
+
+window.sendEditMarkerComment = (timestamp, topicId, created, text, payer) => (
+  sendCommentEdit('marker', 'editCommentMarker', timestamp, topicId, created, text, payer)
+);
+window.sendEditPolygonComment = (timestamp, topicId, created, text, payer) => (
+  sendCommentEdit('polygon', 'editCommentPolygon', timestamp, topicId, created, text, payer)
+);
+window.sendEditMarkerReply = (timestamp, topicId, created, text, payer, parentId) => (
+  sendCommentEdit('marker', 'editReplyMarker', timestamp, topicId, created, text, payer, parentId)
+);
+window.sendEditPolygonReply = (timestamp, topicId, created, text, payer, parentId) => (
+  sendCommentEdit('polygon', 'editReplyPolygon', timestamp, topicId, created, text, payer, parentId)
+);
+window.sendDeleteMarkerComment = (timestamp, topicId, created, payer) => (
+  sendCommentDelete('marker', 'deleteCommentMarker', timestamp, topicId, created, payer)
+);
+window.sendDeletePolygonComment = (timestamp, topicId, created, payer) => (
+  sendCommentDelete('polygon', 'deleteCommentPolygon', timestamp, topicId, created, payer)
+);
+window.sendDeleteMarkerReply = (timestamp, topicId, created, payer, parentId) => (
+  sendCommentDelete('marker', 'deleteReplyMarker', timestamp, topicId, created, payer, parentId)
+);
+window.sendDeletePolygonReply = (timestamp, topicId, created, payer, parentId) => (
+  sendCommentDelete('polygon', 'deleteReplyPolygon', timestamp, topicId, created, payer, parentId)
+);
 
 window.openPolygonNavigation = async function(coordinates) {
 
@@ -5539,6 +5748,8 @@ export async function processTopicE2EEMessages(decryptedPrivateKey, messages, to
       const commentsMapPolygon = new Map();
       const repliesMapMarker = new Map();
       const repliesMapPolygon = new Map();
+      const commentIndex = new Map();
+      const commentPending = new Map();
       clearShareTopic(topicId);
 
 if (rawResult && Array.isArray(rawResult)) {
@@ -5636,57 +5847,20 @@ if (rawResult && Array.isArray(rawResult)) {
         }
       }
 
-      // Collect comments (each topic message is one comment; the payer is
-      // the Hedera account that signed it, same as likes)
-      if (parsedMessage.commentMarker && parsedMessage.commentMarker.timestamp && payerId) {
-        const commentTimestamp = parsedMessage.commentMarker.timestamp;
-        if (!commentsMapMarker.has(commentTimestamp)) {
-          commentsMapMarker.set(commentTimestamp, []);
-        }
-        commentsMapMarker.get(commentTimestamp).push({
-          payer: payerId,
-          text: String(parsedMessage.commentMarker.text || '').slice(0, 300),
-          // ISO string, NOT the Date object: like/reply messages store this
-          // value through JSON (string), so map keys must be strings too
-          created: new Date(parsedMessage.created).toISOString()
-        });
-      }
-      if (parsedMessage.commentPolygon && parsedMessage.commentPolygon.timestamp && payerId) {
-        const commentTimestamp = parsedMessage.commentPolygon.timestamp;
-        if (!commentsMapPolygon.has(commentTimestamp)) {
-          commentsMapPolygon.set(commentTimestamp, []);
-        }
-        commentsMapPolygon.get(commentTimestamp).push({
-          payer: payerId,
-          text: String(parsedMessage.commentPolygon.text || '').slice(0, 300),
-          created: new Date(parsedMessage.created).toISOString()
-        });
-      }
-
-      // Collect replies (nested comments; parentId = the created timestamp
-      // of the comment or reply being answered)
-      if (parsedMessage.replyMarker && parsedMessage.replyMarker.parentId && payerId) {
-        const parentId = parsedMessage.replyMarker.parentId;
-        if (!repliesMapMarker.has(parentId)) {
-          repliesMapMarker.set(parentId, []);
-        }
-        repliesMapMarker.get(parentId).push({
-          payer: payerId,
-          text: String(parsedMessage.replyMarker.text || '').slice(0, 300),
-          created: new Date(parsedMessage.created).toISOString()
-        });
-      }
-      if (parsedMessage.replyPolygon && parsedMessage.replyPolygon.parentId && payerId) {
-        const parentId = parsedMessage.replyPolygon.parentId;
-        if (!repliesMapPolygon.has(parentId)) {
-          repliesMapPolygon.set(parentId, []);
-        }
-        repliesMapPolygon.get(parentId).push({
-          payer: payerId,
-          text: String(parsedMessage.replyPolygon.text || '').slice(0, 300),
-          created: new Date(parsedMessage.created).toISOString()
-        });
-      }
+      // Comments, replies, and author edits/deletes. Same rules as the server.
+      ingestParsedComments(parsedMessage, payerId, topicId, {
+        commentsMapMarker,
+        commentsMapPolygon,
+        repliesMapMarker,
+        repliesMapPolygon,
+        likeCountMapMarker,
+        dislikeCountMapMarker,
+        likeCountMapPolygon,
+        dislikeCountMapPolygon,
+        payerActionsPerTimestamp,
+        commentIndex,
+        commentPending,
+      });
     } catch (error) {
       console.error(`Error parsing message for likes/dislikes: ${error}`);
     }
@@ -5934,12 +6108,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       consensusTimestamp: consensusOf(message),
                       likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
                       likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
-                      comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
-                        ...c,
-                        likeCount: likeCountMapMarker.get(c.created) || 0,
-                        likedByMe: payerHasLike(payerActionsPerTimestamp, c.created, 'likeMarker'),
-                        replies: buildReplyTree(c, repliesMapMarker, likeCountMapMarker, dislikeCountMapMarker, 0, payerActionsPerTimestamp, 'likeMarker')
-                      })),
+                      comments: assembledComments(commentsMapMarker.get(timestamp), repliesMapMarker, likeCountMapMarker, dislikeCountMapMarker, payerActionsPerTimestamp, 'likeMarker'),
                       coords
                     });
 
@@ -6019,12 +6188,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       consensusTimestamp: consensusOf(message),
                         likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
                         likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
-                        comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
-                          ...c,
-                          likeCount: likeCountMapPolygon.get(c.created) || 0,
-                          likedByMe: payerHasLike(payerActionsPerTimestamp, c.created, 'likePolygon'),
-                          replies: buildReplyTree(c, repliesMapPolygon, likeCountMapPolygon, dislikeCountMapPolygon, 0, payerActionsPerTimestamp, 'likePolygon')
-                        })),
+                        comments: assembledComments(commentsMapPolygon.get(timestamp), repliesMapPolygon, likeCountMapPolygon, dislikeCountMapPolygon, payerActionsPerTimestamp, 'likePolygon'),
                         coordinates
                       });
 
@@ -6236,6 +6400,8 @@ export async function processFewTopicE2EEMessages(decryptedPrivateKey, messages,
       const commentsMapPolygon = new Map();
       const repliesMapMarker = new Map();
       const repliesMapPolygon = new Map();
+      const commentIndex = new Map();
+      const commentPending = new Map();
       clearShareTopic(topicId);
 
 if (rawResult && Array.isArray(rawResult)) {
@@ -6333,57 +6499,20 @@ if (rawResult && Array.isArray(rawResult)) {
         }
       }
 
-      // Collect comments (each topic message is one comment; the payer is
-      // the Hedera account that signed it, same as likes)
-      if (parsedMessage.commentMarker && parsedMessage.commentMarker.timestamp && payerId) {
-        const commentTimestamp = parsedMessage.commentMarker.timestamp;
-        if (!commentsMapMarker.has(commentTimestamp)) {
-          commentsMapMarker.set(commentTimestamp, []);
-        }
-        commentsMapMarker.get(commentTimestamp).push({
-          payer: payerId,
-          text: String(parsedMessage.commentMarker.text || '').slice(0, 300),
-          // ISO string, NOT the Date object: like/reply messages store this
-          // value through JSON (string), so map keys must be strings too
-          created: new Date(parsedMessage.created).toISOString()
-        });
-      }
-      if (parsedMessage.commentPolygon && parsedMessage.commentPolygon.timestamp && payerId) {
-        const commentTimestamp = parsedMessage.commentPolygon.timestamp;
-        if (!commentsMapPolygon.has(commentTimestamp)) {
-          commentsMapPolygon.set(commentTimestamp, []);
-        }
-        commentsMapPolygon.get(commentTimestamp).push({
-          payer: payerId,
-          text: String(parsedMessage.commentPolygon.text || '').slice(0, 300),
-          created: new Date(parsedMessage.created).toISOString()
-        });
-      }
-
-      // Collect replies (nested comments; parentId = the created timestamp
-      // of the comment or reply being answered)
-      if (parsedMessage.replyMarker && parsedMessage.replyMarker.parentId && payerId) {
-        const parentId = parsedMessage.replyMarker.parentId;
-        if (!repliesMapMarker.has(parentId)) {
-          repliesMapMarker.set(parentId, []);
-        }
-        repliesMapMarker.get(parentId).push({
-          payer: payerId,
-          text: String(parsedMessage.replyMarker.text || '').slice(0, 300),
-          created: new Date(parsedMessage.created).toISOString()
-        });
-      }
-      if (parsedMessage.replyPolygon && parsedMessage.replyPolygon.parentId && payerId) {
-        const parentId = parsedMessage.replyPolygon.parentId;
-        if (!repliesMapPolygon.has(parentId)) {
-          repliesMapPolygon.set(parentId, []);
-        }
-        repliesMapPolygon.get(parentId).push({
-          payer: payerId,
-          text: String(parsedMessage.replyPolygon.text || '').slice(0, 300),
-          created: new Date(parsedMessage.created).toISOString()
-        });
-      }
+      // Comments, replies, and author edits/deletes. Same rules as the server.
+      ingestParsedComments(parsedMessage, payerId, topicId, {
+        commentsMapMarker,
+        commentsMapPolygon,
+        repliesMapMarker,
+        repliesMapPolygon,
+        likeCountMapMarker,
+        dislikeCountMapMarker,
+        likeCountMapPolygon,
+        dislikeCountMapPolygon,
+        payerActionsPerTimestamp,
+        commentIndex,
+        commentPending,
+      });
     } catch (error) {
       console.error(`Error parsing message for likes/dislikes: ${error}`);
     }
@@ -6633,12 +6762,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       consensusTimestamp: consensusOf(message),
                       likeCountMarker: likeCountMapMarker.get(timestamp) || 0,
                       likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likeMarker'),
-                      comments: (commentsMapMarker.get(timestamp) || []).map((c) => ({
-                        ...c,
-                        likeCount: likeCountMapMarker.get(c.created) || 0,
-                        likedByMe: payerHasLike(payerActionsPerTimestamp, c.created, 'likeMarker'),
-                        replies: buildReplyTree(c, repliesMapMarker, likeCountMapMarker, dislikeCountMapMarker, 0, payerActionsPerTimestamp, 'likeMarker')
-                      })),
+                      comments: assembledComments(commentsMapMarker.get(timestamp), repliesMapMarker, likeCountMapMarker, dislikeCountMapMarker, payerActionsPerTimestamp, 'likeMarker'),
                       coords
                     });
 
@@ -6721,12 +6845,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       consensusTimestamp: consensusOf(message),
                         likeCountPolygon: likeCountMapPolygon.get(timestamp) || 0,
                         likedByMe: payerHasLike(payerActionsPerTimestamp, timestamp, 'likePolygon'),
-                        comments: (commentsMapPolygon.get(timestamp) || []).map((c) => ({
-                          ...c,
-                          likeCount: likeCountMapPolygon.get(c.created) || 0,
-                          likedByMe: payerHasLike(payerActionsPerTimestamp, c.created, 'likePolygon'),
-                          replies: buildReplyTree(c, repliesMapPolygon, likeCountMapPolygon, dislikeCountMapPolygon, 0, payerActionsPerTimestamp, 'likePolygon')
-                        })),
+                        comments: assembledComments(commentsMapPolygon.get(timestamp), repliesMapPolygon, likeCountMapPolygon, dislikeCountMapPolygon, payerActionsPerTimestamp, 'likePolygon'),
                         coordinates
                       });
 
