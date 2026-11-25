@@ -1,8 +1,9 @@
 // The map Toolbar's Mint panel (#mint-column, index.html): three tabs and
 // the Token form. Token makes a fungible token with tokenmint.js; the
 // connected wallet signs and pays, is the treasury and holds the supply
-// key. Nothing is saved anywhere: the result card is the only output. NFT
-// and Hashinal say "Coming next." for now.
+// key. Nothing is saved anywhere: the result card is the only output. The
+// NFT tab is mintnft.js, which uses the cards and the wallet step from
+// here. Hashinal says "Coming next." for now.
 //
 // The flow is the Inscribe row's: the form's checks, the wallet (connected
 // already, or the connect sheet over the drawer), a confirm card, the
@@ -25,6 +26,10 @@ export const MINT_FAIL_TEXT = "Token create failed. Nothing was charged if your 
 export const MINT_NETWORK_FEE = "≈ $1, paid by your wallet";
 // A wallet that was closed or said no: no message.
 const QUIET = /reject|cancel|denied|closed/i;
+
+export function isQuietWalletError(err) {
+  return QUIET.test(textOf(err && (err.message || err)));
+}
 
 function fieldError(message, field) {
   const err = new Error(message);
@@ -204,12 +209,13 @@ function paragraph(doc, text, className = "onboard-body") {
   return para;
 }
 
+// rows: [label, value] pairs; a third item true marks a warning row.
 function rowList(doc, rows) {
   const list = doc.createElement("div");
   list.className = "onboard-rows";
-  for (const [label, value] of rows) {
+  for (const [label, value, warn] of rows) {
     const row = doc.createElement("div");
-    row.className = "onboard-row";
+    row.className = warn ? "onboard-row is-warn" : "onboard-row";
     const name = doc.createElement("div");
     name.className = "onboard-row-name";
     name.textContent = label;
@@ -353,26 +359,20 @@ function mountCard(doc, { titleId, titleText, parts, focusables, close, accept, 
   return promise;
 }
 
-// true when the person taps Create. read: what readMintFields returned.
-export function confirmMint(doc, read, returnTo) {
+// A confirm card: the rows ([label, value], or [label, value, true] for a
+// warning), then the close button (Not now) and the accept button. true
+// when accept is tapped. One card at a time.
+export function confirmCard(doc, { titleId, titleText, rows = [], body = "", acceptText, closeText = "Not now", returnTo }) {
   if (pending || !doc || !doc.body) return Promise.resolve(false);
-  const { fields, display } = read;
-  const notNow = navButton(doc, "onboard-prev", "Not now");
-  const accept = navButton(doc, "onboard-next", "Create");
+  const notNow = navButton(doc, "onboard-prev", closeText);
+  const accept = navButton(doc, "onboard-next", acceptText);
+  const parts = [];
+  if (body) parts.push(paragraph(doc, body));
+  if (rows.length) parts.push(rowList(doc, rows));
   return mountCard(doc, {
-    titleId: "mint-confirm-title",
-    titleText: "Before you create",
-    parts: [
-      rowList(doc, [
-        ["Name", fields.name],
-        ["Symbol", fields.symbol],
-        ["Decimals", String(fields.decimals)],
-        ["Initial supply", `${display.initial} ${fields.symbol}`],
-        ["Supply", fields.maxSupply == null ? "Unlimited" : `Capped at ${display.max} ${fields.symbol}`],
-        ["Admin key", fields.adminKey ? "On" : `Off. ${ADMIN_OFF_WARNING}`],
-        ["Network fee", MINT_NETWORK_FEE],
-      ]),
-    ],
+    titleId,
+    titleText,
+    parts,
     focusables: [notNow, accept],
     close: notNow,
     accept,
@@ -381,60 +381,134 @@ export function confirmMint(doc, read, returnTo) {
   });
 }
 
-// The token id, large, with Copy, the two HashScan links and Done.
-// Resolves when it is closed.
-export function showMintResult(doc, result, { returnTo, clipboard, toast = appToast } = {}) {
+// A result card: big (the id, or a short line) with a Copy button that
+// copies copyValue, the links ([href, text]) under it, and Done. With
+// acceptText a second button sits beside Done and resolves true; Done,
+// Escape and the scrim resolve false.
+export function idResultCard(doc, {
+  titleId,
+  titleText,
+  big,
+  copyValue = big,
+  copyText = "Copy",
+  copyLabel,
+  copyFail,
+  links: linkList = [],
+  acceptText = "",
+  returnTo,
+  clipboard,
+  toast = appToast,
+}) {
   if (!doc || !doc.body) return Promise.resolve(false);
-  const tokenId = textOf(result && result.tokenId);
   const idRow = doc.createElement("div");
   idRow.className = "mint-result-id-row";
   const id = doc.createElement("div");
   id.className = "mint-result-id";
-  id.textContent = tokenId;
-  const copy = navButton(doc, "onboard-prev mint-copy", "Copy");
-  copy.setAttribute("aria-label", `Copy token id ${tokenId}`);
+  id.textContent = big;
+  const copy = navButton(doc, "onboard-prev mint-copy", copyText);
+  if (copyLabel) copy.setAttribute("aria-label", copyLabel);
   let copiedTimer = 0;
   copy.addEventListener("click", async (event) => {
     stop(event);
     const board = clipboard || (globalThis.navigator && globalThis.navigator.clipboard);
     try {
       if (!board || typeof board.writeText !== "function") throw new Error("no clipboard");
-      await board.writeText(tokenId);
+      await board.writeText(copyValue);
       copy.textContent = "Copied";
       copy.classList.add("is-copied");
       clearTimeout(copiedTimer);
       copiedTimer = setTimeout(() => {
-        copy.textContent = "Copy";
+        copy.textContent = copyText;
         copy.classList.remove("is-copied");
       }, 2000);
     } catch {
-      toast.error("Could not copy the token id");
+      toast.error(copyFail);
     }
   });
   idRow.append(id, copy);
-  const tokenLink = link(doc, textOf(result && result.tokenUrl), "View token on HashScan");
-  const txLink = link(doc, textOf(result && result.hashscanUrl), "View transaction");
+  const anchors = linkList.map(([href, text]) => link(doc, textOf(href), text));
   const links = doc.createElement("p");
   links.className = "onboard-body mint-result-links";
-  links.append(tokenLink, txLink);
+  links.append(...anchors);
   const done = navButton(doc, "onboard-next", "Done");
+  const accept = acceptText ? navButton(doc, "onboard-next mint-result-next", acceptText) : null;
   return mountCard(doc, {
-    titleId: "mint-result-title",
-    titleText: "Token created",
+    titleId,
+    titleText,
     parts: [idRow, links],
-    focusables: [copy, tokenLink, txLink, done],
+    focusables: [copy, ...anchors, done, ...(accept ? [accept] : [])],
     close: done,
-    accept: null,
+    accept,
     first: done,
     returnTo,
   });
 }
 
+// true when the person taps Create. read: what readMintFields returned.
+export function confirmMint(doc, read, returnTo) {
+  const { fields, display } = read;
+  return confirmCard(doc, {
+    titleId: "mint-confirm-title",
+    titleText: "Before you create",
+    rows: [
+      ["Name", fields.name],
+      ["Symbol", fields.symbol],
+      ["Decimals", String(fields.decimals)],
+      ["Initial supply", `${display.initial} ${fields.symbol}`],
+      ["Supply", fields.maxSupply == null ? "Unlimited" : `Capped at ${display.max} ${fields.symbol}`],
+      ["Admin key", fields.adminKey ? "On" : `Off. ${ADMIN_OFF_WARNING}`],
+      ["Network fee", MINT_NETWORK_FEE],
+    ],
+    acceptText: "Create",
+    returnTo,
+  });
+}
+
+// The token id, large, with Copy, the two HashScan links and Done.
+// Resolves when it is closed.
+export function showMintResult(doc, result, { returnTo, clipboard, toast = appToast } = {}) {
+  const tokenId = textOf(result && result.tokenId);
+  return idResultCard(doc, {
+    titleId: "mint-result-title",
+    titleText: "Token created",
+    big: tokenId,
+    copyLabel: `Copy token id ${tokenId}`,
+    copyFail: "Could not copy the token id",
+    links: [
+      [result && result.tokenUrl, "View token on HashScan"],
+      [result && result.hashscanUrl, "View transaction"],
+    ],
+    returnTo,
+    clipboard,
+    toast,
+  });
+}
+
 // ── The panel ───────────────────────────────────────────────────────────
 
-async function appEnsureWallet() {
+export async function appEnsureWallet() {
   const { ensureWallet } = await import("./feedlayout.js");
   return ensureWallet();
+}
+
+// ensureWallet clicks the hidden Connect. Its click would bubble to the
+// document, whose CloseALL closes the drawer; this listener runs after
+// web3.js's own and stops it there. Same as the Inscribe row. Resolves
+// "ok", "cancel" or "fail".
+export async function mintWalletStep(doc, ensureWallet = appEnsureWallet) {
+  const root = doc.documentElement;
+  if (root && root.classList) root.classList.add(MINT_CONNECT_CLASS);
+  const connect = typeof doc.getElementById === "function" ? doc.getElementById("connect-wallet-btn") : null;
+  const keepOpen = (event) => stop(event);
+  if (connect) connect.addEventListener("click", keepOpen);
+  try {
+    return await ensureWallet();
+  } catch {
+    return "fail";
+  } finally {
+    if (connect) connect.removeEventListener("click", keepOpen);
+    if (root && root.classList) root.classList.remove(MINT_CONNECT_CLASS);
+  }
 }
 
 // Wires #mint-column. ensureWallet resolves "ok", "cancel" or "fail".
@@ -568,24 +642,7 @@ export function bindMintPanel({
     };
   }
 
-  // ensureWallet clicks the hidden Connect. Its click would bubble to the
-  // document, whose CloseALL closes the drawer; this listener runs after
-  // web3.js's own and stops it there. Same as the Inscribe row.
-  async function walletStep() {
-    const root = doc.documentElement;
-    if (root && root.classList) root.classList.add(MINT_CONNECT_CLASS);
-    const connect = $("connect-wallet-btn");
-    const keepOpen = (event) => stop(event);
-    if (connect) connect.addEventListener("click", keepOpen);
-    try {
-      return await ensureWallet();
-    } catch {
-      return "fail";
-    } finally {
-      if (connect) connect.removeEventListener("click", keepOpen);
-      if (root && root.classList) root.classList.remove(MINT_CONNECT_CLASS);
-    }
-  }
+  const walletStep = () => mintWalletStep(doc, ensureWallet);
 
   // One run at a time: from Create until the result card closes. Resolves
   // what happened, for a test.
@@ -620,8 +677,7 @@ export function bindMintPanel({
       await showMintResult(doc, result, { returnTo: create, clipboard, toast });
       return "created";
     } catch (err) {
-      const message = textOf(err && (err.message || err));
-      if (QUIET.test(message)) return "quiet";
+      if (isQuietWalletError(err)) return "quiet";
       toast.error(err && err.userFacing ? err.message : MINT_FAIL_TEXT);
       return "error";
     } finally {

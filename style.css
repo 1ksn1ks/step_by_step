@@ -20838,6 +20838,307 @@ html.feed-draw-open #map-draw-help-overlay {
   align-items: center;
   gap: 1.2vh;
 }
+/* A confirm row that warns (the NFT run over the max supply). */
+.mint-notice .onboard-row.is-warn {
+  border-color: rgba(245, 185, 66, 0.55);
+  background: rgba(245, 185, 66, 0.08);
+}
+.mint-notice .onboard-row.is-warn .onboard-row-note {
+  color: #f5b942;
+  opacity: 1;
+}
+
+/* NFT tab (mintnft.js): the same cards, fields, switches and cyan button
+   as Token, plus quiet secondary buttons, the link rows, the import
+   summary, the totals and the progress card. The tab's own box steps
+   aside: its cards sit in the column like Token's. */
+#mint-column .mint-nft {
+  display: block;
+  margin: 0;
+  padding: 0;
+  background: none;
+}
+#mint-column .mint-nft-mode {
+  margin: var(--ui-gap) 0;
+}
+#mint-column .mint-nft-mode > .feed-settings-choice {
+  min-height: var(--ui-btn-h);
+  font-size: var(--ui-label);
+  font-weight: 400;
+}
+#mint-column .mint-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-gap);
+  min-width: 0;
+}
+#mint-column .mint-ghost,
+:is(#feed-menu, .drawer-screen) #mint-column.in-drawer .mint-ghost {
+  appearance: none;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--ui-btn-h);
+  margin: 0;
+  padding: 0 var(--ui-pad-x);
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
+  font-weight: 400;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#mint-column .mint-ghost:is(:hover, :active) {
+  background: rgba(34, 211, 238, 0.12);
+  color: #22D3EE;
+}
+#mint-column .mint-ghost.mint-danger {
+  color: #FCA5A5;
+}
+#mint-column .mint-ghost.mint-danger:is(:hover, :active) {
+  background: rgba(252, 165, 165, 0.12);
+  color: #FCA5A5;
+}
+#mint-column .mint-ghost:focus {
+  outline: none;
+}
+#mint-column .mint-ghost:focus-visible,
+#mint-column .mint-link-remove:focus-visible {
+  box-shadow: inset 0 0 0 0.125rem #22D3EE;
+}
+#mint-column .mint-ghost:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+/* The collection list: the field's box, with the native arrow. */
+#mint-column .mint-select {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: var(--ui-btn-h);
+  margin: 0;
+  padding: 0 var(--ui-pad-x);
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  color-scheme: dark;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
+  line-height: 1.3;
+  text-overflow: ellipsis;
+}
+#mint-column .mint-select:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 0.125rem #22D3EE;
+}
+#mint-column .mint-select option {
+  background: #14141c;
+  color: #fff;
+}
+#mint-column .mint-status-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-gap);
+  min-width: 0;
+}
+#mint-column .mint-status-row > .mint-note {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#mint-column .mint-status-row > .mint-ghost {
+  flex: 0 0 auto;
+}
+#mint-column .mint-supply-line {
+  color: rgba(255, 255, 255, 0.75);
+}
+#mint-column .mint-supply-line.is-bad {
+  color: #FCA5A5;
+}
+/* One link per row: the field, its ×, and its message under both. */
+#mint-column .mint-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-gap);
+  min-width: 0;
+}
+#mint-column .mint-links:empty {
+  display: none;
+}
+#mint-column .mint-link-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--ui-btn-h);
+  align-items: center;
+  gap: calc(var(--ui-gap) * 0.5) var(--ui-gap);
+  min-width: 0;
+}
+#mint-column .mint-link-remove {
+  appearance: none;
+  box-sizing: border-box;
+  width: var(--ui-btn-h);
+  height: var(--ui-btn-h);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.75);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--ui-label) * 1.2);
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#mint-column .mint-link-remove:is(:hover, :active) {
+  background: rgba(252, 165, 165, 0.12);
+  color: #FCA5A5;
+}
+#mint-column .mint-link-msg {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-small);
+  line-height: 1.3;
+  color: #FCA5A5;
+}
+#mint-column .mint-link-msg.is-dup {
+  color: #f5b942;
+}
+/* An imported file: one summary, never a row per link. */
+#mint-column .mint-import {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--ui-gap) * 0.75);
+  min-width: 0;
+  padding: calc(var(--ui-gap) * 1.25);
+  border-radius: var(--ui-radius);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.10);
+}
+#mint-column .mint-import-name {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
+  line-height: 1.3;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+#mint-column .mint-import-details {
+  min-width: 0;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-small);
+  color: rgba(255, 255, 255, 0.75);
+}
+#mint-column .mint-import-details > summary {
+  min-height: var(--ui-btn-h);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: #22D3EE;
+}
+#mint-column .mint-import-list {
+  max-height: 30dvh;
+  margin: 0;
+  padding: 0 0 0 1.2em;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+#mint-column .mint-import-list > .is-bad {
+  color: #FCA5A5;
+}
+#mint-column .mint-import-list > .is-dup {
+  color: #f5b942;
+}
+#mint-column .mint-totals,
+#mint-column .mint-progress-title {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
+  font-weight: 400;
+  line-height: 1.35;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+#mint-column .mint-hint {
+  color: #f5b942;
+}
+/* The unfinished run, over everything else in the tab. */
+#mint-column .mint-resume {
+  box-shadow: inset 0 0 0 0.0625rem rgba(245, 185, 66, 0.55);
+  background: rgba(245, 185, 66, 0.08);
+}
+#mint-column .mint-resume-text {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
+  line-height: 1.35;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+/* The long run: one bar, a count, the transaction, the status. */
+#mint-column .mint-progress-bar {
+  position: relative;
+  width: 100%;
+  height: calc(var(--fu) * 1.1);
+  overflow: hidden;
+  border-radius: 999em;
+  background: rgba(255, 255, 255, 0.10);
+}
+#mint-column .mint-progress-fill {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: #22D3EE;
+  transition: width 0.3s ease-out;
+}
+#mint-column .mint-progress-count {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--ui-label) * 1.3);
+  font-weight: 700;
+  line-height: 1.2;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+#mint-column .mint-progress-status {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-small);
+  line-height: 1.35;
+  color: #22D3EE;
+}
+#mint-column .mint-unconfirmed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-gap);
+  padding: calc(var(--ui-gap) * 1.25);
+  border-radius: var(--ui-radius);
+  background: rgba(245, 185, 66, 0.08);
+  box-shadow: inset 0 0 0 0.0625rem rgba(245, 185, 66, 0.45);
+}
+#mint-column .mint-unconfirmed > .mint-warning {
+  margin: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  #mint-column .mint-progress-fill {
+    transition: none;
+  }
+}
 
 /* Update topic: one shared id, and the pin / password row. */
 #memo-column #update-topic-target {

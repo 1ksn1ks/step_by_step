@@ -52,6 +52,7 @@ import './openplace.js'
 import './feedlayout.js'
 import './inscribebutton.js'
 import './mintpanel.js'
+import './mintnft.js'
 
 window.restrictLength = function(input, maxLength) {
     if (input.value.length > maxLength) {
