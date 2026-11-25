@@ -21147,6 +21147,195 @@ html.feed-draw-open #map-draw-help-overlay {
   }
 }
 
+/* Hashinal tab (minthashinal.js): the NFT tab's cards, buttons, banner and
+   progress card, plus a textarea field, the file preview, the three steps,
+   the key box and the trait rows. The tab's own box steps aside like the
+   NFT tab's. */
+#mint-column .mint-hashinal {
+  display: block;
+  margin: 0;
+  padding: 0;
+  background: none;
+}
+#mint-column .mint-hashinal-keymode > .feed-settings-choice {
+  min-height: var(--ui-btn-h);
+}
+/* In the drawer the shared ghost rule's drawer copy outranks its hover and
+   red colours, so this tab names them again. */
+:is(#feed-menu, .drawer-screen) #mint-column.in-drawer .mint-hashinal .mint-ghost:is(:hover, :active) {
+  background: rgba(34, 211, 238, 0.12);
+  color: #22D3EE;
+}
+:is(#feed-menu, .drawer-screen) #mint-column.in-drawer .mint-hashinal .mint-ghost.mint-danger {
+  color: #FCA5A5;
+}
+:is(#feed-menu, .drawer-screen) #mint-column.in-drawer .mint-hashinal .mint-ghost.mint-danger:is(:hover, :active) {
+  background: rgba(252, 165, 165, 0.12);
+  color: #FCA5A5;
+}
+/* The shared field as a textarea: two button heights, no drag handle. */
+#mint-column .mint-card textarea.toolbar-column,
+:is(#feed-menu, .drawer-screen) #mint-column.in-drawer .mint-card textarea.toolbar-column {
+  box-sizing: border-box;
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: calc(var(--ui-btn-h) * 2) !important;
+  height: auto;
+  margin: 0 !important;
+  padding: calc(var(--ui-gap) * 0.75) var(--ui-pad-x) !important;
+  border: 0 !important;
+  border-radius: var(--ui-radius) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: none !important;
+  animation: none !important;
+  color: #fff;
+  font-family: inherit !important;
+  font-size: var(--ui-label);
+  line-height: 1.35;
+  text-align: left;
+  resize: none;
+}
+#mint-column .mint-card textarea.toolbar-column:focus,
+:is(#feed-menu, .drawer-screen) #mint-column.in-drawer .mint-card textarea.toolbar-column:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 0.125rem #22D3EE !important;
+}
+#mint-column .mint-card textarea.toolbar-column[aria-invalid="true"],
+:is(#feed-menu, .drawer-screen) #mint-column.in-drawer .mint-card textarea.toolbar-column[aria-invalid="true"] {
+  box-shadow: inset 0 0 0 0.125rem #FCA5A5 !important;
+}
+#mint-column .mint-bytes {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* The picked file: a picture as it will look, a video or 3D file as text. */
+#mint-column .mint-file-slot {
+  min-width: 0;
+}
+#mint-column .mint-file-tile {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  max-height: calc(var(--fu) * 12);
+  object-fit: contain;
+  border-radius: var(--ui-radius);
+  background: rgba(255, 255, 255, 0.05);
+}
+#mint-column .mint-file-tile.is-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(var(--ui-btn-h) * 2);
+  padding: var(--ui-gap) var(--ui-pad-x);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
+  line-height: 1.3;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.75);
+  overflow-wrap: anywhere;
+}
+/* File, details, mint: a mark, the weight and the colour say which is on. */
+#mint-column .mint-steps {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--ui-gap) * 0.5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#mint-column .mint-step {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label);
+  font-weight: 400;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  transition: color 0.2s ease-out;
+}
+#mint-column .mint-step::before {
+  flex: 0 0 1.2em;
+  text-align: center;
+}
+#mint-column .mint-step.is-wait {
+  color: rgba(255, 255, 255, 0.45);
+}
+#mint-column .mint-step.is-wait::before {
+  content: "\25CB";
+}
+#mint-column .mint-step.is-now {
+  font-weight: 700;
+  color: #22D3EE;
+}
+#mint-column .mint-step.is-now::before {
+  content: "\25CF";
+}
+#mint-column .mint-step.is-done {
+  color: rgba(255, 255, 255, 0.85);
+}
+#mint-column .mint-step.is-done::before {
+  content: "\2713";
+}
+/* A key: monospace, broken anywhere, on the field's box. */
+#mint-column .mint-key {
+  box-sizing: border-box;
+  min-width: 0;
+  margin: 0;
+  padding: calc(var(--ui-gap) * 0.75) var(--ui-pad-x);
+  border-radius: var(--ui-radius);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--ui-small);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+#mint-column .mint-card textarea.toolbar-column.mint-key,
+:is(#feed-menu, .drawer-screen) #mint-column.in-drawer .mint-card textarea.toolbar-column.mint-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+  font-size: var(--ui-small);
+  word-break: break-all;
+}
+/* One trait: name and value side by side, the value under the name on a
+   narrow screen, and the row's own × beside the name like a link row. */
+#mint-column .mint-traits {
+  container-type: inline-size;
+}
+#mint-column .mint-trait-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--ui-btn-h);
+  grid-template-areas: "name remove" "value .";
+  align-items: center;
+  gap: calc(var(--ui-gap) * 0.5) var(--ui-gap);
+  min-width: 0;
+}
+#mint-column .mint-trait-row > .mint-trait-name {
+  grid-area: name;
+}
+#mint-column .mint-trait-row > .mint-trait-value {
+  grid-area: value;
+}
+#mint-column .mint-trait-row > .mint-link-remove {
+  grid-area: remove;
+}
+@container (min-width: 22rem) {
+  #mint-column .mint-trait-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--ui-btn-h);
+    grid-template-areas: "name value remove";
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #mint-column .mint-step {
+    transition: none;
+  }
+}
+
 /* Update topic: one shared id, and the pin / password row. */
 #memo-column #update-topic-target {
   box-sizing: border-box;

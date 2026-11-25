@@ -53,6 +53,7 @@ import './feedlayout.js'
 import './inscribebutton.js'
 import './mintpanel.js'
 import './mintnft.js'
+import './minthashinal.js'
 
 window.restrictLength = function(input, maxLength) {
     if (input.value.length > maxLength) {

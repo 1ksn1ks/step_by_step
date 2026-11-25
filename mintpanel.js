@@ -3,7 +3,7 @@
 // connected wallet signs and pays, is the treasury and holds the supply
 // key. Nothing is saved anywhere: the result card is the only output. The
 // NFT tab is mintnft.js, which uses the cards and the wallet step from
-// here. Hashinal says "Coming next." for now.
+// here. The Hashinal tab is minthashinal.js.
 //
 // The flow is the Inscribe row's: the form's checks, the wallet (connected
 // already, or the connect sheet over the drawer), a confirm card, the

@@ -556,7 +556,7 @@ test("the panel is copied from Create and Domain: same shell, help, and every li
     "creates a fungible token. Your wallet is the treasury and keeps the supply key.",
     "Costs about $1 in HBAR on mainnet.",
     "With no admin key, the token can never be changed.",
-    "NFT and Hashinal minting are coming next.",
+    "NFT mints a list of links into a collection. Hashinal inscribes one file on Hedera and mints it as an NFT.",
   ]) assert.ok(help.slice(0, 1200).includes(line), line);
   // Tabs.
   assert.match(html, /<div class="mint-tabs" role="tablist"/);
