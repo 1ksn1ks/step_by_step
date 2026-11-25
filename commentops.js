@@ -8,6 +8,7 @@
 
 import { clipMessage, normalizeMessageNewlines } from './hcschunks.js';
 import { resolveHashinalSrc } from './hashinalurl.js';
+import { isOwnR2Media, r2PublicBase } from './r2public.js';
 
 export const COMMENT_TEXT_MAX = 1000;
 
@@ -49,6 +50,18 @@ export function commentImageUrl(value) {
   if (!stored) return '';
   const url = resolveHashinalSrc(stored);
   return typeof url === 'string' ? url : '';
+}
+
+// The URL to draw as a picture or video: commentImageUrl, but only for
+// media from our own R2 uploads (r2public.js isOwnR2Media), an ipfs://
+// address, or a Hashinal (hcs://1/<topic>). Anything else is "", and the
+// row shows its address as a plain link, so a comment never makes the page
+// load another host's file. What is stored (commentImageValue) is the same.
+export function commentMediaShownUrl(value, base = r2PublicBase()) {
+  const stored = commentImageValue(value);
+  if (!stored) return '';
+  const ours = HASHINAL_REF.test(stored) || /^ipfs:\/\//i.test(stored) || isOwnR2Media(stored, base);
+  return ours ? commentImageUrl(stored) : '';
 }
 
 function hasOwn(body, key) {

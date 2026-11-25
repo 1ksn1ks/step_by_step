@@ -537,3 +537,41 @@ test("the section is wired to the rows, the switch and the composer, with the po
   // The view resets to Newest when it closes.
   assert.match(client, /commentsModalSection\._resetSort\(\)/);
 });
+
+test("a row draws our own, IPFS and Hashinal media; another host's address is a plain link, javascript: is nothing", () => {
+  const base = "https://pub-test.r2.dev";
+  globalThis.__R2_PUBLIC_BASE = base;
+  try {
+    const painted = [];
+    const opts = { media: (image, box) => { painted.push(image); box.appendChild(new El("img")); } };
+    const mediaOf = (image) => {
+      painted.length = 0;
+      const row = buildCommentRow(comment({ image }), opts);
+      return { row, media: find(row, ".comment-media"), link: find(row, ".comment-media-link") };
+    };
+    for (const ours of [`${base}/markers/1-a.webp`, `${base}/markers/1-a.mp4?gif=1`, "ipfs://bafyexample", "hcs://1/0.0.123"]) {
+      const { media, link } = mediaOf(ours);
+      assert.ok(media, ours);
+      assert.equal(link, null, ours);
+      assert.deepEqual(painted, [ours]);
+    }
+    const elsewhere = "https://images.example.com/cat.png";
+    const { media, link } = mediaOf(elsewhere);
+    assert.equal(media, null);
+    assert.deepEqual(painted, []);
+    assert.ok(link);
+    const anchor = link.children[0];
+    assert.equal(anchor.tagName, "A");
+    assert.equal(anchor.href, elsewhere);
+    assert.equal(anchor.textContent, elsewhere);
+    assert.equal(anchor.target, "_blank");
+    assert.equal(anchor.rel, "noopener noreferrer nofollow");
+    assert.equal(link.querySelectorAll("img").length, 0);
+    const bad = mediaOf("javascript:alert(1)");
+    assert.equal(bad.media, null);
+    assert.equal(bad.link, null);
+    assert.deepEqual(painted, []);
+  } finally {
+    delete globalThis.__R2_PUBLIC_BASE;
+  }
+});

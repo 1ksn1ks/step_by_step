@@ -39,6 +39,7 @@ import {
   clipCommentText,
   commentImageUrl,
   commentImageValue,
+  commentMediaShownUrl,
   filterCommentTree,
   findComment,
   mutationVerdict,
@@ -4361,7 +4362,8 @@ function commentMediaUrlKind(value) {
 // tools: the media is small in a comment. thumb: the composer chip's
 // still preview, with no controls and no tap. false when nothing shows.
 function paintCommentMedia(box, stored, { thumb = false } = {}) {
-  const url = commentImageUrl(stored);
+  // Only our own uploads, IPFS and Hashinals are drawn (commentops.js).
+  const url = commentMediaShownUrl(stored);
   if (!url) return false;
   const raw = url.trim();
   const resolved = resolveMediaUrl(raw);

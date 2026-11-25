@@ -11,7 +11,7 @@
 // the app's own heart, reply count, avatar, media, upload and send come in
 // as functions, so this file imports nothing from the popup code.
 
-import { COMMENT_TEXT_MAX } from './commentops.js';
+import { COMMENT_TEXT_MAX, commentImageValue, commentMediaShownUrl } from './commentops.js';
 import { HCS_CHUNK_SIZE, formatHcsUsage, messageLimitLength } from './hcschunks.js';
 
 export const COMMENT_SORTS = Object.freeze([['top', 'Top'], ['newest', 'Newest']]);
@@ -434,9 +434,28 @@ export function buildCommentRow(node, opts = {}, depth = 0, parent = null) {
       if (opts.textStyle) text.style.cssText = opts.textStyle;
       main.appendChild(text);
     }
-    if (node.image && typeof opts.media === 'function') {
-      const box = make(doc, 'div', 'comment-media');
-      if (opts.media(node.image, box) !== false) main.appendChild(box);
+    // Our own uploads, IPFS and Hashinals are drawn. Any other host's
+    // address is a plain link, never an <img> or <video> it would load.
+    if (node.image && commentMediaShownUrl(node.image)) {
+      if (typeof opts.media === 'function') {
+        const box = make(doc, 'div', 'comment-media');
+        if (opts.media(node.image, box) !== false) main.appendChild(box);
+      }
+    } else if (node.image) {
+      const address = commentImageValue(node.image);
+      if (address) {
+        const line = make(doc, 'div', 'comment-text comment-media-link');
+        const web = /^https?:\/\//i.test(address);
+        const anchor = make(doc, web ? 'a' : 'span', '', address);
+        if (web) {
+          anchor.href = address;
+          anchor.target = '_blank';
+          anchor.rel = 'noopener noreferrer nofollow';
+          anchor.addEventListener('click', stop);
+        }
+        line.appendChild(anchor);
+        main.appendChild(line);
+      }
     }
   }
 
@@ -588,7 +607,8 @@ export function buildMediaChip({ onRemove, paint, doc = globalThis.document } = 
       chip.classList.toggle('is-busy', !!busy);
       thumb.replaceChildren();
       thumb.hidden = !url;
-      if (url && typeof paint === 'function') paint(url, thumb, kind);
+      // Media the row would not draw (another host's) gets no preview.
+      if (url && typeof paint === 'function' && paint(url, thumb, kind) === false) thumb.hidden = true;
       const what = names[kind] || 'Media';
       const busyWhat = kind === 'gif' ? what : what.toLowerCase();
       label.textContent = busy ? `Uploading ${busyWhat}…` : (name ? `${what} · ${name}` : `${what} attached`);

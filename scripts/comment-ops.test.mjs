@@ -8,6 +8,9 @@ import {
   COMMENT_TEXT_MAX,
   applyCommentMutation,
   clipCommentText,
+  commentImageUrl,
+  commentImageValue,
+  commentMediaShownUrl,
   createCommentState,
   filterCommentTree,
   insertComment,
@@ -16,6 +19,7 @@ import {
   sortCommentTree,
   visibleComments,
 } from '../commentops.js';
+import { isOwnR2Image } from '../r2public.js';
 
 function read(rel) {
   return readFileSync(new URL(rel, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
@@ -236,4 +240,61 @@ test('the clients and the server use the 1000 cap and a nested feed tree', () =>
   assert.match(server, /clipCommentText/);
   assert.match(server, /filterCommentTree\(/);
   assert.match(server, /sortCommentTree\(/);
+});
+
+test('commentMediaShownUrl draws only our R2, ipfs and Hashinal media; another host is a link, javascript: is nothing', () => {
+  const base = 'https://pub-test.r2.dev';
+  // Our own uploads: a still, a video, a converted GIF clip, a GIF.
+  for (const ours of [
+    `${base}/markers/1700000000000-abc123.webp`,
+    `${base}/markers/1700000000000-abc123.mp4`,
+    `${base}/markers/1700000000000-abc123.mp4?gif=1`,
+    `${base}/markers/1700000000000-abc123.gif`,
+  ]) {
+    assert.equal(commentMediaShownUrl(ours, base), ours, ours);
+  }
+  // IPFS and a Hashinal: as commentImageUrl paints them.
+  assert.equal(commentMediaShownUrl('ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi', base),
+    'ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi');
+  assert.equal(commentMediaShownUrl('hcs://1/0.0.123', base), commentImageUrl('hcs://1/0.0.123'));
+  assert.match(commentMediaShownUrl('hcs://1/0.0.123', base), /\/api\/hcs1\/0\.0\.123$/);
+  // Another host: not drawn, but still stored as it was, so old comments
+  // load and the row can show it as a link.
+  const elsewhere = 'https://images.example.com/cat.png';
+  assert.equal(commentMediaShownUrl(elsewhere, base), '');
+  assert.equal(commentImageValue(elsewhere), elsewhere);
+  assert.equal(commentImageUrl(elsewhere), elsewhere);
+  // Our host, but not a file the upload makes: a query, another kind of
+  // file, no name, a look-alike host.
+  for (const near of [
+    `${base}/markers/a.png?track=1`,
+    `${base}/markers/a.mp4?gif=1&x=2`,
+    `${base}/markers/a.html`,
+    `${base}/`,
+    'https://pub-test.r2.dev.evil.example/markers/a.png',
+  ]) {
+    assert.equal(commentMediaShownUrl(near, base), '', near);
+  }
+  // A base with a path: an address that climbs out of it is not ours.
+  assert.equal(commentMediaShownUrl(`${base}/pub/a.png`, `${base}/pub`), `${base}/pub/a.png`);
+  assert.equal(commentMediaShownUrl(`${base}/pub/../a.png`, `${base}/pub`), '');
+  // javascript: and the like are no media at all.
+  for (const bad of ['javascript:alert(1)', 'data:image/png;base64,AAAA', '', null, 42]) {
+    assert.equal(commentMediaShownUrl(bad, base), '', String(bad));
+    assert.equal(commentImageValue(bad), '', String(bad));
+  }
+  // No R2 base (local dev): only ipfs and Hashinals are drawn.
+  assert.equal(commentMediaShownUrl(`${base}/markers/a.png`, ''), '');
+  assert.equal(commentMediaShownUrl('hcs://1/0.0.123', ''), commentImageUrl('hcs://1/0.0.123'));
+  // The base comes from the page by default, as r2public.js reads it.
+  globalThis.__R2_PUBLIC_BASE = `${base}/`;
+  try {
+    assert.equal(commentMediaShownUrl(`${base}/markers/a.jpg`), `${base}/markers/a.jpg`);
+  } finally {
+    delete globalThis.__R2_PUBLIC_BASE;
+  }
+  // The app icon check is as it was: still images only, no query.
+  assert.equal(isOwnR2Image(`${base}/markers/a.png`, base), true);
+  assert.equal(isOwnR2Image(`${base}/markers/a.mp4`, base), false);
+  assert.equal(isOwnR2Image(`${base}/markers/a.png?gif=1`, base), false);
 });
