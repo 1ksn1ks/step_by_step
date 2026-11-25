@@ -37,6 +37,7 @@ import { normalizeMessageNewlines, clipMessage, formatHcsUsage, utf8ByteLength, 
 import {
   COMMENT_TEXT_MAX,
   clipCommentText,
+  commentImageUrl,
   commentImageValue,
   filterCommentTree,
   findComment,
@@ -45,6 +46,25 @@ import {
   reconcileCommentTree,
   sortCommentTree,
 } from './commentops.js';
+import {
+  COMMENT_MEDIA_ACCEPT,
+  COMMENT_MEDIA_TYPES_TEXT,
+  COMMENT_STILL_STILL_BIG,
+  COMMENT_STILL_TOO_BIG,
+  COMMENT_VIDEO_TOO_BIG,
+  COMMENT_VIDEO_TOO_LONG,
+  commentMediaKind,
+  commentMediaReject,
+} from './commentmedia.js';
+import {
+  COMMENT_PLACEHOLDER,
+  DEFAULT_COMMENT_SORT,
+  buildCommentComposer,
+  buildCommentRow,
+  buildSortToggle,
+  commentNameParts,
+  confirmInRow,
+} from './commentsui.js';
 import maplibregl from 'maplibre-gl';
 import { map } from './map';
 import { applyAllStyles } from './loadprofilepopup';
@@ -1474,6 +1494,8 @@ function ensurePostComments(data, kind, id, comments, syncKey) {
     data.topicId,
     polygon ? 'polygon' : 'marker',
     syncKey,
+    // The post's own timestamp: the edit and delete helpers name it.
+    data.timestamp,
   );
   reactionHost().appendChild(section);
   return section;
@@ -4313,227 +4335,240 @@ function buildReplyTree(node, repliesMap, likeMap, dislikeMap, depth = 0, action
 // Used by the popup 💬 button.
 const countAllMessages = (nodes) => nodes.reduce((sum, n) => sum + 1 + (n.replies ? countAllMessages(n.replies) : 0), 0);
 
-// Comment section for marker/polygon popups: the list of comments below the
-// message plus a box to leave your own. Hidden until 💬 is pressed.
-// Light panel: rounded corners, thin white border, no live blur.
-function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, syncKey) {
+// A comment row's round picture, and yours in the composer: the payer's
+// own, or the default one.
+function commentFace(payer) {
+  const payerImage = (payer && profilePictures[payer]?.url) || DEFAULT_AVATAR;
+  const validPayerImage = isValidUrl(payerImage) ? payerImage : DEFAULT_AVATAR;
+  return pictureElement(avatarSrc(validPayerImage), {
+    alt: '',
+    className: 'comment-avatar-img',
+  });
+}
+
+// What a comment's stored media is, for the composer's chip on an edit.
+function commentMediaUrlKind(value) {
+  const raw = commentImageUrl(value);
+  if (!raw) return '';
+  if (isGifClipUrl(raw) || isGifUrl(raw)) return 'gif';
+  return resolveMediaUrl(raw).kind === 'video' ? 'video' : 'still';
+}
+
+// A comment's one picture, GIF or short video, painted as the popup paints
+// a post's (fillPopupMedia): a video loads nothing until it plays (preload
+// "none", its poster first), a GIF clip loops muted while it shows, and a
+// tap on a picture, a GIF or a clip opens it fullscreen. No ··· frame
+// tools: the media is small in a comment. thumb: the composer chip's
+// still preview, with no controls and no tap. false when nothing shows.
+function paintCommentMedia(box, stored, { thumb = false } = {}) {
+  const url = commentImageUrl(stored);
+  if (!url) return false;
+  const raw = url.trim();
+  const resolved = resolveMediaUrl(raw);
+  const gifLike = isGifUrl(raw) || needsGifCheck(raw);
+  if (!resolved.src && !gifLike) return false;
+  if (resolved.kind === 'video') {
+    const clip = isGifClipUrl(raw);
+    const media = document.createElement('video');
+    media.playsInline = true;
+    media.setAttribute('playsinline', '');
+    media.preload = 'none';
+    media.dataset.src = resolved.src;
+    if (clip || thumb) {
+      media.muted = true;
+      media.defaultMuted = true;
+      media.setAttribute('muted', '');
+    }
+    if (clip) {
+      media.dataset.gif = '1';
+      media.loop = true;
+      media.setAttribute('loop', '');
+    }
+    media.controls = !clip && !thumb;
+    bindVideoPoster(media, raw, null);
+    if (clip && !thumb && !feedMotionReduced()) watchLoop(media);
+    box.classList.add(clip ? 'is-gif' : 'is-video');
+    box.appendChild(media);
+    if (clip && !thumb) {
+      box.addEventListener('click', (event) => {
+        event.stopPropagation();
+        openPreview(raw, { video: true });
+      });
+    }
+    return true;
+  }
+  const media = document.createElement('img');
+  media.alt = '';
+  media.decoding = 'async';
+  media.loading = thumb ? 'eager' : 'lazy';
+  box.appendChild(media);
+  presentImage(media, raw, { play: !thumb });
+  if (!thumb) {
+    box.classList.add('is-picture');
+    box.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (media.classList.contains('is-media-pending')) return;
+      openPreview(raw);
+    });
+  }
+  return true;
+}
+
+// The refusals uploadCommentMedia throws for a comment's own limits. Any
+// other failure reads as the upload's own message (uploadmedia.js uploadFace).
+const COMMENT_MEDIA_REFUSALS = new Set([
+  COMMENT_MEDIA_TYPES_TEXT,
+  COMMENT_STILL_TOO_BIG,
+  COMMENT_STILL_STILL_BIG,
+  COMMENT_VIDEO_TOO_BIG,
+  COMMENT_VIDEO_TOO_LONG,
+]);
+
+// Dynamic, as the cover picker is: a static uploadmedia.js import reaches
+// web3 while it is still initializing (see resolvePopupEditKey). The file
+// picker has already opened in the tap by the time this runs.
+async function uploadCommentFile(file, anchor) {
+  const upload = await import('./uploadmedia.js');
+  try {
+    return await upload.uploadCommentMedia(file, anchor);
+  } catch (error) {
+    if (!error || !error.shown) {
+      toast.error(error && COMMENT_MEDIA_REFUSALS.has(error.message) ? error.message : upload.uploadFace(error));
+    }
+    throw error;
+  }
+}
+
+// The JSON the send helpers below hand the wallet for this composer state,
+// measured the way they send it, for the approvals line (formatHcsUsage).
+function commentOutgoingBytes(state, polygon, timestamp) {
+  const text = clipCommentText(state && state.text);
+  const image = commentImageValue(state && state.image);
+  let field;
+  let body;
+  if (state && state.mode === 'edit' && state.edit) {
+    const reply = !!state.edit.parent;
+    field = reply
+      ? (polygon ? 'editReplyPolygon' : 'editReplyMarker')
+      : (polygon ? 'editCommentPolygon' : 'editCommentMarker');
+    body = { created: state.edit.node.created, text, timestamp };
+    if (reply) body.parentId = state.edit.parent.created;
+    if (state.image !== undefined) body.image = image;
+  } else if (state && state.mode === 'reply' && state.replyTo) {
+    field = polygon ? 'replyPolygon' : 'replyMarker';
+    body = { timestamp, parentId: state.replyTo.created, text };
+    if (image) body.image = image;
+  } else {
+    field = polygon ? 'commentPolygon' : 'commentMarker';
+    body = { timestamp, text };
+    if (image) body.image = image;
+  }
+  return utf8ByteLength(JSON.stringify({ [field]: body }));
+}
+
+// Comment section for marker/polygon popups and feed posts, in the X /
+// Instagram shape (commentsui.js): a Top / Newest switch, a row for every
+// comment and reply, and the composer at the foot. Hidden until 💬 is
+// pressed. postTimestamp is the post's own timestamp, which the edit and
+// delete helpers name. The same section serves all three shells: the feed
+// page, the landscape card and the popup card (showCommentsModal).
+function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, syncKey, postTimestamp) {
   const section = document.createElement('div');
   section.id = id;
   section.classList.add('popup-comments');
   if (syncKey) section._commentSync = syncKey;
   section.style.cssText = 'display: none; margin-top: calc(var(--u) * 1); padding: calc(var(--u) * 1); border-radius: calc(var(--u) * 1.2); background: rgba(255, 255, 255, 0.10); border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.15); text-align: left;';
+  const polygon = kind === 'polygon';
+
+  // Top / Newest. A change re-sorts the tree this section already holds
+  // and repaints it; nothing is fetched. The mode holds through live
+  // updates and sends until the comments view closes.
+  section._sortMode = DEFAULT_COMMENT_SORT;
+  const sortBar = buildSortToggle({
+    value: section._sortMode,
+    onChange: (mode) => {
+      section._sortMode = mode;
+      paintList(section._tree || []);
+    },
+  });
 
   const list = document.createElement('div');
   list.className = 'comments-scroll';
   list.style.cssText = 'margin-bottom: calc(var(--u) * 1);';
 
-  // Topic-chat look: consecutive comments by the same payer form one group -
-  // round profile photo on the left (opens the payer's topic), payer/username
-  // header, then each comment's text with a small gray timestamp below it.
-  const defaultProfilePic = DEFAULT_AVATAR;
-  let currentGroupPayer = null;
-  let currentMessagesDiv = null;
+  // Reply threads the reader opened stay open through a repaint.
+  const openThreads = new Set();
+  let composer = null;
 
-  const startGroup = (payer) => {
-    currentGroupPayer = payer;
-    const group = document.createElement('div');
-    group.className = 'toolbar-group-messages';
-    group.style.cssText = `position: relative; padding-left: 2.5em; min-height: 2.5em; border-color: ${innerContainerTopicChatColor};`;
+  const likeComment = (node, wantLike) => (polygon
+    ? window.likePolygon(node.created, topicId, !wantLike)
+    : window.likeMarker(node.created, topicId, !wantLike));
 
-    const payerImage = profilePictures[payer]?.url || defaultProfilePic;
-    const validPayerImage = isValidUrl(payerImage) ? payerImage : defaultProfilePic;
-    const img = pictureElement(avatarSrc(validPayerImage), {
-      alt: 'Profile photo',
-      style: 'position: absolute; left: 0.25em; top: 0.5em; width: 2em; height: 2em; border-radius: 1em; cursor: pointer; object-fit: cover;',
-    });
-    img.addEventListener('click', () => loadBio4PIC(payer));
-    watchFollowPrefetch(img, payer);
-    group.appendChild(img);
-
-    const contentWrapper = document.createElement('div');
-    contentWrapper.style.cssText = 'display: flex; flex-direction: column;';
-
-    const header = document.createElement('div');
-    header.className = 'toolbar-group-messages-header';
-    header.style.cssText = `display: flex; align-items: center; font-size: calc(var(--u) * ${headerFontSizeTopicChat});`;
-    const payerLink = document.createElement('a');
-    payerLink.href = `https://explore.hashpack.app/${encodeURIComponent(payer)}`;
-    payerLink.target = '_blank';
-    payerLink.rel = 'noopener noreferrer';
-    payerLink.style.cssText = `color: ${accidTopicChatColor}; text-decoration: none;`;
-    payerLink.textContent = payer;
-    header.appendChild(payerLink);
-    header.appendChild(document.createTextNode('\u00A0'));
-
-    const username = usernames[payer]?.username ? ` ${usernames[payer].username}` : '';
-    const click2link = click2url[payer]?.click2url ? ` ${click2url[payer].click2url}` : '';
-    if (username.trim()) {
-      header.appendChild(payerUsernameNode(username.trim(), click2link, {
-        cssText: `color: ${usernameTopicChatColor};`
-      }));
-    }
-    contentWrapper.appendChild(header);
-
-    currentMessagesDiv = document.createElement('div');
-    contentWrapper.appendChild(currentMessagesDiv);
-    group.appendChild(contentWrapper);
-    list.appendChild(group);
+  const deleteComment = async (node, parent, row) => {
+    if (!(await confirmInRow(row))) return;
+    const ok = parent
+      ? await (polygon ? window.sendDeletePolygonReply : window.sendDeleteMarkerReply)(
+        postTimestamp, topicId, node.created, node.payer, parent.created)
+      : await (polygon ? window.sendDeletePolygonComment : window.sendDeleteMarkerComment)(
+        postTimestamp, topicId, node.created, node.payer);
+    if (ok && composer) composer.forget(node.created);
   };
 
-  let replyTarget = null;
-
-  // Render one comment/reply and its whole reply thread (recursive, so
-  // replies-to-replies nest without a depth limit). A top-level comment and
-  // its replies share one glass card; nesting is marked by a thin left
-  // divider. A like on any node is just a regular likeMarker/likePolygon
-  // with that node's own created timestamp, so the existing per-payer
-  // counting applies unchanged.
-  const renderNode = (node, depth) => {
-    const wrapper = document.createElement('div');
-    if (depth === 0) {
-      wrapper.style.cssText = 'display: flex; flex-direction: column; margin-top: 0.2em; padding: calc(var(--u) * 0.6) calc(var(--u) * 1); border-radius: calc(var(--u) * 1.2); background: rgba(255, 255, 255, 0.05); border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.12); box-sizing: border-box;';
-    } else {
-      wrapper.style.cssText = 'margin-top: 0.2em;';
-    }
-
-    if (depth > 0) {
-      // Match the top-level comment header: acc id in the acc
-      // color, username in the username color (was one same-color link before)
-      const whoRow = document.createElement('div');
-      whoRow.style.cssText = `display: inline-flex; align-items: center; gap: 0.3em; padding: 0.025em 0.1em 0.025em 0.1em; border-radius: 0.4em; font-size: calc(var(--u) * ${headerFontSizeTopicChat / 2});`;
-      const picUrl = profilePictures[node.payer]?.url || defaultProfilePic;
-      const payerPic = pictureElement(avatarSrc(isValidUrl(picUrl) ? picUrl : defaultProfilePic), {
-        alt: 'Profile photo',
-        style: 'width: 1.2em; height: 1.2em; border-radius: 1em; object-fit: cover; border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.35); cursor: pointer;',
-      });
-      payerPic.addEventListener('click', () => loadBio4PIC(node.payer));
-      watchFollowPrefetch(payerPic, node.payer);
-      whoRow.appendChild(payerPic);
-      const payerLabel = document.createElement('a');
-      payerLabel.href = `https://explore.hashpack.app/${encodeURIComponent(node.payer)}`;
-      payerLabel.target = '_blank';
-      payerLabel.rel = 'noopener noreferrer';
-      payerLabel.style.cssText = `color: ${accidTopicChatColor}; text-decoration: none;`;
-      payerLabel.textContent = node.payer;
-      whoRow.appendChild(payerLabel);
-      const uname = usernames[node.payer]?.username?.trim();
-      const replyClick2 = click2url[node.payer]?.click2url;
-      if (uname) {
-        whoRow.appendChild(payerUsernameNode(uname, replyClick2, {
-          cssText: `color: ${usernameTopicChatColor};`
-        }));
-      }
-      wrapper.appendChild(whoRow);
-    }
-
-    const messageText = document.createElement('div');
-    messageText.className = 'chat-msg-text';
-    messageText.style.cssText = `font-size: calc(var(--u) * ${textFontSizeTopicChat}); color: ${textTopicChatColor}; white-space: pre-wrap; word-wrap: break-word;`;
-    messageText.textContent = node.deleted ? 'Comment deleted' : node.text;
-    wrapper.appendChild(messageText);
-
-    // Meta row: heart, reply count, reply (left) ... timestamp (right)
-    const metaRow = document.createElement('div');
-    metaRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-top: 0;';
-
-    const likeDislikeDiv = document.createElement('div');
-    likeDislikeDiv.style.cssText = 'display: flex; align-items: center; gap: 0.5em;';
-
-    // Reply thread: inline in the same card as the comment (a thin left
-    // divider marks the nesting). Collapsed by default; the 💬N badge on any
-    // node with replies toggles it open/closed.
-    const children = node.replies || [];
-    let badge = null;
-    let thread = null;
-    if (children.length > 0) {
-      thread = document.createElement('div');
-      thread.className = 'reply-thread';
-      thread.style.display = 'none';
-
-      badge = createCommentBubble({
-        count: countAllMessages(children),
-        mini: true,
-        onToggle: (open) => {
-          thread.style.display = open ? '' : 'none';
-        },
-      });
-    }
-
-    likeDislikeDiv.appendChild(createHeartLike({
+  // Read at every paint: the connected account decides where ⋯ shows.
+  const rowOptions = () => ({
+    me: connectedAccount || '',
+    now: Date.now(),
+    avatar: commentFace,
+    openProfile: (payer) => loadBio4PIC(payer),
+    watchFace: (el, payer) => watchFollowPrefetch(el, payer),
+    username: (payer) => usernames[payer]?.username || '',
+    usernameNode: (text, payer) => payerUsernameNode(text, click2url[payer]?.click2url),
+    accountHref: (payer) => `https://explore.hashpack.app/${encodeURIComponent(payer)}`,
+    textStyle: `font-size: calc(var(--u) * ${textFontSizeTopicChat}); color: ${textTopicChatColor};`,
+    // A like on any node is a regular likeMarker/likePolygon with that
+    // node's own created time, so the per-payer counting applies unchanged.
+    heart: (node) => createHeartLike({
       count: node.likeCount,
       liked: node.likedByMe,
       mini: true,
-      onToggle: (wantLike) => kind === 'polygon'
-        ? window.likePolygon(node.created, topicId, !wantLike)
-        : window.likeMarker(node.created, topicId, !wantLike),
-    }));
-
-    if (badge) likeDislikeDiv.appendChild(badge);
-
-    const replyBtn = document.createElement('span');
-    replyBtn.style.cssText = 'font-size: calc(var(--u) * 1.5); color: gray; cursor: pointer;';
-    replyBtn.textContent = '↩';
-    replyBtn.onclick = () => {
-      replyTarget = node;
-      const uname = usernames[node.payer]?.username?.trim() || '';
-      const created = new Date(node.created).toLocaleString('en-US', {
-        hour12: false,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-      replyChipLabel.textContent = `↩ Replying to ${node.payer}${uname ? ` ${uname}` : ''} — ${created}`;
-      replyChip.style.display = 'flex';
-      input.focus();
-    };
-    likeDislikeDiv.appendChild(replyBtn);
-
-    metaRow.appendChild(likeDislikeDiv);
-
-    const timestampSpan = document.createElement('span');
-    timestampSpan.className = 'chat-msg-time';
-    timestampSpan.style.cssText = `font-size: calc(var(--u) * 0.75); color: gray;`;
-    const when = new Date(node.created);
-    timestampSpan.textContent = Number.isNaN(when.getTime()) ? '' : when.toLocaleString('en-US', {
-      hour12: false,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
-    if (node.edited && !node.deleted) timestampSpan.textContent += ' · edited';
-    metaRow.appendChild(timestampSpan);
-
-    wrapper.appendChild(metaRow);
-
-    if (thread) {
-      children.forEach((child) => thread.appendChild(renderNode(child, depth + 1)));
-      wrapper.appendChild(thread);
-    }
-
-    return wrapper;
-  };
+      onToggle: (wantLike) => likeComment(node, wantLike),
+    }),
+    replyCount: (node, count, onToggle, open) => {
+      const bubble = createCommentBubble({ count, mini: true, onToggle });
+      const box = bubble.querySelector('input');
+      if (open && box) box.checked = true;
+      return bubble;
+    },
+    isOpen: (node) => openThreads.has(node.created),
+    onThread: (node, open) => {
+      if (open) openThreads.add(node.created);
+      else openThreads.delete(node.created);
+    },
+    countAll: countAllMessages,
+    media: (image, box) => paintCommentMedia(box, image),
+    onReply: (node) => {
+      if (composer) composer.reply(node);
+    },
+    onEdit: (node, parent) => {
+      if (composer) composer.edit(node, parent);
+    },
+    onDelete: (node, parent, row) => {
+      deleteComment(node, parent, row);
+    },
+  });
 
   const paintList = (items) => {
-    currentGroupPayer = null;
-    currentMessagesDiv = null;
     list.replaceChildren();
-    const view = sortCommentTree(filterCommentTree(items || []), 'newest');
+    const view = sortCommentTree(filterCommentTree(items || []), section._sortMode);
     if (view.length === 0) {
       const empty = document.createElement('p');
-      empty.style.cssText = 'font-size: calc(var(--u) * 1.3); color: gray; margin: calc(var(--u) * 0.5) 0; text-align: center;';
+      empty.className = 'comments-empty';
       empty.textContent = 'No comments yet';
       list.appendChild(empty);
     }
-    for (const comment of view) {
-      if (comment.payer !== currentGroupPayer) startGroup(comment.payer);
-      currentMessagesDiv.appendChild(renderNode(comment, 0));
-    }
+    const options = rowOptions();
+    for (const comment of view) list.appendChild(buildCommentRow(comment, options));
+    sortBar.hidden = view.length === 0;
     section._view = view;
     if (section._commentSync) publishComment(section._commentSync, countAllMessages(view));
   };
@@ -4583,65 +4618,71 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
     section._overlays.push({ created, fields });
     repaint(section._base);
   };
+  // Opened, or the wallet changed: your avatar, and ⋯ on your own rows.
+  section._refresh = () => {
+    if (composer) composer.refresh();
+    paintList(section._tree || []);
+  };
+  // The view closed: the next open starts at Newest.
+  section._resetSort = () => {
+    if (section._sortMode === DEFAULT_COMMENT_SORT) return;
+    section._sortMode = DEFAULT_COMMENT_SORT;
+    sortBar.setSortMode(DEFAULT_COMMENT_SORT);
+    paintList(section._tree || []);
+  };
   repaint(section._base);
+  section.appendChild(sortBar);
   section.appendChild(list);
 
-  // Reply-mode chip above the input ("↩ Replying to @payer ✕")
-  const replyChip = document.createElement('div');
-  replyChip.style.cssText = 'display: none; align-items: center; gap: 0.5em; margin-bottom: calc(var(--u) * 0.8); font-size: calc(var(--u) * 1.2); color: gray;';
-  const replyChipLabel = document.createElement('span');
-  replyChipLabel.style.cssText = 'flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
-  const replyChipClose = document.createElement('span');
-  replyChipClose.textContent = '✕';
-  replyChipClose.style.cssText = 'cursor: pointer; color: gray;';
-  replyChipClose.onclick = () => { replyTarget = null; replyChip.style.display = 'none'; };
-  replyChip.appendChild(replyChipLabel);
-  replyChip.appendChild(replyChipClose);
-
-  // The reply chip and the input sit in one bottom bar. The list above
-  // scrolls. The comments sheet is pinned with the keyboard.
-  const compose = document.createElement('div');
-  compose.className = 'comments-compose';
-  compose.appendChild(replyChip);
-
-  // Input row: rounded glass textarea + rounded pill Send button,
-  // bottom-aligned so the button stays put as the textarea grows.
-  const inputRow = document.createElement('div');
-  inputRow.className = 'comments-input-row';
-  inputRow.style.cssText = 'display: flex; align-items: flex-end; gap: calc(var(--u) * 1);';
-
+  // The composer sits in one bar at the foot. The list above scrolls. The
+  // comments sheet is pinned with the keyboard.
   const input = document.createElement('textarea');
-  input.placeholder = 'Leave a comment...';
+  input.placeholder = COMMENT_PLACEHOLDER;
   input.maxLength = COMMENT_TEXT_MAX;
-  input.rows = 2;
-  input.style.cssText = 'flex: 1; resize: none; font-size: calc(var(--u) * 1.4); padding: calc(var(--u) * 0.6) calc(var(--u) * 1); border-radius: calc(var(--u) * 1); border: calc(var(--u) * 0.05) solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08); color: white; outline: none;';
+  input.rows = 1;
   input.addEventListener('input', () => {
     const soft = input.value.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const next = clipMessage(soft, COMMENT_TEXT_MAX);
     if (next !== input.value) input.value = next;
     adjustTextareaHeight(input);
   });
-  inputRow.appendChild(input);
-
-  const sendBtn = document.createElement('span');
-  sendBtn.textContent = 'Send';
-  sendBtn.style.cssText = 'padding: calc(var(--u) * 0.6) calc(var(--u) * 1.5); border-radius: calc(var(--u) * 1.5); background: rgba(255, 255, 255, 0.9); color: black; font-size: calc(var(--u) * 1.3); font-weight: 600; cursor: pointer; user-select: none; transition: transform 0.15s ease, filter 0.15s ease;';
-  sendBtn.addEventListener('mouseenter', () => { sendBtn.style.transform = 'scale(1.03)'; sendBtn.style.filter = 'brightness(1.1)'; });
-  sendBtn.addEventListener('mouseleave', () => { sendBtn.style.transform = ''; sendBtn.style.filter = ''; });
-  sendBtn.addEventListener('mousedown', () => { sendBtn.style.transform = 'scale(0.97)'; });
-  sendBtn.addEventListener('mouseup', () => { sendBtn.style.transform = 'scale(1.03)'; });
-  sendBtn.onclick = () => {
-    if (replyTarget) {
-      onReply(replyTarget.created, input);
-      replyTarget = null;
-      replyChip.style.display = 'none';
-    } else {
-      onSend(input);
-    }
-  };
-  inputRow.appendChild(sendBtn);
-  compose.appendChild(inputRow);
-  section.appendChild(compose);
+  composer = buildCommentComposer({
+    input,
+    accept: COMMENT_MEDIA_ACCEPT,
+    avatar: () => commentFace(connectedAccount),
+    reject: commentMediaReject,
+    kindOf: commentMediaKind,
+    kindOfUrl: commentMediaUrlKind,
+    upload: uploadCommentFile,
+    paintThumb: (url, box) => paintCommentMedia(box, url, { thumb: true }),
+    replyLabel: (node) => `↩ Replying to ${commentNameParts(node.payer, usernames[node.payer]?.username).name}`,
+    bytes: (state) => commentOutgoingBytes(state, polygon, postTimestamp),
+    send: async (state) => {
+      if (state.mode === 'edit' && state.edit) {
+        const { node, parent } = state.edit;
+        if (parent) {
+          return (polygon ? window.sendEditPolygonReply : window.sendEditMarkerReply)(
+            postTimestamp, topicId, node.created, state.text, node.payer, parent.created, state.media);
+        }
+        return (polygon ? window.sendEditPolygonComment : window.sendEditMarkerComment)(
+          postTimestamp, topicId, node.created, state.text, node.payer, state.media);
+      }
+      if (state.mode === 'reply' && state.replyTo) {
+        // The parent's thread opens, so the reply shows once it is sent.
+        const parentId = state.replyTo.created;
+        const wasOpen = openThreads.has(parentId);
+        openThreads.add(parentId);
+        const ok = await onReply(parentId, input, state.media);
+        if (!ok && !wasOpen) openThreads.delete(parentId);
+        return ok;
+      }
+      return onSend(input, state.media);
+    },
+    resize: adjustTextareaHeight,
+    toast: (message) => toast.error(message),
+  });
+  section._composer = composer;
+  section.appendChild(composer.el);
 
   return section;
 }
@@ -4869,17 +4910,18 @@ function startFeedFlipClose(wrapper, flip, done) {
   });
 }
 
-// The feed's Comments view opens at the comments: the list's top (the
-// first comment, or "No comments yet") sits just under the bar, with the
-// post scrolled up above it and its end showing in the small gap left by
-// the list's scroll-margin-top (style.css --feed-comments-gap). Nothing
+// The feed's Comments view opens at the comments: their top (the Top /
+// Newest switch, or "No comments yet" when there are none) sits just under
+// the bar, with the post scrolled up above it and its end showing in the
+// small gap left by the list's scroll-margin-top (style.css
+// --feed-comments-gap). Nothing
 // moves when the post and its comments fit without scrolling. While the
 // reader has not scrolled, the comments stay there as the post above
 // changes height (an X post loading late). A wheel, a touch drag, a
 // scroll key, a press anywhere in the column but the comment box, or any
 // scroll this code did not make itself ends that. The list is held tall
 // enough to reach the top even with few comments (.is-at-comments, with
-// the comment box's height in --feed-comments-foot).
+// the comment box's and the switch's heights in --feed-comments-foot).
 const FEED_COMMENTS_SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
 
 function holdFeedCommentsTop(wrapper) {
@@ -4888,7 +4930,9 @@ function holdFeedCommentsTop(wrapper) {
   const stage = body && body.querySelector('.feed-comments-stage');
   const list = body && body.querySelector('.comments-scroll');
   const compose = body && body.querySelector('.comments-compose');
+  const sort = body && body.querySelector('.comments-sort');
   if (!body || !stage || !list) return;
+  const shownSort = () => (sort && !sort.hidden ? sort : null);
   let held = true;
   // Set around this code's own scrollTop write: where it put the column.
   // The one scroll event that write causes finds the column still there
@@ -4898,7 +4942,13 @@ function holdFeedCommentsTop(wrapper) {
   let ownTop = null;
   const writeFoot = () => {
     const below = parseFloat(getComputedStyle(list).marginBottom) || 0;
-    const foot = (compose ? compose.getBoundingClientRect().height : 0) + below;
+    const top = shownSort();
+    const above = top
+      ? top.getBoundingClientRect().height
+        + (parseFloat(getComputedStyle(top).marginTop) || 0)
+        + (parseFloat(getComputedStyle(top).marginBottom) || 0)
+      : 0;
+    const foot = (compose ? compose.getBoundingClientRect().height : 0) + below + above;
     body.style.setProperty('--feed-comments-foot', foot.toFixed(2) + 'px');
   };
   const place = () => {
@@ -4909,7 +4959,8 @@ function holdFeedCommentsTop(wrapper) {
       body.classList.add('is-at-comments');
     }
     const gap = parseFloat(getComputedStyle(list).scrollMarginTop) || 0;
-    const top = list.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - gap;
+    const anchor = shownSort() || list;
+    const top = anchor.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - gap;
     const most = Math.max(0, body.scrollHeight - body.clientHeight);
     const next = Math.min(most, Math.max(0, Math.round(top)));
     if (Math.abs(body.scrollTop - next) < 1) return;
@@ -5004,6 +5055,8 @@ function teardownCommentsModal() {
         }
         delete commentsModalSection._modalSaves;
       }
+      // Top / Newest holds while the view is open; the next open is Newest.
+      if (typeof commentsModalSection._resetSort === 'function') commentsModalSection._resetSort();
     }
     const input = commentBubbleInput;
     stopFeedCommentsHold(commentsModal);
@@ -5151,6 +5204,8 @@ function commentsCloseButton(section) {
 }
 
 function showCommentsModal(section) {
+  // Your avatar and ⋯ follow the wallet connected now.
+  if (section && typeof section._refresh === 'function') section._refresh();
   const homePopup = section && section._homeParent && section._homeParent.closest
     ? section._homeParent.closest('.maplibregl-popup')
     : null;
@@ -5290,6 +5345,13 @@ if (!landscapeCommentsBound) {
     event.stopImmediatePropagation();
     closeCommentsModal();
   }, true);
+  // A wallet connected or left while the comments are open: your avatar
+  // and ⋯ on your own rows follow it.
+  document.addEventListener('wallet-account-changed', () => {
+    if (commentsModalSection && typeof commentsModalSection._refresh === 'function') {
+      commentsModalSection._refresh();
+    }
+  });
 }
 
 function openCommentsModal(sectionId) {

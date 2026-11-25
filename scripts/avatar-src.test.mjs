@@ -98,8 +98,9 @@ test("every profile picture draw is watched before it is painted, ahead of the e
 // Every place a profile picture is drawn goes through avatarSrc.
 const AVATAR_SITES = [
   ["../processallmessages.js", /const profileImg = pictureElement\(avatarSrc\(profileUrl\), \{/, 1],
+  // Every comment and reply row, and your picture in the composer
+  // (commentFace).
   ["../processallmessages.js", /pictureElement\(avatarSrc\(validPayerImage\), \{/, 1],
-  ["../processallmessages.js", /pictureElement\(avatarSrc\(isValidUrl\(picUrl\) \? picUrl : defaultProfilePic\), \{/, 1],
   ["../processallmessages.js", /imageUrl: coverImageUrl\(parsedMessage\.marker\.data\.coverimage, avatarSrc\(profileUrl\)\)/g, 3],
   ["../processallmessages.js", /imageUrl: isValidUrl\(cover\) \? cover : avatarSrc\(profileUrl\),/, 1],
   ["../feedlayout.js", /pictureElement\(avatarSrc\(url\), \{ className: 'feed-new-face'/, 1],

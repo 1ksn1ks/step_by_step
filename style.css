@@ -10523,6 +10523,22 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
   .maplibregl-map .comments-modal--in-card > .popup-comments > :not(.comments-scroll) {
     flex: 0 0 auto;
   }
+
+  /* The list fills the card between the switch and the composer, so the
+     composer stays at the card's foot with a short thread too. */
+  .maplibregl-map .comments-modal--in-card > .popup-comments > .comments-scroll {
+    margin-bottom: 0 !important;
+    padding: 0 calc(var(--u) * 0.9);
+  }
+
+  .maplibregl-map .comments-modal--in-card > .popup-comments > .comments-sort {
+    margin-left: calc(var(--u) * 0.9);
+  }
+
+  .maplibregl-map .comments-modal--in-card > .popup-comments > .comments-compose {
+    padding: calc(var(--u) * 0.9) calc(var(--u) * 0.9) calc(var(--u) * 0.9);
+    border-top: calc(var(--u) * 0.08) solid rgba(255, 255, 255, 0.22);
+  }
 }
 /* Tap-to-fullscreen media overlay (fullscreenmedia.js) — gallery view:
    near-black stage, the media is the star, minimal chrome, calm entrance. */
@@ -16611,8 +16627,26 @@ html.drawer-page .info-overlay {
   bottom: 0;
   z-index: 3;
   box-sizing: border-box;
-  padding: 0 calc(var(--fu) * 1.2) calc(var(--fu) * 1.2);
+  padding: calc(var(--fu) * 0.9) calc(var(--fu) * 1.2) calc(var(--fu) * 1.2);
+  border-top: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
   background: #0a0a12;
+}
+/* The comments keep to the post's column on a wide screen, in the post's
+   unit (the body's own --fu reads the whole window). On a phone the column
+   is the screen, so nothing moves. */
+.feed-comments-body > .popup-comments {
+  --fu: calc(min(100dvw, var(--feed-col-width)) * 0.024);
+}
+.feed-comments-body > .popup-comments > :is(.comments-scroll, .comments-compose) {
+  width: min(100%, var(--feed-col-width));
+  margin-inline: auto;
+}
+/* The Top / Newest switch opens just under the bar (holdFeedCommentsTop),
+   at the column's left edge. */
+.feed-comments-body > .popup-comments > .comments-sort {
+  margin-top: calc(var(--fu) * 0.4);
+  margin-bottom: calc(var(--fu) * 0.2);
+  margin-left: calc((100% - min(100%, var(--feed-col-width))) / 2 + var(--fu) * 1.2);
 }
 .comments-modal--feed .comments-scroll,
 .comments-modal--feed .comments-scroll * {
@@ -16636,15 +16670,582 @@ html.drawer-page .info-overlay {
 .feed-comments-body > .popup-comments > :not(.comments-scroll) {
   flex: 0 0 auto;
 }
+/* ── Comments, X / Instagram shape (commentsui.js), the same in all three
+   shells: the feed page, the landscape card and the popup card. Sized in
+   --u (the feed page sets its own from --fu). Small in-row controls keep
+   their look and get a 44px tap box from ::after. ─────────────────────── */
+.popup-comments [hidden] {
+  display: none !important;
+}
+.popup-comments {
+  --comment-ink: #fff;
+  --comment-muted: rgba(255, 255, 255, 0.55);
+  --comment-line: rgba(255, 255, 255, 0.12);
+  --comment-glass: rgba(255, 255, 255, 0.07);
+  --comment-glass-line: rgba(255, 255, 255, 0.16);
+  --comment-red: #f07178;
+  font-family: Inter, system-ui, sans-serif;
+}
+.popup-comments :is(.comment-action, .comments-sort-btn, .comments-chip-close, .comments-chip-cancel, .comments-media-remove) {
+  position: relative;
+  touch-action: manipulation;
+}
+.popup-comments :is(.comment-action, .comments-sort-btn, .comments-chip-close, .comments-chip-cancel, .comments-media-remove)::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(44px, 100%);
+  height: max(44px, 100%);
+  transform: translate(-50%, -50%);
+}
+/* ⋯ ends the row: its tap box grows inward, never past the edge. */
+.popup-comments .comment-menu-btn::after {
+  left: auto;
+  right: 0;
+  transform: translateY(-50%);
+}
+.popup-comments :is(button, a):focus-visible {
+  outline: calc(var(--u) * 0.2) solid #22D3EE;
+  outline-offset: calc(var(--u) * 0.2);
+}
+
+/* Top / Newest */
+.comments-sort {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  display: inline-flex;
+  gap: calc(var(--u) * 0.3);
+  margin: 0 0 calc(var(--u) * 0.6);
+  padding: calc(var(--u) * 0.3);
+  border: calc(var(--u) * 0.08) solid var(--comment-glass-line);
+  border-radius: 999px;
+  background: var(--comment-glass);
+}
+.comments-sort-btn {
+  appearance: none;
+  margin: 0;
+  padding: calc(var(--u) * 0.5) calc(var(--u) * 1.6);
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--comment-muted);
+  font: inherit;
+  font-size: calc(var(--u) * 1.5);
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.comments-sort-btn.is-on {
+  background: rgba(255, 255, 255, 0.9);
+  color: #000;
+}
+
+/* One row: avatar | name line, text, media, actions, replies */
+.comments-empty {
+  margin: calc(var(--u) * 1.2) 0;
+  color: var(--comment-muted);
+  font-size: calc(var(--u) * 1.5);
+  text-align: center;
+}
+.comment-row {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(var(--u) * 1.1);
+  min-width: 0;
+  padding: calc(var(--u) * 1.1) 0;
+  border-bottom: calc(var(--u) * 0.08) solid var(--comment-line);
+}
+.comment-row.is-reply {
+  padding: calc(var(--u) * 0.9) 0 0;
+  border-bottom: 0;
+}
+.comment-avatar {
+  appearance: none;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: calc(var(--u) * 4);
+  height: calc(var(--u) * 4);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: calc(var(--u) * 0.08) solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+}
+.comment-row.is-reply > .comment-avatar {
+  width: calc(var(--u) * 3);
+  height: calc(var(--u) * 3);
+}
+.comment-avatar.is-stand-in {
+  border-style: dashed;
+  background: transparent;
+  cursor: default;
+}
+.comment-avatar > :is(img, video, canvas),
+.comments-me > :is(img, video, canvas) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.comment-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.35);
+}
+.comment-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: calc(var(--u) * 0.5);
+  min-width: 0;
+  color: var(--comment-muted);
+  font-size: calc(var(--u) * 1.6);
+  line-height: 1.3;
+}
+.comment-name {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--comment-ink);
+  font-weight: 700;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.comment-handle,
+.comment-time {
+  color: var(--comment-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.comment-head .comment-edited {
+  margin: 0;
+  font-size: 0.9em;
+}
+.comment-text {
+  margin: 0;
+  color: var(--comment-ink);
+  font-size: calc(var(--u) * 1.8);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.comment-deleted {
+  margin: 0;
+  padding: calc(var(--u) * 0.6) 0;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: calc(var(--u) * 1.6);
+  font-style: italic;
+}
+.comment-row.is-busy {
+  opacity: 0.6;
+}
+
+/* The one picture, GIF or short video (processallmessages.js paintCommentMedia) */
+.comment-media {
+  align-self: flex-start;
+  max-width: 100%;
+  margin-top: calc(var(--u) * 0.3);
+  overflow: hidden;
+  border: calc(var(--u) * 0.08) solid var(--comment-glass-line);
+  border-radius: calc(var(--u) * 1.2);
+  background: rgba(0, 0, 0, 0.35);
+  line-height: 0;
+}
+.comment-media.is-picture,
+.comment-media.is-gif {
+  cursor: zoom-in;
+}
+.comment-media > :is(img, canvas) {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(var(--u) * 32);
+  object-fit: contain;
+}
+.comment-media > video {
+  display: block;
+  width: min(100%, calc(var(--u) * 40));
+  max-height: calc(var(--u) * 32);
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #000;
+}
+
+/* Reply · heart · replies · ⋯ */
+.comment-actions {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 2.2);
+  min-height: calc(var(--u) * 3.2);
+  margin-top: calc(var(--u) * 0.2);
+  padding-bottom: calc(var(--u) * 0.6);
+  color: rgba(255, 255, 255, 0.6);
+}
+.comment-action {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--u) * 0.5);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: calc(var(--u) * 1.4);
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+.comment-action svg {
+  width: calc(var(--u) * 1.8);
+  height: calc(var(--u) * 1.8);
+  display: block;
+  flex: 0 0 auto;
+}
+.comment-action:active {
+  transform: scale(0.94);
+}
+@media (hover: hover) and (pointer: fine) {
+  .comment-action:hover {
+    color: #22D3EE;
+  }
+}
+.comment-menu {
+  margin-left: auto;
+  display: inline-flex;
+}
+.comment-menu-btn svg {
+  width: calc(var(--u) * 2.1);
+  height: calc(var(--u) * 2.1);
+}
+.comment-menu-pop .comment-menu-delete {
+  color: var(--comment-red, #f07178);
+}
+.comment-replies {
+  margin-top: calc(var(--u) * 0.2);
+  padding-left: calc(var(--u) * 1);
+  border-left: calc(var(--u) * 0.15) solid var(--comment-line);
+}
+
+/* Delete asks in the row first */
+.comment-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--u) * 0.8);
+  margin: calc(var(--u) * 0.4) 0 calc(var(--u) * 0.6);
+  padding: calc(var(--u) * 0.7) calc(var(--u) * 1);
+  border: calc(var(--u) * 0.08) solid rgba(240, 113, 120, 0.4);
+  border-radius: calc(var(--u) * 1.2);
+  background: rgba(240, 113, 120, 0.10);
+}
+.comment-confirm-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--comment-ink);
+  font-size: calc(var(--u) * 1.5);
+}
+.comment-confirm-no,
+.comment-confirm-yes {
+  appearance: none;
+  min-height: max(44px, calc(var(--u) * 4));
+  margin: 0;
+  padding: 0 calc(var(--u) * 1.6);
+  border-radius: 999px;
+  font: inherit;
+  font-size: calc(var(--u) * 1.4);
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.comment-confirm-no {
+  border: calc(var(--u) * 0.08) solid var(--comment-glass-line);
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--comment-ink);
+}
+.comment-confirm-yes {
+  border: 0;
+  background: var(--comment-red);
+  color: #2a0c0e;
+}
+
+/* The composer at the foot: chips, then avatar · attach · box · Send */
 .comments-compose {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
+  gap: calc(var(--u) * 0.6);
   min-width: 0;
 }
-.comments-modal--feed .comments-input-row {
-  padding-top: calc(var(--fu) * 0.9);
-  border-top: calc(var(--fu) * 0.08) solid rgba(255, 255, 255, 0.22);
+.comments-chip {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 0.6);
+  min-width: 0;
+  padding: calc(var(--u) * 0.5) calc(var(--u) * 0.6) calc(var(--u) * 0.5) calc(var(--u) * 1.2);
+  border: calc(var(--u) * 0.08) solid var(--comment-glass-line);
+  border-radius: 999px;
+  background: var(--comment-glass);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: calc(var(--u) * 1.4);
+}
+.comments-edit-chip {
+  border-color: rgba(34, 211, 238, 0.45);
+  color: #22D3EE;
+}
+.comments-chip-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.comments-chip-close,
+.comments-chip-cancel {
+  appearance: none;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: calc(var(--u) * 0.3) calc(var(--u) * 0.7);
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--comment-ink);
+  font: inherit;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.comments-media-chip {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 1);
+  min-width: 0;
+  padding: calc(var(--u) * 0.5);
+  border: calc(var(--u) * 0.08) solid var(--comment-glass-line);
+  border-radius: calc(var(--u) * 1.2);
+  background: var(--comment-glass);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: calc(var(--u) * 1.4);
+}
+.comments-media-thumb {
+  flex: 0 0 auto;
+  width: calc(var(--u) * 5);
+  height: calc(var(--u) * 5);
+  overflow: hidden;
+  border-radius: calc(var(--u) * 0.8);
+  background: rgba(255, 255, 255, 0.08);
+}
+.comments-media-thumb > :is(img, video, canvas) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.comments-media-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.comments-media-chip.is-busy .comments-media-label {
+  animation: comments-busy 1.2s ease-in-out infinite;
+}
+@keyframes comments-busy {
+  50% { opacity: 0.45; }
+}
+.comments-media-remove {
+  appearance: none;
+  flex: 0 0 auto;
+  width: calc(var(--u) * 3.2);
+  height: calc(var(--u) * 3.2);
+  margin: 0 calc(var(--u) * 0.4) 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--comment-ink);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.comments-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: calc(var(--u) * 0.8);
+  min-width: 0;
+}
+.comments-me {
+  flex: 0 0 auto;
+  width: calc(var(--u) * 3.6);
+  height: calc(var(--u) * 3.6);
+  margin-bottom: calc((max(44px, calc(var(--u) * 4.4)) - var(--u) * 3.6) / 2);
+  overflow: hidden;
+  border: calc(var(--u) * 0.08) solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  box-sizing: border-box;
+}
+.comments-attach {
+  appearance: none;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: max(44px, calc(var(--u) * 4.4));
+  height: max(44px, calc(var(--u) * 4.4));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+.comments-attach svg {
+  width: calc(var(--u) * 2.4);
+  height: calc(var(--u) * 2.4);
+  display: block;
+}
+.comments-attach:active:not(:disabled) {
+  transform: scale(0.92);
+}
+@media (hover: hover) and (pointer: fine) {
+  .comments-attach:hover:not(:disabled) {
+    color: #22D3EE;
+  }
+}
+.comments-attach:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+/* Out of sight but in the page, so the attach tap can open it. */
+.comments-attach-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  opacity: 0;
+  pointer-events: none;
+}
+.popup-comments textarea.comments-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: max(44px, calc(var(--u) * 4.4));
+  max-height: calc(var(--u) * 16);
+  margin: 0;
+  padding: calc(var(--u) * 1) calc(var(--u) * 1.4);
+  overflow-y: auto;
+  resize: none;
+  border: calc(var(--u) * 0.08) solid rgba(255, 255, 255, 0.2);
+  border-radius: calc(var(--u) * 2.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--comment-ink);
+  font: inherit;
+  font-size: calc(var(--u) * 1.6);
+  line-height: 1.4;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.popup-comments textarea.comments-input:focus {
+  border-color: rgba(34, 211, 238, 0.7);
+}
+.comments-send {
+  appearance: none;
+  flex: 0 0 auto;
+  min-height: max(44px, calc(var(--u) * 4.4));
+  margin: 0;
+  padding: 0 calc(var(--u) * 1.8);
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #000;
+  font: inherit;
+  font-size: calc(var(--u) * 1.5);
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition: transform 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .comments-send:hover:not(:disabled) {
+    transform: scale(1.03);
+    filter: brightness(1.1);
+  }
+}
+.comments-send:active:not(:disabled) {
+  transform: scale(0.97);
+}
+/* Empty: dimmed, still a tap, so it can say "Comment is empty". */
+.comments-send.is-empty {
+  opacity: 0.55;
+}
+.comments-send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.comments-send.is-busy {
+  cursor: progress;
+}
+.comments-compose-meta {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: calc(var(--u) * 1.2);
+  padding-right: calc(var(--u) * 0.6);
+  color: var(--comment-muted);
+  font-size: calc(var(--u) * 1.2);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.comments-counter.is-max {
+  color: #ff5c5c;
+}
+
+/* Popup card shell (portrait map, and any card outside the map): the
+   list scrolls between the switch and the composer, which stays at the
+   card's foot however long or short the thread is. */
+.comments-modal:not(.comments-modal--in-card):not(.comments-modal--feed) .maplibregl-popup-content > .popup-comments {
+  display: flex !important;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.comments-modal:not(.comments-modal--in-card):not(.comments-modal--feed) .maplibregl-popup-content > .popup-comments > .comments-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+.comments-modal:not(.comments-modal--in-card):not(.comments-modal--feed) .maplibregl-popup-content > .popup-comments > :not(.comments-scroll) {
+  flex: 0 0 auto;
+}
+.comments-modal:not(.comments-modal--in-card):not(.comments-modal--feed) .maplibregl-popup-content > .popup-comments > .comments-compose {
+  padding: calc(var(--u) * 0.9) 0 calc(var(--u) * 0.4);
+  border-top: calc(var(--u) * 0.08) solid rgba(255, 255, 255, 0.22);
 }
 .comments-modal--feed .feed-comments-stage {
   position: relative;
