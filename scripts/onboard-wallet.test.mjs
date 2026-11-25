@@ -497,3 +497,26 @@ html.feed-app appkit-modal {
   // Above the intro (9000), below the toasts (10000).
   assert.match(rule(".onboard-overlay"), /z-index: 9000;/);
 });
+
+test("the chip shows on the first page only: hidden elsewhere, its box kept so nothing moves", () => {
+  const page = source("../onboarding.js");
+  // renderSlide sets the class from slideIndex, beside .is-guide.
+  const render = fn(page, "renderSlide");
+  assert.match(render, /const card = overlay\.querySelector\('\.onboard-card'\);\s*card\.classList\.toggle\('is-guide', !!guide\);[\s\S]{0,200}?card\.classList\.toggle\('is-wallet-slide', slideIndex === 0\);/);
+  // Nothing else sets it: only a slide change does.
+  assert.equal(page.split("is-wallet-slide").length - 1, 1);
+  assert.equal(render.split("is-wallet-slide").length - 1, 1);
+  // The paint still knows nothing of the slides.
+  assert.doesNotMatch(fn(page, "paintIntroWallet"), /slideIndex|renderSlide|is-wallet-slide/);
+  // Hidden, not removed: the chip is absolute, so the icon, title, steps,
+  // dots and nav stay where they are; no px.
+  const hide = rule(".onboard-card:not(.is-wallet-slide) > .onboard-wallet");
+  assert.equal(hide, `.onboard-card:not(.is-wallet-slide) > .onboard-wallet {
+    visibility: hidden;
+    pointer-events: none;
+  }`);
+  assert.match(rule(".onboard-wallet"), /^\.onboard-wallet \{\n    position: absolute;/);
+  assert.doesNotMatch(hide, /display|px/);
+  // The connected chip's own rules are as they were.
+  assert.ok(css.includes(".onboard-card:not(.is-guide) > .onboard-wallet.is-connected {"));
+});

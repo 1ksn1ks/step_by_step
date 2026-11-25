@@ -392,7 +392,11 @@ function renderSlide(direction = 1) {
   introNav.style.display = installPage ? 'none' : 'flex';
   installNav.style.display = installPage ? 'flex' : 'none';
   paintInstallNav();
-  overlay.querySelector('.onboard-card').classList.toggle('is-guide', !!guide);
+  const card = overlay.querySelector('.onboard-card');
+  card.classList.toggle('is-guide', !!guide);
+  // The account chip shows on the first page only (style.css); the others
+  // keep its box hidden, so nothing on the card moves.
+  card.classList.toggle('is-wallet-slide', slideIndex === 0);
   const lastSlide = slideIndex === slides.length - 1;
   nextBtn.textContent = lastSlide ? 'Got it' : 'Next ›';
   nextBtn.classList.toggle('is-quiet', !lastSlide);

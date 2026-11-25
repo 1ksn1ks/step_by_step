@@ -6804,6 +6804,13 @@ html, body {
     opacity: 0.8;
     animation: overlayXGlow 2s ease-in-out infinite;
   }
+  /* The chip belongs to the first page (onboarding.js renderSlide sets
+     .is-wallet-slide there). On the others it keeps its box, out of sight
+     and out of reach: it is absolute, so nothing on the card moves. */
+  .onboard-card:not(.is-wallet-slide) > .onboard-wallet {
+    visibility: hidden;
+    pointer-events: none;
+  }
   .onboard-wallet-text {
     min-width: 0;
     overflow: hidden;
