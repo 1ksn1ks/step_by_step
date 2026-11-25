@@ -223,6 +223,88 @@ test("resume sends only missing indexes, in order", async () => {
   assert.equal(resume.submitKey, null);
 });
 
+test("a supplied submit key is used for the topic and is not cleared", async () => {
+  const { PrivateKey } = await import("@hashgraph/sdk");
+  const own = await PrivateKey.generateED25519Async();
+  const before = own.toString();
+  const bytes = crypto.randomBytes(8 * 1024);
+  const built = await buildHcs1Inscription(bytes, "application/octet-stream");
+  const order = [];
+  let seen = null;
+  const done = await inscribeHcs1({
+    bytes,
+    mime: "application/octet-stream",
+    submitKey: own,
+    createTopic: async ({ memo, submitKey }) => {
+      order.push("create");
+      seen = submitKey;
+      assert.equal(memo, built.memo);
+      assert.equal(submitKey, own);
+      return "0.0.77";
+    },
+    onTopic: async (info) => {
+      order.push("topic");
+      assert.equal(info.topicId, "0.0.77");
+      assert.equal(info.memo, built.memo);
+      assert.equal(info.total, built.messages.length);
+    },
+    submitMessage: async ({ submitKey }) => {
+      order.push("send");
+      assert.equal(submitKey, own);
+    },
+  });
+  assert.equal(order[0], "create");
+  assert.equal(order[1], "topic");
+  assert.equal(order[2], "send");
+  assert.equal(seen, own);
+  assert.equal(own.toString(), before);
+  assert.equal(done.topicId, "0.0.77");
+  assert.equal(Object.hasOwn(done, "submitKey"), false);
+
+  const resume = { topicId: "0.0.77", sentIndexes: [0] };
+  let resumed = null;
+  await inscribeHcs1({
+    bytes,
+    mime: "application/octet-stream",
+    submitKey: own,
+    resume,
+    createTopic: async () => { throw new Error("topic already exists"); },
+    submitMessage: async ({ submitKey }) => {
+      resumed = submitKey;
+    },
+  });
+  assert.equal(resumed, own);
+  assert.equal(own.toString(), before);
+  assert.equal(resume.submitKey, null);
+
+  let sent = 0;
+  await inscribeHcs1({
+    bytes: crypto.randomBytes(32),
+    mime: "application/octet-stream",
+    submitKey: own,
+    createTopic: async ({ submitKey }) => {
+      assert.equal(submitKey, own);
+      return "0.0.78";
+    },
+    onTopic: async () => { throw new Error("checkpoint failed"); },
+    submitMessage: async () => { sent += 1; },
+  });
+  assert.ok(sent > 0);
+  assert.equal(own.toString(), before);
+});
+
+test("asIs keeps the picked still-image bytes", async () => {
+  const raw = crypto.randomBytes(80);
+  const file = new File([raw], "pic.png", { type: "image/png" });
+  const prepared = await prepareInscribeFile(file, { asIs: true });
+  assert.equal(prepared.overCap, false);
+  assert.equal(prepared.mime, "image/png");
+  assert.equal(prepared.name, "pic.png");
+  assert.deepEqual(prepared.bytes, new Uint8Array(raw));
+  assert.equal(typeof prepared.txCount, "number");
+  assert.equal(typeof prepared.usd, "number");
+});
+
 test("GIF, video and glTF are not recompressed, and an over-cap file is flagged", async () => {
   const gif = crypto.randomBytes(300);
   const video = crypto.randomBytes(500);

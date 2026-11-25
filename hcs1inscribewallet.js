@@ -50,12 +50,14 @@ export async function submitHcs1Message({ topicId, submitKey, message }) {
 
 // Still pictures go through compressPostImage first (longest side
 // POST_IMAGE_EDGE, never upscaled). GIF, video and 3D models are unchanged.
+// asIs keeps the picked bytes, for a prepared copy the person saved: a
+// still that is compressed again would hash to a different topic.
 // overCap is the raw size after that step. The cost is filled in only when
 // the file fits.
-export async function prepareInscribeFile(file) {
+export async function prepareInscribeFile(file, { asIs } = {}) {
   const type = String((file && file.type) || "").toLowerCase();
   let source = file;
-  if (POST_STILL_TYPES.includes(type)) {
+  if (!asIs && POST_STILL_TYPES.includes(type)) {
     source = await compressPostImage(file, { maxEdge: POST_IMAGE_EDGE });
   }
   const bytes = new Uint8Array(await source.arrayBuffer());
@@ -76,7 +78,7 @@ export async function prepareInscribeFile(file) {
 
 // Inscribe bytes already prepared. Does not read or compress the file again,
 // so a resume sends the same bytes the first attempt hashed into the topic.
-export async function inscribePrepared(prepared, { onProgress, resume } = {}) {
+export async function inscribePrepared(prepared, { onProgress, resume, submitKey, onTopic } = {}) {
   if (!prepared || prepared.overCap) throw new Error("file is over 2 MB");
   return inscribeHcs1({
     bytes: prepared.bytes,
@@ -85,6 +87,8 @@ export async function inscribePrepared(prepared, { onProgress, resume } = {}) {
     submitMessage: submitHcs1Message,
     onProgress,
     resume,
+    submitKey,
+    onTopic,
   });
 }
 

@@ -283,6 +283,7 @@ const {
   checkMintTx,
   checkMintByMetadata,
   listMyCollections,
+  checkCollectionAccess,
   validateTokenFields,
 } = await import("../tokenmint.js");
 
@@ -985,4 +986,77 @@ test("names are measured in bytes, and decimals above 18 are rejected", () => {
     }),
     /50/,
   );
+});
+
+test("checkCollectionAccess reads the collection and does not mint", async () => {
+  reset();
+  const token = "0.0.4242";
+  const detail = (extra = {}) => ({
+    token_id: token,
+    name: "Collection",
+    symbol: "COL",
+    type: "NON_FUNGIBLE_UNIQUE",
+    deleted: false,
+    treasury_account_id: ACCOUNT,
+    supply_key: { _type: "ED25519", key: USER_HEX },
+    total_supply: "3",
+    max_supply: "10",
+    ...extra,
+  });
+  const serve = (body) => {
+    routes = async (url) => {
+      if (url.includes(`/api/v1/tokens/${token}`)) return jsonResponse(body);
+      return jsonResponse({}, false);
+    };
+  };
+
+  serve(detail());
+  assert.deepEqual(await checkCollectionAccess(token, ACCOUNT), { ok: true, remaining: "7" });
+  serve(detail({ supply_key: USER_HEX.toLowerCase() }));
+  assert.deepEqual(await checkCollectionAccess(token, ACCOUNT), { ok: true, remaining: "7" });
+  serve(detail({ supply_type: "INFINITE", total_supply: "5", max_supply: "0" }));
+  assert.deepEqual(await checkCollectionAccess(token, ACCOUNT), { ok: true, remaining: null });
+
+  const cases = [
+    [detail({ type: "FUNGIBLE_COMMON", deleted: true }), "Not an NFT collection"],
+    [detail({ deleted: true }), "This collection is deleted"],
+    [detail({ treasury_account_id: "0.0.9" }), "Your wallet is not the treasury of this collection"],
+    [detail({ supply_key: { _type: "ED25519", key: "ff".repeat(32) } }), "Your wallet does not hold this collection's supply key"],
+    [detail({ total_supply: "10", max_supply: "10" }), "This collection is full"],
+    [detail({ total_supply: "nope" }), "Could not read the collection"],
+  ];
+  for (const [body, reason] of cases) {
+    serve(body);
+    assert.deepEqual(await checkCollectionAccess(token, ACCOUNT), { ok: false, reason }, reason);
+  }
+
+  assert.deepEqual(await checkCollectionAccess("nope", ACCOUNT), { ok: false, reason: "Could not read the collection" });
+  assert.deepEqual(await checkCollectionAccess(token, ""), { ok: false, reason: "Could not read the collection" });
+  routes = async () => jsonResponse({}, false);
+  assert.deepEqual(await checkCollectionAccess(token, ACCOUNT), { ok: false, reason: "Could not read the collection" });
+
+  routes = async (url) => {
+    if (url.includes("/api/v1/tokens/0.0.2")) {
+      return jsonResponse(detail({ token_id: "0.0.2", treasury_account_id: "0.0.2" }));
+    }
+    return jsonResponse({}, false);
+  };
+  assert.deepEqual(await checkCollectionAccess("0.0.2", "0.0.2"), {
+    ok: false,
+    reason: "Your wallet does not hold this collection's supply key",
+  });
+
+  routes = async (url) => {
+    if (url.includes("/api/v1/tokens/0.0.8080")) {
+      return jsonResponse(detail({ token_id: "0.0.8080", treasury_account_id: "0.0.8080" }));
+    }
+    return jsonResponse({}, false);
+  };
+  assert.deepEqual(await checkCollectionAccess("0.0.8080", "0.0.8080"), {
+    ok: false,
+    reason: "Could not read the collection",
+  });
+
+  assert.equal(mints.length, 0);
+  assert.equal(creates.length, 0);
 });

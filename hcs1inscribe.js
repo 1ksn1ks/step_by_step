@@ -31,7 +31,12 @@
 // If a submit throws, the error carries { topicId, submitKey, sentIndexes }.
 // Call inscribeHcs1 again with resume: { topicId, submitKey, sentIndexes }
 // to send only the missing chunks. After every chunk is in, the submit key
-// is dropped and is not on the result.
+// on that resume object is dropped and is not on the result.
+//
+// submitKey, when passed, is the caller's key. A fresh run uses it instead
+// of generating one, and a resume that has a topic id but no key uses it
+// too. The object is never mutated. onTopic runs after the topic exists
+// and before the first chunk; a throw there does not hide the topic.
 
 import { PrivateKey } from "@hashgraph/sdk";
 
@@ -197,7 +202,19 @@ export async function buildHcs1Inscription(bytes, mime, limits = {}) {
 // Inscribe bytes. createTopic and submitMessage are injected, so this
 // module never touches a wallet. resume skips topic creation and sends
 // only the indexes not listed in sentIndexes.
-export async function inscribeHcs1({ bytes, mime, createTopic, submitMessage, onProgress, resume } = {}) {
+//
+// suppliedKey belongs to the caller. It is used as-is and never mutated.
+// onTopic is told the topic id before any chunk is sent.
+export async function inscribeHcs1({
+  bytes,
+  mime,
+  createTopic,
+  submitMessage,
+  onProgress,
+  resume,
+  submitKey: suppliedKey,
+  onTopic,
+} = {}) {
   const gate = await assertInscribeGate({ bytes, mime, resume: resume || null });
   if (!gate || gate.ok !== true) {
     const error = new Error("inscribe gate");
@@ -211,31 +228,40 @@ export async function inscribeHcs1({ bytes, mime, createTopic, submitMessage, on
   const built = await buildHcs1Inscription(bytes, mime);
   const sent = sentSet(resume);
   const resuming = !!(resume && resume.topicId);
-  let submitKey = resuming ? resume.submitKey : null;
+  let activeKey = resuming ? resume.submitKey : null;
   let topicId = resuming ? topicString(resume.topicId) : "";
+  if (resuming && activeKey == null && suppliedKey != null) activeKey = suppliedKey;
   if (!resuming) {
-    submitKey = await PrivateKey.generateED25519Async();
-    topicId = topicString(await createTopic({ memo: built.memo, submitKey }));
+    activeKey = suppliedKey != null ? suppliedKey : await PrivateKey.generateED25519Async();
+    topicId = topicString(await createTopic({ memo: built.memo, submitKey: activeKey }));
+    if (typeof onTopic === "function") {
+      try {
+        await onTopic({ topicId, memo: built.memo, total: built.messages.length });
+      } catch {
+        // The topic is already on Hedera. Losing the checkpoint must not
+        // drop it, or the chunks that follow would open a second topic.
+      }
+    }
   }
 
   const progress = typeof onProgress === "function" ? onProgress : null;
   try {
     for (let index = 0; index < built.messages.length; index += 1) {
       if (sent.has(index)) continue;
-      await submitMessage({ topicId, submitKey, message: built.messages[index] });
+      await submitMessage({ topicId, submitKey: activeKey, message: built.messages[index] });
       sent.add(index);
       if (progress) await progress({ sent: sent.size, total: built.messages.length, topicId });
     }
   } catch (err) {
     const error = new Error(err && err.message ? String(err.message) : "hcs-1 submit failed");
     error.topicId = topicId;
-    error.submitKey = submitKey;
+    error.submitKey = activeKey;
     error.sentIndexes = [...sent].sort((a, b) => a - b);
     throw error;
   }
 
   if (resume && typeof resume === "object") resume.submitKey = null;
-  submitKey = null;
+  activeKey = null;
   return {
     topicId,
     hrl: `hcs://1/${topicId}`,

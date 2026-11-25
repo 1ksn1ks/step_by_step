@@ -106,8 +106,12 @@ async function inscribePrepared(prepared, opts = {}) {
     created,
     resumeTopicId: resume && resume.topicId,
     resumeKey: resume && resume.submitKey,
+    submitKey: opts.submitKey,
   });
   order.push(prepared && prepared.mime === "application/json" ? "meta" : "file");
+  if (created && typeof opts.onTopic === "function") {
+    await opts.onTopic({ topicId, memo: `${topicId}-memo:zstd:base64`, total: 2 });
+  }
   if (seenCalls === failOnCall) {
     failOnCall = 0;
     const err = new Error("submit failed");
@@ -621,6 +625,58 @@ test("submit keys are cleared after success and storage is never touched", async
   assert.equal(result.serial, "1");
   assert.equal(result.fileHrl, "hcs://1/0.0.501");
   assert.equal(result.metaHrl, "hcs://1/0.0.502");
+  assertNoStorage();
+});
+
+test("submitKey is shared by both inscriptions and onTopic names the file and the metadata", async () => {
+  reset();
+  const key = { secret: "keep-me", publicKey: { toString() { return "pub-text"; } }, toString() { return "keep-me"; } };
+  const topics = [];
+  await runHashinalMint(args(basePrepared(), {
+    submitKey: key,
+    onTopic: (info) => topics.push({ step: info.step, topicId: info.topicId, total: info.total }),
+  }));
+  assert.equal(inscribes.length, 2);
+  assert.equal(inscribes[0].submitKey, key);
+  assert.equal(inscribes[1].submitKey, key);
+  assert.deepEqual(topics, [
+    { step: "file", topicId: "0.0.501", total: 2 },
+    { step: "meta", topicId: "0.0.502", total: 2 },
+  ]);
+  assert.equal(key.toString(), "keep-me");
+  assert.equal(key.secret, "keep-me");
+  assertNoStorage();
+});
+
+test("a failed mint transaction sets mintFailed and an unconfirmed one does not", async () => {
+  reset();
+  txLook = () => ({ status: "failed", result: "INVALID_SIGNATURE" });
+  const resume = {
+    fileTopicId: "0.0.501",
+    metaTopicId: "0.0.502",
+    mintCheck: {
+      txIds: ["0.0.1001@9.1"],
+      tokenId: "0.0.4242",
+      metadata: "hcs://1/0.0.502",
+    },
+  };
+  const failed = await runHashinalMint(args(basePrepared(), { resume })).then(() => {
+    throw new Error("expected the failed transaction to throw");
+  }, (err) => err);
+  assert.equal(failed.mintFailed, true);
+  assert.equal(failed.mintUnconfirmed, true);
+  assert.equal(failed.userFacing, true);
+  assert.equal(mints.length, 0);
+  assert.match(failed.message, /not minted again/);
+
+  reset();
+  txLook = () => ({ status: "unknown" });
+  const held = await runHashinalMint(args(basePrepared(), { resume })).then(() => {
+    throw new Error("expected the mint to stay unconfirmed");
+  }, (err) => err);
+  assert.equal(held.mintFailed, undefined);
+  assert.equal(held.mintUnconfirmed, true);
+  assert.equal(mints.length, 0);
   assertNoStorage();
 });
 

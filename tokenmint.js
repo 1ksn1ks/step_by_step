@@ -720,3 +720,58 @@ export async function listMyCollections(accountId) {
   }
   return collections;
 }
+
+// Read-only. No wallet prompt. remaining is a decimal string, or null when
+// the supply is unlimited. reason is one of the fixed lines below.
+export async function checkCollectionAccess(tokenId, accountId) {
+  const token = typeof tokenId === "string" ? tokenId.trim() : "";
+  let account = "";
+  try {
+    account = requireAccount(accountId);
+  } catch {
+    return { ok: false, reason: "Could not read the collection" };
+  }
+  if (!ACCOUNT_ID.test(token)) return { ok: false, reason: "Could not read the collection" };
+  let detail;
+  try {
+    detail = await mirrorRead(`${MIRROR_NODE}/api/v1/tokens/${encodeURIComponent(token)}`);
+  } catch {
+    return { ok: false, reason: "Could not read the collection" };
+  }
+  if (!detail || typeof detail !== "object" || Array.isArray(detail)) {
+    return { ok: false, reason: "Could not read the collection" };
+  }
+  if (detail.type !== "NON_FUNGIBLE_UNIQUE") return { ok: false, reason: "Not an NFT collection" };
+  if (detail.deleted === true) return { ok: false, reason: "This collection is deleted" };
+  if (detail.treasury_account_id !== account) {
+    return { ok: false, reason: "Your wallet is not the treasury of this collection" };
+  }
+  let publicKey;
+  try {
+    publicKey = await userPublicKey(account);
+  } catch (err) {
+    if (err && err.userFacing) {
+      return { ok: false, reason: "Your wallet does not hold this collection's supply key" };
+    }
+    return { ok: false, reason: "Could not read the collection" };
+  }
+  if (!sameSupplyKey(publicKey, detail.supply_key)) {
+    return { ok: false, reason: "Your wallet does not hold this collection's supply key" };
+  }
+  const totalSupply = decimalField(detail.total_supply);
+  const maxSupply = decimalField(detail.max_supply);
+  if (totalSupply == null || maxSupply == null) {
+    return { ok: false, reason: "Could not read the collection" };
+  }
+  if (detail.supply_type === "INFINITE") return { ok: true, remaining: null };
+  let remaining;
+  try {
+    const max = BigInt(maxSupply);
+    const total = BigInt(totalSupply);
+    remaining = (max > total ? max - total : 0n).toString();
+  } catch {
+    return { ok: false, reason: "Could not read the collection" };
+  }
+  if (remaining === "0") return { ok: false, reason: "This collection is full" };
+  return { ok: true, remaining };
+}

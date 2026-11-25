@@ -4,9 +4,10 @@
 // key and no server storage.
 //
 // Resume state stays in memory on the thrown error. submitKey is a private
-// key, so it is never written to localStorage, sessionStorage, IndexedDB,
-// or a server. A retry passes that same object back with the same prepared
-// bytes and continues at the failed chunk.
+// key, so this file never writes it to localStorage, sessionStorage,
+// IndexedDB, or a server. A retry passes that same object back with the
+// same prepared bytes and continues at the failed chunk. A non-secret
+// checkpoint (topic id, memo, counts, no key) lives in hashinaljob.js.
 
 import {
   HCS1_INSCRIBE_MAX_BYTES,
@@ -158,8 +159,8 @@ export async function estimateHashinalMint({ prepared, name, description, attrib
 
 // One prepare. The caller keeps the object and passes it back on Resume,
 // so the file is not read or compressed again.
-export async function prepareHashinal(file) {
-  return prepareInscribeFile(file);
+export async function prepareHashinal(file, opts) {
+  return prepareInscribeFile(file, opts);
 }
 
 async function notify(onProgress, event) {
@@ -203,6 +204,7 @@ function failure(step, cause, state) {
   const err = new Error(cause && cause.message ? String(cause.message) : "Hashinal mint failed");
   if (cause && cause.userFacing) err.userFacing = cause.userFacing;
   if (cause && cause.mintUnconfirmed) err.mintUnconfirmed = true;
+  if (cause && cause.mintFailed) err.mintFailed = true;
   err.step = step;
   const next = {};
   if (state.fileTopicId) next.fileTopicId = state.fileTopicId;
@@ -230,6 +232,8 @@ function failure(step, cause, state) {
   return err;
 }
 
+// Clears the key fields on the resume object only. The caller's submitKey
+// is a different binding and is left alone.
 function dropKeys(resume) {
   if (!resume || typeof resume !== "object") return;
   if (Object.prototype.hasOwnProperty.call(resume, "submitKey")) resume.submitKey = null;
@@ -301,7 +305,10 @@ async function lookupMint(check) {
     if (looked && looked.status === "failed") failed = true;
   }
   if (failed) {
-    throw unconfirmed("The mint transaction failed. It was not minted again.");
+    const err = unconfirmed("The mint transaction failed. It was not minted again.");
+    // Hedera said this transaction failed, so a later mint is a new one.
+    err.mintFailed = true;
+    throw err;
   }
   let account = "";
   try {
@@ -323,6 +330,16 @@ async function lookupMint(check) {
   throw unconfirmed("The mint is not on the mirror yet. It was not minted again.");
 }
 
+function topicForward(onTopic, step) {
+  if (typeof onTopic !== "function") return undefined;
+  return (info) => onTopic({
+    step,
+    topicId: info && info.topicId,
+    memo: info && info.memo,
+    total: info && info.total,
+  });
+}
+
 /**
  * File, then metadata, then one NFT. Pass err.resume back as resume to
  * continue from the failed chunk.
@@ -332,6 +349,9 @@ async function lookupMint(check) {
  * again. confirmRemint may be true only after the user agrees to a second
  * mint: that drops mintCheck and calls mintNfts once. resume.minted skips
  * the mint and returns the serial that was already stored.
+ *
+ * submitKey, when passed, signs both inscriptions. It is not stored here.
+ * onTopic reports each topic after it exists and before its first chunk.
  */
 export async function runHashinalMint({
   prepared,
@@ -341,6 +361,8 @@ export async function runHashinalMint({
   attributes,
   creator,
   onProgress,
+  onTopic,
+  submitKey,
   resume,
   confirmRemint = false,
 } = {}) {
@@ -378,6 +400,8 @@ export async function runHashinalMint({
           total: progress && progress.total,
           topicId: progress && progress.topicId,
         }),
+        onTopic: topicForward(onTopic, "file"),
+        submitKey,
         resume: resume && resume.file ? resume.file : undefined,
       });
       state.fileTopicId = topicFrom(result);
@@ -411,6 +435,8 @@ export async function runHashinalMint({
           total: progress && progress.total,
           topicId: progress && progress.topicId,
         }),
+        onTopic: topicForward(onTopic, "meta"),
+        submitKey,
         resume: resume && resume.meta ? resume.meta : undefined,
       });
       state.metaTopicId = topicFrom(result);
