@@ -586,18 +586,29 @@ export function createBatchMinter(options = {}) {
     }
     const chunk = job.links.slice(range.from, range.to);
     if (chunk.length === 0) return { kind: "unknown" };
+    // No transaction to read: each link must show up as its own NFT, made
+    // since this job began. A serial this job already counted, or one an
+    // earlier line of this chunk took (a duplicate link), is not this
+    // line's. A line with nothing left means the chunk is not proven.
+    const claimed = new Set();
+    for (const row of job.minted) {
+      for (const serial of row.serials) claimed.add(String(serial));
+    }
     const serials = [];
     for (const link of chunk) {
       let found = { status: "unknown" };
       try {
-        found = await checkMeta(job.tokenId, job.accountId, link);
+        found = await checkMeta(job.tokenId, job.accountId, link, { since: job.createdAt });
       } catch {
         found = { status: "unknown" };
       }
       if (!found || found.status !== "minted" || !Array.isArray(found.serials) || found.serials.length === 0) {
         return { kind: "unknown" };
       }
-      serials.push(String(found.serials[0]));
+      const serial = found.serials.map((value) => String(value)).find((value) => !claimed.has(value));
+      if (serial === undefined) return { kind: "unknown" };
+      claimed.add(serial);
+      serials.push(serial);
     }
     return { kind: "minted", serials };
   }

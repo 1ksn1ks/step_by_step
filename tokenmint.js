@@ -545,17 +545,41 @@ function decodeNftMetadata(value) {
   }
 }
 
+// A mirror consensus time ("1700000000.123456789") as whole nanoseconds,
+// or null when it is missing or not that shape.
+function mirrorNanos(value) {
+  const text = typeof value === "string" ? value.trim() : "";
+  const match = /^(\d+)\.(\d{1,9})$/.exec(text);
+  if (!match) return null;
+  return BigInt(match[1]) * 1000000000n + BigInt(match[2].padEnd(9, "0"));
+}
+
+// A time in milliseconds as whole nanoseconds, or null when it is not a
+// whole number of milliseconds from 0 up.
+function millisNanos(value) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) return null;
+  return BigInt(value) * 1000000n;
+}
+
 /**
  * Read-only mainnet check. Matches the exact metadata string on NFTs held
  * by accountId. Follows links.next for at most 3 pages. No match, a short
  * page, or a fetch error is "unknown", not "absent".
+ *
+ * options.since (ms): only NFTs the mirror says were created at or after
+ * it count, so one minted earlier with the same metadata is not taken for
+ * a new one. An NFT with no readable created_timestamp is left out then,
+ * and a since that is not a time matches nothing. Without since every
+ * match counts (the Hashinal check).
  */
-export async function checkMintByMetadata(tokenId, accountId, metadata) {
+export async function checkMintByMetadata(tokenId, accountId, metadata, { since } = {}) {
   const token = typeof tokenId === "string" ? tokenId.trim() : "";
   const account = typeof accountId === "string" ? accountId.trim() : "";
   if (!ACCOUNT_ID.test(token) || !ACCOUNT_ID.test(account) || typeof metadata !== "string") {
     return { status: "unknown" };
   }
+  const floor = since == null ? null : millisNanos(since);
+  if (since != null && floor == null) return { status: "unknown" };
   let url = `${MIRROR_NODE}/api/v1/tokens/${token}/nfts?account.id=${encodeURIComponent(account)}&order=desc&limit=100`;
   const serials = [];
   for (let page = 0; page < 3; page++) {
@@ -564,6 +588,10 @@ export async function checkMintByMetadata(tokenId, accountId, metadata) {
     if (!nfts) return serials.length ? { status: "minted", serials } : { status: "unknown" };
     for (const nft of nfts) {
       if (decodeNftMetadata(nft && nft.metadata) !== metadata) continue;
+      if (floor != null) {
+        const created = mirrorNanos(nft.created_timestamp);
+        if (created == null || created < floor) continue;
+      }
       const serial = nft.serial_number;
       if (typeof serial !== "number" && typeof serial !== "string") continue;
       const text = String(serial);
