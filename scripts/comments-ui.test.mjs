@@ -206,6 +206,78 @@ test("the switch starts at Newest, and Top re-sorts the same tree by likes", () 
   assert.doesNotMatch(change, /fetch|getMessages|_setComments/);
 });
 
+test("a reply to a reply names the reply it answers, between its head and text; top-level, direct and deleted rows do not", () => {
+  const names = { "0.0.21": "alice", "0.0.22": "", "0.0.23": "@bob" };
+  const opts = { username: (payer) => names[payer] || "" };
+  // The row's own .comment-main children (not its thread's).
+  const own = (row) => row.children.find((child) => child.classList.contains("comment-main")).children;
+  const replyTo = (row) => own(row).find((child) => child.classList.contains("comment-reply-to")) || null;
+  const tree = comment({ created: t(1), payer: "0.0.20", replies: [
+    comment({ created: t(2), payer: "0.0.21", replies: [
+      comment({ created: t(3), payer: "0.0.22", text: "to alice", replies: [
+        comment({ created: t(4), payer: "0.0.23", text: "to 0.0.22", replies: [
+          comment({ created: t(5), payer: other, text: "to bob" }),
+        ] }),
+      ] }),
+    ] }),
+  ] });
+  const top = buildCommentRow(tree, opts);
+  // Depth first, as now: the direct reply, then 2, 3 and 4 deep.
+  const [d1, d2, d3, d4] = top.querySelectorAll(".comment-row");
+  assert.deepEqual([d1, d2, d3, d4].map((row) => row.dataset.depth), ["1", "2", "3", "4"]);
+  assert.equal(replyTo(top), null);
+  assert.equal(replyTo(d1), null);
+  // The parent's @username, its id when it has none, a stored "@" not doubled.
+  assert.equal(replyTo(d2).textContent, "↳ @alice");
+  assert.equal(replyTo(d3).textContent, "↳ 0.0.22");
+  assert.equal(replyTo(d4).textContent, "↳ @bob");
+  // Between the head and the text, a plain div with no attributes of its own.
+  assert.deepEqual(own(d2).slice(0, 3).map((child) => child.className), ["comment-head", "comment-reply-to", "comment-text"]);
+  assert.equal(replyTo(d2).tagName, "DIV");
+  assert.deepEqual(replyTo(d2).attrs, {});
+  assert.equal(replyTo(d2).listeners.click, undefined);
+
+  // A deleted row says nothing, and neither does a reply under a deleted one.
+  const gone = buildCommentRow(comment({ payer: "0.0.20", replies: [
+    comment({ created: t(2), payer: "0.0.21", replies: [
+      comment({ created: t(3), payer: "0.0.22", deleted: true, text: "", replies: [
+        comment({ created: t(4), payer: "0.0.23" }),
+      ] }),
+    ] }),
+  ] }), opts);
+  const [, deleted, underDeleted] = gone.querySelectorAll(".comment-row");
+  assert.ok(deleted.classList.contains("is-deleted"));
+  assert.equal(replyTo(deleted), null);
+  assert.equal(underDeleted.dataset.depth, "3");
+  assert.equal(replyTo(underDeleted), null);
+  assert.equal(gone.querySelectorAll(".comment-reply-to").length, 0);
+});
+
+test("one level of indent: a thread inside a reply gives back the reply avatar and gap; the new rules use --u only", () => {
+  const css = read("../style.css");
+  const rule = (selector) => {
+    const at = css.indexOf(`\n${selector} {`);
+    assert.ok(at >= 0, selector);
+    return css.slice(at, css.indexOf("}", at) + 1);
+  };
+  const nested = rule(".comment-row.is-reply .comment-replies");
+  assert.match(nested, /margin-left: calc\(var\(--u\) \* -4\.1\);/);
+  assert.match(nested, /padding-left: 0;/);
+  assert.match(nested, /border-left: 0;/);
+  // 4.1u = the reply avatar plus the row gap.
+  assert.match(rule(".comment-row.is-reply > .comment-avatar"), /width: calc\(var\(--u\) \* 3\);/);
+  assert.match(rule(".comment-row"), /gap: calc\(var\(--u\) \* 1\.1\);/);
+  // The top-level thread keeps its indent and line.
+  const top = rule(".comment-replies");
+  assert.match(top, /padding-left: calc\(var\(--u\) \* 1\);/);
+  assert.match(top, /border-left: calc\(var\(--u\) \* 0\.15\) solid var\(--comment-line\);/);
+  const to = rule(".comment-reply-to");
+  for (const line of ["font-size: calc(var(--u) * 1.4);", "color: var(--comment-muted);", "line-height: 1.3;", "min-width: 0;", "overflow: hidden;", "text-overflow: ellipsis;", "white-space: nowrap;"]) {
+    assert.ok(to.includes(line), line);
+  }
+  for (const block of [nested, to]) assert.doesNotMatch(block, /\d(\.\d+)?(px|rem)\b/);
+});
+
 test("the pin rule line: hidden with no collection, the text when there is one, several names included", () => {
   // processallmessages.js commentsPinLine as it is, on this file's DOM.
   const client = read("../processallmessages.js");

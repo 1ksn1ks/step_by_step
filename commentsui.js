@@ -429,6 +429,13 @@ export function buildCommentRow(node, opts = {}, depth = 0, parent = null) {
     }
     main.appendChild(head);
 
+    // A reply to a reply sits at the first reply's indent (style.css), so
+    // this line names the reply it answers, as its row names that person.
+    if (depth >= 2 && parent && !parent.deleted) {
+      const to = commentNameParts(parent.payer, typeof opts.username === 'function' ? opts.username(parent.payer) : '');
+      main.appendChild(make(doc, 'div', 'comment-reply-to', `↳ ${to.name}`));
+    }
+
     if (node.text) {
       const text = make(doc, 'div', 'comment-text', node.text);
       if (opts.textStyle) text.style.cssText = opts.textStyle;
