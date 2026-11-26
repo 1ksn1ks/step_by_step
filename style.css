@@ -5814,8 +5814,21 @@ html, body {
     }
   }
 
+  /* Hidden but still focusable: Tab and Space reach the checkbox, and the
+     label on top keeps drawing the control and taking the taps. */
   .heart-like input {
-    display: none;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .heart-like input:focus-visible + label {
+    outline: 0.2dvh solid #22D3EE;
+    outline-offset: 0.2dvh;
   }
 
   .heart-like label {

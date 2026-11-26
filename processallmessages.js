@@ -1346,6 +1346,17 @@ function writeCount(label, count, next) {
   label.dataset.nextText = formatCount(next);
 }
 
+// The name a screen reader reads: what the control is and the count its
+// label shows right now (a checked label shows data-next).
+function writeAria(input, label, kind) {
+  const n = Number(input.checked ? label.dataset.next : label.dataset.count) || 0;
+  let name;
+  if (kind === 'replies') name = `Replies, ${n}`;
+  else if (kind === 'share') name = `Share, ${n} ${n === 1 ? 'share' : 'shares'}`;
+  else name = `Like, ${n} ${n === 1 ? 'like' : 'likes'}`;
+  input.setAttribute('aria-label', name);
+}
+
 function applyHeartView(node, total, liked) {
   const input = node.querySelector('input');
   const label = node.querySelector('label');
@@ -1353,6 +1364,7 @@ function applyHeartView(node, total, liked) {
   const base = liked ? Math.max(0, total - 1) : total;
   writeCount(label, base, base + 1);
   input.checked = !!liked;
+  writeAria(input, label, node.classList.contains('share-bubble') ? 'share' : 'like');
 }
 
 function publishHeart(key, total, liked) {
@@ -1369,6 +1381,8 @@ function publishComment(key, count) {
     const label = node.querySelector('label');
     if (!label) return;
     writeCount(label, total, total);
+    const input = node.querySelector('input');
+    if (input) writeAria(input, label, 'replies');
   });
 }
 
@@ -1388,12 +1402,16 @@ function createHeartLike({ count, liked, mini, className, onToggle, syncKey }) {
   const label = document.createElement('label');
   label.htmlFor = input.id;
   writeCount(label, base, base + 1);
+  const kind = className === 'share-bubble' ? 'share' : 'like';
+  writeAria(input, label, kind);
   label.appendChild(document.createElement('span'));
   root.appendChild(input);
   root.appendChild(label);
   root.addEventListener('click', (event) => event.stopPropagation());
   let busy = false;
   input.addEventListener('change', async () => {
+    // The toggle flips the shown count (data-next while checked).
+    writeAria(input, label, kind);
     if (busy) return;
     const wantLike = input.checked;
     root.classList.remove('is-pop', 'is-down');
@@ -1404,6 +1422,7 @@ function createHeartLike({ count, liked, mini, className, onToggle, syncKey }) {
       const ok = await onToggle(wantLike);
       if (!ok) {
         input.checked = !wantLike;
+        writeAria(input, label, kind);
         root.classList.remove('is-pop', 'is-down');
       } else if (syncKey) {
         const baseNow = Number(label.dataset.count) || 0;
@@ -1411,6 +1430,7 @@ function createHeartLike({ count, liked, mini, className, onToggle, syncKey }) {
       }
     } catch {
       input.checked = !wantLike;
+      writeAria(input, label, kind);
       root.classList.remove('is-pop', 'is-down');
     }
     busy = false;
@@ -1432,6 +1452,7 @@ function createCommentBubble({ count, mini, onToggle, syncKey }) {
   const label = document.createElement('label');
   label.htmlFor = input.id;
   writeCount(label, total, total);
+  writeAria(input, label, 'replies');
   label.appendChild(document.createElement('span'));
   root.appendChild(input);
   root.appendChild(label);
