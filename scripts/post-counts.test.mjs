@@ -481,25 +481,32 @@ test("a cluster list row names its topic as the popup's chip: the ID, then the n
   assert.equal(topicLookup(["0.0.9 - Nine", "0.0.5 - Five"])("0.0.5"), "Five");
 });
 
-test("only the cluster list's topic line is sized from the screen: the same --fu, font sizes as --fu multiples", () => {
+test("the cluster list row is sized from the screen: one --fu on the row, the topic line as the account line", () => {
   const css = read("../style.css");
   const block = css.slice(css.indexOf("/* The post's topic (markerstack.js)"), css.indexOf("/* The post's likes and views after the account ID"));
   assert.ok(block.length > 100);
   const rules = block.replace(/\/\*[\s\S]*?\*\//g, "");
   const selectors = [...rules.matchAll(/^([^\s{}][^{}]*?)\s*\{/gm)].map((m) => m[1]);
   assert.deepEqual(selectors, [".marker-stack-topic", ".marker-stack-topic-id", ".marker-stack-topic-name"]);
-  assert.match(rules, /\.marker-stack-topic \{\s*--fu: calc\(min\(100dvw, var\(--app-h, 100dvh\)\) \* 0\.024\);/);
+  // The unit is the row's, not the topic line's own.
+  assert.doesNotMatch(rules, /--fu:/);
   const sizes = [...rules.matchAll(/font-size: ([^;]+);/g)].map((m) => m[1]);
-  assert.equal(sizes.length, 3);
-  for (const size of sizes) assert.match(size, /^calc\(var\(--fu\) \* [\d.]+\)$/);
+  assert.deepEqual(sizes, ["calc(var(--fu) * 1.28)", "calc(var(--fu) * 1.28)", "calc(var(--fu) * 1.28)"]);
   assert.doesNotMatch(rules, /\d(\.\d+)?(px|rem|em)\b/);
-  // A row with the topic line is taller than its 52px minimum: in the
-  // scrolling list it keeps that height instead of shrinking to 52px.
-  assert.match(css, /\.marker-stack-row \{\s*display: flex;\s*flex-shrink: 0;[^}]*min-height: 52px;/);
-  // The rest of the list keeps its own rules.
-  assert.match(css, /\.marker-stack-title \{\s*font-size: 14px;/);
-  assert.match(css, /\.marker-stack-meta \{\s*font-size: 12px;/);
-  assert.match(css, /\.marker-stack-account \{\s*font-size: 12px;/);
+  // The ID in the meta's muted colour, the name in the account's, both normal weight.
+  assert.match(rules, /\.marker-stack-topic-id \{[^}]*font-weight: 400;\s*color: rgba\(255, 255, 255, 0\.55\);/);
+  assert.match(rules, /\.marker-stack-topic-name \{[^}]*font-weight: 400;\s*color: rgba\(255, 255, 255, 0\.72\);/);
+  // A row with the topic line is taller than its minimum: in the scrolling
+  // list it keeps that height instead of shrinking to it.
+  const row = css.slice(css.indexOf("\n.marker-stack-row {"), css.indexOf("}", css.indexOf("\n.marker-stack-row {")));
+  assert.match(row, /--fu: calc\(min\(100dvw, var\(--app-h, 100dvh\)\) \* 0\.024\);/);
+  assert.match(row, /display: flex;\s*flex-shrink: 0;/);
+  assert.match(row, /min-height: calc\(var\(--fu\) \* 5\.55\);/);
+  assert.doesNotMatch(row, /\d(\.\d+)?(px|rem)\b/);
+  // The row's text in the same unit: 14 / 12 / 12px on a ~390-wide phone.
+  assert.match(css, /\.marker-stack-title \{\s*font-size: calc\(var\(--fu\) \* 1\.5\);/);
+  assert.match(css, /\.marker-stack-meta \{\s*font-size: calc\(var\(--fu\) \* 1\.28\);/);
+  assert.match(css, /\.marker-stack-account \{\s*font-size: calc\(var\(--fu\) \* 1\.28\);/);
 });
 
 test("nothing is fetched and no view is counted: no popup-view, no live heart, no popup module", () => {
