@@ -21994,6 +21994,13 @@ html.feed-draw-open #map-draw-help-overlay {
 #utility-column-container .nft-toggle-grid > .nft-toggle-row {
   grid-column: 1 / -1;
 }
+/* Its button fills the row with its text centred (the columns' rows stay
+   left). Two ids and the row's classes outweigh the drawer's flex-start
+   and left !important. */
+#utility-column #utility-column-container .nft-toggle-grid > .nft-toggle-row.nft-toggle-col > :is(.toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not(.save-settings-btn):not([style*="display: none"]):not([style*="display:none"]) {
+  justify-content: center !important;
+  text-align: center !important;
+}
 #utility-column-container .nft-toggle-col:not(.nft-toggle-row) > :is(.toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not([style*="display: none"]):not([style*="display:none"]) {
   flex: 1 1 0;
 }
