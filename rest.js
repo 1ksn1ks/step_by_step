@@ -29,6 +29,7 @@ import { pendingChatImage, chatImageBusy, clearPendingChatImage, topicChatWire }
 import { stackedTopicRules } from './topicrules.js';
 import { STACK_MAX, activeStack, addTopicMessage, adminsFromMemo, appIconConfigMessage, autoplayConfigMessage, cleanTopicIds, currentAppIcon, currentAutoplayNft, currentTopicBio, currentTopicName, currentInitialXYZ, isTopicId, removeTopicMessage } from './loadcurrenttopic.js';
 import { readUniqueNft, rememberTopicAutoplay } from './coverautoplay.js';
+import { parsePinInput, validatePinTokens } from './commentpin.js';
 import { isOwnR2Image } from './r2public.js';
 import { isAppIconFile, squareCenterFile } from './imagecompress.js';
 import { uploadFace, uploadPostImage } from './uploadmedia.js';
@@ -1617,6 +1618,29 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
              }
  });
  
+// Missing field, or a blank one: the post goes out with no pin.
+// A bad id or more than five stops the send before the wallet opens.
+async function readCreatePin(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el) return null;
+  const parsed = parsePinInput(el.value);
+  if (!parsed.tokens.length && !parsed.invalid.length) return null;
+  if (parsed.invalid.length) {
+    toast.error("Enter collection ids like 0.0.123");
+    return false;
+  }
+  if (parsed.tooMany) {
+    toast.error("Up to 5 collections");
+    return false;
+  }
+  const check = await validatePinTokens(parsed.tokens);
+  if (!check.ok) {
+    toast.error(`${check.token}: ${check.reason}`);
+    return false;
+  }
+  return { tokens: parsed.tokens };
+}
+
 document.getElementById("submit-button-Create_Marker").addEventListener("click", async () => {
      try {
        if (!signer) {
@@ -1654,6 +1678,9 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
        const images = postImageArray("marker", cleanUrl);
        const cover = await postCover("marker", cleanCoverimage, document.getElementById("submit-button-Create_Marker"));
        const messageObj = {marker: {data: {title: title, image: images, coverimage: [cover], msg: msg, cord: cord }}};
+       const pin = await readCreatePin("comment-pin-marker");
+       if (pin === false) return;
+       if (pin) messageObj.marker.data.commentPin = pin;
        const message = JSON.stringify(messageObj);
        if (utf8ByteLength(message) > HCS_MESSAGE_MAX_BYTES) {
          toast.error(HCS_TOO_LONG);
@@ -1754,6 +1781,9 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
     const images = postImageArray("marker", cleanUrl);
     const cover = await postCover("marker", cleanCoverimage, document.getElementById("submit-button-Create_encrypted-Marker"));
     const messageObj = {marker: {data: {title: title, image: images, coverimage: [cover], msg: msg, cord: cord }}};
+    const pin = await readCreatePin("comment-pin-marker");
+    if (pin === false) return;
+    if (pin) messageObj.marker.data.commentPin = pin;
     const messageStringify = JSON.stringify(messageObj);
     if (utf8ByteLength(messageStringify) > HCS_MESSAGE_MAX_BYTES) {
       toast.error(HCS_TOO_LONG);
@@ -1856,6 +1886,9 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
            }
          }
        };
+       const pin = await readCreatePin("comment-pin-polygon");
+       if (pin === false) return;
+       if (pin) messageObj.polygon.data.commentPin = pin;
        const message = JSON.stringify(messageObj);
        if (utf8ByteLength(message) > HCS_MESSAGE_MAX_BYTES) {
          toast.error(HCS_TOO_LONG);
@@ -1995,6 +2028,9 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
         }
       }
     };
+    const pin = await readCreatePin("comment-pin-polygon");
+    if (pin === false) return;
+    if (pin) messageObj.polygon.data.commentPin = pin;
 
     const messageStringify = JSON.stringify(messageObj);
     if (utf8ByteLength(messageStringify) > HCS_MESSAGE_MAX_BYTES) {

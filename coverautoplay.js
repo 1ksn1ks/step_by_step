@@ -137,14 +137,14 @@ export function tokenIsUniqueNft(info) {
   return !!info && info.deleted !== true && info.type === 'NON_FUNGIBLE_UNIQUE';
 }
 
-function retryAfterHeader(response) {
+export function retryAfterHeader(response) {
   const headers = response && response.headers;
   if (!headers) return null;
   if (typeof headers.get === 'function') return headers.get('retry-after');
   return headers['retry-after'] ?? headers['Retry-After'] ?? null;
 }
 
-function armMirrorPause() {
+export function armMirrorPause() {
   if (mirrorPauseTimer || !mirrorWaiters.length) return;
   const wait = mirrorPauseUntil - Date.now();
   if (wait <= 0) return;
@@ -156,7 +156,7 @@ function armMirrorPause() {
 
 // A free slot is taken now, so the fetch starts before lookupHolds yields.
 // Anything past the limit, or inside a 429 pause, waits for pumpMirror.
-function acquireMirror() {
+export function acquireMirror() {
   if (mirrorActive < MIRROR_HOLD_LIMIT && Date.now() >= mirrorPauseUntil) {
     mirrorActive += 1;
     return null;
@@ -181,12 +181,12 @@ function pumpMirror() {
   }
 }
 
-function releaseMirror() {
+export function releaseMirror() {
   mirrorActive = Math.max(0, mirrorActive - 1);
   pumpMirror();
 }
 
-function pauseMirror(ms) {
+export function pauseMirror(ms) {
   const until = Date.now() + Math.max(0, Number(ms) || 0);
   if (until > mirrorPauseUntil) mirrorPauseUntil = until;
 }

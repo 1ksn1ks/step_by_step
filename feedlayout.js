@@ -4,7 +4,7 @@
 import maplibregl from 'maplibre-gl';
 import { map } from './map.js';
 import { currentUfoModelInGLTF, globalLoadedTopicIdsWithNames } from './letall.js';
-import { markerPopupNode, polygonPopupNode, mountPostReactions, buildPopupProfile, rememberShapeEdit, shapeEditFor, viewsChip as sharedViewsChip, setViewsCount, popupGearIcon, bindPressFeedback, applyMountedCommentTree } from './processallmessages.js';
+import { markerPopupNode, polygonPopupNode, mountPostReactions, buildPopupProfile, rememberShapeEdit, rememberCommentPin, shapeEditFor, viewsChip as sharedViewsChip, setViewsCount, popupGearIcon, bindPressFeedback, applyMountedCommentTree } from './processallmessages.js';
 import { commentImageValue, filterCommentTree, mutationVerdict, nestComments, readCommentEvents, sortCommentTree } from './commentops.js';
 import { BACKEND_URL, fetchMessagesBackend, streamOnTopic, streamOnReconnect, messageSig, fetchFollowing } from './msgbackend.js';
 import { createChunkAssembler, ingestMirrorRows } from './hcschunks.js';
@@ -3497,6 +3497,7 @@ function noteEdit(payer, data, created) {
   const namesPost = data.editMarkerCreated || data.editMarkerTimestamp
     || data.editPolygonCreated || data.editPolygonTimestamp;
   if (!namesPost) return;
+  rememberCommentPin(payer, data, created);
   const hit = rememberShapeEdit(payer, data, created);
   if (!hit) return;
   const iso = createdIso(data.editMarkerCreated || data.editPolygonCreated);
@@ -3712,6 +3713,7 @@ function markerPost(message, data, topic) {
       title: data.title,
       image: data.image,
       coverimage: data.coverimage,
+      commentPin: data.commentPin,
       msg: edit ? edit.msg : data.msg,
       edited: !!edit,
       posterOff: !!(edit && edit.posterOff),
@@ -3770,6 +3772,7 @@ function polygonPost(message, data, topic) {
       title: data.title,
       image: data.image,
       coverimage: data.coverimage,
+      commentPin: data.commentPin,
       msg: edit ? edit.msg : data.msg,
       edited: !!edit,
       posterOff: !!(edit && edit.posterOff),

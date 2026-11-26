@@ -48,6 +48,19 @@ import {
   sortCommentTree,
 } from './commentops.js';
 import {
+  cachedPinned,
+  collectionNames,
+  commentPinFor,
+  commentPinPayers,
+  commentPinText,
+  lookupHolders,
+  parsePinInput,
+  pinTopLevel,
+  rememberCommentPin as storeCommentPin,
+  validatePinTokens,
+  whenCollectionName,
+} from './commentpin.js';
+import {
   COMMENT_MEDIA_ACCEPT,
   COMMENT_MEDIA_TYPES_TEXT,
   COMMENT_STILL_STILL_BIG,
@@ -834,10 +847,33 @@ function paintEditButton() {
 }
 
 // The edit names the post, not its slot: same shape as the delete payload.
-function editPayload(walk, msg, poster) {
+function samePinList(left, right) {
+  if (!left || !right || left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index++) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
+// The pin field, when it is on the page. absent: no field. same: unchanged.
+// change: an ordered list that differs, including [] to clear.
+function pinDraft(walk) {
+  const input = document.getElementById('popup-settings-comment-pin');
+  if (!input || !walk) return { state: 'absent' };
+  const parsed = parsePinInput(input.value);
+  if (parsed.invalid.length) return { state: 'invalid' };
+  if (parsed.tooMany) return { state: 'many' };
+  const current = commentPinFor(walk.payer, walk.created || walk.authorCreated, walk.timestamp, walk.commentPin);
+  if (samePinList(parsed.tokens, current)) return { state: 'same' };
+  return { state: 'change', tokens: parsed.tokens };
+}
+
+function editPayload(walk, msg, poster, pins) {
   const created = messageCreated(walk.created || walk.authorCreated);
   const stamp = walk.timestamp ? String(walk.timestamp) : '';
-  const fields = { msg };
+  const fields = {};
+  if (typeof msg === 'string') fields.msg = msg;
+  if (Array.isArray(pins)) fields.commentPin = { tokens: pins };
   if (poster && poster.posterOff) fields.posterOff = true;
   if (poster && poster.posterV > 0) fields.posterV = Math.floor(poster.posterV);
   const polygon = walk.shape === 'polygon' || walk.kind === 'polygon';
@@ -860,7 +896,9 @@ function editBytesNow() {
   const walk = popupSettingsTarget;
   if (!text || !walk) return 0;
   const cleaned = normalizeMessageNewlines(text.value).trim();
-  const body = editPayload(walk, cleaned, popupPosterDraft);
+  const draft = pinDraft(walk);
+  const changing = draft.state === 'change';
+  const body = editPayload(walk, !cleaned && changing ? undefined : cleaned, popupPosterDraft, changing ? draft.tokens : undefined);
   const outgoing = popupEditKey ? sealedEditOutgoing(body) : JSON.stringify(body);
   return utf8ByteLength(outgoing);
 }
@@ -948,7 +986,24 @@ async function savePopupEdit() {
   const save = document.getElementById('popup-settings-edit-save');
   if (!text) return;
   const cleaned = normalizeMessageNewlines(text.value).trim();
-  if (!cleaned) {
+  const draft = pinDraft(walk);
+  if (draft.state === 'invalid') {
+    toast.error('Enter collection ids like 0.0.123');
+    return;
+  }
+  if (draft.state === 'many') {
+    toast.error('Up to 5 collections');
+    return;
+  }
+  if (draft.state === 'change' && draft.tokens.length) {
+    const check = await validatePinTokens(draft.tokens);
+    if (!check.ok) {
+      toast.error(`${check.token}: ${check.reason}`);
+      return;
+    }
+  }
+  const pinOnly = !cleaned && draft.state === 'change';
+  if (!cleaned && !pinOnly) {
     toast.error('Text is empty');
     return;
   }
@@ -968,7 +1023,7 @@ async function savePopupEdit() {
   if (popupPosterDraft && popupPosterDraft.mode === "custom" && popupPosterDraft.file) {
     poster = { posterV: Date.now() };
   }
-  const body = editPayload(walk, cleaned, poster);
+  const body = editPayload(walk, pinOnly ? undefined : cleaned, poster, draft.state === 'change' ? draft.tokens : undefined);
   popupEditBusy = true;
   try {
     if (poster && videoUrl) {
@@ -1007,7 +1062,10 @@ async function savePopupEdit() {
     }
     toast.success('Saved');
     // Apply locally right away; the topic stream confirms the same edit.
-    rememberShapeEdit(connectedAccount, (body.marker || body.polygon).data, new Date().toISOString());
+    const sent = (body.marker || body.polygon).data;
+    const sentAt = new Date().toISOString();
+    if (typeof sent.msg === 'string') rememberShapeEdit(connectedAccount, sent, sentAt);
+    rememberCommentPin(connectedAccount, sent, sentAt);
     hideEditComposer();
   } catch (error) {
     console.error('popup edit failed', error);
@@ -1495,14 +1553,30 @@ function reactionHost() {
   return host;
 }
 
+// Handed to buildCommentsSection for the one call that builds the section.
+// The section's argument list stays as it is.
+let pendingCommentPinPost = null;
+
+function commentPinPostOf(data) {
+  return {
+    payer: data && data.payer,
+    created: data && data.created,
+    stamp: data && data.timestamp,
+    base: data && data.commentPin,
+  };
+}
+
 function ensurePostComments(data, kind, id, comments, syncKey) {
+  const pinPost = commentPinPostOf(data);
   const existing = document.getElementById(id);
   if (existing) {
+    existing._pinPost = pinPost;
     if (syncKey) existing._commentSync = syncKey;
     if (typeof existing._setComments === 'function') existing._setComments(comments || []);
     return existing;
   }
   const polygon = kind === 'polygon';
+  pendingCommentPinPost = pinPost;
   const section = buildCommentsSection(
     id,
     comments,
@@ -1802,6 +1876,33 @@ export function rememberShapeEdit(payer, data, envelope) {
   for (const [map, key] of slots) map.set(key, entry);
   applyShapeEditToDom(payer, created, stamp, msg);
   return entry;
+}
+
+// A pin edit may carry no msg. It is not a shape edit and does not mark
+// the post edited. The newest message from the original payer wins.
+export function rememberCommentPin(payer, data, envelope) {
+  const hit = storeCommentPin(payer, data, envelope);
+  if (hit) repaintPinnedSections(payer, data);
+  return hit;
+}
+
+export { commentPinFor };
+
+function repaintPinnedSections(payer, data) {
+  if (!payer || !data || typeof document === 'undefined' || !document.querySelectorAll) return;
+  const created = messageCreated(data.editMarkerCreated || data.editPolygonCreated);
+  const stampRaw = data.editMarkerTimestamp != null ? data.editMarkerTimestamp : data.editPolygonTimestamp;
+  const stamp = stampRaw != null && String(stampRaw).trim() !== '' ? String(stampRaw) : '';
+  for (const section of document.querySelectorAll('.popup-comments')) {
+    const post = section._pinPost;
+    if (!post || post.payer !== payer) continue;
+    const iso = messageCreated(post.created);
+    const postStamp = post.stamp != null && String(post.stamp).trim() !== '' ? String(post.stamp) : '';
+    const byCreated = !!(created && iso && iso === created);
+    const byStamp = !!(stamp && postStamp && postStamp === stamp);
+    if (!byCreated && !byStamp) continue;
+    if (typeof section._applyPin === 'function') section._applyPin();
+  }
 }
 
 // A live edit rewrites the text of every open post popup for the target
@@ -3435,6 +3536,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
 
                 rememberShapeDelete(markerOwner, 'numberOfMarker', parsedMessage.marker.data);
                 rememberShapeEdit(message.payer, parsedMessage.marker.data, (message && message.created) || parsedMessage.created);
+                rememberCommentPin(message.payer, parsedMessage.marker.data, (message && message.created) || parsedMessage.created);
 
                 // A stored whole number keeps dedup. No number is a new post.
                 // A delete matches the post's created time or timestamp.
@@ -3472,6 +3574,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                       title: parsedMessage.marker.data.title,
                       image: parsedMessage.marker.data.image,
                       coverimage: parsedMessage.marker.data.coverimage,
+                      commentPin: parsedMessage.marker.data.commentPin,
                       msg: editedMsg(parsedMessage.marker.data.msg, message.payer, messageCreated(postCreated), timestamp),
                       edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                       timestamp,
@@ -3518,6 +3621,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
 
                 rememberShapeDelete(polygonOwner, 'numberOfPolygon', parsedMessage.polygon.data);
                 rememberShapeEdit(message.payer, parsedMessage.polygon.data, (message && message.created) || parsedMessage.created);
+                rememberCommentPin(message.payer, parsedMessage.polygon.data, (message && message.created) || parsedMessage.created);
 
                 const postCreated = (message && message.created) || parsedMessage.created;
                 const polygonnumber = legacyPolygonNumber == null
@@ -3552,6 +3656,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
                         title: parsedMessage.polygon.data.title,
                         image: parsedMessage.polygon.data.image,
                         coverimage: parsedMessage.polygon.data.coverimage,
+                        commentPin: parsedMessage.polygon.data.commentPin,
                         msg: editedMsg(parsedMessage.polygon.data.msg, message.payer, messageCreated(postCreated), timestamp),
                         edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                         timestamp,
@@ -3682,6 +3787,7 @@ function bindWalk(record, walk) {
     timestamp: record.timestamp || '',
     kind: record.kind === 'polygon' || walk.shape === 'polygon' ? 'polygon' : 'marker',
     image: firstMediaUrl(record.image),
+    commentPin: record.commentPin,
   };
   const step = record.walk;
   if (walk.shape === 'polygon') {
@@ -4496,6 +4602,8 @@ function commentOutgoingBytes(state, polygon, timestamp) {
 // delete helpers name. The same section serves all three shells: the feed
 // page, the landscape card and the popup card (showCommentsModal).
 function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, syncKey, postTimestamp) {
+  const pinPost = pendingCommentPinPost || {};
+  pendingCommentPinPost = null;
   const section = document.createElement('div');
   section.id = id;
   section.classList.add('popup-comments');
@@ -4507,6 +4615,14 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
   // and repaints it; nothing is fetched. The mode holds through live
   // updates and sends until the comments view closes.
   section._sortMode = DEFAULT_COMMENT_SORT;
+  section._pinPost = pinPost;
+  const currentTokens = () => commentPinFor(
+    section._pinPost.payer,
+    section._pinPost.created,
+    section._pinPost.stamp,
+    section._pinPost.base,
+  );
+  let pinEpoch = 0;
   const sortBar = buildSortToggle({
     value: section._sortMode,
     onChange: (mode) => {
@@ -4580,9 +4696,33 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
     },
   });
 
+  const paintPinInfo = (tokens) => {
+    if (tokens.length) section.dataset.commentPin = tokens.join(',');
+    else delete section.dataset.commentPin;
+    const names = collectionNames(tokens);
+    const text = tokens.length ? commentPinText(tokens, names) : '';
+    if (typeof section._paintPin === 'function') section._paintPin({ tokens, names, text });
+    if (!tokens.length || typeof section._paintPin !== 'function') return;
+    const snapshot = tokens.join(',');
+    for (const token of tokens) {
+      if (names[token]) continue;
+      whenCollectionName(token).then((name) => {
+        if (!name || !section.isConnected) return;
+        if (currentTokens().join(',') !== snapshot) return;
+        const nextNames = collectionNames(tokens);
+        const nextText = commentPinText(tokens, nextNames);
+        section._paintPin({ tokens, names: nextNames, text: nextText });
+      }).catch(() => {});
+    }
+  };
+
   const paintList = (items) => {
     list.replaceChildren();
-    const view = sortCommentTree(filterCommentTree(items || []), section._sortMode);
+    const sorted = sortCommentTree(filterCommentTree(items || []), section._sortMode);
+    const tokens = currentTokens();
+    const view = tokens.length
+      ? pinTopLevel(sorted, (payer) => cachedPinned(payer, tokens) === true)
+      : sorted;
     if (view.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'comments-empty';
@@ -4594,6 +4734,16 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
     sortBar.hidden = view.length === 0;
     section._view = view;
     if (section._commentSync) publishComment(section._commentSync, countAllMessages(view));
+    paintPinInfo(tokens);
+    if (!tokens.length) return;
+    const epoch = ++pinEpoch;
+    const snapshot = tokens.join(',');
+    lookupHolders(commentPinPayers(sorted), tokens).then((changed) => {
+      if (!changed || epoch !== pinEpoch) return;
+      if (!section.isConnected) return;
+      if (currentTokens().join(',') !== snapshot) return;
+      paintList(section._tree || []);
+    }).catch(() => {});
   };
 
   const overlayMatches = (tree, overlay) => {
@@ -4653,6 +4803,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
     sortBar.setSortMode(DEFAULT_COMMENT_SORT);
     paintList(section._tree || []);
   };
+  section._applyPin = () => paintList(section._tree || []);
   repaint(section._base);
   section.appendChild(sortBar);
   section.appendChild(list);
@@ -6171,6 +6322,7 @@ if (rawResult && Array.isArray(rawResult)) {
 
                 rememberShapeDelete(markerOwner, 'numberOfMarker', parsedMessage.marker.data);
                 rememberShapeEdit(message.payer, parsedMessage.marker.data, (message && message.created) || parsedMessage.created);
+                rememberCommentPin(message.payer, parsedMessage.marker.data, (message && message.created) || parsedMessage.created);
 
                 // A stored whole number keeps dedup. No number is a new post.
                 // A delete matches the post's created time or timestamp.
@@ -6208,6 +6360,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       title: parsedMessage.marker.data.title,
                       image: parsedMessage.marker.data.image,
                       coverimage: parsedMessage.marker.data.coverimage,
+                      commentPin: parsedMessage.marker.data.commentPin,
                       msg: editedMsg(parsedMessage.marker.data.msg, message.payer, messageCreated(postCreated), timestamp),
                       edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                       timestamp,
@@ -6254,6 +6407,7 @@ if (rawResult && Array.isArray(rawResult)) {
 
                 rememberShapeDelete(polygonOwner, 'numberOfPolygon', parsedMessage.polygon.data);
                 rememberShapeEdit(message.payer, parsedMessage.polygon.data, (message && message.created) || parsedMessage.created);
+                rememberCommentPin(message.payer, parsedMessage.polygon.data, (message && message.created) || parsedMessage.created);
 
                 const postCreated = (message && message.created) || parsedMessage.created;
                 const polygonnumber = legacyPolygonNumber == null
@@ -6288,6 +6442,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         title: parsedMessage.polygon.data.title,
                         image: parsedMessage.polygon.data.image,
                         coverimage: parsedMessage.polygon.data.coverimage,
+                        commentPin: parsedMessage.polygon.data.commentPin,
                         msg: editedMsg(parsedMessage.polygon.data.msg, message.payer, messageCreated(postCreated), timestamp),
                         edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                         timestamp,
@@ -6825,6 +6980,7 @@ if (rawResult && Array.isArray(rawResult)) {
 
                 rememberShapeDelete(markerOwner, 'numberOfMarker', parsedMessage.marker.data);
                 rememberShapeEdit(message.payer, parsedMessage.marker.data, (message && message.created) || parsedMessage.created);
+                rememberCommentPin(message.payer, parsedMessage.marker.data, (message && message.created) || parsedMessage.created);
 
                 // A stored whole number keeps dedup. No number is a new post.
                 // A delete matches the post's created time or timestamp.
@@ -6862,6 +7018,7 @@ if (rawResult && Array.isArray(rawResult)) {
                       title: parsedMessage.marker.data.title,
                       image: parsedMessage.marker.data.image,
                       coverimage: parsedMessage.marker.data.coverimage,
+                      commentPin: parsedMessage.marker.data.commentPin,
                       msg: editedMsg(parsedMessage.marker.data.msg, message.payer, messageCreated(postCreated), timestamp),
                       edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                       timestamp,
@@ -6911,6 +7068,7 @@ if (rawResult && Array.isArray(rawResult)) {
 
                 rememberShapeDelete(polygonOwner, 'numberOfPolygon', parsedMessage.polygon.data);
                 rememberShapeEdit(message.payer, parsedMessage.polygon.data, (message && message.created) || parsedMessage.created);
+                rememberCommentPin(message.payer, parsedMessage.polygon.data, (message && message.created) || parsedMessage.created);
 
                 const postCreated = (message && message.created) || parsedMessage.created;
                 const polygonnumber = legacyPolygonNumber == null
@@ -6945,6 +7103,7 @@ if (rawResult && Array.isArray(rawResult)) {
                         title: parsedMessage.polygon.data.title,
                         image: parsedMessage.polygon.data.image,
                         coverimage: parsedMessage.polygon.data.coverimage,
+                        commentPin: parsedMessage.polygon.data.commentPin,
                         msg: editedMsg(parsedMessage.polygon.data.msg, message.payer, messageCreated(postCreated), timestamp),
                         edited: hasShapeEdit(message.payer, messageCreated(postCreated), timestamp),
                         timestamp,
