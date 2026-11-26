@@ -4,7 +4,8 @@
 // The cases below run here instead, with the real tokenmint.js
 // checkMintByMetadata and a stand-in mirror (fetch): a chunk with no
 // transaction to read is proven only by its own NFTs, one per line, made
-// since the job began.
+// since two minutes before the job began. A serial already counted is
+// still not reused.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -30,6 +31,10 @@ const NOW_MS = 1700000000000;
 const BEFORE = "1699999999.999999999";
 const AT = "1700000000.000000000";
 const AFTER = "1700000001.000000000";
+// 60 s before createdAt is inside the two-minute clock allowance.
+// 10 min before is not.
+const SKEW_60S = "1699999940.000000000";
+const EARLY_10M = "1699999400.000000000";
 
 // The wallet's NFTs of TOKEN as the mirror lists them (newest first).
 let held = [];
@@ -117,8 +122,8 @@ test("a duplicate link in one chunk does not borrow the serial an earlier line t
 });
 
 test("a link minted before the job began does not count for it", async () => {
-  // This list was minted once before: the wallet already holds that NFT.
-  held = [nft(3, "ipfs://old", BEFORE)];
+  // Ten minutes before the job, outside the two-minute clock allowance.
+  held = [nft(3, "ipfs://old", EARLY_10M)];
   fetched.length = 0;
   const { made } = minter(["ipfs://old"], async () => { throw maybeSent(); });
   const state = await made.start();
@@ -133,6 +138,21 @@ test("a link minted before the job began does not count for it", async () => {
   const done = await at.made.start();
   assert.equal(done.status, "done");
   assert.deepEqual(serialsOf(done), [["3"]]);
+});
+
+test("an NFT stamped 60 s before createdAt still counts, and one stamped 10 min before does not", async () => {
+  held = [nft(3, "ipfs://old", SKEW_60S)];
+  const recent = minter(["ipfs://old"], async () => { throw maybeSent(); });
+  const done = await recent.made.start();
+  assert.equal(done.status, "done");
+  assert.deepEqual(serialsOf(done), [["3"]]);
+
+  held = [nft(3, "ipfs://old", EARLY_10M)];
+  const early = minter(["ipfs://old"], async () => { throw maybeSent(); });
+  const state = await early.made.start();
+  assert.equal(state.status, "unconfirmed");
+  assert.equal(state.cursor, 0);
+  assert.deepEqual(state.minted, []);
 });
 
 test("a serial the job already counted is not counted again for a later chunk", async () => {
@@ -185,7 +205,7 @@ test("a job saved in the same shape still loads, and Check again uses its create
   const never = async () => { throw new Error("must not mint"); };
   const { made } = minter([], never, storage);
   assert.equal(made.state().status, "unconfirmed");
-  held = [nft(4, "ipfs://x", BEFORE)];
+  held = [nft(4, "ipfs://x", EARLY_10M)];
   assert.equal((await made.recheck()).status, "unconfirmed");
   held = [nft(4, "ipfs://x", AFTER)];
   const done = await made.recheck();
