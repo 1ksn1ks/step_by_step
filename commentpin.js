@@ -25,6 +25,7 @@ export const HOLDER_RETRY_MS = 30 * 1000;
 const NAME_MS = 60 * 60 * 1000;
 const NAME_CLIP = 40;
 const HOLDER_429_TRIES = 4;
+const HOLDER_ACCOUNTS = 4;
 const TOKEN_READS = 3;
 
 const pinByCreated = new Map();
@@ -295,7 +296,8 @@ function readHolder(account, token, read, now) {
 }
 
 // One account's tokens run in order, so a cached hold skips the rest.
-// The batch resolves with whether any pair gained an answer.
+// At most HOLDER_ACCOUNTS accounts run at once. The batch resolves with
+// whether any pair gained an answer.
 export async function lookupHolders(accounts, tokens, read = fetchImpl, now = clock()) {
   const ids = [];
   const seenAccounts = new Set();
@@ -315,7 +317,7 @@ export async function lookupHolders(accounts, tokens, read = fetchImpl, now = cl
   }
   if (!ids.length || !nfts.length) return false;
   const box = { changed: false };
-  await Promise.all(ids.map(async (account) => {
+  const readAccount = async (account) => {
     for (const token of nfts) {
       const known = cachedHolder(account, token, now);
       if (known === true) return;
@@ -324,6 +326,15 @@ export async function lookupHolders(accounts, tokens, read = fetchImpl, now = cl
       const stored = await readHolder(account, token, read, now);
       if (stored) box.changed = true;
       if (cachedHolder(account, token, now) === true) return;
+    }
+  };
+  let next = 0;
+  const workers = Math.min(HOLDER_ACCOUNTS, ids.length);
+  await Promise.all(Array.from({ length: workers }, async () => {
+    while (next < ids.length) {
+      const account = ids[next];
+      next += 1;
+      await readAccount(account);
     }
   }));
   return box.changed;

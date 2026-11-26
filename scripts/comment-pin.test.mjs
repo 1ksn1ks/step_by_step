@@ -169,6 +169,16 @@ test.describe("comment pin", { concurrency: 1 }, () => {
     assert.deepEqual(commentPinPayers(rows, 1), ["0.0.1"]);
     assert.deepEqual(commentPinPayers(rows, 100), ["0.0.1", "0.0.2"]);
     assert.deepEqual(rows.map((item) => item.payer), before);
+
+    const many = Array.from({ length: 35 }, (_, i) => node(
+      `0.0.${i + 1}`,
+      new Date(Date.UTC(2026, 0, 1, 0, 0, i)).toISOString(),
+    ));
+    const newestThirty = commentPinPayers(many, 30);
+    assert.equal(newestThirty.length, 30);
+    assert.equal(newestThirty[0], "0.0.35");
+    assert.equal(newestThirty[29], "0.0.6");
+    assert.equal(commentPinPayers(many).length, 35);
   });
 
   test("the holder store pins any listed collection and keeps failures unknown", async () => {
@@ -298,6 +308,59 @@ test.describe("comment pin", { concurrency: 1 }, () => {
       assert.equal(cachedHolder("0.0.30", "0.0.7"), true);
     } finally {
       release();
+      clearAutoplayState();
+    }
+  });
+
+  test("lookupHolders reads at most 4 accounts at once", async () => {
+    clearCommentPinState();
+    clearAutoplayState();
+    let active = 0;
+    let max = 0;
+    const gates = [];
+    setCommentPinIO({
+      fetch: () => {
+        active += 1;
+        max = Math.max(max, active);
+        return new Promise((resolve) => {
+          gates.push(() => {
+            active -= 1;
+            resolve(okBody({ nfts: [] }));
+          });
+        });
+      },
+    });
+    const accounts = Array.from({ length: 8 }, (_, i) => `0.0.${200 + i}`);
+    const pending = lookupHolders(accounts, ["0.0.9"]);
+    try {
+      assert.equal(gates.length, 4);
+      assert.equal(max, 4);
+      while (gates.length) {
+        gates.shift()();
+        for (let i = 0; i < 8; i += 1) await Promise.resolve();
+      }
+      assert.equal(await pending, true);
+      assert.equal(max, 4);
+      assert.equal(gates.length, 0);
+
+      // A known hold ends that account only. Later accounts are still read.
+      clearCommentPinState();
+      const held = new Set(["0.0.201", "0.0.202", "0.0.203", "0.0.204"]);
+      const seen = [];
+      setCommentPinIO({
+        fetch: (url) => {
+          const account = (url.match(/accounts\/(0\.0\.\d+)/) || [])[1];
+          seen.push(account);
+          return okBody({ nfts: held.has(account) ? [{}] : [] });
+        },
+      });
+      await lookupHolders(
+        ["0.0.201", "0.0.202", "0.0.203", "0.0.204", "0.0.205", "0.0.206"],
+        ["0.0.9"],
+      );
+      assert.deepEqual(seen, ["0.0.201", "0.0.202", "0.0.203", "0.0.204", "0.0.205", "0.0.206"]);
+    } finally {
+      while (gates.length) gates.shift()();
       clearAutoplayState();
     }
   });

@@ -779,7 +779,7 @@ test("a holder lookup repaints comments only when the pinned payers change, and 
   const restored = paint.indexOf("if (scroller) scroller.scrollTop = savedTop;");
   assert.ok(saved >= 0 && saved < replaced && restored > replaced);
 
-  const lookup = paint.indexOf("lookupHolders(commentPinPayers(sorted), tokens)");
+  const lookup = paint.indexOf("lookupHolders(commentPinPayers(sorted, 30), tokens)");
   const recorded = paint.lastIndexOf("pinnedPayers(sorted, tokens)", lookup);
   assert.ok(recorded >= 0 && recorded < lookup);
   assert.match(build, /cachedPinned\(payer, tokens\) === true/);

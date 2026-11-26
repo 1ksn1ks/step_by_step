@@ -4791,7 +4791,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
     const epoch = ++pinEpoch;
     const snapshot = tokens.join(',');
     const pinned = pinnedPayers(sorted, tokens);
-    lookupHolders(commentPinPayers(sorted), tokens).then((changed) => {
+    lookupHolders(commentPinPayers(sorted, 30), tokens).then((changed) => {
       if (!changed || epoch !== pinEpoch) return;
       if (!section.isConnected) return;
       if (currentTokens().join(',') !== snapshot) return;
