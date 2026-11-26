@@ -3,6 +3,73 @@ import { load3dModels, loadDayNight } from './loadP2PModels.js';
 import maplibregl from 'maplibre-gl';
 import { toast } from './toast';
 
+// OpenFreeMap Liberty layers held back on the zoomed-out globe.
+// The number is the zoom where that layer first appears. Casing and fill
+// of one road class share a value so they show up together.
+const BASE_MAP_MINZOOM = {
+  road_motorway: 8,
+  road_motorway_casing: 8,
+  tunnel_motorway: 8,
+  tunnel_motorway_casing: 8,
+  bridge_motorway: 8,
+  bridge_motorway_casing: 8,
+  road_trunk_primary: 10,
+  road_trunk_primary_casing: 10,
+  tunnel_trunk_primary: 10,
+  tunnel_trunk_primary_casing: 10,
+  bridge_trunk_primary: 10,
+  bridge_trunk_primary_casing: 10,
+  road_secondary_tertiary: 11,
+  road_secondary_tertiary_casing: 11,
+  tunnel_secondary_tertiary: 11,
+  tunnel_secondary_tertiary_casing: 11,
+  bridge_secondary_tertiary: 11,
+  bridge_secondary_tertiary_casing: 11,
+  road_minor_casing: 15,
+  tunnel_street_casing: 15,
+  bridge_street_casing: 15,
+  road_minor: 17,
+  tunnel_minor: 17,
+  road_service_track_casing: 18,
+  tunnel_service_track_casing: 18,
+  bridge_service_track_casing: 18,
+  road_major_rail: 17,
+  road_transit_rail: 17,
+  tunnel_major_rail: 17,
+  tunnel_transit_rail: 17,
+  bridge_major_rail: 17,
+  bridge_transit_rail: 17,
+  road_major_rail_hatching: 18,
+  road_transit_rail_hatching: 18,
+  tunnel_major_rail_hatching: 18,
+  tunnel_transit_rail_hatching: 18,
+  bridge_major_rail_hatching: 18,
+  bridge_transit_rail_hatching: 18,
+  road_area_pattern: 14,
+  'highway-shield-us-interstate': 10,
+  'highway-shield-non-us': 11,
+  road_shield_us: 12,
+  park: 8,
+  park_outline: 8,
+  landuse_residential: 11,
+  landuse_pitch: 12,
+  landuse_track: 12,
+  landuse_cemetery: 12,
+  landuse_hospital: 12,
+  landuse_school: 12,
+  landcover_wood: 7,
+  landcover_grass: 7,
+  waterway_river: 14,
+  waterway_tunnel: 12,
+  waterway_other: 16,
+  waterway_line_label: 13,
+  boundary_3: 8,
+  label_town: 9,
+  label_other: 11,
+  label_village: 12,
+  poi_transit: 14,
+};
+
 export const map = new maplibregl.Map({
     container: "map",
     style: "https://tiles.openfreemap.org/styles/liberty",
@@ -57,7 +124,20 @@ export const map = new maplibregl.Map({
     if (roadShieldLayer) {
       map.setLayoutProperty(roadShieldLayer.id, "visibility", "none");
     }
-  
+
+    // style.load can run again. Setting the same range twice changes nothing.
+    // A missing layer, or one call that throws, still leaves the models to load.
+    for (const [id, minzoom] of Object.entries(BASE_MAP_MINZOOM)) {
+      try {
+        const layer = map.getLayer(id);
+        if (!layer) continue;
+        const maxzoom = layer.maxzoom === undefined ? 24 : layer.maxzoom;
+        map.setLayerZoomRange(id, minzoom, maxzoom);
+      } catch {
+        // Keep going. The 3D models and the day/night shade load below.
+      }
+    }
+
     map.addLayer(await load3dModels());
     map.addLayer(await loadDayNight()); // day/night shade — own layer, topmost so it blends over the bots
     });
