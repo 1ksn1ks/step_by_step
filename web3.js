@@ -271,8 +271,17 @@ function paintAskYes() {
   askYes.style.removeProperty('color');
 }
 
+// Whoever opened the confirm (the toolbar button, or the intro chip).
+let askReturn = null;
+
 function hideAsk() {
   ask.hidden = true;
+  const back = askReturn;
+  askReturn = null;
+  if (back && typeof back.focus === 'function' && document.contains(back)) {
+    back.focus({ preventScroll: true });
+    return;
+  }
   disconnectBtn.focus({ preventScroll: true });
 }
 
@@ -293,6 +302,7 @@ function ensureAskLayer() {
 function showAsk(push) {
   const id = accountForAsk();
   if (!id) return;
+  if (ask.hidden) askReturn = document.activeElement;
   askAccount.textContent = id;
   paintAskYes();
   ask.hidden = false;

@@ -431,6 +431,14 @@ function connectFromIntro() {
   finally { connect.skipOverlayClose = false; }
 }
 
+// The toolbar's Disconnect. That click opens the existing confirm and
+// leaves the intro up behind it.
+function disconnectFromIntro() {
+  const disconnect = document.getElementById('disconnect-wallet-btn');
+  if (!disconnect) return;
+  disconnect.click();
+}
+
 // Disconnected: "Connect". Connected: the drawer account row's picture, then
 // the name over the full id, as the post header shows a profile (the id
 // alone when there is no name; never "Anonymous"). Nothing else on the
@@ -440,7 +448,7 @@ function paintIntroWallet() {
   const id = introAccount();
   const name = id ? profileUsername(id) : '';
   walletBtn.classList.toggle('is-connected', !!id);
-  walletBtn.setAttribute('aria-label', id ? `Wallet ${name ? `${name} ` : ''}${id}` : 'Connect wallet');
+  walletBtn.setAttribute('aria-label', id ? `Disconnect wallet ${id}` : 'Connect wallet');
   if (!id) {
     walletFace = null;
     walletCopy = null;
@@ -553,8 +561,8 @@ function build() {
   walletBtn.className = 'onboard-wallet';
   walletBtn.onclick = (e) => {
     e.stopPropagation();
-    if (introAccount()) return;
-    connectFromIntro();
+    if (introAccount()) disconnectFromIntro();
+    else connectFromIntro();
   };
   card.appendChild(walletBtn);
 

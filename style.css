@@ -6862,7 +6862,7 @@ html, body {
     gap: 0.5vh;
     padding: 0.5vh 1vh 0.5vh 0.5vh;
     white-space: normal;
-    cursor: default;
+    cursor: pointer;
   }
   .onboard-wallet.is-connected:has(.onboard-wallet-name) {
     --wallet-face: max(2em, 3.6vh);

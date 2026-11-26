@@ -12,6 +12,7 @@ function source(rel) {
 
 const page = source("../onboarding.js");
 const css = source("../style.css");
+const web3 = source("../web3.js");
 
 // The whole `function name(...) { ... }` text.
 function fn(src, name) {
@@ -97,8 +98,16 @@ function harness(options = {}) {
       if (options.clickThrows) throw new Error("click failed");
     },
   };
+  const disconnect = options.noDisconnect ? null : {
+    clicks: 0,
+    click() { this.clicks += 1; },
+  };
   const document = {
-    getElementById(id) { return id === "connect-wallet-btn" ? connect : null; },
+    getElementById(id) {
+      if (id === "connect-wallet-btn") return connect;
+      if (id === "disconnect-wallet-btn") return disconnect;
+      return null;
+    },
     createElement: fakeNode,
   };
   const button = fakeNode("button");
@@ -137,10 +146,13 @@ function harness(options = {}) {
     let walletId = null;
     ${fn(page, "introAccount")}
     ${fn(page, "connectFromIntro")}
+    ${fn(page, "disconnectFromIntro")}
     ${fn(page, "paintIntroWallet")}
+    ${page.slice(page.indexOf("walletBtn.onclick = "), page.indexOf("card.appendChild(walletBtn);"))}
     return {
       introAccount,
       connectFromIntro,
+      disconnectFromIntro,
       paintIntroWallet,
       play(account) { connectedAccount = account; },
       drop() { walletBtn = null; },
@@ -148,7 +160,7 @@ function harness(options = {}) {
   `;
   env.connectedAccount = options.account === undefined ? null : options.account;
   const api = new Function("env", body)(env);
-  return { api, button, connect, calls, names: env.names };
+  return { api, button, connect, disconnect, calls, names: env.names };
 }
 
 test("the account comes from connectedAccount when it is an account id", () => {
@@ -190,6 +202,31 @@ test("a click that throws still resets skipOverlayClose, and no button is a no-o
   assert.doesNotThrow(() => missing.api.connectFromIntro());
 });
 
+test("a connected tap opens the disconnect confirm; a disconnected tap still connects", () => {
+  const { api, button, connect, disconnect } = harness({ account: "0.0.4819119" });
+  const stopped = [];
+  button.onclick({ stopPropagation() { stopped.push(true); } });
+  assert.equal(disconnect.clicks, 1);
+  assert.equal(connect.clicks, 0);
+  assert.deepEqual(stopped, [true]);
+
+  api.play(null);
+  button.onclick({ stopPropagation() { stopped.push(true); } });
+  assert.equal(connect.clicks, 1);
+  assert.deepEqual(connect.seenSkip, [true]);
+  assert.equal(connect.skipOverlayClose, false);
+  assert.equal(disconnect.clicks, 1);
+  assert.deepEqual(stopped, [true, true]);
+
+  const gone = harness({ account: "0.0.12", noDisconnect: true });
+  assert.doesNotThrow(() => gone.button.onclick({ stopPropagation() {} }));
+  assert.equal(gone.connect.clicks, 0);
+
+  const open = fn(page, "disconnectFromIntro");
+  assert.match(open, /getElementById\('disconnect-wallet-btn'\)/);
+  assert.doesNotMatch(open, /skipOverlayClose|slideIndex|renderSlide|closeOnboarding/);
+});
+
 test("disconnected the button says Connect, connected it is the picture and id", () => {
   const { api, button, calls } = harness();
   api.paintIntroWallet();
@@ -202,7 +239,7 @@ test("disconnected the button says Connect, connected it is the picture and id",
   api.play("0.0.4819119");
   api.paintIntroWallet();
   assert.equal(button.classList.contains("is-connected"), true);
-  assert.equal(button.attrs["aria-label"], "Wallet 0.0.4819119");
+  assert.equal(button.attrs["aria-label"], "Disconnect wallet 0.0.4819119");
   assert.equal(button.children.length, 2);
   const [face, copy] = button.children;
   assert.equal(face.className, "onboard-wallet-face");
@@ -236,7 +273,7 @@ test("disconnected the button says Connect, connected it is the picture and id",
   api.paintIntroWallet();
   assert.equal(id.textContent, "0.0.77");
   assert.equal(id.style.props["--wallet-id-chars"], "6");
-  assert.equal(button.attrs["aria-label"], "Wallet 0.0.77");
+  assert.equal(button.attrs["aria-label"], "Disconnect wallet 0.0.77");
   api.play(null);
   api.paintIntroWallet();
   assert.equal(button.classList.contains("is-connected"), false);
@@ -253,21 +290,21 @@ test("a profile name sits over the full id; without one the id stands alone", ()
   const [name, id] = copy.children;
   assert.equal(name.textContent, "Bonic");
   assert.equal(id.textContent, "0.0.9779355", "the whole id, not the tail");
-  assert.equal(button.attrs["aria-label"], "Wallet Bonic 0.0.9779355");
+  assert.equal(button.attrs["aria-label"], "Disconnect wallet 0.0.9779355");
 
   // A new name (profiles-loaded) updates the same node.
   names["0.0.9779355"] = "Bonic B";
   api.paintIntroWallet();
   assert.equal(copy.children[0], name);
   assert.equal(name.textContent, "Bonic B");
-  assert.equal(button.attrs["aria-label"], "Wallet Bonic B 0.0.9779355");
+  assert.equal(button.attrs["aria-label"], "Disconnect wallet 0.0.9779355");
 
   // The name gone: no empty node and no "Anonymous", just the id.
   delete names["0.0.9779355"];
   api.paintIntroWallet();
   assert.deepEqual(copy.children.map((kid) => kid.className), ["onboard-wallet-id"]);
   assert.equal(copy.children[0], id);
-  assert.equal(button.attrs["aria-label"], "Wallet 0.0.9779355");
+  assert.equal(button.attrs["aria-label"], "Disconnect wallet 0.0.9779355");
   const texts = [];
   const walk = (node) => { texts.push(node.textContent); node.children.forEach(walk); };
   walk(button);
@@ -301,7 +338,7 @@ test("build adds the button next to the ✕ and paints it; close takes it all ba
   const click = build.slice(walletAt, appendAt);
   assert.match(click, /walletBtn\.type = 'button';/);
   assert.match(click, /walletBtn\.className = 'onboard-wallet';/);
-  assert.match(click, /e\.stopPropagation\(\);\s*if \(introAccount\(\)\) return;\s*connectFromIntro\(\);/);
+  assert.match(click, /e\.stopPropagation\(\);\s*if \(introAccount\(\)\) disconnectFromIntro\(\);\s*else connectFromIntro\(\);/);
   // Opened: the html class, the listeners, the first paint.
   assert.match(build, /document\.documentElement\.classList\.add\('intro-open'\);\s*bindIntroWallet\(\);\s*paintIntroWallet\(\);/);
 
@@ -323,6 +360,7 @@ test("build adds the button next to the ✕ and paints it; close takes it all ba
   const paint = fn(page, "paintIntroWallet");
   assert.doesNotMatch(paint, /slideIndex|renderSlide|closeOnboarding|installChoice/);
   assert.doesNotMatch(fn(page, "connectFromIntro"), /slideIndex|renderSlide|closeOnboarding/);
+  assert.doesNotMatch(fn(page, "disconnectFromIntro"), /slideIndex|renderSlide|closeOnboarding/);
   // The swap and inscribe cards share the card classes, not this button.
   assert.equal(source("../swapwarning.js").includes("onboard-wallet"), false);
   assert.equal(source("../hcs1inscribenotice.js").includes("onboard-wallet"), false);
@@ -379,6 +417,7 @@ test("the button wears the ✕'s look top left, and the ✕ is unchanged", () =>
 test("connected, the chip stacks a bold name over a muted id that is never clipped", () => {
   const connected = rule(".onboard-wallet.is-connected");
   assert.match(connected, /white-space: normal;/);
+  assert.match(connected, /cursor: pointer;/);
   assert.match(connected, /align-items: center;/);
   assert.equal(/max-width|min-height/.test(connected), false, "the cap and min-height stay the base rule's");
   const copy = rule(".onboard-wallet-copy");
@@ -516,6 +555,72 @@ html.feed-app appkit-modal {
 }`);
   // Above the intro (9000), below the toasts (10000).
   assert.match(rule(".onboard-overlay"), /z-index: 9000;/);
+});
+
+test("Cancel on the disconnect confirm focuses the chip again, or the toolbar button if it is gone", () => {
+  const chip = { focused: 0, focus() { this.focused += 1; } };
+  const cancel = { focused: 0, focus() { this.focused += 1; } };
+  const disconnectBtn = { focused: 0, focus() { this.focused += 1; } };
+  const ask = { hidden: true };
+  const askAccount = { textContent: "" };
+  const live = new Set([chip, cancel, disconnectBtn]);
+  const document = {
+    activeElement: chip,
+    contains(node) { return live.has(node); },
+  };
+  const env = {
+    ask,
+    askAccount,
+    askCancel: cancel,
+    disconnectBtn,
+    document,
+    window: {},
+    id: "0.0.12",
+  };
+  const body = `
+    let askReturn = null;
+    const DISCONNECT_LAYER = 'disconnectask';
+    const { ask, askAccount, askCancel, disconnectBtn, document, window } = env;
+    function accountForAsk() { return env.id; }
+    function paintAskYes() {}
+    ${fn(web3, "hideAsk")}
+    ${fn(web3, "closeAsk")}
+    ${fn(web3, "ensureAskLayer")}
+    ${fn(web3, "showAsk")}
+    return { showAsk, closeAsk };
+  `;
+  const api = new Function("env", body)(env);
+
+  // The chip tap leaves it focused; opening the confirm remembers that.
+  api.showAsk(false);
+  assert.equal(ask.hidden, false);
+  assert.equal(askAccount.textContent, "0.0.12");
+  assert.equal(cancel.focused, 1);
+  assert.equal(chip.focused, 0);
+  // Already open: a later show does not replace the chip with Cancel.
+  document.activeElement = cancel;
+  api.showAsk(false);
+  api.closeAsk();
+  assert.equal(ask.hidden, true);
+  assert.equal(chip.focused, 1);
+  assert.equal(disconnectBtn.focused, 0);
+
+  // The chip left the document. Close falls back to the toolbar Disconnect.
+  document.activeElement = chip;
+  live.delete(chip);
+  api.showAsk(false);
+  api.closeAsk();
+  assert.equal(chip.focused, 1);
+  assert.equal(disconnectBtn.focused, 1);
+
+  // No account: the confirm stays shut and does not remember a target.
+  env.id = "";
+  ask.hidden = true;
+  document.activeElement = disconnectBtn;
+  api.showAsk(false);
+  assert.equal(ask.hidden, true);
+  api.closeAsk();
+  assert.equal(disconnectBtn.focused, 1);
 });
 
 test("the chip shows on the first page only: hidden elsewhere, its box kept so nothing moves", () => {
