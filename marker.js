@@ -94,7 +94,6 @@ let lastTopicSig = null;
 // Live twins already wear a permanent label under the dot.
 let markerTitleTip = null;
 let markerTitleHideTimer = 0;
-const HOLD_TIP_MS = 2500;
 const cancelMarkerHolds = new Set();
 
 function ensureMarkerTitleTip() {
@@ -175,10 +174,10 @@ function showMarkerTitle(el, x, y) {
 
 // The card's rule pins it above the point with translate(-50%, -100% - 1.5 --tu).
 // A hold passes the press point, so the same offset clears the finger.
+// It stays until the next press or the map moving (both below).
 function showHeldMarkerTitle(el, x, y) {
   if (!showMarkerTitle(el, x, y)) return false;
   markerTitleTip._held = true;
-  markerTitleHideTimer = setTimeout(hideMarkerTitle, HOLD_TIP_MS);
   return true;
 }
 

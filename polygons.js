@@ -115,6 +115,15 @@ function showPolygonTitle(polygon, point, fromTouch) {
 map.on("movestart", hidePolygonTitle);
 map.on("movestart", clearPolygonHold);
 
+// A touch hold's card stays until the map moves (above) or the next press,
+// here, as a dot's does (marker.js). The press that held it went down
+// before the card showed (HOLD_MS later) and lifting it is no press, so
+// only a later one closes it. A right-click card is maptipclick.js's.
+document.addEventListener("pointerdown", () => {
+  if (!polygonTitleTip || polygonTitleTip.hidden || !polygonTitleFromTouch) return;
+  hidePolygonTitle();
+}, true);
+
 // A right-click on a polygon shows its pill at the pointer, unless a dot
 // over it took the click first (maptipclick.js). The hit is the topmost
 // polygon whose mask is drawn under the pointer, on the near side of the
@@ -1585,10 +1594,6 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
 
         map.on('mouseleave', maskLayerId, () => {
           map.getCanvas().style.cursor = '';
-          if (polygonTitleFromTouch) {
-            clearTimeout(polygonTitleTimer);
-            polygonTitleTimer = setTimeout(hidePolygonTitle, 1200);
-          }
         });
 
         // The bubble waits for a still hold at the touch-start point.
@@ -1627,6 +1632,8 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
 
         map.on('touchend', maskLayerId, () => {
           clearPolygonHold();
+          // A touch hold's card stays open (the next press closes it).
+          if (polygonTitleFromTouch) return;
           clearTimeout(polygonTitleTimer);
           polygonTitleTimer = setTimeout(hidePolygonTitle, 1200);
         });

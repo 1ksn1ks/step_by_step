@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { bindMarkerHold, holdMoveLimit, MARKER_HOLD_MS, MARKER_SWALLOW_MS } from "../markerhold.js";
 
 function target() {
@@ -170,4 +171,145 @@ test("the hold matches the bubble timing and half a rem", () => {
   assert.equal(holdMoveLimit(16), 8);
   assert.equal(holdMoveLimit(20), 10);
   assert.equal(holdMoveLimit(0), 8);
+});
+
+// marker.js and polygons.js import the map, so their hold cards run here
+// from their own source, with a stand-in map, document and tip filler.
+const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8").replace(/\r\n/g, "\n");
+function stubWorld() {
+  const docListeners = [];
+  const mapListeners = {};
+  const canvas = { style: {}, getBoundingClientRect: () => ({ left: 0, top: 0 }) };
+  const node = () => ({
+    hidden: false,
+    className: "",
+    style: {},
+    classList: { toggle() {}, remove() {}, add() {} },
+    querySelector: () => null,
+    prepend() {},
+    remove() {},
+    setAttribute() {},
+  });
+  const document = {
+    body: { appendChild() {} },
+    createElement: node,
+    addEventListener(type, fn, capture) { docListeners.push({ type, fn, capture }); },
+  };
+  const map = {
+    on(type, a, b) { (mapListeners[type] ||= []).push(typeof a === "function" ? a : b); },
+    getCanvas: () => canvas,
+  };
+  const press = () => {
+    for (const l of docListeners) if (l.type === "pointerdown" && l.capture === true) l.fn({ pointerType: "touch" });
+  };
+  const fire = (type, event = {}) => { for (const fn of mapListeners[type] || []) fn(event); };
+  return { document, map, press, fire, docListeners };
+}
+
+function markerTipRig() {
+  const source = read("../marker.js");
+  const start = source.indexOf("let markerTitleTip = null;");
+  const end = source.indexOf("// A right-click on a dot shows its pill");
+  assert.ok(start > 0 && end > start);
+  const world = stubWorld();
+  const api = new Function("document", "map", "window", "fillMapTip", "isPointerOnGlobe", "earlyHashinalNumber", "holdMoveLimit", "getComputedStyle", `
+    ${source.slice(start, end)}
+    return { showMarkerTitle, showHeldMarkerTitle, tip: () => markerTitleTip };
+  `)(world.document, world.map, { matchMedia: () => ({ matches: false }) }, () => true, () => true, () => 0, holdMoveLimit, () => ({ fontSize: "16px" }));
+  const dot = { _markerTip: { geometry: { coordinates: [0, 0] } }, _markerPayer: "", style: {} };
+  return { ...world, ...api, dot };
+}
+
+function polygonTipRig() {
+  const source = read("../polygons.js");
+  const start = source.indexOf("let polygonTitleTip = null;");
+  const end = source.indexOf("// A right-click on a polygon shows its pill");
+  const from = source.indexOf("map.on('mouseleave', maskLayerId");
+  const cancel = source.indexOf("map.on('touchcancel', maskLayerId");
+  const to = source.indexOf("});", cancel) + 3;
+  assert.ok(start > 0 && end > start && from > 0 && to > from);
+  const world = stubWorld();
+  const HOLD_MS = 500;
+  const polygon = { coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]], payer: "0.0.1" };
+  const api = new Function("document", "map", "fillMapTip", "isPointerOnGlobe", "prefetchPersonFollow", "HOLD_MS", "MOVE_TOLERANCE", "polygon", "maskLayerId", `
+    ${source.slice(start, end)}
+    ${source.slice(from, to)}
+    return { showPolygonTitle, tip: () => polygonTitleTip, fromTouch: () => polygonTitleFromTouch };
+  `)(world.document, world.map, () => true, () => true, () => {}, HOLD_MS, 10, polygon, "polygon-mask");
+  const touch = { point: { x: 50, y: 60 }, originalEvent: { touches: [{ clientX: 50, clientY: 60 }] } };
+  return { ...world, ...api, polygon, touch, HOLD_MS };
+}
+
+test("a marker's touch-hold card stays open with no input; the next press or a map move closes it", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const rig = markerTipRig();
+  // The holding press went down before the card showed.
+  rig.press();
+  assert.equal(rig.showHeldMarkerTitle(rig.dot, 30, 80), true);
+  const tip = rig.tip();
+  assert.equal(tip.hidden, false);
+  assert.equal(tip._held, true);
+  // No timer closes it.
+  t.mock.timers.tick(60_000);
+  assert.equal(tip.hidden, false);
+  // The next press does.
+  rig.press();
+  assert.equal(tip.hidden, true);
+  // The map moving does too.
+  rig.showHeldMarkerTitle(rig.dot, 30, 80);
+  t.mock.timers.tick(10_000);
+  assert.equal(tip.hidden, false);
+  rig.fire("movestart");
+  assert.equal(tip.hidden, true);
+  // A right-click card (not held) is left to maptipclick.js.
+  rig.showMarkerTitle(rig.dot, 30, 80);
+  rig.press();
+  assert.equal(tip.hidden, false);
+  assert.doesNotMatch(read("../marker.js"), /HOLD_TIP_MS/);
+});
+
+test("a polygon's touch-hold card stays open after the finger lifts; the next press or a map move closes it", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const rig = polygonTipRig();
+  // The holding press: its pointerdown comes first, then the hold.
+  rig.press();
+  rig.fire("touchstart", rig.touch);
+  assert.equal(rig.tip(), null, "nothing before the hold time");
+  t.mock.timers.tick(rig.HOLD_MS);
+  const tip = rig.tip();
+  assert.equal(tip.hidden, false);
+  assert.equal(rig.fromTouch(), true);
+  // Lifting the finger, the mouse leaving, and time: it stays.
+  rig.fire("touchend");
+  rig.fire("mouseleave");
+  t.mock.timers.tick(60_000);
+  assert.equal(tip.hidden, false);
+  // The next press closes it.
+  rig.press();
+  assert.equal(tip.hidden, true);
+  assert.equal(rig.fromTouch(), false);
+  // Held again, then the map moves.
+  rig.press();
+  rig.fire("touchstart", rig.touch);
+  t.mock.timers.tick(rig.HOLD_MS);
+  rig.fire("touchend");
+  assert.equal(tip.hidden, false);
+  rig.fire("movestart");
+  assert.equal(tip.hidden, true);
+  // A short tap never shows it.
+  rig.fire("touchstart", rig.touch);
+  t.mock.timers.tick(rig.HOLD_MS - 100);
+  rig.fire("touchend");
+  t.mock.timers.tick(5_000);
+  assert.equal(tip.hidden, true);
+  // A right-click card is maptipclick.js's: a press leaves it, and a touch
+  // lifting on the mask still closes it after 1.2 s, as before.
+  rig.showPolygonTitle(rig.polygon, { x: 50, y: 60 }, false);
+  rig.press();
+  assert.equal(tip.hidden, false);
+  rig.fire("touchend");
+  t.mock.timers.tick(1_199);
+  assert.equal(tip.hidden, false);
+  t.mock.timers.tick(1);
+  assert.equal(tip.hidden, true);
 });
