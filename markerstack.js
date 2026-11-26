@@ -5,7 +5,7 @@
 // spot once the map is at street level (a tap on any other bubble zooms
 // in to pull its dots apart). The list is a dropdown next to the bubble:
 // a search box and one row per post (its picture, then top to bottom its
-// title, the poster's name and account ID, when, its topic's ID and name,
+// title, the poster's name and account ID, its topic's ID and name, when,
 // then likes and views), newest first. The search matches the title,
 // name, account ID, date, topic and the post's text. Picking a row opens that
 // post's own popup. Escape, a tap anywhere else, moving the map and Back
@@ -330,12 +330,6 @@ function buildRow(feature) {
     line.textContent = named;
     body.appendChild(line);
   }
-  if (when) {
-    const meta = document.createElement('span');
-    meta.className = 'marker-stack-meta';
-    meta.textContent = when;
-    body.appendChild(meta);
-  }
   // The topic's ID, then its name, side by side as on the popup's chip.
   if (topicId || topicName) {
     const topic = document.createElement('span');
@@ -353,6 +347,12 @@ function buildRow(feature) {
       topic.appendChild(nameEl);
     }
     body.appendChild(topic);
+  }
+  if (when) {
+    const meta = document.createElement('span');
+    meta.className = 'marker-stack-meta';
+    meta.textContent = when;
+    body.appendChild(meta);
   }
   // The likes and views known now, on their own last line (postcounts.js).
   // Nothing is fetched and no view is counted.

@@ -407,7 +407,7 @@ function rowBuilder(lookup = topicLookup()) {
   return { ...build, picks };
 }
 
-test("a cluster list row reads top to bottom: title, name and account ID, when, topic, likes and views", () => {
+test("a cluster list row reads top to bottom: title, name and account ID, topic, when, likes and views", () => {
   const { buildRow, describe, picks } = rowBuilder();
   const feature = {
     payer: "0.0.123",
@@ -415,8 +415,8 @@ test("a cluster list row reads top to bottom: title, name and account ID, when, 
   };
   const row = buildRow(feature);
   const body = find(row.el, "marker-stack-body");
-  assert.deepEqual(body.children.map((child) => child.className), ["marker-stack-title", "marker-stack-account", "marker-stack-meta", "marker-stack-topic", "marker-stack-meta marker-stack-stats"]);
-  const [titleEl, line, when, topic, stats] = body.children;
+  assert.deepEqual(body.children.map((child) => child.className), ["marker-stack-title", "marker-stack-account", "marker-stack-topic", "marker-stack-meta", "marker-stack-meta marker-stack-stats"]);
+  const [titleEl, line, topic, when, stats] = body.children;
   assert.equal(titleEl.textContent, "Mural");
   // The counts alone on their line (postcounts.js finds .marker-stack-counts).
   assert.equal(stats.text, "");
