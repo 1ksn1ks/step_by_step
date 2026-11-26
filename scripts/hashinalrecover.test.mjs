@@ -116,7 +116,7 @@ test("a mirror failure is one readable error", async () => {
     fetchImpl: async () => ({ ok: true, json: async () => { throw new Error("bad json"); } }),
   }));
   const source = fs.readFileSync(new URL("../hashinalrecover.js", import.meta.url), "utf8");
-  assert.match(source, /AbortSignal\.timeout\(4000\)/);
+  assert.match(source, /AbortSignal\.timeout\(12000\)/);
   assert.equal(/web3|localStorage|sessionStorage|indexedDB|hedera\.js/.test(source), false);
   assert.match(source, /from "\.\/hcs1inscribe\.js"/);
 });

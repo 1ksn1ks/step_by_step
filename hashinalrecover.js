@@ -57,12 +57,26 @@ function decodeMessage(value) {
   return new TextDecoder().decode(bytes);
 }
 
+// AbortSignal.timeout is missing in some browsers. The wait is the same.
+function readSignal() {
+  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+    return AbortSignal.timeout(12000);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), 12000);
+  return controller.signal;
+}
+
 async function fetchJson(fetchImpl, url) {
   let response;
-  try {
-    response = await fetchImpl(url, { signal: AbortSignal.timeout(4000) });
-  } catch {
-    failRead();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      response = await fetchImpl(url, { signal: readSignal() });
+      break;
+    } catch {
+      if (attempt === 0) continue;
+      failRead();
+    }
   }
   if (!response || response.ok !== true) failRead();
   try {
