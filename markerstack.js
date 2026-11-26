@@ -4,9 +4,9 @@
 // right-clicking any bubble, or tapping a bubble whose dots sit on one
 // spot once the map is at street level (a tap on any other bubble zooms
 // in to pull its dots apart). The list is a dropdown next to the bubble:
-// a search box and one row per post (its picture, title, name and when,
-// its topic's ID and name, the poster's account ID with the post's likes
-// and views), newest first. The search matches the title,
+// a search box and one row per post (its picture, then top to bottom its
+// title, likes and views, the poster's name and account ID, when, and its
+// topic's ID and name), newest first. The search matches the title,
 // name, account ID, date, topic and the post's text. Picking a row opens that
 // post's own popup. Escape, a tap anywhere else, moving the map and Back
 // close it.
@@ -321,11 +321,31 @@ function buildRow(feature) {
   const titleEl = document.createElement('span');
   titleEl.className = 'marker-stack-title';
   titleEl.textContent = title;
-  const meta = document.createElement('span');
-  meta.className = 'marker-stack-meta';
-  meta.textContent = [who, when].filter(Boolean).join(' · ');
-  body.append(titleEl, meta);
-  // The topic's ID, then its name, side by side as on the popup's chip.
+  body.appendChild(titleEl);
+  // The likes and views known now, on their own line under the title
+  // (postcounts.js). Nothing is fetched and no view is counted.
+  const counts = countsNode(record, 'marker-stack-counts');
+  if (counts) {
+    const stats = document.createElement('span');
+    stats.className = 'marker-stack-meta marker-stack-stats';
+    stats.appendChild(counts);
+    body.appendChild(stats);
+  }
+  // The poster: the name, then the account ID.
+  const named = [who, account].filter(Boolean).join(' ');
+  if (named) {
+    const line = document.createElement('span');
+    line.className = 'marker-stack-account';
+    line.textContent = named;
+    body.appendChild(line);
+  }
+  if (when) {
+    const meta = document.createElement('span');
+    meta.className = 'marker-stack-meta';
+    meta.textContent = when;
+    body.appendChild(meta);
+  }
+  // Last, the topic's ID, then its name, side by side as on the popup's chip.
   if (topicId || topicName) {
     const topic = document.createElement('span');
     topic.className = 'marker-stack-topic';
@@ -342,16 +362,6 @@ function buildRow(feature) {
       topic.appendChild(nameEl);
     }
     body.appendChild(topic);
-  }
-  // The likes and views known now, after the account ID on its line
-  // (postcounts.js). Nothing is fetched and no view is counted.
-  const counts = countsNode(record, 'marker-stack-counts');
-  if (account || counts) {
-    const line = document.createElement('span');
-    line.className = 'marker-stack-account';
-    line.textContent = account;
-    if (counts) line.appendChild(counts);
-    body.appendChild(line);
   }
   row.append(pic, body);
   row.addEventListener('click', () => pick(feature));

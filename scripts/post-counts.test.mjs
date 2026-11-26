@@ -407,7 +407,7 @@ function rowBuilder(lookup = topicLookup()) {
   return { ...build, picks };
 }
 
-test("a cluster list row keeps its title, name, date and account ID, and adds the counts after the ID", () => {
+test("a cluster list row reads top to bottom: title, likes and views, name and account ID, when, topic", () => {
   const { buildRow, describe, picks } = rowBuilder();
   const feature = {
     payer: "0.0.123",
@@ -415,35 +415,47 @@ test("a cluster list row keeps its title, name, date and account ID, and adds th
   };
   const row = buildRow(feature);
   const body = find(row.el, "marker-stack-body");
-  assert.deepEqual(body.children.map((child) => child.className), ["marker-stack-title", "marker-stack-meta", "marker-stack-topic", "marker-stack-account"]);
-  assert.equal(body.children[0].textContent, "Mural");
-  assert.equal(body.children[1].textContent, "Ana · 11/20/2026, 10:00:00");
-  const line = find(row.el, "marker-stack-account");
-  // The ID first, as the line's own text, then the counts.
-  assert.equal(line.text, "0.0.123");
-  assert.ok(line.textContent.startsWith("0.0.123"));
-  assert.equal(line.children.length, 1);
-  const counts = line.children[0];
+  assert.deepEqual(body.children.map((child) => child.className), ["marker-stack-title", "marker-stack-meta marker-stack-stats", "marker-stack-account", "marker-stack-meta", "marker-stack-topic"]);
+  const [titleEl, stats, line, when, topic] = body.children;
+  assert.equal(titleEl.textContent, "Mural");
+  // The counts alone on their line (postcounts.js finds .marker-stack-counts).
+  assert.equal(stats.text, "");
+  assert.equal(stats.children.length, 1);
+  const counts = stats.children[0];
   assert.equal(counts.className, "marker-stack-counts");
   assert.deepEqual(counts.children.map((stat) => find(stat, "post-count-n").textContent), ["1.9k", "1.9k"]);
-  // The search still reads the same text (no counts in it), and a tap
-  // still opens the post.
-  assert.equal(describe(feature).hay.includes("1.9k"), false);
-  assert.ok(describe(feature).hay.includes("paint"));
+  // The name, then the account ID; then when, alone.
+  assert.equal(line.textContent, "Ana 0.0.123");
+  assert.equal(line.children.length, 0);
+  assert.equal(when.textContent, "11/20/2026, 10:00:00");
+  // The topic's children as before.
+  assert.deepEqual(topic.children.map((child) => [child.className, child.textContent]), [["marker-stack-topic-id", "0.0.5"], ["marker-stack-topic-name", "Street art"]]);
+  // The search still reads the name, account ID, title, topic and text (no
+  // counts in it), and a tap still opens the post.
+  const hay = describe(feature).hay;
+  for (const word of ["ana", "0.0.123", "mural", "0.0.5", "street art", "paint"]) assert.ok(hay.includes(word), word);
+  assert.equal(hay.includes("1.9k"), false);
   row.el.listeners.click[0]();
   assert.deepEqual(picks, [feature]);
 
   // A share pin with views unknown: the larger like count, likes only.
   const share = buildRow({ properties: { _shareRecord: markerRecord({ topicId: "0.0.808", likeCountMarker: 6, likeCountPolygon: 6 }) } });
-  const shareCounts = find(share.el, "marker-stack-counts");
+  const shareBody = find(share.el, "marker-stack-body");
+  assert.deepEqual(shareBody.children.map((child) => child.className), ["marker-stack-title", "marker-stack-meta marker-stack-stats", "marker-stack-account", "marker-stack-topic"]);
+  const shareCounts = find(shareBody.children[1], "marker-stack-counts");
   assert.equal(shareCounts.children.length, 1);
   assert.equal(find(shareCounts, "post-count-n").textContent, "6");
+  assert.equal(shareBody.children[2].textContent, "Ana 0.0.123");
 
-  // No account ID: the counts still have their line.
+  // No name, no account ID and no date: the counts keep their line, no other.
   const anon = buildRow({ properties: { popupData: () => ({ title: "x", payerInfo: "", likeCountMarker: 0, viewCount: 1_000_000 }) } });
-  const anonLine = find(anon.el, "marker-stack-account");
-  assert.equal(anonLine.text, "");
-  assert.deepEqual(find(anonLine, "marker-stack-counts").children.map((stat) => find(stat, "post-count-n").textContent), ["0", "1M"]);
+  const anonBody = find(anon.el, "marker-stack-body");
+  assert.deepEqual(anonBody.children.map((child) => child.className), ["marker-stack-title", "marker-stack-meta marker-stack-stats"]);
+  assert.deepEqual(find(anonBody.children[1], "marker-stack-counts").children.map((stat) => find(stat, "post-count-n").textContent), ["0", "1M"]);
+
+  // A name alone or an ID alone stands alone on the account line.
+  const nameOnly = buildRow({ properties: { popupData: () => ({ title: "x", payerInfo: "", username: "Bo" }) } });
+  assert.equal(find(nameOnly.el, "marker-stack-account").textContent, "Bo");
 });
 
 test("a cluster list row names its topic as the popup's chip: the ID, then the name, both searchable", () => {
@@ -473,7 +485,8 @@ test("a cluster list row names its topic as the popup's chip: the ID, then the n
   // No ID and no name: no line.
   const none = buildRow({ properties: { popupData: () => ({ title: "x", payer: "0.0.1" }) } });
   assert.equal(find(none.el, "marker-stack-topic"), null);
-  assert.deepEqual(find(none.el, "marker-stack-body").children.map((child) => child.className), ["marker-stack-title", "marker-stack-meta", "marker-stack-account"]);
+  assert.deepEqual(find(none.el, "marker-stack-body").children.map((child) => child.className), ["marker-stack-title", "marker-stack-meta marker-stack-stats", "marker-stack-account"]);
+  assert.equal(find(none.el, "marker-stack-account").textContent, "0.0.1");
 
   // The lookup is the info card's own (maptip.js), imported, nothing fetched.
   assert.match(stackSource, /import \{ topicNameFromList \} from '\.\/maptip\.js';/);
