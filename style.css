@@ -4915,6 +4915,14 @@ html, body {
   .comments-modal:has(.comments-back-button.is-early) .comments-more-button {
     color: #f6e27a !important;
   }
+  /* A tap never selects the ⋯ glyph (the back circle's ‹ is a drawing,
+     not text): no selection box, callout or tap flash inside the circle. */
+  .comments-modal .comments-more-button {
+    -webkit-user-select: none !important;
+    user-select: none !important;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
 
   /* Hide this popup's × while its comments are open. The back chevron stays. */
   .maplibregl-popup:has(.comments-modal) > .maplibregl-popup-content > .maplibregl-popup-close-button:not(.comments-back-button),
@@ -12874,29 +12882,33 @@ html.feed-app #feed-search-page {
   --ff-card-radius: max(16px, calc(var(--header-fu) * 1.1));
   --ff-sheet-radius: max(20px, calc(var(--header-fu) * 1.6));
   --ff-max: 86dvh;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-top-color: rgba(34, 211, 238, 0.4);
+  background: linear-gradient(180deg, rgba(22, 27, 38, 0.95) 0%, rgba(10, 12, 18, 0.97) 100%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
+  color: #fff;
+  color-scheme: dark;
+  font-family: Inter, system-ui, sans-serif;
+}
+/* The gear card alone is a sheet over the feed: its place, size and edge.
+   The comments card (below) is a block in the comments view. */
+#feed-filter-card {
   position: absolute;
   z-index: 5;
   top: auto;
   right: 0;
   bottom: 0;
   left: 0;
-  box-sizing: border-box;
   width: auto;
   max-height: var(--ff-max);
   margin: 0;
   padding: 0 var(--ff-pad) calc(var(--ff-pad) + env(safe-area-inset-bottom));
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-top-color: rgba(34, 211, 238, 0.4);
   border-bottom: 0;
   border-radius: var(--ff-sheet-radius) var(--ff-sheet-radius) 0 0;
-  background: linear-gradient(180deg, rgba(22, 27, 38, 0.95) 0%, rgba(10, 12, 18, 0.97) 100%);
-  -webkit-backdrop-filter: blur(22px) saturate(150%);
-  backdrop-filter: blur(22px) saturate(150%);
   box-shadow: 0 -0.6dvh 4dvh rgba(0, 0, 0, 0.6), 0 -1px 2.4dvh rgba(34, 211, 238, 0.14);
-  color: #fff;
-  color-scheme: dark;
-  font-family: Inter, system-ui, sans-serif;
 }
 #feed-filter-card[style*="display: block"] {
   display: flex !important;
@@ -13479,11 +13491,10 @@ html.feed-app #feed-search-page {
   --header-fu: var(--u);
   position: relative;
   z-index: 1;
-  inset: auto;
-  flex: 0 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
   width: auto;
-  margin: calc(var(--u) * 4.4) calc(var(--u) * 0.9) calc(var(--u) * 0.6);
+  max-height: none;
+  margin: calc(var(--u) * 0.26) calc(var(--u) * 0.9) calc(var(--u) * 0.6);
   padding: var(--ff-pad);
   overflow: hidden;
   border: calc(var(--u) * 0.1) solid rgba(255, 255, 255, 0.1);
@@ -13494,6 +13505,82 @@ html.feed-app #feed-search-page {
 .comments-modal #comments-settings-panel:not([hidden]) {
   display: flex;
   flex-direction: column;
+}
+.comments-modal #comments-settings-panel .feed-filter-body {
+  flex: none;
+  min-height: auto;
+  overflow: visible;
+}
+/* Open, the card pushes the list down. When the two are taller than the
+   view, the view scrolls them as one; the list keeps at least 60% of it
+   (and its own scroll) under the card. The feed bar stays on top; in the
+   map shells the back and ⋯ circles stay on top too: sticky in the same
+   places they are absolute when the card is shut. */
+.comments-modal--feed:has(> #comments-settings-panel:not([hidden])) {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.comments-modal--feed:has(> #comments-settings-panel:not([hidden])) > .feed-comments-bar {
+  position: sticky;
+  top: 0;
+}
+.comments-modal--feed:has(> #comments-settings-panel:not([hidden])) > .feed-comments-body,
+.maplibregl-map .comments-modal--in-card:has(> #comments-settings-panel:not([hidden])) > .popup-comments,
+.comments-modal:not(.comments-modal--in-card):not(.comments-modal--feed) .maplibregl-popup-content:has(> #comments-settings-panel:not([hidden])) > .popup-comments {
+  min-height: 60%;
+}
+.maplibregl-map .comments-modal--in-card:has(> #comments-settings-panel:not([hidden])),
+.comments-modal:not(.comments-modal--in-card):not(.comments-modal--feed) .maplibregl-popup-content:has(> #comments-settings-panel:not([hidden])) {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+.maplibregl-map .comments-modal--in-card:has(> #comments-settings-panel:not([hidden])) > :is(.comments-back-button, .comments-more-button),
+.comments-modal:not(.comments-modal--in-card):not(.comments-modal--feed) .maplibregl-popup-content:has(> #comments-settings-panel:not([hidden])) > :is(.comments-back-button, .comments-more-button) {
+  position: sticky;
+  flex: none;
+}
+/* The circles' row: the back circle 0.2u down and 0.1u in from the left,
+   the ⋯ pulled up beside it (one circle: 3.8u and its 0.12u border twice)
+   and 0.1u in from the right. The in-card shell pads 0.1u, the card
+   content 0.4u 0.6u. A sticky offset counts from inside that padding, so
+   each is the absolute one less the padding: they rest where they were
+   and stay there as the view scrolls. The ⋯ is pulled up a little past
+   its row (4.3u) and its sticky top sets it level with the back circle,
+   however a thin border rounds; the card's margin takes the 0.26u back. */
+.maplibregl-map .comments-modal--in-card:has(> #comments-settings-panel:not([hidden])) > .comments-back-button {
+  align-self: flex-start;
+  top: calc(var(--u) * 0.1) !important;
+  left: 0 !important;
+  right: auto !important;
+  margin: calc(var(--u) * 0.1) 0 0;
+}
+.maplibregl-map .comments-modal--in-card:has(> #comments-settings-panel:not([hidden])) > .comments-more-button {
+  align-self: flex-end;
+  top: calc(var(--u) * 0.1) !important;
+  right: 0 !important;
+  left: auto !important;
+  margin: calc(var(--u) * -4.3) 0 0;
+}
+.maplibregl-map .comments-modal--in-card > #comments-settings-panel {
+  margin-top: calc(var(--u) * 0.52);
+}
+.comments-modal:not(.comments-modal--in-card):not(.comments-modal--feed) .maplibregl-popup-content:has(> #comments-settings-panel:not([hidden])) > .comments-back-button {
+  align-self: flex-start;
+  top: calc(var(--u) * -0.2) !important;
+  left: calc(var(--u) * -0.5) !important;
+  right: auto !important;
+  margin: calc(var(--u) * -0.2) 0 0 calc(var(--u) * -0.5);
+}
+.comments-modal:not(.comments-modal--in-card):not(.comments-modal--feed) .maplibregl-popup-content:has(> #comments-settings-panel:not([hidden])) > .comments-more-button {
+  align-self: flex-end;
+  top: calc(var(--u) * -0.2) !important;
+  right: calc(var(--u) * -0.5) !important;
+  left: auto !important;
+  margin: calc(var(--u) * -4.3) calc(var(--u) * -0.5) 0 0;
+}
+.comments-modal:not(.comments-modal--in-card):not(.comments-modal--feed) .maplibregl-popup-content > #comments-settings-panel {
+  margin-top: calc(var(--u) * 0.82);
 }
 .comments-modal--feed > #comments-settings-panel {
   /* The feed column's unit (the list's --fu), held like the gear card's
@@ -16859,6 +16946,14 @@ html.drawer-page .info-overlay {
 #field-full .comments-compose button:focus-visible {
   outline: calc(var(--u) * 0.2) solid #22D3EE;
   outline-offset: calc(var(--u) * 0.2);
+}
+
+/* The settings card's Sort pills (Top / Newest / Oldest) replace this
+   switch: it stays in the page, its script keeping the two in step, but
+   out of sight and out of the layout in every comments view. */
+.popup-comments .comments-sort {
+  display: none !important;
+  margin: 0 !important;
 }
 
 /* Top / Newest */
