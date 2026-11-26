@@ -597,4 +597,36 @@ test.describe("comment pin", { concurrency: 1 }, () => {
     const apply = client.slice(client.indexOf("function applyOpenCommentPin"), client.indexOf("async function saveUtilityPin"));
     assert.match(apply, /section\._applyPin\(\)/);
   });
+
+  test("the pin field's first paint waits until the module has finished evaluating", async () => {
+    const client = readFileSync(new URL("../processallmessages.js", import.meta.url), "utf8").replace(/\r\n/g, "\n");
+    const start = client.indexOf("{\n  const pinSave = document.getElementById('submit-button-comment-pin');");
+    const end = client.indexOf("\n// The post popup hides", start);
+    const boot = client.slice(start, end);
+    assert.ok(start >= 0 && end > start);
+    assert.match(boot, /addEventListener\('click', \(event\) => \{\n\s*event\.stopPropagation\(\);\n\s*saveUtilityPin\(\);/);
+    assert.match(boot, /addEventListener\('pointerdown', \(\) => paintUtilityPin\(\), true\)/);
+    assert.match(boot, /queueMicrotask\(paintUtilityPin\)/);
+    assert.doesNotMatch(boot, /\npaintUtilityPin\(\);/);
+
+    const document = {
+      getElementById() {
+        return { addEventListener() {} };
+      },
+    };
+    const reports = [];
+    const run = new Function("document", "queueMicrotask", "report", `
+      function paintUtilityPin() {
+        report(commentsModal);
+      }
+      function saveUtilityPin() {}
+      ${boot}
+      let commentsModal = "ready";
+      let commentsModalSection = null;
+    `);
+    assert.doesNotThrow(() => run(document, queueMicrotask, (value) => reports.push(value)));
+    assert.deepEqual(reports, []);
+    await Promise.resolve();
+    assert.deepEqual(reports, ["ready"]);
+  });
 });

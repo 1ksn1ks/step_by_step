@@ -1208,7 +1208,9 @@ async function saveUtilityPin() {
   });
   const utilityColumn = document.getElementById('utility-column');
   if (utilityColumn) utilityColumn.addEventListener('pointerdown', () => paintUtilityPin(), true);
-  paintUtilityPin();
+  // commentsModal is declared later in this file. A call here, while the
+  // module is still evaluating, reads that binding in its temporal dead zone.
+  queueMicrotask(paintUtilityPin);
 }
 
 // The post popup hides its own × while settings is open, like comments-open.
