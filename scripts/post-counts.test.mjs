@@ -481,32 +481,37 @@ test("a cluster list row names its topic as the popup's chip: the ID, then the n
   assert.equal(topicLookup(["0.0.9 - Nine", "0.0.5 - Five"])("0.0.5"), "Five");
 });
 
-test("the cluster list row is sized from the screen: one --fu on the row, the topic line as the account line", () => {
+test("the cluster list row keeps its own sizes; the topic line takes the account line's size by sharing its rule", () => {
   const css = read("../style.css");
   const block = css.slice(css.indexOf("/* The post's topic (markerstack.js)"), css.indexOf("/* The post's likes and views after the account ID"));
   assert.ok(block.length > 100);
   const rules = block.replace(/\/\*[\s\S]*?\*\//g, "");
   const selectors = [...rules.matchAll(/^([^\s{}][^{}]*?)\s*\{/gm)].map((m) => m[1]);
   assert.deepEqual(selectors, [".marker-stack-topic", ".marker-stack-topic-id", ".marker-stack-topic-name"]);
-  // The unit is the row's, not the topic line's own.
-  assert.doesNotMatch(rules, /--fu:/);
-  const sizes = [...rules.matchAll(/font-size: ([^;]+);/g)].map((m) => m[1]);
-  assert.deepEqual(sizes, ["calc(var(--fu) * 1.28)", "calc(var(--fu) * 1.28)", "calc(var(--fu) * 1.28)"]);
-  assert.doesNotMatch(rules, /\d(\.\d+)?(px|rem|em)\b/);
-  // The ID in the meta's muted colour, the name in the account's, both normal weight.
-  assert.match(rules, /\.marker-stack-topic-id \{[^}]*font-weight: 400;\s*color: rgba\(255, 255, 255, 0\.55\);/);
-  assert.match(rules, /\.marker-stack-topic-name \{[^}]*font-weight: 400;\s*color: rgba\(255, 255, 255, 0\.72\);/);
-  // A row with the topic line is taller than its minimum: in the scrolling
-  // list it keeps that height instead of shrinking to it.
-  const row = css.slice(css.indexOf("\n.marker-stack-row {"), css.indexOf("}", css.indexOf("\n.marker-stack-row {")));
-  assert.match(row, /--fu: calc\(min\(100dvw, var\(--app-h, 100dvh\)\) \* 0\.024\);/);
-  assert.match(row, /display: flex;\s*flex-shrink: 0;/);
-  assert.match(row, /min-height: calc\(var\(--fu\) \* 5\.55\);/);
-  assert.doesNotMatch(row, /\d(\.\d+)?(px|rem)\b/);
-  // The row's text in the same unit: 14 / 12 / 12px on a ~390-wide phone.
-  assert.match(css, /\.marker-stack-title \{\s*font-size: calc\(var\(--fu\) \* 1\.5\);/);
-  assert.match(css, /\.marker-stack-meta \{\s*font-size: calc\(var\(--fu\) \* 1\.28\);/);
-  assert.match(css, /\.marker-stack-account \{\s*font-size: calc\(var\(--fu\) \* 1\.28\);/);
+  // No size or unit of its own: no --fu, no font-size, no px or rem.
+  assert.doesNotMatch(rules, /--fu|font-size/);
+  assert.doesNotMatch(rules, /\d(\.\d+)?(px|rem)\b/);
+  // The account line's gap between its ID and counts.
+  assert.match(css, /\.marker-stack-account:has\(> \.marker-stack-counts\) \{[^}]*column-gap: 0\.7em;/);
+  assert.match(rules, /\.marker-stack-topic \{[^}]*gap: 0\.7em;[^}]*white-space: nowrap;/);
+  // The ID in the meta's muted colour and never cut, the name in the
+  // account's and cut with an ellipsis, both normal weight.
+  assert.match(rules, /\.marker-stack-topic-id \{\s*flex: none;\s*font-weight: 400;\s*color: rgba\(255, 255, 255, 0\.55\);/);
+  assert.match(rules, /\.marker-stack-topic-name \{[^}]*text-overflow: ellipsis;\s*font-weight: 400;\s*color: rgba\(255, 255, 255, 0\.72\);/);
+  // Its size is the account rule's, shared by grouping.
+  assert.match(css, /\n\.marker-stack-account,\n\.marker-stack-topic,\n\.marker-stack-topic-id,\n\.marker-stack-topic-name \{\s*font-size: 12px;\s*color: rgba\(255, 255, 255, 0\.72\);/);
+  // The row as before eb7907d: its own px sizes, no --fu. A row with the
+  // topic line is taller than its 52px minimum: in the scrolling list it
+  // keeps that height instead of shrinking to it.
+  const at = css.indexOf("\n.marker-stack-row {");
+  const row = css.slice(at, css.indexOf("}", at));
+  assert.doesNotMatch(row, /--fu/);
+  assert.match(row, /display: flex;\s*flex-shrink: 0;\s*align-items: center;\s*gap: 10px;\s*width: 100%;\s*min-height: 52px;\s*margin: 0;\s*padding: 7px 8px;/);
+  assert.match(row, /border: 1px solid transparent;\s*border-radius: 12px;/);
+  assert.match(css, /\.marker-stack-pic \{[^}]*width: 40px;\s*height: 40px;[^}]*border: 1px solid rgba\(255, 255, 255, 0\.2\);/);
+  assert.match(css, /\.marker-stack-body \{[^}]*gap: 2px;/);
+  assert.match(css, /\.marker-stack-title \{\s*font-size: 14px;/);
+  assert.match(css, /\.marker-stack-meta \{\s*font-size: 12px;/);
 });
 
 test("nothing is fetched and no view is counted: no popup-view, no live heart, no popup module", () => {

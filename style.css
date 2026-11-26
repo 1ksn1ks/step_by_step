@@ -27354,23 +27354,19 @@ html.is-draw-picking #map-topbar {
   touch-action: pan-y;
 }
 /* A row keeps its height in the scrolling list (min-height alone lets a
-   flex item shrink to it): the topic line makes a row taller than its
-   minimum. The whole row is sized from the screen: --fu here is the one
-   unit of every part of it (the info card's), so on a ~390-wide phone it
-   keeps the old 52px row, 40px picture and 14 / 12px text. */
+   flex item shrink to it): the topic line makes a row taller than 52px. */
 .marker-stack-row {
-  --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
   display: flex;
   flex-shrink: 0;
   align-items: center;
-  gap: calc(var(--fu) * 1.07);
+  gap: 10px;
   width: 100%;
-  min-height: calc(var(--fu) * 5.55);
+  min-height: 52px;
   margin: 0;
-  padding: calc(var(--fu) * 0.75) calc(var(--fu) * 0.85);
+  padding: 7px 8px;
   box-sizing: border-box;
-  border: calc(var(--fu) * 0.1) solid transparent;
-  border-radius: calc(var(--fu) * 1.28);
+  border: 1px solid transparent;
+  border-radius: 12px;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -27395,12 +27391,12 @@ html.is-draw-picking #map-topbar {
 .marker-stack-pic {
   flex: none;
   display: block;
-  width: calc(var(--fu) * 4.27);
-  height: calc(var(--fu) * 4.27);
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   object-fit: cover;
   background: rgba(255, 255, 255, 0.08);
-  border: calc(var(--fu) * 0.1) solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   box-sizing: border-box;
 }
 .marker-stack-body {
@@ -27408,7 +27404,7 @@ html.is-draw-picking #map-topbar {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: calc(var(--fu) * 0.21);
+  gap: 2px;
 }
 .marker-stack-title,
 .marker-stack-meta,
@@ -27419,37 +27415,38 @@ html.is-draw-picking #map-topbar {
   text-overflow: ellipsis;
 }
 .marker-stack-title {
-  font-size: calc(var(--fu) * 1.5);
+  font-size: 14px;
   font-weight: 600;
   color: #fff;
 }
 .marker-stack-meta {
-  font-size: calc(var(--fu) * 1.28);
+  font-size: 12px;
   color: rgba(255, 255, 255, 0.55);
 }
-.marker-stack-account {
-  font-size: calc(var(--fu) * 1.28);
+.marker-stack-account,
+.marker-stack-topic,
+.marker-stack-topic-id,
+.marker-stack-topic-name {
+  font-size: 12px;
   color: rgba(255, 255, 255, 0.72);
   font-variant-numeric: tabular-nums;
 }
 /* The post's topic (markerstack.js), as the popup's chip: the ID, then
    the name, side by side on one line; a long name is cut, the ID never.
-   The whole row is sized from --fu (on .marker-stack-row); this line
-   matches the account line under it: its size and line height, the ID
+   It matches the account line under it: its size (the account rule
+   above), its line height and the gap between its ID and counts; the ID
    in the meta's muted colour, the name in the account's, both normal
    weight. */
 .marker-stack-topic {
   display: flex;
   align-items: baseline;
-  gap: calc(var(--fu) * 0.5);
+  gap: 0.7em;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
-  font-size: calc(var(--fu) * 1.28);
 }
 .marker-stack-topic-id {
   flex: none;
-  font-size: calc(var(--fu) * 1.28);
   font-weight: 400;
   color: rgba(255, 255, 255, 0.55);
   font-variant-numeric: tabular-nums;
@@ -27459,7 +27456,6 @@ html.is-draw-picking #map-topbar {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: calc(var(--fu) * 1.28);
   font-weight: 400;
   color: rgba(255, 255, 255, 0.72);
 }
