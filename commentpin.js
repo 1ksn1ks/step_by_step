@@ -30,6 +30,8 @@ const TOKEN_READS = 3;
 
 const pinByCreated = new Map();
 const pinByStamp = new Map();
+// topic id → null (loaded, no admin rule) or the token list ([] is a clear).
+const topicPinRules = new Map();
 const holderCache = new Map();
 const holderMissAt = new Map();
 const holderFlight = new Map();
@@ -47,6 +49,7 @@ export function setCommentPinIO({ fetch, now } = {}) {
 export function clearCommentPinState() {
   pinByCreated.clear();
   pinByStamp.clear();
+  topicPinRules.clear();
   holderCache.clear();
   holderMissAt.clear();
   holderFlight.clear();
@@ -207,6 +210,28 @@ export function rememberCommentPin(payer, data, envelope) {
   const entry = { tokens: tokens.slice(), at };
   for (const [map, key] of slots) map.set(key, entry);
   return entry;
+}
+
+// The rule read from the topic. undefined: not loaded yet. null: loaded,
+// and no admin set one. An array, including [], is the rule.
+export function rememberTopicCommentPin(topicId, tokens) {
+  const id = String(topicId || '').trim();
+  if (!id) return;
+  topicPinRules.set(id, Array.isArray(tokens) ? tokens.slice() : null);
+}
+
+export function topicCommentPinRule(topicId) {
+  const id = String(topicId || '').trim();
+  if (!topicPinRules.has(id)) return undefined;
+  const rule = topicPinRules.get(id);
+  return rule == null ? null : rule.slice();
+}
+
+// A topic rule, including a clear, beats the post's own pin. No rule falls
+// back to that post pin.
+export function commentPinsToShow(topicRule, payer, created, stamp, base) {
+  if (Array.isArray(topicRule)) return topicRule.slice();
+  return commentPinFor(payer, created, stamp, base);
 }
 
 export function commentPinFor(payer, created, stamp, base) {

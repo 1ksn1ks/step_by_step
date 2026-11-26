@@ -196,6 +196,59 @@ export function currentAutoplayNft(messages, topicAdmin) {
   return '';
 }
 
+// Newest admin commentPinNfts wins. [] clears the rule. A message that is
+// not a list of at most five token ids is skipped. Only a memo admin counts:
+// anyone may post the message, and a payer who is not an admin is ignored.
+// No memo admins means no rule (null), so a post can still use its own pin.
+const COMMENT_PIN_MAX = 5;
+
+export function commentPinConfigMessage(tokens) {
+  if (!Array.isArray(tokens)) return '';
+  const out = [];
+  const seen = new Set();
+  for (const item of tokens) {
+    const id = String(item == null ? '' : item).trim();
+    if (!id) continue;
+    if (!isHederaTokenId(id)) return '';
+    if (seen.has(id)) continue;
+    if (out.length >= COMMENT_PIN_MAX) return '';
+    seen.add(id);
+    out.push(id);
+  }
+  return JSON.stringify({ commentPinNfts: out });
+}
+
+export function currentCommentPinNfts(messages, topicAdmin) {
+  const admins = Array.isArray(topicAdmin) ? topicAdmin : [];
+  if (!admins.length) return null;
+  for (let index = (messages || []).length - 1; index >= 0; index--) {
+    const message = messages[index];
+    const parsed = readMessage(message);
+    if (!parsed || !Object.prototype.hasOwnProperty.call(parsed, 'commentPinNfts')) continue;
+    if (!admins.includes(message && message.payer)) continue;
+    const raw = parsed.commentPinNfts;
+    if (!Array.isArray(raw)) continue;
+    if (raw.length === 0) return [];
+    if (raw.length > COMMENT_PIN_MAX) continue;
+    const tokens = [];
+    const seen = new Set();
+    let bad = false;
+    for (const item of raw) {
+      const id = String(item == null ? '' : item).trim();
+      if (!isHederaTokenId(id)) {
+        bad = true;
+        break;
+      }
+      if (seen.has(id)) continue;
+      seen.add(id);
+      tokens.push(id);
+    }
+    if (bad || tokens.length > COMMENT_PIN_MAX) continue;
+    return tokens;
+  }
+  return null;
+}
+
 // The install icon, on the same signed admin message as autoplayNft.
 // Newest appIcon wins. An empty value clears it. A value acceptUrl rejects
 // (not our own R2 image) is skipped, as is a message from anyone who is

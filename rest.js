@@ -16,7 +16,7 @@ import { bareAccount } from './donationmath.js';
 import { connectProfileTopic, removeProfileTopic } from './followtopic';
 import { debounce } from './debounce';
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium' 
-import { allLoadedMessages } from './processallmessages';
+import { allLoadedMessages, storeTopicCommentPin } from './processallmessages';
 import { handleAllMessages, mapTopic } from './handleallmessages';
 import { connectedAccount, signer } from './web3';
 import { PrivateKey } from '@hashgraph/sdk';
@@ -27,7 +27,8 @@ import { refreshFilterTimeButtons } from './drawdate.js';
 import { POST_IMAGES_BUSY, draftPending, postCover, postImageArray } from './postimages.js';
 import { pendingChatImage, chatImageBusy, clearPendingChatImage, topicChatWire } from './chatimage.js';
 import { stackedTopicRules } from './topicrules.js';
-import { STACK_MAX, activeStack, addTopicMessage, adminsFromMemo, appIconConfigMessage, autoplayConfigMessage, cleanTopicIds, currentAppIcon, currentAutoplayNft, currentTopicBio, currentTopicName, currentInitialXYZ, isTopicId, removeTopicMessage } from './loadcurrenttopic.js';
+import { STACK_MAX, activeStack, addTopicMessage, adminsFromMemo, appIconConfigMessage, autoplayConfigMessage, cleanTopicIds, commentPinConfigMessage, currentAppIcon, currentAutoplayNft, currentCommentPinNfts, currentTopicBio, currentTopicName, currentInitialXYZ, isTopicId, removeTopicMessage } from './loadcurrenttopic.js';
+import { parsePinInput, validatePinTokens } from './commentpin.js';
 import { readUniqueNft, rememberTopicAutoplay } from './coverautoplay.js';
 import { isOwnR2Image } from './r2public.js';
 import { isAppIconFile, squareCenterFile } from './imagecompress.js';
@@ -836,6 +837,56 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
    }
  });
 
+ async function sendCommentPinConfig(tokens) {
+   if (!signer) {
+     toast.error("Connect wallet first");
+     return false;
+   }
+   const topicId = utilityTopicId();
+   if (!topicId) {
+     toast.error("Please enter a Topic ID or domain.");
+     return false;
+   }
+   const message = commentPinConfigMessage(tokens);
+   if (!message) {
+     toast.error("Enter collection ids like 0.0.123");
+     return false;
+   }
+   toast.info("Confirm in wallet 👛");
+   await sendMessage(topicId, message);
+   storeTopicCommentPin(topicId, tokens);
+   toast.success("Saved");
+   return true;
+ }
+
+ const commentPinSave = document.getElementById("submit-button-comment-pin");
+ if (commentPinSave) commentPinSave.addEventListener("click", async (event) => {
+   event.stopPropagation();
+   try {
+     const field = document.getElementById("input-field-comment-pin");
+     const parsed = parsePinInput(field ? field.value : "");
+     if (parsed.invalid.length) {
+       toast.error("Enter collection ids like 0.0.123");
+       return;
+     }
+     if (parsed.tooMany) {
+       toast.error("Up to 5 collections");
+       return;
+     }
+     if (parsed.tokens.length) {
+       const check = await validatePinTokens(parsed.tokens);
+       if (!check.ok) {
+         toast.error(`${check.token}: ${check.reason}`);
+         return;
+       }
+     }
+     await sendCommentPinConfig(parsed.tokens);
+   } catch (error) {
+     console.error("Error setting comment pin:", error);
+     toast.error("Edit was not saved");
+   }
+ });
+
 // The community's install icon. Upload goes through /api/upload (Turnstile,
 // then the wallet grant), as a centre square, and the R2 link is the
 // admin config's appIcon. Use profile picture writes an empty appIcon.
@@ -1188,6 +1239,13 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
     messagesContainer.dataset.loadedTopicId = topicId;
     const autoplayField = document.getElementById("input-field-autoplay-nft");
     if (autoplayField) autoplayField.value = autoplayNft;
+    const commentPinNfts = currentCommentPinNfts(messages, topicAdmin);
+    const pinField = document.getElementById("input-field-comment-pin");
+    if (pinField) {
+      pinField.value = Array.isArray(commentPinNfts) ? commentPinNfts.join(", ") : "";
+      pinField.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    storeTopicCommentPin(topicId, commentPinNfts);
     showAppIconPreview(appIcon);
 
     if (loadedNFTsForModel.length > 0) {
@@ -1212,6 +1270,9 @@ document.getElementById("load-topic-rules-for-utility").addEventListener("click"
     appendStaticRule(messagesContainer, autoplayNft
       ? `Autoplay polygon videos: ${autoplayNft}`
       : 'Autoplay polygon videos: none');
+    appendStaticRule(messagesContainer, Array.isArray(commentPinNfts) && commentPinNfts.length
+      ? `Pin top comments: ${commentPinNfts.join(', ')}`
+      : 'Pin top comments: none');
     appendStaticRule(messagesContainer, appIcon
       ? 'App icon: custom image'
       : 'App icon: profile picture');

@@ -15,6 +15,9 @@ import {
   commentPinFor,
   commentPinPayers,
   commentPinText,
+  commentPinsToShow,
+  rememberTopicCommentPin,
+  topicCommentPinRule,
   lookupHolders,
   normalizePins,
   parsePinInput,
@@ -26,6 +29,7 @@ import {
   validatePinTokens,
   whenCollectionName,
 } from "../commentpin.js";
+import { commentPinConfigMessage, currentCommentPinNfts } from "../loadcurrenttopic.js";
 
 const NAME_MS = 60 * 60 * 1000;
 const POST = "2026-01-02T00:00:00.000Z";
@@ -579,54 +583,89 @@ test.describe("comment pin", { concurrency: 1 }, () => {
     assert.match(html, /id="input-field-comment-pin"/);
     assert.match(html, /id="submit-button-comment-pin"/);
     assert.match(html, /Pin top comments/);
-    assert.match(html, /Open one of your posts to pin holders/);
+    assert.match(html, /id="comment-pin-utility-hint" hidden/);
+    const field = html.slice(html.indexOf('id="input-field-comment-pin"'), html.indexOf('id="comment-pin-utility-hint"'));
+    const button = html.slice(html.indexOf('id="submit-button-comment-pin"'), html.indexOf('id="submit-button-comment-pin"') + 160);
+    assert.equal(field.includes("disabled"), false);
+    assert.equal(button.includes("disabled"), false);
     assert.doesNotMatch(rest, /readCreatePin|clearCreatePin|comment-pin-marker|comment-pin-polygon/);
-    assert.doesNotMatch(client, /pinDraft|popup-settings-comment-pin|readCreatePin/);
-    const save = client.slice(client.indexOf("async function saveUtilityPin"), client.indexOf("const pinSave"));
-    assert.match(save, /planCommentPinEdit\(field\.value, true\)/);
-    assert.match(save, /pinWalkOwned\(walk\)/);
-    assert.match(save, /if \(!field \|\| !owned\) return;/);
-    assert.match(save, /Enter collection ids like 0\.0\.123/);
-    assert.match(save, /Up to 5 collections/);
-    assert.match(save, /validatePinTokens\(plan\.tokens\)/);
-    assert.match(save, /\$\{check\.token\}: \$\{check\.reason\}/);
-    assert.match(save, /editPayload\(walk, undefined, null, plan\.tokens\)/);
-    assert.match(save, /rememberCommentPin\(connectedAccount, sent, sentAt\)/);
-    assert.match(save, /applyOpenCommentPin\(walk\)/);
-    assert.match(client, /function applyOpenCommentPin\(walk\)/);
-    const apply = client.slice(client.indexOf("function applyOpenCommentPin"), client.indexOf("async function saveUtilityPin"));
-    assert.match(apply, /section\._applyPin\(\)/);
+    assert.doesNotMatch(client, /pinDraft|popup-settings-comment-pin|readCreatePin|utilityPinWalk|paintUtilityPin|saveUtilityPin/);
+    const save = rest.slice(rest.indexOf("async function sendCommentPinConfig"), rest.indexOf("const commentPinSave"));
+    assert.match(save, /Connect wallet first/);
+    assert.match(save, /Please enter a Topic ID or domain\./);
+    assert.match(save, /utilityTopicId\(\)/);
+    assert.match(save, /commentPinConfigMessage\(tokens\)/);
+    assert.match(save, /sendMessage\(topicId, message\)/);
+    assert.match(save, /storeTopicCommentPin\(topicId, tokens\)/);
+    assert.match(save, /Confirm in wallet 👛/);
+    assert.match(save, /toast\.success\("Saved"\)/);
+    const click = rest.slice(rest.indexOf("const commentPinSave"), rest.indexOf("The community's install icon"));
+    assert.match(click, /parsePinInput\(field \? field\.value : ""\)/);
+    assert.match(click, /Enter collection ids like 0\.0\.123/);
+    assert.match(click, /Up to 5 collections/);
+    assert.match(click, /validatePinTokens\(parsed\.tokens\)/);
+    assert.match(click, /\$\{check\.token\}: \$\{check\.reason\}/);
+    assert.match(click, /sendCommentPinConfig\(parsed\.tokens\)/);
+    assert.match(rest, /Pin top comments: \$\{commentPinNfts\.join\(', '\)\}/);
+    assert.match(rest, /input-field-comment-pin/);
+    assert.equal(client.split("storeTopicCommentPin(topicId, currentCommentPinNfts(messages, topicAdmin))").length - 1, 3);
+    assert.match(client, /topicCommentPinRule\(post\.topicId\)/);
+    assert.match(client, /ensureTopicCommentPin\(post\.topicId\)/);
+    assert.match(client, /commentPinsToShow\(rule, post\.payer, post\.created, post\.stamp, post\.base\)/);
+    const repaint = client.slice(client.indexOf("function repaintTopicCommentPins"), client.indexOf("export function storeTopicCommentPin"));
+    assert.match(repaint, /section\._applyPin\(\)/);
   });
 
-  test("the pin field's first paint waits until the module has finished evaluating", async () => {
-    const client = readFileSync(new URL("../processallmessages.js", import.meta.url), "utf8").replace(/\r\n/g, "\n");
-    const start = client.indexOf("{\n  const pinSave = document.getElementById('submit-button-comment-pin');");
-    const end = client.indexOf("\n// The post popup hides", start);
-    const boot = client.slice(start, end);
-    assert.ok(start >= 0 && end > start);
-    assert.match(boot, /addEventListener\('click', \(event\) => \{\n\s*event\.stopPropagation\(\);\n\s*saveUtilityPin\(\);/);
-    assert.match(boot, /addEventListener\('pointerdown', \(\) => paintUtilityPin\(\), true\)/);
-    assert.match(boot, /queueMicrotask\(paintUtilityPin\)/);
-    assert.doesNotMatch(boot, /\npaintUtilityPin\(\);/);
+  test("a topic pin is an admin rule: newest wins, a clear sticks, and a post pin is only the fallback", () => {
+    clearCommentPinState();
+    const admins = ["0.0.2"];
+    const set = JSON.parse(commentPinConfigMessage(["0.0.4", "0.0.4", "0.0.5"]));
+    const cleared = JSON.parse(commentPinConfigMessage([]));
+    assert.deepEqual(set, { commentPinNfts: ["0.0.4", "0.0.5"] });
+    assert.deepEqual(cleared, { commentPinNfts: [] });
+    assert.equal(commentPinConfigMessage("0.0.1"), "");
+    assert.equal(commentPinConfigMessage(["nope"]), "");
+    assert.equal(commentPinConfigMessage(["0.0.1", "0.0.2", "0.0.3", "0.0.4", "0.0.5", "0.0.6"]), "");
+    const messages = [
+      { payer: "0.0.2", commentPinNfts: ["0.0.11"] },
+      { payer: "0.0.9", commentPinNfts: ["0.0.22"] },
+      { payer: "0.0.2", changeName: "Keep" },
+      { payer: "0.0.2", ...set },
+      { payer: "0.0.2", commentPinNfts: ["not-a-token"] },
+      { payer: "0.0.8", ...cleared },
+    ];
+    assert.deepEqual(currentCommentPinNfts(messages, admins), ["0.0.4", "0.0.5"]);
+    messages.push({ payer: "0.0.2", commentPinNfts: ["0.0.1", "0.0.2", "0.0.3", "0.0.4", "0.0.5", "0.0.6"] });
+    assert.deepEqual(currentCommentPinNfts(messages, admins), ["0.0.4", "0.0.5"], "more than five is skipped");
+    messages.push({ payer: "0.0.9", commentPinNfts: [] });
+    assert.deepEqual(currentCommentPinNfts(messages, admins), ["0.0.4", "0.0.5"], "a non-admin clear is ignored");
+    messages.push({ payer: "0.0.2", commentPinNfts: [] });
+    assert.deepEqual(currentCommentPinNfts(messages, admins), []);
+    messages.push({ payer: "0.0.2", commentPinNfts: ["0.0.60"] });
+    assert.deepEqual(currentCommentPinNfts(messages, admins), ["0.0.60"]);
+    assert.equal(currentCommentPinNfts(messages, []), null, "no memo admin, no topic rule");
+    assert.equal(currentCommentPinNfts([{ payer: "0.0.4", commentPinNfts: ["0.0.1"] }], ["0.0.2"]), null);
+    assert.equal(currentCommentPinNfts(null, admins), null);
 
-    const document = {
-      getElementById() {
-        return { addEventListener() {} };
-      },
-    };
-    const reports = [];
-    const run = new Function("document", "queueMicrotask", "report", `
-      function paintUtilityPin() {
-        report(commentsModal);
-      }
-      function saveUtilityPin() {}
-      ${boot}
-      let commentsModal = "ready";
-      let commentsModalSection = null;
-    `);
-    assert.doesNotThrow(() => run(document, queueMicrotask, (value) => reports.push(value)));
-    assert.deepEqual(reports, []);
-    await Promise.resolve();
-    assert.deepEqual(reports, ["ready"]);
+    const post = { tokens: ["0.0.8"] };
+    assert.deepEqual(commentPinsToShow(undefined, "0.0.50", "2026-01-01T00:00:00.000Z", "stamp", post), ["0.0.8"]);
+    assert.deepEqual(commentPinsToShow(null, "0.0.50", "2026-01-01T00:00:00.000Z", "stamp", post), ["0.0.8"]);
+    assert.deepEqual(commentPinsToShow(["0.0.3"], "0.0.50", "2026-01-01T00:00:00.000Z", "stamp", post), ["0.0.3"]);
+    assert.deepEqual(commentPinsToShow([], "0.0.50", "2026-01-01T00:00:00.000Z", "stamp", post), []);
+    rememberTopicCommentPin("0.0.9", ["0.0.3"]);
+    assert.deepEqual(
+      commentPinsToShow(topicCommentPinRule("0.0.9"), "0.0.50", "2026-01-01T00:00:00.000Z", "stamp", post),
+      ["0.0.3"],
+    );
+    rememberTopicCommentPin("0.0.9", null);
+    assert.deepEqual(
+      commentPinsToShow(topicCommentPinRule("0.0.9"), "0.0.50", "2026-01-01T00:00:00.000Z", "stamp", post),
+      ["0.0.8"],
+    );
+    rememberTopicCommentPin("0.0.9", []);
+    assert.deepEqual(
+      commentPinsToShow(topicCommentPinRule("0.0.9"), "0.0.50", "2026-01-01T00:00:00.000Z", "stamp", post),
+      [],
+    );
   });
 });

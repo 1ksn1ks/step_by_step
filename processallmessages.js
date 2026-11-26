@@ -53,11 +53,12 @@ import {
   commentPinFor,
   commentPinPayers,
   commentPinText,
+  commentPinsToShow,
   lookupHolders,
   pinTopLevel,
-  planCommentPinEdit,
   rememberCommentPin as storeCommentPin,
-  validatePinTokens,
+  rememberTopicCommentPin,
+  topicCommentPinRule,
   whenCollectionName,
 } from './commentpin.js';
 import { commentFiltersActive, filterCommentsForReader, freshCommentFilters } from './commentfilter.js';
@@ -99,7 +100,7 @@ import { capMessageField } from './bytecap.js';
 import { videoSeconds } from './mediaduration.js'
 import { placeUrl } from './placeurl.js';
 import { stackedTopicRules, smallestPolygonSize } from './topicrules.js'
-import { currentAutoplayNft } from './loadcurrenttopic.js'
+import { adminsFromMemo, currentAutoplayNft, currentCommentPinNfts } from './loadcurrenttopic.js'
 import { rememberTopicAutoplay } from './coverautoplay.js'
 import { payerUsernameNode } from './payerlink.js'
 import { earlyHashinalNumber, paintProfileAvatar } from './earlyhashinal.js'
@@ -1037,182 +1038,6 @@ async function savePopupEdit() {
   }
 }
 
-// The NFT-utility pin field edits the post whose comments are open, or else
-// the post in the open map popup (the settings target when that popup is gone).
-function asPinWalk(post) {
-  if (!post || !post.payer) return null;
-  const created = post.created || post.authorCreated || '';
-  return {
-    payer: post.payer,
-    created,
-    authorCreated: post.authorCreated || created,
-    timestamp: post.timestamp || post.stamp || '',
-    commentPin: post.commentPin != null ? post.commentPin : post.base,
-    topicId: post.topicId,
-    kind: post.kind || post.shape || 'marker',
-    shape: post.shape || post.kind || 'marker',
-    share: post.share || null,
-  };
-}
-
-function openMapPopupSection() {
-  if (typeof document === 'undefined' || !document.querySelectorAll) return null;
-  const popups = document.querySelectorAll('.maplibregl-popup');
-  for (const popup of popups) {
-    if (!popup.isConnected) continue;
-    if (popup.closest && popup.closest('#popup-settings-card')) continue;
-    const section = popup.querySelector('.popup-comments');
-    if (!section || !section._pinPost || !section._pinPost.payer) continue;
-    if (commentsModal && commentsModal.contains(section) && commentsModalSection && section !== commentsModalSection) continue;
-    return section;
-  }
-  return null;
-}
-
-function utilityPinWalk() {
-  if (commentsModal && commentsModalSection && commentsModalSection._pinPost && commentsModalSection._pinPost.payer) {
-    return asPinWalk(commentsModalSection._pinPost);
-  }
-  const section = openMapPopupSection();
-  if (section) return asPinWalk(section._pinPost);
-  if (popupSettingsTarget && popupSettingsTarget.payer) return asPinWalk(popupSettingsTarget);
-  return null;
-}
-
-function pinWalkOwned(walk) {
-  return !!(walk && signer && connectedAccount && walk.payer === connectedAccount && !walk.share);
-}
-
-function pinWalkKey(walk, owned) {
-  if (!walk) return '';
-  return [walk.payer, walk.created || '', walk.timestamp || '', walk.topicId || '', owned ? '1' : '0'].join('|');
-}
-
-let utilityPinKey = '';
-let utilityPinBusy = false;
-
-function paintUtilityPin() {
-  const field = document.getElementById('input-field-comment-pin');
-  const save = document.getElementById('submit-button-comment-pin');
-  const hint = document.getElementById('comment-pin-utility-hint');
-  if (!field || !save) return;
-  const walk = utilityPinWalk();
-  const owned = pinWalkOwned(walk);
-  const key = pinWalkKey(walk, owned);
-  field.disabled = !owned;
-  save.disabled = !owned;
-  if (hint) hint.hidden = owned;
-  if (key === utilityPinKey) return;
-  utilityPinKey = key;
-  const tokens = walk
-    ? commentPinFor(walk.payer, walk.created || walk.authorCreated, walk.timestamp, walk.commentPin)
-    : [];
-  field.value = tokens.join(', ');
-  field.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-function sameTokenList(left, right) {
-  if (!left || !right || left.length !== right.length) return false;
-  for (let index = 0; index < left.length; index++) {
-    if (left[index] !== right[index]) return false;
-  }
-  return true;
-}
-
-function applyOpenCommentPin(walk) {
-  const section = commentsModalSection;
-  if (!section || typeof section._applyPin !== 'function' || !section._pinPost || !walk) return;
-  const post = section._pinPost;
-  if (post.payer !== walk.payer) return;
-  const created = messageCreated(post.created);
-  const walkCreated = messageCreated(walk.created || walk.authorCreated);
-  const stamp = post.stamp != null ? String(post.stamp) : '';
-  const walkStamp = walk.timestamp != null ? String(walk.timestamp) : '';
-  if ((created && walkCreated && created === walkCreated) || (stamp && walkStamp && stamp === walkStamp)) {
-    section._applyPin();
-  }
-}
-
-async function saveUtilityPin() {
-  if (utilityPinBusy) return;
-  const field = document.getElementById('input-field-comment-pin');
-  const walk = utilityPinWalk();
-  const owned = pinWalkOwned(walk);
-  if (!field || !owned) return;
-  if (pinWalkKey(walk, owned) !== utilityPinKey) {
-    paintUtilityPin();
-    return;
-  }
-  const plan = planCommentPinEdit(field.value, true);
-  if (!plan.ok) {
-    if (plan.reason === 'invalid') toast.error('Enter collection ids like 0.0.123');
-    else if (plan.reason === 'many') toast.error('Up to 5 collections');
-    return;
-  }
-  if (plan.tokens.length) {
-    const check = await validatePinTokens(plan.tokens);
-    if (!check.ok) {
-      toast.error(`${check.token}: ${check.reason}`);
-      return;
-    }
-  }
-  const current = commentPinFor(walk.payer, walk.created || walk.authorCreated, walk.timestamp, walk.commentPin);
-  if (sameTokenList(current, plan.tokens)) return;
-  const created = messageCreated(walk.created || walk.authorCreated);
-  const stamp = walk.timestamp ? String(walk.timestamp) : '';
-  if ((!created && !stamp) || !walk.topicId) {
-    toast.error('This post cannot be edited');
-    return;
-  }
-  const body = editPayload(walk, undefined, null, plan.tokens);
-  utilityPinBusy = true;
-  try {
-    let key = null;
-    try {
-      key = await resolvePopupEditKey(walk.topicId);
-    } catch (error) {
-      console.error('popup edit key lookup failed', error);
-      toast.error('Could not check the topic key — edit not sent');
-      return;
-    }
-    if (key) {
-      const outgoing = JSON.stringify(await encryptMessage(JSON.stringify(body), key));
-      if (utf8ByteLength(outgoing) > HCS_MESSAGE_MAX_BYTES) {
-        toast.error(HCS_TOO_LONG);
-        return;
-      }
-      toast.info('Confirm in wallet 👛');
-      await sendMessage(walk.topicId, outgoing);
-    } else {
-      toast.info('Confirm in wallet 👛');
-      await sendMessage(walk.topicId, JSON.stringify(body));
-    }
-    toast.success('Saved');
-    const sent = (body.marker || body.polygon).data;
-    const sentAt = new Date().toISOString();
-    rememberCommentPin(connectedAccount, sent, sentAt);
-    applyOpenCommentPin(walk);
-  } catch (error) {
-    console.error('comment pin edit failed', error);
-    toast.error('Edit was not saved');
-  } finally {
-    utilityPinBusy = false;
-  }
-}
-
-{
-  const pinSave = document.getElementById('submit-button-comment-pin');
-  if (pinSave) pinSave.addEventListener('click', (event) => {
-    event.stopPropagation();
-    saveUtilityPin();
-  });
-  const utilityColumn = document.getElementById('utility-column');
-  if (utilityColumn) utilityColumn.addEventListener('pointerdown', () => paintUtilityPin(), true);
-  // commentsModal is declared later in this file. A call here, while the
-  // module is still evaluating, reads that binding in its temporal dead zone.
-  queueMicrotask(paintUtilityPin);
-}
-
 // The post popup hides its own × while settings is open, like comments-open.
 let settingsHistoryOpen = false;
 function syncSettingsOpen() {
@@ -1369,7 +1194,6 @@ function closePopupSettings() {
   popupSettingsGearEl = null;
   hideEditComposer();
   syncSettingsOpen();
-  paintUtilityPin();
 }
 
 function bindPopupSettings() {
@@ -1480,7 +1304,6 @@ window.openPopupSettings = function(target) {
       paintDeleteButton();
       hideEditComposer();
       paintEditButton();
-      paintUtilityPin();
       backdrop.style.display = "block";
       card.style.display = "block";
       // Back/Forward: the card is a layer on top of the post popup.
@@ -2031,6 +1854,46 @@ export function rememberCommentPin(payer, data, envelope) {
 }
 
 export { commentPinFor };
+
+// A topic's pin rule. 0 marks a store that happened while a fetch was in
+// flight, so that fetch does not write an older answer over it.
+const commentPinRuleLoads = new Map();
+let commentPinRuleEpoch = 0;
+
+function repaintTopicCommentPins(topicId) {
+  if (typeof document === 'undefined' || !document.querySelectorAll) return;
+  const id = String(topicId || '').trim();
+  if (!id) return;
+  for (const section of document.querySelectorAll('.popup-comments')) {
+    const post = section._pinPost;
+    if (!post || String(post.topicId || '').trim() !== id) continue;
+    if (typeof section._applyPin === 'function') section._applyPin();
+  }
+}
+
+export function storeTopicCommentPin(topicId, tokens) {
+  const id = String(topicId || '').trim();
+  if (!id) return;
+  commentPinRuleLoads.set(id, 0);
+  rememberTopicCommentPin(id, tokens);
+  repaintTopicCommentPins(id);
+}
+
+function ensureTopicCommentPin(topicId) {
+  const id = String(topicId || '').trim();
+  if (!id || topicCommentPinRule(id) !== undefined || commentPinRuleLoads.has(id)) return;
+  const epoch = ++commentPinRuleEpoch;
+  commentPinRuleLoads.set(id, epoch);
+  Promise.all([getMessages(id), getTopicInfo(id)]).then(([raw, info]) => {
+    if (commentPinRuleLoads.get(id) !== epoch) return;
+    if (!raw || raw.error || !info || !Array.isArray(raw.messages)) return;
+    rememberTopicCommentPin(id, currentCommentPinNfts(raw.messages, adminsFromMemo(info.memo)));
+    repaintTopicCommentPins(id);
+  }).catch((error) => {
+    if (commentPinRuleLoads.get(id) === epoch) commentPinRuleLoads.delete(id);
+    console.error('comment pin rule load failed', error);
+  });
+}
 
 function repaintPinnedSections(payer, data) {
   if (!payer || !data || typeof document === 'undefined' || !document.querySelectorAll) return;
@@ -3837,6 +3700,7 @@ if (rawResult.messages && Array.isArray(rawResult.messages)) {
           };
 
           rememberTopicAutoplay(topicId, currentAutoplayNft(messages, topicAdmin));
+          storeTopicCommentPin(topicId, currentCommentPinNfts(messages, topicAdmin));
           await showDrawingsAsApproved({
             token: opts.token,
             messages,
@@ -4786,12 +4650,12 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
   section._readerFilters = freshCommentFilters();
   section._pinPost = pinPost;
   const pinLine = commentsPinLine(section);
-  const currentTokens = () => commentPinFor(
-    section._pinPost.payer,
-    section._pinPost.created,
-    section._pinPost.stamp,
-    section._pinPost.base,
-  );
+  const currentTokens = () => {
+    const post = section._pinPost || {};
+    const rule = topicCommentPinRule(post.topicId);
+    if (rule === undefined) ensureTopicCommentPin(post.topicId);
+    return commentPinsToShow(rule, post.payer, post.created, post.stamp, post.base);
+  };
   let pinEpoch = 0;
   const sortBar = buildSortToggle({
     value: section._sortMode,
@@ -5458,7 +5322,6 @@ function teardownCommentsModal() {
     if (commentsModal) commentsModal.remove();
     commentsModal = null;
     commentsModalSection = null;
-    paintUtilityPin();
     commentBubbleInput = null;
     if (input) {
       input.checked = false;
@@ -5973,7 +5836,6 @@ function showCommentsModal(section) {
 
   const input = commentField(section);
   if (input) setTimeout(() => input.focus(fromFeed ? { preventScroll: true } : undefined), 100);
-  paintUtilityPin();
 }
 
 function retargetCommentsModal() {
@@ -6026,7 +5888,6 @@ if (!landscapeCommentsBound) {
   // A wallet connected or left while the comments are open: your avatar
   // and ⋯ on your own rows follow it.
   document.addEventListener('wallet-account-changed', () => {
-    paintUtilityPin();
     if (commentsModalSection && typeof commentsModalSection._refresh === 'function') {
       commentsModalSection._refresh();
     }
@@ -6991,6 +6852,7 @@ if (rawResult && Array.isArray(rawResult)) {
           };
 
           rememberTopicAutoplay(topicId, currentAutoplayNft(messages, topicAdmin));
+          storeTopicCommentPin(topicId, currentCommentPinNfts(messages, topicAdmin));
           await showDrawingsAsApproved({
             messages,
             messagesByPayer,
@@ -7656,6 +7518,7 @@ if (rawResult && Array.isArray(rawResult)) {
           };
 
           rememberTopicAutoplay(topicId, currentAutoplayNft(messages, topicAdmin));
+          storeTopicCommentPin(topicId, currentCommentPinNfts(messages, topicAdmin));
           await showDrawingsAsApproved({
             messages,
             messagesByPayer,
