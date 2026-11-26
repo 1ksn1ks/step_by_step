@@ -316,7 +316,9 @@ export function mountFieldExpand(field, { mirror = null } = {}) {
   } catch { /* no layout yet */ }
 
   const counter = descendants(box, (el) => el.classList.contains('hcs-byte-counter'))[0] || null;
-  const state = { expanded: false, look: '', placeholder: null, scrolls: [], path: [], moved: [], stop: [] };
+  // edited: typed in while open. inline: a textarea's own inline height
+  // before it opened ({ value, priority }), put back after an edit.
+  const state = { expanded: false, look: '', placeholder: null, scrolls: [], path: [], moved: [], stop: [], edited: false, inline: null };
   // Another box taking the full screen, or a page closing under it, puts it
   // back at once: that page's history step comes right after this one's.
   const entry = { collapse: () => controller.collapse({ instant: true }) };
@@ -641,6 +643,12 @@ export function mountFieldExpand(field, { mirror = null } = {}) {
         el.classList.add('field-expand-path');
         state.path.push(el);
       }
+      // An auto-growing textarea writes its height inline on every input:
+      // the one it has in its row is kept for the way back.
+      if (field.tagName === 'TEXTAREA') {
+        state.inline = { value: field.style.getPropertyValue('height'), priority: field.style.getPropertyPriority('height') };
+      }
+      state.edited = false;
       state.expanded = true;
       box.classList.add('is-expanded');
       field.classList.add('is-field-expanded');
@@ -707,8 +715,20 @@ export function mountFieldExpand(field, { mirror = null } = {}) {
       document.documentElement.classList.remove('field-full-open');
     }
     for (const [el, top] of state.scrolls.splice(0)) el.scrollTop = top;
+    // Typed in while open, a textarea's own input listeners measured it in
+    // the page: its auto-height wrote the page's height inline and the ×
+    // was placed there. Its row height goes back, and once it is home one
+    // input event lets the box's listeners fit it to the row again.
+    const refit = field.tagName === 'TEXTAREA' && state.edited;
+    if (refit && state.inline) {
+      if (state.inline.value) field.style.setProperty('height', state.inline.value, state.inline.priority);
+      else field.style.removeProperty('height');
+    }
     paint();
     restoreCaret(caret);
+    if (refit) field.dispatchEvent(new Event('input', { bubbles: true }));
+    state.edited = false;
+    state.inline = null;
     if (fromHistory) return;
     if (window.layerClosedByUI && window.layerIsOpen && window.layerIsOpen(LAYER)) window.layerClosedByUI(LAYER);
   }
@@ -729,6 +749,9 @@ export function mountFieldExpand(field, { mirror = null } = {}) {
     controller.collapse();
   });
   field.addEventListener('input', paint);
+  field.addEventListener('input', () => {
+    if (state.expanded) state.edited = true;
+  });
   field.addEventListener('focus', paint);
   if (mirror) mirror.addEventListener('input', paint);
   // A draft restored or a box cleared from code fires no input event; the

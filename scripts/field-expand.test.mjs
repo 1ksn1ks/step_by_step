@@ -72,11 +72,17 @@ class FakeElement {
     this.computed = {};
     this.innerHTML = "";
     const props = {};
+    const priorities = {};
     this.style = {
       props,
-      setProperty(name, value) { props[name] = String(value); },
-      removeProperty(name) { delete props[name]; },
+      priorities,
+      setProperty(name, value, priority = "") {
+        props[name] = String(value);
+        priorities[name] = String(priority || "");
+      },
+      removeProperty(name) { delete props[name]; delete priorities[name]; },
       getPropertyValue(name) { return props[name] || ""; },
+      getPropertyPriority(name) { return priorities[name] || ""; },
     };
   }
   get isConnected() {
@@ -696,6 +702,138 @@ test("a comment textarea in a data-expand-box moves Send into the page header an
   assert.equal(page.children[home], box);
   assert.equal(send.parentElement, row);
   assert.equal(fieldExpandOf(field).expanded, false);
+});
+
+// The comment composer with an auto-growing textarea: its input listener,
+// like adjustTextareaHeight, clears the inline height and writes the
+// field's scrollHeight back. Its scrollHeight is the page's while the box
+// is in #field-full and one line's at home. Every run is logged: where the
+// field was, the inline height it found, and the one it wrote.
+function growingComposer({ height = "44px", priority = "" } = {}) {
+  const field = el("textarea", {
+    rect: { top: 700, left: 16, width: 280, height: 44 },
+    offsetWidth: 280,
+    offsetHeight: 44,
+  });
+  const send = el("button", { data: { expandSend: "" }, textContent: "Send" });
+  const row = el("div", { class: "comments-input-row" }, field, send);
+  const box = el("div", {
+    class: "comments-compose",
+    data: { expandBox: "", expandTitle: "Comment" },
+    rect: { top: 680, left: 8, width: 360, height: 96 },
+    offsetHeight: 96,
+  }, row);
+  const page = el("div", { class: "comments-modal" }, box);
+  doc.body.appendChild(page);
+  if (height) field.style.setProperty("height", height, priority);
+  const home = () => box.parentElement === page && field.parentElement === row;
+  Object.defineProperty(field, "scrollHeight", { get: () => (home() ? 44 : 700), configurable: true });
+  const runs = [];
+  field.addEventListener("input", () => {
+    const found = field.style.getPropertyValue("height");
+    const foundPriority = field.style.getPropertyPriority("height");
+    field.style.setProperty("height", "");
+    field.style.setProperty("height", `${field.scrollHeight}px`);
+    runs.push({ home: home(), found, foundPriority, wrote: field.style.getPropertyValue("height") });
+  });
+  field.value = "A comment";
+  mountFieldExpand(field);
+  return { field, send, row, box, page, runs, home };
+}
+
+test("a textarea typed in while expanded gets its row height back and one input event at home after it closes", () => {
+  const { field, send, row, box, page, runs, home } = growingComposer({ height: "44px", priority: "important" });
+  tap(buttonOf(field));
+  assert.equal(fieldExpandOf(field).expanded, true);
+  // The whole message deleted in the page: the listener writes the page's height.
+  field.value = "";
+  field.dispatchEvent(new FakeEvent("input", { bubbles: true }));
+  assert.deepEqual(runs.at(-1), { home: false, found: "44px", foundPriority: "important", wrote: "700px" });
+  const before = runs.length;
+  // The header's ←.
+  tap(hostPart("field-full-back"));
+  assert.equal(fieldExpandOf(field).expanded, false);
+  assert.equal(box.parentElement, page);
+  assert.equal(field.parentElement, row);
+  assert.equal(send.parentElement, row);
+  // One input event, with the box home and the row height already back.
+  assert.equal(runs.length, before + 1);
+  assert.deepEqual(runs.at(-1), { home: true, found: "44px", foundPriority: "important", wrote: "44px" });
+  // What the field's own listener measured in its row, not the page's height.
+  assert.equal(field.style.getPropertyValue("height"), "44px");
+  assert.ok(home());
+
+  // Typed in with no inline height before it opened: removed, then fitted.
+  const fresh = growingComposer({ height: "" });
+  tap(buttonOf(fresh.field));
+  fresh.field.value = "Another";
+  fresh.field.dispatchEvent(new FakeEvent("input", { bubbles: true }));
+  assert.equal(fresh.field.style.getPropertyValue("height"), "700px");
+  const count = fresh.runs.length;
+  collapseExpandedFields();
+  assert.equal(fresh.runs.length, count + 1);
+  assert.deepEqual(fresh.runs.at(-1), { home: true, found: "", foundPriority: "", wrote: "44px" });
+});
+
+test("opened and closed without typing: no extra input event, the inline height untouched; Escape and collapseExpandedFields() refit too", () => {
+  const quiet = growingComposer({ height: "52px" });
+  const writes = [];
+  const { setProperty, removeProperty } = quiet.field.style;
+  quiet.field.style.setProperty = (...args) => { writes.push(["set", ...args]); return setProperty(...args); };
+  quiet.field.style.removeProperty = (...args) => { writes.push(["remove", ...args]); return removeProperty(...args); };
+  tap(buttonOf(quiet.field));
+  assert.equal(fieldExpandOf(quiet.field).expanded, true);
+  tap(hostPart("field-full-back"));
+  assert.equal(fieldExpandOf(quiet.field).expanded, false);
+  assert.equal(quiet.runs.length, 0);
+  assert.deepEqual(writes, []);
+  assert.equal(quiet.field.style.getPropertyValue("height"), "52px");
+
+  // Typed in, then Escape.
+  const esc = growingComposer();
+  tap(buttonOf(esc.field));
+  esc.field.value = "Shorter";
+  esc.field.dispatchEvent(new FakeEvent("input", { bubbles: true }));
+  const count = esc.runs.length;
+  esc.field.dispatchEvent(new FakeEvent("keydown", { bubbles: true, key: "Escape" }));
+  assert.equal(fieldExpandOf(esc.field).expanded, false);
+  assert.equal(esc.runs.length, count + 1);
+  assert.equal(esc.runs.at(-1).home, true);
+  assert.equal(esc.field.style.getPropertyValue("height"), "44px");
+
+  // Typed in, then closed from code (another page, a send).
+  const code = growingComposer();
+  tap(buttonOf(code.field));
+  code.field.dispatchEvent(new FakeEvent("input", { bubbles: true }));
+  const before = code.runs.length;
+  collapseExpandedFields();
+  assert.equal(code.runs.length, before + 1);
+  assert.equal(code.runs.at(-1).home, true);
+  // Opened again and closed untouched: nothing more.
+  tap(buttonOf(code.field));
+  collapseExpandedFields();
+  assert.equal(code.runs.length, before + 1);
+});
+
+test("a contenteditable (Draw's text with its mirror) gets no input event when it closes", () => {
+  const editor = el("div", { class: "draw-popup-text", isContentEditable: true, offsetWidth: 330, offsetHeight: 120, rect: { top: 400, left: 20, width: 330, height: 120 }, textContent: "Draft" });
+  editor.attrs.contenteditable = "true";
+  const mirror = el("textarea", { hidden: true, value: "Draft" });
+  const box = el("div", { class: "draw-text-wrap", data: { expandBox: "", expandTitle: "Message" }, rect: { top: 400, left: 20, width: 350, height: 130 }, offsetHeight: 130, clientWidth: 350 }, editor);
+  const page = el("div", { class: "draw-popup-editor" }, box, mirror);
+  doc.body.appendChild(page);
+  mountFieldExpand(editor, { mirror });
+  const seen = [];
+  editor.addEventListener("input", () => seen.push("editor"));
+  mirror.addEventListener("input", () => seen.push("mirror"));
+  fieldExpandOf(editor).expand();
+  assert.equal(fieldExpandOf(editor).expanded, true);
+  editor.dispatchEvent(new FakeEvent("input", { bubbles: true }));
+  const count = seen.length;
+  collapseExpandedFields();
+  assert.equal(fieldExpandOf(editor).expanded, false);
+  assert.equal(box.parentElement, page);
+  assert.equal(seen.length, count);
 });
 
 test("single-line fields, titles and chat composers get no button", () => {
