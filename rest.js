@@ -1641,6 +1641,12 @@ async function readCreatePin(elementId) {
   return { tokens: parsed.tokens };
 }
 
+// After a post went out: the field is empty for the next one.
+function clearCreatePin(elementId) {
+  const el = document.getElementById(elementId);
+  if (el) el.value = "";
+}
+
 document.getElementById("submit-button-Create_Marker").addEventListener("click", async () => {
      try {
        if (!signer) {
@@ -1693,6 +1699,7 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
          message
        );
        console.log('Receipt:', receipt);
+       clearCreatePin("comment-pin-marker");
        reportMarker(topicId, cord, title, cleanUrl, msg, connectedAccount);
      } catch (error) {
        console.error('Error submitting message:', error);
@@ -1803,6 +1810,7 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
     if (utf8ByteLength(message) <= HCS_CHUNK_SIZE) toast.info("Confirm in wallet 👛");
     const receipt = await sendMessage(topicId,message);
     console.log('Receipt:', receipt);
+    clearCreatePin("comment-pin-marker");
     reportMarker(topicId, cord, title, cleanUrl, msg, connectedAccount);
   } catch (error) {
     console.error('Error submitting message:', error);
@@ -1901,7 +1909,8 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
          message
        );
        console.log('Receipt:', receipt);
- 
+       clearCreatePin("comment-pin-polygon");
+
      } catch (error) {
        console.error('Error submitting message:', error);
      }
@@ -2051,6 +2060,7 @@ document.getElementById("submit-button-Create_Marker").addEventListener("click",
     if (utf8ByteLength(message) <= HCS_CHUNK_SIZE) toast.info("Confirm in wallet 👛");
     const receipt = await sendMessage(topicId,message);
     console.log('Receipt:', receipt);
+    clearCreatePin("comment-pin-polygon");
   } catch (error) {
     console.error('Error submitting message:', error);
   }

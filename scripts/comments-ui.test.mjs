@@ -206,6 +206,52 @@ test("the switch starts at Newest, and Top re-sorts the same tree by likes", () 
   assert.doesNotMatch(change, /fetch|getMessages|_setComments/);
 });
 
+test("the pin rule line: hidden with no collection, the text when there is one, several names included", () => {
+  // processallmessages.js commentsPinLine as it is, on this file's DOM.
+  const client = read("../processallmessages.js");
+  const start = client.indexOf("function commentsPinLine(");
+  assert.ok(start > 0);
+  const source = client.slice(start, client.indexOf("\n}\n", start) + 2);
+  const commentsPinLine = new Function(`${source}\nreturn commentsPinLine;`)();
+
+  const section = new El("div");
+  const line = commentsPinLine(section);
+  assert.equal(line.className, "comments-pin");
+  assert.equal(line.getAttribute("role"), "note");
+  // Nothing shows before the first paint.
+  assert.equal(line.hidden, true);
+  assert.equal(typeof section._paintPin, "function");
+
+  // No collection: hidden, no text.
+  section._paintPin({ tokens: [], names: {}, text: "" });
+  assert.equal(line.hidden, true);
+  assert.equal(line.textContent, "");
+
+  // One collection: the text shows.
+  section._paintPin({ tokens: ["0.0.123"], names: { "0.0.123": "Cool Apes" }, text: "Holders of Cool Apes shown first" });
+  assert.equal(line.hidden, false);
+  assert.equal(line.textContent, "Holders of Cool Apes shown first");
+
+  // Several names, as commentpin.js joins them.
+  const several = "Holders of Cool Apes, Moon Cats, 0.0.789 shown first";
+  section._paintPin({ tokens: ["0.0.123", "0.0.456", "0.0.789"], names: { "0.0.123": "Cool Apes", "0.0.456": "Moon Cats" }, text: several });
+  assert.equal(line.hidden, false);
+  assert.equal(line.textContent, several);
+
+  // The pin is cleared again: hidden, and the old text is gone.
+  section._paintPin({ tokens: [], names: {}, text: "" });
+  assert.equal(line.hidden, true);
+  assert.equal(line.textContent, "");
+  section._paintPin(null);
+  assert.equal(line.hidden, true);
+
+  // The section mounts it first, above Top / Newest.
+  const build = client.slice(client.indexOf("function buildCommentsSection("), client.indexOf("// One comments modal at a time"));
+  assert.match(build, /const pinLine = commentsPinLine\(section\);/);
+  assert.match(build, /section\.appendChild\(pinLine\);\s*section\.appendChild\(sortBar\);/);
+  assert.ok(build.indexOf("commentsPinLine(section)") < build.indexOf("paintPinInfo"));
+});
+
 test("⋯ shows only on your own comment, never on someone else's, a placeholder or one still posting", () => {
   const menu = (node, account) => find(buildCommentRow(node, { me: account }), ".comment-menu-btn");
   assert.equal(menu(comment({ payer: other }), me), null);

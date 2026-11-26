@@ -931,6 +931,11 @@ function openEditComposer() {
   );
   if (shown) current = shown.textContent;
   text.value = current;
+  // The pin field starts at the post's collections, empty with none.
+  const pinInput = document.getElementById('popup-settings-comment-pin');
+  if (pinInput) {
+    pinInput.value = commentPinFor(walk.payer, walk.created || walk.authorCreated, walk.timestamp, walk.commentPin).join(', ');
+  }
   hideEditComposer();
   box.style.display = 'block';
   popupPosterDraft = null;
@@ -4595,6 +4600,22 @@ function commentOutgoingBytes(state, polygon, timestamp) {
   return utf8ByteLength(JSON.stringify({ [field]: body }));
 }
 
+// The rule line above Top / Newest: whose comments show first (commentpin.js
+// hands the text). section._paintPin({ tokens, names, text }) paints it;
+// an empty text hides it.
+function commentsPinLine(section) {
+  const line = document.createElement('div');
+  line.className = 'comments-pin';
+  line.setAttribute('role', 'note');
+  line.hidden = true;
+  section._paintPin = (info) => {
+    const text = info && typeof info.text === 'string' ? info.text : '';
+    line.textContent = text;
+    line.hidden = !text;
+  };
+  return line;
+}
+
 // Comment section for marker/polygon popups and feed posts, in the X /
 // Instagram shape (commentsui.js): a Top / Newest switch, a row for every
 // comment and reply, and the composer at the foot. Hidden until 💬 is
@@ -4616,6 +4637,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
   // updates and sends until the comments view closes.
   section._sortMode = DEFAULT_COMMENT_SORT;
   section._pinPost = pinPost;
+  const pinLine = commentsPinLine(section);
   const currentTokens = () => commentPinFor(
     section._pinPost.payer,
     section._pinPost.created,
@@ -4805,6 +4827,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
   };
   section._applyPin = () => paintList(section._tree || []);
   repaint(section._base);
+  section.appendChild(pinLine);
   section.appendChild(sortBar);
   section.appendChild(list);
 

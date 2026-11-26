@@ -10561,6 +10561,10 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
     margin-left: calc(var(--u) * 0.9);
   }
 
+  .maplibregl-map .comments-modal--in-card > .popup-comments > .comments-pin {
+    margin-inline: calc(var(--u) * 0.9);
+  }
+
   .maplibregl-map .comments-modal--in-card > .popup-comments > .comments-compose {
     padding: calc(var(--u) * 0.9) calc(var(--u) * 0.9) calc(var(--u) * 0.9);
     border-top: calc(var(--u) * 0.08) solid rgba(255, 255, 255, 0.22);
@@ -11556,6 +11560,46 @@ video.has-poster:not([src])::-webkit-media-controls-overlay-play-button {
 :is(#draw-column, #feed-chat) .draw-popup-editor .draw-coord-fields textarea.toolbar-column:focus {
   outline: none;
   border-color: rgba(34, 211, 238, 0.7);
+}
+/* The NFT pin field above Submit (rest.js readCreatePin): the place
+   field's look, one line high, the form's full width. It sits outside the
+   sample popup, so --u is made here the same way (the editor is the
+   100cqi container the sample's --card reads). */
+.draw-popup-editor .comment-pin-field {
+  --u: calc(100cqi * 0.024);
+  margin: calc(var(--u) * 0.8) 0 0;
+}
+.draw-popup-editor .comment-pin-field > .popup-settings-label {
+  margin: 0 0 calc(var(--u) * 0.4) calc(var(--u) * 0.4);
+  font-size: calc(var(--u) * 1.1);
+}
+.draw-popup-editor .comment-pin-input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: calc(var(--u) * 0.3) calc(var(--u) * 0.9);
+  border-radius: calc(var(--u) * 2);
+  border: calc(var(--u) * 0.12) solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 calc(var(--u) * 0.15) 0 rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.85);
+  font-family: inherit;
+  font-size: calc(var(--u) * 1.2);
+  line-height: calc(var(--u) * 3);
+}
+.draw-popup-editor .comment-pin-input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+.draw-popup-editor .comment-pin-input:focus {
+  outline: none;
+  border-color: rgba(34, 211, 238, 0.7);
+}
+.draw-popup-editor .comment-pin-hint {
+  margin: calc(var(--u) * 0.4) 0 0 calc(var(--u) * 0.4);
+  font-size: calc(var(--u) * 1);
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.5);
 }
 .draw-popup-editor .draw-coord-pick {
   right: calc(var(--u) * 0.35);
@@ -16674,6 +16718,11 @@ html.drawer-page .info-overlay {
   margin-bottom: calc(var(--fu) * 0.2);
   margin-left: calc((100% - min(100%, var(--feed-col-width))) / 2 + var(--fu) * 1.2);
 }
+/* The pin rule line above it, inside the post's column. */
+.feed-comments-body > .popup-comments > .comments-pin {
+  width: calc(min(100%, var(--feed-col-width)) - var(--fu) * 2.4);
+  margin: calc(var(--fu) * 0.4) auto 0;
+}
 .comments-modal--feed .comments-scroll,
 .comments-modal--feed .comments-scroll * {
   -webkit-user-select: text;
@@ -16766,6 +16815,24 @@ html.drawer-page .info-overlay {
 .comments-sort-btn.is-on {
   background: rgba(255, 255, 255, 0.9);
   color: #000;
+}
+
+/* Whose comments show first (processallmessages.js commentsPinLine, the
+   text from commentpin.js): one muted line above Top / Newest, hidden
+   (.popup-comments [hidden]) while the post pins no collection. Several
+   long collection names wrap inside the sheet. */
+.comments-pin {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  max-width: 100%;
+  margin: 0 0 calc(var(--u) * 0.6);
+  padding: calc(var(--u) * 0.5) calc(var(--u) * 1.2);
+  border-radius: calc(var(--u) * 1.2);
+  background: var(--comment-glass);
+  color: var(--comment-muted);
+  font-size: calc(var(--u) * 1.1);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 /* One row: avatar | name line, text, media, actions, replies */
@@ -26751,6 +26818,40 @@ html.is-draw-picking #map-topbar {
 }
 #popup-settings-card #popup-settings-edit-text::placeholder {
   color: rgba(255, 255, 255, 0.35);
+}
+/* The NFT pin field (processallmessages.js pinDraft reads it): the edit
+   text's look, one line high, full width; its hint under it, in line
+   with the label. */
+#popup-settings-card #popup-settings-editbox > .comment-pin-field {
+  margin: 1.2dvh 0 0;
+}
+#popup-settings-card #popup-settings-editbox .comment-pin-input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 1.1dvh 1.5dvh;
+  border-radius: 1.6dvh;
+  border: 0.12dvh solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0.12dvh 0.25dvh rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-family: inherit;
+  font-size: 1.8dvh;
+  line-height: 1.45;
+  caret-color: #22D3EE;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+#popup-settings-card #popup-settings-editbox .comment-pin-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+#popup-settings-card #popup-settings-editbox .comment-pin-input:focus {
+  outline: none;
+  border-color: rgba(34, 211, 238, 0.7);
+  box-shadow: 0 0 0 0.35dvh rgba(34, 211, 238, 0.15), inset 0 0.12dvh 0.25dvh rgba(0, 0, 0, 0.35);
+}
+#popup-settings-card #popup-settings-editbox .comment-pin-hint {
+  margin: 0.6dvh 0 0 0.5dvw;
 }
 #popup-settings-card #popup-settings-edit-text:focus {
   outline: none;
