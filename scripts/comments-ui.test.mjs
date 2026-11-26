@@ -278,6 +278,55 @@ test("one level of indent: a thread inside a reply gives back the reply avatar a
   for (const block of [nested, to]) assert.doesNotMatch(block, /\d(\.\d+)?(px|rem)\b/);
 });
 
+test("the composer with the shared × / ↶ and full-screen button: no avatar, one row, and a page that keeps its look", () => {
+  const css = read("../style.css");
+  const rule = (selector) => {
+    const at = css.indexOf(`\n${selector} {`);
+    assert.ok(at >= 0, selector);
+    return css.slice(at, css.indexOf("}", at) + 1);
+  };
+  // Inline: no picture of you, the row is the controls' anchor, and the
+  // full-screen button's own row never takes room beside the field.
+  assert.match(rule(".comments-input-row .comments-me"), /display: none;/);
+  assert.match(rule(".comments-compose .comments-input-row"), /position: relative;/);
+  assert.match(rule(".popup-comments .comments-compose .field-expand-btn.is-rowless"), /display: none;/);
+  // The list's own avatars are untouched.
+  assert.match(rule(".comment-avatar"), /width: calc\(var\(--u\) \* 4\);/);
+  assert.doesNotMatch(css, /\.comment-avatar[^{]*\{[^}]*display: none/);
+  // Full screen: the comment unit and colours, hidden parts hidden, the
+  // field's text colour, attach under the text, the counter row.
+  const page = rule("#field-full .comments-compose");
+  assert.match(page, /--u: var\(--fu\);/);
+  for (const name of ["--comment-ink", "--comment-muted", "--comment-line", "--comment-glass", "--comment-glass-line", "--comment-red"]) {
+    assert.ok(page.includes(`${name}:`), name);
+  }
+  assert.match(rule("#field-full .comments-compose.field-expand-box.is-expanded [hidden]"), /display: none !important;/);
+  assert.match(rule("#field-full .comments-compose textarea.comments-input"), /color: var\(--comment-ink\);/);
+  const attach = rule("#field-full .comments-compose .comments-attach");
+  assert.match(attach, /order: 1;/);
+  assert.match(attach, /align-self: flex-start;/);
+  assert.match(rule("#field-full .comments-compose.is-expanded .comments-compose-meta"), /font-size: var\(--ui-small\);/);
+  assert.match(rule("#field-full .comments-compose.field-expand-box.is-expanded .comments-compose-meta > .hcs-byte-counter"), /margin: 0 !important;/);
+  // The chips' existing tap boxes reach them in full screen too.
+  assert.match(css, /\.popup-comments :is\(\.comment-action, \.comments-sort-btn, \.comments-chip-close, \.comments-chip-cancel, \.comments-media-remove\)::after,\s*#field-full \.comments-compose :is\(\.comments-chip-close, \.comments-chip-cancel, \.comments-media-remove\)::after \{/);
+  // Every new rule is scoped to the composer, and sized without px or rem.
+  const added = [
+    ".comments-input-row .comments-me",
+    ".comments-compose .comments-input-row",
+    ".popup-comments .comments-compose .field-expand-btn.is-rowless",
+    "#field-full .comments-compose",
+    "#field-full .comments-compose.field-expand-box.is-expanded [hidden]",
+    "#field-full .comments-compose textarea.comments-input",
+    "#field-full .comments-compose .comments-attach",
+    "#field-full .comments-compose.is-expanded .comments-compose-meta",
+    "#field-full .comments-compose.field-expand-box.is-expanded .comments-compose-meta > .hcs-byte-counter",
+  ];
+  for (const selector of added) {
+    assert.match(selector, /^(\.comments-input-row |\.comments-compose |\.popup-comments \.comments-compose |#field-full \.comments-compose)/, selector);
+    assert.doesNotMatch(rule(selector), /\d(\.\d+)?(px|rem)\b/, selector);
+  }
+});
+
 test("the pin rule line: hidden with no collection, the text when there is one, several names included", () => {
   // processallmessages.js commentsPinLine as it is, on this file's DOM.
   const client = read("../processallmessages.js");

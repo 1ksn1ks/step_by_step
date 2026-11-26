@@ -16761,11 +16761,13 @@ html.drawer-page .info-overlay {
   --comment-red: #f07178;
   font-family: Inter, system-ui, sans-serif;
 }
-.popup-comments :is(.comment-action, .comments-sort-btn, .comments-chip-close, .comments-chip-cancel, .comments-media-remove) {
+.popup-comments :is(.comment-action, .comments-sort-btn, .comments-chip-close, .comments-chip-cancel, .comments-media-remove),
+#field-full .comments-compose :is(.comments-chip-close, .comments-chip-cancel, .comments-media-remove) {
   position: relative;
   touch-action: manipulation;
 }
-.popup-comments :is(.comment-action, .comments-sort-btn, .comments-chip-close, .comments-chip-cancel, .comments-media-remove)::after {
+.popup-comments :is(.comment-action, .comments-sort-btn, .comments-chip-close, .comments-chip-cancel, .comments-media-remove)::after,
+#field-full .comments-compose :is(.comments-chip-close, .comments-chip-cancel, .comments-media-remove)::after {
   content: "";
   position: absolute;
   left: 50%;
@@ -16780,7 +16782,8 @@ html.drawer-page .info-overlay {
   right: 0;
   transform: translateY(-50%);
 }
-.popup-comments :is(button, a):focus-visible {
+.popup-comments :is(button, a):focus-visible,
+#field-full .comments-compose button:focus-visible {
   outline: calc(var(--u) * 0.2) solid #22D3EE;
   outline-offset: calc(var(--u) * 0.2);
 }
@@ -17334,6 +17337,24 @@ html.drawer-page .info-overlay {
 }
 .comments-counter.is-max {
   color: #ff5c5c;
+}
+/* The shared × / ↶ (fieldclear.js) and full-screen button (fieldexpand.js)
+   on the composer. No picture of you here: the field takes its room (the
+   element stays for its script). */
+.comments-input-row .comments-me {
+  display: none;
+}
+/* The × and the full-screen button are placed against this row
+   (fieldexpand.js marks its anchor relative only when it reads static,
+   and this row is built off the page, where it reads neither). */
+.comments-compose .comments-input-row {
+  position: relative;
+}
+/* One line: the full-screen button waits until the text wraps and then
+   sits under the ×; its own row (.is-rowless) would take room between the
+   field and Send. Inline only: open, the box is out of .popup-comments. */
+.popup-comments .comments-compose .field-expand-btn.is-rowless {
+  display: none;
 }
 
 /* Popup card shell (portrait map, and any card outside the map): the
@@ -26072,6 +26093,43 @@ html.feed-app .field-full {
 #field-full .field-expand-box.is-expanded > .popup-settings-label,
 #field-full .field-expand-box.is-expanded > .popup-settings-row:empty {
   display: none !important;
+}
+/* The comment composer as a page (commentsui.js .comments-compose). Open,
+   it is out of its .popup-comments, so it gets the comment unit (the
+   page's --fu, the size the comment views' --u has) and colours here, and
+   its hidden parts stay hidden (the counter rule above would show them).
+   The reply / edit and media chips stay on top, the field fills the
+   rest, the attach button sits under the text at the left, Send is in the
+   bar, and the counter row is one line at the bottom right. */
+#field-full .comments-compose {
+  --u: var(--fu);
+  --comment-ink: #fff;
+  --comment-muted: rgba(255, 255, 255, 0.55);
+  --comment-line: rgba(255, 255, 255, 0.12);
+  --comment-glass: rgba(255, 255, 255, 0.07);
+  --comment-glass-line: rgba(255, 255, 255, 0.16);
+  --comment-red: #f07178;
+}
+#field-full .comments-compose.field-expand-box.is-expanded [hidden] {
+  display: none !important;
+}
+#field-full .comments-compose textarea.comments-input {
+  color: var(--comment-ink);
+}
+#field-full .comments-compose .comments-attach {
+  order: 1;
+  align-self: flex-start;
+}
+#field-full .comments-compose.is-expanded .comments-compose-meta {
+  margin: 0 calc(var(--fu) * 0.6);
+  padding: 0;
+  font-size: var(--ui-small);
+  line-height: 1.6;
+}
+#field-full .comments-compose.field-expand-box.is-expanded .comments-compose-meta > .hcs-byte-counter {
+  margin: 0 !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
 }
 /* Closing plays it backwards (fieldexpand.js adds .is-closing and puts the
    box back when the panel's animation ends): the page fades out and the
