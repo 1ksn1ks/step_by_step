@@ -34,7 +34,10 @@ function text(value) {
   return String(value == null ? '' : value).replace(/\r\n/g, '\n').replace(/\n/g, ' ').trim();
 }
 
-function topicNameFromList(topicId) {
+// A topic's name from the loaded topics list ("<id> - <name>" rows), as
+// the feed's topic title reads it. The cluster list (markerstack.js) uses
+// it too. Nothing is fetched.
+export function topicNameFromList(topicId) {
   if (!topicId) return '';
   const prefix = topicId + ' - ';
   for (const entry of globalLoadedTopicIdsWithNames) {
@@ -78,13 +81,18 @@ function pickerColor(id, fallback) {
   return (input && input.value) || fallback;
 }
 
+// label: a word for a screen reader ("By"), or none: then the row has no
+// .map-tip-k at all.
 function line(label, name, id, colors) {
   if (!name && !id) return null;
   const row = document.createElement('div');
   row.className = 'map-tip-row';
-  const key = document.createElement('span');
-  key.className = 'map-tip-k';
-  key.textContent = label;
+  if (label) {
+    const key = document.createElement('span');
+    key.className = 'map-tip-k';
+    key.textContent = label;
+    row.appendChild(key);
+  }
   const body = document.createElement('span');
   body.className = 'map-tip-body';
   if (id) {
@@ -101,13 +109,14 @@ function line(label, name, id, colors) {
     if (colors && colors.name) nameNode.style.color = colors.name;
     body.appendChild(nameNode);
   }
-  row.append(key, body);
+  row.appendChild(body);
   return row;
 }
 
 // Fills the tip. Returns false when the post has nothing to show.
 // The popup's order: the creator (.map-tip-head: the picture and the By
-// row), the title, the topic (.map-tip-topic: the On row), the counts.
+// row), the title, the topic (.map-tip-topic: its ID and name, no
+// label), the counts.
 export function fillMapTip(tip, source) {
   const card = readCard(source);
   // A creator whose picture is a looping video: that loop lets go.
@@ -141,7 +150,7 @@ export function fillMapTip(tip, source) {
     title.style.color = hashinal ? HASHINAL_TIP_COLORS.title : pickerColor('color-picker-popup-titles', '#ffffff');
     tip.appendChild(bubble(title));
   }
-  const topicRow = line('On', card.topicName, card.topicId);
+  const topicRow = line('', card.topicName, card.topicId);
   if (topicRow) tip.appendChild(bubble(topicRow, 'map-tip-topic'));
   // Last: the likes and views known now (postcounts.js).
   // Nothing is fetched and no view is counted.

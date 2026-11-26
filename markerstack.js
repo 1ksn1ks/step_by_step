@@ -5,9 +5,9 @@
 // spot once the map is at street level (a tap on any other bubble zooms
 // in to pull its dots apart). The list is a dropdown next to the bubble:
 // a search box and one row per post (its picture, title, name and when,
-// the poster's account ID with the post's likes and views), newest
-// first. The search matches the title,
-// name, account ID, date and the post's text. Picking a row opens that
+// its topic's ID and name, the poster's account ID with the post's likes
+// and views), newest first. The search matches the title,
+// name, account ID, date, topic and the post's text. Picking a row opens that
 // post's own popup. Escape, a tap anywhere else, moving the map and Back
 // close it.
 //
@@ -20,6 +20,7 @@ import { avatarSrc } from './avatarsrc.js';
 import { map } from './map';
 import { forgetLoop, pictureElement } from './loopmedia.js';
 import { countsNode } from './postcounts.js';
+import { topicNameFromList } from './maptip.js';
 
 let panel = null;
 let countEl = null;
@@ -79,6 +80,11 @@ function describe(feature) {
   const name = plainText(record.username);
   const who = name && name !== account ? name : '';
   const when = plainText(record.timestamp);
+  // The topic, as the popup's chip names it: the ID, then the name (the
+  // record's, else the loaded topics list the info card reads).
+  const topicId = plainText(record.topicId) || plainText(feature.topicId);
+  const listed = plainText(record.loadedTopicName) || topicNameFromList(topicId);
+  const topicName = listed !== topicId ? listed : '';
   // The message is not shown on the row, but a search still finds it.
   const text = plainText(record.msg);
   info = {
@@ -87,7 +93,9 @@ function describe(feature) {
     who,
     account,
     when,
-    hay: fold([title, who, account, when, text, record.loadedTopicName].join(' ')),
+    topicId,
+    topicName,
+    hay: fold([title, who, account, when, text, topicId, topicName].join(' ')),
   };
   described.set(feature, info);
   return info;
@@ -293,7 +301,7 @@ function filterRows() {
 }
 
 function buildRow(feature) {
-  const { record, title, who, account, when } = describe(feature);
+  const { record, title, who, account, when, topicId, topicName } = describe(feature);
   const props = feature.properties || {};
 
   const row = document.createElement('button');
@@ -317,6 +325,24 @@ function buildRow(feature) {
   meta.className = 'marker-stack-meta';
   meta.textContent = [who, when].filter(Boolean).join(' · ');
   body.append(titleEl, meta);
+  // The topic's ID, then its name, side by side as on the popup's chip.
+  if (topicId || topicName) {
+    const topic = document.createElement('span');
+    topic.className = 'marker-stack-topic';
+    if (topicId) {
+      const idEl = document.createElement('span');
+      idEl.className = 'marker-stack-topic-id';
+      idEl.textContent = topicId;
+      topic.appendChild(idEl);
+    }
+    if (topicName) {
+      const nameEl = document.createElement('span');
+      nameEl.className = 'marker-stack-topic-name';
+      nameEl.textContent = topicName;
+      topic.appendChild(nameEl);
+    }
+    body.appendChild(topic);
+  }
   // The likes and views known now, after the account ID on its line
   // (postcounts.js). Nothing is fetched and no view is counted.
   const counts = countsNode(record, 'marker-stack-counts');

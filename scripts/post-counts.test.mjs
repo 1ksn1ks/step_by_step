@@ -182,20 +182,23 @@ const markerRecord = (extra = {}) => ({
   ...extra,
 });
 
-test("the info card keeps its title, By and On, then adds one row of likes and views", () => {
+test("the info card keeps its title, By and the topic (no \"On\"), then adds one row of likes and views", () => {
   const fill = tipFiller();
   const tip = new El("div");
   // A marker's lazy record.
   assert.equal(fill(tip, { properties: { popupData: () => markerRecord() } }), true);
   assert.equal(tip.children.length, 4);
-  const [by, title, on, counts] = tip.children;
+  const [by, title, topic, counts] = tip.children;
   assert.equal(find(title, "map-tip-title").textContent, "Mural");
   assert.equal(find(by, "map-tip-k").textContent, "By");
   assert.equal(find(by, "map-tip-id").textContent, "0.0.123");
   assert.equal(find(by, "map-tip-name").textContent, "Ana");
-  assert.equal(find(on, "map-tip-k").textContent, "On");
-  assert.equal(find(on, "map-tip-name").textContent, "Street art");
-  // Under By and On, in no bubble of its own.
+  // The topic: its ID and name, with no label and no empty key.
+  assert.equal(find(topic, "map-tip-k"), null);
+  assert.equal(find(topic, "map-tip-id").textContent, "0.0.5");
+  assert.equal(find(topic, "map-tip-name").textContent, "Street art");
+  assert.equal(topic.textContent.includes("On"), false);
+  // Under By and the topic, in no bubble of its own.
   assert.equal(counts.className, "map-tip-counts");
   assert.deepEqual(counts.children.map((stat) => find(stat, "post-count-n").textContent), ["1.9k", "1.9k"]);
 
@@ -254,7 +257,8 @@ test("the info card is laid out as the popup: the creator's picture and name, th
   assert.equal(title.className, "map-tip-bubble");
   assert.equal(find(title, "map-tip-title").style.color, "#ffffff");
   assert.equal(topic.className, "map-tip-bubble map-tip-topic");
-  assert.deepEqual(topic.children[0].children.map((child) => child.className), ["map-tip-k", "map-tip-body"]);
+  assert.deepEqual(topic.children[0].children.map((child) => child.className), ["map-tip-body"]);
+  assert.deepEqual(topic.children[0].children[0].children.map((child) => child.className), ["map-tip-id", "map-tip-name"]);
   assert.equal(counts.className, "map-tip-counts");
   // The frame takes the popup's Border colour (the picker, white without it).
   assert.equal(tip.style.getPropertyValue("--popup-border-color"), "#ffffff");
@@ -305,9 +309,13 @@ test("the info card's own rules use no fixed px (only the cover play button's 44
   const block = css.slice(start, end);
   const rules = block.replace(/\/\*[\s\S]*?\*\//g, "").replace(/max\(44px,/g, "max(");
   assert.doesNotMatch(rules, /\d(\.\d+)?px/);
-  // The card's unit, made on the card from the screen.
-  assert.match(block, /\.polygon-title-tip,\n\.marker-title-tip \{\s*--fu: calc\(min\(100dvw, var\(--app-h, 100dvh\)\) \* 0\.024\);\s*--tu: clamp\(0\.5rem, calc\(var\(--fu\) \* 0\.62\), 0\.8rem\);/);
+  // The card's unit, made on the card from the screen, with no clamp.
+  assert.match(block, /\.polygon-title-tip,\n\.marker-title-tip \{\s*--fu: calc\(min\(100dvw, var\(--app-h, 100dvh\)\) \* 0\.024\);\s*--tu: var\(--fu\);/);
   assert.match(block, /border: var\(--tip-bw\) solid var\(--popup-border-color, #ffffff\);/);
+  // Its place above the press and its width are --tu too.
+  assert.match(block, /transform: translate\(-50%, calc\(-100% - var\(--tu\) \* 1\.5\)\);/);
+  assert.match(block, /max-width: min\(calc\(var\(--tu\) \* 30\), 86vw\);/);
+  assert.match(block, /pointer-events: none;/);
   // The early card keeps its spin ring, as wide as the border, and its glow.
   assert.match(block, /\.marker-title-tip\.early > \.marker-tip-spin \{\s*position: absolute;\s*inset: calc\(var\(--tip-bw\) \* -1\);\s*border-radius: inherit;\s*padding: var\(--tip-bw\);/);
   assert.match(block, /\.marker-title-tip\.early > :not\(\.marker-tip-spin\) \{\s*position: relative;\s*z-index: 1;/);
@@ -316,18 +324,78 @@ test("the info card's own rules use no fixed px (only the cover play button's 44
   const k = block.slice(block.indexOf("> .map-tip-head .map-tip-k {"));
   assert.match(k.slice(0, k.indexOf("}")), /clip-path: inset\(50%\);/);
   assert.doesNotMatch(k.slice(0, k.indexOf("}")), /display: none/);
-  // The counts' popup colours.
+  // The counts' popup colours: the heart is the popup's default grey
+  // (.heart-like --clr), red only on a tapped one, as the views icon.
   const counts = css.slice(end, css.indexOf("/* Payer CLICK2LINK"));
-  assert.match(counts, /> \.post-count-likes > svg \{\s*color: color-mix\(in srgb, #ff3c41 85%, transparent\);/);
+  assert.match(counts, /> \.post-count-likes > svg \{\s*color: #777;/);
   assert.match(counts, /> \.post-count-views > svg \{\s*color: #777;/);
   assert.match(counts, /> \.post-count > \.post-count-n \{\s*color: rgba\(255, 255, 255, 0\.72\);/);
+  assert.doesNotMatch(counts, /#ff3c41/);
+  assert.match(css, /\.heart-like \{\s*--h: [^;]+;\s*--clr: #777;/);
 });
+
+// Each rule of the card (its selector names the tip or a .map-tip part):
+// [selector, body], from the card's comment to the counts' end.
+function tipRules(css) {
+  const start = css.indexOf("/* The hold / right-click info card (maptip.js)");
+  const end = css.indexOf("/* Payer CLICK2LINK");
+  const text = css.slice(start, end).replace(/\/\*[\s\S]*?\*\//g, "");
+  return [...text.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .map((m) => [m[1].trim(), m[2]])
+    .filter(([selector]) => /title-tip|map-tip/.test(selector));
+}
+
+test("the info card is sized in --tu only: the listed multiples, no px, rem or em floors", () => {
+  const css = read("../style.css");
+  const rules = tipRules(css);
+  const body = (selector) => {
+    const hit = rules.find(([s]) => s === selector);
+    assert.ok(hit, selector);
+    return hit[1];
+  };
+  const tip = ":is(.marker-title-tip, .polygon-title-tip)";
+  for (const [selector, size] of [
+    [".map-tip-title", "calc(var(--tu) * 2)"],
+    [".map-tip-name", "calc(var(--tu) * 1.8)"],
+    [".map-tip-id", "calc(var(--tu) * 1.4)"],
+    [".map-tip-k", "calc(var(--tu) * 0.95)"],
+    [`${tip} > .map-tip-topic`, "calc(var(--tu) * 1.15)"],
+    [`${tip} > .map-tip-topic :is(.map-tip-name, .map-tip-id)`, "calc(var(--tu) * 1.15)"],
+    [`${tip} > .map-tip-counts`, "calc(var(--tu) * 1.15)"],
+  ]) {
+    assert.ok(body(selector).includes(`font-size: ${size};`), selector);
+  }
+  const face = body(`${tip} > .map-tip-head > .map-tip-pic`);
+  assert.match(face, /width: calc\(var\(--tu\) \* 6\);\s*height: calc\(var\(--tu\) \* 6\);/);
+  // Sizes, spacing and icons: no px, rem or em anywhere. The "By" label's
+  // visually-hidden clip and the 99em pill radii are the only exceptions.
+  const sized = /^\s*(font-size|padding[\w-]*|margin[\w-]*|width|height|max-width|min-width|gap|column-gap|row-gap|border(-width)?|border-radius|transform|inset|top|left)\s*:\s*([^;]+);/gm;
+  for (const [selector, text] of rules) {
+    if (selector.endsWith("> .map-tip-head .map-tip-k")) continue;
+    for (const m of text.matchAll(sized)) {
+      if (m[1] === "border-radius" && /^99em$/.test(m[3].trim())) continue;
+      assert.doesNotMatch(m[3], /\d(\.\d+)?(px|rem|em)\b/, `${selector} ${m[1]}: ${m[3]}`);
+    }
+  }
+  // The early holder keeps its gold rims and the card stays untappable.
+  assert.ok(body(".marker-title-tip.early .map-tip-bubble").includes("--bubble-rim: #f6e27a;"));
+  assert.ok(body(".polygon-title-tip,\n.marker-title-tip").includes("pointer-events: none;"));
+});
+
+// maptip.js's topic lookup as it is, over a stand-in for the loaded topics
+// list (letall.js globalLoadedTopicIdsWithNames).
+function topicLookup(list = ["0.0.5 - Street art"]) {
+  return new Function("globalLoadedTopicIdsWithNames", `
+    ${topLevel(tipSource, "export function topicNameFromList(").replace("export function", "function")}
+    return topicNameFromList;
+  `)(list);
+}
 
 // markerstack.js's row as it is, its imports given here.
 const stackSource = read("../markerstack.js");
-function rowBuilder() {
+function rowBuilder(lookup = topicLookup()) {
   const picks = [];
-  const build = new Function("avatarSrc", "pictureElement", "countsNode", "pick", "document", `
+  const build = new Function("avatarSrc", "pictureElement", "countsNode", "topicNameFromList", "pick", "document", `
     const described = new WeakMap();
     ${topLevel(stackSource, "function recordOf(")}
     ${topLevel(stackSource, "function plainText(")}
@@ -335,7 +403,7 @@ function rowBuilder() {
     ${topLevel(stackSource, "function describe(")}
     ${topLevel(stackSource, "function buildRow(")}
     return { buildRow, describe };
-  `)(() => "", () => new El("img"), countsNode, (feature) => picks.push(feature), globalThis.document);
+  `)(() => "", () => new El("img"), countsNode, lookup, (feature) => picks.push(feature), globalThis.document);
   return { ...build, picks };
 }
 
@@ -347,10 +415,10 @@ test("a cluster list row keeps its title, name, date and account ID, and adds th
   };
   const row = buildRow(feature);
   const body = find(row.el, "marker-stack-body");
-  assert.deepEqual(body.children.map((child) => child.className), ["marker-stack-title", "marker-stack-meta", "marker-stack-account"]);
+  assert.deepEqual(body.children.map((child) => child.className), ["marker-stack-title", "marker-stack-meta", "marker-stack-topic", "marker-stack-account"]);
   assert.equal(body.children[0].textContent, "Mural");
   assert.equal(body.children[1].textContent, "Ana · 11/20/2026, 10:00:00");
-  const line = body.children[2];
+  const line = find(row.el, "marker-stack-account");
   // The ID first, as the line's own text, then the counts.
   assert.equal(line.text, "0.0.123");
   assert.ok(line.textContent.startsWith("0.0.123"));
@@ -378,6 +446,62 @@ test("a cluster list row keeps its title, name, date and account ID, and adds th
   assert.deepEqual(find(anonLine, "marker-stack-counts").children.map((stat) => find(stat, "post-count-n").textContent), ["0", "1M"]);
 });
 
+test("a cluster list row names its topic as the popup's chip: the ID, then the name, both searchable", () => {
+  const { buildRow, describe } = rowBuilder();
+  // The record's topic ID, its name from the loaded topics list.
+  const feature = { properties: { popupData: () => markerRecord() } };
+  const topic = find(buildRow(feature).el, "marker-stack-topic");
+  assert.deepEqual(topic.children.map((child) => child.className), ["marker-stack-topic-id", "marker-stack-topic-name"]);
+  assert.deepEqual(topic.children.map((child) => child.textContent), ["0.0.5", "Street art"]);
+  const hay = describe(feature).hay;
+  assert.ok(hay.includes("0.0.5"));
+  assert.ok(hay.includes("street art"));
+
+  // The record's own loadedTopicName comes first.
+  const named = buildRow({ properties: { popupData: () => markerRecord({ loadedTopicName: "Murals" }) } });
+  assert.deepEqual(find(named.el, "marker-stack-topic").children.map((child) => child.textContent), ["0.0.5", "Murals"]);
+
+  // No ID on the record: the feature's. A topic missing from the list: the ID alone.
+  const fromFeature = buildRow({ topicId: "0.0.808", properties: { popupData: () => markerRecord({ topicId: "" }) } });
+  const idOnly = find(fromFeature.el, "marker-stack-topic");
+  assert.deepEqual(idOnly.children.map((child) => [child.className, child.textContent]), [["marker-stack-topic-id", "0.0.808"]]);
+
+  // A name that is only the ID again is not repeated.
+  const echo = buildRow({ properties: { popupData: () => markerRecord({ loadedTopicName: "0.0.5" }) } });
+  assert.deepEqual(find(echo.el, "marker-stack-topic").children.map((child) => child.textContent), ["0.0.5"]);
+
+  // No ID and no name: no line.
+  const none = buildRow({ properties: { popupData: () => ({ title: "x", payer: "0.0.1" }) } });
+  assert.equal(find(none.el, "marker-stack-topic"), null);
+  assert.deepEqual(find(none.el, "marker-stack-body").children.map((child) => child.className), ["marker-stack-title", "marker-stack-meta", "marker-stack-account"]);
+
+  // The lookup is the info card's own (maptip.js), imported, nothing fetched.
+  assert.match(stackSource, /import \{ topicNameFromList \} from '\.\/maptip\.js';/);
+  assert.match(tipSource, /export function topicNameFromList\(topicId\) \{/);
+  assert.equal(topicLookup(["0.0.9 - Nine", "0.0.5 - Five"])("0.0.5"), "Five");
+});
+
+test("only the cluster list's topic line is sized from the screen: the same --fu, font sizes as --fu multiples", () => {
+  const css = read("../style.css");
+  const block = css.slice(css.indexOf("/* The post's topic (markerstack.js)"), css.indexOf("/* The post's likes and views after the account ID"));
+  assert.ok(block.length > 100);
+  const rules = block.replace(/\/\*[\s\S]*?\*\//g, "");
+  const selectors = [...rules.matchAll(/^([^\s{}][^{}]*?)\s*\{/gm)].map((m) => m[1]);
+  assert.deepEqual(selectors, [".marker-stack-topic", ".marker-stack-topic-id", ".marker-stack-topic-name"]);
+  assert.match(rules, /\.marker-stack-topic \{\s*--fu: calc\(min\(100dvw, var\(--app-h, 100dvh\)\) \* 0\.024\);/);
+  const sizes = [...rules.matchAll(/font-size: ([^;]+);/g)].map((m) => m[1]);
+  assert.equal(sizes.length, 3);
+  for (const size of sizes) assert.match(size, /^calc\(var\(--fu\) \* [\d.]+\)$/);
+  assert.doesNotMatch(rules, /\d(\.\d+)?(px|rem|em)\b/);
+  // A row with the topic line is taller than its 52px minimum: in the
+  // scrolling list it keeps that height instead of shrinking to 52px.
+  assert.match(css, /\.marker-stack-row \{\s*display: flex;\s*flex-shrink: 0;[^}]*min-height: 52px;/);
+  // The rest of the list keeps its own rules.
+  assert.match(css, /\.marker-stack-title \{\s*font-size: 14px;/);
+  assert.match(css, /\.marker-stack-meta \{\s*font-size: 12px;/);
+  assert.match(css, /\.marker-stack-account \{\s*font-size: 12px;/);
+});
+
 test("nothing is fetched and no view is counted: no popup-view, no live heart, no popup module", () => {
   assert.deepEqual(requests, []);
   const counts = read("../postcounts.js");
@@ -397,7 +521,7 @@ test("nothing is fetched and no view is counted: no popup-view, no live heart, n
   }
 });
 
-test("the counts' rules: in the tips and the list only, sized in em, no fixed px", () => {
+test("the counts' rules: in the tips and the list only, the tip's in --tu, the list's in em, no fixed px", () => {
   const css = read("../style.css");
   const tip = css.slice(css.indexOf("/* Likes and views (postcounts.js)"), css.indexOf("/* Payer CLICK2LINK"));
   const list = css.slice(css.indexOf("/* The post's likes and views after the account ID"), css.indexOf(".marker-stack-empty {"));
@@ -409,8 +533,9 @@ test("the counts' rules: in the tips and the list only, sized in em, no fixed px
       assert.match(selector, /^(:is\(\.marker-title-tip, \.polygon-title-tip\) > \.map-tip-counts|\.marker-stack )/, selector);
     }
   }
-  assert.match(tip, /> \.map-tip-counts \{[^}]*font-size: 0\.6875em;[^}]*color: rgba\(255, 255, 255, 0\.62\);/);
-  assert.match(tip, /> svg \{[^}]*width: 1\.15em;\s*height: 1\.15em;/);
+  assert.match(tip, /> \.map-tip-counts \{[^}]*font-size: calc\(var\(--tu\) \* 1\.15\);[^}]*color: rgba\(255, 255, 255, 0\.62\);/);
+  assert.match(tip, /> svg \{[^}]*width: calc\(var\(--tu\) \* 1\.3\);\s*height: calc\(var\(--tu\) \* 1\.3\);/);
+  assert.doesNotMatch(tip.replace(/\/\*[\s\S]*?\*\//g, ""), /\d(\.\d+)?(rem|em)\b/);
   // The ID keeps its place: the line wraps the counts under it.
   assert.match(list, /\.marker-stack-account:has\(> \.marker-stack-counts\) \{\s*display: flex;\s*flex-wrap: wrap;/);
   assert.match(list, /\.marker-stack-counts \{[^}]*min-width: 0;/);

@@ -173,7 +173,7 @@ function showMarkerTitle(el, x, y) {
   return true;
 }
 
-// The desktop rule pins the pill above the point with translate(-50%, -100% - 14px).
+// The card's rule pins it above the point with translate(-50%, -100% - 1.5 --tu).
 // A hold passes the press point, so the same offset clears the finger.
 function showHeldMarkerTitle(el, x, y) {
   if (!showMarkerTitle(el, x, y)) return false;

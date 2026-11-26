@@ -9372,22 +9372,23 @@ html, body {
    expanded popup. One glass card in the popup's fill, its frame in the
    popup's Border colour (--popup-border-color, set on each fill; an
    early holder's is gold) with the same lit inner rim. --tu is the
-   card's own unit, a small popup's --u: these nodes sit on
-   document.body, outside any popup, so it is made from the screen
-   (--fu, as the other body-level nodes have it). */
+   card's own unit: these nodes sit on document.body, outside any popup,
+   so it is made from the screen (--fu, as the other body-level nodes
+   have it), with no clamp. Everything on the card is a --tu multiple,
+   its place above the press too. */
 .polygon-title-tip,
 .marker-title-tip {
   --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
-  --tu: clamp(0.5rem, calc(var(--fu) * 0.62), 0.8rem);
+  --tu: var(--fu);
   --tip-bw: calc(var(--tu) * 0.22);
   position: fixed;
   z-index: 1002;
-  transform: translate(-50%, calc(-100% - 0.9rem));
+  transform: translate(-50%, calc(-100% - var(--tu) * 1.5));
   display: flex;
   flex-direction: column;
   gap: calc(var(--tu) * 0.45);
   width: max-content;
-  max-width: min(17rem, 72vw);
+  max-width: min(calc(var(--tu) * 30), 86vw);
   padding: calc(var(--tu) * 0.6);
   font-family: system-ui, sans-serif;
   color: #fff;
@@ -9720,10 +9721,10 @@ html.feed-app .polygon-cover-play {
   position: relative;
   z-index: 1;
 }
-/* Text sizes are --tu multiples of the popup's own; the rem floor keeps a
-   phone's small card as readable as the old tip. */
+/* Text sizes are --tu multiples, with no floor: the card grows and
+   shrinks with the screen. */
 .map-tip-title {
-  font-size: max(0.8125rem, calc(var(--tu) * 1.45));
+  font-size: calc(var(--tu) * 2);
   font-weight: 700;
   line-height: 1.25;
   text-align: center;
@@ -9775,7 +9776,7 @@ html.feed-app .polygon-cover-play {
   align-items: center;
 }
 .map-tip-k {
-  font-size: max(0.625rem, calc(var(--tu) * 0.8));
+  font-size: calc(var(--tu) * 0.95);
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -9788,13 +9789,13 @@ html.feed-app .polygon-cover-play {
   min-width: 0;
 }
 .map-tip-name {
-  font-size: max(0.75rem, calc(var(--tu) * 1.25));
+  font-size: calc(var(--tu) * 1.8);
   font-weight: 700;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
 .map-tip-id {
-  font-size: max(0.6875rem, var(--tu));
+  font-size: calc(var(--tu) * 1.4);
   font-weight: 550;
   line-height: 1.25;
   color: rgba(255, 255, 255, 0.6);
@@ -9816,8 +9817,8 @@ html.feed-app .polygon-cover-play {
   flex: none;
   display: block;
   box-sizing: border-box;
-  width: calc(var(--tu) * 3.6);
-  height: calc(var(--tu) * 3.6);
+  width: calc(var(--tu) * 6);
+  height: calc(var(--tu) * 6);
   margin: 0;
   border-radius: 50%;
   border: calc(var(--tu) * 0.12) solid rgba(255, 255, 255, 0.25);
@@ -9861,15 +9862,14 @@ html.feed-app .polygon-cover-play {
 :is(.marker-title-tip, .polygon-title-tip) > .map-tip-bubble:has(> .map-tip-title) {
   padding: calc(var(--tu) * 0.4) calc(var(--tu) * 1.1);
 }
-/* The topic, as the popup's topic chip: one slim line, "On" a tiny muted
-   prefix, the name in muted white and the ID more muted. A line too long
-   for the card shortens both, each by its share, so the ID keeps its
-   start. */
+/* The topic, as the popup's topic chip: one slim line with no label, the
+   name in muted white and the ID more muted. A line too long for the
+   card shortens both, each by its share, so the ID keeps its start. */
 :is(.marker-title-tip, .polygon-title-tip) > .map-tip-topic {
   align-self: flex-start;
   padding: calc(var(--tu) * 0.25) calc(var(--tu) * 0.8);
   border-radius: 99em;
-  font-size: max(0.625rem, calc(var(--tu) * 0.95));
+  font-size: calc(var(--tu) * 1.15);
   letter-spacing: 0.03em;
   text-align: left;
 }
@@ -9877,21 +9877,15 @@ html.feed-app .polygon-cover-play {
   display: flex;
   flex-direction: row;
   align-items: baseline;
-  column-gap: 0.45em;
+  column-gap: calc(var(--tu) * 0.5);
   min-width: 0;
   white-space: nowrap;
-}
-:is(.marker-title-tip, .polygon-title-tip) > .map-tip-topic .map-tip-k {
-  flex: none;
-  padding: 0;
-  font-size: 0.75em;
-  color: rgba(255, 255, 255, 0.38);
 }
 :is(.marker-title-tip, .polygon-title-tip) > .map-tip-topic .map-tip-body {
   flex: 1 1 auto;
   flex-direction: row;
   align-items: baseline;
-  column-gap: 0.45em;
+  column-gap: calc(var(--tu) * 0.5);
 }
 :is(.marker-title-tip, .polygon-title-tip) > .map-tip-topic :is(.map-tip-name, .map-tip-id) {
   min-width: 0;
@@ -9899,7 +9893,7 @@ html.feed-app .polygon-cover-play {
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow-wrap: normal;
-  font-size: 1em;
+  font-size: calc(var(--tu) * 1.15);
   line-height: 1.3;
 }
 :is(.marker-title-tip, .polygon-title-tip) > .map-tip-topic .map-tip-name {
@@ -9914,18 +9908,19 @@ html.feed-app .polygon-cover-play {
   color: rgba(255, 255, 255, 0.4);
 }
 /* Likes and views (postcounts.js): the last line, small and muted, the
-   old account ID's size (0.6875em of the page's 16px) and weight, each
-   icon the height of its text, in the popup's colours: its heart red, its
-   views chip's grey bars and light numbers. A snapshot: nothing here is
-   a button. */
+   topic chip's size (--tu, as the rest of the card) and weight, each icon
+   the height of its text, in the popup's default colours: its heart grey
+   (.heart-like's --clr; red is only a heart that was tapped), its views
+   chip's grey bars and light numbers. A snapshot: nothing here is a
+   button. */
 :is(.marker-title-tip, .polygon-title-tip) > .map-tip-counts {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-start;
   align-items: center;
-  gap: 0.2em 0.9em;
+  gap: calc(var(--tu) * 0.25) var(--tu);
   padding: 0 calc(var(--tu) * 0.4);
-  font-size: 0.6875em;
+  font-size: calc(var(--tu) * 1.15);
   font-weight: 550;
   line-height: 1.25;
   color: rgba(255, 255, 255, 0.62);
@@ -9934,17 +9929,17 @@ html.feed-app .polygon-cover-play {
 :is(.marker-title-tip, .polygon-title-tip) > .map-tip-counts > .post-count {
   display: inline-flex;
   align-items: center;
-  gap: 0.3em;
+  gap: calc(var(--tu) * 0.35);
   white-space: nowrap;
 }
 :is(.marker-title-tip, .polygon-title-tip) > .map-tip-counts > .post-count > svg {
   flex: none;
   display: block;
-  width: 1.15em;
-  height: 1.15em;
+  width: calc(var(--tu) * 1.3);
+  height: calc(var(--tu) * 1.3);
 }
 :is(.marker-title-tip, .polygon-title-tip) > .map-tip-counts > .post-count-likes > svg {
-  color: color-mix(in srgb, #ff3c41 85%, transparent);
+  color: #777;
 }
 :is(.marker-title-tip, .polygon-title-tip) > .map-tip-counts > .post-count-views > svg {
   color: #777;
@@ -27070,8 +27065,11 @@ html.is-draw-picking #map-topbar {
 .marker-stack-list * {
   touch-action: pan-y;
 }
+/* A row keeps its height in the scrolling list (min-height alone lets a
+   flex item shrink to it): the topic line makes a row taller than 52px. */
 .marker-stack-row {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -27141,6 +27139,37 @@ html.is-draw-picking #map-topbar {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.72);
   font-variant-numeric: tabular-nums;
+}
+/* The post's topic (markerstack.js), as the popup's chip: the ID, then
+   the name, side by side on one line; a long name is cut, the ID never.
+   Only this line is sized from the screen (--fu, as the info card has
+   it), at the card's topic chip size. */
+.marker-stack-topic {
+  --fu: calc(min(100dvw, var(--app-h, 100dvh)) * 0.024);
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--fu) * 0.5);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: calc(var(--fu) * 1.15);
+  line-height: 1.3;
+}
+.marker-stack-topic-id {
+  flex: none;
+  font-size: calc(var(--fu) * 1.15);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.4);
+  font-variant-numeric: tabular-nums;
+}
+.marker-stack-topic-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: calc(var(--fu) * 1.15);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.62);
 }
 /* The post's likes and views after the account ID, on its line, muted
    (postcounts.js). The ID comes first and is never cut: it is the line's
