@@ -54,12 +54,14 @@ import {
   commentPinPayers,
   commentPinText,
   lookupHolders,
-  parsePinInput,
   pinTopLevel,
+  planCommentPinEdit,
   rememberCommentPin as storeCommentPin,
   validatePinTokens,
   whenCollectionName,
 } from './commentpin.js';
+import { commentFiltersActive, filterCommentsForReader, freshCommentFilters } from './commentfilter.js';
+import { feedFollowSet } from './feedfollow.js';
 import {
   COMMENT_MEDIA_ACCEPT,
   COMMENT_MEDIA_TYPES_TEXT,
@@ -100,7 +102,7 @@ import { stackedTopicRules, smallestPolygonSize } from './topicrules.js'
 import { currentAutoplayNft } from './loadcurrenttopic.js'
 import { rememberTopicAutoplay } from './coverautoplay.js'
 import { payerUsernameNode } from './payerlink.js'
-import { paintProfileAvatar } from './earlyhashinal.js'
+import { earlyHashinalNumber, paintProfileAvatar } from './earlyhashinal.js'
 import { watchProfilePicture, watchProfileTree, forgetProfileTree } from './markertilt.js'
 import { loadBio4PIC } from './loadBio4PIC.js';
 import {
@@ -847,27 +849,6 @@ function paintEditButton() {
 }
 
 // The edit names the post, not its slot: same shape as the delete payload.
-function samePinList(left, right) {
-  if (!left || !right || left.length !== right.length) return false;
-  for (let index = 0; index < left.length; index++) {
-    if (left[index] !== right[index]) return false;
-  }
-  return true;
-}
-
-// The pin field, when it is on the page. absent: no field. same: unchanged.
-// change: an ordered list that differs, including [] to clear.
-function pinDraft(walk) {
-  const input = document.getElementById('popup-settings-comment-pin');
-  if (!input || !walk) return { state: 'absent' };
-  const parsed = parsePinInput(input.value);
-  if (parsed.invalid.length) return { state: 'invalid' };
-  if (parsed.tooMany) return { state: 'many' };
-  const current = commentPinFor(walk.payer, walk.created || walk.authorCreated, walk.timestamp, walk.commentPin);
-  if (samePinList(parsed.tokens, current)) return { state: 'same' };
-  return { state: 'change', tokens: parsed.tokens };
-}
-
 function editPayload(walk, msg, poster, pins) {
   const created = messageCreated(walk.created || walk.authorCreated);
   const stamp = walk.timestamp ? String(walk.timestamp) : '';
@@ -896,9 +877,7 @@ function editBytesNow() {
   const walk = popupSettingsTarget;
   if (!text || !walk) return 0;
   const cleaned = normalizeMessageNewlines(text.value).trim();
-  const draft = pinDraft(walk);
-  const changing = draft.state === 'change';
-  const body = editPayload(walk, !cleaned && changing ? undefined : cleaned, popupPosterDraft, changing ? draft.tokens : undefined);
+  const body = editPayload(walk, cleaned, popupPosterDraft, undefined);
   const outgoing = popupEditKey ? sealedEditOutgoing(body) : JSON.stringify(body);
   return utf8ByteLength(outgoing);
 }
@@ -931,11 +910,6 @@ function openEditComposer() {
   );
   if (shown) current = shown.textContent;
   text.value = current;
-  // The pin field starts at the post's collections, empty with none.
-  const pinInput = document.getElementById('popup-settings-comment-pin');
-  if (pinInput) {
-    pinInput.value = commentPinFor(walk.payer, walk.created || walk.authorCreated, walk.timestamp, walk.commentPin).join(', ');
-  }
   hideEditComposer();
   box.style.display = 'block';
   popupPosterDraft = null;
@@ -991,24 +965,7 @@ async function savePopupEdit() {
   const save = document.getElementById('popup-settings-edit-save');
   if (!text) return;
   const cleaned = normalizeMessageNewlines(text.value).trim();
-  const draft = pinDraft(walk);
-  if (draft.state === 'invalid') {
-    toast.error('Enter collection ids like 0.0.123');
-    return;
-  }
-  if (draft.state === 'many') {
-    toast.error('Up to 5 collections');
-    return;
-  }
-  if (draft.state === 'change' && draft.tokens.length) {
-    const check = await validatePinTokens(draft.tokens);
-    if (!check.ok) {
-      toast.error(`${check.token}: ${check.reason}`);
-      return;
-    }
-  }
-  const pinOnly = !cleaned && draft.state === 'change';
-  if (!cleaned && !pinOnly) {
+  if (!cleaned) {
     toast.error('Text is empty');
     return;
   }
@@ -1028,7 +985,7 @@ async function savePopupEdit() {
   if (popupPosterDraft && popupPosterDraft.mode === "custom" && popupPosterDraft.file) {
     poster = { posterV: Date.now() };
   }
-  const body = editPayload(walk, pinOnly ? undefined : cleaned, poster, draft.state === 'change' ? draft.tokens : undefined);
+  const body = editPayload(walk, cleaned, poster, undefined);
   popupEditBusy = true;
   try {
     if (poster && videoUrl) {
@@ -1078,6 +1035,180 @@ async function savePopupEdit() {
   } finally {
     popupEditBusy = false;
   }
+}
+
+// The NFT-utility pin field edits the post whose comments are open, or else
+// the post in the open map popup (the settings target when that popup is gone).
+function asPinWalk(post) {
+  if (!post || !post.payer) return null;
+  const created = post.created || post.authorCreated || '';
+  return {
+    payer: post.payer,
+    created,
+    authorCreated: post.authorCreated || created,
+    timestamp: post.timestamp || post.stamp || '',
+    commentPin: post.commentPin != null ? post.commentPin : post.base,
+    topicId: post.topicId,
+    kind: post.kind || post.shape || 'marker',
+    shape: post.shape || post.kind || 'marker',
+    share: post.share || null,
+  };
+}
+
+function openMapPopupSection() {
+  if (typeof document === 'undefined' || !document.querySelectorAll) return null;
+  const popups = document.querySelectorAll('.maplibregl-popup');
+  for (const popup of popups) {
+    if (!popup.isConnected) continue;
+    if (popup.closest && popup.closest('#popup-settings-card')) continue;
+    const section = popup.querySelector('.popup-comments');
+    if (!section || !section._pinPost || !section._pinPost.payer) continue;
+    if (commentsModal && commentsModal.contains(section) && commentsModalSection && section !== commentsModalSection) continue;
+    return section;
+  }
+  return null;
+}
+
+function utilityPinWalk() {
+  if (commentsModal && commentsModalSection && commentsModalSection._pinPost && commentsModalSection._pinPost.payer) {
+    return asPinWalk(commentsModalSection._pinPost);
+  }
+  const section = openMapPopupSection();
+  if (section) return asPinWalk(section._pinPost);
+  if (popupSettingsTarget && popupSettingsTarget.payer) return asPinWalk(popupSettingsTarget);
+  return null;
+}
+
+function pinWalkOwned(walk) {
+  return !!(walk && signer && connectedAccount && walk.payer === connectedAccount && !walk.share);
+}
+
+function pinWalkKey(walk, owned) {
+  if (!walk) return '';
+  return [walk.payer, walk.created || '', walk.timestamp || '', walk.topicId || '', owned ? '1' : '0'].join('|');
+}
+
+let utilityPinKey = '';
+let utilityPinBusy = false;
+
+function paintUtilityPin() {
+  const field = document.getElementById('input-field-comment-pin');
+  const save = document.getElementById('submit-button-comment-pin');
+  const hint = document.getElementById('comment-pin-utility-hint');
+  if (!field || !save) return;
+  const walk = utilityPinWalk();
+  const owned = pinWalkOwned(walk);
+  const key = pinWalkKey(walk, owned);
+  field.disabled = !owned;
+  save.disabled = !owned;
+  if (hint) hint.hidden = owned;
+  if (key === utilityPinKey) return;
+  utilityPinKey = key;
+  const tokens = walk
+    ? commentPinFor(walk.payer, walk.created || walk.authorCreated, walk.timestamp, walk.commentPin)
+    : [];
+  field.value = tokens.join(', ');
+  field.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function sameTokenList(left, right) {
+  if (!left || !right || left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index++) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
+function applyOpenCommentPin(walk) {
+  const section = commentsModalSection;
+  if (!section || typeof section._applyPin !== 'function' || !section._pinPost || !walk) return;
+  const post = section._pinPost;
+  if (post.payer !== walk.payer) return;
+  const created = messageCreated(post.created);
+  const walkCreated = messageCreated(walk.created || walk.authorCreated);
+  const stamp = post.stamp != null ? String(post.stamp) : '';
+  const walkStamp = walk.timestamp != null ? String(walk.timestamp) : '';
+  if ((created && walkCreated && created === walkCreated) || (stamp && walkStamp && stamp === walkStamp)) {
+    section._applyPin();
+  }
+}
+
+async function saveUtilityPin() {
+  if (utilityPinBusy) return;
+  const field = document.getElementById('input-field-comment-pin');
+  const walk = utilityPinWalk();
+  const owned = pinWalkOwned(walk);
+  if (!field || !owned) return;
+  if (pinWalkKey(walk, owned) !== utilityPinKey) {
+    paintUtilityPin();
+    return;
+  }
+  const plan = planCommentPinEdit(field.value, true);
+  if (!plan.ok) {
+    if (plan.reason === 'invalid') toast.error('Enter collection ids like 0.0.123');
+    else if (plan.reason === 'many') toast.error('Up to 5 collections');
+    return;
+  }
+  if (plan.tokens.length) {
+    const check = await validatePinTokens(plan.tokens);
+    if (!check.ok) {
+      toast.error(`${check.token}: ${check.reason}`);
+      return;
+    }
+  }
+  const current = commentPinFor(walk.payer, walk.created || walk.authorCreated, walk.timestamp, walk.commentPin);
+  if (sameTokenList(current, plan.tokens)) return;
+  const created = messageCreated(walk.created || walk.authorCreated);
+  const stamp = walk.timestamp ? String(walk.timestamp) : '';
+  if ((!created && !stamp) || !walk.topicId) {
+    toast.error('This post cannot be edited');
+    return;
+  }
+  const body = editPayload(walk, undefined, null, plan.tokens);
+  utilityPinBusy = true;
+  try {
+    let key = null;
+    try {
+      key = await resolvePopupEditKey(walk.topicId);
+    } catch (error) {
+      console.error('popup edit key lookup failed', error);
+      toast.error('Could not check the topic key — edit not sent');
+      return;
+    }
+    if (key) {
+      const outgoing = JSON.stringify(await encryptMessage(JSON.stringify(body), key));
+      if (utf8ByteLength(outgoing) > HCS_MESSAGE_MAX_BYTES) {
+        toast.error(HCS_TOO_LONG);
+        return;
+      }
+      toast.info('Confirm in wallet 👛');
+      await sendMessage(walk.topicId, outgoing);
+    } else {
+      toast.info('Confirm in wallet 👛');
+      await sendMessage(walk.topicId, JSON.stringify(body));
+    }
+    toast.success('Saved');
+    const sent = (body.marker || body.polygon).data;
+    const sentAt = new Date().toISOString();
+    rememberCommentPin(connectedAccount, sent, sentAt);
+    applyOpenCommentPin(walk);
+  } catch (error) {
+    console.error('comment pin edit failed', error);
+    toast.error('Edit was not saved');
+  } finally {
+    utilityPinBusy = false;
+  }
+}
+
+{
+  const pinSave = document.getElementById('submit-button-comment-pin');
+  if (pinSave) pinSave.addEventListener('click', (event) => {
+    event.stopPropagation();
+    saveUtilityPin();
+  });
+  const utilityColumn = document.getElementById('utility-column');
+  if (utilityColumn) utilityColumn.addEventListener('pointerdown', () => paintUtilityPin(), true);
+  paintUtilityPin();
 }
 
 // The post popup hides its own × while settings is open, like comments-open.
@@ -1236,6 +1367,7 @@ function closePopupSettings() {
   popupSettingsGearEl = null;
   hideEditComposer();
   syncSettingsOpen();
+  paintUtilityPin();
 }
 
 function bindPopupSettings() {
@@ -1346,6 +1478,7 @@ window.openPopupSettings = function(target) {
       paintDeleteButton();
       hideEditComposer();
       paintEditButton();
+      paintUtilityPin();
       backdrop.style.display = "block";
       card.style.display = "block";
       // Back/Forward: the card is a layer on top of the post popup.
@@ -1562,17 +1695,21 @@ function reactionHost() {
 // The section's argument list stays as it is.
 let pendingCommentPinPost = null;
 
-function commentPinPostOf(data) {
+function commentPinPostOf(data, kind) {
+  const polygon = kind === 'polygon' || (data && (data.kind === 'polygon' || data.shape === 'polygon'));
   return {
     payer: data && data.payer,
     created: data && data.created,
     stamp: data && data.timestamp,
     base: data && data.commentPin,
+    topicId: data && data.topicId,
+    kind: polygon ? 'polygon' : 'marker',
+    share: (data && data.share) || null,
   };
 }
 
 function ensurePostComments(data, kind, id, comments, syncKey) {
-  const pinPost = commentPinPostOf(data);
+  const pinPost = commentPinPostOf(data, kind);
   const existing = document.getElementById(id);
   if (existing) {
     existing._pinPost = pinPost;
@@ -4622,6 +4759,14 @@ function commentsPinLine(section) {
 // pressed. postTimestamp is the post's own timestamp, which the edit and
 // delete helpers name. The same section serves all three shells: the feed
 // page, the landscape card and the popup card (showCommentsModal).
+function readerFilterCtx() {
+  return {
+    me: connectedAccount || '',
+    followSet: feedFollowSet(),
+    isEarly: (payer) => earlyHashinalNumber(payer) > 0,
+  };
+}
+
 function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, syncKey, postTimestamp) {
   const pinPost = pendingCommentPinPost || {};
   pendingCommentPinPost = null;
@@ -4636,6 +4781,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
   // and repaints it; nothing is fetched. The mode holds through live
   // updates and sends until the comments view closes.
   section._sortMode = DEFAULT_COMMENT_SORT;
+  section._readerFilters = freshCommentFilters();
   section._pinPost = pinPost;
   const pinLine = commentsPinLine(section);
   const currentTokens = () => commentPinFor(
@@ -4649,6 +4795,8 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
     value: section._sortMode,
     onChange: (mode) => {
       section._sortMode = mode;
+      if (section._readerFilters) section._readerFilters.sort = mode;
+      if (typeof section._paintCommentSettings === 'function') section._paintCommentSettings();
       paintList(section._tree || []);
     },
   });
@@ -4769,7 +4917,9 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
     const scroller = keepScroll ? commentScroller(list) : null;
     const savedTop = scroller ? scroller.scrollTop : 0;
     list.replaceChildren();
-    const sorted = sortCommentTree(filterCommentTree(items || []), section._sortMode);
+    const cleared = filterCommentTree(items || []);
+    const reader = filterCommentsForReader(cleared, section._readerFilters, readerFilterCtx());
+    const sorted = sortCommentTree(reader, section._sortMode);
     const tokens = currentTokens();
     const view = tokens.length
       ? pinTopLevel(sorted, (payer) => cachedPinned(payer, tokens) === true)
@@ -4848,15 +4998,21 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
   // Opened, or the wallet changed: your avatar, and ⋯ on your own rows.
   section._refresh = () => {
     if (composer) composer.refresh();
+    if (typeof section._paintCommentSettings === 'function') section._paintCommentSettings();
     paintList(section._tree || []);
   };
-  // The view closed: the next open starts at Newest.
+  // The view closed: the next open starts at Newest with filters off.
   section._resetSort = () => {
-    if (section._sortMode === DEFAULT_COMMENT_SORT) return;
+    const dirty = section._sortMode !== DEFAULT_COMMENT_SORT || commentFiltersActive(section._readerFilters);
+    section._readerFilters = freshCommentFilters();
     section._sortMode = DEFAULT_COMMENT_SORT;
     sortBar.setSortMode(DEFAULT_COMMENT_SORT);
-    paintList(section._tree || []);
+    if (typeof section._closeCommentSettings === 'function') section._closeCommentSettings();
+    if (typeof section._paintCommentSettings === 'function') section._paintCommentSettings();
+    if (dirty) paintList(section._tree || []);
   };
+  section._syncSortBar = (mode) => sortBar.setSortMode(mode);
+  section._repaintComments = () => paintList(section._tree || []);
   section._applyPin = () => paintList(section._tree || []);
   repaint(section._base);
   section.appendChild(pinLine);
@@ -5292,7 +5448,7 @@ function teardownCommentsModal() {
         }
         delete commentsModalSection._modalSaves;
       }
-      // Top / Newest holds while the view is open; the next open is Newest.
+      // Sort and reader filters hold while the view is open; the next open is fresh.
       if (typeof commentsModalSection._resetSort === 'function') commentsModalSection._resetSort();
     }
     const input = commentBubbleInput;
@@ -5300,6 +5456,7 @@ function teardownCommentsModal() {
     if (commentsModal) commentsModal.remove();
     commentsModal = null;
     commentsModalSection = null;
+    paintUtilityPin();
     commentBubbleInput = null;
     if (input) {
       input.checked = false;
@@ -5425,6 +5582,272 @@ function commentsBackChevron() {
   return svg;
 }
 
+function commentSettingsIcon(parts) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const [name, attrs] of parts) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', name);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+    svg.appendChild(node);
+  }
+  return svg;
+}
+
+function commentFilterToggle(key, label, icon) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'feed-filter-toggle';
+  btn.dataset.filter = key;
+  btn.setAttribute('aria-pressed', 'false');
+  const tile = document.createElement('span');
+  tile.className = 'feed-filter-icon';
+  tile.appendChild(commentSettingsIcon(icon));
+  const name = document.createElement('span');
+  name.className = 'feed-filter-name';
+  name.textContent = label;
+  const knob = document.createElement('span');
+  knob.className = 'feed-filter-switch';
+  knob.setAttribute('aria-hidden', 'true');
+  btn.append(tile, name, knob);
+  return btn;
+}
+
+function commentFilterSection(title, nodes, extraClass) {
+  const section = document.createElement('div');
+  section.className = 'feed-filter-section' + (extraClass ? ' ' + extraClass : '');
+  const heading = document.createElement('h3');
+  heading.className = 'feed-filter-section-title';
+  heading.textContent = title;
+  section.append(heading, ...nodes);
+  return section;
+}
+
+function commentFilterField(labelText, control) {
+  const row = document.createElement('label');
+  row.className = 'feed-filter-row';
+  const span = document.createElement('span');
+  span.className = 'feed-filter-label';
+  span.textContent = labelText;
+  control.classList.add('feed-filter-field');
+  row.append(span, control);
+  return row;
+}
+
+const COMMENT_FILTER_ICONS = {
+  hasImage: [
+    ['rect', { x: '3', y: '3', width: '18', height: '18', rx: '2' }],
+    ['circle', { cx: '9', cy: '9', r: '2' }],
+    ['path', { d: 'm21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21' }],
+  ],
+  textOnly: [
+    ['path', { d: 'M4 7V4h16v3' }],
+    ['path', { d: 'M9 20h6' }],
+    ['path', { d: 'M12 4v16' }],
+  ],
+  mine: [
+    ['path', { d: 'M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2' }],
+    ['circle', { cx: '12', cy: '7', r: '4' }],
+  ],
+  following: [
+    ['path', { d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' }],
+    ['circle', { cx: '9', cy: '7', r: '4' }],
+    ['path', { d: 'M22 21v-2a4 4 0 0 0-3-3.87' }],
+    ['path', { d: 'M16 3.13a4 4 0 0 1 0 7.75' }],
+  ],
+  earlyHashinal: [
+    ['path', { d: 'M6 3h12l4 6-10 13L2 9Z' }],
+    ['path', { d: 'M11 3 8 9l4 13 4-13-3-6' }],
+    ['path', { d: 'M2 9h20' }],
+  ],
+};
+
+function mountCommentSettings(section) {
+  const previous = document.getElementById('comments-settings-panel');
+  if (previous) previous.remove();
+  const panel = document.createElement('div');
+  panel.id = 'comments-settings-panel';
+  panel.className = 'comments-settings-card';
+  panel.hidden = true;
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-label', 'Comment settings');
+  const hasImage = commentFilterToggle('hasImage', 'Has image', COMMENT_FILTER_ICONS.hasImage);
+  const textOnly = commentFilterToggle('textOnly', 'Text only', COMMENT_FILTER_ICONS.textOnly);
+  const mine = commentFilterToggle('mine', 'Mine', COMMENT_FILTER_ICONS.mine);
+  const following = commentFilterToggle('following', 'Following', COMMENT_FILTER_ICONS.following);
+  const hint = document.createElement('p');
+  hint.id = 'comments-filter-wallet-hint';
+  hint.className = 'feed-filter-hint';
+  hint.textContent = 'Connect your wallet to use Mine and Following';
+  const early = commentFilterToggle('earlyHashinal', 'Early Hashinal holders', COMMENT_FILTER_ICONS.earlyHashinal);
+  const pills = document.createElement('div');
+  pills.className = 'feed-filter-pills';
+  pills.setAttribute('role', 'group');
+  pills.setAttribute('aria-label', 'Sort');
+  for (const [value, label] of [['top', 'Top'], ['newest', 'Newest'], ['oldest', 'Oldest']]) {
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'feed-filter-pill';
+    pill.dataset.sort = value;
+    pill.textContent = label;
+    pills.appendChild(pill);
+  }
+  const from = document.createElement('input');
+  from.type = 'date';
+  from.setAttribute('aria-label', 'From');
+  const to = document.createElement('input');
+  to.type = 'date';
+  to.setAttribute('aria-label', 'To');
+  const dates = document.createElement('div');
+  dates.className = 'feed-filter-dates';
+  dates.append(commentFilterField('From', from), commentFilterField('To', to));
+  const body = document.createElement('div');
+  body.className = 'feed-filter-body';
+  body.append(
+    commentFilterSection('Filter', [hasImage, textOnly, mine, following, hint, early], 'is-toggles'),
+    commentFilterSection('Sort', [pills]),
+    commentFilterSection('Date', [dates]),
+  );
+  panel.appendChild(body);
+
+  const rules = () => {
+    if (!section._readerFilters) section._readerFilters = freshCommentFilters();
+    return section._readerFilters;
+  };
+  const paintToggle = (btn, on) => {
+    btn.classList.toggle('is-active', !!on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  };
+  const paint = () => {
+    const filters = rules();
+    const wallet = !!connectedAccount;
+    if (!wallet && (filters.mine || filters.following)) {
+      filters.mine = false;
+      filters.following = false;
+    }
+    paintToggle(hasImage, filters.hasImage);
+    paintToggle(textOnly, filters.textOnly);
+    paintToggle(mine, filters.mine);
+    paintToggle(following, filters.following);
+    paintToggle(early, filters.earlyHashinal);
+    for (const btn of [mine, following]) {
+      btn.setAttribute('aria-disabled', wallet ? 'false' : 'true');
+      if (wallet) btn.removeAttribute('aria-describedby');
+      else btn.setAttribute('aria-describedby', 'comments-filter-wallet-hint');
+    }
+    hint.hidden = wallet;
+    const sort = filters.sort || section._sortMode || 'newest';
+    for (const pill of pills.children) {
+      const on = pill.dataset.sort === sort;
+      pill.classList.toggle('is-active', on);
+      pill.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    if (from.value !== (filters.dateFrom || '')) from.value = filters.dateFrom || '';
+    if (to.value !== (filters.dateTo || '')) to.value = filters.dateTo || '';
+  };
+  const repaint = () => {
+    paint();
+    if (typeof section._repaintComments === 'function') section._repaintComments();
+  };
+  const flip = (key, other) => {
+    const filters = rules();
+    if (filters[key]) filters[key] = false;
+    else {
+      filters[key] = true;
+      if (other) filters[other] = false;
+    }
+    repaint();
+  };
+  hasImage.addEventListener('click', (event) => {
+    event.stopPropagation();
+    flip('hasImage', 'textOnly');
+  });
+  textOnly.addEventListener('click', (event) => {
+    event.stopPropagation();
+    flip('textOnly', 'hasImage');
+  });
+  mine.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (mine.getAttribute('aria-disabled') === 'true') return;
+    flip('mine');
+  });
+  following.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (following.getAttribute('aria-disabled') === 'true') return;
+    const filters = rules();
+    const turnOn = !filters.following;
+    flip('following');
+    if (!turnOn) return;
+    import('./feedlayout.js').then((mod) => {
+      if (typeof mod.ensureFeedFollowSet === 'function') return mod.ensureFeedFollowSet();
+    }).then(() => {
+      if (section._readerFilters && section._readerFilters.following && typeof section._repaintComments === 'function') {
+        section._repaintComments();
+      }
+    }).catch(() => {});
+  });
+  early.addEventListener('click', (event) => {
+    event.stopPropagation();
+    flip('earlyHashinal');
+  });
+  pills.addEventListener('click', (event) => {
+    const pill = event.target.closest('button');
+    if (!pill || !pills.contains(pill)) return;
+    event.stopPropagation();
+    const value = pill.dataset.sort;
+    if (!value || value === rules().sort) return;
+    rules().sort = value;
+    section._sortMode = value;
+    if (typeof section._syncSortBar === 'function') section._syncSortBar(value);
+    repaint();
+  });
+  from.addEventListener('change', () => {
+    rules().dateFrom = from.value || '';
+    repaint();
+  });
+  to.addEventListener('change', () => {
+    rules().dateTo = to.value || '';
+    repaint();
+  });
+  panel.addEventListener('click', (event) => event.stopPropagation());
+  panel.addEventListener('pointerdown', (event) => event.stopPropagation());
+  section._paintCommentSettings = paint;
+  section._closeCommentSettings = () => {
+    panel.hidden = true;
+    const more = commentsModal && commentsModal.querySelector('.comments-more-button');
+    if (more) more.setAttribute('aria-expanded', 'false');
+  };
+  paint();
+  return panel;
+}
+
+function commentsMoreButton() {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'comments-more-button';
+  btn.setAttribute('aria-label', 'Comment settings');
+  btn.setAttribute('aria-expanded', 'false');
+  btn.setAttribute('aria-controls', 'comments-settings-panel');
+  btn.textContent = '\u22ef';
+  btn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const panel = document.getElementById('comments-settings-panel');
+    if (!panel) return;
+    const open = panel.hidden;
+    panel.hidden = !open;
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open && commentsModalSection && typeof commentsModalSection._paintCommentSettings === 'function') {
+      commentsModalSection._paintCommentSettings();
+    }
+  });
+  return btn;
+}
+
 function commentsCloseButton(section) {
   const closeBtn = document.createElement('button');
   closeBtn.className = 'maplibregl-popup-close-button comments-back-button';
@@ -5477,7 +5900,7 @@ function showCommentsModal(section) {
     const title = document.createElement('div');
     title.className = 'feed-comments-title';
     title.textContent = 'Comments';
-    bar.append(back, title);
+    bar.append(back, title, commentsMoreButton());
     const stage = document.createElement('div');
     stage.className = 'feed-comments-stage';
     // The post and its comments scroll as one column under the bar, with
@@ -5487,7 +5910,7 @@ function showCommentsModal(section) {
     body.append(stage, section);
     const animateFlip = !!(flip && !feedMotionReduced());
     if (animateFlip) wrapper.classList.add('is-flip');
-    wrapper.append(bar, body);
+    wrapper.append(bar, mountCommentSettings(section), body);
     wrapper.addEventListener('click', (e) => e.stopPropagation());
     wrapper.addEventListener('pointerdown', (e) => e.stopPropagation());
     document.body.appendChild(wrapper);
@@ -5500,6 +5923,8 @@ function showCommentsModal(section) {
   } else if (sheet) {
     wrapper.className = 'comments-modal comments-modal--in-card';
     wrapper.appendChild(commentsCloseButton(section));
+    wrapper.appendChild(commentsMoreButton());
+    wrapper.appendChild(mountCommentSettings(section));
     wrapper.appendChild(section);
     if (section._homeParent) watchProfileTree(section._homeParent);
     wrapper.addEventListener('click', (e) => e.stopPropagation());
@@ -5528,6 +5953,8 @@ function showCommentsModal(section) {
     const cardContent = document.createElement('div');
     cardContent.className = 'maplibregl-popup-content';
     cardContent.appendChild(commentsCloseButton(section));
+    cardContent.appendChild(commentsMoreButton());
+    cardContent.appendChild(mountCommentSettings(section));
     cardContent.appendChild(section);
     card.appendChild(cardContent);
     wrapper.appendChild(card);
@@ -5544,6 +5971,7 @@ function showCommentsModal(section) {
 
   const input = commentField(section);
   if (input) setTimeout(() => input.focus(fromFeed ? { preventScroll: true } : undefined), 100);
+  paintUtilityPin();
 }
 
 function retargetCommentsModal() {
@@ -5580,6 +6008,15 @@ if (!landscapeCommentsBound) {
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || !commentsModal) return;
     if (document.getElementById('media-fullscreen')) return;
+    const panel = document.getElementById('comments-settings-panel');
+    if (panel && commentsModal.contains(panel) && !panel.hidden) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      panel.hidden = true;
+      const more = commentsModal.querySelector('.comments-more-button');
+      if (more) more.setAttribute('aria-expanded', 'false');
+      return;
+    }
     event.preventDefault();
     event.stopImmediatePropagation();
     closeCommentsModal();
@@ -5587,6 +6024,7 @@ if (!landscapeCommentsBound) {
   // A wallet connected or left while the comments are open: your avatar
   // and ⋯ on your own rows follow it.
   document.addEventListener('wallet-account-changed', () => {
+    paintUtilityPin();
     if (commentsModalSection && typeof commentsModalSection._refresh === 'function') {
       commentsModalSection._refresh();
     }

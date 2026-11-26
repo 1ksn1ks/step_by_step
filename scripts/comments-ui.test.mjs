@@ -186,6 +186,16 @@ test("the switch starts at Newest, and Top re-sorts the same tree by likes", () 
   bar.setSortMode("newest");
   assert.equal(bar.sortMode(), "newest");
   assert.deepEqual(changes, ["top"]);
+  // Oldest is the settings panel's sort. Both bar buttons sit off, and that
+  // set does not count as a change.
+  bar.setSortMode("oldest");
+  assert.equal(bar.sortMode(), "oldest");
+  assert.equal(top.getAttribute("aria-checked"), "false");
+  assert.equal(newest.getAttribute("aria-checked"), "false");
+  assert.equal(top.classList.contains("is-on"), false);
+  assert.equal(newest.classList.contains("is-on"), false);
+  assert.deepEqual(changes, ["top"]);
+  bar.setSortMode("newest");
 
   const tree = [
     comment({ created: t(1), likeCount: 5 }),
@@ -200,7 +210,13 @@ test("the switch starts at Newest, and Top re-sorts the same tree by likes", () 
   const client = read("../processallmessages.js");
   const build = client.slice(client.indexOf("function buildCommentsSection("), client.indexOf("// One comments modal at a time"));
   assert.match(build, /section\._sortMode = DEFAULT_COMMENT_SORT;/);
-  assert.match(build, /sortCommentTree\(filterCommentTree\(items \|\| \[\]\), section\._sortMode\)/);
+  assert.match(build, /const cleared = filterCommentTree\(items \|\| \[\]\);/);
+  assert.match(build, /filterCommentsForReader\(cleared, section\._readerFilters, readerFilterCtx\(\)\)/);
+  assert.match(build, /sortCommentTree\(reader, section\._sortMode\)/);
+  const filterAt = build.indexOf("const cleared = filterCommentTree");
+  const readerAt = build.indexOf("filterCommentsForReader(");
+  const sortAt = build.indexOf("sortCommentTree(reader, section._sortMode)");
+  assert.ok(filterAt >= 0 && filterAt < readerAt && readerAt < sortAt);
   const change = build.slice(build.indexOf("onChange: (mode) =>"), build.indexOf("const list = document.createElement"));
   assert.match(change, /paintList\(section\._tree \|\| \[\]\)/);
   assert.doesNotMatch(change, /fetch|getMessages|_setComments/);

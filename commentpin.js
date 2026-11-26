@@ -121,6 +121,17 @@ export function parsePinInput(text) {
   return { tokens, invalid, tooMany: seen.size > COMMENT_PIN_MAX };
 }
 
+// What the NFT-utility Save may send. owned is the connected wallet being
+// this post's payer. An empty field is a clear ([]). More than five, or a
+// token that is not an id, is refused before the mirror is asked.
+export function planCommentPinEdit(text, owned) {
+  if (!owned) return { ok: false, reason: 'owner' };
+  const parsed = parsePinInput(text);
+  if (parsed.invalid.length) return { ok: false, reason: 'invalid' };
+  if (parsed.tooMany) return { ok: false, reason: 'many' };
+  return { ok: true, tokens: parsed.tokens.slice() };
+}
+
 function mappedName(names, token) {
   if (!names) return '';
   if (typeof names.get === 'function') return names.get(token) || '';

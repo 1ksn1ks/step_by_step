@@ -148,12 +148,15 @@ export function buildSortToggle({ value = DEFAULT_COMMENT_SORT, onChange, doc = 
     return btn;
   });
   const paint = () => {
+    let selected = false;
     for (const btn of buttons) {
       const on = btn.dataset.sort === current;
+      if (on) selected = true;
       btn.setAttribute('aria-checked', on ? 'true' : 'false');
       btn.classList.toggle('is-on', on);
       btn.tabIndex = on ? 0 : -1;
     }
+    if (!selected && buttons[0]) buttons[0].tabIndex = 0;
   };
   const choose = (mode, focus) => {
     const changed = mode !== current;
@@ -180,9 +183,10 @@ export function buildSortToggle({ value = DEFAULT_COMMENT_SORT, onChange, doc = 
   bar.append(...buttons);
   paint();
   bar.sortMode = () => current;
-  // Set from outside (the view closed): paints, no onChange.
+  // Set from outside (the view closed, or the settings panel): paints, no
+  // onChange. "oldest" is a panel sort only, so both buttons sit off.
   bar.setSortMode = (mode) => {
-    if (!COMMENT_SORTS.some(([known]) => known === mode)) return;
+    if (mode !== 'oldest' && !COMMENT_SORTS.some(([known]) => known === mode)) return;
     current = mode;
     paint();
   };

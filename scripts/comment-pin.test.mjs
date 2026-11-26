@@ -1,6 +1,7 @@
 // Author-picked NFT collections that pin holder comments. No DOM.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { clearAutoplayState } from "../coverautoplay.js";
 import {
   COMMENT_PIN_MAX,
@@ -18,6 +19,7 @@ import {
   normalizePins,
   parsePinInput,
   pinTopLevel,
+  planCommentPinEdit,
   rememberCommentPin,
   setCommentPinIO,
   validatePinToken,
@@ -558,5 +560,41 @@ test.describe("comment pin", { concurrency: 1 }, () => {
       commentPinFor("0.0.50", POST, STAMP, ["0.0.1", "nope", "0.0.1", "0.0.2", "0.0.3", "0.0.4", "0.0.5", "0.0.6"]),
       ["0.0.1", "0.0.2", "0.0.3", "0.0.4", "0.0.5"],
     );
+  });
+
+  test("the pin editor is the NFT-utility field, and an empty save clears", () => {
+    assert.deepEqual(planCommentPinEdit("0.0.1", false), { ok: false, reason: "owner" });
+    assert.deepEqual(planCommentPinEdit("0.0.1, nope", true), { ok: false, reason: "invalid" });
+    assert.equal(planCommentPinEdit("0.0.1 0.0.2 0.0.3 0.0.4 0.0.5 0.0.6", true).reason, "many");
+    assert.deepEqual(planCommentPinEdit("   ", true), { ok: true, tokens: [] });
+    assert.deepEqual(planCommentPinEdit("0.0.4, 0.0.4 0.0.5", true), { ok: true, tokens: ["0.0.4", "0.0.5"] });
+
+    const read = (rel) => readFileSync(new URL(rel, import.meta.url), "utf8");
+    const html = read("../index.html");
+    const rest = read("../rest.js");
+    const client = read("../processallmessages.js");
+    for (const id of ["comment-pin-marker", "comment-pin-polygon", "popup-settings-comment-pin"]) {
+      assert.equal(html.includes(id), false, id);
+    }
+    assert.match(html, /id="input-field-comment-pin"/);
+    assert.match(html, /id="submit-button-comment-pin"/);
+    assert.match(html, /Pin top comments/);
+    assert.match(html, /Open one of your posts to pin holders/);
+    assert.doesNotMatch(rest, /readCreatePin|clearCreatePin|comment-pin-marker|comment-pin-polygon/);
+    assert.doesNotMatch(client, /pinDraft|popup-settings-comment-pin|readCreatePin/);
+    const save = client.slice(client.indexOf("async function saveUtilityPin"), client.indexOf("const pinSave"));
+    assert.match(save, /planCommentPinEdit\(field\.value, true\)/);
+    assert.match(save, /pinWalkOwned\(walk\)/);
+    assert.match(save, /if \(!field \|\| !owned\) return;/);
+    assert.match(save, /Enter collection ids like 0\.0\.123/);
+    assert.match(save, /Up to 5 collections/);
+    assert.match(save, /validatePinTokens\(plan\.tokens\)/);
+    assert.match(save, /\$\{check\.token\}: \$\{check\.reason\}/);
+    assert.match(save, /editPayload\(walk, undefined, null, plan\.tokens\)/);
+    assert.match(save, /rememberCommentPin\(connectedAccount, sent, sentAt\)/);
+    assert.match(save, /applyOpenCommentPin\(walk\)/);
+    assert.match(client, /function applyOpenCommentPin\(walk\)/);
+    const apply = client.slice(client.indexOf("function applyOpenCommentPin"), client.indexOf("async function saveUtilityPin"));
+    assert.match(apply, /section\._applyPin\(\)/);
   });
 });

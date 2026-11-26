@@ -300,10 +300,11 @@ function descendantCount(node) {
 }
 
 // New array, each level sorted. "newest" (the default) is created descending,
-// so a just-sent comment is at the top. "top" is likes, then every nested
-// reply, then created descending.
+// so a just-sent comment is at the top. "oldest" is created ascending.
+// "top" is likes, then every nested reply, then created descending.
 export function sortCommentTree(nodes, mode) {
   const top = mode === 'top';
+  const oldest = mode === 'oldest';
   const copy = (nodes || []).map((node) => ({
     ...node,
     replies: sortCommentTree(node && node.replies, mode),
@@ -316,7 +317,8 @@ export function sortCommentTree(nodes, mode) {
       if (replies) return replies;
     }
     if (a.created === b.created) return 0;
-    return a.created < b.created ? 1 : -1;
+    const newerFirst = a.created < b.created ? 1 : -1;
+    return oldest ? -newerFirst : newerFirst;
   });
   return copy;
 }

@@ -48,6 +48,7 @@ import { FILL_PASSES, planFillDown } from './scrollfill.js';
 import { FEED_VIDEO_MIN, FEED_VIDEO_RELEASE_MS, FEED_VIDEO_THRESHOLDS, connectionIsConstrained, feedAutoplayAllowed, feedVideoHeld, feedVideoPreloadOnPause, feedVideoShouldRelease, feedVideoStartDelay, feedVideosToMeasure, pickFeedVideo } from './feedvideo.js';
 import { isGifClipUrl, isGifUrl, needsGifCheck, resolveMediaUrl } from './mediaurl.js';
 import { bindVideoPoster } from './videoposter.js';
+import { feedFollow } from './feedfollow.js';
 import { mountPicture, pictureElement, presentImage } from './loopmedia.js';
 import { mountMediaBackdrop, mountMediaTools } from './mediaframe.js';
 import { paintXEmbeds, setXEmbedsOn, sleepXEmbeds, wakeXEmbeds, xEmbedsOn } from './xembed.js';
@@ -745,7 +746,6 @@ let pinEnd = 0;
 let feedTab = 'all';
 let tabToken = 0;
 let followState = 'idle';
-let followSet = null;
 let followPromise = null;
 let rangeStart = 0;
 let rangeEnd = 0;
@@ -4342,10 +4342,10 @@ function shiftPin(count) {
 }
 
 function takeFollowed(list) {
-  if (!followSet) return [];
+  if (!feedFollow.set) return [];
   const out = [];
   for (const post of list) {
-    if (post && followSet.has(post.payer)) out.push(post);
+    if (post && feedFollow.set.has(post.payer)) out.push(post);
   }
   return out;
 }
@@ -4478,12 +4478,12 @@ async function selectTab(next) {
   }
   if (!walletNow()) {
     followState = 'nowallet';
-    followSet = null;
+    feedFollow.set = null;
     shown = [];
     rerenderLane();
     return;
   }
-  if (!(followState === 'ready' && followSet)) {
+  if (!(followState === 'ready' && feedFollow.set)) {
     followState = 'loading';
     clearViewWatch();
     clearColumn();
@@ -4504,12 +4504,12 @@ async function selectTab(next) {
     paintNewPill();
     return;
   }
-  if (state !== 'ready' || !followSet) {
+  if (state !== 'ready' || !feedFollow.set) {
     shown = [];
     rerenderLane();
     return;
   }
-  shown = posts.filter((post) => followSet.has(post.payer));
+  shown = posts.filter((post) => feedFollow.set.has(post.payer));
   alignHeld('following');
   if (feedFiltering() || profileFilter) rerenderLane({ keepHeld: true });
   else restoreTabView();
@@ -4519,10 +4519,10 @@ function ensureFollowSet(force) {
   const account = walletNow();
   if (!account) {
     followState = 'nowallet';
-    followSet = null;
+    feedFollow.set = null;
     return Promise.resolve('nowallet');
   }
-  if (!force && followState === 'ready' && followSet) return Promise.resolve('ready');
+  if (!force && followState === 'ready' && feedFollow.set) return Promise.resolve('ready');
   if (!force && followState === 'empty') return Promise.resolve('empty');
   if (followPromise) return followPromise;
   followState = 'loading';
@@ -4532,7 +4532,7 @@ function ensureFollowSet(force) {
     if (walletNow() !== asked) return ensureFollowSet(force);
     if (!data) {
       followState = 'offline';
-      followSet = null;
+      feedFollow.set = null;
       return 'offline';
     }
     const ids = [];
@@ -4544,19 +4544,23 @@ function ensureFollowSet(force) {
     }
     if (!ids.length) {
       followState = 'empty';
-      followSet = null;
+      feedFollow.set = null;
       return 'empty';
     }
-    followSet = new Set(ids);
+    feedFollow.set = new Set(ids);
     followState = 'ready';
     return 'ready';
   }).catch(() => {
     followPromise = null;
     followState = 'offline';
-    followSet = null;
+    feedFollow.set = null;
     return 'offline';
   });
   return followPromise;
+}
+
+export function ensureFeedFollowSet(force) {
+  return ensureFollowSet(force);
 }
 
 function renderThrough(end) {
@@ -4902,7 +4906,7 @@ function prependPosts(list) {
 // them, and a merge puts them in time order with the queue.
 function placeOwn(own) {
   insertOwn('all', posts, own);
-  if (followSet) {
+  if (feedFollow.set) {
     const followed = takeFollowed(own);
     if (followed.length) insertOwn('following', shown, followed);
   }
@@ -4951,7 +4955,7 @@ function insertOwn(tab, list, batch) {
 function prependBatch(list, late = false) {
   const followed = takeFollowed(list);
   posts.unshift(...list);
-  if (followSet) shown.unshift(...followed);
+  if (feedFollow.set) shown.unshift(...followed);
   if (profileFilter) {
     profileShift.all += list.length;
     profileShift.following += followed.length;
@@ -4965,7 +4969,7 @@ function prependBatch(list, late = false) {
     if (searchIncoming.length) found.unshift(...searchIncoming);
   }
   const heldAll = noteHeld('all', list, late);
-  const heldFollow = followSet ? noteHeld('following', followed, late) : false;
+  const heldFollow = feedFollow.set ? noteHeld('following', followed, late) : false;
   const holdRank = sortHold && feedFiltering() && !column.querySelector('.feed-card');
   if (profileFilter) {
     if (feedFiltering()) {
@@ -6313,7 +6317,7 @@ function returnToFeed(sent) {
   leavePlace();
   if (!feedOn()) return;
   if (sent) {
-    if (feedTab === 'following' && !(followSet && followSet.has(walletNow()))) {
+    if (feedTab === 'following' && !(feedFollow.set && feedFollow.set.has(walletNow()))) {
       feedTab = 'all';
       paintTabs();
     }
@@ -10089,7 +10093,7 @@ function watchWalletRows() {
     const now = walletNow();
     if (now === last) return;
     last = now;
-    followSet = null;
+    feedFollow.set = null;
     followPromise = null;
     followState = now ? 'idle' : 'nowallet';
     paintMenuRows();
@@ -11044,7 +11048,7 @@ registerFilter('mine', (post) => {
   const me = walletNow();
   return !!me && postBy(post, me);
 });
-registerFilter('following', (post) => !!(followSet && post && followSet.has(post.payer)));
+registerFilter('following', (post) => !!(feedFollow.set && post && feedFollow.set.has(post.payer)));
 registerFilter('hashinal', (post) => earlyHashinalNumber(post && post.payer) > 0);
 // Chat records have no comments field (chatRecord). Those posts are not matches.
 // Shares store comments: [] and are not matches either.

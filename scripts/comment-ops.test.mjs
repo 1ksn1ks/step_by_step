@@ -169,6 +169,15 @@ test('sortCommentTree orders newest and top at every level without mutating the 
   assert.deepEqual(top.map((node) => node.text), ['loved', 'many', 'few']);
   assert.deepEqual(top[1].replies.map((node) => node.text), ['mid', 'plain']);
   assert.deepEqual(top[1].replies[0].replies.map((node) => node.created), [t1, t0]);
+  const oldest = sortCommentTree(input, 'oldest');
+  assert.deepEqual(oldest.map((node) => node.text), ['many', 'few', 'loved']);
+  assert.deepEqual(oldest[0].replies.map((node) => node.text), ['mid', 'plain']);
+  assert.deepEqual(oldest[0].replies[0].replies.map((node) => node.text), ['low', 'high']);
+  const tied = [
+    { created: t0, text: 'a', likeCount: 1, replies: [] },
+    { created: t0, text: 'b', likeCount: 9, replies: [] },
+  ];
+  assert.deepEqual(sortCommentTree(tied, 'oldest').map((node) => node.text), ['a', 'b']);
   assert.equal(JSON.stringify(input), snapshot);
   assert.notEqual(newest, input);
   assert.equal(filterCommentTree(input)[0].replies.length, 1);
