@@ -770,6 +770,25 @@ test("the comment box mounts the shared full-screen page and is home before the 
   assert.match(client.slice(client.indexOf("function showCommentsModal("), client.indexOf("function retargetCommentsModal(")), /const input = commentField\(section\);/);
 });
 
+test("a holder lookup repaints comments only when the pinned payers change, and that repaint keeps the scroll", () => {
+  const client = read("../processallmessages.js");
+  const build = client.slice(client.indexOf("function buildCommentsSection("), client.indexOf("// One comments modal at a time"));
+  const paint = build.slice(build.indexOf("const paintList ="), build.indexOf("const overlayMatches"));
+  const saved = paint.indexOf("const savedTop = scroller ? scroller.scrollTop : 0;");
+  const replaced = paint.indexOf("list.replaceChildren()");
+  const restored = paint.indexOf("if (scroller) scroller.scrollTop = savedTop;");
+  assert.ok(saved >= 0 && saved < replaced && restored > replaced);
+
+  const lookup = paint.indexOf("lookupHolders(commentPinPayers(sorted), tokens)");
+  const recorded = paint.lastIndexOf("pinnedPayers(sorted, tokens)", lookup);
+  assert.ok(recorded >= 0 && recorded < lookup);
+  assert.match(build, /cachedPinned\(payer, tokens\) === true/);
+  const callback = paint.slice(lookup);
+  const compared = callback.indexOf("samePayers(pinned, pinnedPayers(sorted, tokens))");
+  const repaint = callback.indexOf("paintList(section._tree || [], true)");
+  assert.ok(compared >= 0 && callback.indexOf("return", compared) < repaint);
+});
+
 test("a row draws our own, IPFS and Hashinal media; another host's address is a plain link, javascript: is nothing", () => {
   const base = "https://pub-test.r2.dev";
   globalThis.__R2_PUBLIC_BASE = base;

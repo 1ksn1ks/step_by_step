@@ -4738,7 +4738,36 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
     }
   };
 
-  const paintList = (items) => {
+  // Top-level payers pinned on this token list. A holder answer that does
+  // not change this set leaves the rows where they are.
+  const pinnedPayers = (rows, tokens) => {
+    const out = new Set();
+    for (const node of rows || []) {
+      const payer = node && node.payer;
+      if (payer && cachedPinned(payer, tokens) === true) out.add(payer);
+    }
+    return out;
+  };
+
+  const samePayers = (a, b) => {
+    if (a.size !== b.size) return false;
+    for (const payer of a) if (!b.has(payer)) return false;
+    return true;
+  };
+
+  // The card list scrolls itself. On the feed the column above it does.
+  const commentScroller = (node) => {
+    for (let el = node; el && el.nodeType === 1; el = el.parentElement) {
+      if (el === document.body || el === document.documentElement) break;
+      const oy = getComputedStyle(el).overflowY;
+      if (oy === 'auto' || oy === 'scroll') return el;
+    }
+    return null;
+  };
+
+  const paintList = (items, keepScroll) => {
+    const scroller = keepScroll ? commentScroller(list) : null;
+    const savedTop = scroller ? scroller.scrollTop : 0;
     list.replaceChildren();
     const sorted = sortCommentTree(filterCommentTree(items || []), section._sortMode);
     const tokens = currentTokens();
@@ -4753,6 +4782,7 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
     }
     const options = rowOptions();
     for (const comment of view) list.appendChild(buildCommentRow(comment, options));
+    if (scroller) scroller.scrollTop = savedTop;
     sortBar.hidden = view.length === 0;
     section._view = view;
     if (section._commentSync) publishComment(section._commentSync, countAllMessages(view));
@@ -4760,11 +4790,13 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
     if (!tokens.length) return;
     const epoch = ++pinEpoch;
     const snapshot = tokens.join(',');
+    const pinned = pinnedPayers(sorted, tokens);
     lookupHolders(commentPinPayers(sorted), tokens).then((changed) => {
       if (!changed || epoch !== pinEpoch) return;
       if (!section.isConnected) return;
       if (currentTokens().join(',') !== snapshot) return;
-      paintList(section._tree || []);
+      if (samePayers(pinned, pinnedPayers(sorted, tokens))) return;
+      paintList(section._tree || [], true);
     }).catch(() => {});
   };
 
