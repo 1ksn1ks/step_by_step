@@ -1010,11 +1010,13 @@ async function loadEmbed(card) {
   card.classList.remove('is-loading');
   if (!card.parentNode) return;
   if (!shown) {
+    card.style.minHeight = '';
     dropCard(card);
     return;
   }
   card.classList.remove('is-pending');
   card.classList.add('is-ready');
+  card.style.minHeight = '';
   const wait = card.querySelector('.x-embed-wait');
   if (wait) wait.remove();
   fitEmbed(card);

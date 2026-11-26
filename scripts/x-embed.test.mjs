@@ -475,6 +475,15 @@ function embedNode(tag = "div") {
     }
     kids.length = 0;
   };
+  el.remove = () => {
+    const parent = el.parentElement;
+    if (!parent) return;
+    const at = parent.children.indexOf(el);
+    if (at >= 0) parent.children.splice(at, 1);
+    el.parentNode = null;
+    el.parentElement = null;
+  };
+  Object.defineProperty(el, "firstElementChild", { get() { return kids[0] || null; } });
   const hit = (node, sel) => String(sel).split(",").some((part) => {
     const s = part.trim();
     if (s.startsWith(".")) return node.classList.contains(s.slice(1));
@@ -647,6 +656,74 @@ test("sleep drops a feed post's frame and wake waits until it is near the screen
     assert.equal(card.classList.contains("is-loading"), false);
   } finally {
     globalThis.document = prevDoc;
+    globalThis.IntersectionObserver = prevIO;
+    globalThis.requestAnimationFrame = prevFrame;
+    globalThis.getComputedStyle = prevStyle;
+  }
+});
+
+test("a card shown again drops the height sleep kept for it", async () => {
+  const prevDoc = globalThis.document;
+  const prevWin = globalThis.window;
+  const prevIO = globalThis.IntersectionObserver;
+  const prevFrame = globalThis.requestAnimationFrame;
+  const prevStyle = globalThis.getComputedStyle;
+  const y = await import("../xembed.js?clear-min-height");
+  try {
+    globalThis.IntersectionObserver = undefined;
+    globalThis.requestAnimationFrame = undefined;
+    globalThis.getComputedStyle = () => ({ overflowY: "visible", fontSize: "16px", getPropertyValue: () => "" });
+    globalThis.document = {
+      body: embedNode("body"),
+      documentElement: embedNode("html"),
+      createElement: (tag) => embedNode(tag),
+      createElementNS: (_ns, tag) => embedNode(tag),
+      querySelectorAll: () => [],
+    };
+    globalThis.window = {
+      twttr: {
+        widgets: {
+          createTweet: async (id) => (id === "20" ? { id } : null),
+        },
+      },
+      addEventListener() {},
+    };
+    const feed = embedNode("div");
+    feed.id = "feed-layout";
+    const list = embedNode("div");
+    list.className = "x-embed-list";
+    const shown = embedNode("div");
+    shown.className = "x-embed is-ready";
+    shown.dataset.xId = "20";
+    shown.offsetHeight = 320;
+    const frame = embedNode("div");
+    frame.className = "x-embed-frame";
+    frame.append(embedNode("iframe"));
+    shown.append(frame);
+    const failed = embedNode("div");
+    failed.className = "x-embed is-ready";
+    failed.dataset.xId = "21";
+    failed.offsetHeight = 200;
+    const failedFrame = embedNode("div");
+    failedFrame.className = "x-embed-frame";
+    failedFrame.append(embedNode("iframe"));
+    failed.append(failedFrame);
+    list.append(shown, failed);
+    feed.append(list);
+
+    y.sleepXEmbeds(feed);
+    assert.equal(shown.style.minHeight, "320px");
+    assert.equal(failed.style.minHeight, "200px");
+    y.wakeXEmbeds(feed);
+    for (let i = 0; i < 20; i += 1) await Promise.resolve();
+    assert.equal(shown.classList.contains("is-ready"), true);
+    assert.equal(shown.style.minHeight, "");
+    assert.equal(failed.style.minHeight, "");
+    assert.equal(list.children.includes(failed), false);
+    assert.equal(list.children.includes(shown), true);
+  } finally {
+    globalThis.document = prevDoc;
+    globalThis.window = prevWin;
     globalThis.IntersectionObserver = prevIO;
     globalThis.requestAnimationFrame = prevFrame;
     globalThis.getComputedStyle = prevStyle;
