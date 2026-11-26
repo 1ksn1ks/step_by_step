@@ -407,7 +407,7 @@ function rowBuilder(lookup = topicLookup()) {
   return { ...build, picks };
 }
 
-test("a cluster list row reads top to bottom: title, likes and views, name and account ID, when, topic", () => {
+test("a cluster list row reads top to bottom: title, name and account ID, when, topic, likes and views", () => {
   const { buildRow, describe, picks } = rowBuilder();
   const feature = {
     payer: "0.0.123",
@@ -415,8 +415,8 @@ test("a cluster list row reads top to bottom: title, likes and views, name and a
   };
   const row = buildRow(feature);
   const body = find(row.el, "marker-stack-body");
-  assert.deepEqual(body.children.map((child) => child.className), ["marker-stack-title", "marker-stack-meta marker-stack-stats", "marker-stack-account", "marker-stack-meta", "marker-stack-topic"]);
-  const [titleEl, stats, line, when, topic] = body.children;
+  assert.deepEqual(body.children.map((child) => child.className), ["marker-stack-title", "marker-stack-account", "marker-stack-meta", "marker-stack-topic", "marker-stack-meta marker-stack-stats"]);
+  const [titleEl, line, when, topic, stats] = body.children;
   assert.equal(titleEl.textContent, "Mural");
   // The counts alone on their line (postcounts.js finds .marker-stack-counts).
   assert.equal(stats.text, "");
@@ -441,11 +441,11 @@ test("a cluster list row reads top to bottom: title, likes and views, name and a
   // A share pin with views unknown: the larger like count, likes only.
   const share = buildRow({ properties: { _shareRecord: markerRecord({ topicId: "0.0.808", likeCountMarker: 6, likeCountPolygon: 6 }) } });
   const shareBody = find(share.el, "marker-stack-body");
-  assert.deepEqual(shareBody.children.map((child) => child.className), ["marker-stack-title", "marker-stack-meta marker-stack-stats", "marker-stack-account", "marker-stack-topic"]);
-  const shareCounts = find(shareBody.children[1], "marker-stack-counts");
+  assert.deepEqual(shareBody.children.map((child) => child.className), ["marker-stack-title", "marker-stack-account", "marker-stack-topic", "marker-stack-meta marker-stack-stats"]);
+  const shareCounts = find(shareBody.children[3], "marker-stack-counts");
   assert.equal(shareCounts.children.length, 1);
   assert.equal(find(shareCounts, "post-count-n").textContent, "6");
-  assert.equal(shareBody.children[2].textContent, "Ana 0.0.123");
+  assert.equal(shareBody.children[1].textContent, "Ana 0.0.123");
 
   // No name, no account ID and no date: the counts keep their line, no other.
   const anon = buildRow({ properties: { popupData: () => ({ title: "x", payerInfo: "", likeCountMarker: 0, viewCount: 1_000_000 }) } });
@@ -485,7 +485,7 @@ test("a cluster list row names its topic as the popup's chip: the ID, then the n
   // No ID and no name: no line.
   const none = buildRow({ properties: { popupData: () => ({ title: "x", payer: "0.0.1" }) } });
   assert.equal(find(none.el, "marker-stack-topic"), null);
-  assert.deepEqual(find(none.el, "marker-stack-body").children.map((child) => child.className), ["marker-stack-title", "marker-stack-meta marker-stack-stats", "marker-stack-account"]);
+  assert.deepEqual(find(none.el, "marker-stack-body").children.map((child) => child.className), ["marker-stack-title", "marker-stack-account", "marker-stack-meta marker-stack-stats"]);
   assert.equal(find(none.el, "marker-stack-account").textContent, "0.0.1");
 
   // The lookup is the info card's own (maptip.js), imported, nothing fetched.
