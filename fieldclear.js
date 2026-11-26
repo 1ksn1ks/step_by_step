@@ -14,7 +14,7 @@
 // where it takes Paste's spot, Swap bio, the reference chip, and the chat
 // room fields, where 👥 steps left.
 //
-// Left out: fields with their own clear, the message composers, numeric
+// Left out: fields with their own clear, the topic and E2EE chat composers, numeric
 // fields (inputmode numeric/decimal), the draw coordinates (their right end
 // is the pick-on-map button), read-only or disabled fields, fields under
 // MIN_WIDTH, and anything inside [data-no-clear].
@@ -28,7 +28,7 @@ const SKIP_IDS = new Set([
   'user-write-message-encrypted-chat',
   'coordinates-display', // map readout with its copy button
 ]);
-const SKIP_INSIDE = '.draw-coord-wrap, .comments-input-row, .chat-compose, [data-no-clear]';
+const SKIP_INSIDE = '.draw-coord-wrap, .chat-compose, [data-no-clear]';
 const TEXT_TYPES = new Set(['', 'text', 'search', 'email', 'url', 'tel', 'password']);
 const MIN_WIDTH = 120;
 const UNDO_MS = 5000;

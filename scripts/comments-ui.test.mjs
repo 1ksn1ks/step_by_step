@@ -605,6 +605,35 @@ test("edit puts the text and media in the box; Save keeps, replaces or clears th
   assert.equal(find(c.el, ".comments-edit-chip").hidden, true);
 });
 
+test("the composer is the full-screen box, and programmatic text tells that page to repaint", async () => {
+  const seen = [];
+  const { c, input, type } = composer({ extra: { afterText: (field) => seen.push(field) } });
+  assert.equal(c.el.dataset.expandBox, "");
+  assert.equal(c.el.dataset.expandTitle, "Comment");
+  assert.equal(c.send.dataset.expandSend, "");
+
+  const own = comment({ payer: me, text: "first" });
+  assert.equal(c.edit(own), true);
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0], input);
+  c.cancelEdit();
+  assert.equal(seen.length, 2);
+  assert.equal(seen[1], input);
+  type("yes");
+  assert.equal(seen.length, 2);
+  await c.submit();
+  assert.equal(seen.length, 3);
+  assert.equal(seen[2], input);
+  assert.equal(input.value, "");
+
+  const failing = composer({ ok: false, extra: { afterText: (field) => seen.push(field) } });
+  const before = seen.length;
+  failing.type("kept");
+  await failing.c.submit();
+  assert.equal(seen.length, before);
+  assert.equal(failing.input.value, "kept");
+});
+
 test("the approvals line shows once the message needs more than one wallet approval", () => {
   let bytes = 900;
   const { type, c } = composer({ extra: { bytes: () => bytes } });
@@ -654,6 +683,42 @@ test("the section is wired to the rows, the switch and the composer, with the po
   assert.doesNotMatch(client, /^import .*uploadmedia/m);
   // The view resets to Newest when it closes.
   assert.match(client, /commentsModalSection\._resetSort\(\)/);
+});
+
+test("the comment box mounts the shared full-screen page and is home before the view moves", () => {
+  const client = read("../processallmessages.js");
+  const ui = read("../commentsui.js");
+  assert.doesNotMatch(ui, /fieldexpand/);
+
+  const build = client.slice(client.indexOf("function buildCommentsSection("), client.indexOf("// One comments modal at a time"));
+  assert.match(build, /mountFieldExpand\(input\)/);
+  assert.match(build, /input\._commentSection = section/);
+  assert.match(build, /fieldExpandOf\(field\)/);
+
+  const teardown = client.slice(client.indexOf("function teardownCommentsModal()"), client.indexOf("function closeCommentsModal()"));
+  assert.match(teardown, /function teardownCommentsModal\(\) \{\n  collapseExpandedFields\(\);/);
+
+  const close = client.slice(client.indexOf("function closeCommentsModal()"), client.indexOf("function commentsInCardHost("));
+  const firstGuard = close.indexOf("if (!commentsModal) return;");
+  const closingGuard = close.indexOf("if (commentsClosing && !feedFlipSkip) return;");
+  const collapse = close.indexOf("collapseExpandedFields();");
+  assert.ok(firstGuard >= 0 && closingGuard > firstGuard && collapse > closingGuard);
+  assert.ok(collapse < close.indexOf("stopFeedCommentsHold"));
+
+  const retarget = client.slice(client.indexOf("function retargetCommentsModal()"), client.indexOf("if (!landscapeCommentsBound)"));
+  assert.ok(retarget.indexOf("collapseExpandedFields();") < retarget.indexOf("section.remove();"));
+
+  const rememberAt = client.indexOf("function rememberSentComment(");
+  const remember = client.slice(rememberAt, client.indexOf("function patchMountedComment("));
+  const owned = remember.indexOf("input._commentSection");
+  const closest = remember.indexOf("closest('.popup-comments')");
+  assert.ok(owned >= 0 && closest > owned);
+
+  const fieldFn = client.slice(client.indexOf("function commentField("), rememberAt);
+  assert.match(fieldFn, /section\._composer && section\._composer\.input/);
+  assert.match(fieldFn, /querySelector\('textarea'\)/);
+  assert.match(client.slice(client.indexOf("function commentsAreOpen("), client.indexOf("function applyShareCard(")), /commentField\(section\)/);
+  assert.match(client.slice(client.indexOf("function showCommentsModal("), client.indexOf("function retargetCommentsModal(")), /const input = commentField\(section\);/);
 });
 
 test("a row draws our own, IPFS and Hashinal media; another host's address is a plain link, javascript: is nothing", () => {

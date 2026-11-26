@@ -1,7 +1,7 @@
 import { isValidUrl } from './ISVALIDURL.JS';
 import { DEFAULT_AVATAR, resolveHashinalSrc } from './hashinalurl.js';
 import { avatarSrc } from './avatarsrc.js';
-import { collapseExpandedFields } from './fieldexpand.js';
+import { collapseExpandedFields, fieldExpandOf, mountFieldExpand } from './fieldexpand.js';
 import {getTopicInfo} from './hedera'
 import { prepareHoldings, fetchAccountTokens } from './nftcache.js'
 import {sendMessage, popupView, knownPopupViews, setPopupViewTotal, fetchPost} from './msgbackend'
@@ -2999,7 +2999,7 @@ function commentsAreOpen(node) {
   for (const section of sections) {
     if (section.style.display !== 'none') return true;
     if (section.contains(document.activeElement)) return true;
-    const textarea = section.querySelector('textarea');
+    const textarea = commentField(section);
     if (textarea && textarea.value) return true;
   }
   return false;
@@ -4854,6 +4854,10 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
     paintThumb: (url, box) => paintCommentMedia(box, url, { thumb: true }),
     replyLabel: (node) => `↩ Replying to ${commentNameParts(node.payer, usernames[node.payer]?.username).name}`,
     bytes: (state) => commentOutgoingBytes(state, polygon, postTimestamp),
+    afterText: (field) => {
+      const open = fieldExpandOf(field);
+      if (open) open.paint();
+    },
     send: async (state) => {
       if (state.mode === 'edit' && state.edit) {
         const { node, parent } = state.edit;
@@ -4878,6 +4882,8 @@ function buildCommentsSection(id, comments, onSend, onReply, topicId, kind, sync
     resize: adjustTextareaHeight,
     toast: (message) => toast.error(message),
   });
+  input._commentSection = section;
+  mountFieldExpand(input);
   section._composer = composer;
   section.appendChild(composer.el);
 
@@ -5126,7 +5132,8 @@ function holdFeedCommentsTop(wrapper) {
   const body = wrapper.querySelector('.feed-comments-body');
   const stage = body && body.querySelector('.feed-comments-stage');
   const list = body && body.querySelector('.comments-scroll');
-  const compose = body && body.querySelector('.comments-compose');
+  const compose = (body && body.querySelector('.comments-compose'))
+    || (commentsModalSection && commentsModalSection._composer && commentsModalSection._composer.el);
   const sort = body && body.querySelector('.comments-sort');
   if (!body || !stage || !list) return;
   const shownSort = () => (sort && !sort.hidden ? sort : null);
@@ -5224,6 +5231,7 @@ function stopFeedCommentsHold(wrapper) {
 }
 
 function teardownCommentsModal() {
+  collapseExpandedFields();
   if (!commentsModal && !commentsModalSection) {
     commentsClosing = false;
     feedFlip = null;
@@ -5282,6 +5290,7 @@ function teardownCommentsModal() {
 function closeCommentsModal() {
   if (!commentsModal) return;
   if (commentsClosing && !feedFlipSkip) return;
+  collapseExpandedFields();
   const modal = commentsModal;
   stopFeedCommentsHold(modal);
   const fromFeed = modal.classList.contains('comments-modal--feed');
@@ -5501,7 +5510,7 @@ function showCommentsModal(section) {
   // No flip to wait for: open at the comments before the first paint.
   else if (fromFeed) requestAnimationFrame(() => holdFeedCommentsTop(wrapper));
 
-  const input = section.querySelector('textarea');
+  const input = commentField(section);
   if (input) setTimeout(() => input.focus(fromFeed ? { preventScroll: true } : undefined), 100);
 }
 
@@ -5518,6 +5527,7 @@ function retargetCommentsModal() {
   const wantInCard = !!(landscapeMQ.matches && anchor.closest && anchor.closest('.maplibregl-map'));
   const isInCard = commentsModal.classList.contains('comments-modal--in-card');
   if (wantInCard === isInCard) return;
+  collapseExpandedFields();
   const saves = section._modalSaves;
   const bubble = section._bubbleInput;
   forgetProfileTree(section);
@@ -5625,8 +5635,15 @@ function clearCommentInput(input) {
   adjustTextareaHeight(input);
 }
 
+function commentField(section) {
+  const owned = section && section._composer && section._composer.input;
+  if (owned) return owned;
+  return section && section.querySelector ? section.querySelector('textarea') : null;
+}
+
 function rememberSentComment(input, text, parentId, image) {
-  const section = input && input.closest ? input.closest('.popup-comments') : null;
+  const section = (input && input._commentSection)
+    || (input && input.closest ? input.closest('.popup-comments') : null);
   if (!section || typeof section._insertPending !== 'function' || !connectedAccount) return;
   section._insertPending({
     payer: connectedAccount,

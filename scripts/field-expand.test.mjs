@@ -661,6 +661,43 @@ test("the button stands under the clear ×: its column, its face, one gap below;
   assert.equal(button.classList.contains("is-shown"), false);
 });
 
+test("a comment textarea in a data-expand-box moves Send into the page header and puts it back", () => {
+  const field = el("textarea", {
+    rect: { top: 700, left: 16, width: 280, height: 44 },
+    offsetWidth: 280,
+    offsetHeight: 44,
+  });
+  const send = el("button", { data: { expandSend: "" }, textContent: "Send" });
+  const row = el("div", { class: "comments-input-row" }, field, send);
+  const box = el("div", {
+    class: "comments-compose",
+    data: { expandBox: "", expandTitle: "Comment" },
+    rect: { top: 680, left: 8, width: 360, height: 96 },
+    offsetHeight: 96,
+  }, row);
+  const bar = el("div", { class: "feed-comments-bar", rect: { top: 0, left: 0, width: 390, height: 56 } });
+  const page = el("div", { class: "comments-modal" }, bar, box);
+  doc.body.appendChild(page);
+  field.value = "A comment";
+  assert.equal(mountFieldExpand(field), fieldExpandOf(field));
+  assert.equal(buttonOf(field).classList.contains("is-shown"), true);
+  const home = page.children.indexOf(box);
+  tap(buttonOf(field));
+  try {
+    assert.equal(fieldExpandOf(field).expanded, true);
+    assert.equal(box.parentElement, hostPart("field-full-body"));
+    assert.equal(send.parentElement, hostPart("field-full-actions"));
+    assert.equal(hostPart("field-full-title").textContent, "Comment");
+    assert.equal(host().classList.contains("has-actions"), true);
+    assert.equal(field.parentElement, row);
+  } finally {
+    collapseExpandedFields();
+  }
+  assert.equal(page.children[home], box);
+  assert.equal(send.parentElement, row);
+  assert.equal(fieldExpandOf(field).expanded, false);
+});
+
 test("single-line fields, titles and chat composers get no button", () => {
   const input = el("input");
   const holder = el("div", {}, input);

@@ -68,6 +68,16 @@ function button() {
   };
 }
 
+test("the comment row gets a clear; the chat composers, draw coordinates and opted-out fields stay without one", () => {
+  const skip = source.match(/const SKIP_INSIDE = '([^']*)';/);
+  assert.ok(skip, "SKIP_INSIDE is a string");
+  assert.equal(skip[1].includes(".comments-input-row"), false);
+  assert.match(skip[1], /\.chat-compose/);
+  assert.match(skip[1], /\.draw-coord-wrap/);
+  assert.match(skip[1], /\[data-no-clear\]/);
+  assert.match(source, /topic and E2EE chat composers/);
+});
+
 test("clearing a 3-character field offers undo, restores it, and then gives up", (t) => {
   assert.match(source, /↶ follows every clear/);
   assert.doesNotMatch(source, /LONG_CHARS/);

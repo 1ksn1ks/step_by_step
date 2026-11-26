@@ -672,6 +672,8 @@ export function buildCommentComposer(opts = {}) {
   };
 
   const el = make(doc, 'div', 'comments-compose');
+  el.dataset.expandBox = '';
+  el.dataset.expandTitle = 'Comment';
 
   const replyChip = make(doc, 'div', 'comments-chip comments-reply-chip');
   replyChip.hidden = true;
@@ -702,6 +704,7 @@ export function buildCommentComposer(opts = {}) {
   me.setAttribute('aria-hidden', 'true');
   const attach = buildAttachButton({ doc, accept: opts.accept, onPick: (file) => pick(file) });
   const send = button(doc, 'comments-send', 'Send');
+  send.dataset.expandSend = '';
   row.append(me, attach.button, input, send);
 
   const meta = make(doc, 'div', 'comments-compose-meta');
@@ -797,6 +800,7 @@ export function buildCommentComposer(opts = {}) {
   function setText(value) {
     input.value = value || '';
     resize();
+    if (typeof opts.afterText === 'function') opts.afterText(input);
   }
 
   function stopReply() {
