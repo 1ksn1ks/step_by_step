@@ -399,7 +399,7 @@ test("connected, the chip stacks a bold name over a muted id that is never clipp
     assert.equal(/direction:|text-overflow|overflow:/.test(at), false, at);
   }
   // It shrinks to fit the cap instead: smaller than the name at most.
-  assert.match(id, /font-size: min\(0\.7em, calc\(\(var\(--wallet-cap, 100vh\) - 6vh\) \/ \(var\(--wallet-id-chars, 13\) \* 0\.6\)\)\);/);
+  assert.match(id, /font-size: min\(0\.7em, calc\(\(var\(--wallet-cap, 100vh\) - 2\.6vh - var\(--wallet-face, 3\.4vh\)\) \/ \(var\(--wallet-id-chars, 13\) \* 0\.6\)\)\);/);
   assert.match(name, /font-size: 0\.8em;/);
 });
 
@@ -421,12 +421,30 @@ test("the chip's room matches its cap: 40% / 50% less 12.8vh, and 46% / 50% less
   assert.deepEqual(pct(50, 12.8).map((n) => +n.toFixed(2)), [50, -9.8]);
   assert.deepEqual(pct(46, 0).map((n) => +n.toFixed(2)), [46, 2.76]);
   assert.deepEqual(pct(50, 6), [50, -3]);
-  // The 6vh the id's room leaves out: border 0.2vh a side, padding 0.5vh
-  // + 1vh, the 3.4vh picture and the 0.5vh gap (5.8vh, with 0.2vh to spare).
+  // Besides the picture, the id's room leaves out 2.6vh: border 0.2vh a
+  // side, padding 0.5vh + 1vh and the 0.5vh gap (2.4vh, with 0.2vh to spare).
   assert.match(rule(".onboard-wallet.is-connected"), /padding: 0\.5vh 1vh 0\.5vh 0\.5vh;/);
   assert.match(rule(".onboard-wallet.is-connected"), /gap: 0\.5vh;/);
-  assert.match(rule(".onboard-wallet-face"), /width: 3\.4vh;/);
   assert.match(rule(".onboard-wallet"), /border: 0\.2vh solid/);
+  assert.equal(+(0.2 * 2 + 0.5 + 1 + 0.5).toFixed(2), 2.4);
+});
+
+test("the picture fills the chip's height, so the gap above, below and left of it is the same 0.5vh", () => {
+  const face = rule(".onboard-wallet-face");
+  assert.match(face, /width: var\(--wallet-face, 3\.4vh\);/);
+  assert.match(face, /height: var\(--wallet-face, 3\.4vh\);/);
+  // No name: the min-height inside padding and border, 5vh - 1vh - 0.4vh.
+  assert.match(rule(".onboard-wallet.is-connected"), /--wallet-face: 3\.6vh;/);
+  assert.match(rule(".onboard-wallet"), /min-height: 5vh;/);
+  assert.equal(+(5 - 0.5 * 2 - 0.2 * 2).toFixed(2), 3.6);
+  // A name: the name over the id, 0.8em and 0.7em at line-height 1.2 with
+  // the 0.2em gap, is 2em; never under the min-height's 3.6vh.
+  assert.match(rule(".onboard-wallet.is-connected:has(.onboard-wallet-name)"), /--wallet-face: max\(2em, 3\.6vh\);/);
+  assert.match(rule(".onboard-wallet-name"), /line-height: 1\.2;/);
+  assert.match(rule(".onboard-wallet-id"), /line-height: 1\.2;/);
+  assert.equal(+(0.8 * 1.2 + 0.2 + 0.7 * 1.2).toFixed(2), 2);
+  // Stacked above the text the chip is no pill: the picture keeps 3.4vh.
+  assert.match(rule(".onboard-card:not(.is-guide) > .onboard-wallet.is-connected"), /--wallet-face: 3\.4vh;/);
 });
 
 test("on a narrow portrait card the picture stacks above the name and the whole id", () => {
@@ -458,18 +476,20 @@ test("on a narrow portrait card the picture stacks above the name and the whole 
 });
 
 test("the stacking threshold: beside the picture the id would get under 4em", () => {
-  // Beside the picture the id's room is the cap less 6vh:
-  // (50% of the padding box - 12.8vh) - 6vh = 50cqi + 3vh - 18.8vh = 50cqi - 15.8vh.
-  // Under 4em when the content (100cqi) is under 31.6vh + 8em.
+  // Beside the picture the id's room is the cap less 2.6vh and the picture:
+  // (50% of the padding box - 12.8vh) - 2.6vh - face = 50cqi - 12.4vh - face.
+  // The picture is max(2em, 3.6vh) of the chip's font (font px below).
+  // The threshold, content (100cqi) under 31.6vh + 8em, still sorts these.
   const stacks = ({ content, vh, em, portrait }) => portrait && content < 31.6 * vh + 8 * em;
-  const room = ({ content, vh }) => content / 2 - 15.8 * vh;
-  // The intro card on the screens it was checked on (content px, 1vh px, card em px).
+  const room = ({ content, vh, font }) => content / 2 - 12.4 * vh - Math.max(2 * font, 3.6 * vh);
+  // The intro card on the screens it was checked on (content px, 1vh px,
+  // card em px, the chip's font px).
   const screens = {
-    phone: { content: 335.4, vh: 8.44, em: 16, portrait: true },
-    iphoneSE: { content: 323, vh: 6.67, em: 16, portrait: true },
-    phoneLandscape: { content: 249.6, vh: 3.9, em: 16, portrait: false },
-    pcLandscape: { content: 691.2, vh: 10.8, em: 16, portrait: false },
-    portraitMonitor: { content: 928.8, vh: 19.2, em: 16, portrait: true },
+    phone: { content: 335.4, vh: 8.44, em: 16, font: 15.76, portrait: true },
+    iphoneSE: { content: 323, vh: 6.67, em: 16, font: 16, portrait: true },
+    phoneLandscape: { content: 249.6, vh: 3.9, em: 16, font: 9.36, portrait: false },
+    pcLandscape: { content: 691.2, vh: 10.8, em: 16, font: 25.92, portrait: false },
+    portraitMonitor: { content: 928.8, vh: 19.2, em: 16, font: 46.08, portrait: true },
   };
   const stacked = Object.entries(screens).filter(([, s]) => stacks(s)).map(([name]) => name);
   assert.deepEqual(stacked, ["phone", "iphoneSE"]);

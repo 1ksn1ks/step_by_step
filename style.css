@@ -6834,14 +6834,22 @@ html, body {
      name over the id, as the post header shows a profile. It grows taller
      and wider for them, up to the same cap. --wallet-cap is that cap in
      the card's units (the card is a size container below: 100cqi is its
-     content, 6vh narrower than the box the % read). */
+     content, 6vh narrower than the box the % read). --wallet-face is the
+     picture: as tall as the chip inside its padding, so it sits round in
+     the round end with the same 0.5vh above, below and left. That is the
+     min-height's 3.6vh (5vh less 1vh padding and 0.4vh border), or with
+     a name the 2em of name over id (0.96em + 0.2em gap + 0.84em). */
   .onboard-wallet.is-connected {
     --wallet-cap: min(calc(40cqi + 2.4vh), calc(50cqi - 9.8vh));
+    --wallet-face: 3.6vh;
     align-items: center;
     gap: 0.5vh;
     padding: 0.5vh 1vh 0.5vh 0.5vh;
     white-space: normal;
     cursor: default;
+  }
+  .onboard-wallet.is-connected:has(.onboard-wallet-name) {
+    --wallet-face: max(2em, 3.6vh);
   }
   /* The install page has one narrow icon (📲), so the chip may run closer
      to the centre there; it still stops short of the icon. */
@@ -6875,25 +6883,28 @@ html, body {
   }
   /* The whole id, never clipped. Where the cap leaves less room than the
      id needs at its size, it gets smaller instead: the room (the cap less
-     the 6vh of border, padding, picture and gap) over the id's length at
-     0.6em a character, wider than any UI font's digits. */
+     the picture and 2.6vh of border, padding and gap, 0.2vh of it to
+     spare) over the id's length at 0.6em a character, wider than any UI
+     font's digits. */
   .onboard-wallet-id {
     color: rgba(255, 255, 255, 0.55);
-    font-size: min(0.7em, calc((var(--wallet-cap, 100vh) - 6vh) / (var(--wallet-id-chars, 13) * 0.6)));
+    font-size: min(0.7em, calc((var(--wallet-cap, 100vh) - 2.6vh - var(--wallet-face, 3.4vh)) / (var(--wallet-id-chars, 13) * 0.6)));
     font-weight: 500;
     line-height: 1.2;
     white-space: nowrap;
   }
   /* A narrow card (a portrait phone) on the pages with two emoji: beside
-     the picture the id's room, the cap less 6vh (50cqi - 15.8vh), is under
-     4em, too small to read. There the picture sits above the name and the
-     id, which then get the chip's whole width inside the same cap (less
-     its 0.4vh border and 1.2vh padding). Rounded like the card, not a
-     pill, so the round ends do not cut into the text. The install page,
+     the picture the id's room, the cap less 2.6vh and the picture (about
+     50cqi - 16vh on a phone), is under 4em, too small to read. There the
+     picture sits above the name and the id, which then get the chip's
+     whole width inside the same cap (less its 0.4vh border and 1.2vh
+     padding). Rounded like the card, not a pill, so the round ends do not
+     cut into the text, and the picture keeps its 3.4vh. The install page,
      landscape and wide cards keep the row. */
   @media (orientation: portrait) {
     @container (width < calc(31.6vh + 8em)) {
       .onboard-card:not(.is-guide) > .onboard-wallet.is-connected {
+        --wallet-face: 3.4vh;
         flex-direction: column;
         justify-content: center;
         padding: 0.6vh;
@@ -6914,8 +6925,8 @@ html, body {
     flex: none;
   }
   .onboard-wallet-face {
-    width: 3.4vh;
-    height: 3.4vh;
+    width: var(--wallet-face, 3.4vh);
+    height: var(--wallet-face, 3.4vh);
     border-radius: 50%;
     object-fit: cover;
     background: rgba(255, 255, 255, 0.08);
