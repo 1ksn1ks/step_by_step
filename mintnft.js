@@ -1476,6 +1476,17 @@ export function bindMintNft({
         if (ACCOUNT_ID.test(account)) loadCollections();
         else setListStatus("connect");
       }
+      // mintNfts signs the connected wallet and does not check the job account.
+      // Pause here; Resume stays a tap, so a switch back does not continue.
+      if (minter) {
+        const started = minter.state().accountId;
+        if (minter.state().running && account !== started) {
+          minter.pause();
+          pauseBtn.disabled = true;
+          progressStatus.textContent = "Pausing after this transaction…";
+          toast.error(`Connect the wallet that started this mint (${started})`);
+        }
+      }
       refreshJobs();
     });
   }
