@@ -446,22 +446,38 @@ function xMark() {
 }
 
 // The placeholder: the X mark and a word.
-// createTweet puts X's post into .x-embed-frame.
-function buildEmbed(post) {
-  const card = document.createElement('div');
-  card.className = 'x-embed is-pending';
-  card.dataset.xId = post.id;
-  card.dataset.xUrl = post.url;
+function embedWait() {
   const wait = document.createElement('div');
   wait.className = 'x-embed-wait';
   const note = document.createElement('span');
   note.className = 'x-embed-note';
   note.textContent = 'Post on X';
   wait.append(xMark(), note);
+  return wait;
+}
+
+// createTweet puts X's post into .x-embed-frame.
+function buildEmbed(post) {
+  const card = document.createElement('div');
+  card.className = 'x-embed is-pending';
+  card.dataset.xId = post.id;
+  card.dataset.xUrl = post.url;
   const frame = document.createElement('div');
   frame.className = 'x-embed-frame';
-  card.append(wait, frame);
+  card.append(embedWait(), frame);
   return card;
+}
+
+function restoreWait(card) {
+  const note = card.querySelector('.x-embed-note');
+  if (note) {
+    note.textContent = 'Post on X';
+    return;
+  }
+  const frame = card.querySelector('.x-embed-frame');
+  const wait = embedWait();
+  if (frame) card.insertBefore(wait, frame);
+  else card.append(wait);
 }
 
 // The nearest ancestor that scrolls now, so the near margin counts from
@@ -720,6 +736,15 @@ function unsize(card) {
   if (resizer) resizer.unobserve(card);
 }
 
+// The height the feed spacers keep: the card's layout height, or the last
+// one the resizer stored once the feed is no longer measured.
+function heldHeight(card) {
+  const live = card.offsetHeight;
+  if (live > 0) return live;
+  const known = heights.get(card);
+  return typeof known === 'number' && known > 0 ? known : 0;
+}
+
 // ── Map popup: swipe past X's iframe ────────────────────────────────────
 // X's frame is a cross-origin iframe, so a touch on it never reaches the
 // popup. While the post is locked, a shield over the frame takes the touch
@@ -954,6 +979,7 @@ async function loadEmbed(card) {
   if (!card.classList.contains('is-pending') || card.classList.contains('is-loading')) return;
   unwatchCard(card);
   card.classList.add('is-loading');
+  const epoch = card._xEpoch || 0;
   const note = card.querySelector('.x-embed-note');
   if (note) note.textContent = 'Loading post…';
   const frame = card.querySelector('.x-embed-frame');
@@ -972,6 +998,14 @@ async function loadEmbed(card) {
     }
   } catch {
     shown = null;
+  }
+  // The feed slept this card while X was building it. Leave the placeholder.
+  if ((card._xEpoch || 0) !== epoch) {
+    if (!card.classList.contains('is-loading')) {
+      const live = card.querySelector('.x-embed-frame');
+      if (live) live.replaceChildren();
+    }
+    return;
   }
   card.classList.remove('is-loading');
   if (!card.parentNode) return;
@@ -1121,6 +1155,45 @@ export function paintXEmbeds(textEl, opts = {}) {
   if (posts.length) textEl.dataset.xEmbeds = '1';
   else delete textEl.dataset.xEmbeds;
   mountList(textEl);
+}
+
+// A map popup, a chat, or a swap sheet keeps its post. Only the feed's cards sleep.
+const EMBED_ELSEWHERE = '.maplibregl-popup, #swap-sheet, #feed-chat, #messages-from-topic-chat, #messages-from-encrypted-chat, #mb-chat-preview-outer';
+
+function embedsIn(scope) {
+  if (!scope || typeof scope.querySelectorAll !== 'function') return [];
+  const cards = [];
+  for (const card of scope.querySelectorAll('.x-embed')) {
+    if (card.closest && card.closest(EMBED_ELSEWHERE)) continue;
+    cards.push(card);
+  }
+  return cards;
+}
+
+// The feed left the map. Drop X's iframe and put the placeholder back.
+// The list and the card stay. The card keeps the height it had, the way a
+// feed spacer keeps a card's measured height, so the column does not jump.
+// Calling it again changes nothing.
+export function sleepXEmbeds(scope) {
+  for (const card of embedsIn(scope)) {
+    if (!card.classList.contains('is-ready') && !card.classList.contains('is-loading')) continue;
+    card._xEpoch = (card._xEpoch || 0) + 1;
+    unwatchCard(card);
+    const held = heldHeight(card);
+    unsize(card);
+    const frame = card.querySelector('.x-embed-frame');
+    if (frame) frame.replaceChildren();
+    restoreWait(card);
+    card.classList.remove('is-ready', 'is-loading', 'is-locked');
+    card.classList.add('is-pending');
+    if (held > 0) card.style.minHeight = `${held}px`;
+  }
+}
+
+// The feed covers the map again. Pending cards load when they come near
+// the screen, through the same observer as the first time.
+export function wakeXEmbeds(scope) {
+  for (const card of embedsIn(scope)) armCard(card);
 }
 
 // Take a text's embeds away (its row closed, its text emptied).

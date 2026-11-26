@@ -50,7 +50,7 @@ import { isGifClipUrl, isGifUrl, needsGifCheck, resolveMediaUrl } from './mediau
 import { bindVideoPoster } from './videoposter.js';
 import { mountPicture, pictureElement, presentImage } from './loopmedia.js';
 import { mountMediaBackdrop, mountMediaTools } from './mediaframe.js';
-import { paintXEmbeds, setXEmbedsOn, xEmbedsOn } from './xembed.js';
+import { paintXEmbeds, setXEmbedsOn, sleepXEmbeds, wakeXEmbeds, xEmbedsOn } from './xembed.js';
 import {
   PULL_AT_ONCE,
   STACK_FIRST_MS,
@@ -2209,6 +2209,17 @@ function settleFeedVideos() {
     if (!video.isConnected) releaseFeedVideo(video);
   }
   if (preferredFeedVideo && !feedVideoRatio.has(preferredFeedVideo)) preferredFeedVideo = null;
+  // Closed or peek: the file goes now. A sheet over an open feed only pauses.
+  if (!feedOn() || root.classList.contains('is-peek')) {
+    cancelFeedVideoDwell();
+    activeFeedVideo = null;
+    for (const video of [...feedVideoRatio.keys()]) {
+      cancelFeedVideoRelease(video);
+      pauseFeedVideo(video);
+      unloadFeedVideoSrc(video);
+    }
+    return;
+  }
   if (feedVideoBlocked()) {
     cancelFeedVideoDwell();
     activeFeedVideo = null;
@@ -5450,6 +5461,8 @@ function syncCover() {
     // stays where it was.
     if (mapFilterStale()) handleAllMessages(undefined, { keepView: true });
   }
+  if (covers) wakeXEmbeds(root);
+  else sleepXEmbeds(root);
   syncFeedVideos();
 }
 

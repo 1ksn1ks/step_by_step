@@ -304,3 +304,21 @@ test("show media full size starts a video wide, and its size button can shrink i
   assert.match(src, /settingsSwitch\('Autoplay videos'/);
   assert.match(src, /settingsSwitch\('Data saver'/);
 });
+
+test("a closed or peeked feed unloads videos at once, and a sheet still only pauses", () => {
+  const src = readFileSync(new URL("../feedlayout.js", import.meta.url), "utf8");
+  const fn = src.slice(src.indexOf("function settleFeedVideos("), src.indexOf("function syncFeedVideos("));
+  const offAt = fn.indexOf("if (!feedOn() || root.classList.contains('is-peek'))");
+  const blockedAt = fn.indexOf("if (feedVideoBlocked())");
+  assert.ok(offAt > 0 && blockedAt > offAt);
+  const off = fn.slice(offAt, blockedAt);
+  assert.match(off, /cancelFeedVideoRelease\(video\)/);
+  assert.match(off, /pauseFeedVideo\(video\)/);
+  assert.match(off, /unloadFeedVideoSrc\(video\)/);
+  assert.equal(off.includes("scheduleFeedVideoRelease"), false);
+  assert.equal(off.includes("feedVideoRatio.get"), false);
+  const blocked = fn.slice(blockedAt, fn.indexOf("const allow"));
+  assert.match(blocked, /retireFeedVideo\(video\)/);
+  assert.match(blocked, /pauseFeedVideo\(video\)/);
+  assert.equal(blocked.includes("unloadFeedVideoSrc"), false);
+});

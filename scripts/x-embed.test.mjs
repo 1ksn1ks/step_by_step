@@ -418,6 +418,249 @@ test("pages are wired to xembed.js, and only xembed.js loads X's script", () => 
   assert.match(rules, /:where\(\.x-embed-list, \.x-embed-list \*\) \{\s*touch-action: pan-y;/);
 });
 
+// A few nodes, enough for sleep and wake. querySelector walks children only.
+function embedNode(tag = "div") {
+  const classes = new Set();
+  const kids = [];
+  const el = {
+    tagName: String(tag).toUpperCase(),
+    id: "",
+    children: kids,
+    style: { minHeight: "" },
+    dataset: {},
+    textContent: "",
+    isConnected: true,
+    offsetHeight: 0,
+    parentNode: null,
+    parentElement: null,
+    attrs: {},
+  };
+  const owns = (name) => classes.has(name);
+  Object.defineProperty(el, "className", {
+    get() { return [...classes].join(" "); },
+    set(value) {
+      classes.clear();
+      for (const name of String(value || "").split(/\s+/)) if (name) classes.add(name);
+    },
+  });
+  el.classList = {
+    contains: owns,
+    add: (...names) => { for (const name of names) if (name) classes.add(name); },
+    remove: (...names) => { for (const name of names) classes.delete(name); },
+  };
+  el.setAttribute = (key, value) => {
+    el.attrs[key] = value;
+    if (key === "class") el.className = value;
+    if (key === "id") el.id = value;
+  };
+  el.append = (...nodes) => {
+    for (const child of nodes) {
+      child.parentNode = el;
+      child.parentElement = el;
+      kids.push(child);
+    }
+  };
+  el.appendChild = (child) => { el.append(child); return child; };
+  el.insertBefore = (child, before) => {
+    child.parentNode = el;
+    child.parentElement = el;
+    const at = kids.indexOf(before);
+    if (at < 0) kids.push(child);
+    else kids.splice(at, 0, child);
+  };
+  el.replaceChildren = () => {
+    for (const child of kids) {
+      child.parentNode = null;
+      child.parentElement = null;
+    }
+    kids.length = 0;
+  };
+  const hit = (node, sel) => String(sel).split(",").some((part) => {
+    const s = part.trim();
+    if (s.startsWith(".")) return node.classList.contains(s.slice(1));
+    if (s.startsWith("#")) return node.id === s.slice(1);
+    return node.tagName === s.toUpperCase();
+  });
+  const walk = (fn) => {
+    for (const child of kids) {
+      fn(child);
+      if (child.walk) child.walk(fn);
+    }
+  };
+  el.walk = walk;
+  el.querySelectorAll = (sel) => {
+    const found = [];
+    walk((child) => { if (hit(child, sel)) found.push(child); });
+    return found;
+  };
+  el.querySelector = (sel) => el.querySelectorAll(sel)[0] || null;
+  el.closest = (sel) => {
+    let cur = el;
+    while (cur) {
+      if (hit(cur, sel)) return cur;
+      cur = cur.parentElement;
+    }
+    return null;
+  };
+  return el;
+}
+
+test("sleep drops a feed post's frame and wake waits until it is near the screen", () => {
+  const prevDoc = globalThis.document;
+  const prevIO = globalThis.IntersectionObserver;
+  const prevFrame = globalThis.requestAnimationFrame;
+  const prevStyle = globalThis.getComputedStyle;
+  const observed = [];
+  try {
+    globalThis.document = {
+      body: embedNode("body"),
+      documentElement: embedNode("html"),
+      createElement: (tag) => embedNode(tag),
+      createElementNS: (_ns, tag) => embedNode(tag),
+    };
+    globalThis.getComputedStyle = () => ({ overflowY: "visible" });
+    const frames = [];
+    globalThis.requestAnimationFrame = (fn) => {
+      frames.push(fn);
+      return frames.length;
+    };
+    globalThis.IntersectionObserver = class {
+      constructor(cb) { this.cb = cb; }
+      observe(target) { observed.push(target); }
+      unobserve() {}
+      disconnect() {}
+    };
+
+    const feed = embedNode("div");
+    feed.id = "feed-layout";
+    const list = embedNode("div");
+    list.className = "x-embed-list";
+    const card = embedNode("div");
+    card.className = "x-embed is-ready";
+    card.offsetHeight = 320;
+    const frame = embedNode("div");
+    frame.className = "x-embed-frame";
+    const iframe = embedNode("iframe");
+    frame.append(iframe);
+    card.append(frame);
+    const loading = embedNode("div");
+    loading.className = "x-embed is-pending is-loading";
+    loading.offsetHeight = 180;
+    const loadingFrame = embedNode("div");
+    loadingFrame.className = "x-embed-frame";
+    const loadingNote = embedNode("span");
+    loadingNote.className = "x-embed-note";
+    loadingNote.textContent = "Loading post…";
+    const loadingWait = embedNode("div");
+    loadingWait.className = "x-embed-wait";
+    loadingWait.append(loadingNote);
+    loading.append(loadingWait, loadingFrame);
+    const waiting = embedNode("div");
+    waiting.className = "x-embed is-pending";
+    waiting.offsetHeight = 40;
+    const waitingFrame = embedNode("div");
+    waitingFrame.className = "x-embed-frame";
+    const waitingNote = embedNode("span");
+    waitingNote.className = "x-embed-note";
+    waitingNote.textContent = "Post on X";
+    const waitingWait = embedNode("div");
+    waitingWait.className = "x-embed-wait";
+    waitingWait.append(waitingNote);
+    waiting.append(waitingWait, waitingFrame);
+    list.append(card, loading, waiting);
+
+    const popup = embedNode("div");
+    popup.className = "maplibregl-popup";
+    const popupCard = embedNode("div");
+    popupCard.className = "x-embed is-ready";
+    popupCard.offsetHeight = 500;
+    const popupFrame = embedNode("div");
+    popupFrame.className = "x-embed-frame";
+    const popupIframe = embedNode("iframe");
+    popupFrame.append(popupIframe);
+    popupCard.append(popupFrame);
+    popup.append(popupCard);
+
+    const chat = embedNode("div");
+    chat.id = "feed-chat";
+    const chatCard = embedNode("div");
+    chatCard.className = "x-embed is-ready";
+    const chatFrame = embedNode("div");
+    chatFrame.className = "x-embed-frame";
+    chatFrame.append(embedNode("iframe"));
+    chatCard.append(chatFrame);
+    chat.append(chatCard);
+
+    const sheet = embedNode("div");
+    sheet.id = "swap-sheet";
+    const sheetCard = embedNode("div");
+    sheetCard.className = "x-embed is-ready";
+    const sheetFrame = embedNode("div");
+    sheetFrame.className = "x-embed-frame";
+    sheetFrame.append(embedNode("iframe"));
+    sheetCard.append(sheetFrame);
+    sheet.append(sheetCard);
+    feed.append(list, popup, chat, sheet);
+
+    x.sleepXEmbeds(feed);
+    x.sleepXEmbeds(feed);
+    assert.equal(list.children.includes(card), true);
+    assert.equal(card.classList.contains("is-pending"), true);
+    assert.equal(card.classList.contains("is-ready"), false);
+    assert.equal(card.classList.contains("is-loading"), false);
+    assert.equal(frame.children.length, 0);
+    assert.equal(card.querySelector(".x-embed-note").textContent, "Post on X");
+    assert.equal(card.style.minHeight, "320px");
+    assert.equal(loading.classList.contains("is-pending"), true);
+    assert.equal(loading.classList.contains("is-loading"), false);
+    assert.equal(loadingNote.textContent, "Post on X");
+    assert.equal(loading.style.minHeight, "180px");
+    assert.equal(waiting.style.minHeight, "");
+    assert.equal(popupCard.classList.contains("is-ready"), true);
+    assert.equal(popupFrame.children.includes(popupIframe), true);
+    assert.equal(popupCard.style.minHeight, "");
+    assert.equal(chatCard.classList.contains("is-ready"), true);
+    assert.equal(chatFrame.children.length, 1);
+    assert.equal(sheetCard.classList.contains("is-ready"), true);
+    assert.equal(sheetFrame.children.length, 1);
+
+    card.offsetHeight = 10;
+    x.sleepXEmbeds(feed);
+    assert.equal(card.style.minHeight, "320px");
+    assert.equal(frame.children.length, 0);
+
+    x.wakeXEmbeds(feed);
+    while (frames.length) frames.shift()();
+    const armed = observed.length;
+    assert.ok(armed >= 1);
+    assert.equal(observed.includes(card), true);
+    assert.equal(observed.includes(waiting), true);
+    assert.equal(observed.includes(popupCard), false);
+    assert.equal(observed.includes(chatCard), false);
+    assert.equal(observed.includes(sheetCard), false);
+    assert.equal(card.classList.contains("is-pending"), true);
+    assert.equal(frame.children.length, 0);
+    x.wakeXEmbeds(feed);
+    while (frames.length) frames.shift()();
+    assert.equal(observed.length, armed);
+    assert.equal(frame.children.length, 0);
+    assert.equal(card.classList.contains("is-loading"), false);
+  } finally {
+    globalThis.document = prevDoc;
+    globalThis.IntersectionObserver = prevIO;
+    globalThis.requestAnimationFrame = prevFrame;
+    globalThis.getComputedStyle = prevStyle;
+  }
+});
+
+test("syncCover sleeps while the feed is off the map and wakes when it covers", () => {
+  const feed = read("../feedlayout.js");
+  const sync = feed.slice(feed.indexOf("function syncCover("), feed.indexOf("onTimeFilter("));
+  assert.match(sync, /if \(covers\) wakeXEmbeds\(root\);\s*else sleepXEmbeds\(root\);/);
+  assert.equal(/widgets\.js|platform\.twitter\.com|createTweet/.test(feed), false);
+  assert.equal(feed.includes("refreshXEmbeds"), false);
+});
+
 test("a tap on a locked X post in a map popup is not a swipe", () => {
   assert.equal(x.xEmbedLockTap(0, 0), true);
   assert.equal(x.xEmbedLockTap(10, 4), true);
