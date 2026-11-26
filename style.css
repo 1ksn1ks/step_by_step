@@ -4833,8 +4833,11 @@ html, body {
     overscroll-behavior: auto;
   }
 
-  /* Glass × — same bubble height as the bottom .popup-icon-chip */
-  .maplibregl-popup-close-button {
+  /* Glass × — same bubble height as the bottom .popup-icon-chip. The
+     comments ⋯ in the map shells is the same circle, top right, mirroring
+     the back circle's top left (processallmessages.js commentsMoreButton). */
+  .maplibregl-popup-close-button,
+  .comments-modal:not(.comments-modal--feed) .comments-more-button {
     --rest-bg: rgba(255, 255, 255, 0.10);
     --rest-border: rgba(255, 255, 255, 0.22);
     --rest-ink: rgba(255, 255, 255, 0.85);
@@ -4899,6 +4902,17 @@ html, body {
   }
 
   .comments-back-button.is-early {
+    color: #f6e27a !important;
+  }
+
+  /* The ⋯ beside it: its glyph the chevron's size, gold with an early
+     holder's back circle. */
+  .comments-modal:not(.comments-modal--feed) .comments-more-button {
+    font-family: Inter, system-ui, sans-serif;
+    font-size: calc(var(--u) * 1.7);
+    overflow: visible;
+  }
+  .comments-modal:has(.comments-back-button.is-early) .comments-more-button {
     color: #f6e27a !important;
   }
 
@@ -5432,12 +5446,14 @@ html, body {
       background: rgba(255, 255, 255, 0.16);
     }
     .popup-icon-chip:active { transform: scale(0.92); }
-    .maplibregl-popup-close-button.comments-back-button:hover {
+    .maplibregl-popup-close-button.comments-back-button:hover,
+    .comments-modal:not(.comments-modal--feed) .comments-more-button:hover {
       transform: scale(1.08);
       filter: brightness(1.2);
       background: rgba(255, 255, 255, 0.16);
     }
-    .maplibregl-popup-close-button.comments-back-button:active { transform: scale(0.92); }
+    .maplibregl-popup-close-button.comments-back-button:active,
+    .comments-modal:not(.comments-modal--feed) .comments-more-button:active { transform: scale(0.92); }
     .popup-icon-chip.popup-settings-gear:hover,
     .popup-icon-chip.popup-settings-gear:active,
     .popup-icon-chip.popup-nav-arrow:hover,
@@ -12844,7 +12860,7 @@ html.feed-app #feed-search-page {
   pointer-events: none;
   animation: feedFilterFadeOut 220ms ease both;
 }
-#feed-filter-card {
+:is(#feed-filter-card, .comments-settings-card) {
   --ff-text: max(15px, calc(var(--header-fu) * 1.4));
   --ff-small: max(12px, calc(var(--header-fu) * 0.95));
   --ff-title: max(18px, calc(var(--header-fu) * 1.85));
@@ -12895,7 +12911,7 @@ html.feed-app #feed-search-page {
 }
 
 /* Title bar. */
-#feed-filter-card .feed-filter-head {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-head {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -12904,7 +12920,7 @@ html.feed-app #feed-search-page {
   min-height: calc(var(--ff-row-h) * 1.15);
   padding: calc(var(--ff-pad) * 0.6) 0 calc(var(--ff-pad) * 0.45);
 }
-#feed-filter-card .feed-filter-title {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-title {
   flex: 1 1 auto;
   min-width: 0;
   margin: 0;
@@ -12919,7 +12935,7 @@ html.feed-app #feed-search-page {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-#feed-filter-card .feed-filter-head > .panel-close-btn {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-head > .panel-close-btn {
   --ff-close: max(44px, calc(var(--ff-text) * 1.75));
   position: relative;
   top: auto;
@@ -12949,12 +12965,12 @@ html.feed-app #feed-search-page {
   cursor: pointer;
   transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease;
 }
-#feed-filter-card .feed-filter-head > .panel-close-btn:hover {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-head > .panel-close-btn:hover {
   border-color: rgba(34, 211, 238, 0.5);
   background: rgba(34, 211, 238, 0.14);
   color: #22D3EE;
 }
-#feed-filter-card .feed-filter-head > .panel-close-btn::before {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-head > .panel-close-btn::before {
   content: "";
   width: 42%;
   height: 42%;
@@ -12962,19 +12978,19 @@ html.feed-app #feed-search-page {
   -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 6 6 18'/><path d='m6 6 12 12'/></svg>") center / contain no-repeat;
   mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 6 6 18'/><path d='m6 6 12 12'/></svg>") center / contain no-repeat;
 }
-#feed-filter-card .feed-filter-head > .panel-close-btn::after {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-head > .panel-close-btn::after {
   content: none;
 }
-#feed-filter-card .feed-filter-head > .panel-close-btn:focus {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-head > .panel-close-btn:focus {
   outline: none;
 }
-#feed-filter-card .feed-filter-head > .panel-close-btn:focus-visible {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-head > .panel-close-btn:focus-visible {
   outline: 2px solid #22D3EE;
   outline-offset: 2px;
 }
 
 /* Cards. Each rises in a beat after the one above it. */
-#feed-filter-card .feed-filter-body {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-body {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
@@ -12986,10 +13002,10 @@ html.feed-app #feed-search-page {
   touch-action: pan-y;
   scrollbar-width: none;
 }
-#feed-filter-card .feed-filter-body::-webkit-scrollbar {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-body::-webkit-scrollbar {
   display: none;
 }
-#feed-filter-card .feed-filter-section {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-section {
   flex: 0 0 auto;
   position: relative;
   box-sizing: border-box;
@@ -12999,17 +13015,17 @@ html.feed-app #feed-search-page {
   border-radius: var(--ff-card-radius);
   background: rgba(255, 255, 255, 0.045);
 }
-#feed-filter-card .feed-filter-section.is-toggles {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-section.is-toggles {
   padding-bottom: calc(var(--ff-pad) * 0.25);
 }
-#feed-filter-card[style*="display: block"] .feed-filter-section {
+:is(#feed-filter-card[style*="display: block"], .comments-settings-card:not([hidden])) .feed-filter-section {
   animation: feedFilterCardIn 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-#feed-filter-card[style*="display: block"] .feed-filter-section:nth-child(1) { animation-delay: 40ms; }
-#feed-filter-card[style*="display: block"] .feed-filter-section:nth-child(2) { animation-delay: 80ms; }
-#feed-filter-card[style*="display: block"] .feed-filter-section:nth-child(3) { animation-delay: 120ms; }
-#feed-filter-card[style*="display: block"] .feed-filter-section:nth-child(4) { animation-delay: 160ms; }
-#feed-filter-card .feed-filter-section-title {
+:is(#feed-filter-card[style*="display: block"], .comments-settings-card:not([hidden])) .feed-filter-section:nth-child(1) { animation-delay: 40ms; }
+:is(#feed-filter-card[style*="display: block"], .comments-settings-card:not([hidden])) .feed-filter-section:nth-child(2) { animation-delay: 80ms; }
+:is(#feed-filter-card[style*="display: block"], .comments-settings-card:not([hidden])) .feed-filter-section:nth-child(3) { animation-delay: 120ms; }
+:is(#feed-filter-card[style*="display: block"], .comments-settings-card:not([hidden])) .feed-filter-section:nth-child(4) { animation-delay: 160ms; }
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-section-title {
   margin: 0 0 calc(var(--ff-gap) * 0.7);
   color: rgba(255, 255, 255, 0.5);
   font-family: inherit;
@@ -13021,7 +13037,7 @@ html.feed-app #feed-search-page {
 }
 
 /* Show: icon tile, label, switch. */
-#feed-filter-card .feed-filter-toggle {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-toggle {
   appearance: none;
   position: relative;
   display: flex;
@@ -13046,17 +13062,17 @@ html.feed-app #feed-search-page {
   -webkit-tap-highlight-color: transparent;
   transition: color 180ms ease;
 }
-#feed-filter-card .feed-filter-toggle:not(:first-of-type) {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-toggle:not(:first-of-type) {
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
-#feed-filter-card .feed-filter-toggle.is-active {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-toggle.is-active {
   color: #fff;
 }
-#feed-filter-card .feed-filter-toggle[aria-disabled="true"] {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-toggle[aria-disabled="true"] {
   opacity: 0.4;
   cursor: default;
 }
-#feed-filter-card .feed-filter-icon {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-icon {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -13069,23 +13085,23 @@ html.feed-app #feed-search-page {
   color: rgba(255, 255, 255, 0.7);
   transition: background-color 200ms ease, color 200ms ease, box-shadow 200ms ease;
 }
-#feed-filter-card .feed-filter-icon svg {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-icon svg {
   display: block;
   width: 56%;
   height: 56%;
   pointer-events: none;
 }
-#feed-filter-card .feed-filter-toggle.is-active .feed-filter-icon {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-toggle.is-active .feed-filter-icon {
   background: rgba(34, 211, 238, 0.16);
   box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.4);
   color: #22D3EE;
 }
-#feed-filter-card .feed-filter-name {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-name {
   flex: 1 1 auto;
   min-width: 0;
   overflow-wrap: anywhere;
 }
-#feed-filter-card .feed-filter-switch {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-switch {
   --sw-h: max(28px, calc(var(--ff-text) * 1.25));
   --sw-w: calc(var(--sw-h) * 1.72);
   --sw-pad: max(3px, calc(var(--sw-h) * 0.1));
@@ -13101,7 +13117,7 @@ html.feed-app #feed-search-page {
   transition: background-color 220ms ease, box-shadow 220ms ease;
   pointer-events: none;
 }
-#feed-filter-card .feed-filter-switch::after {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-switch::after {
   content: "";
   position: absolute;
   top: var(--sw-pad);
@@ -13113,38 +13129,38 @@ html.feed-app #feed-search-page {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   transition: translate 280ms cubic-bezier(0.34, 1.45, 0.64, 1), width 160ms ease;
 }
-#feed-filter-card .feed-filter-toggle.is-active .feed-filter-switch {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-toggle.is-active .feed-filter-switch {
   background: #22D3EE;
   box-shadow: 0 0 calc(var(--sw-h) * 0.45) rgba(34, 211, 238, 0.35);
 }
-#feed-filter-card .feed-filter-toggle.is-active .feed-filter-switch::after {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-toggle.is-active .feed-filter-switch::after {
   translate: calc(var(--sw-w) - var(--sw-h)) 0;
 }
 /* A press stretches the knob toward the middle. */
-#feed-filter-card .feed-filter-toggle:not([aria-disabled="true"]):active .feed-filter-switch::after {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-toggle:not([aria-disabled="true"]):active .feed-filter-switch::after {
   width: calc(var(--sw-knob) * 1.22);
 }
-#feed-filter-card .feed-filter-toggle.is-active:not([aria-disabled="true"]):active .feed-filter-switch::after {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-toggle.is-active:not([aria-disabled="true"]):active .feed-filter-switch::after {
   translate: calc(var(--sw-w) - var(--sw-h) - var(--sw-knob) * 0.22) 0;
 }
 @media (hover: hover) {
-  #feed-filter-card .feed-filter-toggle:not([aria-disabled="true"]):hover {
+  :is(#feed-filter-card, .comments-settings-card) .feed-filter-toggle:not([aria-disabled="true"]):hover {
     color: #fff;
   }
-  #feed-filter-card .feed-filter-toggle:not([aria-disabled="true"]):not(.is-active):hover .feed-filter-icon {
+  :is(#feed-filter-card, .comments-settings-card) .feed-filter-toggle:not([aria-disabled="true"]):not(.is-active):hover .feed-filter-icon {
     background: rgba(255, 255, 255, 0.12);
   }
 }
-#feed-filter-card .feed-filter-toggle:focus {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-toggle:focus {
   outline: none;
 }
-#feed-filter-card .feed-filter-toggle:focus-visible {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-toggle:focus-visible {
   outline: 2px solid #22D3EE;
   outline-offset: 2px;
   border-radius: var(--ff-radius);
 }
 /* "Connect your wallet…" sits under Following, lined up with the labels. */
-#feed-filter-card .feed-filter-hint {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-hint {
   margin: calc(var(--ff-gap) * -0.3) 0 calc(var(--ff-gap) * 0.6);
   padding-left: calc(var(--ff-tile) + var(--ff-row-gap));
   color: rgba(255, 255, 255, 0.5);
@@ -13152,13 +13168,13 @@ html.feed-app #feed-search-page {
   font-weight: 500;
   line-height: 1.35;
 }
-#feed-filter-card .feed-filter-hint[hidden] {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-hint[hidden] {
   display: none;
 }
 
 /* Sort by: one track, four equal slots, a cyan block that slides to the
    chosen one (--sort-i, set in syncFilterControls). */
-#feed-filter-card .feed-filter-pills {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-pills {
   --sort-n: 4;
   --seg-pad: max(3px, calc(var(--ff-field-h) * 0.07));
   position: relative;
@@ -13175,7 +13191,7 @@ html.feed-app #feed-search-page {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
   isolation: isolate;
 }
-#feed-filter-card .feed-filter-pills::before {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-pills::before {
   content: "";
   position: absolute;
   z-index: -1;
@@ -13190,7 +13206,7 @@ html.feed-app #feed-search-page {
   transition: translate 320ms cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
 }
-#feed-filter-card .feed-filter-pill {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-pill {
   appearance: none;
   display: flex;
   align-items: center;
@@ -13217,19 +13233,19 @@ html.feed-app #feed-search-page {
   -webkit-tap-highlight-color: transparent;
   transition: color 220ms ease, scale 120ms ease;
 }
-#feed-filter-card .feed-filter-pill:not(.is-active):hover {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-pill:not(.is-active):hover {
   color: #fff;
 }
-#feed-filter-card .feed-filter-pill.is-active {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-pill.is-active {
   color: #083344;
 }
-#feed-filter-card .feed-filter-pill:active {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-pill:active {
   scale: 0.95;
 }
-#feed-filter-card .feed-filter-pill:focus {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-pill:focus {
   outline: none;
 }
-#feed-filter-card .feed-filter-pill:focus-visible {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-pill:focus-visible {
   outline: 2px solid #22D3EE;
   outline-offset: -2px;
 }
@@ -13248,12 +13264,12 @@ html.feed-app #feed-search-page {
 }
 
 /* Date and Country fields. */
-#feed-filter-card .feed-filter-dates {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-dates {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--ff-gap);
 }
-#feed-filter-card .feed-filter-row {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-row {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -13261,13 +13277,13 @@ html.feed-app #feed-search-page {
   min-width: 0;
   margin: 0;
 }
-#feed-filter-card .feed-filter-label {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-label {
   color: rgba(255, 255, 255, 0.62);
   font-size: var(--ff-small);
   font-weight: 600;
   line-height: 1.2;
 }
-#feed-filter-card .feed-filter-field {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-field {
   display: block;
   box-sizing: border-box;
   width: 100%;
@@ -13289,18 +13305,18 @@ html.feed-app #feed-search-page {
   cursor: pointer;
   transition: border-color 180ms ease, box-shadow 180ms ease;
 }
-#feed-filter-card .feed-filter-field:hover {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-field:hover {
   border-color: rgba(255, 255, 255, 0.26);
 }
-#feed-filter-card .feed-filter-field:focus {
+:is(#feed-filter-card, .comments-settings-card) .feed-filter-field:focus {
   outline: none;
   border-color: #22D3EE;
   box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.2);
 }
-#feed-filter-card input[type="date"].feed-filter-field::-webkit-datetime-edit {
+:is(#feed-filter-card, .comments-settings-card) input[type="date"].feed-filter-field::-webkit-datetime-edit {
   padding: 0;
 }
-#feed-filter-card input[type="date"].feed-filter-field::-webkit-calendar-picker-indicator {
+:is(#feed-filter-card, .comments-settings-card) input[type="date"].feed-filter-field::-webkit-calendar-picker-indicator {
   width: 0.95em;
   height: 0.95em;
   margin: 0 0 0 0.3em;
@@ -13323,7 +13339,7 @@ html.feed-app #feed-search-page {
   opacity: 0;
   pointer-events: none;
 }
-#feed-filter-card .feed-country {
+:is(#feed-filter-card, .comments-settings-card) .feed-country {
   position: relative;
 }
 #feed-filter-country-input.feed-filter-field {
@@ -13343,13 +13359,13 @@ html.feed-app #feed-search-page {
   color: #fff;
   opacity: 1;
 }
-#feed-filter-card .feed-country.is-open #feed-filter-country-input.feed-filter-field::placeholder {
+:is(#feed-filter-card, .comments-settings-card) .feed-country.is-open #feed-filter-country-input.feed-filter-field::placeholder {
   color: rgba(255, 255, 255, 0.45);
 }
-#feed-filter-card .feed-country.has-value:not(.is-open) #feed-filter-country-input.feed-filter-field {
+:is(#feed-filter-card, .comments-settings-card) .feed-country.has-value:not(.is-open) #feed-filter-country-input.feed-filter-field {
   background-image: none;
 }
-#feed-filter-card .feed-country-clear {
+:is(#feed-filter-card, .comments-settings-card) .feed-country-clear {
   position: absolute;
   top: 0;
   right: 0;
@@ -13369,25 +13385,25 @@ html.feed-app #feed-search-page {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-#feed-filter-card .feed-country.is-open .feed-country-clear,
-#feed-filter-card .feed-country-clear[hidden] {
+:is(#feed-filter-card, .comments-settings-card) .feed-country.is-open .feed-country-clear,
+:is(#feed-filter-card, .comments-settings-card) .feed-country-clear[hidden] {
   display: none;
 }
-#feed-filter-card .feed-country-clear svg {
+:is(#feed-filter-card, .comments-settings-card) .feed-country-clear svg {
   width: 0.95em;
   height: 0.95em;
 }
-#feed-filter-card .feed-country-clear:is(:hover, :active) {
+:is(#feed-filter-card, .comments-settings-card) .feed-country-clear:is(:hover, :active) {
   color: #22D3EE;
 }
-#feed-filter-card .feed-country-clear:focus {
+:is(#feed-filter-card, .comments-settings-card) .feed-country-clear:focus {
   outline: none;
 }
-#feed-filter-card .feed-country-clear:focus-visible {
+:is(#feed-filter-card, .comments-settings-card) .feed-country-clear:focus-visible {
   outline: 2px solid #22D3EE;
   outline-offset: -2px;
 }
-#feed-filter-card .feed-country-list {
+:is(#feed-filter-card, .comments-settings-card) .feed-country-list {
   position: relative;
   box-sizing: border-box;
   max-height: calc(var(--ff-field-h) * 5.2);
@@ -13403,15 +13419,15 @@ html.feed-app #feed-search-page {
   scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
 }
 /* The app-wide touch-action: none would stop a finger scroll here. */
-#feed-filter-card .feed-country-list,
-#feed-filter-card .feed-country-list * {
+:is(#feed-filter-card, .comments-settings-card) .feed-country-list,
+:is(#feed-filter-card, .comments-settings-card) .feed-country-list * {
   touch-action: pan-y;
 }
-#feed-filter-card .feed-country-list[hidden],
-#feed-filter-card .feed-country-empty[hidden] {
+:is(#feed-filter-card, .comments-settings-card) .feed-country-list[hidden],
+:is(#feed-filter-card, .comments-settings-card) .feed-country-empty[hidden] {
   display: none;
 }
-#feed-filter-card .feed-country-option {
+:is(#feed-filter-card, .comments-settings-card) .feed-country-option {
   display: flex;
   align-items: center;
   gap: 0.65em;
@@ -13427,30 +13443,80 @@ html.feed-app #feed-search-page {
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
-#feed-filter-card .feed-country-option.is-active {
+:is(#feed-filter-card, .comments-settings-card) .feed-country-option.is-active {
   background: rgba(34, 211, 238, 0.14);
 }
-#feed-filter-card .feed-country-option[aria-selected="true"] {
+:is(#feed-filter-card, .comments-settings-card) .feed-country-option[aria-selected="true"] {
   color: #22D3EE;
   font-weight: 700;
 }
-#feed-filter-card .feed-country-flag {
+:is(#feed-filter-card, .comments-settings-card) .feed-country-flag {
   flex: 0 0 auto;
   width: 1.3em;
   height: auto;
   border-radius: 2px;
 }
-#feed-filter-card .feed-country-name {
+:is(#feed-filter-card, .comments-settings-card) .feed-country-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-#feed-filter-card .feed-country-empty {
+:is(#feed-filter-card, .comments-settings-card) .feed-country-empty {
   margin-top: calc(var(--ff-gap) * 0.5);
   padding: calc(var(--ff-gap) * 0.6) calc(var(--ff-pad) * 0.8);
   color: rgba(255, 255, 255, 0.5);
   font-size: var(--ff-small);
+}
+
+/* The comments view's settings (processallmessages.js mountCommentSettings):
+   the gear card's look (the :is() rules above) as a card under the header,
+   above the list and as wide as it. Its unit is the view's (--u, the feed's
+   --fu); it is capped at the gear card's height and its body scrolls. In the
+   map shells it clears the back and ⋯ circles, and the list under it gives
+   up the top room it keeps for them. */
+.comments-modal #comments-settings-panel {
+  --header-fu: var(--u);
+  position: relative;
+  z-index: 1;
+  inset: auto;
+  flex: 0 1 auto;
+  min-height: 0;
+  width: auto;
+  margin: calc(var(--u) * 4.4) calc(var(--u) * 0.9) calc(var(--u) * 0.6);
+  padding: var(--ff-pad);
+  overflow: hidden;
+  border: calc(var(--u) * 0.1) solid rgba(255, 255, 255, 0.1);
+  border-top-color: rgba(34, 211, 238, 0.4);
+  border-radius: var(--ff-sheet-radius);
+  box-shadow: 0 0.6dvh 4dvh rgba(0, 0, 0, 0.6), 0 0 2.4dvh rgba(34, 211, 238, 0.14);
+}
+.comments-modal #comments-settings-panel:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+}
+.comments-modal--feed > #comments-settings-panel {
+  /* The feed column's unit (the list's --fu), held like the gear card's
+     header unit: the modal's own children read the whole window. */
+  --header-fu: clamp(0.9dvh, calc(min(100dvw, var(--feed-col-width)) * 0.024), 1.6dvh);
+  width: calc(min(100%, var(--feed-col-width)) - var(--fu) * 2.4);
+  margin: calc(var(--fu) * 0.6) auto;
+  border-width: calc(var(--fu) * 0.1);
+}
+.maplibregl-map .comments-modal--in-card > #comments-settings-panel:not([hidden]) + .popup-comments,
+.comments-modal:not(.comments-modal--in-card):not(.comments-modal--feed) #comments-settings-panel:not([hidden]) + .popup-comments {
+  padding-top: calc(var(--u) * 0.6) !important;
+}
+/* Sort: three slots here (Top / Newest / Oldest), the cyan block on the
+   active one. */
+.comments-modal #comments-settings-panel .feed-filter-pills {
+  --sort-n: 3;
+}
+.comments-modal #comments-settings-panel .feed-filter-pills:has(> .feed-filter-pill.is-active:nth-child(2)) {
+  --sort-i: 1;
+}
+.comments-modal #comments-settings-panel .feed-filter-pills:has(> .feed-filter-pill.is-active:nth-child(3)) {
+  --sort-i: 2;
 }
 
 @media (orientation: landscape) {
@@ -13505,15 +13571,15 @@ html.feed-app #feed-search-page {
 }
 @media (prefers-reduced-motion: reduce) {
   #feed-search-gear svg,
-  #feed-filter-card .feed-filter-switch,
-  #feed-filter-card .feed-filter-switch::after,
-  #feed-filter-card .feed-filter-pills::before,
-  #feed-filter-card .feed-filter-pill {
+  :is(#feed-filter-card, .comments-settings-card) .feed-filter-switch,
+  :is(#feed-filter-card, .comments-settings-card) .feed-filter-switch::after,
+  :is(#feed-filter-card, .comments-settings-card) .feed-filter-pills::before,
+  :is(#feed-filter-card, .comments-settings-card) .feed-filter-pill {
     transition: none;
   }
   #feed-filter-backdrop,
-  #feed-filter-card,
-  #feed-filter-card .feed-filter-section {
+  :is(#feed-filter-card, .comments-settings-card),
+  :is(#feed-filter-card, .comments-settings-card) .feed-filter-section {
     animation: none !important;
   }
 }
@@ -15038,7 +15104,7 @@ html.feed-app :is(
   .comments-modal.comments-modal--feed > .feed-comments-bar,
   #feed-layout > #feed-toolbar,
   .field-full-bar
-) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back) {
+) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back, .comments-more-button) {
   appearance: none;
   flex: 0 0 auto;
   display: flex;
@@ -15085,7 +15151,7 @@ html.feed-app :is(
   .comments-modal.comments-modal--feed > .feed-comments-bar,
   #feed-layout > #feed-toolbar,
   .field-full-bar
-) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back):focus {
+) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back, .comments-more-button):focus {
   outline: none;
   box-shadow: none;
 }
@@ -15097,7 +15163,7 @@ html.feed-app :is(
   .comments-modal.comments-modal--feed > .feed-comments-bar,
   #feed-layout > #feed-toolbar,
   .field-full-bar
-) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back):is(:hover, :active, .is-hold) {
+) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back, .comments-more-button):is(:hover, :active, .is-hold) {
   color: #22D3EE;
   background: transparent;
   outline: none;
@@ -15111,7 +15177,7 @@ html.feed-app :is(
   .comments-modal.comments-modal--feed > .feed-comments-bar,
   #feed-layout > #feed-toolbar,
   .field-full-bar
-) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back):focus-visible {
+) :is(.feed-chat-back, .feed-settings-back, .feed-comments-back, .comments-more-button):focus-visible {
   outline: calc(var(--fu) * 0.12) solid #22D3EE;
   outline-offset: calc(var(--fu) * 0.15);
 }
@@ -16644,6 +16710,13 @@ html.drawer-page .info-overlay {
 }
 .comments-modal--feed .feed-comments-back:is(:hover, :active) {
   color: #22D3EE;
+}
+/* The settings ⋯ at the bar's far right, the back's size and tap box (the
+   shared page-bar rules), its glyph the chevron's size. */
+.comments-modal--feed .feed-comments-bar > .comments-more-button {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--page-icon);
+  line-height: 1;
 }
 .comments-modal--feed .feed-comments-title {
   margin: 0;
@@ -21916,6 +21989,28 @@ html.feed-draw-open #map-draw-help-overlay {
   transform: none;
   filter: none;
 }
+/* Topic Rules: its own row across both columns, on top of the grid. In
+   each column the rows share its height, so they line up across the two. */
+#utility-column-container .nft-toggle-grid > .nft-toggle-row {
+  grid-column: 1 / -1;
+}
+#utility-column-container .nft-toggle-col:not(.nft-toggle-row) > :is(.toolbar-column-first-settings-btns, .toolbar-column-settings-btns):not([style*="display: none"]):not([style*="display:none"]) {
+  flex: 1 1 0;
+}
+/* Pin top comments (processallmessages.js fills and enables it on your own
+   post): its label and field are the page's; Save is the Add button's
+   (with the confirm rows above), a full-width row under the hint (below,
+   after the drawer's confirm rules); the hint is the gear card's muted
+   line. */
+#utility-column-container #comment-pin-utility-hint {
+  margin: calc(var(--ui-gap) * 0.5) 0 0;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-small);
+  font-weight: 500;
+  line-height: 1.35;
+}
 #utility-column-container textarea.toolbar-column:has(+ .nft-confirm-row),
 #utility-column-container #model-sharing-from-nft-utility > textarea.toolbar-column {
   margin-bottom: 0 !important;
@@ -21943,7 +22038,8 @@ html.feed-draw-open #map-draw-help-overlay {
   #submit-button-add-topic-chat,
   #submit-button-add-rules-for-markers,
   #submit-button-add-rules-for-polygons
-) {
+),
+#utility-column-container #comment-pin-utility > #submit-button-comment-pin {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -21979,7 +22075,8 @@ html.feed-draw-open #map-draw-help-overlay {
   #submit-button-add-topic-chat,
   #submit-button-add-rules-for-markers,
   #submit-button-add-rules-for-polygons
-):active {
+):active,
+#utility-column-container #comment-pin-utility > #submit-button-comment-pin:active {
   transform: scale(0.97);
 }
 #utility-column-container .nft-confirm-row > :is(
@@ -22066,7 +22163,9 @@ html.feed-draw-open #map-draw-help-overlay {
   .nft-toggle-col > .toolbar-column-first-settings-btns,
   .nft-toggle-col > .toolbar-column-settings-btns,
   .nft-confirm-row > .toolbar-column-btns,
-  #load-topic-rules-for-utility
+  #load-topic-rules-for-utility,
+  #submit-button-comment-pin,
+  #input-field-comment-pin
 ):disabled {
   opacity: 0.5;
 }
@@ -22166,7 +22265,8 @@ html.feed-draw-open #map-draw-help-overlay {
   #submit-button-add-topic-chat,
   #submit-button-add-rules-for-markers,
   #submit-button-add-rules-for-polygons
-) {
+),
+#utility-column.in-drawer #utility-column-container #comment-pin-utility > #submit-button-comment-pin {
   display: flex !important;
   align-items: center;
   justify-content: center !important;
@@ -22198,7 +22298,8 @@ html.feed-draw-open #map-draw-help-overlay {
   #submit-button-add-topic-chat,
   #submit-button-add-rules-for-markers,
   #submit-button-add-rules-for-polygons
-):is(:hover, :active) {
+):is(:hover, :active),
+#utility-column.in-drawer #utility-column-container #comment-pin-utility > #submit-button-comment-pin:is(:hover, :active) {
   background: #22D3EE !important;
   background-color: #22D3EE !important;
   color: #0a0a12 !important;
@@ -22211,7 +22312,8 @@ html.feed-draw-open #map-draw-help-overlay {
   #submit-button-add-topic-chat,
   #submit-button-add-rules-for-markers,
   #submit-button-add-rules-for-polygons
-):active {
+):active,
+#utility-column.in-drawer #utility-column-container #comment-pin-utility > #submit-button-comment-pin:active {
   transform: scale(0.97) !important;
 }
 #utility-column.in-drawer #utility-column-container .nft-confirm-row > :is(
@@ -22293,6 +22395,13 @@ html.feed-draw-open #map-draw-help-overlay {
   transform: none !important;
   filter: none !important;
   box-shadow: none !important;
+}
+/* Pin top comments' Save, after the Add rules it shares (base and drawer):
+   a full-width row of its own under the hint. */
+#utility-column-container #comment-pin-utility > #submit-button-comment-pin,
+#utility-column.in-drawer #utility-column-container #comment-pin-utility > #submit-button-comment-pin {
+  width: 100% !important;
+  margin: var(--ui-gap) 0 0 !important;
 }
 
 /* Stack and XYZ: cards, section labels, read-only boxes, and buttons. */

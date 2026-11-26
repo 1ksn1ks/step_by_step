@@ -1050,10 +1050,17 @@
       
       
           <div class="nft-toggle-grid">
-            <div style="display: flex;" class="nft-toggle-col">
+            <div style="display: flex;" class="nft-toggle-col nft-toggle-row">
               <button id="show-topic-rules-from-nft-utility" class="toolbar-column-first-settings-btns">Topic Rules ✅
               </button>
               <button id="hide-topic-rules-from-nft-utility" style="display: none;" class="toolbar-column-first-settings-btns">Topic Rules ⛔
+              </button>
+            </div>
+
+            <div style="display: flex;" class="nft-toggle-col">
+              <button id="show-comment-pin-from-nft-utility" class="toolbar-column-first-settings-btns">Pin top comments ✅
+              </button>
+              <button id="hide-comment-pin-from-nft-utility" style="display: none;" class="toolbar-column-first-settings-btns">Pin top comments ⛔
               </button>
               <button id="show-model-sharing-from-nft-utility" class="toolbar-column-settings-btns" style="margin-left: 1vw;">Model sharing ✅
               </button>
@@ -1193,7 +1200,7 @@
           </div>
         </div>
 
-          <div id="comment-pin-utility">
+          <div id="comment-pin-utility" style="display: none;">
             <label for="input-field-comment-pin" style=" font-size: 2vh;padding: 0px;">Pin top comments
             </label>
             <textarea class="toolbar-column" type="text" id="input-field-comment-pin" placeholder="0.0.123, 0.0.456" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" disabled

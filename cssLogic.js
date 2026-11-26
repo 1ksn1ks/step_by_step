@@ -1396,6 +1396,8 @@ export function CloseALL() {
     document.getElementById("topic-chat-from-nft-utility"),
     document.getElementById("markers-from-nft-utility"),
     document.getElementById("polygons-from-nft-utility"),
+    document.getElementById("hide-comment-pin-from-nft-utility"),
+    document.getElementById("comment-pin-utility"),
   ];
   
   function hideAllInnerOptionsFromNFTUtility() {
@@ -1411,6 +1413,7 @@ export function CloseALL() {
     document.getElementById("show-topic-chat-from-nft-utility"),
     document.getElementById("show-markers-from-nft-utility"),
     document.getElementById("show-polygons-from-nft-utility"),
+    document.getElementById("show-comment-pin-from-nft-utility"),
   ];
   
   function showAllInnerOptionsFromNFTUtility() {
@@ -1428,6 +1431,19 @@ export function CloseALL() {
   });
   
   document.getElementById("hide-topic-rules-from-nft-utility").addEventListener("click", (event) => {
+    hideAllInnerOptionsFromNFTUtility()
+    showAllInnerOptionsFromNFTUtility()
+  });
+
+  document.getElementById("show-comment-pin-from-nft-utility").addEventListener("click", (event) => {
+    hideAllInnerOptionsFromNFTUtility()
+    showAllInnerOptionsFromNFTUtility()
+    document.getElementById("comment-pin-utility").style.display = "block";
+    document.getElementById("hide-comment-pin-from-nft-utility").style.display = "block";
+    document.getElementById("show-comment-pin-from-nft-utility").style.display = "none";
+  });
+
+  document.getElementById("hide-comment-pin-from-nft-utility").addEventListener("click", (event) => {
     hideAllInnerOptionsFromNFTUtility()
     showAllInnerOptionsFromNFTUtility()
   });
