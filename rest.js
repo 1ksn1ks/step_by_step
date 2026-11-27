@@ -852,6 +852,12 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
      toast.error("Enter collection ids like 0.0.123");
      return false;
    }
+   const info = await getTopicInfo(topicId);
+   const admins = adminsFromMemo(info.memo);
+   if (!admins.includes(connectedAccount)) {
+     toast.error("Only a topic admin can set this");
+     return false;
+   }
    toast.info("Confirm in wallet 👛");
    await sendMessage(topicId, message);
    storeTopicCommentPin(topicId, tokens);
