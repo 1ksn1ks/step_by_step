@@ -5649,7 +5649,7 @@ function openMarkerFeature(feature) {
   CloseALL();
   closeDrawAnchor();
   closePressAnchor();
-  const popup = new maplibregl.Popup({ focusAfterOpen: false, anchor: popupSideFor(map, map.getCenter()) });
+  const popup = new maplibregl.Popup({ focusAfterOpen: false, anchor: popupSideFor(map, lngLat) });
   popup.on('close', () => {
     changePopupState(false);
     showModel();
@@ -5674,7 +5674,7 @@ function openPolygonFeature(polygon) {
   CloseALL();
   closeDrawAnchor();
   closePressAnchor();
-  const popup = new maplibregl.Popup({ focusAfterOpen: false, anchor: popupSideFor(map, map.getCenter()) });
+  const popup = new maplibregl.Popup({ focusAfterOpen: false, anchor: popupSideFor(map, lngLat) });
   popup.on('close', () => {
     changePopupState(false);
     showModel();

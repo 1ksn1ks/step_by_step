@@ -4096,7 +4096,7 @@ function showMarker(m) {
     newActiveMarkerPopups([]);
     activePolygonPopups.forEach(p => p.remove());
     newActivePolygonPopups([]);
-    const popup = new maplibregl.Popup({ focusAfterOpen: false, anchor: popupSideFor(map, map.getCenter()) })
+    const popup = new maplibregl.Popup({ focusAfterOpen: false, anchor: popupSideFor(map, m.geometry.coordinates) })
         .setLngLat(m.geometry.coordinates)
         .setDOMContent(markerPopupNode(m.properties, m))
         .addTo(map);
@@ -4149,7 +4149,7 @@ function showPolygon(p) {
     const centerLat = (bounds.minLat + bounds.maxLat) / 2;
     const targetLngLat = [centerLng, centerLat];
 
-    const popup = new maplibregl.Popup({ focusAfterOpen: false, anchor: popupSideFor(map, map.getCenter()) })
+    const popup = new maplibregl.Popup({ focusAfterOpen: false, anchor: popupSideFor(map, targetLngLat) })
         .setLngLat(targetLngLat)
         .setDOMContent(polygonPopupNode(p))
         .addTo(map);

@@ -586,8 +586,7 @@ function openFeaturePopup(feature, popup) {
   CloseALL();
   closeDrawAnchor();
   closePressAnchor(); // a marker popup replaces the 🗺/📡 pin too
-  // The camera centers on this post. The center pixel is where it ends.
-  popup.options.anchor = popupSideFor(map, map.getCenter());
+  popup.options.anchor = popupSideFor(map, feature.geometry.coordinates);
   popup.setLngLat(feature.geometry.coordinates).addTo(map).setDOMContent(node);
   animateMapTo(map, feature.geometry.coordinates, null);
   applyAllStyles();

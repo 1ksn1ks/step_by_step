@@ -77,7 +77,7 @@ function hideModel() {
 function showPopup(lngLat, content, list, zoom) {
   closeTransientMapUI();
   CloseALL();
-  const popup = new maplibregl.Popup({ focusAfterOpen: false, anchor: popupSideFor(map, map.getCenter()) })
+  const popup = new maplibregl.Popup({ focusAfterOpen: false, anchor: popupSideFor(map, lngLat) })
     .setLngLat(lngLat)
     .setDOMContent(content)
     .addTo(map);

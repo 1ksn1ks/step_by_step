@@ -1546,7 +1546,7 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
             // closeOnClick listener (still in this click's listener list).
             const popup = new maplibregl.Popup({
               focusAfterOpen: false,
-              anchor: popupSideFor(map, map.getCenter()),
+              anchor: popupSideFor(map, targetLngLat),
             });
             popup.on('close', () => {
               changePopupState(false);
