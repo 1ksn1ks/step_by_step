@@ -170,6 +170,8 @@ function showMarkerTitle(el, x, y) {
   tip.hidden = false;
   tip.style.left = `${x}px`;
   tip.style.top = `${y}px`;
+  const viewH = (typeof window !== "undefined" && window.visualViewport && window.visualViewport.height) || (typeof window !== "undefined" && window.innerHeight) || 0;
+  tip.classList.toggle("below", y < viewH * 0.5);
   return true;
 }
 

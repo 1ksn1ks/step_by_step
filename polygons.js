@@ -111,6 +111,8 @@ function showPolygonTitle(polygon, point, fromTouch) {
   tip.hidden = false;
   tip.style.left = `${point.x}px`;
   tip.style.top = `${point.y}px`;
+  const viewH = (typeof window !== "undefined" && window.visualViewport && window.visualViewport.height) || (typeof window !== "undefined" && window.innerHeight) || 0;
+  tip.classList.toggle("below", point.y < viewH * 0.5);
 }
 
 map.on("movestart", hidePolygonTitle);

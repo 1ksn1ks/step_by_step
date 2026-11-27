@@ -9425,6 +9425,10 @@ html, body {
     0 calc(var(--tu) * 0.8) calc(var(--tu) * 2) rgba(0, 0, 0, 0.45);
   pointer-events: none;
 }
+.marker-title-tip.below,
+.polygon-title-tip.below {
+  transform: translate(-50%, calc(var(--tu) * 1.5));
+}
 .polygon-title-tip[hidden],
 .marker-title-tip[hidden] { display: none; }
 
