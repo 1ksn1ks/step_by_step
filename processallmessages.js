@@ -5709,6 +5709,12 @@ function commentsMoreButton() {
     if (open && commentsModalSection && typeof commentsModalSection._paintCommentSettings === 'function') {
       commentsModalSection._paintCommentSettings();
     }
+    if (open) {
+      const first = panel.querySelector('button');
+      if (first) first.focus({ preventScroll: true });
+    } else {
+      btn.focus({ preventScroll: true });
+    }
   });
   return btn;
 }
@@ -5878,7 +5884,10 @@ if (!landscapeCommentsBound) {
       event.stopImmediatePropagation();
       panel.hidden = true;
       const more = commentsModal.querySelector('.comments-more-button');
-      if (more) more.setAttribute('aria-expanded', 'false');
+      if (more) {
+        more.setAttribute('aria-expanded', 'false');
+        more.focus({ preventScroll: true });
+      }
       return;
     }
     event.preventDefault();
