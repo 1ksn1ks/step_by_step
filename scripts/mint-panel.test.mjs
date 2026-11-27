@@ -550,14 +550,34 @@ test("the panel is copied from Create and Domain: same shell, help, and every li
   assert.ok(html.includes('<button class="panel-help-btn" id="help-mint-column">?</button>'));
   assert.ok(html.includes('<div id="mint-column-container">'));
   assert.ok(html.includes('<div class="options-column-title">🪙 MINT</div>'));
-  const help = html.slice(html.indexOf('<div id="mint-help-overlay" class="info-overlay">'));
+  const help = html.slice(html.indexOf('<div id="mint-help-overlay" class="info-overlay">'), html.indexOf('<div id="mint-column"'));
   assert.match(help, /<h3 class="info-overlay-title">Mint<\/h3>/);
-  for (const line of [
-    "creates a fungible token. Your wallet is the treasury and keeps the supply key.",
-    "Costs about $1 in HBAR on mainnet.",
-    "With no admin key, the token can never be changed.",
-    "NFT mints a list of links into a collection. Hashinal inscribes one file on Hedera and mints it as an NFT.",
-  ]) assert.ok(help.slice(0, 1200).includes(line), line);
+  for (const [key, label, on, lines] of [
+    ["token", "Token", true, [
+      "Creates a fungible token. Your wallet is the treasury and keeps the supply key.",
+      "Costs about $1 in HBAR on mainnet.",
+      "With no admin key, the token can never be changed.",
+    ]],
+    ["nft", "NFT", false, [
+      "New collection creates the NFT collection. Max supply and royalty can't be changed later. Costs about $1 in HBAR (about $2 with a royalty).",
+      "Mint into collection adds NFTs to a collection you already have. Pick it from the list or paste its token id. Your wallet needs that collection's supply key.",
+      "Each link becomes one NFT. Hedera allows 10 per transaction, so every 10 is one wallet approval, about $0.02 in HBAR per NFT.",
+      "For long runs, turn on auto-approve in HashPack.",
+    ]],
+    ["hashinal", "Hashinal", false, [
+      "Inscribes one file on Hedera, then its details, then mints one NFT into your collection that points at them.",
+      "Mainnet only. Your wallet signs and pays.",
+      "Your inscribing key stays in this tab or is typed by you. It's never saved.",
+    ]],
+  ]) {
+    assert.match(help, new RegExp(`role="tab" id="mint-help-tab-${key}" aria-selected="${on}" aria-controls="mint-help-panel-${key}"[^>]*>${label}</button>`));
+    const open = `<div class="mint-help-panel" role="tabpanel" id="mint-help-panel-${key}" aria-labelledby="mint-help-tab-${key}"${on ? "" : " hidden"}>`;
+    const at = help.indexOf(open);
+    assert.ok(at > 0, open);
+    const list = help.slice(at, help.indexOf("</ul>", at));
+    assert.equal((list.match(/<li>/g) || []).length, lines.length, key);
+    for (const line of lines) assert.ok(list.includes(`<li>${line}</li>`), line);
+  }
   // Tabs.
   assert.match(html, /<div class="mint-tabs" role="tablist"/);
   for (const [key, label, on] of [["token", "Token", "true"], ["nft", "NFT", "false"], ["hashinal", "Hashinal", "false"]]) {

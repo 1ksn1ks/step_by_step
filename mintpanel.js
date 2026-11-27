@@ -698,8 +698,44 @@ export function bindMintPanel({
   return { run, selectTab, setCapped, setAdmin };
 }
 
+// The ? help (#mint-help-overlay): one list per tab, the keys as on the
+// panel's tabs. The ? opens it on the tab the panel has selected.
+export function bindMintHelp(doc = globalThis.document) {
+  const keys = ["token", "nft", "hashinal"];
+  const $ = (id) => doc.getElementById(id);
+  const tabs = keys.map((key) => $(`mint-help-tab-${key}`));
+  if (!tabs.every(Boolean)) return null;
+  function show(index, focus) {
+    keys.forEach((key, i) => {
+      tabs[i].setAttribute("aria-selected", i === index ? "true" : "false");
+      tabs[i].tabIndex = i === index ? 0 : -1;
+      $(`mint-help-panel-${key}`).hidden = i !== index;
+    });
+    if (focus) focusNode(tabs[index]);
+  }
+  tabs.forEach((tab, i) => {
+    tab.addEventListener("click", () => show(i, false));
+    tab.addEventListener("keydown", (event) => {
+      const moves = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: keys.length - 1 };
+      if (!(event.key in moves)) return;
+      event.preventDefault();
+      show((moves[event.key] + keys.length) % keys.length, true);
+    });
+  });
+  const open = $("help-mint-column");
+  if (open) open.addEventListener("click", () => {
+    const on = keys.findIndex((key) => {
+      const tab = $(`mint-tab-${key}`);
+      return tab && tab.getAttribute("aria-selected") === "true";
+    });
+    show(Math.max(on, 0), false);
+  });
+  return { show };
+}
+
 // The page: wire the real panel (index.html is parsed before modules run).
 if (globalThis.document && typeof globalThis.document.getElementById === "function"
   && globalThis.document.getElementById("mint-column")) {
   bindMintPanel();
+  bindMintHelp();
 }

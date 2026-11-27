@@ -1492,10 +1492,10 @@ test("sizes, totals and the key's short form", () => {
 
 // ── Where it lives ─────────────────────────────────────────────────────
 
-test("the page: imported after mintnft.js, one help line changed, the comment, and the placeholder kept", () => {
+test("the page: imported after mintnft.js, its help list, the comment, and the placeholder kept", () => {
   assert.match(read("../main.js"), /import '\.\/mintnft\.js'\nimport '\.\/minthashinal\.js'\n/);
   const html = read("../index.html");
-  assert.ok(html.includes("<li>NFT mints a list of links into a collection. Hashinal inscribes one file on Hedera and mints it as an NFT.</li>"));
+  assert.ok(html.includes("<li>Inscribes one file on Hedera, then its details, then mints one NFT into your collection that points at them.</li>"));
   assert.equal(html.includes("NFT and Hashinal minting are coming next."), false);
   assert.ok(html.includes('<div id="mint-panel-hashinal" class="mint-card mint-soon" role="tabpanel" aria-labelledby="mint-tab-hashinal" hidden>\n            <p class="mint-note">Coming next.</p>\n          </div>'));
   assert.equal((html.match(/<p class="mint-note">Coming next\.<\/p>/g) || []).length, 2);

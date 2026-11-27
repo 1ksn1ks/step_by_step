@@ -442,12 +442,35 @@
       <div id="mint-help-overlay" class="info-overlay">
         <div class="info-overlay-inner" onclick="event.stopPropagation();">
           <h3 class="info-overlay-title">Mint</h3>
-          <ul class="info-overlay-list">
-            <li><b>Token</b> creates a fungible token. Your wallet is the treasury and keeps the supply key.</li>
-            <li>Costs about $1 in HBAR on mainnet.</li>
-            <li>With no admin key, the token can never be changed.</li>
-            <li>NFT mints a list of links into a collection. Hashinal inscribes one file on Hedera and mints it as an NFT.</li>
-          </ul>
+          <div class="mint-tabs" role="tablist" aria-label="Mint help">
+            <button type="button" class="mint-tab" role="tab" id="mint-help-tab-token" aria-selected="true" aria-controls="mint-help-panel-token">Token</button>
+            <button type="button" class="mint-tab" role="tab" id="mint-help-tab-nft" aria-selected="false" aria-controls="mint-help-panel-nft" tabindex="-1">NFT</button>
+            <button type="button" class="mint-tab" role="tab" id="mint-help-tab-hashinal" aria-selected="false" aria-controls="mint-help-panel-hashinal" tabindex="-1">Hashinal</button>
+          </div>
+          <div class="mint-help-panels">
+            <div class="mint-help-panel" role="tabpanel" id="mint-help-panel-token" aria-labelledby="mint-help-tab-token">
+              <ul class="info-overlay-list">
+                <li>Creates a fungible token. Your wallet is the treasury and keeps the supply key.</li>
+                <li>Costs about $1 in HBAR on mainnet.</li>
+                <li>With no admin key, the token can never be changed.</li>
+              </ul>
+            </div>
+            <div class="mint-help-panel" role="tabpanel" id="mint-help-panel-nft" aria-labelledby="mint-help-tab-nft" hidden>
+              <ul class="info-overlay-list">
+                <li>New collection creates the NFT collection. Max supply and royalty can't be changed later. Costs about $1 in HBAR (about $2 with a royalty).</li>
+                <li>Mint into collection adds NFTs to a collection you already have. Pick it from the list or paste its token id. Your wallet needs that collection's supply key.</li>
+                <li>Each link becomes one NFT. Hedera allows 10 per transaction, so every 10 is one wallet approval, about $0.02 in HBAR per NFT.</li>
+                <li>For long runs, turn on auto-approve in HashPack.</li>
+              </ul>
+            </div>
+            <div class="mint-help-panel" role="tabpanel" id="mint-help-panel-hashinal" aria-labelledby="mint-help-tab-hashinal" hidden>
+              <ul class="info-overlay-list">
+                <li>Inscribes one file on Hedera, then its details, then mints one NFT into your collection that points at them.</li>
+                <li>Mainnet only. Your wallet signs and pays.</li>
+                <li>Your inscribing key stays in this tab or is typed by you. It's never saved.</li>
+              </ul>
+            </div>
+          </div>
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('mint-help-overlay').style.display='none'">Got it</button>
           </div>

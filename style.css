@@ -20912,6 +20912,7 @@ html.feed-draw-open #map-draw-help-overlay {
 #mint-column [hidden] {
   display: none !important;
 }
+#mint-help-overlay .mint-tabs,
 #mint-column .mint-tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -20919,6 +20920,7 @@ html.feed-draw-open #map-draw-help-overlay {
   margin: var(--ui-gap) 0;
   min-width: 0;
 }
+#mint-help-overlay .mint-tab,
 #mint-column .mint-tab {
   appearance: none;
   display: flex;
@@ -20944,16 +20946,57 @@ html.feed-draw-open #map-draw-help-overlay {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
+#mint-help-overlay .mint-tab[aria-selected="true"],
+#mint-help-overlay .mint-tab:is(:hover, :active),
 #mint-column .mint-tab[aria-selected="true"],
 #mint-column .mint-tab:is(:hover, :active) {
   background: rgba(34, 211, 238, 0.12);
   color: #22D3EE;
 }
+#mint-help-overlay .mint-tab:focus,
 #mint-column .mint-tab:focus {
   outline: none;
 }
+#mint-help-overlay .mint-tab:focus-visible,
 #mint-column .mint-tab:focus-visible {
   box-shadow: inset 0 0 0 0.125rem #22D3EE;
+}
+/* The ? help (#mint-help-overlay): the same tab row over one list per tab.
+   The card sits on document.body, outside the drawer's --ui tokens, so the
+   row makes them from --u: a share of the card's width (cqi), held to the
+   screen's height (cqb, from the overlay) on a wide screen and never under
+   1.5cqi on a short landscape phone. The lists share one cell and a hidden
+   one keeps its room, so the card and its tabs stay put when the tab
+   changes. */
+#mint-help-overlay {
+  container-type: size;
+}
+#mint-help-overlay .info-overlay-inner {
+  container-type: inline-size;
+}
+#mint-help-overlay .mint-tabs {
+  --u: min(2.5cqi, max(1.5cqi, 1cqb));
+  --ui-label: calc(var(--u) * 2);
+  --ui-row-h: calc(var(--u) * 6);
+  --ui-card-radius: calc(var(--u) * 2);
+  --ui-gap: var(--u);
+  flex: 0 0 auto;
+  margin: calc(var(--u) * 2.6) 0 0;
+}
+#mint-help-overlay .mint-help-panels {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  min-height: 0;
+}
+#mint-help-overlay .mint-help-panel {
+  display: flex;
+  flex-direction: column;
+  grid-area: 1 / 1;
+  min-height: 0;
+}
+#mint-help-overlay .mint-help-panel[hidden] {
+  visibility: hidden;
 }
 #mint-column .mint-form {
   display: block;
