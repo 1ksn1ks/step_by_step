@@ -84,6 +84,7 @@ import {
 } from './commentsui.js';
 import maplibregl from 'maplibre-gl';
 import { map } from './map';
+import { popupSideFor } from './popupside.js';
 import { applyAllStyles } from './loadprofilepopup';
 import { scene } from './threejs'
 import { parsePrivateKey, decryptMessage, parsePublicKey, encryptMessage, encryptWithPassword, decryptWithPassword } from './sodium'
@@ -4095,7 +4096,7 @@ function showMarker(m) {
     newActiveMarkerPopups([]);
     activePolygonPopups.forEach(p => p.remove());
     newActivePolygonPopups([]);
-    const popup = new maplibregl.Popup({ focusAfterOpen: false })
+    const popup = new maplibregl.Popup({ focusAfterOpen: false, anchor: popupSideFor(map, map.getCenter()) })
         .setLngLat(m.geometry.coordinates)
         .setDOMContent(markerPopupNode(m.properties, m))
         .addTo(map);
@@ -4148,7 +4149,7 @@ function showPolygon(p) {
     const centerLat = (bounds.minLat + bounds.maxLat) / 2;
     const targetLngLat = [centerLng, centerLat];
 
-    const popup = new maplibregl.Popup({ focusAfterOpen: false })
+    const popup = new maplibregl.Popup({ focusAfterOpen: false, anchor: popupSideFor(map, map.getCenter()) })
         .setLngLat(targetLngLat)
         .setDOMContent(polygonPopupNode(p))
         .addTo(map);

@@ -11,6 +11,7 @@ import { profilePictures, usernames, click2url } from './loadalladata.js';
 import { CloseALL, changePopupState } from './cssLogic.js';
 import { closeDrawAnchor } from './drawhere.js';
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
+import { popupSideFor } from './popupside.js';
 import { applyAllStyles } from './loadprofilepopup.js';
 import { isTopicLayerActive } from './marker.js';
 import { watchMarkerTilt, forgetMarkerTilt } from './markertilt.js';
@@ -321,7 +322,7 @@ function step(direction) {
 // Popup for the marker at localList[j] — the SAME popup the regular topic
 // markers use, but ◀️/▶️ walk THIS list instead of the topic's
 // markers (onPrev/onNext callbacks).
-function openLocalPopup(j) {
+function openLocalPopup(j, centers) {
   const m = localList[j];
   if (!m) return;
   localIndex = j;
@@ -353,7 +354,10 @@ function openLocalPopup(j) {
   // The card grows with the post; popupanim scales it into the screen.
   CloseALL();
   closeDrawAnchor();
-  localPopup.setLngLat([m.lng, m.lat]).addTo(map).setDOMContent(content);
+  const lngLat = [m.lng, m.lat];
+  // ◀️/▶️ fly the camera onto the post. A tap leaves the point where it is.
+  localPopup.options.anchor = popupSideFor(map, centers ? map.getCenter() : lngLat);
+  localPopup.setLngLat(lngLat).addTo(map).setDOMContent(content);
   applyAllStyles();
   changePopupState(true);
 }
@@ -365,7 +369,7 @@ function navigateLocal(j) {
   if (!m) return;
   cancelAnimateMapTo(); // stop the popup-open loop, or it kills this flyTo
   map.flyTo({ center: [m.lng, m.lat], zoom: 12, essentialOnly: true });
-  openLocalPopup(j);
+  openLocalPopup(j, true);
 }
 
 // Render the given live markers, replacing whatever is shown. An empty list

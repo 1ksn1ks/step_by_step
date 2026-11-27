@@ -15,6 +15,7 @@ import { handleAllMessages, mapFilterStale, mapTopic, onMapTopic } from './handl
 import { activeMarkerPopups } from './marker.js';
 import { activePolygonPopups } from './polygons.js';
 import { animateMapTo, cancelAnimateMapTo } from './animatemapto.js';
+import { popupSideFor } from './popupside.js';
 import { MARKER_ZOOM } from './openplace.js';
 import { ringCenter, zoomForPolygon } from './polygonframe.js';
 import { CloseALL, changePopupState, popIsOpen, expandTopicChat, expandEncryptedChat, withE2eeWebNotice, prepareLoadColumnForFeed } from './cssLogic.js';
@@ -5648,7 +5649,7 @@ function openMarkerFeature(feature) {
   CloseALL();
   closeDrawAnchor();
   closePressAnchor();
-  const popup = new maplibregl.Popup({ focusAfterOpen: false });
+  const popup = new maplibregl.Popup({ focusAfterOpen: false, anchor: popupSideFor(map, map.getCenter()) });
   popup.on('close', () => {
     changePopupState(false);
     showModel();
@@ -5673,7 +5674,7 @@ function openPolygonFeature(polygon) {
   CloseALL();
   closeDrawAnchor();
   closePressAnchor();
-  const popup = new maplibregl.Popup({ focusAfterOpen: false });
+  const popup = new maplibregl.Popup({ focusAfterOpen: false, anchor: popupSideFor(map, map.getCenter()) });
   popup.on('close', () => {
     changePopupState(false);
     showModel();

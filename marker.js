@@ -2,6 +2,7 @@ import maplibregl from 'maplibre-gl';
 import Supercluster from 'supercluster';
 import { debounce } from '/debounce'
 import { animateMapTo } from './animatemapto';
+import { popupSideFor } from './popupside.js';
 import { geojson, existingMarkers, newExistingMarkers, currentUfoModelInGLTF } from './letall';
 import { map } from './map'
 import { activePolygonPopups } from './polygons';
@@ -585,6 +586,8 @@ function openFeaturePopup(feature, popup) {
   CloseALL();
   closeDrawAnchor();
   closePressAnchor(); // a marker popup replaces the 🗺/📡 pin too
+  // The camera centers on this post. The center pixel is where it ends.
+  popup.options.anchor = popupSideFor(map, map.getCenter());
   popup.setLngLat(feature.geometry.coordinates).addTo(map).setDOMContent(node);
   animateMapTo(map, feature.geometry.coordinates, null);
   applyAllStyles();

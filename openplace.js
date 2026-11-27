@@ -13,6 +13,7 @@ import { activePolygonPopups, addPolygonWithImageFill } from './polygons.js';
 import { updateClusters, index } from './marker.js';
 import { processTopicMessages, allLoadedMessages, markerPopupNode, polygonPopupNode } from './processallmessages.js';
 import { animateMapTo } from './animatemapto.js';
+import { popupSideFor } from './popupside.js';
 import { applyAllStyles } from './loadprofilepopup.js';
 import { CloseALL, changePopupState, closeTransientMapUI } from './cssLogic.js';
 import { scene } from './threejs.js';
@@ -76,7 +77,7 @@ function hideModel() {
 function showPopup(lngLat, content, list, zoom) {
   closeTransientMapUI();
   CloseALL();
-  const popup = new maplibregl.Popup({ focusAfterOpen: false })
+  const popup = new maplibregl.Popup({ focusAfterOpen: false, anchor: popupSideFor(map, map.getCenter()) })
     .setLngLat(lngLat)
     .setDOMContent(content)
     .addTo(map);

@@ -4,6 +4,7 @@ import { applyAllStyles } from './loadprofilepopup';
 import { scene } from "./threejs";
 import maplibregl from 'maplibre-gl';
 import { animateMapTo } from './animatemapto';
+import { popupSideFor } from './popupside.js';
 import { classifyImageUrl, isGifUrl, loadImageBytes, needsGifCheck, resolveMediaUrl, siblingPosterUrl } from './mediaurl.js';
 import { COVER_RELEASE_MS, coverBatteryIsLow, coverHoldSrc, coverIdsToRelease, coverScreenScore, coverShouldRelease, coverTooSmall, holdQueriesFor, lookupHolds, pickAutoplayCover, shouldAutoplayCover } from './coverautoplay.js';
 import { gifStillCanvas } from './gifvideo.js';
@@ -1543,7 +1544,10 @@ async function addPolygonSource(map, polygon, sourceId, layerId, maskLayerId) {
             // A fresh popup per click: re-adding the same instance after an
             // outside-click close gets closed again by its own stale
             // closeOnClick listener (still in this click's listener list).
-            const popup = new maplibregl.Popup({ focusAfterOpen: false });
+            const popup = new maplibregl.Popup({
+              focusAfterOpen: false,
+              anchor: popupSideFor(map, map.getCenter()),
+            });
             popup.on('close', () => {
               changePopupState(false);
               if (currentUfoModelInGLTF) {
