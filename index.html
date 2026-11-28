@@ -1441,8 +1441,8 @@
             <li><b>Domain/Topic ID</b> — the parent topic.</li>
             <li><b>Topic ID/IDs</b> — one or more topic IDs, comma-separated.</li>
             <li><b>Load topics</b> — fills that field with the topics stacked now.</li>
-            <li>A topic reads up to 12 stacked topics, the most recently added ones.</li>
-            <li><b>Start new month</b> — admins only: creates the month’s topic, stacks it, and at 12 takes the oldest off the stack.</li>
+            <li>Every stacked topic stays listed. The newest 8, or the admin’s pins, load by default.</li>
+            <li><b>Start new month</b> — admins only: creates the month’s topic and stacks it. Every month stays listed, and the newest 8 (or the admin’s pins) load by default.</li>
           </ul>
           <div class="info-overlay-actions">
             <button class="info-overlay-close-button-1" onclick="document.getElementById('stack-topic-ids-help-overlay').style.display='none'">Got it</button>
@@ -1484,7 +1484,7 @@
           </div>
           <div class="mb-card stack-month-card" id="stack-month">
             <div class="stack-month-title">🗓 Monthly archive</div>
-            <p class="stack-month-hint">Creates the month’s topic, named after the main topic (“News 2026 - 2026-12”), and stacks it. A topic stacks up to 12; then the oldest comes off the stack and stays readable by its id.</p>
+            <p class="stack-month-hint">Creates the month’s topic, named after the main topic (“News 2026 - 2026-12”), and stacks it. Every month stays listed. The newest 8, or the admin’s pins, load by default.</p>
             <div class="stack-month-row">
               <input type="month" id="stack-month-value" class="stack-month-input" aria-label="Month" data-no-clear>
               <button type="button" id="stack-month-start" class="stack-month-btn is-primary">Start new month</button>

@@ -27,7 +27,7 @@ import { refreshFilterTimeButtons } from './drawdate.js';
 import { POST_IMAGES_BUSY, draftPending, postCover, postImageArray } from './postimages.js';
 import { pendingChatImage, chatImageBusy, clearPendingChatImage, topicChatWire } from './chatimage.js';
 import { stackedTopicRules } from './topicrules.js';
-import { STACK_MAX, activeStack, addTopicMessage, adminsFromMemo, appIconConfigMessage, autoplayConfigMessage, cleanTopicIds, commentPinConfigMessage, currentAppIcon, currentAutoplayNft, currentCommentPinNfts, currentTopicBio, currentTopicName, currentInitialXYZ, isTopicId, removeTopicMessage } from './loadcurrenttopic.js';
+import { STACK_MAX, activeStack, addTopicMessage, adminsFromMemo, appIconConfigMessage, autoplayConfigMessage, cleanTopicIds, commentPinConfigMessage, pinStacksConfigMessage, currentAppIcon, currentAutoplayNft, currentCommentPinNfts, currentTopicBio, currentTopicName, currentInitialXYZ, isTopicId, removeTopicMessage } from './loadcurrenttopic.js';
 import { parsePinInput, validatePinTokens } from './commentpin.js';
 import { readUniqueNft, rememberTopicAutoplay } from './coverautoplay.js';
 import { isOwnR2Image } from './r2public.js';
@@ -231,16 +231,13 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
  document.getElementById("load-stack-for-topic").addEventListener("click", async () => {
    const loaded = await loadTopicRecord("stack-topic-ids-topic", "loaded-stack-for-topic", "topics");
    if (!loaded) return;
-   // Newest adds first. Past STACK_MAX the oldest are no longer read; they
-   // are listed so an admin can remove them (they stay openable directly).
+   // The whole stack, newest adds first. A long id list stays in the box;
+   // the add/remove field only receives a short one.
    const all = activeStack(loaded.messages, loaded.topicAdmin, loaded.topicId);
-   const ids = all.slice(0, STACK_MAX);
-   const beyond = all.slice(STACK_MAX);
-   let text = ids.length ? ids.join("\n") : "No stacked topics.";
-   if (beyond.length) text += `\n\nNot read (over ${STACK_MAX}):\n${beyond.join("\n")}`;
-   loaded.box.textContent = text;
+   loaded.box.textContent = all.length ? all.join("\n") : "No stacked topics.";
    adjustTextareaHeight(loaded.box);
-   fillGrownField("stack-topic-add-remove-topic", ids.join(","));
+   const fieldIds = all.length <= STACK_MAX ? all : [];
+   fillGrownField("stack-topic-add-remove-topic", fieldIds.join(","));
  });
 
  document.getElementById("load-xyz-for-topic").addEventListener("click", async () => {
@@ -861,6 +858,33 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
    toast.info("Confirm in wallet 👛");
    await sendMessage(topicId, message);
    storeTopicCommentPin(topicId, tokens);
+   toast.success("Saved");
+   return true;
+ }
+
+ async function sendPinStacksConfig(ids) {
+   if (!signer) {
+     toast.error("Connect wallet first");
+     return false;
+   }
+   const topicId = utilityTopicId();
+   if (!topicId) {
+     toast.error("Please enter a Topic ID or domain.");
+     return false;
+   }
+   const message = pinStacksConfigMessage(ids);
+   if (!message) {
+     toast.error("Enter topic ids like 0.0.123");
+     return false;
+   }
+   const info = await getTopicInfo(topicId);
+   const admins = adminsFromMemo(info.memo);
+   if (!admins.includes(connectedAccount)) {
+     toast.error("Only a topic admin can set this");
+     return false;
+   }
+   toast.info("Confirm in wallet 👛");
+   await sendMessage(topicId, message);
    toast.success("Saved");
    return true;
  }

@@ -1,6 +1,7 @@
 // The feed and the map read the open topic and the topics stacked on it by
-// one rule (loadcurrenttopic.js: at most 12, newest adds first, ids cleaned,
-// one level deep), three at a time with a time limit per topic, and the
+// one rule (loadcurrenttopic.js: at most 8 fetched in one Load, newest adds
+// first unless picks or admin pins say otherwise, ids cleaned, one level
+// deep), three at a time with a time limit per topic, and the
 // feed pages them as one list in consensus order (feedmerge.js). A time
 // filter (timefilter.js) narrows both to the last 24 hours, 7 days or 30 days.
 // The feed and map modules touch document on import, so their wiring is
@@ -14,13 +15,17 @@ import {
   addTopicMessage,
   changeNameMessage,
   cleanTopicIds,
+  currentPinnedStacks,
   currentStackedTopics,
   feedTopics,
   isMonthKey,
   monthKey,
   monthPlan,
   monthTopicName,
+  pinStacksConfigMessage,
+  readStackPicks,
   removeTopicMessage,
+  saveStackPicks,
   topicsToLoad,
 } from "../loadcurrenttopic.js";
 import {
@@ -119,25 +124,84 @@ test("the feed and the map read the open topic first, then each stacked topic on
   assert.deepEqual(feedTopics("0.0.5", [add("0.0.5,0.0.6,0.0.5"), add("0.0.6")], []), ["0.0.5", "0.0.6"]);
 });
 
-test("a topic reads at most 12 stacked topics: the 12 added most recently, after removals", () => {
-  assert.equal(STACK_MAX, 12);
+test("a load fetches at most 8 stacked topics: the 8 added most recently, after removals", () => {
+  assert.equal(STACK_MAX, 8);
   const ids = Array.from({ length: 15 }, (_, i) => `0.0.${100 + i}`);
   const messages = ids.map((id) => add(id));
   const stacked = currentStackedTopics(messages, [], "0.0.5");
   assert.equal(stacked.length, STACK_MAX);
-  assert.deepEqual(stacked, ids.slice(3).reverse(), "newest adds, newest first");
-  assert.deepEqual(topicsToLoad("0.0.5", messages, []), ["0.0.5", ...ids.slice(3).reverse()]);
-  // Removing one of the twelve lets the next most recent back in.
+  assert.deepEqual(stacked, ids.slice(7).reverse(), "newest adds, newest first");
+  assert.deepEqual(topicsToLoad("0.0.5", messages, []), ["0.0.5", ...ids.slice(7).reverse()]);
+  // Removing one of the eight lets the next most recent back in.
   const removed = [...messages, remove("0.0.114")];
-  assert.deepEqual(currentStackedTopics(removed, [], "0.0.5"), ids.slice(2, 14).reverse());
+  assert.deepEqual(currentStackedTopics(removed, [], "0.0.5"), ids.slice(6, 14).reverse());
   // Adding an old id again makes it the newest.
   const readded = [...messages, add("0.0.100")];
   assert.equal(currentStackedTopics(readded, [], "0.0.5")[0], "0.0.100");
-  // One message with hundreds of ids is still twelve reads.
+  // One message with hundreds of ids is still eight reads.
   const flood = [add(Array.from({ length: 300 }, (_, i) => `0.0.${1000 + i}`).join(","))];
   assert.equal(topicsToLoad("0.0.5", flood, []).length, 1 + STACK_MAX);
   // Everything stacked stays listed for the admin tools (uncapped).
   assert.equal(activeStack(messages, [], "0.0.5").length, 15);
+  const rest = readFileSync(new URL("../rest.js", import.meta.url), "utf8");
+  assert.doesNotMatch(rest, /Not read \(over/);
+});
+
+test("admin pins choose the load set: newest wins, non-admins are ignored, eight is the max", () => {
+  const admins = ["0.0.2"];
+  const ids = Array.from({ length: 10 }, (_, i) => `0.0.${400 + i}`);
+  const messages = ids.map((id) => add(id, "0.0.2"));
+  assert.equal(pinStacksConfigMessage("0.0.400"), "");
+  assert.equal(pinStacksConfigMessage(["nope"]), "");
+  assert.deepEqual(JSON.parse(pinStacksConfigMessage([])), { pinStacks: [] });
+  assert.deepEqual(JSON.parse(pinStacksConfigMessage(["0.0.400", "nope", "0.0.400", "0.0.402"])), {
+    pinStacks: ["0.0.400", "0.0.402"],
+  });
+  assert.equal(JSON.parse(pinStacksConfigMessage(ids)).pinStacks.length, STACK_MAX);
+  messages.push({ payer: "0.0.2", pinStacks: ["0.0.400"] });
+  messages.push({ payer: "0.0.9", pinStacks: ["0.0.409"] });
+  assert.deepEqual(currentPinnedStacks(messages, admins, "0.0.5"), ["0.0.400"], "a non-admin pin is ignored");
+  messages.push({ payer: "0.0.2", pinStacks: ["not-a-topic"] });
+  assert.deepEqual(currentPinnedStacks(messages, admins, "0.0.5"), ["0.0.400"], "a bad id does not replace the pin");
+  const eight = ids.slice(0, 8);
+  messages.push({ payer: "0.0.2", pinStacks: ids });
+  assert.deepEqual(currentPinnedStacks(messages, admins, "0.0.5"), eight, "past 8 is skipped");
+  messages.push({ payer: "0.0.9", pinStacks: [] });
+  assert.deepEqual(currentPinnedStacks(messages, admins, "0.0.5"), eight, "a non-admin clear is ignored");
+  messages.push({ payer: "0.0.2", pinStacks: [] });
+  assert.deepEqual(currentPinnedStacks(messages, admins, "0.0.5"), [], "[] clears");
+  messages.push({ payer: "0.0.2", pinStacks: ["0.0.5", "0.0.403", "0.0.499", "0.0.404"] });
+  assert.deepEqual(currentPinnedStacks(messages, admins, "0.0.5"), ["0.0.403", "0.0.404"], "self and a topic off the stack drop");
+  messages.push(remove("0.0.404", "0.0.2"));
+  assert.deepEqual(currentPinnedStacks(messages, admins, "0.0.5"), ["0.0.403"]);
+  assert.equal(currentPinnedStacks(messages, [], "0.0.5"), null, "no memo admin, no pins");
+  assert.equal(currentPinnedStacks([{ payer: "0.0.2", pinStacks: ["0.0.400"] }], ["0.0.8"], "0.0.5"), null);
+  const pinned = [...ids.map((id) => add(id, "0.0.2")), { payer: "0.0.2", pinStacks: ["0.0.400", "0.0.402"] }];
+  assert.deepEqual(currentStackedTopics(pinned, admins, "0.0.88001"), ["0.0.400", "0.0.402"]);
+  saveStackPicks("0.0.88001", ["0.0.402", "0.0.401", "0.0.999", "0.0.88001"]);
+  try {
+    assert.deepEqual(readStackPicks("0.0.88001", ids), ["0.0.402", "0.0.401"]);
+    assert.deepEqual(currentStackedTopics(pinned, admins, "0.0.88001"), ["0.0.402", "0.0.401"], "picks beat pins");
+    const prev = globalThis.localStorage;
+    globalThis.localStorage = {
+      getItem() { throw new Error("private"); },
+      setItem() { throw new Error("private"); },
+    };
+    saveStackPicks("0.0.88002", ["0.0.401"]);
+    assert.deepEqual(readStackPicks("0.0.88002"), ["0.0.401"]);
+    if (prev === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = prev;
+  } finally {
+    saveStackPicks("0.0.88001", []);
+    saveStackPicks("0.0.88002", []);
+  }
+  assert.deepEqual(currentStackedTopics(pinned, admins, "0.0.88001"), ["0.0.400", "0.0.402"]);
+  const rest = readFileSync(new URL("../rest.js", import.meta.url), "utf8");
+  const send = rest.slice(rest.indexOf("async function sendPinStacksConfig"), rest.indexOf("const commentPinSave"));
+  assert.match(send, /pinStacksConfigMessage\(ids\)/);
+  assert.match(send, /Connect wallet first/);
+  assert.match(send, /!admins\.includes\(connectedAccount\)/);
+  assert.match(send, /Only a topic admin can set this/);
 });
 
 test("stacked ids are trimmed, checked, deduplicated, and a topic never stacks itself", () => {
@@ -177,6 +241,7 @@ test("stacks are read one level deep: a stacked topic's own stacks are never fol
   assert.equal(stack.split("feedTopics(").length - 1, 1);
   assert.match(stack, /feedTopics\(topicId, data && data\.messages, adminsFromMemo\(info\.memo\)\)/);
   // The profile's topic list uses the same helper, not its own copy.
+  assert.match(pic, /activeStack\(result\.messages, topicAdmin, topicIdStr\)/);
   assert.match(pic, /currentStackedTopics\(result\.messages, topicAdmin, topicIdStr\)/);
   assert.doesNotMatch(pic, /topicActions|parsedMessage\.addTopic/);
 });
@@ -416,7 +481,7 @@ test("a late topic that comes in before anything was shown simply joins the merg
   assert.equal(source.rows.length, 2);
 });
 
-test("the feed's cap is the shared rule's: the open topic and 12 stacked", () => {
+test("the feed's cap is the shared rule's: the open topic and 8 stacked", () => {
   const stacked = Array.from({ length: 30 }, (_, i) => `0.0.${100 + i}`);
   const topics = feedTopics("0.0.5", [add(stacked.join(","))], []);
   assert.equal(topics.length, 1 + STACK_MAX);
@@ -641,7 +706,7 @@ test("a stacked topic whose newest message is older than the range is not read",
 
 // --- Start new month --------------------------------------------------------
 
-test("a new month is named after the year topic, and a full stack gives up its oldest", () => {
+test("a new month is named after the year topic, and a full stack stays listed", () => {
   inZone("Europe/Belgrade", () => {
     assert.equal(monthKey(new Date(2026, 11, 1)), "2026-12");
     assert.equal(monthKey(new Date(2027, 0, 31, 23, 59)), "2027-01");
@@ -651,23 +716,27 @@ test("a new month is named after the year topic, and a full stack gives up its o
   assert.equal(monthTopicName("News 2026", "2026-12"), "News 2026 - 2026-12");
   assert.equal(monthTopicName("  News   2026 ", "2026-12"), "News 2026 - 2026-12");
   assert.equal(monthTopicName("", "2026-12"), "2026-12");
-  // Twelve stacked (newest first): the one added longest ago comes off.
+  // Twelve or forty stacked: nothing is taken off.
   const twelve = Array.from({ length: 12 }, (_, i) => `0.0.${300 - i}`);
-  assert.deepEqual(monthPlan(twelve), { remove: "0.0.289" });
+  assert.deepEqual(monthPlan(twelve), { remove: "" });
   assert.deepEqual(monthPlan(twelve.slice(0, 11)), { remove: "" });
   assert.deepEqual(monthPlan([]), { remove: "" });
+  assert.deepEqual(monthPlan(Array.from({ length: 40 }, (_, i) => `0.0.${500 + i}`), STACK_MAX), { remove: "" });
 });
 
-test("Start new month is for admins only and stacks before it removes", () => {
+test("Start new month is for admins only and only adds", () => {
   const flow = readFileSync(new URL("../monthstack.js", import.meta.url), "utf8");
   const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
   // The same rule every stack message is read by: memo admins, or anyone
   // when the memo lists none. Checked before anything is created.
   assert.match(flow, /if \(admins\.length && !admins\.includes\(connectedAccount\)\) \{/);
-  const order = ["createTopic({ memo })", "changeNameMessage(name)", "addTopicMessage([monthTopic])", "removeTopicMessage([remove])"]
+  const order = ["createTopic({ memo })", "changeNameMessage(name)", "addTopicMessage([monthTopic])"]
     .map((call) => flow.indexOf(call));
   assert.ok(order.every((at) => at > 0), "every step uses the existing message code");
-  assert.deepEqual([...order].sort((x, y) => x - y), order, "create, name, stack, then remove");
+  assert.deepEqual([...order].sort((x, y) => x - y), order, "create, name, then stack");
+  assert.equal(flow.includes("removeTopicMessage"), false);
+  assert.match(html, /Every month stays listed/);
+  assert.match(html, /newest 8/);
   // Nothing is sent before Confirm.
   assert.match(flow, /confirmBtn\.addEventListener\('click', \(event\) => \{\s*event\.stopPropagation\(\);\s*confirmPlan\(\);/);
   assert.match(html, /id="stack-month-start"/);

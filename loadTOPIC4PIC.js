@@ -1,6 +1,6 @@
 import { getTopicInfo } from './hedera'
 import { getTopicData as getMessages } from './topicdata'
-import { adminsFromMemo, currentStackedTopics, currentTopicName } from './loadcurrenttopic'
+import { activeStack, adminsFromMemo, currentStackedTopics, currentTopicName } from './loadcurrenttopic'
 import { PULL_AT_ONCE, STACK_FIRST_MS, mapLimited, settlesWithin } from './feedmerge.js'
 import { loadTOPIC2PIC, usernames } from './loadalladata'
 import { activePolygonPopups} from './polygons';
@@ -64,13 +64,15 @@ export async function loadTOPIC4PIC(payer) {
         return {};
       }
   
-      // The shared stack rule (loadcurrenttopic.js): at most STACK_MAX
-      // stacked topics, newest adds first, ids cleaned, one level deep.
-      const loadedTopicsIds = currentStackedTopics(result.messages, topicAdmin, topicIdStr);
+      // List every stacked topic. Fetch a name only for the load set
+      // (picks, admin pins, or the newest STACK_MAX), one level deep.
+      const loadedTopicsIds = activeStack(result.messages, topicAdmin, topicIdStr);
+      const named = new Set(currentStackedTopics(result.messages, topicAdmin, topicIdStr));
 
       // Names three at a time. A topic that takes longer than STACK_FIRST_MS,
       // or fails, is listed by its id; one slow topic never holds the list.
       const loadedTopicIdsWithNames = await mapLimited(loadedTopicsIds, PULL_AT_ONCE, async (stackedId) => {
+        if (!named.has(stackedId)) return stackedId;
         const job = getMessages(stackedId).catch(() => null);
         if (!(await settlesWithin(job, STACK_FIRST_MS))) return stackedId;
         const topicData = await job;

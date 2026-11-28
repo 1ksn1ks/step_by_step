@@ -1,18 +1,15 @@
-// Start new month (📚 STACK panel). A year topic stacks up to STACK_MAX
-// month topics and news for a month is posted to that month's topic. This
-// makes the month's topic in one flow:
+// Start new month (📚 STACK panel). A year topic can list every month, and
+// news for a month is posted to that month's topic. This makes the month's
+// topic in one flow:
 //   1. create the topic (createTopic, with the year topic's memo, so the
 //      same admins run it),
 //   2. name it "<year topic name> - YYYY-MM" (changeName),
-//   3. stack it on the year topic (addTopic),
-//   4. when STACK_MAX were already stacked, take the one added longest ago
-//      off the stack (removeTopic). The add goes first: if this step is
-//      declined, the cap already leaves the oldest out of every read.
+//   3. stack it on the year topic (addTopic).
 // Each step is one wallet approval. The plan is shown first and runs only
 // on Confirm. Only the year topic's memo admins may run it (anyone when
 // the memo lists none), the same rule every stack message is read by.
-// Nothing is deleted on chain: a month that comes off the stack keeps its
-// posts and can still be opened by its id.
+// Nothing is removed. Every month stays listed. A load reads the newest 8,
+// or the admin's pins.
 
 import { toast } from './toast';
 import { createTopic, getTopicInfo } from './hedera';
@@ -22,8 +19,6 @@ import { connectedAccount, signer } from './web3';
 import { loadedDomains } from './loaddomains';
 import { initialTopicId } from './extracttopic.js';
 import {
-  STACK_MAX,
-  activeStack,
   addTopicMessage,
   adminsFromMemo,
   changeNameMessage,
@@ -31,9 +26,7 @@ import {
   isMonthKey,
   isTopicId,
   monthKey,
-  monthPlan,
   monthTopicName,
-  removeTopicMessage,
 } from './loadcurrenttopic.js';
 
 const card = document.getElementById('stack-month');
@@ -110,17 +103,10 @@ async function prepare() {
     const data = await getTopicData(yearTopic, { force: true });
     const messages = (data && data.messages) || [];
     const yearName = currentTopicName(messages, admins);
-    const stack = activeStack(messages, admins, yearTopic).slice(0, STACK_MAX);
     const name = monthTopicName(yearName || yearTopic, month);
-    const { remove } = monthPlan(stack);
-    plan = { yearTopic, memo: String(info.memo || ''), name, remove };
-    const steps = remove ? 4 : 3;
+    plan = { yearTopic, memo: String(info.memo || ''), name };
     let text = `Creates “${name}” and stacks it on ${yearTopic}${yearName ? ` (${yearName})` : ''}.`;
-    if (remove) {
-      text += ` ${STACK_MAX} topics are stacked, so ${remove}, the one added longest ago, comes off the stack.`
-        + ' Its posts stay on chain and it can still be opened by its id.';
-    }
-    text += ` Your wallet asks ${steps} times.`;
+    text += ' Your wallet asks 3 times.';
     if (planText) planText.textContent = text;
     if (planBox) planBox.hidden = false;
     say('');
@@ -141,7 +127,7 @@ async function step(label, run) {
 
 async function confirmPlan() {
   if (!plan || running) return;
-  const { yearTopic, memo, name, remove } = plan;
+  const { yearTopic, memo, name } = plan;
   hidePlan();
   busy(true);
   let monthTopic = '';
@@ -163,18 +149,7 @@ async function confirmPlan() {
     busy(false);
     return;
   }
-  if (remove) {
-    try {
-      await step(`Taking ${remove} off the stack.`, () => sendMessage(yearTopic, removeTopicMessage([remove])));
-    } catch (error) {
-      console.error('start month remove failed', error);
-      say(`“${name}” (${monthTopic}) is stacked. ${remove} stays listed, but past ${STACK_MAX} it is no longer read.`);
-      toast.success('Month started');
-      busy(false);
-      return;
-    }
-  }
-  say(`“${name}” (${monthTopic}) is stacked on ${yearTopic}.${remove ? ` ${remove} came off the stack.` : ''}`);
+  say(`“${name}” (${monthTopic}) is stacked on ${yearTopic}.`);
   toast.success('Month started');
   busy(false);
 }

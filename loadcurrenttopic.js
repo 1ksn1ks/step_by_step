@@ -57,14 +57,14 @@ export function currentTopicName(messages, topicAdmin) {
 // --- Stacks ----------------------------------------------------------------
 // A topic stacks others with { addTopic: { addTopic: "0.0.1,0.0.2" } } and
 // lets them go with { removeTopic: { removeTopic: "..." } }. The latest add
-// or remove of an id wins. One topic reads at most STACK_MAX stacked topics
-// (one per month of a year): the ones added most recently, so a flood of
-// adds cannot fan out into hundreds of reads on every phone, and an admin
-// who adds a 13th month pushes the oldest off without a remove. Stacks are
-// read one level deep: only the open topic's own messages are read, never a
-// stacked topic's stacks, so a chain or a loop of stacks cannot recurse.
+// or remove of an id wins. activeStack is the full list: every stacked
+// topic stays listed. STACK_MAX is the most stacked topics one Load
+// fetches, not the most that stay listed. A flood of adds cannot fan out
+// into hundreds of reads on every phone. Stacks are read one level deep:
+// only the open topic's own messages are read, never a stacked topic's
+// stacks, so a chain or a loop of stacks cannot recurse.
 
-export const STACK_MAX = 12;
+export const STACK_MAX = 8;
 const TOPIC_ID = /^0\.0\.\d+$/;
 
 export function isTopicId(value) {
@@ -105,9 +105,16 @@ export function activeStack(messages, topicAdmin, self = '') {
     .map(([id]) => id);
 }
 
-// The stacked topics a load reads: at most STACK_MAX, newest adds first.
+// The stacked topics one Load fetches, at most STACK_MAX. Saved picks win
+// when any are still on the stack, then the admin's pins, then the newest
+// adds. The open topic is not in this list.
 export function currentStackedTopics(messages, topicAdmin, self = '') {
-  return activeStack(messages, topicAdmin, self).slice(0, STACK_MAX);
+  const stack = activeStack(messages, topicAdmin, self);
+  const picks = readStackPicks(self, stack);
+  if (picks.length) return picks;
+  const pins = currentPinnedStacks(messages, topicAdmin, self);
+  if (pins && pins.length) return pins;
+  return stack.slice(0, STACK_MAX);
 }
 
 // The topics a load reads, the feed's and the map's: the open topic first,
@@ -137,8 +144,9 @@ export function changeNameMessage(name) {
 }
 
 // --- Monthly archive ---------------------------------------------------------
-// A year topic stacks up to twelve month topics; news for a month is posted
-// to that month's topic. Start new month (monthstack.js) makes one.
+// A year topic lists every month topic; news for a month is posted to that
+// month's topic. Start new month (monthstack.js) adds one and leaves the
+// older months listed. A load fetches at most STACK_MAX of them.
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
@@ -158,12 +166,12 @@ export function monthTopicName(yearName, key) {
   return base ? `${base} - ${key}` : key;
 }
 
-// What Start new month does to a stack: add the new topic, and when the
-// stack is already full, take off the topic added longest ago. The add
-// goes first; the cap already hides the oldest if the remove is declined.
+// What Start new month does to a stack: add the new topic. Every month
+// stays listed. max is how many one Load fetches, not how many may be listed.
 export function monthPlan(stack, max = STACK_MAX) {
-  const list = Array.isArray(stack) ? stack : [];
-  return { remove: list.length >= max ? list[list.length - 1] : '' };
+  void stack;
+  void max;
+  return { remove: '' };
 }
 
 // Newest admin autoplayNft wins. An empty value clears it. A message that
@@ -245,6 +253,119 @@ export function currentCommentPinNfts(messages, topicAdmin) {
     }
     if (bad || tokens.length > COMMENT_PIN_MAX) continue;
     return tokens;
+  }
+  return null;
+}
+
+// One device's chosen load set, { topicId: [ids] }. Private mode keeps it
+// for this visit when storage throws.
+const STACK_PICKS_KEY = 'stack-picks-v1';
+const stackPickVisit = new Map();
+
+function stackPickStorage() {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+function readStackPickMap() {
+  try {
+    const storage = stackPickStorage();
+    const parsed = JSON.parse((storage && storage.getItem(STACK_PICKS_KEY)) || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+// Saved ids for one topic, capped at STACK_MAX. Pass the live stack to drop
+// an id that is no longer stacked. Without it, the saved ids come back.
+export function readStackPicks(topicId, stack) {
+  const topic = String(topicId || '').trim();
+  if (!isTopicId(topic)) return [];
+  const raw = stackPickVisit.has(topic) ? stackPickVisit.get(topic) : readStackPickMap()[topic];
+  const on = Array.isArray(stack) ? new Set(stack) : null;
+  const out = [];
+  for (const item of [].concat(raw || [])) {
+    const id = String(item == null ? '' : item).trim();
+    if (!isTopicId(id) || id === topic || out.includes(id)) continue;
+    if (on && !on.has(id)) continue;
+    out.push(id);
+    if (out.length >= STACK_MAX) break;
+  }
+  return out;
+}
+
+export function saveStackPicks(topicId, ids) {
+  const topic = String(topicId || '').trim();
+  if (!isTopicId(topic)) return;
+  const saved = [];
+  for (const item of [].concat(ids || [])) {
+    const id = String(item == null ? '' : item).trim();
+    if (!isTopicId(id) || id === topic || saved.includes(id)) continue;
+    if (saved.length >= STACK_MAX) break;
+    saved.push(id);
+  }
+  stackPickVisit.set(topic, saved);
+  try {
+    const storage = stackPickStorage();
+    if (!storage) return;
+    const map = readStackPickMap();
+    if (saved.length) map[topic] = saved;
+    else delete map[topic];
+    storage.setItem(STACK_PICKS_KEY, JSON.stringify(map));
+  } catch {
+    /* private mode: the choice holds until the page closes */
+  }
+}
+
+// Newest admin pinStacks wins. [] clears the set. Bad ids, this topic, and
+// anything past STACK_MAX are skipped. Only a memo admin counts. No memo
+// admins means no pins (null). A pinned id no longer on the stack is dropped.
+export function pinStacksConfigMessage(ids) {
+  if (!Array.isArray(ids)) return '';
+  const out = [];
+  const seen = new Set();
+  for (const item of ids) {
+    const id = String(item == null ? '' : item).trim();
+    if (!id || !isTopicId(id) || seen.has(id)) continue;
+    if (out.length >= STACK_MAX) break;
+    seen.add(id);
+    out.push(id);
+  }
+  if (!out.length && ids.some((item) => String(item == null ? '' : item).trim())) return '';
+  return JSON.stringify({ pinStacks: out });
+}
+
+export function currentPinnedStacks(messages, admins, self = '') {
+  const adminList = Array.isArray(admins) ? admins : [];
+  if (!adminList.length) return null;
+  const own = String(self || '').trim();
+  const stack = new Set(activeStack(messages, adminList, own));
+  for (let index = (messages || []).length - 1; index >= 0; index--) {
+    const message = messages[index];
+    const parsed = readMessage(message);
+    if (!parsed || !Object.prototype.hasOwnProperty.call(parsed, 'pinStacks')) continue;
+    if (!adminList.includes(message && message.payer)) continue;
+    const raw = parsed.pinStacks;
+    if (!Array.isArray(raw)) continue;
+    if (raw.length === 0) return [];
+    const chosen = [];
+    const seen = new Set();
+    let valid = 0;
+    for (const item of raw) {
+      const id = String(item == null ? '' : item).trim();
+      if (!isTopicId(id)) continue;
+      valid += 1;
+      if (id === own || seen.has(id)) continue;
+      if (chosen.length >= STACK_MAX) continue;
+      seen.add(id);
+      chosen.push(id);
+    }
+    if (!valid || !chosen.length) continue;
+    return chosen.filter((id) => stack.has(id));
   }
   return null;
 }
