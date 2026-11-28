@@ -407,7 +407,7 @@ function rowBuilder(lookup = topicLookup()) {
   return { ...build, picks };
 }
 
-test("a cluster list row reads top to bottom: title, name and account ID, topic, when, likes and views", () => {
+test("a cluster list row reads in two lines: title, name and account ID; topic, when, likes and views", () => {
   const { buildRow, describe, picks } = rowBuilder();
   const feature = {
     payer: "0.0.123",
@@ -415,19 +415,24 @@ test("a cluster list row reads top to bottom: title, name and account ID, topic,
   };
   const row = buildRow(feature);
   const body = find(row.el, "marker-stack-body");
-  assert.deepEqual(body.children.map((child) => child.className), ["marker-stack-title", "marker-stack-account", "marker-stack-topic", "marker-stack-meta", "marker-stack-meta marker-stack-stats"]);
-  const [titleEl, line, topic, when, stats] = body.children;
+  assert.deepEqual(body.children.map((child) => child.className), ["marker-stack-line marker-stack-line1", "marker-stack-line marker-stack-line2"]);
+  const [top, bottom] = body.children;
+  assert.deepEqual(top.children.map((child) => child.className), ["marker-stack-title", "marker-stack-account"]);
+  assert.deepEqual(bottom.children.map((child) => child.className), ["marker-stack-topic", "marker-stack-meta", "marker-stack-meta marker-stack-stats"]);
+  const [titleEl, line] = top.children;
+  const [topic, when, stats] = bottom.children;
   assert.equal(titleEl.textContent, "Mural");
-  // The counts alone on their line (postcounts.js finds .marker-stack-counts).
+  // The counts in their own box (postcounts.js finds .marker-stack-counts).
   assert.equal(stats.text, "");
   assert.equal(stats.children.length, 1);
   const counts = stats.children[0];
   assert.equal(counts.className, "marker-stack-counts");
   assert.deepEqual(counts.children.map((stat) => find(stat, "post-count-n").textContent), ["1.9k", "1.9k"]);
-  // The name, then the account ID; then when, alone.
+  // The name, then the account ID, each its own box; when, to the minute.
   assert.equal(line.textContent, "Ana 0.0.123");
-  assert.equal(line.children.length, 0);
-  assert.equal(when.textContent, "11/20/2026, 10:00:00");
+  assert.deepEqual(line.children.map((child) => [child.className, child.textContent]), [["marker-stack-who", "Ana "], ["marker-stack-account-id", "0.0.123"]]);
+  assert.equal(when.textContent, "11/20/2026, 10:00");
+  assert.ok(describe(feature).hay.includes("10:00:00"));
   // The topic's children as before.
   assert.deepEqual(topic.children.map((child) => [child.className, child.textContent]), [["marker-stack-topic-id", "0.0.5"], ["marker-stack-topic-name", "Street art"]]);
   // The search still reads the name, account ID, title, topic and text (no
@@ -441,21 +446,25 @@ test("a cluster list row reads top to bottom: title, name and account ID, topic,
   // A share pin with views unknown: the larger like count, likes only.
   const share = buildRow({ properties: { _shareRecord: markerRecord({ topicId: "0.0.808", likeCountMarker: 6, likeCountPolygon: 6 }) } });
   const shareBody = find(share.el, "marker-stack-body");
-  assert.deepEqual(shareBody.children.map((child) => child.className), ["marker-stack-title", "marker-stack-account", "marker-stack-topic", "marker-stack-meta marker-stack-stats"]);
-  const shareCounts = find(shareBody.children[3], "marker-stack-counts");
+  assert.deepEqual(shareBody.children[1].children.map((child) => child.className), ["marker-stack-topic", "marker-stack-meta marker-stack-stats"]);
+  const shareCounts = find(shareBody.children[1].children[1], "marker-stack-counts");
   assert.equal(shareCounts.children.length, 1);
   assert.equal(find(shareCounts, "post-count-n").textContent, "6");
-  assert.equal(shareBody.children[1].textContent, "Ana 0.0.123");
+  assert.equal(find(shareBody, "marker-stack-account").textContent, "Ana 0.0.123");
 
-  // No name, no account ID and no date: the counts keep their line, no other.
+  // No name, no account ID and no date: the title alone, then the counts.
   const anon = buildRow({ properties: { popupData: () => ({ title: "x", payerInfo: "", likeCountMarker: 0, viewCount: 1_000_000 }) } });
   const anonBody = find(anon.el, "marker-stack-body");
-  assert.deepEqual(anonBody.children.map((child) => child.className), ["marker-stack-title", "marker-stack-meta marker-stack-stats"]);
+  assert.deepEqual(anonBody.children.map((child) => child.children.map((part) => part.className)), [["marker-stack-title"], ["marker-stack-meta marker-stack-stats"]]);
   assert.deepEqual(find(anonBody.children[1], "marker-stack-counts").children.map((stat) => find(stat, "post-count-n").textContent), ["0", "1M"]);
 
-  // A name alone or an ID alone stands alone on the account line.
+  // A name alone or an ID alone stands alone in the account box.
   const nameOnly = buildRow({ properties: { popupData: () => ({ title: "x", payerInfo: "", username: "Bo" }) } });
   assert.equal(find(nameOnly.el, "marker-stack-account").textContent, "Bo");
+  assert.deepEqual(find(nameOnly.el, "marker-stack-account").children.map((child) => child.className), ["marker-stack-who"]);
+  // A long name may be cut (before the title); a short one never is.
+  const longName = buildRow({ payer: "0.0.1", properties: { popupData: () => ({ title: "x", username: "SomeoneLonger" }) } });
+  assert.deepEqual(find(longName.el, "marker-stack-account").children.map((child) => [child.className, child.textContent]), [["marker-stack-who is-long", "SomeoneLonger "], ["marker-stack-account-id", "0.0.1"]]);
 });
 
 test("a cluster list row names its topic as the popup's chip: the ID, then the name, both searchable", () => {
@@ -485,7 +494,7 @@ test("a cluster list row names its topic as the popup's chip: the ID, then the n
   // No ID and no name: no line.
   const none = buildRow({ properties: { popupData: () => ({ title: "x", payer: "0.0.1" }) } });
   assert.equal(find(none.el, "marker-stack-topic"), null);
-  assert.deepEqual(find(none.el, "marker-stack-body").children.map((child) => child.className), ["marker-stack-title", "marker-stack-account", "marker-stack-meta marker-stack-stats"]);
+  assert.deepEqual(find(none.el, "marker-stack-body").children.map((child) => child.children.map((part) => part.className)), [["marker-stack-title", "marker-stack-account"], ["marker-stack-meta marker-stack-stats"]]);
   assert.equal(find(none.el, "marker-stack-account").textContent, "0.0.1");
 
   // The lookup is the info card's own (maptip.js), imported, nothing fetched.
@@ -513,15 +522,15 @@ test("the cluster list row keeps its own sizes; the topic line takes the account
   assert.match(rules, /\.marker-stack-topic-name \{[^}]*text-overflow: ellipsis;\s*font-weight: 400;\s*color: rgba\(255, 255, 255, 0\.72\);/);
   // Its size is the account rule's, shared by grouping.
   assert.match(css, /\n\.marker-stack-account,\n\.marker-stack-topic,\n\.marker-stack-topic-id,\n\.marker-stack-topic-name \{\s*font-size: 12px;\s*color: rgba\(255, 255, 255, 0\.72\);/);
-  // The row as before eb7907d: its own px sizes, no --fu. A row with the
-  // topic line is taller than its 52px minimum: in the scrolling list it
-  // keeps that height instead of shrinking to it.
+  // The row's own sizes, no --fu. Two lines of text: its minimum is a 44px
+  // tap (2.75em) and the picture is as tall as the lines (2.375em); in the
+  // scrolling list a row keeps its height instead of shrinking to it.
   const at = css.indexOf("\n.marker-stack-row {");
   const row = css.slice(at, css.indexOf("}", at));
   assert.doesNotMatch(row, /--fu/);
-  assert.match(row, /display: flex;\s*flex-shrink: 0;\s*align-items: center;\s*gap: 10px;\s*width: 100%;\s*min-height: 52px;\s*margin: 0;\s*padding: 7px 8px;/);
+  assert.match(row, /display: flex;\s*flex-shrink: 0;\s*align-items: center;\s*gap: 10px;\s*width: 100%;\s*min-height: 2\.75em;\s*margin: 0;\s*padding: 7px 8px;/);
   assert.match(row, /border: 1px solid transparent;\s*border-radius: 12px;/);
-  assert.match(css, /\.marker-stack-pic \{[^}]*width: 40px;\s*height: 40px;[^}]*border: 1px solid rgba\(255, 255, 255, 0\.2\);/);
+  assert.match(css, /\.marker-stack-pic \{[^}]*width: 2\.375em;\s*height: 2\.375em;[^}]*border: 1px solid rgba\(255, 255, 255, 0\.2\);/);
   assert.match(css, /\.marker-stack-body \{[^}]*gap: 2px;/);
   assert.match(css, /\.marker-stack-title \{\s*font-size: 14px;/);
   assert.match(css, /\.marker-stack-meta \{\s*font-size: 12px;/);

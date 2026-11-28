@@ -318,18 +318,36 @@ function buildRow(feature) {
 
   const body = document.createElement('span');
   body.className = 'marker-stack-body';
+  // Two lines. The first: the title, and the poster on the right.
+  const top = document.createElement('span');
+  top.className = 'marker-stack-line marker-stack-line1';
   const titleEl = document.createElement('span');
   titleEl.className = 'marker-stack-title';
   titleEl.textContent = title;
-  body.appendChild(titleEl);
-  // The poster: the name, then the account ID.
-  const named = [who, account].filter(Boolean).join(' ');
-  if (named) {
+  top.appendChild(titleEl);
+  // The poster: the name, then the account ID, each its own box. A long
+  // name is cut before the title, a short one never; the ID never is.
+  if (who || account) {
     const line = document.createElement('span');
     line.className = 'marker-stack-account';
-    line.textContent = named;
-    body.appendChild(line);
+    if (who) {
+      const whoEl = document.createElement('span');
+      whoEl.className = who.length > 8 ? 'marker-stack-who is-long' : 'marker-stack-who';
+      whoEl.textContent = account ? `${who} ` : who;
+      line.appendChild(whoEl);
+    }
+    if (account) {
+      const idEl = document.createElement('span');
+      idEl.className = 'marker-stack-account-id';
+      idEl.textContent = account;
+      line.appendChild(idEl);
+    }
+    top.appendChild(line);
   }
+  body.appendChild(top);
+  // The second: the topic and the date, and the likes and views on the right.
+  const bottom = document.createElement('span');
+  bottom.className = 'marker-stack-line marker-stack-line2';
   // The topic's ID, then its name, side by side as on the popup's chip.
   if (topicId || topicName) {
     const topic = document.createElement('span');
@@ -346,23 +364,25 @@ function buildRow(feature) {
       nameEl.textContent = topicName;
       topic.appendChild(nameEl);
     }
-    body.appendChild(topic);
+    bottom.appendChild(topic);
   }
+  // The date to the minute; a search still reads the whole timestamp.
   if (when) {
     const meta = document.createElement('span');
     meta.className = 'marker-stack-meta';
-    meta.textContent = when;
-    body.appendChild(meta);
+    meta.textContent = when.replace(/(\d:\d\d):\d\d(?!\d)/, '$1');
+    bottom.appendChild(meta);
   }
-  // The likes and views known now, on their own last line (postcounts.js).
-  // Nothing is fetched and no view is counted.
+  // The likes and views known now (postcounts.js). Nothing is fetched and
+  // no view is counted.
   const counts = countsNode(record, 'marker-stack-counts');
   if (counts) {
     const stats = document.createElement('span');
     stats.className = 'marker-stack-meta marker-stack-stats';
     stats.appendChild(counts);
-    body.appendChild(stats);
+    bottom.appendChild(stats);
   }
+  if (bottom.childElementCount) body.appendChild(bottom);
   row.append(pic, body);
   row.addEventListener('click', () => pick(feature));
   return { feature, el: row };

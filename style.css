@@ -27503,14 +27503,14 @@ html.is-draw-picking #map-topbar {
   touch-action: pan-y;
 }
 /* A row keeps its height in the scrolling list (min-height alone lets a
-   flex item shrink to it): the topic line makes a row taller than 52px. */
+   flex item shrink to it). Two lines of text; the row stays a 44px tap. */
 .marker-stack-row {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 52px;
+  min-height: 2.75em;
   margin: 0;
   padding: 7px 8px;
   box-sizing: border-box;
@@ -27537,11 +27537,12 @@ html.is-draw-picking #map-topbar {
     background: rgba(255, 255, 255, 0.07);
   }
 }
+/* As tall as the row's two lines. */
 .marker-stack-pic {
   flex: none;
   display: block;
-  width: 40px;
-  height: 40px;
+  width: 2.375em;
+  height: 2.375em;
   border-radius: 50%;
   object-fit: cover;
   background: rgba(255, 255, 255, 0.08);
@@ -27649,6 +27650,73 @@ html.is-draw-picking #map-topbar {
 }
 .marker-stack-empty[hidden] {
   display: none;
+}
+/* A row's two lines (markerstack.js), each the body's full width. The
+   first: the title, and the name and account ID on the right; a long name
+   is cut first, then the title, the ID never. The second: the topic and
+   the date, and the likes and views on the right; on a very narrow panel
+   only the counts wrap, under the line. */
+.marker-stack-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  min-width: 0;
+}
+.marker-stack-line1 > .marker-stack-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-right: 0.7em;
+}
+/* The name and the ID are the line's own items, so each shrinks alone. */
+.marker-stack-line1 > .marker-stack-account {
+  display: contents;
+}
+.marker-stack-account > :first-child {
+  margin-left: auto;
+}
+.marker-stack-who {
+  flex: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* A long name (markerstack.js) gives way first, down to a few letters;
+   then the title is cut. */
+.marker-stack-who.is-long {
+  flex: 0 1000 auto;
+  min-width: 4em;
+}
+.marker-stack-account-id {
+  flex: none;
+  white-space: nowrap;
+}
+.marker-stack-who + .marker-stack-account-id {
+  margin-left: 0.3em;
+}
+/* The counts reach the right end by their auto margin; the rest keeps
+   to the left, also when the counts wrap under it. */
+.marker-stack-line2 {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  column-gap: 0.55em;
+  row-gap: 0.15em;
+}
+/* The topic's ID and name are the line's own items: the ID is never cut.
+   The name has no width of its own when the line breaks, so only the
+   counts wrap; it then grows to its text, and a long name is cut. */
+.marker-stack-line2 > .marker-stack-topic {
+  display: contents;
+}
+.marker-stack-line2 .marker-stack-topic-name {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: max-content;
+}
+.marker-stack-line2 > .marker-stack-meta {
+  flex: none;
+}
+.marker-stack-line2 > .marker-stack-stats {
+  margin-left: auto;
 }
 
 /* ── Live: whose posts the map shows (localnews.js) ────────────────────
