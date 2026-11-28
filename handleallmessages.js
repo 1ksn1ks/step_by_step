@@ -27,7 +27,7 @@ import { toast } from "./toast";
 import { applyInitialXYZ } from "./setinitialxyz.js";
 import { fillTopicIds } from "./topicidintext.js";
 import { clearXEmbeds, paintXEmbeds } from "./xembed.js";
-import { topicsToLoad } from "./loadcurrenttopic.js";
+import { STACK_MAX, activeStack, currentPinnedStacks, currentStackedTopics, readStackPicks, saveStackPicks, topicsToLoad } from "./loadcurrenttopic.js";
 
 // Account ids and topic ids share the 0.0. form, and Hedera gives each number
 // to only one of them. A remembered answer skips a second mirror ask.
@@ -160,15 +160,106 @@ function restoreLoadedTopics() {
   if (list) list.style.display = '';
 }
 
+// The open topic's stack as the list shows it: every stacked topic, the
+// ones a Load fetches ticked (picks, admin pins, or the newest), and the
+// admin's pins. A tick follows the topic id, so search and sort keep it.
+// Load saves the ticks (saveStackPicks) only after a box was changed.
+let stackView = null;
+
+function setStackView(open, messages, admins) {
+  const stack = activeStack(messages, admins, open);
+  stackView = {
+    open,
+    messages,
+    admins,
+    stack,
+    onStack: new Set(stack),
+    pins: new Set(currentPinnedStacks(messages, admins, open) || []),
+    checked: new Set(currentStackedTopics(messages, admins, open)),
+    dirty: false,
+  };
+}
+
+// A new list is coming; the last one's ticks and Reset go with it.
+function clearStackView() {
+  stackView = null;
+  syncStackTicks(null);
+}
+
+function stackTicked() {
+  return stackView ? stackView.stack.filter((id) => stackView.checked.has(id)) : [];
+}
+
+// At STACK_MAX ticks the other boxes lock. The open topic always loads.
+// Reset to default shows while saved picks decide the load.
+function syncStackTicks(list) {
+  const reset = document.getElementById('loaded-topics-reset');
+  if (reset) reset.hidden = !(stackView && readStackPicks(stackView.open, stackView.stack).length);
+  if (!list || !stackView) return;
+  const full = stackTicked().length >= STACK_MAX;
+  for (const box of list.querySelectorAll('.loaded-topic-pick > input')) {
+    const open = box.dataset.topic === stackView.open;
+    box.checked = open || stackView.checked.has(box.dataset.topic);
+    box.disabled = open || (full && !box.checked);
+  }
+}
+
+function tickStack(topicId, on, list) {
+  if (!stackView || topicId === stackView.open) return;
+  if (on && !stackView.checked.has(topicId) && stackTicked().length >= STACK_MAX) {
+    toast.info(`Up to ${STACK_MAX} stacked topics load at once`);
+  } else {
+    if (on) stackView.checked.add(topicId);
+    else stackView.checked.delete(topicId);
+    stackView.dirty = true;
+  }
+  syncStackTicks(list);
+}
+
+// The box at the start of a row. A tap on it, or on the space around it,
+// never opens the bio. A locked box lets the tap through to say why.
+function stackPick(topicId, list) {
+  const pick = document.createElement('span');
+  pick.className = 'loaded-topic-pick';
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.dataset.topic = topicId;
+  box.setAttribute('aria-label', topicId === stackView.open ? 'Open topic, always loads' : `Load ${topicId}`);
+  box.addEventListener('click', (e) => e.stopPropagation());
+  box.addEventListener('change', () => tickStack(topicId, box.checked, list));
+  pick.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!stackView || topicId === stackView.open) return;
+    if (box.disabled) {
+      toast.info(`Up to ${STACK_MAX} stacked topics load at once`);
+      return;
+    }
+    tickStack(topicId, !box.checked, list);
+  });
+  pick.appendChild(box);
+  return pick;
+}
+
 export function renderLoadedTopics() {
   restoreLoadedTopics();
   const el = document.getElementById('loaded-topics');
   const list = document.getElementById('loaded-topics-list');
+  syncStackTicks(null);
   if (!el || !list) return;
   const searchEl = document.getElementById('loaded-topics-search');
   const query = (searchEl ? searchEl.value : '').trim().toLowerCase();
 
   let entries = [...globalLoadedTopicIdsWithNames];
+  // Stacked topics this Load did not fetch are listed by id, to tick.
+  const picks = stackView && stackView.stack.length ? stackView : null;
+  if (picks) {
+    const listed = new Set(entries.map((entry) => entry.split(' - ')[0]));
+    const unread = picks.stack.filter((id) => !listed.has(id));
+    if (unread.length) {
+      entries.push(...unread);
+      sortTopicRows(entries);
+    }
+  }
   if (query) {
     entries = entries.filter(entry => entry.toLowerCase().includes(query));
   }
@@ -194,6 +285,10 @@ export function renderLoadedTopics() {
 
     const row = document.createElement('div');
     row.className = 'loaded-topic-row';
+    if (picks && (topicId === picks.open || picks.onStack.has(topicId))) {
+      row.classList.add('has-pick');
+      row.appendChild(stackPick(topicId, list));
+    }
 
     const openBtn = document.createElement('button');
     openBtn.type = 'button';
@@ -203,6 +298,14 @@ export function renderLoadedTopics() {
     const label = document.createElement('span');
     label.className = 'loaded-topic-label';
     label.textContent = entry;
+    if (picks && picks.pins.has(topicId)) {
+      const pin = document.createElement('span');
+      pin.className = 'loaded-topic-pin';
+      pin.textContent = '📌';
+      pin.title = 'Pinned by admin';
+      pin.setAttribute('aria-label', 'Pinned by admin');
+      label.prepend(pin);
+    }
     openBtn.appendChild(label);
 
     const arrowBtn = document.createElement('span');
@@ -241,7 +344,32 @@ export function renderLoadedTopics() {
     list.appendChild(row);
   }
 
+  syncStackTicks(list);
   adjustTextareaHeight(el);
+}
+
+// Load keeps the ticks for this topic first, then runs as before (the
+// load itself waits for its click debounce). Untouched boxes save nothing,
+// so the admin's pins and the newest adds still decide.
+const loadPress = document.getElementById('toolbar-load');
+if (loadPress) {
+  loadPress.addEventListener('click', () => {
+    if (!stackView || !stackView.dirty) return;
+    saveStackPicks(stackView.open, stackTicked());
+    stackView.dirty = false;
+  }, true);
+}
+
+const stackReset = document.getElementById('loaded-topics-reset');
+if (stackReset) {
+  stackReset.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!stackView) return;
+    saveStackPicks(stackView.open, []);
+    stackView.checked = new Set(currentStackedTopics(stackView.messages, stackView.admins, stackView.open));
+    stackView.dirty = false;
+    syncStackTicks(document.getElementById('loaded-topics-list'));
+  });
 }
 
 // Live search + sort for the loaded topics list
@@ -357,6 +485,7 @@ export async function handleAllMessages(topic, opts = {}) {
       }
 
       restoreLoadedTopics();
+      clearStackView();
       const loaded_text_area = document.getElementById("loaded-topics");
       loaded_text_area.value = '';
       const topicSpinnerChat = `
@@ -500,7 +629,8 @@ export async function handleAllMessages(topic, opts = {}) {
   
       newGlobalLoadedTopicIdsWithNames(loadedTopicIdsWithNames);
       sortTopicRows(globalLoadedTopicIdsWithNames);
-  
+      setStackView(String(topicId).trim(), result.messages, topicAdmin);
+
       renderLoadedTopics(); // Update with rows: topic id + name + 📋 + ✕
 
       toast.loaded("Topic loaded");

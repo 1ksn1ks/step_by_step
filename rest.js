@@ -27,7 +27,7 @@ import { refreshFilterTimeButtons } from './drawdate.js';
 import { POST_IMAGES_BUSY, draftPending, postCover, postImageArray } from './postimages.js';
 import { pendingChatImage, chatImageBusy, clearPendingChatImage, topicChatWire } from './chatimage.js';
 import { stackedTopicRules } from './topicrules.js';
-import { STACK_MAX, activeStack, addTopicMessage, adminsFromMemo, appIconConfigMessage, autoplayConfigMessage, cleanTopicIds, commentPinConfigMessage, pinStacksConfigMessage, currentAppIcon, currentAutoplayNft, currentCommentPinNfts, currentTopicBio, currentTopicName, currentInitialXYZ, isTopicId, removeTopicMessage } from './loadcurrenttopic.js';
+import { STACK_MAX, activeStack, addTopicMessage, adminsFromMemo, appIconConfigMessage, autoplayConfigMessage, cleanTopicIds, commentPinConfigMessage, pinStacksConfigMessage, currentPinnedStacks, currentAppIcon, currentAutoplayNft, currentCommentPinNfts, currentTopicBio, currentTopicName, currentInitialXYZ, isTopicId, removeTopicMessage } from './loadcurrenttopic.js';
 import { parsePinInput, validatePinTokens } from './commentpin.js';
 import { readUniqueNft, rememberTopicAutoplay } from './coverautoplay.js';
 import { isOwnR2Image } from './r2public.js';
@@ -228,16 +228,73 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
    fillGrownField("input-field-topic-name", name);
  });
 
+ // An admin's Current topics: a box per stacked topic to pin it (at most
+ // STACK_MAX), and Save pins sends them to the topic that was loaded.
+ let stackPinTopic = "";
+ const stackPinSave = document.getElementById("stack-pin-save");
+
+ function syncStackPins(box) {
+   const ticks = [...box.querySelectorAll(".stack-pin-row > input")];
+   const full = ticks.filter((tick) => tick.checked).length >= STACK_MAX;
+   for (const tick of ticks) tick.disabled = full && !tick.checked;
+ }
+
+ function showStackPins(box, all, pinned) {
+   box.textContent = "";
+   for (const id of all) {
+     const row = document.createElement("label");
+     row.className = "stack-pin-row";
+     const tick = document.createElement("input");
+     tick.type = "checkbox";
+     tick.value = id;
+     tick.checked = pinned.includes(id);
+     tick.addEventListener("change", () => syncStackPins(box));
+     // A locked box lets the tap through to the row, which says why.
+     row.addEventListener("click", (event) => {
+       event.stopPropagation();
+       if (tick.disabled && event.target !== tick) toast.info(`Up to ${STACK_MAX} pins`);
+     });
+     const text = document.createElement("span");
+     text.textContent = id;
+     row.append(tick, text);
+     box.appendChild(row);
+   }
+   syncStackPins(box);
+ }
+
  document.getElementById("load-stack-for-topic").addEventListener("click", async () => {
+   stackPinTopic = "";
+   if (stackPinSave) stackPinSave.hidden = true;
    const loaded = await loadTopicRecord("stack-topic-ids-topic", "loaded-stack-for-topic", "topics");
    if (!loaded) return;
    // The whole stack, newest adds first. A long id list stays in the box;
    // the add/remove field only receives a short one.
    const all = activeStack(loaded.messages, loaded.topicAdmin, loaded.topicId);
    loaded.box.textContent = all.length ? all.join("\n") : "No stacked topics.";
+   if (all.length && connectedAccount && loaded.topicAdmin.includes(connectedAccount)) {
+     showStackPins(loaded.box, all, currentPinnedStacks(loaded.messages, loaded.topicAdmin, loaded.topicId) || []);
+     stackPinTopic = loaded.topicId;
+     if (stackPinSave) stackPinSave.hidden = false;
+   }
    adjustTextareaHeight(loaded.box);
    const fieldIds = all.length <= STACK_MAX ? all : [];
    fillGrownField("stack-topic-add-remove-topic", fieldIds.join(","));
+ });
+
+ if (stackPinSave) stackPinSave.addEventListener("click", async (event) => {
+   event.stopPropagation();
+   const box = document.getElementById("loaded-stack-for-topic");
+   if (!stackPinTopic || !box || stackPinSave.disabled) return;
+   const ids = [...box.querySelectorAll(".stack-pin-row > input:checked")].map((tick) => tick.value);
+   stackPinSave.disabled = true;
+   try {
+     await sendPinStacksConfig(ids, stackPinTopic);
+   } catch (error) {
+     console.error("Error setting stack pins:", error);
+     toast.error("Edit was not saved");
+   } finally {
+     stackPinSave.disabled = false;
+   }
  });
 
  document.getElementById("load-xyz-for-topic").addEventListener("click", async () => {
@@ -862,12 +919,13 @@ document.getElementById("submit-button-Create_New_Topic").addEventListener("clic
    return true;
  }
 
- async function sendPinStacksConfig(ids) {
+ // target: the topic the STACK panel loaded; without it, the utility field's.
+ async function sendPinStacksConfig(ids, target) {
    if (!signer) {
      toast.error("Connect wallet first");
      return false;
    }
-   const topicId = utilityTopicId();
+   const topicId = target || utilityTopicId();
    if (!topicId) {
      toast.error("Please enter a Topic ID or domain.");
      return false;

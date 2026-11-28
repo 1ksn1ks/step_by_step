@@ -578,6 +578,7 @@
               <button id="sort-topics-za" class="loaded-topics-sort" onclick="event.stopPropagation();">ZA</button>
             </div>
             <div id="loaded-topics-list"></div>
+            <button type="button" id="loaded-topics-reset" class="loaded-topics-reset" hidden>Reset to default</button>
           </div>
       
 
@@ -1442,6 +1443,7 @@
             <li><b>Topic ID/IDs</b> — one or more topic IDs, comma-separated.</li>
             <li><b>Load topics</b> — fills that field with the topics stacked now.</li>
             <li>Every stacked topic stays listed. The newest 8, or the admin’s pins, load by default.</li>
+            <li>Admins can pin up to 8 topics to load first. Users can tick their own 8 in Loaded topics.</li>
             <li><b>Start new month</b> — admins only: creates the month’s topic and stacks it. Every month stays listed, and the newest 8 (or the admin’s pins) load by default.</li>
           </ul>
           <div class="info-overlay-actions">
@@ -1470,6 +1472,7 @@
           onclick="event.stopPropagation();"></div>
           <button id="load-stack-for-topic" class="toolbar-column-btns">Load topics
           </button>
+          <button type="button" id="stack-pin-save" class="stack-pin-save" hidden>Save pins</button>
           </div>
           <div class="mb-card">
           <textarea class="toolbar-column" type="text" id="stack-topic-add-remove-topic" placeholder="Topic ID/IDs 0.0.1,0.0.2.."

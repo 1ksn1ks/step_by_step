@@ -260,6 +260,8 @@ function mapLoad() {
     const restoreLoadedTopics = () => {};
     const adjustTextareaHeight = () => {};
     const renderLoadedTopics = () => log.push(["rows", globalLoadedTopicIdsWithNames.slice()]);
+    const clearStackView = () => {};
+    const setStackView = () => {};
     const getTopicInfo = async (id) => { log.push(["topic", id]); return { memo: "0.0.5,Zagreb" }; };
     const applyMapTopic = (id, key) => log.push(["mapTopic", id, key]);
     const beginMapDraw = () => 1;

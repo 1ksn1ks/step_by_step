@@ -29587,3 +29587,136 @@ html.is-draw-picking .live-filter {
 .stack-month-plan-text {
   color: #fff;
 }
+
+/* Loaded topics: the box at the start of a stacked topic's row (Load
+   fetches the ticked ones, at most 8, and always the open topic), the
+   admin's pin badge, and Reset to default under the list. */
+.loaded-topic-pick {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  vertical-align: middle;
+  margin-right: calc(var(--fu) * 0.4);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.loaded-topic-pick > input {
+  flex: 0 0 auto;
+  width: calc(var(--fu) * 1.6);
+  height: calc(var(--fu) * 1.6);
+  margin: 0;
+  accent-color: #22D3EE;
+  cursor: pointer;
+}
+/* A locked box passes the tap to its wrapper, which says why. */
+.loaded-topic-pick > input:disabled {
+  pointer-events: none;
+  cursor: default;
+}
+.loaded-topic-pin {
+  margin-right: calc(var(--fu) * 0.4);
+  font-size: calc(var(--fu) * 1.2);
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* In the Load page's row grid the box sits over the row's start, the way
+   📋 sits over its middle, and the label starts after it. */
+#feed-chat #load-column.is-feed-shell .loaded-topic-row.has-pick > .loaded-topic-pick {
+  grid-column: 1;
+  grid-row: 1;
+  z-index: 1;
+  justify-self: start;
+  align-self: stretch;
+  width: calc(var(--fu) * 3.6);
+  margin: 0 0 0 calc(var(--fu) * -1.1);
+}
+#feed-chat #load-column.is-feed-shell .loaded-topic-row.has-pick > .loaded-topic-open {
+  padding-left: calc(var(--fu) * 2.9);
+}
+.loaded-topics-reset {
+  align-self: flex-start;
+  flex: 0 0 auto;
+  margin: calc(var(--fu) * 0.6) 0 0;
+  padding: calc(var(--fu) * 0.4) calc(var(--fu) * 0.2);
+  border: 0;
+  background: transparent;
+  color: #22D3EE;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: calc(var(--fu) * 1.35);
+  line-height: 1.3;
+  text-decoration: underline;
+  text-underline-offset: calc(var(--fu) * 0.25);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.loaded-topics-reset[hidden] {
+  display: none !important;
+}
+
+/* 📚 STACK > Current topics, for an admin: a box per stacked topic to pin
+   it (at most 8), and Save pins in the look of Pin top comments' Save:
+   the same --ui-* tokens as its neighbours, an --fu size where unset. */
+.stack-pin-row {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--fu) * 0.8);
+  min-height: var(--ui-row-h, calc(var(--fu) * 4.4));
+  white-space: normal;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.stack-pin-row > input {
+  flex: 0 0 auto;
+  width: calc(var(--fu) * 1.6);
+  height: calc(var(--fu) * 1.6);
+  margin: 0;
+  accent-color: #22D3EE;
+  cursor: pointer;
+}
+.stack-pin-row > input:disabled {
+  pointer-events: none;
+  cursor: default;
+}
+.stack-pin-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.stack-pin-save {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: var(--ui-btn-h, calc(var(--fu) * 4.4));
+  margin: 0;
+  padding: 0 var(--ui-pad-x, calc(var(--fu) * 1.5));
+  border: 0;
+  border-radius: var(--ui-radius, calc(var(--fu) * 1.25));
+  background: #22D3EE;
+  box-shadow: 0 0 calc(var(--fu) * 1.7) rgba(34, 211, 238, 0.45);
+  color: #0a0a12;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--ui-label, calc(var(--fu) * 1.8));
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.stack-pin-save:active {
+  transform: scale(0.97);
+}
+.stack-pin-save:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.stack-pin-save[hidden] {
+  display: none !important;
+}
