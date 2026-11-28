@@ -394,7 +394,15 @@ function place(anchor) {
   const r = anchor.getBoundingClientRect();
   const gap = 10;
   const edge = 12;
-  const width = Math.min(340, vw - edge * 2);
+  // As wide as the widest row made on open needs to show its two lines
+  // uncut (max-content: every item at full width, with the rows' and the
+  // list's padding and the picture), from 340px up to the screen. Past
+  // that the rows cut as before; the account ID never. Measured once per
+  // open, so a search does not move the panel. offsetWidth: the opening
+  // animation's scale does not count.
+  panel.style.width = 'max-content';
+  const natural = panel.offsetWidth + 1;
+  const width = Math.min(Math.max(natural, 340), vw - edge * 2);
   const cx = r.left + r.width / 2;
   const left = Math.min(Math.max(cx - width / 2, edge), vw - width - edge);
   const below = vh - r.bottom - gap - edge;
